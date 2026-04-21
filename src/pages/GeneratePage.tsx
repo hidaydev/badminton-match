@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useStore, type Player } from '../store'
+import { useStore, type Player, timeToMinutes } from '../store'
 import { generate, type GeneratorResult } from '../generator'
 
 function SummaryModal({
@@ -281,7 +281,10 @@ export default function GeneratePage() {
       return
     }
     try {
-      const r = generate(players, session.slotsPerCourt, fixMatches, session.courtOffsets)
+      const courtOffsets = session.courtTimes.map((ct) =>
+        Math.floor((timeToMinutes(ct.start) - timeToMinutes(session.sessionStart)) / session.slotMinutes)
+      )
+      const r = generate(players, session.slotsPerCourt, fixMatches, courtOffsets)
       setResult(r)
       setStoreResult(r)
     } catch (e) {
