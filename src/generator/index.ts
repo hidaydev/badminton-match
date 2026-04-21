@@ -215,18 +215,46 @@ export function generate(
   }
   const fixPlayCount: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]))
 
+  // Spread fix matches with the same players evenly across slots
+  const fixGroups = new Map<string, FixMatch[]>()
+  for (const fm of sorted) {
+    const key = fm.slots.filter(Boolean).sort().join('|')
+    if (!fixGroups.has(key)) fixGroups.set(key, [])
+    fixGroups.get(key)!.push(fm)
+  }
+  const targetSlot = new Map<string, number>()
+  for (const group of fixGroups.values()) {
+    group.forEach((fm, i) => {
+      targetSlot.set(fm.id, Math.round((i / group.length) * maxSlots))
+    })
+  }
+
   // ── Place fix matches ────────────────────────────────────────────────────────
   for (const fm of sorted) {
     const specifiedCount = fm.slots.filter(Boolean).length
     if (specifiedCount === 0) continue
 
+    const target = targetSlot.get(fm.id) ?? 0
+    const specifiedPlayers = fm.slots.filter(Boolean)
+    const isBackToBack = (t: number) =>
+      [t - 1, t + 1].some((adj) => {
+        if (adj < 0 || adj >= maxSlots) return false
+        const used = getUsedAtT(grid, adj, slotsPerCourt)
+        return specifiedPlayers.some((p) => used.has(p))
+      })
+    const slotOrder = Array.from({ length: maxSlots }, (_, t) => t)
+      .sort((a, b) =>
+        (isBackToBack(a) ? 1 : 0) - (isBackToBack(b) ? 1 : 0) ||
+        Math.abs(a - target) - Math.abs(b - target) ||
+        a - b
+      )
+
     let placed = false
-    outer: for (let t = 0; t < maxSlots && !placed; t++) {
+    outer: for (const t of slotOrder) {
       for (let c = 0; c < numCourts && !placed; c++) {
         if (t >= slotsPerCourt[c] || grid[c][t] !== null) continue
 
         const usedAtT = getUsedAtT(grid, t, slotsPerCourt)
-        const specifiedPlayers = fm.slots.filter(Boolean)
 
         if (specifiedPlayers.some((p) => usedAtT.has(p))) continue
 
