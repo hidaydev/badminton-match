@@ -240,9 +240,9 @@ export default function ConstraintsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-1">Constraints</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Constraints</h2>
           <p className="text-slate-400 text-sm">Define fixed matches. Leave slots as "Any" for open partners or opponents.</p>
         </div>
         {fixMatches.length > 0 && (

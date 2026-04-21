@@ -469,30 +469,30 @@ export default function GeneratePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-1">Generate Schedule</h2>
-          <p className="text-slate-400 text-sm">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Generate Schedule</h2>
+          <p className="text-slate-400 text-xs sm:text-sm">
             {players.length} players · {session.totalGames} games · {session.courts} court{session.courts > 1 ? 's' : ''}
           </p>
         </div>
         {result && (
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 shrink-0">
             <button
               onClick={() => setShowSummary(true)}
-              className="text-xs text-indigo-300 hover:text-white px-3 py-1.5 rounded-lg bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 transition-colors"
+              className="text-xs text-indigo-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 transition-colors whitespace-nowrap"
             >
               Summary
             </button>
             <button
               onClick={handleGenerate}
-              className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
+              className="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors whitespace-nowrap"
             >
               Regenerate
             </button>
             <button
               onClick={handleRetryUntilGood}
-              className="text-xs text-emerald-400 hover:text-emerald-200 px-3 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors"
+              className="text-xs text-emerald-400 hover:text-emerald-200 px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
             >
               ↺ Until good
             </button>
