@@ -201,7 +201,7 @@ export default function SetupPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="text-2xl font-bold text-white mb-1">Session Setup</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Session Setup</h2>
         <p className="text-slate-400 text-sm">Configure courts and time slots. Settings lock once session starts.</p>
       </div>
 

@@ -61,7 +61,7 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
   }
 
   return (
-    <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl px-3 py-2 group transition-colors">
+    <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl px-2.5 py-2 group transition-colors">
       {/* Avatar */}
       <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
         {player.name[0].toUpperCase()}
@@ -284,9 +284,9 @@ export default function PlayersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-1">Players</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Players</h2>
           <p className="text-slate-400 text-sm">Click name to rename · Click badge to toggle gender/tier.</p>
         </div>
         <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${
