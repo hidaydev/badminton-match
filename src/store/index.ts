@@ -20,18 +20,25 @@ export interface FixMatch {
 }
 
 export interface ScheduleSlot {
-  slot: number   // time slot index (0-based)
-  court: number  // court index (0-based)
+  slot: number   // absolute time slot index
+  court: number
   teamA: [string, string]
   teamB: [string, string]
 }
 
+export interface CourtTime {
+  start: string  // "09:00"
+  end: string    // "11:00"
+}
+
 export interface SessionConfig {
   courts: number
-  slotsPerCourt: number[]
-  courtOffsets: number[]
+  sessionStart: string    // "09:00"
+  slotMinutes: number     // minutes per game slot
+  courtTimes: CourtTime[]
   playerCount: number
-  totalGames: number
+  slotsPerCourt: number[] // derived
+  totalGames: number      // derived
   locked: boolean
 }
 
@@ -43,8 +50,9 @@ interface AppState {
   lastResult: GeneratorResult | null
 
   setCourts: (n: number) => void
-  setCourtSlots: (courtIndex: number, slots: number) => void
-  setCourtOffset: (courtIndex: number, offset: number) => void
+  setSessionStart: (time: string) => void
+  setSlotMinutes: (min: number) => void
+  setCourtTime: (index: number, start: string, end: string) => void
   setPlayerCount: (n: number) => void
   lockSession: () => void
   resetSession: () => void
@@ -62,14 +70,35 @@ interface AppState {
   setResult: (r: GeneratorResult) => void
 }
 
-const DEFAULT_SLOTS = 6
+export function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + (m || 0)
+}
+
+export function minutesToTime(m: number): string {
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+}
+
+function derivedFromCourtTimes(courtTimes: CourtTime[], slotMinutes: number) {
+  const slotsPerCourt = courtTimes.map((ct) =>
+    Math.max(0, Math.floor((timeToMinutes(ct.end) - timeToMinutes(ct.start)) / slotMinutes))
+  )
+  return { slotsPerCourt, totalGames: slotsPerCourt.reduce((a, b) => a + b, 0) }
+}
+
+const DEFAULT_SLOT_MINUTES = 20
+const DEFAULT_COURT_TIMES: CourtTime[] = [
+  { start: '09:00', end: '11:00' },
+  { start: '09:00', end: '11:00' },
+]
 
 const defaultSession: SessionConfig = {
   courts: 2,
-  slotsPerCourt: [DEFAULT_SLOTS, DEFAULT_SLOTS],
-  courtOffsets: [0, 0],
+  sessionStart: '09:00',
+  slotMinutes: DEFAULT_SLOT_MINUTES,
+  courtTimes: DEFAULT_COURT_TIMES,
   playerCount: 8,
-  totalGames: DEFAULT_SLOTS * 2,
+  ...derivedFromCourtTimes(DEFAULT_COURT_TIMES, DEFAULT_SLOT_MINUTES),
   locked: false,
 }
 
@@ -87,39 +116,56 @@ export const useStore = create<AppState>()(
 
       setCourts: (n) =>
         set((s) => {
-          const prev = s.session.slotsPerCourt
-          const prevOffsets = s.session.courtOffsets
-          const next = Array.from({ length: n }, (_, i) => prev[i] ?? DEFAULT_SLOTS)
-          const nextOffsets = Array.from({ length: n }, (_, i) => prevOffsets[i] ?? 0)
+          const prev = s.session.courtTimes
+          const courtTimes = Array.from({ length: n }, (_, i) => prev[i] ?? { start: s.session.sessionStart, end: '11:00' })
           return {
             session: {
               ...s.session,
               courts: n,
-              slotsPerCourt: next,
-              courtOffsets: nextOffsets,
-              totalGames: next.reduce((a, b) => a + b, 0),
+              courtTimes,
+              ...derivedFromCourtTimes(courtTimes, s.session.slotMinutes),
             },
           }
         }),
 
-      setCourtSlots: (courtIndex, slots) =>
+      setSessionStart: (time) =>
         set((s) => {
-          const next = [...s.session.slotsPerCourt]
-          next[courtIndex] = slots
+          const courtTimes = s.session.courtTimes.map((ct) => ({
+            start: timeToMinutes(ct.start) < timeToMinutes(time) ? time : ct.start,
+            end: timeToMinutes(ct.end) <= timeToMinutes(time)
+              ? minutesToTime(timeToMinutes(time) + s.session.slotMinutes)
+              : ct.end,
+          }))
           return {
             session: {
               ...s.session,
-              slotsPerCourt: next,
-              totalGames: next.reduce((a, b) => a + b, 0),
+              sessionStart: time,
+              courtTimes,
+              ...derivedFromCourtTimes(courtTimes, s.session.slotMinutes),
             },
           }
         }),
 
-      setCourtOffset: (courtIndex, offset) =>
+      setSlotMinutes: (min) =>
+        set((s) => ({
+          session: {
+            ...s.session,
+            slotMinutes: min,
+            ...derivedFromCourtTimes(s.session.courtTimes, min),
+          },
+        })),
+
+      setCourtTime: (index, start, end) =>
         set((s) => {
-          const next = [...s.session.courtOffsets]
-          next[courtIndex] = offset
-          return { session: { ...s.session, courtOffsets: next } }
+          const courtTimes = [...s.session.courtTimes]
+          courtTimes[index] = { start, end }
+          return {
+            session: {
+              ...s.session,
+              courtTimes,
+              ...derivedFromCourtTimes(courtTimes, s.session.slotMinutes),
+            },
+          }
         }),
 
       setPlayerCount: (n) =>
@@ -129,17 +175,14 @@ export const useStore = create<AppState>()(
         set((s) => ({ session: { ...s.session, locked: true } })),
 
       resetSession: () =>
-        set({ session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null  }),
+        set({ session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null }),
 
       addPlayer: (p) =>
         set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
 
       addPlayers: (newPlayers) =>
         set((s) => ({
-          players: [
-            ...s.players,
-            ...newPlayers.map((p) => ({ ...p, id: nanoid() })),
-          ],
+          players: [...s.players, ...newPlayers.map((p) => ({ ...p, id: nanoid() }))],
           schedule: [], lastResult: null,
         })),
 
@@ -185,7 +228,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'badminton-store',
-      version: 4,
+      version: 6,
       migrate: () => ({
         session: defaultSession,
         players: [],
