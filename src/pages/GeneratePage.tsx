@@ -259,7 +259,7 @@ function ScheduleView({
 
 // ── Quality analysis ──────────────────────────────────────────────────────────
 
-function useScheduleQuality(result: GeneratorResult, playerMap: Map<string, Player>, fixMatches: import('../store').FixMatch[]) {
+function computeQuality(result: GeneratorResult, playerMap: Map<string, Player>, fixMatches: import('../store').FixMatch[]) {
   const players = [...playerMap.values()]
   if (players.length === 0 || result.schedule.length === 0) return null
 
@@ -317,13 +317,14 @@ function useScheduleQuality(result: GeneratorResult, playerMap: Map<string, Play
   return { playSpread: maxPlays - minPlays, minPlays, maxPlays, unevenGames, backToBackCount, repeatedPairs, excludedPairs, totalGames: result.schedule.length }
 }
 
-function QualityBanner({ result, playerMap, fixMatches, onRegenerate }: {
+function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood, retryInfo }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
   fixMatches: import('../store').FixMatch[]
-  onRegenerate: () => void
+  onRetryUntilGood: () => void
+  retryInfo: { attempts: number; perfect: boolean } | null
 }) {
-  const q = useScheduleQuality(result, playerMap, fixMatches)
+  const q = computeQuality(result, playerMap, fixMatches)
   if (!q) return null
 
   type Level = 'ok' | 'warn' | 'bad'
@@ -355,15 +356,22 @@ function QualityBanner({ result, playerMap, fixMatches, onRegenerate }: {
       hasBad ? 'bg-red-900/20 border-red-800' : hasWarn ? 'bg-amber-900/20 border-amber-800' : 'bg-emerald-900/20 border-emerald-800'
     }`}>
       <div className="flex items-center justify-between">
-        <span className={`text-sm font-semibold ${hasBad ? 'text-red-400' : hasWarn ? 'text-amber-400' : 'text-emerald-400'}`}>
-          {hasBad ? '⚠ Consider regenerating' : hasWarn ? '~ Could be better' : '✓ Good schedule'}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-sm font-semibold ${hasBad ? 'text-red-400' : hasWarn ? 'text-amber-400' : 'text-emerald-400'}`}>
+            {hasBad ? '⚠ Consider regenerating' : hasWarn ? '~ Could be better' : '✓ Good schedule'}
+          </span>
+          {retryInfo && (
+            <span className="text-[11px] text-slate-500">
+              {retryInfo.perfect ? `· found in ${retryInfo.attempts} attempt${retryInfo.attempts > 1 ? 's' : ''}` : `· best of ${retryInfo.attempts} attempts`}
+            </span>
+          )}
+        </div>
         {(hasBad || hasWarn) && (
           <button
-            onClick={onRegenerate}
-            className="text-xs px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+            onClick={onRetryUntilGood}
+            className="text-xs px-2.5 py-1 rounded-lg bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-400 hover:text-emerald-200 transition-colors"
           >
-            Try again
+            ↺ Retry until good
           </button>
         )}
       </div>
@@ -393,26 +401,67 @@ export default function GeneratePage() {
   const [result, setResult] = useState<GeneratorResult | null>(storeResult)
   const [error, setError] = useState<string | null>(null)
   const [showSummary, setShowSummary] = useState(false)
+  const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
 
   const playerMap = new Map(players.map((p) => [p.id, p]))
 
+  function buildOffsets() {
+    return session.courtTimes.map((ct) =>
+      Math.floor((timeToMinutes(ct.start) - timeToMinutes(session.sessionStart)) / session.slotMinutes)
+    )
+  }
+
+  function validatePlayers() {
+    if (players.length < 4) return 'Need at least 4 players.'
+    if (players.length < session.slotsPerCourt.length * 4)
+      return `Need at least ${session.slotsPerCourt.length * 4} players for ${session.slotsPerCourt.length} courts.`
+    return null
+  }
+
+  function qualityScore(r: GeneratorResult) {
+    const q = computeQuality(r, playerMap, fixMatches)
+    if (!q) return Infinity
+    return q.playSpread * 10 + q.unevenGames * 2 + q.repeatedPairs * 3
+  }
+
+  function isGood(r: GeneratorResult) {
+    const q = computeQuality(r, playerMap, fixMatches)
+    if (!q) return false
+    return q.playSpread <= 1 && q.unevenGames === 0 && q.repeatedPairs === 0
+  }
+
   function handleGenerate() {
     setError(null)
-    if (players.length < 4) {
-      setError('Need at least 4 players.')
-      return
-    }
-    if (players.length < session.slotsPerCourt.length * 4) {
-      setError(`Need at least ${session.slotsPerCourt.length * 4} players for ${session.slotsPerCourt.length} courts.`)
-      return
-    }
+    setRetryInfo(null)
+    const err = validatePlayers()
+    if (err) { setError(err); return }
     try {
-      const courtOffsets = session.courtTimes.map((ct) =>
-        Math.floor((timeToMinutes(ct.start) - timeToMinutes(session.sessionStart)) / session.slotMinutes)
-      )
-      const r = generate(players, session.slotsPerCourt, fixMatches, courtOffsets)
+      const r = generate(players, session.slotsPerCourt, fixMatches, buildOffsets())
       setResult(r)
       setStoreResult(r)
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  function handleRetryUntilGood() {
+    setError(null)
+    const err = validatePlayers()
+    if (err) { setError(err); return }
+    try {
+      const offsets = buildOffsets()
+      let best = generate(players, session.slotsPerCourt, fixMatches, offsets)
+      let attempts = 1
+      const MAX = 30
+      while (attempts < MAX && !isGood(best)) {
+        const candidate = generate(players, session.slotsPerCourt, fixMatches, offsets)
+        if (qualityScore(candidate) < qualityScore(best)) best = candidate
+        attempts++
+        if (isGood(best)) break
+      }
+      setResult(best)
+      setStoreResult(best)
+      setRetryInfo({ attempts, perfect: isGood(best) })
     } catch (e) {
       setError(String(e))
     }
@@ -440,6 +489,12 @@ export default function GeneratePage() {
               className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
             >
               Regenerate
+            </button>
+            <button
+              onClick={handleRetryUntilGood}
+              className="text-xs text-emerald-400 hover:text-emerald-200 px-3 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors"
+            >
+              ↺ Until good
             </button>
           </div>
         )}
@@ -469,7 +524,9 @@ export default function GeneratePage() {
       )}
 
       {result && (
-        <QualityBanner result={result} playerMap={playerMap} fixMatches={fixMatches} onRegenerate={handleGenerate} />
+        <>
+          <QualityBanner result={result} playerMap={playerMap} fixMatches={fixMatches} onRetryUntilGood={handleRetryUntilGood} retryInfo={retryInfo} />
+        </>
       )}
 
       {!result ? (
