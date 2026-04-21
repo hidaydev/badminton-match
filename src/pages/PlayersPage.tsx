@@ -32,13 +32,6 @@ function TierBadge({ tier }: { tier: Tier }) {
   )
 }
 
-function _GenderBadge({ gender }: { gender: Gender }) {
-  return (
-    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${gender === 'M' ? 'bg-blue-900/50 text-blue-300' : 'bg-pink-900/50 text-pink-300'}`}>
-      {gender}
-    </span>
-  )
-}
 
 // ── Inline editable row ───────────────────────────────────────────────────────
 function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void }) {
