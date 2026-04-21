@@ -124,6 +124,7 @@ function FixMatchCard({
 interface ValidationResult {
   hasErrors: boolean
   tooManyTotal: boolean
+  effectiveSlotsNeeded: number
   overloadedPlayers: { player: Player; count: number; max: number }[]
 }
 
@@ -140,7 +141,11 @@ function useValidation(players: Player[], matches: FixMatch[]): ValidationResult
     }
   }
 
-  const tooManyTotal = matches.length > session.totalGames
+  // Pairable matches (A-side only) can be merged in pairs → each pair uses 1 slot
+  const pairableCount = matches.filter(m => !!(m.slots[0] && m.slots[1] && !m.slots[2] && !m.slots[3])).length
+  const nonPairableCount = matches.length - pairableCount
+  const effectiveSlotsNeeded = Math.ceil(pairableCount / 2) + nonPairableCount
+  const tooManyTotal = effectiveSlotsNeeded > session.totalGames
   const overloadedPlayers = players
     .map((p) => ({ player: p, count: counts[p.id] ?? 0, max: expectedPlays }))
     .filter(({ count, max }) => count > max)
@@ -148,13 +153,14 @@ function useValidation(players: Player[], matches: FixMatch[]): ValidationResult
   return {
     hasErrors: tooManyTotal || overloadedPlayers.length > 0,
     tooManyTotal,
+    effectiveSlotsNeeded,
     overloadedPlayers,
   }
 }
 
 function ValidationPanel({ players, matches }: { players: Player[]; matches: FixMatch[] }) {
   const session = useStore((s) => s.session)
-  const { tooManyTotal, overloadedPlayers } = useValidation(players, matches)
+  const { tooManyTotal, effectiveSlotsNeeded, overloadedPlayers } = useValidation(players, matches)
   const expectedPlays = players.length > 0
     ? Math.round((session.totalGames * PLAYERS_PER_GAME) / players.length)
     : 0
@@ -175,7 +181,7 @@ function ValidationPanel({ players, matches }: { players: Player[]; matches: Fix
         <div className="flex items-start gap-2 p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm">
           <span>⚠</span>
           <span>
-            {matches.length} fix matches but only {session.totalGames} total game slots — {matches.length - session.totalGames} can't be placed.
+            {effectiveSlotsNeeded} game slots needed for fix matches but only {session.totalGames} available — {effectiveSlotsNeeded - session.totalGames} can't be placed.
           </span>
         </div>
       )}

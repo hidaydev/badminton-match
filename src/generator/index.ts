@@ -93,10 +93,11 @@ function bestGrouping(players: string[], courts: number, s: State, tierMap: Reco
 
 type Game = { teamA: [string, string]; teamB: [string, string] }
 
-function getUsedAtT(grid: (Game | null)[][], t: number, slotsPerCourt: number[]): Set<string> {
+function getUsedAtT(grid: (Game | null)[][], t: number, slotsPerCourt: number[], courtOffsets: number[] = []): Set<string> {
   const used = new Set<string>()
   for (let c = 0; c < slotsPerCourt.length; c++) {
-    if (t < slotsPerCourt[c] && grid[c][t]) {
+    const offset = courtOffsets[c] ?? 0
+    if (t >= offset && t < offset + slotsPerCourt[c] && grid[c][t]) {
       grid[c][t]!.teamA.forEach((p) => used.add(p))
       grid[c][t]!.teamB.forEach((p) => used.add(p))
     }
@@ -193,14 +194,15 @@ export interface GeneratorResult {
 export function generate(
   players: Player[],
   slotsPerCourt: number[],
-  fixMatches: FixMatch[]
+  fixMatches: FixMatch[],
+  courtOffsets: number[] = []
 ): GeneratorResult {
   const ids = players.map((p) => p.id)
   const tierMap: Record<string, number> = Object.fromEntries(players.map((p) => [p.id, p.tier]))
   const numCourts = slotsPerCourt.length
-  const maxSlots = Math.max(...slotsPerCourt)
+  const maxSlots = Math.max(...slotsPerCourt.map((n, c) => (courtOffsets[c] ?? 0) + n))
   const state = initState(ids)
-  const grid: (Game | null)[][] = slotsPerCourt.map((n) => Array(n).fill(null))
+  const grid: (Game | null)[][] = slotsPerCourt.map(() => Array(maxSlots).fill(null))
   const unplacedFixMatches: string[] = []
 
   // Sort fix matches: most specified first (full matches placed before partial)
@@ -215,9 +217,45 @@ export function generate(
   }
   const fixPlayCount: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]))
 
+  // ── Merge pairable fix matches (A-side only) into single games ───────────────
+  // Two "A1+A2 vs open" matches can share one slot: one pair becomes Team A, the other Team B
+  const isPairable = (fm: FixMatch) => !!(fm.slots[0] && fm.slots[1] && !fm.slots[2] && !fm.slots[3])
+  const mergedSourceIds = new Map<string, [string, string]>()
+  const usedInMerge = new Set<string>()
+  const effectiveFixes: FixMatch[] = []
+
+  const pairableSorted = shuffle(sorted.filter(isPairable))
+  for (const fm of pairableSorted) {
+    if (usedInMerge.has(fm.id)) continue
+    let bestPartner: FixMatch | null = null
+    let bestTierDiff = Infinity
+    for (const other of shuffle(pairableSorted)) {
+      if (usedInMerge.has(other.id) || other.id === fm.id) continue
+      if (fm.slots[0] === other.slots[0] || fm.slots[0] === other.slots[1] ||
+          fm.slots[1] === other.slots[0] || fm.slots[1] === other.slots[1]) continue
+      const diff = Math.abs(
+        (tierMap[fm.slots[0]] ?? 2) + (tierMap[fm.slots[1]] ?? 2) -
+        (tierMap[other.slots[0]] ?? 2) - (tierMap[other.slots[1]] ?? 2)
+      )
+      if (diff < bestTierDiff) { bestTierDiff = diff; bestPartner = other }
+    }
+    if (bestPartner) {
+      const mergedId = `__merged_${fm.id}_${bestPartner.id}`
+      effectiveFixes.push({ id: mergedId, slots: [fm.slots[0], fm.slots[1], bestPartner.slots[0], bestPartner.slots[1]] })
+      mergedSourceIds.set(mergedId, [fm.id, bestPartner.id])
+      usedInMerge.add(fm.id)
+      usedInMerge.add(bestPartner.id)
+    }
+  }
+  // Add non-pairable and unmerged fix matches
+  for (const fm of sorted) {
+    if (!usedInMerge.has(fm.id)) effectiveFixes.push(fm)
+  }
+  effectiveFixes.sort((a, b) => b.slots.filter(Boolean).length - a.slots.filter(Boolean).length)
+
   // Spread fix matches with the same players evenly across slots
   const fixGroups = new Map<string, FixMatch[]>()
-  for (const fm of sorted) {
+  for (const fm of effectiveFixes) {
     const key = fm.slots.filter(Boolean).sort().join('|')
     if (!fixGroups.has(key)) fixGroups.set(key, [])
     fixGroups.get(key)!.push(fm)
@@ -230,7 +268,7 @@ export function generate(
   }
 
   // ── Place fix matches ────────────────────────────────────────────────────────
-  for (const fm of sorted) {
+  for (const fm of effectiveFixes) {
     const specifiedCount = fm.slots.filter(Boolean).length
     if (specifiedCount === 0) continue
 
@@ -239,7 +277,7 @@ export function generate(
     const isBackToBack = (t: number) =>
       [t - 1, t + 1].some((adj) => {
         if (adj < 0 || adj >= maxSlots) return false
-        const used = getUsedAtT(grid, adj, slotsPerCourt)
+        const used = getUsedAtT(grid, adj, slotsPerCourt, courtOffsets)
         return specifiedPlayers.some((p) => used.has(p))
       })
     const slotOrder = Array.from({ length: maxSlots }, (_, t) => t)
@@ -252,9 +290,10 @@ export function generate(
     let placed = false
     outer: for (const t of slotOrder) {
       for (let c = 0; c < numCourts && !placed; c++) {
-        if (t >= slotsPerCourt[c] || grid[c][t] !== null) continue
+        const offset = courtOffsets[c] ?? 0
+        if (t < offset || t >= offset + slotsPerCourt[c] || grid[c][t] !== null) continue
 
-        const usedAtT = getUsedAtT(grid, t, slotsPerCourt)
+        const usedAtT = getUsedAtT(grid, t, slotsPerCourt, courtOffsets)
 
         if (specifiedPlayers.some((p) => usedAtT.has(p))) continue
 
@@ -271,16 +310,23 @@ export function generate(
       }
     }
 
-    if (!placed) unplacedFixMatches.push(fm.id)
+    if (!placed) {
+      const sourceIds = mergedSourceIds.get(fm.id)
+      if (sourceIds) unplacedFixMatches.push(...sourceIds)
+      else unplacedFixMatches.push(fm.id)
+    }
   }
 
   // ── Fill remaining slots greedily ────────────────────────────────────────────
   for (let t = 0; t < maxSlots; t++) {
-    const activeCourts = slotsPerCourt.map((n, c) => (t < n ? c : -1)).filter((c) => c >= 0)
+    const activeCourts = slotsPerCourt.map((n, c) => {
+      const offset = courtOffsets[c] ?? 0
+      return (t >= offset && t < offset + n) ? c : -1
+    }).filter((c) => c >= 0)
     const unfilledCourts = activeCourts.filter((c) => grid[c][t] === null)
     if (unfilledCourts.length === 0) continue
 
-    const usedAtT = getUsedAtT(grid, t, slotsPerCourt)
+    const usedAtT = getUsedAtT(grid, t, slotsPerCourt, courtOffsets)
     const available = ids.filter((id) => !usedAtT.has(id))
     const need = unfilledCourts.length * 4
 
@@ -293,8 +339,9 @@ export function generate(
     if (available.length < need) continue
 
     const projected = (id: string) => state.playCount[id] + (totalFixCommitments[id] - fixPlayCount[id])
+    const playedLastSlot = (id: string) => t > 0 ? getUsedAtT(grid, t - 1, slotsPerCourt, courtOffsets).has(id) : false
     const sortedAvail = [...available].sort(
-      (a, b) => projected(a) - projected(b) || state.sitCount[b] - state.sitCount[a] || Math.random() - 0.5
+      (a, b) => projected(a) - projected(b) || (playedLastSlot(a) ? 1 : 0) - (playedLastSlot(b) ? 1 : 0) || state.sitCount[b] - state.sitCount[a] || Math.random() - 0.5
     )
 
     const playing = sortedAvail.slice(0, need)
@@ -313,7 +360,8 @@ export function generate(
   // ── Flatten to ScheduleSlot[] ────────────────────────────────────────────────
   const schedule: ScheduleSlot[] = []
   for (let c = 0; c < numCourts; c++) {
-    for (let t = 0; t < slotsPerCourt[c]; t++) {
+    const offset = courtOffsets[c] ?? 0
+    for (let t = offset; t < offset + slotsPerCourt[c]; t++) {
       if (grid[c][t]) {
         const g = grid[c][t]!
         schedule.push({ slot: t, court: c, teamA: g.teamA, teamB: g.teamB })

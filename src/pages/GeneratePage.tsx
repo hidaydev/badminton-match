@@ -281,7 +281,7 @@ export default function GeneratePage() {
       return
     }
     try {
-      const r = generate(players, session.slotsPerCourt, fixMatches)
+      const r = generate(players, session.slotsPerCourt, fixMatches, session.courtOffsets)
       setResult(r)
       setStoreResult(r)
     } catch (e) {

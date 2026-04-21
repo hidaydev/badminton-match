@@ -29,6 +29,7 @@ export interface ScheduleSlot {
 export interface SessionConfig {
   courts: number
   slotsPerCourt: number[]
+  courtOffsets: number[]
   playerCount: number
   totalGames: number
   locked: boolean
@@ -43,6 +44,7 @@ interface AppState {
 
   setCourts: (n: number) => void
   setCourtSlots: (courtIndex: number, slots: number) => void
+  setCourtOffset: (courtIndex: number, offset: number) => void
   setPlayerCount: (n: number) => void
   lockSession: () => void
   resetSession: () => void
@@ -65,6 +67,7 @@ const DEFAULT_SLOTS = 6
 const defaultSession: SessionConfig = {
   courts: 2,
   slotsPerCourt: [DEFAULT_SLOTS, DEFAULT_SLOTS],
+  courtOffsets: [0, 0],
   playerCount: 8,
   totalGames: DEFAULT_SLOTS * 2,
   locked: false,
@@ -85,12 +88,15 @@ export const useStore = create<AppState>()(
       setCourts: (n) =>
         set((s) => {
           const prev = s.session.slotsPerCourt
+          const prevOffsets = s.session.courtOffsets
           const next = Array.from({ length: n }, (_, i) => prev[i] ?? DEFAULT_SLOTS)
+          const nextOffsets = Array.from({ length: n }, (_, i) => prevOffsets[i] ?? 0)
           return {
             session: {
               ...s.session,
               courts: n,
               slotsPerCourt: next,
+              courtOffsets: nextOffsets,
               totalGames: next.reduce((a, b) => a + b, 0),
             },
           }
@@ -107,6 +113,13 @@ export const useStore = create<AppState>()(
               totalGames: next.reduce((a, b) => a + b, 0),
             },
           }
+        }),
+
+      setCourtOffset: (courtIndex, offset) =>
+        set((s) => {
+          const next = [...s.session.courtOffsets]
+          next[courtIndex] = offset
+          return { session: { ...s.session, courtOffsets: next } }
         }),
 
       setPlayerCount: (n) =>
