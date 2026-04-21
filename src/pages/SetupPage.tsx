@@ -175,6 +175,7 @@ export default function SetupPage() {
     setSessionStart,
     setSlotMinutes,
     setCourtTime,
+    setCourtName,
     setPlayerCount,
     setTierCount,
     lockSession,
@@ -278,7 +279,13 @@ export default function SetupPage() {
               const endOpts = timeOptions(endMin, 23 * 60)
               return (
                 <div key={i} className="flex items-center gap-3 bg-slate-800 rounded-xl px-3 py-2 flex-wrap">
-                  <span className="text-sm text-slate-400 w-14 shrink-0">Court {i + 1}</span>
+                  <input
+                    value={session.courtNames?.[i] ?? ''}
+                    onChange={(e) => setCourtName(i, e.target.value)}
+                    placeholder={`Court ${i + 1}`}
+                    disabled={session.locked}
+                    className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:text-white disabled:cursor-not-allowed"
+                  />
                   <TimeSelect
                     value={ct.start}
                     options={courtStartOpts}

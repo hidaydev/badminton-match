@@ -39,6 +39,7 @@ export interface SessionConfig {
   playerCount: number
   slotsPerCourt: number[] // derived
   totalGames: number      // derived
+  courtNames: string[]
   tierCount: 3 | 4
   locked: boolean
 }
@@ -55,6 +56,7 @@ interface AppState {
   setSlotMinutes: (min: number) => void
   setCourtTime: (index: number, start: string, end: string) => void
   setPlayerCount: (n: number) => void
+  setCourtName: (index: number, name: string) => void
   setTierCount: (n: 3 | 4) => void
   lockSession: () => void
   resetSession: () => void
@@ -101,6 +103,7 @@ const defaultSession: SessionConfig = {
   courtTimes: DEFAULT_COURT_TIMES,
   playerCount: 8,
   ...derivedFromCourtTimes(DEFAULT_COURT_TIMES, DEFAULT_SLOT_MINUTES),
+  courtNames: [],
   tierCount: 3,
   locked: false,
 }
@@ -174,6 +177,13 @@ export const useStore = create<AppState>()(
       setPlayerCount: (n) =>
         set((s) => ({ session: { ...s.session, playerCount: n } })),
 
+      setCourtName: (index, name) =>
+        set((s) => {
+          const courtNames = [...s.session.courtNames]
+          courtNames[index] = name
+          return { session: { ...s.session, courtNames } }
+        }),
+
       setTierCount: (n) =>
         set((s) => ({ session: { ...s.session, tierCount: n } })),
 
@@ -234,7 +244,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'badminton-store',
-      version: 7,
+      version: 8,
       migrate: () => ({
         session: defaultSession,
         players: [],

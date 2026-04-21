@@ -6,11 +6,13 @@ function SummaryModal({
   result,
   playerMap,
   slotsPerCourt,
+  courtNames,
   onClose,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
   slotsPerCourt: number[]
+  courtNames: string[]
   onClose: () => void
 }) {
   const courts = slotsPerCourt.length
@@ -23,9 +25,20 @@ function SummaryModal({
     bySlot.set(game.slot, list)
   }
 
-  const name = (id: string) => playerMap.get(id)?.name ?? id
+  const slotPlayerSet = new Map<number, Set<string>>()
+  for (const [t, games] of bySlot) {
+    const set = new Set<string>()
+    for (const g of games) { g.teamA.forEach((id) => set.add(id)); g.teamB.forEach((id) => set.add(id)) }
+    slotPlayerSet.set(t, set)
+  }
+  const isB2B = (id: string, t: number) => !!(slotPlayerSet.get(t - 1)?.has(id) || slotPlayerSet.get(t + 1)?.has(id))
+
+  const name = (id: string, slot: number) => {
+    const n = playerMap.get(id)?.name ?? id
+    return isB2B(id, slot) ? `${n}*` : n
+  }
   const courtLabel = (i: number) =>
-    courts <= 26 ? String.fromCharCode(65 + i) : String(i + 1)
+    courtNames[i] || (courts <= 26 ? String.fromCharCode(65 + i) : String(i + 1))
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 overflow-auto flex flex-col">
@@ -52,16 +65,16 @@ function SummaryModal({
                 </span>
                 <div className="flex flex-col gap-2.5 flex-1">
                   {games.map((g) => (
-                    <div key={g.court} className="grid items-center gap-2" style={{ gridTemplateColumns: '1rem 1fr auto 1fr' }}>
-                      <span className="text-[10px] font-semibold text-slate-600">
+                    <div key={g.court} className="grid items-center gap-2" style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
+                      <span className="text-[10px] font-semibold text-slate-600 whitespace-nowrap">
                         {courtLabel(g.court)}
                       </span>
                       <span className="text-sm font-medium text-white">
-                        {name(g.teamA[0])} &amp; {name(g.teamA[1])}
+                        {name(g.teamA[0], s)} &amp; {name(g.teamA[1], s)}
                       </span>
                       <span className="text-slate-600 text-xs text-center">vs</span>
                       <span className="text-sm font-medium text-white">
-                        {name(g.teamB[0])} &amp; {name(g.teamB[1])}
+                        {name(g.teamB[0], s)} &amp; {name(g.teamB[1], s)}
                       </span>
                     </div>
                   ))}
@@ -118,12 +131,14 @@ function GameCard({
   teamB,
   playerMap,
   backToBackIds,
+  courtName,
 }: {
   court: number
   teamA: [string, string]
   teamB: [string, string]
   playerMap: Map<string, Player>
   backToBackIds?: Set<string>
+  courtName?: string
 }) {
   const getPlayer = (id: string) => playerMap.get(id)
   const tiersA = teamA.map((id) => playerMap.get(id)?.tier ?? 2)
@@ -132,7 +147,7 @@ function GameCard({
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-slate-500 font-medium">Court {court + 1}</span>
+        <span className="text-[10px] text-slate-500 font-medium">{courtName || `Court ${court + 1}`}</span>
         <TierBalance tiersA={tiersA} tiersB={tiersB} />
       </div>
       <div className="flex items-center gap-2">
@@ -158,10 +173,12 @@ function ScheduleView({
   result,
   playerMap,
   slotsPerCourt,
+  courtNames,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
   slotsPerCourt: number[]
+  courtNames: string[]
 }) {
   const maxSlots = Math.max(...slotsPerCourt)
   const players = [...playerMap.values()]
@@ -230,6 +247,7 @@ function ScheduleView({
                     teamB={g.teamB}
                     playerMap={playerMap}
                     backToBackIds={backToBackAt(t)}
+                    courtName={courtNames[g.court]}
                   />
                 ))}
                 {out.length > 0 && (
@@ -601,6 +619,7 @@ export default function GeneratePage() {
           result={result}
           playerMap={playerMap}
           slotsPerCourt={session.slotsPerCourt}
+          courtNames={session.courtNames ?? []}
         />
       )}
 
@@ -609,6 +628,7 @@ export default function GeneratePage() {
           result={result}
           playerMap={playerMap}
           slotsPerCourt={session.slotsPerCourt}
+          courtNames={session.courtNames ?? []}
           onClose={() => setShowSummary(false)}
         />
       )}
