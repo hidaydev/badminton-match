@@ -316,22 +316,30 @@ function computeQuality(result: GeneratorResult, playerMap: Map<string, Player>,
     for (const id of cur) if (nxt.has(id)) backToBackCount++
   }
 
-  // Count how many times each pair is forced by fix matches
+  // Fix-forced partner pairs
   const fixForcedPairs: Record<string, number> = {}
+  // Fix-forced opponent pairs
+  const fixForcedOpponents: Record<string, number> = {}
   for (const fm of fixMatches) {
     const [a1, a2, b1, b2] = fm.slots
     if (a1 && a2) { const k = [a1, a2].sort().join('|'); fixForcedPairs[k] = (fixForcedPairs[k] ?? 0) + 1 }
     if (b1 && b2) { const k = [b1, b2].sort().join('|'); fixForcedPairs[k] = (fixForcedPairs[k] ?? 0) + 1 }
+    for (const a of [a1, a2].filter(Boolean)) {
+      for (const b of [b1, b2].filter(Boolean)) {
+        const k = [a, b].sort().join('|')
+        fixForcedOpponents[k] = (fixForcedOpponents[k] ?? 0) + 1
+      }
+    }
   }
 
   let repeatedPairs = 0
   let excludedPairs = 0
-  const seen = new Set<string>()
+  const seenPairs = new Set<string>()
   for (const [a, partners] of Object.entries(result.partnerWith)) {
     for (const [b, count] of Object.entries(partners)) {
       const key = [a, b].sort().join('|')
-      if (!seen.has(key)) {
-        seen.add(key)
+      if (!seenPairs.has(key)) {
+        seenPairs.add(key)
         const forced = fixForcedPairs[key] ?? 0
         const organic = count - forced
         if (forced > 0) excludedPairs++
@@ -340,7 +348,23 @@ function computeQuality(result: GeneratorResult, playerMap: Map<string, Player>,
     }
   }
 
-  return { playSpread: maxPlays - minPlays, minPlays, maxPlays, unevenGames, backToBackCount, repeatedPairs, excludedPairs, totalGames: result.schedule.length }
+  let repeatedOpponents = 0
+  let excludedOpponents = 0
+  const seenOpponents = new Set<string>()
+  for (const [a, faced] of Object.entries(result.facedBy)) {
+    for (const [b, count] of Object.entries(faced)) {
+      const key = [a, b].sort().join('|')
+      if (!seenOpponents.has(key)) {
+        seenOpponents.add(key)
+        const forced = fixForcedOpponents[key] ?? 0
+        const organic = count - forced
+        if (forced > 0) excludedOpponents++
+        if (organic >= 2) repeatedOpponents++
+      }
+    }
+  }
+
+  return { playSpread: maxPlays - minPlays, minPlays, maxPlays, unevenGames, backToBackCount, repeatedPairs, excludedPairs, repeatedOpponents, excludedOpponents, totalGames: result.schedule.length }
 }
 
 function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood, retryInfo }: {
@@ -365,12 +389,16 @@ function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood, retryI
       ? { label: 'Match balance', detail: 'all fair', level: 'ok' }
       : { label: 'Match balance', detail: `${q.unevenGames} uneven game${q.unevenGames > 1 ? 's' : ''}`, level: q.unevenGames / q.totalGames > 0.3 ? 'bad' : 'warn' },
 
-    { label: 'Back-to-back', detail: q.backToBackCount === 0 ? 'none' : `${q.backToBackCount} instance${q.backToBackCount > 1 ? 's' : ''}`, level: q.backToBackCount > 0 ? 'warn' as Level : 'ok' as Level, infoOnly: true },
-
     q.repeatedPairs === 0
       ? { label: 'Partner variety', detail: 'all unique', level: 'ok' as Level, hint: q.excludedPairs > 0 ? `${q.excludedPairs} pair${q.excludedPairs > 1 ? 's' : ''} excluded (constrained)` : undefined }
       : { label: 'Partner variety', detail: `${q.repeatedPairs} pair${q.repeatedPairs > 1 ? 's' : ''} repeated`, level: (q.repeatedPairs >= 3 ? 'bad' : 'warn') as Level, hint: q.excludedPairs > 0 ? `${q.excludedPairs} pair${q.excludedPairs > 1 ? 's' : ''} excluded (constrained)` : undefined },
+
+    q.repeatedOpponents === 0
+      ? { label: 'Opponent variety', detail: 'all unique', level: 'ok' as Level, hint: q.excludedOpponents > 0 ? `${q.excludedOpponents} pair${q.excludedOpponents > 1 ? 's' : ''} excluded (constrained)` : undefined }
+      : { label: 'Opponent variety', detail: `${q.repeatedOpponents} pair${q.repeatedOpponents > 1 ? 's' : ''} repeated`, level: (q.repeatedOpponents >= 3 ? 'bad' : 'warn') as Level, hint: q.excludedOpponents > 0 ? `${q.excludedOpponents} pair${q.excludedOpponents > 1 ? 's' : ''} excluded (constrained)` : undefined },
   ]
+
+  const backToBackItem = { label: 'Back-to-back', detail: q.backToBackCount === 0 ? 'none' : `${q.backToBackCount} instance${q.backToBackCount > 1 ? 's' : ''}`, level: q.backToBackCount > 0 ? 'warn' as Level : 'ok' as Level }
 
   const hasBad = items.some((i) => i.level === 'bad' && !i.infoOnly)
   const hasWarn = items.some((i) => i.level === 'warn' && !i.infoOnly)
@@ -412,6 +440,11 @@ function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood, retryI
             )}
           </div>
         ))}
+        <div className="col-span-2 flex items-center gap-1.5 min-w-0">
+          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot[backToBackItem.level]}`} />
+          <span className="text-[11px] text-slate-500 shrink-0">{backToBackItem.label}:</span>
+          <span className={`text-[11px] font-medium ${text[backToBackItem.level]}`}>{backToBackItem.detail}</span>
+        </div>
       </div>
     </div>
   )
