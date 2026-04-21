@@ -75,8 +75,8 @@ function SummaryModal({
   )
 }
 
-const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C' }
-const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400' }
+const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
+const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400', 4: 'text-green-400' }
 
 function PlayerChip({ player }: { player: Player }) {
   return (
