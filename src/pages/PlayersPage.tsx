@@ -17,17 +17,25 @@ function parsePlayerList(raw: string): string[] {
     .filter((name) => name.length > 0)
 }
 
-const TIER_COLORS: Record<Tier, string> = {
+const TIER_COLORS: Record<number, string> = {
   1: 'bg-red-500/20 text-red-400 border-red-600',
   2: 'bg-orange-500/20 text-orange-400 border-orange-600',
   3: 'bg-yellow-500/20 text-yellow-400 border-yellow-600',
+  4: 'bg-green-500/20 text-green-400 border-green-600',
 }
-const TIER_LABELS: Record<Tier, string> = { 1: 'A', 2: 'B', 3: 'C' }
+const TIER_ACTIVE: Record<number, string> = {
+  1: 'bg-red-500 text-white',
+  2: 'bg-orange-500 text-white',
+  3: 'bg-yellow-500 text-slate-900',
+  4: 'bg-green-500 text-white',
+}
+const TIER_LABELS: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
+const TIER_NAMES: Record<number, string> = { 1: 'Senior', 2: 'Intermediate', 3: 'Recreational', 4: 'Beginner' }
 
 function TierBadge({ tier }: { tier: Tier }) {
   return (
-    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md border text-xs font-bold ${TIER_COLORS[tier]}`}>
-      {TIER_LABELS[tier]}
+    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md border text-xs font-bold ${TIER_COLORS[tier] ?? TIER_COLORS[3]}`}>
+      {TIER_LABELS[tier] ?? tier}
     </span>
   )
 }
@@ -36,6 +44,7 @@ function TierBadge({ tier }: { tier: Tier }) {
 // ── Inline editable row ───────────────────────────────────────────────────────
 function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void }) {
   const updatePlayer = useStore((s) => s.updatePlayer)
+  const tierCount = useStore((s) => s.session.tierCount)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(player.name)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -96,14 +105,12 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
 
       {/* Tier picker */}
       <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {([1, 2, 3] as Tier[]).map((t) => (
+        {(Array.from({ length: tierCount }, (_, i) => (i + 1) as Tier)).map((t) => (
           <button
             key={t}
             onClick={() => updatePlayer(player.id, { tier: t })}
             className={`w-8 py-1 text-xs font-bold transition-colors ${
-              player.tier === t
-                ? t === 1 ? 'bg-red-500 text-white' : t === 2 ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-slate-900'
-                : 'text-slate-500 hover:text-slate-300'
+              player.tier === t ? TIER_ACTIVE[t] : 'text-slate-500 hover:text-slate-300'
             }`}
           >
             {TIER_LABELS[t]}
@@ -123,7 +130,7 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
 }
 
 // ── Add player row ────────────────────────────────────────────────────────────
-function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gender, tier: Tier) => void; onCancel: () => void }) {
+function AddPlayerRow({ onAdd, onCancel, tierCount }: { onAdd: (name: string, gender: Gender, tier: Tier) => void; onCancel: () => void; tierCount: number }) {
   const [name, setName] = useState('')
   const [gender, setGender] = useState<Gender>('M')
   const [tier, setTier] = useState<Tier>(2)
@@ -167,15 +174,13 @@ function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gende
       </div>
       {/* Tier picker */}
       <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {([1, 2, 3] as Tier[]).map((t) => (
+        {(Array.from({ length: tierCount }, (_, i) => (i + 1) as Tier)).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTier(t)}
             className={`w-8 py-1 text-xs font-bold transition-colors ${
-              tier === t
-                ? t === 1 ? 'bg-red-500 text-white' : t === 2 ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-slate-900'
-                : 'text-slate-500 hover:text-slate-300'
+              tier === t ? TIER_ACTIVE[t] : 'text-slate-500 hover:text-slate-300'
             }`}
           >
             {TIER_LABELS[t]}
@@ -271,7 +276,8 @@ export default function PlayersPage() {
     setShowForm(false)
   }
 
-  const tierGroups = ([1, 2, 3] as Tier[]).map((t) => ({
+  const tierCount = session.tierCount ?? 3
+  const tierGroups = (Array.from({ length: tierCount }, (_, i) => (i + 1) as Tier)).map((t) => ({
     tier: t,
     players: players.filter((p) => p.tier === t),
   }))
@@ -307,9 +313,7 @@ export default function PlayersPage() {
               <div key={tier}>
                 <div className="flex items-center gap-2 mb-2">
                   <TierBadge tier={tier} />
-                  <span className="text-xs text-slate-500">
-                    {tier === 1 ? 'Senior' : tier === 2 ? 'Intermediate' : 'Beginner'}
-                  </span>
+                  <span className="text-xs text-slate-500">{TIER_NAMES[tier]}</span>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {group.map((player) => (
@@ -324,7 +328,7 @@ export default function PlayersPage() {
 
       {/* Add row */}
       {showForm ? (
-        <AddPlayerRow onAdd={handleAdd} onCancel={() => setShowForm(false)} />
+        <AddPlayerRow onAdd={handleAdd} onCancel={() => setShowForm(false)} tierCount={tierCount} />
       ) : (
         <div className="flex gap-2">
           <button

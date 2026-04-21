@@ -5,7 +5,7 @@ import type { GeneratorResult } from '../generator'
 export const PLAYERS_PER_GAME = 4
 
 export type Gender = 'M' | 'F'
-export type Tier = 1 | 2 | 3
+export type Tier = 1 | 2 | 3 | 4
 
 export interface Player {
   id: string
@@ -39,6 +39,7 @@ export interface SessionConfig {
   playerCount: number
   slotsPerCourt: number[] // derived
   totalGames: number      // derived
+  tierCount: 3 | 4
   locked: boolean
 }
 
@@ -54,6 +55,7 @@ interface AppState {
   setSlotMinutes: (min: number) => void
   setCourtTime: (index: number, start: string, end: string) => void
   setPlayerCount: (n: number) => void
+  setTierCount: (n: 3 | 4) => void
   lockSession: () => void
   resetSession: () => void
 
@@ -99,6 +101,7 @@ const defaultSession: SessionConfig = {
   courtTimes: DEFAULT_COURT_TIMES,
   playerCount: 8,
   ...derivedFromCourtTimes(DEFAULT_COURT_TIMES, DEFAULT_SLOT_MINUTES),
+  tierCount: 3,
   locked: false,
 }
 
@@ -171,6 +174,9 @@ export const useStore = create<AppState>()(
       setPlayerCount: (n) =>
         set((s) => ({ session: { ...s.session, playerCount: n } })),
 
+      setTierCount: (n) =>
+        set((s) => ({ session: { ...s.session, tierCount: n } })),
+
       lockSession: () =>
         set((s) => ({ session: { ...s.session, locked: true } })),
 
@@ -228,7 +234,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'badminton-store',
-      version: 6,
+      version: 7,
       migrate: () => ({
         session: defaultSession,
         players: [],
