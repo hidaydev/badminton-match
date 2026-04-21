@@ -32,7 +32,7 @@ function TierBadge({ tier }: { tier: Tier }) {
   )
 }
 
-function GenderBadge({ gender }: { gender: Gender }) {
+function _GenderBadge({ gender }: { gender: Gender }) {
   return (
     <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${gender === 'M' ? 'bg-blue-900/50 text-blue-300' : 'bg-pink-900/50 text-pink-300'}`}>
       {gender}
@@ -270,7 +270,6 @@ export default function PlayersPage() {
   const [showBulk, setShowBulk] = useState(false)
   const navigate = useNavigate()
 
-  const MAX_PLAYERS = 16
   const required = session.playerCount
   const isComplete = players.length === required
 

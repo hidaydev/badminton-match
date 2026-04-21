@@ -81,7 +81,6 @@ export const useStore = create<AppState>()(
       players: [],
       fixMatches: [],
       schedule: [], lastResult: null,
-      lastResult: null,
 
       setCourts: (n) =>
         set((s) => {
