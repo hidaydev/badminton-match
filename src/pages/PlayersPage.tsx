@@ -7,10 +7,10 @@ function parsePlayerList(raw: string): string[] {
     .split('\n')
     .map((line) =>
       line
-        .replace(/^\s*\d+[\.\)]\s*/, '')
         .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
         .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
         .replace(/[\u2000-\u206F\u2700-\u27BF]/g, '')
+        .replace(/^\s*\d+\s*[\.\)]\s*/, '')
         .replace(/[✅✔☑️\s]+$/, '')
         .trim()
     )
