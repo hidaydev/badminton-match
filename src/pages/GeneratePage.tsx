@@ -257,6 +257,132 @@ function ScheduleView({
   )
 }
 
+// ── Quality analysis ──────────────────────────────────────────────────────────
+
+function useScheduleQuality(result: GeneratorResult, playerMap: Map<string, Player>, fixMatches: import('../store').FixMatch[]) {
+  const players = [...playerMap.values()]
+  if (players.length === 0 || result.schedule.length === 0) return null
+
+  const plays = players.map((p) => result.playCount[p.id] ?? 0)
+  const minPlays = Math.min(...plays)
+  const maxPlays = Math.max(...plays)
+
+  let unevenGames = 0
+  for (const g of result.schedule) {
+    const tierA = (playerMap.get(g.teamA[0])?.tier ?? 2) + (playerMap.get(g.teamA[1])?.tier ?? 2)
+    const tierB = (playerMap.get(g.teamB[0])?.tier ?? 2) + (playerMap.get(g.teamB[1])?.tier ?? 2)
+    if (Math.abs(tierA - tierB) >= 2) unevenGames++
+  }
+
+  const slotPlayers = new Map<number, Set<string>>()
+  for (const g of result.schedule) {
+    const set = slotPlayers.get(g.slot) ?? new Set<string>()
+    g.teamA.forEach((id) => set.add(id))
+    g.teamB.forEach((id) => set.add(id))
+    slotPlayers.set(g.slot, set)
+  }
+  const slots = [...slotPlayers.keys()].sort((a, b) => a - b)
+  let backToBackCount = 0
+  for (let i = 0; i < slots.length - 1; i++) {
+    if (slots[i + 1] !== slots[i] + 1) continue
+    const cur = slotPlayers.get(slots[i])!
+    const nxt = slotPlayers.get(slots[i + 1])!
+    for (const id of cur) if (nxt.has(id)) backToBackCount++
+  }
+
+  // Count how many times each pair is forced by fix matches
+  const fixForcedPairs: Record<string, number> = {}
+  for (const fm of fixMatches) {
+    const [a1, a2, b1, b2] = fm.slots
+    if (a1 && a2) { const k = [a1, a2].sort().join('|'); fixForcedPairs[k] = (fixForcedPairs[k] ?? 0) + 1 }
+    if (b1 && b2) { const k = [b1, b2].sort().join('|'); fixForcedPairs[k] = (fixForcedPairs[k] ?? 0) + 1 }
+  }
+
+  let repeatedPairs = 0
+  let excludedPairs = 0
+  const seen = new Set<string>()
+  for (const [a, partners] of Object.entries(result.partnerWith)) {
+    for (const [b, count] of Object.entries(partners)) {
+      const key = [a, b].sort().join('|')
+      if (!seen.has(key)) {
+        seen.add(key)
+        const forced = fixForcedPairs[key] ?? 0
+        const organic = count - forced
+        if (forced > 0) excludedPairs++
+        if (organic >= 2) repeatedPairs++
+      }
+    }
+  }
+
+  return { playSpread: maxPlays - minPlays, minPlays, maxPlays, unevenGames, backToBackCount, repeatedPairs, excludedPairs, totalGames: result.schedule.length }
+}
+
+function QualityBanner({ result, playerMap, fixMatches, onRegenerate }: {
+  result: GeneratorResult
+  playerMap: Map<string, Player>
+  fixMatches: import('../store').FixMatch[]
+  onRegenerate: () => void
+}) {
+  const q = useScheduleQuality(result, playerMap, fixMatches)
+  if (!q) return null
+
+  type Level = 'ok' | 'warn' | 'bad'
+  const items: { label: string; detail: string; level: Level; hint?: string; infoOnly?: boolean }[] = [
+    q.playSpread === 0
+      ? { label: 'Play count', detail: 'perfectly balanced', level: 'ok' }
+      : q.playSpread === 1
+      ? { label: 'Play count', detail: `±1 (${q.minPlays}–${q.maxPlays}×)`, level: 'ok' }
+      : { label: 'Play count', detail: `spread ${q.playSpread} (${q.minPlays}–${q.maxPlays}×)`, level: q.playSpread >= 3 ? 'bad' : 'warn' },
+
+    q.unevenGames === 0
+      ? { label: 'Match balance', detail: 'all fair', level: 'ok' }
+      : { label: 'Match balance', detail: `${q.unevenGames} uneven game${q.unevenGames > 1 ? 's' : ''}`, level: q.unevenGames / q.totalGames > 0.3 ? 'bad' : 'warn' },
+
+    { label: 'Back-to-back', detail: q.backToBackCount === 0 ? 'none' : `${q.backToBackCount} instance${q.backToBackCount > 1 ? 's' : ''}`, level: q.backToBackCount > 0 ? 'warn' as Level : 'ok' as Level, infoOnly: true },
+
+    q.repeatedPairs === 0
+      ? { label: 'Partner variety', detail: 'all unique', level: 'ok' as Level, hint: q.excludedPairs > 0 ? `${q.excludedPairs} pair${q.excludedPairs > 1 ? 's' : ''} excluded (constrained)` : undefined }
+      : { label: 'Partner variety', detail: `${q.repeatedPairs} pair${q.repeatedPairs > 1 ? 's' : ''} repeated`, level: (q.repeatedPairs >= 3 ? 'bad' : 'warn') as Level, hint: q.excludedPairs > 0 ? `${q.excludedPairs} pair${q.excludedPairs > 1 ? 's' : ''} excluded (constrained)` : undefined },
+  ]
+
+  const hasBad = items.some((i) => i.level === 'bad' && !i.infoOnly)
+  const hasWarn = items.some((i) => i.level === 'warn' && !i.infoOnly)
+  const dot: Record<Level, string> = { ok: 'bg-emerald-400', warn: 'bg-amber-400', bad: 'bg-red-400' }
+  const text: Record<Level, string> = { ok: 'text-emerald-400', warn: 'text-amber-400', bad: 'text-red-400' }
+
+  return (
+    <div className={`rounded-2xl border p-3 flex flex-col gap-2.5 ${
+      hasBad ? 'bg-red-900/20 border-red-800' : hasWarn ? 'bg-amber-900/20 border-amber-800' : 'bg-emerald-900/20 border-emerald-800'
+    }`}>
+      <div className="flex items-center justify-between">
+        <span className={`text-sm font-semibold ${hasBad ? 'text-red-400' : hasWarn ? 'text-amber-400' : 'text-emerald-400'}`}>
+          {hasBad ? '⚠ Consider regenerating' : hasWarn ? '~ Could be better' : '✓ Good schedule'}
+        </span>
+        {(hasBad || hasWarn) && (
+          <button
+            onClick={onRegenerate}
+            className="text-xs px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+          >
+            Try again
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-center gap-1.5 min-w-0">
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot[item.level]}`} />
+            <span className="text-[11px] text-slate-500 shrink-0">{item.label}:</span>
+            <span className={`text-[11px] font-medium truncate ${text[item.level]}`}>{item.detail}</span>
+            {item.hint && (
+              <span title={item.hint} className="text-[10px] text-slate-600 hover:text-slate-400 cursor-help shrink-0">ⓘ</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function GeneratePage() {
   const players = useStore((s) => s.players)
   const fixMatches = useStore((s) => s.fixMatches)
@@ -340,6 +466,10 @@ export default function GeneratePage() {
             return <span key={id} className="text-xs text-amber-300 pl-3">· {desc}</span>
           })}
         </div>
+      )}
+
+      {result && (
+        <QualityBanner result={result} playerMap={playerMap} fixMatches={fixMatches} onRegenerate={handleGenerate} />
       )}
 
       {!result ? (
