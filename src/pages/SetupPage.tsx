@@ -154,7 +154,7 @@ function CourtTimeline({
                     className={`absolute h-full rounded ${COURT_COLORS[i % COURT_COLORS.length]} opacity-80 flex items-center justify-center`}
                     style={{ left: `${startPct}%`, width: `${endPct - startPct}%` }}
                   >
-                    <span className="text-[10px] text-white font-semibold">{slots}g</span>
+                    <span className="text-[10px] text-white font-semibold">{slots} game{slots !== 1 ? 's' : ''}</span>
                   </div>
                 </div>
               </div>
