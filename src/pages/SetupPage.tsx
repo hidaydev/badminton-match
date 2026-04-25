@@ -97,9 +97,11 @@ function TimeSelect({
 function CourtTimeline({
   courtTimes,
   slotMinutes,
+  courtNames = [],
 }: {
   courtTimes: { start: string; end: string }[]
   slotMinutes: number
+  courtNames?: string[]
 }) {
   if (courtTimes.length === 0) return null
 
@@ -148,7 +150,7 @@ function CourtTimeline({
             const slots = Math.max(0, Math.floor((timeToMinutes(ct.end) - timeToMinutes(ct.start)) / slotMinutes))
             return (
               <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-500 w-12 shrink-0">Court {i + 1}</span>
+                <span className="text-[10px] text-slate-500 w-12 shrink-0">{courtNames[i] || `Court ${i + 1}`}</span>
                 <div className="flex-1 relative h-5 bg-slate-800 rounded">
                   <div
                     className={`absolute h-full rounded ${COURT_COLORS[i % COURT_COLORS.length]} opacity-80 flex items-center justify-center`}
@@ -309,7 +311,7 @@ export default function SetupPage() {
         </div>
 
         {/* Block 3: Timeline */}
-        <CourtTimeline courtTimes={session.courtTimes} slotMinutes={session.slotMinutes} />
+        <CourtTimeline courtTimes={session.courtTimes} slotMinutes={session.slotMinutes} courtNames={session.courtNames ?? []} />
 
         {/* Block 4: Summary */}
         <div className="flex items-center justify-between bg-slate-800 rounded-xl px-3 py-2">
