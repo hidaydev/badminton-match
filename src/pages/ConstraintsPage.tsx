@@ -1,6 +1,14 @@
 import { useStore, PLAYERS_PER_GAME, type Player, type FixMatch } from '../store'
 import { useNavigate } from 'react-router-dom'
 
+const TIER_LABELS: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
+const TIER_COLORS: Record<number, string> = {
+  1: 'text-red-400',
+  2: 'text-orange-400',
+  3: 'text-yellow-400',
+  4: 'text-green-400',
+}
+
 // ── Player selector ───────────────────────────────────────────────────────────
 function SlotPicker({
   value,
@@ -36,8 +44,8 @@ function SlotPicker({
       <span className={`text-[10px] text-center h-3 leading-3 ${selected ? selected.gender === 'M' ? 'text-blue-400' : 'text-pink-400' : 'text-transparent'}`}>
         {selected ? (
           <>
-            {selected.gender} · <span className={selected.tier === 1 ? 'text-red-400' : selected.tier === 2 ? 'text-orange-400' : 'text-yellow-400'}>
-              Tier {selected.tier === 1 ? 'A' : selected.tier === 2 ? 'B' : 'C'}
+            {selected.gender} · <span className={TIER_COLORS[selected.tier] ?? 'text-slate-400'}>
+              Tier {TIER_LABELS[selected.tier] ?? selected.tier}
             </span>
           </>
         ) : '—'}
