@@ -417,7 +417,7 @@ function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood, retryI
   result: GeneratorResult
   playerMap: Map<string, Player>
   fixMatches: import('../store').FixMatch[]
-  onRetryUntilGood: () => void
+  onRetryUntilGood?: () => void
   retryInfo: { attempts: number; perfect: boolean } | null
 }) {
   const q = computeQuality(result, playerMap, fixMatches)
@@ -466,7 +466,7 @@ function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood, retryI
             </span>
           )}
         </div>
-        {(hasBad || hasWarn) && (
+        {(hasBad || hasWarn) && onRetryUntilGood && (
           <button
             onClick={onRetryUntilGood}
             className="text-xs px-2.5 py-1 rounded-lg bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-400 hover:text-emerald-200 transition-colors"
@@ -698,7 +698,7 @@ export default function GeneratePage() {
 
       {result && (
         <>
-          <QualityBanner result={result} playerMap={playerMap} fixMatches={fixMatches} onRetryUntilGood={handleRetryUntilGood} retryInfo={retryInfo} />
+          <QualityBanner result={result} playerMap={playerMap} fixMatches={fixMatches} onRetryUntilGood={isSharedView ? undefined : handleRetryUntilGood} retryInfo={retryInfo} />
         </>
       )}
 
