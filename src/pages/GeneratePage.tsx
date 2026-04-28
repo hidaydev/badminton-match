@@ -17,6 +17,9 @@ function SummaryModal({
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
+  const playedArr = useStore((s) => s.playedGames)
+  const togglePlayedGame = useStore((s) => s.togglePlayedGame)
+  const played = new Set(playedArr)
 
   const bySlot = new Map<number, (typeof result.schedule)>()
   for (const game of result.schedule) {
@@ -40,11 +43,21 @@ function SummaryModal({
   const courtLabel = (i: number) =>
     courtNames[i] || (courts <= 26 ? String.fromCharCode(65 + i) : String(i + 1))
 
+  const totalGames = result.schedule.length
+  const playedCount = played.size
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 overflow-auto flex flex-col">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
-        <span className="text-sm font-semibold text-white">Schedule</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-white">Schedule</span>
+          {playedCount > 0 && (
+            <span className="text-xs text-slate-500">
+              {playedCount}/{totalGames} played
+            </span>
+          )}
+        </div>
         <button
           onClick={onClose}
           className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
@@ -64,20 +77,33 @@ function SummaryModal({
                   #{s + 1}
                 </span>
                 <div className="flex flex-col gap-2.5 flex-1">
-                  {games.map((g) => (
-                    <div key={g.court} className="grid items-center gap-2" style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
-                      <span className="text-[10px] font-semibold text-slate-600 whitespace-nowrap">
-                        {courtLabel(g.court)}
-                      </span>
-                      <span className="text-sm font-medium text-white">
-                        {name(g.teamA[0], s)} &amp; {name(g.teamA[1], s)}
-                      </span>
-                      <span className="text-slate-600 text-xs text-center">vs</span>
-                      <span className="text-sm font-medium text-white">
-                        {name(g.teamB[0], s)} &amp; {name(g.teamB[1], s)}
-                      </span>
-                    </div>
-                  ))}
+                  {games.map((g) => {
+                    const key = `${s}-${g.court}`
+                    const done = played.has(key)
+                    return (
+                      <div
+                        key={g.court}
+                        className={`flex items-center gap-2 cursor-pointer select-none rounded-lg px-1 py-0.5 -mx-1 transition-colors ${done ? 'opacity-40' : 'hover:bg-slate-800/40'}`}
+                        onClick={() => togglePlayedGame(key)}
+                      >
+                        <div className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}>
+                          {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                        </div>
+                        <div className="grid items-center gap-2 flex-1 min-w-0" style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
+                          <span className="text-[10px] font-semibold text-slate-600 whitespace-nowrap">
+                            {courtLabel(g.court)}
+                          </span>
+                          <span className={`text-sm font-medium ${done ? 'text-slate-500 line-through' : 'text-white'}`}>
+                            {name(g.teamA[0], s)} &amp; {name(g.teamA[1], s)}
+                          </span>
+                          <span className="text-slate-600 text-xs text-center">vs</span>
+                          <span className={`text-sm font-medium ${done ? 'text-slate-500 line-through' : 'text-white'}`}>
+                            {name(g.teamB[0], s)} &amp; {name(g.teamB[1], s)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -475,9 +501,10 @@ export default function GeneratePage() {
   const storeResult = useStore((s) => s.lastResult)
   const setStoreResult = useStore((s) => s.setResult)
 
+  const showSummary = useStore((s) => s.summaryOpen)
+  const setShowSummary = useStore((s) => s.setSummaryOpen)
   const [result, setResult] = useState<GeneratorResult | null>(storeResult)
   const [error, setError] = useState<string | null>(null)
-  const [showSummary, setShowSummary] = useState(false)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
 
   const playerMap = new Map(players.map((p) => [p.id, p]))

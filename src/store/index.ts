@@ -50,6 +50,7 @@ interface AppState {
   fixMatches: FixMatch[]
   schedule: ScheduleSlot[]
   lastResult: GeneratorResult | null
+  playedGames: string[]
 
   setCourts: (n: number) => void
   setSessionStart: (time: string) => void
@@ -71,7 +72,10 @@ interface AppState {
   duplicateFixMatch: (id: string) => void
   removeFixMatch: (id: string) => void
 
+  summaryOpen: boolean
   setResult: (r: GeneratorResult) => void
+  togglePlayedGame: (key: string) => void
+  setSummaryOpen: (open: boolean) => void
 }
 
 export function timeToMinutes(t: string): number {
@@ -118,7 +122,7 @@ export const useStore = create<AppState>()(
       session: defaultSession,
       players: [],
       fixMatches: [],
-      schedule: [], lastResult: null,
+      schedule: [], lastResult: null, playedGames: [], summaryOpen: false,
 
       setCourts: (n) =>
         set((s) => {
@@ -191,7 +195,7 @@ export const useStore = create<AppState>()(
         set((s) => ({ session: { ...s.session, locked: true } })),
 
       resetSession: () =>
-        set({ session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null }),
+        set({ session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], summaryOpen: false }),
 
       addPlayer: (p) =>
         set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
@@ -240,16 +244,25 @@ export const useStore = create<AppState>()(
       removeFixMatch: (id) =>
         set((s) => ({ fixMatches: s.fixMatches.filter((m) => m.id !== id), schedule: [], lastResult: null })),
 
-      setResult: (r) => set({ schedule: r.schedule, lastResult: r }),
+      setResult: (r) => set({ schedule: r.schedule, lastResult: r, playedGames: [] }),
+
+      togglePlayedGame: (key) =>
+        set((s) => ({
+          playedGames: s.playedGames.includes(key)
+            ? s.playedGames.filter((k) => k !== key)
+            : [...s.playedGames, key],
+        })),
+
+      setSummaryOpen: (open) => set({ summaryOpen: open }),
     }),
     {
       name: 'badminton-store',
-      version: 8,
+      version: 9,
       migrate: () => ({
         session: defaultSession,
         players: [],
         fixMatches: [],
-        schedule: [], lastResult: null,
+        schedule: [], lastResult: null, playedGames: [], summaryOpen: false,
       }),
     }
   )
