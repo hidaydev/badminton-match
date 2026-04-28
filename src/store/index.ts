@@ -26,6 +26,11 @@ export interface ScheduleSlot {
   teamB: [string, string]
 }
 
+export interface GameScore {
+  a: number  // Team A score
+  b: number  // Team B score
+}
+
 export interface CourtTime {
   start: string  // "09:00"
   end: string    // "11:00"
@@ -52,6 +57,7 @@ interface AppState {
   schedule: ScheduleSlot[]
   lastResult: GeneratorResult | null
   playedGames: string[]
+  gameScores: Record<string, GameScore>
 
   setCourts: (n: number) => void
   setSessionStart: (time: string) => void
@@ -76,6 +82,8 @@ interface AppState {
   summaryOpen: boolean
   setResult: (r: GeneratorResult) => void
   togglePlayedGame: (key: string) => void
+  setGameScore: (key: string, a: number, b: number) => void
+  clearGameScore: (key: string) => void
   setSummaryOpen: (open: boolean) => void
 }
 
@@ -124,7 +132,7 @@ export const useStore = create<AppState>()(
       session: defaultSession,
       players: [],
       fixMatches: [],
-      schedule: [], lastResult: null, playedGames: [], summaryOpen: false,
+      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false,
 
       setCourts: (n) =>
         set((s) => {
@@ -197,7 +205,7 @@ export const useStore = create<AppState>()(
         set((s) => ({ session: { ...s.session, locked: true } })),
 
       resetSession: () =>
-        set({ sessionId: nanoid(), session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], summaryOpen: false }),
+        set({ sessionId: nanoid(), session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false }),
 
       addPlayer: (p) =>
         set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
@@ -246,7 +254,7 @@ export const useStore = create<AppState>()(
       removeFixMatch: (id) =>
         set((s) => ({ fixMatches: s.fixMatches.filter((m) => m.id !== id), schedule: [], lastResult: null })),
 
-      setResult: (r) => set({ schedule: r.schedule, lastResult: r, playedGames: [] }),
+      setResult: (r) => set({ schedule: r.schedule, lastResult: r, playedGames: [], gameScores: {} }),
 
       togglePlayedGame: (key) =>
         set((s) => ({
@@ -255,17 +263,27 @@ export const useStore = create<AppState>()(
             : [...s.playedGames, key],
         })),
 
+      setGameScore: (key, a, b) =>
+        set((s) => ({ gameScores: { ...s.gameScores, [key]: { a, b } } })),
+
+      clearGameScore: (key) =>
+        set((s) => {
+          const next = { ...s.gameScores }
+          delete next[key]
+          return { gameScores: next }
+        }),
+
       setSummaryOpen: (open) => set({ summaryOpen: open }),
     }),
     {
       name: 'badminton-store',
-      version: 10,
+      version: 11,
       migrate: () => ({
         sessionId: nanoid(),
         session: defaultSession,
         players: [],
         fixMatches: [],
-        schedule: [], lastResult: null, playedGames: [], summaryOpen: false,
+        schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false,
       }),
     }
   )
