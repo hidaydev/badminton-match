@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useStore, type Player, timeToMinutes } from '../store'
 import { generate, type GeneratorResult } from '../generator'
+import { useSharedView } from '../App'
+import { buildShareUrl, type SharedSnapshot } from '../utils/shareUrl'
 
 function SummaryModal({
   result,
@@ -495,19 +497,45 @@ function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood, retryI
 }
 
 export default function GeneratePage() {
-  const players = useStore((s) => s.players)
-  const fixMatches = useStore((s) => s.fixMatches)
-  const session = useStore((s) => s.session)
+  const { isSharedView, snapshot, exitSharedView } = useSharedView()
+
+  const storePlayers = useStore((s) => s.players)
+  const storeFixMatches = useStore((s) => s.fixMatches)
+  const storeSession = useStore((s) => s.session)
+  const storeSessionId = useStore((s) => s.sessionId)
   const storeResult = useStore((s) => s.lastResult)
   const setStoreResult = useStore((s) => s.setResult)
 
+  const players = isSharedView ? (snapshot?.players ?? []) : storePlayers
+  const fixMatches = isSharedView ? [] : storeFixMatches
+  const session = isSharedView ? (snapshot?.session ?? storeSession) : storeSession
+  const sessionId = isSharedView ? (snapshot?.sessionId ?? storeSessionId) : storeSessionId
+
   const showSummary = useStore((s) => s.summaryOpen)
   const setShowSummary = useStore((s) => s.setSummaryOpen)
-  const [result, setResult] = useState<GeneratorResult | null>(storeResult)
+  const [result, setResult] = useState<GeneratorResult | null>(
+    isSharedView ? (snapshot?.lastResult ?? null) : storeResult
+  )
   const [error, setError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const playerMap = new Map(players.map((p) => [p.id, p]))
+
+  async function handleShare() {
+    if (!result) return
+    const payload: SharedSnapshot = {
+      sessionId,
+      session,
+      players,
+      schedule: result.schedule,
+      lastResult: result,
+    }
+    const url = buildShareUrl(payload)
+    await navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   function buildOffsets() {
     return session.courtTimes.map((ct) =>
@@ -573,6 +601,18 @@ export default function GeneratePage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {isSharedView && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-indigo-900/30 border border-indigo-800 text-sm">
+          <span className="text-indigo-300">Viewing a shared schedule</span>
+          <button
+            onClick={exitSharedView}
+            className="text-xs text-indigo-400 hover:text-white underline underline-offset-2 shrink-0 transition-colors"
+          >
+            Start your own session
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Generate Schedule</h2>
@@ -588,18 +628,28 @@ export default function GeneratePage() {
             >
               Summary
             </button>
-            <button
-              onClick={handleGenerate}
-              className="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors whitespace-nowrap"
-            >
-              Regenerate
-            </button>
-            <button
-              onClick={handleRetryUntilGood}
-              className="text-xs text-emerald-400 hover:text-emerald-200 px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
-            >
-              ↺ Until good
-            </button>
+            {!isSharedView && (
+              <>
+                <button
+                  onClick={handleShare}
+                  className="text-xs text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors whitespace-nowrap"
+                >
+                  {copied ? '✓ Copied!' : 'Share'}
+                </button>
+                <button
+                  onClick={handleGenerate}
+                  className="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors whitespace-nowrap"
+                >
+                  Regenerate
+                </button>
+                <button
+                  onClick={handleRetryUntilGood}
+                  className="text-xs text-emerald-400 hover:text-emerald-200 px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
+                >
+                  ↺ Until good
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

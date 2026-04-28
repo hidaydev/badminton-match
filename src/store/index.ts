@@ -45,6 +45,7 @@ export interface SessionConfig {
 }
 
 interface AppState {
+  sessionId: string
   session: SessionConfig
   players: Player[]
   fixMatches: FixMatch[]
@@ -119,6 +120,7 @@ function nanoid() {
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
+      sessionId: nanoid(),
       session: defaultSession,
       players: [],
       fixMatches: [],
@@ -195,7 +197,7 @@ export const useStore = create<AppState>()(
         set((s) => ({ session: { ...s.session, locked: true } })),
 
       resetSession: () =>
-        set({ session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], summaryOpen: false }),
+        set({ sessionId: nanoid(), session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], summaryOpen: false }),
 
       addPlayer: (p) =>
         set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
@@ -257,8 +259,9 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'badminton-store',
-      version: 9,
+      version: 10,
       migrate: () => ({
+        sessionId: nanoid(),
         session: defaultSession,
         players: [],
         fixMatches: [],
