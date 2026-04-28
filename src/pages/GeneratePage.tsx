@@ -187,7 +187,7 @@ function SummaryModal({
             const games = (bySlot.get(s) ?? []).sort((a, b) => a.court - b.court)
             return (
               <div key={s} className="flex items-start gap-4 py-4">
-                <span className="text-xs font-bold text-slate-600 w-10 shrink-0 pt-0.5">
+                <span className="text-xs font-bold text-slate-600 w-4 shrink-0 pt-0.5">
                   #{s + 1}
                 </span>
                 <div className="flex flex-col gap-2.5 flex-1">
@@ -218,11 +218,11 @@ function SummaryModal({
                             <span className="text-[10px] font-semibold text-slate-600 whitespace-nowrap">
                               {courtLabel(g.court)}
                             </span>
-                            <span className={`text-sm font-medium ${done ? 'text-slate-500 line-through' : 'text-white'}`}>
+                            <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>
                               {name(g.teamA[0], s)} &amp; {name(g.teamA[1], s)}
                             </span>
                             <span className="text-slate-600 text-xs text-center">vs</span>
-                            <span className={`text-sm font-medium ${done ? 'text-slate-500 line-through' : 'text-white'}`}>
+                            <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>
                               {name(g.teamB[0], s)} &amp; {name(g.teamB[1], s)}
                             </span>
                           </div>
