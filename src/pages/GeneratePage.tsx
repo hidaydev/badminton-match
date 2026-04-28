@@ -3,6 +3,78 @@ import { useStore, type Player, timeToMinutes } from '../store'
 import { generate, type GeneratorResult } from '../generator'
 import { useSharedView } from '../App'
 import { buildShareUrl, type SharedSnapshot } from '../utils/shareUrl'
+import { computeStandings } from '../utils/standings'
+
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0])
+}
+
+function StandingsTab({
+  players,
+  schedule,
+  gameScores,
+}: {
+  players: Player[]
+  schedule: import('../store').ScheduleSlot[]
+  gameScores: Record<string, import('../store').GameScore>
+}) {
+  const standings = computeStandings(players, schedule, gameScores)
+  const hasScores = Object.keys(gameScores).length > 0
+
+  if (!hasScores) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px]">
+        <p className="text-sm text-slate-500 text-center">Enter scores in the Schedule tab to see standings.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {/* Header */}
+      <div className="grid items-center gap-2 px-2 mb-1" style={{ gridTemplateColumns: '36px 1fr 44px 36px 44px' }}>
+        <span className="text-[10px] font-bold text-slate-600 text-center">#</span>
+        <span className="text-[10px] font-bold text-slate-600">Name</span>
+        <span className="text-[10px] font-bold text-slate-600 text-center">W-L</span>
+        <span className="text-[10px] font-bold text-slate-600 text-center">Diff</span>
+        <span className="text-[10px] font-bold text-slate-600 text-center">Pts</span>
+      </div>
+
+      {standings.map((s, i) => {
+        const rank = i + 1
+        const isFirst = rank === 1
+        const isSecond = rank === 2
+        const wlColor = s.wins > s.losses ? 'text-emerald-400' : s.losses > s.wins ? 'text-red-400' : 'text-slate-400'
+        const diffColor = s.diff > 0 ? 'text-emerald-400' : s.diff < 0 ? 'text-red-400' : 'text-slate-400'
+        const diffLabel = s.diff > 0 ? `+${s.diff}` : String(s.diff)
+
+        return (
+          <div
+            key={s.player.id}
+            className={`grid items-center gap-2 px-2 py-2 rounded-xl border ${
+              isFirst
+                ? 'bg-emerald-900/20 border-emerald-800/60'
+                : isSecond
+                ? 'bg-emerald-900/10 border-emerald-900/40'
+                : 'bg-slate-800/50 border-slate-700/50'
+            }`}
+            style={{ gridTemplateColumns: '36px 1fr 44px 36px 44px' }}
+          >
+            <span className={`text-[11px] font-bold text-center ${isFirst ? 'text-amber-400' : 'text-slate-500'}`}>
+              {ordinal(rank)}
+            </span>
+            <span className="text-sm font-medium text-white truncate">{s.player.name}</span>
+            <span className={`text-[11px] font-semibold text-center ${wlColor}`}>{s.wins}-{s.losses}</span>
+            <span className={`text-[11px] font-semibold text-center ${diffColor}`}>{diffLabel}</span>
+            <span className="text-sm font-bold text-white text-center">{s.pointsFor}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 function SummaryModal({
   result,
@@ -21,7 +93,14 @@ function SummaryModal({
   const maxSlots = Math.max(...slotsPerCourt)
   const playedArr = useStore((s) => s.playedGames)
   const togglePlayedGame = useStore((s) => s.togglePlayedGame)
+  const gameScores = useStore((s) => s.gameScores)
+  const setGameScore = useStore((s) => s.setGameScore)
   const played = new Set(playedArr)
+
+  const [activeTab, setActiveTab] = useState<'schedule' | 'standings'>('schedule')
+  const [expandedScore, setExpandedScore] = useState<string | null>(null)
+  const [scoreError, setScoreError] = useState<string | null>(null)
+  const [draftScores, setDraftScores] = useState<Record<string, { a: string; b: string }>>({})
 
   const bySlot = new Map<number, (typeof result.schedule)>()
   for (const game of result.schedule) {
@@ -48,12 +127,38 @@ function SummaryModal({
   const totalGames = result.schedule.length
   const playedCount = played.size
 
+  function handleScoreBlur(key: string) {
+    const draft = draftScores[key]
+    if (!draft) return
+    const a = parseInt(draft.a, 10)
+    const b = parseInt(draft.b, 10)
+    if (isNaN(a) || isNaN(b)) return
+    if (a < 0 || a > 99 || b < 0 || b > 99) return
+    if (a === b) { setScoreError('Scores can\'t be equal'); return }
+    setScoreError(null)
+    setGameScore(key, a, b)
+    if (!played.has(key)) togglePlayedGame(key)
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 overflow-auto flex flex-col">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-white">Schedule</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setActiveTab('schedule')}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Schedule
+            </button>
+            <button
+              onClick={() => setActiveTab('standings')}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Standings
+            </button>
+          </div>
           {playedCount > 0 && (
             <span className="text-xs text-slate-500">
               {playedCount}/{totalGames} played
@@ -70,6 +175,13 @@ function SummaryModal({
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full">
+        {activeTab === 'standings' ? (
+          <StandingsTab
+            players={[...playerMap.values()]}
+            schedule={result.schedule}
+            gameScores={gameScores}
+          />
+        ) : (
         <div className="flex flex-col divide-y divide-slate-800">
           {Array.from({ length: maxSlots }, (_, s) => {
             const games = (bySlot.get(s) ?? []).sort((a, b) => a.court - b.court)
@@ -82,27 +194,94 @@ function SummaryModal({
                   {games.map((g) => {
                     const key = `${s}-${g.court}`
                     const done = played.has(key)
+                    const savedScore = gameScores[key]
+                    const isOpen = expandedScore === key
+                    const draft = draftScores[key] ?? { a: savedScore ? String(savedScore.a) : '', b: savedScore ? String(savedScore.b) : '' }
+                    const teamANames = g.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
+                    const teamBNames = g.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
+
                     return (
-                      <div
-                        key={g.court}
-                        className={`flex items-center gap-2 cursor-pointer select-none rounded-lg px-1 py-0.5 -mx-1 transition-colors ${done ? 'opacity-40' : 'hover:bg-slate-800/40'}`}
-                        onClick={() => togglePlayedGame(key)}
-                      >
-                        <div className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}>
-                          {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                      <div key={g.court} className="flex flex-col gap-1">
+                        {/* Game row header */}
+                        <div
+                          className={`flex items-center gap-2 select-none rounded-lg px-1 py-0.5 -mx-1 transition-colors ${done ? 'opacity-40' : 'hover:bg-slate-800/40'}`}
+                        >
+                          {/* Played checkbox */}
+                          <div
+                            className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors cursor-pointer ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                            onClick={() => togglePlayedGame(key)}
+                          >
+                            {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                          </div>
+                          {/* Teams */}
+                          <div className="grid items-center gap-2 flex-1 min-w-0" style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
+                            <span className="text-[10px] font-semibold text-slate-600 whitespace-nowrap">
+                              {courtLabel(g.court)}
+                            </span>
+                            <span className={`text-sm font-medium ${done ? 'text-slate-500 line-through' : 'text-white'}`}>
+                              {name(g.teamA[0], s)} &amp; {name(g.teamA[1], s)}
+                            </span>
+                            <span className="text-slate-600 text-xs text-center">vs</span>
+                            <span className={`text-sm font-medium ${done ? 'text-slate-500 line-through' : 'text-white'}`}>
+                              {name(g.teamB[0], s)} &amp; {name(g.teamB[1], s)}
+                            </span>
+                          </div>
+                          {/* Score toggle / saved score */}
+                          {savedScore && !isOpen ? (
+                            <button
+                              onClick={() => { setExpandedScore(key); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) }}
+                              className="text-[11px] font-bold text-emerald-400 shrink-0 whitespace-nowrap hover:text-emerald-300"
+                            >
+                              {savedScore.a}–{savedScore.b}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                if (isOpen) { setExpandedScore(null); setScoreError(null) }
+                                else { setExpandedScore(key); setDraftScores((d) => ({ ...d, [key]: draft })) }
+                              }}
+                              className="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 whitespace-nowrap transition-colors"
+                            >
+                              {isOpen ? '▲ score' : '+ score'}
+                            </button>
+                          )}
                         </div>
-                        <div className="grid items-center gap-2 flex-1 min-w-0" style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
-                          <span className="text-[10px] font-semibold text-slate-600 whitespace-nowrap">
-                            {courtLabel(g.court)}
-                          </span>
-                          <span className={`text-sm font-medium ${done ? 'text-slate-500 line-through' : 'text-white'}`}>
-                            {name(g.teamA[0], s)} &amp; {name(g.teamA[1], s)}
-                          </span>
-                          <span className="text-slate-600 text-xs text-center">vs</span>
-                          <span className={`text-sm font-medium ${done ? 'text-slate-500 line-through' : 'text-white'}`}>
-                            {name(g.teamB[0], s)} &amp; {name(g.teamB[1], s)}
-                          </span>
-                        </div>
+
+                        {/* Expandable score panel */}
+                        {isOpen && (
+                          <div className="ml-6 bg-slate-900 border border-indigo-800/60 rounded-lg px-3 py-2.5 flex flex-col gap-2">
+                            <div className="flex items-center justify-center gap-3">
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[10px] text-slate-500 truncate max-w-[80px] text-center">{teamANames}</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={99}
+                                  value={draft.a}
+                                  onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...draft, a: e.target.value } }))}
+                                  onBlur={() => handleScoreBlur(key)}
+                                  className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-indigo-500"
+                                />
+                              </div>
+                              <span className="text-slate-600 font-bold text-lg mt-4">–</span>
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[10px] text-slate-500 truncate max-w-[80px] text-center">{teamBNames}</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={99}
+                                  value={draft.b}
+                                  onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...draft, b: e.target.value } }))}
+                                  onBlur={() => handleScoreBlur(key)}
+                                  className="w-14 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-indigo-500"
+                                />
+                              </div>
+                            </div>
+                            {scoreError && (
+                              <p className="text-[10px] text-red-400 text-center">{scoreError}</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -111,6 +290,7 @@ function SummaryModal({
             )
           })}
         </div>
+        )}
       </div>
     </div>
   )
