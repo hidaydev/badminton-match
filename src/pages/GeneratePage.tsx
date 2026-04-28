@@ -615,7 +615,32 @@ export default function GeneratePage() {
 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Generate Schedule</h2>
+          <div className="flex items-center gap-2 mb-0.5">
+            <h2 className="text-xl sm:text-2xl font-bold text-white">Generate Schedule</h2>
+            {result && !isSharedView && (
+              <button
+                onClick={handleShare}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${copied ? 'text-emerald-400 bg-emerald-900/30' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+              >
+                {copied ? (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                    Share
+                  </>
+                )}
+              </button>
+            )}
+          </div>
           <p className="text-slate-400 text-xs sm:text-sm">
             {players.length} players · {session.totalGames} games · {session.courts} court{session.courts > 1 ? 's' : ''}
           </p>
@@ -630,12 +655,6 @@ export default function GeneratePage() {
             </button>
             {!isSharedView && (
               <>
-                <button
-                  onClick={handleShare}
-                  className="text-xs text-slate-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors whitespace-nowrap"
-                >
-                  {copied ? '✓ Copied!' : 'Share'}
-                </button>
                 <button
                   onClick={handleGenerate}
                   className="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors whitespace-nowrap"
