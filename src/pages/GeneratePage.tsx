@@ -229,7 +229,7 @@ function SummaryModal({
                           {/* Score toggle / saved score */}
                           {savedScore && !isOpen ? (
                             <button
-                              onClick={() => { setExpandedScore(key); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) }}
+                              onClick={() => { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) }}
                               className="text-[11px] font-bold text-emerald-400 shrink-0 whitespace-nowrap hover:text-emerald-300"
                             >
                               {savedScore.a}–{savedScore.b}
@@ -238,7 +238,7 @@ function SummaryModal({
                             <button
                               onClick={() => {
                                 if (isOpen) { setExpandedScore(null); setScoreError(null) }
-                                else { setExpandedScore(key); setDraftScores((d) => ({ ...d, [key]: draft })) }
+                                else { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draft })) }
                               }}
                               className="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 whitespace-nowrap transition-colors"
                             >
@@ -258,7 +258,7 @@ function SummaryModal({
                                   min={0}
                                   max={99}
                                   value={draft.a}
-                                  onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...draft, a: e.target.value } }))}
+                                  onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), a: e.target.value } }))}
                                   onBlur={() => handleScoreBlur(key)}
                                   className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-indigo-500"
                                 />
@@ -271,7 +271,7 @@ function SummaryModal({
                                   min={0}
                                   max={99}
                                   value={draft.b}
-                                  onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...draft, b: e.target.value } }))}
+                                  onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), b: e.target.value } }))}
                                   onBlur={() => handleScoreBlur(key)}
                                   className="w-14 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-indigo-500"
                                 />
