@@ -5,6 +5,7 @@ import SetupPage from './pages/SetupPage'
 import PlayersPage from './pages/PlayersPage'
 import ConstraintsPage from './pages/ConstraintsPage'
 import GeneratePage from './pages/GeneratePage'
+import SharedSessionPage from './pages/SharedSessionPage'
 import { useStore } from './store'
 import { decodeSnapshot, type SharedSnapshot } from './utils/shareUrl'
 
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="generate" element={<RequirePlayers><GeneratePage /></RequirePlayers>} />
             <Route path="view" element={<SharedViewPage />} />
           </Route>
+          <Route path="s/:sessionId" element={<SharedSessionPage />} />
         </Routes>
       </BrowserRouter>
     </SharedViewContext.Provider>
