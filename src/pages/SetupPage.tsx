@@ -180,6 +180,8 @@ export default function SetupPage() {
     setCourtName,
     setPlayerCount,
     setTierCount,
+    setTitle,
+    setDate,
     lockSession,
     resetSession,
   } = useStore()
@@ -196,6 +198,8 @@ export default function SetupPage() {
       ? `Need at least ${minPlayersNeeded} players for ${session.courts} courts — add more or reduce courts.`
       : null
 
+  const canLock = !courtError && session.title.trim() !== '' && session.date !== ''
+
   function handleLock() {
     lockSession()
     navigate('/players')
@@ -209,6 +213,31 @@ export default function SetupPage() {
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-5">
+
+        {/* Block 0: Session identity */}
+        <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+            <label className="text-xs text-slate-400">Session title</label>
+            <input
+              type="text"
+              value={session.title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Sunday Morning Session"
+              disabled={session.locked}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[140px]">
+            <label className="text-xs text-slate-400">Date</label>
+            <input
+              type="date"
+              value={session.date}
+              onChange={(e) => setDate(e.target.value)}
+              disabled={session.locked}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            />
+          </div>
+        </div>
 
         {/* Block 1: Players + Duration */}
         <div className="flex flex-wrap gap-6 items-end">
@@ -326,6 +355,10 @@ export default function SetupPage() {
           </div>
         )}
 
+        {!session.locked && (!session.title.trim() || !session.date) && !courtError && (
+          <p className="text-xs text-slate-500">Session title and date are required to start.</p>
+        )}
+
         {session.locked ? (
           <div className="flex items-center gap-3 p-3 bg-emerald-900/30 border border-emerald-700 rounded-xl text-emerald-400 text-sm">
             <span>✓</span>
@@ -340,7 +373,7 @@ export default function SetupPage() {
         ) : (
           <button
             onClick={handleLock}
-            disabled={!!courtError}
+            disabled={!canLock}
             className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
           >
             Start Session →
