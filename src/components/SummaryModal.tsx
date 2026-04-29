@@ -90,6 +90,8 @@ export default function SummaryModal({
   onTogglePlayedGame,
   onSetGameScore,
   onClose,
+  title,
+  date,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -100,6 +102,8 @@ export default function SummaryModal({
   onTogglePlayedGame: (key: string) => void
   onSetGameScore: (key: string, a: number, b: number) => void
   onClose: () => void
+  title: string
+  date: string
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -187,6 +191,23 @@ export default function SummaryModal({
           Close
         </button>
       </div>
+
+      {/* Session header */}
+      {(title || date) && (
+        <div className="px-5 py-3 border-b border-slate-800 shrink-0">
+          {title && <p className="text-white font-bold text-base leading-tight">{title}</p>}
+          {date && (
+            <p className="text-slate-400 text-xs mt-0.5">
+              {new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full">
