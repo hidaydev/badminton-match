@@ -84,7 +84,6 @@ export default function SummaryModal({
   onTogglePlayedGame,
   onSetGameScore,
   onClose,
-  onRefresh,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -95,7 +94,6 @@ export default function SummaryModal({
   onTogglePlayedGame: (key: string) => void
   onSetGameScore: (key: string, a: number, b: number) => void
   onClose: () => void
-  onRefresh?: () => void
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -176,22 +174,12 @@ export default function SummaryModal({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {onRefresh && (
-            <button
-              onClick={onRefresh}
-              className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
-            >
-              ↺ Refresh
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
-          >
-            Close
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
+        >
+          Close
+        </button>
       </div>
 
       {/* Content */}
