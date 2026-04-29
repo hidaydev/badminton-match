@@ -97,7 +97,6 @@ export default function SharedSessionPage() {
       onTogglePlayedGame={handleTogglePlayed}
       onSetGameScore={handleSetScore}
       onClose={() => navigate('/')}
-      onRefresh={fetchSession}
     />
   )
 }
