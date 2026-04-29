@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useStore, type Player, timeToMinutes } from '../store'
 import { generate, type GeneratorResult } from '../generator'
 import { useSharedView } from '../App'
-import { buildShareUrl, type SharedSnapshot } from '../utils/shareUrl'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
 
@@ -392,14 +391,12 @@ export default function GeneratePage() {
   const storePlayers = useStore((s) => s.players)
   const storeFixMatches = useStore((s) => s.fixMatches)
   const storeSession = useStore((s) => s.session)
-  const storeSessionId = useStore((s) => s.sessionId)
   const storeResult = useStore((s) => s.lastResult)
   const setStoreResult = useStore((s) => s.setResult)
 
   const players = isSharedView ? (snapshot?.players ?? []) : storePlayers
   const fixMatches = isSharedView ? [] : storeFixMatches
   const session = isSharedView ? (snapshot?.session ?? storeSession) : storeSession
-  const sessionId = isSharedView ? (snapshot?.sessionId ?? storeSessionId) : storeSessionId
 
   const showSummary = useStore((s) => s.summaryOpen)
   const setShowSummary = useStore((s) => s.setSummaryOpen)
@@ -412,24 +409,7 @@ export default function GeneratePage() {
   )
   const [error, setError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
-  const [copied, setCopied] = useState(false)
-
   const playerMap = new Map(players.map((p) => [p.id, p]))
-
-  async function handleShare() {
-    if (!result) return
-    const payload: SharedSnapshot = {
-      sessionId,
-      session,
-      players,
-      schedule: result.schedule,
-      lastResult: result,
-    }
-    const url = buildShareUrl(payload)
-    await navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   function buildOffsets() {
     return session.courtTimes.map((ct) =>
@@ -511,29 +491,6 @@ export default function GeneratePage() {
         <div>
           <div className="flex items-center gap-2 mb-0.5">
             <h2 className="text-xl sm:text-2xl font-bold text-white">Generate Schedule</h2>
-            {result && !isSharedView && (
-              <button
-                onClick={handleShare}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${copied ? 'text-emerald-400 bg-emerald-900/30' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-              >
-                {copied ? (
-                  <>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                    </svg>
-                    Share
-                  </>
-                )}
-              </button>
-            )}
           </div>
           <p className="text-slate-400 text-xs sm:text-sm">
             {players.length} players · {session.totalGames} games · {session.courts} court{session.courts > 1 ? 's' : ''}
