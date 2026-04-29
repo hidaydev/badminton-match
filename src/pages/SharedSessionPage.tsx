@@ -97,6 +97,8 @@ export default function SharedSessionPage() {
       onTogglePlayedGame={handleTogglePlayed}
       onSetGameScore={handleSetScore}
       onClose={() => navigate('/')}
+      title={snapshot.session.title ?? ''}
+      date={snapshot.session.date ?? ''}
     />
   )
 }

@@ -585,6 +585,8 @@ export default function GeneratePage() {
           onTogglePlayedGame={handleTogglePlayed}
           onSetGameScore={handleSetScore}
           onClose={() => setShowSummary(false)}
+          title={session.title}
+          date={session.date}
         />
       )}
     </div>
