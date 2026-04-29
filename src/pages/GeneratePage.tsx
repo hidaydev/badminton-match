@@ -4,6 +4,7 @@ import { generate, type GeneratorResult } from '../generator'
 import { useSharedView } from '../App'
 import { buildShareUrl, type SharedSnapshot } from '../utils/shareUrl'
 import { computeStandings } from '../utils/standings'
+import ShareButton from '../components/ShareButton'
 
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd']
@@ -882,6 +883,7 @@ export default function GeneratePage() {
                 >
                   ↺ Until good
                 </button>
+                <ShareButton />
               </>
             )}
           </div>
