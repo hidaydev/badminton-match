@@ -16,8 +16,8 @@ export default function ShareButton() {
   const cloudSessionId = useStore((s) => s.cloudSessionId)
   const setCloudSessionId = useStore((s) => s.setCloudSessionId)
 
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>(cloudSessionId ? 'done' : 'idle')
+  const [shareUrl, setShareUrl] = useState<string | null>(cloudSessionId ? `${window.location.origin}/s/${cloudSessionId}` : null)
   const [copied, setCopied] = useState(false)
 
   async function handleShare() {

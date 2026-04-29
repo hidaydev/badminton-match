@@ -4,6 +4,7 @@ import { generate, type GeneratorResult } from '../generator'
 import { useSharedView } from '../App'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
+import { publishSession, type CloudSnapshot } from '../utils/cloudSync'
 
 const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
 const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400', 4: 'text-green-400' }
@@ -404,12 +405,32 @@ export default function GeneratePage() {
   const gameScores = useStore((s) => s.gameScores)
   const togglePlayedGame = useStore((s) => s.togglePlayedGame)
   const setGameScore = useStore((s) => s.setGameScore)
+  const cloudSessionId = useStore((s) => s.cloudSessionId)
+  const schedule = useStore((s) => s.schedule)
   const [result, setResult] = useState<GeneratorResult | null>(
     isSharedView ? (snapshot?.lastResult ?? null) : storeResult
   )
   const [error, setError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
   const playerMap = new Map(players.map((p) => [p.id, p]))
+
+  async function handleTogglePlayed(key: string) {
+    togglePlayedGame(key)
+    if (!cloudSessionId) return
+    const nextPlayed = playedArr.includes(key)
+      ? playedArr.filter((k) => k !== key)
+      : [...playedArr, key]
+    const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: nextPlayed, gameScores }
+    try { await publishSession(cloudSessionId, snap) } catch { /* silent */ }
+  }
+
+  async function handleSetScore(key: string, a: number, b: number) {
+    setGameScore(key, a, b)
+    if (!cloudSessionId) return
+    const nextScores = { ...gameScores, [key]: { a, b } }
+    const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: playedArr, gameScores: nextScores }
+    try { await publishSession(cloudSessionId, snap) } catch { /* silent */ }
+  }
 
   function buildOffsets() {
     return session.courtTimes.map((ct) =>
@@ -434,20 +455,6 @@ export default function GeneratePage() {
     const q = computeQuality(r, playerMap, fixMatches)
     if (!q) return false
     return q.playSpread <= 1 && q.unevenGames === 0 && q.repeatedPairs === 0
-  }
-
-  function handleGenerate() {
-    setError(null)
-    setRetryInfo(null)
-    const err = validatePlayers()
-    if (err) { setError(err); return }
-    try {
-      const r = generate(players, session.slotsPerCourt, fixMatches, buildOffsets())
-      setResult(r)
-      setStoreResult(r)
-    } catch (e) {
-      setError(String(e))
-    }
   }
 
   function handleRetryUntilGood() {
@@ -506,18 +513,14 @@ export default function GeneratePage() {
             </button>
             {!isSharedView && (
               <>
-                <button
-                  onClick={handleGenerate}
-                  className="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors whitespace-nowrap"
-                >
-                  Regenerate
-                </button>
-                <button
-                  onClick={handleRetryUntilGood}
-                  className="text-xs text-emerald-400 hover:text-emerald-200 px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
-                >
-                  ↺ Until good
-                </button>
+                {!cloudSessionId && (
+                  <button
+                    onClick={handleRetryUntilGood}
+                    className="text-xs text-emerald-400 hover:text-emerald-200 px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
+                  >
+                    ↺ Regenerate
+                  </button>
+                )}
                 <ShareButton />
               </>
             )}
@@ -550,13 +553,13 @@ export default function GeneratePage() {
 
       {result && (
         <>
-          <QualityBanner result={result} playerMap={playerMap} fixMatches={fixMatches} onRetryUntilGood={isSharedView ? undefined : handleRetryUntilGood} retryInfo={retryInfo} />
+          <QualityBanner result={result} playerMap={playerMap} fixMatches={fixMatches} onRetryUntilGood={isSharedView || cloudSessionId ? undefined : handleRetryUntilGood} retryInfo={retryInfo} />
         </>
       )}
 
       {!result ? (
         <button
-          onClick={handleGenerate}
+          onClick={handleRetryUntilGood}
           disabled={players.length < 4}
           className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors"
         >
@@ -579,8 +582,8 @@ export default function GeneratePage() {
           courtNames={session.courtNames ?? []}
           playedGames={playedArr}
           gameScores={gameScores}
-          onTogglePlayedGame={togglePlayedGame}
-          onSetGameScore={setGameScore}
+          onTogglePlayedGame={handleTogglePlayed}
+          onSetGameScore={handleSetScore}
           onClose={() => setShowSummary(false)}
         />
       )}
