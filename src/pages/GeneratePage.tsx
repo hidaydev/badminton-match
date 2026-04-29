@@ -127,17 +127,24 @@ function SummaryModal({
   const totalGames = result.schedule.length
   const playedCount = played.size
 
-  function handleScoreBlur(key: string) {
+  function trySaveScore(key: string): boolean {
     const draft = draftScores[key]
-    if (!draft) return
+    if (!draft) return false
     const a = parseInt(draft.a, 10)
     const b = parseInt(draft.b, 10)
-    if (isNaN(a) || isNaN(b)) return
-    if (a < 0 || a > 99 || b < 0 || b > 99) return
-    if (a === b) { setScoreError('Scores can\'t be equal'); return }
+    if (isNaN(a) || isNaN(b)) return false
+    if (a < 0 || a > 99 || b < 0 || b > 99) return false
+    if (a === b) { setScoreError('Scores can\'t be equal'); return false }
     setScoreError(null)
     setGameScore(key, a, b)
     if (!played.has(key)) togglePlayedGame(key)
+    return true
+  }
+
+  function handleScoreBlur(key: string) { trySaveScore(key) }
+
+  function handleScoreSave(key: string) {
+    if (trySaveScore(key)) setExpandedScore(null)
   }
 
   return (
@@ -277,9 +284,17 @@ function SummaryModal({
                                 />
                               </div>
                             </div>
-                            {scoreError && (
-                              <p className="text-[10px] text-red-400 text-center">{scoreError}</p>
-                            )}
+                            <div className="flex flex-col items-center gap-1">
+                              {scoreError && (
+                                <p className="text-[10px] text-red-400 text-center">{scoreError}</p>
+                              )}
+                              <button
+                                onClick={() => handleScoreSave(key)}
+                                className="px-6 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors"
+                              >
+                                ✓ Save
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
