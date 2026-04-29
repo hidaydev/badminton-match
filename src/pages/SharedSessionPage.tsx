@@ -96,7 +96,6 @@ export default function SharedSessionPage() {
       gameScores={gameScores}
       onTogglePlayedGame={handleTogglePlayed}
       onSetGameScore={handleSetScore}
-      onClose={() => navigate('/')}
     />
   )
 }
