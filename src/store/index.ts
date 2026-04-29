@@ -37,6 +37,8 @@ export interface CourtTime {
 }
 
 export interface SessionConfig {
+  title: string
+  date: string
   courts: number
   sessionStart: string    // "09:00"
   slotMinutes: number     // minutes per game slot
@@ -68,6 +70,8 @@ interface AppState {
   setPlayerCount: (n: number) => void
   setCourtName: (index: number, name: string) => void
   setTierCount: (n: 3 | 4) => void
+  setTitle: (title: string) => void
+  setDate: (date: string) => void
   lockSession: () => void
   resetSession: () => void
 
@@ -111,16 +115,20 @@ const DEFAULT_COURT_TIMES: CourtTime[] = [
   { start: '09:00', end: '11:00' },
 ]
 
-const defaultSession: SessionConfig = {
-  courts: 2,
-  sessionStart: '09:00',
-  slotMinutes: DEFAULT_SLOT_MINUTES,
-  courtTimes: DEFAULT_COURT_TIMES,
-  playerCount: 8,
-  ...derivedFromCourtTimes(DEFAULT_COURT_TIMES, DEFAULT_SLOT_MINUTES),
-  courtNames: [],
-  tierCount: 3,
-  locked: false,
+function makeDefaultSession(): SessionConfig {
+  return {
+    title: '',
+    date: new Date().toISOString().slice(0, 10),
+    courts: 2,
+    sessionStart: '09:00',
+    slotMinutes: DEFAULT_SLOT_MINUTES,
+    courtTimes: DEFAULT_COURT_TIMES,
+    playerCount: 8,
+    ...derivedFromCourtTimes(DEFAULT_COURT_TIMES, DEFAULT_SLOT_MINUTES),
+    courtNames: [],
+    tierCount: 3,
+    locked: false,
+  }
 }
 
 function nanoid() {
@@ -131,7 +139,7 @@ export const useStore = create<AppState>()(
   persist(
     (set) => ({
       sessionId: nanoid(),
-      session: defaultSession,
+      session: makeDefaultSession(),
       players: [],
       fixMatches: [],
       schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null,
@@ -203,11 +211,17 @@ export const useStore = create<AppState>()(
       setTierCount: (n) =>
         set((s) => ({ session: { ...s.session, tierCount: n } })),
 
+      setTitle: (title) =>
+        set((s) => ({ session: { ...s.session, title } })),
+
+      setDate: (date) =>
+        set((s) => ({ session: { ...s.session, date } })),
+
       lockSession: () =>
         set((s) => ({ session: { ...s.session, locked: true } })),
 
       resetSession: () =>
-        set({ sessionId: nanoid(), session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null }),
+        set({ sessionId: nanoid(), session: makeDefaultSession(), players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null }),
 
       addPlayer: (p) =>
         set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
@@ -281,10 +295,10 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'badminton-store',
-      version: 11,
+      version: 12,
       migrate: () => ({
         sessionId: nanoid(),
-        session: defaultSession,
+        session: makeDefaultSession(),
         players: [],
         fixMatches: [],
         schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null,
