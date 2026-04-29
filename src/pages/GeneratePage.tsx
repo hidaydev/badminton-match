@@ -34,41 +34,52 @@ function StandingsTab({
   return (
     <div className="flex flex-col gap-1.5">
       {/* Header */}
-      <div className="grid items-center gap-2 px-2 mb-1" style={{ gridTemplateColumns: '36px 1fr 44px 36px 44px' }}>
-        <span className="text-[10px] font-bold text-slate-600 text-center">#</span>
-        <span className="text-[10px] font-bold text-slate-600">Name</span>
-        <span className="text-[10px] font-bold text-slate-600 text-center">W-L</span>
-        <span className="text-[10px] font-bold text-slate-600 text-center">Diff</span>
-        <span className="text-[10px] font-bold text-slate-600 text-center">Pts</span>
+      <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
+        <span className="w-[32px] text-[10px] font-bold text-slate-600 text-center shrink-0">#</span>
+        <span className="flex-1 text-[10px] font-bold text-slate-600">Name</span>
+        <span className="w-[44px] text-[10px] font-bold text-slate-600 text-center shrink-0">W-L</span>
+        <span className="w-[36px] text-[10px] font-bold text-slate-600 text-center shrink-0">Diff</span>
+        <span className="w-[36px] text-[10px] font-bold text-slate-600 text-center shrink-0">Pts</span>
       </div>
 
       {standings.map((s, i) => {
         const rank = i + 1
         const isFirst = rank === 1
         const isSecond = rank === 2
+        const isThird = rank === 3
+        const isPodium = isFirst || isSecond || isThird
         const wlColor = s.wins > s.losses ? 'text-emerald-400' : s.losses > s.wins ? 'text-red-400' : 'text-slate-400'
         const diffColor = s.diff > 0 ? 'text-emerald-400' : s.diff < 0 ? 'text-red-400' : 'text-slate-400'
         const diffLabel = s.diff > 0 ? `+${s.diff}` : String(s.diff)
 
+        const medal = isFirst ? '🥇' : isSecond ? '🥈' : isThird ? '🥉' : null
+
+        const rowBg = isPodium
+          ? 'bg-emerald-950/45 border-emerald-800/35'
+          : 'bg-slate-800/30 border-slate-700/20'
+
         return (
           <div
             key={s.player.id}
-            className={`grid items-center gap-2 px-2 py-2 rounded-xl border ${
-              isFirst
-                ? 'bg-emerald-900/20 border-emerald-800/60'
-                : isSecond
-                ? 'bg-emerald-900/10 border-emerald-900/40'
-                : 'bg-slate-800/50 border-slate-700/50'
-            }`}
-            style={{ gridTemplateColumns: '36px 1fr 44px 36px 44px' }}
+            className={`flex items-center gap-2 pl-2 pr-2 py-2.5 rounded-xl border ${rowBg}`}
           >
-            <span className={`text-[11px] font-bold text-center ${isFirst ? 'text-amber-400' : 'text-slate-500'}`}>
-              {ordinal(rank)}
+            {/* rank */}
+            <div className="w-[32px] flex justify-center shrink-0">
+              {medal
+                ? <span className="text-lg leading-none">{medal}</span>
+                : <span className="text-[11px] font-semibold text-slate-500">{ordinal(rank)}</span>
+              }
+            </div>
+
+            {/* name */}
+            <span className={`flex-1 min-w-0 truncate ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}>
+              {s.player.name}
             </span>
-            <span className="text-sm font-medium text-white truncate">{s.player.name}</span>
-            <span className={`text-[11px] font-semibold text-center ${wlColor}`}>{s.wins}-{s.losses}</span>
-            <span className={`text-[11px] font-semibold text-center ${diffColor}`}>{diffLabel}</span>
-            <span className="text-sm font-bold text-white text-center">{s.pointsFor}</span>
+
+            {/* stats */}
+            <span className={`w-[44px] text-[11px] font-semibold text-center shrink-0 ${wlColor}`}>{s.wins}-{s.losses}</span>
+            <span className={`w-[36px] text-[11px] font-semibold text-center shrink-0 ${diffColor}`}>{diffLabel}</span>
+            <span className={`w-[36px] text-sm font-bold text-center shrink-0 ${isFirst ? 'text-emerald-300' : isPodium ? 'text-emerald-100/70' : 'text-slate-400'}`}>{s.pointsFor}</span>
           </div>
         )
       })}
