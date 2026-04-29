@@ -58,6 +58,8 @@ interface AppState {
   lastResult: GeneratorResult | null
   playedGames: string[]
   gameScores: Record<string, GameScore>
+  cloudSessionId: string | null
+  setCloudSessionId: (id: string) => void
 
   setCourts: (n: number) => void
   setSessionStart: (time: string) => void
@@ -132,7 +134,7 @@ export const useStore = create<AppState>()(
       session: defaultSession,
       players: [],
       fixMatches: [],
-      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false,
+      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null,
 
       setCourts: (n) =>
         set((s) => {
@@ -205,7 +207,7 @@ export const useStore = create<AppState>()(
         set((s) => ({ session: { ...s.session, locked: true } })),
 
       resetSession: () =>
-        set({ sessionId: nanoid(), session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false }),
+        set({ sessionId: nanoid(), session: defaultSession, players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null }),
 
       addPlayer: (p) =>
         set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
@@ -274,6 +276,8 @@ export const useStore = create<AppState>()(
         }),
 
       setSummaryOpen: (open) => set({ summaryOpen: open }),
+
+      setCloudSessionId: (id) => set({ cloudSessionId: id }),
     }),
     {
       name: 'badminton-store',
@@ -283,7 +287,7 @@ export const useStore = create<AppState>()(
         session: defaultSession,
         players: [],
         fixMatches: [],
-        schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false,
+        schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null,
       }),
     }
   )
