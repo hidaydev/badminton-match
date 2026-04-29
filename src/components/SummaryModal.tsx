@@ -101,7 +101,7 @@ export default function SummaryModal({
   gameScores: Record<string, GameScore>
   onTogglePlayedGame: (key: string) => void
   onSetGameScore: (key: string, a: number, b: number) => void
-  onClose: () => void
+  onClose?: () => void
   title: string
   date: string
 }) {
@@ -184,12 +184,14 @@ export default function SummaryModal({
             </span>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
-        >
-          Close
-        </button>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
+          >
+            Close
+          </button>
+        )}
       </div>
 
       {/* Session header */}
