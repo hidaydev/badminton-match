@@ -81,20 +81,26 @@ function SummaryModal({
   playerMap,
   slotsPerCourt,
   courtNames,
+  playedGames: playedArr,
+  gameScores,
+  onTogglePlayedGame,
+  onSetGameScore,
   onClose,
+  onRefresh,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
   slotsPerCourt: number[]
   courtNames: string[]
+  playedGames: string[]
+  gameScores: Record<string, import('../store').GameScore>
+  onTogglePlayedGame: (key: string) => void
+  onSetGameScore: (key: string, a: number, b: number) => void
   onClose: () => void
+  onRefresh?: () => void
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
-  const playedArr = useStore((s) => s.playedGames)
-  const togglePlayedGame = useStore((s) => s.togglePlayedGame)
-  const gameScores = useStore((s) => s.gameScores)
-  const setGameScore = useStore((s) => s.setGameScore)
   const played = new Set(playedArr)
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings'>('schedule')
@@ -136,8 +142,8 @@ function SummaryModal({
     if (a < 0 || a > 99 || b < 0 || b > 99) return false
     if (a === b) { setScoreError('Scores can\'t be equal'); return false }
     setScoreError(null)
-    setGameScore(key, a, b)
-    if (!played.has(key)) togglePlayedGame(key)
+    onSetGameScore(key, a, b)
+    if (!played.has(key)) onTogglePlayedGame(key)
     return true
   }
 
@@ -172,12 +178,22 @@ function SummaryModal({
             </span>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
-        >
-          Close
-        </button>
+        <div className="flex items-center gap-2">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
+            >
+              ↺ Refresh
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
+          >
+            Close
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -216,7 +232,7 @@ function SummaryModal({
                           {/* Played checkbox */}
                           <div
                             className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors cursor-pointer ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                            onClick={() => togglePlayedGame(key)}
+                            onClick={() => onTogglePlayedGame(key)}
                           >
                             {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                           </div>
@@ -708,6 +724,10 @@ export default function GeneratePage() {
 
   const showSummary = useStore((s) => s.summaryOpen)
   const setShowSummary = useStore((s) => s.setSummaryOpen)
+  const playedArr = useStore((s) => s.playedGames)
+  const gameScores = useStore((s) => s.gameScores)
+  const togglePlayedGame = useStore((s) => s.togglePlayedGame)
+  const setGameScore = useStore((s) => s.setGameScore)
   const [result, setResult] = useState<GeneratorResult | null>(
     isSharedView ? (snapshot?.lastResult ?? null) : storeResult
   )
@@ -920,6 +940,10 @@ export default function GeneratePage() {
           playerMap={playerMap}
           slotsPerCourt={session.slotsPerCourt}
           courtNames={session.courtNames ?? []}
+          playedGames={playedArr}
+          gameScores={gameScores}
+          onTogglePlayedGame={togglePlayedGame}
+          onSetGameScore={setGameScore}
           onClose={() => setShowSummary(false)}
         />
       )}
