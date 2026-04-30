@@ -85,7 +85,7 @@ function TimeSelect({
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+      className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
     >
       {options.map((o) => (
         <option key={o} value={o}>{hourLabel(o)}</option>
@@ -224,7 +224,7 @@ export default function SetupPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Sunday Morning Session"
               disabled={session.locked}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed h-9"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[140px]">
@@ -234,7 +234,7 @@ export default function SetupPage() {
               value={session.date}
               onChange={(e) => setDate(e.target.value)}
               disabled={session.locked}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
             />
           </div>
         </div>
@@ -272,7 +272,7 @@ export default function SetupPage() {
               value={session.slotMinutes}
               disabled={session.locked}
               onChange={(e) => setSlotMinutes(Number(e.target.value))}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
             >
               {DURATION_OPTIONS.map((d) => (
                 <option key={d} value={d}>{d} min</option>
@@ -281,7 +281,7 @@ export default function SetupPage() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-400">Skill tiers</label>
-            <div className="flex rounded-lg overflow-hidden border border-slate-700">
+            <div className="flex rounded-lg overflow-hidden border border-slate-700 h-9">
               {([3, 4] as const).map((n) => (
                 <button
                   key={n}
