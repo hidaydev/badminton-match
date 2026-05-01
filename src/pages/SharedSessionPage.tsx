@@ -98,6 +98,8 @@ export default function SharedSessionPage() {
       onSetGameScore={handleSetScore}
       title={snapshot.session.title ?? ''}
       date={snapshot.session.date ?? ''}
+      sessionStart={snapshot.session.sessionStart}
+      slotMinutes={snapshot.session.slotMinutes}
     />
   )
 }

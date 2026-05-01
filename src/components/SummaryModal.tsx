@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { GeneratorResult } from '../generator'
 import type { Player, GameScore } from '../store'
+import { timeToMinutes, minutesToTime } from '../store'
 import { computeStandings } from '../utils/standings'
 
 function ordinal(n: number): string {
@@ -92,6 +93,8 @@ export default function SummaryModal({
   onClose,
   title,
   date,
+  sessionStart,
+  slotMinutes,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -104,6 +107,8 @@ export default function SummaryModal({
   onClose?: () => void
   title: string
   date: string
+  sessionStart: string
+  slotMinutes: number
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -225,9 +230,12 @@ export default function SummaryModal({
             const games = (bySlot.get(s) ?? []).sort((a, b) => a.court - b.court)
             return (
               <div key={s} className="flex items-start gap-4 py-4">
-                <span className="text-xs font-bold text-slate-600 w-4 shrink-0 pt-0.5">
-                  #{s + 1}
-                </span>
+                <div className="flex flex-col items-center w-4 shrink-0 pt-0.5 gap-0.5">
+                  <span className="text-xs font-bold text-slate-600">#{s + 1}</span>
+                  <span className="text-[8px] text-slate-700 font-medium leading-none">
+                    {minutesToTime(timeToMinutes(sessionStart) + s * slotMinutes)}
+                  </span>
+                </div>
                 <div className="flex flex-col gap-2.5 flex-1">
                   {games.map((g) => {
                     const key = `${s}-${g.court}`

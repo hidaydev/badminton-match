@@ -587,6 +587,8 @@ export default function GeneratePage() {
           onClose={() => setShowSummary(false)}
           title={session.title}
           date={session.date}
+          sessionStart={session.sessionStart}
+          slotMinutes={session.slotMinutes}
         />
       )}
     </div>
