@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { GeneratorResult } from '../generator'
-import type { Player, GameScore } from '../store'
+import type { Player, GameScore, CourtTime } from '../store'
 import { timeToMinutes, minutesToTime } from '../store'
 import { computeStandings } from '../utils/standings'
 
@@ -81,6 +81,22 @@ function StandingsTab({
   )
 }
 
+function mergeCourtTimes(courtTimes: CourtTime[]): string {
+  if (courtTimes.length === 0) return ''
+  const ranges = courtTimes
+    .map((ct) => ({ start: timeToMinutes(ct.start), end: timeToMinutes(ct.end) }))
+    .sort((a, b) => a.start - b.start)
+  const merged: { start: number; end: number }[] = []
+  for (const r of ranges) {
+    if (merged.length === 0 || r.start > merged[merged.length - 1].end) {
+      merged.push({ ...r })
+    } else {
+      merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, r.end)
+    }
+  }
+  return merged.map((r) => `${minutesToTime(r.start)}–${minutesToTime(r.end)}`).join(' · ')
+}
+
 export default function SummaryModal({
   result,
   playerMap,
@@ -95,6 +111,7 @@ export default function SummaryModal({
   date,
   sessionStart,
   slotMinutes,
+  courtTimes,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -109,6 +126,7 @@ export default function SummaryModal({
   date: string
   sessionStart: string
   slotMinutes: number
+  courtTimes: CourtTime[]
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -211,6 +229,9 @@ export default function SummaryModal({
                 month: 'long',
                 year: 'numeric',
               })}
+              {courtTimes.length > 0 && (
+                <span className="text-slate-600"> · {mergeCourtTimes(courtTimes)}</span>
+              )}
             </p>
           )}
         </div>
