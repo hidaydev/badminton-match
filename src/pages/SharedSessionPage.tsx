@@ -100,6 +100,7 @@ export default function SharedSessionPage() {
       date={snapshot.session.date ?? ''}
       sessionStart={snapshot.session.sessionStart}
       slotMinutes={snapshot.session.slotMinutes}
+      courtTimes={snapshot.session.courtTimes}
     />
   )
 }
