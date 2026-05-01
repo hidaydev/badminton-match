@@ -589,6 +589,7 @@ export default function GeneratePage() {
           date={session.date}
           sessionStart={session.sessionStart}
           slotMinutes={session.slotMinutes}
+          courtTimes={session.courtTimes}
         />
       )}
     </div>
