@@ -15,7 +15,11 @@
       "Bash(tsc -b)",
       "Bash(vite build *)",
       "Bash(npx tsc *)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Read(//Users/hidaydev/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/**)",
+      "Read(//Users/hidaydev/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/scripts/**)",
+      "Read(//Users/hidaydev/.claude/plugins/**)",
+      "Bash(/Users/hidaydev/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/scripts/start-server.sh --project-dir /Users/hidaydev/Code/badminton-pair)"
     ]
   }
 }
