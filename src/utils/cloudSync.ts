@@ -51,6 +51,8 @@ export async function getSession(id: string): Promise<CloudSnapshot | null> {
 export async function publishSession(id: string, data: CloudSnapshot): Promise<void> {
   const res = await fetch(scriptUrl(), {
     method: 'POST',
+    // No Content-Type header: browser sends text/plain, avoiding CORS preflight.
+    // Apps Script reads body via e.postData.contents.
     body: JSON.stringify({ id, data }),
   })
   const json = await res.json() as { ok: boolean; error?: string }
