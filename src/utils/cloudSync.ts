@@ -9,6 +9,32 @@ export interface CloudSnapshot {
   gameScores: Record<string, GameScore>
 }
 
+export interface SessionMeta {
+  id: string
+  title: string
+  date: string
+  playerCount: number
+  totalGames: number
+}
+
+export interface PlayerSummary {
+  name: string
+  gender: 'M' | 'F'
+  tier: 1 | 2 | 3 | 4
+}
+
+export interface PlayerStats {
+  name: string
+  gamesPlayed: number
+  wins: number
+  losses: number
+  pointsFor: number
+  pointsAgainst: number
+  sessions: { id: string; date: string; title: string }[]
+  topPartners: { name: string; count: number; wins: number; losses: number }[]
+  topOpponents: { name: string; count: number; wins: number; losses: number }[]
+}
+
 function scriptUrl(): string {
   const url = import.meta.env.VITE_APPS_SCRIPT_URL as string
   if (!url) throw new Error('VITE_APPS_SCRIPT_URL is not set')
@@ -31,4 +57,26 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<v
   })
   const json = await res.json() as { ok: boolean; error?: string }
   if (!json.ok) throw new Error(json.error ?? 'publish failed')
+}
+
+export async function listSessions(): Promise<SessionMeta[]> {
+  const res = await fetch(`${scriptUrl()}?action=list`)
+  const json = await res.json() as { ok: boolean; data?: SessionMeta[]; error?: string }
+  if (!json.ok) throw new Error(json.error ?? 'list failed')
+  return json.data ?? []
+}
+
+export async function listPlayers(): Promise<PlayerSummary[]> {
+  const res = await fetch(`${scriptUrl()}?action=players`)
+  const json = await res.json() as { ok: boolean; data?: PlayerSummary[]; error?: string }
+  if (!json.ok) throw new Error(json.error ?? 'list players failed')
+  return json.data ?? []
+}
+
+export async function getPlayerStats(name: string): Promise<PlayerStats> {
+  const res = await fetch(`${scriptUrl()}?action=playerStats&name=${encodeURIComponent(name)}`)
+  const json = await res.json() as { ok: boolean; data?: PlayerStats; error?: string }
+  if (!json.ok) throw new Error(json.error ?? 'player stats failed')
+  if (!json.data) throw new Error('no data')
+  return json.data
 }
