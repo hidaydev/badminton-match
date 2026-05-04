@@ -367,7 +367,7 @@ export default function PlayersPage() {
 
       <button
         disabled={!isComplete || !session.locked}
-        onClick={() => navigate('/constraints')}
+        onClick={() => navigate('/session/constraints')}
         className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors mt-2"
       >
         {!session.locked
