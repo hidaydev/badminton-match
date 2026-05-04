@@ -140,19 +140,18 @@ function handlePlayerStats(name) {
 
         var scoreKey = slot.slot + '-' + slot.court;
         var score = gameScores[scoreKey];
+        var gameWon = null;
         if (score) {
           var myScore = inA ? score.a : score.b;
           var oppScore = inA ? score.b : score.a;
           pointsFor += myScore;
           pointsAgainst += oppScore;
-          if (myScore > oppScore) wins++;
-          else losses++;
+          if (myScore > oppScore) { wins++; gameWon = true; }
+          else { losses++; gameWon = false; }
         }
 
         var myTeam = inA ? teamA : teamB;
         var oppTeam = inA ? teamB : teamA;
-
-        var gameWon = score ? myScore > oppScore : null;
 
         for (var m = 0; m < myTeam.length; m++) {
           if (myTeam[m] === playerId) continue;
