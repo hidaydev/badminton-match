@@ -179,7 +179,6 @@ export default function SetupPage() {
     setCourtTime,
     setCourtName,
     setPlayerCount,
-    setTierCount,
     setTitle,
     setDate,
     lockSession,
@@ -278,25 +277,6 @@ export default function SetupPage() {
                 <option key={d} value={d}>{d} min</option>
               ))}
             </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-slate-400">Skill tiers</label>
-            <div className="flex rounded-lg overflow-hidden border border-slate-700 h-9">
-              {([3, 4] as const).map((n) => (
-                <button
-                  key={n}
-                  disabled={session.locked}
-                  onClick={() => setTierCount(n)}
-                  className={`px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
-                    session.tierCount === n
-                      ? 'bg-indigo-600 text-white'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'
-                  }`}
-                >
-                  {n === 3 ? 'A–C' : 'A–D'}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
 

@@ -32,7 +32,7 @@ export default function PlayerHistoryPage() {
         >
           <div>
             <p className="text-sm font-semibold text-white">{p.name}</p>
-            <p className="text-xs text-slate-400 mt-0.5">Tier {p.tier} · {p.gender === 'M' ? 'Male' : 'Female'}</p>
+            <p className="text-xs text-slate-400 mt-0.5">Tier {(['A','B','C','D'])[p.tier - 1]} · {p.gender === 'M' ? 'Male' : 'Female'}</p>
           </div>
           <span className="text-slate-600 text-lg">›</span>
         </button>
