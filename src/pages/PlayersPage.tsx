@@ -44,7 +44,6 @@ function TierBadge({ tier }: { tier: Tier }) {
 // ── Inline editable row ───────────────────────────────────────────────────────
 function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void }) {
   const updatePlayer = useStore((s) => s.updatePlayer)
-  const tierCount = useStore((s) => s.session.tierCount)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(player.name)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -105,7 +104,7 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
 
       {/* Tier picker */}
       <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {(Array.from({ length: tierCount }, (_, i) => (i + 1) as Tier)).map((t) => (
+        {([1, 2, 3, 4] as Tier[]).map((t) => (
           <button
             key={t}
             onClick={() => updatePlayer(player.id, { tier: t })}
@@ -130,7 +129,7 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
 }
 
 // ── Add player row ────────────────────────────────────────────────────────────
-function AddPlayerRow({ onAdd, onCancel, tierCount }: { onAdd: (name: string, gender: Gender, tier: Tier) => void; onCancel: () => void; tierCount: number }) {
+function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gender, tier: Tier) => void; onCancel: () => void }) {
   const [name, setName] = useState('')
   const [gender, setGender] = useState<Gender>('M')
   const [tier, setTier] = useState<Tier>(2)
@@ -174,7 +173,7 @@ function AddPlayerRow({ onAdd, onCancel, tierCount }: { onAdd: (name: string, ge
       </div>
       {/* Tier picker */}
       <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {(Array.from({ length: tierCount }, (_, i) => (i + 1) as Tier)).map((t) => (
+        {([1, 2, 3, 4] as Tier[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -276,8 +275,7 @@ export default function PlayersPage() {
     setShowForm(false)
   }
 
-  const tierCount = session.tierCount ?? 3
-  const tierGroups = (Array.from({ length: tierCount }, (_, i) => (i + 1) as Tier)).map((t) => ({
+  const tierGroups = ([1, 2, 3, 4] as Tier[]).map((t) => ({
     tier: t,
     players: players.filter((p) => p.tier === t),
   }))
@@ -328,7 +326,7 @@ export default function PlayersPage() {
 
       {/* Add row */}
       {showForm ? (
-        <AddPlayerRow onAdd={handleAdd} onCancel={() => setShowForm(false)} tierCount={tierCount} />
+        <AddPlayerRow onAdd={handleAdd} onCancel={() => setShowForm(false)} />
       ) : (
         <div className="flex gap-2">
           <button
