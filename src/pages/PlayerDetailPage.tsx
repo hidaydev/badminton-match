@@ -10,7 +10,7 @@ export default function PlayerDetailPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!name) return
+    if (!name) { setLoading(false); return }
     getPlayerStats(decodeURIComponent(name))
       .then(setStats)
       .catch((e: Error) => setError(e.message))
@@ -58,7 +58,7 @@ export default function PlayerDetailPage() {
           {stats.sessions.map((s) => (
             <div key={s.id} className="flex justify-between text-sm">
               <span className="text-slate-200">{s.title || 'Untitled'}</span>
-              <span className="text-slate-500">{s.date}</span>
+              <span className="text-slate-500">{s.date.split('-').reverse().join('-')}</span>
             </div>
           ))}
         </div>
