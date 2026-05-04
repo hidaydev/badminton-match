@@ -1,14 +1,14 @@
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 
 const steps = [
-  { to: '/', label: 'Setup' },
-  { to: '/players', label: 'Players' },
-  { to: '/constraints', label: 'Constraints' },
-  { to: '/generate', label: 'Generate' },
+  { to: '/session/new', label: 'Setup' },
+  { to: '/session/players', label: 'Players' },
+  { to: '/session/constraints', label: 'Constraints' },
+  { to: '/session/generate', label: 'Generate' },
 ]
 
-export default function Layout() {
+export default function SessionLayout() {
   const locked = useStore((s) => s.session.locked)
   const players = useStore((s) => s.players)
   const playerCount = useStore((s) => s.session.playerCount)
@@ -18,7 +18,9 @@ export default function Layout() {
   const navigate = useNavigate()
 
   const currentIndex = steps.findLastIndex((s) =>
-    s.to === '/' ? location.pathname === '/' : location.pathname.startsWith(s.to)
+    s.to === '/session/new'
+      ? location.pathname === '/session/new'
+      : location.pathname.startsWith(s.to)
   )
   const maxReached = Math.max(
     hasSchedule ? 3 : locked && players.length === playerCount ? 2 : locked ? 1 : 0,
@@ -35,8 +37,10 @@ export default function Layout() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-3 py-2 flex items-center gap-2">
-          <span className="text-xl shrink-0">🏸</span>
-          <h1 className="text-sm font-bold text-white tracking-tight whitespace-nowrap">Badminton Scheduler</h1>
+          <Link to="/" className="flex items-center gap-2">
+            <span className="text-xl shrink-0">🏸</span>
+            <h1 className="text-sm font-bold text-white tracking-tight whitespace-nowrap">MAJADU APP</h1>
+          </Link>
           {locked && (
             <div className="ml-auto flex items-center gap-2 shrink-0">
               <span className="flex items-center gap-1 text-xs text-emerald-400">
@@ -53,7 +57,6 @@ export default function Layout() {
           )}
         </div>
 
-        {/* Stepper */}
         <nav className="max-w-3xl mx-auto px-3 pb-2">
           <div className="flex items-center">
             {steps.map((s, i) => {
@@ -64,7 +67,7 @@ export default function Layout() {
                 <div key={s.to} className="flex items-center flex-1 last:flex-none">
                   <NavLink
                     to={s.to}
-                    end={s.to === '/'}
+                    end={s.to === '/session/new'}
                     onClick={disabled ? (e) => e.preventDefault() : undefined}
                     className={`flex flex-col items-center gap-1 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   >

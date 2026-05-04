@@ -290,7 +290,7 @@ export default function ConstraintsPage() {
       )}
 
       <button
-        onClick={() => navigate('/generate')}
+        onClick={() => navigate('/session/generate')}
         disabled={hasErrors}
         className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
       >
