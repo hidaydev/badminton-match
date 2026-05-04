@@ -55,7 +55,7 @@ function handleList() {
         playerCount: data.players ? data.players.length : 0,
         totalGames: data.session.totalGames || 0,
       });
-    } catch (err) {}
+    } catch (err) { console.error('Row ' + i + ':', err.message); }
   }
   sessions.sort(function(a, b) { return b.date.localeCompare(a.date); });
   return respond({ ok: true, data: sessions });
@@ -80,7 +80,7 @@ function handlePlayers() {
           playerDates[key] = sessionDate;
         }
       }
-    } catch (err) {}
+    } catch (err) { console.error('Row ' + i + ':', err.message); }
   }
 
   var result = Object.keys(playerMap).map(function(k) { return playerMap[k]; });
@@ -169,15 +169,15 @@ function handlePlayerStats(name) {
         for (var n = 0; n < oppTeam.length; n++) {
           var opp = findPlayerById(players, oppTeam[n]);
           if (opp) {
-            var ok = opp.name.toLowerCase();
-            if (!opponentMap[ok]) opponentMap[ok] = { name: opp.name, count: 0, wins: 0, losses: 0 };
-            opponentMap[ok].count++;
-            if (gameWon === true) opponentMap[ok].wins++;
-            else if (gameWon === false) opponentMap[ok].losses++;
+            var oppKey = opp.name.toLowerCase();
+            if (!opponentMap[oppKey]) opponentMap[oppKey] = { name: opp.name, count: 0, wins: 0, losses: 0 };
+            opponentMap[oppKey].count++;
+            if (gameWon === true) opponentMap[oppKey].wins++;
+            else if (gameWon === false) opponentMap[oppKey].losses++;
           }
         }
       }
-    } catch (err) {}
+    } catch (err) { console.error('Row ' + i + ':', err.message); }
   }
 
   var topPartners = Object.keys(partnerMap).map(function(k) {
