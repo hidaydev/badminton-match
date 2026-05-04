@@ -57,7 +57,7 @@ export default function SessionListPage() {
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-white">{s.title || 'Untitled Session'}</p>
-              <p className="text-xs text-slate-400 mt-0.5 font-mono">{s.date}</p>
+              <p className="text-xs text-slate-400 mt-0.5 font-mono">{s.date.split('-').reverse().join('-')}</p>
             </div>
             <div className="text-right shrink-0">
               <p className="text-xs text-slate-400">{s.playerCount} players</p>
