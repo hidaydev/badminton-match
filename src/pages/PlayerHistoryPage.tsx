@@ -30,9 +30,9 @@ export default function PlayerHistoryPage() {
           onClick={() => navigate(`/player-history/${encodeURIComponent(p.name)}`)}
           className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between hover:border-slate-600 transition-colors text-left w-full"
         >
-          <div>
+          <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-white">{p.name}</p>
-            <p className="text-xs text-slate-400 mt-0.5">Tier {(['A','B','C','D'])[p.tier - 1]} · {p.gender === 'M' ? 'Male' : 'Female'}</p>
+            <p className="text-xs text-slate-500">{p.gender === 'M' ? 'M' : 'F'}</p>
           </div>
           <span className="text-slate-600 text-lg">›</span>
         </button>
