@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, type CloudSnapshot } from '../utils/cloudSync'
 import type { GeneratorResult } from '../generator'
@@ -79,24 +79,41 @@ export default function SharedSessionPage() {
     },
   })
 
+  const header = (
+    <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+      <div className="max-w-3xl mx-auto px-3 py-3 flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2">
+          <span className="text-xl shrink-0">🏸</span>
+          <h1 className="text-sm font-bold text-white tracking-tight">MAJADU APP</h1>
+        </Link>
+      </div>
+    </header>
+  )
+
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-slate-950 flex items-center justify-center">
-        <span className="text-slate-400 text-sm">Loading session…</span>
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+        {header}
+        <div className="flex-1 flex items-center justify-center">
+          <span className="text-slate-400 text-sm">Loading session…</span>
+        </div>
       </div>
     )
   }
 
   if (isError || !snapshot) {
     return (
-      <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center gap-4">
-        <span className="text-slate-300 text-sm">Session not found.</span>
-        <button
-          onClick={() => navigate('/')}
-          className="text-xs text-indigo-400 hover:text-white underline underline-offset-2"
-        >
-          Go to home
-        </button>
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+        {header}
+        <div className="flex-1 flex flex-col items-center justify-center gap-4">
+          <span className="text-slate-300 text-sm">Session not found.</span>
+          <button
+            onClick={() => navigate('/')}
+            className="text-xs text-indigo-400 hover:text-white underline underline-offset-2"
+          >
+            Go to home
+          </button>
+        </div>
       </div>
     )
   }
@@ -115,7 +132,8 @@ export default function SharedSessionPage() {
   const isSaving = togglePlayed.isPending || setScore.isPending
 
   return (
-    <>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      {header}
       {saveError && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg">
           {saveError}
@@ -142,7 +160,8 @@ export default function SharedSessionPage() {
         slotMinutes={snapshot.session.slotMinutes}
         courtTimes={snapshot.session.courtTimes}
         saving={isSaving}
+        standalone
       />
-    </>
+    </div>
   )
 }
