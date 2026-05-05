@@ -112,6 +112,7 @@ export default function SummaryModal({
   sessionStart,
   slotMinutes,
   courtTimes,
+  saving = false,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -127,6 +128,7 @@ export default function SummaryModal({
   sessionStart: string
   slotMinutes: number
   courtTimes: CourtTime[]
+  saving?: boolean
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -275,8 +277,8 @@ export default function SummaryModal({
                         >
                           {/* Played checkbox */}
                           <div
-                            className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors cursor-pointer ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                            onClick={() => onTogglePlayedGame(key)}
+                            className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                            onClick={() => { if (!saving) onTogglePlayedGame(key) }}
                           >
                             {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                           </div>
@@ -350,9 +352,10 @@ export default function SummaryModal({
                               )}
                               <button
                                 onClick={() => handleScoreSave(key)}
-                                className="px-6 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors"
+                                disabled={saving}
+                                className="px-6 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               >
-                                ✓ Save
+                                {saving ? 'Saving…' : '✓ Save'}
                               </button>
                             </div>
                           </div>
