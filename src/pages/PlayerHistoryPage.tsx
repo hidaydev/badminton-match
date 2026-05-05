@@ -1,22 +1,17 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { listPlayers, type PlayerSummary } from '../utils/cloudSync'
 
 export default function PlayerHistoryPage() {
-  const [players, setPlayers] = useState<PlayerSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    listPlayers()
-      .then(setPlayers)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
+  const { data: players = [], isLoading, isError } = useQuery<PlayerSummary[]>({
+    queryKey: ['players'],
+    queryFn: listPlayers,
+  })
 
-  if (loading) return <p className="text-slate-400 text-sm">Loading players…</p>
-  if (error) return <p className="text-red-400 text-sm">Error: {error}</p>
+  if (isLoading) return <p className="text-slate-400 text-sm">Loading players…</p>
+  if (isError) return <p className="text-red-400 text-sm">Failed to load players.</p>
 
   return (
     <div className="flex flex-col gap-3">
