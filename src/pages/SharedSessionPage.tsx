@@ -18,30 +18,24 @@ export default function SharedSessionPage() {
   })
 
   const togglePlayed = useMutation({
-    mutationFn: async (key: string) => {
+    mutationFn: async ({ nextPlayed }: { key: string; nextPlayed: string[] }) => {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      const nextPlayed = current.playedGames.includes(key)
-        ? current.playedGames.filter((k) => k !== key)
-        : [...current.playedGames, key]
       const updated: CloudSnapshot = { ...current, playedGames: nextPlayed }
       await publishSession(sessionId!, updated)
       return updated
     },
-    onMutate: async (key) => {
+    onMutate: async ({ key: _key, nextPlayed }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        const nextPlayed = old.playedGames.includes(key)
-          ? old.playedGames.filter((k) => k !== key)
-          : [...old.playedGames, key]
         return { ...old, playedGames: nextPlayed }
       })
       return { previous }
     },
     onSuccess: () => setSaveError(null),
-    onError: (_err, _key, context) => {
+    onError: (_err, _vars, context) => {
       queryClient.setQueryData(['session', sessionId], context?.previous)
       setSaveError('Failed to save, please try again')
     },
@@ -134,7 +128,13 @@ export default function SharedSessionPage() {
         courtNames={snapshot.session.courtNames ?? []}
         playedGames={snapshot.playedGames}
         gameScores={snapshot.gameScores}
-        onTogglePlayedGame={(key) => togglePlayed.mutate(key)}
+        onTogglePlayedGame={(key) => {
+          const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+          const nextPlayed = current?.playedGames.includes(key)
+            ? current.playedGames.filter((k) => k !== key)
+            : [...(current?.playedGames ?? []), key]
+          togglePlayed.mutate({ key, nextPlayed })
+        }}
         onSetGameScore={(key, a, b) => setScore.mutate({ key, a, b })}
         title={snapshot.session.title ?? ''}
         date={snapshot.session.date ?? ''}

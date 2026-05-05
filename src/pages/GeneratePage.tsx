@@ -420,6 +420,7 @@ export default function GeneratePage() {
     onSuccess: (_data, snap) => {
       queryClient.setQueryData(['session', cloudSessionId], snap)
     },
+    onError: () => { /* silent — organizer flow, no UI feedback needed */ },
   })
 
   const playerMap = new Map(players.map((p) => [p.id, p]))
@@ -600,6 +601,7 @@ export default function GeneratePage() {
           sessionStart={session.sessionStart}
           slotMinutes={session.slotMinutes}
           courtTimes={session.courtTimes}
+          saving={publish.isPending}
         />
       )}
     </div>
