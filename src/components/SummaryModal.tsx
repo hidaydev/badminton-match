@@ -178,8 +178,6 @@ export default function SummaryModal({
     return true
   }
 
-  function handleScoreBlur(key: string) { trySaveScore(key) }
-
   function handleScoreSave(key: string) {
     if (trySaveScore(key)) setExpandedScore(null)
   }
@@ -328,7 +326,6 @@ export default function SummaryModal({
                                   max={99}
                                   value={draft.a}
                                   onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), a: e.target.value } }))}
-                                  onBlur={() => handleScoreBlur(key)}
                                   className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-indigo-500"
                                 />
                               </div>
@@ -341,7 +338,6 @@ export default function SummaryModal({
                                   max={99}
                                   value={draft.b}
                                   onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), b: e.target.value } }))}
-                                  onBlur={() => handleScoreBlur(key)}
                                   className="w-14 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-indigo-500"
                                 />
                               </div>
