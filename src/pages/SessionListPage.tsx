@@ -1,21 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { listSessions, type SessionMeta } from '../utils/cloudSync'
 
 export default function SessionListPage() {
-  const [sessions, setSessions] = useState<SessionMeta[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [dateFilter, setDateFilter] = useState('')
 
-  useEffect(() => {
-    listSessions()
-      .then(setSessions)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
+  const { data: sessions = [], isLoading, isError } = useQuery<SessionMeta[]>({
+    queryKey: ['sessions'],
+    queryFn: listSessions,
+  })
 
-  if (loading) return <p className="text-slate-400 text-sm">Loading sessions…</p>
-  if (error) return <p className="text-red-400 text-sm">Error: {error}</p>
+  if (isLoading) return <p className="text-slate-400 text-sm">Loading sessions…</p>
+  if (isError) return <p className="text-red-400 text-sm">Failed to load sessions.</p>
 
   const filtered = dateFilter ? sessions.filter((s) => s.date === dateFilter) : sessions
 
