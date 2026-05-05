@@ -5,6 +5,7 @@ import { useSharedView } from '../App'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
 import { publishSession, type CloudSnapshot } from '../utils/cloudSync'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
 const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400', 4: 'text-green-400' }
@@ -412,24 +413,33 @@ export default function GeneratePage() {
   )
   const [error, setError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
+  const queryClient = useQueryClient()
+
+  const publish = useMutation({
+    mutationFn: (snap: CloudSnapshot) => publishSession(cloudSessionId!, snap),
+    onSuccess: (_data, snap) => {
+      queryClient.setQueryData(['session', cloudSessionId], snap)
+    },
+  })
+
   const playerMap = new Map(players.map((p) => [p.id, p]))
 
-  async function handleTogglePlayed(key: string) {
+  function handleTogglePlayed(key: string) {
     togglePlayedGame(key)
     if (!cloudSessionId) return
     const nextPlayed = playedArr.includes(key)
       ? playedArr.filter((k) => k !== key)
       : [...playedArr, key]
     const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: nextPlayed, gameScores }
-    try { await publishSession(cloudSessionId, snap) } catch { /* silent */ }
+    publish.mutate(snap)
   }
 
-  async function handleSetScore(key: string, a: number, b: number) {
+  function handleSetScore(key: string, a: number, b: number) {
     setGameScore(key, a, b)
     if (!cloudSessionId) return
     const nextScores = { ...gameScores, [key]: { a, b } }
     const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: playedArr, gameScores: nextScores }
-    try { await publishSession(cloudSessionId, snap) } catch { /* silent */ }
+    publish.mutate(snap)
   }
 
   function buildOffsets() {
