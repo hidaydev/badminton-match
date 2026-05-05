@@ -113,6 +113,7 @@ export default function SummaryModal({
   slotMinutes,
   courtTimes,
   saving = false,
+  standalone = false,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -129,6 +130,7 @@ export default function SummaryModal({
   slotMinutes: number
   courtTimes: CourtTime[]
   saving?: boolean
+  standalone?: boolean
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -183,7 +185,7 @@ export default function SummaryModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 overflow-auto flex flex-col">
+    <div className={standalone ? 'flex-1 overflow-auto flex flex-col bg-slate-950' : 'fixed inset-0 z-50 bg-slate-950 overflow-auto flex flex-col'}>
       {/* Toolbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
