@@ -1,24 +1,19 @@
-import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { getPlayerStats, type PlayerStats } from '../utils/cloudSync'
 
 export default function PlayerDetailPage() {
   const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
-  const [stats, setStats] = useState<PlayerStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!name) { setLoading(false); return }
-    getPlayerStats(decodeURIComponent(name))
-      .then(setStats)
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [name])
+  const { data: stats, isLoading, isError } = useQuery<PlayerStats>({
+    queryKey: ['player', name],
+    queryFn: () => getPlayerStats(decodeURIComponent(name!)),
+    enabled: !!name,
+  })
 
-  if (loading) return <p className="text-slate-400 text-sm">Loading stats…</p>
-  if (error) return <p className="text-red-400 text-sm">Error: {error}</p>
+  if (isLoading) return <p className="text-slate-400 text-sm">Loading stats…</p>
+  if (isError) return <p className="text-red-400 text-sm">Failed to load stats.</p>
   if (!stats) return null
 
   const winRate = stats.gamesPlayed > 0
