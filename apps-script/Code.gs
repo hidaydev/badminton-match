@@ -134,7 +134,9 @@ function handlePlayerStats(name) {
 
         gamesPlayed++;
         if (!sessionAdded) {
-          sessionsMap[sessionId] = { id: sessionId, date: sessionDate, title: sessionTitle };
+          var absentPlayers = data.absentPlayers || [];
+          var isAbsent = absentPlayers.indexOf(playerId) !== -1;
+          sessionsMap[sessionId] = { id: sessionId, date: sessionDate, title: sessionTitle, absent: isAbsent };
           sessionAdded = true;
         }
 
