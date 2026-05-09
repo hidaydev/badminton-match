@@ -229,39 +229,6 @@ export default function SummaryModal({
 
   return (
     <div className={standalone ? 'flex-1 overflow-auto flex flex-col bg-slate-950' : 'fixed inset-0 z-50 bg-slate-950 overflow-auto flex flex-col'}>
-      {pendingSwap && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 px-6">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-xs text-center flex flex-col gap-3">
-            <p className="text-sm font-bold text-white">Confirm Swap</p>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              <span className="text-indigo-200 font-semibold">{playerMap.get(pendingSwap.t1.playerId)?.name}</span>
-              {' '}(Slot {pendingSwap.t1.slot + 1}, Court {courtLabel(pendingSwap.t1.court)})
-              {' '}⇄{' '}
-              <span className="text-indigo-200 font-semibold">{playerMap.get(pendingSwap.t2.playerId)?.name}</span>
-              {' '}(Slot {pendingSwap.t2.slot + 1}, Court {courtLabel(pendingSwap.t2.court)})
-            </p>
-            <p className="text-[11px] text-red-400">⚠ This cannot be undone.</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPendingSwap(null)}
-                className="flex-1 text-xs font-semibold py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2)
-                  exitSwapMode()
-                }}
-                disabled={saving}
-                className="flex-1 text-xs font-bold py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Confirm Swap'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Toolbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
@@ -336,7 +303,7 @@ export default function SummaryModal({
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full">
-        {swapMode && (
+        {swapMode && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
               {swapSelected
@@ -399,11 +366,17 @@ export default function SummaryModal({
                                 const id = g.teamA[i]
                                 const n = name(id, s)
                                 const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'A', index: i }
-                                const isSelected = swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id
+                                const isSelected =
+                                  (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
+                                  !!(pendingSwap && (
+                                    (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
+                                    (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
+                                  ))
+                                const isDimmed = !!pendingSwap && !isSelected
                                 return (
-                                  <span key={i} className="flex items-center gap-1">
+                                  <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
                                     {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
-                                    {swapMode && !done ? (
+                                    {swapMode && !done && !pendingSwap ? (
                                       <button
                                         onClick={() => handleChipClick(target)}
                                         className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
@@ -414,6 +387,12 @@ export default function SummaryModal({
                                       >
                                         {n}
                                       </button>
+                                    ) : swapMode && !done && pendingSwap ? (
+                                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
+                                        isSelected
+                                          ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
+                                          : 'border-transparent text-white'
+                                      }`}>{n}</span>
                                     ) : (
                                       <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>{n}</span>
                                     )}
@@ -427,11 +406,17 @@ export default function SummaryModal({
                                 const id = g.teamB[i]
                                 const n = name(id, s)
                                 const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'B', index: i }
-                                const isSelected = swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id
+                                const isSelected =
+                                  (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
+                                  !!(pendingSwap && (
+                                    (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
+                                    (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
+                                  ))
+                                const isDimmed = !!pendingSwap && !isSelected
                                 return (
-                                  <span key={i} className="flex items-center gap-1">
+                                  <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
                                     {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
-                                    {swapMode && !done ? (
+                                    {swapMode && !done && !pendingSwap ? (
                                       <button
                                         onClick={() => handleChipClick(target)}
                                         className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
@@ -442,6 +427,12 @@ export default function SummaryModal({
                                       >
                                         {n}
                                       </button>
+                                    ) : swapMode && !done && pendingSwap ? (
+                                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
+                                        isSelected
+                                          ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
+                                          : 'border-transparent text-white'
+                                      }`}>{n}</span>
                                     ) : (
                                       <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>{n}</span>
                                     )}
@@ -523,6 +514,35 @@ export default function SummaryModal({
         </div>
         )}
       </div>
+
+      {/* Swap confirm bar */}
+      {pendingSwap && (
+        <div className="shrink-0 border-t border-indigo-900/40 px-4 py-3 max-w-xl mx-auto w-full">
+          <div className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-slate-200 truncate">
+                <span className="text-indigo-200">{playerMap.get(pendingSwap.t1.playerId)?.name}</span>
+                {' '}⇄{' '}
+                <span className="text-indigo-200">{playerMap.get(pendingSwap.t2.playerId)?.name}</span>
+              </p>
+              <p className="text-[10px] text-red-400 mt-0.5">⚠ Cannot be undone</p>
+            </div>
+            <button
+              onClick={() => setPendingSwap(null)}
+              className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+            >
+              ✕
+            </button>
+            <button
+              onClick={() => { onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2); exitSwapMode() }}
+              disabled={saving}
+              className="text-xs font-bold px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 shrink-0"
+            >
+              {saving ? 'Saving…' : 'Confirm'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
