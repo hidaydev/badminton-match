@@ -179,21 +179,18 @@ export default function SummaryModal({
       setSwapSelected(null)
       return
     }
-    // Same game → error
-    if (swapSelected.slot === target.slot && swapSelected.court === target.court) {
-      setSwapError('Cannot swap players in the same game')
-      setSwapSelected(null)
-      return
-    }
-    // Would create duplicate in either game → error
-    const targetGame = result.schedule.find(g => g.slot === target.slot && g.court === target.court)
-    const selectedGame = result.schedule.find(g => g.slot === swapSelected.slot && g.court === swapSelected.court)
-    const targetGamePlayers = targetGame ? [...targetGame.teamA, ...targetGame.teamB] : []
-    const selectedGamePlayers = selectedGame ? [...selectedGame.teamA, ...selectedGame.teamB] : []
-    if (targetGamePlayers.includes(swapSelected.playerId) || selectedGamePlayers.includes(target.playerId)) {
-      setSwapError('One player already plays in the other\'s game')
-      setSwapSelected(null)
-      return
+    // Different games: check no player already plays in the other game
+    const isSameGame = swapSelected.slot === target.slot && swapSelected.court === target.court
+    if (!isSameGame) {
+      const targetGame = result.schedule.find(g => g.slot === target.slot && g.court === target.court)
+      const selectedGame = result.schedule.find(g => g.slot === swapSelected.slot && g.court === swapSelected.court)
+      const targetGamePlayers = targetGame ? [...targetGame.teamA, ...targetGame.teamB] : []
+      const selectedGamePlayers = selectedGame ? [...selectedGame.teamA, ...selectedGame.teamB] : []
+      if (targetGamePlayers.includes(swapSelected.playerId) || selectedGamePlayers.includes(target.playerId)) {
+        setSwapError('One player already plays in the other\'s game')
+        setSwapSelected(null)
+        return
+      }
     }
     setSwapError(null)
     setPendingSwap({ t1: swapSelected, t2: target })
@@ -323,8 +320,8 @@ export default function SummaryModal({
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
               {swapSelected
-                ? '1 of 2 selected — tap a player from a different game'
-                : 'Select two players from different games to swap'}
+                ? '1 of 2 selected — tap another player to swap'
+                : 'Select two players to swap'}
             </span>
             {swapError && (
               <span className="text-[11px] text-red-400">{swapError}</span>
