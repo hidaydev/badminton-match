@@ -15,12 +15,18 @@ function StandingsTab({
   players,
   schedule,
   gameScores,
+  absentPlayerIds,
 }: {
   players: Player[]
   schedule: import('../store').ScheduleSlot[]
   gameScores: Record<string, GameScore>
+  absentPlayerIds: string[]
 }) {
-  const standings = computeStandings(players, schedule, gameScores)
+  const standings = computeStandings(
+    players.filter(p => !absentPlayerIds.includes(p.id)),
+    schedule,
+    gameScores,
+  )
   const hasScores = Object.keys(gameScores).length > 0
 
   if (!hasScores) {
@@ -116,6 +122,8 @@ export default function SummaryModal({
   saving = false,
   standalone = false,
   onSwapPlayers,
+  absentPlayers = [] as string[],
+  onSetAbsent,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -134,6 +142,8 @@ export default function SummaryModal({
   saving?: boolean
   standalone?: boolean
   onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
+  absentPlayers?: string[]
+  onSetAbsent?: (nextAbsent: string[]) => void
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -148,6 +158,30 @@ export default function SummaryModal({
   const [swapSelected, setSwapSelected] = useState<SwapTarget | null>(null)
   const [swapError, setSwapError] = useState<string | null>(null)
   const [pendingSwap, setPendingSwap] = useState<{ t1: SwapTarget; t2: SwapTarget } | null>(null)
+
+  const [absentMode, setAbsentMode] = useState(false)
+  const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
+
+  function enterAbsentMode() {
+    setAbsentPending(new Set(absentPlayers))
+    setAbsentMode(true)
+  }
+
+  function exitAbsentMode() {
+    setAbsentMode(false)
+    setAbsentPending(new Set())
+  }
+
+  // In absent mode, preview pending selections; otherwise use saved state
+  const effectiveAbsent = absentMode ? absentPending : new Set(absentPlayers)
+
+  // True when pending state differs from saved state
+  const absentChanged = absentMode && (() => {
+    const saved = new Set(absentPlayers)
+    if (absentPending.size !== saved.size) return true
+    for (const id of absentPending) if (!saved.has(id)) return true
+    return false
+  })()
 
   function exitSwapMode() {
     setSwapMode(false)
@@ -266,7 +300,35 @@ export default function SummaryModal({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {onSwapPlayers && activeTab === 'schedule' && (
+          {onSetAbsent && activeTab === 'schedule' && (
+            absentMode ? (
+              <>
+                {absentChanged && (
+                  <button
+                    onClick={() => { onSetAbsent([...absentPending]); exitAbsentMode() }}
+                    disabled={saving}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-900/30 border border-red-700/50 text-red-300 hover:text-red-200 transition-colors disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                )}
+                <button
+                  onClick={exitAbsentMode}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
+                >
+                  ✕ Cancel
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={enterAbsentMode}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-900/20 border border-red-800/50 text-red-400 hover:text-red-300 transition-colors"
+              >
+                Absent
+              </button>
+            )
+          )}
+          {onSwapPlayers && activeTab === 'schedule' && !absentMode && (
             swapMode ? (
               <button
                 onClick={exitSwapMode}
@@ -333,6 +395,7 @@ export default function SummaryModal({
             players={[...playerMap.values()]}
             schedule={result.schedule}
             gameScores={gameScores}
+            absentPlayerIds={absentPlayers}
           />
         ) : (
         <div className="flex flex-col divide-y divide-slate-800">
@@ -404,10 +467,18 @@ export default function SummaryModal({
                                       <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
                                         isSelected
                                           ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                          : 'border-transparent text-white'
+                                          : effectiveAbsent.has(id)
+                                            ? 'bg-red-950/60 border-red-800/60 text-red-300 line-through'
+                                            : 'border-transparent text-white'
                                       }`}>{n}</span>
                                     ) : (
-                                      <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>{n}</span>
+                                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
+                                        effectiveAbsent.has(id)
+                                          ? 'bg-red-950/60 border-red-800/60 text-red-300 line-through'
+                                          : done
+                                            ? 'border-transparent text-slate-400 line-through'
+                                            : 'border-transparent text-white'
+                                      }`}>{n}</span>
                                     )}
                                   </span>
                                 )
@@ -444,10 +515,18 @@ export default function SummaryModal({
                                       <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
                                         isSelected
                                           ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                          : 'border-transparent text-white'
+                                          : effectiveAbsent.has(id)
+                                            ? 'bg-red-950/60 border-red-800/60 text-red-300 line-through'
+                                            : 'border-transparent text-white'
                                       }`}>{n}</span>
                                     ) : (
-                                      <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>{n}</span>
+                                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
+                                        effectiveAbsent.has(id)
+                                          ? 'bg-red-950/60 border-red-800/60 text-red-300 line-through'
+                                          : done
+                                            ? 'border-transparent text-slate-400 line-through'
+                                            : 'border-transparent text-white'
+                                      }`}>{n}</span>
                                     )}
                                   </span>
                                 )
