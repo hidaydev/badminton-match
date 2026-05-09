@@ -364,8 +364,8 @@ export default function SummaryModal({
                         >
                           {/* Played checkbox */}
                           <div
-                            className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                            onClick={() => { if (!saving) onTogglePlayedGame(key) }}
+                            className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${swapMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                            onClick={() => { if (!saving && !swapMode) onTogglePlayedGame(key) }}
                           >
                             {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                           </div>
@@ -455,7 +455,7 @@ export default function SummaryModal({
                             </div>
                           </div>
                           {/* Score toggle / saved score */}
-                          {savedScore && !isOpen ? (
+                          {!swapMode && (savedScore && !isOpen ? (
                             <button
                               onClick={() => { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) }}
                               className="text-[11px] font-bold text-emerald-400 shrink-0 whitespace-nowrap hover:text-emerald-300"
@@ -472,7 +472,7 @@ export default function SummaryModal({
                             >
                               {isOpen ? '▲ score' : '+ score'}
                             </button>
-                          )}
+                          ))}
                         </div>
 
                         {/* Expandable score panel */}
