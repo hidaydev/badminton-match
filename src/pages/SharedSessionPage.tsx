@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, type CloudSnapshot } from '../utils/cloudSync'
+import { applySwap, type SwapTarget } from '../utils/swap'
 import type { GeneratorResult } from '../generator'
 import SummaryModal from '../components/SummaryModal'
 
@@ -79,6 +80,34 @@ export default function SharedSessionPage() {
     },
   })
 
+  const swapPlayers = useMutation({
+    mutationFn: async ({ t1, t2 }: { t1: SwapTarget; t2: SwapTarget }) => {
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      const nextSchedule = applySwap(current.schedule, t1, t2)
+      const updated: CloudSnapshot = { ...current, schedule: nextSchedule }
+      await publishSession(sessionId!, updated)
+      return updated
+    },
+    onMutate: async ({ t1, t2 }) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
+        if (!old) return old
+        return { ...old, schedule: applySwap(old.schedule, t1, t2) }
+      })
+      return { previous }
+    },
+    onSuccess: () => setSaveError(null),
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['session', sessionId], context?.previous)
+      setSaveError('Failed to save, please try again')
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    },
+  })
+
   const header = (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
       <div className="max-w-3xl mx-auto px-3 py-3 flex items-center gap-2">
@@ -129,7 +158,7 @@ export default function SharedSessionPage() {
     unplacedFixMatches: [],
   }
 
-  const isSaving = togglePlayed.isPending || setScore.isPending
+  const isSaving = togglePlayed.isPending || setScore.isPending || swapPlayers.isPending
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -160,6 +189,7 @@ export default function SharedSessionPage() {
         slotMinutes={snapshot.session.slotMinutes}
         courtTimes={snapshot.session.courtTimes}
         saving={isSaving}
+        onSwapPlayers={(t1, t2) => swapPlayers.mutate({ t1, t2 })}
         standalone
       />
     </div>
