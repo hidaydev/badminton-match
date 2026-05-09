@@ -3,6 +3,50 @@ import { useTournamentStore } from '../../store/tournament'
 import type { TournamentMatch } from '../../store/tournament'
 import ScoreModal from './ScoreModal'
 
+function MatchCard({
+  match,
+  label,
+  borderColor,
+  labelColor,
+  getPairName,
+  onSelect,
+}: {
+  match?: TournamentMatch
+  label: string
+  borderColor: string
+  labelColor: string
+  getPairName: (id: string | null) => string
+  onSelect: (match: TournamentMatch) => void
+}) {
+  if (!match) return <div className="h-16 bg-slate-800/30 rounded-lg" />
+  const canEnter = !!(match.pairAId && match.pairBId)
+  return (
+    <button
+      onClick={() => canEnter && onSelect(match)}
+      disabled={!canEnter}
+      className={`w-full bg-slate-800 rounded-lg px-2.5 py-2 text-left border-l-2 ${borderColor} disabled:opacity-60 hover:bg-slate-700/50 disabled:hover:bg-slate-800`}
+    >
+      <div className={`text-[9px] font-bold tracking-wide mb-1.5 ${labelColor}`}>{label}</div>
+      <div className="text-[11px] text-slate-300 truncate">{getPairName(match.pairAId)}</div>
+      <div className="text-[9px] text-slate-600 text-center my-0.5">vs</div>
+      <div className="text-[11px] text-slate-300 truncate">{getPairName(match.pairBId)}</div>
+      {match.scoreA !== null && (
+        <div className="text-[10px] font-bold text-yellow-400 text-center mt-1">
+          {match.scoreA} – {match.scoreB}
+        </div>
+      )}
+    </button>
+  )
+}
+
+function Connector() {
+  return (
+    <div className="flex items-stretch w-3 shrink-0">
+      <div className="flex-1 border-t border-r border-b border-slate-700 rounded-r my-2" />
+    </div>
+  )
+}
+
 export default function BracketTab() {
   const pairs = useTournamentStore((s) => s.pairs)
   const matches = useTournamentStore((s) => s.matches)
@@ -23,46 +67,6 @@ export default function BracketTab() {
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
         <span className="text-4xl">🏆</span>
         <p className="text-slate-400 text-sm">Assign groups and confirm to see the bracket.</p>
-      </div>
-    )
-  }
-
-  function MatchCard({
-    match,
-    label,
-    borderColor,
-    labelColor,
-  }: {
-    match?: TournamentMatch
-    label: string
-    borderColor: string
-    labelColor: string
-  }) {
-    if (!match) return <div className="h-16 bg-slate-800/30 rounded-lg" />
-    const canEnter = !!(match.pairAId && match.pairBId)
-    return (
-      <button
-        onClick={() => canEnter && setActiveMatch(match)}
-        disabled={!canEnter}
-        className={`w-full bg-slate-800 rounded-lg px-2.5 py-2 text-left border-l-2 ${borderColor} disabled:opacity-60 hover:bg-slate-700/50 disabled:hover:bg-slate-800`}
-      >
-        <div className={`text-[9px] font-bold tracking-wide mb-1.5 ${labelColor}`}>{label}</div>
-        <div className="text-[11px] text-slate-300 truncate">{getPairName(match.pairAId)}</div>
-        <div className="text-[9px] text-slate-600 text-center my-0.5">vs</div>
-        <div className="text-[11px] text-slate-300 truncate">{getPairName(match.pairBId)}</div>
-        {match.scoreA !== null && (
-          <div className="text-[10px] font-bold text-yellow-400 text-center mt-1">
-            {match.scoreA} – {match.scoreB}
-          </div>
-        )}
-      </button>
-    )
-  }
-
-  function Connector() {
-    return (
-      <div className="flex items-stretch w-3 shrink-0">
-        <div className="flex-1 border-t border-r border-b border-slate-700 rounded-r my-2" />
       </div>
     )
   }
@@ -93,25 +97,25 @@ export default function BracketTab() {
           {/* Upper half: QF1+QF2 → SF1 → Final */}
           <div className="grid grid-cols-[1fr_12px_90px_12px_80px] items-center mb-1.5">
             <div className="flex flex-col gap-1.5">
-              <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-yellow-500" labelColor="text-yellow-500" />
-              <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-yellow-500" labelColor="text-yellow-500" />
+              <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-yellow-500" labelColor="text-yellow-500" getPairName={getPairName} onSelect={setActiveMatch} />
+              <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-yellow-500" labelColor="text-yellow-500" getPairName={getPairName} onSelect={setActiveMatch} />
             </div>
             <Connector />
-            <MatchCard match={sf1} label="SEMI FINAL 1" borderColor="border-violet-500" labelColor="text-violet-400" />
+            <MatchCard match={sf1} label="SEMI FINAL 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={setActiveMatch} />
             <Connector />
-            <MatchCard match={final} label="🏆 FINAL" borderColor="border-amber-500" labelColor="text-amber-400" />
+            <MatchCard match={final} label="🏆 FINAL" borderColor="border-amber-500" labelColor="text-amber-400" getPairName={getPairName} onSelect={setActiveMatch} />
           </div>
 
           {/* Lower half: QF3+QF4 → SF2 | 3RD PLACE (no connector) */}
           <div className="grid grid-cols-[1fr_12px_90px_12px_80px] items-center">
             <div className="flex flex-col gap-1.5">
-              <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-yellow-500" labelColor="text-yellow-500" />
-              <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-yellow-500" labelColor="text-yellow-500" />
+              <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-yellow-500" labelColor="text-yellow-500" getPairName={getPairName} onSelect={setActiveMatch} />
+              <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-yellow-500" labelColor="text-yellow-500" getPairName={getPairName} onSelect={setActiveMatch} />
             </div>
             <Connector />
-            <MatchCard match={sf2} label="SEMI FINAL 2" borderColor="border-violet-500" labelColor="text-violet-400" />
+            <MatchCard match={sf2} label="SEMI FINAL 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={setActiveMatch} />
             <span /> {/* no connector to 3rd place */}
-            <MatchCard match={third} label="🥉 3RD PLACE" borderColor="border-slate-600" labelColor="text-slate-500" />
+            <MatchCard match={third} label="🥉 3RD PLACE" borderColor="border-slate-600" labelColor="text-slate-500" getPairName={getPairName} onSelect={setActiveMatch} />
           </div>
         </div>
       </div>
