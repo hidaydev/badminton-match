@@ -303,20 +303,18 @@ export default function SummaryModal({
         <div className="flex items-center gap-2">
           {onSetAbsent && activeTab === 'schedule' && !swapMode && (
             absentMode ? (
-              <>
-                <button
-                  onClick={exitAbsentMode}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
-                >
-                  ✕ Cancel
-                </button>
-              </>
+              <button
+                onClick={exitAbsentMode}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
+              >
+                ✕ Cancel
+              </button>
             ) : (
               <button
                 onClick={enterAbsentMode}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-900/20 border border-red-800/50 text-red-400 hover:text-red-300 transition-colors"
               >
-                Absent
+                👤 Absent
               </button>
             )
           )}
@@ -669,7 +667,7 @@ export default function SummaryModal({
               <p className="text-xs font-semibold text-slate-200 truncate">
                 {absentPending.size === 0
                   ? 'Remove all absent tags'
-                  : [...absentPending].map(id => playerMap.get(id)?.name ?? id).join(', ')}
+                  : [...playerMap.values()].filter(p => absentPending.has(p.id)).map(p => p.name).join(', ')}
               </p>
               <p className="text-[10px] text-slate-500 mt-0.5">Excluded from standings</p>
             </div>
