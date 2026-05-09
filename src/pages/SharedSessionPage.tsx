@@ -94,6 +94,7 @@ export default function SharedSessionPage() {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
+        if (t1.slot === t2.slot && t1.court === t2.court) return old
         return { ...old, schedule: applySwap(old.schedule, t1, t2) }
       })
       return { previous }
