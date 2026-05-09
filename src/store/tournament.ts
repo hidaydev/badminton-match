@@ -25,22 +25,22 @@ interface TournamentState {
 }
 
 const INITIAL_PAIRS: TournamentPair[] = [
-  { id: 'p1',  name: 'DWI / ISMET' },
-  { id: 'p2',  name: 'VINA / FREDI' },
-  { id: 'p3',  name: 'IKY / RAIHAN' },
-  { id: 'p4',  name: 'AZZAM / ZAINAL' },
-  { id: 'p5',  name: 'DENDI / MAUL' },
-  { id: 'p6',  name: 'EUIS / AKID' },
-  { id: 'p7',  name: 'NAUFAL / NINDYA' },
-  { id: 'p8',  name: 'FAIZ / DIMAS' },
-  { id: 'p9',  name: 'FAHMI / LULUD' },
-  { id: 'p10', name: 'AGHA / LITA' },
-  { id: 'p11', name: 'RAKHA / VISI' },
-  { id: 'p12', name: 'FAKHRI / NOVIAN' },
-  { id: 'p13', name: 'HIDAYAT / ZAID' },
-  { id: 'p14', name: 'BOBY / ANDRI' },
-  { id: 'p15', name: 'RUDI / EGA' },
-  { id: 'p16', name: 'BOWO / DIDIK' },
+  { id: 'p1',  name: 'Dwi & Ismet' },
+  { id: 'p2',  name: 'Vina & Fredi' },
+  { id: 'p3',  name: 'Iky & Raihan' },
+  { id: 'p4',  name: 'Azzam & Zainal' },
+  { id: 'p5',  name: 'Dendi & Maul' },
+  { id: 'p6',  name: 'Euis & Akid' },
+  { id: 'p7',  name: 'Anas & Nindya' },
+  { id: 'p8',  name: 'Faiz & Dimas' },
+  { id: 'p9',  name: 'Fahmi & Lulud' },
+  { id: 'p10', name: 'Agha & Lita' },
+  { id: 'p11', name: 'Rakha & Visi' },
+  { id: 'p12', name: 'Fakhri & Novian' },
+  { id: 'p13', name: 'Hidayat & Zaid' },
+  { id: 'p14', name: 'Boby & Andri' },
+  { id: 'p15', name: 'Rudi & Ega' },
+  { id: 'p16', name: 'Bowo & Didik' },
 ]
 
 const EMPTY_GROUPS: Record<GroupId, string[]> = { A: [], B: [], C: [], D: [] }
@@ -95,7 +95,7 @@ export const useTournamentStore = create<TournamentState>()(
     }),
     {
       name: 'tournament-store',
-      version: 1,
+      version: 2,
       migrate: () => ({
         name: 'MAJADU Internal Tournament 2026',
         date: '2026-05-23',
