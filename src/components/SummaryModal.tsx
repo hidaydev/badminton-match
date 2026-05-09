@@ -282,13 +282,13 @@ export default function SummaryModal({
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
             <button
-              onClick={() => { setActiveTab('schedule'); exitSwapMode() }}
+              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Schedule
             </button>
             <button
-              onClick={() => { setActiveTab('standings'); exitSwapMode() }}
+              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Standings
@@ -304,15 +304,6 @@ export default function SummaryModal({
           {onSetAbsent && activeTab === 'schedule' && !swapMode && (
             absentMode ? (
               <>
-                {absentChanged && (
-                  <button
-                    onClick={() => { onSetAbsent([...absentPending]); exitAbsentMode() }}
-                    disabled={saving}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-900/30 border border-red-700/50 text-red-300 hover:text-red-200 transition-colors disabled:opacity-50"
-                  >
-                    Save
-                  </button>
-                )}
                 <button
                   onClick={exitAbsentMode}
                   className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
@@ -389,6 +380,40 @@ export default function SummaryModal({
             {swapError && (
               <span className="text-[11px] text-red-400">{swapError}</span>
             )}
+          </div>
+        )}
+        {absentMode && (
+          <div className="mb-3 rounded-lg bg-red-950/30 border border-red-900/40 px-3 py-2 flex flex-col gap-2">
+            <span className="text-xs text-red-300 font-medium">
+              {absentPending.size > 0
+                ? `${absentPending.size} player${absentPending.size === 1 ? '' : 's'} marked absent — tap to toggle`
+                : 'Tap players to mark absent'}
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {[...playerMap.values()].map((p) => {
+                const isSelected = absentPending.has(p.id)
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setAbsentPending((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(p.id)) next.delete(p.id)
+                        else next.add(p.id)
+                        return next
+                      })
+                    }}
+                    className={`text-xs font-medium px-2 py-0.5 rounded-md border transition-colors ${
+                      isSelected
+                        ? 'bg-red-900/60 border-red-700 text-red-200'
+                        : 'bg-slate-800/60 border-slate-600 text-slate-300 hover:border-red-700 hover:text-red-300'
+                    }`}
+                  >
+                    {p.name}{isSelected ? ' ✓' : ''}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
         {activeTab === 'standings' ? (
@@ -630,6 +655,34 @@ export default function SummaryModal({
               onClick={() => { onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2); exitSwapMode() }}
               disabled={saving}
               className="text-xs font-bold px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 shrink-0"
+            >
+              {saving ? 'Saving…' : 'Confirm'}
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Absent confirm bar */}
+      {absentChanged && (
+        <div className="shrink-0 border-t border-red-900/40 px-4 py-3 max-w-xl mx-auto w-full">
+          <div className="bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-slate-200 truncate">
+                {absentPending.size === 0
+                  ? 'Remove all absent tags'
+                  : [...absentPending].map(id => playerMap.get(id)?.name ?? id).join(', ')}
+              </p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Excluded from standings</p>
+            </div>
+            <button
+              onClick={exitAbsentMode}
+              className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+            >
+              ✕
+            </button>
+            <button
+              onClick={() => { onSetAbsent?.([...absentPending]); exitAbsentMode() }}
+              disabled={saving}
+              className="text-xs font-bold px-4 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-50 shrink-0"
             >
               {saving ? 'Saving…' : 'Confirm'}
             </button>
