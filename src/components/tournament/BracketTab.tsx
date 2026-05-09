@@ -18,23 +18,24 @@ function MatchCard({
   getPairName: (id: string | null) => string
   onSelect: (match: TournamentMatch) => void
 }) {
-  if (!match) return <div className="h-16 bg-slate-800/30 rounded-lg" />
+  if (!match) return <div className="h-12 bg-slate-800/30 rounded-lg" />
   const canEnter = !!(match.pairAId && match.pairBId)
   return (
     <button
       onClick={() => canEnter && onSelect(match)}
       disabled={!canEnter}
-      className={`w-full bg-slate-800 rounded-lg px-2.5 py-2 text-left border-l-2 ${borderColor} disabled:opacity-60 hover:bg-slate-700/50 disabled:hover:bg-slate-800`}
+      className={`w-full bg-slate-800 rounded-lg px-2 py-1.5 text-left border-l-2 ${borderColor} disabled:opacity-60 hover:bg-slate-700/50 disabled:hover:bg-slate-800`}
     >
-      <div className={`text-[9px] font-bold tracking-wide mb-1.5 ${labelColor}`}>{label}</div>
-      <div className="text-[11px] text-slate-300 truncate">{getPairName(match.pairAId)}</div>
-      <div className="text-[9px] text-slate-600 text-center my-0.5">vs</div>
-      <div className="text-[11px] text-slate-300 truncate">{getPairName(match.pairBId)}</div>
-      {match.scoreA !== null && (
-        <div className="text-[10px] font-bold text-yellow-400 text-center mt-1">
+      <div className={`text-[8px] font-bold tracking-wide mb-1 ${labelColor}`}>{label}</div>
+      <div className="text-[10px] text-slate-300 truncate leading-tight">{getPairName(match.pairAId)}</div>
+      {match.scoreA !== null ? (
+        <div className="text-[9px] font-bold text-yellow-400 text-center my-0.5">
           {match.scoreA} – {match.scoreB}
         </div>
+      ) : (
+        <div className="text-[8px] text-slate-600 text-center my-0.5">vs</div>
       )}
+      <div className="text-[10px] text-slate-300 truncate leading-tight">{getPairName(match.pairBId)}</div>
     </button>
   )
 }
