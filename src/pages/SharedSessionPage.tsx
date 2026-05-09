@@ -108,6 +108,33 @@ export default function SharedSessionPage() {
     },
   })
 
+  const setAbsent = useMutation({
+    mutationFn: async ({ nextAbsent }: { nextAbsent: string[] }) => {
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      const updated: CloudSnapshot = { ...current, absentPlayers: nextAbsent }
+      await publishSession(sessionId!, updated)
+      return updated
+    },
+    onMutate: async ({ nextAbsent }) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
+        if (!old) return old
+        return { ...old, absentPlayers: nextAbsent }
+      })
+      return { previous }
+    },
+    onSuccess: () => setSaveError(null),
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['session', sessionId], context?.previous)
+      setSaveError('Failed to save, please try again')
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    },
+  })
+
   const header = (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
       <div className="max-w-3xl mx-auto px-3 py-3 flex items-center gap-2">
@@ -158,7 +185,7 @@ export default function SharedSessionPage() {
     unplacedFixMatches: [],
   }
 
-  const isSaving = togglePlayed.isPending || setScore.isPending || swapPlayers.isPending
+  const isSaving = togglePlayed.isPending || setScore.isPending || swapPlayers.isPending || setAbsent.isPending
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -190,6 +217,8 @@ export default function SharedSessionPage() {
         courtTimes={snapshot.session.courtTimes}
         saving={isSaving}
         onSwapPlayers={(t1, t2) => swapPlayers.mutate({ t1, t2 })}
+        absentPlayers={snapshot.absentPlayers ?? []}
+        onSetAbsent={(nextAbsent) => setAbsent.mutate({ nextAbsent })}
         standalone
       />
     </div>
