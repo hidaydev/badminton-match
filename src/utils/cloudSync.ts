@@ -31,7 +31,7 @@ export interface PlayerStats {
   losses: number
   pointsFor: number
   pointsAgainst: number
-  sessions: { id: string; date: string; title: string }[]
+  sessions: { id: string; date: string; title: string; absent?: boolean }[]
   topPartners: { name: string; count: number; wins: number; losses: number }[]
   topOpponents: { name: string; count: number; wins: number; losses: number }[]
 }

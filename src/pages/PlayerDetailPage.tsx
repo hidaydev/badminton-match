@@ -51,9 +51,12 @@ export default function PlayerDetailPage() {
             Sessions ({stats.sessions.length})
           </p>
           {stats.sessions.map((s) => (
-            <div key={s.id} className="flex justify-between text-sm">
-              <span className="text-slate-200">{s.title || 'Untitled'}</span>
-              <span className="text-slate-500">{s.date.split('-').reverse().join('-')}</span>
+            <div key={s.id} className="flex justify-between items-center text-sm gap-2">
+              <span className={s.absent ? 'text-slate-500 line-through' : 'text-slate-200'}>{s.title || 'Untitled'}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {s.absent && <span className="text-[10px] text-slate-600">absent</span>}
+                <span className="text-slate-500">{s.date.split('-').reverse().join('-')}</span>
+              </div>
             </div>
           ))}
         </div>
