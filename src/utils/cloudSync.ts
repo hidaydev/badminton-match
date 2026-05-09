@@ -7,6 +7,7 @@ export interface CloudSnapshot {
   schedule: ScheduleSlot[]
   playedGames: string[]
   gameScores: Record<string, GameScore>
+  absentPlayers?: string[]
 }
 
 export interface SessionMeta {
