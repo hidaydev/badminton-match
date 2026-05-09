@@ -185,6 +185,16 @@ export default function SummaryModal({
       setSwapSelected(null)
       return
     }
+    // Would create duplicate in either game → error
+    const targetGame = result.schedule.find(g => g.slot === target.slot && g.court === target.court)
+    const selectedGame = result.schedule.find(g => g.slot === swapSelected.slot && g.court === swapSelected.court)
+    const targetGamePlayers = targetGame ? [...targetGame.teamA, ...targetGame.teamB] : []
+    const selectedGamePlayers = selectedGame ? [...selectedGame.teamA, ...selectedGame.teamB] : []
+    if (targetGamePlayers.includes(swapSelected.playerId) || selectedGamePlayers.includes(target.playerId)) {
+      setSwapError('One player already plays in the other\'s game')
+      setSwapSelected(null)
+      return
+    }
     setSwapError(null)
     setPendingSwap({ t1: swapSelected, t2: target })
     setSwapSelected(null)
