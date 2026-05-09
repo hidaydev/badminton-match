@@ -55,12 +55,12 @@ export function initKnockoutMatches(): TournamentMatch[] {
 }
 
 export function getMatchWinner(match: TournamentMatch): string | null {
-  if (match.scoreA === null || match.scoreB === null) return null
+  if (match.scoreA === null || match.scoreB === null || !match.pairAId || !match.pairBId) return null
   return match.scoreA > match.scoreB ? match.pairAId : match.pairBId
 }
 
 export function getMatchLoser(match: TournamentMatch): string | null {
-  if (match.scoreA === null || match.scoreB === null) return null
+  if (match.scoreA === null || match.scoreB === null || !match.pairAId || !match.pairBId) return null
   return match.scoreA < match.scoreB ? match.pairAId : match.pairBId
 }
 
@@ -115,7 +115,11 @@ export function propagateBracket(
   const update = (id: string, pairAId: string | null, pairBId: string | null) => {
     result = result.map((m) => (m.id === id ? { ...m, pairAId, pairBId } : m))
   }
-  const find = (id: string) => result.find((m) => m.id === id)!
+  const find = (id: string): TournamentMatch => {
+    const m = result.find((match) => match.id === id)
+    if (!m) throw new Error(`Match "${id}" not found`)
+    return m
+  }
 
   const s: Record<GroupId, StandingRow[]> = {
     A: computeGroupStandings('A', groups.A, result),
