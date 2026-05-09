@@ -333,14 +333,14 @@ export default function SummaryModal({
                 onClick={exitAbsentMode}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
-                ✕ Cancel
+                ✕<span className="hidden sm:inline"> Cancel</span>
               </button>
             ) : (
               <button
                 onClick={enterAbsentMode}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-900/20 border border-red-800/50 text-red-400 hover:text-red-300 transition-colors"
               >
-                👤 Absent
+                👤<span className="hidden sm:inline"> Absent</span>
               </button>
             )
           )}
@@ -350,14 +350,14 @@ export default function SummaryModal({
                 onClick={exitSwapMode}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
-                ✕ Cancel
+                ✕<span className="hidden sm:inline"> Cancel</span>
               </button>
             ) : (
               <button
                 onClick={() => setSwapMode(true)}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-900/20 border border-indigo-800/50 text-indigo-400 hover:text-indigo-300 transition-colors"
               >
-                ⇄ Swap
+                ⇄<span className="hidden sm:inline"> Swap</span>
               </button>
             )
           )}
