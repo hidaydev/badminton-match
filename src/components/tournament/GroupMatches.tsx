@@ -38,7 +38,7 @@ export default function GroupMatches() {
         return (
           <div key={g} className="bg-slate-800 rounded-xl overflow-hidden">
             {/* Group header */}
-            <div className="bg-amber-900 px-4 py-2 flex justify-between items-center">
+            <div className="px-4 py-2 flex justify-between items-center border-b border-yellow-500/30">
               <span className="text-yellow-300 font-bold text-sm">GROUP {g}</span>
               <span className="text-yellow-600 text-xs">Court {GROUP_COURTS[g]}</span>
             </div>
@@ -72,12 +72,12 @@ export default function GroupMatches() {
               {standings.map((row, i) => (
                 <div
                   key={row.pairId}
-                  className={`grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] items-center py-1 px-1 rounded gap-x-2 text-xs ${i < 2 ? 'bg-yellow-400/5' : ''}`}
+                  className={`grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] items-center py-1 px-1 rounded gap-x-2 text-xs ${i < 2 ? 'bg-yellow-400/[0.06]' : ''}`}
                 >
-                  <span className="text-slate-600 font-bold">{i + 1}</span>
-                  <span className="text-slate-300 truncate">{getPairName(row.pairId)}</span>
-                  <span className="text-center text-slate-400">{row.wins}</span>
-                  <span className="text-center text-slate-400">{row.losses}</span>
+                  <span className={`font-bold ${i < 2 ? 'text-yellow-100' : 'text-slate-600'}`}>{i + 1}</span>
+                  <span className={`truncate font-medium ${i < 2 ? 'text-yellow-100' : 'text-slate-400'}`}>{getPairName(row.pairId)}</span>
+                  <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-500'}`}>{row.wins}</span>
+                  <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-500'}`}>{row.losses}</span>
                   <span className={`text-center font-medium ${row.pointDiff > 0 ? 'text-green-400' : row.pointDiff < 0 ? 'text-red-400' : 'text-slate-500'}`}>
                     {row.pointDiff > 0 ? `+${row.pointDiff}` : row.pointDiff === 0 ? '—' : row.pointDiff}
                   </span>

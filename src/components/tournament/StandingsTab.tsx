@@ -31,10 +31,20 @@ export default function StandingsTab() {
 
   const getPairName = (id: string) => pairs.find((p) => p.id === id)?.name ?? id
 
-  const allStandings = useMemo(
-    () => GROUP_IDS.flatMap((g) => computeGroupStandings(g, groups[g], matches)),
-    [groups, matches]
-  )
+  const allStandings = GROUP_IDS.flatMap((g) => computeGroupStandings(g, groups[g], matches))
+
+  // W/L across all phases (group + knockout)
+  const totalRecord = useMemo(() => {
+    const rec: Record<string, { wins: number; losses: number }> = {}
+    for (const m of matches) {
+      if (m.scoreA === null || m.scoreB === null || !m.pairAId || !m.pairBId) continue
+      rec[m.pairAId] ??= { wins: 0, losses: 0 }
+      rec[m.pairBId] ??= { wins: 0, losses: 0 }
+      if (m.scoreA > m.scoreB) { rec[m.pairAId].wins++; rec[m.pairBId].losses++ }
+      else { rec[m.pairBId].wins++; rec[m.pairAId].losses++ }
+    }
+    return rec
+  }, [matches])
 
   const ranked = useMemo(
     () =>
@@ -46,7 +56,8 @@ export default function StandingsTab() {
         const sb = allStandings.find((s) => s.pairId === b.id)
         return (sb?.pointDiff ?? 0) - (sa?.pointDiff ?? 0)
       }),
-    [pairs, matches, allStandings]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pairs, matches]
   )
 
   if (!matches.length) {
@@ -84,7 +95,7 @@ export default function StandingsTab() {
         </div>
         {ranked.map((pair, i) => {
           const rank = stageRank(pair.id, matches)
-          const stats = allStandings.find((s) => s.pairId === pair.id)
+          const rec = totalRecord[pair.id] ?? { wins: 0, losses: 0 }
           return (
             <div
               key={pair.id}
@@ -97,24 +108,11 @@ export default function StandingsTab() {
                   {STAGE_LABEL[Math.min(rank, 5)]}
                 </div>
               </div>
-              {stats && (
-                <div className="text-right shrink-0">
-                  <div
-                    className={`text-xs font-medium ${
-                      stats.pointDiff > 0
-                        ? 'text-green-400'
-                        : stats.pointDiff < 0
-                        ? 'text-red-400'
-                        : 'text-slate-500'
-                    }`}
-                  >
-                    {stats.pointDiff > 0 ? `+${stats.pointDiff}` : stats.pointDiff || '—'}
-                  </div>
-                  <div className="text-[10px] text-slate-600">
-                    {stats.wins}W {stats.losses}L
-                  </div>
+              <div className="text-right shrink-0">
+                <div className="text-[10px] text-slate-600">
+                  {rec.wins}W {rec.losses}L
                 </div>
-              )}
+              </div>
             </div>
           )
         })}
