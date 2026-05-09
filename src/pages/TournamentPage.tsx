@@ -3,9 +3,8 @@ import { useTournamentStore } from '../store/tournament'
 import GroupAssignment from '../components/tournament/GroupAssignment'
 import GroupMatches from '../components/tournament/GroupMatches'
 import BracketTab from '../components/tournament/BracketTab'
-import StandingsTab from '../components/tournament/StandingsTab'
 
-type Tab = 'groups' | 'bracket' | 'standings'
+type Tab = 'groups' | 'bracket'
 
 export default function TournamentPage() {
   const [tab, setTab] = useState<Tab>('groups')
@@ -16,7 +15,6 @@ export default function TournamentPage() {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'groups', label: 'Groups' },
     { id: 'bracket', label: 'Bracket' },
-    { id: 'standings', label: 'Standings' },
   ]
 
   return (
@@ -53,7 +51,6 @@ export default function TournamentPage() {
       <div className="px-3 pt-4 pb-8">
         {tab === 'groups' && (groupsLocked ? <GroupMatches /> : <GroupAssignment />)}
         {tab === 'bracket' && <BracketTab />}
-        {tab === 'standings' && <StandingsTab />}
       </div>
     </div>
   )
