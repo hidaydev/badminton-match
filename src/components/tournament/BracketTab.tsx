@@ -18,23 +18,24 @@ function MatchCard({
   getPairName: (id: string | null) => string
   onSelect: (match: TournamentMatch) => void
 }) {
-  if (!match) return <div className="h-10 bg-slate-800/30 rounded-lg" />
+  if (!match) return <div className="h-16 bg-slate-800/30 rounded-lg" />
   const canEnter = !!(match.pairAId && match.pairBId)
   const scored = match.scoreA !== null
   return (
     <button
       onClick={() => canEnter && onSelect(match)}
       disabled={!canEnter}
-      className={`w-full bg-slate-800 rounded-lg text-left border-l-2 ${borderColor} disabled:opacity-60 hover:bg-slate-700/50 disabled:hover:bg-slate-800 overflow-hidden`}
+      className={`w-full bg-slate-800 rounded-lg text-left border-l-2 ${borderColor} overflow-hidden disabled:opacity-60 hover:bg-slate-700/50 disabled:hover:bg-slate-800`}
     >
-      <div className={`text-[7px] font-bold tracking-wide px-2 pt-1 ${labelColor}`}>{label}</div>
-      <div className="flex items-center justify-between px-2 py-0.5 border-b border-slate-700/50">
-        <span className="text-[10px] text-slate-300 truncate flex-1">{getPairName(match.pairAId)}</span>
-        {scored && <span className="text-[9px] font-bold text-yellow-400 ml-1 shrink-0">{match.scoreA}</span>}
-      </div>
-      <div className="flex items-center justify-between px-2 py-0.5 pb-1">
-        <span className="text-[10px] text-slate-300 truncate flex-1">{getPairName(match.pairBId)}</span>
-        {scored && <span className="text-[9px] font-bold text-yellow-400 ml-1 shrink-0">{match.scoreB}</span>}
+      <div className={`px-2 py-1.5 border-b border-slate-700 text-[8px] font-bold tracking-wide ${labelColor}`}>{label}</div>
+      <div className="px-2 pt-2 pb-1">
+        <div className="text-xs text-slate-200 font-medium truncate">{getPairName(match.pairAId)}</div>
+        {scored ? (
+          <div className="text-[10px] font-bold text-yellow-400 text-center my-1">{match.scoreA} – {match.scoreB}</div>
+        ) : (
+          <div className="text-[9px] text-slate-600 text-center my-1">vs</div>
+        )}
+        <div className="text-xs text-slate-200 font-medium truncate">{getPairName(match.pairBId)}</div>
       </div>
     </button>
   )
@@ -85,38 +86,38 @@ export default function BracketTab() {
     <div>
       {/* Bracket — horizontally scrollable */}
       <div className="overflow-x-auto -mx-3 px-3 pb-2">
-        <div className="min-w-[480px]">
+        <div className="min-w-[300px] w-full">
           {/* Column headers */}
-          <div className="grid grid-cols-[1fr_12px_90px_12px_80px] mb-2 text-[9px] text-slate-600 uppercase tracking-widest">
-            <span className="text-center">Quarter Final</span>
+          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-[9px] text-slate-600 uppercase tracking-widest">
+            <span className="text-center">QF</span>
             <span />
-            <span className="text-center">Semi Final</span>
+            <span className="text-center">SF</span>
             <span />
             <span className="text-center">Final</span>
           </div>
 
           {/* Upper half: QF1+QF2 → SF1 → Final */}
-          <div className="grid grid-cols-[1fr_12px_90px_12px_80px] items-center mb-1.5">
+          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center mb-1.5">
             <div className="flex flex-col gap-1.5">
-              <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-yellow-500" labelColor="text-yellow-500" getPairName={getPairName} onSelect={setActiveMatch} />
-              <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-yellow-500" labelColor="text-yellow-500" getPairName={getPairName} onSelect={setActiveMatch} />
+              <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
+              <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
             </div>
             <Connector />
-            <MatchCard match={sf1} label="SEMI FINAL 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={setActiveMatch} />
+            <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={setActiveMatch} />
             <Connector />
-            <MatchCard match={final} label="🏆 FINAL" borderColor="border-amber-500" labelColor="text-amber-400" getPairName={getPairName} onSelect={setActiveMatch} />
+            <MatchCard match={final} label="🏆 FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} onSelect={setActiveMatch} />
           </div>
 
           {/* Lower half: QF3+QF4 → SF2 | 3RD PLACE (no connector) */}
-          <div className="grid grid-cols-[1fr_12px_90px_12px_80px] items-center">
+          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center">
             <div className="flex flex-col gap-1.5">
-              <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-yellow-500" labelColor="text-yellow-500" getPairName={getPairName} onSelect={setActiveMatch} />
-              <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-yellow-500" labelColor="text-yellow-500" getPairName={getPairName} onSelect={setActiveMatch} />
+              <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
+              <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
             </div>
             <Connector />
-            <MatchCard match={sf2} label="SEMI FINAL 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={setActiveMatch} />
+            <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={setActiveMatch} />
             <span /> {/* no connector to 3rd place */}
-            <MatchCard match={third} label="🥉 3RD PLACE" borderColor="border-slate-600" labelColor="text-slate-500" getPairName={getPairName} onSelect={setActiveMatch} />
+            <MatchCard match={third} label="🥉 3RD" borderColor="border-slate-600" labelColor="text-slate-500" getPairName={getPairName} onSelect={setActiveMatch} />
           </div>
         </div>
       </div>
