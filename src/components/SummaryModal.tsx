@@ -3,6 +3,7 @@ import type { GeneratorResult } from '../generator'
 import type { Player, GameScore, CourtTime } from '../store'
 import { timeToMinutes, minutesToTime } from '../store'
 import { computeStandings } from '../utils/standings'
+import type { SwapTarget } from '../utils/swap'
 
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd']
@@ -114,6 +115,7 @@ export default function SummaryModal({
   courtTimes,
   saving = false,
   standalone = false,
+  onSwapPlayers,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -131,6 +133,7 @@ export default function SummaryModal({
   courtTimes: CourtTime[]
   saving?: boolean
   standalone?: boolean
+  onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -140,6 +143,46 @@ export default function SummaryModal({
   const [expandedScore, setExpandedScore] = useState<string | null>(null)
   const [scoreError, setScoreError] = useState<string | null>(null)
   const [draftScores, setDraftScores] = useState<Record<string, { a: string; b: string }>>({})
+
+  const [swapMode, setSwapMode] = useState(false)
+  const [swapSelected, setSwapSelected] = useState<SwapTarget | null>(null)
+  const [swapError, setSwapError] = useState<string | null>(null)
+  const [pendingSwap, setPendingSwap] = useState<{ t1: SwapTarget; t2: SwapTarget } | null>(null)
+
+  function exitSwapMode() {
+    setSwapMode(false)
+    setSwapSelected(null)
+    setSwapError(null)
+    setPendingSwap(null)
+  }
+
+  function handleChipClick(target: SwapTarget) {
+    if (!swapMode) return
+    if (!swapSelected) {
+      setSwapSelected(target)
+      setSwapError(null)
+      return
+    }
+    // Tap same chip again → deselect
+    if (
+      swapSelected.slot === target.slot &&
+      swapSelected.court === target.court &&
+      swapSelected.playerId === target.playerId
+    ) {
+      setSwapSelected(null)
+      setSwapError(null)
+      return
+    }
+    // Same game → error
+    if (swapSelected.slot === target.slot && swapSelected.court === target.court) {
+      setSwapError('Cannot swap players in the same game')
+      setSwapSelected(null)
+      return
+    }
+    setSwapError(null)
+    setPendingSwap({ t1: swapSelected, t2: target })
+    setSwapSelected(null)
+  }
 
   const bySlot = new Map<number, (typeof result.schedule)>()
   for (const game of result.schedule) {
@@ -186,18 +229,51 @@ export default function SummaryModal({
 
   return (
     <div className={standalone ? 'flex-1 overflow-auto flex flex-col bg-slate-950' : 'fixed inset-0 z-50 bg-slate-950 overflow-auto flex flex-col'}>
+      {pendingSwap && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 px-6">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 w-full max-w-xs text-center flex flex-col gap-3">
+            <p className="text-sm font-bold text-white">Confirm Swap</p>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              <span className="text-indigo-200 font-semibold">{playerMap.get(pendingSwap.t1.playerId)?.name}</span>
+              {' '}(Slot {pendingSwap.t1.slot + 1}, Court {courtLabel(pendingSwap.t1.court)})
+              {' '}⇄{' '}
+              <span className="text-indigo-200 font-semibold">{playerMap.get(pendingSwap.t2.playerId)?.name}</span>
+              {' '}(Slot {pendingSwap.t2.slot + 1}, Court {courtLabel(pendingSwap.t2.court)})
+            </p>
+            <p className="text-[11px] text-red-400">⚠ This cannot be undone.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPendingSwap(null)}
+                className="flex-1 text-xs font-semibold py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onSwapPlayers!(pendingSwap.t1, pendingSwap.t2)
+                  exitSwapMode()
+                }}
+                disabled={saving}
+                className="flex-1 text-xs font-bold py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Confirm Swap'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Toolbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
             <button
-              onClick={() => setActiveTab('schedule')}
+              onClick={() => { setActiveTab('schedule'); exitSwapMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Schedule
             </button>
             <button
-              onClick={() => setActiveTab('standings')}
+              onClick={() => { setActiveTab('standings'); exitSwapMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Standings
@@ -209,14 +285,33 @@ export default function SummaryModal({
             </span>
           )}
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
-          >
-            Close
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onSwapPlayers && activeTab === 'schedule' && (
+            swapMode ? (
+              <button
+                onClick={exitSwapMode}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
+              >
+                ✕ Cancel
+              </button>
+            ) : (
+              <button
+                onClick={() => setSwapMode(true)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-900/20 border border-indigo-800/50 text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                ⇄ Swap
+              </button>
+            )
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
+            >
+              Close
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Session header */}
@@ -241,6 +336,18 @@ export default function SummaryModal({
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full">
+        {swapMode && (
+          <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
+            <span className="text-xs text-indigo-300 font-medium">
+              {swapSelected
+                ? '1 of 2 selected — tap a player from a different game'
+                : 'Select two players from different games to swap'}
+            </span>
+            {swapError && (
+              <span className="text-[11px] text-red-400">{swapError}</span>
+            )}
+          </div>
+        )}
         {activeTab === 'standings' ? (
           <StandingsTab
             players={[...playerMap.values()]}
@@ -287,13 +394,61 @@ export default function SummaryModal({
                             <span className="text-[10px] font-semibold text-slate-600 whitespace-nowrap">
                               {courtLabel(g.court)}
                             </span>
-                            <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>
-                              {name(g.teamA[0], s)} &amp; {name(g.teamA[1], s)}
-                            </span>
+                            <div className="flex items-center gap-1 min-w-0">
+                              {([0, 1] as const).map((i) => {
+                                const id = g.teamA[i]
+                                const n = name(id, s)
+                                const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'A', index: i }
+                                const isSelected = swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id
+                                return (
+                                  <span key={i} className="flex items-center gap-1">
+                                    {i > 0 && <span className="text-[10px] text-slate-600">&amp;</span>}
+                                    {swapMode && !done ? (
+                                      <button
+                                        onClick={() => handleChipClick(target)}
+                                        className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                          isSelected
+                                            ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
+                                            : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
+                                        }`}
+                                      >
+                                        {n}
+                                      </button>
+                                    ) : (
+                                      <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>{n}</span>
+                                    )}
+                                  </span>
+                                )
+                              })}
+                            </div>
                             <span className="text-slate-600 text-xs text-center">vs</span>
-                            <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>
-                              {name(g.teamB[0], s)} &amp; {name(g.teamB[1], s)}
-                            </span>
+                            <div className="flex items-center gap-1 min-w-0">
+                              {([0, 1] as const).map((i) => {
+                                const id = g.teamB[i]
+                                const n = name(id, s)
+                                const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'B', index: i }
+                                const isSelected = swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id
+                                return (
+                                  <span key={i} className="flex items-center gap-1">
+                                    {i > 0 && <span className="text-[10px] text-slate-600">&amp;</span>}
+                                    {swapMode && !done ? (
+                                      <button
+                                        onClick={() => handleChipClick(target)}
+                                        className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                          isSelected
+                                            ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
+                                            : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
+                                        }`}
+                                      >
+                                        {n}
+                                      </button>
+                                    ) : (
+                                      <span className={`text-xs font-medium ${done ? 'text-slate-400 line-through' : 'text-white'}`}>{n}</span>
+                                    )}
+                                  </span>
+                                )
+                              })}
+                            </div>
                           </div>
                           {/* Score toggle / saved score */}
                           {savedScore && !isOpen ? (
