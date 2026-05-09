@@ -122,7 +122,7 @@ export default function SummaryModal({
   saving = false,
   standalone = false,
   onSwapPlayers,
-  absentPlayers = [] as string[],
+  absentPlayers = [],
   onSetAbsent,
 }: {
   result: GeneratorResult
@@ -163,6 +163,7 @@ export default function SummaryModal({
   const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
 
   function enterAbsentMode() {
+    exitSwapMode()
     setAbsentPending(new Set(absentPlayers))
     setAbsentMode(true)
   }
@@ -300,7 +301,7 @@ export default function SummaryModal({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {onSetAbsent && activeTab === 'schedule' && (
+          {onSetAbsent && activeTab === 'schedule' && !swapMode && (
             absentMode ? (
               <>
                 {absentChanged && (
@@ -395,7 +396,7 @@ export default function SummaryModal({
             players={[...playerMap.values()]}
             schedule={result.schedule}
             gameScores={gameScores}
-            absentPlayerIds={absentPlayers}
+            absentPlayerIds={[...effectiveAbsent]}
           />
         ) : (
         <div className="flex flex-col divide-y divide-slate-800">
