@@ -88,7 +88,7 @@ export default function BracketTab() {
       <div className="overflow-x-auto -mx-3 px-3 pb-2">
         <div className="min-w-[300px] w-full">
           {/* Column headers */}
-          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-[9px] text-slate-600 uppercase tracking-widest">
+          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
             <span className="text-center">QF</span>
             <span />
             <span className="text-center">SF</span>
@@ -97,8 +97,8 @@ export default function BracketTab() {
           </div>
 
           {/* Upper half: QF1+QF2 → SF1 → Final */}
-          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center mb-1.5">
-            <div className="flex flex-col gap-1.5">
+          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center mb-3">
+            <div className="flex flex-col gap-3">
               <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
               <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
             </div>
@@ -110,7 +110,7 @@ export default function BracketTab() {
 
           {/* Lower half: QF3+QF4 → SF2 | 3RD PLACE (no connector) */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center">
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-3">
               <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
               <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
             </div>
