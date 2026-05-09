@@ -4,7 +4,7 @@ const menu = [
   { icon: '🏸', label: 'Create Session', description: 'Set up a new game', to: '/session/new', badge: null },
   { icon: '📋', label: 'Sessions', description: 'Browse past sessions', to: '/sessions', badge: null },
   { icon: '👤', label: 'Player History', description: 'Stats & records', to: '/player-history', badge: null },
-  { icon: '🏆', label: 'Tournament', description: 'Standings & cup', to: '/tournament', badge: 'Soon' },
+  { icon: '🏆', label: 'Tournament', description: 'Standings & cup', to: '/tournament', badge: null },
 ] as const
 
 export default function HomePage() {
