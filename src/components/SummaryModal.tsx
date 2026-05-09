@@ -250,7 +250,7 @@ export default function SummaryModal({
               </button>
               <button
                 onClick={() => {
-                  onSwapPlayers!(pendingSwap.t1, pendingSwap.t2)
+                  onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2)
                   exitSwapMode()
                 }}
                 disabled={saving}
@@ -402,7 +402,7 @@ export default function SummaryModal({
                                 const isSelected = swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id
                                 return (
                                   <span key={i} className="flex items-center gap-1">
-                                    {i > 0 && <span className="text-[10px] text-slate-600">&amp;</span>}
+                                    {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
                                     {swapMode && !done ? (
                                       <button
                                         onClick={() => handleChipClick(target)}
@@ -430,7 +430,7 @@ export default function SummaryModal({
                                 const isSelected = swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id
                                 return (
                                   <span key={i} className="flex items-center gap-1">
-                                    {i > 0 && <span className="text-[10px] text-slate-600">&amp;</span>}
+                                    {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
                                     {swapMode && !done ? (
                                       <button
                                         onClick={() => handleChipClick(target)}
