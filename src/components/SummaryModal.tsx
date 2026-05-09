@@ -173,6 +173,12 @@ export default function SummaryModal({
       setSwapError(null)
       return
     }
+    // Same player → error
+    if (swapSelected.playerId === target.playerId) {
+      setSwapError('Cannot swap a player with themselves')
+      setSwapSelected(null)
+      return
+    }
     // Same game → error
     if (swapSelected.slot === target.slot && swapSelected.court === target.court) {
       setSwapError('Cannot swap players in the same game')
