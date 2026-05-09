@@ -393,7 +393,7 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full">
+      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged ? 'pb-24' : ''}`}>
         {swapMode && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
@@ -659,7 +659,8 @@ export default function SummaryModal({
 
       {/* Swap confirm bar */}
       {pendingSwap && (
-        <div className="shrink-0 border-t border-indigo-900/40 px-4 py-3 max-w-xl mx-auto w-full">
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-indigo-900/40 px-4 py-3">
+          <div className="max-w-xl mx-auto">
           <div className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-200 truncate">
@@ -683,11 +684,13 @@ export default function SummaryModal({
               {saving ? 'Saving…' : 'Confirm'}
             </button>
           </div>
+          </div>
         </div>
       )}
       {/* Absent confirm bar */}
       {absentChanged && (
-        <div className="shrink-0 border-t border-red-900/40 px-4 py-3 max-w-xl mx-auto w-full">
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-red-900/40 px-4 py-3">
+          <div className="max-w-xl mx-auto">
           <div className="bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-200 truncate">
@@ -710,6 +713,7 @@ export default function SummaryModal({
             >
               {saving ? 'Saving…' : 'Confirm'}
             </button>
+          </div>
           </div>
         </div>
       )}
