@@ -1,4 +1,5 @@
 import type { SessionConfig, Player, FixMatch, ScheduleSlot, GameScore } from '../store'
+import type { GroupId, TournamentMatch, TournamentPair } from '../store/tournament'
 
 export interface CloudSnapshot {
   session: SessionConfig
@@ -80,4 +81,31 @@ export async function getPlayerStats(name: string): Promise<PlayerStats> {
   if (!json.ok) throw new Error(json.error ?? 'player stats failed')
   if (!json.data) throw new Error('no data')
   return json.data
+}
+
+export const TOURNAMENT_ID = 'tournament-2026-05-23-majadu'
+
+export interface TournamentSnapshot {
+  name: string
+  date: string
+  pairs: TournamentPair[]
+  groups: Record<GroupId, string[]>
+  groupsLocked: boolean
+  matches: TournamentMatch[]
+}
+
+export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
+  const res = await fetch(`${scriptUrl()}?action=getTournament&id=${encodeURIComponent(id)}`)
+  const json = await res.json() as { ok: boolean; data?: TournamentSnapshot; error?: string }
+  if (!json.ok) return null
+  return json.data ?? null
+}
+
+export async function publishTournament(id: string, data: TournamentSnapshot): Promise<void> {
+  const res = await fetch(scriptUrl(), {
+    method: 'POST',
+    body: JSON.stringify({ type: 'tournament', id, data }),
+  })
+  const json = await res.json() as { ok: boolean; error?: string }
+  if (!json.ok) throw new Error(json.error ?? 'publish tournament failed')
 }
