@@ -4,8 +4,7 @@ import { generate, type GeneratorResult } from '../generator'
 import { useSharedView } from '../App'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
-import { publishSession, type CloudSnapshot } from '../utils/cloudSync'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { usePublishSession, type CloudSnapshot } from '../queries'
 
 const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
 const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400', 4: 'text-green-400' }
@@ -413,15 +412,7 @@ export default function GeneratePage() {
   )
   const [error, setError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
-  const queryClient = useQueryClient()
-
-  const publish = useMutation({
-    mutationFn: (snap: CloudSnapshot) => publishSession(cloudSessionId!, snap),
-    onSuccess: (_data, snap) => {
-      queryClient.setQueryData(['session', cloudSessionId], snap)
-    },
-    onError: () => { /* silent — organizer flow, no UI feedback needed */ },
-  })
+  const { mutate: publish, isPending: isPublishing } = usePublishSession(cloudSessionId ?? undefined)
 
   const playerMap = new Map(players.map((p) => [p.id, p]))
 
@@ -432,7 +423,7 @@ export default function GeneratePage() {
       ? playedArr.filter((k) => k !== key)
       : [...playedArr, key]
     const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: nextPlayed, gameScores }
-    publish.mutate(snap)
+    publish(snap)
   }
 
   function handleSetScore(key: string, a: number, b: number) {
@@ -440,7 +431,7 @@ export default function GeneratePage() {
     if (!cloudSessionId) return
     const nextScores = { ...gameScores, [key]: { a, b } }
     const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: playedArr, gameScores: nextScores }
-    publish.mutate(snap)
+    publish(snap)
   }
 
   function buildOffsets() {
@@ -601,7 +592,7 @@ export default function GeneratePage() {
           sessionStart={session.sessionStart}
           slotMinutes={session.slotMinutes}
           courtTimes={session.courtTimes}
-          saving={publish.isPending}
+          saving={isPublishing}
         />
       )}
     </div>

@@ -65,13 +65,29 @@ Migration in both stores resets to defaults on any version mismatch.
 - `StandingsTab.tsx` — standings table per group.
 - `ScoreModal.tsx` — modal for score entry.
 
+### Queries Layer
+
+`src/queries/` is the single access point for all server state. No page or component imports fetch functions directly.
+
+- `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `getTournament`, `publishTournament`) + `TOURNAMENT_ID` constant. Internal to the layer — not re-exported from `index.ts`.
+- `types.ts` — shared types: `CloudSnapshot`, `SessionMeta`, `PlayerSummary`, `PlayerStats`, re-exports `TournamentSnapshot`.
+- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSetAbsent`. Mutations own all cache logic (optimistic update, rollback, invalidation); UI callbacks are passed by components via `mutate(vars, { onSuccess, onError })`.
+- `players.ts` — `useListPlayers`, `useGetPlayerStats`.
+- `tournament.ts` — `useGetTournament`, `useConfirmGroups`, `useSetTournamentScore`, `useResetTournament`.
+- `index.ts` — barrel export of all hooks and types. Also re-exports `TOURNAMENT_ID` for components that need to invalidate the tournament query manually.
+
+**Mutation call-site pattern** — destructure `{ mutate, isPending }` rather than storing the full mutation object:
+```typescript
+const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
+togglePlayed(vars, { onSuccess: () => ..., onError: () => ... })
+```
+
 ### Utilities
 
-- `src/utils/cloudSync.ts` — Google Apps Script backend integration via `VITE_APPS_SCRIPT_URL` env var. `publishSession()`, `getSession()`, `listSessions()`, `listPlayers()`, `getPlayerStats()`.
 - `src/utils/tournament.ts` — pure TS: `generateGroupMatches()` (6 round-robin games per group), `initKnockoutMatches()`, `propagateBracket()`, `computeGroupStandings()`.
 - `src/utils/standings.ts` — computes per-player W/L and point diff for a session.
 - `src/utils/shareUrl.ts` — encode/decode session state into URL hash (uses `lz-string` for compression).
-- `src/utils/swap.ts` — swap players between games (used in SharedSessionPage).
+- `src/utils/swap.ts` — swap players between games (used in `useSwapPlayers` hook).
 
 ### Key Dependencies
 

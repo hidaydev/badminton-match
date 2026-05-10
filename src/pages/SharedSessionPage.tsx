@@ -1,8 +1,14 @@
 import { useState } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, type CloudSnapshot } from '../utils/cloudSync'
-import { applySwap, type SwapTarget } from '../utils/swap'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  useGetSession,
+  useTogglePlayed,
+  useSetScore,
+  useSwapPlayers,
+  useSetAbsent,
+  type CloudSnapshot,
+} from '../queries'
 import type { GeneratorResult } from '../generator'
 import SummaryModal from '../components/SummaryModal'
 
@@ -12,128 +18,11 @@ export default function SharedSessionPage() {
   const queryClient = useQueryClient()
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const { data: snapshot, isLoading, isError } = useQuery<CloudSnapshot | null>({
-    queryKey: ['session', sessionId],
-    queryFn: () => getSession(sessionId!),
-    enabled: !!sessionId,
-  })
-
-  const togglePlayed = useMutation({
-    mutationFn: async ({ nextPlayed }: { key: string; nextPlayed: string[] }) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      const updated: CloudSnapshot = { ...current, playedGames: nextPlayed }
-      await publishSession(sessionId!, updated)
-      return updated
-    },
-    onMutate: async ({ key: _key, nextPlayed }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return { ...old, playedGames: nextPlayed }
-      })
-      return { previous }
-    },
-    onSuccess: () => setSaveError(null),
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
-      setSaveError('Failed to save, please try again')
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
-    },
-  })
-
-  const setScore = useMutation({
-    mutationFn: async ({ key, a, b }: { key: string; a: number; b: number }) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      const nextScores = { ...current.gameScores, [key]: { a, b } }
-      const nextPlayed = current.playedGames.includes(key)
-        ? current.playedGames
-        : [...current.playedGames, key]
-      const updated: CloudSnapshot = { ...current, gameScores: nextScores, playedGames: nextPlayed }
-      await publishSession(sessionId!, updated)
-      return updated
-    },
-    onMutate: async ({ key, a, b }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        const nextScores = { ...old.gameScores, [key]: { a, b } }
-        const nextPlayed = old.playedGames.includes(key)
-          ? old.playedGames
-          : [...old.playedGames, key]
-        return { ...old, gameScores: nextScores, playedGames: nextPlayed }
-      })
-      return { previous }
-    },
-    onSuccess: () => setSaveError(null),
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
-      setSaveError('Failed to save, please try again')
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
-    },
-  })
-
-  const swapPlayers = useMutation({
-    mutationFn: async ({ t1, t2 }: { t1: SwapTarget; t2: SwapTarget }) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      const nextSchedule = applySwap(current.schedule, t1, t2)
-      const updated: CloudSnapshot = { ...current, schedule: nextSchedule }
-      await publishSession(sessionId!, updated)
-      return updated
-    },
-    onMutate: async ({ t1, t2 }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return { ...old, schedule: applySwap(old.schedule, t1, t2) }
-      })
-      return { previous }
-    },
-    onSuccess: () => setSaveError(null),
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
-      setSaveError('Failed to save, please try again')
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
-    },
-  })
-
-  const setAbsent = useMutation({
-    mutationFn: async ({ nextAbsent }: { nextAbsent: string[] }) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      const updated: CloudSnapshot = { ...current, absentPlayers: nextAbsent }
-      await publishSession(sessionId!, updated)
-      return updated
-    },
-    onMutate: async ({ nextAbsent }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return { ...old, absentPlayers: nextAbsent }
-      })
-      return { previous }
-    },
-    onSuccess: () => setSaveError(null),
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
-      setSaveError('Failed to save, please try again')
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
-    },
-  })
+  const { data: snapshot, isLoading, isError } = useGetSession(sessionId)
+  const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
+  const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
+  const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
+  const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
 
   const header = (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
@@ -185,7 +74,7 @@ export default function SharedSessionPage() {
     unplacedFixMatches: [],
   }
 
-  const isSaving = togglePlayed.isPending || setScore.isPending || swapPlayers.isPending || setAbsent.isPending
+  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -207,18 +96,30 @@ export default function SharedSessionPage() {
           const nextPlayed = current?.playedGames.includes(key)
             ? current.playedGames.filter((k) => k !== key)
             : [...(current?.playedGames ?? []), key]
-          togglePlayed.mutate({ key, nextPlayed })
+          togglePlayed({ key, nextPlayed }, {
+            onSuccess: () => setSaveError(null),
+            onError: () => setSaveError('Failed to save, please try again'),
+          })
         }}
-        onSetGameScore={(key, a, b) => setScore.mutate({ key, a, b })}
+        onSetGameScore={(key, a, b) => setScore({ key, a, b }, {
+          onSuccess: () => setSaveError(null),
+          onError: () => setSaveError('Failed to save, please try again'),
+        })}
         title={snapshot.session.title ?? ''}
         date={snapshot.session.date ?? ''}
         sessionStart={snapshot.session.sessionStart}
         slotMinutes={snapshot.session.slotMinutes}
         courtTimes={snapshot.session.courtTimes}
         saving={isSaving}
-        onSwapPlayers={(t1, t2) => swapPlayers.mutate({ t1, t2 })}
+        onSwapPlayers={(t1, t2) => swapPlayers({ t1, t2 }, {
+          onSuccess: () => setSaveError(null),
+          onError: () => setSaveError('Failed to save, please try again'),
+        })}
         absentPlayers={snapshot.absentPlayers ?? []}
-        onSetAbsent={(nextAbsent) => setAbsent.mutate({ nextAbsent })}
+        onSetAbsent={(nextAbsent) => setAbsent({ nextAbsent }, {
+          onSuccess: () => setSaveError(null),
+          onError: () => setSaveError('Failed to save, please try again'),
+        })}
         standalone
       />
     </div>
