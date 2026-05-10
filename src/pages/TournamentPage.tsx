@@ -24,6 +24,8 @@ export default function TournamentPage() {
   const hydrateFromCloud = useTournamentStore((s) => s.hydrateFromCloud)
   const setMatchScore = useTournamentStore((s) => s.setMatchScore)
   const resetGroups = useTournamentStore((s) => s.resetGroups)
+  const lockGroups = useTournamentStore((s) => s.lockGroups)
+  const matches = useTournamentStore((s) => s.matches)
 
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -31,14 +33,22 @@ export default function TournamentPage() {
     queryKey: ['tournament', TOURNAMENT_ID],
     queryFn: () => getTournament(TOURNAMENT_ID),
     enabled: groupsLocked,
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 1000 * 60,
   })
 
+  // Only hydrate from cloud when cloud has real match data
   useEffect(() => {
-    if (cloudSnapshot?.matches) {
+    if (cloudSnapshot?.matches?.length) {
       hydrateFromCloud(cloudSnapshot.matches)
     }
   }, [cloudSnapshot, hydrateFromCloud])
+
+  // Auto-recover: if groups are locked but matches are empty, regenerate from existing groups
+  useEffect(() => {
+    if (groupsLocked && matches.length === 0) {
+      lockGroups()
+    }
+  }, [groupsLocked, matches.length, lockGroups])
 
   const setScoreMutation = useMutation({
     onMutate: async () => {
