@@ -32,7 +32,6 @@ export interface TournamentSnapshot {
   date: string
   pairs: TournamentPair[]
   groups: Record<GroupId, string[]>
-  groupsLocked: boolean
   matches: TournamentMatch[]
 }
 
