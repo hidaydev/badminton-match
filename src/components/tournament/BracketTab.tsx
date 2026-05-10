@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { useTournamentStore } from '../../store/tournament'
-import type { TournamentMatch } from '../../store/tournament'
+import type { TournamentMatch, TournamentPair } from '../../utils/tournament'
 import ScoreModal from './ScoreModal'
 
 interface Props {
+  pairs: TournamentPair[]
+  matches: TournamentMatch[]
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
   onOpenModal: () => void
   isFetching: boolean
@@ -55,9 +56,7 @@ function Connector() {
   )
 }
 
-export default function BracketTab({ onSetMatchScore, onOpenModal, isFetching }: Props) {
-  const pairs = useTournamentStore((s) => s.pairs)
-  const matches = useTournamentStore((s) => s.matches)
+export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModal, isFetching }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
 
