@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
-import { useTournamentStore } from '../../store/tournament'
 import { computeGroupStandings } from '../../utils/tournament'
-import type { TournamentMatch, GroupId } from '../../store/tournament'
+import type { TournamentMatch, TournamentPair, GroupId } from '../../utils/tournament'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 const STAGE_LABEL = ['🥇 Champion', '🥈 Runner-up', '🥉 3rd Place', '4th Place', 'QF Exit', 'Group Stage']
@@ -24,16 +23,17 @@ function stageRank(pairId: string, matches: TournamentMatch[]): number {
   return 5
 }
 
-export default function StandingsTab() {
-  const pairs = useTournamentStore((s) => s.pairs)
-  const groups = useTournamentStore((s) => s.groups)
-  const matches = useTournamentStore((s) => s.matches)
+interface Props {
+  pairs: TournamentPair[]
+  groups: Record<GroupId, string[]>
+  matches: TournamentMatch[]
+}
 
+export default function StandingsTab({ pairs, groups, matches }: Props) {
   const getPairName = (id: string) => pairs.find((p) => p.id === id)?.name ?? id
 
   const allStandings = GROUP_IDS.flatMap((g) => computeGroupStandings(g, groups[g], matches))
 
-  // W/L across all phases (group + knockout)
   const totalRecord = useMemo(() => {
     const rec: Record<string, { wins: number; losses: number }> = {}
     for (const m of matches) {

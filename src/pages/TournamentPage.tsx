@@ -1,12 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useTournamentStore } from '../store/tournament'
 import {
   getTournament,
   publishTournament,
   TOURNAMENT_ID,
   type TournamentSnapshot,
 } from '../utils/cloudSync'
+import {
+  generateGroupMatches,
+  initKnockoutMatches,
+  propagateBracket,
+} from '../utils/tournament'
+import type { GroupId, TournamentPair } from '../utils/tournament'
 import GroupAssignment from '../components/tournament/GroupAssignment'
 import GroupMatches from '../components/tournament/GroupMatches'
 import BracketTab from '../components/tournament/BracketTab'
@@ -14,21 +19,41 @@ import StandingsTab from '../components/tournament/StandingsTab'
 
 type Tab = 'groups' | 'bracket' | 'standings'
 
+const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
+
+const INITIAL_PAIRS: TournamentPair[] = [
+  { id: 'p1',  name: 'Dwi & Ismet' },
+  { id: 'p2',  name: 'Vina & Fredi' },
+  { id: 'p3',  name: 'Iky & Raihan' },
+  { id: 'p4',  name: 'Azzam & Zainal' },
+  { id: 'p5',  name: 'Dendi & Maul' },
+  { id: 'p6',  name: 'Euis & Akid' },
+  { id: 'p7',  name: 'Anas & Nindya' },
+  { id: 'p8',  name: 'Faiz & Dimas' },
+  { id: 'p9',  name: 'Fahmi & Lulud' },
+  { id: 'p10', name: 'Agha & Lita' },
+  { id: 'p11', name: 'Rakha & Visi' },
+  { id: 'p12', name: 'Fakhri & Novian' },
+  { id: 'p13', name: 'Hidayat & Zaid' },
+  { id: 'p14', name: 'Boby & Andri' },
+  { id: 'p15', name: 'Rudi & Ega' },
+  { id: 'p16', name: 'Bowo & Didik' },
+]
+
+const EMPTY_GROUPS: Record<GroupId, string[]> = { A: [], B: [], C: [], D: [] }
+
 function GroupLoadingSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
-      {/* Reset groups button row */}
       <div className="flex justify-end">
         <div className="h-4 w-20 bg-slate-700 rounded" />
       </div>
       {['A', 'B', 'C', 'D'].map((g) => (
         <div key={g} className="bg-slate-800 rounded-xl overflow-hidden">
-          {/* Header — matches px-4 py-2 flex justify-between */}
           <div className="px-4 py-2 flex justify-between items-center border-b border-yellow-500/30">
             <div className="h-4 w-16 bg-slate-700 rounded" />
             <div className="h-3 w-12 bg-slate-700 rounded" />
           </div>
-          {/* 6 match rows — matches py-3 + text-xs (h-4) height */}
           <div className="divide-y divide-slate-700/50">
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="flex items-center px-4 py-3 gap-2">
@@ -38,7 +63,6 @@ function GroupLoadingSkeleton() {
               </div>
             ))}
           </div>
-          {/* Standings — header row + 4 data rows matching py-1 text-xs */}
           <div className="border-t border-slate-700 px-4 py-2 space-y-1">
             <div className="h-3 w-full bg-slate-700/40 rounded mb-1" />
             {[0, 1, 2, 3].map((i) => (
@@ -53,95 +77,86 @@ function GroupLoadingSkeleton() {
 
 export default function TournamentPage() {
   const [tab, setTab] = useState<Tab>('groups')
-  const name = useTournamentStore((s) => s.name)
-  const date = useTournamentStore((s) => s.date)
-  const groupsLocked = useTournamentStore((s) => s.groupsLocked)
-
-  const queryClient = useQueryClient()
-  const hydrateFromCloud = useTournamentStore((s) => s.hydrateFromCloud)
-  const setMatchScore = useTournamentStore((s) => s.setMatchScore)
-  const resetGroups = useTournamentStore((s) => s.resetGroups)
-  const lockGroups = useTournamentStore((s) => s.lockGroups)
-  const matches = useTournamentStore((s) => s.matches)
-
+  const [localGroups, setLocalGroups] = useState<Record<GroupId, string[]>>(EMPTY_GROUPS)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const { data: cloudSnapshot, isFetching } = useQuery<TournamentSnapshot | null>({
+  const queryClient = useQueryClient()
+
+  const { data: snapshot, isFetching } = useQuery<TournamentSnapshot | null>({
     queryKey: ['tournament', TOURNAMENT_ID],
     queryFn: () => getTournament(TOURNAMENT_ID),
     staleTime: 1000 * 60,
     refetchOnWindowFocus: true,
   })
 
-  // Hydrate full store from cloud when cloud has data
-  useEffect(() => {
-    if (cloudSnapshot?.matches?.length) {
-      hydrateFromCloud(cloudSnapshot)
-    }
-  }, [cloudSnapshot, hydrateFromCloud])
+  const pairs = snapshot?.pairs ?? INITIAL_PAIRS
+  const committedGroups = snapshot?.groups ?? EMPTY_GROUPS
+  const matches = snapshot?.matches ?? []
+  const name = snapshot?.name ?? 'MAJADU Internal Tournament 2026'
+  const date = snapshot?.date ?? '2026-05-23'
 
-  // Auto-recover: if groups are locked but matches are empty, regenerate from existing groups
-  useEffect(() => {
-    if (groupsLocked && matches.length === 0) {
-      lockGroups()
-    }
-  }, [groupsLocked, matches.length, lockGroups])
+  const groupsFull = GROUP_IDS.every((g) => committedGroups[g].length === 4)
+
+  const addPairToGroup = (pairId: string, groupId: GroupId) =>
+    setLocalGroups((prev) => ({ ...prev, [groupId]: [...prev[groupId], pairId] }))
+
+  const removePairFromGroup = (pairId: string) =>
+    setLocalGroups((prev) => ({
+      A: prev.A.filter((id) => id !== pairId),
+      B: prev.B.filter((id) => id !== pairId),
+      C: prev.C.filter((id) => id !== pairId),
+      D: prev.D.filter((id) => id !== pairId),
+    }))
+
+  const confirmMutation = useMutation({
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+    },
+    mutationFn: async () => {
+      const groupMatches = GROUP_IDS.flatMap((g) => generateGroupMatches(g, localGroups[g]))
+      const allMatches = [...groupMatches, ...initKnockoutMatches()]
+      const newMatches = propagateBracket(allMatches, localGroups, pairs)
+      await publishTournament(TOURNAMENT_ID, { name, date, pairs, groups: localGroups, matches: newMatches })
+    },
+    onSuccess: () => setSaveError(null),
+    onError: () => setSaveError('Failed to save groups, please try again'),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
+  })
 
   const setScoreMutation = useMutation({
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
     },
     mutationFn: async ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) => {
-      setMatchScore(matchId, scoreA, scoreB)
-      const state = useTournamentStore.getState()
-      const snapshot: TournamentSnapshot = {
-        name: state.name,
-        date: state.date,
-        pairs: state.pairs,
-        groups: state.groups,
-        groupsLocked: state.groupsLocked,
-        matches: state.matches,
-      }
-      await publishTournament(TOURNAMENT_ID, snapshot)
+      const updatedMatches = matches.map((m) => m.id === matchId ? { ...m, scoreA, scoreB } : m)
+      const propagated = propagateBracket(updatedMatches, committedGroups, pairs)
+      await publishTournament(TOURNAMENT_ID, { name, date, pairs, groups: committedGroups, matches: propagated })
     },
     onSuccess: () => setSaveError(null),
     onError: () => setSaveError('Failed to save score, please try again'),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })
 
-  const handleSetMatchScore = (matchId: string, scoreA: number, scoreB: number) => {
-    setScoreMutation.mutate({ matchId, scoreA, scoreB })
-  }
-
   const resetMutation = useMutation({
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
     },
     mutationFn: async () => {
-      resetGroups()
-      const state = useTournamentStore.getState()
-      const snapshot: TournamentSnapshot = {
-        name: state.name,
-        date: state.date,
-        pairs: state.pairs,
-        groups: state.groups,
-        groupsLocked: state.groupsLocked,
-        matches: state.matches,
-      }
-      await publishTournament(TOURNAMENT_ID, snapshot)
+      await publishTournament(TOURNAMENT_ID, { name, date, pairs, groups: EMPTY_GROUPS, matches: [] })
     },
-    onSuccess: () => setSaveError(null),
+    onSuccess: () => {
+      setSaveError(null)
+      setLocalGroups(EMPTY_GROUPS)
+    },
     onError: () => setSaveError('Failed to reset, please try again'),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })
-
-  const handleResetGroups = () => resetMutation.mutate()
 
   const handleOpenModal = () => {
     queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
   }
 
-  const isSaving = setScoreMutation.isPending || resetMutation.isPending
+  const isSaving = confirmMutation.isPending || setScoreMutation.isPending || resetMutation.isPending
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'groups', label: 'Groups' },
@@ -151,7 +166,7 @@ export default function TournamentPage() {
 
   const handleTabChange = (newTab: Tab) => {
     setTab(newTab)
-    if (groupsLocked) {
+    if (groupsFull) {
       queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
     }
   }
@@ -174,7 +189,7 @@ export default function TournamentPage() {
           })}{' '}
           · 16 pairs · 4 groups
         </p>
-        {groupsLocked && (
+        {groupsFull && (
           <p className="text-[10px] text-slate-500 mb-2">
             {isSaving ? 'Saving…' : 'Saved'}
           </p>
@@ -199,14 +214,42 @@ export default function TournamentPage() {
       {/* Tab content */}
       <div className="px-3 pt-4 pb-8">
         {tab === 'groups' && (
-          isFetching && cloudSnapshot === undefined
+          isFetching && snapshot === undefined
             ? <GroupLoadingSkeleton />
-            : groupsLocked
-              ? <GroupMatches onSetMatchScore={handleSetMatchScore} onResetGroups={handleResetGroups} onOpenModal={handleOpenModal} isFetching={isFetching} />
-              : <GroupAssignment />
+            : groupsFull
+              ? <GroupMatches
+                  pairs={pairs}
+                  groups={committedGroups}
+                  matches={matches}
+                  onSetMatchScore={(id, a, b) => setScoreMutation.mutate({ matchId: id, scoreA: a, scoreB: b })}
+                  onResetGroups={() => resetMutation.mutate()}
+                  onOpenModal={handleOpenModal}
+                  isFetching={isFetching}
+                />
+              : <GroupAssignment
+                  pairs={pairs}
+                  groups={localGroups}
+                  onAddPairToGroup={addPairToGroup}
+                  onRemovePairFromGroup={removePairFromGroup}
+                  onConfirmGroups={() => confirmMutation.mutate()}
+                />
         )}
-        {tab === 'bracket' && <BracketTab onSetMatchScore={handleSetMatchScore} onOpenModal={handleOpenModal} isFetching={isFetching} />}
-        {tab === 'standings' && <StandingsTab />}
+        {tab === 'bracket' && (
+          <BracketTab
+            pairs={pairs}
+            matches={matches}
+            onSetMatchScore={(id, a, b) => setScoreMutation.mutate({ matchId: id, scoreA: a, scoreB: b })}
+            onOpenModal={handleOpenModal}
+            isFetching={isFetching}
+          />
+        )}
+        {tab === 'standings' && (
+          <StandingsTab
+            pairs={pairs}
+            groups={committedGroups}
+            matches={matches}
+          />
+        )}
       </div>
     </div>
   )
