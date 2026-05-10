@@ -6,6 +6,7 @@ interface Props {
   pairs: TournamentPair[]
   matches: TournamentMatch[]
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
+  onOpenModal: () => void
   isFetching: boolean
 }
 
@@ -55,11 +56,12 @@ function Connector() {
   )
 }
 
-export default function BracketTab({ pairs, matches, onSetMatchScore, isFetching }: Props) {
+export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModal, isFetching }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
 
   const handleSelect = (match: TournamentMatch) => {
+    onOpenModal()
     setActiveMatchId(match.id)
   }
 
