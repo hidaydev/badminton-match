@@ -1,14 +1,10 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { listSessions, type SessionMeta } from '../utils/cloudSync'
+import { useListSessions } from '../queries'
 
 export default function SessionListPage() {
   const [dateFilter, setDateFilter] = useState('')
 
-  const { data: sessions = [], isLoading, isError } = useQuery<SessionMeta[]>({
-    queryKey: ['sessions'],
-    queryFn: listSessions,
-  })
+  const { data: sessions = [], isLoading, isError } = useListSessions()
 
   if (isLoading) return <p className="text-slate-400 text-sm">Loading sessions…</p>
   if (isError) return <p className="text-red-400 text-sm">Failed to load sessions.</p>
