@@ -104,6 +104,8 @@ export async function getTournament(id: string): Promise<TournamentSnapshot | nu
 export async function publishTournament(id: string, data: TournamentSnapshot): Promise<void> {
   const res = await fetch(scriptUrl(), {
     method: 'POST',
+    // No Content-Type header: browser sends text/plain, avoiding CORS preflight.
+    // Apps Script reads body via e.postData.contents.
     body: JSON.stringify({ type: 'tournament', id, data }),
   })
   const json = await res.json() as { ok: boolean; error?: string }
