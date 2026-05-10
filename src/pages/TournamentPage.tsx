@@ -33,7 +33,8 @@ export default function TournamentPage() {
     queryKey: ['tournament', TOURNAMENT_ID],
     queryFn: () => getTournament(TOURNAMENT_ID),
     enabled: groupsLocked,
-    staleTime: 1000 * 60,
+    staleTime: 0,            // always consider data stale so window focus triggers refetch
+    refetchOnWindowFocus: true,
   })
 
   // Only hydrate from cloud when cloud has real match data
@@ -108,6 +109,13 @@ export default function TournamentPage() {
     { id: 'standings', label: 'Standings' },
   ]
 
+  const handleTabChange = (newTab: Tab) => {
+    setTab(newTab)
+    if (groupsLocked) {
+      queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+    }
+  }
+
   return (
     <div className="flex flex-col gap-0 -mx-3">
       {saveError && (
@@ -135,7 +143,7 @@ export default function TournamentPage() {
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => handleTabChange(t.id)}
               className={`flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 tab === t.id
                   ? 'text-yellow-400 border-yellow-400'
