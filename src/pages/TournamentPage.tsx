@@ -124,16 +124,26 @@ export default function TournamentPage() {
   })
 
   const setScoreMutation = useMutation({
-    onMutate: async () => {
+    onMutate: async ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+      const previous = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
+      if (previous) {
+        const updated = previous.matches.map((m) => m.id === matchId ? { ...m, scoreA, scoreB } : m)
+        const propagated = propagateBracket(updated, previous.groups, previous.pairs)
+        queryClient.setQueryData(['tournament', TOURNAMENT_ID], { ...previous, matches: propagated })
+      }
+      return { previous }
     },
-    mutationFn: async ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) => {
-      const updatedMatches = matches.map((m) => m.id === matchId ? { ...m, scoreA, scoreB } : m)
-      const propagated = propagateBracket(updatedMatches, committedGroups, pairs)
-      await publishTournament(TOURNAMENT_ID, { name, date, pairs, groups: committedGroups, matches: propagated })
+    mutationFn: async (_: { matchId: string; scoreA: number; scoreB: number }) => {
+      const current = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
+      if (!current) return
+      await publishTournament(TOURNAMENT_ID, current)
     },
     onSuccess: () => setSaveError(null),
-    onError: () => setSaveError('Failed to save score, please try again'),
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['tournament', TOURNAMENT_ID], context?.previous)
+      setSaveError('Failed to save score, please try again')
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })
 
