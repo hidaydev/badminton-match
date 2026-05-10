@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import {
   generateGroupMatches,
   initKnockoutMatches,
@@ -15,11 +14,10 @@ interface TournamentState {
   date: string
   pairs: TournamentPair[]
   groups: Record<GroupId, string[]>
-  groupsLocked: boolean
   matches: TournamentMatch[]
   addPairToGroup: (pairId: string, groupId: GroupId) => void
   removePairFromGroup: (pairId: string) => void
-  lockGroups: () => void
+  confirmGroups: () => void
   resetGroups: () => void
   setMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
   hydrateFromCloud: (snapshot: TournamentSnapshot) => void
@@ -46,74 +44,53 @@ const INITIAL_PAIRS: TournamentPair[] = [
 
 const EMPTY_GROUPS: Record<GroupId, string[]> = { A: [], B: [], C: [], D: [] }
 
-export const useTournamentStore = create<TournamentState>()(
-  persist(
-    (set) => ({
-      name: 'MAJADU Internal Tournament 2026',
-      date: '2026-05-23',
-      pairs: INITIAL_PAIRS,
-      groups: EMPTY_GROUPS,
-      groupsLocked: false,
-      matches: [],
+export const useTournamentStore = create<TournamentState>()((set) => ({
+  name: 'MAJADU Internal Tournament 2026',
+  date: '2026-05-23',
+  pairs: INITIAL_PAIRS,
+  groups: EMPTY_GROUPS,
+  matches: [],
 
-      addPairToGroup: (pairId, groupId) =>
-        set((s) => ({
-          groups: { ...s.groups, [groupId]: [...s.groups[groupId], pairId] },
-        })),
+  addPairToGroup: (pairId, groupId) =>
+    set((s) => ({
+      groups: { ...s.groups, [groupId]: [...s.groups[groupId], pairId] },
+    })),
 
-      removePairFromGroup: (pairId) =>
-        set((s) => ({
-          groups: {
-            A: s.groups.A.filter((id) => id !== pairId),
-            B: s.groups.B.filter((id) => id !== pairId),
-            C: s.groups.C.filter((id) => id !== pairId),
-            D: s.groups.D.filter((id) => id !== pairId),
-          },
-        })),
+  removePairFromGroup: (pairId) =>
+    set((s) => ({
+      groups: {
+        A: s.groups.A.filter((id) => id !== pairId),
+        B: s.groups.B.filter((id) => id !== pairId),
+        C: s.groups.C.filter((id) => id !== pairId),
+        D: s.groups.D.filter((id) => id !== pairId),
+      },
+    })),
 
-      lockGroups: () =>
-        set((s) => {
-          const groupMatches = (['A', 'B', 'C', 'D'] as GroupId[]).flatMap((g) =>
-            generateGroupMatches(g, s.groups[g])
-          )
-          const allMatches = [...groupMatches, ...initKnockoutMatches()]
-          return {
-            groupsLocked: true,
-            matches: propagateBracket(allMatches, s.groups, s.pairs),
-          }
-        }),
-
-      resetGroups: () =>
-        set({ groups: EMPTY_GROUPS, groupsLocked: false, matches: [] }),
-
-      setMatchScore: (matchId, scoreA, scoreB) =>
-        set((s) => {
-          const matches = s.matches.map((m) =>
-            m.id === matchId ? { ...m, scoreA, scoreB } : m
-          )
-          return { matches: propagateBracket(matches, s.groups, s.pairs) }
-        }),
-
-      hydrateFromCloud: (snapshot) => set({
-        name: snapshot.name,
-        date: snapshot.date,
-        pairs: snapshot.pairs,
-        groups: snapshot.groups,
-        groupsLocked: snapshot.groupsLocked,
-        matches: snapshot.matches,
-      }),
+  confirmGroups: () =>
+    set((s) => {
+      const groupMatches = (['A', 'B', 'C', 'D'] as GroupId[]).flatMap((g) =>
+        generateGroupMatches(g, s.groups[g])
+      )
+      const allMatches = [...groupMatches, ...initKnockoutMatches()]
+      return { matches: propagateBracket(allMatches, s.groups, s.pairs) }
     }),
-    {
-      name: 'tournament-store',
-      version: 2,
-      migrate: () => ({
-        name: 'MAJADU Internal Tournament 2026',
-        date: '2026-05-23',
-        pairs: INITIAL_PAIRS,
-        groups: EMPTY_GROUPS,
-        groupsLocked: false,
-        matches: [],
-      }),
-    }
-  )
-)
+
+  resetGroups: () =>
+    set({ groups: EMPTY_GROUPS, matches: [] }),
+
+  setMatchScore: (matchId, scoreA, scoreB) =>
+    set((s) => {
+      const matches = s.matches.map((m) =>
+        m.id === matchId ? { ...m, scoreA, scoreB } : m
+      )
+      return { matches: propagateBracket(matches, s.groups, s.pairs) }
+    }),
+
+  hydrateFromCloud: (snapshot) => set({
+    name: snapshot.name,
+    date: snapshot.date,
+    pairs: snapshot.pairs,
+    groups: snapshot.groups,
+    matches: snapshot.matches,
+  }),
+}))
