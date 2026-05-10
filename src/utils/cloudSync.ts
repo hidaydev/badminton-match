@@ -1,5 +1,5 @@
 import type { SessionConfig, Player, FixMatch, ScheduleSlot, GameScore } from '../store'
-import type { GroupId, TournamentMatch, TournamentPair } from '../store/tournament'
+import type { TournamentSnapshot } from './tournament'
 
 export interface CloudSnapshot {
   session: SessionConfig
@@ -84,15 +84,7 @@ export async function getPlayerStats(name: string): Promise<PlayerStats> {
 }
 
 export const TOURNAMENT_ID = 'tournament-2026-05-23-majadu'
-
-export interface TournamentSnapshot {
-  name: string
-  date: string
-  pairs: TournamentPair[]
-  groups: Record<GroupId, string[]>
-  groupsLocked: boolean
-  matches: TournamentMatch[]
-}
+export type { TournamentSnapshot }
 
 export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
   const res = await fetch(`${scriptUrl()}?action=getTournament&id=${encodeURIComponent(id)}`)

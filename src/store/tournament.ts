@@ -5,9 +5,9 @@ import {
   initKnockoutMatches,
   propagateBracket,
 } from '../utils/tournament'
-import type { GroupId, TournamentMatch, TournamentPair } from '../utils/tournament'
+import type { GroupId, TournamentMatch, TournamentPair, TournamentSnapshot } from '../utils/tournament'
 
-export type { GroupId, TournamentMatch, TournamentPair }
+export type { GroupId, TournamentMatch, TournamentPair, TournamentSnapshot }
 export type { MatchPhase, StandingRow } from '../utils/tournament'
 
 interface TournamentState {
@@ -22,7 +22,7 @@ interface TournamentState {
   lockGroups: () => void
   resetGroups: () => void
   setMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
-  hydrateFromCloud: (matches: TournamentMatch[]) => void
+  hydrateFromCloud: (snapshot: TournamentSnapshot) => void
 }
 
 const INITIAL_PAIRS: TournamentPair[] = [
@@ -94,7 +94,14 @@ export const useTournamentStore = create<TournamentState>()(
           return { matches: propagateBracket(matches, s.groups, s.pairs) }
         }),
 
-      hydrateFromCloud: (matches) => set({ matches }),
+      hydrateFromCloud: (snapshot) => set({
+        name: snapshot.name,
+        date: snapshot.date,
+        pairs: snapshot.pairs,
+        groups: snapshot.groups,
+        groupsLocked: snapshot.groupsLocked,
+        matches: snapshot.matches,
+      }),
     }),
     {
       name: 'tournament-store',

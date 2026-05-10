@@ -27,6 +27,15 @@ export interface StandingRow {
 
 export const GROUP_COURTS: Record<GroupId, number> = { A: 9, B: 10, C: 11, D: 12 }
 
+export interface TournamentSnapshot {
+  name: string
+  date: string
+  pairs: TournamentPair[]
+  groups: Record<GroupId, string[]>
+  groupsLocked: boolean
+  matches: TournamentMatch[]
+}
+
 // Round-robin pairings for 4 teams (indices into pairIds array)
 const RR: [number, number][] = [[0,1],[2,3],[0,2],[1,3],[0,3],[1,2]]
 
