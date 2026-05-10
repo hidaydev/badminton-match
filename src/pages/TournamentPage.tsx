@@ -32,15 +32,14 @@ export default function TournamentPage() {
   const { data: cloudSnapshot, isFetching } = useQuery<TournamentSnapshot | null>({
     queryKey: ['tournament', TOURNAMENT_ID],
     queryFn: () => getTournament(TOURNAMENT_ID),
-    enabled: groupsLocked,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: true,
   })
 
-  // Only hydrate from cloud when cloud has real match data
+  // Hydrate full store from cloud when cloud has data
   useEffect(() => {
     if (cloudSnapshot?.matches?.length) {
-      hydrateFromCloud(cloudSnapshot.matches)
+      hydrateFromCloud(cloudSnapshot)
     }
   }, [cloudSnapshot, hydrateFromCloud])
 
