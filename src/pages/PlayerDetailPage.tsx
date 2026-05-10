@@ -1,16 +1,11 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { getPlayerStats, type PlayerStats } from '../utils/cloudSync'
+import { useGetPlayerStats } from '../queries'
 
 export default function PlayerDetailPage() {
   const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
 
-  const { data: stats, isLoading, isError } = useQuery<PlayerStats>({
-    queryKey: ['player', name],
-    queryFn: () => getPlayerStats(decodeURIComponent(name!)),
-    enabled: !!name,
-  })
+  const { data: stats, isLoading, isError } = useGetPlayerStats(name)
 
   if (isLoading) return <p className="text-slate-400 text-sm">Loading stats…</p>
   if (isError) return <p className="text-red-400 text-sm">Failed to load stats.</p>
