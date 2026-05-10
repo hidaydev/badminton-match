@@ -15,7 +15,9 @@ No test suite exists in this project.
 
 ## Architecture
 
-This is a single-page React app (React 19, Vite, Tailwind v4, TypeScript) that generates optimised badminton match schedules for recreational sessions.
+This is a single-page React app (React 19, Vite, Tailwind v4, TypeScript) that generates optimised badminton match schedules for recreational sessions. It has grown to also include tournament management, session history, and player career tracking.
+
+### Core Session Flow
 
 **User flow (4 steps, enforced by route guards in [App.tsx](src/App.tsx)):**
 1. **Setup** (`/`) — configure courts, slot duration, court times, player count, tier count. Locks the session.
@@ -23,23 +25,64 @@ This is a single-page React app (React 19, Vite, Tailwind v4, TypeScript) that g
 3. **Constraints** (`/constraints`) — define "fix matches": pre-assigned pairings (fully or partially specified) that must appear in the schedule.
 4. **Generate** (`/generate`) — run the scheduler, view the schedule, retry until quality is good.
 
-**State** lives in a single Zustand store ([src/store/index.ts](src/store/index.ts)) persisted to `localStorage` under the key `badminton-store`. The store version is incremented (`version: 8`) and migration simply resets to defaults on any version mismatch. Mutating any player, fix match, or session field resets `schedule` and `lastResult` to `null` so stale results are never shown.
+**Routing:** `RequireSession` redirects to `/` if the session isn't locked; `RequirePlayers` additionally checks that the exact `playerCount` players have been entered before allowing access to `/constraints` or `/generate`.
 
-**Generator** ([src/generator/index.ts](src/generator/index.ts)) is pure TypeScript with no external dependencies. Key algorithm:
+**Home page** shows 4 menu items: Create Session, Sessions, Player History, Tournament.
+
+### State Management
+
+Two independent Zustand stores, both persisted to `localStorage`:
+
+- **Main store** ([src/store/index.ts](src/store/index.ts)) — key `badminton-store`, `version: 13`. Holds session config, players, fix matches, schedule, played games, game scores, absent players, and `cloudSessionId`. Mutating any player, fix match, or session field resets `schedule` and `lastResult` to `null`.
+- **Tournament store** ([src/store/tournament.ts](src/store/tournament.ts)) — separate store, `version: 2`. Holds 16 pairs, 4 groups (A/B/C/D), group stage matches, and knockout bracket state.
+
+Migration in both stores resets to defaults on any version mismatch.
+
+### Generator
+
+[src/generator/index.ts](src/generator/index.ts) is pure TypeScript with no external dependencies. Key algorithm:
 - Scores a game by `partnerRepeat × 3 + opponentRepeat + tierDiff × 2` — lower is better.
 - Two "A-side-only" fix matches can be *merged* into a single game (one pair becomes Team A, the other Team B) to pack the schedule more efficiently.
 - Fix matches are placed first (most specified first), then remaining slots are filled greedily by choosing players with the lowest projected play count, preferring those who sat out recently.
 - `bestGrouping` runs 40 random shuffles and picks the grouping with the lowest aggregate score.
 - `courtOffsets` handle courts that start at different times (e.g. Court B opens an hour later than Court A).
 
-**`GeneratePage`** ([src/pages/GeneratePage.tsx](src/pages/GeneratePage.tsx)) contains most of the display logic:
-- `QualityBanner` — grades the schedule on play-count spread, match balance, partner/opponent variety, and back-to-back games.
-- "Retry until good" runs up to 30 generations and keeps the best scoring result.
-- `SummaryModal` — a full-screen overlay showing a compact checklist view of the schedule (tap to mark games as played).
-- Back-to-back games are flagged with `*` on player chips.
+### Pages
 
-**Routing:** `RequireSession` redirects to `/` if the session isn't locked; `RequirePlayers` additionally checks that the exact `playerCount` players have been entered before allowing access to `/constraints` or `/generate`.
+- **GeneratePage** ([src/pages/GeneratePage.tsx](src/pages/GeneratePage.tsx)) — `QualityBanner` grades the schedule; "Retry until good" runs up to 30 generations; `SummaryModal` is a full-screen overlay with a checklist view (tap to mark games as played, support for absent players). Back-to-back games flagged with `*` on player chips.
+- **TournamentPage** ([src/pages/TournamentPage.tsx](src/pages/TournamentPage.tsx)) — tabbed UI with three tabs: **Groups** (assign 16 pairs to 4 groups; switches to GroupMatches when locked), **Bracket** (horizontal scrolling QF→SF→Final knockout bracket with connector lines), **Standings** (per-group W/L, point diff, head-to-head table).
+- **SessionListPage** ([src/pages/SessionListPage.tsx](src/pages/SessionListPage.tsx)) — browse past cloud-synced sessions with date filter.
+- **PlayerHistoryPage** ([src/pages/PlayerHistoryPage.tsx](src/pages/PlayerHistoryPage.tsx)) — list all players from cloud history.
+- **PlayerDetailPage** ([src/pages/PlayerDetailPage.tsx](src/pages/PlayerDetailPage.tsx)) — per-player career stats (top partners, opponents).
+- **SharedSessionPage** ([src/pages/SharedSessionPage.tsx](src/pages/SharedSessionPage.tsx)) — view/manage a cloud-synced shared session (`/s/:sessionId`).
 
-**Styling:** Tailwind v4 via the `@tailwindcss/vite` plugin (configured in [vite.config.ts](vite.config.ts)). Dark slate theme throughout; no separate CSS framework.
+### Tournament Components
 
-**Deployment:** [vercel.json](vercel.json) rewrites all routes to `index.html` for client-side routing.
+`src/components/tournament/`:
+- `GroupAssignment.tsx` — drag/drop UI to assign pairs to groups.
+- `GroupMatches.tsx` — enter scores for group stage round-robin matches.
+- `BracketTab.tsx` — knockout bracket visualization.
+- `StandingsTab.tsx` — standings table per group.
+- `ScoreModal.tsx` — modal for score entry.
+
+### Utilities
+
+- `src/utils/cloudSync.ts` — Google Apps Script backend integration via `VITE_APPS_SCRIPT_URL` env var. `publishSession()`, `getSession()`, `listSessions()`, `listPlayers()`, `getPlayerStats()`.
+- `src/utils/tournament.ts` — pure TS: `generateGroupMatches()` (6 round-robin games per group), `initKnockoutMatches()`, `propagateBracket()`, `computeGroupStandings()`.
+- `src/utils/standings.ts` — computes per-player W/L and point diff for a session.
+- `src/utils/shareUrl.ts` — encode/decode session state into URL hash (uses `lz-string` for compression).
+- `src/utils/swap.ts` — swap players between games (used in SharedSessionPage).
+
+### Key Dependencies
+
+- `@tanstack/react-query` ^5 — server state for sessions, players, and scores.
+- `lz-string` ^1.5 — URL compression for share feature.
+- `react-router-dom` ^7 — client-side routing.
+
+### Styling
+
+Tailwind v4 via the `@tailwindcss/vite` plugin (configured in [vite.config.ts](vite.config.ts)). Dark slate theme throughout; no separate CSS framework. No `tailwind.config.js` — Tailwind v4 uses auto-discovery.
+
+### Deployment
+
+[vercel.json](vercel.json) rewrites all routes to `index.html` for client-side routing.
