@@ -1,11 +1,9 @@
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetTournament,
   useConfirmGroups,
   useSetTournamentScore,
   useResetTournament,
-  TOURNAMENT_ID,
 } from '../queries'
 import type { GroupId, TournamentPair } from '../utils/tournament'
 import GroupAssignment from '../components/tournament/GroupAssignment'
@@ -76,8 +74,6 @@ export default function TournamentPage() {
   const [localGroups, setLocalGroups] = useState<Record<GroupId, string[]>>(EMPTY_GROUPS)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const queryClient = useQueryClient()
-
   const { data: snapshot, isFetching } = useGetTournament()
 
   const pairs = snapshot?.pairs ?? INITIAL_PAIRS
@@ -103,10 +99,6 @@ export default function TournamentPage() {
   const { mutate: setTournamentScore, isPending: setScorePending } = useSetTournamentScore()
   const { mutate: resetTournament, isPending: resetPending } = useResetTournament()
 
-  const handleOpenModal = () => {
-    queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
-  }
-
   const isSaving = confirmPending || setScorePending || resetPending
 
   const tabs: { id: Tab; label: string }[] = [
@@ -115,12 +107,7 @@ export default function TournamentPage() {
     { id: 'standings', label: 'Standings' },
   ]
 
-  const handleTabChange = (newTab: Tab) => {
-    setTab(newTab)
-    if (groupsFull) {
-      queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
-    }
-  }
+  const handleTabChange = (newTab: Tab) => setTab(newTab)
 
   return (
     <div className="flex flex-col gap-0 -mx-3">
@@ -183,7 +170,6 @@ export default function TournamentPage() {
                     },
                     onError: () => setSaveError('Failed to reset, please try again'),
                   })}
-                  onOpenModal={handleOpenModal}
                   isFetching={isFetching}
                 />
               : <GroupAssignment
@@ -205,7 +191,6 @@ export default function TournamentPage() {
               onSuccess: () => setSaveError(null),
               onError: () => setSaveError('Failed to save score, please try again'),
             })}
-            onOpenModal={handleOpenModal}
             isFetching={isFetching}
           />
         )}
