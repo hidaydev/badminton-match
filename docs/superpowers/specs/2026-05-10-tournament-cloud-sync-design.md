@@ -83,31 +83,33 @@ export async function publishTournament(id: string, data: TournamentSnapshot): P
 
 ### 3b. `src/store/tournament.ts`
 
-Remove the `persist` middleware entirely. The Zustand store becomes a plain in-memory state manager — no localStorage. React Query + cloud is the single source of truth, exactly like `SharedSessionPage`. On page load, `TournamentPage` fetches from cloud and hydrates the store; on mutation, it publishes to cloud and invalidates the query.
+**Keep `persist` middleware** — localStorage is retained for group assignment state only (`pairs`, `groups`, `groupsLocked`). This allows the group setup to survive page refresh before groups are locked.
+
+Match scores (`matches`) are **cloud-only** — React Query is the source of truth for them. The `matches` field in the Zustand store is only updated by hydrating from the cloud query result, not persisted to localStorage.
 
 ### 3c. `src/pages/TournamentPage.tsx`
 
 Becomes the cloud sync orchestrator. Changes:
 
-**Load from cloud on mount:**
+**Load from cloud on mount (only when groups are locked):**
 ```ts
 useQuery({
   queryKey: ['tournament', TOURNAMENT_ID],
   queryFn: () => getTournament(TOURNAMENT_ID),
-  // on success: hydrate the Zustand store via useTournamentStore.setState(data)
+  enabled: groupsLocked,
+  // on success: hydrate store matches via useTournamentStore.setState({ matches: data.matches })
 })
 ```
 
-**Three `useMutation` wrappers** — each follows the SharedSessionPage pattern:
-1. Optimistic: call store action (handles local state + `propagateBracket`)
-2. `mutationFn`: build snapshot from `useTournamentStore.getState()`, call `publishTournament`
-3. `onError`: rollback not needed (store already has the state)
-4. `onSettled`: `queryClient.invalidateQueries(['tournament', TOURNAMENT_ID])`
+**Two `useMutation` wrappers** (score mutations only — group assignment stays local):
+1. `mutationFn`: call store action, build snapshot from `useTournamentStore.getState()`, call `publishTournament`
+2. `onSettled`: `queryClient.invalidateQueries(['tournament', TOURNAMENT_ID])`
 
 Mutations:
-- `handleSetMatchScore(matchId, scoreA, scoreB)` — wraps `setMatchScore`
-- `handleLockGroups()` — wraps `lockGroups`
-- `handleResetGroups()` — wraps `resetGroups`
+- `handleSetMatchScore(matchId, scoreA, scoreB)` — wraps `setMatchScore` + cloud publish
+- `handleResetGroups()` — wraps `resetGroups` + cloud publish (clears cloud record)
+
+`lockGroups` — stays as a plain store call (no cloud publish needed at lock time; first score entry triggers the initial publish which upserts the record).
 
 **Saving indicator:** `isSaving` derived from any mutation's `isPending` state, shown as a small spinner/label in the header.
 
@@ -115,38 +117,45 @@ Mutations:
 
 ### 3d. Component prop changes (minimal)
 
-Components still read all state from Zustand directly (`pairs`, `groups`, `matches`). Only the mutation call sites are lifted:
+Components still read all state from Zustand directly (`pairs`, `groups`, `matches`). Only the cloud-mutation call sites are lifted to `TournamentPage`:
 
 | Component | Old | New |
 |-----------|-----|-----|
 | `GroupMatches` | calls `setMatchScore` from store | receives `onSetMatchScore` prop |
 | `GroupMatches` | calls `resetGroups` from store | receives `onResetGroups` prop |
 | `BracketTab` | calls `setMatchScore` from store | receives `onSetMatchScore` prop |
-| `GroupAssignment` | calls `lockGroups` from store | receives `onLockGroups` prop |
+| `GroupAssignment` | calls `lockGroups` from store directly | unchanged — stays as local store call |
 
-`ScoreModal` is unchanged — it calls `onConfirm(scoreA, scoreB)` which the parent already passes through.
+`ScoreModal` is unchanged — it calls `onConfirm(scoreA, scoreB)` which the parent passes through.
 
 ---
 
 ## 4. Data Flow
 
+**Group assignment (local only):**
+```
+User assigns pairs → addPairToGroup / removePairFromGroup → Zustand + localStorage
+User taps Confirm Groups → lockGroups() → Zustand + localStorage (generates matches)
+```
+
+**Score entry (cloud-driven):**
 ```
 User enters score in ScoreModal
   → onConfirm(a, b) called in GroupMatches / BracketTab
   → handleSetMatchScore(matchId, a, b) in TournamentPage
     → store.setMatchScore(matchId, a, b)  [local state + propagateBracket]
-    → publishTournament(TOURNAMENT_ID, getState())  [cloud save]
+    → publishTournament(TOURNAMENT_ID, getState())  [upserts cloud record]
     → queryClient.invalidateQueries(['tournament', TOURNAMENT_ID])  [refetch]
   → isSaving indicator shown during mutation
   → saveError toast shown on failure
 ```
 
-On page load:
+**On page load (groups locked):**
 ```
-TournamentPage mounts
-  → useQuery fetches getTournament(TOURNAMENT_ID)
-  → on success: useTournamentStore.setState(cloudData)
-  → components render from Zustand (no prop drilling of cloud data)
+TournamentPage mounts, groupsLocked === true
+  → useQuery (enabled: true) fetches getTournament(TOURNAMENT_ID)
+  → on success: store.setState({ matches: cloudData.matches })
+  → components render latest match scores from Zustand
 ```
 
 ---
