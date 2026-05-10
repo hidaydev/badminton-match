@@ -412,7 +412,7 @@ export default function GeneratePage() {
   )
   const [error, setError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
-  const publish = usePublishSession(cloudSessionId)
+  const { mutate: publish, isPending: isPublishing } = usePublishSession(cloudSessionId ?? undefined)
 
   const playerMap = new Map(players.map((p) => [p.id, p]))
 
@@ -423,7 +423,7 @@ export default function GeneratePage() {
       ? playedArr.filter((k) => k !== key)
       : [...playedArr, key]
     const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: nextPlayed, gameScores }
-    publish.mutate(snap)
+    publish(snap)
   }
 
   function handleSetScore(key: string, a: number, b: number) {
@@ -431,7 +431,7 @@ export default function GeneratePage() {
     if (!cloudSessionId) return
     const nextScores = { ...gameScores, [key]: { a, b } }
     const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: playedArr, gameScores: nextScores }
-    publish.mutate(snap)
+    publish(snap)
   }
 
   function buildOffsets() {
@@ -592,7 +592,7 @@ export default function GeneratePage() {
           sessionStart={session.sessionStart}
           slotMinutes={session.slotMinutes}
           courtTimes={session.courtTimes}
-          saving={publish.isPending}
+          saving={isPublishing}
         />
       )}
     </div>

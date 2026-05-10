@@ -99,17 +99,15 @@ export default function TournamentPage() {
       D: prev.D.filter((id) => id !== pairId),
     }))
 
-  const confirmMutation = useConfirmGroups()
-
-  const setScoreMutation = useSetTournamentScore()
-
-  const resetMutation = useResetTournament()
+  const { mutate: confirmGroups, isPending: confirmPending } = useConfirmGroups()
+  const { mutate: setTournamentScore, isPending: setScorePending } = useSetTournamentScore()
+  const { mutate: resetTournament, isPending: resetPending } = useResetTournament()
 
   const handleOpenModal = () => {
     queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
   }
 
-  const isSaving = confirmMutation.isPending || setScoreMutation.isPending || resetMutation.isPending
+  const isSaving = confirmPending || setScorePending || resetPending
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'groups', label: 'Groups' },
@@ -174,11 +172,11 @@ export default function TournamentPage() {
                   pairs={pairs}
                   groups={committedGroups}
                   matches={matches}
-                  onSetMatchScore={(id, a, b) => setScoreMutation.mutate({ matchId: id, scoreA: a, scoreB: b }, {
+                  onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, {
                     onSuccess: () => setSaveError(null),
                     onError: () => setSaveError('Failed to save score, please try again'),
                   })}
-                  onResetGroups={() => resetMutation.mutate({ name, date, pairs }, {
+                  onResetGroups={() => resetTournament({ name, date, pairs }, {
                     onSuccess: () => {
                       setSaveError(null)
                       setLocalGroups(EMPTY_GROUPS)
@@ -193,7 +191,7 @@ export default function TournamentPage() {
                   groups={localGroups}
                   onAddPairToGroup={addPairToGroup}
                   onRemovePairFromGroup={removePairFromGroup}
-                  onConfirmGroups={() => confirmMutation.mutate({ localGroups, name, date, pairs }, {
+                  onConfirmGroups={() => confirmGroups({ localGroups, name, date, pairs }, {
                     onSuccess: () => setSaveError(null),
                     onError: () => setSaveError('Failed to save groups, please try again'),
                   })}
@@ -203,7 +201,7 @@ export default function TournamentPage() {
           <BracketTab
             pairs={pairs}
             matches={matches}
-            onSetMatchScore={(id, a, b) => setScoreMutation.mutate({ matchId: id, scoreA: a, scoreB: b }, {
+            onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, {
               onSuccess: () => setSaveError(null),
               onError: () => setSaveError('Failed to save score, please try again'),
             })}
