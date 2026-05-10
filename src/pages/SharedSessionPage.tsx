@@ -19,10 +19,10 @@ export default function SharedSessionPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const { data: snapshot, isLoading, isError } = useGetSession(sessionId)
-  const togglePlayed = useTogglePlayed(sessionId!)
-  const setScore = useSetScore(sessionId!)
-  const swapPlayers = useSwapPlayers(sessionId!)
-  const setAbsent = useSetAbsent(sessionId!)
+  const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
+  const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
+  const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
+  const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
 
   const header = (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
@@ -74,7 +74,7 @@ export default function SharedSessionPage() {
     unplacedFixMatches: [],
   }
 
-  const isSaving = togglePlayed.isPending || setScore.isPending || swapPlayers.isPending || setAbsent.isPending
+  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -96,12 +96,12 @@ export default function SharedSessionPage() {
           const nextPlayed = current?.playedGames.includes(key)
             ? current.playedGames.filter((k) => k !== key)
             : [...(current?.playedGames ?? []), key]
-          togglePlayed.mutate({ key, nextPlayed }, {
+          togglePlayed({ key, nextPlayed }, {
             onSuccess: () => setSaveError(null),
             onError: () => setSaveError('Failed to save, please try again'),
           })
         }}
-        onSetGameScore={(key, a, b) => setScore.mutate({ key, a, b }, {
+        onSetGameScore={(key, a, b) => setScore({ key, a, b }, {
           onSuccess: () => setSaveError(null),
           onError: () => setSaveError('Failed to save, please try again'),
         })}
@@ -111,12 +111,12 @@ export default function SharedSessionPage() {
         slotMinutes={snapshot.session.slotMinutes}
         courtTimes={snapshot.session.courtTimes}
         saving={isSaving}
-        onSwapPlayers={(t1, t2) => swapPlayers.mutate({ t1, t2 }, {
+        onSwapPlayers={(t1, t2) => swapPlayers({ t1, t2 }, {
           onSuccess: () => setSaveError(null),
           onError: () => setSaveError('Failed to save, please try again'),
         })}
         absentPlayers={snapshot.absentPlayers ?? []}
-        onSetAbsent={(nextAbsent) => setAbsent.mutate({ nextAbsent }, {
+        onSetAbsent={(nextAbsent) => setAbsent({ nextAbsent }, {
           onSuccess: () => setSaveError(null),
           onError: () => setSaveError('Failed to save, please try again'),
         })}
