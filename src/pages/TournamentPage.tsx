@@ -14,6 +14,35 @@ import StandingsTab from '../components/tournament/StandingsTab'
 
 type Tab = 'groups' | 'bracket' | 'standings'
 
+function GroupLoadingSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse">
+      {['A', 'B', 'C', 'D'].map((g) => (
+        <div key={g} className="bg-slate-800 rounded-xl overflow-hidden">
+          <div className="px-4 py-2 flex justify-between items-center border-b border-yellow-500/30">
+            <div className="h-4 w-16 bg-slate-700 rounded" />
+            <div className="h-3 w-12 bg-slate-700 rounded" />
+          </div>
+          <div className="divide-y divide-slate-700/50">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center px-4 py-3 gap-2">
+                <div className="flex-1 h-3 bg-slate-700 rounded" />
+                <div className="h-6 w-14 bg-slate-700 rounded-md shrink-0" />
+                <div className="flex-1 h-3 bg-slate-700 rounded" />
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-slate-700 px-4 py-2 space-y-1.5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-5 bg-slate-700/60 rounded" />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function TournamentPage() {
   const [tab, setTab] = useState<Tab>('groups')
   const name = useTournamentStore((s) => s.name)
@@ -161,7 +190,13 @@ export default function TournamentPage() {
 
       {/* Tab content */}
       <div className="px-3 pt-4 pb-8">
-        {tab === 'groups' && (groupsLocked ? <GroupMatches onSetMatchScore={handleSetMatchScore} onResetGroups={handleResetGroups} onOpenModal={handleOpenModal} isFetching={isFetching} /> : <GroupAssignment />)}
+        {tab === 'groups' && (
+          isFetching && cloudSnapshot === undefined
+            ? <GroupLoadingSkeleton />
+            : groupsLocked
+              ? <GroupMatches onSetMatchScore={handleSetMatchScore} onResetGroups={handleResetGroups} onOpenModal={handleOpenModal} isFetching={isFetching} />
+              : <GroupAssignment />
+        )}
         {tab === 'bracket' && <BracketTab onSetMatchScore={handleSetMatchScore} onOpenModal={handleOpenModal} isFetching={isFetching} />}
         {tab === 'standings' && <StandingsTab />}
       </div>
