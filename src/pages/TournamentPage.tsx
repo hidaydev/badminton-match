@@ -31,6 +31,7 @@ export default function TournamentPage() {
     queryKey: ['tournament', TOURNAMENT_ID],
     queryFn: () => getTournament(TOURNAMENT_ID),
     enabled: groupsLocked,
+    staleTime: 1000 * 60, // 1 minute
   })
 
   useEffect(() => {
@@ -40,6 +41,9 @@ export default function TournamentPage() {
   }, [cloudSnapshot, hydrateFromCloud])
 
   const setScoreMutation = useMutation({
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+    },
     mutationFn: async ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) => {
       setMatchScore(matchId, scoreA, scoreB)
       const state = useTournamentStore.getState()
@@ -63,6 +67,9 @@ export default function TournamentPage() {
   }
 
   const resetMutation = useMutation({
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+    },
     mutationFn: async () => {
       resetGroups()
       const state = useTournamentStore.getState()
