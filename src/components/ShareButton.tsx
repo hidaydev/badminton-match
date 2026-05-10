@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../store'
-import { publishSession, type CloudSnapshot } from '../utils/cloudSync'
+import { publishSession } from '../queries/endpoints'
+import type { CloudSnapshot } from '../queries'
 
 function nanoid6(): string {
   return Math.random().toString(36).slice(2, 8)

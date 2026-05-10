@@ -1,16 +1,12 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import {
-  getTournament,
-  publishTournament,
+  useGetTournament,
+  useConfirmGroups,
+  useSetTournamentScore,
+  useResetTournament,
   TOURNAMENT_ID,
-  type TournamentSnapshot,
-} from '../utils/cloudSync'
-import {
-  generateGroupMatches,
-  initKnockoutMatches,
-  propagateBracket,
-} from '../utils/tournament'
+} from '../queries'
 import type { GroupId, TournamentPair } from '../utils/tournament'
 import GroupAssignment from '../components/tournament/GroupAssignment'
 import GroupMatches from '../components/tournament/GroupMatches'
@@ -82,12 +78,7 @@ export default function TournamentPage() {
 
   const queryClient = useQueryClient()
 
-  const { data: snapshot, isFetching } = useQuery<TournamentSnapshot | null>({
-    queryKey: ['tournament', TOURNAMENT_ID],
-    queryFn: () => getTournament(TOURNAMENT_ID),
-    staleTime: 1000 * 60,
-    refetchOnWindowFocus: true,
-  })
+  const { data: snapshot, isFetching } = useGetTournament()
 
   const pairs = snapshot?.pairs ?? INITIAL_PAIRS
   const committedGroups = snapshot?.groups ?? EMPTY_GROUPS
@@ -108,59 +99,11 @@ export default function TournamentPage() {
       D: prev.D.filter((id) => id !== pairId),
     }))
 
-  const confirmMutation = useMutation({
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
-    },
-    mutationFn: async () => {
-      const groupMatches = GROUP_IDS.flatMap((g) => generateGroupMatches(g, localGroups[g]))
-      const allMatches = [...groupMatches, ...initKnockoutMatches()]
-      const newMatches = propagateBracket(allMatches, localGroups, pairs)
-      await publishTournament(TOURNAMENT_ID, { name, date, pairs, groups: localGroups, matches: newMatches })
-    },
-    onSuccess: () => setSaveError(null),
-    onError: () => setSaveError('Failed to save groups, please try again'),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
-  })
+  const confirmMutation = useConfirmGroups()
 
-  const setScoreMutation = useMutation({
-    onMutate: async ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) => {
-      await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
-      const previous = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
-      if (previous) {
-        const updated = previous.matches.map((m) => m.id === matchId ? { ...m, scoreA, scoreB } : m)
-        const propagated = propagateBracket(updated, previous.groups, previous.pairs)
-        queryClient.setQueryData(['tournament', TOURNAMENT_ID], { ...previous, matches: propagated })
-      }
-      return { previous }
-    },
-    mutationFn: async (_: { matchId: string; scoreA: number; scoreB: number }) => {
-      const current = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
-      if (!current) return
-      await publishTournament(TOURNAMENT_ID, current)
-    },
-    onSuccess: () => setSaveError(null),
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['tournament', TOURNAMENT_ID], context?.previous)
-      setSaveError('Failed to save score, please try again')
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
-  })
+  const setScoreMutation = useSetTournamentScore()
 
-  const resetMutation = useMutation({
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
-    },
-    mutationFn: async () => {
-      await publishTournament(TOURNAMENT_ID, { name, date, pairs, groups: EMPTY_GROUPS, matches: [] })
-    },
-    onSuccess: () => {
-      setSaveError(null)
-      setLocalGroups(EMPTY_GROUPS)
-    },
-    onError: () => setSaveError('Failed to reset, please try again'),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
-  })
+  const resetMutation = useResetTournament()
 
   const handleOpenModal = () => {
     queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
@@ -231,8 +174,17 @@ export default function TournamentPage() {
                   pairs={pairs}
                   groups={committedGroups}
                   matches={matches}
-                  onSetMatchScore={(id, a, b) => setScoreMutation.mutate({ matchId: id, scoreA: a, scoreB: b })}
-                  onResetGroups={() => resetMutation.mutate()}
+                  onSetMatchScore={(id, a, b) => setScoreMutation.mutate({ matchId: id, scoreA: a, scoreB: b }, {
+                    onSuccess: () => setSaveError(null),
+                    onError: () => setSaveError('Failed to save score, please try again'),
+                  })}
+                  onResetGroups={() => resetMutation.mutate({ name, date, pairs }, {
+                    onSuccess: () => {
+                      setSaveError(null)
+                      setLocalGroups(EMPTY_GROUPS)
+                    },
+                    onError: () => setSaveError('Failed to reset, please try again'),
+                  })}
                   onOpenModal={handleOpenModal}
                   isFetching={isFetching}
                 />
@@ -241,14 +193,20 @@ export default function TournamentPage() {
                   groups={localGroups}
                   onAddPairToGroup={addPairToGroup}
                   onRemovePairFromGroup={removePairFromGroup}
-                  onConfirmGroups={() => confirmMutation.mutate()}
+                  onConfirmGroups={() => confirmMutation.mutate({ localGroups, name, date, pairs }, {
+                    onSuccess: () => setSaveError(null),
+                    onError: () => setSaveError('Failed to save groups, please try again'),
+                  })}
                 />
         )}
         {tab === 'bracket' && (
           <BracketTab
             pairs={pairs}
             matches={matches}
-            onSetMatchScore={(id, a, b) => setScoreMutation.mutate({ matchId: id, scoreA: a, scoreB: b })}
+            onSetMatchScore={(id, a, b) => setScoreMutation.mutate({ matchId: id, scoreA: a, scoreB: b }, {
+              onSuccess: () => setSaveError(null),
+              onError: () => setSaveError('Failed to save score, please try again'),
+            })}
             onOpenModal={handleOpenModal}
             isFetching={isFetching}
           />
