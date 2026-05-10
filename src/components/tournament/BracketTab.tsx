@@ -5,6 +5,8 @@ import ScoreModal from './ScoreModal'
 
 interface Props {
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
+  onOpenModal: () => void
+  isFetching: boolean
 }
 
 function MatchCard({
@@ -53,10 +55,16 @@ function Connector() {
   )
 }
 
-export default function BracketTab({ onSetMatchScore }: Props) {
+export default function BracketTab({ onSetMatchScore, onOpenModal, isFetching }: Props) {
   const pairs = useTournamentStore((s) => s.pairs)
   const matches = useTournamentStore((s) => s.matches)
-  const [activeMatch, setActiveMatch] = useState<TournamentMatch | null>(null)
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
+  const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
+
+  const handleSelect = (match: TournamentMatch) => {
+    onOpenModal()
+    setActiveMatchId(match.id)
+  }
 
   const getPairName = (id: string | null) =>
     id ? (pairs.find((p) => p.id === id)?.name ?? id) : 'TBD'
@@ -102,25 +110,25 @@ export default function BracketTab({ onSetMatchScore }: Props) {
           {/* Upper half: QF1+QF2 → SF1 → Final */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center mb-3">
             <div className="flex flex-col gap-3">
-              <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
-              <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
+              <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect} />
+              <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect} />
             </div>
             <Connector />
-            <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={setActiveMatch} />
+            <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect} />
             <Connector />
-            <MatchCard match={final} label="🏆 FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} onSelect={setActiveMatch} />
+            <MatchCard match={final} label="🏆 FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} onSelect={handleSelect} />
           </div>
 
           {/* Lower half: QF3+QF4 → SF2 | 3RD PLACE (no connector) */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center">
             <div className="flex flex-col gap-3">
-              <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
-              <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={setActiveMatch} />
+              <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect} />
+              <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect} />
             </div>
             <Connector />
-            <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={setActiveMatch} />
+            <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect} />
             <span /> {/* no connector to 3rd place */}
-            <MatchCard match={third} label="🥉 3RD" borderColor="border-slate-600" labelColor="text-slate-500" getPairName={getPairName} onSelect={setActiveMatch} />
+            <MatchCard match={third} label="🥉 3RD" borderColor="border-slate-600" labelColor="text-slate-500" getPairName={getPairName} onSelect={handleSelect} />
           </div>
         </div>
       </div>
@@ -149,8 +157,9 @@ export default function BracketTab({ onSetMatchScore }: Props) {
           match={activeMatch}
           pairAName={getPairName(activeMatch.pairAId)}
           pairBName={getPairName(activeMatch.pairBId)}
-          onConfirm={(a, b) => { onSetMatchScore(activeMatch.id, a, b); setActiveMatch(null) }}
-          onClose={() => setActiveMatch(null)}
+          onConfirm={(a, b) => { onSetMatchScore(activeMatch.id, a, b); setActiveMatchId(null) }}
+          onClose={() => setActiveMatchId(null)}
+          isFetching={isFetching}
         />
       )}
     </div>
