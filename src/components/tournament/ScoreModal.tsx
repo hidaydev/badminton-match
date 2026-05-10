@@ -28,8 +28,8 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
 
   if (isFetching) {
     return (
-      <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4">
-        <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5">
+      <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+        <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
           <div className="animate-pulse">
             <div className="h-5 bg-slate-700 rounded w-1/3 mx-auto mb-1" />
             <div className="h-4 bg-slate-700 rounded w-1/2 mx-auto mb-4" />
@@ -55,8 +55,8 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4">
-      <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5">
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-bold text-slate-300 text-center mb-1">Enter Score</h3>
         <p className="text-xs text-slate-500 text-center mb-4">
           {pairAName} vs {pairBName}
