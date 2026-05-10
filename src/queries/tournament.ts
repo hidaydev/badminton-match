@@ -48,10 +48,16 @@ export function useConfirmGroups() {
 export function useSetTournamentScore() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (_: { matchId: string; scoreA: number; scoreB: number }) => {
+    mutationFn: async ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) => {
       const current = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
-      if (!current) return
-      await publishTournament(TOURNAMENT_ID, current)
+      if (!current) throw new Error('no tournament data')
+      const updated = current.matches.map((m) =>
+        m.id === matchId ? { ...m, scoreA, scoreB } : m
+      )
+      const propagated = propagateBracket(updated, current.groups, current.pairs)
+      const next = { ...current, matches: propagated }
+      await publishTournament(TOURNAMENT_ID, next)
+      return next
     },
     onMutate: async ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
