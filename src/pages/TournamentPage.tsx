@@ -33,7 +33,7 @@ export default function TournamentPage() {
     queryKey: ['tournament', TOURNAMENT_ID],
     queryFn: () => getTournament(TOURNAMENT_ID),
     enabled: groupsLocked,
-    staleTime: 0,            // always consider data stale so window focus triggers refetch
+    staleTime: 1000 * 60,
     refetchOnWindowFocus: true,
   })
 
