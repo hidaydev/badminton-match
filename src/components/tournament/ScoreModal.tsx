@@ -36,12 +36,12 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
             <div className="flex items-center gap-3 mb-5">
               <div className="flex-1 flex flex-col items-center gap-1">
                 <div className="h-4 bg-slate-700 rounded w-3/4" />
-                <div className="h-14 bg-slate-700 rounded-xl w-full" />
+                <div className="h-[47px] bg-slate-700 rounded-xl w-full" />
               </div>
               <div className="w-6 shrink-0" />
               <div className="flex-1 flex flex-col items-center gap-1">
                 <div className="h-4 bg-slate-700 rounded w-3/4" />
-                <div className="h-14 bg-slate-700 rounded-xl w-full" />
+                <div className="h-[47px] bg-slate-700 rounded-xl w-full" />
               </div>
             </div>
             <div className="flex gap-3">

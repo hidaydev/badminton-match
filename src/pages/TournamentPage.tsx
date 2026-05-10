@@ -17,24 +17,32 @@ type Tab = 'groups' | 'bracket' | 'standings'
 function GroupLoadingSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
+      {/* Reset groups button row */}
+      <div className="flex justify-end">
+        <div className="h-4 w-20 bg-slate-700 rounded" />
+      </div>
       {['A', 'B', 'C', 'D'].map((g) => (
         <div key={g} className="bg-slate-800 rounded-xl overflow-hidden">
+          {/* Header — matches px-4 py-2 flex justify-between */}
           <div className="px-4 py-2 flex justify-between items-center border-b border-yellow-500/30">
             <div className="h-4 w-16 bg-slate-700 rounded" />
             <div className="h-3 w-12 bg-slate-700 rounded" />
           </div>
+          {/* 6 match rows — matches py-3 + text-xs (h-4) height */}
           <div className="divide-y divide-slate-700/50">
-            {[0, 1, 2].map((i) => (
+            {[0, 1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="flex items-center px-4 py-3 gap-2">
-                <div className="flex-1 h-3 bg-slate-700 rounded" />
+                <div className="flex-1 h-4 bg-slate-700 rounded" />
                 <div className="h-6 w-14 bg-slate-700 rounded-md shrink-0" />
-                <div className="flex-1 h-3 bg-slate-700 rounded" />
+                <div className="flex-1 h-4 bg-slate-700 rounded" />
               </div>
             ))}
           </div>
-          <div className="border-t border-slate-700 px-4 py-2 space-y-1.5">
+          {/* Standings — header row + 4 data rows matching py-1 text-xs */}
+          <div className="border-t border-slate-700 px-4 py-2 space-y-1">
+            <div className="h-3 w-full bg-slate-700/40 rounded mb-1" />
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-5 bg-slate-700/60 rounded" />
+              <div key={i} className="h-6 bg-slate-700/60 rounded" />
             ))}
           </div>
         </div>
