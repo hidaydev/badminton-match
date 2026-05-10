@@ -1,23 +1,21 @@
 import { useState } from 'react'
-import { useTournamentStore } from '../../store/tournament'
 import { computeGroupStandings, GROUP_COURTS } from '../../utils/tournament'
-import type { GroupId } from '../../store/tournament'
+import type { GroupId, TournamentMatch, TournamentPair } from '../../utils/tournament'
 import ScoreModal from './ScoreModal'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
 interface Props {
+  pairs: TournamentPair[]
+  groups: Record<GroupId, string[]>
+  matches: TournamentMatch[]
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
   onResetGroups: () => void
   onOpenModal: () => void
   isFetching: boolean
 }
 
-export default function GroupMatches({ onSetMatchScore, onResetGroups, onOpenModal, isFetching }: Props) {
-  const pairs = useTournamentStore((s) => s.pairs)
-  const groups = useTournamentStore((s) => s.groups)
-  const matches = useTournamentStore((s) => s.matches)
-
+export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups, onOpenModal, isFetching }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
 

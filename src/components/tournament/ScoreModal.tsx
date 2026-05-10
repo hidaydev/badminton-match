@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { TournamentMatch } from '../../store/tournament'
+import type { TournamentMatch } from '../../utils/tournament'
 
 interface Props {
   match: TournamentMatch
