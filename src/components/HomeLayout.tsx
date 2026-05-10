@@ -6,7 +6,7 @@ export default function HomeLayout() {
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-3 py-3 flex items-center gap-2">
           <Link to="/" className="flex items-center gap-2">
-            <span className="text-xl shrink-0">🏸</span>
+            <img src="/logo.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
             <h1 className="text-sm font-bold text-white tracking-tight">MAJADU APP</h1>
           </Link>
         </div>
@@ -14,6 +14,9 @@ export default function HomeLayout() {
       <main className="flex-1 max-w-3xl w-full mx-auto px-3 py-4">
         <Outlet />
       </main>
+      <footer className="flex justify-center py-8">
+        <img src="/main-aja-dulu.png" alt="Main Aja Dulu!" className="w-36 object-contain opacity-20" />
+      </footer>
     </div>
   )
 }
