@@ -29,7 +29,7 @@ export default function TournamentPage() {
 
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const { data: cloudSnapshot } = useQuery<TournamentSnapshot | null>({
+  const { data: cloudSnapshot, isFetching } = useQuery<TournamentSnapshot | null>({
     queryKey: ['tournament', TOURNAMENT_ID],
     queryFn: () => getTournament(TOURNAMENT_ID),
     enabled: groupsLocked,
@@ -101,6 +101,10 @@ export default function TournamentPage() {
 
   const handleResetGroups = () => resetMutation.mutate()
 
+  const handleOpenModal = () => {
+    queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+  }
+
   const isSaving = setScoreMutation.isPending || resetMutation.isPending
 
   const tabs: { id: Tab; label: string }[] = [
@@ -158,8 +162,8 @@ export default function TournamentPage() {
 
       {/* Tab content */}
       <div className="px-3 pt-4 pb-8">
-        {tab === 'groups' && (groupsLocked ? <GroupMatches onSetMatchScore={handleSetMatchScore} onResetGroups={handleResetGroups} /> : <GroupAssignment />)}
-        {tab === 'bracket' && <BracketTab onSetMatchScore={handleSetMatchScore} />}
+        {tab === 'groups' && (groupsLocked ? <GroupMatches onSetMatchScore={handleSetMatchScore} onResetGroups={handleResetGroups} onOpenModal={handleOpenModal} isFetching={isFetching} /> : <GroupAssignment />)}
+        {tab === 'bracket' && <BracketTab onSetMatchScore={handleSetMatchScore} onOpenModal={handleOpenModal} isFetching={isFetching} />}
         {tab === 'standings' && <StandingsTab />}
       </div>
     </div>

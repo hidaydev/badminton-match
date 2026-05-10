@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTournamentStore } from '../../store/tournament'
 import { computeGroupStandings, GROUP_COURTS } from '../../utils/tournament'
-import type { GroupId, TournamentMatch } from '../../store/tournament'
+import type { GroupId } from '../../store/tournament'
 import ScoreModal from './ScoreModal'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
@@ -9,14 +9,17 @@ const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 interface Props {
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
   onResetGroups: () => void
+  onOpenModal: () => void
+  isFetching: boolean
 }
 
-export default function GroupMatches({ onSetMatchScore, onResetGroups }: Props) {
+export default function GroupMatches({ onSetMatchScore, onResetGroups, onOpenModal, isFetching }: Props) {
   const pairs = useTournamentStore((s) => s.pairs)
   const groups = useTournamentStore((s) => s.groups)
   const matches = useTournamentStore((s) => s.matches)
 
-  const [activeMatch, setActiveMatch] = useState<TournamentMatch | null>(null)
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
+  const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
 
   const getPairName = (id: string | null) =>
     id ? (pairs.find((p) => p.id === id)?.name ?? id) : 'TBD'
@@ -51,7 +54,7 @@ export default function GroupMatches({ onSetMatchScore, onResetGroups }: Props) 
               {groupMatches.map((m) => (
                 <button
                   key={m.id}
-                  onClick={() => setActiveMatch(m)}
+                  onClick={() => { onOpenModal(); setActiveMatchId(m.id) }}
                   className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 text-left gap-2"
                 >
                   <span className="text-xs text-slate-300 flex-1 truncate">{getPairName(m.pairAId)}</span>
@@ -97,8 +100,9 @@ export default function GroupMatches({ onSetMatchScore, onResetGroups }: Props) 
           match={activeMatch}
           pairAName={getPairName(activeMatch.pairAId)}
           pairBName={getPairName(activeMatch.pairBId)}
-          onConfirm={(a, b) => { onSetMatchScore(activeMatch.id, a, b); setActiveMatch(null) }}
-          onClose={() => setActiveMatch(null)}
+          onConfirm={(a, b) => { onSetMatchScore(activeMatch.id, a, b); setActiveMatchId(null) }}
+          onClose={() => setActiveMatchId(null)}
+          isFetching={isFetching}
         />
       )}
     </div>
