@@ -1,18 +1,22 @@
 import { useState } from 'react'
-import { useTournamentStore, type GroupId } from '../../store/tournament'
+import type { GroupId, TournamentPair } from '../../utils/tournament'
 
-export default function GroupAssignment() {
-  const pairs = useTournamentStore((s) => s.pairs)
-  const groups = useTournamentStore((s) => s.groups)
-  const addPairToGroup = useTournamentStore((s) => s.addPairToGroup)
-  const removePairFromGroup = useTournamentStore((s) => s.removePairFromGroup)
-  const lockGroups = useTournamentStore((s) => s.lockGroups)
+const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
+interface Props {
+  pairs: TournamentPair[]
+  groups: Record<GroupId, string[]>
+  onAddPairToGroup: (pairId: string, groupId: GroupId) => void
+  onRemovePairFromGroup: (pairId: string) => void
+  onConfirmGroups: () => void
+}
+
+export default function GroupAssignment({ pairs, groups, onAddPairToGroup, onRemovePairFromGroup, onConfirmGroups }: Props) {
   const [picking, setPicking] = useState<string | null>(null)
 
   const assignedIds = new Set(Object.values(groups).flat())
   const unassigned = pairs.filter((p) => !assignedIds.has(p.id))
-  const allFull = (['A','B','C','D'] as GroupId[]).every((g) => groups[g].length === 4)
+  const allFull = GROUP_IDS.every((g) => groups[g].length === 4)
 
   const getPairName = (id: string) => pairs.find((p) => p.id === id)?.name ?? id
 
@@ -24,7 +28,7 @@ export default function GroupAssignment() {
 
       {/* 2×2 group grid */}
       <div className="grid grid-cols-2 gap-3">
-        {(['A','B','C','D'] as GroupId[]).map((g) => (
+        {GROUP_IDS.map((g) => (
           <div key={g} className="bg-slate-800 rounded-xl overflow-hidden">
             <div className="bg-amber-900 px-3 py-1.5 flex justify-between items-center">
               <span className="text-yellow-300 text-xs font-bold">GROUP {g}</span>
@@ -35,7 +39,7 @@ export default function GroupAssignment() {
                 <div key={id} className="flex items-center justify-between bg-slate-900 rounded-lg px-2 py-1.5 text-xs text-slate-300">
                   <span className="truncate">{getPairName(id)}</span>
                   <button
-                    onClick={() => removePairFromGroup(id)}
+                    onClick={() => onRemovePairFromGroup(id)}
                     className="text-slate-600 hover:text-slate-400 ml-2 shrink-0"
                   >
                     ×
@@ -73,7 +77,7 @@ export default function GroupAssignment() {
       {/* Confirm button */}
       {allFull && (
         <button
-          onClick={lockGroups}
+          onClick={onConfirmGroups}
           className="w-full py-3 rounded-xl bg-yellow-400 text-slate-900 font-bold text-sm mt-2"
         >
           Confirm Groups
@@ -91,11 +95,11 @@ export default function GroupAssignment() {
               {getPairName(picking)}
             </p>
             <div className="grid grid-cols-4 gap-2 mb-4">
-              {(['A','B','C','D'] as GroupId[]).map((g) => (
+              {GROUP_IDS.map((g) => (
                 <button
                   key={g}
                   disabled={groups[g].length >= 4}
-                  onClick={() => { addPairToGroup(picking, g); setPicking(null) }}
+                  onClick={() => { onAddPairToGroup(picking, g); setPicking(null) }}
                   className="py-4 rounded-xl bg-amber-900 text-yellow-300 font-bold text-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-800"
                 >
                   {g}
