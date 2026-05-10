@@ -3,6 +3,10 @@ import { useTournamentStore } from '../../store/tournament'
 import type { TournamentMatch } from '../../store/tournament'
 import ScoreModal from './ScoreModal'
 
+interface Props {
+  onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
+}
+
 function MatchCard({
   match,
   label,
@@ -49,10 +53,9 @@ function Connector() {
   )
 }
 
-export default function BracketTab() {
+export default function BracketTab({ onSetMatchScore }: Props) {
   const pairs = useTournamentStore((s) => s.pairs)
   const matches = useTournamentStore((s) => s.matches)
-  const setMatchScore = useTournamentStore((s) => s.setMatchScore)
   const [activeMatch, setActiveMatch] = useState<TournamentMatch | null>(null)
 
   const getPairName = (id: string | null) =>
@@ -146,7 +149,7 @@ export default function BracketTab() {
           match={activeMatch}
           pairAName={getPairName(activeMatch.pairAId)}
           pairBName={getPairName(activeMatch.pairBId)}
-          onConfirm={(a, b) => { setMatchScore(activeMatch.id, a, b); setActiveMatch(null) }}
+          onConfirm={(a, b) => { onSetMatchScore(activeMatch.id, a, b); setActiveMatch(null) }}
           onClose={() => setActiveMatch(null)}
         />
       )}
