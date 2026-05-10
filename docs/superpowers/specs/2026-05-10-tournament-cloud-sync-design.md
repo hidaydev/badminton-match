@@ -83,7 +83,7 @@ export async function publishTournament(id: string, data: TournamentSnapshot): P
 
 ### 3b. `src/store/tournament.ts`
 
-No changes. The Zustand store remains the local-first state manager — React Query sync is layered on top.
+Remove the `persist` middleware entirely. The Zustand store becomes a plain in-memory state manager — no localStorage. React Query + cloud is the single source of truth, exactly like `SharedSessionPage`. On page load, `TournamentPage` fetches from cloud and hydrates the store; on mutation, it publishes to cloud and invalidates the query.
 
 ### 3c. `src/pages/TournamentPage.tsx`
 
