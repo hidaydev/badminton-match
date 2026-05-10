@@ -6,12 +6,15 @@ import ScoreModal from './ScoreModal'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
-export default function GroupMatches() {
+interface Props {
+  onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
+  onResetGroups: () => void
+}
+
+export default function GroupMatches({ onSetMatchScore, onResetGroups }: Props) {
   const pairs = useTournamentStore((s) => s.pairs)
   const groups = useTournamentStore((s) => s.groups)
   const matches = useTournamentStore((s) => s.matches)
-  const setMatchScore = useTournamentStore((s) => s.setMatchScore)
-  const resetGroups = useTournamentStore((s) => s.resetGroups)
 
   const [activeMatch, setActiveMatch] = useState<TournamentMatch | null>(null)
 
@@ -23,7 +26,7 @@ export default function GroupMatches() {
       <div className="flex justify-end">
         <button
           onClick={() => {
-            if (confirm('Reset group assignment? All scores will be lost.')) resetGroups()
+            if (confirm('Reset group assignment? All scores will be lost.')) onResetGroups()
           }}
           className="text-xs text-slate-500 hover:text-slate-300 underline"
         >
@@ -94,7 +97,7 @@ export default function GroupMatches() {
           match={activeMatch}
           pairAName={getPairName(activeMatch.pairAId)}
           pairBName={getPairName(activeMatch.pairBId)}
-          onConfirm={(a, b) => { setMatchScore(activeMatch.id, a, b); setActiveMatch(null) }}
+          onConfirm={(a, b) => { onSetMatchScore(activeMatch.id, a, b); setActiveMatch(null) }}
           onClose={() => setActiveMatch(null)}
         />
       )}
