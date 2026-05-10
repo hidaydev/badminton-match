@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { TournamentMatch } from '../../store/tournament'
 
 interface Props {
@@ -7,15 +7,50 @@ interface Props {
   pairBName: string
   onConfirm: (scoreA: number, scoreB: number) => void
   onClose: () => void
+  isFetching?: boolean
 }
 
-export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onClose }: Props) {
+export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onClose, isFetching = false }: Props) {
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? '')
   const [scoreB, setScoreB] = useState(match.scoreB?.toString() ?? '')
+
+  // Sync inputs with fresh match data once the refetch completes
+  useEffect(() => {
+    if (!isFetching) {
+      setScoreA(match.scoreA?.toString() ?? '')
+      setScoreB(match.scoreB?.toString() ?? '')
+    }
+  }, [isFetching, match.scoreA, match.scoreB])
 
   const a = parseInt(scoreA, 10)
   const b = parseInt(scoreB, 10)
   const valid = !isNaN(a) && !isNaN(b) && a >= 0 && b >= 0 && a !== b
+
+  if (isFetching) {
+    return (
+      <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4">
+        <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5 animate-pulse">
+          <div className="h-4 bg-slate-700 rounded w-1/2 mx-auto mb-2" />
+          <div className="h-3 bg-slate-700 rounded w-2/3 mx-auto mb-5" />
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex-1 flex flex-col gap-1">
+              <div className="h-3 bg-slate-700 rounded" />
+              <div className="h-14 bg-slate-700 rounded-xl" />
+            </div>
+            <div className="w-8" />
+            <div className="flex-1 flex flex-col gap-1">
+              <div className="h-3 bg-slate-700 rounded" />
+              <div className="h-14 bg-slate-700 rounded-xl" />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1 h-12 bg-slate-700 rounded-xl" />
+            <div className="flex-1 h-12 bg-slate-600 rounded-xl" />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4">
