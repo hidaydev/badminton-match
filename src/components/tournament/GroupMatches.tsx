@@ -11,10 +11,11 @@ interface Props {
   matches: TournamentMatch[]
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
   onResetGroups: () => void
+  onOpenModal: () => void
   isFetching: boolean
 }
 
-export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups, isFetching }: Props) {
+export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups, onOpenModal, isFetching }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
 
@@ -51,7 +52,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
               {groupMatches.map((m) => (
                 <button
                   key={m.id}
-                  onClick={() => setActiveMatchId(m.id)}
+                  onClick={() => { onOpenModal(); setActiveMatchId(m.id) }}
                   className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 text-left gap-2"
                 >
                   <span className="text-xs text-slate-300 flex-1 truncate">{getPairName(m.pairAId)}</span>
