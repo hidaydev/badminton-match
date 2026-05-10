@@ -22,6 +22,7 @@ interface TournamentState {
   lockGroups: () => void
   resetGroups: () => void
   setMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
+  hydrateFromCloud: (matches: TournamentMatch[]) => void
 }
 
 const INITIAL_PAIRS: TournamentPair[] = [
@@ -92,6 +93,8 @@ export const useTournamentStore = create<TournamentState>()(
           )
           return { matches: propagateBracket(matches, s.groups, s.pairs) }
         }),
+
+      hydrateFromCloud: (matches) => set({ matches }),
     }),
     {
       name: 'tournament-store',
