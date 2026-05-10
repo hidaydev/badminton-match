@@ -181,6 +181,7 @@ export default function TournamentPage() {
                     onSuccess: () => setSaveError(null),
                     onError: () => setSaveError('Failed to save groups, please try again'),
                   })}
+                  isLoading={confirmPending || isFetching}
                 />
         )}
         {tab === 'bracket' && (

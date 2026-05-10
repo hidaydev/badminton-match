@@ -9,9 +9,10 @@ interface Props {
   onAddPairToGroup: (pairId: string, groupId: GroupId) => void
   onRemovePairFromGroup: (pairId: string) => void
   onConfirmGroups: () => void
+  isLoading?: boolean
 }
 
-export default function GroupAssignment({ pairs, groups, onAddPairToGroup, onRemovePairFromGroup, onConfirmGroups }: Props) {
+export default function GroupAssignment({ pairs, groups, onAddPairToGroup, onRemovePairFromGroup, onConfirmGroups, isLoading }: Props) {
   const [picking, setPicking] = useState<string | null>(null)
 
   const assignedIds = new Set(Object.values(groups).flat())
@@ -78,9 +79,10 @@ export default function GroupAssignment({ pairs, groups, onAddPairToGroup, onRem
       {allFull && (
         <button
           onClick={onConfirmGroups}
-          className="w-full py-3 rounded-xl bg-yellow-400 text-slate-900 font-bold text-sm mt-2"
+          disabled={isLoading}
+          className="w-full py-3 rounded-xl bg-yellow-400 text-slate-900 font-bold text-sm mt-2 disabled:opacity-60"
         >
-          Confirm Groups
+          {isLoading ? 'Confirming…' : 'Confirm Groups'}
         </button>
       )}
 
