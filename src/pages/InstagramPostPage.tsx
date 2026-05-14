@@ -252,12 +252,12 @@ function drawStandingsCanvas(
     ctx.fillRect(0, 0, W, H)
   }
 
-  drawHeader(ctx, W, overlays.logo)
+  if (!isStory) drawHeader(ctx, W, overlays.logo)
 
-  const FOOTER_H = overlays.footer
+  const FOOTER_H = (!isStory && overlays.footer)
     ? W * (overlays.footer.naturalHeight / overlays.footer.naturalWidth)
-    : 120
-  if (overlays.footer) {
+    : 0
+  if (!isStory && overlays.footer) {
     ctx.drawImage(overlays.footer, 0, H - FOOTER_H, W, FOOTER_H)
   }
 
@@ -356,10 +356,17 @@ function drawStandingsCanvas(
     const rowY = rowsTop + i * rowH
     const baseline = rowY + rowH * 0.62
 
-    // Winner highlight
-    if (i === 0) {
+    // Top 3 highlight
+    const highlightColor = i === 0
+      ? 'rgba(250, 204, 21, 0.13)'   // gold
+      : i === 1
+        ? 'rgba(203, 213, 225, 0.09)' // silver
+        : i === 2
+          ? 'rgba(251, 146, 60, 0.09)' // bronze
+          : null
+    if (highlightColor) {
       ctx.save()
-      ctx.fillStyle = 'rgba(250, 204, 21, 0.10)'
+      ctx.fillStyle = highlightColor
       ctx.fillRect(innerPadX - 10, rowY, W - (innerPadX - 10) * 2, rowH)
       ctx.restore()
     }
@@ -393,7 +400,7 @@ function drawStandingsCanvas(
     // Name
     ctx.save()
     ctx.font = `bold ${ROW_FONT_SIZE}px Arial, sans-serif`
-    ctx.fillStyle = i === 0 ? '#facc15' : '#ffffff'
+    ctx.fillStyle = i === 0 ? '#facc15' : i === 1 ? '#cbd5e1' : i === 2 ? '#fb923c' : '#ffffff'
     ctx.textAlign = 'left'
     const maxNameW = WL_X - NAME_X - 40
     let name = s.player.name
