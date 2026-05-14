@@ -5,7 +5,7 @@ import { instagramTemplates, type PostTemplate } from '../config/instagramTempla
 
 const TEMPLATE = instagramTemplates[0]
 
-const HEADER_H = 105
+const HEADER_H = 90
 const LOGO_H = 28
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -74,8 +74,8 @@ function drawHeader(
   const logoW = logo ? LOGO_H * (logo.naturalWidth / logo.naturalHeight) : 160
   const centerPad = 30
   const sideZoneW = (canvasW - logoW) / 2 - centerPad
-  const logoTop = 34
-  const textY = logoTop + LOGO_H / 2 + fontSize * 0.38
+  const logoTop = 8
+  const textY = HEADER_H / 2 + fontSize * 0.38
 
   // Measure left text total width to right-align it flush to center zone
   ctx.font = `bold ${fontSize}px Arial, sans-serif`
