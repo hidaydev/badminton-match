@@ -407,14 +407,6 @@ export default function InstagramPostPage() {
       ctx.fillRect(0, 0, W, H)
     }
 
-    // Logo centered at top
-    if (overlays.logo) {
-      const logo = overlays.logo
-      const lH = 52
-      const lW = lH * (logo.naturalWidth / logo.naturalHeight)
-      ctx.drawImage(logo, (W - lW) / 2, 70, lW, lH)
-    }
-
     // Post canvas centered with padding, rounded corners + shadow
     const pad = 60
     const pW = W - pad * 2
