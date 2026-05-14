@@ -135,6 +135,7 @@ export default function InstagramPostPage() {
     const t = e.touches[0]
     const pos = toCanvasCoords(t.clientX, t.clientY)
     dragStart.current = { x: pos.x, y: pos.y, ox: photoOffset.x, oy: photoOffset.y }
+    setIsDragging(true)
   }, [userPhoto, photoOffset, toCanvasCoords])
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
@@ -149,6 +150,7 @@ export default function InstagramPostPage() {
 
   const onTouchEnd = useCallback(() => {
     dragStart.current = null
+    setIsDragging(false)
   }, [])
 
   const handleDownload = useCallback(() => {
