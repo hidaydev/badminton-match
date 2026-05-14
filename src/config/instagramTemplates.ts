@@ -8,6 +8,8 @@ export interface PostTemplate {
   logo?: string         // center logo drawn in the header band
   footer?: string       // absolute URL path to PNG asset
   brushStroke?: string  // brush stroke texture behind year text
+  chevrons?: string     // chevron ornament PNG
+  storyBg?: string      // story background PNG
 }
 
 export const instagramTemplates: PostTemplate[] = [
@@ -19,5 +21,7 @@ export const instagramTemplates: PostTemplate[] = [
     logo: '/instagram-logo.png',
     footer: '/instagram-footer.png',
     brushStroke: '/brush-stroke.png',
+    chevrons: '/chevrons.png',
+    storyBg: '/story-bg.png',
   },
 ]
