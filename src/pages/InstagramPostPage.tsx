@@ -302,7 +302,7 @@ function drawStandingsCanvas(
   ctx.font = '26px monospace'
   ctx.fillStyle = '#94a3b8'
   ctx.textAlign = 'left'
-  ctx.fillText(`${meta.date}  ·  ${meta.title}`, innerPadX, innerTop)
+  ctx.fillText(`${meta.date} · ${meta.title}`, innerPadX, innerTop)
   ctx.restore()
 
   ctx.save()
