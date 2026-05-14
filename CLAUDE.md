@@ -27,7 +27,7 @@ This is a single-page React app (React 19, Vite, Tailwind v4, TypeScript) that g
 
 **Routing:** `RequireSession` redirects to `/` if the session isn't locked; `RequirePlayers` additionally checks that the exact `playerCount` players have been entered before allowing access to `/constraints` or `/generate`.
 
-**Home page** shows 4 menu items: Create Session, Sessions, Player History, Tournament.
+**Home page** shows 5 menu items: Create Session, Sessions, Player History, Tournament, Instagram Post.
 
 ### State Management
 
@@ -55,6 +55,7 @@ Migration in both stores resets to defaults on any version mismatch.
 - **PlayerHistoryPage** ([src/pages/PlayerHistoryPage.tsx](src/pages/PlayerHistoryPage.tsx)) — list all players from cloud history.
 - **PlayerDetailPage** ([src/pages/PlayerDetailPage.tsx](src/pages/PlayerDetailPage.tsx)) — per-player career stats (top partners, opponents).
 - **SharedSessionPage** ([src/pages/SharedSessionPage.tsx](src/pages/SharedSessionPage.tsx)) — view/manage a cloud-synced shared session (`/s/:sessionId`).
+- **InstagramPostPage** ([src/pages/InstagramPostPage.tsx](src/pages/InstagramPostPage.tsx)) — HTML5 Canvas editor for creating branded Instagram posts (1080×1350) and stories (1080×1920). User uploads a photo, drags to reposition, pinch-to-zoom, picks a session date, then exports via bottom sheet. Canvas layers: user photo (cover-fill) → date graphic → chevrons ornament → header band → footer PNG. Template assets and dimensions are defined in [src/config/instagramTemplates.ts](src/config/instagramTemplates.ts).
 
 ### Tournament Components
 
@@ -88,6 +89,13 @@ togglePlayed(vars, { onSuccess: () => ..., onError: () => ... })
 - `src/utils/standings.ts` — computes per-player W/L and point diff for a session.
 - `src/utils/shareUrl.ts` — encode/decode session state into URL hash (uses `lz-string` for compression).
 - `src/utils/swap.ts` — swap players between games (used in `useSwapPlayers` hook).
+
+### Instagram Post Scripts
+
+`scripts/` contains Node.js automation (not part of the web app build):
+
+- `generate-posts.mjs` — batch canvas rendering using `@napi-rs/canvas`. Scans `~/Downloads/Majadu/Best/{YYYY-MM-DD}/1.jpg`, outputs `post.jpg` (1080×1350) and `story.jpg` (1080×1920) per folder. Handles landscape (contain + blur BG) and portrait (cover) photos.
+- `post-instagram.mjs` — Playwright automation to upload generated posts to Instagram. Saves browser session to `scripts/.instagram-session.json` and tracks posted dates in `scripts/.instagram-posted.json` to avoid duplicates.
 
 ### Key Dependencies
 
