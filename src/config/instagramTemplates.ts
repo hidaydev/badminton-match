@@ -5,8 +5,9 @@ export interface PostTemplate {
   label: string
   width: number
   height: number
-  logo?: string    // center logo drawn in the header band
-  footer?: string  // absolute URL path to PNG asset
+  logo?: string         // center logo drawn in the header band
+  footer?: string       // absolute URL path to PNG asset
+  brushStroke?: string  // brush stroke texture behind year text
 }
 
 export const instagramTemplates: PostTemplate[] = [
@@ -17,5 +18,6 @@ export const instagramTemplates: PostTemplate[] = [
     height: 1350,
     logo: '/instagram-logo.png',
     footer: '/instagram-footer.png',
+    brushStroke: '/brush-stroke.png',
   },
 ]

@@ -1,12 +1,13 @@
 // src/pages/InstagramPostPage.tsx
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { instagramTemplates, type PostTemplate } from '../config/instagramTemplates'
 
 const TEMPLATE = instagramTemplates[0]
-
 const HEADER_H = 90
 const LOGO_H = 28
+
+const MONTHS = ['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGU','SEP','OKT','NOV','DES']
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -33,7 +34,6 @@ function drawCoverFill(
   ctx.drawImage(img, x, y, w, h)
 }
 
-// Draws "MAJADU FUN • MAJADU FUN • MAJADU FUN" with yellow dots
 function drawSideText(
   ctx: CanvasRenderingContext2D,
   startX: number,
@@ -63,7 +63,6 @@ function drawHeader(
   canvasW: number,
   logo: HTMLImageElement | undefined,
 ) {
-  // Gradient: solid dark at top → transparent at bottom
   const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H)
   grad.addColorStop(0, 'rgba(10,10,20,0.92)')
   grad.addColorStop(1, 'rgba(0,0,0,0)')
@@ -77,25 +76,107 @@ function drawHeader(
   const logoTop = (HEADER_H - LOGO_H) / 2
   const textY = HEADER_H / 2 + fontSize * 0.38
 
-  // Measure left text total width to right-align it flush to center zone
   ctx.font = `bold ${fontSize}px Arial, sans-serif`
   ctx.letterSpacing = '1.5px'
   const fullText = 'MAJADU FUN  •  MAJADU FUN  •  MAJADU FUN'
   const totalW = ctx.measureText(fullText).width
   const clampedW = Math.min(totalW, sideZoneW)
 
-  // Left side: right-aligned to the center zone edge
   const leftStartX = (canvasW - logoW) / 2 - centerPad - clampedW
   drawSideText(ctx, leftStartX, textY, fontSize)
 
-  // Right side: left-aligned from the center zone edge
   const rightStartX = (canvasW + logoW) / 2 + centerPad
   drawSideText(ctx, rightStartX, textY, fontSize)
 
-  // Center logo
   if (logo) {
     ctx.drawImage(logo, (canvasW - logoW) / 2, logoTop, logoW, LOGO_H)
   }
+}
+
+
+function drawDate(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  day: string,
+  month: string,
+  year: string,
+  brushStroke?: HTMLImageElement,
+) {
+  const daySize = 200
+  const monthSize = 82
+  const yearSize = 72
+
+  // Measure all parts to compute total width for centering
+  ctx.font = `${daySize}px Granesta, Impact, sans-serif`
+  const dayW = ctx.measureText(day).width
+  ctx.font = `${monthSize}px Granesta, Impact, sans-serif`
+  const monthW = ctx.measureText(month).width
+  ctx.font = `${yearSize}px Edosz, Impact, sans-serif`
+  const yearW = ctx.measureText(year).width
+
+  const rightColW = Math.max(monthW, yearW + 30) + 20
+  const gapX = 16
+  const totalW = dayW + gapX + rightColW
+  const startX = (canvasW - totalW) / 2
+
+  // Vertical layout
+  const dayH = daySize * 0.88
+  const monthH = monthSize * 0.88
+  const brushH = yearSize + 22
+  const rightColH = monthH + 14 + brushH
+  const topY = 150
+
+  const dayBaselineY = topY + Math.max(dayH, rightColH) * 0.5 + dayH * 0.5
+  const rightColX = startX + dayW + gapX
+  const rightColTopY = topY + (Math.max(dayH, rightColH) - rightColH) / 2
+  const monthBaselineY = rightColTopY + monthH
+  const brushY = monthBaselineY + 4
+  const yearBaselineY = brushY + yearSize * 0.88 + 6
+
+  // Day — black shadow + yellow fill
+  ctx.save()
+  ctx.font = `${daySize}px Granesta, Impact, sans-serif`
+  ctx.fillStyle = '#000000'
+  ctx.fillText(day, startX + 5, dayBaselineY + 20)
+  ctx.fillStyle = '#F5B400'
+  ctx.fillText(day, startX, dayBaselineY + 15)
+  ctx.restore()
+
+  // Month — black, rotated -5deg
+  ctx.save()
+  ctx.font = `${monthSize}px Granesta, Impact, sans-serif`
+  const mCX = rightColX + monthW / 2
+  const mCY = monthBaselineY - monthH / 2
+  ctx.translate(mCX, mCY)
+  ctx.rotate(-5 * Math.PI / 180)
+  ctx.translate(-mCX, -mCY)
+  ctx.strokeStyle = '#F5B400'
+  ctx.lineWidth = 10
+  ctx.lineJoin = 'round'
+  ctx.strokeText(month, rightColX + 24, monthBaselineY + 30)
+  ctx.fillStyle = '#111111'
+  ctx.fillText(month, rightColX + 24, monthBaselineY + 30)
+  ctx.restore()
+
+  // Brush stroke background + year text
+  const bW = rightColW + 160
+  const bH = brushH + 110
+  const bCX = rightColX + rightColW / 2
+  const bCY = brushY + bH / 2 - 10
+  ctx.save()
+  ctx.translate(bCX, bCY)
+  ctx.rotate(-6 * Math.PI / 180)
+  if (brushStroke) {
+    ctx.drawImage(brushStroke, -bW / 2, -bH / 2, bW, bH)
+  } else {
+    ctx.fillStyle = '#F5B400'
+    ctx.fillRect(-bW / 2, -bH / 2, bW, bH)
+  }
+  ctx.font = `${yearSize}px Edosz, Impact, sans-serif`
+  ctx.fillStyle = '#111111'
+  ctx.textAlign = 'center'
+  ctx.fillText(year, 0, yearSize * 0.22)
+  ctx.restore()
 }
 
 function drawCanvas(
@@ -103,7 +184,8 @@ function drawCanvas(
   _template: PostTemplate,
   userPhoto: HTMLImageElement | null,
   photoOffset: { x: number; y: number },
-  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement },
+  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement },
+  date: { day: string; month: string; year: string } | null,
 ) {
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -116,10 +198,15 @@ function drawCanvas(
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
 
-  // Layer 2: header band (drawn programmatically)
+  // Layer 2: date (below header and footer overlays)
+  if (date) {
+    drawDate(ctx, canvas.width, date.day, date.month, date.year, overlays.brushStroke)
+  }
+
+  // Layer 3: header band
   drawHeader(ctx, canvas.width, overlays.logo)
 
-  // Layer 3: footer
+  // Layer 4: footer
   if (overlays.footer) {
     const img = overlays.footer
     const h = canvas.width * (img.naturalHeight / img.naturalWidth)
@@ -134,16 +221,35 @@ export default function InstagramPostPage() {
 
   const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
   const [photoOffset, setPhotoOffset] = useState({ x: 0, y: 0 })
-  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; footer?: HTMLImageElement }>({})
+  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement }>({})
   const [isDragging, setIsDragging] = useState(false)
+  const [fontReady, setFontReady] = useState(false)
+  const [dateValue, setDateValue] = useState(() => new Date().toISOString().split('T')[0])
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
+
+  const parsedDate = useMemo(() => {
+    const [year, month, day] = dateValue.split('-')
+    return { day: String(parseInt(day)), month: MONTHS[parseInt(month) - 1], year }
+  }, [dateValue])
+
+  // Load Anton + Edosz fonts
+  useEffect(() => {
+    Promise.all([
+      new FontFace('Anton', 'url(/anton.ttf)').load(),
+      new FontFace('Edosz', 'url(/edosz.ttf)').load(),
+      new FontFace('Granesta', 'url(/Granesta.ttf)').load(),
+    ]).then(fonts => {
+      fonts.forEach(f => document.fonts.add(f))
+    }).catch(() => {}).finally(() => setFontReady(true))
+  }, [])
 
   // Load template overlay images once
   useEffect(() => {
     const loadOverlays = async () => {
-      const result: { logo?: HTMLImageElement; footer?: HTMLImageElement } = {}
+      const result: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement } = {}
       if (TEMPLATE.logo) result.logo = await loadImage(TEMPLATE.logo)
       if (TEMPLATE.footer) result.footer = await loadImage(TEMPLATE.footer)
+      if (TEMPLATE.brushStroke) result.brushStroke = await loadImage(TEMPLATE.brushStroke)
       setOverlays(result)
     }
     loadOverlays()
@@ -153,8 +259,8 @@ export default function InstagramPostPage() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    drawCanvas(canvas, TEMPLATE, userPhoto, photoOffset, overlays)
-  }, [userPhoto, photoOffset, overlays])
+    drawCanvas(canvas, TEMPLATE, userPhoto, photoOffset, overlays, parsedDate)
+  }, [userPhoto, photoOffset, overlays, parsedDate, fontReady])
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -166,7 +272,6 @@ export default function InstagramPostPage() {
     setPhotoOffset({ x: 0, y: 0 })
   }, [])
 
-  // Scale client coords to canvas coords
   const toCanvasCoords = useCallback((clientX: number, clientY: number) => {
     const canvas = canvasRef.current!
     const rect = canvas.getBoundingClientRect()
@@ -175,7 +280,6 @@ export default function InstagramPostPage() {
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY }
   }, [])
 
-  // Attach touchmove as non-passive so e.preventDefault() actually suppresses scroll
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -241,7 +345,7 @@ export default function InstagramPostPage() {
 
   return (
     <div className="flex flex-col gap-6 pt-4 pb-10">
-      {/* Header */}
+      {/* Page header */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/')}
@@ -268,6 +372,17 @@ export default function InstagramPostPage() {
           onMouseLeave={onMouseUp}
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
+        />
+      </div>
+
+      {/* Date picker */}
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[10px] font-mono text-slate-500 tracking-[0.2em] uppercase">Session Date</p>
+        <input
+          type="date"
+          value={dateValue}
+          onChange={e => setDateValue(e.target.value)}
+          className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white w-full"
         />
       </div>
 
