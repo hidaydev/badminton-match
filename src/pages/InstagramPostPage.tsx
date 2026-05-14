@@ -279,7 +279,7 @@ function drawStandingsCanvas(
     const cardPadX = 90
     const cardPadY = 30
     ctx.save()
-    ctx.fillStyle = 'rgba(6, 10, 20, 0.82)'
+    ctx.fillStyle = 'rgba(6, 10, 20, 0.88)'
     ctx.beginPath()
     ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY * 2, 32)
     ctx.fill()
@@ -299,21 +299,14 @@ function drawStandingsCanvas(
   const innerPadX = isStory ? 100 : 150
 
   ctx.save()
-  ctx.font = '28px monospace'
-  ctx.fillStyle = '#94a3b8'
-  ctx.textAlign = 'left'
-  ctx.fillText(`${meta.date}  ·  ${meta.title}`, innerPadX, innerTop)
-  ctx.restore()
-
-  ctx.save()
-  ctx.font = 'bold 46px Arial, sans-serif'
+  ctx.font = 'bold 36px Arial, sans-serif'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'left'
-  ctx.fillText(`TOP 10 OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 70)
+  ctx.fillText(`TOP 10 OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop)
   ctx.restore()
 
   const top10 = standings.slice(0, 10)
-  const rowsTop = innerTop + 120
+  const rowsTop = innerTop + 60
   const rowsAvailable = (isStory ? CONTENT_BOT - 80 : CONTENT_BOT) - rowsTop - 20
   const rowH = Math.floor(rowsAvailable / 10)
 
