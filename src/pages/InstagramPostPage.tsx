@@ -2,6 +2,9 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { instagramTemplates, type PostTemplate } from '../config/instagramTemplates'
+import { useListSessions, useFetchSession } from '../queries'
+import { computeStandings, type PlayerStanding } from '../utils/standings'
+import type { SessionMeta } from '../queries'
 
 const TEMPLATE = instagramTemplates[0]
 const HEADER_H = 90
@@ -369,6 +372,13 @@ export default function InstagramPostPage() {
 
   const [showDownloadSheet, setShowDownloadSheet] = useState(false)
 
+  type StandingMode = 'post' | 'story'
+  const [sheetScreen, setSheetScreen] = useState<'formats' | 'session-picker'>('formats')
+  const [pendingStandingMode, setPendingStandingMode] = useState<StandingMode | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const { data: sessions } = useListSessions()
+  const fetchSession = useFetchSession()
+
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -378,20 +388,27 @@ export default function InstagramPostPage() {
     URL.revokeObjectURL(url)
   }, [])
 
+  const closeSheet = useCallback(() => {
+    setShowDownloadSheet(false)
+    setSheetScreen('formats')
+    setPendingStandingMode(null)
+    setIsGenerating(false)
+  }, [])
+
   const handleDownloadPost = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || !userPhoto) return
-    setShowDownloadSheet(false)
+    closeSheet()
     canvas.toBlob((blob) => {
       if (!blob) return
       triggerDownload(blob, `majadu-post-${dateValue}.jpg`)
     }, 'image/jpeg', 0.92)
-  }, [userPhoto, dateValue, triggerDownload])
+  }, [userPhoto, dateValue, triggerDownload, closeSheet])
 
   const handleDownloadStory = useCallback(() => {
     const postCanvas = canvasRef.current
     if (!postCanvas || !userPhoto) return
-    setShowDownloadSheet(false)
+    closeSheet()
 
     const W = 1080, H = 1920
     const offscreen = document.createElement('canvas')
@@ -439,7 +456,7 @@ export default function InstagramPostPage() {
       if (!blob) return
       triggerDownload(blob, `majadu-story-${dateValue}.jpg`)
     }, 'image/jpeg', 0.92)
-  }, [userPhoto, overlays, dateValue, triggerDownload])
+  }, [userPhoto, overlays, dateValue, triggerDownload, closeSheet])
 
   return (
     <div className="flex flex-col min-h-screen pb-6">
@@ -543,7 +560,7 @@ export default function InstagramPostPage() {
       {showDownloadSheet && (
         <div
           className="fixed inset-0 z-50 flex items-end"
-          onClick={() => setShowDownloadSheet(false)}
+          onClick={closeSheet}
         >
           <div className="absolute inset-0 bg-black/60" />
           <div
