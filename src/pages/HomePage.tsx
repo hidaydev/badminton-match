@@ -5,6 +5,7 @@ const menu = [
   { icon: '📋', label: 'Sessions', description: 'Browse past sessions', to: '/sessions', badge: null },
   { icon: '👤', label: 'Player History', description: 'Stats & records', to: '/player-history', badge: null },
   { icon: '🏆', label: 'Tournament', description: 'Standings & cup', to: '/tournament', badge: null },
+  { icon: '📸', label: 'Instagram Post', description: 'Create a post from template', to: '/instagram-post', badge: null },
 ] as const
 
 export default function HomePage() {
