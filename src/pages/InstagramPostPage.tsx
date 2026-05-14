@@ -276,12 +276,12 @@ function drawStandingsCanvas(
 
   // Dark scrim for post (photo bg needs overlay for readability), dark card for story
   if (!isStory && userPhoto) {
-    const cardPadX = 50
-    const cardPadY = 20
+    const cardPadX = 90
+    const cardPadY = 30
     ctx.save()
-    ctx.fillStyle = 'rgba(10, 15, 30, 0.68)'
+    ctx.fillStyle = 'rgba(6, 10, 20, 0.82)'
     ctx.beginPath()
-    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY * 2, 28)
+    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY * 2, 32)
     ctx.fill()
     ctx.restore()
   } else if (isStory) {
@@ -295,8 +295,8 @@ function drawStandingsCanvas(
     ctx.restore()
   }
 
-  const innerTop = isStory ? CONTENT_TOP + 100 : CONTENT_TOP + 70
-  const innerPadX = isStory ? 100 : 110
+  const innerTop = isStory ? CONTENT_TOP + 100 : CONTENT_TOP + 80
+  const innerPadX = isStory ? 100 : 150
 
   ctx.save()
   ctx.font = '28px monospace'
