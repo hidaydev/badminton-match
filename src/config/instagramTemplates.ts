@@ -15,6 +15,7 @@ export const instagramTemplates: PostTemplate[] = [
     label: 'Portrait 4:5',
     width: 1080,
     height: 1350,
+    header: '/instagram-header.png',
     footer: '/instagram-footer.png',
   },
 ]
