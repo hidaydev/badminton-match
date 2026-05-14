@@ -231,8 +231,11 @@ function drawStandingsCanvas(
   canvas: HTMLCanvasElement,
   standings: PlayerStanding[],
   meta: { date: string; title: string; playerCount: number },
-  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement; storyBg?: HTMLImageElement },
+  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement },
   isStory: boolean,
+  userPhoto?: HTMLImageElement | null,
+  photoOffset?: { x: number; y: number },
+  photoZoom?: number,
 ) {
   const ctx = canvas.getContext('2d')!
   const W = canvas.width
@@ -242,6 +245,8 @@ function drawStandingsCanvas(
 
   if (isStory && overlays.storyBg) {
     ctx.drawImage(overlays.storyBg, 0, 0, W, H)
+  } else if (!isStory && userPhoto) {
+    drawCoverFill(ctx, userPhoto, W, H, photoOffset?.x ?? 0, photoOffset?.y ?? 0, photoZoom ?? 1)
   } else {
     ctx.fillStyle = '#1e293b'
     ctx.fillRect(0, 0, W, H)
@@ -256,12 +261,26 @@ function drawStandingsCanvas(
     ctx.drawImage(overlays.footer, 0, H - FOOTER_H, W, FOOTER_H)
   }
 
+  // Chevrons ornament (post only, same position as regular post)
+  if (!isStory && overlays.chevrons) {
+    const img = overlays.chevrons
+    const h = 115
+    const w = h * (img.naturalWidth / img.naturalHeight)
+    ctx.drawImage(img, W - w - 30, H * 0.3, w, h)
+  }
+
   const HEADER_H_PX = 90
   const CONTENT_TOP = HEADER_H_PX + 30
   const CONTENT_BOT = H - FOOTER_H - 30
   const CONTENT_H = CONTENT_BOT - CONTENT_TOP
 
-  if (isStory) {
+  // Dark scrim for post (photo bg needs overlay for readability), dark card for story
+  if (!isStory && userPhoto) {
+    ctx.save()
+    ctx.fillStyle = 'rgba(10, 15, 30, 0.62)'
+    ctx.fillRect(0, CONTENT_TOP - 10, W, CONTENT_H + 20)
+    ctx.restore()
+  } else if (isStory) {
     const cardPadX = 50
     const cardPadY = 40
     ctx.save()
@@ -574,7 +593,7 @@ export default function InstagramPostPage() {
         date: sessionMeta.date,
         title: sessionMeta.title,
         playerCount: sessionMeta.playerCount,
-      }, overlays, isStory)
+      }, overlays, isStory, userPhoto, photoOffset, photoZoom)
 
       offscreen.toBlob((blob) => {
         if (!blob) {
