@@ -25,8 +25,9 @@ function drawCoverFill(
   canvasH: number,
   offsetX: number,
   offsetY: number,
+  zoom: number = 1,
 ) {
-  const scale = Math.max(canvasW / img.naturalWidth, canvasH / img.naturalHeight)
+  const scale = Math.max(canvasW / img.naturalWidth, canvasH / img.naturalHeight) * zoom
   const w = img.naturalWidth * scale
   const h = img.naturalHeight * scale
   const x = (canvasW - w) / 2 + offsetX
@@ -184,6 +185,7 @@ function drawCanvas(
   _template: PostTemplate,
   userPhoto: HTMLImageElement | null,
   photoOffset: { x: number; y: number },
+  photoZoom: number,
   overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement },
   date: { day: string; month: string; year: string } | null,
 ) {
@@ -192,7 +194,7 @@ function drawCanvas(
 
   // Layer 1: user photo
   if (userPhoto) {
-    drawCoverFill(ctx, userPhoto, canvas.width, canvas.height, photoOffset.x, photoOffset.y)
+    drawCoverFill(ctx, userPhoto, canvas.width, canvas.height, photoOffset.x, photoOffset.y, photoZoom)
   } else {
     ctx.fillStyle = '#1e293b'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
@@ -221,11 +223,13 @@ export default function InstagramPostPage() {
 
   const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
   const [photoOffset, setPhotoOffset] = useState({ x: 0, y: 0 })
+  const [photoZoom, setPhotoZoom] = useState(1)
   const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement }>({})
   const [isDragging, setIsDragging] = useState(false)
   const [fontReady, setFontReady] = useState(false)
   const [dateValue, setDateValue] = useState(() => new Date().toISOString().split('T')[0])
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
+  const pinchStart = useRef<{ dist: number; zoom: number } | null>(null)
 
   const parsedDate = useMemo(() => {
     const [year, month, day] = dateValue.split('-')
@@ -259,8 +263,8 @@ export default function InstagramPostPage() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    drawCanvas(canvas, TEMPLATE, userPhoto, photoOffset, overlays, parsedDate)
-  }, [userPhoto, photoOffset, overlays, parsedDate, fontReady])
+    drawCanvas(canvas, TEMPLATE, userPhoto, photoOffset, photoZoom, overlays, parsedDate)
+  }, [userPhoto, photoOffset, photoZoom, overlays, parsedDate, fontReady])
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -270,6 +274,7 @@ export default function InstagramPostPage() {
     URL.revokeObjectURL(url)
     setUserPhoto(img)
     setPhotoOffset({ x: 0, y: 0 })
+    setPhotoZoom(1)
   }, [])
 
   const toCanvasCoords = useCallback((clientX: number, clientY: number) => {
@@ -280,21 +285,43 @@ export default function InstagramPostPage() {
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY }
   }, [])
 
+  const clampOffset = useCallback((x: number, y: number, img: HTMLImageElement, zoom: number) => {
+    const canvas = canvasRef.current!
+    const scale = Math.max(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight) * zoom
+    const w = img.naturalWidth * scale
+    const h = img.naturalHeight * scale
+    const maxX = (w - canvas.width) / 2
+    const maxY = (h - canvas.height) / 2
+    return {
+      x: Math.min(maxX, Math.max(-maxX, x)),
+      y: Math.min(maxY, Math.max(-maxY, y)),
+    }
+  }, [])
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const handler = (e: TouchEvent) => {
       e.preventDefault()
-      if (!dragStart.current) return
+      if (e.touches.length === 2 && pinchStart.current && userPhoto) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        const newZoom = Math.max(1, Math.min(4, pinchStart.current.zoom * (dist / pinchStart.current.dist)))
+        setPhotoZoom(newZoom)
+        setPhotoOffset(prev => clampOffset(prev.x, prev.y, userPhoto, newZoom))
+        return
+      }
+      if (!dragStart.current || !userPhoto) return
       const t = e.touches[0]
       const pos = toCanvasCoords(t.clientX, t.clientY)
       const dx = pos.x - dragStart.current.x
       const dy = pos.y - dragStart.current.y
-      setPhotoOffset({ x: dragStart.current!.ox + dx, y: dragStart.current!.oy + dy })
+      setPhotoOffset(clampOffset(dragStart.current!.ox + dx, dragStart.current!.oy + dy, userPhoto, photoZoom))
     }
     canvas.addEventListener('touchmove', handler, { passive: false })
     return () => canvas.removeEventListener('touchmove', handler)
-  }, [toCanvasCoords])
+  }, [toCanvasCoords, userPhoto, clampOffset, photoZoom])
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (!userPhoto) return
@@ -304,12 +331,12 @@ export default function InstagramPostPage() {
   }, [userPhoto, photoOffset, toCanvasCoords])
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragStart.current) return
+    if (!dragStart.current || !userPhoto) return
     const pos = toCanvasCoords(e.clientX, e.clientY)
     const dx = pos.x - dragStart.current.x
     const dy = pos.y - dragStart.current.y
-    setPhotoOffset({ x: dragStart.current.ox + dx, y: dragStart.current.oy + dy })
-  }, [toCanvasCoords])
+    setPhotoOffset(clampOffset(dragStart.current.ox + dx, dragStart.current.oy + dy, userPhoto, photoZoom))
+  }, [toCanvasCoords, userPhoto, clampOffset, photoZoom])
 
   const onMouseUp = useCallback(() => {
     dragStart.current = null
@@ -318,14 +345,23 @@ export default function InstagramPostPage() {
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (!userPhoto) return
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      pinchStart.current = { dist: Math.sqrt(dx * dx + dy * dy), zoom: photoZoom }
+      dragStart.current = null
+      return
+    }
     const t = e.touches[0]
     const pos = toCanvasCoords(t.clientX, t.clientY)
     dragStart.current = { x: pos.x, y: pos.y, ox: photoOffset.x, oy: photoOffset.y }
+    pinchStart.current = null
     setIsDragging(true)
-  }, [userPhoto, photoOffset, toCanvasCoords])
+  }, [userPhoto, photoOffset, photoZoom, toCanvasCoords])
 
   const onTouchEnd = useCallback(() => {
     dragStart.current = null
+    pinchStart.current = null
     setIsDragging(false)
   }, [])
 
