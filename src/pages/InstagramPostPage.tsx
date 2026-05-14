@@ -132,7 +132,6 @@ function drawDate(
   const rightColTopY = topY + (Math.max(dayH, rightColH) - rightColH) / 2
   const monthBaselineY = rightColTopY + monthH
   const brushY = monthBaselineY + 4
-  const yearBaselineY = brushY + yearSize * 0.88 + 6
 
   // Day — black shadow + yellow fill
   ctx.save()
