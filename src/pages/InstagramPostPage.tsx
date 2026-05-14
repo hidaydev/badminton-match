@@ -281,7 +281,7 @@ function drawStandingsCanvas(
     ctx.save()
     ctx.fillStyle = 'rgba(6, 10, 20, 0.88)'
     ctx.beginPath()
-    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY * 2, 32)
+    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY - 55, 32)
     ctx.fill()
     ctx.restore()
   } else if (isStory) {
@@ -290,13 +290,15 @@ function drawStandingsCanvas(
     ctx.save()
     ctx.fillStyle = 'rgba(6, 10, 20, 0.88)'
     ctx.beginPath()
-    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY * 2, 32)
+    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY - 55, 32)
     ctx.fill()
     ctx.restore()
   }
 
   const innerTop = CONTENT_TOP + 80
   const innerPadX = 150
+
+  const top10 = standings.slice(0, 10)
 
   ctx.save()
   ctx.font = '26px monospace'
@@ -309,13 +311,12 @@ function drawStandingsCanvas(
   ctx.font = 'bold 36px Arial, sans-serif'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'left'
-  ctx.fillText(`TOP 10 OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 55)
+  ctx.fillText(`TOP ${top10.length} OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 55)
   ctx.restore()
 
-  const top10 = standings.slice(0, 10)
   const rowsTop = innerTop + 110
   const rowsAvailable = (isStory ? CONTENT_BOT - 80 : CONTENT_BOT) - rowsTop - 20
-  const rowH = Math.floor(rowsAvailable / 10)
+  const rowH = Math.floor(rowsAvailable / Math.max(top10.length, 1))
 
   const RANK_CX = innerPadX + 30
   const NAME_X = innerPadX + 90
