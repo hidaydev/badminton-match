@@ -92,23 +92,6 @@ export default function InstagramPostPage() {
     drawCanvas(canvas, TEMPLATE, userPhoto, photoOffset, overlays)
   }, [userPhoto, photoOffset, overlays])
 
-  // Attach touchmove as non-passive so e.preventDefault() actually suppresses scroll
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const handler = (e: TouchEvent) => {
-      e.preventDefault()
-      if (!dragStart.current) return
-      const t = e.touches[0]
-      const pos = toCanvasCoords(t.clientX, t.clientY)
-      const dx = pos.x - dragStart.current.x
-      const dy = pos.y - dragStart.current.y
-      setPhotoOffset(prev => ({ x: dragStart.current!.ox + dx, y: dragStart.current!.oy + dy }))
-    }
-    canvas.addEventListener('touchmove', handler, { passive: false })
-    return () => canvas.removeEventListener('touchmove', handler)
-  }, [toCanvasCoords])
-
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -127,6 +110,23 @@ export default function InstagramPostPage() {
     const scaleY = canvas.height / rect.height
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY }
   }, [])
+
+  // Attach touchmove as non-passive so e.preventDefault() actually suppresses scroll
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const handler = (e: TouchEvent) => {
+      e.preventDefault()
+      if (!dragStart.current) return
+      const t = e.touches[0]
+      const pos = toCanvasCoords(t.clientX, t.clientY)
+      const dx = pos.x - dragStart.current.x
+      const dy = pos.y - dragStart.current.y
+      setPhotoOffset({ x: dragStart.current!.ox + dx, y: dragStart.current!.oy + dy })
+    }
+    canvas.addEventListener('touchmove', handler, { passive: false })
+    return () => canvas.removeEventListener('touchmove', handler)
+  }, [toCanvasCoords])
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (!userPhoto) return
