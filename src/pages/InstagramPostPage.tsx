@@ -2,6 +2,9 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { instagramTemplates, type PostTemplate } from '../config/instagramTemplates'
+import { useListSessions, useFetchSession } from '../queries'
+import { computeStandings, type PlayerStanding } from '../utils/standings'
+import type { SessionMeta } from '../queries'
 
 const TEMPLATE = instagramTemplates[0]
 const HEADER_H = 90
@@ -222,6 +225,215 @@ function drawCanvas(
   }
 }
 
+type StandingMode = 'post' | 'story'
+
+function drawStandingsCanvas(
+  canvas: HTMLCanvasElement,
+  standings: PlayerStanding[],
+  meta: { date: string; title: string; playerCount: number },
+  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement },
+  isStory: boolean,
+  userPhoto?: HTMLImageElement | null,
+  photoOffset?: { x: number; y: number },
+  photoZoom?: number,
+) {
+  const ctx = canvas.getContext('2d')!
+  const W = canvas.width
+  const H = canvas.height
+
+  ctx.clearRect(0, 0, W, H)
+
+  if (isStory && overlays.storyBg) {
+    ctx.drawImage(overlays.storyBg, 0, 0, W, H)
+  } else if (!isStory && userPhoto) {
+    drawCoverFill(ctx, userPhoto, W, H, photoOffset?.x ?? 0, photoOffset?.y ?? 0, photoZoom ?? 1)
+  } else {
+    ctx.fillStyle = '#1e293b'
+    ctx.fillRect(0, 0, W, H)
+  }
+
+  if (!isStory) drawHeader(ctx, W, overlays.logo)
+
+  const FOOTER_H = (!isStory && overlays.footer)
+    ? W * (overlays.footer.naturalHeight / overlays.footer.naturalWidth)
+    : 0
+  if (!isStory && overlays.footer) {
+    ctx.drawImage(overlays.footer, 0, H - FOOTER_H, W, FOOTER_H)
+  }
+
+  // Chevrons ornament (post only, same position as regular post)
+  if (!isStory && overlays.chevrons) {
+    const img = overlays.chevrons
+    const h = 115
+    const w = h * (img.naturalWidth / img.naturalHeight)
+    ctx.drawImage(img, W - w - 30, H * 0.3, w, h)
+  }
+
+  const HEADER_H_PX  = 90
+  const CONTENT_TOP  = HEADER_H_PX + 30
+  const cardPadX     = 90
+  const innerPadX    = 150
+
+  // Fixed row size — works for 4–10 players
+  const ROW_H        = 68
+  const ROW_GAP      = 6
+  const ROW_RADIUS   = 16
+  const ROW_FONT     = 28
+  const STATS_FONT   = 24
+  const HDR_FONT     = 18
+  const HEADER_ROW_H = 36
+  const META_H       = 90   // date + title text block
+  const BOT_PAD      = 28
+
+  const top10 = standings.slice(0, 10)
+
+  // Card sized to content, vertically centered for story
+  const CARD_TOP_PAD = 38
+  const outerCardH   = CARD_TOP_PAD + META_H + HEADER_ROW_H + top10.length * ROW_H + BOT_PAD
+  const cardTop      = isStory ? Math.round((H - outerCardH) / 2) : CONTENT_TOP + 20
+  if (isStory || (!isStory && userPhoto)) {
+    ctx.save()
+    ctx.fillStyle = 'rgba(4, 7, 14, 0.94)'
+    ctx.beginPath()
+    ctx.roundRect(cardPadX, cardTop, W - cardPadX * 2, outerCardH, 32)
+    ctx.fill()
+    ctx.restore()
+  }
+
+  const innerTop   = cardTop + CARD_TOP_PAD
+  const tableTop   = innerTop + META_H
+
+  ctx.save()
+  ctx.font = '20px monospace'
+  ctx.fillStyle = '#94a3b8'
+  ctx.textAlign = 'left'
+  ctx.fillText(`${meta.date} · ${meta.title}`, innerPadX, innerTop)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = 'bold 28px Arial, sans-serif'
+  ctx.fillStyle = '#facc15'
+  ctx.textAlign = 'left'
+  ctx.fillText(`TOP ${top10.length} OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 44)
+  ctx.restore()
+
+  // Column x positions
+  const RANK_CX = innerPadX + 28
+  const NAME_X  = innerPadX + 80
+  const PTS_X   = W - innerPadX
+  const DIFF_X  = W - innerPadX - 120
+  const WL_X    = W - innerPadX - 240
+
+  const MEDALS      = ['🥇', '🥈', '🥉']
+  const ROW_FONT_SIZE   = ROW_FONT
+  const STATS_FONT_SIZE = STATS_FONT
+  const HDR_FONT_SIZE   = HDR_FONT
+  const rowH            = ROW_H
+
+  // Table header row
+  const headerY = tableTop + HEADER_ROW_H * 0.72
+  ctx.save()
+  ctx.fillStyle = 'rgba(255,255,255,0.04)'
+  ctx.fillRect(innerPadX - 10, tableTop, W - (innerPadX - 10) * 2, HEADER_ROW_H)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = `bold ${HDR_FONT_SIZE}px monospace`
+  ctx.fillStyle = '#475569'
+  ctx.textAlign = 'center'; ctx.fillText('#',    RANK_CX, headerY)
+  ctx.textAlign = 'left';   ctx.fillText('Name', NAME_X,  headerY)
+  ctx.textAlign = 'right';  ctx.fillText('W-L',  WL_X,    headerY)
+  ctx.textAlign = 'right';  ctx.fillText('Diff', DIFF_X,  headerY)
+  ctx.textAlign = 'right';  ctx.fillText('Pts',  PTS_X,   headerY)
+  ctx.restore()
+
+  const rowsTop = tableTop + HEADER_ROW_H
+
+  for (let i = 0; i < top10.length; i++) {
+    const s = top10[i]
+    const rowY = rowsTop + i * rowH
+    const cardH = rowH - ROW_GAP
+    const baseline = rowY + cardH * 0.64
+
+    // Individual card background
+    const cardBg = i < 3
+      ? 'rgba(250, 204, 21, 0.14)'
+      : 'rgba(255, 255, 255, 0.04)'
+    ctx.save()
+    ctx.fillStyle = cardBg
+    ctx.beginPath()
+    ctx.roundRect(innerPadX - 10, rowY, W - (innerPadX - 10) * 2, cardH, ROW_RADIUS)
+    ctx.fill()
+    ctx.restore()
+
+    // Left accent strip for top 3
+    if (i < 3) {
+      const accentColor = i === 0 ? '#facc15' : i === 1 ? '#cbd5e1' : '#fb923c'
+      ctx.save()
+      ctx.fillStyle = accentColor
+      ctx.beginPath()
+      ctx.roundRect(innerPadX - 10, rowY, 7, cardH, [ROW_RADIUS, 0, 0, ROW_RADIUS])
+      ctx.fill()
+      ctx.restore()
+    }
+
+    // Rank / medal
+    ctx.save()
+    if (i < 3) {
+      ctx.font = `${ROW_FONT_SIZE}px Arial`
+      ctx.textAlign = 'center'
+      ctx.fillText(MEDALS[i], RANK_CX, baseline)
+    } else {
+      const ordinalSuffix = (n: number) => {
+        const v = n % 100
+        return n + (['th','st','nd','rd'][(v - 20) % 10] ?? ['th','st','nd','rd'][v] ?? 'th')
+      }
+      ctx.font = `bold ${ROW_FONT_SIZE * 0.62}px Arial, sans-serif`
+      ctx.fillStyle = '#64748b'
+      ctx.textAlign = 'center'
+      ctx.fillText(ordinalSuffix(i + 1), RANK_CX, baseline)
+    }
+    ctx.restore()
+
+    // Name
+    ctx.save()
+    ctx.font = `bold ${ROW_FONT_SIZE}px Arial, sans-serif`
+    ctx.fillStyle = i === 0 ? '#facc15' : i === 1 ? '#cbd5e1' : i === 2 ? '#fb923c' : '#e2e8f0'
+    ctx.textAlign = 'left'
+    const maxNameW = WL_X - NAME_X - 40
+    let name = s.player.name
+    while (ctx.measureText(name).width > maxNameW && name.length > 1) name = name.slice(0, -1)
+    if (name !== s.player.name) name += '…'
+    ctx.fillText(name, NAME_X, baseline)
+    ctx.restore()
+
+    // W-L (green)
+    ctx.save()
+    ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
+    ctx.fillStyle = '#4ade80'
+    ctx.textAlign = 'right'
+    ctx.fillText(`${s.wins}-${s.losses}`, WL_X, baseline)
+    ctx.restore()
+
+    // Diff
+    const diff = s.diff
+    ctx.save()
+    ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
+    ctx.fillStyle = diff > 0 ? '#4ade80' : diff < 0 ? '#f87171' : '#475569'
+    ctx.textAlign = 'right'
+    ctx.fillText(diff > 0 ? `+${diff}` : String(diff), DIFF_X, baseline)
+    ctx.restore()
+
+    // Pts
+    ctx.save()
+    ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'right'
+    ctx.fillText(String(s.pointsFor), PTS_X, baseline)
+    ctx.restore()
+  }
+}
+
 export default function InstagramPostPage() {
   const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -369,6 +581,12 @@ export default function InstagramPostPage() {
 
   const [showDownloadSheet, setShowDownloadSheet] = useState(false)
 
+  const [sheetScreen, setSheetScreen] = useState<'formats' | 'session-picker'>('formats')
+  const [pendingStandingMode, setPendingStandingMode] = useState<StandingMode | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const { data: sessions } = useListSessions({ enabled: sheetScreen === 'session-picker' })
+  const fetchSession = useFetchSession()
+
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -378,20 +596,71 @@ export default function InstagramPostPage() {
     URL.revokeObjectURL(url)
   }, [])
 
+  const closeSheet = useCallback(() => {
+    setShowDownloadSheet(false)
+    setSheetScreen('formats')
+    setPendingStandingMode(null)
+    setIsGenerating(false)
+  }, [])
+
+  const handleDownloadStanding = useCallback(async (sessionMeta: SessionMeta) => {
+    if (!pendingStandingMode) return
+    const mode = pendingStandingMode
+    setIsGenerating(true)
+
+    try {
+      const snapshot = await fetchSession(sessionMeta.id)
+      if (!snapshot) return
+
+      const standings = computeStandings(
+        snapshot.players,
+        snapshot.schedule,
+        snapshot.gameScores,
+      )
+
+      const isStory = mode === 'story'
+      const W = 1080
+      const H = isStory ? 1920 : 1350
+
+      const offscreen = document.createElement('canvas')
+      offscreen.width = W
+      offscreen.height = H
+
+      drawStandingsCanvas(offscreen, standings, {
+        date: sessionMeta.date,
+        title: sessionMeta.title,
+        playerCount: sessionMeta.playerCount,
+      }, overlays, isStory, userPhoto, photoOffset, photoZoom)
+
+      offscreen.toBlob((blob) => {
+        if (!blob) {
+          setIsGenerating(false)
+          return
+        }
+        const slug = sessionMeta.date.replace(/-/g, '')
+        triggerDownload(blob, `majadu-standing-${isStory ? 'story' : 'post'}-${slug}.jpg`)
+        closeSheet()
+      }, 'image/jpeg', 0.92)
+    } catch (err) {
+      console.error('Standing export failed', err)
+      setIsGenerating(false)
+    }
+  }, [pendingStandingMode, fetchSession, overlays, triggerDownload, closeSheet])
+
   const handleDownloadPost = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || !userPhoto) return
-    setShowDownloadSheet(false)
+    closeSheet()
     canvas.toBlob((blob) => {
       if (!blob) return
       triggerDownload(blob, `majadu-post-${dateValue}.jpg`)
     }, 'image/jpeg', 0.92)
-  }, [userPhoto, dateValue, triggerDownload])
+  }, [userPhoto, dateValue, triggerDownload, closeSheet])
 
   const handleDownloadStory = useCallback(() => {
     const postCanvas = canvasRef.current
     if (!postCanvas || !userPhoto) return
-    setShowDownloadSheet(false)
+    closeSheet()
 
     const W = 1080, H = 1920
     const offscreen = document.createElement('canvas')
@@ -439,7 +708,7 @@ export default function InstagramPostPage() {
       if (!blob) return
       triggerDownload(blob, `majadu-story-${dateValue}.jpg`)
     }, 'image/jpeg', 0.92)
-  }, [userPhoto, overlays, dateValue, triggerDownload])
+  }, [userPhoto, overlays, dateValue, triggerDownload, closeSheet])
 
   return (
     <div className="flex flex-col min-h-screen pb-6">
@@ -543,7 +812,7 @@ export default function InstagramPostPage() {
       {showDownloadSheet && (
         <div
           className="fixed inset-0 z-50 flex items-end"
-          onClick={() => setShowDownloadSheet(false)}
+          onClick={closeSheet}
         >
           <div className="absolute inset-0 bg-black/60" />
           <div
@@ -551,35 +820,112 @@ export default function InstagramPostPage() {
             onClick={e => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-6" />
-            <p className="text-xs font-mono text-slate-500 tracking-widest uppercase mb-4">Download as</p>
 
-            <div className="flex gap-3">
-              {/* Post */}
-              <button
-                onClick={handleDownloadPost}
-                className="flex-1 bg-slate-800 active:bg-slate-700 rounded-2xl p-4 flex flex-col items-center gap-3 border border-slate-700"
-              >
-                <div className="w-12 h-[60px] rounded-lg bg-slate-700 border border-slate-600" />
-                <div className="text-center">
-                  <p className="text-sm font-bold text-white">Post</p>
-                  <p className="text-[11px] text-slate-500">1080 × 1350</p>
-                </div>
-              </button>
+            {sheetScreen === 'formats' && (
+              <>
+                <p className="text-xs font-mono text-slate-500 tracking-widest uppercase mb-4">Download as</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Photo Post */}
+                  <button
+                    onClick={handleDownloadPost}
+                    className="bg-slate-800 active:bg-slate-700 rounded-2xl p-4 flex flex-col items-center gap-3 border border-slate-700"
+                  >
+                    <div className="w-12 h-[60px] rounded-lg bg-slate-700 border border-slate-600" />
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-white">Post</p>
+                      <p className="text-[11px] text-slate-500">1080 × 1350</p>
+                    </div>
+                  </button>
 
-              {/* Story */}
-              <button
-                onClick={handleDownloadStory}
-                className="flex-1 bg-yellow-400 active:bg-yellow-300 rounded-2xl p-4 flex flex-col items-center gap-3"
-              >
-                <div className="w-12 h-[60px] rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
-                  <div className="w-7 h-7 rounded bg-yellow-500/40" />
+                  {/* Photo Story */}
+                  <button
+                    onClick={handleDownloadStory}
+                    className="bg-yellow-400 active:bg-yellow-300 rounded-2xl p-4 flex flex-col items-center gap-3"
+                  >
+                    <div className="w-12 h-[60px] rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
+                      <div className="w-7 h-7 rounded bg-yellow-500/40" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-black">Story</p>
+                      <p className="text-[11px] text-yellow-800">1080 × 1920</p>
+                    </div>
+                  </button>
+
+                  {/* Standing Post */}
+                  <button
+                    onClick={() => { setPendingStandingMode('post'); setSheetScreen('session-picker') }}
+                    className="bg-slate-800 active:bg-slate-700 rounded-2xl p-4 flex flex-col items-center gap-3 border border-slate-700"
+                  >
+                    <div className="w-12 h-[60px] rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center">
+                      <span className="text-lg">🏆</span>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-white">Standing Post</p>
+                      <p className="text-[11px] text-slate-500">1080 × 1350</p>
+                    </div>
+                  </button>
+
+                  {/* Standing Story */}
+                  <button
+                    onClick={() => { setPendingStandingMode('story'); setSheetScreen('session-picker') }}
+                    className="bg-yellow-400 active:bg-yellow-300 rounded-2xl p-4 flex flex-col items-center gap-3"
+                  >
+                    <div className="w-12 h-[60px] rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
+                      <span className="text-lg">🏆</span>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-black">Standing Story</p>
+                      <p className="text-[11px] text-yellow-800">1080 × 1920</p>
+                    </div>
+                  </button>
                 </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-black">Story</p>
-                  <p className="text-[11px] text-yellow-800">1080 × 1920</p>
+              </>
+            )}
+
+            {sheetScreen === 'session-picker' && (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <button
+                    onClick={() => { setSheetScreen('formats'); setIsGenerating(false) }}
+                    className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 text-sm active:bg-slate-700"
+                  >
+                    ←
+                  </button>
+                  <p className="text-xs font-mono text-slate-500 tracking-widest uppercase">Pick a session</p>
                 </div>
-              </button>
-            </div>
+
+                {isGenerating && (
+                  <div className="flex items-center justify-center py-8 gap-3">
+                    <div className="w-5 h-5 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
+                    <span className="text-sm text-slate-400">Generating…</span>
+                  </div>
+                )}
+
+                {!isGenerating && (
+                  <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
+                    {!sessions && (
+                      <p className="text-sm text-slate-500 text-center py-4">Loading sessions…</p>
+                    )}
+                    {sessions?.length === 0 && (
+                      <p className="text-sm text-slate-500 text-center py-4">No sessions found</p>
+                    )}
+                    {sessions?.map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => handleDownloadStanding(s)}
+                        className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-800 active:bg-slate-700 border border-slate-700 text-left"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-white truncate">{s.title}</p>
+                          <p className="text-[11px] text-slate-500">{s.date} · {s.playerCount} players</p>
+                        </div>
+                        <span className="text-slate-600 text-xs">→</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
