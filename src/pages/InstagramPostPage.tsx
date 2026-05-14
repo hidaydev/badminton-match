@@ -299,21 +299,28 @@ function drawStandingsCanvas(
   const innerPadX = 150
 
   ctx.save()
+  ctx.font = '24px monospace'
+  ctx.fillStyle = '#64748b'
+  ctx.textAlign = 'left'
+  ctx.fillText(meta.date, innerPadX, innerTop)
+  ctx.restore()
+
+  ctx.save()
   ctx.font = '26px monospace'
   ctx.fillStyle = '#94a3b8'
   ctx.textAlign = 'left'
-  ctx.fillText(meta.title, innerPadX, innerTop)
+  ctx.fillText(meta.title, innerPadX, innerTop + 38)
   ctx.restore()
 
   ctx.save()
   ctx.font = 'bold 36px Arial, sans-serif'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'left'
-  ctx.fillText(`TOP 10 OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 50)
+  ctx.fillText(`TOP 10 OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 90)
   ctx.restore()
 
   const top10 = standings.slice(0, 10)
-  const rowsTop = innerTop + 110
+  const rowsTop = innerTop + 145
   const rowsAvailable = (isStory ? CONTENT_BOT - 80 : CONTENT_BOT) - rowsTop - 20
   const rowH = Math.floor(rowsAvailable / 10)
 
