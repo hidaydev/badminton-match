@@ -32,7 +32,7 @@ function drawCoverFill(
 
 function drawCanvas(
   canvas: HTMLCanvasElement,
-  template: PostTemplate,
+  _template: PostTemplate,
   userPhoto: HTMLImageElement | null,
   photoOffset: { x: number; y: number },
   overlayImages: { header?: HTMLImageElement; footer?: HTMLImageElement },
@@ -92,11 +92,29 @@ export default function InstagramPostPage() {
     drawCanvas(canvas, TEMPLATE, userPhoto, photoOffset, overlays)
   }, [userPhoto, photoOffset, overlays])
 
+  // Attach touchmove as non-passive so e.preventDefault() actually suppresses scroll
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const handler = (e: TouchEvent) => {
+      e.preventDefault()
+      if (!dragStart.current) return
+      const t = e.touches[0]
+      const pos = toCanvasCoords(t.clientX, t.clientY)
+      const dx = pos.x - dragStart.current.x
+      const dy = pos.y - dragStart.current.y
+      setPhotoOffset(prev => ({ x: dragStart.current!.ox + dx, y: dragStart.current!.oy + dy }))
+    }
+    canvas.addEventListener('touchmove', handler, { passive: false })
+    return () => canvas.removeEventListener('touchmove', handler)
+  }, [toCanvasCoords])
+
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const url = URL.createObjectURL(file)
     const img = await loadImage(url)
+    URL.revokeObjectURL(url)
     setUserPhoto(img)
     setPhotoOffset({ x: 0, y: 0 })
   }, [])
@@ -137,16 +155,6 @@ export default function InstagramPostPage() {
     dragStart.current = { x: pos.x, y: pos.y, ox: photoOffset.x, oy: photoOffset.y }
     setIsDragging(true)
   }, [userPhoto, photoOffset, toCanvasCoords])
-
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    e.preventDefault()
-    if (!dragStart.current) return
-    const t = e.touches[0]
-    const pos = toCanvasCoords(t.clientX, t.clientY)
-    const dx = pos.x - dragStart.current.x
-    const dy = pos.y - dragStart.current.y
-    setPhotoOffset({ x: dragStart.current.ox + dx, y: dragStart.current.oy + dy })
-  }, [toCanvasCoords])
 
   const onTouchEnd = useCallback(() => {
     dragStart.current = null
@@ -195,7 +203,6 @@ export default function InstagramPostPage() {
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
           onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         />
         {userPhoto && (
@@ -212,7 +219,7 @@ export default function InstagramPostPage() {
         >
           <span className="text-2xl">{userPhoto ? '🔄' : '📷'}</span>
           <span className="text-sm text-slate-400">{userPhoto ? 'Change photo' : 'Tap to upload photo'}</span>
-          <span className="text-xs text-slate-600">JPG or PNG</span>
+          <span className="text-xs text-slate-600">JPG, PNG or WebP</span>
         </button>
         <input
           ref={fileInputRef}
