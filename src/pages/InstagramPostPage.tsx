@@ -207,22 +207,18 @@ export default function InstagramPostPage() {
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         />
-        {userPhoto && (
-          <p className="text-center text-[10px] text-slate-600 mt-1 font-mono">drag to reposition</p>
-        )}
       </div>
 
       {/* Upload */}
-      <div className="flex flex-col gap-1.5">
-        <p className="text-[10px] font-mono text-slate-500 tracking-[0.2em] uppercase">Photo</p>
+      <div className="flex items-center gap-3">
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="w-full bg-slate-900 border border-dashed border-slate-700 rounded-xl p-6 flex flex-col items-center gap-2 hover:border-slate-500 transition-colors"
+          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-300 transition-colors"
         >
-          <span className="text-2xl">{userPhoto ? '🔄' : '📷'}</span>
-          <span className="text-sm text-slate-400">{userPhoto ? 'Change photo' : 'Tap to upload photo'}</span>
-          <span className="text-xs text-slate-600">JPG, PNG or WebP</span>
+          <span>📷</span>
+          <span>{userPhoto ? 'Change photo' : 'Upload photo'}</span>
         </button>
+        {userPhoto && <span className="text-xs text-slate-500 font-mono">drag canvas to reposition</span>}
         <input
           ref={fileInputRef}
           type="file"
