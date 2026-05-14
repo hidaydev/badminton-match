@@ -1,12 +1,14 @@
+import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import { applySwap, type SwapTarget } from '../utils/swap'
 
-export function useListSessions() {
+export function useListSessions(options?: { enabled?: boolean }) {
   return useQuery<SessionMeta[]>({
     queryKey: ['sessions'],
     queryFn: listSessions,
+    enabled: options?.enabled ?? true,
   })
 }
 
@@ -147,4 +149,16 @@ export function useSetAbsent(sessionId: string) {
       queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
     },
   })
+}
+
+export function useFetchSession() {
+  const queryClient = useQueryClient()
+  return useCallback(
+    (id: string) =>
+      queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', id],
+        queryFn: () => getSession(id),
+      }),
+    [queryClient],
+  )
 }
