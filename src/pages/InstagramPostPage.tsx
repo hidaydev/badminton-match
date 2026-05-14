@@ -48,11 +48,13 @@ function drawCanvas(
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
 
-  // Layer 2: header
+  // Layer 2: header (with horizontal padding)
   if (overlayImages.header) {
     const img = overlayImages.header
-    const h = canvas.width * (img.naturalHeight / img.naturalWidth)
-    ctx.drawImage(img, 0, 0, canvas.width, h)
+    const pad = 40
+    const drawW = canvas.width - pad * 2
+    const drawH = drawW * (img.naturalHeight / img.naturalWidth)
+    ctx.drawImage(img, pad, pad, drawW, drawH)
   }
 
   // Layer 3: footer
