@@ -4,10 +4,11 @@ import { getSession, publishSession, listSessions } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import { applySwap, type SwapTarget } from '../utils/swap'
 
-export function useListSessions() {
+export function useListSessions(options?: { enabled?: boolean }) {
   return useQuery<SessionMeta[]>({
     queryKey: ['sessions'],
     queryFn: listSessions,
+    enabled: options?.enabled ?? true,
   })
 }
 

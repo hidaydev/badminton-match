@@ -528,7 +528,7 @@ export default function InstagramPostPage() {
   const [sheetScreen, setSheetScreen] = useState<'formats' | 'session-picker'>('formats')
   const [pendingStandingMode, setPendingStandingMode] = useState<StandingMode | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const { data: sessions } = useListSessions()
+  const { data: sessions } = useListSessions({ enabled: sheetScreen === 'session-picker' })
   const fetchSession = useFetchSession()
 
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
@@ -577,12 +577,14 @@ export default function InstagramPostPage() {
       }, overlays, isStory)
 
       offscreen.toBlob((blob) => {
-        if (!blob) return
+        if (!blob) {
+          setIsGenerating(false)
+          return
+        }
         const slug = sessionMeta.date.replace(/-/g, '')
         triggerDownload(blob, `majadu-standing-${isStory ? 'story' : 'post'}-${slug}.jpg`)
+        closeSheet()
       }, 'image/jpeg', 0.92)
-
-      closeSheet()
     } catch (err) {
       console.error('Standing export failed', err)
       setIsGenerating(false)
@@ -845,7 +847,13 @@ export default function InstagramPostPage() {
 
                 {!isGenerating && (
                   <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
-                    {(sessions ?? []).map(s => (
+                    {!sessions && (
+                      <p className="text-sm text-slate-500 text-center py-4">Loading sessions…</p>
+                    )}
+                    {sessions?.length === 0 && (
+                      <p className="text-sm text-slate-500 text-center py-4">No sessions found</p>
+                    )}
+                    {sessions?.map(s => (
                       <button
                         key={s.id}
                         onClick={() => handleDownloadStanding(s)}
@@ -858,12 +866,6 @@ export default function InstagramPostPage() {
                         <span className="text-slate-600 text-xs">→</span>
                       </button>
                     ))}
-                    {!sessions && (
-                      <p className="text-sm text-slate-500 text-center py-4">Loading sessions…</p>
-                    )}
-                    {sessions?.length === 0 && (
-                      <p className="text-sm text-slate-500 text-center py-4">No sessions found</p>
-                    )}
                   </div>
                 )}
               </>
