@@ -175,9 +175,10 @@ function drawDate(
   ctx.font = `${yearSize}px Edosz, Impact, sans-serif`
   ctx.fillStyle = '#111111'
   ctx.textAlign = 'center'
-  ctx.fillText(year, 0, yearSize * 0.22)
+  ctx.fillText(year, 0, yearSize * 0.22 - 5)
   ctx.restore()
 }
+
 
 function drawCanvas(
   canvas: HTMLCanvasElement,
@@ -185,7 +186,7 @@ function drawCanvas(
   userPhoto: HTMLImageElement | null,
   photoOffset: { x: number; y: number },
   photoZoom: number,
-  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement },
+  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement; chevrons?: HTMLImageElement; storyBg?: HTMLImageElement },
   date: { day: string; month: string; year: string } | null,
 ) {
   const ctx = canvas.getContext('2d')!
@@ -199,9 +200,15 @@ function drawCanvas(
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
 
-  // Layer 2: date (below header and footer overlays)
+  // Layer 2: date + chevron ornament
   if (date) {
     drawDate(ctx, canvas.width, date.day, date.month, date.year, overlays.brushStroke)
+  }
+  if (overlays.chevrons) {
+    const img = overlays.chevrons
+    const h = 115
+    const w = h * (img.naturalWidth / img.naturalHeight)
+    ctx.drawImage(img, canvas.width - w - 30, canvas.height * 0.3, w, h)
   }
 
   // Layer 3: header band
@@ -223,9 +230,9 @@ export default function InstagramPostPage() {
   const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
   const [photoOffset, setPhotoOffset] = useState({ x: 0, y: 0 })
   const [photoZoom, setPhotoZoom] = useState(1)
-  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement }>({})
+  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement; chevrons?: HTMLImageElement; storyBg?: HTMLImageElement }>({})
   const [isDragging, setIsDragging] = useState(false)
-  const [fontReady, setFontReady] = useState(false)
+  const [fontReady, setFontReady] = useState(false) // true once browser fonts are loaded
   const [dateValue, setDateValue] = useState(() => new Date().toISOString().split('T')[0])
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
   const pinchStart = useRef<{ dist: number; zoom: number } | null>(null)
@@ -235,24 +242,20 @@ export default function InstagramPostPage() {
     return { day: String(parseInt(day)), month: MONTHS[parseInt(month) - 1], year }
   }, [dateValue])
 
-  // Load Anton + Edosz fonts
+  // Wait for browser to finish loading the @font-face fonts declared in index.html
   useEffect(() => {
-    Promise.all([
-      new FontFace('Anton', 'url(/anton.ttf)').load(),
-      new FontFace('Edosz', 'url(/edosz.ttf)').load(),
-      new FontFace('Granesta', 'url(/Granesta.ttf)').load(),
-    ]).then(fonts => {
-      fonts.forEach(f => document.fonts.add(f))
-    }).catch(() => {}).finally(() => setFontReady(true))
+    document.fonts.ready.then(() => setFontReady(true))
   }, [])
 
   // Load template overlay images once
   useEffect(() => {
     const loadOverlays = async () => {
-      const result: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement } = {}
+      const result: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement; chevrons?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
       if (TEMPLATE.logo) result.logo = await loadImage(TEMPLATE.logo)
       if (TEMPLATE.footer) result.footer = await loadImage(TEMPLATE.footer)
       if (TEMPLATE.brushStroke) result.brushStroke = await loadImage(TEMPLATE.brushStroke)
+      if (TEMPLATE.chevrons) result.chevrons = await loadImage(TEMPLATE.chevrons)
+      if (TEMPLATE.storyBg) result.storyBg = await loadImage(TEMPLATE.storyBg)
       setOverlays(result)
     }
     loadOverlays()
@@ -364,43 +367,111 @@ export default function InstagramPostPage() {
     setIsDragging(false)
   }, [])
 
-  const handleDownload = useCallback(() => {
+  const [showDownloadSheet, setShowDownloadSheet] = useState(false)
+
+  const triggerDownload = useCallback((blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [])
+
+  const handleDownloadPost = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || !userPhoto) return
+    setShowDownloadSheet(false)
     canvas.toBlob((blob) => {
       if (!blob) return
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'majadu-post.png'
-      a.click()
-      URL.revokeObjectURL(url)
-    }, 'image/png')
-  }, [userPhoto])
+      triggerDownload(blob, `majadu-post-${dateValue}.jpg`)
+    }, 'image/jpeg', 0.92)
+  }, [userPhoto, dateValue, triggerDownload])
+
+  const handleDownloadStory = useCallback(() => {
+    const postCanvas = canvasRef.current
+    if (!postCanvas || !userPhoto) return
+    setShowDownloadSheet(false)
+
+    const W = 1080, H = 1920
+    const offscreen = document.createElement('canvas')
+    offscreen.width = W
+    offscreen.height = H
+    const ctx = offscreen.getContext('2d')!
+
+    // Background
+    if (overlays.storyBg) {
+      ctx.drawImage(overlays.storyBg, 0, 0, W, H)
+    } else {
+      ctx.fillStyle = '#F5B400'
+      ctx.fillRect(0, 0, W, H)
+    }
+
+    // Logo centered at top
+    if (overlays.logo) {
+      const logo = overlays.logo
+      const lH = 52
+      const lW = lH * (logo.naturalWidth / logo.naturalHeight)
+      ctx.drawImage(logo, (W - lW) / 2, 70, lW, lH)
+    }
+
+    // Post canvas centered with padding, rounded corners + shadow
+    const pad = 60
+    const pW = W - pad * 2
+    const pH = pW * (postCanvas.height / postCanvas.width)
+    const pX = pad
+    const pY = (H - pH) / 2
+
+    const radius = 28
+
+    // Shadow
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'
+    ctx.shadowBlur = 40
+    ctx.shadowOffsetY = 8
+    ctx.fillStyle = '#000'
+    ctx.beginPath()
+    ctx.roundRect(pX, pY, pW, pH, radius)
+    ctx.fill()
+    ctx.restore()
+
+    // Clip to rounded rect then draw post
+    ctx.save()
+    ctx.beginPath()
+    ctx.roundRect(pX, pY, pW, pH, radius)
+    ctx.clip()
+    ctx.drawImage(postCanvas, pX, pY, pW, pH)
+    ctx.restore()
+
+    offscreen.toBlob((blob) => {
+      if (!blob) return
+      triggerDownload(blob, `majadu-story-${dateValue}.jpg`)
+    }, 'image/jpeg', 0.92)
+  }, [userPhoto, overlays, dateValue, triggerDownload])
 
   return (
-    <div className="flex flex-col gap-6 pt-4 pb-10">
-      {/* Page header */}
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col min-h-screen pb-6">
+      {/* Compact header */}
+      <div className="flex items-center gap-3 px-1 pt-4 pb-3">
         <button
           onClick={() => navigate('/')}
-          className="text-slate-500 hover:text-slate-300 transition-colors text-lg leading-none"
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-800 text-slate-300 active:bg-slate-700 transition-colors"
         >
           ←
         </button>
         <div>
           <p className="text-[10px] font-mono text-slate-500 tracking-[0.2em] uppercase">Create</p>
-          <h2 className="text-xl font-bold text-yellow-400 tracking-tight leading-none">Instagram Post</h2>
+          <h2 className="text-lg font-bold text-yellow-400 tracking-tight leading-none">Instagram Post</h2>
         </div>
       </div>
 
-      {/* Canvas preview */}
-      <div className="w-full">
+      {/* Canvas — full width, no side padding */}
+      <div className="relative -mx-4">
         <canvas
           ref={canvasRef}
           width={TEMPLATE.width}
           height={TEMPLATE.height}
-          className={`w-full rounded-xl border border-slate-800 ${userPhoto ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'}`}
+          className={`w-full ${userPhoto ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'}`}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
@@ -408,48 +479,117 @@ export default function InstagramPostPage() {
           onTouchStart={onTouchStart}
           onTouchEnd={onTouchEnd}
         />
+
+        {/* Upload prompt overlay when no photo */}
+        {!userPhoto && (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/60 active:bg-slate-900/70 transition-colors"
+          >
+            <div className="w-16 h-16 rounded-full bg-slate-800 border-2 border-dashed border-slate-600 flex items-center justify-center text-2xl">
+              📷
+            </div>
+            <span className="text-sm font-semibold text-slate-300">Tap to upload photo</span>
+          </button>
+        )}
+
+
+        {/* Swap + Download buttons — top right corner when photo uploaded */}
+        {userPhoto && (
+          <div className="absolute top-3 right-3 flex gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 2v6h-6"/>
+                <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                <path d="M3 22v-6h6"/>
+                <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => setShowDownloadSheet(true)}
+              className="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Date picker */}
-      <div className="flex flex-col gap-1.5">
-        <p className="text-[10px] font-mono text-slate-500 tracking-[0.2em] uppercase">Session Date</p>
-        <input
-          type="date"
-          value={dateValue}
-          onChange={e => setDateValue(e.target.value)}
-          className="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white w-full"
-        />
+      {/* Controls */}
+      <div className="flex flex-col gap-3 mt-4 px-1">
+
+        {/* Date */}
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[10px] font-mono text-slate-500 tracking-widest uppercase">Session Date</p>
+          <input
+            type="date"
+            value={dateValue}
+            onChange={e => setDateValue(e.target.value)}
+            className="bg-slate-800/60 border border-slate-700 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white w-full outline-none"
+          />
+        </div>
+
+
       </div>
 
-      {/* Upload */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-300 transition-colors"
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {/* Download format bottom sheet */}
+      {showDownloadSheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end"
+          onClick={() => setShowDownloadSheet(false)}
         >
-          <span>📷</span>
-          <span>{userPhoto ? 'Change photo' : 'Upload photo'}</span>
-        </button>
-        {userPhoto && <span className="text-xs text-slate-500 font-mono">drag canvas to reposition</span>}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-      </div>
+          <div className="absolute inset-0 bg-black/60" />
+          <div
+            className="relative w-full bg-slate-900 rounded-t-3xl px-5 pt-5 pb-10 shadow-[0_-8px_40px_rgba(0,0,0,0.6)]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-6" />
+            <p className="text-xs font-mono text-slate-500 tracking-widest uppercase mb-4">Download as</p>
 
-      {/* Download */}
-      <button
-        onClick={handleDownload}
-        disabled={!userPhoto}
-        className="w-full bg-yellow-400 text-black font-bold text-sm py-3.5 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed hover:bg-yellow-300 transition-colors"
-      >
-        ⬇ Download (1080 × 1350)
-      </button>
-      {!userPhoto && (
-        <p className="text-center text-xs text-slate-600 -mt-4">Upload a photo to enable download</p>
+            <div className="flex gap-3">
+              {/* Post */}
+              <button
+                onClick={handleDownloadPost}
+                className="flex-1 bg-slate-800 active:bg-slate-700 rounded-2xl p-4 flex flex-col items-center gap-3 border border-slate-700"
+              >
+                <div className="w-12 h-[60px] rounded-lg bg-slate-700 border border-slate-600" />
+                <div className="text-center">
+                  <p className="text-sm font-bold text-white">Post</p>
+                  <p className="text-[11px] text-slate-500">1080 × 1350</p>
+                </div>
+              </button>
+
+              {/* Story */}
+              <button
+                onClick={handleDownloadStory}
+                className="flex-1 bg-yellow-400 active:bg-yellow-300 rounded-2xl p-4 flex flex-col items-center gap-3"
+              >
+                <div className="w-12 h-[60px] rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
+                  <div className="w-7 h-7 rounded bg-yellow-500/40" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-black">Story</p>
+                  <p className="text-[11px] text-yellow-800">1080 × 1920</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
