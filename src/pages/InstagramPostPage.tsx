@@ -285,18 +285,18 @@ function drawStandingsCanvas(
     ctx.fill()
     ctx.restore()
   } else if (isStory) {
-    const cardPadX = 50
-    const cardPadY = 40
+    const cardPadX = 90
+    const cardPadY = 30
     ctx.save()
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'
+    ctx.fillStyle = 'rgba(6, 10, 20, 0.88)'
     ctx.beginPath()
-    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY * 2, 24)
+    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY * 2, 32)
     ctx.fill()
     ctx.restore()
   }
 
-  const innerTop = isStory ? CONTENT_TOP + 100 : CONTENT_TOP + 80
-  const innerPadX = isStory ? 100 : 150
+  const innerTop = CONTENT_TOP + 80
+  const innerPadX = 150
 
   ctx.save()
   ctx.font = '26px monospace'
