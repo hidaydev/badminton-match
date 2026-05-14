@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
@@ -147,4 +148,16 @@ export function useSetAbsent(sessionId: string) {
       queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
     },
   })
+}
+
+export function useFetchSession() {
+  const queryClient = useQueryClient()
+  return useCallback(
+    (id: string) =>
+      queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', id],
+        queryFn: () => getSession(id),
+      }),
+    [queryClient],
+  )
 }
