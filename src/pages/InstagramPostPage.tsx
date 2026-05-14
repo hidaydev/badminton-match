@@ -314,27 +314,57 @@ function drawStandingsCanvas(
   ctx.fillText(`TOP ${top10.length} OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 55)
   ctx.restore()
 
-  const CARD_BOTTOM = CONTENT_BOT - 55  // card ends 55px above CONTENT_BOT
-  const rowsTop = innerTop + 110
-  const rowsAvailable = CARD_BOTTOM - rowsTop - 30
+  const CARD_BOTTOM = CONTENT_BOT - 55
+  const HEADER_ROW_H = 46
+  const tableTop = innerTop + 110
+  const rowsAvailable = CARD_BOTTOM - tableTop - HEADER_ROW_H - 30
   const rowH = Math.floor(rowsAvailable / Math.max(top10.length, 1))
 
-  const RANK_CX = innerPadX + 30
-  const NAME_X = innerPadX + 90
-  const W_RIGHT_X = W - innerPadX - 290
-  const SEP_CX = W - innerPadX - 265
-  const L_LEFT_X = W - innerPadX - 250
-  const DIFF_RIGHT_X = W - innerPadX
+  // Column x positions
+  const RANK_CX   = innerPadX + 30
+  const NAME_X    = innerPadX + 90
+  const PTS_X     = W - innerPadX           // right-align Pts
+  const DIFF_X    = W - innerPadX - 140     // right-align Diff
+  const WL_X      = W - innerPadX - 280     // right-align W-L
 
   const MEDALS = ['🥇', '🥈', '🥉']
-  const ROW_FONT_SIZE = Math.min(38, rowH * 0.48)
-  const STATS_FONT_SIZE = Math.min(34, rowH * 0.43)
+  const ROW_FONT_SIZE   = Math.min(38, rowH * 0.48)
+  const STATS_FONT_SIZE = Math.min(32, rowH * 0.41)
+  const HDR_FONT_SIZE   = 24
+
+  // Table header row
+  const headerY = tableTop + HEADER_ROW_H * 0.72
+  ctx.save()
+  ctx.fillStyle = 'rgba(255,255,255,0.05)'
+  ctx.fillRect(innerPadX - 10, tableTop, W - (innerPadX - 10) * 2, HEADER_ROW_H)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = `bold ${HDR_FONT_SIZE}px monospace`
+  ctx.fillStyle = '#475569'
+  ctx.textAlign = 'center'; ctx.fillText('#',    RANK_CX, headerY)
+  ctx.textAlign = 'left';   ctx.fillText('Name', NAME_X,  headerY)
+  ctx.textAlign = 'right';  ctx.fillText('W-L',  WL_X,    headerY)
+  ctx.textAlign = 'right';  ctx.fillText('Diff', DIFF_X,  headerY)
+  ctx.textAlign = 'right';  ctx.fillText('Pts',  PTS_X,   headerY)
+  ctx.restore()
+
+  const rowsTop = tableTop + HEADER_ROW_H
 
   for (let i = 0; i < top10.length; i++) {
     const s = top10[i]
     const rowY = rowsTop + i * rowH
     const baseline = rowY + rowH * 0.62
 
+    // Winner highlight
+    if (i === 0) {
+      ctx.save()
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.10)'
+      ctx.fillRect(innerPadX - 10, rowY, W - (innerPadX - 10) * 2, rowH)
+      ctx.restore()
+    }
+
+    // Row separator
     if (i > 0) {
       ctx.save()
       ctx.strokeStyle = 'rgba(255,255,255,0.06)'
@@ -346,6 +376,7 @@ function drawStandingsCanvas(
       ctx.restore()
     }
 
+    // Rank / medal
     ctx.save()
     if (i < 3) {
       ctx.font = `${ROW_FONT_SIZE}px Arial`
@@ -359,46 +390,41 @@ function drawStandingsCanvas(
     }
     ctx.restore()
 
+    // Name
     ctx.save()
     ctx.font = `bold ${ROW_FONT_SIZE}px Arial, sans-serif`
-    ctx.fillStyle = '#ffffff'
+    ctx.fillStyle = i === 0 ? '#facc15' : '#ffffff'
     ctx.textAlign = 'left'
-    const maxNameW = W_RIGHT_X - NAME_X - 40
+    const maxNameW = WL_X - NAME_X - 40
     let name = s.player.name
-    while (ctx.measureText(name).width > maxNameW && name.length > 1) {
-      name = name.slice(0, -1)
-    }
+    while (ctx.measureText(name).width > maxNameW && name.length > 1) name = name.slice(0, -1)
     if (name !== s.player.name) name += '…'
     ctx.fillText(name, NAME_X, baseline)
     ctx.restore()
 
+    // W-L
     ctx.save()
     ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
     ctx.fillStyle = '#facc15'
     ctx.textAlign = 'right'
-    ctx.fillText(`${s.wins}W`, W_RIGHT_X, baseline)
+    ctx.fillText(`${s.wins}-${s.losses}`, WL_X, baseline)
     ctx.restore()
 
-    ctx.save()
-    ctx.font = `${STATS_FONT_SIZE}px monospace`
-    ctx.fillStyle = '#334155'
-    ctx.textAlign = 'center'
-    ctx.fillText('·', SEP_CX, baseline)
-    ctx.restore()
-
-    ctx.save()
-    ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
-    ctx.fillStyle = '#475569'
-    ctx.textAlign = 'left'
-    ctx.fillText(`${s.losses}L`, L_LEFT_X, baseline)
-    ctx.restore()
-
+    // Diff
     const diff = s.diff
     ctx.save()
     ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
     ctx.fillStyle = diff > 0 ? '#4ade80' : diff < 0 ? '#f87171' : '#475569'
     ctx.textAlign = 'right'
-    ctx.fillText(diff > 0 ? `+${diff}` : String(diff), DIFF_RIGHT_X, baseline)
+    ctx.fillText(diff > 0 ? `+${diff}` : String(diff), DIFF_X, baseline)
+    ctx.restore()
+
+    // Pts
+    ctx.save()
+    ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'right'
+    ctx.fillText(String(s.pointsFor), PTS_X, baseline)
     ctx.restore()
   }
 }
