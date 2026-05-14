@@ -328,14 +328,16 @@ function drawStandingsCanvas(
   const WL_X      = W - innerPadX - 280     // right-align W-L
 
   const MEDALS = ['🥇', '🥈', '🥉']
-  const ROW_FONT_SIZE   = Math.min(38, rowH * 0.48)
-  const STATS_FONT_SIZE = Math.min(32, rowH * 0.41)
-  const HDR_FONT_SIZE   = 24
+  const ROW_GAP        = 8
+  const ROW_RADIUS     = 18
+  const ROW_FONT_SIZE  = Math.min(36, rowH * 0.46)
+  const STATS_FONT_SIZE = Math.min(30, rowH * 0.39)
+  const HDR_FONT_SIZE  = 24
 
   // Table header row
   const headerY = tableTop + HEADER_ROW_H * 0.72
   ctx.save()
-  ctx.fillStyle = 'rgba(255,255,255,0.05)'
+  ctx.fillStyle = 'rgba(255,255,255,0.04)'
   ctx.fillRect(innerPadX - 10, tableTop, W - (innerPadX - 10) * 2, HEADER_ROW_H)
   ctx.restore()
 
@@ -354,32 +356,32 @@ function drawStandingsCanvas(
   for (let i = 0; i < top10.length; i++) {
     const s = top10[i]
     const rowY = rowsTop + i * rowH
-    const baseline = rowY + rowH * 0.62
+    const cardH = rowH - ROW_GAP
+    const baseline = rowY + cardH * 0.64
 
-    // Top 3 highlight
-    const highlightColor = i === 0
-      ? 'rgba(250, 204, 21, 0.13)'   // gold
+    // Individual card background
+    const cardBg = i === 0
+      ? 'rgba(250, 204, 21, 0.14)'
       : i === 1
-        ? 'rgba(203, 213, 225, 0.09)' // silver
+        ? 'rgba(203, 213, 225, 0.09)'
         : i === 2
-          ? 'rgba(251, 146, 60, 0.09)' // bronze
-          : null
-    if (highlightColor) {
-      ctx.save()
-      ctx.fillStyle = highlightColor
-      ctx.fillRect(innerPadX - 10, rowY, W - (innerPadX - 10) * 2, rowH)
-      ctx.restore()
-    }
+          ? 'rgba(251, 146, 60, 0.11)'
+          : 'rgba(255, 255, 255, 0.04)'
+    ctx.save()
+    ctx.fillStyle = cardBg
+    ctx.beginPath()
+    ctx.roundRect(innerPadX - 10, rowY, W - (innerPadX - 10) * 2, cardH, ROW_RADIUS)
+    ctx.fill()
+    ctx.restore()
 
-    // Row separator
-    if (i > 0) {
+    // Left accent strip for top 3
+    if (i < 3) {
+      const accentColor = i === 0 ? '#facc15' : i === 1 ? '#cbd5e1' : '#fb923c'
       ctx.save()
-      ctx.strokeStyle = 'rgba(255,255,255,0.06)'
-      ctx.lineWidth = 1
+      ctx.fillStyle = accentColor
       ctx.beginPath()
-      ctx.moveTo(innerPadX, rowY)
-      ctx.lineTo(W - innerPadX, rowY)
-      ctx.stroke()
+      ctx.roundRect(innerPadX - 10, rowY, 7, cardH, [ROW_RADIUS, 0, 0, ROW_RADIUS])
+      ctx.fill()
       ctx.restore()
     }
 
@@ -390,17 +392,21 @@ function drawStandingsCanvas(
       ctx.textAlign = 'center'
       ctx.fillText(MEDALS[i], RANK_CX, baseline)
     } else {
-      ctx.font = `bold ${ROW_FONT_SIZE * 0.75}px monospace`
-      ctx.fillStyle = '#475569'
+      const ordinalSuffix = (n: number) => {
+        const v = n % 100
+        return n + (['th','st','nd','rd'][(v - 20) % 10] ?? ['th','st','nd','rd'][v] ?? 'th')
+      }
+      ctx.font = `bold ${ROW_FONT_SIZE * 0.62}px Arial, sans-serif`
+      ctx.fillStyle = '#64748b'
       ctx.textAlign = 'center'
-      ctx.fillText(String(i + 1), RANK_CX, baseline)
+      ctx.fillText(ordinalSuffix(i + 1), RANK_CX, baseline)
     }
     ctx.restore()
 
     // Name
     ctx.save()
     ctx.font = `bold ${ROW_FONT_SIZE}px Arial, sans-serif`
-    ctx.fillStyle = i === 0 ? '#facc15' : i === 1 ? '#cbd5e1' : i === 2 ? '#fb923c' : '#ffffff'
+    ctx.fillStyle = i === 0 ? '#facc15' : i === 1 ? '#cbd5e1' : i === 2 ? '#fb923c' : '#e2e8f0'
     ctx.textAlign = 'left'
     const maxNameW = WL_X - NAME_X - 40
     let name = s.player.name
@@ -409,10 +415,10 @@ function drawStandingsCanvas(
     ctx.fillText(name, NAME_X, baseline)
     ctx.restore()
 
-    // W-L
+    // W-L (green)
     ctx.save()
     ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
-    ctx.fillStyle = '#facc15'
+    ctx.fillStyle = '#4ade80'
     ctx.textAlign = 'right'
     ctx.fillText(`${s.wins}-${s.losses}`, WL_X, baseline)
     ctx.restore()
