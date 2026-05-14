@@ -93,7 +93,7 @@ function drawHeader(
 
   // Center logo
   if (logo) {
-    ctx.drawImage(logo, (canvasW - logoW) / 2, (HEADER_H * 0.42 - LOGO_H) / 2, logoW, LOGO_H)
+    ctx.drawImage(logo, (canvasW - logoW) / 2, 10, logoW, LOGO_H)
   }
 }
 
