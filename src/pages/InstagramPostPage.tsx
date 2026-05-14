@@ -5,8 +5,8 @@ import { instagramTemplates, type PostTemplate } from '../config/instagramTempla
 
 const TEMPLATE = instagramTemplates[0]
 
-const HEADER_H = 160
-const SIDE_TEXT = 'MAJADU FUN  •  MAJADU FUN  •  MAJADU FUN'
+const HEADER_H = 90
+const LOGO_H = 28
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -33,50 +33,67 @@ function drawCoverFill(
   ctx.drawImage(img, x, y, w, h)
 }
 
+// Draws "MAJADU FUN • MAJADU FUN • MAJADU FUN" with yellow dots
+function drawSideText(
+  ctx: CanvasRenderingContext2D,
+  startX: number,
+  y: number,
+  fontSize: number,
+) {
+  const segments = [
+    { text: 'MAJADU FUN', color: '#ffffff' },
+    { text: '  •  ', color: '#facc15' },
+    { text: 'MAJADU FUN', color: '#ffffff' },
+    { text: '  •  ', color: '#facc15' },
+    { text: 'MAJADU FUN', color: '#ffffff' },
+  ]
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`
+  ctx.letterSpacing = '1.5px'
+  let x = startX
+  for (const seg of segments) {
+    ctx.fillStyle = seg.color
+    ctx.textAlign = 'left'
+    ctx.fillText(seg.text, x, y)
+    x += ctx.measureText(seg.text).width
+  }
+}
+
 function drawHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   logo: HTMLImageElement | undefined,
 ) {
-  // Gradient band: transparent → dark → transparent (top to bottom)
+  // Gradient: solid dark at top → transparent at bottom
   const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H)
-  grad.addColorStop(0, 'rgba(0,0,0,0)')
-  grad.addColorStop(0.2, 'rgba(10,10,20,0.92)')
-  grad.addColorStop(0.8, 'rgba(10,10,20,0.92)')
+  grad.addColorStop(0, 'rgba(10,10,20,0.92)')
   grad.addColorStop(1, 'rgba(0,0,0,0)')
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, canvasW, HEADER_H)
 
-  // Side text
-  ctx.fillStyle = '#ffffff'
-  ctx.font = 'bold 22px Arial, sans-serif'
-  ctx.letterSpacing = '3px'
-  const textY = HEADER_H / 2 + 8
+  const fontSize = 15
+  const logoW = logo ? LOGO_H * (logo.naturalWidth / logo.naturalHeight) : 160
+  const centerPad = 30
+  const sideZoneW = (canvasW - logoW) / 2 - centerPad
+  const textY = HEADER_H * 0.42
 
-  ctx.textAlign = 'left'
-  ctx.fillText(SIDE_TEXT, 44, textY)
+  // Measure left text total width to right-align it flush to center zone
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`
+  ctx.letterSpacing = '1.5px'
+  const fullText = 'MAJADU FUN  •  MAJADU FUN  •  MAJADU FUN'
+  const totalW = ctx.measureText(fullText).width
+  const clampedW = Math.min(totalW, sideZoneW)
 
-  ctx.textAlign = 'right'
-  ctx.fillText(SIDE_TEXT, canvasW - 44, textY)
+  // Left side: right-aligned to the center zone edge
+  const leftStartX = (canvasW - logoW) / 2 - centerPad - clampedW
+  drawSideText(ctx, leftStartX, textY, fontSize)
+
+  // Right side: left-aligned from the center zone edge
+  const rightStartX = (canvasW + logoW) / 2 + centerPad
+  drawSideText(ctx, rightStartX, textY, fontSize)
 
   // Center logo
   if (logo) {
-    const logoH = 72
-    const logoW = logoH * (logo.naturalWidth / logo.naturalHeight)
-    // Mask out the side text behind the logo for a clean center
-    const maskW = logoW + 80
-    const maskGrad = ctx.createLinearGradient(
-      (canvasW - maskW) / 2, 0,
-      (canvasW + maskW) / 2, 0,
-    )
-    maskGrad.addColorStop(0, 'rgba(10,10,20,0)')
-    maskGrad.addColorStop(0.15, 'rgba(10,10,20,0.95)')
-    maskGrad.addColorStop(0.85, 'rgba(10,10,20,0.95)')
-    maskGrad.addColorStop(1, 'rgba(10,10,20,0)')
-    ctx.fillStyle = maskGrad
-    ctx.fillRect((canvasW - maskW) / 2, 0, maskW, HEADER_H)
-
-    ctx.drawImage(logo, (canvasW - logoW) / 2, (HEADER_H - logoH) / 2, logoW, logoH)
+    ctx.drawImage(logo, (canvasW - logoW) / 2, (HEADER_H * 0.42 - LOGO_H) / 2, logoW, LOGO_H)
   }
 }
 
