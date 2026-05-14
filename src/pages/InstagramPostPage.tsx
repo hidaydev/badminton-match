@@ -314,8 +314,9 @@ function drawStandingsCanvas(
   ctx.fillText(`TOP ${top10.length} OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 55)
   ctx.restore()
 
+  const CARD_BOTTOM = CONTENT_BOT - 55  // card ends 55px above CONTENT_BOT
   const rowsTop = innerTop + 110
-  const rowsAvailable = (isStory ? CONTENT_BOT - 80 : CONTENT_BOT) - rowsTop - 20
+  const rowsAvailable = CARD_BOTTOM - rowsTop - 30
   const rowH = Math.floor(rowsAvailable / Math.max(top10.length, 1))
 
   const RANK_CX = innerPadX + 30
