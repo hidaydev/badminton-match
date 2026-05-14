@@ -5,6 +5,9 @@ import { instagramTemplates, type PostTemplate } from '../config/instagramTempla
 
 const TEMPLATE = instagramTemplates[0]
 
+const HEADER_H = 160
+const SIDE_TEXT = 'MAJADU FUN  •  MAJADU FUN  •  MAJADU FUN'
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -30,12 +33,59 @@ function drawCoverFill(
   ctx.drawImage(img, x, y, w, h)
 }
 
+function drawHeader(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  logo: HTMLImageElement | undefined,
+) {
+  // Gradient band: transparent → dark → transparent (top to bottom)
+  const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H)
+  grad.addColorStop(0, 'rgba(0,0,0,0)')
+  grad.addColorStop(0.2, 'rgba(10,10,20,0.92)')
+  grad.addColorStop(0.8, 'rgba(10,10,20,0.92)')
+  grad.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, canvasW, HEADER_H)
+
+  // Side text
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'bold 22px Arial, sans-serif'
+  ctx.letterSpacing = '3px'
+  const textY = HEADER_H / 2 + 8
+
+  ctx.textAlign = 'left'
+  ctx.fillText(SIDE_TEXT, 44, textY)
+
+  ctx.textAlign = 'right'
+  ctx.fillText(SIDE_TEXT, canvasW - 44, textY)
+
+  // Center logo
+  if (logo) {
+    const logoH = 72
+    const logoW = logoH * (logo.naturalWidth / logo.naturalHeight)
+    // Mask out the side text behind the logo for a clean center
+    const maskW = logoW + 80
+    const maskGrad = ctx.createLinearGradient(
+      (canvasW - maskW) / 2, 0,
+      (canvasW + maskW) / 2, 0,
+    )
+    maskGrad.addColorStop(0, 'rgba(10,10,20,0)')
+    maskGrad.addColorStop(0.15, 'rgba(10,10,20,0.95)')
+    maskGrad.addColorStop(0.85, 'rgba(10,10,20,0.95)')
+    maskGrad.addColorStop(1, 'rgba(10,10,20,0)')
+    ctx.fillStyle = maskGrad
+    ctx.fillRect((canvasW - maskW) / 2, 0, maskW, HEADER_H)
+
+    ctx.drawImage(logo, (canvasW - logoW) / 2, (HEADER_H - logoH) / 2, logoW, logoH)
+  }
+}
+
 function drawCanvas(
   canvas: HTMLCanvasElement,
   _template: PostTemplate,
   userPhoto: HTMLImageElement | null,
   photoOffset: { x: number; y: number },
-  overlayImages: { header?: HTMLImageElement; footer?: HTMLImageElement },
+  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement },
 ) {
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -48,18 +98,12 @@ function drawCanvas(
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
 
-  // Layer 2: header (with horizontal padding)
-  if (overlayImages.header) {
-    const img = overlayImages.header
-    const pad = 40
-    const drawW = canvas.width - pad * 2
-    const drawH = drawW * (img.naturalHeight / img.naturalWidth)
-    ctx.drawImage(img, pad, pad, drawW, drawH)
-  }
+  // Layer 2: header band (drawn programmatically)
+  drawHeader(ctx, canvas.width, overlays.logo)
 
   // Layer 3: footer
-  if (overlayImages.footer) {
-    const img = overlayImages.footer
+  if (overlays.footer) {
+    const img = overlays.footer
     const h = canvas.width * (img.naturalHeight / img.naturalWidth)
     ctx.drawImage(img, 0, canvas.height - h, canvas.width, h)
   }
@@ -72,15 +116,15 @@ export default function InstagramPostPage() {
 
   const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
   const [photoOffset, setPhotoOffset] = useState({ x: 0, y: 0 })
-  const [overlays, setOverlays] = useState<{ header?: HTMLImageElement; footer?: HTMLImageElement }>({})
+  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; footer?: HTMLImageElement }>({})
   const [isDragging, setIsDragging] = useState(false)
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
 
   // Load template overlay images once
   useEffect(() => {
     const loadOverlays = async () => {
-      const result: { header?: HTMLImageElement; footer?: HTMLImageElement } = {}
-      if (TEMPLATE.header) result.header = await loadImage(TEMPLATE.header)
+      const result: { logo?: HTMLImageElement; footer?: HTMLImageElement } = {}
+      if (TEMPLATE.logo) result.logo = await loadImage(TEMPLATE.logo)
       if (TEMPLATE.footer) result.footer = await loadImage(TEMPLATE.footer)
       setOverlays(result)
     }

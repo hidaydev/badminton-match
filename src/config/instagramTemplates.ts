@@ -5,7 +5,7 @@ export interface PostTemplate {
   label: string
   width: number
   height: number
-  header?: string  // absolute URL path to PNG asset
+  logo?: string    // center logo drawn in the header band
   footer?: string  // absolute URL path to PNG asset
 }
 
@@ -15,7 +15,7 @@ export const instagramTemplates: PostTemplate[] = [
     label: 'Portrait 4:5',
     width: 1080,
     height: 1350,
-    header: '/instagram-header.png',
+    logo: '/instagram-logo.png',
     footer: '/instagram-footer.png',
   },
 ]
