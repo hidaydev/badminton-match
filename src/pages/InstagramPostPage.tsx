@@ -269,70 +269,66 @@ function drawStandingsCanvas(
     ctx.drawImage(img, W - w - 30, H * 0.3, w, h)
   }
 
-  const HEADER_H_PX = 90
-  const CONTENT_TOP = HEADER_H_PX + 30
-  const CONTENT_BOT = H - FOOTER_H - 30
-  const CONTENT_H = CONTENT_BOT - CONTENT_TOP
+  const HEADER_H_PX  = 90
+  const CONTENT_TOP  = HEADER_H_PX + 30
+  const cardPadX     = 90
+  const innerPadX    = 150
 
-  // Dark scrim for post (photo bg needs overlay for readability), dark card for story
-  if (!isStory && userPhoto) {
-    const cardPadX = 90
-    const cardPadY = 30
+  // Fixed row size — works for 4–10 players
+  const ROW_H        = 68
+  const ROW_GAP      = 6
+  const ROW_RADIUS   = 16
+  const ROW_FONT     = 28
+  const STATS_FONT   = 24
+  const HDR_FONT     = 18
+  const HEADER_ROW_H = 36
+  const META_H       = 90   // date + title text block
+  const BOT_PAD      = 28
+
+  const top10 = standings.slice(0, 10)
+
+  // Card sized to content, vertically centered for story
+  const CARD_TOP_PAD = 38
+  const outerCardH   = CARD_TOP_PAD + META_H + HEADER_ROW_H + top10.length * ROW_H + BOT_PAD
+  const cardTop      = isStory ? Math.round((H - outerCardH) / 2) : CONTENT_TOP + 20
+  if (isStory || (!isStory && userPhoto)) {
     ctx.save()
-    ctx.fillStyle = 'rgba(6, 10, 20, 0.88)'
+    ctx.fillStyle = 'rgba(4, 7, 14, 0.94)'
     ctx.beginPath()
-    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY - 55, 32)
-    ctx.fill()
-    ctx.restore()
-  } else if (isStory) {
-    const cardPadX = 90
-    const cardPadY = 30
-    ctx.save()
-    ctx.fillStyle = 'rgba(6, 10, 20, 0.88)'
-    ctx.beginPath()
-    ctx.roundRect(cardPadX, CONTENT_TOP + cardPadY, W - cardPadX * 2, CONTENT_H - cardPadY - 55, 32)
+    ctx.roundRect(cardPadX, cardTop, W - cardPadX * 2, outerCardH, 32)
     ctx.fill()
     ctx.restore()
   }
 
-  const innerTop = CONTENT_TOP + 80
-  const innerPadX = 150
-
-  const top10 = standings.slice(0, 10)
+  const innerTop   = cardTop + CARD_TOP_PAD
+  const tableTop   = innerTop + META_H
 
   ctx.save()
-  ctx.font = '26px monospace'
+  ctx.font = '20px monospace'
   ctx.fillStyle = '#94a3b8'
   ctx.textAlign = 'left'
   ctx.fillText(`${meta.date} · ${meta.title}`, innerPadX, innerTop)
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 36px Arial, sans-serif'
+  ctx.font = 'bold 28px Arial, sans-serif'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'left'
-  ctx.fillText(`TOP ${top10.length} OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 55)
+  ctx.fillText(`TOP ${top10.length} OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 44)
   ctx.restore()
 
-  const CARD_BOTTOM = CONTENT_BOT - 55
-  const HEADER_ROW_H = 46
-  const tableTop = innerTop + 110
-  const rowsAvailable = CARD_BOTTOM - tableTop - HEADER_ROW_H - 30
-  const rowH = Math.floor(rowsAvailable / Math.max(top10.length, 1))
-
   // Column x positions
-  const RANK_CX   = innerPadX + 30
-  const NAME_X    = innerPadX + 90
-  const PTS_X     = W - innerPadX           // right-align Pts
-  const DIFF_X    = W - innerPadX - 140     // right-align Diff
-  const WL_X      = W - innerPadX - 280     // right-align W-L
+  const RANK_CX = innerPadX + 28
+  const NAME_X  = innerPadX + 80
+  const PTS_X   = W - innerPadX
+  const DIFF_X  = W - innerPadX - 120
+  const WL_X    = W - innerPadX - 240
 
-  const MEDALS = ['🥇', '🥈', '🥉']
-  const ROW_GAP        = 8
-  const ROW_RADIUS     = 18
-  const ROW_FONT_SIZE  = Math.min(36, rowH * 0.46)
-  const STATS_FONT_SIZE = Math.min(30, rowH * 0.39)
-  const HDR_FONT_SIZE  = 24
+  const MEDALS      = ['🥇', '🥈', '🥉']
+  const ROW_FONT_SIZE   = ROW_FONT
+  const STATS_FONT_SIZE = STATS_FONT
+  const HDR_FONT_SIZE   = HDR_FONT
+  const rowH            = ROW_H
 
   // Table header row
   const headerY = tableTop + HEADER_ROW_H * 0.72
@@ -360,13 +356,9 @@ function drawStandingsCanvas(
     const baseline = rowY + cardH * 0.64
 
     // Individual card background
-    const cardBg = i === 0
+    const cardBg = i < 3
       ? 'rgba(250, 204, 21, 0.14)'
-      : i === 1
-        ? 'rgba(203, 213, 225, 0.09)'
-        : i === 2
-          ? 'rgba(251, 146, 60, 0.11)'
-          : 'rgba(255, 255, 255, 0.04)'
+      : 'rgba(255, 255, 255, 0.04)'
     ctx.save()
     ctx.fillStyle = cardBg
     ctx.beginPath()
