@@ -74,7 +74,8 @@ function drawHeader(
   const logoW = logo ? LOGO_H * (logo.naturalWidth / logo.naturalHeight) : 160
   const centerPad = 30
   const sideZoneW = (canvasW - logoW) / 2 - centerPad
-  const textY = HEADER_H * 0.42
+  const logoTop = 10
+  const textY = logoTop + LOGO_H / 2 + fontSize * 0.38
 
   // Measure left text total width to right-align it flush to center zone
   ctx.font = `bold ${fontSize}px Arial, sans-serif`
