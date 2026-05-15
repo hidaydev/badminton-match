@@ -117,10 +117,10 @@ export default function ScoreboardPage() {
           />
         ) : (
           <span
-            className="text-[clamp(1rem,3vw,1.5rem)] tracking-[0.18em] uppercase font-bold text-white/50 cursor-text border-b border-transparent hover:border-white/20 transition-colors"
+            className={`text-[clamp(1rem,3vw,1.5rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${redName ? 'text-white/50' : 'text-white/25 italic'}`}
             onClick={e => { e.stopPropagation(); setEditingRed(true) }}
           >
-            {redName || 'Red'}
+            {redName || 'Player name'}
           </span>
         )}
         <span
@@ -168,10 +168,10 @@ export default function ScoreboardPage() {
           />
         ) : (
           <span
-            className="text-[clamp(1rem,3vw,1.5rem)] tracking-[0.18em] uppercase font-bold text-white/50 cursor-text border-b border-transparent hover:border-white/20 transition-colors"
+            className={`text-[clamp(1rem,3vw,1.5rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${blueName ? 'text-white/50' : 'text-white/25 italic'}`}
             onClick={e => { e.stopPropagation(); setEditingBlue(true) }}
           >
-            {blueName || 'Blue'}
+            {blueName || 'Player name'}
           </span>
         )}
         <span
