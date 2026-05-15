@@ -10,11 +10,27 @@ function readLS(key: string) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+async function enterFullscreenLandscape() {
+  try {
+    await document.documentElement.requestFullscreen()
+  } catch {}
+  try {
+    await screen.orientation.lock('landscape')
+  } catch {}
+}
+
+async function exitFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen()
+  } catch {}
+}
+
 export default function ScoreboardPage() {
   const [red, setRed] = useState(() => readLS(LS_RED))
   const [blue, setBlue] = useState(() => readLS(LS_BLUE))
   const [popRed, setPopRed] = useState(false)
   const [popBlue, setPopBlue] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -22,7 +38,10 @@ export default function ScoreboardPage() {
   useEffect(() => { localStorage.setItem(LS_BLUE, String(blue)) }, [blue])
 
   useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onChange)
     return () => {
+      document.removeEventListener('fullscreenchange', onChange)
       if (redTimer.current) clearTimeout(redTimer.current)
       if (blueTimer.current) clearTimeout(blueTimer.current)
     }
@@ -56,6 +75,11 @@ export default function ScoreboardPage() {
   }, [])
 
   const reset = useCallback(() => { setRed(0); setBlue(0) }, [])
+
+  const toggleFullscreen = useCallback(() => {
+    if (isFullscreen) exitFullscreen()
+    else enterFullscreenLandscape()
+  }, [isFullscreen])
 
   const doSwap = useCallback(() => {
     const r = red
@@ -150,6 +174,13 @@ export default function ScoreboardPage() {
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
         >
           ⇄ Swap
+        </button>
+        <button
+          onClick={toggleFullscreen}
+          className="px-5 py-1.5 rounded-lg text-white/55 text-[0.72rem] tracking-wide cursor-pointer active:bg-white/10 transition-colors"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+        >
+          {isFullscreen ? '⊠ Exit' : '⛶ Fullscreen'}
         </button>
       </div>
 
