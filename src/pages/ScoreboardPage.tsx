@@ -28,8 +28,8 @@ async function exitFullscreen() {
 export default function ScoreboardPage() {
   const [red, setRed] = useState(() => readLS(LS_RED))
   const [blue, setBlue] = useState(() => readLS(LS_BLUE))
-  const [redName, setRedName] = useState(() => localStorage.getItem('name-red') ?? 'Red')
-  const [blueName, setBlueName] = useState(() => localStorage.getItem('name-blue') ?? 'Blue')
+  const [redName, setRedName] = useState(() => localStorage.getItem('name-red') ?? '')
+  const [blueName, setBlueName] = useState(() => localStorage.getItem('name-blue') ?? '')
   const [editingRed, setEditingRed] = useState(false)
   const [editingBlue, setEditingBlue] = useState(false)
   const [popRed, setPopRed] = useState(false)
