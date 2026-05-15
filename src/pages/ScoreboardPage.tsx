@@ -111,8 +111,8 @@ export default function ScoreboardPage() {
 
       {/* Red side */}
       <div
-        className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-125 transition-[filter] duration-75"
-        style={{ background: '#7f1d1d' }}
+        className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 transition-[filter] duration-75"
+        style={{ background: '#b91c1c' }}
         onClick={addRed}
       >
         {editingRed ? (
@@ -162,8 +162,8 @@ export default function ScoreboardPage() {
 
       {/* Blue side */}
       <div
-        className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-125 transition-[filter] duration-75"
-        style={{ background: '#1e3a8a' }}
+        className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 transition-[filter] duration-75"
+        style={{ background: '#1d4ed8' }}
         onClick={addBlue}
       >
         {editingBlue ? (
