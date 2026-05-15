@@ -8,6 +8,12 @@ const grid = [
   { icon: '📸', label: 'Instagram Post', description: 'Create a post from template', to: '/instagram-post' },
 ] as const
 
+async function openScoreboard(navigate: (path: string) => void) {
+  try { await document.documentElement.requestFullscreen() } catch {}
+  try { await screen.orientation.lock('landscape') } catch {}
+  navigate('/scoreboard')
+}
+
 export default function HomePage() {
   const navigate = useNavigate()
   return (
@@ -42,7 +48,7 @@ export default function HomePage() {
         {grid.map((item) => (
           <button
             key={item.to}
-            onClick={() => navigate(item.to)}
+            onClick={() => item.to === '/scoreboard' ? openScoreboard(navigate) : navigate(item.to)}
             className="group relative flex flex-col gap-4 p-5 rounded-2xl text-left
               border transition-all duration-200
               bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/70 active:scale-[0.98]"
