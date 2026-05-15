@@ -79,8 +79,8 @@ export default function App() {
             <Route path="player-history/:name" element={<PlayerDetailPage />} />
             <Route path="tournament" element={<TournamentPage />} />
             <Route path="instagram-post" element={<InstagramPostPage />} />
-            <Route path="scoreboard" element={<ScoreboardPage />} />
           </Route>
+          <Route path="scoreboard" element={<ScoreboardPage />} />
           <Route element={<SessionLayout />}>
             <Route path="session/new" element={<SetupPage />} />
             <Route path="session/players" element={<RequireSession><PlayersPage /></RequireSession>} />
