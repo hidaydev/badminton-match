@@ -106,17 +106,18 @@ export default function ScoreboardPage() {
         {editingRed ? (
           <input
             autoFocus
+            placeholder="Player name"
             value={redName}
             onChange={e => setRedName(e.target.value)}
             onBlur={() => setEditingRed(false)}
             onKeyDown={e => { if (e.key === 'Enter') setEditingRed(false) }}
             onClick={e => e.stopPropagation()}
-            className="bg-transparent text-center text-white/70 font-semibold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-32"
-            style={{ fontSize: 'clamp(0.6rem,1.8vw,0.85rem)' }}
+            className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-48"
+            style={{ fontSize: 'clamp(1rem,3vw,1.5rem)' }}
           />
         ) : (
           <span
-            className="text-[clamp(0.6rem,1.8vw,0.85rem)] tracking-[0.18em] uppercase font-semibold text-white/50 cursor-text border-b border-transparent hover:border-white/20 transition-colors"
+            className="text-[clamp(1rem,3vw,1.5rem)] tracking-[0.18em] uppercase font-bold text-white/50 cursor-text border-b border-transparent hover:border-white/20 transition-colors"
             onClick={e => { e.stopPropagation(); setEditingRed(true) }}
           >
             {redName || 'Red'}
@@ -156,17 +157,18 @@ export default function ScoreboardPage() {
         {editingBlue ? (
           <input
             autoFocus
+            placeholder="Player name"
             value={blueName}
             onChange={e => setBlueName(e.target.value)}
             onBlur={() => setEditingBlue(false)}
             onKeyDown={e => { if (e.key === 'Enter') setEditingBlue(false) }}
             onClick={e => e.stopPropagation()}
-            className="bg-transparent text-center text-white/70 font-semibold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-32"
-            style={{ fontSize: 'clamp(0.6rem,1.8vw,0.85rem)' }}
+            className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-48"
+            style={{ fontSize: 'clamp(1rem,3vw,1.5rem)' }}
           />
         ) : (
           <span
-            className="text-[clamp(0.6rem,1.8vw,0.85rem)] tracking-[0.18em] uppercase font-semibold text-white/50 cursor-text border-b border-transparent hover:border-white/20 transition-colors"
+            className="text-[clamp(1rem,3vw,1.5rem)] tracking-[0.18em] uppercase font-bold text-white/50 cursor-text border-b border-transparent hover:border-white/20 transition-colors"
             onClick={e => { e.stopPropagation(); setEditingBlue(true) }}
           >
             {blueName || 'Blue'}
