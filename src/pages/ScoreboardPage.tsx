@@ -88,11 +88,11 @@ export default function ScoreboardPage() {
   }, [isFullscreen])
 
   const doSwap = useCallback(() => {
-    const r = red
-    const b = blue
-    setRed(b)
-    setBlue(r)
-  }, [red, blue])
+    setRed(blue)
+    setBlue(red)
+    setRedName(blueName)
+    setBlueName(redName)
+  }, [red, blue, redName, blueName])
 
   return (
     <div className="flex w-screen h-screen overflow-hidden select-none">
