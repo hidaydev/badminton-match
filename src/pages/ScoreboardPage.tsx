@@ -40,6 +40,7 @@ export default function ScoreboardPage() {
   const [popBlue, setPopBlue] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [fsError, setFsError] = useState<string | null>(null)
+
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fsErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
