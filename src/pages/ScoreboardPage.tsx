@@ -5,7 +5,9 @@ const LS_BLUE = 'score-blue'
 
 function readLS(key: string) {
   const v = localStorage.getItem(key)
-  return v !== null ? parseInt(v, 10) : 0
+  if (v === null) return 0
+  const parsed = parseInt(v, 10)
+  return Number.isFinite(parsed) ? parsed : 0
 }
 
 export default function ScoreboardPage() {
@@ -18,6 +20,13 @@ export default function ScoreboardPage() {
 
   useEffect(() => { localStorage.setItem(LS_RED, String(red)) }, [red])
   useEffect(() => { localStorage.setItem(LS_BLUE, String(blue)) }, [blue])
+
+  useEffect(() => {
+    return () => {
+      if (redTimer.current) clearTimeout(redTimer.current)
+      if (blueTimer.current) clearTimeout(blueTimer.current)
+    }
+  }, [])
 
   function triggerPop(side: 'red' | 'blue') {
     if (side === 'red') {
