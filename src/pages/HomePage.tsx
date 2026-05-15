@@ -4,6 +4,7 @@ const grid = [
   { icon: '🏸', label: 'Create Session', description: 'Set up a new game', to: '/session/new' },
   { icon: '📋', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
   { icon: '👤', label: 'Player History', description: 'Stats & records', to: '/player-history' },
+  { icon: '🎯', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
   { icon: '📸', label: 'Instagram Post', description: 'Create a post from template', to: '/instagram-post' },
 ] as const
 
