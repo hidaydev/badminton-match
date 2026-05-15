@@ -91,7 +91,7 @@ export default function StandingsTab({ pairs, groups, matches }: Props) {
       {/* Full ranking */}
       <div className="bg-slate-800 rounded-xl overflow-hidden">
         <div className="px-4 py-2 border-b border-slate-700 text-xs text-slate-500 font-semibold">
-          Full Rankings
+          Full Leaderboard
         </div>
         {ranked.map((pair, i) => {
           const rank = stageRank(pair.id, matches)

@@ -711,7 +711,7 @@ export default function InstagramPostPage() {
   }, [userPhoto, overlays, dateValue, triggerDownload, closeSheet])
 
   return (
-    <div className="flex flex-col min-h-screen pb-6">
+    <div className="flex flex-col">
       {/* Compact header */}
       <div className="flex items-center gap-3 px-1 pt-4 pb-3">
         <button
@@ -724,6 +724,12 @@ export default function InstagramPostPage() {
           <p className="text-[10px] font-mono text-slate-500 tracking-[0.2em] uppercase">Create</p>
           <h2 className="text-lg font-bold text-yellow-400 tracking-tight leading-none">Instagram Post</h2>
         </div>
+        <input
+          type="date"
+          value={dateValue}
+          onChange={e => setDateValue(e.target.value)}
+          className="ml-auto bg-slate-800/60 border border-slate-700 rounded-xl px-3 py-2 text-sm font-semibold text-white outline-none"
+        />
       </div>
 
       {/* Canvas — full width, no side padding */}
@@ -783,22 +789,6 @@ export default function InstagramPostPage() {
         )}
       </div>
 
-      {/* Controls */}
-      <div className="flex flex-col gap-3 mt-4 px-1">
-
-        {/* Date */}
-        <div className="flex flex-col gap-1.5">
-          <p className="text-[10px] font-mono text-slate-500 tracking-widest uppercase">Session Date</p>
-          <input
-            type="date"
-            value={dateValue}
-            onChange={e => setDateValue(e.target.value)}
-            className="bg-slate-800/60 border border-slate-700 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white w-full outline-none"
-          />
-        </div>
-
-
-      </div>
 
       <input
         ref={fileInputRef}
@@ -860,7 +850,7 @@ export default function InstagramPostPage() {
                       <span className="text-lg">🏆</span>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm font-bold text-white">Standing Post</p>
+                      <p className="text-sm font-bold text-white">Leaderboard Post</p>
                       <p className="text-[11px] text-slate-500">1080 × 1350</p>
                     </div>
                   </button>
@@ -874,7 +864,7 @@ export default function InstagramPostPage() {
                       <span className="text-lg">🏆</span>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm font-bold text-black">Standing Story</p>
+                      <p className="text-sm font-bold text-black">Leaderboard Story</p>
                       <p className="text-[11px] text-yellow-800">1080 × 1920</p>
                     </div>
                   </button>
