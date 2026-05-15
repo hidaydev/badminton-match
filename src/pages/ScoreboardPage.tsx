@@ -38,7 +38,7 @@ export default function ScoreboardPage() {
   const [editingBlue, setEditingBlue] = useState(false)
   const [popRed, setPopRed] = useState(false)
   const [popBlue, setPopBlue] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(() => !!document.fullscreenElement)
   const [fsError, setFsError] = useState<string | null>(null)
 
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
