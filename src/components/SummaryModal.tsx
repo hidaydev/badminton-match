@@ -34,7 +34,7 @@ function StandingsTab({
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-center min-h-[200px]">
-          <p className="text-sm text-slate-500 text-center">Enter scores in the Schedule tab to see standings.</p>
+          <p className="text-sm text-slate-500 text-center">Enter scores in the Schedule tab to see leaderboard.</p>
         </div>
         {absentList.length > 0 && (
           <div className="flex flex-col gap-1.5">
@@ -317,7 +317,7 @@ export default function SummaryModal({
               onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              Standings
+              Leaderboard
             </button>
           </div>
           {playedCount > 0 && (
@@ -698,7 +698,7 @@ export default function SummaryModal({
                   ? 'Remove all absent tags'
                   : [...playerMap.values()].filter(p => absentPending.has(p.id)).map(p => p.name).join(', ')}
               </p>
-              <p className="text-[10px] text-slate-500 mt-0.5">Excluded from standings</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">Excluded from leaderboard</p>
             </div>
             <button
               onClick={exitAbsentMode}

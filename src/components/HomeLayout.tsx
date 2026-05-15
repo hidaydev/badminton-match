@@ -11,12 +11,12 @@ export default function HomeLayout() {
           </Link>
         </div>
       </header>
-      <main className="flex-1 max-w-3xl w-full mx-auto px-3 py-4">
+      <main className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 relative">
         <Outlet />
+        <div className="absolute inset-0 flex items-end justify-center pb-4 pointer-events-none">
+          <img src="/main-aja-dulu.png" alt="" className="w-28 object-contain opacity-[0.05]" />
+        </div>
       </main>
-      <footer className="flex justify-center py-8">
-        <img src="/main-aja-dulu.png" alt="Main Aja Dulu!" className="w-36 object-contain opacity-20" />
-      </footer>
     </div>
   )
 }
