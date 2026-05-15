@@ -10,13 +10,17 @@ function readLS(key: string) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-async function enterFullscreenLandscape() {
+async function enterFullscreenLandscape(): Promise<string | null> {
+  if (!document.fullscreenEnabled) return 'Fullscreen not supported on this browser'
   try {
     await document.documentElement.requestFullscreen()
-  } catch {}
+  } catch (e) {
+    return `Fullscreen failed: ${e instanceof Error ? e.message : String(e)}`
+  }
   try {
     await screen.orientation.lock('landscape')
   } catch {}
+  return null
 }
 
 async function exitFullscreen() {
@@ -35,8 +39,10 @@ export default function ScoreboardPage() {
   const [popRed, setPopRed] = useState(false)
   const [popBlue, setPopBlue] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [fsError, setFsError] = useState<string | null>(null)
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fsErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { localStorage.setItem(LS_RED, String(red)) }, [red])
   useEffect(() => { localStorage.setItem(LS_BLUE, String(blue)) }, [blue])
@@ -82,9 +88,14 @@ export default function ScoreboardPage() {
 
   const reset = useCallback(() => { setRed(0); setBlue(0) }, [])
 
-  const toggleFullscreen = useCallback(() => {
-    if (isFullscreen) exitFullscreen()
-    else enterFullscreenLandscape()
+  const toggleFullscreen = useCallback(async () => {
+    if (isFullscreen) { exitFullscreen(); return }
+    const err = await enterFullscreenLandscape()
+    if (err) {
+      setFsError(err)
+      if (fsErrorTimer.current) clearTimeout(fsErrorTimer.current)
+      fsErrorTimer.current = setTimeout(() => setFsError(null), 4000)
+    }
   }, [isFullscreen])
 
   const doSwap = useCallback(() => {
@@ -195,6 +206,14 @@ export default function ScoreboardPage() {
           −
         </button>
       </div>
+
+      {/* Fullscreen error toast */}
+      {fsError && (
+        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 max-w-[80vw] text-center"
+          style={{ background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}>
+          {fsError}
+        </div>
+      )}
 
       {/* Bottom action bar */}
       <div
