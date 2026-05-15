@@ -111,7 +111,7 @@ export default function TournamentPage() {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'groups', label: 'Groups' },
     { id: 'bracket', label: 'Bracket' },
-    { id: 'standings', label: 'Standings' },
+    { id: 'standings', label: 'Leaderboard' },
   ]
 
   const handleTabChange = (newTab: Tab) => setTab(newTab)
