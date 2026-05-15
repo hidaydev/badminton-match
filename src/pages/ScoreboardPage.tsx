@@ -28,6 +28,10 @@ async function exitFullscreen() {
 export default function ScoreboardPage() {
   const [red, setRed] = useState(() => readLS(LS_RED))
   const [blue, setBlue] = useState(() => readLS(LS_BLUE))
+  const [redName, setRedName] = useState(() => localStorage.getItem('name-red') ?? 'Red')
+  const [blueName, setBlueName] = useState(() => localStorage.getItem('name-blue') ?? 'Blue')
+  const [editingRed, setEditingRed] = useState(false)
+  const [editingBlue, setEditingBlue] = useState(false)
   const [popRed, setPopRed] = useState(false)
   const [popBlue, setPopBlue] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -36,6 +40,8 @@ export default function ScoreboardPage() {
 
   useEffect(() => { localStorage.setItem(LS_RED, String(red)) }, [red])
   useEffect(() => { localStorage.setItem(LS_BLUE, String(blue)) }, [blue])
+  useEffect(() => { localStorage.setItem('name-red', redName) }, [redName])
+  useEffect(() => { localStorage.setItem('name-blue', blueName) }, [blueName])
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
@@ -97,9 +103,25 @@ export default function ScoreboardPage() {
         style={{ background: '#7f1d1d' }}
         onClick={addRed}
       >
-        <span className="text-[clamp(0.6rem,1.8vw,0.85rem)] tracking-[0.18em] uppercase font-semibold text-white/50 pointer-events-none">
-          Red
-        </span>
+        {editingRed ? (
+          <input
+            autoFocus
+            value={redName}
+            onChange={e => setRedName(e.target.value)}
+            onBlur={() => setEditingRed(false)}
+            onKeyDown={e => { if (e.key === 'Enter') setEditingRed(false) }}
+            onClick={e => e.stopPropagation()}
+            className="bg-transparent text-center text-white/70 font-semibold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-32"
+            style={{ fontSize: 'clamp(0.6rem,1.8vw,0.85rem)' }}
+          />
+        ) : (
+          <span
+            className="text-[clamp(0.6rem,1.8vw,0.85rem)] tracking-[0.18em] uppercase font-semibold text-white/50 cursor-text border-b border-transparent hover:border-white/20 transition-colors"
+            onClick={e => { e.stopPropagation(); setEditingRed(true) }}
+          >
+            {redName || 'Red'}
+          </span>
+        )}
         <span
           className="text-white font-black leading-none pointer-events-none"
           style={{
@@ -131,9 +153,25 @@ export default function ScoreboardPage() {
         style={{ background: '#1e3a8a' }}
         onClick={addBlue}
       >
-        <span className="text-[clamp(0.6rem,1.8vw,0.85rem)] tracking-[0.18em] uppercase font-semibold text-white/50 pointer-events-none">
-          Blue
-        </span>
+        {editingBlue ? (
+          <input
+            autoFocus
+            value={blueName}
+            onChange={e => setBlueName(e.target.value)}
+            onBlur={() => setEditingBlue(false)}
+            onKeyDown={e => { if (e.key === 'Enter') setEditingBlue(false) }}
+            onClick={e => e.stopPropagation()}
+            className="bg-transparent text-center text-white/70 font-semibold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-32"
+            style={{ fontSize: 'clamp(0.6rem,1.8vw,0.85rem)' }}
+          />
+        ) : (
+          <span
+            className="text-[clamp(0.6rem,1.8vw,0.85rem)] tracking-[0.18em] uppercase font-semibold text-white/50 cursor-text border-b border-transparent hover:border-white/20 transition-colors"
+            onClick={e => { e.stopPropagation(); setEditingBlue(true) }}
+          >
+            {blueName || 'Blue'}
+          </span>
+        )}
         <span
           className="text-white font-black leading-none pointer-events-none"
           style={{
