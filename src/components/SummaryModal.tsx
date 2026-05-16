@@ -151,7 +151,7 @@ export default function SummaryModal({
   absentPlayers = [],
   onSetAbsent,
   // @ts-expect-error - will be used in task 3
-  _onReplacePlayer,
+  onReplacePlayer,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -172,7 +172,7 @@ export default function SummaryModal({
   onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
   absentPlayers?: string[]
   onSetAbsent?: (nextAbsent: string[]) => void
-  _onReplacePlayer?: (playerId: string, newName: string) => void
+  onReplacePlayer?: (playerId: string, newName: string) => void
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -191,15 +191,15 @@ export default function SummaryModal({
   const [absentMode, setAbsentMode] = useState(false)
   const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_replaceMode, _setReplaceMode] = useState(false)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_replaceTarget, _setReplaceTarget] = useState<string | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_replaceName, _setReplaceName] = useState('')
+  // @ts-expect-error - will be used in task 3
+  const [replaceMode, setReplaceMode] = useState(false)
+  // @ts-expect-error - will be used in task 3
+  const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
+  // @ts-expect-error - will be used in task 3
+  const [replaceName, setReplaceName] = useState('')
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_actionsOpen, _setActionsOpen] = useState(false)
+  // @ts-expect-error - will be used in task 3
+  const [actionsOpen, setActionsOpen] = useState(false)
 
   function enterAbsentMode() {
     exitSwapMode()
@@ -214,16 +214,16 @@ export default function SummaryModal({
   }
 
   function exitReplaceMode() {
-    _setReplaceMode(false)
-    _setReplaceTarget(null)
-    _setReplaceName('')
+    setReplaceMode(false)
+    setReplaceTarget(null)
+    setReplaceName('')
   }
 
   // @ts-expect-error - will be used in task 3
   function enterReplaceMode() {
     exitSwapMode()
     exitAbsentMode()
-    _setReplaceMode(true)
+    setReplaceMode(true)
   }
 
   // In absent mode, preview pending selections; otherwise use saved state
