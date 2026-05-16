@@ -4,6 +4,9 @@ import type { Player, GameScore, CourtTime } from '../store'
 import { timeToMinutes, minutesToTime } from '../store'
 import { computeStandings } from '../utils/standings'
 import type { SwapTarget } from '../utils/swap'
+import type { SlotSwapTarget } from '../utils/slotSwap'
+// @ts-expect-error used in Task 4
+import { detectSlotSwapConflict } from '../utils/slotSwap'
 
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd']
@@ -151,6 +154,7 @@ export default function SummaryModal({
   absentPlayers = [],
   onSetAbsent,
   onReplacePlayer,
+  onSwapSlots,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -172,6 +176,7 @@ export default function SummaryModal({
   absentPlayers?: string[]
   onSetAbsent?: (nextAbsent: string[]) => void
   onReplacePlayer?: (playerId: string, newName: string) => void
+  onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -194,11 +199,18 @@ export default function SummaryModal({
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceName, setReplaceName] = useState('')
 
+  const [slotSwapMode, setSlotSwapMode] = useState(false)
+  // @ts-expect-error used in Task 4
+  const [pendingSlotSwap, setPendingSlotSwap] = useState<{ g1: SlotSwapTarget; g2: SlotSwapTarget } | null>(null)
+  // @ts-expect-error used in Task 4
+  const [slotSwapError, setSlotSwapError] = useState<string | null>(null)
+
   const [actionsOpen, setActionsOpen] = useState(false)
 
   function enterAbsentMode() {
     exitSwapMode()
     exitReplaceMode()
+    exitSlotSwapMode()
     setAbsentPending(new Set(absentPlayers))
     setAbsentMode(true)
   }
@@ -217,7 +229,22 @@ export default function SummaryModal({
   function enterReplaceMode() {
     exitSwapMode()
     exitAbsentMode()
+    exitSlotSwapMode()
     setReplaceMode(true)
+  }
+
+  function exitSlotSwapMode() {
+    setSlotSwapMode(false)
+    setPendingSlotSwap(null)
+    setSlotSwapError(null)
+  }
+
+  function enterSlotSwapMode() {
+    exitSwapMode()
+    exitAbsentMode()
+    exitReplaceMode()
+    setActionsOpen(false)
+    setSlotSwapMode(true)
   }
 
   // In absent mode, preview pending selections; otherwise use saved state
@@ -329,13 +356,13 @@ export default function SummaryModal({
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
             <button
-              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode(); exitReplaceMode() }}
+              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Schedule
             </button>
             <button
-              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode(); exitReplaceMode() }}
+              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Leaderboard
@@ -349,9 +376,9 @@ export default function SummaryModal({
         </div>
         <div className="flex items-center gap-2">
           {activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer) && (
-            swapMode || absentMode || replaceMode ? (
+            swapMode || absentMode || replaceMode || slotSwapMode ? (
               <button
-                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); setActionsOpen(false) }}
+                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); setActionsOpen(false) }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
                 ✕<span className="hidden sm:inline"> Cancel</span>
@@ -390,6 +417,14 @@ export default function SummaryModal({
                           className="w-full text-left px-4 py-2.5 text-xs font-medium text-emerald-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
                         >
                           ↔ Replace player
+                        </button>
+                      )}
+                      {onSwapSlots && (
+                        <button
+                          onClick={() => { setActionsOpen(false); enterSlotSwapMode() }}
+                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-orange-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                        >
+                          ↕ Switch slot
                         </button>
                       )}
                     </div>
