@@ -150,6 +150,8 @@ export default function SummaryModal({
   onSwapPlayers,
   absentPlayers = [],
   onSetAbsent,
+  // @ts-expect-error - will be used in task 3
+  _onReplacePlayer,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -170,6 +172,7 @@ export default function SummaryModal({
   onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
   absentPlayers?: string[]
   onSetAbsent?: (nextAbsent: string[]) => void
+  _onReplacePlayer?: (playerId: string, newName: string) => void
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -188,8 +191,19 @@ export default function SummaryModal({
   const [absentMode, setAbsentMode] = useState(false)
   const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_replaceMode, _setReplaceMode] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_replaceTarget, _setReplaceTarget] = useState<string | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_replaceName, _setReplaceName] = useState('')
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_actionsOpen, _setActionsOpen] = useState(false)
+
   function enterAbsentMode() {
     exitSwapMode()
+    exitReplaceMode()
     setAbsentPending(new Set(absentPlayers))
     setAbsentMode(true)
   }
@@ -197,6 +211,19 @@ export default function SummaryModal({
   function exitAbsentMode() {
     setAbsentMode(false)
     setAbsentPending(new Set())
+  }
+
+  function exitReplaceMode() {
+    _setReplaceMode(false)
+    _setReplaceTarget(null)
+    _setReplaceName('')
+  }
+
+  // @ts-expect-error - will be used in task 3
+  function enterReplaceMode() {
+    exitSwapMode()
+    exitAbsentMode()
+    _setReplaceMode(true)
   }
 
   // In absent mode, preview pending selections; otherwise use saved state
@@ -308,13 +335,13 @@ export default function SummaryModal({
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
             <button
-              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode() }}
+              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode(); exitReplaceMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Schedule
             </button>
             <button
-              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode() }}
+              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode(); exitReplaceMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Leaderboard
