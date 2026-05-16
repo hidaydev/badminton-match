@@ -523,7 +523,7 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || pendingSlotSwap ? 'pb-24' : ''}`}>
+      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
         {swapMode && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
@@ -949,46 +949,57 @@ export default function SummaryModal({
         </div>
       )}
       {/* Slot swap confirm bar */}
-      {pendingSlotSwap && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-orange-900/40 px-4 py-3">
-          <div className="max-w-xl mx-auto">
-            <div className="bg-orange-950/50 border border-orange-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                {(() => {
-                  function slotLabel(t: { slot: number; court: number }): string {
-                    const game = result.schedule.find((g) => g.slot === t.slot && g.court === t.court)
-                    if (!game) return `Slot ${t.slot + 1}${courtLabel(t.court)}`
-                    const aNames = game.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
-                    const bNames = game.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
-                    return `Slot ${t.slot + 1}${courtLabel(t.court)} (${aNames} vs ${bNames})`
-                  }
-                  return (
-                    <p className="text-xs font-semibold text-slate-200 truncate">
-                      <span className="text-orange-200">{slotLabel(pendingSlotSwap.g1)}</span>
-                      {' ↕ '}
-                      <span className="text-orange-200">{slotLabel(pendingSlotSwap.g2)}</span>
-                    </p>
-                  )
-                })()}
-                <p className="text-[10px] text-red-400 mt-0.5">⚠ Cannot be undone</p>
+      {pendingSlotSwap && (() => {
+        const slotInfo = (t: { slot: number; court: number }) => {
+          const game = result.schedule.find((g) => g.slot === t.slot && g.court === t.court)
+          const label = `Slot ${t.slot + 1}${courtLabel(t.court)}`
+          if (!game) return { label, players: '' }
+          const aNames = game.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
+          const bNames = game.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
+          return { label, players: `${aNames} vs ${bNames}` }
+        }
+        const s1 = slotInfo(pendingSlotSwap.g1)
+        const s2 = slotInfo(pendingSlotSwap.g2)
+        return (
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-orange-900/40 px-4 pt-3 pb-4">
+            <div className="max-w-xl mx-auto flex flex-col gap-2.5">
+              <div className="bg-orange-950/40 border border-orange-800/40 rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">{s1.label}</span>
+                    {s1.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s1.players}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="h-px flex-1 bg-orange-900/40" />
+                  <span className="text-[10px] text-orange-500 font-bold">↕ switch</span>
+                  <div className="h-px flex-1 bg-orange-900/40" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">{s2.label}</span>
+                  {s2.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s2.players}</p>}
+                </div>
               </div>
-              <button
-                onClick={() => setPendingSlotSwap(null)}
-                className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
-              >
-                ✕
-              </button>
-              <button
-                onClick={() => { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitSlotSwapMode() }}
-                disabled={saving}
-                className="text-xs font-bold px-4 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white transition-colors disabled:opacity-50 shrink-0"
-              >
-                {saving ? 'Saving…' : 'Confirm'}
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-red-400 flex-1">⚠ Cannot be undone</span>
+                <button
+                  onClick={() => setPendingSlotSwap(null)}
+                  className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitSlotSwapMode() }}
+                  disabled={saving}
+                  className="text-xs font-bold px-5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {saving ? 'Saving…' : 'Confirm'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
