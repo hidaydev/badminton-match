@@ -351,7 +351,7 @@ export default function SummaryModal({
           {activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer) && (
             swapMode || absentMode || replaceMode ? (
               <button
-                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode() }}
+                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); setActionsOpen(false) }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
                 ✕<span className="hidden sm:inline"> Cancel</span>
