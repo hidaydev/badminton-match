@@ -7,6 +7,7 @@ import {
   useSetScore,
   useSwapPlayers,
   useSetAbsent,
+  useReplacePlayer,
   type CloudSnapshot,
 } from '../queries'
 import type { GeneratorResult } from '../generator'
@@ -23,6 +24,7 @@ export default function SharedSessionPage() {
   const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
   const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
   const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
+  const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
 
   const header = (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
@@ -74,7 +76,7 @@ export default function SharedSessionPage() {
     unplacedFixMatches: [],
   }
 
-  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending
+  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -117,6 +119,10 @@ export default function SharedSessionPage() {
         })}
         absentPlayers={snapshot.absentPlayers ?? []}
         onSetAbsent={(nextAbsent) => setAbsent({ nextAbsent }, {
+          onSuccess: () => setSaveError(null),
+          onError: () => setSaveError('Failed to save, please try again'),
+        })}
+        onReplacePlayer={(playerId, newName) => replacePlayer({ playerId, newName }, {
           onSuccess: () => setSaveError(null),
           onError: () => setSaveError('Failed to save, please try again'),
         })}
