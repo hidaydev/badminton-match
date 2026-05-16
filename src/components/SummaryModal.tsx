@@ -31,7 +31,7 @@ function SlotGameCard({ id, children }: { id: string; children: React.ReactNode 
   return (
     <div
       ref={setDropRef}
-      className={isOver && !isDragging ? 'outline outline-1 outline-orange-400/60 rounded-lg' : ''}
+      className={isOver && !isDragging ? 'border border-dashed border-orange-400/60 rounded-lg' : 'border border-transparent rounded-lg'}
     >
       <div
         ref={setDragRef}
@@ -954,15 +954,22 @@ export default function SummaryModal({
           <div className="max-w-xl mx-auto">
             <div className="bg-orange-950/50 border border-orange-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-200 truncate">
-                  <span className="text-orange-200">
-                    Slot {pendingSlotSwap.g1.slot + 1}{courtLabel(pendingSlotSwap.g1.court)}
-                  </span>
-                  {' ↕ '}
-                  <span className="text-orange-200">
-                    Slot {pendingSlotSwap.g2.slot + 1}{courtLabel(pendingSlotSwap.g2.court)}
-                  </span>
-                </p>
+                {(() => {
+                  function slotLabel(t: { slot: number; court: number }): string {
+                    const game = result.schedule.find((g) => g.slot === t.slot && g.court === t.court)
+                    if (!game) return `Slot ${t.slot + 1}${courtLabel(t.court)}`
+                    const aNames = game.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
+                    const bNames = game.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
+                    return `Slot ${t.slot + 1}${courtLabel(t.court)} (${aNames} vs ${bNames})`
+                  }
+                  return (
+                    <p className="text-xs font-semibold text-slate-200 truncate">
+                      <span className="text-orange-200">{slotLabel(pendingSlotSwap.g1)}</span>
+                      {' ↕ '}
+                      <span className="text-orange-200">{slotLabel(pendingSlotSwap.g2)}</span>
+                    </p>
+                  )
+                })()}
                 <p className="text-[10px] text-red-400 mt-0.5">⚠ Cannot be undone</p>
               </div>
               <button

@@ -186,6 +186,32 @@ export function useReplacePlayer(sessionId: string) {
   })
 }
 
+function migrateKeys<T>(
+  record: Record<string, T>,
+  g1: SlotSwapTarget,
+  g2: SlotSwapTarget,
+): Record<string, T> {
+  const k1 = `${g1.slot}-${g1.court}`
+  const k2 = `${g2.slot}-${g2.court}`
+  const next: Record<string, T> = {}
+  for (const [k, v] of Object.entries(record)) {
+    if (k === k1) next[k2] = v
+    else if (k === k2) next[k1] = v
+    else next[k] = v
+  }
+  return next
+}
+
+function migratePlayedGames(played: string[], g1: SlotSwapTarget, g2: SlotSwapTarget): string[] {
+  const k1 = `${g1.slot}-${g1.court}`
+  const k2 = `${g2.slot}-${g2.court}`
+  return played.map((k) => {
+    if (k === k1) return k2
+    if (k === k2) return k1
+    return k
+  })
+}
+
 export function useSwapSlots(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -193,7 +219,9 @@ export function useSwapSlots(sessionId: string) {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
       const nextSchedule = applySlotSwap(current.schedule, g1, g2)
-      const updated: CloudSnapshot = { ...current, schedule: nextSchedule }
+      const nextPlayedGames = migratePlayedGames(current.playedGames, g1, g2)
+      const nextGameScores = migrateKeys(current.gameScores, g1, g2)
+      const updated: CloudSnapshot = { ...current, schedule: nextSchedule, playedGames: nextPlayedGames, gameScores: nextGameScores }
       await publishSession(sessionId, updated)
       return updated
     },
@@ -202,7 +230,12 @@ export function useSwapSlots(sessionId: string) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        return { ...old, schedule: applySlotSwap(old.schedule, g1, g2) }
+        return {
+          ...old,
+          schedule: applySlotSwap(old.schedule, g1, g2),
+          playedGames: migratePlayedGames(old.playedGames, g1, g2),
+          gameScores: migrateKeys(old.gameScores, g1, g2),
+        }
       })
       return { previous }
     },
