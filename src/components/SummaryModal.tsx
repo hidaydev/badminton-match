@@ -948,6 +948,40 @@ export default function SummaryModal({
           </div>
         </div>
       )}
+      {/* Slot swap confirm bar */}
+      {pendingSlotSwap && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-orange-900/40 px-4 py-3">
+          <div className="max-w-xl mx-auto">
+            <div className="bg-orange-950/50 border border-orange-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-slate-200 truncate">
+                  <span className="text-orange-200">
+                    Slot {pendingSlotSwap.g1.slot + 1}{courtLabel(pendingSlotSwap.g1.court)}
+                  </span>
+                  {' ↕ '}
+                  <span className="text-orange-200">
+                    Slot {pendingSlotSwap.g2.slot + 1}{courtLabel(pendingSlotSwap.g2.court)}
+                  </span>
+                </p>
+                <p className="text-[10px] text-red-400 mt-0.5">⚠ Cannot be undone</p>
+              </div>
+              <button
+                onClick={() => setPendingSlotSwap(null)}
+                className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+              >
+                ✕
+              </button>
+              <button
+                onClick={() => { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitSlotSwapMode() }}
+                disabled={saving}
+                className="text-xs font-bold px-4 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white transition-colors disabled:opacity-50 shrink-0"
+              >
+                {saving ? 'Saving…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
