@@ -1,17 +1,54 @@
 import { useState } from 'react'
+import {
+  DndContext,
+  useDraggable,
+  useDroppable,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
 import type { GeneratorResult } from '../generator'
 import type { Player, GameScore, CourtTime } from '../store'
 import { timeToMinutes, minutesToTime } from '../store'
 import { computeStandings } from '../utils/standings'
 import type { SwapTarget } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
-// @ts-expect-error used in Task 4
 import { detectSlotSwapConflict } from '../utils/slotSwap'
 
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd']
   const v = n % 100
   return n + (s[(v - 20) % 10] ?? s[v] ?? s[0])
+}
+
+function SlotGameCard({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({ id })
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id })
+
+  return (
+    <div
+      ref={setDropRef}
+      className={isOver && !isDragging ? 'outline outline-1 outline-orange-400/60 rounded-lg' : ''}
+    >
+      <div
+        ref={setDragRef}
+        style={transform ? { transform: CSS.Translate.toString(transform), position: 'relative', zIndex: 50 } : undefined}
+        className={`flex items-center gap-2 ${isDragging ? 'opacity-40' : ''}`}
+      >
+        <span
+          {...listeners}
+          {...attributes}
+          className="text-slate-500 hover:text-orange-400 cursor-grab active:cursor-grabbing text-base shrink-0 select-none touch-none px-0.5"
+        >
+          ⠿
+        </span>
+        {children}
+      </div>
+    </div>
+  )
 }
 
 function StandingsTab({
@@ -200,12 +237,33 @@ export default function SummaryModal({
   const [replaceName, setReplaceName] = useState('')
 
   const [slotSwapMode, setSlotSwapMode] = useState(false)
-  // @ts-expect-error used in Task 4
   const [pendingSlotSwap, setPendingSlotSwap] = useState<{ g1: SlotSwapTarget; g2: SlotSwapTarget } | null>(null)
-  // @ts-expect-error used in Task 4
   const [slotSwapError, setSlotSwapError] = useState<string | null>(null)
 
   const [actionsOpen, setActionsOpen] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+  )
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const parseId = (id: string | number) => {
+      const [slot, court] = String(id).split('-').map(Number)
+      return { slot, court }
+    }
+    const g1 = parseId(active.id)
+    const g2 = parseId(over.id)
+    const conflictId = detectSlotSwapConflict(result.schedule, g1, g2)
+    if (conflictId) {
+      setSlotSwapError(`Can't switch — ${playerMap.get(conflictId)?.name ?? conflictId} already plays in that slot`)
+      return
+    }
+    setSlotSwapError(null)
+    setPendingSlotSwap({ g1, g2 })
+  }
 
   function enterAbsentMode() {
     exitSwapMode()
@@ -465,7 +523,7 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged ? 'pb-24' : ''}`}>
+      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || pendingSlotSwap ? 'pb-24' : ''}`}>
         {swapMode && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
@@ -552,6 +610,15 @@ export default function SummaryModal({
             )}
           </div>
         )}
+        {slotSwapMode && (
+          <div className="mb-3 rounded-lg bg-orange-950/30 border border-orange-900/40 px-3 py-2">
+            {slotSwapError ? (
+              <span className="text-xs text-red-400">{slotSwapError}</span>
+            ) : (
+              <span className="text-xs text-orange-300 font-medium">↕ Drag ⠿ to switch a game's slot</span>
+            )}
+          </div>
+        )}
         {activeTab === 'standings' ? (
           <StandingsTab
             players={[...playerMap.values()]}
@@ -559,8 +626,9 @@ export default function SummaryModal({
             gameScores={gameScores}
             absentPlayerIds={[...effectiveAbsent]}
           />
-        ) : (
-        <div className="flex flex-col divide-y divide-slate-800">
+        ) : (() => {
+          const scheduleGrid = (
+            <div className="flex flex-col divide-y divide-slate-800">
           {Array.from({ length: maxSlots }, (_, s) => {
             const games = (bySlot.get(s) ?? []).sort((a, b) => a.court - b.court)
             return (
@@ -581,16 +649,16 @@ export default function SummaryModal({
                     const teamANames = g.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
                     const teamBNames = g.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
 
-                    return (
-                      <div key={g.court} className="flex flex-col gap-1">
+                    const gameRow = (
+                      <div className="flex flex-col gap-1">
                         {/* Game row header */}
                         <div
                           className={`flex items-center gap-2 select-none rounded-lg px-1 py-0.5 -mx-1 transition-colors ${done ? 'opacity-40' : 'hover:bg-slate-800/40'}`}
                         >
                           {/* Played checkbox */}
                           <div
-                            className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${swapMode || replaceMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                            onClick={() => { if (!saving && !swapMode && !replaceMode) onTogglePlayedGame(key) }}
+                            className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${swapMode || replaceMode || slotSwapMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                            onClick={() => { if (!saving && !swapMode && !replaceMode && !slotSwapMode) onTogglePlayedGame(key) }}
                           >
                             {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                           </div>
@@ -734,7 +802,7 @@ export default function SummaryModal({
                             </div>
                           </div>
                           {/* Score toggle / saved score */}
-                          {!swapMode && !replaceMode && (savedScore && !isOpen ? (
+                          {!swapMode && !replaceMode && !slotSwapMode && (savedScore && !isOpen ? (
                             <button
                               onClick={() => { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) }}
                               className="text-[11px] font-bold text-emerald-400 shrink-0 whitespace-nowrap hover:text-emerald-300"
@@ -798,13 +866,26 @@ export default function SummaryModal({
                         )}
                       </div>
                     )
+                    return slotSwapMode ? (
+                      <SlotGameCard key={key} id={key}>
+                        {gameRow}
+                      </SlotGameCard>
+                    ) : (
+                      <div key={key}>{gameRow}</div>
+                    )
                   })}
                 </div>
               </div>
             )
           })}
         </div>
-        )}
+          )
+          return slotSwapMode ? (
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              {scheduleGrid}
+            </DndContext>
+          ) : scheduleGrid
+        })()}
       </div>
 
       {/* Swap confirm bar */}
