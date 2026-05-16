@@ -191,9 +191,7 @@ export default function SummaryModal({
   const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
 
   const [replaceMode, setReplaceMode] = useState(false)
-  // @ts-expect-error - will be used in task 3
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
-  // @ts-expect-error - will be used in task 3
   const [replaceName, setReplaceName] = useState('')
 
   const [actionsOpen, setActionsOpen] = useState(false)
@@ -479,6 +477,46 @@ export default function SummaryModal({
             </div>
           </div>
         )}
+        {replaceMode && (
+          <div className="mb-3 rounded-lg bg-emerald-950/30 border border-emerald-900/40 px-3 py-2 flex flex-col gap-2">
+            {replaceTarget === null ? (
+              <span className="text-xs text-emerald-300 font-medium">Tap a player to replace</span>
+            ) : (
+              <>
+                <span className="text-xs text-emerald-300 font-medium">
+                  Replace <strong>{playerMap.get(replaceTarget)?.name}</strong> with:
+                </span>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={replaceName}
+                    onChange={(e) => setReplaceName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && replaceName.trim()) {
+                        onReplacePlayer?.(replaceTarget, replaceName.trim())
+                        exitReplaceMode()
+                      }
+                    }}
+                    placeholder="New name…"
+                    autoFocus
+                    className="flex-1 bg-slate-900 border border-emerald-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!replaceName.trim()) return
+                      onReplacePlayer?.(replaceTarget, replaceName.trim())
+                      exitReplaceMode()
+                    }}
+                    disabled={!replaceName.trim() || saving}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  >
+                    {saving ? 'Saving…' : '✓ Save'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {activeTab === 'standings' ? (
           <StandingsTab
             players={[...playerMap.values()]}
@@ -541,7 +579,26 @@ export default function SummaryModal({
                                 return (
                                   <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
                                     {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
-                                    {swapMode && !done && !pendingSwap ? (
+                                    {replaceMode && !done ? (
+                                      <button
+                                        onClick={() => {
+                                          if (replaceTarget === id) {
+                                            setReplaceTarget(null)
+                                            setReplaceName('')
+                                          } else {
+                                            setReplaceTarget(id)
+                                            setReplaceName('')
+                                          }
+                                        }}
+                                        className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                          replaceTarget === id
+                                            ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
+                                            : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
+                                        }`}
+                                      >
+                                        {n}
+                                      </button>
+                                    ) : swapMode && !done && !pendingSwap ? (
                                       <button
                                         onClick={() => handleChipClick(target)}
                                         className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
@@ -589,7 +646,26 @@ export default function SummaryModal({
                                 return (
                                   <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
                                     {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
-                                    {swapMode && !done && !pendingSwap ? (
+                                    {replaceMode && !done ? (
+                                      <button
+                                        onClick={() => {
+                                          if (replaceTarget === id) {
+                                            setReplaceTarget(null)
+                                            setReplaceName('')
+                                          } else {
+                                            setReplaceTarget(id)
+                                            setReplaceName('')
+                                          }
+                                        }}
+                                        className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                          replaceTarget === id
+                                            ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
+                                            : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
+                                        }`}
+                                      >
+                                        {n}
+                                      </button>
+                                    ) : swapMode && !done && !pendingSwap ? (
                                       <button
                                         onClick={() => handleChipClick(target)}
                                         className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
