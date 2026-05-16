@@ -150,7 +150,6 @@ export default function SummaryModal({
   onSwapPlayers,
   absentPlayers = [],
   onSetAbsent,
-  // @ts-expect-error - will be used in task 3
   onReplacePlayer,
 }: {
   result: GeneratorResult
@@ -191,14 +190,12 @@ export default function SummaryModal({
   const [absentMode, setAbsentMode] = useState(false)
   const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
 
-  // @ts-expect-error - will be used in task 3
   const [replaceMode, setReplaceMode] = useState(false)
   // @ts-expect-error - will be used in task 3
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   // @ts-expect-error - will be used in task 3
   const [replaceName, setReplaceName] = useState('')
 
-  // @ts-expect-error - will be used in task 3
   const [actionsOpen, setActionsOpen] = useState(false)
 
   function enterAbsentMode() {
@@ -219,7 +216,6 @@ export default function SummaryModal({
     setReplaceName('')
   }
 
-  // @ts-expect-error - will be used in task 3
   function enterReplaceMode() {
     exitSwapMode()
     exitAbsentMode()
@@ -354,38 +350,54 @@ export default function SummaryModal({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {onSetAbsent && activeTab === 'schedule' && !swapMode && (
-            absentMode ? (
+          {activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer) && (
+            swapMode || absentMode || replaceMode ? (
               <button
-                onClick={exitAbsentMode}
+                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode() }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
                 ✕<span className="hidden sm:inline"> Cancel</span>
               </button>
             ) : (
-              <button
-                onClick={enterAbsentMode}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-900/20 border border-red-800/50 text-red-400 hover:text-red-300 transition-colors"
-              >
-                👤<span className="hidden sm:inline"> Absent</span>
-              </button>
-            )
-          )}
-          {onSwapPlayers && activeTab === 'schedule' && !absentMode && (
-            swapMode ? (
-              <button
-                onClick={exitSwapMode}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
-              >
-                ✕<span className="hidden sm:inline"> Cancel</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setSwapMode(true)}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-900/20 border border-indigo-800/50 text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                ⇄<span className="hidden sm:inline"> Swap</span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setActionsOpen((v) => !v)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 hover:text-white transition-colors"
+                >
+                  ⋯<span className="hidden sm:inline"> Actions</span>
+                </button>
+                {actionsOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setActionsOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-slate-900 border border-slate-700 rounded-xl shadow-xl min-w-[160px] overflow-hidden">
+                      {onSwapPlayers && (
+                        <button
+                          onClick={() => { setActionsOpen(false); setSwapMode(true) }}
+                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-indigo-300 hover:bg-slate-800 transition-colors"
+                        >
+                          ⇄ Swap players
+                        </button>
+                      )}
+                      {onSetAbsent && (
+                        <button
+                          onClick={() => { setActionsOpen(false); enterAbsentMode() }}
+                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-red-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                        >
+                          👤 Mark absent
+                        </button>
+                      )}
+                      {onReplacePlayer && (
+                        <button
+                          onClick={() => { setActionsOpen(false); enterReplaceMode() }}
+                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-emerald-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                        >
+                          ↔ Replace player
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             )
           )}
           {onClose && (
