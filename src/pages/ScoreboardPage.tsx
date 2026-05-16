@@ -38,6 +38,7 @@ export default function ScoreboardPage() {
   const [editingBlue, setEditingBlue] = useState(false)
   const [popRed, setPopRed] = useState(false)
   const [popBlue, setPopBlue] = useState(false)
+  const [leftColor, setLeftColor] = useState<'red' | 'blue'>('red')
   const [isFullscreen, setIsFullscreen] = useState(() => !!document.fullscreenElement)
   const [fsError, setFsError] = useState<string | null>(null)
 
@@ -104,6 +105,7 @@ export default function ScoreboardPage() {
     setBlue(red)
     setRedName(blueName)
     setBlueName(redName)
+    setLeftColor(c => c === 'red' ? 'blue' : 'red')
   }, [red, blue, redName, blueName])
 
   return (
@@ -112,7 +114,7 @@ export default function ScoreboardPage() {
       {/* Red side */}
       <div
         className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 transition-[filter] duration-75"
-        style={{ background: '#b91c1c' }}
+        style={{ background: leftColor === 'red' ? '#b91c1c' : '#1d4ed8' }}
         onClick={addRed}
       >
         {/* Player name — pinned to top */}
@@ -169,7 +171,7 @@ export default function ScoreboardPage() {
       {/* Blue side */}
       <div
         className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 transition-[filter] duration-75"
-        style={{ background: '#1d4ed8' }}
+        style={{ background: leftColor === 'red' ? '#1d4ed8' : '#b91c1c' }}
         onClick={addBlue}
       >
         {/* Player name — pinned to top */}
