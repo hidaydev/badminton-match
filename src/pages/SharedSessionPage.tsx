@@ -8,9 +8,11 @@ import {
   useSwapPlayers,
   useSetAbsent,
   useReplacePlayer,
+  useSwapSlots,
   type CloudSnapshot,
 } from '../queries'
 import type { GeneratorResult } from '../generator'
+import type { SlotSwapTarget } from '../utils/slotSwap'
 import SummaryModal from '../components/SummaryModal'
 
 export default function SharedSessionPage() {
@@ -25,6 +27,7 @@ export default function SharedSessionPage() {
   const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
   const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
   const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
+  const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
 
   const header = (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
@@ -76,7 +79,7 @@ export default function SharedSessionPage() {
     unplacedFixMatches: [],
   }
 
-  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending
+  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -123,6 +126,10 @@ export default function SharedSessionPage() {
           onError: () => setSaveError('Failed to save, please try again'),
         })}
         onReplacePlayer={(playerId, newName) => replacePlayer({ playerId, newName }, {
+          onSuccess: () => setSaveError(null),
+          onError: () => setSaveError('Failed to save, please try again'),
+        })}
+        onSwapSlots={(g1: SlotSwapTarget, g2: SlotSwapTarget) => swapSlots({ g1, g2 }, {
           onSuccess: () => setSaveError(null),
           onError: () => setSaveError('Failed to save, please try again'),
         })}
