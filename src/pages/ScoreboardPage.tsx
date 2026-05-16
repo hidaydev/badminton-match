@@ -107,7 +107,7 @@ export default function ScoreboardPage() {
   }, [red, blue, redName, blueName])
 
   return (
-    <div className="flex w-screen h-screen overflow-hidden select-none">
+    <div className="flex w-screen overflow-hidden select-none" style={{ height: '100dvh' }}>
 
       {/* Red side */}
       <div
@@ -115,26 +115,30 @@ export default function ScoreboardPage() {
         style={{ background: '#b91c1c' }}
         onClick={addRed}
       >
-        {editingRed ? (
-          <input
-            autoFocus
-            placeholder="Player name"
-            value={redName}
-            onChange={e => setRedName(e.target.value)}
-            onBlur={() => setEditingRed(false)}
-            onKeyDown={e => { if (e.key === 'Enter') setEditingRed(false) }}
-            onClick={e => e.stopPropagation()}
-            className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-48"
-            style={{ fontSize: 'clamp(1rem,3vw,1.5rem)' }}
-          />
-        ) : (
-          <span
-            className={`text-[clamp(1rem,3vw,1.5rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${redName ? 'text-white/50' : 'text-white/25 italic'}`}
-            onClick={e => { e.stopPropagation(); setEditingRed(true) }}
-          >
-            {redName || 'Player name'}
-          </span>
-        )}
+        {/* Player name — pinned to top */}
+        <div className="absolute top-0 left-0 right-0 flex justify-center pt-4" onClick={e => e.stopPropagation()}>
+          {editingRed ? (
+            <input
+              autoFocus
+              placeholder="RED"
+              value={redName}
+              onChange={e => setRedName(e.target.value)}
+              onBlur={() => setEditingRed(false)}
+              onKeyDown={e => { if (e.key === 'Enter') setEditingRed(false) }}
+              className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-36"
+              style={{ fontSize: 'clamp(0.7rem,2vw,1rem)' }}
+            />
+          ) : (
+            <span
+              className={`text-[clamp(0.7rem,2vw,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${redName ? 'text-white/50' : 'text-white/30'}`}
+              onClick={() => setEditingRed(true)}
+            >
+              {redName || 'RED'}
+            </span>
+          )}
+        </div>
+
+        {/* Score number — centered */}
         <span
           className="text-white font-black leading-none pointer-events-none"
           style={{
@@ -145,12 +149,14 @@ export default function ScoreboardPage() {
         >
           {red}
         </span>
-        <span className="text-white/20 text-[clamp(0.5rem,1vw,0.7rem)] tracking-widest mt-3 pointer-events-none">
+        <span className="text-white/20 text-[clamp(0.55rem,1.2vw,0.75rem)] tracking-widest mt-3 pointer-events-none">
           tap to score
         </span>
+
+        {/* Minus — right edge, vertically centered */}
         <button
           onClick={minusRed}
-          className="absolute bottom-14 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors"
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors"
           style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
         >
           −
@@ -166,26 +172,30 @@ export default function ScoreboardPage() {
         style={{ background: '#1d4ed8' }}
         onClick={addBlue}
       >
-        {editingBlue ? (
-          <input
-            autoFocus
-            placeholder="Player name"
-            value={blueName}
-            onChange={e => setBlueName(e.target.value)}
-            onBlur={() => setEditingBlue(false)}
-            onKeyDown={e => { if (e.key === 'Enter') setEditingBlue(false) }}
-            onClick={e => e.stopPropagation()}
-            className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-48"
-            style={{ fontSize: 'clamp(1rem,3vw,1.5rem)' }}
-          />
-        ) : (
-          <span
-            className={`text-[clamp(1rem,3vw,1.5rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${blueName ? 'text-white/50' : 'text-white/25 italic'}`}
-            onClick={e => { e.stopPropagation(); setEditingBlue(true) }}
-          >
-            {blueName || 'Player name'}
-          </span>
-        )}
+        {/* Player name — pinned to top */}
+        <div className="absolute top-0 left-0 right-0 flex justify-center pt-4" onClick={e => e.stopPropagation()}>
+          {editingBlue ? (
+            <input
+              autoFocus
+              placeholder="BLUE"
+              value={blueName}
+              onChange={e => setBlueName(e.target.value)}
+              onBlur={() => setEditingBlue(false)}
+              onKeyDown={e => { if (e.key === 'Enter') setEditingBlue(false) }}
+              className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-36"
+              style={{ fontSize: 'clamp(0.7rem,2vw,1rem)' }}
+            />
+          ) : (
+            <span
+              className={`text-[clamp(0.7rem,2vw,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${blueName ? 'text-white/50' : 'text-white/30'}`}
+              onClick={() => setEditingBlue(true)}
+            >
+              {blueName || 'BLUE'}
+            </span>
+          )}
+        </div>
+
+        {/* Score number — centered */}
         <span
           className="text-white font-black leading-none pointer-events-none"
           style={{
@@ -196,12 +206,14 @@ export default function ScoreboardPage() {
         >
           {blue}
         </span>
-        <span className="text-white/20 text-[clamp(0.5rem,1vw,0.7rem)] tracking-widest mt-3 pointer-events-none">
+        <span className="text-white/20 text-[clamp(0.55rem,1.2vw,0.75rem)] tracking-widest mt-3 pointer-events-none">
           tap to score
         </span>
+
+        {/* Minus — left edge, vertically centered */}
         <button
           onClick={minusBlue}
-          className="absolute bottom-14 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors"
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors"
           style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
         >
           −
@@ -210,37 +222,40 @@ export default function ScoreboardPage() {
 
       {/* Fullscreen error toast */}
       {fsError && (
-        <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 max-w-[80vw] text-center"
+        <div className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 max-w-[80vw] text-center"
           style={{ background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}>
           {fsError}
         </div>
       )}
 
-      {/* Bottom action bar */}
+      {/* Bottom action bar — floating, no background */}
       <div
-        className="absolute bottom-0 left-0 right-0 h-12 flex items-center justify-center gap-4 z-20"
-        style={{ background: 'rgba(0,0,0,0.35)', borderTop: '1px solid rgba(255,255,255,0.06)' }}
+        className="fixed bottom-0 left-0 right-0 flex items-center justify-center gap-4 z-20 pointer-events-none"
+        style={{
+          paddingTop: '0.5rem',
+          paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+        }}
       >
         <button
           onClick={reset}
-          className="px-5 py-1.5 rounded-lg text-white/55 text-[0.72rem] tracking-wide cursor-pointer active:bg-white/10 transition-colors"
+          className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
         >
-          ↺ Reset
+          ↺
         </button>
         <button
           onClick={doSwap}
-          className="px-5 py-1.5 rounded-lg text-white/55 text-[0.72rem] tracking-wide cursor-pointer active:bg-white/10 transition-colors"
+          className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
         >
-          ⇄ Swap
+          ⇄
         </button>
         <button
           onClick={toggleFullscreen}
-          className="px-5 py-1.5 rounded-lg text-white/55 text-[0.72rem] tracking-wide cursor-pointer active:bg-white/10 transition-colors"
+          className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
         >
-          {isFullscreen ? '⊠ Exit' : '⛶ Fullscreen'}
+          {isFullscreen ? '⊠' : '⛶'}
         </button>
       </div>
 
