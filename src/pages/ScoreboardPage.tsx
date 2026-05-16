@@ -250,13 +250,15 @@ export default function ScoreboardPage() {
         >
           ⇄
         </button>
-        <button
-          onClick={toggleFullscreen}
-          className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-        >
-          {isFullscreen ? '⊠' : '⛶'}
-        </button>
+        {document.fullscreenEnabled && (
+          <button
+            onClick={toggleFullscreen}
+            className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            {isFullscreen ? '⊠' : '⛶'}
+          </button>
+        )}
       </div>
 
     </div>
