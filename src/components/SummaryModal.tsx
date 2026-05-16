@@ -579,7 +579,7 @@ export default function SummaryModal({
                                 return (
                                   <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
                                     {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
-                                    {replaceMode && !done ? (
+                                    {replaceMode ? (
                                       <button
                                         onClick={() => {
                                           if (replaceTarget === id) {
@@ -646,7 +646,7 @@ export default function SummaryModal({
                                 return (
                                   <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
                                     {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
-                                    {replaceMode && !done ? (
+                                    {replaceMode ? (
                                       <button
                                         onClick={() => {
                                           if (replaceTarget === id) {
