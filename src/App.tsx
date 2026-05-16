@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react'
+import { useVersionCheck } from './hooks/useVersionCheck'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import HomeLayout from './components/HomeLayout'
 import SessionLayout from './components/SessionLayout'
@@ -53,7 +54,27 @@ function SharedViewPage() {
   return <GeneratePage />
 }
 
+function UpdateModal() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-sm bg-slate-800 border border-slate-600 rounded-2xl p-5 flex flex-col gap-3 shadow-xl">
+        <div className="flex flex-col gap-1">
+          <span className="text-white font-semibold text-base">New version available</span>
+          <span className="text-slate-400 text-sm">Reload to get the latest update.</span>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-colors"
+        >
+          Reload now
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
+  const updateAvailable = useVersionCheck()
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash)
   )
@@ -70,6 +91,7 @@ export default function App() {
 
   return (
     <SharedViewContext.Provider value={sharedViewValue}>
+      {updateAvailable && <UpdateModal />}
       <BrowserRouter>
         <Routes>
           <Route element={<HomeLayout />}>
