@@ -215,15 +215,14 @@ function migratePlayedGames(played: string[], g1: SlotSwapTarget, g2: SlotSwapTa
 export function useSwapSlots(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ g1, g2 }: { g1: SlotSwapTarget; g2: SlotSwapTarget }) => {
+    mutationFn: async (_vars: { g1: SlotSwapTarget; g2: SlotSwapTarget }) => {
+      // onMutate already applied all transformations optimistically to the cache.
+      // Re-applying applySlotSwap here would double-swap and revert to the original order,
+      // because the function matches by {slot,court} which have already been exchanged.
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      const nextSchedule = applySlotSwap(current.schedule, g1, g2)
-      const nextPlayedGames = migratePlayedGames(current.playedGames, g1, g2)
-      const nextGameScores = migrateKeys(current.gameScores, g1, g2)
-      const updated: CloudSnapshot = { ...current, schedule: nextSchedule, playedGames: nextPlayedGames, gameScores: nextGameScores }
-      await publishSession(sessionId, updated)
-      return updated
+      await publishSession(sessionId, current)
+      return current
     },
     onMutate: async ({ g1, g2 }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
