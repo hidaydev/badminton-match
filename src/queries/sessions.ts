@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import { applySwap, type SwapTarget } from '../utils/swap'
+import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 
 export function useListSessions(options?: { enabled?: boolean }) {
   return useQuery<SessionMeta[]>({
@@ -173,6 +174,35 @@ export function useReplacePlayer(sessionId: string) {
           ...old,
           players: old.players.map((p) => (p.id === playerId ? { ...p, name: newName } : p)),
         }
+      })
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['session', sessionId], context?.previous)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    },
+  })
+}
+
+export function useSwapSlots(sessionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ g1, g2 }: { g1: SlotSwapTarget; g2: SlotSwapTarget }) => {
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      const nextSchedule = applySlotSwap(current.schedule, g1, g2)
+      const updated: CloudSnapshot = { ...current, schedule: nextSchedule }
+      await publishSession(sessionId, updated)
+      return updated
+    },
+    onMutate: async ({ g1, g2 }) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
+        if (!old) return old
+        return { ...old, schedule: applySlotSwap(old.schedule, g1, g2) }
       })
       return { previous }
     },
