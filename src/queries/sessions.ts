@@ -151,6 +151,40 @@ export function useSetAbsent(sessionId: string) {
   })
 }
 
+export function useReplacePlayer(sessionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ playerId, newName }: { playerId: string; newName: string }) => {
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      const nextPlayers = current.players.map((p) =>
+        p.id === playerId ? { ...p, name: newName } : p
+      )
+      const updated: CloudSnapshot = { ...current, players: nextPlayers }
+      await publishSession(sessionId, updated)
+      return updated
+    },
+    onMutate: async ({ playerId, newName }) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          players: old.players.map((p) => (p.id === playerId ? { ...p, name: newName } : p)),
+        }
+      })
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['session', sessionId], context?.previous)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    },
+  })
+}
+
 export function useFetchSession() {
   const queryClient = useQueryClient()
   return useCallback(
