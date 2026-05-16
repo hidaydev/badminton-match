@@ -952,7 +952,7 @@ export default function SummaryModal({
       {pendingSlotSwap && (() => {
         const slotInfo = (t: { slot: number; court: number }) => {
           const game = result.schedule.find((g) => g.slot === t.slot && g.court === t.court)
-          const label = `Slot ${t.slot + 1}${courtLabel(t.court)}`
+          const label = `Slot ${t.slot + 1} - ${courtLabel(t.court)}`
           if (!game) return { label, players: '' }
           const aNames = game.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
           const bNames = game.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
