@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 const LS_RED = 'score-red'
 const LS_BLUE = 'score-blue'
@@ -30,6 +31,7 @@ async function exitFullscreen() {
 }
 
 export default function ScoreboardPage() {
+  const navigate = useNavigate()
   const [red, setRed] = useState(() => readLS(LS_RED))
   const [blue, setBlue] = useState(() => readLS(LS_BLUE))
   const [redName, setRedName] = useState(() => { const v = localStorage.getItem('name-red'); return (v === 'Red' || v === null) ? '' : v })
@@ -238,6 +240,13 @@ export default function ScoreboardPage() {
           paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
         }}
       >
+        <button
+          onClick={async () => { await exitFullscreen(); navigate('/') }}
+          className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+        >
+          ←
+        </button>
         <button
           onClick={reset}
           className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"

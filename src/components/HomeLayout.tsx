@@ -1,9 +1,12 @@
-import { Link, Outlet } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import UpdateBanner from './UpdateBanner'
 
 export default function HomeLayout() {
   const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const isHome = location.pathname === '/'
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -15,6 +18,17 @@ export default function HomeLayout() {
       )}
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-3 py-3 flex items-center gap-2">
+          {!isHome && (
+            <button
+              onClick={() => navigate(-1)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white active:scale-90 transition-all shrink-0"
+              aria-label="Back"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 18l-6-6 6-6"/>
+              </svg>
+            </button>
+          )}
           <Link to="/" className="flex items-center gap-2 flex-1">
             <img src="/logo.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
             <h1 className="text-sm font-bold text-white tracking-tight">MAJADU APP</h1>
