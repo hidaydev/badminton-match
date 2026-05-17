@@ -34,6 +34,8 @@ export interface OverlayConfig {
   matchId: string
   pairAName: string
   pairBName: string
+  initialScoreA: number
+  initialScoreB: number
   onSave: (scoreA: number, scoreB: number) => Promise<void>
   onClose: () => void
 }
@@ -41,11 +43,8 @@ export interface OverlayConfig {
 export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } = {}) {
   const navigate = useNavigate()
 
-  const keyRed = overlay ? `score-match-${overlay.matchId}-a` : LS_RED
-  const keyBlue = overlay ? `score-match-${overlay.matchId}-b` : LS_BLUE
-
-  const [red, setRed] = useState(() => readLS(keyRed))
-  const [blue, setBlue] = useState(() => readLS(keyBlue))
+  const [red, setRed] = useState(() => overlay ? overlay.initialScoreA : readLS(LS_RED))
+  const [blue, setBlue] = useState(() => overlay ? overlay.initialScoreB : readLS(LS_BLUE))
   const [redName, setRedName] = useState(() => {
     if (overlay) return overlay.pairAName
     const v = localStorage.getItem('name-red')
@@ -70,16 +69,16 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const initialRed = useRef<number | null>(null)
   const initialBlue = useRef<number | null>(null)
   if (overlay) {
-    if (initialRed.current === null) initialRed.current = readLS(keyRed)
-    if (initialBlue.current === null) initialBlue.current = readLS(keyBlue)
+    if (initialRed.current === null) initialRed.current = overlay.initialScoreA
+    if (initialBlue.current === null) initialBlue.current = overlay.initialScoreB
   }
 
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fsErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => { localStorage.setItem(keyRed, String(red)) }, [red, keyRed])
-  useEffect(() => { localStorage.setItem(keyBlue, String(blue)) }, [blue, keyBlue])
+  useEffect(() => { if (!overlay) localStorage.setItem(LS_RED, String(red)) }, [red, overlay])
+  useEffect(() => { if (!overlay) localStorage.setItem(LS_BLUE, String(blue)) }, [blue, overlay])
   useEffect(() => { if (!overlay) localStorage.setItem('name-red', redName) }, [redName, overlay])
   useEffect(() => { if (!overlay) localStorage.setItem('name-blue', blueName) }, [blueName, overlay])
 
@@ -323,28 +322,28 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             <button
               onClick={handleOverlayClose}
               disabled={isSaving}
-              className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto disabled:opacity-30 disabled:cursor-not-allowed"
+              className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto disabled:opacity-30 disabled:cursor-not-allowed"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
               ✕
             </button>
             <button
               onClick={reset}
-              className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
+              className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
               ↺
             </button>
             <button
               onClick={doSwap}
-              className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
+              className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
               ⇄
             </button>
             <button
               onClick={toggleFullscreen}
-              className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
+              className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
               {isFullscreen ? '⊠' : '⛶'}
@@ -352,10 +351,18 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="px-4 py-1 rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 h-9 flex items-center rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: '#fbbf24' }}
             >
-              {isSaving ? 'Saving…' : 'Save Score'}
+              {isSaving ? (
+                <>
+                  <svg className="animate-spin w-3.5 h-3.5 mr-1.5 shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Saving…
+                </>
+              ) : 'Save Score'}
             </button>
           </>
         )
