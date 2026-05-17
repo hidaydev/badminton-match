@@ -1,17 +1,69 @@
 interface Props {
   onReload(): void
+  onDismiss(): void
 }
 
-export default function UpdateBanner({ onReload }: Props) {
+export default function UpdateBanner({ onReload, onDismiss }: Props) {
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-400 text-slate-950">
-      <span className="text-sm font-medium">New version available</span>
-      <button
-        onClick={onReload}
-        className="text-sm font-bold underline underline-offset-2 shrink-0"
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      onClick={onDismiss}
+    >
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+
+      <div
+        className="relative w-full max-w-lg bg-slate-900 rounded-t-3xl flex flex-col overflow-hidden
+          animate-[slideUp_0.3s_ease-out]"
+        onClick={(e) => e.stopPropagation()}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 24px)' }}
       >
-        Reload
-      </button>
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 bg-slate-700 rounded-full" />
+        </div>
+
+        {/* Icon + heading */}
+        <div className="flex flex-col items-center gap-2 px-6 pt-4 pb-5">
+          <div className="w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-3xl">
+            🚀
+          </div>
+          <div className="text-center">
+            <p className="text-white font-bold text-lg leading-tight">Update Available</p>
+            <p className="text-slate-400 text-sm mt-0.5">A new version of Majadu is ready</p>
+          </div>
+        </div>
+
+        <div className="h-px bg-slate-800 mx-6" />
+
+        {/* What's new hint */}
+        <div className="flex items-start gap-4 px-6 py-5">
+          <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">✨</div>
+          <div className="flex flex-col gap-0.5 pt-0.5">
+            <span className="text-sm font-semibold text-white">Improvements & fixes</span>
+            <span className="text-xs text-slate-500">Reload to get the latest version</span>
+          </div>
+        </div>
+
+        <div className="h-px bg-slate-800 mx-6" />
+
+        {/* Actions */}
+        <div className="flex flex-col gap-2 px-6 pt-4 pb-2">
+          <button
+            onClick={onReload}
+            className="w-full py-3.5 rounded-2xl bg-yellow-400 text-slate-950 font-bold text-sm
+              active:scale-[0.98] transition-transform"
+          >
+            Reload Now
+          </button>
+          <button
+            onClick={onDismiss}
+            className="w-full py-3 rounded-2xl text-slate-500 font-medium text-sm
+              active:scale-[0.98] transition-transform"
+          >
+            Later
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
