@@ -6,6 +6,7 @@ import {
   generateGroupMatches,
   initKnockoutMatches,
   propagateBracket,
+  assignGroupPics,
 } from '../utils/tournament'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
@@ -35,7 +36,8 @@ export function useConfirmGroups() {
     }) => {
       const groupMatches = GROUP_IDS.flatMap((g) => generateGroupMatches(g, localGroups[g]))
       const allMatches = [...groupMatches, ...initKnockoutMatches()]
-      const newMatches = propagateBracket(allMatches, localGroups, pairs)
+      const propagated = propagateBracket(allMatches, localGroups, pairs)
+      const newMatches = assignGroupPics(pairs, localGroups, propagated)
       await publishTournament(TOURNAMENT_ID, { name, date, pairs, groups: localGroups, matches: newMatches })
     },
     onMutate: async () => {
@@ -97,6 +99,24 @@ export function useResetTournament() {
         groups: { A: [], B: [], C: [], D: [] },
         matches: [],
       })
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
+  })
+}
+
+export function useRegeneratePics() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const current = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
+      if (!current) throw new Error('no tournament data')
+      const newMatches = assignGroupPics(current.pairs, current.groups, current.matches)
+      const next = { ...current, matches: newMatches }
+      await publishTournament(TOURNAMENT_ID, next)
+      return next
     },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
