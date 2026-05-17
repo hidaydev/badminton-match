@@ -65,18 +65,18 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                 <button
                   key={m.id}
                   onClick={() => { onOpenModal(); setActiveMatchId(m.id) }}
-                  className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 active:bg-slate-600/60 active:scale-[0.98] transition-transform duration-75 text-left gap-2"
+                  className="w-full flex flex-col px-4 pt-3 pb-2.5 hover:bg-slate-700/50 active:bg-slate-600/60 active:scale-[0.98] transition-transform duration-75 gap-1.5"
                 >
-                  <span className="text-xs text-slate-300 flex-1 truncate">{getPairName(m.pairAId)}</span>
-                  <div className="shrink-0 min-w-[56px] flex flex-col items-center">
-                    <span className="text-xs font-bold text-yellow-400 bg-slate-900 rounded-md px-2 py-1">
+                  <div className="flex items-center gap-2 w-full">
+                    <span className="text-xs text-slate-300 flex-1 truncate text-left">{getPairName(m.pairAId)}</span>
+                    <span className="text-xs font-bold text-yellow-400 shrink-0 min-w-[56px] text-center bg-slate-900 rounded-md px-2 py-1">
                       {m.scoreA !== null ? `${m.scoreA}–${m.scoreB}` : '—'}
                     </span>
-                    {m.picName && (
-                      <span className="text-[9px] text-slate-500 mt-0.5 leading-none">{m.picName}</span>
-                    )}
+                    <span className="text-xs text-slate-300 flex-1 text-right truncate">{getPairName(m.pairBId)}</span>
                   </div>
-                  <span className="text-xs text-slate-300 flex-1 text-right truncate">{getPairName(m.pairBId)}</span>
+                  {m.picName && (
+                    <span className="text-[9px] text-slate-500 leading-none text-center w-full">{m.picName}</span>
+                  )}
                 </button>
               ))}
             </div>
