@@ -48,12 +48,6 @@ export default function ScoreboardPage() {
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fsErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hapticRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    hapticRef.current?.setAttribute('switch', '')
-  }, [])
-
   useEffect(() => { localStorage.setItem(LS_RED, String(red)) }, [red])
   useEffect(() => { localStorage.setItem(LS_BLUE, String(blue)) }, [blue])
   useEffect(() => { localStorage.setItem('name-red', redName) }, [redName])
@@ -73,8 +67,6 @@ export default function ScoreboardPage() {
   }, [])
 
   function triggerPop(side: 'red' | 'blue') {
-    if ('vibrate' in navigator) navigator.vibrate(30)
-    hapticRef.current?.click()
     if (side === 'red') {
       setPopRed(true)
       if (redTimer.current) clearTimeout(redTimer.current)
@@ -137,9 +129,6 @@ export default function ScoreboardPage() {
         height: '100dvh',
       }}
     >
-      {/* Hidden checkbox — iOS Safari fires native haptic on .click() within a user gesture */}
-      <input ref={hapticRef} type="checkbox" aria-hidden="true" tabIndex={-1} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
-
       {/* Red side */}
       <div
         className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 transition-[filter] duration-75"
