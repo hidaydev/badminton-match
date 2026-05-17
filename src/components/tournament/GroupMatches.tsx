@@ -29,7 +29,9 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     <div className="space-y-4">
       <div className="flex justify-end gap-3">
         <button
-          onClick={onRegeneratePics}
+          onClick={() => {
+            if (confirm('Reassign scoring PICs? Current assignments will be replaced.')) onRegeneratePics()
+          }}
           disabled={isRegeneratingPics}
           className="text-xs text-slate-500 hover:text-slate-300 underline disabled:opacity-50"
         >
