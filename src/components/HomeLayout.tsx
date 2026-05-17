@@ -1,8 +1,18 @@
 import { Link, Outlet } from 'react-router-dom'
+import { useRegisterSW } from 'virtual:pwa-register/react'
+import UpdateBanner from './UpdateBanner'
 
 export default function HomeLayout() {
+  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW()
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      {needRefresh && (
+        <UpdateBanner
+          onReload={() => updateServiceWorker(true)}
+          onDismiss={() => setNeedRefresh(false)}
+        />
+      )}
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-3 py-3 flex items-center gap-2">
           <Link to="/" className="flex items-center gap-2">
