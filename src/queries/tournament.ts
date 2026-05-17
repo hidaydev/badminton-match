@@ -109,6 +109,7 @@ export function useResetTournament() {
 
 export function useRegeneratePics() {
   const queryClient = useQueryClient()
+  // no optimistic update — result is non-deterministic (random shuffle); onSettled refetch is sufficient
   return useMutation({
     mutationFn: async () => {
       const current = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
