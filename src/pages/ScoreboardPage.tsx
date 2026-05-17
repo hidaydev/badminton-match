@@ -46,8 +46,16 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const [red, setRed] = useState(() => readLS(keyRed))
   const [blue, setBlue] = useState(() => readLS(keyBlue))
-  const [redName, setRedName] = useState(() => { const v = localStorage.getItem('name-red'); return (v === 'Red' || v === null) ? '' : v })
-  const [blueName, setBlueName] = useState(() => { const v = localStorage.getItem('name-blue'); return (v === 'Blue' || v === null) ? '' : v })
+  const [redName, setRedName] = useState(() => {
+    if (overlay) return overlay.pairAName
+    const v = localStorage.getItem('name-red')
+    return (v === 'Red' || v === null) ? '' : v
+  })
+  const [blueName, setBlueName] = useState(() => {
+    if (overlay) return overlay.pairBName
+    const v = localStorage.getItem('name-blue')
+    return (v === 'Blue' || v === null) ? '' : v
+  })
   const [editingRed, setEditingRed] = useState(false)
   const [editingBlue, setEditingBlue] = useState(false)
   const [popRed, setPopRed] = useState(false)
@@ -134,12 +142,6 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     setLeftColor(c => c === 'red' ? 'blue' : 'red')
   }, [red, blue, redName, blueName])
 
-  const doSwapOverlay = useCallback(() => {
-    setRed(blue)
-    setBlue(red)
-    setLeftColor(c => c === 'red' ? 'blue' : 'red')
-  }, [red, blue])
-
   const handleOverlayClose = useCallback(() => {
     if (!overlay) return
     if (red !== (initialRed.current ?? 0) || blue !== (initialBlue.current ?? 0)) {
@@ -156,8 +158,8 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   }, [overlay, red, blue])
 
   // Overlay mode: name shown as read-only pill
-  const nameA = overlay ? overlay.pairAName : (redName || (leftColor === 'red' ? 'RED' : 'BLUE'))
-  const nameB = overlay ? overlay.pairBName : (blueName || (leftColor === 'red' ? 'BLUE' : 'RED'))
+  const nameA = overlay ? redName : (redName || (leftColor === 'red' ? 'RED' : 'BLUE'))
+  const nameB = overlay ? blueName : (blueName || (leftColor === 'red' ? 'BLUE' : 'RED'))
 
   const redSide = (
     <div
@@ -317,7 +319,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
               className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
-              ←
+              ✕
             </button>
             <button
               onClick={reset}
@@ -327,7 +329,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
               ↺
             </button>
             <button
-              onClick={doSwapOverlay}
+              onClick={doSwap}
               className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
@@ -384,10 +386,25 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     </div>
   )
 
-  // Overlay mode: simple fixed fullscreen, no portrait rotation
   if (overlay) {
     return (
-      <div className="fixed inset-0 z-[60] flex overflow-hidden select-none">
+      <div
+        className="flex overflow-hidden select-none"
+        style={isPortrait ? {
+          position: 'fixed',
+          top: 0,
+          left: '100vw',
+          width: '100dvh',
+          height: '100dvw',
+          transformOrigin: 'top left',
+          transform: 'rotate(90deg)',
+          zIndex: 60,
+        } : {
+          position: 'fixed',
+          inset: 0,
+          zIndex: 60,
+        }}
+      >
         {redSide}
         {divider}
         {blueSide}
