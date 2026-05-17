@@ -23,9 +23,13 @@ export default function ScoreboardOverlay({ matchId, pairAName, pairBName, onSav
   const [scoreB, setScoreB] = useState(() => readLS(keyB))
   const [popA, setPopA] = useState(false)
   const [popB, setPopB] = useState(false)
+  const [pendingClose, setPendingClose] = useState(false)
 
-  const initialA = useRef(readLS(keyA))
-  const initialB = useRef(readLS(keyB))
+  const initialA = useRef<number | null>(null)
+  const initialB = useRef<number | null>(null)
+  if (initialA.current === null) initialA.current = readLS(keyA)
+  if (initialB.current === null) initialB.current = readLS(keyB)
+
   const timerA = useRef<ReturnType<typeof setTimeout> | null>(null)
   const timerB = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -74,8 +78,9 @@ export default function ScoreboardOverlay({ matchId, pairAName, pairBName, onSav
   }, [scoreA, scoreB])
 
   const handleClose = useCallback(() => {
-    if (scoreA !== initialA.current || scoreB !== initialB.current) {
-      if (!window.confirm('Discard unsaved score?')) return
+    if (scoreA !== (initialA.current ?? 0) || scoreB !== (initialB.current ?? 0)) {
+      setPendingClose(true)
+      return
     }
     onClose()
   }, [scoreA, scoreB, onClose])
@@ -169,34 +174,56 @@ export default function ScoreboardOverlay({ matchId, pairAName, pairBName, onSav
           borderTop: '1px solid rgba(255,255,255,0.08)',
         }}
       >
-        <button
-          onClick={handleClose}
-          className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-        >
-          ←
-        </button>
-        <button
-          onClick={reset}
-          className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-        >
-          ↺
-        </button>
-        <button
-          onClick={swap}
-          className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-        >
-          ⇄
-        </button>
-        <button
-          onClick={handleSave}
-          className="px-4 py-1 rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity"
-          style={{ background: '#fbbf24' }}
-        >
-          Save Score
-        </button>
+        {pendingClose ? (
+          <>
+            <span className="text-white/50 text-xs mr-1">Discard score?</span>
+            <button
+              onClick={onClose}
+              className="px-4 py-1 rounded-lg text-white/80 text-sm cursor-pointer active:bg-white/10 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}
+            >
+              Discard
+            </button>
+            <button
+              onClick={() => setPendingClose(false)}
+              className="px-4 py-1 rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity"
+              style={{ background: '#fbbf24' }}
+            >
+              Keep scoring
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={handleClose}
+              className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              ←
+            </button>
+            <button
+              onClick={reset}
+              className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              ↺
+            </button>
+            <button
+              onClick={swap}
+              className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              ⇄
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-4 py-1 rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity"
+              style={{ background: '#fbbf24' }}
+            >
+              Save Score
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
