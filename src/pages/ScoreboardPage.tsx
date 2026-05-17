@@ -50,6 +50,10 @@ export default function ScoreboardPage() {
   const fsErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hapticRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    hapticRef.current?.setAttribute('switch', '')
+  }, [])
+
   useEffect(() => { localStorage.setItem(LS_RED, String(red)) }, [red])
   useEffect(() => { localStorage.setItem(LS_BLUE, String(blue)) }, [blue])
   useEffect(() => { localStorage.setItem('name-red', redName) }, [redName])
@@ -134,8 +138,7 @@ export default function ScoreboardPage() {
       }}
     >
       {/* Hidden checkbox — iOS Safari fires native haptic on .click() within a user gesture */}
-      {/* @ts-ignore */}
-      <input ref={hapticRef} type="checkbox" switch="" aria-hidden="true" tabIndex={-1} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
+      <input ref={hapticRef} type="checkbox" aria-hidden="true" tabIndex={-1} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
 
       {/* Red side */}
       <div
