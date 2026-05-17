@@ -48,6 +48,7 @@ export default function ScoreboardPage() {
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fsErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hapticRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { localStorage.setItem(LS_RED, String(red)) }, [red])
   useEffect(() => { localStorage.setItem(LS_BLUE, String(blue)) }, [blue])
@@ -68,6 +69,8 @@ export default function ScoreboardPage() {
   }, [])
 
   function triggerPop(side: 'red' | 'blue') {
+    if ('vibrate' in navigator) navigator.vibrate(30)
+    hapticRef.current?.click()
     if (side === 'red') {
       setPopRed(true)
       if (redTimer.current) clearTimeout(redTimer.current)
@@ -130,6 +133,9 @@ export default function ScoreboardPage() {
         height: '100dvh',
       }}
     >
+      {/* Hidden checkbox — iOS Safari fires native haptic on .click() within a user gesture */}
+      {/* @ts-ignore */}
+      <input ref={hapticRef} type="checkbox" switch="" aria-hidden="true" tabIndex={-1} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }} />
 
       {/* Red side */}
       <div
@@ -142,7 +148,7 @@ export default function ScoreboardPage() {
           {editingRed ? (
             <input
               autoFocus
-              placeholder="RED"
+              placeholder={leftColor === 'red' ? 'RED' : 'BLUE'}
               value={redName}
               onChange={e => setRedName(e.target.value)}
               onBlur={() => setEditingRed(false)}
@@ -155,7 +161,7 @@ export default function ScoreboardPage() {
               className={`text-[clamp(0.7rem,2vmax,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${redName ? 'text-white/50' : 'text-white/30'}`}
               onClick={() => setEditingRed(true)}
             >
-              {redName || 'RED'}
+              {redName || (leftColor === 'red' ? 'RED' : 'BLUE')}
             </span>
           )}
         </div>
@@ -199,7 +205,7 @@ export default function ScoreboardPage() {
           {editingBlue ? (
             <input
               autoFocus
-              placeholder="BLUE"
+              placeholder={leftColor === 'red' ? 'BLUE' : 'RED'}
               value={blueName}
               onChange={e => setBlueName(e.target.value)}
               onBlur={() => setEditingBlue(false)}
@@ -212,7 +218,7 @@ export default function ScoreboardPage() {
               className={`text-[clamp(0.7rem,2vmax,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${blueName ? 'text-white/50' : 'text-white/30'}`}
               onClick={() => setEditingBlue(true)}
             >
-              {blueName || 'BLUE'}
+              {blueName || (leftColor === 'red' ? 'BLUE' : 'RED')}
             </span>
           )}
         </div>
