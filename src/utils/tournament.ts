@@ -169,26 +169,37 @@ export function assignGroupPics(
       pairNames.set(pairId, name.includes(' & ') ? name.split(' & ') : [name])
     }
 
-    // Pool of all 8 names in the group, shuffled
+    // Pool of all individual names in the group
     const pool: string[] = []
     for (const names of pairNames.values()) pool.push(...names)
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]]
-    }
 
-    const used = new Set<string>()
     const groupMatches = result.filter((m) => m.phase === 'group' && m.groupId === g)
 
-    for (const m of groupMatches) {
-      const playing = new Set<string>([
-        ...(m.pairAId ? (pairNames.get(m.pairAId) ?? []) : []),
-        ...(m.pairBId ? (pairNames.get(m.pairBId) ?? []) : []),
-      ])
-      const pic = pool.find((name) => !playing.has(name) && !used.has(name))
-      if (pic) {
-        m.picName = pic
+    for (let attempt = 0; attempt < 20; attempt++) {
+      // Fisher-Yates shuffle
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[pool[i], pool[j]] = [pool[j], pool[i]]
+      }
+      const used = new Set<string>()
+      const assignments: Array<{ m: TournamentMatch; pic: string }> = []
+      let ok = true
+      for (const m of groupMatches) {
+        const playing = new Set<string>([
+          ...(m.pairAId ? (pairNames.get(m.pairAId) ?? []) : []),
+          ...(m.pairBId ? (pairNames.get(m.pairBId) ?? []) : []),
+        ])
+        const pic = pool.find((name) => !playing.has(name) && !used.has(name))
+        if (!pic) {
+          ok = false
+          break
+        }
+        assignments.push({ m, pic })
         used.add(pic)
+      }
+      if (ok) {
+        for (const { m, pic } of assignments) m.picName = pic
+        break
       }
     }
   }
