@@ -12,6 +12,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
 /* Prevent iOS Safari from auto-zooming on input focus */
 input, select, textarea {
   font-size: max(16px, 1em);
