@@ -58,7 +58,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: Props) {
               <img
                 src="/add-to-home-screen.jpeg"
                 alt="Add to Home Screen button"
-                className="w-1/3 rounded-xl object-contain border border-slate-700 m-4"
+                className="w-1/2 rounded-lg object-contain border border-slate-700 mt-2 mb-1 ml-12"
               />
             </li>
             <li className="flex items-start gap-4 py-3">
