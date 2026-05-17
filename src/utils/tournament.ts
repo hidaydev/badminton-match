@@ -160,6 +160,7 @@ export function assignGroupPics(
   const pairNameMap = new Map(pairs.map((p) => [p.id, p.name]))
 
   const result = matches.map((m) => ({ ...m }))
+  const MAX_PIC_ATTEMPTS = 20
 
   for (const g of ['A', 'B', 'C', 'D'] as GroupId[]) {
     // Build pairId -> individual names
@@ -175,7 +176,8 @@ export function assignGroupPics(
 
     const groupMatches = result.filter((m) => m.phase === 'group' && m.groupId === g)
 
-    for (let attempt = 0; attempt < 20; attempt++) {
+    let assigned = false
+    for (let attempt = 0; attempt < MAX_PIC_ATTEMPTS; attempt++) {
       // Fisher-Yates shuffle
       for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1))
@@ -199,8 +201,12 @@ export function assignGroupPics(
       }
       if (ok) {
         for (const { m, pic } of assignments) m.picName = pic
+        assigned = true
         break
       }
+    }
+    if (!assigned) {
+      console.warn(`assignGroupPics: could not assign all PICs for group ${g}`)
     }
   }
 
