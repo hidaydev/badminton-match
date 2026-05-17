@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useRegisterSW } from 'virtual:pwa-register/react'
+import UpdateBanner from './components/UpdateBanner'
 import HomeLayout from './components/HomeLayout'
 import SessionLayout from './components/SessionLayout'
 import HomePage from './pages/HomePage'
@@ -54,6 +56,7 @@ function SharedViewPage() {
 }
 
 export default function App() {
+  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW()
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash)
   )
@@ -70,6 +73,12 @@ export default function App() {
 
   return (
     <SharedViewContext.Provider value={sharedViewValue}>
+      {needRefresh && (
+        <UpdateBanner
+          onReload={() => updateServiceWorker(true)}
+          onDismiss={() => setNeedRefresh(false)}
+        />
+      )}
       <BrowserRouter>
         <Routes>
           <Route element={<HomeLayout />}>
