@@ -5,6 +5,7 @@ import {
   useConfirmGroups,
   useSetTournamentScore,
   useResetTournament,
+  useRegeneratePics,
   TOURNAMENT_ID,
 } from '../queries'
 import type { GroupId, TournamentPair } from '../utils/tournament'
@@ -105,8 +106,9 @@ export default function TournamentPage() {
   const { mutate: confirmGroups, isPending: confirmPending } = useConfirmGroups()
   const { mutate: setTournamentScore, isPending: setScorePending } = useSetTournamentScore()
   const { mutate: resetTournament, isPending: resetPending } = useResetTournament()
+  const { mutate: regeneratePics, isPending: regeneratePicsPending } = useRegeneratePics()
 
-  const isSaving = confirmPending || setScorePending || resetPending
+  const isSaving = confirmPending || setScorePending || resetPending || regeneratePicsPending
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'groups', label: 'Groups' },
@@ -186,6 +188,11 @@ export default function TournamentPage() {
                     },
                     onError: () => setSaveError('Failed to reset, please try again'),
                   })}
+                  onRegeneratePics={() => regeneratePics(undefined, {
+                    onSuccess: () => setSaveError(null),
+                    onError: () => setSaveError('Failed to regenerate PICs, please try again'),
+                  })}
+                  isRegeneratingPics={regeneratePicsPending}
                   onOpenModal={handleOpenModal}
                   isFetching={isFetching}
                   refetch={refetch}
