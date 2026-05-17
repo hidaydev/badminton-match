@@ -41,6 +41,7 @@ export default function ScoreboardPage() {
   const [leftColor, setLeftColor] = useState<'red' | 'blue'>('red')
   const [isFullscreen, setIsFullscreen] = useState(() => !!document.fullscreenElement)
   const [fsError, setFsError] = useState<string | null>(null)
+  const [isPortrait, setIsPortrait] = useState(() => window.innerWidth < window.innerHeight)
 
   const redTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blueTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -54,8 +55,11 @@ export default function ScoreboardPage() {
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', onChange)
+    const onResize = () => setIsPortrait(window.innerWidth < window.innerHeight)
+    window.addEventListener('resize', onResize)
     return () => {
       document.removeEventListener('fullscreenchange', onChange)
+      window.removeEventListener('resize', onResize)
       if (redTimer.current) clearTimeout(redTimer.current)
       if (blueTimer.current) clearTimeout(blueTimer.current)
     }
@@ -109,7 +113,21 @@ export default function ScoreboardPage() {
   }, [red, blue, redName, blueName])
 
   return (
-    <div className="flex w-screen overflow-hidden select-none" style={{ height: '100dvh' }}>
+    <div
+      className="flex overflow-hidden select-none"
+      style={isPortrait ? {
+        position: 'fixed',
+        top: 0,
+        left: '100vw',
+        width: '100dvh',
+        height: '100dvw',
+        transformOrigin: 'top left',
+        transform: 'rotate(90deg)',
+      } : {
+        width: '100vw',
+        height: '100dvh',
+      }}
+    >
 
       {/* Red side */}
       <div
@@ -128,11 +146,11 @@ export default function ScoreboardPage() {
               onBlur={() => setEditingRed(false)}
               onKeyDown={e => { if (e.key === 'Enter') setEditingRed(false) }}
               className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-36"
-              style={{ fontSize: 'clamp(0.7rem,2vw,1rem)' }}
+              style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)' }}
             />
           ) : (
             <span
-              className={`text-[clamp(0.7rem,2vw,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${redName ? 'text-white/50' : 'text-white/30'}`}
+              className={`text-[clamp(0.7rem,2vmax,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${redName ? 'text-white/50' : 'text-white/30'}`}
               onClick={() => setEditingRed(true)}
             >
               {redName || 'RED'}
@@ -144,14 +162,14 @@ export default function ScoreboardPage() {
         <span
           className="text-white font-black leading-none pointer-events-none"
           style={{
-            fontSize: 'clamp(6rem, 22vw, 13rem)',
+            fontSize: 'clamp(6rem, 22vmax, 13rem)',
             transform: popRed ? 'scale(1.1)' : 'scale(1)',
             transition: 'transform 0.08s ease-out',
           }}
         >
           {red}
         </span>
-        <span className="text-white/20 text-[clamp(0.55rem,1.2vw,0.75rem)] tracking-widest mt-3 pointer-events-none">
+        <span className="text-white/20 text-[clamp(0.55rem,1.2vmax,0.75rem)] tracking-widest mt-3 pointer-events-none">
           tap to score
         </span>
 
@@ -185,11 +203,11 @@ export default function ScoreboardPage() {
               onBlur={() => setEditingBlue(false)}
               onKeyDown={e => { if (e.key === 'Enter') setEditingBlue(false) }}
               className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-36"
-              style={{ fontSize: 'clamp(0.7rem,2vw,1rem)' }}
+              style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)' }}
             />
           ) : (
             <span
-              className={`text-[clamp(0.7rem,2vw,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${blueName ? 'text-white/50' : 'text-white/30'}`}
+              className={`text-[clamp(0.7rem,2vmax,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${blueName ? 'text-white/50' : 'text-white/30'}`}
               onClick={() => setEditingBlue(true)}
             >
               {blueName || 'BLUE'}
@@ -201,14 +219,14 @@ export default function ScoreboardPage() {
         <span
           className="text-white font-black leading-none pointer-events-none"
           style={{
-            fontSize: 'clamp(6rem, 22vw, 13rem)',
+            fontSize: 'clamp(6rem, 22vmax, 13rem)',
             transform: popBlue ? 'scale(1.1)' : 'scale(1)',
             transition: 'transform 0.08s ease-out',
           }}
         >
           {blue}
         </span>
-        <span className="text-white/20 text-[clamp(0.55rem,1.2vw,0.75rem)] tracking-widest mt-3 pointer-events-none">
+        <span className="text-white/20 text-[clamp(0.55rem,1.2vmax,0.75rem)] tracking-widest mt-3 pointer-events-none">
           tap to score
         </span>
 
