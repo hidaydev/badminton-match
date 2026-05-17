@@ -8,6 +8,7 @@ interface Props {
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
   onOpenModal: () => void
   isFetching: boolean
+  refetch: () => Promise<unknown>
 }
 
 function MatchCard({
@@ -56,7 +57,7 @@ function Connector() {
   )
 }
 
-export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModal, isFetching }: Props) {
+export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
 
@@ -159,6 +160,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
           onConfirm={(a, b) => { onSetMatchScore(activeMatch.id, a, b); setActiveMatchId(null) }}
           onClose={() => setActiveMatchId(null)}
           isFetching={isFetching}
+          refetch={refetch}
         />
       )}
     </div>

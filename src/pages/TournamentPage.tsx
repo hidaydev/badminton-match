@@ -77,7 +77,7 @@ export default function TournamentPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
-  const { data: snapshot, isFetching } = useGetTournament()
+  const { data: snapshot, isFetching, refetch } = useGetTournament()
 
   const handleOpenModal = () => {
     queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
@@ -179,6 +179,7 @@ export default function TournamentPage() {
                   })}
                   onOpenModal={handleOpenModal}
                   isFetching={isFetching}
+                  refetch={refetch}
                 />
               : <GroupAssignment
                   pairs={pairs}
@@ -202,6 +203,7 @@ export default function TournamentPage() {
             })}
             onOpenModal={handleOpenModal}
             isFetching={isFetching}
+            refetch={refetch}
           />
         )}
         {tab === 'standings' && (

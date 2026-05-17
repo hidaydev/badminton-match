@@ -13,9 +13,10 @@ interface Props {
   onResetGroups: () => void
   onOpenModal: () => void
   isFetching: boolean
+  refetch: () => Promise<unknown>
 }
 
-export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups, onOpenModal, isFetching }: Props) {
+export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups, onOpenModal, isFetching, refetch }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
 
@@ -101,6 +102,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
           onConfirm={(a, b) => { onSetMatchScore(activeMatch.id, a, b); setActiveMatchId(null) }}
           onClose={() => setActiveMatchId(null)}
           isFetching={isFetching}
+          refetch={refetch}
         />
       )}
     </div>

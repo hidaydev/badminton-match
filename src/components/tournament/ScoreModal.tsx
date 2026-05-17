@@ -9,9 +9,10 @@ interface Props {
   onConfirm: (scoreA: number, scoreB: number) => void
   onClose: () => void
   isFetching?: boolean
+  refetch: () => Promise<unknown>
 }
 
-export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onClose, isFetching = false }: Props) {
+export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onClose, isFetching = false, refetch }: Props) {
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? '')
   const [scoreB, setScoreB] = useState(match.scoreB?.toString() ?? '')
   const [showScoreboard, setShowScoreboard] = useState(false)
@@ -35,6 +36,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
         pairAName={pairAName}
         pairBName={pairBName}
         onSave={async (sA, sB) => {
+          await refetch()
           onConfirm(sA, sB)
           setShowScoreboard(false)
         }}
