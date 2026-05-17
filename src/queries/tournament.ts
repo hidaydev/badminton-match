@@ -115,6 +115,8 @@ export function useRegeneratePics() {
       const current = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
       if (!current) throw new Error('no tournament data')
       const newMatches = assignGroupPics(current.pairs, current.groups, current.matches)
+      const unassigned = newMatches.some((m) => m.phase === 'group' && !m.picName)
+      if (unassigned) throw new Error('Could not assign all PICs — please try again')
       const next = { ...current, matches: newMatches }
       await publishTournament(TOURNAMENT_ID, next)
       return next
