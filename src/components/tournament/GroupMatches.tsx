@@ -53,7 +53,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                 <button
                   key={m.id}
                   onClick={() => { onOpenModal(); setActiveMatchId(m.id) }}
-                  className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 text-left gap-2"
+                  className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 active:bg-slate-600/60 active:scale-[0.98] transition-transform duration-75 text-left gap-2"
                 >
                   <span className="text-xs text-slate-300 flex-1 truncate">{getPairName(m.pairAId)}</span>
                   <span className="text-xs font-bold text-yellow-400 shrink-0 min-w-[56px] text-center bg-slate-900 rounded-md px-2 py-1">
