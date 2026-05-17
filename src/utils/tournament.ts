@@ -159,8 +159,8 @@ export function assignGroupPics(
 ): TournamentMatch[] {
   const pairNameMap = new Map(pairs.map((p) => [p.id, p.name]))
 
-  const result = matches.map((m) => ({ ...m }))
   const MAX_PIC_ATTEMPTS = 20
+  const result = matches.map((m) => ({ ...m }))
 
   for (const g of ['A', 'B', 'C', 'D'] as GroupId[]) {
     // Build pairId -> individual names
