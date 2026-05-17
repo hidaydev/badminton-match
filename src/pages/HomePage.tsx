@@ -23,7 +23,12 @@ export default function HomePage() {
   const [modalOpen, setModalOpen] = useState(false)
 
   useEffect(() => {
-    if (isInstallable) setModalOpen(true)
+    if (!isInstallable) return
+    const today = new Date().toDateString()
+    const lastShown = localStorage.getItem('pwa-install-shown')
+    if (lastShown === today) return
+    setModalOpen(true)
+    localStorage.setItem('pwa-install-shown', today)
   }, [isInstallable])
 
   async function handleInstall() {
