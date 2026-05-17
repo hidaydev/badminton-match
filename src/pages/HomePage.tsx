@@ -1,4 +1,7 @@
 import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { usePwaInstall } from '../hooks/usePwaInstall'
+import InstallModal from '../components/InstallModal'
 
 const grid = [
   { icon: '🏸', label: 'Create Session', description: 'Set up a new game', to: '/session/new' },
@@ -16,6 +19,23 @@ async function openScoreboard(navigate: (path: string) => void) {
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const { isInstallable, isIos, prompt } = usePwaInstall()
+  const [modalOpen, setModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isInstallable) return
+    const today = new Date().toDateString()
+    const lastShown = localStorage.getItem('pwa-install-shown')
+    if (lastShown === today) return
+    setModalOpen(true)
+    localStorage.setItem('pwa-install-shown', today)
+  }, [isInstallable])
+
+  async function handleInstall() {
+    await prompt()
+    setModalOpen(false)
+  }
+
   return (
     <div className="flex flex-col gap-6 pt-6">
       <div className="flex flex-col gap-1">
@@ -43,7 +63,7 @@ export default function HomePage() {
         </div>
       </button>
 
-      {/* 2×2 grid */}
+      {/* 2×N grid */}
       <div className="grid grid-cols-2 gap-2.5">
         {grid.map((item) => (
           <button
@@ -61,7 +81,31 @@ export default function HomePage() {
             <span className="absolute bottom-4 right-4 text-slate-700 group-hover:text-slate-500 transition-colors text-sm font-mono">→</span>
           </button>
         ))}
+
+        {isInstallable && (
+          <button
+            onClick={() => setModalOpen(true)}
+            className="group relative flex flex-col gap-4 p-5 rounded-2xl text-left
+              border transition-all duration-200
+              bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/70 active:scale-[0.98]"
+          >
+            <span className="text-2xl">📲</span>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-semibold text-white leading-tight">Install App</span>
+              <span className="text-[11px] text-slate-500">Add to your home screen</span>
+            </div>
+            <span className="absolute bottom-4 right-4 text-slate-700 group-hover:text-slate-500 transition-colors text-sm font-mono">→</span>
+          </button>
+        )}
       </div>
+
+      {modalOpen && (
+        <InstallModal
+          isIos={isIos}
+          onInstall={handleInstall}
+          onClose={() => setModalOpen(false)}
+        />
+      )}
     </div>
   )
 }
