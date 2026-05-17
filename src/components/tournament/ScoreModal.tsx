@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { TournamentMatch } from '../../utils/tournament'
+import ScoreboardOverlay from './ScoreboardOverlay'
 
 interface Props {
   match: TournamentMatch
@@ -13,6 +14,7 @@ interface Props {
 export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onClose, isFetching = false }: Props) {
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? '')
   const [scoreB, setScoreB] = useState(match.scoreB?.toString() ?? '')
+  const [showScoreboard, setShowScoreboard] = useState(false)
 
   // Sync inputs with fresh match data once the refetch completes
   useEffect(() => {
@@ -25,6 +27,21 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
   const a = parseInt(scoreA, 10)
   const b = parseInt(scoreB, 10)
   const valid = !isNaN(a) && !isNaN(b) && a >= 0 && b >= 0 && a !== b
+
+  if (showScoreboard) {
+    return (
+      <ScoreboardOverlay
+        matchId={match.id}
+        pairAName={pairAName}
+        pairBName={pairBName}
+        onSave={(sA, sB) => {
+          onConfirm(sA, sB)
+          setShowScoreboard(false)
+        }}
+        onClose={() => setShowScoreboard(false)}
+      />
+    )
+  }
 
   if (isFetching) {
     return (
@@ -92,7 +109,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
           <p className="text-xs text-red-400 text-center mb-3">Scores cannot be equal (no draws)</p>
         )}
 
-        <div className="flex gap-3">
+        <div className="flex gap-3 mb-3">
           <button
             onClick={onClose}
             className="flex-1 py-3 rounded-xl bg-slate-700 text-slate-300 text-sm font-semibold"
@@ -107,6 +124,14 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
             Confirm
           </button>
         </div>
+
+        <button
+          onClick={() => setShowScoreboard(true)}
+          className="w-full py-2.5 rounded-xl text-slate-400 text-sm font-medium flex items-center justify-center gap-2 active:bg-slate-700/60 transition-colors"
+          style={{ border: '1px solid rgba(148,163,184,0.15)' }}
+        >
+          🎯 Open Scoreboard
+        </button>
       </div>
     </div>
   )
