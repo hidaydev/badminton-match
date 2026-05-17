@@ -100,8 +100,11 @@ export default function ScoreboardOverlay({ matchId, pairAName, pairBName, onSav
           style={{ background: '#b91c1c' }}
           onClick={addA}
         >
-          <div className="absolute top-0 left-0 right-0 flex justify-center pt-4 pointer-events-none">
-            <span className="text-[clamp(0.65rem,2vmax,0.9rem)] tracking-[0.18em] uppercase font-bold text-white/40 truncate px-4 text-center">
+          <div className="absolute top-0 left-0 right-0 flex justify-center pt-5 pointer-events-none">
+            <span
+              className="text-[clamp(0.75rem,2.2vmax,1rem)] tracking-[0.12em] uppercase font-bold text-white truncate px-4 py-1 rounded-full text-center"
+              style={{ background: 'rgba(0,0,0,0.25)' }}
+            >
               {pairAName}
             </span>
           </div>
@@ -136,8 +139,11 @@ export default function ScoreboardOverlay({ matchId, pairAName, pairBName, onSav
           style={{ background: '#1d4ed8' }}
           onClick={addB}
         >
-          <div className="absolute top-0 left-0 right-0 flex justify-center pt-4 pointer-events-none">
-            <span className="text-[clamp(0.65rem,2vmax,0.9rem)] tracking-[0.18em] uppercase font-bold text-white/40 truncate px-4 text-center">
+          <div className="absolute top-0 left-0 right-0 flex justify-center pt-5 pointer-events-none">
+            <span
+              className="text-[clamp(0.75rem,2.2vmax,1rem)] tracking-[0.12em] uppercase font-bold text-white truncate px-4 py-1 rounded-full text-center"
+              style={{ background: 'rgba(0,0,0,0.25)' }}
+            >
               {pairBName}
             </span>
           </div>
