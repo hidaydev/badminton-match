@@ -45,37 +45,21 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
     )
   }
 
-  if (isFetching) {
-    return (
-      <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-        <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
-          <div className="animate-pulse">
-            <div className="h-5 bg-slate-700 rounded w-1/3 mx-auto mb-1" />
-            <div className="h-4 bg-slate-700 rounded w-1/2 mx-auto mb-4" />
-            <div className="flex items-center gap-3 mb-5">
-              <div className="flex-1 flex flex-col items-center gap-1">
-                <div className="h-4 bg-slate-700 rounded w-3/4" />
-                <div className="h-[47px] bg-slate-700 rounded-xl w-full" />
-              </div>
-              <div className="w-6 shrink-0" />
-              <div className="flex-1 flex flex-col items-center gap-1">
-                <div className="h-4 bg-slate-700 rounded w-3/4" />
-                <div className="h-[47px] bg-slate-700 rounded-xl w-full" />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <div className="flex-1 h-11 bg-slate-700 rounded-xl" />
-              <div className="flex-1 h-11 bg-yellow-400/20 rounded-xl" />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5 relative" onClick={(e) => e.stopPropagation()}>
+        {isFetching && (
+          <div className="absolute inset-0 rounded-2xl z-10 flex items-center justify-center" style={{ background: 'rgba(15,23,42,0.55)' }}>
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: 'rgba(30,41,59,0.95)', border: '1px solid rgba(148,163,184,0.15)' }}>
+              <svg className="animate-spin w-3.5 h-3.5 text-yellow-400 shrink-0" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-xs text-slate-300 font-medium">Refreshing…</span>
+            </div>
+          </div>
+        )}
+
         <h3 className="text-sm font-bold text-slate-300 text-center mb-1">Enter Score</h3>
         <p className="text-xs text-slate-500 text-center mb-4">
           {pairAName} vs {pairBName}
@@ -89,7 +73,8 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
               min={0}
               value={scoreA}
               onChange={(e) => setScoreA(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-2xl font-bold text-yellow-400 text-center focus:outline-none focus:border-yellow-500"
+              disabled={isFetching}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-2xl font-bold text-yellow-400 text-center focus:outline-none focus:border-yellow-500 disabled:opacity-50"
               placeholder="0"
             />
           </div>
@@ -101,7 +86,8 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
               min={0}
               value={scoreB}
               onChange={(e) => setScoreB(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-2xl font-bold text-yellow-400 text-center focus:outline-none focus:border-yellow-500"
+              disabled={isFetching}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-2xl font-bold text-yellow-400 text-center focus:outline-none focus:border-yellow-500 disabled:opacity-50"
               placeholder="0"
             />
           </div>
@@ -120,7 +106,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
           </button>
           <button
             onClick={() => valid && onConfirm(a, b)}
-            disabled={!valid}
+            disabled={!valid || isFetching}
             className="flex-1 py-3 rounded-xl bg-yellow-400 text-slate-900 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Confirm
@@ -129,7 +115,8 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
 
         <button
           onClick={() => setShowScoreboard(true)}
-          className="w-full py-2.5 rounded-xl text-slate-400 text-sm font-medium flex items-center justify-center gap-2 active:bg-slate-700/60 transition-colors"
+          disabled={isFetching}
+          className="w-full py-2.5 rounded-xl text-slate-400 text-sm font-medium flex items-center justify-center gap-2 active:bg-slate-700/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ border: '1px solid rgba(148,163,184,0.15)' }}
         >
           🎯 Open Scoreboard
