@@ -35,6 +35,8 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
         matchId={match.id}
         pairAName={pairAName}
         pairBName={pairBName}
+        initialScoreA={match.scoreA ?? 0}
+        initialScoreB={match.scoreB ?? 0}
         onSave={async (sA, sB) => {
           await refetch()
           onConfirm(sA, sB)
@@ -67,14 +69,8 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
               <div className="flex-1 h-11 bg-slate-700 rounded-xl" />
               <div className="flex-1 h-11 bg-yellow-400/20 rounded-xl" />
             </div>
+            <div className="h-10 bg-slate-700/60 rounded-xl" />
           </div>
-          <button
-            onClick={() => setShowScoreboard(true)}
-            className="w-full py-2.5 rounded-xl text-slate-400 text-sm font-medium flex items-center justify-center gap-2 active:bg-slate-700/60 transition-colors"
-            style={{ border: '1px solid rgba(148,163,184,0.15)' }}
-          >
-            🎯 Open Scoreboard
-          </button>
         </div>
       </div>
     )
