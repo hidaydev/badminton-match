@@ -34,7 +34,7 @@ export interface OverlayConfig {
   matchId: string
   pairAName: string
   pairBName: string
-  onSave: (scoreA: number, scoreB: number) => void
+  onSave: (scoreA: number, scoreB: number) => Promise<void>
   onClose: () => void
 }
 
@@ -65,6 +65,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const [fsError, setFsError] = useState<string | null>(null)
   const [isPortrait, setIsPortrait] = useState(() => window.innerWidth < window.innerHeight)
   const [pendingClose, setPendingClose] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   const initialRed = useRef<number | null>(null)
   const initialBlue = useRef<number | null>(null)
@@ -151,10 +152,15 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     overlay.onClose()
   }, [overlay, red, blue])
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!overlay) return
-    overlay.onSave(red, blue)
-    overlay.onClose()
+    setIsSaving(true)
+    try {
+      await overlay.onSave(red, blue)
+      overlay.onClose()
+    } finally {
+      setIsSaving(false)
+    }
   }, [overlay, red, blue])
 
   // Overlay mode: name shown as read-only pill
@@ -344,10 +350,11 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             </button>
             <button
               onClick={handleSave}
-              className="px-4 py-1 rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto"
+              disabled={isSaving}
+              className="px-4 py-1 rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: '#fbbf24' }}
             >
-              Save Score
+              {isSaving ? 'Saving…' : 'Save Score'}
             </button>
           </>
         )

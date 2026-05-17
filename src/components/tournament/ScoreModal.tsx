@@ -34,7 +34,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
         matchId={match.id}
         pairAName={pairAName}
         pairBName={pairBName}
-        onSave={(sA, sB) => {
+        onSave={async (sA, sB) => {
           onConfirm(sA, sB)
           setShowScoreboard(false)
         }}
