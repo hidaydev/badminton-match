@@ -35,7 +35,7 @@ export default function HomePage() {
     <div className="flex flex-col gap-6 pt-6">
       <div className="flex flex-col gap-1">
         <p className="text-[10px] font-mono text-slate-500 tracking-[0.2em] uppercase">Badminton</p>
-        <h2 className="text-3xl font-bold text-yellow-400 tracking-tight leading-none">Scheduler</h2>
+        <h2 className="text-3xl font-bold text-white tracking-tight leading-none">Scheduler</h2>
         <p className="text-slate-500 text-xs mt-2 font-mono">Select an option to get started</p>
       </div>
 
