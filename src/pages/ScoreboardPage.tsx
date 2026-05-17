@@ -59,7 +59,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const [editingBlue, setEditingBlue] = useState(false)
   const [popRed, setPopRed] = useState(false)
   const [popBlue, setPopBlue] = useState(false)
-  const [leftColor, setLeftColor] = useState<'red' | 'blue'>('red')
+  const [isSwapped, setIsSwapped] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(() => !!document.fullscreenElement)
   const [fsError, setFsError] = useState<string | null>(null)
   const [isPortrait, setIsPortrait] = useState(() => window.innerWidth < window.innerHeight)
@@ -135,12 +135,8 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   }, [isFullscreen])
 
   const doSwap = useCallback(() => {
-    setRed(blue)
-    setBlue(red)
-    setRedName(blueName)
-    setBlueName(redName)
-    setLeftColor(c => c === 'red' ? 'blue' : 'red')
-  }, [red, blue, redName, blueName])
+    setIsSwapped(s => !s)
+  }, [])
 
   const handleOverlayClose = useCallback(() => {
     if (!overlay) return
@@ -163,13 +159,13 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   }, [overlay, red, blue])
 
   // Overlay mode: name shown as read-only pill
-  const nameA = overlay ? redName : (redName || (leftColor === 'red' ? 'RED' : 'BLUE'))
-  const nameB = overlay ? blueName : (blueName || (leftColor === 'red' ? 'BLUE' : 'RED'))
+  const nameA = overlay ? redName : (redName || 'RED')
+  const nameB = overlay ? blueName : (blueName || 'BLUE')
 
   const redSide = (
     <div
       className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 transition-[filter] duration-75"
-      style={{ background: leftColor === 'red' ? '#b91c1c' : '#1d4ed8' }}
+      style={{ background: '#b91c1c' }}
       onClick={addRed}
     >
       {/* Player name */}
@@ -184,7 +180,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
         ) : editingRed ? (
           <input
             autoFocus
-            placeholder={leftColor === 'red' ? 'RED' : 'BLUE'}
+            placeholder="RED"
             value={redName}
             onChange={e => setRedName(e.target.value)}
             onBlur={() => setEditingRed(false)}
@@ -230,7 +226,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const blueSide = (
     <div
       className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 transition-[filter] duration-75"
-      style={{ background: leftColor === 'red' ? '#1d4ed8' : '#b91c1c' }}
+      style={{ background: '#1d4ed8' }}
       onClick={addBlue}
     >
       {/* Player name */}
@@ -245,7 +241,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
         ) : editingBlue ? (
           <input
             autoFocus
-            placeholder={leftColor === 'red' ? 'BLUE' : 'RED'}
+            placeholder="BLUE"
             value={blueName}
             onChange={e => setBlueName(e.target.value)}
             onBlur={() => setEditingBlue(false)}
@@ -420,9 +416,9 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
           zIndex: 60,
         }}
       >
-        {redSide}
+        {isSwapped ? blueSide : redSide}
         {divider}
-        {blueSide}
+        {isSwapped ? redSide : blueSide}
         {fsError && (
           <div className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 max-w-[80vw] text-center"
             style={{ background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}>
