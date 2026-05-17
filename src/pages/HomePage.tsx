@@ -22,11 +22,8 @@ export default function HomePage() {
   const { isInstallable, isIos, prompt } = usePwaInstall()
   const [modalOpen, setModalOpen] = useState(false)
 
-  // Auto-show after 1.5s if installable
   useEffect(() => {
-    if (!isInstallable) return
-    const t = setTimeout(() => setModalOpen(true), 1500)
-    return () => clearTimeout(t)
+    if (isInstallable) setModalOpen(true)
   }, [isInstallable])
 
   async function handleInstall() {
