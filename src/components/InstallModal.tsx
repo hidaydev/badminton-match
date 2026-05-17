@@ -40,21 +40,34 @@ export default function InstallModal({ isIos, onInstall, onClose }: Props) {
         {/* iOS steps */}
         {isIos ? (
           <ol className="flex flex-col gap-0 px-6 py-4">
-            {[
-              { icon: '⬆️', label: 'Tap the Share button', sub: 'In Safari\'s toolbar at the bottom' },
-              { icon: '➕', label: 'Tap "Add to Home Screen"', sub: 'Scroll down in the share sheet' },
-              { icon: '✅', label: 'Tap "Add" to confirm', sub: 'The app will appear on your home screen' },
-            ].map((step, i) => (
-              <li key={i} className="flex items-start gap-4 py-3">
-                <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">
-                  {step.icon}
-                </div>
+            <li className="flex items-start gap-4 py-3">
+              <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">⬆️</div>
+              <div className="flex flex-col gap-0.5 pt-0.5">
+                <span className="text-sm font-semibold text-white">Tap the Share button</span>
+                <span className="text-xs text-slate-500">In Safari's toolbar at the bottom</span>
+              </div>
+            </li>
+            <li className="flex flex-col gap-2 py-3">
+              <div className="flex items-start gap-4">
+                <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">➕</div>
                 <div className="flex flex-col gap-0.5 pt-0.5">
-                  <span className="text-sm font-semibold text-white">{step.label}</span>
-                  <span className="text-xs text-slate-500">{step.sub}</span>
+                  <span className="text-sm font-semibold text-white">Tap "Add to Home Screen"</span>
+                  <span className="text-xs text-slate-500">Scroll down in the share sheet</span>
                 </div>
-              </li>
-            ))}
+              </div>
+              <img
+                src="/add-to-home-screen.jpeg"
+                alt="Add to Home Screen button"
+                className="w-full rounded-xl object-contain border border-slate-700"
+              />
+            </li>
+            <li className="flex items-start gap-4 py-3">
+              <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">✅</div>
+              <div className="flex flex-col gap-0.5 pt-0.5">
+                <span className="text-sm font-semibold text-white">Tap "Add" to confirm</span>
+                <span className="text-xs text-slate-500">The app will appear on your home screen</span>
+              </div>
+            </li>
           </ol>
         ) : (
           <div className="flex items-start gap-4 px-6 py-5">
