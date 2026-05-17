@@ -14,6 +14,7 @@ export interface TournamentMatch {
   pairBId: string | null
   scoreA: number | null
   scoreB: number | null
+  picName?: string | null
 }
 
 export interface StandingRow {
@@ -147,6 +148,50 @@ export function propagateBracket(
 
   update('final-1', getMatchWinner(find('sf-1')), getMatchWinner(find('sf-2')))
   update('3rd-1',   getMatchLoser(find('sf-1')),  getMatchLoser(find('sf-2')))
+
+  return result
+}
+
+export function assignGroupPics(
+  pairs: TournamentPair[],
+  groups: Record<GroupId, string[]>,
+  matches: TournamentMatch[]
+): TournamentMatch[] {
+  const pairNameMap = new Map(pairs.map((p) => [p.id, p.name]))
+
+  const result = matches.map((m) => ({ ...m }))
+
+  for (const g of ['A', 'B', 'C', 'D'] as GroupId[]) {
+    // Build pairId -> individual names
+    const pairNames = new Map<string, string[]>()
+    for (const pairId of groups[g]) {
+      const name = pairNameMap.get(pairId) ?? pairId
+      pairNames.set(pairId, name.includes(' & ') ? name.split(' & ') : [name])
+    }
+
+    // Pool of all 8 names in the group, shuffled
+    const pool: string[] = []
+    for (const names of pairNames.values()) pool.push(...names)
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]]
+    }
+
+    const used = new Set<string>()
+    const groupMatches = result.filter((m) => m.phase === 'group' && m.groupId === g)
+
+    for (const m of groupMatches) {
+      const playing = new Set<string>([
+        ...(m.pairAId ? (pairNames.get(m.pairAId) ?? []) : []),
+        ...(m.pairBId ? (pairNames.get(m.pairBId) ?? []) : []),
+      ])
+      const pic = pool.find((name) => !playing.has(name) && !used.has(name))
+      if (pic) {
+        m.picName = pic
+        used.add(pic)
+      }
+    }
+  }
 
   return result
 }
