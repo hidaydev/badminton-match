@@ -145,8 +145,12 @@ export default function VideoPostPage() {
     // Rewind and play from start (unmuted for recording)
     video.loop = false
     video.muted = false
-    video.currentTime = 0
-    await new Promise<void>(r => { video.onseeked = () => r() })
+    video.onended = null
+    await new Promise<void>(r => {
+      if (video.currentTime === 0) { r(); return }
+      video.onseeked = () => r()
+      video.currentTime = 0
+    })
     video.play()
 
     const date = new Date().toISOString().split('T')[0].replace(/-/g, '')
@@ -173,6 +177,7 @@ export default function VideoPostPage() {
         triggerDownload(new Blob(chunks, { type: 'video/mp4' }), filename)
         finish()
       }
+      recorder.onerror = () => finish()
       recorder.start()
       video.onended = () => recorder.stop()
       return
@@ -278,18 +283,23 @@ export default function VideoPostPage() {
         isExportingRef.current = false
         if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
 
-        await videoEncoder.flush()
-        await audioEncoder.flush()
-        muxer.finalize()
-
-        processor.disconnect()
-        source.disconnect()
-        audioCtx.close()
-
-        const blob = new Blob([target.buffer], { type: 'video/mp4' })
-        triggerDownload(blob, filename)
-        startRenderLoop()
-        finish()
+        try {
+          await videoEncoder.flush()
+          await audioEncoder.flush()
+          videoEncoder.close()
+          audioEncoder.close()
+          muxer.finalize()
+          const blob = new Blob([target.buffer], { type: 'video/mp4' })
+          triggerDownload(blob, filename)
+        } catch (err) {
+          console.error('Export failed:', err)
+        } finally {
+          processor.disconnect()
+          source.disconnect()
+          audioCtx.close()
+          startRenderLoop()
+          finish()
+        }
       }
       return
     }
@@ -307,6 +317,7 @@ export default function VideoPostPage() {
       triggerDownload(new Blob(chunks, { type: 'video/webm' }), filename.replace('.mp4', '.webm'))
       finish()
     }
+    recorder.onerror = () => finish()
     recorder.start()
     video.onended = () => recorder.stop()
   }, [startRenderLoop, stopRenderLoop])
