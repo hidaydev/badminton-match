@@ -152,8 +152,9 @@ export default function VideoPostPage() {
 
     await new Promise<void>(resolve => { video.onloadedmetadata = () => resolve() })
 
-    canvas.width = video.videoWidth || 1080
-    canvas.height = video.videoHeight || 1920
+    // Lock to Instagram's recommended resolution — scales down 4K source automatically
+    canvas.width = 1080
+    canvas.height = 1920
     video.muted = true
     video.loop = true
     video.play()
@@ -206,18 +207,14 @@ export default function VideoPostPage() {
       setIsExporting(false)
     }
 
-    const detectedFps = detectedFpsRef.current
-    // Estimate bitrate from file size + duration.
-    // Multiply by 1.5 to compensate for H.264 needing ~2x the bits of HEVC for equivalent quality.
-    const totalBitrate = fileRef.current && video.duration
-      ? (fileRef.current.size * 8) / video.duration
-      : 8_000_000
-    const videoBitrate = Math.round(totalBitrate * 1.5)
-    const audioBitrate = Math.min(Math.round(totalBitrate * 0.004), 320_000) // audio is tiny vs video
+    // Instagram recommended spec for Reels/Stories
+    const EXPORT_FPS = 30
+    const videoBitrate = 5_000_000   // 5 Mbps
+    const audioBitrate = 128_000     // 128 kbps AAC
 
     // ── Path 1: MediaRecorder with video/mp4 (iOS Safari 14.5+) ──────────────
     if (MediaRecorder.isTypeSupported('video/mp4')) {
-      const stream = canvas.captureStream(60) // 60fps covers both 30fps and 60fps phone videos
+      const stream = canvas.captureStream(EXPORT_FPS)
       try {
         const audioStream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream()
         audioStream.getAudioTracks().forEach(t => stream.addTrack(t))
@@ -243,7 +240,7 @@ export default function VideoPostPage() {
       const muxer = new Muxer({
         target,
         video: { codec: 'avc', width: canvas.width, height: canvas.height },
-        audio: { codec: 'aac', sampleRate: 48000, numberOfChannels: 2 },
+        audio: { codec: 'aac', sampleRate: 44100, numberOfChannels: 2 },
         firstTimestampBehavior: 'offset',
         fastStart: 'in-memory',
       })
@@ -257,7 +254,7 @@ export default function VideoPostPage() {
         width: canvas.width,
         height: canvas.height,
         bitrate: videoBitrate,
-        framerate: detectedFps,
+        framerate: EXPORT_FPS,
       })
 
       const audioEncoder = new AudioEncoder({
@@ -266,13 +263,13 @@ export default function VideoPostPage() {
       })
       audioEncoder.configure({
         codec: 'mp4a.40.2',
-        sampleRate: 48000,
+        sampleRate: 44100,
         numberOfChannels: 2,
         bitrate: audioBitrate,
       })
 
       // Capture audio via ScriptProcessorNode
-      const audioCtx = new AudioContext({ sampleRate: 48000 })
+      const audioCtx = new AudioContext({ sampleRate: 44100 })
       const source = audioCtx.createMediaElementSource(video)
       const processor = audioCtx.createScriptProcessor(4096, 2, 2)
       source.connect(processor)
@@ -288,7 +285,7 @@ export default function VideoPostPage() {
         planar.set(right, left.length)
         const audioData = new AudioData({
           format: 'f32-planar',
-          sampleRate: 48000,
+          sampleRate: 44100,
           numberOfFrames: left.length,
           numberOfChannels: 2,
           timestamp: audioTimestamp,
@@ -296,14 +293,13 @@ export default function VideoPostPage() {
         })
         audioEncoder.encode(audioData)
         audioData.close()
-        audioTimestamp += Math.round((left.length / 48000) * 1_000_000)
+        audioTimestamp += Math.round((left.length / 44100) * 1_000_000)
       }
 
       // Encode frames in RAF loop
       let frameTimestamp = 0
       let frameCount = 0
-      const FPS = detectedFps
-      const US_PER_FRAME = Math.round(1_000_000 / FPS)
+      const US_PER_FRAME = Math.round(1_000_000 / EXPORT_FPS)
       const isExportingRef = { current: true }
 
       stopRenderLoop()
@@ -322,7 +318,7 @@ export default function VideoPostPage() {
           timestamp: frameTimestamp,
           duration: US_PER_FRAME,
         })
-        videoEncoder.encode(frame, { keyFrame: frameCount % (FPS * 2) === 0 })
+        videoEncoder.encode(frame, { keyFrame: frameCount % (EXPORT_FPS * 2) === 0 })
         frame.close()
         bitmap.close()
 
@@ -358,7 +354,7 @@ export default function VideoPostPage() {
     }
 
     // ── Path 3: Fallback — webm ───────────────────────────────────────────────
-    const stream = canvas.captureStream(60)
+    const stream = canvas.captureStream(EXPORT_FPS)
     try {
       const audioStream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream()
       audioStream.getAudioTracks().forEach(t => stream.addTrack(t))
