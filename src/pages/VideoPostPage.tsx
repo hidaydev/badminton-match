@@ -124,7 +124,13 @@ export default function VideoPostPage() {
   }, [startRenderLoop, stopRenderLoop])
 
   // Cleanup on unmount
-  useEffect(() => () => stopRenderLoop(), [stopRenderLoop])
+  useEffect(() => () => {
+    stopRenderLoop()
+    const video = videoRef.current
+    if (video?.src?.startsWith('blob:')) {
+      URL.revokeObjectURL(video.src)
+    }
+  }, [stopRenderLoop])
 
   function triggerDownload(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob)
@@ -148,7 +154,7 @@ export default function VideoPostPage() {
     video.onended = null
     await new Promise<void>(r => {
       if (video.currentTime === 0) { r(); return }
-      video.onseeked = () => r()
+      video.onseeked = () => { video.onseeked = null; r() }
       video.currentTime = 0
     })
     video.play()
