@@ -57,7 +57,7 @@ export default function VideoPostPage() {
   const [hasVideo, setHasVideo] = useState(false)
   // overlays state triggers re-render when images load (overlaysRef is used inside RAF loop)
   const [, setOverlays] = useState<Overlays>({})
-  const [isExporting] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
   // Load template overlay images once
   useEffect(() => {
@@ -104,6 +104,10 @@ export default function VideoPostPage() {
 
     stopRenderLoop()
 
+    if (video.src && video.src.startsWith('blob:')) {
+      URL.revokeObjectURL(video.src)
+    }
+
     const url = URL.createObjectURL(file)
     video.src = url
     video.load()
@@ -135,8 +139,9 @@ export default function VideoPostPage() {
 
   // Export placeholder — replaced in Task 3
   const handleExport = useCallback(async () => {
+    // setIsExporting will be used by Task 3's export implementation
     console.log('export not yet implemented')
-  }, [])
+  }, [setIsExporting])
 
   return (
     <div className="flex flex-col">
