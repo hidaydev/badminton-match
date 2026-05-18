@@ -207,12 +207,13 @@ export default function VideoPostPage() {
     }
 
     const detectedFps = detectedFpsRef.current
-    // Estimate original video bitrate from file size + duration (85% to video, 15% audio)
+    // Estimate bitrate from file size + duration.
+    // Multiply by 1.5 to compensate for H.264 needing ~2x the bits of HEVC for equivalent quality.
     const totalBitrate = fileRef.current && video.duration
       ? (fileRef.current.size * 8) / video.duration
       : 8_000_000
-    const videoBitrate = Math.round(totalBitrate * 0.85)
-    const audioBitrate = Math.min(Math.round(totalBitrate * 0.15), 320_000)
+    const videoBitrate = Math.round(totalBitrate * 1.5)
+    const audioBitrate = Math.min(Math.round(totalBitrate * 0.004), 320_000) // audio is tiny vs video
 
     // ── Path 1: MediaRecorder with video/mp4 (iOS Safari 14.5+) ──────────────
     if (MediaRecorder.isTypeSupported('video/mp4')) {
