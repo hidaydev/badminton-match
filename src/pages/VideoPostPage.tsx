@@ -217,7 +217,7 @@ export default function VideoPostPage() {
 
     // ── Path 1: MediaRecorder with video/mp4 (iOS Safari 14.5+) ──────────────
     if (MediaRecorder.isTypeSupported('video/mp4')) {
-      const stream = canvas.captureStream(0) // 0 = capture on every canvas draw, not at fixed rate
+      const stream = canvas.captureStream(60) // 60fps covers both 30fps and 60fps phone videos
       try {
         const audioStream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream()
         audioStream.getAudioTracks().forEach(t => stream.addTrack(t))
@@ -358,7 +358,7 @@ export default function VideoPostPage() {
     }
 
     // ── Path 3: Fallback — webm ───────────────────────────────────────────────
-    const stream = canvas.captureStream(0)
+    const stream = canvas.captureStream(60)
     try {
       const audioStream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream()
       audioStream.getAudioTracks().forEach(t => stream.addTrack(t))
