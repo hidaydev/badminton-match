@@ -126,8 +126,6 @@ export default function VideoPostPage() {
   // Cleanup on unmount
   useEffect(() => () => stopRenderLoop(), [stopRenderLoop])
 
-  // Task 3 will call this — kept here so it doesn't need to be re-added
-  // @ts-expect-error reserved for Task 3 export implementation
   function triggerDownload(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -137,11 +135,181 @@ export default function VideoPostPage() {
     URL.revokeObjectURL(url)
   }
 
-  // Export placeholder — replaced in Task 3
   const handleExport = useCallback(async () => {
-    // setIsExporting will be used by Task 3's export implementation
-    console.log('export not yet implemented')
-  }, [setIsExporting])
+    const canvas = canvasRef.current
+    const video = videoRef.current
+    if (!canvas || !video) return
+
+    setIsExporting(true)
+
+    // Rewind and play from start (unmuted for recording)
+    video.loop = false
+    video.muted = false
+    video.currentTime = 0
+    await new Promise<void>(r => { video.onseeked = () => r() })
+    video.play()
+
+    const date = new Date().toISOString().split('T')[0].replace(/-/g, '')
+    const filename = `majadu-video-${date}.mp4`
+
+    function finish() {
+      video!.loop = true
+      video!.muted = true
+      setIsExporting(false)
+    }
+
+    // ── Path 1: MediaRecorder with video/mp4 (iOS Safari 14.5+) ──────────────
+    if (MediaRecorder.isTypeSupported('video/mp4')) {
+      const stream = canvas.captureStream(30)
+      try {
+        const audioStream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream()
+        audioStream.getAudioTracks().forEach(t => stream.addTrack(t))
+      } catch { /* audio capture not supported — video only */ }
+
+      const chunks: Blob[] = []
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/mp4' })
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = () => {
+        triggerDownload(new Blob(chunks, { type: 'video/mp4' }), filename)
+        finish()
+      }
+      recorder.start()
+      video.onended = () => recorder.stop()
+      return
+    }
+
+    // ── Path 2: WebCodecs + mp4-muxer (Chrome 94+ / Android) ────────────────
+    if (typeof VideoEncoder !== 'undefined') {
+      const { Muxer, ArrayBufferTarget } = await import('mp4-muxer')
+      const target = new ArrayBufferTarget()
+      const muxer = new Muxer({
+        target,
+        video: { codec: 'avc', width: canvas.width, height: canvas.height },
+        audio: { codec: 'aac', sampleRate: 44100, numberOfChannels: 2 },
+        firstTimestampBehavior: 'offset',
+        fastStart: 'in-memory',
+      })
+
+      const videoEncoder = new VideoEncoder({
+        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+        error: console.error,
+      })
+      videoEncoder.configure({
+        codec: 'avc1.42001f',
+        width: canvas.width,
+        height: canvas.height,
+        bitrate: 5_000_000,
+        framerate: 30,
+      })
+
+      const audioEncoder = new AudioEncoder({
+        output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+        error: console.error,
+      })
+      audioEncoder.configure({
+        codec: 'mp4a.40.2',
+        sampleRate: 44100,
+        numberOfChannels: 2,
+        bitrate: 128_000,
+      })
+
+      // Capture audio via ScriptProcessorNode
+      const audioCtx = new AudioContext({ sampleRate: 44100 })
+      const source = audioCtx.createMediaElementSource(video)
+      const processor = audioCtx.createScriptProcessor(4096, 2, 2)
+      source.connect(processor)
+      source.connect(audioCtx.destination)
+      processor.connect(audioCtx.destination)
+
+      let audioTimestamp = 0
+      processor.onaudioprocess = (e) => {
+        const left = e.inputBuffer.getChannelData(0)
+        const right = e.inputBuffer.getChannelData(1)
+        const planar = new Float32Array(left.length * 2)
+        planar.set(left, 0)
+        planar.set(right, left.length)
+        const audioData = new AudioData({
+          format: 'f32-planar',
+          sampleRate: 44100,
+          numberOfFrames: left.length,
+          numberOfChannels: 2,
+          timestamp: audioTimestamp,
+          data: planar,
+        })
+        audioEncoder.encode(audioData)
+        audioData.close()
+        audioTimestamp += Math.round((left.length / 44100) * 1_000_000)
+      }
+
+      // Encode frames in RAF loop
+      let frameTimestamp = 0
+      let frameCount = 0
+      const FPS = 30
+      const US_PER_FRAME = Math.round(1_000_000 / FPS)
+      const isExportingRef = { current: true }
+
+      stopRenderLoop()
+
+      async function exportFrame() {
+        if (!isExportingRef.current) return
+        const ctx = canvas!.getContext('2d')!
+        ctx.drawImage(video!, 0, 0, canvas!.width, canvas!.height)
+        drawHeader(ctx, canvas!.width, overlaysRef.current.logo)
+        if (overlaysRef.current.footer) {
+          drawFooter(ctx, canvas!.width, canvas!.height, overlaysRef.current.footer)
+        }
+
+        const bitmap = await createImageBitmap(canvas!)
+        const frame = new VideoFrame(bitmap, {
+          timestamp: frameTimestamp,
+          duration: US_PER_FRAME,
+        })
+        videoEncoder.encode(frame, { keyFrame: frameCount % (FPS * 2) === 0 })
+        frame.close()
+        bitmap.close()
+
+        frameTimestamp += US_PER_FRAME
+        frameCount++
+        rafRef.current = requestAnimationFrame(exportFrame)
+      }
+      exportFrame()
+
+      video.onended = async () => {
+        isExportingRef.current = false
+        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+
+        await videoEncoder.flush()
+        await audioEncoder.flush()
+        muxer.finalize()
+
+        processor.disconnect()
+        source.disconnect()
+        audioCtx.close()
+
+        const blob = new Blob([target.buffer], { type: 'video/mp4' })
+        triggerDownload(blob, filename)
+        startRenderLoop()
+        finish()
+      }
+      return
+    }
+
+    // ── Path 3: Fallback — webm ───────────────────────────────────────────────
+    const stream = canvas.captureStream(30)
+    try {
+      const audioStream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream()
+      audioStream.getAudioTracks().forEach(t => stream.addTrack(t))
+    } catch { /* audio capture not supported — video only */ }
+    const chunks: Blob[] = []
+    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+    recorder.onstop = () => {
+      triggerDownload(new Blob(chunks, { type: 'video/webm' }), filename.replace('.mp4', '.webm'))
+      finish()
+    }
+    recorder.start()
+    video.onended = () => recorder.stop()
+  }, [startRenderLoop, stopRenderLoop])
 
   return (
     <div className="flex flex-col">
