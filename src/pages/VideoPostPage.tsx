@@ -58,6 +58,7 @@ export default function VideoPostPage() {
   // overlays state triggers re-render when images load (overlaysRef is used inside RAF loop)
   const [, setOverlays] = useState<Overlays>({})
   const [isExporting, setIsExporting] = useState(false)
+  const detectedFpsRef = useRef<number>(30)
 
   // Load template overlay images once
   useEffect(() => {
@@ -72,8 +73,14 @@ export default function VideoPostPage() {
   }, [])
 
   const stopRenderLoop = useCallback(() => {
+    const video = videoRef.current
     if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current)
+      if (video && 'cancelVideoFrameCallback' in video) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(video as any).cancelVideoFrameCallback(rafRef.current)
+      } else {
+        cancelAnimationFrame(rafRef.current)
+      }
       rafRef.current = null
     }
   }, [])
@@ -83,16 +90,45 @@ export default function VideoPostPage() {
     const video = videoRef.current
     if (!canvas || !video) return
 
-    function render() {
+    function drawFrame() {
       const ctx = canvas!.getContext('2d')!
       ctx.drawImage(video!, 0, 0, canvas!.width, canvas!.height)
       drawHeader(ctx, canvas!.width, overlaysRef.current.logo)
       if (overlaysRef.current.footer) {
         drawFooter(ctx, canvas!.width, canvas!.height, overlaysRef.current.footer)
       }
-      rafRef.current = requestAnimationFrame(render)
     }
-    render()
+
+    // Use requestVideoFrameCallback when available — fires at video's native fps,
+    // not the display refresh rate, reducing unnecessary redraws on mobile.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ('requestVideoFrameCallback' in video) {
+      const mediaTimes: number[] = []
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      function vfcRender(_now: DOMHighResTimeStamp, metadata: any) {
+        drawFrame()
+        // Measure actual video fps from first 11 frame timestamps
+        if (mediaTimes.length < 11) {
+          mediaTimes.push(metadata.mediaTime as number)
+          if (mediaTimes.length === 11) {
+            const diffs = mediaTimes.slice(1).map((t, i) => t - mediaTimes[i])
+            const avg = diffs.reduce((a, b) => a + b, 0) / diffs.length
+            if (avg > 0) detectedFpsRef.current = Math.round(1 / avg)
+          }
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rafRef.current = (video as any).requestVideoFrameCallback(vfcRender)
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rafRef.current = (video as any).requestVideoFrameCallback(vfcRender)
+    } else {
+      function render() {
+        drawFrame()
+        rafRef.current = requestAnimationFrame(render)
+      }
+      render()
+    }
   }, [])
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,9 +204,11 @@ export default function VideoPostPage() {
       setIsExporting(false)
     }
 
+    const detectedFps = detectedFpsRef.current
+
     // ── Path 1: MediaRecorder with video/mp4 (iOS Safari 14.5+) ──────────────
     if (MediaRecorder.isTypeSupported('video/mp4')) {
-      const stream = canvas.captureStream(30)
+      const stream = canvas.captureStream(detectedFps)
       try {
         const audioStream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream()
         audioStream.getAudioTracks().forEach(t => stream.addTrack(t))
@@ -210,7 +248,7 @@ export default function VideoPostPage() {
         width: canvas.width,
         height: canvas.height,
         bitrate: 5_000_000,
-        framerate: 30,
+        framerate: detectedFps,
       })
 
       const audioEncoder = new AudioEncoder({
@@ -255,7 +293,7 @@ export default function VideoPostPage() {
       // Encode frames in RAF loop
       let frameTimestamp = 0
       let frameCount = 0
-      const FPS = 30
+      const FPS = detectedFps
       const US_PER_FRAME = Math.round(1_000_000 / FPS)
       const isExportingRef = { current: true }
 
@@ -311,7 +349,7 @@ export default function VideoPostPage() {
     }
 
     // ── Path 3: Fallback — webm ───────────────────────────────────────────────
-    const stream = canvas.captureStream(30)
+    const stream = canvas.captureStream(detectedFps)
     try {
       const audioStream = (video as HTMLVideoElement & { captureStream(): MediaStream }).captureStream()
       audioStream.getAudioTracks().forEach(t => stream.addTrack(t))
