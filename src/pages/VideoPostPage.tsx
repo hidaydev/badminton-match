@@ -53,6 +53,7 @@ export default function VideoPostPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const rafRef = useRef<number | null>(null)
   const overlaysRef = useRef<Overlays>({})
+  const fileRef = useRef<File | null>(null)
 
   const [hasVideo, setHasVideo] = useState(false)
   // overlays state triggers re-render when images load (overlaysRef is used inside RAF loop)
@@ -134,6 +135,7 @@ export default function VideoPostPage() {
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    fileRef.current = file
 
     const video = videoRef.current!
     const canvas = canvasRef.current!
@@ -205,6 +207,12 @@ export default function VideoPostPage() {
     }
 
     const detectedFps = detectedFpsRef.current
+    // Estimate original video bitrate from file size + duration (85% to video, 15% audio)
+    const totalBitrate = fileRef.current && video.duration
+      ? (fileRef.current.size * 8) / video.duration
+      : 8_000_000
+    const videoBitrate = Math.round(totalBitrate * 0.85)
+    const audioBitrate = Math.min(Math.round(totalBitrate * 0.15), 320_000)
 
     // ── Path 1: MediaRecorder with video/mp4 (iOS Safari 14.5+) ──────────────
     if (MediaRecorder.isTypeSupported('video/mp4')) {
@@ -215,7 +223,7 @@ export default function VideoPostPage() {
       } catch { /* audio capture not supported — video only */ }
 
       const chunks: Blob[] = []
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/mp4' })
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/mp4', videoBitsPerSecond: videoBitrate, audioBitsPerSecond: audioBitrate })
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
       recorder.onstop = () => {
         triggerDownload(new Blob(chunks, { type: 'video/mp4' }), filename)
@@ -234,7 +242,7 @@ export default function VideoPostPage() {
       const muxer = new Muxer({
         target,
         video: { codec: 'avc', width: canvas.width, height: canvas.height },
-        audio: { codec: 'aac', sampleRate: 44100, numberOfChannels: 2 },
+        audio: { codec: 'aac', sampleRate: 48000, numberOfChannels: 2 },
         firstTimestampBehavior: 'offset',
         fastStart: 'in-memory',
       })
@@ -244,10 +252,10 @@ export default function VideoPostPage() {
         error: console.error,
       })
       videoEncoder.configure({
-        codec: 'avc1.42001f',
+        codec: 'avc1.640028', // H.264 High Profile Level 4.0
         width: canvas.width,
         height: canvas.height,
-        bitrate: 5_000_000,
+        bitrate: videoBitrate,
         framerate: detectedFps,
       })
 
@@ -257,13 +265,13 @@ export default function VideoPostPage() {
       })
       audioEncoder.configure({
         codec: 'mp4a.40.2',
-        sampleRate: 44100,
+        sampleRate: 48000,
         numberOfChannels: 2,
-        bitrate: 128_000,
+        bitrate: audioBitrate,
       })
 
       // Capture audio via ScriptProcessorNode
-      const audioCtx = new AudioContext({ sampleRate: 44100 })
+      const audioCtx = new AudioContext({ sampleRate: 48000 })
       const source = audioCtx.createMediaElementSource(video)
       const processor = audioCtx.createScriptProcessor(4096, 2, 2)
       source.connect(processor)
@@ -279,7 +287,7 @@ export default function VideoPostPage() {
         planar.set(right, left.length)
         const audioData = new AudioData({
           format: 'f32-planar',
-          sampleRate: 44100,
+          sampleRate: 48000,
           numberOfFrames: left.length,
           numberOfChannels: 2,
           timestamp: audioTimestamp,
@@ -287,7 +295,7 @@ export default function VideoPostPage() {
         })
         audioEncoder.encode(audioData)
         audioData.close()
-        audioTimestamp += Math.round((left.length / 44100) * 1_000_000)
+        audioTimestamp += Math.round((left.length / 48000) * 1_000_000)
       }
 
       // Encode frames in RAF loop
@@ -355,7 +363,7 @@ export default function VideoPostPage() {
       audioStream.getAudioTracks().forEach(t => stream.addTrack(t))
     } catch { /* audio capture not supported — video only */ }
     const chunks: Blob[] = []
-    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' })
+    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm', videoBitsPerSecond: videoBitrate, audioBitsPerSecond: audioBitrate })
     recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
     recorder.onstop = () => {
       triggerDownload(new Blob(chunks, { type: 'video/webm' }), filename.replace('.mp4', '.webm'))
