@@ -9,6 +9,7 @@ const grid = [
   { icon: '👤', label: 'Player History', description: 'Stats & records', to: '/player-history' },
   { icon: '🎯', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
   { icon: '📸', label: 'Instagram Post', description: 'Create a post from template', to: '/instagram-post' },
+  { icon: '🎬', label: 'Video Post', description: 'Overlay branding on video', to: '/video-post' },
 ] as const
 
 async function openScoreboard(navigate: (path: string) => void) {

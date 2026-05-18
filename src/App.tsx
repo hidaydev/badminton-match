@@ -15,6 +15,7 @@ import PlayerHistoryPage from './pages/PlayerHistoryPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
 import TournamentPage from './pages/TournamentPage'
 import InstagramPostPage from './pages/InstagramPostPage'
+import VideoPostPage from './pages/VideoPostPage'
 import ScoreboardPage from './pages/ScoreboardPage'
 import { useStore } from './store'
 import { decodeSnapshot, type SharedSnapshot } from './utils/shareUrl'
@@ -88,6 +89,7 @@ export default function App() {
             <Route path="player-history/:name" element={<PlayerDetailPage />} />
             <Route path="tournament" element={<TournamentPage />} />
             <Route path="instagram-post" element={<InstagramPostPage />} />
+            <Route path="video-post" element={<VideoPostPage />} />
           </Route>
           <Route path="scoreboard" element={<ScoreboardPage />} />
           <Route element={<SessionLayout />}>
