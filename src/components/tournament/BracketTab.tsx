@@ -400,9 +400,9 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
         const runnerUpName = loser(final) ?? 'TBD'
         const thirdName = winner(third) ?? 'TBD'
         const positions = [
-          { pos: 'runner-up', emoji: '🥈', label: '2nd', positionLabel: 'RUNNER UP', name: runnerUpName, mt: '', champion: false },
-          { pos: 'champion', emoji: '🏆', label: 'CHAMPION', positionLabel: '🏆  WINNER', name: championName, mt: '-mt-4', champion: true },
-          { pos: 'third', emoji: '🥉', label: '3rd', positionLabel: '3RD PLACE', name: thirdName, mt: '', champion: false },
+          { pos: 'runner-up', emoji: '🥈', label: '2nd', positionLabel: '🥈 RUNNER UP', name: runnerUpName, mt: '', champion: false },
+          { pos: 'champion', emoji: '🏆', label: 'CHAMPION', positionLabel: '🏆 WINNER', name: championName, mt: '-mt-4', champion: true },
+          { pos: 'third', emoji: '🥉', label: '3rd', positionLabel: '🥉 3RD PLACE', name: thirdName, mt: '', champion: false },
         ]
         return (
           <div className="mt-5 bg-slate-800 rounded-2xl overflow-hidden">
