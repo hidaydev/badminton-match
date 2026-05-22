@@ -405,43 +405,37 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
           { pos: 'third', emoji: '🥉', label: '3rd', positionLabel: '🥉 3RD PLACE', name: thirdName, mt: '', champion: false },
         ]
         return (
-          <div className="mt-5 bg-slate-800 rounded-2xl overflow-hidden">
-            <div className="p-4 flex justify-around items-end">
-              {positions.map(({ pos, emoji, label, name, mt, champion: isChamp }) => (
+          <div className="mt-5 bg-slate-800 rounded-2xl p-4 flex justify-around items-end">
+              {positions.map(({ pos, emoji, label, positionLabel, name, mt, champion: isChamp }) => (
                 <div key={pos} className={`text-center ${mt}`}>
                   <div className={isChamp ? 'text-3xl' : 'text-2xl'}>{emoji}</div>
                   <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-yellow-400' : 'text-slate-500'}`}>{label}</div>
                   <div className={`text-xs mt-1 font-medium ${isChamp ? 'text-yellow-200 text-sm' : 'text-slate-300'}`}>{name}</div>
-                </div>
-              ))}
-            </div>
-            <div className="border-t border-slate-700 flex divide-x divide-slate-700">
-              {positions.map(({ pos, positionLabel, name }) => (
-                <div key={pos} className="flex-1 flex items-center justify-center gap-2 py-2.5">
-                  <button
-                    onClick={() => { activePodiumPos.current = pos; podiumFileInputRef.current?.click() }}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${podiumPhotos[pos] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={podiumPhotos[pos] ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                      <circle cx="12" cy="13" r="4"/>
-                    </svg>
-                  </button>
-                  {podiumPhotos[pos] && (
+                  <div className="mt-2 flex items-center justify-center gap-1.5">
                     <button
-                      onClick={() => handleDownloadPosition(pos, positionLabel, name)}
-                      className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+                      onClick={() => { activePodiumPos.current = pos; podiumFileInputRef.current?.click() }}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${podiumPhotos[pos] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={podiumPhotos[pos] ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
                       </svg>
                     </button>
-                  )}
+                    {podiumPhotos[pos] && (
+                      <button
+                        onClick={() => handleDownloadPosition(pos, positionLabel, name)}
+                        className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="7 10 12 15 17 10"/>
+                          <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
-            </div>
           </div>
         )
       })()}
