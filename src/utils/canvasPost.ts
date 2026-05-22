@@ -328,8 +328,9 @@ export function drawPositionPost(
   const gradStart = H * 0.35
   const grad = ctx.createLinearGradient(0, gradStart, 0, H)
   grad.addColorStop(0, 'rgba(0,0,0,0)')
-  grad.addColorStop(0.5, 'rgba(0,0,0,0.55)')
-  grad.addColorStop(0.78, 'rgba(0,0,0,0.85)')
+  grad.addColorStop(0.5, 'rgba(0,0,0,0.12)')
+  grad.addColorStop(0.72, 'rgba(0,0,0,0.58)')
+  grad.addColorStop(0.88, 'rgba(0,0,0,0.85)')
   grad.addColorStop(1, 'rgba(0,0,0,0.94)')
   ctx.fillStyle = grad
   ctx.fillRect(0, gradStart, W, H - gradStart)
