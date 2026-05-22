@@ -357,8 +357,9 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
 
     if (files.length === 0) return
 
-    // iOS Safari blocks multiple programmatic downloads — use Web Share API when available
-    if (navigator.canShare?.({ files })) {
+    // iOS Safari blocks multiple programmatic downloads — use Web Share API on iOS only
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    if (isIOS && navigator.canShare?.({ files })) {
       await navigator.share({ files, title: `Group ${g} Photos` })
     } else {
       for (const file of files) {
