@@ -85,20 +85,17 @@ export function drawMatchPost(
   ctx.clearRect(0, 0, W, H)
 
   // Layer 1: full-bleed photo
-  const pScale = Math.max(W / photo.naturalWidth, H / photo.naturalHeight)
-  ctx.drawImage(photo, (W - photo.naturalWidth * pScale) / 2, (H - photo.naturalHeight * pScale) / 2, photo.naturalWidth * pScale, photo.naturalHeight * pScale)
+  drawCoverFill(ctx, photo, W, H, 0, 0)
 
   // Chevrons
   if (chevrons) {
-    const hLeft = 115
-    const wLeft = hLeft * (chevrons.naturalWidth / chevrons.naturalHeight)
-    const hRight = 115
-    const wRight = hRight * (chevrons.naturalWidth / chevrons.naturalHeight)
-    ctx.drawImage(chevrons, W - wRight - 30, H * 0.18, wRight, hRight)
+    const chevH = 115
+    const chevW = chevH * (chevrons.naturalWidth / chevrons.naturalHeight)
+    ctx.drawImage(chevrons, W - chevW - 30, H * 0.18, chevW, chevH)
     ctx.save()
-    ctx.translate(30 + wLeft / 2, H * 0.10 + hLeft / 2)
+    ctx.translate(30 + chevW / 2, H * 0.10 + chevH / 2)
     ctx.rotate(Math.PI)
-    ctx.drawImage(chevrons, -wLeft / 2, -hLeft / 2, wLeft, hLeft)
+    ctx.drawImage(chevrons, -chevW / 2, -chevH / 2, chevW, chevH)
     ctx.restore()
   }
 
