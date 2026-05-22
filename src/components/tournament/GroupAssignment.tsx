@@ -98,6 +98,7 @@ export default function GroupAssignment({
                       </span>
                       <button
                         onClick={() => onRemovePairFromGroup(pairId)}
+                        aria-label={`Remove ${getPairName(pairId)}`}
                         className="text-slate-600 hover:text-slate-400 shrink-0 ml-1"
                       >
                         ×
