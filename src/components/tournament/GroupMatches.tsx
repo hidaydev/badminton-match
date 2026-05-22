@@ -31,6 +31,7 @@ function drawMatchPost(
   logo: HTMLImageElement | undefined,
   badge: HTMLImageElement | undefined,
   chevrons: HTMLImageElement | undefined,
+  sponsor: HTMLImageElement | undefined,
 ) {
   const W = 1080
   const H = 1350
@@ -56,6 +57,14 @@ function drawMatchPost(
 
   // Layer 3: header
   drawHeader(ctx, W, logo)
+
+  // Sponsor logo centered above footer
+  if (sponsor) {
+    const sH = 80
+    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
+    const footerTopY = H - 160
+    ctx.drawImage(sponsor, (W - sW) / 2, footerTopY - sH - 20, sW, sH)
+  }
 
   // Layer 3: score footer
   const footerH = 160
@@ -271,15 +280,16 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const activeUploadMatchId = useRef<string | null>(null)
 
-  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement }>({})
+  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement }>({})
 
   useEffect(() => {
     const load = async () => {
-      const result: { logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement } = {}
+      const result: { logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement } = {}
       try { result.logo = await loadImage('/instagram-logo.png') } catch { /* skip */ }
       try { result.badge = await loadImage('/tournament-badge.png') } catch { /* skip */ }
       try { result.storyBg = await loadImage('/story-bg.png') } catch { /* skip */ }
       try { result.chevrons = await loadImage('/chevrons.png') } catch { /* skip */ }
+      try { result.sponsor = await loadImage('/sponsor-logo.png') } catch { /* skip */ }
       setOverlays(result)
     }
     load()
@@ -326,6 +336,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         overlays.logo,
         overlays.badge,
         overlays.chevrons,
+        overlays.sponsor,
       )
       const matchBlob = await blobOf(matchCanvas)
       if (matchBlob) await triggerDownload(matchBlob, `group-${g.toLowerCase()}-match-${matchIndex}-${suffix}.jpg`)
