@@ -165,7 +165,7 @@ function drawGroupSummary(
   const CARD_Y = (H - CARD_H) / 2 + 80
 
   ctx.save()
-  ctx.fillStyle = 'rgba(4,7,14,0.92)'
+  ctx.fillStyle = 'rgba(4,7,14,0.82)'
   ctx.beginPath()
   ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
   ctx.fill()
