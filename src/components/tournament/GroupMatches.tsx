@@ -180,7 +180,7 @@ function drawGroupSummary(
   })
 }
 
-export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups, onRegeneratePics, isRegeneratingPics, onOpenModal, isFetching, refetch }: Props) {
+export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups: _onResetGroups, onRegeneratePics: _onRegeneratePics, isRegeneratingPics: _isRegeneratingPics, onOpenModal, isFetching, refetch }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
   const [postModeGroups, setPostModeGroups] = useState<Record<string, boolean>>({})
