@@ -191,7 +191,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     const photo = podiumPhotos[pos]
     if (!photo) return
     const c = document.createElement('canvas')
-    drawPositionPost(c, photo, positionLabel, name, overlays.logo, overlays.chevrons, overlays.sponsor)
+    drawPositionPost(c, photo, positionLabel, name, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge)
     const suffix = Math.floor(Math.random() * 90000) + 10000
     const blob = await new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
     if (!blob) return
