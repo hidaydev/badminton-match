@@ -162,7 +162,7 @@ function drawGroupSummary(
   const HDR_H = 50
   const CARD_PAD_BOT = 50
   const CARD_H = CARD_PAD_TOP + TITLE_H + HDR_H + standings.length * (ROW_H + ROW_GAP) + CARD_PAD_BOT
-  const CARD_Y = H - CARD_H - 60
+  const CARD_Y = (H - CARD_H) / 2 + 80
 
   ctx.save()
   ctx.fillStyle = 'rgba(4,7,14,0.94)'
@@ -175,7 +175,7 @@ function drawGroupSummary(
   if (sponsor) {
     const sH = 80
     const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    ctx.drawImage(sponsor, (W - sW) / 2, CARD_Y - sH / 2, sW, sH)
+    ctx.drawImage(sponsor, (W - sW) / 2, CARD_Y - sH - 30, sW, sH)
   }
 
   // Title
