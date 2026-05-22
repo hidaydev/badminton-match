@@ -45,7 +45,7 @@ function drawMatchPost(
   drawHeader(ctx, W, logo)
 
   // Layer 3: score footer
-  const footerH = 220
+  const footerH = 160
   const footerY = H - footerH
   ctx.save()
   ctx.fillStyle = 'rgba(0,0,0,0.82)'
@@ -53,7 +53,7 @@ function drawMatchPost(
   ctx.restore()
 
   // Pair names + score row
-  const scoreY = footerY + 80
+  const scoreY = footerY + 58
   ctx.save()
   ctx.font = 'bold 42px Arial, sans-serif'
   ctx.fillStyle = '#ffffff'
@@ -84,7 +84,7 @@ function drawMatchPost(
 
   // Badge — large, low opacity, right side (like Tournament card on home page)
   if (badge) {
-    const badgeH = 190
+    const badgeH = 150
     const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
     ctx.save()
     ctx.globalAlpha = 0.18
@@ -97,7 +97,7 @@ function drawMatchPost(
   ctx.font = '28px monospace'
   ctx.fillStyle = '#64748b'
   ctx.textAlign = 'center'
-  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 195)
+  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 135)
   ctx.restore()
 }
 
