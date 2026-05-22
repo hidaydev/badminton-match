@@ -44,15 +44,15 @@ function drawMatchPost(
   drawHeader(ctx, W, logo)
 
   // Layer 3: score footer
-  const footerH = 110
+  const footerH = 220
   const footerY = H - footerH
   ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.75)'
+  ctx.fillStyle = 'rgba(0,0,0,0.82)'
   ctx.fillRect(0, footerY, W, footerH)
   ctx.restore()
 
-  // Pair names + score
-  const midY = footerY + 58
+  // Pair names + score row
+  const scoreY = footerY + 80
   ctx.save()
   ctx.font = 'bold 42px Arial, sans-serif'
   ctx.fillStyle = '#ffffff'
@@ -61,7 +61,7 @@ function drawMatchPost(
   let nameA = pairAName
   while (ctx.measureText(nameA).width > maxNameW && nameA.length > 1) nameA = nameA.slice(0, -1)
   if (nameA !== pairAName) nameA += '…'
-  ctx.fillText(nameA, 60, midY)
+  ctx.fillText(nameA, 60, scoreY)
   ctx.restore()
 
   ctx.save()
@@ -71,22 +71,30 @@ function drawMatchPost(
   let nameB = pairBName
   while (ctx.measureText(nameB).width > maxNameW && nameB.length > 1) nameB = nameB.slice(0, -1)
   if (nameB !== pairBName) nameB += '…'
-  ctx.fillText(nameB, W - 60, midY)
+  ctx.fillText(nameB, W - 60, scoreY)
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 52px monospace'
+  ctx.font = 'bold 56px monospace'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'center'
-  ctx.fillText(`${scoreA} – ${scoreB}`, W / 2, midY)
+  ctx.fillText(`${scoreA} – ${scoreB}`, W / 2, scoreY)
   ctx.restore()
+
+  // Logo centered between score and subtitle
+  const LOGO_H = 36
+  const logoY = scoreY + 24
+  if (logo) {
+    const logoW = LOGO_H * (logo.naturalWidth / logo.naturalHeight)
+    ctx.drawImage(logo, (W - logoW) / 2, logoY, logoW, LOGO_H)
+  }
 
   // Subtitle
   ctx.save()
-  ctx.font = '26px monospace'
+  ctx.font = '28px monospace'
   ctx.fillStyle = '#64748b'
   ctx.textAlign = 'center'
-  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 88)
+  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 195)
   ctx.restore()
 }
 
