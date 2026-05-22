@@ -45,9 +45,9 @@ function MatchCard({
             <button
               aria-label={`Upload photo for ${getPairName(match.pairAId)} vs ${getPairName(match.pairBId)}`}
               onClick={onUploadPhoto}
-              className="w-5 h-5 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
+              className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                 <circle cx="12" cy="13" r="4"/>
               </svg>
@@ -247,9 +247,9 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
               <span>QF</span>
               <button
                 onClick={() => setPostModeRounds(prev => ({ ...prev, qf: !prev.qf }))}
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${postModeRounds.qf ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds.qf ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={postModeRounds.qf ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={postModeRounds.qf ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                   <circle cx="12" cy="13" r="4"/>
                 </svg>
@@ -258,9 +258,9 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
                 <button
                   aria-label="Download QF posts"
                   onClick={() => handleDownloadRound(['qf-1','qf-2','qf-3','qf-4'], 'QUARTERFINAL')}
-                  className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+                  className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10"/>
                     <line x1="12" y1="15" x2="12" y2="3"/>
@@ -274,9 +274,9 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
               <span>SF</span>
               <button
                 onClick={() => setPostModeRounds(prev => ({ ...prev, sf: !prev.sf }))}
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${postModeRounds.sf ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds.sf ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={postModeRounds.sf ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={postModeRounds.sf ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                   <circle cx="12" cy="13" r="4"/>
                 </svg>
@@ -285,9 +285,9 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
                 <button
                   aria-label="Download SF posts"
                   onClick={() => handleDownloadRound(['sf-1','sf-2'], 'SEMIFINAL')}
-                  className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+                  className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10"/>
                     <line x1="12" y1="15" x2="12" y2="3"/>
@@ -301,9 +301,9 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
               <span>Final</span>
               <button
                 onClick={() => setPostModeRounds(prev => ({ ...prev, final: !prev.final }))}
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${postModeRounds.final ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds.final ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={postModeRounds.final ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={postModeRounds.final ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                   <circle cx="12" cy="13" r="4"/>
                 </svg>
@@ -312,9 +312,9 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
                 <button
                   aria-label="Download Final posts"
                   onClick={() => handleDownloadRound(['final-1','3rd-1'], 'FINAL')}
-                  className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+                  className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10"/>
                     <line x1="12" y1="15" x2="12" y2="3"/>
