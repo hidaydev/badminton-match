@@ -37,13 +37,32 @@ function MatchCard({
   const canEnter = !!(match.pairAId && match.pairBId)
   const scored = match.scoreA !== null
   return (
-    <div className={`w-full bg-slate-800 rounded-lg border-l-2 ${borderColor} overflow-hidden flex items-stretch`}>
+    <div className={`w-full bg-slate-800 rounded-lg border-l-2 ${borderColor} overflow-hidden`}>
+      <div className={`px-2 py-1.5 border-b border-slate-700 flex items-center justify-between`}>
+        <span className={`text-[8px] font-bold tracking-wide ${labelColor}`}>{label}</span>
+        {showPostIcon && (
+          <div className="relative shrink-0">
+            <button
+              aria-label={`Upload photo for ${getPairName(match.pairAId)} vs ${getPairName(match.pairBId)}`}
+              onClick={onUploadPhoto}
+              className="w-5 h-5 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </button>
+            {hasPhoto && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-slate-800" />
+            )}
+          </div>
+        )}
+      </div>
       <button
         onClick={() => canEnter && onSelect(match)}
         disabled={!canEnter}
-        className="flex-1 text-left disabled:opacity-60 hover:bg-slate-700/50 disabled:hover:bg-transparent"
+        className="w-full text-left disabled:opacity-60 hover:bg-slate-700/50 disabled:hover:bg-transparent"
       >
-        <div className={`px-2 py-1.5 border-b border-slate-700 text-[8px] font-bold tracking-wide ${labelColor}`}>{label}</div>
         <div className="px-2 pt-2 pb-1">
           <div className="text-xs text-slate-200 font-medium truncate">{getPairName(match.pairAId)}</div>
           {scored ? (
@@ -54,23 +73,6 @@ function MatchCard({
           <div className="text-xs text-slate-200 font-medium truncate">{getPairName(match.pairBId)}</div>
         </div>
       </button>
-      {showPostIcon && (
-        <div className="relative flex items-center pr-2 shrink-0">
-          <button
-            aria-label={`Upload photo for ${getPairName(match.pairAId)} vs ${getPairName(match.pairBId)}`}
-            onClick={onUploadPhoto}
-            className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
-          </button>
-          {hasPhoto && (
-            <span className="absolute top-2 right-1.5 w-2 h-2 rounded-full bg-green-500 border border-slate-800" />
-          )}
-        </div>
-      )}
     </div>
   )
 }
