@@ -300,6 +300,7 @@ export function drawPositionPost(
   logo: HTMLImageElement | undefined,
   chevrons: HTMLImageElement | undefined,
   sponsor: HTMLImageElement | undefined,
+  badge: HTMLImageElement | undefined,
 ) {
   const W = 1080
   const H = 1350
@@ -332,6 +333,16 @@ export function drawPositionPost(
   grad.addColorStop(1, 'rgba(0,0,0,0.94)')
   ctx.fillStyle = grad
   ctx.fillRect(0, gradStart, W, H - gradStart)
+
+  // Big badge watermark — bottom-right, 60% visible, low opacity
+  if (badge) {
+    const badgeH = 680
+    const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
+    ctx.save()
+    ctx.globalAlpha = 0.13
+    ctx.drawImage(badge, W - badgeW * 0.64, H - badgeH * 0.64, badgeW, badgeH)
+    ctx.restore()
+  }
 
   const footerY = H - 320
 
