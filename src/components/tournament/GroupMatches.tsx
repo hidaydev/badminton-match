@@ -269,14 +269,16 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     allMatches: TournamentMatch[],
   ) => {
     const canvas = document.createElement('canvas')
-    const triggerDownload = (blob: Blob, filename: string) => {
+    const triggerDownload = (blob: Blob, filename: string) => new Promise<void>(resolve => {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       a.download = filename
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
-    }
+      document.body.removeChild(a)
+      setTimeout(() => { URL.revokeObjectURL(url); resolve() }, 300)
+    })
 
     // Generate match posts for matches with photos
     let matchIndex = 1
@@ -295,8 +297,8 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         overlays.logo,
       )
       await new Promise<void>(resolve => {
-        canvas.toBlob(blob => {
-          if (blob) triggerDownload(blob, `group-${g.toLowerCase()}-match-${matchIndex}.jpg`)
+        canvas.toBlob(async blob => {
+          if (blob) await triggerDownload(blob, `group-${g.toLowerCase()}-match-${matchIndex}.jpg`)
           resolve()
         }, 'image/jpeg', 0.92)
       })
@@ -307,8 +309,8 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     const standings = computeGroupStandings(g, pairIds, allMatches)
     drawGroupSummary(canvas, g, standings, getPairName, overlays.storyBg)
     await new Promise<void>(resolve => {
-      canvas.toBlob(blob => {
-        if (blob) triggerDownload(blob, `group-${g.toLowerCase()}-summary.jpg`)
+      canvas.toBlob(async blob => {
+        if (blob) await triggerDownload(blob, `group-${g.toLowerCase()}-summary.jpg`)
         resolve()
       }, 'image/jpeg', 0.92)
     })
