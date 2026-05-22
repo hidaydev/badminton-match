@@ -48,9 +48,11 @@ function drawMatchPost(
     const w = h * (chevrons.naturalWidth / chevrons.naturalHeight)
     ctx.drawImage(chevrons, W - w - 30, H * 0.3, w, h)
     ctx.save()
-    ctx.translate(30, H * 0.3 + w)
-    ctx.rotate(-Math.PI / 2)
-    ctx.drawImage(chevrons, 0, 0, w, h)
+    const lcx = 30 + w / 2
+    const lcy = H * 0.3 + h / 2
+    ctx.translate(lcx, lcy)
+    ctx.rotate(-Math.PI / 4)
+    ctx.drawImage(chevrons, -w / 2, -h / 2, w, h)
     ctx.restore()
   }
 
