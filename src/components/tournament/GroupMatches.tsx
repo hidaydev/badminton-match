@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { computeGroupStandings, GROUP_COURTS } from '../../utils/tournament'
 import type { GroupId, TournamentMatch, TournamentPair, StandingRow } from '../../utils/tournament'
 import ScoreModal from './ScoreModal'
-import { loadImage, drawHeader } from '../../utils/canvasPost'
+import { loadImage, drawHeader, drawMatchPost } from '../../utils/canvasPost'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
@@ -17,112 +17,6 @@ interface Props {
   onOpenModal: () => void
   isFetching: boolean
   refetch: () => Promise<unknown>
-}
-
-function drawMatchPost(
-  canvas: HTMLCanvasElement,
-  photo: HTMLImageElement,
-  pairAName: string,
-  pairBName: string,
-  scoreA: number,
-  scoreB: number,
-  groupId: string,
-  matchIndex: number,
-  logo: HTMLImageElement | undefined,
-  badge: HTMLImageElement | undefined,
-  chevrons: HTMLImageElement | undefined,
-  sponsor: HTMLImageElement | undefined,
-) {
-  const W = 1080
-  const H = 1350
-  canvas.width = W
-  canvas.height = H
-  const ctx = canvas.getContext('2d')!
-  ctx.clearRect(0, 0, W, H)
-
-  // Layer 1: full-bleed photo
-  const pScale = Math.max(W / photo.naturalWidth, H / photo.naturalHeight)
-  ctx.drawImage(photo, (W - photo.naturalWidth * pScale) / 2, (H - photo.naturalHeight * pScale) / 2, photo.naturalWidth * pScale, photo.naturalHeight * pScale)
-
-  // Chevrons
-  if (chevrons) {
-    const hLeft = 115
-    const wLeft = hLeft * (chevrons.naturalWidth / chevrons.naturalHeight)
-    const hRight = 115
-    const wRight = hRight * (chevrons.naturalWidth / chevrons.naturalHeight)
-    ctx.drawImage(chevrons, W - wRight - 30, H * 0.18, wRight, hRight)
-    ctx.save()
-    ctx.translate(30 + wLeft / 2, H * 0.10 + hLeft / 2)
-    ctx.rotate(Math.PI)
-    ctx.drawImage(chevrons, -wLeft / 2, -hLeft / 2, wLeft, hLeft)
-    ctx.restore()
-  }
-
-  // Header band
-  drawHeader(ctx, W, logo)
-
-  // Footer — taller to fit sponsor inside
-  const footerH = 230
-  const footerY = H - footerH
-  ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.85)'
-  ctx.fillRect(0, footerY, W, footerH)
-  ctx.restore()
-
-  // Sponsor logo inside footer, centered above score row
-  if (sponsor) {
-    const sH = 60
-    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    ctx.drawImage(sponsor, (W - sW) / 2, footerY + 15, sW, sH)
-  }
-
-  // Names + score row
-  const rowY = footerY + 140
-  const maxNameW = 360
-  ctx.save()
-  ctx.font = 'bold 36px Arial, sans-serif'
-  ctx.fillStyle = '#ffffff'
-  ctx.textAlign = 'left'
-  let nameA = pairAName
-  while (ctx.measureText(nameA).width > maxNameW && nameA.length > 1) nameA = nameA.slice(0, -1)
-  if (nameA !== pairAName) nameA += '…'
-  ctx.fillText(nameA, 60, rowY)
-  ctx.restore()
-
-  ctx.save()
-  ctx.font = 'bold 36px Arial, sans-serif'
-  ctx.fillStyle = '#ffffff'
-  ctx.textAlign = 'right'
-  let nameB = pairBName
-  while (ctx.measureText(nameB).width > maxNameW && nameB.length > 1) nameB = nameB.slice(0, -1)
-  if (nameB !== pairBName) nameB += '…'
-  ctx.fillText(nameB, W - 60, rowY)
-  ctx.restore()
-
-  ctx.save()
-  ctx.font = 'bold 42px monospace'
-  ctx.fillStyle = '#facc15'
-  ctx.textAlign = 'center'
-  ctx.fillText(`${scoreA} – ${scoreB}`, W / 2, rowY)
-  ctx.restore()
-
-  // Badge low opacity right side
-  if (badge) {
-    const badgeH = 200
-    const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
-    ctx.save()
-    ctx.globalAlpha = 0.18
-    ctx.drawImage(badge, W - badgeW + 20, footerY + (footerH - badgeH) / 2, badgeW, badgeH)
-    ctx.restore()
-  }
-
-  // Subtitle — smaller
-  ctx.save()
-  ctx.font = '20px monospace'
-  ctx.fillStyle = '#64748b'
-  ctx.textAlign = 'center'
-  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 205)
-  ctx.restore()
 }
 
 function drawGroupSummary(
@@ -337,8 +231,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         getPairName(m.pairBId),
         m.scoreA,
         m.scoreB,
-        g,
-        matchIndex,
+        `GROUP ${g} · MATCH ${matchIndex}`,
         overlays.logo,
         overlays.badge,
         overlays.chevrons,
