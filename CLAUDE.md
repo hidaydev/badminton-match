@@ -50,7 +50,7 @@ Migration in both stores resets to defaults on any version mismatch.
 ### Pages
 
 - **GeneratePage** ([src/pages/GeneratePage.tsx](src/pages/GeneratePage.tsx)) — `QualityBanner` grades the schedule; "Retry until good" runs up to 30 generations; `SummaryModal` is a full-screen overlay with a checklist view (tap to mark games as played, support for absent players). Back-to-back games flagged with `*` on player chips.
-- **TournamentPage** ([src/pages/TournamentPage.tsx](src/pages/TournamentPage.tsx)) — tabbed UI with three tabs: **Groups** (assign 16 pairs to 4 groups; switches to GroupMatches when locked), **Bracket** (horizontal scrolling QF→SF→Final knockout bracket with connector lines), **Standings** (per-group W/L, point diff, head-to-head table).
+- **TournamentPage** ([src/pages/TournamentPage.tsx](src/pages/TournamentPage.tsx)) — tabbed UI with three tabs: **Groups** (assign 16 pairs to numbered slots #1–#16 across 4 groups via tap-slot-then-pick-pair; switches to GroupMatches when locked), **Bracket** (horizontal scrolling QF→SF→Final knockout bracket with connector lines), **Standings** (per-group W/L, point diff, head-to-head table). Local draft group state is `Record<GroupId, (string | null)[]>` — always 4 elements, null for empty slots.
 - **SessionListPage** ([src/pages/SessionListPage.tsx](src/pages/SessionListPage.tsx)) — browse past cloud-synced sessions with date filter.
 - **PlayerHistoryPage** ([src/pages/PlayerHistoryPage.tsx](src/pages/PlayerHistoryPage.tsx)) — list all players from cloud history.
 - **PlayerDetailPage** ([src/pages/PlayerDetailPage.tsx](src/pages/PlayerDetailPage.tsx)) — per-player career stats (top partners, opponents).
@@ -60,7 +60,7 @@ Migration in both stores resets to defaults on any version mismatch.
 ### Tournament Components
 
 `src/components/tournament/`:
-- `GroupAssignment.tsx` — drag/drop UI to assign pairs to groups.
+- `GroupAssignment.tsx` — numbered-slot UI (slots #1–#16) for assigning pairs to groups. Interaction: tap an empty slot to select it (highlights amber), then tap a pair chip from the unassigned pool to place it. Slots are globally numbered: A=#1–4, B=#5–8, C=#9–12, D=#13–16. Local draft state in `TournamentPage` uses `(string | null)[]` of fixed length 4 per group; nulls are filtered before cloud confirm.
 - `GroupMatches.tsx` — enter scores for group stage round-robin matches.
 - `BracketTab.tsx` — knockout bracket visualization.
 - `StandingsTab.tsx` — standings table per group.
