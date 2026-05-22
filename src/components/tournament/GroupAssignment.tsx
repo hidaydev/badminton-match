@@ -17,8 +17,8 @@ interface ActiveSlot {
 
 interface Props {
   pairs: TournamentPair[]
-  groups: Record<GroupId, string[]>
-  onAddPairToGroup: (pairId: string, groupId: GroupId) => void
+  groups: Record<GroupId, (string | null)[]>
+  onAddPairToGroup: (pairId: string, groupId: GroupId, slotIndex: number) => void
   onRemovePairFromGroup: (pairId: string) => void
   onConfirmGroups: () => void
   isLoading?: boolean
@@ -34,9 +34,9 @@ export default function GroupAssignment({
 }: Props) {
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null)
 
-  const assignedIds = new Set(Object.values(groups).flat())
+  const assignedIds = new Set(Object.values(groups).flat().filter(Boolean) as string[])
   const unassigned = pairs.filter((p) => !assignedIds.has(p.id))
-  const allFull = GROUP_IDS.every((g) => groups[g].length === 4)
+  const allFull = GROUP_IDS.every((g) => groups[g].every((id) => id !== null))
 
   const getPairName = (id: string) => pairs.find((p) => p.id === id)?.name ?? id
 
@@ -56,7 +56,7 @@ export default function GroupAssignment({
 
   const handlePairTap = (pairId: string) => {
     if (!activeSlot) return
-    onAddPairToGroup(pairId, activeSlot.groupId)
+    onAddPairToGroup(pairId, activeSlot.groupId, activeSlot.slotIndex)
     setActiveSlot(null)
   }
 
@@ -76,7 +76,7 @@ export default function GroupAssignment({
           <div key={g} className="bg-slate-800 rounded-xl overflow-hidden">
             <div className={`px-3 py-1.5 flex justify-between items-center ${GROUP_HEAD_CLASS[g]}`}>
               <span className="text-xs font-bold">GROUP {g}</span>
-              <span className="text-xs opacity-70">{groups[g].length}/4</span>
+              <span className="text-xs opacity-70">{groups[g].filter(Boolean).length}/4</span>
             </div>
             <div className="p-2 flex flex-col gap-1.5">
               {[0, 1, 2, 3].map((slotIdx) => {
