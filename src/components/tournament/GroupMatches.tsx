@@ -44,13 +44,19 @@ function drawMatchPost(
   const pScale = Math.max(W / photo.naturalWidth, H / photo.naturalHeight)
   ctx.drawImage(photo, (W - photo.naturalWidth * pScale) / 2, (H - photo.naturalHeight * pScale) / 2, photo.naturalWidth * pScale, photo.naturalHeight * pScale)
 
+  // Dark overlay over photo
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'
+  ctx.fillRect(0, 0, W, H)
+  ctx.restore()
+
   // Chevrons
   if (chevrons) {
     const h = 115
     const w = h * (chevrons.naturalWidth / chevrons.naturalHeight)
     ctx.drawImage(chevrons, W - w - 30, H * 0.18, w, h)
     ctx.save()
-    ctx.translate(30 + w / 2, H * 0.18 + h / 2)
+    ctx.translate(30 + w / 2, H * 0.10 + h / 2)
     ctx.rotate(Math.PI)
     ctx.drawImage(chevrons, -w / 2, -h / 2, w, h)
     ctx.restore()
