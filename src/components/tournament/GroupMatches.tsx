@@ -97,7 +97,7 @@ function drawMatchPost(
   ctx.font = '28px monospace'
   ctx.fillStyle = '#64748b'
   ctx.textAlign = 'center'
-  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 135)
+  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 105)
   ctx.restore()
 }
 
