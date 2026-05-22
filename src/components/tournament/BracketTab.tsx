@@ -176,7 +176,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     for (const id of roundMatchIds) {
       const photo = bracketPhotos[id]
       const match = matches.find(m => m.id === id)
-      if (!photo || !match || match.scoreA === null || match.scoreB === null) continue
+      if (!photo || !match) continue
       const c = document.createElement('canvas')
       drawMatchPost(
         c,

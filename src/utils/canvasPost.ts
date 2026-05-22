@@ -69,8 +69,8 @@ export function drawMatchPost(
   photo: HTMLImageElement,
   pairAName: string,
   pairBName: string,
-  scoreA: number,
-  scoreB: number,
+  scoreA: number | null,
+  scoreB: number | null,
   subtitle: string,
   logo: HTMLImageElement | undefined,
   badge: HTMLImageElement | undefined,
@@ -144,7 +144,7 @@ export function drawMatchPost(
   ctx.font = 'bold 42px monospace'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'center'
-  ctx.fillText(`${scoreA} – ${scoreB}`, W / 2, rowY)
+  ctx.fillText(scoreA !== null && scoreB !== null ? `${scoreA} – ${scoreB}` : '— vs —', W / 2, rowY)
   ctx.restore()
 
   // Badge low opacity
