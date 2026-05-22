@@ -144,8 +144,6 @@ function drawGroupSummary(
   // Background
   if (summaryBg) {
     ctx.drawImage(summaryBg, 0, 0, W, H)
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'
-    ctx.fillRect(0, 0, W, H)
   } else {
     ctx.fillStyle = '#f59e0b'
     ctx.fillRect(0, 0, W, H)
