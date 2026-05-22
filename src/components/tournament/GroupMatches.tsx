@@ -52,13 +52,15 @@ function drawMatchPost(
 
   // Chevrons
   if (chevrons) {
-    const h = 115
-    const w = h * (chevrons.naturalWidth / chevrons.naturalHeight)
-    ctx.drawImage(chevrons, W - w - 30, H * 0.18, w, h)
+    const hLeft = 115
+    const wLeft = hLeft * (chevrons.naturalWidth / chevrons.naturalHeight)
+    const hRight = 160
+    const wRight = hRight * (chevrons.naturalWidth / chevrons.naturalHeight)
+    ctx.drawImage(chevrons, W - wRight - 30, H * 0.18, wRight, hRight)
     ctx.save()
-    ctx.translate(30 + w / 2, H * 0.10 + h / 2)
+    ctx.translate(30 + wLeft / 2, H * 0.10 + hLeft / 2)
     ctx.rotate(Math.PI)
-    ctx.drawImage(chevrons, -w / 2, -h / 2, w, h)
+    ctx.drawImage(chevrons, -wLeft / 2, -hLeft / 2, wLeft, hLeft)
     ctx.restore()
   }
 
