@@ -160,9 +160,11 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     const file = e.target.files?.[0]
     const matchId = activeUploadMatchId.current
     if (!file || !matchId) return
+    const url = URL.createObjectURL(file)
     const img = new Image()
-    img.onload = () => setBracketPhotos(prev => ({ ...prev, [matchId]: img }))
-    img.src = URL.createObjectURL(file)
+    img.onload = () => { URL.revokeObjectURL(url); setBracketPhotos(prev => ({ ...prev, [matchId]: img })) }
+    img.onerror = () => URL.revokeObjectURL(url)
+    img.src = url
     e.target.value = ''
   }
 
