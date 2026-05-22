@@ -44,12 +44,6 @@ function drawMatchPost(
   const pScale = Math.max(W / photo.naturalWidth, H / photo.naturalHeight)
   ctx.drawImage(photo, (W - photo.naturalWidth * pScale) / 2, (H - photo.naturalHeight * pScale) / 2, photo.naturalWidth * pScale, photo.naturalHeight * pScale)
 
-  // Dark overlay over photo
-  ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'
-  ctx.fillRect(0, 0, W, H)
-  ctx.restore()
-
   // Chevrons
   if (chevrons) {
     const hLeft = 115
