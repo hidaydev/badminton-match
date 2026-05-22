@@ -165,3 +165,129 @@ export function drawMatchPost(
   ctx.fillText(subtitle, W / 2, footerY + 205)
   ctx.restore()
 }
+
+export function drawBracketRoundCover(
+  canvas: HTMLCanvasElement,
+  roundTitle: string,
+  matchRows: { label: string; nameA: string; nameB: string; scoreA: number | null; scoreB: number | null }[],
+  summaryBg: HTMLImageElement | undefined,
+  logo: HTMLImageElement | undefined,
+  sponsor: HTMLImageElement | undefined,
+) {
+  const W = 1080
+  const H = 1350
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, W, H)
+
+  if (summaryBg) {
+    ctx.drawImage(summaryBg, 0, 0, W, H)
+  } else {
+    ctx.fillStyle = '#0f172a'
+    ctx.fillRect(0, 0, W, H)
+  }
+
+  drawHeader(ctx, W, logo)
+
+  const ROW_H = 130
+  const ROW_GAP = 12
+  const CARD_PAD_TOP = 60
+  const CARD_PAD_BOT = 60
+  const TITLE_H = 160
+  const CARD_X = 60
+  const CARD_W = W - CARD_X * 2
+  const CARD_H = CARD_PAD_TOP + TITLE_H + matchRows.length * (ROW_H + ROW_GAP) - ROW_GAP + CARD_PAD_BOT
+  const CARD_Y = (H - CARD_H) / 2 + 60
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(4,7,14,0.85)'
+  ctx.beginPath()
+  ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
+  ctx.fill()
+  ctx.restore()
+
+  if (sponsor) {
+    const sH = 60
+    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
+    ctx.drawImage(sponsor, (W - sW) / 2, CARD_Y + 18, sW, sH)
+  }
+
+  // Round title
+  ctx.save()
+  ctx.font = 'bold 80px Arial, sans-serif'
+  ctx.fillStyle = '#facc15'
+  ctx.textAlign = 'center'
+  ctx.letterSpacing = '3px'
+  ctx.fillText(roundTitle, W / 2, CARD_Y + CARD_PAD_TOP + 100)
+  ctx.restore()
+
+  // Divider
+  ctx.save()
+  ctx.strokeStyle = 'rgba(250,204,21,0.25)'
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.moveTo(CARD_X + 60, CARD_Y + CARD_PAD_TOP + TITLE_H - 10)
+  ctx.lineTo(CARD_X + CARD_W - 60, CARD_Y + CARD_PAD_TOP + TITLE_H - 10)
+  ctx.stroke()
+  ctx.restore()
+
+  const INNER_X = CARD_X + 50
+  const INNER_W = CARD_W - 100
+  const SCORE_W = 160
+  const SCORE_CX = W / 2
+  const NAME_MAX_W = (INNER_W - SCORE_W) / 2 - 20
+
+  matchRows.forEach((row, i) => {
+    const rowY = CARD_Y + CARD_PAD_TOP + TITLE_H + i * (ROW_H + ROW_GAP)
+    const baseline = rowY + ROW_H * 0.62
+
+    // Row background
+    ctx.save()
+    ctx.fillStyle = 'rgba(255,255,255,0.03)'
+    ctx.beginPath()
+    ctx.roundRect(CARD_X + 16, rowY + 4, CARD_W - 32, ROW_H - 8, 12)
+    ctx.fill()
+    ctx.restore()
+
+    // Match label
+    ctx.save()
+    ctx.font = 'bold 22px monospace'
+    ctx.fillStyle = '#475569'
+    ctx.textAlign = 'left'
+    ctx.letterSpacing = '1px'
+    ctx.fillText(row.label, INNER_X, rowY + 28)
+    ctx.restore()
+
+    // Team A (right-aligned to score center)
+    ctx.save()
+    ctx.font = 'bold 38px Arial, sans-serif'
+    ctx.fillStyle = '#e2e8f0'
+    ctx.textAlign = 'right'
+    let nameA = row.nameA
+    while (ctx.measureText(nameA).width > NAME_MAX_W && nameA.length > 1) nameA = nameA.slice(0, -1)
+    if (nameA !== row.nameA) nameA += '…'
+    ctx.fillText(nameA, SCORE_CX - SCORE_W / 2 - 18, baseline)
+    ctx.restore()
+
+    // Score
+    ctx.save()
+    ctx.font = 'bold 38px monospace'
+    ctx.fillStyle = '#facc15'
+    ctx.textAlign = 'center'
+    const scoreText = row.scoreA !== null && row.scoreB !== null ? `${row.scoreA}–${row.scoreB}` : 'vs'
+    ctx.fillText(scoreText, SCORE_CX, baseline)
+    ctx.restore()
+
+    // Team B (left-aligned from score center)
+    ctx.save()
+    ctx.font = 'bold 38px Arial, sans-serif'
+    ctx.fillStyle = '#e2e8f0'
+    ctx.textAlign = 'left'
+    let nameB = row.nameB
+    while (ctx.measureText(nameB).width > NAME_MAX_W && nameB.length > 1) nameB = nameB.slice(0, -1)
+    if (nameB !== row.nameB) nameB += '…'
+    ctx.fillText(nameB, SCORE_CX + SCORE_W / 2 + 18, baseline)
+    ctx.restore()
+  })
+}

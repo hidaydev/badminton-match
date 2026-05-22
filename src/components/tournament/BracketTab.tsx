@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { loadImage, drawMatchPost } from '../../utils/canvasPost'
+import { loadImage, drawMatchPost, drawBracketRoundCover } from '../../utils/canvasPost'
 import type { TournamentMatch, TournamentPair } from '../../utils/tournament'
 import ScoreModal from './ScoreModal'
 
@@ -94,6 +94,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     badge?: HTMLImageElement
     chevrons?: HTMLImageElement
     sponsor?: HTMLImageElement
+    summaryBg?: HTMLImageElement
   }>({})
   const activeUploadMatchId = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -105,6 +106,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
       try { result.badge = await loadImage('/tournament-badge.png') } catch { /* skip */ }
       try { result.chevrons = await loadImage('/chevrons.png') } catch { /* skip */ }
       try { result.sponsor = await loadImage('/sponsor-logo.png') } catch { /* skip */ }
+      try { result.summaryBg = await loadImage('/summary-bg.png') } catch { /* skip */ }
       setOverlays(result)
     }
     load()
@@ -170,11 +172,28 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     e.target.value = ''
   }
 
-  const handleDownloadRound = async (roundMatchIds: string[]) => {
+  const handleDownloadRound = async (roundMatchIds: string[], roundTitle: string) => {
     const suffix = Math.floor(Math.random() * 90000) + 10000
     const blobOf = (c: HTMLCanvasElement) => new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
     const files: File[] = []
 
+    // Cover card — always included
+    const coverRows = roundMatchIds.map(id => {
+      const m = matches.find(x => x.id === id)
+      return {
+        label: bracketSubtitle(id),
+        nameA: getPairName(m?.pairAId ?? null),
+        nameB: getPairName(m?.pairBId ?? null),
+        scoreA: m?.scoreA ?? null,
+        scoreB: m?.scoreB ?? null,
+      }
+    })
+    const coverCanvas = document.createElement('canvas')
+    drawBracketRoundCover(coverCanvas, roundTitle, coverRows, overlays.summaryBg, overlays.logo, overlays.sponsor)
+    const coverBlob = await blobOf(coverCanvas)
+    if (coverBlob) files.push(new File([coverBlob], `bracket-${roundTitle.toLowerCase()}-cover-${suffix}.jpg`, { type: 'image/jpeg' }))
+
+    // Per-match photo posts
     for (const id of roundMatchIds) {
       const photo = bracketPhotos[id]
       const match = matches.find(m => m.id === id)
@@ -238,7 +257,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
               {postModeRounds.qf && ['qf-1','qf-2','qf-3','qf-4'].some(id => bracketPhotos[id]) && (
                 <button
                   aria-label="Download QF posts"
-                  onClick={() => handleDownloadRound(['qf-1','qf-2','qf-3','qf-4'])}
+                  onClick={() => handleDownloadRound(['qf-1','qf-2','qf-3','qf-4'], 'QUARTERFINAL')}
                   className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -265,7 +284,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
               {postModeRounds.sf && ['sf-1','sf-2'].some(id => bracketPhotos[id]) && (
                 <button
                   aria-label="Download SF posts"
-                  onClick={() => handleDownloadRound(['sf-1','sf-2'])}
+                  onClick={() => handleDownloadRound(['sf-1','sf-2'], 'SEMIFINAL')}
                   className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -292,7 +311,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
               {postModeRounds.final && ['final-1','3rd-1'].some(id => bracketPhotos[id]) && (
                 <button
                   aria-label="Download Final posts"
-                  onClick={() => handleDownloadRound(['final-1','3rd-1'])}
+                  onClick={() => handleDownloadRound(['final-1','3rd-1'], 'FINAL')}
                   className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
