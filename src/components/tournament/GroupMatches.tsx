@@ -54,7 +54,7 @@ function drawMatchPost(
   if (chevrons) {
     const hLeft = 115
     const wLeft = hLeft * (chevrons.naturalWidth / chevrons.naturalHeight)
-    const hRight = 160
+    const hRight = 115
     const wRight = hRight * (chevrons.naturalWidth / chevrons.naturalHeight)
     ctx.drawImage(chevrons, W - wRight - 30, H * 0.18, wRight, hRight)
     ctx.save()
@@ -77,7 +77,7 @@ function drawMatchPost(
 
   // Sponsor logo inside footer, centered above score row
   if (sponsor) {
-    const sH = 55
+    const sH = 80
     const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
     ctx.drawImage(sponsor, (W - sW) / 2, footerY + 15, sW, sH)
   }
