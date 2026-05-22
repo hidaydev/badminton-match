@@ -36,11 +36,11 @@ function drawSideText(
   fontSize: number,
 ) {
   const segments = [
-    { text: 'MAJADU FUN', color: '#ffffff' },
+    { text: 'MAJADU INTERNAL TOURNAMENT 2026', color: '#ffffff' },
     { text: '  •  ', color: '#facc15' },
-    { text: 'MAJADU FUN', color: '#ffffff' },
+    { text: 'MAJADU INTERNAL TOURNAMENT 2026', color: '#ffffff' },
     { text: '  •  ', color: '#facc15' },
-    { text: 'MAJADU FUN', color: '#ffffff' },
+    { text: 'MAJADU INTERNAL TOURNAMENT 2026', color: '#ffffff' },
   ]
   ctx.font = `bold ${fontSize}px Arial, sans-serif`
   ctx.letterSpacing = '1.5px'
@@ -73,7 +73,7 @@ export function drawHeader(
 
   ctx.font = `bold ${fontSize}px Arial, sans-serif`
   ctx.letterSpacing = '1.5px'
-  const fullText = 'MAJADU FUN  •  MAJADU FUN  •  MAJADU FUN'
+  const fullText = 'MAJADU INTERNAL TOURNAMENT 2026  •  MAJADU INTERNAL TOURNAMENT 2026  •  MAJADU INTERNAL TOURNAMENT 2026'
   const totalW = ctx.measureText(fullText).width
   const clampedW = Math.min(totalW, sideZoneW)
 
