@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { computeGroupStandings, GROUP_COURTS } from '../../utils/tournament'
 import type { GroupId, TournamentMatch, TournamentPair, StandingRow } from '../../utils/tournament'
 import ScoreModal from './ScoreModal'
-import { loadImage, drawCoverFill, drawHeader } from '../../utils/canvasPost'
+import { loadImage, drawHeader } from '../../utils/canvasPost'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
@@ -40,10 +40,28 @@ function drawMatchPost(
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, W, H)
 
-  // Layer 1: photo
-  drawCoverFill(ctx, photo, W, H, 0, 0, 1)
+  // Dark background
+  ctx.fillStyle = '#0f172a'
+  ctx.fillRect(0, 0, W, H)
 
-  // Layer 2: chevrons ornament (right pointing right, left rotated up)
+  // Photo clipped to upper section
+  const photoAreaH = Math.round(H * 0.65)
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(0, 0, W, photoAreaH)
+  ctx.clip()
+  const pScale = Math.max(W / photo.naturalWidth, photoAreaH / photo.naturalHeight)
+  ctx.drawImage(photo, (W - photo.naturalWidth * pScale) / 2, (photoAreaH - photo.naturalHeight * pScale) / 2, photo.naturalWidth * pScale, photo.naturalHeight * pScale)
+  ctx.restore()
+
+  // Fade bottom of photo into dark background
+  const fade = ctx.createLinearGradient(0, photoAreaH - 100, 0, photoAreaH)
+  fade.addColorStop(0, 'rgba(15,23,42,0)')
+  fade.addColorStop(1, 'rgba(15,23,42,1)')
+  ctx.fillStyle = fade
+  ctx.fillRect(0, photoAreaH - 100, W, 100)
+
+  // Chevrons
   if (chevrons) {
     const h = 115
     const w = h * (chevrons.naturalWidth / chevrons.naturalHeight)
@@ -55,56 +73,56 @@ function drawMatchPost(
     ctx.restore()
   }
 
-  // Layer 3: header
+  // Header band
   drawHeader(ctx, W, logo)
+
+  // Footer
+  const footerH = 180
+  const footerY = H - footerH
 
   // Sponsor logo centered above footer
   if (sponsor) {
     const sH = 80
     const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    const footerTopY = H - 160
-    ctx.drawImage(sponsor, (W - sW) / 2, footerTopY - sH - 20, sW, sH)
+    ctx.drawImage(sponsor, (W - sW) / 2, footerY - sH - 24, sW, sH)
   }
 
-  // Layer 3: score footer
-  const footerH = 160
-  const footerY = H - footerH
   ctx.save()
-  ctx.fillStyle = 'rgba(0,0,0,0.82)'
+  ctx.fillStyle = 'rgba(0,0,0,0.85)'
   ctx.fillRect(0, footerY, W, footerH)
   ctx.restore()
 
-  // Pair names + score row
-  const scoreY = footerY + 58
+  // Names + score — vertically centered in upper 110px of footer
+  const rowY = footerY + 68
+  const maxNameW = 360
   ctx.save()
-  ctx.font = 'bold 42px Arial, sans-serif'
+  ctx.font = 'bold 36px Arial, sans-serif'
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'left'
-  const maxNameW = 340
   let nameA = pairAName
   while (ctx.measureText(nameA).width > maxNameW && nameA.length > 1) nameA = nameA.slice(0, -1)
   if (nameA !== pairAName) nameA += '…'
-  ctx.fillText(nameA, 60, scoreY)
+  ctx.fillText(nameA, 60, rowY)
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 42px Arial, sans-serif'
+  ctx.font = 'bold 36px Arial, sans-serif'
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'right'
   let nameB = pairBName
   while (ctx.measureText(nameB).width > maxNameW && nameB.length > 1) nameB = nameB.slice(0, -1)
   if (nameB !== pairBName) nameB += '…'
-  ctx.fillText(nameB, W - 60, scoreY)
+  ctx.fillText(nameB, W - 60, rowY)
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 56px monospace'
+  ctx.font = 'bold 42px monospace'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'center'
-  ctx.fillText(`${scoreA} – ${scoreB}`, W / 2, scoreY)
+  ctx.fillText(`${scoreA} – ${scoreB}`, W / 2, rowY)
   ctx.restore()
 
-  // Badge — large, low opacity, right side (like Tournament card on home page)
+  // Badge low opacity right side
   if (badge) {
     const badgeH = 150
     const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
@@ -116,10 +134,10 @@ function drawMatchPost(
 
   // Subtitle
   ctx.save()
-  ctx.font = '28px monospace'
+  ctx.font = '26px monospace'
   ctx.fillStyle = '#64748b'
   ctx.textAlign = 'center'
-  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 105)
+  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 148)
   ctx.restore()
 }
 
