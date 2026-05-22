@@ -29,30 +29,6 @@ export function drawCoverFill(
   ctx.drawImage(img, x, y, w, h)
 }
 
-function drawSideText(
-  ctx: CanvasRenderingContext2D,
-  startX: number,
-  y: number,
-  fontSize: number,
-) {
-  const segments = [
-    { text: 'MAJADU INTERNAL TOURNAMENT 2026', color: '#ffffff' },
-    { text: '  •  ', color: '#facc15' },
-    { text: 'MAJADU INTERNAL TOURNAMENT 2026', color: '#ffffff' },
-    { text: '  •  ', color: '#facc15' },
-    { text: 'MAJADU INTERNAL TOURNAMENT 2026', color: '#ffffff' },
-  ]
-  ctx.font = `bold ${fontSize}px Arial, sans-serif`
-  ctx.letterSpacing = '1.5px'
-  let x = startX
-  for (const seg of segments) {
-    ctx.fillStyle = seg.color
-    ctx.textAlign = 'left'
-    ctx.fillText(seg.text, x, y)
-    x += ctx.measureText(seg.text).width
-  }
-}
-
 export function drawHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
@@ -67,21 +43,21 @@ export function drawHeader(
   const fontSize = 15
   const logoW = logo ? LOGO_H * (logo.naturalWidth / logo.naturalHeight) : 160
   const centerPad = 30
-  const sideZoneW = (canvasW - logoW) / 2 - centerPad
   const logoTop = (HEADER_H - LOGO_H) / 2
   const textY = HEADER_H / 2 + fontSize * 0.38
+  const label = 'MAJADU INTERNAL TOURNAMENT 2026'
 
   ctx.font = `bold ${fontSize}px Arial, sans-serif`
   ctx.letterSpacing = '1.5px'
-  const fullText = 'MAJADU INTERNAL TOURNAMENT 2026  •  MAJADU INTERNAL TOURNAMENT 2026  •  MAJADU INTERNAL TOURNAMENT 2026'
-  const totalW = ctx.measureText(fullText).width
-  const clampedW = Math.min(totalW, sideZoneW)
+  ctx.fillStyle = '#ffffff'
 
-  const leftStartX = (canvasW - logoW) / 2 - centerPad - clampedW
-  drawSideText(ctx, leftStartX, textY, fontSize)
+  // Left side: right-aligned ending at logo
+  ctx.textAlign = 'right'
+  ctx.fillText(label, (canvasW - logoW) / 2 - centerPad, textY)
 
-  const rightStartX = (canvasW + logoW) / 2 + centerPad
-  drawSideText(ctx, rightStartX, textY, fontSize)
+  // Right side: left-aligned starting at logo
+  ctx.textAlign = 'left'
+  ctx.fillText(label, (canvasW + logoW) / 2 + centerPad, textY)
 
   if (logo) {
     ctx.drawImage(logo, (canvasW - logoW) / 2, logoTop, logoW, LOGO_H)
