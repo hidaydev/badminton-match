@@ -74,7 +74,9 @@ function GroupLoadingSkeleton() {
 
 export default function TournamentPage() {
   const [tab, setTab] = useState<Tab>('groups')
-  const [localGroups, setLocalGroups] = useState<Record<GroupId, string[]>>(EMPTY_GROUPS)
+  const [localGroups, setLocalGroups] = useState<Record<GroupId, (string | null)[]>>(
+    () => ({ A: [null, null, null, null], B: [null, null, null, null], C: [null, null, null, null], D: [null, null, null, null] })
+  )
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
@@ -92,15 +94,19 @@ export default function TournamentPage() {
 
   const groupsFull = GROUP_IDS.every((g) => committedGroups[g].length === 4)
 
-  const addPairToGroup = (pairId: string, groupId: GroupId) =>
-    setLocalGroups((prev) => ({ ...prev, [groupId]: [...prev[groupId], pairId] }))
+  const addPairToGroup = (pairId: string, groupId: GroupId, slotIndex: number) =>
+    setLocalGroups((prev) => {
+      const arr = [...prev[groupId]]
+      arr[slotIndex] = pairId
+      return { ...prev, [groupId]: arr }
+    })
 
   const removePairFromGroup = (pairId: string) =>
     setLocalGroups((prev) => ({
-      A: prev.A.filter((id) => id !== pairId),
-      B: prev.B.filter((id) => id !== pairId),
-      C: prev.C.filter((id) => id !== pairId),
-      D: prev.D.filter((id) => id !== pairId),
+      A: prev.A.map((id) => (id === pairId ? null : id)),
+      B: prev.B.map((id) => (id === pairId ? null : id)),
+      C: prev.C.map((id) => (id === pairId ? null : id)),
+      D: prev.D.map((id) => (id === pairId ? null : id)),
     }))
 
   const { mutate: confirmGroups, isPending: confirmPending } = useConfirmGroups()
@@ -202,7 +208,7 @@ export default function TournamentPage() {
                   groups={localGroups}
                   onAddPairToGroup={addPairToGroup}
                   onRemovePairFromGroup={removePairFromGroup}
-                  onConfirmGroups={() => confirmGroups({ localGroups, name, date, pairs }, {
+                  onConfirmGroups={() => confirmGroups({ localGroups: (Object.fromEntries(GROUP_IDS.map(g => [g, localGroups[g].filter((id): id is string => id !== null)])) as Record<GroupId, string[]>), name, date, pairs }, {
                     onSuccess: () => setSaveError(null),
                     onError: () => setSaveError('Failed to save groups, please try again'),
                   })}
