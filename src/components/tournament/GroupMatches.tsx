@@ -271,7 +271,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end gap-3">
+      {/* <div className="flex justify-end gap-3">
         <button
           onClick={() => {
             if (confirm('Reassign scoring PICs? Current assignments will be replaced.')) onRegeneratePics()
@@ -289,7 +289,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         >
           Reset groups
         </button>
-      </div>
+      </div> */}
 
       {GROUP_IDS.map((g) => {
         const groupMatches = matches.filter((m) => m.phase === 'group' && m.groupId === g)
