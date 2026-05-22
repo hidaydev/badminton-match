@@ -323,14 +323,17 @@ export function drawPositionPost(
 
   drawHeader(ctx, W, logo)
 
-  const footerH = 280
-  const footerY = H - footerH
-  const grad = ctx.createLinearGradient(0, footerY - 80, 0, H)
+  // Soft gradient — starts high, fades very gradually
+  const gradStart = H * 0.52
+  const grad = ctx.createLinearGradient(0, gradStart, 0, H)
   grad.addColorStop(0, 'rgba(0,0,0,0)')
-  grad.addColorStop(0.3, 'rgba(0,0,0,0.88)')
-  grad.addColorStop(1, 'rgba(0,0,0,0.96)')
+  grad.addColorStop(0.45, 'rgba(0,0,0,0.55)')
+  grad.addColorStop(0.72, 'rgba(0,0,0,0.85)')
+  grad.addColorStop(1, 'rgba(0,0,0,0.95)')
   ctx.fillStyle = grad
-  ctx.fillRect(0, footerY - 80, W, footerH + 80)
+  ctx.fillRect(0, gradStart, W, H - gradStart)
+
+  const footerY = H - 320
 
   if (sponsor) {
     const sH = 52
@@ -338,24 +341,24 @@ export function drawPositionPost(
     ctx.drawImage(sponsor, (W - sW) / 2, footerY + 10, sW, sH)
   }
 
-  // Position label
+  // Position label — bigger, more space below sponsor
   ctx.save()
-  ctx.font = 'bold 30px monospace'
+  ctx.font = 'bold 40px monospace'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'center'
-  ctx.letterSpacing = '6px'
-  ctx.fillText(positionLabel, W / 2, footerY + 95)
+  ctx.letterSpacing = '8px'
+  ctx.fillText(positionLabel, W / 2, footerY + 115)
   ctx.restore()
 
-  // Name — big
+  // Name — big, generous space below label
   ctx.save()
-  ctx.font = 'bold 88px Arial, sans-serif'
+  ctx.font = 'bold 96px Arial, sans-serif'
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'center'
-  const maxW = W - 120
+  const maxW = W - 100
   let displayName = name
   while (ctx.measureText(displayName).width > maxW && displayName.length > 1) displayName = displayName.slice(0, -1)
   if (displayName !== name) displayName += '…'
-  ctx.fillText(displayName, W / 2, footerY + 200)
+  ctx.fillText(displayName, W / 2, footerY + 240)
   ctx.restore()
 }
