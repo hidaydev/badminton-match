@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { computeGroupStandings, GROUP_COURTS } from '../../utils/tournament'
-import type { GroupId, TournamentMatch, TournamentPair } from '../../utils/tournament'
+import type { GroupId, TournamentMatch, TournamentPair, StandingRow } from '../../utils/tournament'
 import ScoreModal from './ScoreModal'
+import { loadImage, drawCoverFill, drawHeader } from '../../utils/canvasPost'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
@@ -18,6 +19,226 @@ interface Props {
   refetch: () => Promise<unknown>
 }
 
+function drawMatchPost(
+  canvas: HTMLCanvasElement,
+  photo: HTMLImageElement,
+  pairAName: string,
+  pairBName: string,
+  scoreA: number,
+  scoreB: number,
+  groupId: string,
+  matchIndex: number,
+  logo: HTMLImageElement | undefined,
+) {
+  const W = 1080
+  const H = 1350
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, W, H)
+
+  // Layer 1: photo
+  drawCoverFill(ctx, photo, W, H, 0, 0, 1)
+
+  // Layer 2: header
+  drawHeader(ctx, W, logo)
+
+  // Layer 3: score footer
+  const footerH = 110
+  const footerY = H - footerH
+  ctx.save()
+  ctx.fillStyle = 'rgba(0,0,0,0.75)'
+  ctx.fillRect(0, footerY, W, footerH)
+  ctx.restore()
+
+  // Pair names + score
+  const midY = footerY + 58
+  ctx.save()
+  ctx.font = 'bold 42px Arial, sans-serif'
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'left'
+  const maxNameW = 340
+  let nameA = pairAName
+  while (ctx.measureText(nameA).width > maxNameW && nameA.length > 1) nameA = nameA.slice(0, -1)
+  if (nameA !== pairAName) nameA += '…'
+  ctx.fillText(nameA, 60, midY)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = 'bold 42px Arial, sans-serif'
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'right'
+  let nameB = pairBName
+  while (ctx.measureText(nameB).width > maxNameW && nameB.length > 1) nameB = nameB.slice(0, -1)
+  if (nameB !== pairBName) nameB += '…'
+  ctx.fillText(nameB, W - 60, midY)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = 'bold 52px monospace'
+  ctx.fillStyle = '#facc15'
+  ctx.textAlign = 'center'
+  ctx.fillText(`${scoreA} – ${scoreB}`, W / 2, midY)
+  ctx.restore()
+
+  // Subtitle
+  ctx.save()
+  ctx.font = '26px monospace'
+  ctx.fillStyle = '#64748b'
+  ctx.textAlign = 'center'
+  ctx.fillText(`GROUP ${groupId} · MATCH ${matchIndex}`, W / 2, footerY + 88)
+  ctx.restore()
+}
+
+function drawGroupSummary(
+  canvas: HTMLCanvasElement,
+  groupId: string,
+  standings: StandingRow[],
+  getPairName: (id: string | null) => string,
+  storyBg: HTMLImageElement | undefined,
+) {
+  const W = 1080
+  const H = 1350
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, W, H)
+
+  // Background
+  if (storyBg) {
+    ctx.drawImage(storyBg, 0, 0, W, H)
+  } else {
+    ctx.fillStyle = '#f59e0b'
+    ctx.fillRect(0, 0, W, H)
+  }
+
+  // Dark card
+  const CARD_X = 80
+  const CARD_W = W - CARD_X * 2
+  const ROW_H = 110
+  const ROW_GAP = 10
+  const CARD_PAD_TOP = 70
+  const TITLE_H = 130
+  const HDR_H = 50
+  const CARD_PAD_BOT = 50
+  const CARD_H = CARD_PAD_TOP + TITLE_H + HDR_H + standings.length * (ROW_H + ROW_GAP) + CARD_PAD_BOT
+  const CARD_Y = (H - CARD_H) / 2
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(4,7,14,0.94)'
+  ctx.beginPath()
+  ;(ctx as unknown as { roundRect: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
+  ctx.fill()
+  ctx.restore()
+
+  // Title
+  const INNER_X = CARD_X + 60
+  ctx.save()
+  ctx.font = '28px monospace'
+  ctx.fillStyle = '#64748b'
+  ctx.letterSpacing = '4px'
+  ctx.textAlign = 'left'
+  ctx.fillText('FINAL STANDINGS', INNER_X, CARD_Y + CARD_PAD_TOP + 36)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = 'bold 72px Arial, sans-serif'
+  ctx.fillStyle = '#facc15'
+  ctx.letterSpacing = '2px'
+  ctx.textAlign = 'left'
+  ctx.fillText(`GROUP ${groupId}`, INNER_X, CARD_Y + CARD_PAD_TOP + 120)
+  ctx.restore()
+
+  // Column header
+  const HDR_Y = CARD_Y + CARD_PAD_TOP + TITLE_H + 30
+  const RIGHT_X = CARD_X + CARD_W - 60
+  const DIFF_X = RIGHT_X - 120
+  const L_X = DIFF_X - 90
+  const W_X = L_X - 90
+  const DOT_X = RIGHT_X
+
+  ctx.save()
+  ctx.font = 'bold 26px monospace'
+  ctx.fillStyle = '#475569'
+  ctx.textAlign = 'center'; ctx.fillText('W', W_X, HDR_Y)
+  ctx.textAlign = 'center'; ctx.fillText('L', L_X, HDR_Y)
+  ctx.textAlign = 'right';  ctx.fillText('+/-', DIFF_X, HDR_Y)
+  ctx.restore()
+
+  // Rows
+  const ROWS_Y = CARD_Y + CARD_PAD_TOP + TITLE_H + HDR_H
+
+  standings.forEach((row, i) => {
+    const rowY = ROWS_Y + i * (ROW_H + ROW_GAP)
+    const baseline = rowY + ROW_H * 0.65
+    const isAdvancing = i < 2
+
+    if (isAdvancing) {
+      ctx.save()
+      ctx.fillStyle = 'rgba(250,204,21,0.07)'
+      ctx.beginPath()
+      ;(ctx as unknown as { roundRect: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect(CARD_X + 16, rowY, CARD_W - 32, ROW_H, 16)
+      ctx.fill()
+      ctx.restore()
+    }
+
+    // Rank
+    ctx.save()
+    ctx.font = 'bold 44px Arial, sans-serif'
+    ctx.fillStyle = isAdvancing ? '#facc15' : '#475569'
+    ctx.textAlign = 'center'
+    ctx.fillText(String(i + 1), INNER_X - 10, baseline)
+    ctx.restore()
+
+    // Name
+    ctx.save()
+    ctx.font = 'bold 40px Arial, sans-serif'
+    ctx.fillStyle = isAdvancing ? '#fef08a' : '#64748b'
+    ctx.textAlign = 'left'
+    const nameX = INNER_X + 50
+    const maxW = W_X - nameX - 40
+    let name = getPairName(row.pairId)
+    while (ctx.measureText(name).width > maxW && name.length > 1) name = name.slice(0, -1)
+    if (name !== getPairName(row.pairId)) name += '…'
+    ctx.fillText(name, nameX, baseline)
+    ctx.restore()
+
+    // W
+    ctx.save()
+    ctx.font = 'bold 36px monospace'
+    ctx.fillStyle = isAdvancing ? '#e2e8f0' : '#64748b'
+    ctx.textAlign = 'center'
+    ctx.fillText(String(row.wins), W_X, baseline)
+    ctx.restore()
+
+    // L
+    ctx.save()
+    ctx.font = 'bold 36px monospace'
+    ctx.fillStyle = isAdvancing ? '#e2e8f0' : '#64748b'
+    ctx.textAlign = 'center'
+    ctx.fillText(String(row.losses), L_X, baseline)
+    ctx.restore()
+
+    // +/-
+    ctx.save()
+    ctx.font = 'bold 36px monospace'
+    ctx.fillStyle = row.pointDiff > 0 ? '#4ade80' : row.pointDiff < 0 ? '#f87171' : '#475569'
+    ctx.textAlign = 'right'
+    ctx.fillText(row.pointDiff > 0 ? `+${row.pointDiff}` : row.pointDiff === 0 ? '—' : String(row.pointDiff), DIFF_X, baseline)
+    ctx.restore()
+
+    // Yellow dot for top 2
+    if (isAdvancing) {
+      ctx.save()
+      ctx.fillStyle = '#facc15'
+      ctx.beginPath()
+      ctx.arc(DOT_X, rowY + ROW_H / 2, 8, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    }
+  })
+}
+
 export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups, onRegeneratePics, isRegeneratingPics, onOpenModal, isFetching, refetch }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
@@ -26,10 +247,72 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const activeUploadMatchId = useRef<string | null>(null)
 
+  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; storyBg?: HTMLImageElement }>({})
+
+  useEffect(() => {
+    const load = async () => {
+      const result: { logo?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
+      try { result.logo = await loadImage('/instagram-logo.png') } catch { /* skip */ }
+      try { result.storyBg = await loadImage('/story-bg.png') } catch { /* skip */ }
+      setOverlays(result)
+    }
+    load()
+  }, [])
+
   const getPairName = (id: string | null) =>
     id ? (pairs.find((p) => p.id === id)?.name ?? id) : 'TBD'
 
-  const handleDownloadGroup = (_g: GroupId, _groupMatches: TournamentMatch[], _pairIds: string[], _allMatches: TournamentMatch[]) => {}
+  const handleDownloadGroup = async (
+    g: GroupId,
+    groupMatches: TournamentMatch[],
+    pairIds: string[],
+    allMatches: TournamentMatch[],
+  ) => {
+    const canvas = document.createElement('canvas')
+    const triggerDownload = (blob: Blob, filename: string) => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+
+    // Generate match posts for matches with photos
+    let matchIndex = 1
+    for (const m of groupMatches) {
+      const photo = matchPhotos[m.id]
+      if (!photo || m.scoreA === null || m.scoreB === null) { matchIndex++; continue }
+      drawMatchPost(
+        canvas,
+        photo,
+        getPairName(m.pairAId),
+        getPairName(m.pairBId),
+        m.scoreA,
+        m.scoreB,
+        g,
+        matchIndex,
+        overlays.logo,
+      )
+      await new Promise<void>(resolve => {
+        canvas.toBlob(blob => {
+          if (blob) triggerDownload(blob, `group-${g.toLowerCase()}-match-${matchIndex}.jpg`)
+          resolve()
+        }, 'image/jpeg', 0.92)
+      })
+      matchIndex++
+    }
+
+    // Generate group summary
+    const standings = computeGroupStandings(g, pairIds, allMatches)
+    drawGroupSummary(canvas, g, standings, getPairName, overlays.storyBg)
+    await new Promise<void>(resolve => {
+      canvas.toBlob(blob => {
+        if (blob) triggerDownload(blob, `group-${g.toLowerCase()}-summary.jpg`)
+        resolve()
+      }, 'image/jpeg', 0.92)
+    })
+  }
 
   return (
     <div className="space-y-4">
