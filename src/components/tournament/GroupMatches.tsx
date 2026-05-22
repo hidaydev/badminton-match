@@ -171,6 +171,17 @@ function drawGroupSummary(
   ctx.fill()
   ctx.restore()
 
+  // Logo watermark centered on card
+  if (logo) {
+    const logoSize = 320
+    const logoX = (W - logoSize) / 2
+    const logoY = CARD_Y + (CARD_H - logoSize) / 2
+    ctx.save()
+    ctx.globalAlpha = 0.08
+    ctx.drawImage(logo, logoX, logoY, logoSize, logoSize)
+    ctx.restore()
+  }
+
   // Sponsor logo centered on top edge of card
   if (sponsor) {
     const sH = 80
