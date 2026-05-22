@@ -21,6 +21,9 @@ interface Props {
 export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups, onRegeneratePics, isRegeneratingPics, onOpenModal, isFetching, refetch }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
+  const [postModeGroups, setPostModeGroups] = useState<Record<string, boolean>>({})
+  // _matchPhotos / _setMatchPhotos used in Tasks 3/4
+  const [_matchPhotos, _setMatchPhotos] = useState<Record<string, HTMLImageElement>>({})
 
   const getPairName = (id: string | null) =>
     id ? (pairs.find((p) => p.id === id)?.name ?? id) : 'TBD'
@@ -56,7 +59,20 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
             {/* Group header */}
             <div className="px-4 py-2 flex justify-between items-center border-b border-yellow-500/30">
               <span className="text-yellow-300 font-bold text-sm">GROUP {g}</span>
-              <span className="text-yellow-600 text-xs">Court {GROUP_COURTS[g]}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-yellow-600 text-xs">Court {GROUP_COURTS[g]}</span>
+                <button
+                  onClick={() => setPostModeGroups(prev => ({ ...prev, [g]: !prev[g] }))}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                    postModeGroups[g] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={postModeGroups[g] ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Match rows */}
