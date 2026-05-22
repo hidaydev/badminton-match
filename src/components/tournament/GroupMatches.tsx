@@ -138,6 +138,7 @@ function drawGroupSummary(
   getPairName: (id: string | null) => string,
   storyBg: HTMLImageElement | undefined,
   sponsor: HTMLImageElement | undefined,
+  logo: HTMLImageElement | undefined,
 ) {
   const W = 1080
   const H = 1350
@@ -153,6 +154,9 @@ function drawGroupSummary(
     ctx.fillStyle = '#f59e0b'
     ctx.fillRect(0, 0, W, H)
   }
+
+  // Header band
+  drawHeader(ctx, W, logo)
 
   // Dark card
   const CARD_X = 80
@@ -362,7 +366,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     // Generate group summary
     const standings = computeGroupStandings(g, pairIds, allMatches)
     const summaryCanvas = document.createElement('canvas')
-    drawGroupSummary(summaryCanvas, g, standings, getPairName, overlays.storyBg, overlays.sponsor)
+    drawGroupSummary(summaryCanvas, g, standings, getPairName, overlays.storyBg, overlays.sponsor, overlays.logo)
     const summaryBlob = await blobOf(summaryCanvas)
     if (summaryBlob) await triggerDownload(summaryBlob, `group-${g.toLowerCase()}-summary-${suffix}.jpg`)
   }
