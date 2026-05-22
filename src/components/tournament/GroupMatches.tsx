@@ -469,6 +469,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
             URL.revokeObjectURL(url)
             setMatchPhotos(prev => ({ ...prev, [matchId]: img }))
           }
+          img.onerror = () => URL.revokeObjectURL(url)
           img.src = url
           e.target.value = ''
         }}
