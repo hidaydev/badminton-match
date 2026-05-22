@@ -42,11 +42,16 @@ function drawMatchPost(
   // Layer 1: photo
   drawCoverFill(ctx, photo, W, H, 0, 0, 1)
 
-  // Layer 2: chevrons ornament
+  // Layer 2: chevrons ornament (right + mirrored left)
   if (chevrons) {
     const h = 115
     const w = h * (chevrons.naturalWidth / chevrons.naturalHeight)
     ctx.drawImage(chevrons, W - w - 30, H * 0.3, w, h)
+    ctx.save()
+    ctx.translate(30 + w, H * 0.3)
+    ctx.scale(-1, 1)
+    ctx.drawImage(chevrons, 0, 0, w, h)
+    ctx.restore()
   }
 
   // Layer 3: header
