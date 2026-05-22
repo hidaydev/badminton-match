@@ -162,7 +162,7 @@ function drawGroupSummary(
   const HDR_H = 50
   const CARD_PAD_BOT = 50
   const CARD_H = CARD_PAD_TOP + TITLE_H + HDR_H + standings.length * (ROW_H + ROW_GAP) + CARD_PAD_BOT
-  const CARD_Y = (H - CARD_H) / 2
+  const CARD_Y = H - CARD_H - 60
 
   ctx.save()
   ctx.fillStyle = 'rgba(4,7,14,0.94)'
