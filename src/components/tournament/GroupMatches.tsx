@@ -127,7 +127,7 @@ function drawGroupSummary(
   ctx.save()
   ctx.fillStyle = 'rgba(4,7,14,0.94)'
   ctx.beginPath()
-  ;(ctx as unknown as { roundRect: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
+  ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
   ctx.fill()
   ctx.restore()
 
@@ -177,7 +177,7 @@ function drawGroupSummary(
       ctx.save()
       ctx.fillStyle = 'rgba(250,204,21,0.07)'
       ctx.beginPath()
-      ;(ctx as unknown as { roundRect: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect(CARD_X + 16, rowY, CARD_W - 32, ROW_H, 16)
+      ctx.roundRect(CARD_X + 16, rowY, CARD_W - 32, ROW_H, 16)
       ctx.fill()
       ctx.restore()
     }
