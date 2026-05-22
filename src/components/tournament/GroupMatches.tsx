@@ -82,8 +82,8 @@ function drawMatchPost(
   ctx.restore()
 
   // Logo centered between score and subtitle
-  const LOGO_H = 36
-  const logoY = scoreY + 24
+  const LOGO_H = 52
+  const logoY = scoreY + 20
   if (logo) {
     const logoW = LOGO_H * (logo.naturalWidth / logo.naturalHeight)
     ctx.drawImage(logo, (W - logoW) / 2, logoY, logoW, LOGO_H)
@@ -260,7 +260,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
   useEffect(() => {
     const load = async () => {
       const result: { logo?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
-      try { result.logo = await loadImage('/instagram-logo.png') } catch { /* skip */ }
+      try { result.logo = await loadImage('/tournament-badge.png') } catch { /* skip */ }
       try { result.storyBg = await loadImage('/story-bg.png') } catch { /* skip */ }
       setOverlays(result)
     }
