@@ -319,18 +319,9 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     allMatches: TournamentMatch[],
   ) => {
     const suffix = Math.floor(Math.random() * 90000) + 10000
-    const triggerDownload = (blob: Blob, filename: string) => new Promise<void>(resolve => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      setTimeout(() => { URL.revokeObjectURL(url); resolve() }, 300)
-    })
-
     const blobOf = (c: HTMLCanvasElement) => new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
+
+    const files: File[] = []
 
     // Generate match posts for matches with photos
     let matchIndex = 1
@@ -353,7 +344,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         overlays.sponsor,
       )
       const matchBlob = await blobOf(matchCanvas)
-      if (matchBlob) await triggerDownload(matchBlob, `group-${g.toLowerCase()}-match-${matchIndex}-${suffix}.jpg`)
+      if (matchBlob) files.push(new File([matchBlob], `group-${g.toLowerCase()}-match-${matchIndex}-${suffix}.jpg`, { type: 'image/jpeg' }))
       matchIndex++
     }
 
@@ -362,7 +353,25 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     const summaryCanvas = document.createElement('canvas')
     drawGroupSummary(summaryCanvas, g, standings, getPairName, overlays.storyBg, overlays.sponsor, overlays.logo)
     const summaryBlob = await blobOf(summaryCanvas)
-    if (summaryBlob) await triggerDownload(summaryBlob, `group-${g.toLowerCase()}-summary-${suffix}.jpg`)
+    if (summaryBlob) files.push(new File([summaryBlob], `group-${g.toLowerCase()}-summary-${suffix}.jpg`, { type: 'image/jpeg' }))
+
+    if (files.length === 0) return
+
+    // iOS Safari blocks multiple programmatic downloads — use Web Share API when available
+    if (navigator.canShare?.({ files })) {
+      await navigator.share({ files, title: `Group ${g} Photos` })
+    } else {
+      for (const file of files) {
+        const url = URL.createObjectURL(file)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = file.name
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        await new Promise<void>(r => setTimeout(() => { URL.revokeObjectURL(url); r() }, 300))
+      }
+    }
   }
 
   return (
