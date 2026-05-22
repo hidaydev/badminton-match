@@ -30,6 +30,7 @@ function drawMatchPost(
   matchIndex: number,
   logo: HTMLImageElement | undefined,
   badge: HTMLImageElement | undefined,
+  chevrons: HTMLImageElement | undefined,
 ) {
   const W = 1080
   const H = 1350
@@ -41,7 +42,14 @@ function drawMatchPost(
   // Layer 1: photo
   drawCoverFill(ctx, photo, W, H, 0, 0, 1)
 
-  // Layer 2: header
+  // Layer 2: chevrons ornament
+  if (chevrons) {
+    const h = 115
+    const w = h * (chevrons.naturalWidth / chevrons.naturalHeight)
+    ctx.drawImage(chevrons, W - w - 30, H * 0.3, w, h)
+  }
+
+  // Layer 3: header
   drawHeader(ctx, W, logo)
 
   // Layer 3: score footer
@@ -258,14 +266,15 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const activeUploadMatchId = useRef<string | null>(null)
 
-  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement }>({})
+  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement }>({})
 
   useEffect(() => {
     const load = async () => {
-      const result: { logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
+      const result: { logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement } = {}
       try { result.logo = await loadImage('/instagram-logo.png') } catch { /* skip */ }
       try { result.badge = await loadImage('/tournament-badge.png') } catch { /* skip */ }
       try { result.storyBg = await loadImage('/story-bg.png') } catch { /* skip */ }
+      try { result.chevrons = await loadImage('/chevrons.png') } catch { /* skip */ }
       setOverlays(result)
     }
     load()
@@ -311,6 +320,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         matchIndex,
         overlays.logo,
         overlays.badge,
+        overlays.chevrons,
       )
       const matchBlob = await blobOf(matchCanvas)
       if (matchBlob) await triggerDownload(matchBlob, `group-${g.toLowerCase()}-match-${matchIndex}-${suffix}.jpg`)
