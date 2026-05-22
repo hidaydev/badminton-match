@@ -71,7 +71,7 @@ function drawMatchPost(
 
   // Sponsor logo inside footer, centered above score row
   if (sponsor) {
-    const sH = 80
+    const sH = 60
     const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
     ctx.drawImage(sponsor, (W - sW) / 2, footerY + 15, sW, sH)
   }
@@ -108,7 +108,7 @@ function drawMatchPost(
 
   // Badge low opacity right side
   if (badge) {
-    const badgeH = 150
+    const badgeH = 200
     const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
     ctx.save()
     ctx.globalAlpha = 0.18
