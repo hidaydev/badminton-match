@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { loadImage, drawMatchPost, drawBracketRoundCover, drawWinnerPost } from '../../utils/canvasPost'
+import { loadImage, drawMatchPost, drawBracketRoundCover, drawPositionPost } from '../../utils/canvasPost'
 import type { TournamentMatch, TournamentPair } from '../../utils/tournament'
 import ScoreModal from './ScoreModal'
 
@@ -96,10 +96,11 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     sponsor?: HTMLImageElement
     summaryBg?: HTMLImageElement
   }>({})
-  const [winnerPhoto, setWinnerPhoto] = useState<HTMLImageElement | null>(null)
+  const [podiumPhotos, setPodiumPhotos] = useState<Record<string, HTMLImageElement>>({})
   const activeUploadMatchId = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const winnerFileInputRef = useRef<HTMLInputElement>(null)
+  const podiumFileInputRef = useRef<HTMLInputElement>(null)
+  const activePodiumPos = useRef<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -174,49 +175,30 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     e.target.value = ''
   }
 
-  const handleWinnerFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePodiumFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    const pos = activePodiumPos.current
+    if (!file || !pos) return
     const url = URL.createObjectURL(file)
     const img = new Image()
-    img.onload = () => { URL.revokeObjectURL(url); setWinnerPhoto(img) }
+    img.onload = () => { URL.revokeObjectURL(url); setPodiumPhotos(prev => ({ ...prev, [pos]: img })) }
     img.onerror = () => URL.revokeObjectURL(url)
     img.src = url
     e.target.value = ''
   }
 
-  const handleDownloadWinner = async () => {
-    if (!winnerPhoto) return
-    const finalMatch = matches.find(m => m.id === 'final-1')
-    const thirdMatch = matches.find(m => m.id === '3rd-1')
-    const championId = finalMatch?.scoreA !== null && finalMatch?.scoreA !== undefined
-      ? (finalMatch.scoreA > finalMatch.scoreB! ? finalMatch.pairAId : finalMatch.pairBId)
-      : null
-    const runnerUpId = finalMatch?.scoreA !== null && finalMatch?.scoreA !== undefined
-      ? (finalMatch.scoreA < finalMatch.scoreB! ? finalMatch.pairAId : finalMatch.pairBId)
-      : null
-    const thirdId = thirdMatch?.scoreA !== null && thirdMatch?.scoreA !== undefined
-      ? (thirdMatch.scoreA > thirdMatch.scoreB! ? thirdMatch.pairAId : thirdMatch.pairBId)
-      : null
-
+  const handleDownloadPosition = async (pos: string, positionLabel: string, name: string) => {
+    const photo = podiumPhotos[pos]
+    if (!photo) return
     const c = document.createElement('canvas')
-    drawWinnerPost(
-      c,
-      winnerPhoto,
-      getPairName(championId ?? null),
-      getPairName(runnerUpId ?? null),
-      getPairName(thirdId ?? null),
-      overlays.logo,
-      overlays.chevrons,
-      overlays.sponsor,
-    )
+    drawPositionPost(c, photo, positionLabel, name, overlays.logo, overlays.chevrons, overlays.sponsor)
     const suffix = Math.floor(Math.random() * 90000) + 10000
     const blob = await new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
     if (!blob) return
-    const file = new File([blob], `bracket-winner-${suffix}.jpg`, { type: 'image/jpeg' })
+    const file = new File([blob], `bracket-${pos}-${suffix}.jpg`, { type: 'image/jpeg' })
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     if (isIOS && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Winner Photo' })
+      await navigator.share({ files: [file], title: positionLabel })
     } else {
       const url = URL.createObjectURL(file)
       const a = document.createElement('a')
@@ -413,23 +395,56 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
       </div>
 
       {/* Podium — full width, outside horizontal scroll */}
-      <div className="mt-5 bg-slate-800 rounded-2xl p-4 flex justify-around items-end">
-        <div className="text-center">
-          <div className="text-2xl">🥈</div>
-          <div className="text-[10px] text-slate-500 mt-1">2nd</div>
-          <div className="text-xs text-slate-300 mt-1 font-medium">{loser(final) ?? 'TBD'}</div>
-        </div>
-        <div className="text-center -mt-4">
-          <div className="text-3xl">🏆</div>
-          <div className="text-xs text-yellow-400 font-bold mt-1">CHAMPION</div>
-          <div className="text-sm text-yellow-200 mt-1 font-bold">{winner(final) ?? 'TBD'}</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl">🥉</div>
-          <div className="text-[10px] text-slate-500 mt-1">3rd</div>
-          <div className="text-xs text-slate-300 mt-1 font-medium">{winner(third) ?? 'TBD'}</div>
-        </div>
-      </div>
+      {(() => {
+        const championName = winner(final) ?? 'TBD'
+        const runnerUpName = loser(final) ?? 'TBD'
+        const thirdName = winner(third) ?? 'TBD'
+        const positions = [
+          { pos: 'runner-up', emoji: '🥈', label: '2nd', positionLabel: 'RUNNER UP', name: runnerUpName, mt: '', champion: false },
+          { pos: 'champion', emoji: '🏆', label: 'CHAMPION', positionLabel: '🏆  WINNER', name: championName, mt: '-mt-4', champion: true },
+          { pos: 'third', emoji: '🥉', label: '3rd', positionLabel: '3RD PLACE', name: thirdName, mt: '', champion: false },
+        ]
+        return (
+          <div className="mt-5 bg-slate-800 rounded-2xl overflow-hidden">
+            <div className="p-4 flex justify-around items-end">
+              {positions.map(({ pos, emoji, label, name, mt, champion: isChamp }) => (
+                <div key={pos} className={`text-center ${mt}`}>
+                  <div className={isChamp ? 'text-3xl' : 'text-2xl'}>{emoji}</div>
+                  <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-yellow-400' : 'text-slate-500'}`}>{label}</div>
+                  <div className={`text-xs mt-1 font-medium ${isChamp ? 'text-yellow-200 text-sm' : 'text-slate-300'}`}>{name}</div>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-slate-700 flex divide-x divide-slate-700">
+              {positions.map(({ pos, positionLabel, name }) => (
+                <div key={pos} className="flex-1 flex items-center justify-center gap-2 py-2.5">
+                  <button
+                    onClick={() => { activePodiumPos.current = pos; podiumFileInputRef.current?.click() }}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${podiumPhotos[pos] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={podiumPhotos[pos] ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                      <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                  </button>
+                  {podiumPhotos[pos] && (
+                    <button
+                      onClick={() => handleDownloadPosition(pos, positionLabel, name)}
+                      className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {activeMatch && (
         <ScoreModal
@@ -442,54 +457,8 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
           refetch={refetch}
         />
       )}
-      {/* Winner post */}
-      <div className="mt-4 bg-slate-800 rounded-xl overflow-hidden">
-        <div className="px-4 py-2.5 flex items-center justify-between border-b border-yellow-500/30">
-          <span className="text-yellow-300 font-bold text-sm">WINNER POST</span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => winnerFileInputRef.current?.click()}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${winnerPhoto ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={winnerPhoto ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-            </button>
-            {winnerPhoto && (
-              <button
-                aria-label="Download winner post"
-                onClick={handleDownloadWinner}
-                className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="px-4 py-3 text-xs text-slate-500">
-          {winnerPhoto ? '✓ Photo ready — tap download to generate' : 'Upload a photo to create the winner post'}
-        </div>
-      </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      <input
-        ref={winnerFileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleWinnerFileChange}
-      />
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+      <input ref={podiumFileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePodiumFileChange} />
     </div>
   )
 }

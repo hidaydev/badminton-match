@@ -292,12 +292,11 @@ export function drawBracketRoundCover(
   })
 }
 
-export function drawWinnerPost(
+export function drawPositionPost(
   canvas: HTMLCanvasElement,
   photo: HTMLImageElement,
-  champion: string,
-  runnerUp: string,
-  third: string,
+  positionLabel: string,
+  name: string,
   logo: HTMLImageElement | undefined,
   chevrons: HTMLImageElement | undefined,
   sponsor: HTMLImageElement | undefined,
@@ -309,10 +308,8 @@ export function drawWinnerPost(
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, W, H)
 
-  // Full-bleed photo
   drawCoverFill(ctx, photo, W, H, 0, 0)
 
-  // Chevrons
   if (chevrons) {
     const chevH = 115
     const chevW = chevH * (chevrons.naturalWidth / chevrons.naturalHeight)
@@ -324,104 +321,41 @@ export function drawWinnerPost(
     ctx.restore()
   }
 
-  // Header band
   drawHeader(ctx, W, logo)
 
-  // Footer
-  const footerH = 340
+  const footerH = 280
   const footerY = H - footerH
+  const grad = ctx.createLinearGradient(0, footerY - 80, 0, H)
+  grad.addColorStop(0, 'rgba(0,0,0,0)')
+  grad.addColorStop(0.3, 'rgba(0,0,0,0.88)')
+  grad.addColorStop(1, 'rgba(0,0,0,0.96)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, footerY - 80, W, footerH + 80)
 
-  const footerGrad = ctx.createLinearGradient(0, footerY - 60, 0, H)
-  footerGrad.addColorStop(0, 'rgba(0,0,0,0)')
-  footerGrad.addColorStop(0.25, 'rgba(0,0,0,0.88)')
-  footerGrad.addColorStop(1, 'rgba(0,0,0,0.95)')
-  ctx.fillStyle = footerGrad
-  ctx.fillRect(0, footerY - 60, W, footerH + 60)
-
-  // Sponsor
   if (sponsor) {
     const sH = 52
     const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
     ctx.drawImage(sponsor, (W - sW) / 2, footerY + 10, sW, sH)
   }
 
-  // 🏆 WINNER label
+  // Position label
   ctx.save()
-  ctx.font = 'bold 28px monospace'
+  ctx.font = 'bold 30px monospace'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'center'
   ctx.letterSpacing = '6px'
-  ctx.fillText('🏆  WINNER', W / 2, footerY + 90)
+  ctx.fillText(positionLabel, W / 2, footerY + 95)
   ctx.restore()
 
-  // Champion name — big
-  const maxChampW = W - 120
+  // Name — big
   ctx.save()
-  ctx.font = 'bold 82px Arial, sans-serif'
-  ctx.fillStyle = '#fef08a'
+  ctx.font = 'bold 88px Arial, sans-serif'
+  ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'center'
-  let champName = champion
-  while (ctx.measureText(champName).width > maxChampW && champName.length > 1) champName = champName.slice(0, -1)
-  if (champName !== champion) champName += '…'
-  ctx.fillText(champName, W / 2, footerY + 185)
-  ctx.restore()
-
-  // Divider
-  ctx.save()
-  ctx.strokeStyle = 'rgba(250,204,21,0.3)'
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  ctx.moveTo(120, footerY + 210)
-  ctx.lineTo(W - 120, footerY + 210)
-  ctx.stroke()
-  ctx.restore()
-
-  // Runner up label + name (left)
-  const colW = W / 2 - 40
-  ctx.save()
-  ctx.font = 'bold 20px monospace'
-  ctx.fillStyle = '#64748b'
-  ctx.textAlign = 'center'
-  ctx.letterSpacing = '3px'
-  ctx.fillText('RUNNER UP', W / 4, footerY + 255)
-  ctx.restore()
-
-  ctx.save()
-  ctx.font = 'bold 34px Arial, sans-serif'
-  ctx.fillStyle = '#e2e8f0'
-  ctx.textAlign = 'center'
-  let ruName = runnerUp
-  while (ctx.measureText(ruName).width > colW && ruName.length > 1) ruName = ruName.slice(0, -1)
-  if (ruName !== runnerUp) ruName += '…'
-  ctx.fillText(ruName, W / 4, footerY + 298)
-  ctx.restore()
-
-  // 3rd place label + name (right)
-  ctx.save()
-  ctx.font = 'bold 20px monospace'
-  ctx.fillStyle = '#64748b'
-  ctx.textAlign = 'center'
-  ctx.letterSpacing = '3px'
-  ctx.fillText('3RD PLACE', (W * 3) / 4, footerY + 255)
-  ctx.restore()
-
-  ctx.save()
-  ctx.font = 'bold 34px Arial, sans-serif'
-  ctx.fillStyle = '#e2e8f0'
-  ctx.textAlign = 'center'
-  let thirdName = third
-  while (ctx.measureText(thirdName).width > colW && thirdName.length > 1) thirdName = thirdName.slice(0, -1)
-  if (thirdName !== third) thirdName += '…'
-  ctx.fillText(thirdName, (W * 3) / 4, footerY + 298)
-  ctx.restore()
-
-  // Vertical separator between runner up and 3rd
-  ctx.save()
-  ctx.strokeStyle = 'rgba(100,116,139,0.4)'
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  ctx.moveTo(W / 2, footerY + 232)
-  ctx.lineTo(W / 2, footerY + 310)
-  ctx.stroke()
+  const maxW = W - 120
+  let displayName = name
+  while (ctx.measureText(displayName).width > maxW && displayName.length > 1) displayName = displayName.slice(0, -1)
+  if (displayName !== name) displayName += '…'
+  ctx.fillText(displayName, W / 2, footerY + 200)
   ctx.restore()
 }
