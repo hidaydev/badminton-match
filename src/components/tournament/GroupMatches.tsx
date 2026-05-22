@@ -157,7 +157,7 @@ function drawGroupSummary(
   const CARD_W = W - CARD_X * 2
   const ROW_H = 110
   const ROW_GAP = 10
-  const CARD_PAD_TOP = 70
+  const CARD_PAD_TOP = 120
   const TITLE_H = 130
   const HDR_H = 50
   const CARD_PAD_BOT = 50
@@ -165,28 +165,17 @@ function drawGroupSummary(
   const CARD_Y = (H - CARD_H) / 2 + 80
 
   ctx.save()
-  ctx.fillStyle = 'rgba(4,7,14,0.94)'
+  ctx.fillStyle = 'rgba(4,7,14,0.75)'
   ctx.beginPath()
   ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
   ctx.fill()
   ctx.restore()
 
-  // Logo watermark centered on card
-  if (logo) {
-    const logoSize = 320
-    const logoX = (W - logoSize) / 2
-    const logoY = CARD_Y + (CARD_H - logoSize) / 2
-    ctx.save()
-    ctx.globalAlpha = 0.08
-    ctx.drawImage(logo, logoX, logoY, logoSize, logoSize)
-    ctx.restore()
-  }
-
-  // Sponsor logo centered on top edge of card
+  // Sponsor logo inside card, centered at top
   if (sponsor) {
     const sH = 80
     const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    ctx.drawImage(sponsor, (W - sW) / 2, CARD_Y - sH - 30, sW, sH)
+    ctx.drawImage(sponsor, (W - sW) / 2, CARD_Y + 20, sW, sH)
   }
 
   // Title
