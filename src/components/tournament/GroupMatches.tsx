@@ -81,12 +81,14 @@ function drawMatchPost(
   ctx.fillText(`${scoreA} – ${scoreB}`, W / 2, scoreY)
   ctx.restore()
 
-  // Logo centered between score and subtitle
-  const LOGO_H = 52
-  const logoY = scoreY + 20
+  // Badge — large, low opacity, right side (like Tournament card on home page)
   if (logo) {
-    const logoW = LOGO_H * (logo.naturalWidth / logo.naturalHeight)
-    ctx.drawImage(logo, (W - logoW) / 2, logoY, logoW, LOGO_H)
+    const badgeH = 190
+    const badgeW = badgeH * (logo.naturalWidth / logo.naturalHeight)
+    ctx.save()
+    ctx.globalAlpha = 0.18
+    ctx.drawImage(logo, W - badgeW + 20, footerY + (footerH - badgeH) / 2, badgeW, badgeH)
+    ctx.restore()
   }
 
   // Subtitle
