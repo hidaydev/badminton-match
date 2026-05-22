@@ -67,8 +67,15 @@ function drawMatchPost(
   ctx.fillRect(0, footerY, W, footerH)
   ctx.restore()
 
+  // Sponsor logo inside footer, centered above score row
+  if (sponsor) {
+    const sH = 55
+    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
+    ctx.drawImage(sponsor, (W - sW) / 2, footerY + 15, sW, sH)
+  }
+
   // Names + score row
-  const rowY = footerY + 65
+  const rowY = footerY + 140
   const maxNameW = 360
   ctx.save()
   ctx.font = 'bold 36px Arial, sans-serif'
@@ -96,13 +103,6 @@ function drawMatchPost(
   ctx.textAlign = 'center'
   ctx.fillText(`${scoreA} – ${scoreB}`, W / 2, rowY)
   ctx.restore()
-
-  // Sponsor logo inside footer, centered below score row
-  if (sponsor) {
-    const sH = 55
-    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    ctx.drawImage(sponsor, (W - sW) / 2, footerY + 95, sW, sH)
-  }
 
   // Badge low opacity right side
   if (badge) {
