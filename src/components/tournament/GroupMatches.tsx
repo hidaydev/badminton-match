@@ -269,6 +269,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     allMatches: TournamentMatch[],
   ) => {
     const canvas = document.createElement('canvas')
+    const suffix = Math.floor(Math.random() * 90000) + 10000
     const triggerDownload = (blob: Blob, filename: string) => new Promise<void>(resolve => {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -298,7 +299,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
       )
       await new Promise<void>(resolve => {
         canvas.toBlob(async blob => {
-          if (blob) await triggerDownload(blob, `group-${g.toLowerCase()}-match-${matchIndex}.jpg`)
+          if (blob) await triggerDownload(blob, `group-${g.toLowerCase()}-match-${matchIndex}-${suffix}.jpg`)
           resolve()
         }, 'image/jpeg', 0.92)
       })
@@ -310,7 +311,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     drawGroupSummary(canvas, g, standings, getPairName, overlays.storyBg)
     await new Promise<void>(resolve => {
       canvas.toBlob(async blob => {
-        if (blob) await triggerDownload(blob, `group-${g.toLowerCase()}-summary.jpg`)
+        if (blob) await triggerDownload(blob, `group-${g.toLowerCase()}-summary-${suffix}.jpg`)
         resolve()
       }, 'image/jpeg', 0.92)
     })
