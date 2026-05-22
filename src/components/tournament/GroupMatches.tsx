@@ -130,7 +130,7 @@ function drawGroupSummary(
   groupId: string,
   standings: StandingRow[],
   getPairName: (id: string | null) => string,
-  storyBg: HTMLImageElement | undefined,
+  summaryBg: HTMLImageElement | undefined,
   sponsor: HTMLImageElement | undefined,
   logo: HTMLImageElement | undefined,
 ) {
@@ -142,8 +142,8 @@ function drawGroupSummary(
   ctx.clearRect(0, 0, W, H)
 
   // Background
-  if (storyBg) {
-    ctx.drawImage(storyBg, 0, 0, W, H)
+  if (summaryBg) {
+    ctx.drawImage(summaryBg, 0, 0, W, H)
   } else {
     ctx.fillStyle = '#f59e0b'
     ctx.fillRect(0, 0, W, H)
@@ -294,14 +294,15 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const activeUploadMatchId = useRef<string | null>(null)
 
-  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement }>({})
+  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; summaryBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement }>({})
 
   useEffect(() => {
     const load = async () => {
-      const result: { logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement } = {}
+      const result: { logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; summaryBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement } = {}
       try { result.logo = await loadImage('/instagram-logo.png') } catch { /* skip */ }
       try { result.badge = await loadImage('/tournament-badge.png') } catch { /* skip */ }
       try { result.storyBg = await loadImage('/story-bg.png') } catch { /* skip */ }
+      try { result.summaryBg = await loadImage('/summary-bg.png') } catch { /* skip */ }
       try { result.chevrons = await loadImage('/chevrons.png') } catch { /* skip */ }
       try { result.sponsor = await loadImage('/sponsor-logo.png') } catch { /* skip */ }
       setOverlays(result)
@@ -351,7 +352,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     // Generate group summary
     const standings = computeGroupStandings(g, pairIds, allMatches)
     const summaryCanvas = document.createElement('canvas')
-    drawGroupSummary(summaryCanvas, g, standings, getPairName, overlays.storyBg, overlays.sponsor, overlays.logo)
+    drawGroupSummary(summaryCanvas, g, standings, getPairName, overlays.summaryBg, overlays.sponsor, overlays.logo)
     const summaryBlob = await blobOf(summaryCanvas)
     if (summaryBlob) files.push(new File([summaryBlob], `group-${g.toLowerCase()}-summary-${suffix}.jpg`, { type: 'image/jpeg' }))
 
