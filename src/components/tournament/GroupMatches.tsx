@@ -29,6 +29,7 @@ function drawMatchPost(
   groupId: string,
   matchIndex: number,
   logo: HTMLImageElement | undefined,
+  badge: HTMLImageElement | undefined,
 ) {
   const W = 1080
   const H = 1350
@@ -82,12 +83,12 @@ function drawMatchPost(
   ctx.restore()
 
   // Badge — large, low opacity, right side (like Tournament card on home page)
-  if (logo) {
+  if (badge) {
     const badgeH = 190
-    const badgeW = badgeH * (logo.naturalWidth / logo.naturalHeight)
+    const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
     ctx.save()
     ctx.globalAlpha = 0.18
-    ctx.drawImage(logo, W - badgeW + 20, footerY + (footerH - badgeH) / 2, badgeW, badgeH)
+    ctx.drawImage(badge, W - badgeW + 20, footerY + (footerH - badgeH) / 2, badgeW, badgeH)
     ctx.restore()
   }
 
@@ -257,12 +258,13 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const activeUploadMatchId = useRef<string | null>(null)
 
-  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; storyBg?: HTMLImageElement }>({})
+  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement }>({})
 
   useEffect(() => {
     const load = async () => {
-      const result: { logo?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
-      try { result.logo = await loadImage('/tournament-badge.png') } catch { /* skip */ }
+      const result: { logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
+      try { result.logo = await loadImage('/instagram-logo.png') } catch { /* skip */ }
+      try { result.badge = await loadImage('/tournament-badge.png') } catch { /* skip */ }
       try { result.storyBg = await loadImage('/story-bg.png') } catch { /* skip */ }
       setOverlays(result)
     }
@@ -308,6 +310,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         g,
         matchIndex,
         overlays.logo,
+        overlays.badge,
       )
       const matchBlob = await blobOf(matchCanvas)
       if (matchBlob) await triggerDownload(matchBlob, `group-${g.toLowerCase()}-match-${matchIndex}-${suffix}.jpg`)
