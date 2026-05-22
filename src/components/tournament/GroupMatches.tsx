@@ -268,7 +268,6 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     pairIds: string[],
     allMatches: TournamentMatch[],
   ) => {
-    const canvas = document.createElement('canvas')
     const suffix = Math.floor(Math.random() * 90000) + 10000
     const triggerDownload = (blob: Blob, filename: string) => new Promise<void>(resolve => {
       const url = URL.createObjectURL(blob)
@@ -281,13 +280,16 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
       setTimeout(() => { URL.revokeObjectURL(url); resolve() }, 300)
     })
 
+    const blobOf = (c: HTMLCanvasElement) => new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
+
     // Generate match posts for matches with photos
     let matchIndex = 1
     for (const m of groupMatches) {
       const photo = matchPhotos[m.id]
       if (!photo || m.scoreA === null || m.scoreB === null) { matchIndex++; continue }
+      const matchCanvas = document.createElement('canvas')
       drawMatchPost(
-        canvas,
+        matchCanvas,
         photo,
         getPairName(m.pairAId),
         getPairName(m.pairBId),
@@ -297,24 +299,17 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         matchIndex,
         overlays.logo,
       )
-      await new Promise<void>(resolve => {
-        canvas.toBlob(async blob => {
-          if (blob) await triggerDownload(blob, `group-${g.toLowerCase()}-match-${matchIndex}-${suffix}.jpg`)
-          resolve()
-        }, 'image/jpeg', 0.92)
-      })
+      const matchBlob = await blobOf(matchCanvas)
+      if (matchBlob) await triggerDownload(matchBlob, `group-${g.toLowerCase()}-match-${matchIndex}-${suffix}.jpg`)
       matchIndex++
     }
 
     // Generate group summary
     const standings = computeGroupStandings(g, pairIds, allMatches)
-    drawGroupSummary(canvas, g, standings, getPairName, overlays.storyBg)
-    await new Promise<void>(resolve => {
-      canvas.toBlob(async blob => {
-        if (blob) await triggerDownload(blob, `group-${g.toLowerCase()}-summary-${suffix}.jpg`)
-        resolve()
-      }, 'image/jpeg', 0.92)
-    })
+    const summaryCanvas = document.createElement('canvas')
+    drawGroupSummary(summaryCanvas, g, standings, getPairName, overlays.storyBg)
+    const summaryBlob = await blobOf(summaryCanvas)
+    if (summaryBlob) await triggerDownload(summaryBlob, `group-${g.toLowerCase()}-summary-${suffix}.jpg`)
   }
 
   return (
