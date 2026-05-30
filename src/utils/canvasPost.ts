@@ -29,11 +29,34 @@ export function drawCoverFill(
   ctx.drawImage(img, x, y, w, h)
 }
 
+function drawSideText(
+  ctx: CanvasRenderingContext2D,
+  startX: number,
+  y: number,
+  fontSize: number,
+) {
+  const segments = [
+    { text: 'MAJADU FUN', color: '#ffffff' },
+    { text: '  •  ', color: '#facc15' },
+    { text: 'MAJADU FUN', color: '#ffffff' },
+    { text: '  •  ', color: '#facc15' },
+    { text: 'MAJADU FUN', color: '#ffffff' },
+  ]
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`
+  ctx.letterSpacing = '1.5px'
+  let x = startX
+  for (const seg of segments) {
+    ctx.fillStyle = seg.color
+    ctx.textAlign = 'left'
+    ctx.fillText(seg.text, x, y)
+    x += ctx.measureText(seg.text).width
+  }
+}
+
 export function drawHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   logo: HTMLImageElement | undefined,
-  label = 'MAJADU FUN',
 ) {
   const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H)
   grad.addColorStop(0, 'rgba(10,10,20,0.92)')
@@ -49,13 +72,41 @@ export function drawHeader(
 
   ctx.font = `bold ${fontSize}px Arial, sans-serif`
   ctx.letterSpacing = '1.5px'
-  ctx.fillStyle = '#ffffff'
+  const fullText = 'MAJADU FUN  •  MAJADU FUN  •  MAJADU FUN'
+  const totalW = ctx.measureText(fullText).width
+  const sideZoneW = (canvasW - logoW) / 2 - centerPad
+  const clampedW = Math.min(totalW, sideZoneW)
+  drawSideText(ctx, (canvasW - logoW) / 2 - centerPad - clampedW, textY, fontSize)
+  drawSideText(ctx, (canvasW + logoW) / 2 + centerPad, textY, fontSize)
 
-  // Left side: right-aligned ending at logo
+  if (logo) {
+    ctx.drawImage(logo, (canvasW - logoW) / 2, logoTop, logoW, LOGO_H)
+  }
+}
+
+export function drawTournamentHeader(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  logo: HTMLImageElement | undefined,
+) {
+  const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H)
+  grad.addColorStop(0, 'rgba(10,10,20,0.92)')
+  grad.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, canvasW, HEADER_H)
+
+  const fontSize = 15
+  const logoW = logo ? LOGO_H * (logo.naturalWidth / logo.naturalHeight) : 160
+  const centerPad = 30
+  const logoTop = (HEADER_H - LOGO_H) / 2
+  const textY = HEADER_H / 2 + fontSize * 0.38
+  const label = 'MAJADU INTERNAL TOURNAMENT 2026'
+
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`
+  ctx.letterSpacing = '1.5px'
+  ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'right'
   ctx.fillText(label, (canvasW - logoW) / 2 - centerPad, textY)
-
-  // Right side: left-aligned starting at logo
   ctx.textAlign = 'left'
   ctx.fillText(label, (canvasW + logoW) / 2 + centerPad, textY)
 
@@ -100,7 +151,7 @@ export function drawMatchPost(
   }
 
   // Header band
-  drawHeader(ctx, W, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
+  drawTournamentHeader(ctx, W, logo)
 
   // Footer
   const footerH = 230
@@ -188,7 +239,7 @@ export function drawBracketRoundCover(
     ctx.fillRect(0, 0, W, H)
   }
 
-  drawHeader(ctx, W, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
+  drawTournamentHeader(ctx, W, logo)
 
   const ROW_H = 130
   const ROW_GAP = 12
@@ -322,7 +373,7 @@ export function drawPositionPost(
     ctx.restore()
   }
 
-  drawHeader(ctx, W, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
+  drawTournamentHeader(ctx, W, logo)
 
   // Gradient starts at 35% height, fades gently — less solid at bottom
   const gradStart = H * 0.35
