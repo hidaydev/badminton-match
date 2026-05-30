@@ -33,6 +33,7 @@ export function drawHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   logo: HTMLImageElement | undefined,
+  label = 'MAJADU FUN',
 ) {
   const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H)
   grad.addColorStop(0, 'rgba(10,10,20,0.92)')
@@ -45,7 +46,6 @@ export function drawHeader(
   const centerPad = 30
   const logoTop = (HEADER_H - LOGO_H) / 2
   const textY = HEADER_H / 2 + fontSize * 0.38
-  const label = 'MAJADU INTERNAL TOURNAMENT 2026'
 
   ctx.font = `bold ${fontSize}px Arial, sans-serif`
   ctx.letterSpacing = '1.5px'
@@ -100,7 +100,7 @@ export function drawMatchPost(
   }
 
   // Header band
-  drawHeader(ctx, W, logo)
+  drawHeader(ctx, W, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
 
   // Footer
   const footerH = 230
@@ -188,7 +188,7 @@ export function drawBracketRoundCover(
     ctx.fillRect(0, 0, W, H)
   }
 
-  drawHeader(ctx, W, logo)
+  drawHeader(ctx, W, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
 
   const ROW_H = 130
   const ROW_GAP = 12
@@ -322,7 +322,7 @@ export function drawPositionPost(
     ctx.restore()
   }
 
-  drawHeader(ctx, W, logo)
+  drawHeader(ctx, W, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
 
   // Gradient starts at 35% height, fades gently — less solid at bottom
   const gradStart = H * 0.35
