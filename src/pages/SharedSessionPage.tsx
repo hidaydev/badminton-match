@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -14,6 +14,7 @@ import {
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import SummaryModal from '../components/SummaryModal'
+import { useLastSession } from '../hooks/useLastSession'
 
 export default function SharedSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -28,6 +29,19 @@ export default function SharedSessionPage() {
   const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
   const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
+
+  const { save } = useLastSession()
+
+  useEffect(() => {
+    if (!snapshot || !sessionId) return
+    save({
+      id: sessionId,
+      title: snapshot.session.title,
+      date: snapshot.session.date,
+      playerCount: snapshot.players.length,
+      totalGames: snapshot.schedule.length,
+    })
+  }, [snapshot])
 
   const header = (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
