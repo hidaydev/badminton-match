@@ -22,7 +22,7 @@ export default function SharedSessionPage() {
   const queryClient = useQueryClient()
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const { data: snapshot, isLoading, isError } = useGetSession(sessionId)
+  const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId)
   const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
   const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
   const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
@@ -153,6 +153,8 @@ export default function SharedSessionPage() {
           onError: () => setSaveError('Failed to save, please try again'),
         })}
         standalone
+        onRefetch={() => refetch()}
+        isRefetching={isFetching}
       />
     </div>
   )
