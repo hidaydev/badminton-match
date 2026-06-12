@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getDb, checkAuth, send, sendError, colFromTarget } from './_db'
+import { getDb, checkAuth, send, sendError, colFromTarget } from './_db.js'
 
 interface SwapTarget {
   slot: number

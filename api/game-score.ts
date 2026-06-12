@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getDb, checkAuth, send, sendError } from './_db'
+import { getDb, checkAuth, send, sendError } from './_db.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!checkAuth(req)) return sendError(res, 'Unauthorized', 401)

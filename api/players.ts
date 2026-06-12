@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { getDb, checkAuth, send, sendError } from './_db'
+import { getDb, checkAuth, send, sendError } from './_db.js'
 import type { PlayerSummary } from '../src/queries/types'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
