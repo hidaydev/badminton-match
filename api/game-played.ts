@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     gameId: string
     played: boolean
   }
-  if (!sessionId || !gameId) return sendError(res, 'Missing fields', 400)
+  if (!sessionId || !gameId || played == null) return sendError(res, 'Missing fields', 400)
 
   const sql = getDb()
   const id = `${sessionId}-${gameId}`

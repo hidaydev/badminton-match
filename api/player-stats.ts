@@ -11,12 +11,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const sql = getDb()
 
+  // Step 1: Find all session_player IDs for this player name
+  const targetPlayers = await sql`
+    SELECT id, session_id FROM session_players WHERE name ILIKE ${name}
+  `
+  if (!targetPlayers.length) {
+    return send(res, {
+      name,
+      gamesPlayed: 0, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0,
+      sessions: [], topPartners: [], topOpponents: [],
+    } satisfies PlayerStats)
+  }
+
+  // Step 2: For each player ID, fetch the games they appear in (no duplicate rows)
+  const targetIds = (targetPlayers as { id: string }[]).map((p) => p.id)
   const gameRows = await sql`
-    SELECT g.*, s.date, s.title, s.id AS sid, sp.id AS target_id
+    SELECT g.*, s.date, s.title, s.id AS sid
     FROM games g
-    JOIN session_players sp ON sp.id IN (g.team_a_p1, g.team_a_p2, g.team_b_p1, g.team_b_p2)
     JOIN sessions s ON s.id = g.session_id
-    WHERE sp.name ILIKE ${name} AND g.played = true
+    WHERE g.played = true
+      AND (
+        g.team_a_p1 = ANY(${targetIds})
+        OR g.team_a_p2 = ANY(${targetIds})
+        OR g.team_b_p1 = ANY(${targetIds})
+        OR g.team_b_p2 = ANY(${targetIds})
+      )
   `
 
   const allPlayerIds = new Set<string>()
@@ -40,7 +59,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let gamesPlayed = 0, wins = 0, losses = 0, pointsFor = 0, pointsAgainst = 0
 
   for (const g of gameRows) {
-    const targetId = g.target_id as string
+    // Find which of our target player IDs appears in this game
+    const targetId = targetIds.find((tid: string) =>
+      [g.team_a_p1, g.team_a_p2, g.team_b_p1, g.team_b_p2].includes(tid)
+    ) as string
+    if (!targetId) continue
     const onTeamA = [g.team_a_p1 as string, g.team_a_p2 as string].includes(targetId)
     const myTeam = onTeamA
       ? [g.team_a_p1 as string, g.team_a_p2 as string]

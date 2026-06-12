@@ -20,6 +20,19 @@ export function sendError(res: VercelResponse, error: string, status = 500) {
   return res.status(status).json({ ok: false, error })
 }
 
+export function withErrorHandler(
+  fn: (req: VercelRequest, res: VercelResponse) => Promise<void | VercelResponse>
+) {
+  return async (req: VercelRequest, res: VercelResponse) => {
+    try {
+      await fn(req, res)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Internal server error'
+      sendError(res, message, 500)
+    }
+  }
+}
+
 export function gameId(sessionId: string, slot: number, court: number) {
   return `${sessionId}-${slot}-${court}`
 }

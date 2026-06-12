@@ -31,19 +31,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'POST') {
     const snap = req.body as { id: string; data: CloudSnapshot }
     const { id, data } = snap
+    if (!id || !data) return sendError(res, 'Missing fields', 400)
     const s = data.session
     const now = new Date().toISOString()
 
     await sql`
-      INSERT INTO sessions (id, title, date, session_start, slot_minutes, slots_per_court, court_names, court_times, created_at, updated_at)
+      INSERT INTO sessions (id, title, date, session_start, slot_minutes, slots_per_court, court_names, court_times, tier_count, created_at, updated_at)
       VALUES (${id}, ${s.title}, ${s.date}, ${s.sessionStart}, ${s.slotMinutes},
-        ${s.slotsPerCourt}, ${JSON.stringify(s.courtNames)}, ${JSON.stringify(s.courtTimes)},
-        ${now}, ${now})
+        ${s.slotsPerCourt}, ${s.courtNames}, ${JSON.stringify(s.courtTimes)},
+        ${4}, ${now}, ${now})
       ON CONFLICT (id) DO UPDATE SET
         title = EXCLUDED.title, date = EXCLUDED.date,
         session_start = EXCLUDED.session_start, slot_minutes = EXCLUDED.slot_minutes,
         slots_per_court = EXCLUDED.slots_per_court, court_names = EXCLUDED.court_names,
-        court_times = EXCLUDED.court_times,
+        court_times = EXCLUDED.court_times, tier_count = EXCLUDED.tier_count,
         updated_at = EXCLUDED.updated_at
     `
 
