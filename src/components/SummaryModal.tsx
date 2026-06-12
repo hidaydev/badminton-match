@@ -192,6 +192,8 @@ export default function SummaryModal({
   onSetAbsent,
   onReplacePlayer,
   onSwapSlots,
+  onRefetch,
+  isRefetching = false,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -214,6 +216,8 @@ export default function SummaryModal({
   onSetAbsent?: (nextAbsent: string[]) => void
   onReplacePlayer?: (playerId: string, newName: string) => void
   onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
+  onRefetch?: () => void
+  isRefetching?: boolean
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -504,20 +508,46 @@ export default function SummaryModal({
 
       {/* Session header */}
       {(title || date) && (
-        <div className="px-5 py-3 border-b border-slate-800 shrink-0">
-          {title && <p className="text-white font-bold text-base leading-tight">{title}</p>}
-          {date && (
-            <p className="text-slate-400 text-xs mt-0.5">
-              {new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-              {courtTimes.length > 0 && (
-                <span className="text-slate-600"> · {mergeCourtTimes(courtTimes)}</span>
-              )}
-            </p>
+        <div className="px-5 py-3 border-b border-slate-800 shrink-0 flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            {title && <p className="text-white font-bold text-base leading-tight">{title}</p>}
+            {date && (
+              <p className="text-slate-400 text-xs mt-0.5">
+                {new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+                {courtTimes.length > 0 && (
+                  <span className="text-slate-600"> · {mergeCourtTimes(courtTimes)}</span>
+                )}
+              </p>
+            )}
+          </div>
+          {onRefetch && (
+            <button
+              onClick={onRefetch}
+              disabled={isRefetching}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:scale-90 transition-all disabled:opacity-40 shrink-0"
+              aria-label="Reload session"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={isRefetching ? 'animate-spin' : ''}
+              >
+                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+              </svg>
+            </button>
           )}
         </div>
       )}
