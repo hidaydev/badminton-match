@@ -11,9 +11,25 @@ for (const line of envFile.split('\n')) {
 const APPS_SCRIPT_URL = process.env.VITE_APPS_SCRIPT_URL
 const sql = neon(process.env.DATABASE_URL)
 
-async function fetchJson(url) {
-  const res = await fetch(url)
-  return res.json()
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+async function fetchJson(url, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url)
+      const text = await res.text()
+      if (!text.startsWith('{') && !text.startsWith('[')) {
+        console.log(`  Non-JSON response (attempt ${i + 1}), retrying in 3s...`)
+        await sleep(3000)
+        continue
+      }
+      return JSON.parse(text)
+    } catch (e) {
+      if (i === retries - 1) throw e
+      console.log(`  Fetch error (attempt ${i + 1}), retrying in 3s...`)
+      await sleep(3000)
+    }
+  }
 }
 
 async function migrateSession(id) {
@@ -79,6 +95,7 @@ async function main() {
 
   for (const meta of sessions) {
     await migrateSession(meta.id)
+    await sleep(1500)
   }
 
   // Migrate tournament
