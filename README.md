@@ -128,7 +128,7 @@ Main docs:
 - [`docs/handbook/supabase-migration.md`](docs/handbook/supabase-migration.md)
 - [`docs/handbook/mdef-integration.md`](docs/handbook/mdef-integration.md)
 - [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md)
-- [`docs/handbook/sql/20260616_000001_badminton_match_schema.sql`](docs/handbook/sql/20260616_000001_badminton_match_schema.sql)
+- [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](supabase/migrations/20260616_000001_badminton_match_schema.sql)
 
 Historical design notes from the earlier build-out are preserved under:
 
