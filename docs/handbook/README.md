@@ -25,7 +25,7 @@ If you only read four files, read these:
 - [`supabase-migration.md`](supabase-migration.md)
 - [`mdef-integration.md`](mdef-integration.md)
 - [`roadmap.md`](roadmap.md)
-- [`sql/20260616_000001_badminton_match_schema.sql`](sql/20260616_000001_badminton_match_schema.sql)
+- [`../../supabase/migrations/20260616_000001_badminton_match_schema.sql`](../../supabase/migrations/20260616_000001_badminton_match_schema.sql)
 
 ### Historical notes
 
