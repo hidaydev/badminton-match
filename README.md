@@ -121,6 +121,7 @@ Start here:
 
 Main docs:
 
+- [`docs/handbook/current-status.md`](docs/handbook/current-status.md)
 - [`docs/handbook/product-overview.md`](docs/handbook/product-overview.md)
 - [`docs/handbook/architecture.md`](docs/handbook/architecture.md)
 - [`docs/handbook/data-model.md`](docs/handbook/data-model.md)

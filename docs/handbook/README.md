@@ -6,8 +6,8 @@ This folder is the working documentation set for `badminton-match`.
 
 If you only read four files, read these:
 
-1. [`product-overview.md`](product-overview.md)
-2. [`architecture.md`](architecture.md)
+1. [`current-status.md`](current-status.md)
+2. [`product-overview.md`](product-overview.md)
 3. [`supabase-migration.md`](supabase-migration.md)
 4. [`roadmap.md`](roadmap.md)
 
@@ -15,6 +15,7 @@ If you only read four files, read these:
 
 ### Product and system
 
+- [`current-status.md`](current-status.md)
 - [`product-overview.md`](product-overview.md)
 - [`features-and-routes.md`](features-and-routes.md)
 - [`data-model.md`](data-model.md)
