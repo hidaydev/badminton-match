@@ -1,36 +1,34 @@
-# Documentation
+# Docs
 
-This folder is the working documentation set for `badminton-match`.
+This folder has two purposes:
+
+1. current project handbook
+2. dated implementation history
 
 ## Start here
 
-If you only read four files, read these:
+### Current handbook
 
-1. [`product-overview.md`](product-overview.md)
-2. [`architecture.md`](architecture.md)
-3. [`supabase-migration.md`](supabase-migration.md)
-4. [`roadmap.md`](roadmap.md)
+Use this for the current state of the project:
 
-## Documentation set
+- [`handbook/README.md`](handbook/README.md)
 
-### Product and system
+The handbook contains:
 
-- [`product-overview.md`](product-overview.md)
-- [`features-and-routes.md`](features-and-routes.md)
-- [`data-model.md`](data-model.md)
-- [`architecture.md`](architecture.md)
+- product overview
+- architecture
+- data model
+- route and feature map
+- Supabase migration status
+- `MDEF` integration notes
+- roadmap
+- SQL copies related to the migration
 
-### Integration and migration
+### Historical implementation archive
 
-- [`supabase-migration.md`](supabase-migration.md)
-- [`mdef-integration.md`](mdef-integration.md)
-- [`roadmap.md`](roadmap.md)
-
-### Historical notes
-
-The earlier design and planning artifacts are preserved under:
+Use this for dated plans/specs from earlier work:
 
 - [`superpowers/`](superpowers)
 
-Those files are useful as historical context but should not be treated as the
-current top-level architecture source of truth.
+`superpowers/` is useful for implementation history and rationale, but it is
+not the best entry point for understanding the project as it exists now.
