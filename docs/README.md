@@ -12,6 +12,7 @@ This folder has two purposes:
 Use this for the current state of the project:
 
 - [`handbook/README.md`](handbook/README.md)
+- [`handbook/current-status.md`](handbook/current-status.md)
 
 The handbook contains:
 
