@@ -121,13 +121,14 @@ Start here:
 
 Main docs:
 
-- [`docs/product-overview.md`](docs/product-overview.md)
-- [`docs/architecture.md`](docs/architecture.md)
-- [`docs/data-model.md`](docs/data-model.md)
-- [`docs/features-and-routes.md`](docs/features-and-routes.md)
-- [`docs/supabase-migration.md`](docs/supabase-migration.md)
-- [`docs/mdef-integration.md`](docs/mdef-integration.md)
-- [`docs/roadmap.md`](docs/roadmap.md)
+- [`docs/handbook/product-overview.md`](docs/handbook/product-overview.md)
+- [`docs/handbook/architecture.md`](docs/handbook/architecture.md)
+- [`docs/handbook/data-model.md`](docs/handbook/data-model.md)
+- [`docs/handbook/features-and-routes.md`](docs/handbook/features-and-routes.md)
+- [`docs/handbook/supabase-migration.md`](docs/handbook/supabase-migration.md)
+- [`docs/handbook/mdef-integration.md`](docs/handbook/mdef-integration.md)
+- [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md)
+- [`docs/handbook/sql/20260616_000001_badminton_match_schema.sql`](docs/handbook/sql/20260616_000001_badminton_match_schema.sql)
 
 Historical design notes from the earlier build-out are preserved under:
 
