@@ -1,73 +1,177 @@
-# React + TypeScript + Vite
+# badminton-match
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`badminton-match` is a badminton operations app built for real session usage:
+set up courts and players, generate balanced doubles schedules, publish a
+shared live session, track played games and scores, manage a tournament, and
+generate social-ready graphics.
 
-Currently, two official plugins are available:
+This repo is the operational source app in the larger badminton toolset. It is
+separate from `MDEF`, which is the historical ELO and analytics system.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## What the app does
 
-## React Compiler
+### Session scheduling
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- configure title, date, court count, court hours, and slot duration
+- define exact player count
+- add players with gender and tier
+- add fixed match constraints
+- generate balanced doubles schedules
+- retry generation until a better schedule is found
 
-## Expanding the ESLint configuration
+### Shared live session
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- publish a session and get a shared URL
+- reload shared sessions from cloud storage
+- mark games played
+- enter scores
+- swap players between games
+- swap whole game slots
+- mark players absent
+- rename players inside the live session
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### History and stats
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- browse past sessions
+- browse known players
+- view player-level historical stats:
+  wins, losses, points for/against, top partners, top opponents
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Tournament
+
+- assign 16 pairs into 4 groups
+- compute group standings
+- propagate knockout bracket automatically
+- score bracket matches
+- generate podium and bracket media
+
+### Social export
+
+- create Instagram-style graphics from sessions and tournament results
+- export standings, bracket, and post-ready visuals
+
+## Current stack
+
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS v4
+- Zustand
+- TanStack React Query
+- React Router
+- PWA support via `vite-plugin-pwa`
+
+## Backend status
+
+This branch migrates the app away from Google Apps Script / Google Sheets and
+onto Supabase.
+
+Current backend target:
+
+- same Supabase project as `MDEF`
+- separate schema: `badminton_match`
+- snapshot-first persistence model
+
+Main migration SQL:
+
+- [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](supabase/migrations/20260616_000001_badminton_match_schema.sql)
+
+## Quick start
+
+### 1. Install dependencies
+
+```bash
+npm ci
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 2. Configure local environment
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Copy `.env.local.example` to `.env.local` and fill in:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_KEY=...
 ```
+
+### 3. Apply database migration
+
+Run the SQL in:
+
+- [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](supabase/migrations/20260616_000001_badminton_match_schema.sql)
+
+against your Supabase project.
+
+### 4. Run the app
+
+```bash
+npm run dev
+```
+
+### 5. Verify build
+
+```bash
+npm run build
+```
+
+## Documentation map
+
+Start here:
+
+- [`docs/README.md`](docs/README.md)
+
+Main docs:
+
+- [`docs/product-overview.md`](docs/product-overview.md)
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/data-model.md`](docs/data-model.md)
+- [`docs/features-and-routes.md`](docs/features-and-routes.md)
+- [`docs/supabase-migration.md`](docs/supabase-migration.md)
+- [`docs/mdef-integration.md`](docs/mdef-integration.md)
+- [`docs/roadmap.md`](docs/roadmap.md)
+
+Historical design notes from the earlier build-out are preserved under:
+
+- [`docs/superpowers/`](docs/superpowers)
+
+## Current migration status
+
+Verified on the Supabase migration branch:
+
+- create session
+- publish session
+- open shared session link
+- mark played
+- enter score
+- sessions list
+- player list
+- player stats
+
+Still pending:
+
+- historical data backfill from old Google Sheets storage
+- full tournament end-to-end verification after migration
+- production security hardening
+- long-term formal export surface for `MDEF`
+
+## Project role in the bigger system
+
+`badminton-match` should remain the operational source app:
+
+- session planning
+- live match operations
+- tournament administration
+
+`MDEF` should remain the analytics destination:
+
+- canonical players and aliases
+- match history
+- ELO and longitudinal analytics
+
+Short-term integration can remain manual via JSON handoff.
+
+## Notes
+
+- The root `README` previously contained only the default Vite template text.
+- The app still contains earlier design/spec history under `docs/superpowers`.
+- The Supabase migration is intentionally minimal-risk and snapshot-first, not
+  a full relational redesign.
