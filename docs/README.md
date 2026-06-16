@@ -22,7 +22,7 @@ The handbook contains:
 - Supabase migration status
 - `MDEF` integration notes
 - roadmap
-- SQL copies related to the migration
+- links to the real migration SQL under `supabase/migrations/`
 
 ### Historical implementation archive
 
