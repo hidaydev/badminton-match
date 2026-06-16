@@ -3,66 +3,98 @@ import type { TournamentSnapshot } from '../utils/tournament'
 
 export const TOURNAMENT_ID = 'tournament-2026-05-23-majadu'
 
-function scriptUrl(): string {
-  const url = import.meta.env.VITE_APPS_SCRIPT_URL as string
-  if (!url) throw new Error('VITE_APPS_SCRIPT_URL is not set')
+function supabaseUrl(): string {
+  const url = import.meta.env.VITE_SUPABASE_URL as string
+  if (!url) throw new Error('VITE_SUPABASE_URL is not set')
   return url
 }
 
+function supabaseKey(): string {
+  const key = import.meta.env.VITE_SUPABASE_KEY as string
+  if (!key) throw new Error('VITE_SUPABASE_KEY is not set')
+  return key
+}
+
+function rpcUrl(name: string): string {
+  return `${supabaseUrl()}/rest/v1/rpc/${name}`
+}
+
+function rpcHeaders(): HeadersInit {
+  const key = supabaseKey()
+  return {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+  }
+}
+
+async function callRpc<T>(name: string, body: Record<string, unknown>): Promise<T> {
+  const res = await fetch(rpcUrl(name), {
+    method: 'POST',
+    headers: rpcHeaders(),
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`
+    try {
+      const json = await res.json() as { message?: string; error?: string; hint?: string }
+      detail = json.message ?? json.error ?? json.hint ?? detail
+    } catch {
+      // keep HTTP detail
+    }
+    throw new Error(detail)
+  }
+
+  if (res.status === 204) return undefined as T
+  return await res.json() as T
+}
+
 export async function getSession(id: string): Promise<CloudSnapshot | null> {
-  const res = await fetch(`${scriptUrl()}?id=${encodeURIComponent(id)}`)
-  const json = await res.json() as { ok: boolean; data?: CloudSnapshot; error?: string }
-  if (!json.ok) return null
-  return json.data ?? null
+  return await callRpc<CloudSnapshot | null>('bm_get_session', { p_id: id })
 }
 
 export async function publishSession(id: string, data: CloudSnapshot): Promise<void> {
-  const res = await fetch(scriptUrl(), {
-    method: 'POST',
-    // No Content-Type header: browser sends text/plain, avoiding CORS preflight.
-    // Apps Script reads body via e.postData.contents.
-    body: JSON.stringify({ id, data }),
-  })
-  const json = await res.json() as { ok: boolean; error?: string }
-  if (!json.ok) throw new Error(json.error ?? 'publish failed')
+  await callRpc<null>('bm_publish_session', { p_id: id, p_snapshot: data })
 }
 
 export async function listSessions(): Promise<SessionMeta[]> {
-  const res = await fetch(`${scriptUrl()}?action=list`)
-  const json = await res.json() as { ok: boolean; data?: SessionMeta[]; error?: string }
-  if (!json.ok) throw new Error(json.error ?? 'list failed')
-  return json.data ?? []
+  const rows = await callRpc<Array<{
+    id: string
+    title: string
+    date: string
+    player_count: number
+    total_games: number
+  }>>('bm_list_sessions', {})
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    date: row.date,
+    playerCount: row.player_count,
+    totalGames: row.total_games,
+  }))
 }
 
 export async function listPlayers(): Promise<PlayerSummary[]> {
-  const res = await fetch(`${scriptUrl()}?action=players`)
-  const json = await res.json() as { ok: boolean; data?: PlayerSummary[]; error?: string }
-  if (!json.ok) throw new Error(json.error ?? 'list players failed')
-  return json.data ?? []
+  const rows = await callRpc<Array<{
+    name: string
+    gender: 'M' | 'F'
+    tier: 1 | 2 | 3 | 4
+  }>>('bm_list_players', {})
+  return rows
 }
 
 export async function getPlayerStats(name: string): Promise<PlayerStats> {
-  const res = await fetch(`${scriptUrl()}?action=playerStats&name=${encodeURIComponent(name)}`)
-  const json = await res.json() as { ok: boolean; data?: PlayerStats; error?: string }
-  if (!json.ok) throw new Error(json.error ?? 'player stats failed')
-  if (!json.data) throw new Error('no data')
-  return json.data
+  const data = await callRpc<PlayerStats | null>('bm_get_player_stats', { p_name: name })
+  if (!data) throw new Error('no data')
+  return data
 }
 
 export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
-  const res = await fetch(`${scriptUrl()}?action=getTournament&id=${encodeURIComponent(id)}`)
-  const json = await res.json() as { ok: boolean; data?: TournamentSnapshot; error?: string }
-  if (!json.ok) return null
-  return json.data ?? null
+  return await callRpc<TournamentSnapshot | null>('bm_get_tournament', { p_id: id })
 }
 
 export async function publishTournament(id: string, data: TournamentSnapshot): Promise<void> {
-  const res = await fetch(scriptUrl(), {
-    method: 'POST',
-    // No Content-Type header: browser sends text/plain, avoiding CORS preflight.
-    // Apps Script reads body via e.postData.contents.
-    body: JSON.stringify({ type: 'tournament', id, data }),
-  })
-  const json = await res.json() as { ok: boolean; error?: string }
-  if (!json.ok) throw new Error(json.error ?? 'publish tournament failed')
+  await callRpc<null>('bm_publish_tournament', { p_id: id, p_snapshot: data })
 }
