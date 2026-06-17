@@ -25,6 +25,9 @@ function rpcHeaders(): HeadersInit {
     apikey: key,
     Authorization: `Bearer ${key}`,
     'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'Accept-Profile': 'badminton_match',
+    'Content-Profile': 'badminton_match',
   }
 }
 
