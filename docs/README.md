@@ -1,35 +1,39 @@
 # Docs
 
-This folder has two purposes:
+This directory is split into two lanes:
 
-1. current project handbook
-2. dated implementation history
+1. the current operating handbook for the app
+2. the historical archive of plans, specs, and migration-era notes
 
-## Start here
+## Start Here
 
-### Current handbook
-
-Use this for the current state of the project:
+If you want the current truth of the project, begin with:
 
 - [`handbook/README.md`](handbook/README.md)
 - [`handbook/current-status.md`](handbook/current-status.md)
+- [`handbook/bm-supabase-runbook.md`](handbook/bm-supabase-runbook.md)
 
-The handbook contains:
+## What Lives Here
+
+### `handbook/`
+
+The active documentation set for how the project works today:
 
 - product overview
-- architecture
-- data model
-- route and feature map
-- Supabase migration status
+- architecture and route map
+- `bm`-centric data model
+- Supabase runtime and migration status
+- operational runbooks
 - `MDEF` integration notes
-- roadmap
-- links to the real migration SQL under `supabase/migrations/`
+- roadmap and closure notes
 
-### Historical implementation archive
+### `superpowers/`
 
-Use this for dated plans/specs from earlier work:
+The historical implementation archive:
 
-- [`superpowers/`](superpowers)
+- dated plans
+- design specs
+- old rollout notes
 
-`superpowers/` is useful for implementation history and rationale, but it is
-not the best entry point for understanding the project as it exists now.
+Use it for rationale and archaeology, not for present-day architecture or
+runtime decisions.

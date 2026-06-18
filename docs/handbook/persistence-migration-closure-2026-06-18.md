@@ -140,5 +140,6 @@ That is the final mental model to carry forward.
 Schema finalization note:
 
 - runtime migration is closed
-- full schema finalization is still pending until legacy bigint identity paths
-  inside `bm` are retired
+- compact static/regression checks and live Supabase smoke checks are already in place
+- the remaining work is broader hardening, deeper end-to-end coverage, and future
+  export design rather than identity-path retirement

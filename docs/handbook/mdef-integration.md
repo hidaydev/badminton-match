@@ -30,7 +30,7 @@ At the moment, the integration is manual.
 Historically:
 
 1. publish session in `badminton-match`
-2. copy Google Apps Script session URL
+2. copy the published session payload or compatible export
 3. paste into `MDEF`
 4. `MDEF` parses session results and computes ratings
 
@@ -62,7 +62,7 @@ not:
 ### Medium-term
 
 - formal `session_export` payload version
-- stable export record from `badminton_match.session_exports`
+- stable export record from a `bm`-owned boundary
 
 ### Long-term
 
@@ -82,7 +82,7 @@ If both apps share core tables too early, one app will distort the other.
 
 Use the same Supabase project, but:
 
-- separate schema for `badminton_match`
+- separate schema for `badminton-match` operational data
 - separate schema for `MDEF`
 - a small export/import boundary between them
 

@@ -9,36 +9,35 @@ Status: complete
 
 Done:
 
-- separate `badminton_match` schema
-- snapshot-first session and tournament persistence
+- snapshot-first landing and normalized `bm` runtime
 - Supabase RPC query layer
 - verified main session flow on live Supabase backend
 
-## Phase 2: Historical data backfill
+## Phase 2: Historical bridge and parity
 
-Status: next
+Status: complete
 
 Goal:
 
-- move existing Google Sheets session history into Supabase
+- carry legacy session/tournament behavior safely into `bm`
 
 Tasks:
 
-1. identify the legacy source still available
-2. export historical rows
-3. map rows into the current `CloudSnapshot` shape
-4. import into `badminton_match.sessions`
-5. verify list/stat parity
+1. backfill normalized session state into `bm`
+2. preserve legacy snapshot compatibility where required
+3. verify session summary parity
+4. verify compatibility snapshot parity
+5. align player/session stats with migrated history
 
 Success criteria:
 
-- old sessions visible in list
-- player list reflects history
-- player stats align with legacy expectations
+- migrated sessions visible in list
+- player list reflects migrated history
+- player stats align with migrated expectations
 
 ## Phase 3: Tournament verification
 
-Status: pending
+Status: mostly complete
 
 Goal:
 
@@ -50,7 +49,7 @@ Tasks:
 2. set group match scores
 3. confirm standings are stable
 4. confirm bracket propagation persists
-5. verify post generation still works
+5. keep smoke coverage around publish/reload paths
 
 ## Phase 4: Security hardening
 
@@ -73,7 +72,22 @@ Tasks:
 2. decide whether to use RLS, auth, or explicit public-write rules
 3. verify failure paths and abuse risk
 
-## Phase 5: Formal export boundary
+## Phase 5: Regression coverage and merge readiness
+
+Status: active
+
+Goal:
+
+- make the Supabase branch boring to merge
+
+Tasks:
+
+1. keep static checks clean
+2. keep read/write smoke coverage green
+3. add compact tests around core query and write invariants
+4. keep handbook/runbook aligned with real runtime behavior
+
+## Phase 6: Formal export boundary
 
 Status: pending
 
@@ -84,10 +98,10 @@ Goal:
 Tasks:
 
 1. define `session_export v1`
-2. emit export records into `badminton_match.session_exports`
+2. emit export records from a `bm`-owned boundary
 3. preserve manual copy/paste workflow if desired
 
-## Phase 6: Production release baseline
+## Phase 7: Production release baseline
 
 Status: pending
 

@@ -10,8 +10,8 @@ This is the fastest handover file for continuing work on this repository.
 
 ## Core decision record
 
-- `badminton-match` is being migrated from Google Apps Script / Google Sheets
-  to Supabase
+- `badminton-match` has completed its runtime move from Google Apps Script /
+  Google Sheets to Supabase on this branch
 - same Supabase project as `MDEF`
 - normalized operational schema: `bm`
 - no `MDEF` code changes for now
@@ -52,6 +52,12 @@ Applied migration:
 - [`supabase/migrations/20260618_000026_bm_phase_c_uuid_relations_batch_3.sql`](../../supabase/migrations/20260618_000026_bm_phase_c_uuid_relations_batch_3.sql)
 - [`supabase/migrations/20260618_000027_bm_runtime_hardening.sql`](../../supabase/migrations/20260618_000027_bm_runtime_hardening.sql)
 - [`supabase/migrations/20260618_000028_bm_runtime_regression_fix.sql`](../../supabase/migrations/20260618_000028_bm_runtime_regression_fix.sql)
+- [`supabase/migrations/20260618_000029_bm_perf_indexes.sql`](../../supabase/migrations/20260618_000029_bm_perf_indexes.sql)
+- [`supabase/migrations/20260618_000030_bm_tournament_concurrency_hardening.sql`](../../supabase/migrations/20260618_000030_bm_tournament_concurrency_hardening.sql)
+- [`supabase/migrations/20260618_000031_bm_validate_session_snapshot_record_alias_fix.sql`](../../supabase/migrations/20260618_000031_bm_validate_session_snapshot_record_alias_fix.sql)
+- [`supabase/migrations/20260618_000032_bm_drop_legacy_identity_sync_triggers.sql`](../../supabase/migrations/20260618_000032_bm_drop_legacy_identity_sync_triggers.sql)
+- [`supabase/migrations/20260618_000033_bm_reapply_player_stats_uuid_only.sql`](../../supabase/migrations/20260618_000033_bm_reapply_player_stats_uuid_only.sql)
+- [`supabase/migrations/20260618_000034_bm_tournament_snapshot_validation_fix.sql`](../../supabase/migrations/20260618_000034_bm_tournament_snapshot_validation_fix.sql)
 
 Created:
 
@@ -80,6 +86,7 @@ Main practical state now:
 - app runtime depends on `bm` only
 - `badminton_match` is now historical migration context, not a live runtime target
 - active relational graph in `bm` is UUID-first
+- exposed-schema/runtime drift was fixed during verification
 
 ### Frontend migration
 
@@ -114,20 +121,31 @@ Verified against the real Supabase project:
    - player stats
 7. backfill normalized `bm` session data from legacy snapshots
 8. verify summary parity and full snapshot parity
+9. verify local app reads after removing legacy exposed-schema assumptions
+10. run compact static + regression suite locally
+11. run live Supabase smoke suite end to end:
+   - session list
+   - player list
+   - session publish/version flow
+   - player stats RPC
+   - tournament publish/version flow
 
 Verified result:
 
 - local app session flow works against `bm`
 - local app tournament flow is wired to `bm`
 - player stats query works on Supabase
+- `npm run check` passes on this branch
+- `npm run check:smoke` passes against the configured Supabase project
 - normalized session parity was verified during migration work
 - Google Sheets is no longer required for the tested local session flow
+- legacy runtime dependency has been removed from the local app path
 
 ## What is not done yet
 
 1. production security hardening
 2. formal long-term export boundary for `MDEF`
-3. selective compatibility cleanup and operational hardening
+3. broader end-to-end/UI regression coverage beyond the compact RPC/writeflow suite
 
 ## Important operational truth
 
@@ -152,26 +170,16 @@ Operational note:
 
 ## Historical backfill reality
 
-The repository does **not** appear to contain reusable Google Sheets export
-credentials.
+The branch has already completed the practical bridge from legacy snapshot
+history into `bm`.
 
-What exists:
+What still matters:
 
-- old Apps Script source:
-  [`apps-script/Code.gs`](../../apps-script/Code.gs)
-
-What does not appear to exist:
-
-- Google Sheets API credentials
-- service account credentials
-- OAuth export setup
-- reusable sheet export toolchain
-
-So historical backfill will require one of:
-
-1. manual spreadsheet export
-2. direct sheet access from the owner
-3. a still-working legacy Apps Script endpoint that exposes the old rows
+- historical Google Sheets / Apps Script details remain relevant as origin
+  context
+- they are no longer required for the active local runtime path
+- future historical imports, if any, should target `bm`-compatible shapes rather
+  than revive `badminton_match` as an application dependency
 
 ## Latest important commits
 
@@ -186,12 +194,12 @@ These are the main migration/doc checkpoints so far:
 
 Next session should start with:
 
-### Phase D: compatibility and hardening
+### Phase D: hardening and merge readiness
 
 Order:
 
 1. keep smoke-checking the direct `bm.*` RPC surface after changes
-2. review remaining compatibility helpers and grants deliberately
+2. expand regression coverage from compact RPC checks into higher-level UI or browser flows
 3. harden production-facing access controls if deployment scope expands
 
 Latest audit:
