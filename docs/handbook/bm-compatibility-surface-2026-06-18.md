@@ -32,7 +32,8 @@ Examples:
 Why they exist:
 
 - they protect older calling paths
-- they allow transitional clients or local tooling to keep working while the runtime moves fully to `bm`
+- they allow external or transitional clients to keep working after this app has
+  already moved fully to `bm`
 
 Current status:
 

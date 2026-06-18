@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { getSession, publishSession } from '../queries/endpoints'
 import type { CloudSnapshot } from '../queries'
 import { getSaveErrorMessage } from '../queries/errors'
+import { buildPublishableSessionSnapshot } from '../utils/sessionSnapshot'
 
 function nanoid6(): string {
   return Math.random().toString(36).slice(2, 8)
@@ -31,16 +32,16 @@ export default function ShareButton() {
     const id = cloudSessionId ?? nanoid6()
     try {
       const existingSnapshot = cloudSessionId ? await getSession(id) : null
-      const snapshot: CloudSnapshot = {
+      const snapshot: CloudSnapshot = buildPublishableSessionSnapshot({
         version: existingSnapshot?.version,
+        existingAbsentPlayers: existingSnapshot?.absentPlayers,
         session,
         players,
         fixMatches,
         schedule,
         playedGames,
         gameScores,
-        absentPlayers: existingSnapshot?.absentPlayers ?? [],
-      }
+      })
       await publishSession(id, snapshot)
       setCloudSessionId(id)
       setShareUrl(`${window.location.origin}/s/${id}`)
