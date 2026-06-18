@@ -51,14 +51,14 @@ export default function UpdateBanner({ onReload, onDismiss }: Props) {
           <button
             onClick={onReload}
             className="w-full py-3.5 rounded-2xl bg-yellow-400 text-slate-950 font-bold text-sm
-              active:scale-[0.98] transition-transform"
+              active:scale-98 transition-transform"
           >
             Reload Now
           </button>
           <button
             onClick={onDismiss}
             className="w-full py-3 rounded-2xl text-slate-500 font-medium text-sm
-              active:scale-[0.98] transition-transform"
+              active:scale-98 transition-transform"
           >
             Later
           </button>

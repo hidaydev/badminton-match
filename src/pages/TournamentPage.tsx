@@ -8,6 +8,7 @@ import {
   useRegeneratePics,
   TOURNAMENT_ID,
 } from '../queries'
+import { getSaveErrorMessage } from '../queries/errors'
 import type { GroupId, TournamentPair } from '../utils/tournament'
 import GroupAssignment from '../components/tournament/GroupAssignment'
 import GroupMatches from '../components/tournament/GroupMatches'
@@ -127,7 +128,7 @@ export default function TournamentPage() {
   return (
     <div className="flex flex-col gap-0 -mx-3 -mt-4">
       {saveError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg">
           {saveError}
         </div>
       )}
@@ -185,18 +186,18 @@ export default function TournamentPage() {
                   matches={matches}
                   onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, {
                     onSuccess: () => setSaveError(null),
-                    onError: () => setSaveError('Failed to save score, please try again'),
+                    onError: (error) => setSaveError(getSaveErrorMessage(error)),
                   })}
                   onResetGroups={() => resetTournament({ name, date, pairs }, {
                     onSuccess: () => {
                       setSaveError(null)
                       setLocalGroups(EMPTY_GROUPS)
                     },
-                    onError: () => setSaveError('Failed to reset, please try again'),
+                    onError: (error) => setSaveError(getSaveErrorMessage(error)),
                   })}
                   onRegeneratePics={() => regeneratePics(undefined, {
                     onSuccess: () => setSaveError(null),
-                    onError: () => setSaveError('Failed to regenerate PICs, please try again'),
+                    onError: (error) => setSaveError(getSaveErrorMessage(error)),
                   })}
                   isRegeneratingPics={regeneratePicsPending}
                   onOpenModal={handleOpenModal}
@@ -210,7 +211,7 @@ export default function TournamentPage() {
                   onRemovePairFromGroup={removePairFromGroup}
                   onConfirmGroups={() => confirmGroups({ localGroups: (Object.fromEntries(GROUP_IDS.map(g => [g, localGroups[g].filter((id): id is string => id !== null)])) as Record<GroupId, string[]>), name, date, pairs }, {
                     onSuccess: () => setSaveError(null),
-                    onError: () => setSaveError('Failed to save groups, please try again'),
+                    onError: (error) => setSaveError(getSaveErrorMessage(error)),
                   })}
                   isLoading={confirmPending || isFetching}
                 />
@@ -221,7 +222,7 @@ export default function TournamentPage() {
             matches={matches}
             onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, {
               onSuccess: () => setSaveError(null),
-              onError: () => setSaveError('Failed to save score, please try again'),
+              onError: (error) => setSaveError(getSaveErrorMessage(error)),
             })}
             onOpenModal={handleOpenModal}
             isFetching={isFetching}
