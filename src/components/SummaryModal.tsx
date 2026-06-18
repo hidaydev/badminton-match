@@ -337,6 +337,15 @@ export default function SummaryModal({
     setTeamSwapError(null)
   }
 
+  function enterTeamSwapMode() {
+    exitSwapMode()
+    exitAbsentMode()
+    exitReplaceMode()
+    exitSlotSwapMode()
+    setActionsOpen(false)
+    setTeamSwapMode(true)
+  }
+
   function handleTeamClick(target: TeamSwapTarget) {
     if (!teamSwapMode) return
     if (
@@ -550,7 +559,7 @@ export default function SummaryModal({
                       )}
                       {onSwapTeams && (
                         <button
-                          onClick={() => { setActionsOpen(false); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); setTeamSwapMode(true) }}
+                          onClick={() => enterTeamSwapMode()}
                           className="w-full text-left px-4 py-2.5 text-xs font-medium text-violet-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
                         >
                           ⇄ Swap team
