@@ -83,8 +83,18 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
         style={{ maxHeight: '90%', boxShadow: '0 -8px 40px rgba(0,0,0,0.6)' }}
         onClick={e => e.stopPropagation()}
       >
+        {/* Close row */}
+        <div className="flex justify-end px-4 pt-3 pb-2 shrink-0">
+          <button
+            onClick={onClose}
+            className="text-slate-400 active:text-slate-200 p-1 text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
         {/* Summary header */}
-        <div className="px-5 pt-4 pb-4 border-b border-slate-800 shrink-0">
+        <div className="px-5 pt-1 pb-4 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="text-base font-bold text-white truncate">{player.player.name}</div>
@@ -103,12 +113,6 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
                 <div className={`text-lg font-bold ${diffColor}`}>{diffLabel}</div>
                 <div className="text-[9px] text-slate-500 uppercase tracking-wide">Diff</div>
               </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 active:bg-slate-700 shrink-0"
-              >
-                ✕
-              </button>
             </div>
           </div>
         </div>
