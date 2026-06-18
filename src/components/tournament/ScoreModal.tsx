@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { TournamentMatch } from '../../utils/tournament'
 import ScoreboardOverlay from './ScoreboardOverlay'
 
@@ -16,14 +16,6 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? '')
   const [scoreB, setScoreB] = useState(match.scoreB?.toString() ?? '')
   const [showScoreboard, setShowScoreboard] = useState(false)
-
-  // Sync inputs with fresh match data once the refetch completes
-  useEffect(() => {
-    if (!isFetching) {
-      setScoreA(match.scoreA?.toString() ?? '')
-      setScoreB(match.scoreB?.toString() ?? '')
-    }
-  }, [isFetching, match.scoreA, match.scoreB])
 
   const a = parseInt(scoreA, 10)
   const b = parseInt(scoreB, 10)
@@ -57,12 +49,12 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
             <div className="flex items-center gap-3 mb-5">
               <div className="flex-1 flex flex-col items-center gap-1">
                 <div className="h-4 bg-slate-700 rounded w-3/4" />
-                <div className="h-[47px] bg-slate-700 rounded-xl w-full" />
+                <div className="h-11.75 bg-slate-700 rounded-xl w-full" />
               </div>
               <div className="w-6 shrink-0" />
               <div className="flex-1 flex flex-col items-center gap-1">
                 <div className="h-4 bg-slate-700 rounded w-3/4" />
-                <div className="h-[47px] bg-slate-700 rounded-xl w-full" />
+                <div className="h-11.75 bg-slate-700 rounded-xl w-full" />
               </div>
             </div>
             <div className="flex gap-3 mb-3">

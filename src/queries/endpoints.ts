@@ -19,22 +19,34 @@ function rpcUrl(name: string): string {
   return `${supabaseUrl()}/rest/v1/rpc/${name}`
 }
 
-function rpcHeaders(): HeadersInit {
+function rpcHeaders(profile: 'public' | 'badminton_match' | 'bm' = 'public'): HeadersInit {
   const key = supabaseKey()
-  return {
+  const headers: HeadersInit = {
     apikey: key,
     Authorization: `Bearer ${key}`,
     'Content-Type': 'application/json',
     Accept: 'application/json',
-    'Accept-Profile': 'badminton_match',
-    'Content-Profile': 'badminton_match',
   }
+
+  if (profile !== 'public') {
+    return {
+      ...headers,
+      'Accept-Profile': profile,
+      'Content-Profile': profile,
+    }
+  }
+
+  return headers
 }
 
-async function callRpc<T>(name: string, body: Record<string, unknown>): Promise<T> {
+async function callRpc<T>(
+  name: string,
+  body: Record<string, unknown>,
+  options?: { profile?: 'public' | 'badminton_match' | 'bm' },
+): Promise<T> {
   const res = await fetch(rpcUrl(name), {
     method: 'POST',
-    headers: rpcHeaders(),
+    headers: rpcHeaders(options?.profile),
     body: JSON.stringify(body),
   })
 
@@ -54,11 +66,11 @@ async function callRpc<T>(name: string, body: Record<string, unknown>): Promise<
 }
 
 export async function getSession(id: string): Promise<CloudSnapshot | null> {
-  return await callRpc<CloudSnapshot | null>('bm_get_session', { p_id: id })
+  return await callRpc<CloudSnapshot | null>('get_session', { p_id: id }, { profile: 'bm' })
 }
 
-export async function publishSession(id: string, data: CloudSnapshot): Promise<void> {
-  await callRpc<null>('bm_publish_session', { p_id: id, p_snapshot: data })
+export async function publishSession(id: string, data: CloudSnapshot): Promise<CloudSnapshot> {
+  return await callRpc<CloudSnapshot>('publish_session', { p_id: id, p_snapshot: data }, { profile: 'bm' })
 }
 
 export async function listSessions(): Promise<SessionMeta[]> {
@@ -68,7 +80,7 @@ export async function listSessions(): Promise<SessionMeta[]> {
     date: string
     player_count: number
     total_games: number
-  }>>('bm_list_sessions', {})
+  }>>('list_sessions', {}, { profile: 'bm' })
 
   return rows.map((row) => ({
     id: row.id,
@@ -84,20 +96,20 @@ export async function listPlayers(): Promise<PlayerSummary[]> {
     name: string
     gender: 'M' | 'F'
     tier: 1 | 2 | 3 | 4
-  }>>('bm_list_players', {})
+  }>>('list_players', {}, { profile: 'bm' })
   return rows
 }
 
 export async function getPlayerStats(name: string): Promise<PlayerStats> {
-  const data = await callRpc<PlayerStats | null>('bm_get_player_stats', { p_name: name })
+  const data = await callRpc<PlayerStats | null>('get_player_stats', { p_name: name }, { profile: 'bm' })
   if (!data) throw new Error('no data')
   return data
 }
 
 export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
-  return await callRpc<TournamentSnapshot | null>('bm_get_tournament', { p_id: id })
+  return await callRpc<TournamentSnapshot | null>('get_tournament', { p_id: id }, { profile: 'bm' })
 }
 
-export async function publishTournament(id: string, data: TournamentSnapshot): Promise<void> {
-  await callRpc<null>('bm_publish_tournament', { p_id: id, p_snapshot: data })
+export async function publishTournament(id: string, data: TournamentSnapshot): Promise<TournamentSnapshot> {
+  return await callRpc<TournamentSnapshot>('publish_tournament', { p_id: id, p_snapshot: data }, { profile: 'bm' })
 }
