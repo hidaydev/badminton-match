@@ -1,0 +1,95 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {
+  buildPublishableSessionSnapshot,
+  setScoreInSnapshot,
+  swapSlotsInSnapshot,
+  togglePlayedInSnapshot,
+} from '../../src/utils/sessionSnapshot.ts'
+import type { CloudSnapshot } from '../../src/queries/types.ts'
+
+function makeSnapshot(): CloudSnapshot {
+  return {
+    version: 3,
+    session: {
+      title: 'Test Session',
+      date: '2026-06-18',
+      courts: 2,
+      sessionStart: '09:00',
+      slotMinutes: 20,
+      courtTimes: [
+        { start: '09:00', end: '10:00' },
+        { start: '09:00', end: '10:00' },
+      ],
+      playerCount: 8,
+      slotsPerCourt: [3, 3],
+      totalGames: 6,
+      courtNames: [],
+      locked: true,
+    },
+    players: [
+      { id: 'p1', name: 'A', gender: 'M', tier: 1 },
+      { id: 'p2', name: 'B', gender: 'M', tier: 2 },
+      { id: 'p3', name: 'C', gender: 'F', tier: 3 },
+      { id: 'p4', name: 'D', gender: 'F', tier: 4 },
+    ],
+    fixMatches: [],
+    schedule: [
+      { slot: 0, court: 0, teamA: ['p1', 'p2'], teamB: ['p3', 'p4'] },
+      { slot: 1, court: 1, teamA: ['p1', 'p3'], teamB: ['p2', 'p4'] },
+    ],
+    playedGames: ['0-0'],
+    gameScores: {
+      '0-0': { a: 30, b: 27 },
+    },
+    absentPlayers: ['p4'],
+  }
+}
+
+test('togglePlayedInSnapshot removes orphan score when unplaying a game', () => {
+  const snapshot = makeSnapshot()
+  const next = togglePlayedInSnapshot(snapshot, '0-0')
+
+  assert.deepEqual(next.playedGames, [])
+  assert.equal(next.gameScores['0-0'], undefined)
+  assert.deepEqual(next.absentPlayers, ['p4'])
+})
+
+test('setScoreInSnapshot auto-adds played game when scoring an unplayed slot', () => {
+  const snapshot = makeSnapshot()
+  const next = setScoreInSnapshot(snapshot, '1-1', 21, 18)
+
+  assert.deepEqual(next.playedGames, ['0-0', '1-1'])
+  assert.deepEqual(next.gameScores['1-1'], { a: 21, b: 18 })
+})
+
+test('swapSlotsInSnapshot migrates schedule, played keys, and scores together', () => {
+  const snapshot = makeSnapshot()
+  const next = swapSlotsInSnapshot(
+    snapshot,
+    { slot: 0, court: 0 },
+    { slot: 1, court: 1 },
+  )
+
+  assert.deepEqual(next.schedule[0], { slot: 1, court: 1, teamA: ['p1', 'p2'], teamB: ['p3', 'p4'] })
+  assert.deepEqual(next.schedule[1], { slot: 0, court: 0, teamA: ['p1', 'p3'], teamB: ['p2', 'p4'] })
+  assert.deepEqual(next.playedGames, ['1-1'])
+  assert.deepEqual(next.gameScores['1-1'], { a: 30, b: 27 })
+  assert.equal(next.gameScores['0-0'], undefined)
+})
+
+test('buildPublishableSessionSnapshot preserves existing absent players', () => {
+  const snapshot = makeSnapshot()
+  const published = buildPublishableSessionSnapshot({
+    version: snapshot.version,
+    existingAbsentPlayers: snapshot.absentPlayers,
+    session: snapshot.session,
+    players: snapshot.players,
+    fixMatches: snapshot.fixMatches,
+    schedule: snapshot.schedule,
+    playedGames: snapshot.playedGames,
+    gameScores: snapshot.gameScores,
+  })
+
+  assert.deepEqual(published.absentPlayers, ['p4'])
+})

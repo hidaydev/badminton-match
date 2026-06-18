@@ -9,9 +9,10 @@ function parsePlayerList(raw: string): string[] {
       line
         .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
         .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
-        .replace(/[\u2000-\u206F\u2700-\u27BF]/g, '')
-        .replace(/^\s*\d+\s*[\.\)]\s*/, '')
-        .replace(/[✅✔☑️\s]+$/, '')
+        .replace(/[\u2000-\u206F]/gu, '')
+        .replace(/[\u2700-\u27BF]/gu, '')
+        .replace(/^\s*\d+\s*[.)]\s*/, '')
+        .replace(/(?:✅|✔|☑️|\s)+$/gu, '')
         .trim()
     )
     .filter((name) => name.length > 0)

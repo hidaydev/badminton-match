@@ -559,7 +559,7 @@ export default function InstagramPostPage() {
       console.error('Standing export failed', err)
       setIsGenerating(false)
     }
-  }, [pendingStandingMode, fetchSession, overlays, triggerDownload, closeSheet])
+  }, [pendingStandingMode, fetchSession, overlays, triggerDownload, closeSheet, photoOffset, photoZoom, userPhoto])
 
   const handleDownloadPost = useCallback(() => {
     const canvas = canvasRef.current
@@ -635,7 +635,12 @@ export default function InstagramPostPage() {
           ←
         </button>
         <div>
-          <p className="text-[10px] font-mono text-slate-500 tracking-[0.2em] uppercase">Create</p>
+          <p
+            className="text-[10px] font-mono text-slate-500 uppercase"
+            style={{ letterSpacing: '0.2em' }}
+          >
+            Create
+          </p>
           <h2 className="text-lg font-bold text-yellow-400 tracking-tight leading-none">Instagram Post</h2>
         </div>
         <input
@@ -720,7 +725,8 @@ export default function InstagramPostPage() {
         >
           <div className="absolute inset-0 bg-black/60" />
           <div
-            className="relative w-full bg-slate-900 rounded-t-3xl px-5 pt-5 pb-10 shadow-[0_-8px_40px_rgba(0,0,0,0.6)]"
+            className="relative w-full bg-slate-900 rounded-t-3xl px-5 pt-5 pb-10"
+            style={{ boxShadow: '0 -8px 40px rgba(0,0,0,0.6)' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-6" />
@@ -734,7 +740,7 @@ export default function InstagramPostPage() {
                     onClick={handleDownloadPost}
                     className="bg-slate-800 active:bg-slate-700 rounded-2xl p-4 flex flex-col items-center gap-3 border border-slate-700"
                   >
-                    <div className="w-12 h-[60px] rounded-lg bg-slate-700 border border-slate-600" />
+                    <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600" />
                     <div className="text-center">
                       <p className="text-sm font-bold text-white">Post</p>
                       <p className="text-[11px] text-slate-500">1080 × 1350</p>
@@ -746,7 +752,7 @@ export default function InstagramPostPage() {
                     onClick={handleDownloadStory}
                     className="bg-yellow-400 active:bg-yellow-300 rounded-2xl p-4 flex flex-col items-center gap-3"
                   >
-                    <div className="w-12 h-[60px] rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
+                    <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
                       <div className="w-7 h-7 rounded bg-yellow-500/40" />
                     </div>
                     <div className="text-center">
@@ -760,7 +766,7 @@ export default function InstagramPostPage() {
                     onClick={() => { setPendingStandingMode('post'); setSheetScreen('session-picker') }}
                     className="bg-slate-800 active:bg-slate-700 rounded-2xl p-4 flex flex-col items-center gap-3 border border-slate-700"
                   >
-                    <div className="w-12 h-[60px] rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center">
+                    <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center">
                       <span className="text-lg">🏆</span>
                     </div>
                     <div className="text-center">
@@ -774,7 +780,7 @@ export default function InstagramPostPage() {
                     onClick={() => { setPendingStandingMode('story'); setSheetScreen('session-picker') }}
                     className="bg-yellow-400 active:bg-yellow-300 rounded-2xl p-4 flex flex-col items-center gap-3"
                   >
-                    <div className="w-12 h-[60px] rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
+                    <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
                       <span className="text-lg">🏆</span>
                     </div>
                     <div className="text-center">

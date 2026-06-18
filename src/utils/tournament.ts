@@ -29,6 +29,7 @@ export interface StandingRow {
 export const GROUP_COURTS: Record<GroupId, number> = { A: 9, B: 10, C: 11, D: 12 }
 
 export interface TournamentSnapshot {
+  version?: number
   name: string
   date: string
   pairs: TournamentPair[]
@@ -116,8 +117,7 @@ export function computeGroupStandings(
 
 export function propagateBracket(
   matches: TournamentMatch[],
-  groups: Record<GroupId, string[]>,
-  _pairs: TournamentPair[]
+  groups: Record<GroupId, string[]>
 ): TournamentMatch[] {
   let result = [...matches]
 
