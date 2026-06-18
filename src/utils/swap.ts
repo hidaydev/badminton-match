@@ -52,8 +52,8 @@ export function applyTeamSwap(
   const game2 = schedule.find(s => s.slot === t2.slot && s.court === t2.court)
   if (!game1 || !game2) return schedule
 
-  const team1Players = t1.team === 'A' ? game1.teamA : game1.teamB
-  const team2Players = t2.team === 'A' ? game2.teamA : game2.teamB
+  const team1Players = [...(t1.team === 'A' ? game1.teamA : game1.teamB)] as [string, string]
+  const team2Players = [...(t2.team === 'A' ? game2.teamA : game2.teamB)] as [string, string]
   const sameGame = t1.slot === t2.slot && t1.court === t2.court
 
   return schedule.map(s => {
@@ -85,6 +85,7 @@ export function detectTeamSwapConflict(
   const game2 = schedule.find(s => s.slot === t2.slot && s.court === t2.court)
   if (!game1 || !game2) return null
 
+  // Same-game swap (Team A ↔ Team B of the same game) is always valid — no conflict possible
   const team1Players = t1.team === 'A' ? [...game1.teamA] : [...game1.teamB]
   const team1Other = t1.team === 'A' ? [...game1.teamB] : [...game1.teamA]
   const team2Players = t2.team === 'A' ? [...game2.teamA] : [...game2.teamB]
