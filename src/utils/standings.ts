@@ -60,6 +60,7 @@ export function computeStandings(
   return [...map.values()].sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins
     if (b.diff !== a.diff) return b.diff - a.diff
-    return b.pointsFor - a.pointsFor
+    if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor
+    return a.player.name.localeCompare(b.player.name)
   })
 }
