@@ -14,7 +14,8 @@ import type { GeneratorResult } from '../generator'
 import type { Player, GameScore, CourtTime } from '../store'
 import { timeToMinutes, minutesToTime } from '../store'
 import { computeStandings } from '../utils/standings'
-import type { SwapTarget } from '../utils/swap'
+import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
+import { detectTeamSwapConflict } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import { detectSlotSwapConflict } from '../utils/slotSwap'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
@@ -205,6 +206,7 @@ export default function SummaryModal({
   onSetAbsent,
   onReplacePlayer,
   onSwapSlots,
+  onSwapTeams,
   onRefetch,
   isRefetching = false,
 }: {
@@ -229,6 +231,7 @@ export default function SummaryModal({
   onSetAbsent?: (nextAbsent: string[]) => void
   onReplacePlayer?: (playerId: string, newName: string) => void
   onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
+  onSwapTeams?: (t1: TeamSwapTarget, t2: TeamSwapTarget) => void
   onRefetch?: () => void
   isRefetching?: boolean
 }) {
@@ -256,6 +259,11 @@ export default function SummaryModal({
   const [slotSwapMode, setSlotSwapMode] = useState(false)
   const [pendingSlotSwap, setPendingSlotSwap] = useState<{ g1: SlotSwapTarget; g2: SlotSwapTarget } | null>(null)
   const [slotSwapError, setSlotSwapError] = useState<string | null>(null)
+
+  const [teamSwapMode, setTeamSwapMode] = useState(false)
+  const [teamSwapSelected, setTeamSwapSelected] = useState<TeamSwapTarget | null>(null)
+  const [pendingTeamSwap, setPendingTeamSwap] = useState<{ t1: TeamSwapTarget; t2: TeamSwapTarget } | null>(null)
+  const [teamSwapError, setTeamSwapError] = useState<string | null>(null)
 
   const [actionsOpen, setActionsOpen] = useState(false)
 
@@ -320,6 +328,41 @@ export default function SummaryModal({
     exitReplaceMode()
     setActionsOpen(false)
     setSlotSwapMode(true)
+  }
+
+  function exitTeamSwapMode() {
+    setTeamSwapMode(false)
+    setTeamSwapSelected(null)
+    setPendingTeamSwap(null)
+    setTeamSwapError(null)
+  }
+
+  function handleTeamClick(target: TeamSwapTarget) {
+    if (!teamSwapMode) return
+    if (
+      teamSwapSelected &&
+      teamSwapSelected.slot === target.slot &&
+      teamSwapSelected.court === target.court &&
+      teamSwapSelected.team === target.team
+    ) {
+      setTeamSwapSelected(null)
+      setTeamSwapError(null)
+      return
+    }
+    if (!teamSwapSelected) {
+      setTeamSwapSelected(target)
+      setTeamSwapError(null)
+      return
+    }
+    const conflictId = detectTeamSwapConflict(result.schedule, teamSwapSelected, target)
+    if (conflictId) {
+      setTeamSwapError(`Can't swap — ${playerMap.get(conflictId)?.name ?? conflictId} already plays in that game`)
+      setTeamSwapSelected(null)
+      return
+    }
+    setTeamSwapError(null)
+    setPendingTeamSwap({ t1: teamSwapSelected, t2: target })
+    setTeamSwapSelected(null)
   }
 
   // In absent mode, preview pending selections; otherwise use saved state
@@ -431,13 +474,13 @@ export default function SummaryModal({
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
             <button
-              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode() }}
+              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Schedule
             </button>
             <button
-              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode() }}
+              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Leaderboard
@@ -450,10 +493,10 @@ export default function SummaryModal({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots) && (
-            swapMode || absentMode || replaceMode || slotSwapMode ? (
+          {activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams) && (
+            swapMode || absentMode || replaceMode || slotSwapMode || teamSwapMode ? (
               <button
-                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); setActionsOpen(false) }}
+                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); setActionsOpen(false) }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
                 ✕<span className="hidden sm:inline"> Cancel</span>
@@ -503,6 +546,14 @@ export default function SummaryModal({
                           className="w-full text-left px-4 py-2.5 text-xs font-medium text-orange-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
                         >
                           ↕ Switch slot
+                        </button>
+                      )}
+                      {onSwapTeams && (
+                        <button
+                          onClick={() => { setActionsOpen(false); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); setTeamSwapMode(true) }}
+                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-violet-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                        >
+                          ⇄ Swap team
                         </button>
                       )}
                     </div>
@@ -569,7 +620,7 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
+      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || pendingTeamSwap ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
         {swapMode && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
@@ -666,6 +717,15 @@ export default function SummaryModal({
             )}
           </div>
         )}
+        {teamSwapMode && (
+          <div className="mb-3 rounded-lg bg-violet-950/30 border border-violet-900/40 px-3 py-2">
+            {teamSwapError ? (
+              <span className="text-xs text-red-400">{teamSwapError}</span>
+            ) : (
+              <span className="text-xs text-violet-300 font-medium">⇄ Tap a team to select, then tap another team to swap</span>
+            )}
+          </div>
+        )}
         {activeTab === 'standings' ? (
           <StandingsTab
             players={[...playerMap.values()]}
@@ -704,8 +764,8 @@ export default function SummaryModal({
                             >
                               {/* Played checkbox */}
                               <div
-                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${swapMode || replaceMode || slotSwapMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                                onClick={() => { if (!saving && !swapMode && !replaceMode && !slotSwapMode) onTogglePlayedGame(key) }}
+                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${swapMode || replaceMode || slotSwapMode || teamSwapMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                                onClick={() => { if (!saving && !swapMode && !replaceMode && !slotSwapMode && !teamSwapMode) onTogglePlayedGame(key) }}
                               >
                                 {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                               </div>
@@ -714,142 +774,202 @@ export default function SummaryModal({
                                 <span className="text-[10px] font-semibold text-slate-600 whitespace-nowrap">
                                   {courtLabel(g.court)}
                                 </span>
-                                <div className="flex items-center gap-1 min-w-0">
-                                  {([0, 1] as const).map((i) => {
-                                    const id = g.teamA[i]
-                                    const n = name(id, s)
-                                    const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'A', index: i }
-                                    const isSelected =
-                                      (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
-                                      !!(pendingSwap && (
-                                        (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
-                                        (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
-                                      ))
-                                    const isDimmed = !!pendingSwap && !isSelected
+                                {teamSwapMode ? (
+                                  (() => {
+                                    const tgt: TeamSwapTarget = { slot: s, court: g.court, team: 'A' }
+                                    const isSelected = teamSwapSelected?.slot === s && teamSwapSelected?.court === g.court && teamSwapSelected?.team === 'A'
+                                    const isPending = !!(pendingTeamSwap && (
+                                      (pendingTeamSwap.t1.slot === s && pendingTeamSwap.t1.court === g.court && pendingTeamSwap.t1.team === 'A') ||
+                                      (pendingTeamSwap.t2.slot === s && pendingTeamSwap.t2.court === g.court && pendingTeamSwap.t2.team === 'A')
+                                    ))
+                                    const isDimmed = !!pendingTeamSwap && !isPending
                                     return (
-                                      <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
-                                        {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
-                                        {replaceMode ? (
-                                          <button
-                                            onClick={() => {
-                                              if (replaceTarget === id) {
-                                                setReplaceTarget(null)
-                                                setReplaceName('')
-                                              } else {
-                                                setReplaceTarget(id)
-                                                setReplaceName('')
-                                              }
-                                            }}
-                                            className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
-                                              replaceTarget === id
-                                                ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
-                                                : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
-                                            }`}
-                                          >
-                                            {n}
-                                          </button>
-                                        ) : swapMode && !done && !pendingSwap ? (
-                                          <button
-                                            onClick={() => handleChipClick(target)}
-                                            className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                      <button
+                                        onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
+                                        disabled={!!pendingTeamSwap}
+                                        className={`flex items-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md border transition-colors ${
+                                          isSelected || isPending
+                                            ? 'bg-violet-900/50 border-violet-500 ring-1 ring-violet-500/60'
+                                            : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
+                                        } ${isDimmed ? 'opacity-30' : ''}`}
+                                      >
+                                        {g.teamA.map((id, i) => (
+                                          <span key={i} className="flex items-center gap-1">
+                                            {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
+                                            <span className="text-xs font-medium text-slate-200">{name(id, s)}</span>
+                                          </span>
+                                        ))}
+                                      </button>
+                                    )
+                                  })()
+                                ) : (
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    {([0, 1] as const).map((i) => {
+                                      const id = g.teamA[i]
+                                      const n = name(id, s)
+                                      const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'A', index: i }
+                                      const isSelected =
+                                        (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
+                                        !!(pendingSwap && (
+                                          (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
+                                          (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
+                                        ))
+                                      const isDimmed = !!pendingSwap && !isSelected
+                                      return (
+                                        <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
+                                          {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
+                                          {replaceMode ? (
+                                            <button
+                                              onClick={() => {
+                                                if (replaceTarget === id) {
+                                                  setReplaceTarget(null)
+                                                  setReplaceName('')
+                                                } else {
+                                                  setReplaceTarget(id)
+                                                  setReplaceName('')
+                                                }
+                                              }}
+                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                                replaceTarget === id
+                                                  ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
+                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
+                                              }`}
+                                            >
+                                              {n}
+                                            </button>
+                                          ) : swapMode && !done && !pendingSwap ? (
+                                            <button
+                                              onClick={() => handleChipClick(target)}
+                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                                isSelected
+                                                  ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
+                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
+                                              }`}
+                                            >
+                                              {n}
+                                            </button>
+                                          ) : swapMode && !done && pendingSwap ? (
+                                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
                                               isSelected
                                                 ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                                : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
-                                            }`}
-                                          >
-                                            {n}
-                                          </button>
-                                        ) : swapMode && !done && pendingSwap ? (
-                                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
-                                            isSelected
-                                              ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                              : effectiveAbsent.has(id)
+                                                : effectiveAbsent.has(id)
+                                                  ? 'border-transparent text-slate-500 line-through'
+                                                  : 'border-transparent text-white'
+                                            }`}>{n}</span>
+                                          ) : (
+                                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
+                                              effectiveAbsent.has(id)
                                                 ? 'border-transparent text-slate-500 line-through'
-                                                : 'border-transparent text-white'
-                                          }`}>{n}</span>
-                                        ) : (
-                                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
-                                            effectiveAbsent.has(id)
-                                              ? 'border-transparent text-slate-500 line-through'
-                                              : done
-                                                ? 'border-transparent text-slate-400 line-through'
-                                                : 'border-transparent text-white'
-                                          }`}>{n}</span>
-                                        )}
-                                      </span>
-                                    )
-                                  })}
-                                </div>
+                                                : done
+                                                  ? 'border-transparent text-slate-400 line-through'
+                                                  : 'border-transparent text-white'
+                                            }`}>{n}</span>
+                                          )}
+                                        </span>
+                                      )
+                                    })}
+                                  </div>
+                                )}
                                 <span className="text-slate-600 text-xs text-center">vs</span>
-                                <div className="flex items-center gap-1 min-w-0">
-                                  {([0, 1] as const).map((i) => {
-                                    const id = g.teamB[i]
-                                    const n = name(id, s)
-                                    const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'B', index: i }
-                                    const isSelected =
-                                      (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
-                                      !!(pendingSwap && (
-                                        (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
-                                        (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
-                                      ))
-                                    const isDimmed = !!pendingSwap && !isSelected
+                                {teamSwapMode ? (
+                                  (() => {
+                                    const tgt: TeamSwapTarget = { slot: s, court: g.court, team: 'B' }
+                                    const isSelected = teamSwapSelected?.slot === s && teamSwapSelected?.court === g.court && teamSwapSelected?.team === 'B'
+                                    const isPending = !!(pendingTeamSwap && (
+                                      (pendingTeamSwap.t1.slot === s && pendingTeamSwap.t1.court === g.court && pendingTeamSwap.t1.team === 'B') ||
+                                      (pendingTeamSwap.t2.slot === s && pendingTeamSwap.t2.court === g.court && pendingTeamSwap.t2.team === 'B')
+                                    ))
+                                    const isDimmed = !!pendingTeamSwap && !isPending
                                     return (
-                                      <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
-                                        {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
-                                        {replaceMode ? (
-                                          <button
-                                            onClick={() => {
-                                              if (replaceTarget === id) {
-                                                setReplaceTarget(null)
-                                                setReplaceName('')
-                                              } else {
-                                                setReplaceTarget(id)
-                                                setReplaceName('')
-                                              }
-                                            }}
-                                            className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
-                                              replaceTarget === id
-                                                ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
-                                                : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
-                                            }`}
-                                          >
-                                            {n}
-                                          </button>
-                                        ) : swapMode && !done && !pendingSwap ? (
-                                          <button
-                                            onClick={() => handleChipClick(target)}
-                                            className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                      <button
+                                        onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
+                                        disabled={!!pendingTeamSwap}
+                                        className={`flex items-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md border transition-colors ${
+                                          isSelected || isPending
+                                            ? 'bg-violet-900/50 border-violet-500 ring-1 ring-violet-500/60'
+                                            : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
+                                        } ${isDimmed ? 'opacity-30' : ''}`}
+                                      >
+                                        {g.teamB.map((id, i) => (
+                                          <span key={i} className="flex items-center gap-1">
+                                            {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
+                                            <span className="text-xs font-medium text-slate-200">{name(id, s)}</span>
+                                          </span>
+                                        ))}
+                                      </button>
+                                    )
+                                  })()
+                                ) : (
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    {([0, 1] as const).map((i) => {
+                                      const id = g.teamB[i]
+                                      const n = name(id, s)
+                                      const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'B', index: i }
+                                      const isSelected =
+                                        (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
+                                        !!(pendingSwap && (
+                                          (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
+                                          (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
+                                        ))
+                                      const isDimmed = !!pendingSwap && !isSelected
+                                      return (
+                                        <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
+                                          {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
+                                          {replaceMode ? (
+                                            <button
+                                              onClick={() => {
+                                                if (replaceTarget === id) {
+                                                  setReplaceTarget(null)
+                                                  setReplaceName('')
+                                                } else {
+                                                  setReplaceTarget(id)
+                                                  setReplaceName('')
+                                                }
+                                              }}
+                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                                replaceTarget === id
+                                                  ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
+                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
+                                              }`}
+                                            >
+                                              {n}
+                                            </button>
+                                          ) : swapMode && !done && !pendingSwap ? (
+                                            <button
+                                              onClick={() => handleChipClick(target)}
+                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                                isSelected
+                                                  ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
+                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
+                                              }`}
+                                            >
+                                              {n}
+                                            </button>
+                                          ) : swapMode && !done && pendingSwap ? (
+                                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
                                               isSelected
                                                 ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                                : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
-                                            }`}
-                                          >
-                                            {n}
-                                          </button>
-                                        ) : swapMode && !done && pendingSwap ? (
-                                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
-                                            isSelected
-                                              ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                              : effectiveAbsent.has(id)
+                                                : effectiveAbsent.has(id)
+                                                  ? 'border-transparent text-slate-500 line-through'
+                                                  : 'border-transparent text-white'
+                                            }`}>{n}</span>
+                                          ) : (
+                                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
+                                              effectiveAbsent.has(id)
                                                 ? 'border-transparent text-slate-500 line-through'
-                                                : 'border-transparent text-white'
-                                          }`}>{n}</span>
-                                        ) : (
-                                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
-                                            effectiveAbsent.has(id)
-                                              ? 'border-transparent text-slate-500 line-through'
-                                              : done
-                                                ? 'border-transparent text-slate-400 line-through'
-                                                : 'border-transparent text-white'
-                                          }`}>{n}</span>
-                                        )}
-                                      </span>
-                                    )
-                                  })}
-                                </div>
+                                                : done
+                                                  ? 'border-transparent text-slate-400 line-through'
+                                                  : 'border-transparent text-white'
+                                            }`}>{n}</span>
+                                          )}
+                                        </span>
+                                      )
+                                    })}
+                                  </div>
+                                )}
                               </div>
                               {/* Score toggle / saved score */}
-                              {!swapMode && !replaceMode && !slotSwapMode && (savedScore && !isOpen ? (
+                              {!swapMode && !replaceMode && !slotSwapMode && !teamSwapMode && (savedScore && !isOpen ? (
                                 <button
                                   onClick={() => { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) }}
                                   className="text-[11px] font-bold text-emerald-400 shrink-0 whitespace-nowrap hover:text-emerald-300"
@@ -1042,6 +1162,47 @@ export default function SummaryModal({
                   onClick={() => { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitSlotSwapMode() }}
                   disabled={saving}
                   className="text-xs font-bold px-5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+                >
+                  {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                  {saving ? 'Saving…' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+      {/* Team swap confirm bar */}
+      {pendingTeamSwap && (() => {
+        const t1game = result.schedule.find(g => g.slot === pendingTeamSwap.t1.slot && g.court === pendingTeamSwap.t1.court)
+        const t2game = result.schedule.find(g => g.slot === pendingTeamSwap.t2.slot && g.court === pendingTeamSwap.t2.court)
+        const t1names = t1game
+          ? (pendingTeamSwap.t1.team === 'A' ? t1game.teamA : t1game.teamB).map(id => playerMap.get(id)?.name ?? id).join(' & ')
+          : '?'
+        const t2names = t2game
+          ? (pendingTeamSwap.t2.team === 'A' ? t2game.teamA : t2game.teamB).map(id => playerMap.get(id)?.name ?? id).join(' & ')
+          : '?'
+        return (
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-violet-900/40 px-4 py-3">
+            <div className="max-w-xl mx-auto">
+              <div className="bg-violet-950/50 border border-violet-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slate-200 truncate">
+                    <span className="text-violet-200">{t1names}</span>
+                    {' '}⇄{' '}
+                    <span className="text-violet-200">{t2names}</span>
+                  </p>
+                  <p className="text-[10px] text-red-400 mt-0.5">⚠ Cannot be undone</p>
+                </div>
+                <button
+                  onClick={exitTeamSwapMode}
+                  className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+                >
+                  ✕
+                </button>
+                <button
+                  onClick={() => { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitTeamSwapMode() }}
+                  disabled={saving}
+                  className="text-xs font-bold px-4 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
                 >
                   {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
                   {saving ? 'Saving…' : 'Confirm'}
