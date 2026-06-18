@@ -28,6 +28,24 @@ Important status:
 11. [supabase/seeds/20260617_bm_parity_checks.sql](/Users/sachiel/Projects/badminton-match/supabase/seeds/20260617_bm_parity_checks.sql:1)
 12. [supabase/seeds/20260617_bm_smoke_checks.sql](/Users/sachiel/Projects/badminton-match/supabase/seeds/20260617_bm_smoke_checks.sql:1)
 
+## Supabase API Config Note
+
+If you remove a live schema such as `badminton_match`, also remove it from
+Supabase `Project Settings -> API -> Exposed schemas`.
+
+If an already-dropped schema is still exposed, PostgREST can start returning:
+
+- `PGRST002`
+- `Could not query the database for the schema cache`
+
+Minimum recovery steps:
+
+1. remove the dropped schema from `Exposed schemas`
+2. run:
+   `notify pgrst, 'reload schema';`
+3. if needed, also run:
+   `notify pgrst, 'reload config';`
+
 ## Recommended Execution Flow
 
 1. Apply the full normalized stack in order:
@@ -64,6 +82,7 @@ The current target state for this app is `bm`-only runtime ownership.
 - apply `000023` when you are ready to remove the live legacy schema from this
   local app database
 - `public.bm_*` can remain if another project still depends on them
+- after dropping a schema, clean up `Exposed schemas` in Supabase API settings too
 
 ## What You Need To Run Right Now
 

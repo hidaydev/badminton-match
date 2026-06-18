@@ -47,6 +47,11 @@ Applied migration:
 - [`supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql`](../../supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql)
 - [`supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql`](../../supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql)
 - [`supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql`](../../supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql)
+- [`supabase/migrations/20260618_000024_bm_phase_c_uuid_relations_batch_1.sql`](../../supabase/migrations/20260618_000024_bm_phase_c_uuid_relations_batch_1.sql)
+- [`supabase/migrations/20260618_000025_bm_phase_c_uuid_relations_batch_2.sql`](../../supabase/migrations/20260618_000025_bm_phase_c_uuid_relations_batch_2.sql)
+- [`supabase/migrations/20260618_000026_bm_phase_c_uuid_relations_batch_3.sql`](../../supabase/migrations/20260618_000026_bm_phase_c_uuid_relations_batch_3.sql)
+- [`supabase/migrations/20260618_000027_bm_runtime_hardening.sql`](../../supabase/migrations/20260618_000027_bm_runtime_hardening.sql)
+- [`supabase/migrations/20260618_000028_bm_runtime_regression_fix.sql`](../../supabase/migrations/20260618_000028_bm_runtime_regression_fix.sql)
 
 Created:
 
@@ -74,6 +79,7 @@ Main practical state now:
 - session publish is internal-id-first
 - app runtime depends on `bm` only
 - `badminton_match` is now historical migration context, not a live runtime target
+- active relational graph in `bm` is UUID-first
 
 ### Frontend migration
 
@@ -121,7 +127,7 @@ Verified result:
 
 1. production security hardening
 2. formal long-term export boundary for `MDEF`
-3. remaining schema finalization work, especially bigint identity retirement inside `bm`
+3. selective compatibility cleanup and operational hardening
 
 ## Important operational truth
 
@@ -136,6 +142,13 @@ It is accurate to say:
 It is still not accurate to say:
 
 - everything is fully hardened for production rollout
+
+Operational note:
+
+- if a schema is dropped from the database, it must also be removed from
+  Supabase `Exposed schemas`
+- otherwise PostgREST can return `PGRST002` schema cache errors even when app
+  code is correct
 
 ## Historical backfill reality
 
@@ -173,12 +186,12 @@ These are the main migration/doc checkpoints so far:
 
 Next session should start with:
 
-### Phase C: final bm schema cleanup
+### Phase D: compatibility and hardening
 
 Order:
 
 1. keep smoke-checking the direct `bm.*` RPC surface after changes
-2. remove remaining bigint-first relational identity paths inside `bm`
+2. review remaining compatibility helpers and grants deliberately
 3. harden production-facing access controls if deployment scope expands
 
 Latest audit:
