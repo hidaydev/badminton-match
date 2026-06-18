@@ -5,6 +5,14 @@ import type { CloudSnapshot, SessionMeta } from './types'
 import { applySwap, type SwapTarget } from '../utils/swap'
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 
+async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryClient>, sessionId: string) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['session', sessionId] }),
+    queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+    queryClient.invalidateQueries({ queryKey: ['player'] }),
+  ])
+}
+
 export function useListSessions(options?: { enabled?: boolean }) {
   return useQuery<SessionMeta[]>({
     queryKey: ['sessions'],
@@ -46,8 +54,7 @@ export function useTogglePlayed(sessionId: string) {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
       const updated: CloudSnapshot = { ...current, playedGames: nextPlayed }
-      await publishSession(sessionId, updated)
-      return updated
+      return await publishSession(sessionId, updated)
     },
     onMutate: async ({ nextPlayed }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
@@ -61,8 +68,11 @@ export function useTogglePlayed(sessionId: string) {
     onError: (_err, _vars, context) => {
       queryClient.setQueryData(['session', sessionId], context?.previous)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
+    },
+    onSettled: async () => {
+      await invalidateSessionQueries(queryClient, sessionId)
     },
   })
 }
@@ -78,8 +88,7 @@ export function useSetScore(sessionId: string) {
         ? current.playedGames
         : [...current.playedGames, key]
       const updated: CloudSnapshot = { ...current, gameScores: nextScores, playedGames: nextPlayed }
-      await publishSession(sessionId, updated)
-      return updated
+      return await publishSession(sessionId, updated)
     },
     onMutate: async ({ key, a, b }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
@@ -97,8 +106,11 @@ export function useSetScore(sessionId: string) {
     onError: (_err, _vars, context) => {
       queryClient.setQueryData(['session', sessionId], context?.previous)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
+    },
+    onSettled: async () => {
+      await invalidateSessionQueries(queryClient, sessionId)
     },
   })
 }
@@ -111,8 +123,7 @@ export function useSwapPlayers(sessionId: string) {
       if (!current) throw new Error('no data')
       const nextSchedule = applySwap(current.schedule, t1, t2)
       const updated: CloudSnapshot = { ...current, schedule: nextSchedule }
-      await publishSession(sessionId, updated)
-      return updated
+      return await publishSession(sessionId, updated)
     },
     onMutate: async ({ t1, t2 }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
@@ -126,8 +137,11 @@ export function useSwapPlayers(sessionId: string) {
     onError: (_err, _vars, context) => {
       queryClient.setQueryData(['session', sessionId], context?.previous)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
+    },
+    onSettled: async () => {
+      await invalidateSessionQueries(queryClient, sessionId)
     },
   })
 }
@@ -139,8 +153,7 @@ export function useSetAbsent(sessionId: string) {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
       const updated: CloudSnapshot = { ...current, absentPlayers: nextAbsent }
-      await publishSession(sessionId, updated)
-      return updated
+      return await publishSession(sessionId, updated)
     },
     onMutate: async ({ nextAbsent }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
@@ -154,8 +167,11 @@ export function useSetAbsent(sessionId: string) {
     onError: (_err, _vars, context) => {
       queryClient.setQueryData(['session', sessionId], context?.previous)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
+    },
+    onSettled: async () => {
+      await invalidateSessionQueries(queryClient, sessionId)
     },
   })
 }
@@ -170,8 +186,7 @@ export function useReplacePlayer(sessionId: string) {
         p.id === playerId ? { ...p, name: newName } : p
       )
       const updated: CloudSnapshot = { ...current, players: nextPlayers }
-      await publishSession(sessionId, updated)
-      return updated
+      return await publishSession(sessionId, updated)
     },
     onMutate: async ({ playerId, newName }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
@@ -188,8 +203,11 @@ export function useReplacePlayer(sessionId: string) {
     onError: (_err, _vars, context) => {
       queryClient.setQueryData(['session', sessionId], context?.previous)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
+    },
+    onSettled: async () => {
+      await invalidateSessionQueries(queryClient, sessionId)
     },
   })
 }
@@ -230,8 +248,7 @@ export function useSwapSlots(sessionId: string) {
       // because the function matches by {slot,court} which have already been exchanged.
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      await publishSession(sessionId, current)
-      return current
+      return await publishSession(sessionId, current)
     },
     onMutate: async ({ g1, g2 }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
@@ -250,8 +267,11 @@ export function useSwapSlots(sessionId: string) {
     onError: (_err, _vars, context) => {
       queryClient.setQueryData(['session', sessionId], context?.previous)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
+    },
+    onSettled: async () => {
+      await invalidateSessionQueries(queryClient, sessionId)
     },
   })
 }
