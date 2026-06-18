@@ -1,9 +1,10 @@
 # Supabase Migration
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This document tracks the migration of `badminton-match` from Google Apps
-Script / Google Sheets to Supabase.
+Script / Google Sheets to Supabase, and records the path from the initial
+landing schema to the current `bm` runtime target.
 
 ## Goal
 
@@ -15,7 +16,8 @@ Move `badminton-match` to Supabase without changing the product model:
 - same player-history behavior
 - no `MDEF` changes yet
 
-The migration is intentionally snapshot-first, not fully normalized.
+The migration started snapshot-first and later evolved into a normalized
+`bm` runtime architecture.
 
 ## Architecture choice
 
@@ -25,20 +27,23 @@ The migration is intentionally snapshot-first, not fully normalized.
 
 ### Schema boundary
 
-- separate schema: `badminton_match`
+Migration path:
 
-This avoids forcing shared tables while still keeping both apps in one backend
-project.
+1. landing schema: `badminton_match`
+2. normalized runtime schema: `bm`
+
+This allowed a low-risk landing first, then a cleaner long-term runtime model.
 
 ### Storage strategy
 
-Use snapshot-centric tables first:
+Stage 1:
 
-1. `badminton_match.sessions`
-2. `badminton_match.tournaments`
-3. `badminton_match.session_exports`
+- snapshot-centric landing in `badminton_match`
 
-This preserves current app behavior and keeps migration risk low.
+Stage 2:
+
+- normalized runtime ownership in `bm`
+- compatibility snapshot surfaces retained where useful
 
 ## Implemented
 
@@ -121,26 +126,45 @@ These are still open:
 ### What is true
 
 - the main session feature set is now running on Supabase
-- the app no longer depends on Google Sheets for the tested session flows
-- the migration is viable
+- the app no longer depends on Google Sheets for the tested local session flows
+- `bm` is the primary runtime schema
+- `badminton_match` is now mainly migration history and compatibility context
+- the migration is viable and structurally coherent
 
 ### What is not yet true
 
-- this is not fully production-grade yet
-- old Google Sheets data has not been migrated into Supabase
+- this is not fully production-hardened yet
+- old Google Sheets data has not been fully migrated into Supabase
 - security posture has not been tightened enough for a production claim
 
 ## Big plan
 
-### Phase 1: backend migration
+### Phase 1: Supabase landing
 
 Status: done
 
-- create Supabase schema and tables
+- create `badminton_match` landing schema
 - replace Apps Script query layer
 - validate main session flows
 
-### Phase 2: historical backfill
+### Phase 2: normalized `bm` runtime migration
+
+Status: done
+
+Goal:
+
+- move the active runtime architecture onto `bm`
+
+Delivered:
+
+- normalized schema
+- parity backfill
+- optimistic concurrency
+- validation
+- UUID-first identity hardening
+- internal-id-first session write path
+
+### Phase 3: historical backfill
 
 Status: next
 
@@ -159,7 +183,7 @@ Work:
    - player history
    - player stats
 
-### Phase 3: tournament verification
+### Phase 4: tournament verification
 
 Status: pending
 
@@ -175,7 +199,7 @@ Work:
 4. set bracket scores
 5. verify propagated bracket state persists correctly
 
-### Phase 4: security hardening
+### Phase 5: security hardening
 
 Status: pending
 
@@ -193,7 +217,7 @@ Work:
 3. add RLS or explicit public-write policy
 4. verify failure behavior
 
-### Phase 5: export surface for `MDEF`
+### Phase 6: export surface for `MDEF`
 
 Status: deferred
 
@@ -210,7 +234,7 @@ Later:
 - stable export payload from `session_exports`
 - optional URL-based export again if needed
 
-### Phase 6: documentation baseline
+### Phase 7: documentation baseline and closure
 
 Status: started
 
@@ -227,6 +251,7 @@ Remaining:
 
 - update docs after historical backfill
 - update docs after tournament verification
+- reduce compatibility surface only when safe
 
 ## Google Sheets export reality
 
