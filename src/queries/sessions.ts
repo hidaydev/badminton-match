@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
-import type { SwapTarget } from '../utils/swap'
+import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import {
   replacePlayerNameInSnapshot,
@@ -10,6 +10,7 @@ import {
   setScoreInSnapshot,
   swapPlayersInSnapshot,
   swapSlotsInSnapshot,
+  swapTeamsInSnapshot,
   togglePlayedInSnapshot,
 } from '../utils/sessionSnapshot'
 
@@ -135,6 +136,36 @@ export function useSwapPlayers(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         return swapPlayersInSnapshot(old, t1, t2)
+      })
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(['session', sessionId], context?.previous)
+    },
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
+    },
+    onSettled: async () => {
+      await invalidateSessionQueries(queryClient, sessionId)
+    },
+  })
+}
+
+export function useSwapTeams(sessionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ t1, t2 }: { t1: TeamSwapTarget; t2: TeamSwapTarget }) => {
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      const updated = swapTeamsInSnapshot(current, t1, t2)
+      return await publishSession(sessionId, updated)
+    },
+    onMutate: async ({ t1, t2 }) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
+        if (!old) return old
+        return swapTeamsInSnapshot(old, t1, t2)
       })
       return { previous }
     },
