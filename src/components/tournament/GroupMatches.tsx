@@ -180,7 +180,7 @@ function drawGroupSummary(
   })
 }
 
-export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onResetGroups: _onResetGroups, onRegeneratePics: _onRegeneratePics, isRegeneratingPics: _isRegeneratingPics, onOpenModal, isFetching, refetch }: Props) {
+export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: Props) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
   const [postModeGroups, setPostModeGroups] = useState<Record<string, boolean>>({})
@@ -213,7 +213,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     pairIds: string[],
     allMatches: TournamentMatch[],
   ) => {
-    const suffix = Math.floor(Math.random() * 90000) + 10000
+    const groupSlug = `group-${g.toLowerCase()}`
     const blobOf = (c: HTMLCanvasElement) => new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
 
     const files: File[] = []
@@ -238,7 +238,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         overlays.sponsor,
       )
       const matchBlob = await blobOf(matchCanvas)
-      if (matchBlob) files.push(new File([matchBlob], `group-${g.toLowerCase()}-match-${matchIndex}-${suffix}.jpg`, { type: 'image/jpeg' }))
+      if (matchBlob) files.push(new File([matchBlob], `${groupSlug}-match-${matchIndex}.jpg`, { type: 'image/jpeg' }))
       matchIndex++
     }
 
@@ -247,7 +247,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     const summaryCanvas = document.createElement('canvas')
     drawGroupSummary(summaryCanvas, g, standings, getPairName, overlays.summaryBg, overlays.sponsor, overlays.logo)
     const summaryBlob = await blobOf(summaryCanvas)
-    if (summaryBlob) files.push(new File([summaryBlob], `group-${g.toLowerCase()}-summary-${suffix}.jpg`, { type: 'image/jpeg' }))
+    if (summaryBlob) files.push(new File([summaryBlob], `${groupSlug}-summary.jpg`, { type: 'image/jpeg' }))
 
     if (files.length === 0) return
 
@@ -322,11 +322,11 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                 <div key={m.id} className="relative flex items-center divide-y-0">
                   <button
                     onClick={() => { onOpenModal(); setActiveMatchId(m.id) }}
-                    className="flex-1 flex flex-col px-4 pt-3 pb-2.5 hover:bg-slate-700/50 active:bg-slate-600/60 active:scale-[0.98] transition-transform duration-75 gap-1.5"
+                    className="flex-1 flex flex-col px-4 pt-3 pb-2.5 hover:bg-slate-700/50 active:bg-slate-600/60 active:scale-98 transition-transform duration-75 gap-1.5"
                   >
                     <div className="flex items-center gap-2 w-full">
                       <span className="text-xs text-slate-300 flex-1 truncate text-left">{getPairName(m.pairAId)}</span>
-                      <span className="text-xs font-bold text-yellow-400 shrink-0 min-w-[56px] text-center bg-slate-900 rounded-md px-2 py-1">
+                      <span className="text-xs font-bold text-yellow-400 shrink-0 min-w-14 text-center bg-slate-900 rounded-md px-2 py-1">
                         {m.scoreA !== null ? `${m.scoreA}–${m.scoreB}` : '—'}
                       </span>
                       <span className="text-xs text-slate-300 flex-1 text-right truncate">{getPairName(m.pairBId)}</span>
@@ -392,7 +392,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
               {standings.map((row, i) => (
                 <div
                   key={row.pairId}
-                  className={`grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] items-center py-1 px-1 rounded gap-x-2 text-xs ${i < 2 ? 'bg-yellow-400/[0.06]' : ''}`}
+                  className={`grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] items-center py-1 px-1 rounded gap-x-2 text-xs ${i < 2 ? 'bg-yellow-400/6' : ''}`}
                 >
                   <span className={`font-bold ${i < 2 ? 'text-yellow-100' : 'text-slate-600'}`}>{i + 1}</span>
                   <span className={`truncate font-medium ${i < 2 ? 'text-yellow-100' : 'text-slate-400'}`}>{getPairName(row.pairId)}</span>
@@ -432,6 +432,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
 
       {activeMatch && (
         <ScoreModal
+          key={`${activeMatch.id}:${activeMatch.scoreA ?? 'na'}:${activeMatch.scoreB ?? 'na'}:${isFetching ? 'loading' : 'ready'}`}
           match={activeMatch}
           pairAName={getPairName(activeMatch.pairAId)}
           pairBName={getPairName(activeMatch.pairBId)}

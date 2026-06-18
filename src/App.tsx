@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import UpdateBanner from './components/UpdateBanner'
@@ -18,22 +18,7 @@ import InstagramPostPage from './pages/InstagramPostPage'
 import ScoreboardPage from './pages/ScoreboardPage'
 import { useStore } from './store'
 import { decodeSnapshot, type SharedSnapshot } from './utils/shareUrl'
-
-interface SharedViewContextType {
-  snapshot: SharedSnapshot | null
-  isSharedView: boolean
-  exitSharedView: () => void
-}
-
-const SharedViewContext = createContext<SharedViewContextType>({
-  snapshot: null,
-  isSharedView: false,
-  exitSharedView: () => {},
-})
-
-export function useSharedView() {
-  return useContext(SharedViewContext)
-}
+import { SharedViewContext, useSharedView } from './sharedView'
 
 function RequireSession({ children }: { children: React.ReactNode }) {
   const locked = useStore((s) => s.session.locked)
@@ -65,7 +50,7 @@ export default function App() {
     window.location.href = window.location.origin + '/'
   }, [])
 
-  const sharedViewValue = useMemo<SharedViewContextType>(() => ({
+  const sharedViewValue = useMemo(() => ({
     snapshot: sharedSnapshot,
     isSharedView: !!sharedSnapshot,
     exitSharedView,

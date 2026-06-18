@@ -215,7 +215,7 @@ export default function SetupPage() {
 
         {/* Block 0: Session identity */}
         <div className="flex flex-wrap gap-4">
-          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+          <div className="flex flex-col gap-1 flex-1 min-w-45">
             <label className="text-xs text-slate-400">Session title</label>
             <input
               type="text"
@@ -226,7 +226,7 @@ export default function SetupPage() {
               className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed h-9"
             />
           </div>
-          <div className="flex flex-col gap-1 min-w-[140px]">
+          <div className="flex flex-col gap-1 min-w-35">
             <label className="text-xs text-slate-400">Date</label>
             <input
               type="date"
