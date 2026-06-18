@@ -152,37 +152,32 @@ Fields:
 
 ## Supabase persistence model
 
-Current migration design uses three tables:
+Current main runtime schema:
 
-1. `badminton_match.sessions`
-2. `badminton_match.tournaments`
-3. `badminton_match.session_exports`
+1. `bm`
 
-### Why snapshot-first
+Current approach is aggregate-root plus normalized relational support:
+
+- sessions and tournaments still preserve snapshot-style contracts for app compatibility
+- relational child tables support indexing, stats, integrity, and future evolution
+
+### Main aggregate roots
+
+- `bm.sessions`
+- `bm.tournaments`
+- `bm.players`
+
+### Main child entities
+
+- `bm.session_players`
+- `bm.fix_matches`
+- `bm.scheduled_games`
+
+### Why this shape
 
 Reasons:
 
-- minimal behavior change
-- preserves current UI assumptions
-- avoids a premature relational redesign
-- keeps the migration scoped
-
-### What is extracted into indexed columns
-
-For sessions:
-
-- `id`
-- `title`
-- `session_date`
-- `player_count`
-- `total_games`
-- timestamps
-
-For tournaments:
-
-- `id`
-- `name`
-- `event_date`
-- timestamps
-
-The full app state remains in `jsonb` snapshots.
+- keeps current app behavior stable
+- preserves compatibility snapshot contracts
+- enables stronger validation and integrity
+- allows progressive migration toward a cleaner normalized model

@@ -148,15 +148,13 @@ the full dataset.
 
 ### Current migration direction
 
-The app is being migrated to Supabase with a separate schema:
+The app now targets the `bm` schema as the main runtime backend.
 
-- `badminton_match`
+Current persistence strategy is:
 
-Current persistence strategy is snapshot-first:
-
-- `sessions`
-- `tournaments`
-- `session_exports`
+- aggregate-root oriented
+- compatibility-snapshot preserving
+- relationally normalized for session internals and player stats
 
 This keeps product behavior stable while reducing migration risk.
 
@@ -168,3 +166,4 @@ The intended architecture is:
 - keep storage concerns behind the query layer
 - keep pure domain logic in generator and utility modules
 - avoid making `MDEF` shape the internal schema of `badminton-match`
+- treat `bm` as the primary production-target schema

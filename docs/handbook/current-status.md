@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This is the fastest handover file for continuing work on this repository.
 
@@ -31,6 +31,22 @@ Applied migration:
 - [`supabase/migrations/20260617_000004_bm_compat_parity_fix.sql`](../../supabase/migrations/20260617_000004_bm_compat_parity_fix.sql)
 - [`supabase/migrations/20260617_000005_bm_tournaments.sql`](../../supabase/migrations/20260617_000005_bm_tournaments.sql)
 - [`supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql`](../../supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql)
+- [`supabase/migrations/20260618_000007_bm_session_optimistic_concurrency.sql`](../../supabase/migrations/20260618_000007_bm_session_optimistic_concurrency.sql)
+- [`supabase/migrations/20260618_000008_bm_publish_session_fail_fast.sql`](../../supabase/migrations/20260618_000008_bm_publish_session_fail_fast.sql)
+- [`supabase/migrations/20260618_000009_bm_publish_session_conflict_errors.sql`](../../supabase/migrations/20260618_000009_bm_publish_session_conflict_errors.sql)
+- [`supabase/migrations/20260618_000010_bm_identity_and_tournament_concurrency.sql`](../../supabase/migrations/20260618_000010_bm_identity_and_tournament_concurrency.sql)
+- [`supabase/migrations/20260618_000011_bm_schema_hardening_batch_2.sql`](../../supabase/migrations/20260618_000011_bm_schema_hardening_batch_2.sql)
+- [`supabase/migrations/20260618_000012_bm_tournament_snapshot_validation.sql`](../../supabase/migrations/20260618_000012_bm_tournament_snapshot_validation.sql)
+- [`supabase/migrations/20260618_000013_bm_session_snapshot_validation.sql`](../../supabase/migrations/20260618_000013_bm_session_snapshot_validation.sql)
+- [`supabase/migrations/20260618_000014_bm_runtime_schema_cleanup.sql`](../../supabase/migrations/20260618_000014_bm_runtime_schema_cleanup.sql)
+- [`supabase/migrations/20260618_000015_bm_uuid_first_phase_a_batch_1.sql`](../../supabase/migrations/20260618_000015_bm_uuid_first_phase_a_batch_1.sql)
+- [`supabase/migrations/20260618_000016_bm_uuid_first_phase_a_batch_2.sql`](../../supabase/migrations/20260618_000016_bm_uuid_first_phase_a_batch_2.sql)
+- [`supabase/migrations/20260618_000017_bm_uuid_first_phase_a_batch_3.sql`](../../supabase/migrations/20260618_000017_bm_uuid_first_phase_a_batch_3.sql)
+- [`supabase/migrations/20260618_000018_bm_uuid_first_phase_a_batch_4.sql`](../../supabase/migrations/20260618_000018_bm_uuid_first_phase_a_batch_4.sql)
+- [`supabase/migrations/20260618_000019_bm_phase_b_domain_internal_ids.sql`](../../supabase/migrations/20260618_000019_bm_phase_b_domain_internal_ids.sql)
+- [`supabase/migrations/20260618_000020_bm_phase_b_internal_id_adoption.sql`](../../supabase/migrations/20260618_000020_bm_phase_b_internal_id_adoption.sql)
+- [`supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql`](../../supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql)
+- [`supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql`](../../supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql)
 
 Created:
 
@@ -54,6 +70,12 @@ RPC functions created for local app usage:
 
 The local app now targets the underlying `bm.*` functions directly through the
 `bm` PostgREST profile.
+
+Main practical state now:
+
+- aggregate identity is UUID-first
+- session publish is internal-id-first
+- compatibility snapshot surfaces are retained intentionally
 
 ### Frontend migration
 
@@ -102,18 +124,21 @@ Verified result:
 1. historical data backfill from legacy Google Sheets storage
 2. production security hardening
 3. formal long-term export boundary for `MDEF`
+4. optional compatibility surface reduction
 
 ## Important operational truth
 
-The migration is functionally viable, but not yet fully production-grade.
+The persistence migration arc is effectively closed.
 
 It is accurate to say:
 
-- core session storage has been successfully migrated to Supabase
+- Google Sheets is no longer the active runtime direction
+- `badminton_match` served as the landing bridge
+- `bm` is now the main schema target
 
-It is not yet accurate to say:
+It is still not accurate to say:
 
-- all functionality is fully verified and hardened for production
+- everything is fully hardened for production rollout
 
 ## Historical backfill reality
 
@@ -151,13 +176,13 @@ These are the main migration/doc checkpoints so far:
 
 Next session should start with:
 
-### Phase 3: stabilization
+### Phase 4: consolidation and hardening
 
 Order:
 
 1. keep smoke-checking the direct `bm.*` RPC surface after changes
-2. audit UI write flows against normalized storage
-3. decide whether any legacy-only SQL can be retired from local workflow
+2. decide whether any compatibility surface can be reduced safely
+3. harden production-facing access controls if deployment scope expands
 
 Latest audit:
 
@@ -169,6 +194,7 @@ A new session should read these first:
 
 1. [`docs/handbook/current-status.md`](current-status.md)
 2. [`docs/handbook/supabase-migration.md`](supabase-migration.md)
-3. [`docs/handbook/roadmap.md`](roadmap.md)
+3. [`docs/handbook/persistence-migration-closure-2026-06-18.md`](persistence-migration-closure-2026-06-18.md)
+4. [`docs/handbook/roadmap.md`](roadmap.md)
 
 That is enough context to resume efficiently.
