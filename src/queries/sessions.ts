@@ -123,16 +123,16 @@ export function useSetScore(sessionId: string) {
 
 export function useSwapPlayers(sessionId: string) {
   const queryClient = useQueryClient()
+  let pendingSnapshot: CloudSnapshot | undefined
   return useMutation({
-    mutationFn: async ({ t1, t2 }: { t1: SwapTarget; t2: SwapTarget }) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      const updated = swapPlayersInSnapshot(current, t1, t2)
-      return await publishSession(sessionId, updated)
+    mutationFn: async (_vars: { t1: SwapTarget; t2: SwapTarget }) => {
+      if (!pendingSnapshot) throw new Error('no data')
+      return await publishSession(sessionId, pendingSnapshot)
     },
     onMutate: async ({ t1, t2 }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      pendingSnapshot = previous ? swapPlayersInSnapshot(previous, t1, t2) : undefined
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         return swapPlayersInSnapshot(old, t1, t2)
@@ -153,16 +153,16 @@ export function useSwapPlayers(sessionId: string) {
 
 export function useSwapTeams(sessionId: string) {
   const queryClient = useQueryClient()
+  let pendingSnapshot: CloudSnapshot | undefined
   return useMutation({
-    mutationFn: async ({ t1, t2 }: { t1: TeamSwapTarget; t2: TeamSwapTarget }) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      const updated = swapTeamsInSnapshot(current, t1, t2)
-      return await publishSession(sessionId, updated)
+    mutationFn: async (_vars: { t1: TeamSwapTarget; t2: TeamSwapTarget }) => {
+      if (!pendingSnapshot) throw new Error('no data')
+      return await publishSession(sessionId, pendingSnapshot)
     },
     onMutate: async ({ t1, t2 }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      pendingSnapshot = previous ? swapTeamsInSnapshot(previous, t1, t2) : undefined
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         return swapTeamsInSnapshot(old, t1, t2)
