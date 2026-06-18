@@ -1,19 +1,23 @@
-# Documentation
+# Handbook
 
-This folder is the working documentation set for `badminton-match`.
+This is the active documentation set for `badminton-match`.
 
-## Start here
+Read this folder as the working source of truth for the app in its current
+Supabase-backed shape, with `bm` as the intended runtime schema.
 
-If you only read four files, read these:
+## Start Here
+
+If you only read five files, read these:
 
 1. [`current-status.md`](current-status.md)
 2. [`product-overview.md`](product-overview.md)
-3. [`supabase-migration.md`](supabase-migration.md)
-4. [`roadmap.md`](roadmap.md)
+3. [`architecture.md`](architecture.md)
+4. [`bm-supabase-runbook.md`](bm-supabase-runbook.md)
+5. [`roadmap.md`](roadmap.md)
 
-## Documentation set
+## Map
 
-### Product and system
+### Product and runtime
 
 - [`current-status.md`](current-status.md)
 - [`product-overview.md`](product-overview.md)
@@ -21,18 +25,27 @@ If you only read four files, read these:
 - [`data-model.md`](data-model.md)
 - [`architecture.md`](architecture.md)
 
-### Integration and migration
+### Supabase and operations
 
 - [`supabase-migration.md`](supabase-migration.md)
+- [`bm-supabase-runbook.md`](bm-supabase-runbook.md)
+- [`bm-write-flow-audit.md`](bm-write-flow-audit.md)
 - [`mdef-integration.md`](mdef-integration.md)
 - [`roadmap.md`](roadmap.md)
-- [`../../supabase/migrations/20260616_000001_badminton_match_schema.sql`](../../supabase/migrations/20260616_000001_badminton_match_schema.sql)
 
-### Historical notes
+### Schema and migration detail
 
-The earlier design and planning artifacts are preserved under:
+- [`bm-schema-audit-2026-06-18.md`](bm-schema-audit-2026-06-18.md)
+- [`bm-canonical-schema-map-2026-06-18.md`](bm-canonical-schema-map-2026-06-18.md)
+- [`persistence-migration-closure-2026-06-18.md`](persistence-migration-closure-2026-06-18.md)
+- [`../../supabase/migrations/`](../../supabase/migrations/)
+
+## Historical Notes
+
+Earlier plans and specs still live under:
 
 - [`../superpowers/`](../superpowers)
 
-Those files are useful as historical context but should not be treated as the
-current top-level architecture source of truth.
+Treat those as historical context only. They are useful for understanding why
+some decisions were made, but they are not the primary source for the current
+app contract.

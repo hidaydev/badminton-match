@@ -1,6 +1,6 @@
 # BM Supabase Runbook
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This runbook describes the exact SQL execution order for the new normalized
 `bm` schema.
@@ -15,18 +15,22 @@ Important status:
 
 ## Files To Run
 
-1. [supabase/migrations/20260616_000001_badminton_match_schema.sql](/Users/sachiel/Projects/badminton-match/supabase/migrations/20260616_000001_badminton_match_schema.sql:1)
-2. [supabase/migrations/20260617_000002_badminton_match_rpc_schema_ownership.sql](/Users/sachiel/Projects/badminton-match/supabase/migrations/20260617_000002_badminton_match_rpc_schema_ownership.sql:1)
-3. [supabase/migrations/20260617_000003_bm_normalized_schema.sql](/Users/sachiel/Projects/badminton-match/supabase/migrations/20260617_000003_bm_normalized_schema.sql:1)
-4. [supabase/migrations/20260617_000004_bm_compat_parity_fix.sql](/Users/sachiel/Projects/badminton-match/supabase/migrations/20260617_000004_bm_compat_parity_fix.sql:1)
-5. [supabase/migrations/20260617_000005_bm_tournaments.sql](/Users/sachiel/Projects/badminton-match/supabase/migrations/20260617_000005_bm_tournaments.sql:1)
-6. [supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql](/Users/sachiel/Projects/badminton-match/supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql:1)
-7. [supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql](/Users/sachiel/Projects/badminton-match/supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql:1)
-8. [supabase/seeds/20260617_bm_identity_seed.sql](/Users/sachiel/Projects/badminton-match/supabase/seeds/20260617_bm_identity_seed.sql:1)
-9. [supabase/seeds/20260617_bm_backfill.sql](/Users/sachiel/Projects/badminton-match/supabase/seeds/20260617_bm_backfill.sql:1)
-10. [supabase/seeds/20260617_bm_tournament_backfill.sql](/Users/sachiel/Projects/badminton-match/supabase/seeds/20260617_bm_tournament_backfill.sql:1)
-11. [supabase/seeds/20260617_bm_parity_checks.sql](/Users/sachiel/Projects/badminton-match/supabase/seeds/20260617_bm_parity_checks.sql:1)
-12. [supabase/seeds/20260617_bm_smoke_checks.sql](/Users/sachiel/Projects/badminton-match/supabase/seeds/20260617_bm_smoke_checks.sql:1)
+If you are rebuilding from scratch, apply the full migration stack under:
+
+- [supabase/migrations/](../../supabase/migrations/)
+
+Then apply the relevant seeds under:
+
+- [supabase/seeds/](../../supabase/seeds/)
+
+Do not stop at `000023`. The current working local runtime also expects the
+later hardening and regression-fix migrations, including:
+
+- `000024`
+- `000025`
+- `000026`
+- `000027`
+- `000028`
 
 ## Supabase API Config Note
 
@@ -48,8 +52,8 @@ Minimum recovery steps:
 
 ## Recommended Execution Flow
 
-1. Apply the full normalized stack in order:
-   `000003`, `000004`, `000005`, `000006`
+1. Apply the full migration stack in order up to the current head in
+   `supabase/migrations/`.
 
 2. Seed the canonical identity layer:
    [20260617_bm_identity_seed.sql](/Users/sachiel/Projects/badminton-match/supabase/seeds/20260617_bm_identity_seed.sql:1)
@@ -91,6 +95,6 @@ Supabase SQL Editor or via your normal migration flow.
 
 Minimum safe first step:
 
-1. run `000003`, `000004`, `000005`, `000006`
+1. run the full migration stack to current head
 2. run [20260617_bm_identity_seed.sql](/Users/sachiel/Projects/badminton-match/supabase/seeds/20260617_bm_identity_seed.sql:1)
 3. run backfill and parity checks only if you still need to rebuild normalized state from legacy history

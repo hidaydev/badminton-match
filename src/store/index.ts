@@ -267,14 +267,26 @@ export const useStore = create<AppState>()(
       setResult: (r) => set({ schedule: r.schedule, lastResult: r, playedGames: [], gameScores: {} }),
 
       togglePlayedGame: (key) =>
-        set((s) => ({
-          playedGames: s.playedGames.includes(key)
+        set((s) => {
+          const isPlayed = s.playedGames.includes(key)
+          const playedGames = isPlayed
             ? s.playedGames.filter((k) => k !== key)
-            : [...s.playedGames, key],
-        })),
+            : [...s.playedGames, key]
+
+          if (!isPlayed) return { playedGames }
+
+          const gameScores = { ...s.gameScores }
+          delete gameScores[key]
+          return { playedGames, gameScores }
+        }),
 
       setGameScore: (key, a, b) =>
-        set((s) => ({ gameScores: { ...s.gameScores, [key]: { a, b } } })),
+        set((s) => ({
+          playedGames: s.playedGames.includes(key)
+            ? s.playedGames
+            : [...s.playedGames, key],
+          gameScores: { ...s.gameScores, [key]: { a, b } },
+        })),
 
       clearGameScore: (key) =>
         set((s) => {

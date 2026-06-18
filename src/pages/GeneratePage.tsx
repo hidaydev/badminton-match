@@ -6,6 +6,11 @@ import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
 import { usePublishSession, type CloudSnapshot } from '../queries'
 import { getSaveErrorMessage } from '../queries/errors'
+import {
+  buildPublishableSessionSnapshot,
+  setScoreInSnapshot,
+  togglePlayedInSnapshot,
+} from '../utils/sessionSnapshot'
 
 const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
 const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400', 4: 'text-green-400' }
@@ -431,10 +436,15 @@ export default function GeneratePage() {
   function handleTogglePlayed(key: string) {
     togglePlayedGame(key)
     if (!cloudSessionId) return
-    const nextPlayed = playedArr.includes(key)
-      ? playedArr.filter((k) => k !== key)
-      : [...playedArr, key]
-    const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: nextPlayed, gameScores }
+    const current: CloudSnapshot = buildPublishableSessionSnapshot({
+      session,
+      players,
+      fixMatches,
+      schedule,
+      playedGames: playedArr,
+      gameScores,
+    })
+    const snap = togglePlayedInSnapshot(current, key)
     publish(snap, {
       onSuccess: () => setSaveError(null),
       onError: (err) => setSaveError(getSaveErrorMessage(err)),
@@ -444,8 +454,15 @@ export default function GeneratePage() {
   function handleSetScore(key: string, a: number, b: number) {
     setGameScore(key, a, b)
     if (!cloudSessionId) return
-    const nextScores = { ...gameScores, [key]: { a, b } }
-    const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: playedArr, gameScores: nextScores }
+    const current: CloudSnapshot = buildPublishableSessionSnapshot({
+      session,
+      players,
+      fixMatches,
+      schedule,
+      playedGames: playedArr,
+      gameScores,
+    })
+    const snap = setScoreInSnapshot(current, key, a, b)
     publish(snap, {
       onSuccess: () => setSaveError(null),
       onError: (err) => setSaveError(getSaveErrorMessage(err)),

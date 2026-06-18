@@ -1,6 +1,6 @@
 # BM Write Flow Audit
 
-Last updated: 2026-06-17
+Last updated: 2026-06-18
 
 This document audits the main write flows after the local app was moved to the
 normalized `bm` schema.
@@ -8,8 +8,8 @@ normalized `bm` schema.
 Important boundary:
 
 - local app target: direct `bm.*` RPC access
-- compatibility surface: `public.bm_*`
-- legacy production storage: `badminton_match`
+- external compatibility surface, if retained: `public.bm_*`
+- historical bridge context: `badminton_match`
 
 The goal here is not to preserve legacy behavior forever. The goal is to be
 explicit about what is safe, what is acceptable for local use, and what is not
@@ -28,7 +28,14 @@ For this branch, the intended application surface is:
 - `bm.get_tournament`
 
 The `public.bm_*` functions should be treated as compatibility-only transport
-aliases, not as the primary runtime contract.
+aliases for non-app consumers, not as the primary runtime contract.
+
+Latest verification state:
+
+- `npm run check` passes
+- `npm run check:smoke` passes against the active Supabase project
+- session publish, player stats, and tournament publish all completed successfully
+  after the validator/runtime fixes in migrations `000031` through `000034`
 
 ## Write Flows
 
@@ -53,23 +60,16 @@ Assessment:
 Risk:
 
 - client-side short ids are collision-prone compared with UUID/share-id split
-- publish payload currently omits `absentPlayers` on first publish because
-  `ShareButton` only includes:
-  - `session`
-  - `players`
-  - `fixMatches`
-  - `schedule`
-  - `playedGames`
-  - `gameScores`
+- first-publish payload depends on compatibility-shaped aggregate reconstruction
+  rather than a dedicated server-issued draft/share model
 
 Current severity:
 
-- low if publish happens before absence edits
-- real data-loss edge if an existing session is republished through this path
+- low for local runtime
+- still worth revisiting if this branch becomes multi-user or externally shared
 
 Recommended later fix:
 
-- include `absentPlayers`
 - move to internal UUID + external share id
 
 ## 2. Toggle Played
@@ -93,6 +93,11 @@ Risk:
 
 - full-snapshot last-write-wins
 - stale client can overwrite unrelated newer changes
+
+Mitigation now in place:
+
+- optimistic version checks on publish
+- live smoke coverage exercises repeat publish on real Supabase data
 
 ## 3. Set Score
 
@@ -219,6 +224,10 @@ Assessment:
 
 - correct for current tournament architecture
 - still snapshot-first by design
+
+Latest note:
+
+- tournament snapshot validation now matches the live 32-match format
 
 Risk:
 
