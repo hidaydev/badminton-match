@@ -14,11 +14,10 @@ This is the fastest handover file for continuing work on this repository.
   to Supabase
 - same Supabase project as `MDEF`
 - normalized operational schema: `bm`
-- legacy compatibility schema: `badminton_match`
 - no `MDEF` code changes for now
 - no shared core tables with `MDEF`
 - normalized `bm` runtime for local app usage
-- legacy snapshot compatibility retained for backfill and parity
+- this app should rely only on `bm` as its runtime schema
 
 ## What is already done
 
@@ -47,12 +46,10 @@ Applied migration:
 - [`supabase/migrations/20260618_000020_bm_phase_b_internal_id_adoption.sql`](../../supabase/migrations/20260618_000020_bm_phase_b_internal_id_adoption.sql)
 - [`supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql`](../../supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql)
 - [`supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql`](../../supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql)
+- [`supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql`](../../supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql)
 
 Created:
 
-- `badminton_match.sessions`
-- `badminton_match.tournaments`
-- `badminton_match.session_exports`
 - `bm.sessions`
 - `bm.players`
 - `bm.player_aliases`
@@ -75,7 +72,8 @@ Main practical state now:
 
 - aggregate identity is UUID-first
 - session publish is internal-id-first
-- compatibility snapshot surfaces are retained intentionally
+- app runtime depends on `bm` only
+- `badminton_match` is now historical migration context, not a live runtime target
 
 ### Frontend migration
 
@@ -116,15 +114,14 @@ Verified result:
 - local app session flow works against `bm`
 - local app tournament flow is wired to `bm`
 - player stats query works on Supabase
-- normalized session backfill is parity-clean against legacy snapshots
+- normalized session parity was verified during migration work
 - Google Sheets is no longer required for the tested local session flow
 
 ## What is not done yet
 
-1. historical data backfill from legacy Google Sheets storage
-2. production security hardening
-3. formal long-term export boundary for `MDEF`
-4. optional compatibility surface reduction
+1. production security hardening
+2. formal long-term export boundary for `MDEF`
+3. remaining schema finalization work, especially bigint identity retirement inside `bm`
 
 ## Important operational truth
 
@@ -134,7 +131,7 @@ It is accurate to say:
 
 - Google Sheets is no longer the active runtime direction
 - `badminton_match` served as the landing bridge
-- `bm` is now the main schema target
+- `bm` is now the only runtime schema target for this app
 
 It is still not accurate to say:
 
@@ -176,12 +173,12 @@ These are the main migration/doc checkpoints so far:
 
 Next session should start with:
 
-### Phase 4: consolidation and hardening
+### Phase C: final bm schema cleanup
 
 Order:
 
 1. keep smoke-checking the direct `bm.*` RPC surface after changes
-2. decide whether any compatibility surface can be reduced safely
+2. remove remaining bigint-first relational identity paths inside `bm`
 3. harden production-facing access controls if deployment scope expands
 
 Latest audit:
