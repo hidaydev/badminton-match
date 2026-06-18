@@ -2,6 +2,7 @@ import type { SessionConfig, Player, FixMatch, ScheduleSlot, GameScore } from '.
 export type { TournamentSnapshot } from '../utils/tournament'
 
 export interface CloudSnapshot {
+  version?: number
   session: SessionConfig
   players: Player[]
   fixMatches: FixMatch[]
