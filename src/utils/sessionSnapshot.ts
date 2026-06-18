@@ -1,5 +1,5 @@
 import type { CloudSnapshot } from '../queries/types.ts'
-import { applySwap, type SwapTarget } from './swap.ts'
+import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from './swap.ts'
 import { applySlotSwap, type SlotSwapTarget } from './slotSwap.ts'
 import type { FixMatch, Player, ScheduleSlot, SessionConfig } from '../store/index.ts'
 
@@ -79,6 +79,17 @@ export function swapPlayersInSnapshot(
   return {
     ...snapshot,
     schedule: applySwap(snapshot.schedule, t1, t2),
+  }
+}
+
+export function swapTeamsInSnapshot(
+  snapshot: CloudSnapshot,
+  t1: TeamSwapTarget,
+  t2: TeamSwapTarget,
+): CloudSnapshot {
+  return {
+    ...snapshot,
+    schedule: applyTeamSwap(snapshot.schedule, t1, t2),
   }
 }
 
