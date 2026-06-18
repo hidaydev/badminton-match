@@ -29,16 +29,16 @@ export function detectSlotSwapConflict(
   const game1Players = [...game1.teamA, ...game1.teamB]
   const game2Players = [...game2.teamA, ...game2.teamB]
 
-  // game1 moves to g2's slot — check others in that slot (excluding game2 itself)
-  for (const other of schedule.filter((s) => s.slot === g2.slot && s.court !== g2.court)) {
+  // game1 moves to g2's slot — check others in that slot (excluding game1 and game2 themselves)
+  for (const other of schedule.filter((s) => s.slot === g2.slot && s.court !== g2.court && !(s.slot === g1.slot && s.court === g1.court))) {
     const otherPlayers = [...other.teamA, ...other.teamB]
     for (const pid of game1Players) {
       if (otherPlayers.includes(pid)) return pid
     }
   }
 
-  // game2 moves to g1's slot — check others in that slot (excluding game1 itself)
-  for (const other of schedule.filter((s) => s.slot === g1.slot && s.court !== g1.court)) {
+  // game2 moves to g1's slot — check others in that slot (excluding game1 and game2 themselves)
+  for (const other of schedule.filter((s) => s.slot === g1.slot && s.court !== g1.court && !(s.slot === g2.slot && s.court === g2.court))) {
     const otherPlayers = [...other.teamA, ...other.teamB]
     for (const pid of game2Players) {
       if (otherPlayers.includes(pid)) return pid
