@@ -13,10 +13,12 @@ This is the fastest handover file for continuing work on this repository.
 - `badminton-match` is being migrated from Google Apps Script / Google Sheets
   to Supabase
 - same Supabase project as `MDEF`
-- separate schema: `badminton_match`
+- normalized operational schema: `bm`
+- legacy compatibility schema: `badminton_match`
 - no `MDEF` code changes for now
 - no shared core tables with `MDEF`
-- snapshot-first migration strategy, not full normalization
+- normalized `bm` runtime for local app usage
+- legacy snapshot compatibility retained for backfill and parity
 
 ## What is already done
 
@@ -25,14 +27,22 @@ This is the fastest handover file for continuing work on this repository.
 Applied migration:
 
 - [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](../../supabase/migrations/20260616_000001_badminton_match_schema.sql)
+- [`supabase/migrations/20260617_000003_bm_normalized_schema.sql`](../../supabase/migrations/20260617_000003_bm_normalized_schema.sql)
+- [`supabase/migrations/20260617_000004_bm_compat_parity_fix.sql`](../../supabase/migrations/20260617_000004_bm_compat_parity_fix.sql)
+- [`supabase/migrations/20260617_000005_bm_tournaments.sql`](../../supabase/migrations/20260617_000005_bm_tournaments.sql)
+- [`supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql`](../../supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql)
 
 Created:
 
 - `badminton_match.sessions`
 - `badminton_match.tournaments`
 - `badminton_match.session_exports`
+- `bm.sessions`
+- `bm.players`
+- `bm.player_aliases`
+- `bm.tournaments`
 
-RPC functions created:
+RPC functions created for local app usage:
 
 - `bm_publish_session`
 - `bm_get_session`
@@ -41,6 +51,9 @@ RPC functions created:
 - `bm_get_player_stats`
 - `bm_publish_tournament`
 - `bm_get_tournament`
+
+The local app now targets the underlying `bm.*` functions directly through the
+`bm` PostgREST profile.
 
 ### Frontend migration
 
@@ -73,19 +86,22 @@ Verified against the real Supabase project:
    - sessions list
    - player list
    - player stats
+7. backfill normalized `bm` session data from legacy snapshots
+8. verify summary parity and full snapshot parity
 
 Verified result:
 
-- main session flow works on Supabase
+- local app session flow works against `bm`
+- local app tournament flow is wired to `bm`
 - player stats query works on Supabase
-- Google Sheets is no longer required for the tested session flow
+- normalized session backfill is parity-clean against legacy snapshots
+- Google Sheets is no longer required for the tested local session flow
 
 ## What is not done yet
 
 1. historical data backfill from legacy Google Sheets storage
-2. tournament flow end-to-end verification after migration
-3. production security hardening
-4. formal long-term export boundary for `MDEF`
+2. production security hardening
+3. formal long-term export boundary for `MDEF`
 
 ## Important operational truth
 
@@ -135,19 +151,17 @@ These are the main migration/doc checkpoints so far:
 
 Next session should start with:
 
-### Phase 2: historical data backfill
+### Phase 3: stabilization
 
 Order:
 
-1. identify what legacy data source is still accessible
-2. export historical session records
-3. map old records into the current `CloudSnapshot` shape
-4. insert into `badminton_match.sessions`
-5. verify:
-   - sessions list
-   - player list
-   - player history
-   - player stats
+1. keep smoke-checking the direct `bm.*` RPC surface after changes
+2. audit UI write flows against normalized storage
+3. decide whether any legacy-only SQL can be retired from local workflow
+
+Latest audit:
+
+- [bm-write-flow-audit.md](bm-write-flow-audit.md)
 
 ## If continuing in a new session
 

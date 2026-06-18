@@ -69,12 +69,16 @@ onto Supabase.
 Current backend target:
 
 - same Supabase project as `MDEF`
-- separate schema: `badminton_match`
-- snapshot-first persistence model
+- normalized operational schema: `bm`
+- legacy compatibility schema retained: `badminton_match`
+- frontend local app calls schema `bm` directly via PostgREST profile headers
 
 Main migration SQL:
 
-- [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](supabase/migrations/20260616_000001_badminton_match_schema.sql)
+- [`supabase/migrations/20260617_000003_bm_normalized_schema.sql`](supabase/migrations/20260617_000003_bm_normalized_schema.sql)
+- [`supabase/migrations/20260617_000004_bm_compat_parity_fix.sql`](supabase/migrations/20260617_000004_bm_compat_parity_fix.sql)
+- [`supabase/migrations/20260617_000005_bm_tournaments.sql`](supabase/migrations/20260617_000005_bm_tournaments.sql)
+- [`supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql`](supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql)
 
 ## Quick start
 
@@ -93,11 +97,17 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_KEY=...
 ```
 
-### 3. Apply database migration
+### 3. Apply database migrations
 
 Run the SQL in:
 
-- [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](supabase/migrations/20260616_000001_badminton_match_schema.sql)
+- legacy base:
+  [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](supabase/migrations/20260616_000001_badminton_match_schema.sql)
+- normalized stack:
+  [`supabase/migrations/20260617_000003_bm_normalized_schema.sql`](supabase/migrations/20260617_000003_bm_normalized_schema.sql)
+  [`supabase/migrations/20260617_000004_bm_compat_parity_fix.sql`](supabase/migrations/20260617_000004_bm_compat_parity_fix.sql)
+  [`supabase/migrations/20260617_000005_bm_tournaments.sql`](supabase/migrations/20260617_000005_bm_tournaments.sql)
+  [`supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql`](supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql)
 
 against your Supabase project.
 
@@ -151,7 +161,6 @@ Verified on the Supabase migration branch:
 Still pending:
 
 - historical data backfill from old Google Sheets storage
-- full tournament end-to-end verification after migration
 - production security hardening
 - long-term formal export surface for `MDEF`
 
