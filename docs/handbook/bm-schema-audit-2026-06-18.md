@@ -1,6 +1,6 @@
 # BM Schema Audit 2026-06-18
 
-This document captures the current `bm` schema state after the UUID-first migration batches through `20260618_000021_bm_phase_b_identity_consistency.sql`.
+This document captures the current `bm` schema state after the UUID-first migration batches through `20260618_000022_bm_phase_b_identity_sync_triggers.sql`.
 
 ## Overall assessment
 
@@ -23,6 +23,7 @@ What is already solid:
 - Session and tournament snapshots are validated before publish.
 - Runtime app path is already `bm`-first.
 - Major session child tables now carry internal UUID identity paths.
+- The main session write-path is now internal-id-first, with sync triggers maintaining legacy relation columns.
 
 ## What is production-grade enough now
 
@@ -44,6 +45,8 @@ This is a professional shape and aligns with common production practice.
 - conflict detection
 - aggregate-level locking
 - consistent write orchestration
+- internal-id-first child writes in the session publish flow
+- sync-trigger enforcement for hybrid identity tables
 
 For this app shape, this is a good production baseline.
 
@@ -108,6 +111,7 @@ That is acceptable during migration, but not ideal forever because:
 - it makes future maintenance noisier
 
 `20260618_000021` improves this materially by enforcing identity consistency via composite FKs.
+`20260618_000022` improves it further by making the active session write-path internal-id-first and syncing old/new identity columns automatically.
 
 ## Why the current integer usage is not “janky”
 
@@ -144,6 +148,7 @@ Mitigation already in place:
 - internal FK columns
 - composite identity constraints in later batches
 - read/write function migration toward UUID-first joins
+- sync triggers on hybrid identity tables
 
 ### 2. Baseline schema file does not reflect end-state by itself
 
@@ -170,9 +175,9 @@ This is fine for now, but it means the codebase is not yet at a “single final 
 
 ### High priority
 
-1. Keep moving active reads and writes to internal-ID-first joins.
-2. Ensure all child-table write paths populate UUID/internal relation columns by default.
-3. Keep composite consistency constraints anywhere a row stores both old and new identity references.
+1. Finish the remaining active read-path cleanup that still prefers legacy relation carriers in a few functions.
+2. Keep composite consistency constraints anywhere a row stores both old and new identity references.
+3. Decide when legacy relation columns are truly compatibility-only rather than active maintenance surface.
 
 ### Medium priority
 
