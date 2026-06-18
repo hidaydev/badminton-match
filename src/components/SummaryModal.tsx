@@ -17,6 +17,7 @@ import { computeStandings } from '../utils/standings'
 import type { SwapTarget } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import { detectSlotSwapConflict } from '../utils/slotSwap'
+import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
 
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd']
@@ -68,6 +69,7 @@ function StandingsTab({
     schedule,
     gameScores,
   )
+  const [selectedPlayer, setSelectedPlayer] = useState<{ standing: typeof standings[number]; rank: number } | null>(null)
   const hasScores = Object.keys(gameScores).length > 0
 
   if (!hasScores) {
@@ -129,7 +131,10 @@ function StandingsTab({
                 : <span className="text-[11px] font-semibold text-slate-500">{ordinal(rank)}</span>
               }
             </div>
-            <span className={`flex-1 min-w-0 truncate ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}>
+            <span
+              className={`flex-1 min-w-0 truncate cursor-pointer active:opacity-70 ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}
+              onClick={() => setSelectedPlayer({ standing: s, rank })}
+            >
               {s.player.name}
             </span>
             <span className={`w-11 text-[11px] font-semibold text-center shrink-0 ${wlColor}`}>{s.wins}-{s.losses}</span>
@@ -150,6 +155,14 @@ function StandingsTab({
           ))}
         </>
       )}
+      <PlayerMatchDetailSheet
+        player={selectedPlayer?.standing ?? null}
+        rank={selectedPlayer?.rank ?? 1}
+        schedule={schedule}
+        gameScores={gameScores}
+        players={players}
+        onClose={() => setSelectedPlayer(null)}
+      />
     </div>
   )
 }
