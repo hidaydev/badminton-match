@@ -54,14 +54,20 @@ export function applyTeamSwap(
 
   const team1Players = t1.team === 'A' ? game1.teamA : game1.teamB
   const team2Players = t2.team === 'A' ? game2.teamA : game2.teamB
+  const sameGame = t1.slot === t2.slot && t1.court === t2.court
 
   return schedule.map(s => {
     if (s.slot === t1.slot && s.court === t1.court) {
-      return t1.team === 'A'
-        ? { ...s, teamA: team2Players }
-        : { ...s, teamB: team2Players }
+      const updated = { ...s }
+      if (t1.team === 'A') updated.teamA = team2Players
+      else updated.teamB = team2Players
+      if (sameGame) {
+        if (t2.team === 'A') updated.teamA = team1Players
+        else updated.teamB = team1Players
+      }
+      return updated
     }
-    if (s.slot === t2.slot && s.court === t2.court) {
+    if (!sameGame && s.slot === t2.slot && s.court === t2.court) {
       return t2.team === 'A'
         ? { ...s, teamA: team1Players }
         : { ...s, teamB: team1Players }
