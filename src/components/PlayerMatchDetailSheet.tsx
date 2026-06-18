@@ -35,7 +35,7 @@ function getPlayerGames(
       const inTeamA = slot.teamA.includes(playerId)
       const myTeam = inTeamA ? slot.teamA : slot.teamB
       const oppTeam = inTeamA ? slot.teamB : slot.teamA
-      const partnerId = myTeam.find(id => id !== playerId)!
+      const partnerId = myTeam.find(id => id !== playerId) ?? ''
       const key = `${slot.slot}-${slot.court}`
       const score = gameScores[key] ?? null
 
@@ -80,7 +80,7 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
       <div className="absolute inset-0 bg-black/60" />
       <div
         className="relative w-full bg-slate-900 rounded-t-3xl flex flex-col"
-        style={{ height: '90%', boxShadow: '0 -8px 40px rgba(0,0,0,0.6)' }}
+        style={{ maxHeight: '90%', boxShadow: '0 -8px 40px rgba(0,0,0,0.6)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Drag handle */}
@@ -130,7 +130,7 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${hasScore ? 'bg-slate-800/40 border-slate-700/30' : 'bg-slate-800/20 border-slate-800/20 opacity-50'}`}
                   >
                     <span className="text-[11px] text-slate-500 min-w-[26px] shrink-0">G{i + 1}</span>
-                    <span className="flex-1 min-w-0 text-[12px] text-slate-400 truncate">
+                    <span className="flex-1 min-w-0 text-xs text-slate-400 truncate">
                       w/ <span className="text-slate-200">{partnerName}</span>
                       <span className="text-slate-600 mx-1">vs</span>
                       {opp1}, {opp2}

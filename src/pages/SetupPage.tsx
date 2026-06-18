@@ -244,7 +244,7 @@ export default function SetupPage() {
             label="Players"
             value={session.playerCount}
             min={4}
-            max={32}
+            max={40}
             onChange={setPlayerCount}
             disabled={session.locked}
           />
