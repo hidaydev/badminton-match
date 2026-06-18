@@ -2,13 +2,22 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
-import { applySwap, type SwapTarget } from '../utils/swap'
-import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
+import type { SwapTarget } from '../utils/swap'
+import type { SlotSwapTarget } from '../utils/slotSwap'
+import {
+  replacePlayerNameInSnapshot,
+  setAbsentPlayersInSnapshot,
+  setScoreInSnapshot,
+  swapPlayersInSnapshot,
+  swapSlotsInSnapshot,
+  togglePlayedInSnapshot,
+} from '../utils/sessionSnapshot'
 
 async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryClient>, sessionId: string) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['session', sessionId] }),
     queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+    queryClient.invalidateQueries({ queryKey: ['players'] }),
     queryClient.invalidateQueries({ queryKey: ['player'] }),
   ])
 }
@@ -44,24 +53,28 @@ export function usePublishSession(sessionId: string | undefined) {
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
     },
+    onSettled: async () => {
+      if (!sessionId) return
+      await invalidateSessionQueries(queryClient, sessionId)
+    },
   })
 }
 
 export function useTogglePlayed(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ nextPlayed }: { key: string; nextPlayed: string[] }) => {
+    mutationFn: async ({ key }: { key: string; nextPlayed: string[] }) => {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      const updated: CloudSnapshot = { ...current, playedGames: nextPlayed }
+      const updated = togglePlayedInSnapshot(current, key)
       return await publishSession(sessionId, updated)
     },
-    onMutate: async ({ nextPlayed }) => {
+    onMutate: async ({ key }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        return { ...old, playedGames: nextPlayed }
+        return togglePlayedInSnapshot(old, key)
       })
       return { previous }
     },
@@ -83,11 +96,7 @@ export function useSetScore(sessionId: string) {
     mutationFn: async ({ key, a, b }: { key: string; a: number; b: number }) => {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      const nextScores = { ...current.gameScores, [key]: { a, b } }
-      const nextPlayed = current.playedGames.includes(key)
-        ? current.playedGames
-        : [...current.playedGames, key]
-      const updated: CloudSnapshot = { ...current, gameScores: nextScores, playedGames: nextPlayed }
+      const updated = setScoreInSnapshot(current, key, a, b)
       return await publishSession(sessionId, updated)
     },
     onMutate: async ({ key, a, b }) => {
@@ -95,11 +104,7 @@ export function useSetScore(sessionId: string) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        const nextScores = { ...old.gameScores, [key]: { a, b } }
-        const nextPlayed = old.playedGames.includes(key)
-          ? old.playedGames
-          : [...old.playedGames, key]
-        return { ...old, gameScores: nextScores, playedGames: nextPlayed }
+        return setScoreInSnapshot(old, key, a, b)
       })
       return { previous }
     },
@@ -121,8 +126,7 @@ export function useSwapPlayers(sessionId: string) {
     mutationFn: async ({ t1, t2 }: { t1: SwapTarget; t2: SwapTarget }) => {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      const nextSchedule = applySwap(current.schedule, t1, t2)
-      const updated: CloudSnapshot = { ...current, schedule: nextSchedule }
+      const updated = swapPlayersInSnapshot(current, t1, t2)
       return await publishSession(sessionId, updated)
     },
     onMutate: async ({ t1, t2 }) => {
@@ -130,7 +134,7 @@ export function useSwapPlayers(sessionId: string) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        return { ...old, schedule: applySwap(old.schedule, t1, t2) }
+        return swapPlayersInSnapshot(old, t1, t2)
       })
       return { previous }
     },
@@ -152,7 +156,7 @@ export function useSetAbsent(sessionId: string) {
     mutationFn: async ({ nextAbsent }: { nextAbsent: string[] }) => {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      const updated: CloudSnapshot = { ...current, absentPlayers: nextAbsent }
+      const updated = setAbsentPlayersInSnapshot(current, nextAbsent)
       return await publishSession(sessionId, updated)
     },
     onMutate: async ({ nextAbsent }) => {
@@ -160,7 +164,7 @@ export function useSetAbsent(sessionId: string) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        return { ...old, absentPlayers: nextAbsent }
+        return setAbsentPlayersInSnapshot(old, nextAbsent)
       })
       return { previous }
     },
@@ -182,10 +186,7 @@ export function useReplacePlayer(sessionId: string) {
     mutationFn: async ({ playerId, newName }: { playerId: string; newName: string }) => {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      const nextPlayers = current.players.map((p) =>
-        p.id === playerId ? { ...p, name: newName } : p
-      )
-      const updated: CloudSnapshot = { ...current, players: nextPlayers }
+      const updated = replacePlayerNameInSnapshot(current, playerId, newName)
       return await publishSession(sessionId, updated)
     },
     onMutate: async ({ playerId, newName }) => {
@@ -193,10 +194,7 @@ export function useReplacePlayer(sessionId: string) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        return {
-          ...old,
-          players: old.players.map((p) => (p.id === playerId ? { ...p, name: newName } : p)),
-        }
+        return replacePlayerNameInSnapshot(old, playerId, newName)
       })
       return { previous }
     },
@@ -209,32 +207,6 @@ export function useReplacePlayer(sessionId: string) {
     onSettled: async () => {
       await invalidateSessionQueries(queryClient, sessionId)
     },
-  })
-}
-
-function migrateKeys<T>(
-  record: Record<string, T>,
-  g1: SlotSwapTarget,
-  g2: SlotSwapTarget,
-): Record<string, T> {
-  const k1 = `${g1.slot}-${g1.court}`
-  const k2 = `${g2.slot}-${g2.court}`
-  const next: Record<string, T> = {}
-  for (const [k, v] of Object.entries(record)) {
-    if (k === k1) next[k2] = v
-    else if (k === k2) next[k1] = v
-    else next[k] = v
-  }
-  return next
-}
-
-function migratePlayedGames(played: string[], g1: SlotSwapTarget, g2: SlotSwapTarget): string[] {
-  const k1 = `${g1.slot}-${g1.court}`
-  const k2 = `${g2.slot}-${g2.court}`
-  return played.map((k) => {
-    if (k === k1) return k2
-    if (k === k2) return k1
-    return k
   })
 }
 
@@ -255,12 +227,7 @@ export function useSwapSlots(sessionId: string) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        return {
-          ...old,
-          schedule: applySlotSwap(old.schedule, g1, g2),
-          playedGames: migratePlayedGames(old.playedGames, g1, g2),
-          gameScores: migrateKeys(old.gameScores, g1, g2),
-        }
+        return swapSlotsInSnapshot(old, g1, g2)
       })
       return { previous }
     },

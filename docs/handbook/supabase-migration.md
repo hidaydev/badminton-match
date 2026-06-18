@@ -44,29 +44,21 @@ Stage 2:
 
 - normalized runtime ownership in `bm`
 - compatibility snapshot surfaces retained where useful
+- direct app dependency moved to `bm` only
 
 ## Implemented
 
 ### Database layer
 
-Migration file:
+The migration started with a `badminton_match` landing schema, then moved the
+app onto the normalized `bm` runtime.
 
-- [supabase/migrations/20260616_000001_badminton_match_schema.sql](/Users/sachiel/Projects/badminton-match/supabase/migrations/20260616_000001_badminton_match_schema.sql:1)
+Important live result:
 
-Added:
-
-- schema `badminton_match`
-- table `sessions`
-- table `tournaments`
-- table `session_exports`
-- RPCs:
-  - `bm_publish_session`
-  - `bm_get_session`
-  - `bm_list_sessions`
-  - `bm_list_players`
-  - `bm_get_player_stats`
-  - `bm_publish_tournament`
-  - `bm_get_tournament`
+- session runtime ownership: `bm`
+- tournament runtime ownership: `bm`
+- app-facing RPC surface: `bm.*`
+- legacy landing schema is historical context, not active app ownership
 
 ### Frontend query layer
 
@@ -111,15 +103,15 @@ Observed:
 - session persisted correctly
 - shared-session writes persisted correctly
 - list/stat read surfaces returned correct data
+- parity checks between legacy snapshots and `bm` compatibility snapshots passed
 
 ## Not yet verified
 
 These are still open:
 
-1. tournament flow end-to-end after migration
-2. historical Google Sheets data backfill
-3. production security hardening
-4. formal export surface for future `MDEF` integration
+1. production security hardening
+2. compact automated regression coverage for read/write flows
+3. formal export surface for future `MDEF` integration
 
 ## Current status
 
@@ -130,11 +122,11 @@ These are still open:
 - `bm` is the primary runtime schema
 - `badminton_match` is now mainly migration history and compatibility context
 - the migration is viable and structurally coherent
+- the app no longer needs `public.bm_*` wrappers as its own contract
 
 ### What is not yet true
 
 - this is not fully production-hardened yet
-- old Google Sheets data has not been fully migrated into Supabase
 - security posture has not been tightened enough for a production claim
 
 ## Big plan
@@ -164,28 +156,24 @@ Delivered:
 - UUID-first identity hardening
 - internal-id-first session write path
 
-### Phase 3: historical backfill
+### Phase 3: historical bridge and parity
 
-Status: next
+Status: done
 
 Goal:
 
-- move old Google Sheets session data into `badminton_match.sessions`
+- carry legacy behavior safely into `bm` without reviving legacy runtime
 
-Work:
+Delivered:
 
-1. export raw historical session rows from the existing Google Sheets source
-2. normalize into the current `CloudSnapshot` shape if needed
-3. insert into `badminton_match.sessions`
-4. verify:
-   - sessions list
-   - player list
-   - player history
-   - player stats
+- normalized backfill into `bm`
+- summary parity verification
+- compatibility snapshot parity verification
+- identity cleanup sufficient for app runtime migration
 
 ### Phase 4: tournament verification
 
-Status: pending
+Status: mostly done
 
 Goal:
 
@@ -231,12 +219,12 @@ Short-term:
 
 Later:
 
-- stable export payload from `session_exports`
+- stable export payload from a `bm`-owned export boundary
 - optional URL-based export again if needed
 
 ### Phase 7: documentation baseline and closure
 
-Status: started
+Status: active
 
 Goal:
 
@@ -249,8 +237,8 @@ Delivered:
 
 Remaining:
 
-- update docs after historical backfill
-- update docs after tournament verification
+- keep docs aligned with runtime truth
+- keep smoke/runbook notes aligned with operational reality
 - reduce compatibility surface only when safe
 
 ## Google Sheets export reality
@@ -279,20 +267,18 @@ control, historical export must come from one of these:
 2. a temporary one-off script using your Google access
 3. a direct Apps Script/Sheet dump performed outside this repo
 
-### Practical implication for tomorrow
+### Practical implication now
 
-To do historical backfill, one of the following is needed:
+Old Google Sheets access is no longer a blocker for the local app runtime.
 
-- exported JSON/CSV from the old sheet
-- access to the old sheet
-- a working legacy Apps Script endpoint that can still list/fetch old records
+It only matters if you want to recover or inspect older external history that
+has not already been carried into the current `bm`-based working set.
 
 ## Recommended next step
 
 Tomorrow:
 
-1. identify the old data source still available
-2. export historical session data
-3. map it into `CloudSnapshot`
-4. backfill `badminton_match.sessions`
-5. verify stats against real history
+1. keep `bm` smoke checks passing after schema/app changes
+2. add compact regression coverage around core write flows
+3. harden production-facing access control
+4. only then formalize the `MDEF` export boundary

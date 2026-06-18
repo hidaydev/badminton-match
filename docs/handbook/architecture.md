@@ -146,9 +146,9 @@ The previous backend was Google Apps Script plus Google Sheets.
 That model stored JSON blobs per row and computed list/stat views by scanning
 the full dataset.
 
-### Current migration direction
+### Current runtime direction
 
-The app now targets the `bm` schema as the main runtime backend.
+The app now targets the `bm` schema as the runtime backend.
 
 Current persistence strategy is:
 

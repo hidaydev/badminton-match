@@ -1,94 +1,91 @@
 # badminton-match
 
-`badminton-match` is a badminton operations app built for real session usage:
-set up courts and players, generate balanced doubles schedules, publish a
-shared live session, track played games and scores, manage a tournament, and
-generate social-ready graphics.
+`badminton-match` is the operational app for running badminton sessions end to
+end: planning players and courts, generating doubles schedules, publishing live
+session state, tracking scores, managing tournaments, and exporting social
+graphics.
 
-This repo is the operational source app in the larger badminton toolset. It is
-separate from `MDEF`, which is the historical ELO and analytics system.
+It is intentionally separate from `MDEF`. This repo owns operations. `MDEF`
+owns analytics and long-term rating/history concerns.
 
-## What the app does
+## What It Covers
 
-### Session scheduling
+### Session operations
 
-- configure title, date, court count, court hours, and slot duration
-- define exact player count
-- add players with gender and tier
-- add fixed match constraints
+- configure title, date, courts, court hours, and slot duration
+- define player count and player pool
+- apply fixed-match constraints
 - generate balanced doubles schedules
-- retry generation until a better schedule is found
+- retry generation for better schedule quality
 
-### Shared live session
+### Live session control
 
-- publish a session and get a shared URL
-- reload shared sessions from cloud storage
+- publish a live session and open it from a shared link
 - mark games played
-- enter scores
+- enter and revise scores
 - swap players between games
-- swap whole game slots
+- swap full game slots
 - mark players absent
-- rename players inside the live session
+- rename players inside the published session
 
 ### History and stats
 
-- browse past sessions
+- browse historical sessions
 - browse known players
-- view player-level historical stats:
+- inspect player stats:
   wins, losses, points for/against, top partners, top opponents
 
 ### Tournament
 
 - assign 16 pairs into 4 groups
-- compute group standings
+- compute standings
 - propagate knockout bracket automatically
-- score bracket matches
-- generate podium and bracket media
+- score tournament matches
+- generate tournament visuals
 
 ### Social export
 
-- create Instagram-style graphics from sessions and tournament results
-- export standings, bracket, and post-ready visuals
+- generate Instagram-style session graphics
+- generate standings and bracket visuals
 
-## Current stack
+## Stack
 
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS v4
-- Zustand
-- TanStack React Query
-- React Router
-- PWA support via `vite-plugin-pwa`
+| Layer | Tools |
+| --- | --- |
+| App | React 19, TypeScript, Vite |
+| State | Zustand, TanStack React Query |
+| Routing | React Router |
+| UI | Tailwind CSS v4 |
+| PWA | `vite-plugin-pwa` |
+| Backend | Supabase Postgres + PostgREST RPC |
 
-## Backend status
+## Persistence Status
 
-This branch migrates the app away from Google Apps Script / Google Sheets and
-onto Supabase.
+This branch is the Supabase migration branch.
 
-Current backend target:
+Current runtime direction:
 
-- same Supabase project as `MDEF`
-- normalized operational schema: `bm`
-- legacy compatibility schema retained: `badminton_match`
-- frontend local app calls schema `bm` directly via PostgREST profile headers
+- app runtime source of truth: schema `bm`
+- frontend RPC target: `bm.*` via Supabase PostgREST profile headers
+- historical bridge: Google Sheets -> `badminton_match` -> `bm`
+- current local/runtime target: `bm` only
 
-Main migration SQL:
+Important clarification:
 
-- [`supabase/migrations/20260617_000003_bm_normalized_schema.sql`](supabase/migrations/20260617_000003_bm_normalized_schema.sql)
-- [`supabase/migrations/20260617_000004_bm_compat_parity_fix.sql`](supabase/migrations/20260617_000004_bm_compat_parity_fix.sql)
-- [`supabase/migrations/20260617_000005_bm_tournaments.sql`](supabase/migrations/20260617_000005_bm_tournaments.sql)
-- [`supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql`](supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql)
+- `badminton_match` is historical migration context, not the intended runtime
+  ownership model for this app
+- `public.bm_*` wrappers may still exist for compatibility, but this app should
+  not rely on them
 
-## Quick start
+## Quick Start
 
-### 1. Install dependencies
+### 1. Install
 
 ```bash
 npm ci
 ```
 
-### 2. Configure local environment
+### 2. Configure env
 
 Copy `.env.local.example` to `.env.local` and fill in:
 
@@ -97,39 +94,71 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_KEY=...
 ```
 
-### 3. Apply database migrations
+### 3. Apply migrations
 
-Run the SQL in:
+Apply the Supabase migration stack under:
 
-- legacy base:
-  [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](supabase/migrations/20260616_000001_badminton_match_schema.sql)
-- normalized stack:
-  [`supabase/migrations/20260617_000003_bm_normalized_schema.sql`](supabase/migrations/20260617_000003_bm_normalized_schema.sql)
-  [`supabase/migrations/20260617_000004_bm_compat_parity_fix.sql`](supabase/migrations/20260617_000004_bm_compat_parity_fix.sql)
-  [`supabase/migrations/20260617_000005_bm_tournaments.sql`](supabase/migrations/20260617_000005_bm_tournaments.sql)
-  [`supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql`](supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql)
+- [`supabase/migrations/`](supabase/migrations/)
 
-against your Supabase project.
+For the current runtime shape, the important end state is:
 
-### 4. Run the app
+- schema `bm` exists and is current
+- schema `bm` is exposed in Supabase API settings
+- removed legacy schemas such as `badminton_match` are also removed from exposed
+  schemas
+
+If you are reconstructing the full local migration history, use the runbook:
+
+- [`docs/handbook/bm-supabase-runbook.md`](docs/handbook/bm-supabase-runbook.md)
+
+### 4. Run locally
 
 ```bash
 npm run dev
 ```
 
-### 5. Verify build
+## Verification
+
+### Static checks
 
 ```bash
-npm run build
+npm run check
 ```
 
-## Documentation map
+### Supabase smoke checks
 
-Start here:
+```bash
+source .env.local
+npm run check:smoke
+```
+
+Smoke coverage includes:
+
+- session list
+- player list
+- session fetch
+- tournament fetch
+- session republish/version increment
+- session absent mutation
+- session swap mutation
+- session played/score mutation
+- player stats fetch
+- tournament republish/version increment
+- tournament score mutation
+
+Current branch status:
+
+- `npm run check` passes
+- `npm run check:smoke` passes against the active Supabase project
+
+## Documentation Map
+
+### Start here
 
 - [`docs/README.md`](docs/README.md)
+- [`docs/handbook/README.md`](docs/handbook/README.md)
 
-Main docs:
+### Core handbook
 
 - [`docs/handbook/current-status.md`](docs/handbook/current-status.md)
 - [`docs/handbook/product-overview.md`](docs/handbook/product-overview.md)
@@ -137,52 +166,44 @@ Main docs:
 - [`docs/handbook/data-model.md`](docs/handbook/data-model.md)
 - [`docs/handbook/features-and-routes.md`](docs/handbook/features-and-routes.md)
 - [`docs/handbook/supabase-migration.md`](docs/handbook/supabase-migration.md)
+- [`docs/handbook/bm-supabase-runbook.md`](docs/handbook/bm-supabase-runbook.md)
 - [`docs/handbook/mdef-integration.md`](docs/handbook/mdef-integration.md)
 - [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md)
-- [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](supabase/migrations/20260616_000001_badminton_match_schema.sql)
 
-Historical design notes from the earlier build-out are preserved under:
+### Historical archive
 
 - [`docs/superpowers/`](docs/superpowers)
 
-## Current migration status
+Use `docs/superpowers/` for implementation history and rationale, not as the
+current source of truth.
 
-Verified on the Supabase migration branch:
-
-- create session
-- publish session
-- open shared session link
-- mark played
-- enter score
-- sessions list
-- player list
-- player stats
-
-Still pending:
-
-- historical data backfill from old Google Sheets storage
-- production security hardening
-- long-term formal export surface for `MDEF`
-
-## Project role in the bigger system
+## Role In The Wider System
 
 `badminton-match` should remain the operational source app:
 
 - session planning
-- live match operations
+- live session control
 - tournament administration
 
 `MDEF` should remain the analytics destination:
 
 - canonical players and aliases
-- match history
-- ELO and longitudinal analytics
+- exported match history
+- rating and longitudinal analysis
 
-Short-term integration can remain manual via JSON handoff.
+## Current Reality
 
-## Notes
+What is already working on the Supabase branch:
 
-- The root `README` previously contained only the default Vite template text.
-- The app still contains earlier design/spec history under `docs/superpowers`.
-- The Supabase migration is intentionally minimal-risk and snapshot-first, not
-  a full relational redesign.
+- create and publish sessions
+- open shared session links
+- mark played and enter scores
+- load session history
+- load player history and stats
+- load and update tournament state
+
+What is still not “fully final”:
+
+- richer automated end-to-end regression coverage
+- tournament normalization beyond snapshot-first persistence
+- longer-term export contract into `MDEF`
