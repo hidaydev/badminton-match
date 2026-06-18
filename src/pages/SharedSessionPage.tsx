@@ -15,6 +15,7 @@ import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import SummaryModal from '../components/SummaryModal'
 import { useLastSession } from '../hooks/useLastSession'
+import { getSaveErrorMessage } from '../queries/errors'
 
 export default function SharedSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -41,7 +42,7 @@ export default function SharedSessionPage() {
       playerCount: snapshot.players.length,
       totalGames: snapshot.schedule.length,
     })
-  }, [snapshot])
+  }, [save, sessionId, snapshot])
 
   const header = (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
@@ -104,7 +105,7 @@ export default function SharedSessionPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {header}
       {saveError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg">
           {saveError}
         </div>
       )}
@@ -122,12 +123,12 @@ export default function SharedSessionPage() {
             : [...(current?.playedGames ?? []), key]
           togglePlayed({ key, nextPlayed }, {
             onSuccess: () => setSaveError(null),
-            onError: () => setSaveError('Failed to save, please try again'),
+            onError: (err) => setSaveError(getSaveErrorMessage(err)),
           })
         }}
         onSetGameScore={(key, a, b) => setScore({ key, a, b }, {
           onSuccess: () => setSaveError(null),
-          onError: () => setSaveError('Failed to save, please try again'),
+          onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
         title={snapshot.session.title ?? ''}
         date={snapshot.session.date ?? ''}
@@ -137,20 +138,20 @@ export default function SharedSessionPage() {
         saving={isSaving}
         onSwapPlayers={(t1, t2) => swapPlayers({ t1, t2 }, {
           onSuccess: () => setSaveError(null),
-          onError: () => setSaveError('Failed to save, please try again'),
+          onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
         absentPlayers={snapshot.absentPlayers ?? []}
         onSetAbsent={(nextAbsent) => setAbsent({ nextAbsent }, {
           onSuccess: () => setSaveError(null),
-          onError: () => setSaveError('Failed to save, please try again'),
+          onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
         onReplacePlayer={(playerId, newName) => replacePlayer({ playerId, newName }, {
           onSuccess: () => setSaveError(null),
-          onError: () => setSaveError('Failed to save, please try again'),
+          onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
         onSwapSlots={(g1: SlotSwapTarget, g2: SlotSwapTarget) => swapSlots({ g1, g2 }, {
           onSuccess: () => setSaveError(null),
-          onError: () => setSaveError('Failed to save, please try again'),
+          onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
         standalone
         onRefetch={() => refetch()}

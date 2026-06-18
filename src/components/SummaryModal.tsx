@@ -73,7 +73,7 @@ function StandingsTab({
   if (!hasScores) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-center min-h-[200px]">
+        <div className="flex items-center justify-center min-h-50">
           <p className="text-sm text-slate-500 text-center">Enter scores in the Schedule tab to see leaderboard.</p>
         </div>
         {absentList.length > 0 && (
@@ -95,11 +95,11 @@ function StandingsTab({
     <div className="flex flex-col gap-1.5">
       {/* Header */}
       <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
-        <span className="w-[32px] text-[10px] font-bold text-slate-600 text-center shrink-0">#</span>
+        <span className="w-8 text-[10px] font-bold text-slate-600 text-center shrink-0">#</span>
         <span className="flex-1 text-[10px] font-bold text-slate-600">Name</span>
-        <span className="w-[44px] text-[10px] font-bold text-slate-600 text-center shrink-0">W-L</span>
-        <span className="w-[36px] text-[10px] font-bold text-slate-600 text-center shrink-0">Diff</span>
-        <span className="w-[36px] text-[10px] font-bold text-slate-600 text-center shrink-0">Pts</span>
+        <span className="w-11 text-[10px] font-bold text-slate-600 text-center shrink-0">W-L</span>
+        <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Diff</span>
+        <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Pts</span>
       </div>
 
       {standings.map((s, i) => {
@@ -123,7 +123,7 @@ function StandingsTab({
             key={s.player.id}
             className={`flex items-center gap-2 pl-2 pr-2 py-2.5 rounded-xl border ${rowBg}`}
           >
-            <div className="w-[32px] flex justify-center shrink-0">
+            <div className="w-8 flex justify-center shrink-0">
               {medal
                 ? <span className="text-lg leading-none">{medal}</span>
                 : <span className="text-[11px] font-semibold text-slate-500">{ordinal(rank)}</span>
@@ -132,9 +132,9 @@ function StandingsTab({
             <span className={`flex-1 min-w-0 truncate ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}>
               {s.player.name}
             </span>
-            <span className={`w-[44px] text-[11px] font-semibold text-center shrink-0 ${wlColor}`}>{s.wins}-{s.losses}</span>
-            <span className={`w-[36px] text-[11px] font-semibold text-center shrink-0 ${diffColor}`}>{diffLabel}</span>
-            <span className={`w-[36px] text-sm font-bold text-center shrink-0 ${isFirst ? 'text-emerald-300' : isPodium ? 'text-emerald-100/70' : 'text-slate-400'}`}>{s.pointsFor}</span>
+            <span className={`w-11 text-[11px] font-semibold text-center shrink-0 ${wlColor}`}>{s.wins}-{s.losses}</span>
+            <span className={`w-9 text-[11px] font-semibold text-center shrink-0 ${diffColor}`}>{diffLabel}</span>
+            <span className={`w-9 text-sm font-bold text-center shrink-0 ${isFirst ? 'text-emerald-300' : isPodium ? 'text-emerald-100/70' : 'text-slate-400'}`}>{s.pointsFor}</span>
           </div>
         )
       })}
@@ -456,7 +456,10 @@ export default function SummaryModal({
                 {actionsOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setActionsOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-20 bg-slate-900 border border-slate-700 rounded-xl shadow-xl min-w-[160px] overflow-hidden">
+                    <div
+                      className="absolute right-0 top-full mt-1 z-20 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden"
+                      style={{ minWidth: '160px' }}
+                    >
                       {onSwapPlayers && (
                         <button
                           onClick={() => { setActionsOpen(false); setSwapMode(true) }}
@@ -858,7 +861,7 @@ export default function SummaryModal({
                               <div className="ml-6 bg-slate-900 border border-indigo-800/60 rounded-lg px-3 py-2.5 flex flex-col gap-2">
                                 <div className="flex items-center justify-center gap-3">
                                   <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[10px] text-slate-500 truncate max-w-[80px] text-center">{teamANames}</span>
+                                    <span className="text-[10px] text-slate-500 truncate max-w-20 text-center">{teamANames}</span>
                                     <input
                                       type="number"
                                       min={0}
@@ -870,7 +873,7 @@ export default function SummaryModal({
                                   </div>
                                   <span className="text-slate-600 font-bold text-lg mt-4">–</span>
                                   <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[10px] text-slate-500 truncate max-w-[80px] text-center">{teamBNames}</span>
+                                    <span className="text-[10px] text-slate-500 truncate max-w-20 text-center">{teamBNames}</span>
                                     <input
                                       type="number"
                                       min={0}

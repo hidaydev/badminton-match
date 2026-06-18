@@ -192,10 +192,9 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     if (!photo) return
     const c = document.createElement('canvas')
     drawPositionPost(c, photo, positionLabel, name, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge)
-    const suffix = Math.floor(Math.random() * 90000) + 10000
     const blob = await new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
     if (!blob) return
-    const file = new File([blob], `bracket-${pos}-${suffix}.jpg`, { type: 'image/jpeg' })
+    const file = new File([blob], `bracket-${pos}.jpg`, { type: 'image/jpeg' })
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
     if (isIOS && navigator.canShare?.({ files: [file] })) {
       await navigator.share({ files: [file], title: positionLabel })
@@ -209,7 +208,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
   }
 
   const handleDownloadRound = async (roundMatchIds: string[], roundTitle: string) => {
-    const suffix = Math.floor(Math.random() * 90000) + 10000
+    const roundSlug = roundTitle.toLowerCase().replace(/\s+/g, '-')
     const blobOf = (c: HTMLCanvasElement) => new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
     const files: File[] = []
 
@@ -227,7 +226,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     const coverCanvas = document.createElement('canvas')
     drawBracketRoundCover(coverCanvas, roundTitle, coverRows, overlays.summaryBg, overlays.logo, overlays.sponsor)
     const coverBlob = await blobOf(coverCanvas)
-    if (coverBlob) files.push(new File([coverBlob], `bracket-${roundTitle.toLowerCase()}-cover-${suffix}.jpg`, { type: 'image/jpeg' }))
+    if (coverBlob) files.push(new File([coverBlob], `bracket-${roundSlug}-cover.jpg`, { type: 'image/jpeg' }))
 
     // Per-match photo posts
     for (const id of roundMatchIds) {
@@ -249,7 +248,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
         overlays.sponsor,
       )
       const blob = await blobOf(c)
-      if (blob) files.push(new File([blob], `bracket-${id}-${suffix}.jpg`, { type: 'image/jpeg' }))
+      if (blob) files.push(new File([blob], `bracket-${id}.jpg`, { type: 'image/jpeg' }))
     }
 
     if (files.length === 0) return
@@ -275,7 +274,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     <div>
       {/* Bracket — horizontally scrollable */}
       <div className="overflow-x-auto -mx-3 px-3 pb-2">
-        <div className="min-w-[300px] w-full">
+        <div className="min-w-75 w-full">
           {/* Column headers */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
             {/* QF header */}
@@ -442,6 +441,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
 
       {activeMatch && (
         <ScoreModal
+          key={`${activeMatch.id}:${activeMatch.scoreA ?? 'na'}:${activeMatch.scoreB ?? 'na'}:${isFetching ? 'loading' : 'ready'}`}
           match={activeMatch}
           pairAName={getPairName(activeMatch.pairAId)}
           pairBName={getPairName(activeMatch.pairBId)}

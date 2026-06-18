@@ -41,7 +41,7 @@ export default function HomeLayout() {
       <main className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 relative">
         <Outlet />
         <div className="absolute inset-0 flex items-end justify-center pb-4 pointer-events-none">
-          <img src="/main-aja-dulu.png" alt="" className="w-28 object-contain opacity-[0.05]" />
+          <img src="/main-aja-dulu.png" alt="" className="w-28 object-contain opacity-5" />
         </div>
       </main>
     </div>

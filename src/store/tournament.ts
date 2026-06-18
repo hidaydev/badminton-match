@@ -72,7 +72,7 @@ export const useTournamentStore = create<TournamentState>()((set) => ({
         generateGroupMatches(g, s.groups[g])
       )
       const allMatches = [...groupMatches, ...initKnockoutMatches()]
-      return { matches: propagateBracket(allMatches, s.groups, s.pairs) }
+      return { matches: propagateBracket(allMatches, s.groups) }
     }),
 
   resetGroups: () =>
@@ -83,7 +83,7 @@ export const useTournamentStore = create<TournamentState>()((set) => ({
       const matches = s.matches.map((m) =>
         m.id === matchId ? { ...m, scoreA, scoreB } : m
       )
-      return { matches: propagateBracket(matches, s.groups, s.pairs) }
+      return { matches: propagateBracket(matches, s.groups) }
     }),
 
   hydrateFromCloud: (snapshot) => set({
