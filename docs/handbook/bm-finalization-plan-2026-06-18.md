@@ -11,6 +11,7 @@ Already done:
 - Session and tournament publish flows are validated and concurrency-aware.
 - Child entities now have internal UUID identity paths.
 - Dual-path consistency has been hardened with composite constraints.
+- Session publish now writes child rows internal-id-first, with sync triggers maintaining compatibility columns.
 
 This means the remaining work is finalization, not redesign.
 
@@ -31,17 +32,18 @@ Target:
 
 Tasks:
 
-1. Audit all `bm` functions that still join child entities through legacy numeric keys.
-2. Migrate remaining active joins to:
+1. Audit the remaining `bm` functions that still join child entities through legacy numeric keys.
+2. Migrate the remaining active joins to:
    - `session_internal_id`
    - `session_player_internal_id`
    - `fix_match_internal_id`
    - `scheduled_game_internal_id`
-3. Keep composite identity constraints wherever both old and new columns still coexist.
+3. Keep sync triggers and composite identity constraints wherever both old and new columns still coexist.
 
 Definition of done:
 
 - no important runtime function depends primarily on legacy bigint relations
+- legacy relation columns can be treated as compatibility carriers, not primary write inputs
 
 ## Phase 2: Decide final child-table identity stance
 
@@ -139,6 +141,14 @@ Options:
 3. Document compatibility surface.
 4. Publish canonical schema docs.
 5. Only then consider consolidation.
+
+## Phase 1 progress note
+
+After `20260618_000022_bm_phase_b_identity_sync_triggers.sql`:
+
+- the main session publish flow is already internal-id-first
+- hybrid identity tables are protected by sync triggers
+- Phase 1 is now mostly about finishing residual read-path cleanup and confirming there are no important holdouts
 
 ## Practical stop point
 
