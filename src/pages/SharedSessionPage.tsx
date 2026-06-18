@@ -9,10 +9,12 @@ import {
   useSetAbsent,
   useReplacePlayer,
   useSwapSlots,
+  useSwapTeams,
   type CloudSnapshot,
 } from '../queries'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
+import type { TeamSwapTarget } from '../utils/swap'
 import SummaryModal from '../components/SummaryModal'
 import { useLastSession } from '../hooks/useLastSession'
 import { getSaveErrorMessage } from '../queries/errors'
@@ -30,6 +32,7 @@ export default function SharedSessionPage() {
   const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
   const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
+  const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
 
   const { save } = useLastSession()
 
@@ -99,7 +102,7 @@ export default function SharedSessionPage() {
     unplacedFixMatches: [],
   }
 
-  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending
+  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -150,6 +153,10 @@ export default function SharedSessionPage() {
           onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
         onSwapSlots={(g1: SlotSwapTarget, g2: SlotSwapTarget) => swapSlots({ g1, g2 }, {
+          onSuccess: () => setSaveError(null),
+          onError: (err) => setSaveError(getSaveErrorMessage(err)),
+        })}
+        onSwapTeams={(t1: TeamSwapTarget, t2: TeamSwapTarget) => swapTeams({ t1, t2 }, {
           onSuccess: () => setSaveError(null),
           onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
