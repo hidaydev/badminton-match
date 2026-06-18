@@ -22,16 +22,13 @@ These are the main domain anchors:
 These are important entities inside the session aggregate:
 
 - `bm.session_players`
-  - legacy PK: `id bigserial`
-  - internal identity: `internal_id uuid`
+  - primary identity: `internal_id uuid`
   - aggregate link: `session_internal_id uuid`
 - `bm.fix_matches`
-  - legacy PK: `id bigserial`
-  - internal identity: `internal_id uuid`
+  - primary identity: `internal_id uuid`
   - aggregate link: `session_internal_id uuid`
 - `bm.scheduled_games`
-  - legacy PK: `id bigserial`
-  - internal identity: `internal_id uuid`
+  - primary identity: `internal_id uuid`
   - aggregate link: `session_internal_id uuid`
 
 ### Join and extension tables
@@ -45,6 +42,7 @@ These are mostly structural carriers, not primary domain anchors:
 - `bm.game_scores`
 
 They already carry internal relation columns where needed.
+They also now use UUID primary identity in the live schema.
 
 ## Table map
 
@@ -112,9 +110,9 @@ Purpose:
 
 - per-session court/time configuration
 
-Primary current carrier:
+Primary identity:
 
-- `id bigserial`
+- `internal_id uuid`
 
 Aggregate relation:
 
@@ -133,10 +131,6 @@ Purpose:
 Primary current identity:
 
 - `internal_id uuid`
-
-Legacy carrier:
-
-- `id bigserial`
 
 Aggregate relation:
 
@@ -158,10 +152,6 @@ Primary current identity:
 
 - `internal_id uuid`
 
-Legacy carrier:
-
-- `id bigserial`
-
 Aggregate relation:
 
 - `session_internal_id uuid`
@@ -177,15 +167,14 @@ Purpose:
 
 - slot assignments inside a fixed match
 
+Primary identity:
+
+- `internal_id uuid`
+
 Relations:
 
 - `fix_match_internal_id uuid`
 - optional `session_player_internal_id uuid`
-
-Legacy carriers:
-
-- `fix_match_id bigint`
-- `session_player_id bigint`
 
 Important rules:
 
@@ -200,10 +189,6 @@ Purpose:
 Primary current identity:
 
 - `internal_id uuid`
-
-Legacy carrier:
-
-- `id bigserial`
 
 Aggregate relation:
 
@@ -220,15 +205,14 @@ Purpose:
 
 - team membership rows for each scheduled game
 
+Primary identity:
+
+- `internal_id uuid`
+
 Relations:
 
 - `scheduled_game_internal_id uuid`
 - `session_player_internal_id uuid`
-
-Legacy carriers:
-
-- `scheduled_game_id bigint`
-- `session_player_id bigint`
 
 Important rules:
 
@@ -241,13 +225,9 @@ Purpose:
 
 - one-to-one progress extension for a scheduled game
 
-Primary current relation:
+Primary identity:
 
 - `scheduled_game_internal_id uuid`
-
-Legacy carrier:
-
-- `scheduled_game_id bigint`
 
 Important rules:
 
@@ -259,13 +239,9 @@ Purpose:
 
 - one-to-one score extension for a scheduled game
 
-Primary current relation:
+Primary identity:
 
 - `scheduled_game_internal_id uuid`
-
-Legacy carrier:
-
-- `scheduled_game_id bigint`
 
 Important rules:
 

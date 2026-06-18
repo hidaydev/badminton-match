@@ -10,8 +10,9 @@ Already done:
 - Aggregate identity is UUID-first.
 - Session and tournament publish flows are validated and concurrency-aware.
 - Child entities now have internal UUID identity paths.
-- Dual-path consistency has been hardened with composite constraints.
-- Session publish now writes child rows internal-id-first, with sync triggers maintaining compatibility columns.
+- Session publish now writes child rows internal-id-first.
+- Legacy `badminton_match` runtime schema has been removed.
+- Active bigint relation paths have been removed from the live schema.
 
 This means the remaining work is finalization, not redesign.
 
@@ -20,7 +21,7 @@ This means the remaining work is finalization, not redesign.
 Reach a state where:
 
 - `bm` is the only schema the app needs conceptually
-- legacy bigint/text identity paths are compatibility-only, not primary logic paths
+- legacy bigint relation paths are gone from the live schema
 - final schema shape is easy to explain to a future maintainer in one pass
 
 ## Phase 1: Complete active-path cleanup
@@ -28,7 +29,7 @@ Reach a state where:
 Target:
 
 - all active read and write functions in `bm` prefer internal UUID joins first
-- old bigint/text relation paths remain only as compatibility support
+- old bigint relation paths no longer exist in the live schema
 
 Tasks:
 
@@ -38,14 +39,18 @@ Tasks:
    - `session_player_internal_id`
    - `fix_match_internal_id`
    - `scheduled_game_internal_id`
-3. Keep sync triggers and composite identity constraints wherever both old and new columns still coexist.
+3. Remove bridge logic once the live schema no longer needs old/new dual paths.
 
 Definition of done:
 
 - no important runtime function depends primarily on legacy bigint relations
-- legacy relation columns can be treated as compatibility carriers, not primary write inputs
+- active runtime functions are UUID-first by construction
 
-## Phase 2: Decide final child-table identity stance
+Status:
+
+- completed through `000024`, `000025`, and `000026`
+
+## Phase 2: Final child-table identity stance
 
 Target:
 
@@ -76,7 +81,12 @@ Decision questions:
 Default recommendation:
 
 - keep `game_progress` and `game_scores` as one-to-one extension tables
-- only add UUID PKs to join tables if real product/API needs appear
+- join tables may still use UUID PKs even if they remain structural carriers
+
+Status:
+
+- completed in the live schema
+- `session_courts`, `fix_match_slots`, and `scheduled_game_players` now also carry UUID primary identity
 
 ## Phase 3: Reduce compatibility surface
 
@@ -95,6 +105,12 @@ Tasks:
 Definition of done:
 
 - every compatibility layer has an explicit reason to exist
+
+Status:
+
+- `badminton_match` runtime dependency removed
+- this app runtime no longer relies on `public`
+- remaining compatibility surface is mostly historical docs and projection helpers
 
 ## Phase 4: Canonical schema documentation
 
@@ -136,23 +152,23 @@ Options:
 
 ## Recommended order
 
-1. Finish active-path cleanup.
-2. Decide final child-table identity stance.
-3. Document compatibility surface.
+1. Document the now-complete active-path cleanup.
+2. Document final child-table identity stance.
+3. Document the remaining compatibility surface.
 4. Publish canonical schema docs.
 5. Only then consider consolidation.
 
 ## Phase 1 progress note
 
-After `20260618_000022_bm_phase_b_identity_sync_triggers.sql`:
+After `20260618_000026_bm_phase_c_uuid_relations_batch_3.sql`:
 
-- the main session publish flow is already internal-id-first
-- hybrid identity tables are protected by sync triggers
-- Phase 1 is now mostly about finishing residual read-path cleanup and confirming there are no important holdouts
+- the main session publish flow is internal-id-first
+- active bigint relation paths are gone
+- UUID identity now anchors both parent and child tables in the live schema
 
 ## Practical stop point
 
-The project is already past the risky part.
+The project is already past the risky part and past the relational identity migration.
 
-If work stops after Phase 1 plus Phase 4, `bm` is still in a very good state.
+If work stops after documentation cleanup plus light compatibility review, `bm` is still in a very good state.
 The remaining phases improve clarity and long-term maintenance, not basic correctness.

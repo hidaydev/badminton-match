@@ -92,7 +92,7 @@ Current operational truth:
 
 - the app runtime is `bm`-first
 - `badminton_match` is no longer the conceptual target
-- `badminton_match` mainly survives as migration history, compatibility, and parity context
+- `badminton_match` should be treated as historical bridge state, not active app ownership
 - Google Sheets is no longer part of the active local runtime story
 
 ## What remains intentionally
@@ -102,7 +102,6 @@ We did not delete everything older.
 What still exists on purpose:
 
 - historical migrations
-- compatibility functions
 - parity-oriented snapshot surfaces
 - legacy identity carriers on some tables
 
@@ -137,3 +136,9 @@ If someone asks which persistence layer matters now, the answer is:
 - old origin: Google Sheets / Apps Script
 
 That is the final mental model to carry forward.
+
+Schema finalization note:
+
+- runtime migration is closed
+- full schema finalization is still pending until legacy bigint identity paths
+  inside `bm` are retired
