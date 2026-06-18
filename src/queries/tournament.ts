@@ -34,14 +34,25 @@ export function useConfirmGroups() {
       date: string
       pairs: TournamentPair[]
     }) => {
+      const current = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
       const groupMatches = GROUP_IDS.flatMap((g) => generateGroupMatches(g, localGroups[g]))
       const allMatches = [...groupMatches, ...initKnockoutMatches()]
-      const propagated = propagateBracket(allMatches, localGroups, pairs)
+      const propagated = propagateBracket(allMatches, localGroups)
       const newMatches = assignGroupPics(pairs, localGroups, propagated)
-      await publishTournament(TOURNAMENT_ID, { name, date, pairs, groups: localGroups, matches: newMatches })
+      return await publishTournament(TOURNAMENT_ID, {
+        version: current?.version,
+        name,
+        date,
+        pairs,
+        groups: localGroups,
+        matches: newMatches,
+      })
     },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+    },
+    onSuccess: (published) => {
+      queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })
@@ -56,10 +67,9 @@ export function useSetTournamentScore() {
       const updated = current.matches.map((m) =>
         m.id === matchId ? { ...m, scoreA, scoreB } : m
       )
-      const propagated = propagateBracket(updated, current.groups, current.pairs)
+      const propagated = propagateBracket(updated, current.groups)
       const next = { ...current, matches: propagated }
-      await publishTournament(TOURNAMENT_ID, next)
-      return next
+      return await publishTournament(TOURNAMENT_ID, next)
     },
     onMutate: async ({ matchId, scoreA, scoreB }: { matchId: string; scoreA: number; scoreB: number }) => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
@@ -68,10 +78,13 @@ export function useSetTournamentScore() {
         const updated = previous.matches.map((m) =>
           m.id === matchId ? { ...m, scoreA, scoreB } : m
         )
-        const propagated = propagateBracket(updated, previous.groups, previous.pairs)
+        const propagated = propagateBracket(updated, previous.groups)
         queryClient.setQueryData(['tournament', TOURNAMENT_ID], { ...previous, matches: propagated })
       }
       return { previous }
+    },
+    onSuccess: (published) => {
+      queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
     },
     onError: (_err, _vars, context) => {
       queryClient.setQueryData(['tournament', TOURNAMENT_ID], context?.previous)
@@ -92,7 +105,9 @@ export function useResetTournament() {
       date: string
       pairs: TournamentPair[]
     }) => {
-      await publishTournament(TOURNAMENT_ID, {
+      const current = queryClient.getQueryData<TournamentSnapshot | null>(['tournament', TOURNAMENT_ID])
+      return await publishTournament(TOURNAMENT_ID, {
+        version: current?.version,
         name,
         date,
         pairs,
@@ -102,6 +117,9 @@ export function useResetTournament() {
     },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+    },
+    onSuccess: (published) => {
+      queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })
@@ -118,11 +136,13 @@ export function useRegeneratePics() {
       const unassigned = newMatches.some((m) => m.phase === 'group' && !m.picName)
       if (unassigned) throw new Error('Could not assign all PICs — please try again')
       const next = { ...current, matches: newMatches }
-      await publishTournament(TOURNAMENT_ID, next)
-      return next
+      return await publishTournament(TOURNAMENT_ID, next)
     },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+    },
+    onSuccess: (published) => {
+      queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })

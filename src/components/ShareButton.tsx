@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useStore } from '../store'
-import { publishSession } from '../queries/endpoints'
+import { getSession, publishSession } from '../queries/endpoints'
 import type { CloudSnapshot } from '../queries'
+import { getSaveErrorMessage } from '../queries/errors'
 
 function nanoid6(): string {
   return Math.random().toString(36).slice(2, 8)
@@ -20,21 +21,31 @@ export default function ShareButton() {
   const [confirming, setConfirming] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(cloudSessionId ? `${window.location.origin}/s/${cloudSessionId}` : null)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   async function handleConfirm() {
     setConfirming(false)
     setPublishing(true)
-    setError(false)
+    setError(null)
     const id = cloudSessionId ?? nanoid6()
-    const snapshot: CloudSnapshot = { session, players, fixMatches, schedule, playedGames, gameScores }
     try {
+      const existingSnapshot = cloudSessionId ? await getSession(id) : null
+      const snapshot: CloudSnapshot = {
+        version: existingSnapshot?.version,
+        session,
+        players,
+        fixMatches,
+        schedule,
+        playedGames,
+        gameScores,
+        absentPlayers: existingSnapshot?.absentPlayers ?? [],
+      }
       await publishSession(id, snapshot)
       setCloudSessionId(id)
       setShareUrl(`${window.location.origin}/s/${id}`)
-    } catch {
-      setError(true)
+    } catch (err) {
+      setError(getSaveErrorMessage(err))
     } finally {
       setPublishing(false)
     }
@@ -49,6 +60,11 @@ export default function ShareButton() {
 
   return (
     <>
+      {error && (
+        <div className="max-w-sm rounded-xl border border-red-700 bg-red-950/80 px-3 py-2 text-xs text-red-200">
+          {error}
+        </div>
+      )}
       {/* Confirmation modal */}
       {confirming && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -89,7 +105,7 @@ export default function ShareButton() {
       {/* Inline share URL (after publish) */}
       {shareUrl ? (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700">
-          <span className="text-xs text-slate-400 truncate max-w-[200px]">{shareUrl}</span>
+          <span className="text-xs text-slate-400 truncate max-w-50">{shareUrl}</span>
           <button
             onClick={handleCopy}
             className={`text-xs font-semibold shrink-0 transition-colors ${copied ? 'text-emerald-400' : 'text-indigo-400 hover:text-white'}`}
@@ -103,7 +119,7 @@ export default function ShareButton() {
           disabled={publishing}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-900/50 hover:bg-indigo-800 border border-indigo-700 text-indigo-300 hover:text-white transition-colors disabled:opacity-50"
         >
-          {publishing ? 'Publishing…' : error ? '✕ Failed — retry?' : (
+          {publishing ? 'Publishing…' : error ? '✕ Save conflict — retry?' : (
             <>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>

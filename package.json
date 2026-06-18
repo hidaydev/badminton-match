@@ -7,6 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "check:types": "tsc -b --pretty false",
+    "check:lint": "eslint .",
+    "check:tailwind": "node scripts/check-tailwind-arbitrary.mjs",
+    "check": "npm run check:types && npm run check:lint && npm run check:tailwind",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -81,7 +81,7 @@ export default function StandingsTab({ pairs, groups, matches }: Props) {
         {top3.map((p, i) => (
           <div key={p?.id ?? i} className={`text-center ${top3MTop[i]}`}>
             <div className={top3Sizes[i]}>{top3Emojis[i]}</div>
-            <div className="text-xs text-slate-300 mt-1 font-medium max-w-[80px] truncate">
+            <div className="text-xs text-slate-300 mt-1 font-medium max-w-20 truncate">
               {p ? getPairName(p.id) : 'TBD'}
             </div>
           </div>

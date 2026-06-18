@@ -1,13 +1,25 @@
 import { useState } from 'react'
 import { useStore, type Player, timeToMinutes } from '../store'
 import { generate, type GeneratorResult } from '../generator'
-import { useSharedView } from '../App'
+import { useSharedView } from '../sharedView'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
 import { usePublishSession, type CloudSnapshot } from '../queries'
+import { getSaveErrorMessage } from '../queries/errors'
 
 const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
 const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400', 4: 'text-green-400' }
+
+function renderTierLetters(tiers: number[]) {
+  return tiers.map((tier, index) => (
+    <span
+      key={`${tier}-${index}`}
+      className={`text-[10px] font-bold ${TIER_COLOR[tier] ?? 'text-slate-400'}`}
+    >
+      {TIER_LABEL[tier] ?? tier}
+    </span>
+  ))
+}
 
 function PlayerChip({ player, backToBack }: { player: Player; backToBack?: boolean }) {
   return (
@@ -32,12 +44,11 @@ function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: number[] })
     : diff === 1
     ? 'text-amber-400 bg-amber-900/30 border-amber-800'
     : 'text-red-400 bg-red-900/30 border-red-800'
-  const TierLetters = ({ tiers }: { tiers: number[] }) => (
-    <span>{tiers.map((t, i) => <span key={i} className={`text-[10px] font-bold ${TIER_COLOR[t] ?? 'text-slate-400'}`}>{TIER_LABEL[t] ?? t}</span>)}</span>
-  )
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10px] text-slate-600"><TierLetters tiers={tiersA} /> vs <TierLetters tiers={tiersB} /></span>
+      <span className="text-[10px] text-slate-600">
+        <span>{renderTierLetters(tiersA)}</span> vs <span>{renderTierLetters(tiersB)}</span>
+      </span>
       <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${color}`}>{badge}</span>
     </div>
   )
@@ -411,6 +422,7 @@ export default function GeneratePage() {
     isSharedView ? (snapshot?.lastResult ?? null) : storeResult
   )
   const [error, setError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
   const { mutate: publish, isPending: isPublishing } = usePublishSession(cloudSessionId ?? undefined)
 
@@ -423,7 +435,10 @@ export default function GeneratePage() {
       ? playedArr.filter((k) => k !== key)
       : [...playedArr, key]
     const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: nextPlayed, gameScores }
-    publish(snap)
+    publish(snap, {
+      onSuccess: () => setSaveError(null),
+      onError: (err) => setSaveError(getSaveErrorMessage(err)),
+    })
   }
 
   function handleSetScore(key: string, a: number, b: number) {
@@ -431,7 +446,10 @@ export default function GeneratePage() {
     if (!cloudSessionId) return
     const nextScores = { ...gameScores, [key]: { a, b } }
     const snap: CloudSnapshot = { session, players, fixMatches, schedule, playedGames: playedArr, gameScores: nextScores }
-    publish(snap)
+    publish(snap, {
+      onSuccess: () => setSaveError(null),
+      onError: (err) => setSaveError(getSaveErrorMessage(err)),
+    })
   }
 
   function buildOffsets() {
@@ -533,6 +551,11 @@ export default function GeneratePage() {
       {error && (
         <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm">
           {error}
+        </div>
+      )}
+      {saveError && (
+        <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm">
+          {saveError}
         </div>
       )}
 
