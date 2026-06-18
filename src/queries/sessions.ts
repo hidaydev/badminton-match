@@ -24,9 +24,17 @@ export function useGetSession(sessionId: string | undefined) {
 export function usePublishSession(sessionId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (snap: CloudSnapshot) => publishSession(sessionId!, snap),
-    onSuccess: (_data, snap) => {
-      queryClient.setQueryData(['session', sessionId], snap)
+    mutationFn: (snap: CloudSnapshot) => {
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      const next: CloudSnapshot = {
+        ...snap,
+        version: snap.version ?? current?.version,
+        absentPlayers: snap.absentPlayers ?? current?.absentPlayers,
+      }
+      return publishSession(sessionId!, next)
+    },
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
     },
   })
 }
@@ -215,7 +223,8 @@ function migratePlayedGames(played: string[], g1: SlotSwapTarget, g2: SlotSwapTa
 export function useSwapSlots(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (_vars: { g1: SlotSwapTarget; g2: SlotSwapTarget }) => {
+    mutationFn: async (vars: { g1: SlotSwapTarget; g2: SlotSwapTarget }) => {
+      void vars
       // onMutate already applied all transformations optimistically to the cache.
       // Re-applying applySlotSwap here would double-swap and revert to the original order,
       // because the function matches by {slot,court} which have already been exchanged.

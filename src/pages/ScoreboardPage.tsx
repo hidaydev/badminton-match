@@ -20,14 +20,18 @@ async function enterFullscreenLandscape(): Promise<string | null> {
   }
   try {
     await screen.orientation.lock('landscape')
-  } catch {}
+  } catch (_error) {
+    void _error
+  }
   return null
 }
 
 async function exitFullscreen() {
   try {
     if (document.fullscreenElement) await document.exitFullscreen()
-  } catch {}
+  } catch (_error) {
+    void _error
+  }
 }
 
 export interface OverlayConfig {
@@ -164,16 +168,16 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const redSide = (
     <div
-      className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 transition-[filter] duration-75"
-      style={{ background: '#b91c1c' }}
+      className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 duration-75"
+      style={{ background: '#b91c1c', transitionProperty: 'filter' }}
       onClick={addRed}
     >
       {/* Player name */}
       <div className="absolute top-0 left-0 right-0 flex justify-center pt-5" onClick={e => e.stopPropagation()}>
         {overlay ? (
           <span
-            className="text-[clamp(0.75rem,2.2vmax,1rem)] tracking-[0.12em] uppercase font-bold text-white truncate px-4 py-1 rounded-full pointer-events-none"
-            style={{ background: 'rgba(0,0,0,0.25)' }}
+            className="uppercase font-bold text-white truncate px-4 py-1 rounded-full pointer-events-none"
+            style={{ background: 'rgba(0,0,0,0.25)', fontSize: 'clamp(0.75rem,2.2vmax,1rem)', letterSpacing: '0.12em' }}
           >
             {nameA}
           </span>
@@ -185,12 +189,13 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             onChange={e => setRedName(e.target.value)}
             onBlur={() => setEditingRed(false)}
             onKeyDown={e => { if (e.key === 'Enter') setEditingRed(false) }}
-            className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-36"
-            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)' }}
+            className="bg-transparent text-center text-white/70 font-bold uppercase outline-none border-b border-white/30 w-36"
+            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
           />
         ) : (
           <span
-            className={`text-[clamp(0.7rem,2vmax,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${redName ? 'text-white/50' : 'text-white/30'}`}
+            className={`uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${redName ? 'text-white/50' : 'text-white/30'}`}
+            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
             onClick={() => setEditingRed(true)}
           >
             {nameA}
@@ -209,7 +214,10 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
       >
         {red}
       </span>
-      <span className="text-white/20 text-[clamp(0.55rem,1.2vmax,0.75rem)] tracking-widest mt-3 pointer-events-none">
+      <span
+        className="text-white/20 tracking-widest mt-3 pointer-events-none"
+        style={{ fontSize: 'clamp(0.55rem,1.2vmax,0.75rem)' }}
+      >
         tap to score
       </span>
 
@@ -225,16 +233,16 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const blueSide = (
     <div
-      className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 transition-[filter] duration-75"
-      style={{ background: '#1d4ed8' }}
+      className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 duration-75"
+      style={{ background: '#1d4ed8', transitionProperty: 'filter' }}
       onClick={addBlue}
     >
       {/* Player name */}
       <div className="absolute top-0 left-0 right-0 flex justify-center pt-5" onClick={e => e.stopPropagation()}>
         {overlay ? (
           <span
-            className="text-[clamp(0.75rem,2.2vmax,1rem)] tracking-[0.12em] uppercase font-bold text-white truncate px-4 py-1 rounded-full pointer-events-none"
-            style={{ background: 'rgba(0,0,0,0.25)' }}
+            className="uppercase font-bold text-white truncate px-4 py-1 rounded-full pointer-events-none"
+            style={{ background: 'rgba(0,0,0,0.25)', fontSize: 'clamp(0.75rem,2.2vmax,1rem)', letterSpacing: '0.12em' }}
           >
             {nameB}
           </span>
@@ -246,12 +254,13 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             onChange={e => setBlueName(e.target.value)}
             onBlur={() => setEditingBlue(false)}
             onKeyDown={e => { if (e.key === 'Enter') setEditingBlue(false) }}
-            className="bg-transparent text-center text-white/70 font-bold uppercase tracking-[0.18em] outline-none border-b border-white/30 w-36"
-            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)' }}
+            className="bg-transparent text-center text-white/70 font-bold uppercase outline-none border-b border-white/30 w-36"
+            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
           />
         ) : (
           <span
-            className={`text-[clamp(0.7rem,2vmax,1rem)] tracking-[0.18em] uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${blueName ? 'text-white/50' : 'text-white/30'}`}
+            className={`uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${blueName ? 'text-white/50' : 'text-white/30'}`}
+            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
             onClick={() => setEditingBlue(true)}
           >
             {nameB}
@@ -270,7 +279,10 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
       >
         {blue}
       </span>
-      <span className="text-white/20 text-[clamp(0.55rem,1.2vmax,0.75rem)] tracking-widest mt-3 pointer-events-none">
+      <span
+        className="text-white/20 tracking-widest mt-3 pointer-events-none"
+        style={{ fontSize: 'clamp(0.55rem,1.2vmax,0.75rem)' }}
+      >
         tap to score
       </span>
 
@@ -284,7 +296,12 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     </div>
   )
 
-  const divider = <div className="absolute left-1/2 top-[10%] h-[80%] w-px bg-white/8 pointer-events-none z-10" />
+  const divider = (
+    <div
+      className="absolute left-1/2 w-px bg-white/8 pointer-events-none z-10"
+      style={{ top: '10%', height: '80%' }}
+    />
+  )
 
   const footer = (
     <div
@@ -420,8 +437,10 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
         {divider}
         {isSwapped ? redSide : blueSide}
         {fsError && (
-          <div className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 max-w-[80vw] text-center"
-            style={{ background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}>
+          <div
+            className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
+            style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
+          >
             {fsError}
           </div>
         )}
@@ -452,8 +471,10 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
       {blueSide}
 
       {fsError && (
-        <div className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 max-w-[80vw] text-center"
-          style={{ background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}>
+        <div
+          className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
+          style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
+        >
           {fsError}
         </div>
       )}

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { usePwaInstall } from '../hooks/usePwaInstall'
 import { useLastSession } from '../hooks/useLastSession'
 import InstallModal from '../components/InstallModal'
@@ -14,8 +14,8 @@ const grid = [
 ] as const
 
 async function openScoreboard(navigate: (path: string) => void) {
-  try { await document.documentElement.requestFullscreen() } catch {}
-  try { await screen.orientation.lock('landscape') } catch {}
+  try { await document.documentElement.requestFullscreen() } catch (_error) { void _error }
+  try { await screen.orientation.lock('landscape') } catch (_error) { void _error }
   navigate('/scoreboard')
 }
 
@@ -23,26 +23,32 @@ export default function HomePage() {
   const navigate = useNavigate()
   const { isInstallable, isIos, prompt } = usePwaInstall()
   const { lastSession } = useLastSession()
-  const [modalOpen, setModalOpen] = useState(false)
-
-  useEffect(() => {
-    if (!isInstallable) return
-    const today = new Date().toDateString()
-    const lastShown = localStorage.getItem('pwa-install-shown')
-    if (lastShown === today) return
-    setModalOpen(true)
-    localStorage.setItem('pwa-install-shown', today)
-  }, [isInstallable])
+  const [installDismissed, setInstallDismissed] = useState(false)
+  const [manualInstallOpen, setManualInstallOpen] = useState(false)
+  const today = new Date().toDateString()
+  const modalOpen =
+    manualInstallOpen || (
+      isInstallable &&
+      !installDismissed &&
+      localStorage.getItem('pwa-install-shown') !== today
+    )
 
   async function handleInstall() {
     await prompt()
-    setModalOpen(false)
+    localStorage.setItem('pwa-install-shown', today)
+    setInstallDismissed(true)
+    setManualInstallOpen(false)
   }
 
   return (
     <div className="flex flex-col gap-6 pt-6">
       <div className="flex flex-col gap-1">
-        <p className="text-[10px] font-mono text-slate-500 tracking-[0.2em] uppercase">Badminton</p>
+        <p
+          className="text-[10px] font-mono text-slate-500 uppercase"
+          style={{ letterSpacing: '0.2em' }}
+        >
+          Badminton
+        </p>
         <h2 className="text-3xl font-bold text-yellow-400 tracking-tight leading-none">Scheduler</h2>
         <p className="text-slate-500 text-xs mt-2 font-mono">Select an option to get started</p>
       </div>
@@ -52,11 +58,16 @@ export default function HomePage() {
           onClick={() => navigate(`/s/${lastSession.id}`)}
           className="relative overflow-hidden flex items-center gap-4 p-5 rounded-2xl text-left
             bg-slate-900 border border-slate-700 hover:border-slate-500 hover:bg-slate-800/70
-            active:scale-[0.98] transition-all duration-200"
+            active:scale-98 transition-all duration-200"
         >
           <span className="text-3xl">📋</span>
           <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-            <span className="text-[10px] font-mono text-slate-500 tracking-[0.15em] uppercase">Continue Session</span>
+            <span
+              className="text-[10px] font-mono text-slate-500 uppercase"
+              style={{ letterSpacing: '0.15em' }}
+            >
+              Continue Session
+            </span>
             <span className="text-base font-bold text-white leading-tight truncate">
               {lastSession.title || 'Untitled Session'}
             </span>
@@ -76,7 +87,7 @@ export default function HomePage() {
             onClick={() => item.to === '/scoreboard' ? openScoreboard(navigate) : navigate(item.to)}
             className="group relative flex flex-col gap-4 p-5 rounded-2xl text-left
               border transition-all duration-200
-              bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/70 active:scale-[0.98]"
+              bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/70 active:scale-98"
           >
             <span className="text-2xl">{item.icon}</span>
             <div className="flex flex-col gap-0.5">
@@ -89,10 +100,10 @@ export default function HomePage() {
 
         {isInstallable && (
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={() => setManualInstallOpen(true)}
             className="group relative flex flex-col gap-4 p-5 rounded-2xl text-left
               border transition-all duration-200
-              bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/70 active:scale-[0.98]"
+              bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/70 active:scale-98"
           >
             <span className="text-2xl">📲</span>
             <div className="flex flex-col gap-0.5">
@@ -108,7 +119,11 @@ export default function HomePage() {
         <InstallModal
           isIos={isIos}
           onInstall={handleInstall}
-          onClose={() => setModalOpen(false)}
+          onClose={() => {
+            localStorage.setItem('pwa-install-shown', today)
+            setInstallDismissed(true)
+            setManualInstallOpen(false)
+          }}
         />
       )}
     </div>

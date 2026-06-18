@@ -90,7 +90,7 @@ export default function GroupAssignment({
                       key={slotIdx}
                       className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5"
                     >
-                      <span className="text-[8px] font-bold text-slate-500 min-w-[18px]">
+                      <span className="text-[8px] font-bold text-slate-500" style={{ minWidth: '18px' }}>
                         #{num}
                       </span>
                       <span className="text-xs text-slate-300 truncate flex-1">
@@ -119,7 +119,8 @@ export default function GroupAssignment({
                     ].join(' ')}
                   >
                     <span
-                      className={`text-[8px] font-bold min-w-[18px] ${active ? 'text-amber-400' : 'text-slate-500'}`}
+                      className={`text-[8px] font-bold ${active ? 'text-amber-400' : 'text-slate-500'}`}
+                      style={{ minWidth: '18px' }}
                     >
                       #{num}
                     </span>
