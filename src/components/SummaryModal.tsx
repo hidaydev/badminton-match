@@ -105,15 +105,15 @@ function StandingsTab({
         <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Pts</span>
       </div>
       {/* Tiebreaker order strip */}
-      <div className="flex justify-end gap-1 items-center pl-2 pr-2 mb-1">
-        <span className="text-[8px] text-slate-700">tiebreak:</span>
-        <span className="text-[8px] font-semibold text-slate-500">W-L</span>
-        <span className="text-[8px] text-slate-800">›</span>
-        <span className="text-[8px] font-semibold text-slate-600">Diff</span>
-        <span className="text-[8px] text-slate-800">›</span>
-        <span className="text-[8px] font-semibold text-slate-700">Pts</span>
-        <span className="text-[8px] text-slate-800">›</span>
-        <span className="text-[8px] font-semibold text-slate-700">A-Z</span>
+      <div className="flex justify-end gap-1 items-center pl-2 pr-2 mb-1 text-[8px] text-slate-700">
+        <span>tiebreak:</span>
+        <span className="font-semibold">W-L</span>
+        <span>›</span>
+        <span className="font-semibold">Diff</span>
+        <span>›</span>
+        <span className="font-semibold">Pts</span>
+        <span>›</span>
+        <span className="font-semibold">A-Z</span>
       </div>
 
       {standings.map((s, i) => {
