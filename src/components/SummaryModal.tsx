@@ -544,12 +544,12 @@ export default function SummaryModal({
                           ⇄ Swap players
                         </button>
                       )}
-                      {onSetAbsent && (
+                      {onSwapTeams && (
                         <button
-                          onClick={() => { setActionsOpen(false); enterAbsentMode() }}
-                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-red-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                          onClick={() => enterTeamSwapMode()}
+                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-violet-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
                         >
-                          👤 Mark absent
+                          ⇄ Swap team
                         </button>
                       )}
                       {onReplacePlayer && (
@@ -568,12 +568,12 @@ export default function SummaryModal({
                           ↕ Switch slot
                         </button>
                       )}
-                      {onSwapTeams && (
+                      {onSetAbsent && (
                         <button
-                          onClick={() => enterTeamSwapMode()}
-                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-violet-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                          onClick={() => { setActionsOpen(false); enterAbsentMode() }}
+                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-red-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
                         >
-                          ⇄ Swap team
+                          👤 Mark absent
                         </button>
                       )}
                     </div>
