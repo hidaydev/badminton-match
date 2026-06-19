@@ -140,7 +140,7 @@ function StandingsTab({
             </span>
             <span className={`w-11 text-[11px] font-semibold text-center shrink-0 ${wlColor}`}>{s.wins}-{s.losses}</span>
             <span className={`w-9 text-[11px] font-semibold text-center shrink-0 ${diffColor}`}>{diffLabel}</span>
-            <span className={`w-9 text-sm font-bold text-center shrink-0 ${isFirst ? 'text-emerald-300' : isPodium ? 'text-emerald-100/70' : 'text-slate-400'}`}>{s.pointsFor}</span>
+            <span className={`w-9 text-[11px] font-semibold text-center shrink-0 ${isFirst ? 'text-emerald-300' : isPodium ? 'text-emerald-100/70' : 'text-slate-400'}`}>{s.pointsFor}</span>
           </div>
         )
       })}
