@@ -96,16 +96,8 @@ function StandingsTab({
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/* Header */}
-      <div className="flex items-center gap-2 pl-2 pr-2">
-        <span className="w-8 text-[10px] font-bold text-slate-600 text-center shrink-0">#</span>
-        <span className="flex-1 text-[10px] font-bold text-slate-600">Name</span>
-        <span className="w-11 text-[10px] font-bold text-slate-600 text-center shrink-0">W-L</span>
-        <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Diff</span>
-        <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Pts</span>
-      </div>
       {/* Tiebreaker order strip */}
-      <div className="flex justify-end gap-1 items-center pl-2 pr-2 mb-1 text-[8px] text-slate-700">
+      <div className="flex justify-end gap-1 items-center pl-2 pr-2 text-[8px] text-slate-700">
         <span>ranked by:</span>
         <span className="font-semibold">W-L</span>
         <span>›</span>
@@ -114,6 +106,14 @@ function StandingsTab({
         <span className="font-semibold">Pts</span>
         <span>›</span>
         <span className="font-semibold">A-Z</span>
+      </div>
+      {/* Header */}
+      <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
+        <span className="w-8 text-[10px] font-bold text-slate-600 text-center shrink-0">#</span>
+        <span className="flex-1 text-[10px] font-bold text-slate-600">Name</span>
+        <span className="w-11 text-[10px] font-bold text-slate-600 text-center shrink-0">W-L</span>
+        <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Diff</span>
+        <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Pts</span>
       </div>
 
       {standings.map((s, i) => {
