@@ -118,7 +118,7 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
         </div>
 
         {/* Game list */}
-        <div className="flex-1 overflow-y-auto px-4 py-3">
+        <div className="flex-1 overflow-y-auto px-4 py-3 pb-8">
           {games.length === 0 ? (
             <p className="text-sm text-slate-500 text-center mt-8">No games found.</p>
           ) : (
