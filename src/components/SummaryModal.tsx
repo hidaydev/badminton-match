@@ -96,8 +96,8 @@ function StandingsTab({
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/* Tiebreaker order strip */}
-      <div className="flex justify-end gap-1 items-center pl-2 pr-2 text-[8px] text-slate-700">
+      {/* Tiebreaker order strip — hugs top */}
+      <div className="flex justify-end gap-1 items-center pl-2 pr-2 pt-0.5 pb-3 text-[8px] text-slate-700">
         <span>ranked by:</span>
         <span className="font-semibold">W-L</span>
         <span>›</span>
