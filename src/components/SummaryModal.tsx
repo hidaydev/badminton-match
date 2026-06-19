@@ -97,12 +97,23 @@ function StandingsTab({
   return (
     <div className="flex flex-col gap-1.5">
       {/* Header */}
-      <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
+      <div className="flex items-center gap-2 pl-2 pr-2">
         <span className="w-8 text-[10px] font-bold text-slate-600 text-center shrink-0">#</span>
         <span className="flex-1 text-[10px] font-bold text-slate-600">Name</span>
         <span className="w-11 text-[10px] font-bold text-slate-600 text-center shrink-0">W-L</span>
         <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Diff</span>
         <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Pts</span>
+      </div>
+      {/* Tiebreaker order strip */}
+      <div className="flex justify-end gap-1 items-center pl-2 pr-2 mb-1">
+        <span className="text-[8px] text-slate-700">tiebreak:</span>
+        <span className="text-[8px] font-semibold text-slate-500">W-L</span>
+        <span className="text-[8px] text-slate-800">›</span>
+        <span className="text-[8px] font-semibold text-slate-600">Diff</span>
+        <span className="text-[8px] text-slate-800">›</span>
+        <span className="text-[8px] font-semibold text-slate-700">Pts</span>
+        <span className="text-[8px] text-slate-800">›</span>
+        <span className="text-[8px] font-semibold text-slate-700">A-Z</span>
       </div>
 
       {standings.map((s, i) => {
@@ -140,7 +151,7 @@ function StandingsTab({
             </span>
             <span className={`w-11 text-[11px] font-semibold text-center shrink-0 ${wlColor}`}>{s.wins}-{s.losses}</span>
             <span className={`w-9 text-[11px] font-semibold text-center shrink-0 ${diffColor}`}>{diffLabel}</span>
-            <span className={`w-9 text-[11px] font-semibold text-center shrink-0 ${isFirst ? 'text-emerald-300' : isPodium ? 'text-emerald-100/70' : 'text-slate-400'}`}>{s.pointsFor}</span>
+            <span className="w-9 text-[11px] font-semibold text-center shrink-0 text-slate-400">{s.pointsFor}</span>
           </div>
         )
       })}
