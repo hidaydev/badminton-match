@@ -305,7 +305,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const footer = (
     <div
-      className="fixed bottom-0 left-0 right-0 flex items-center justify-center gap-4 z-20 pointer-events-none"
+      className="fixed bottom-0 left-0 right-0 flex items-center justify-center gap-4 z-[70] pointer-events-none"
       style={{
         paddingTop: '0.5rem',
         paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
@@ -416,7 +416,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const fsErrorToast = fsError ? (
     <div
-      className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
+      className="fixed bottom-14 left-1/2 -translate-x-1/2 z-[75] px-4 py-2 rounded-lg text-xs text-white/80 text-center"
       style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
     >
       {fsError}
