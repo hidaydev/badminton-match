@@ -414,8 +414,48 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     </div>
   )
 
+  const fsErrorToast = fsError ? (
+    <div
+      className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
+      style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
+    >
+      {fsError}
+    </div>
+  ) : null
+
   if (overlay) {
     return (
+      <>
+        <div
+          className="flex overflow-hidden select-none"
+          style={isPortrait ? {
+            position: 'fixed',
+            top: 0,
+            left: '100vw',
+            width: '100dvh',
+            height: '100dvw',
+            transformOrigin: 'top left',
+            transform: 'rotate(90deg)',
+            zIndex: 60,
+          } : {
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+          }}
+        >
+          {isSwapped ? blueSide : redSide}
+          {divider}
+          {isSwapped ? redSide : blueSide}
+        </div>
+        {fsErrorToast}
+        {footer}
+      </>
+    )
+  }
+
+  // Standalone page mode: existing portrait rotation logic
+  return (
+    <>
       <div
         className="flex overflow-hidden select-none"
         style={isPortrait ? {
@@ -426,59 +466,17 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
           height: '100dvw',
           transformOrigin: 'top left',
           transform: 'rotate(90deg)',
-          zIndex: 60,
         } : {
-          position: 'fixed',
-          inset: 0,
-          zIndex: 60,
+          width: '100vw',
+          height: '100dvh',
         }}
       >
         {isSwapped ? blueSide : redSide}
         {divider}
         {isSwapped ? redSide : blueSide}
-        {fsError && (
-          <div
-            className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
-            style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
-          >
-            {fsError}
-          </div>
-        )}
-        {footer}
       </div>
-    )
-  }
-
-  // Standalone page mode: existing portrait rotation logic
-  return (
-    <div
-      className="flex overflow-hidden select-none"
-      style={isPortrait ? {
-        position: 'fixed',
-        top: 0,
-        left: '100vw',
-        width: '100dvh',
-        height: '100dvw',
-        transformOrigin: 'top left',
-        transform: 'rotate(90deg)',
-      } : {
-        width: '100vw',
-        height: '100dvh',
-      }}
-    >
-      {redSide}
-      {divider}
-      {blueSide}
-
-      {fsError && (
-        <div
-          className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
-          style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
-        >
-          {fsError}
-        </div>
-      )}
+      {fsErrorToast}
       {footer}
-    </div>
+    </>
   )
 }
