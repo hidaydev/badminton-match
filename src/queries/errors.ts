@@ -21,5 +21,14 @@ export function getSaveErrorMessage(error: unknown): string {
     return 'Tournament is being updated. Wait a moment, reload, then try again.'
   }
 
+  if (message.includes('unresolved player')) {
+    const detail = error.message
+    return `Some player names are not recognized: ${detail}`
+  }
+
+  if (message.includes('duplicate canonical resolution')) {
+    return 'Two different names resolved to the same player. Check for duplicates.'
+  }
+
   return fallback
 }
