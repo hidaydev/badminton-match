@@ -4,7 +4,8 @@ import { getSession, publishSession, listPlayers, registerPlayer } from '../quer
 import type { CloudSnapshot, PlayerSummary } from '../queries'
 import { getSaveErrorMessage } from '../queries/errors'
 import { buildPublishableSessionSnapshot } from '../utils/sessionSnapshot'
-import ResolvePlayersModal, { findUnresolvedPlayers } from './ResolvePlayersModal'
+import ResolvePlayersModal from './ResolvePlayersModal'
+import { findUnresolvedPlayers } from '../utils/resolvePlayers'
 
 function nanoid6(): string {
   return Math.random().toString(36).slice(2, 8)
