@@ -23,6 +23,29 @@ async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryC
   ])
 }
 
+async function refetchOnVersionMismatch(
+  queryClient: ReturnType<typeof useQueryClient>,
+  sessionId: string,
+  error: unknown,
+  context: { previous?: CloudSnapshot | null } | undefined,
+) {
+  const msg = error instanceof Error ? error.message.toLowerCase() : ''
+  if (msg.includes('version mismatch')) {
+    try {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      return
+    } catch {
+      // fall through to rollback
+    }
+  }
+  if (context?.previous !== undefined) {
+    queryClient.setQueryData(['session', sessionId], context.previous)
+  }
+}
+
 export function useListSessions(options?: { enabled?: boolean }) {
   return useQuery<SessionMeta[]>({
     queryKey: ['sessions'],
@@ -80,7 +103,7 @@ export function useTogglePlayed(sessionId: string) {
       return { previous }
     },
     onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
+      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
@@ -110,7 +133,7 @@ export function useSetScore(sessionId: string) {
       return { previous }
     },
     onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
+      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
@@ -123,16 +146,15 @@ export function useSetScore(sessionId: string) {
 
 export function useSwapPlayers(sessionId: string) {
   const queryClient = useQueryClient()
-  let pendingSnapshot: CloudSnapshot | undefined
   return useMutation({
     mutationFn: async (_vars: { t1: SwapTarget; t2: SwapTarget }) => {
-      if (!pendingSnapshot) throw new Error('no data')
-      return await publishSession(sessionId, pendingSnapshot)
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      return await publishSession(sessionId, current)
     },
     onMutate: async ({ t1, t2 }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      pendingSnapshot = previous ? swapPlayersInSnapshot(previous, t1, t2) : undefined
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         return swapPlayersInSnapshot(old, t1, t2)
@@ -140,7 +162,7 @@ export function useSwapPlayers(sessionId: string) {
       return { previous }
     },
     onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
+      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
@@ -153,16 +175,15 @@ export function useSwapPlayers(sessionId: string) {
 
 export function useSwapTeams(sessionId: string) {
   const queryClient = useQueryClient()
-  let pendingSnapshot: CloudSnapshot | undefined
   return useMutation({
     mutationFn: async (_vars: { t1: TeamSwapTarget; t2: TeamSwapTarget }) => {
-      if (!pendingSnapshot) throw new Error('no data')
-      return await publishSession(sessionId, pendingSnapshot)
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      return await publishSession(sessionId, current)
     },
     onMutate: async ({ t1, t2 }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      pendingSnapshot = previous ? swapTeamsInSnapshot(previous, t1, t2) : undefined
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         return swapTeamsInSnapshot(old, t1, t2)
@@ -170,7 +191,7 @@ export function useSwapTeams(sessionId: string) {
       return { previous }
     },
     onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
+      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
@@ -200,7 +221,7 @@ export function useSetAbsent(sessionId: string) {
       return { previous }
     },
     onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
+      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
@@ -230,7 +251,7 @@ export function useReplacePlayer(sessionId: string) {
       return { previous }
     },
     onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
+      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
@@ -246,9 +267,19 @@ export function useSwapSlots(sessionId: string) {
   return useMutation({
     mutationFn: async (vars: { g1: SlotSwapTarget; g2: SlotSwapTarget }) => {
       void vars
-      // onMutate already applied all transformations optimistically to the cache.
-      // Re-applying applySlotSwap here would double-swap and revert to the original order,
-      // because the function matches by {slot,court} which have already been exchanged.
+      // Publish the optimistic cache directly. onMutate already applied
+      // swapSlotsInSnapshot which rewrites schedule entries AND migrates
+      // playedGames/gameScores keys to follow the swapped games.
+      //
+      // We must NOT re-apply swapSlotsInSnapshot here: it matches by
+      // {slot, court} which have already been exchanged, so calling it
+      // again would revert the swap (involutive). This is the same pattern
+      // as useSwapPlayers/useSwapTeams: onMutate is the single mutation
+      // source-of-truth, mutationFn just publishes the cache.
+      //
+      // The narrow risk: if a concurrent refetch overwrites the cache
+      // between onMutate and mutationFn, the swap is lost from the payload.
+      // cancelQueries in onMutate minimizes this window.
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
       return await publishSession(sessionId, current)
@@ -263,7 +294,7 @@ export function useSwapSlots(sessionId: string) {
       return { previous }
     },
     onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['session', sessionId], context?.previous)
+      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
