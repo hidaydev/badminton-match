@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, listSessions } from './endpoints'
+import { getSession, publishSession, listSessions, RpcError } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
@@ -29,8 +29,10 @@ async function refetchOnVersionMismatch(
   error: unknown,
   context: { previous?: CloudSnapshot | null } | undefined,
 ) {
-  const msg = error instanceof Error ? error.message.toLowerCase() : ''
-  if (msg.includes('version mismatch')) {
+  const isVersionMismatch =
+    (error instanceof RpcError && error.code === '40001') ||
+    (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
+  if (isVersionMismatch) {
     try {
       await queryClient.fetchQuery<CloudSnapshot | null>({
         queryKey: ['session', sessionId],
