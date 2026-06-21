@@ -78,6 +78,24 @@ export function usePublishSession(sessionId: string | undefined) {
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
     },
+    onError: async (error) => {
+      if (!sessionId) return
+      // On version mismatch, refetch the latest snapshot so the user can retry
+      // without manually reloading the page.
+      const isVersionMismatch =
+        (error instanceof RpcError && error.code === '40001') ||
+        (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
+      if (isVersionMismatch) {
+        try {
+          await queryClient.fetchQuery<CloudSnapshot | null>({
+            queryKey: ['session', sessionId],
+            queryFn: () => getSession(sessionId),
+          })
+        } catch {
+          // ignore — stale cache is better than nothing
+        }
+      }
+    },
     onSettled: async () => {
       if (!sessionId) return
       await invalidateRelatedQueries(queryClient)
@@ -95,6 +113,7 @@ export function useTogglePlayed(sessionId: string) {
       return await publishSession(sessionId, current)
     },
     onMutate: async ({ key }) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
@@ -121,6 +140,7 @@ export function useSetScore(sessionId: string) {
       return await publishSession(sessionId, current)
     },
     onMutate: async ({ key, a, b }) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
