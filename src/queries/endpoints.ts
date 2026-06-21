@@ -31,6 +31,15 @@ function rpcHeaders(): HeadersInit {
   }
 }
 
+export class RpcError extends Error {
+  code: string | null
+  constructor(message: string, code: string | null = null) {
+    super(message)
+    this.name = 'RpcError'
+    this.code = code
+  }
+}
+
 async function callRpc<T>(
   name: string,
   body: Record<string, unknown>,
@@ -43,13 +52,15 @@ async function callRpc<T>(
 
   if (!res.ok) {
     let detail = `${res.status} ${res.statusText}`
+    let code: string | null = null
     try {
-      const json = await res.json() as { message?: string; error?: string; hint?: string }
+      const json = await res.json() as { message?: string; error?: string; hint?: string; code?: string }
       detail = json.message ?? json.error ?? json.hint ?? detail
+      code = json.code ?? null
     } catch {
       // keep HTTP detail
     }
-    throw new Error(detail)
+    throw new RpcError(detail, code)
   }
 
   if (res.status === 204) return undefined as T
@@ -95,6 +106,14 @@ export async function getPlayerStats(name: string): Promise<PlayerStats> {
   const data = await callRpc<PlayerStats | null>('get_player_stats', { p_name: name })
   if (!data) throw new Error('no data')
   return data
+}
+
+export async function registerPlayer(name: string, canonicalName?: string): Promise<{ playerId: string }> {
+  const result = await callRpc<string>('register_player', {
+    p_name: name,
+    p_canonical_name: canonicalName ?? null,
+  })
+  return { playerId: result }
 }
 
 export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
