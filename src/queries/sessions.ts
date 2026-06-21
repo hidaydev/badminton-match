@@ -14,9 +14,8 @@ import {
   togglePlayedInSnapshot,
 } from '../utils/sessionSnapshot'
 
-async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryClient>, sessionId: string) {
+async function invalidateRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['session', sessionId] }),
     queryClient.invalidateQueries({ queryKey: ['sessions'] }),
     queryClient.invalidateQueries({ queryKey: ['players'] }),
     queryClient.invalidateQueries({ queryKey: ['player'] }),
@@ -81,7 +80,7 @@ export function usePublishSession(sessionId: string | undefined) {
     },
     onSettled: async () => {
       if (!sessionId) return
-      await invalidateSessionQueries(queryClient, sessionId)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -111,7 +110,7 @@ export function useTogglePlayed(sessionId: string) {
       queryClient.setQueryData(['session', sessionId], published)
     },
     onSettled: async () => {
-      await invalidateSessionQueries(queryClient, sessionId)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -141,7 +140,7 @@ export function useSetScore(sessionId: string) {
       queryClient.setQueryData(['session', sessionId], published)
     },
     onSettled: async () => {
-      await invalidateSessionQueries(queryClient, sessionId)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -171,7 +170,7 @@ export function useSwapPlayers(sessionId: string) {
       queryClient.setQueryData(['session', sessionId], published)
     },
     onSettled: async () => {
-      await invalidateSessionQueries(queryClient, sessionId)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -201,7 +200,7 @@ export function useSwapTeams(sessionId: string) {
       queryClient.setQueryData(['session', sessionId], published)
     },
     onSettled: async () => {
-      await invalidateSessionQueries(queryClient, sessionId)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -231,7 +230,7 @@ export function useSetAbsent(sessionId: string) {
       queryClient.setQueryData(['session', sessionId], published)
     },
     onSettled: async () => {
-      await invalidateSessionQueries(queryClient, sessionId)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -261,7 +260,7 @@ export function useReplacePlayer(sessionId: string) {
       queryClient.setQueryData(['session', sessionId], published)
     },
     onSettled: async () => {
-      await invalidateSessionQueries(queryClient, sessionId)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -304,7 +303,7 @@ export function useSwapSlots(sessionId: string) {
       queryClient.setQueryData(['session', sessionId], published)
     },
     onSettled: async () => {
-      await invalidateSessionQueries(queryClient, sessionId)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
