@@ -134,7 +134,7 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
                     key={`${g.slot}-${g.court}`}
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${hasScore ? 'bg-slate-800/40 border-slate-700/30' : 'bg-slate-800/20 border-slate-800/20 opacity-50'}`}
                   >
-                    <span className="text-[11px] text-slate-500 min-w-[26px] shrink-0">G{i + 1}</span>
+                    <span className="text-[11px] text-slate-500 min-w-7 shrink-0">G{i + 1}</span>
                     <span className="flex-1 min-w-0 text-xs text-slate-400 truncate">
                       w/ <span className="text-slate-200">{partnerName}</span>
                       <span className="text-slate-600 mx-1">vs</span>
