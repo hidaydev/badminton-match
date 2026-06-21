@@ -89,10 +89,10 @@ export function useTogglePlayed(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ key }: { key: string; nextPlayed: string[] }) => {
+      void key
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      const updated = togglePlayedInSnapshot(current, key)
-      return await publishSession(sessionId, updated)
+      return await publishSession(sessionId, current)
     },
     onMutate: async ({ key }) => {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
@@ -115,10 +115,10 @@ export function useSetScore(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ key, a, b }: { key: string; a: number; b: number }) => {
+      void key; void a; void b
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      const updated = setScoreInSnapshot(current, key, a, b)
-      return await publishSession(sessionId, updated)
+      return await publishSession(sessionId, current)
     },
     onMutate: async ({ key, a, b }) => {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
