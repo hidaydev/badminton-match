@@ -95,7 +95,6 @@ export function useTogglePlayed(sessionId: string) {
       return await publishSession(sessionId, updated)
     },
     onMutate: async ({ key }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
@@ -108,9 +107,6 @@ export function useTogglePlayed(sessionId: string) {
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -125,7 +121,6 @@ export function useSetScore(sessionId: string) {
       return await publishSession(sessionId, updated)
     },
     onMutate: async ({ key, a, b }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
@@ -138,9 +133,6 @@ export function useSetScore(sessionId: string) {
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
     },
   })
 }
