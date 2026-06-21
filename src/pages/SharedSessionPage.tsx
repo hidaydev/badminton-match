@@ -12,6 +12,7 @@ import {
   useSwapTeams,
   type CloudSnapshot,
 } from '../queries'
+import { registerPlayer } from '../queries/endpoints'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import type { TeamSwapTarget } from '../utils/swap'
@@ -148,10 +149,18 @@ export default function SharedSessionPage() {
           onSuccess: () => setSaveError(null),
           onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
-        onReplacePlayer={(playerId, newName) => replacePlayer({ playerId, newName }, {
-          onSuccess: () => setSaveError(null),
-          onError: (err) => setSaveError(getSaveErrorMessage(err)),
-        })}
+        onReplacePlayer={async (playerId, newName) => {
+          try {
+            await registerPlayer(newName)
+          } catch (err) {
+            setSaveError(getSaveErrorMessage(err))
+            return
+          }
+          replacePlayer({ playerId, newName }, {
+            onSuccess: () => setSaveError(null),
+            onError: (err) => setSaveError(getSaveErrorMessage(err)),
+          })
+        }}
         onSwapSlots={(g1: SlotSwapTarget, g2: SlotSwapTarget) => swapSlots({ g1, g2 }, {
           onSuccess: () => setSaveError(null),
           onError: (err) => setSaveError(getSaveErrorMessage(err)),
