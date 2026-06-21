@@ -1,24 +1,25 @@
+import { RpcError } from './endpoints'
+
 export function getSaveErrorMessage(error: unknown): string {
   const fallback = 'Failed to save, please try again.'
 
   if (!(error instanceof Error)) return fallback
 
   const message = error.message.toLowerCase()
+  const code = error instanceof RpcError ? error.code : null
 
-  if (message.includes('session version mismatch')) {
+  if (code === '40001' || message.includes('version mismatch')) {
+    if (message.includes('tournament')) {
+      return 'Tournament changed elsewhere. Reload the page, then try again.'
+    }
     return 'Session changed elsewhere. Reload the page, then try again.'
   }
 
-  if (message.includes('tournament version mismatch')) {
-    return 'Tournament changed elsewhere. Reload the page, then try again.'
-  }
-
-  if (message.includes('session is being updated by another request')) {
+  if (code === '55P03' || message.includes('being updated by another request')) {
+    if (message.includes('tournament')) {
+      return 'Tournament is being updated. Wait a moment, reload, then try again.'
+    }
     return 'Session is being updated. Wait a moment, reload, then try again.'
-  }
-
-  if (message.includes('tournament is being updated by another request')) {
-    return 'Tournament is being updated. Wait a moment, reload, then try again.'
   }
 
   if (message.includes('unresolved player')) {
