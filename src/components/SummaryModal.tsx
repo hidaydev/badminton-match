@@ -479,7 +479,6 @@ export default function SummaryModal({
     if (a === b) { setScoreError('Scores can\'t be equal'); return false }
     setScoreError(null)
     onSetGameScore(key, a, b)
-    if (!played.has(key)) onTogglePlayedGame(key)
     return true
   }
 
