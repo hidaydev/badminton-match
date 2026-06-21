@@ -150,6 +150,7 @@ export function useSwapPlayers(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (_vars: { t1: SwapTarget; t2: SwapTarget }) => {
+      void _vars
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
       return await publishSession(sessionId, current)
@@ -179,6 +180,7 @@ export function useSwapTeams(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (_vars: { t1: TeamSwapTarget; t2: TeamSwapTarget }) => {
+      void _vars
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
       return await publishSession(sessionId, current)
