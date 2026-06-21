@@ -267,9 +267,9 @@ begin
     v_internal_id,
     ci.court_index,
     coalesce(p_snapshot->'session'->'courtNames'->>ci.court_index, ''),
-    coalesce(nullif(p_snapshot->'session'->'courtTimes'->>ci.court_index->>'start', '')::time, v_session_start),
+    coalesce(nullif(p_snapshot->'session'->'courtTimes'->ci.court_index->>'start', '')::time, v_session_start),
     coalesce(
-      nullif(p_snapshot->'session'->'courtTimes'->>ci.court_index->>'end', '')::time,
+      nullif(p_snapshot->'session'->'courtTimes'->ci.court_index->>'end', '')::time,
       v_session_start + make_interval(
         mins => v_slot_minutes * greatest(
           coalesce(nullif(p_snapshot->'session'->'slotsPerCourt'->>ci.court_index, '')::integer, 1),
