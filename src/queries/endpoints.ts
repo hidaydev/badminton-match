@@ -97,6 +97,14 @@ export async function getPlayerStats(name: string): Promise<PlayerStats> {
   return data
 }
 
+export async function registerPlayer(name: string, canonicalName?: string): Promise<{ playerId: string }> {
+  const result = await callRpc<string>('register_player', {
+    p_name: name,
+    p_canonical_name: canonicalName ?? null,
+  })
+  return { playerId: result }
+}
+
 export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
   return await callRpc<TournamentSnapshot | null>('get_tournament', { p_id: id })
 }

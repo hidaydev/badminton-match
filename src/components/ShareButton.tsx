@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useStore } from '../store'
-import { getSession, publishSession } from '../queries/endpoints'
-import type { CloudSnapshot } from '../queries'
+import { getSession, publishSession, listPlayers, registerPlayer } from '../queries/endpoints'
+import type { CloudSnapshot, PlayerSummary } from '../queries'
 import { getSaveErrorMessage } from '../queries/errors'
 import { buildPublishableSessionSnapshot } from '../utils/sessionSnapshot'
+import ResolvePlayersModal, { findUnresolvedPlayers } from './ResolvePlayersModal'
 
 function nanoid6(): string {
   return Math.random().toString(36).slice(2, 8)
@@ -18,12 +19,15 @@ export default function ShareButton() {
   const gameScores = useStore((s) => s.gameScores)
   const cloudSessionId = useStore((s) => s.cloudSessionId)
   const setCloudSessionId = useStore((s) => s.setCloudSessionId)
+  const updatePlayer = useStore((s) => s.updatePlayer)
 
   const [confirming, setConfirming] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(cloudSessionId ? `${window.location.origin}/s/${cloudSessionId}` : null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [resolveOpen, setResolveOpen] = useState(false)
+  const [knownPlayers, setKnownPlayers] = useState<PlayerSummary[]>([])
 
   async function handleConfirm() {
     setConfirming(false)
@@ -52,6 +56,52 @@ export default function ShareButton() {
     }
   }
 
+  async function handleShareClick() {
+    setConfirming(false)
+    setError(null)
+    setPublishing(true)
+    try {
+      const known = await listPlayers()
+      setKnownPlayers(known)
+      const unresolved = findUnresolvedPlayers(players, known)
+      if (unresolved.length > 0) {
+        setResolveOpen(true)
+        setPublishing(false)
+        return
+      }
+      await handleConfirm()
+    } catch (err) {
+      setError(getSaveErrorMessage(err))
+      setPublishing(false)
+    }
+  }
+
+  async function handleResolve(result: {
+    registerNew: { name: string }[]
+    registerAlias: { alias: string; canonical: string }[]
+    renameMap: Map<string, string>
+  }) {
+    setResolveOpen(false)
+    setPublishing(true)
+    setError(null)
+    try {
+      for (const { name } of result.registerNew) {
+        await registerPlayer(name)
+      }
+      for (const { alias, canonical } of result.registerAlias) {
+        await registerPlayer(alias, canonical)
+      }
+      for (const [playerId, newName] of result.renameMap) {
+        updatePlayer(playerId, { name: newName })
+      }
+      await handleConfirm()
+    } catch (err) {
+      setError(getSaveErrorMessage(err))
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   async function handleCopy() {
     if (!shareUrl) return
     await navigator.clipboard.writeText(shareUrl)
@@ -66,6 +116,13 @@ export default function ShareButton() {
           {error}
         </div>
       )}
+      <ResolvePlayersModal
+        open={resolveOpen}
+        localPlayers={players}
+        knownPlayers={knownPlayers}
+        onResolve={handleResolve}
+        onCancel={() => { setResolveOpen(false); setPublishing(false) }}
+      />
       {/* Confirmation modal */}
       {confirming && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -93,7 +150,7 @@ export default function ShareButton() {
                 Cancel
               </button>
               <button
-                onClick={handleConfirm}
+                onClick={handleShareClick}
                 className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
               >
                 Publish & Share
