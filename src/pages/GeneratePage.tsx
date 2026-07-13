@@ -572,11 +572,11 @@ export default function GeneratePage() {
     if (err) { setError(err); return }
     try {
       const offsets = buildOffsets()
-      let best = generate(players, session.slotsPerCourt, fixMatches, offsets)
+      let best = generate(players, session.slotsPerCourt, fixMatches, offsets, session)
       let attempts = 1
       const MAX = 30
       while (attempts < MAX && !isGood(best)) {
-        const candidate = generate(players, session.slotsPerCourt, fixMatches, offsets)
+        const candidate = generate(players, session.slotsPerCourt, fixMatches, offsets, session)
         if (qualityScore(candidate) < qualityScore(best)) best = candidate
         attempts++
         if (isGood(best)) break

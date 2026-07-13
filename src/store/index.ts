@@ -17,6 +17,9 @@ export interface Player {
 export interface FixMatch {
   id: string
   slots: [string, string, string, string] // '' = any
+  mode: 'flexible' | 'pinned'
+  pinnedTime?: string    // "09:40"
+  pinnedCourt?: number   // court index (0-based)
 }
 
 export interface ScheduleSlot {
@@ -79,7 +82,7 @@ interface AppState {
   removePlayer: (id: string) => void
 
   addFixMatch: (m: Omit<FixMatch, 'id'>) => void
-  updateFixMatch: (id: string, slots: FixMatch['slots']) => void
+  updateFixMatch: (id: string, patch: Partial<Omit<FixMatch, 'id'>>) => void
   duplicateFixMatch: (id: string) => void
   removeFixMatch: (id: string) => void
 
@@ -99,6 +102,34 @@ export function timeToMinutes(t: string): number {
 
 export function minutesToTime(m: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+}
+
+export function computeTimeSlots(session: SessionConfig): string[] {
+  const allSlots = new Set<string>()
+  for (const ct of session.courtTimes) {
+    const start = timeToMinutes(ct.start)
+    const end = timeToMinutes(ct.end)
+    for (let m = start; m < end; m += session.slotMinutes) {
+      allSlots.add(minutesToTime(m))
+    }
+  }
+  return [...allSlots].sort()
+}
+
+export function courtsAtTime(session: SessionConfig, time: string): number[] {
+  const t = timeToMinutes(time)
+  return session.courtTimes
+    .map((ct, i) => ({ ct, i }))
+    .filter(({ ct }) => {
+      const start = timeToMinutes(ct.start)
+      const end = timeToMinutes(ct.end)
+      return t >= start && t + session.slotMinutes <= end
+    })
+    .map(({ i }) => i)
+}
+
+export function timeToSlotIndex(session: SessionConfig, time: string): number {
+  return Math.floor((timeToMinutes(time) - timeToMinutes(session.sessionStart)) / session.slotMinutes)
 }
 
 function derivedFromCourtTimes(courtTimes: CourtTime[], slotMinutes: number) {
@@ -244,11 +275,11 @@ export const useStore = create<AppState>()(
         })),
 
       addFixMatch: (m) =>
-        set((s) => ({ fixMatches: [...s.fixMatches, { ...m, id: nanoid() }], schedule: [], lastResult: null })),
+        set((s) => ({ fixMatches: [...s.fixMatches, { ...m, id: nanoid(), mode: m.mode ?? 'flexible' }], schedule: [], lastResult: null })),
 
-      updateFixMatch: (id, slots) =>
+      updateFixMatch: (id, patch) =>
         set((s) => ({
-          fixMatches: s.fixMatches.map((m) => (m.id === id ? { ...m, slots } : m)),
+          fixMatches: s.fixMatches.map((m) => (m.id === id ? { ...m, ...patch } : m)),
           schedule: [], lastResult: null,
         })),
 
