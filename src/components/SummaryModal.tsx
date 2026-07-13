@@ -222,6 +222,9 @@ export default function SummaryModal({
   isRefetching = false,
   onDelete,
   deleteLoading = false,
+  locked = false,
+  onLock,
+  lockLoading = false,
 }: {
   result: GeneratorResult
   playerMap: Map<string, Player>
@@ -249,6 +252,9 @@ export default function SummaryModal({
   isRefetching?: boolean
   onDelete?: () => void
   deleteLoading?: boolean
+  locked?: boolean
+  onLock?: () => void
+  lockLoading?: boolean
 }) {
   const courts = slotsPerCourt.length
   const maxSlots = Math.max(...slotsPerCourt)
@@ -282,6 +288,7 @@ export default function SummaryModal({
 
   const [actionsOpen, setActionsOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [lockConfirm, setLockConfirm] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -517,7 +524,7 @@ export default function SummaryModal({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams) && (
+          {activeTab === 'schedule' && !locked && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams) && (
             swapMode || absentMode || replaceMode || slotSwapMode || teamSwapMode ? (
               <button
                 onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); setActionsOpen(false) }}
@@ -580,6 +587,14 @@ export default function SummaryModal({
                           👤 Mark absent
                         </button>
                       )}
+                      {onLock && !locked && (
+                        <button
+                          onClick={() => { setActionsOpen(false); setLockConfirm(true) }}
+                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                        >
+                          🔒 Lock session
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -617,7 +632,29 @@ export default function SummaryModal({
                   ✕
                 </button>
               )}
-              {!deleteConfirm && (
+              {/* Lock confirmation */}
+              {onLock && lockConfirm && !locked && (
+                <>
+                  <button
+                    onClick={() => { onLock(); setLockConfirm(false) }}
+                    disabled={lockLoading}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {lockLoading && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                    {lockLoading ? 'Locking…' : 'Confirm lock'}
+                  </button>
+                  <button
+                    onClick={() => setLockConfirm(false)}
+                    className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </>
+              )}
+              {locked && (
+                <span className="text-xs text-amber-400 font-medium px-2">🔒 Locked</span>
+              )}
+              {!deleteConfirm && !lockConfirm && (
                 <button
                   onClick={onClose}
                   className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
@@ -821,8 +858,8 @@ export default function SummaryModal({
                             >
                               {/* Played checkbox */}
                               <div
-                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${swapMode || replaceMode || slotSwapMode || teamSwapMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                                onClick={() => { if (!saving && !swapMode && !replaceMode && !slotSwapMode && !teamSwapMode) onTogglePlayedGame(key) }}
+                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${locked || swapMode || replaceMode || slotSwapMode || teamSwapMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                                onClick={() => { if (!locked && !saving && !swapMode && !replaceMode && !slotSwapMode && !teamSwapMode) onTogglePlayedGame(key) }}
                               >
                                 {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                               </div>
@@ -1026,7 +1063,7 @@ export default function SummaryModal({
                                 )}
                               </div>
                               {/* Score toggle / saved score */}
-                              {!swapMode && !replaceMode && !slotSwapMode && !teamSwapMode && (savedScore && !isOpen ? (
+                              {!locked && !swapMode && !replaceMode && !slotSwapMode && !teamSwapMode && (savedScore && !isOpen ? (
                                 <button
                                   onClick={() => { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) }}
                                   className="text-[11px] font-bold text-emerald-400 shrink-0 whitespace-nowrap hover:text-emerald-300"

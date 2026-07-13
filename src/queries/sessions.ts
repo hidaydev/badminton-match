@@ -341,3 +341,32 @@ export function useDeleteSession() {
     },
   })
 }
+
+export function useLockSession(sessionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      return await publishSession(sessionId, { ...current, locked: true })
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
+        if (!old) return old
+        return { ...old, locked: true }
+      })
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    },
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
+    },
+    onSettled: async () => {
+      await invalidateRelatedQueries(queryClient)
+    },
+  })
+}
