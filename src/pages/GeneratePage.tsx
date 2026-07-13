@@ -11,6 +11,8 @@ import {
   setScoreInSnapshot,
   togglePlayedInSnapshot,
 } from '../utils/sessionSnapshot'
+import { applySwap, type SwapTarget, type TeamSwapTarget } from '../utils/swap'
+import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 
 const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
 const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400', 4: 'text-green-400' }
@@ -410,6 +412,7 @@ export default function GeneratePage() {
   const storeSession = useStore((s) => s.session)
   const storeResult = useStore((s) => s.lastResult)
   const setStoreResult = useStore((s) => s.setResult)
+  const updateSchedule = useStore((s) => s.updateSchedule)
 
   const players = isSharedView ? (snapshot?.players ?? []) : storePlayers
   const fixMatches = isSharedView ? [] : storeFixMatches
@@ -467,6 +470,75 @@ export default function GeneratePage() {
       onSuccess: () => setSaveError(null),
       onError: (err) => setSaveError(getSaveErrorMessage(err)),
     })
+  }
+
+  function handleSwapPlayers(t1: SwapTarget, t2: SwapTarget) {
+    if (!result) return
+    const newSchedule = applySwap(result.schedule, t1, t2)
+    updateSchedule(newSchedule)
+    setResult({ ...result, schedule: newSchedule })
+  }
+
+  function handleSwapTeams(t1: TeamSwapTarget, t2: TeamSwapTarget) {
+    if (!result) return
+    const newSchedule = result.schedule.map(s => {
+      const sameGame = t1.slot === s.slot && t1.court === s.court && t2.slot === s.slot && t2.court === s.court
+      if (sameGame) {
+        const updated = { ...s }
+        const team1Players = t1.team === 'A' ? [...s.teamA] : [...s.teamB]
+        const team2Players = t2.team === 'A' ? [...s.teamA] : [...s.teamB]
+        if (t1.team === 'A') updated.teamA = team2Players as [string, string]
+        else updated.teamB = team2Players as [string, string]
+        if (t2.team === 'A') updated.teamA = team1Players as [string, string]
+        else updated.teamB = team1Players as [string, string]
+        return updated
+      }
+      if (s.slot === t1.slot && s.court === t1.court) {
+        const updated = { ...s }
+        const team2Players = t2.team === 'A' ? result.schedule.find(g => g.slot === t2.slot && g.court === t2.court)?.teamA : result.schedule.find(g => g.slot === t2.slot && g.court === t2.court)?.teamB
+        if (team2Players) {
+          if (t1.team === 'A') updated.teamA = team2Players as [string, string]
+          else updated.teamB = team2Players as [string, string]
+        }
+        return updated
+      }
+      if (s.slot === t2.slot && s.court === t2.court) {
+        const updated = { ...s }
+        const team1Players = t1.team === 'A' ? result.schedule.find(g => g.slot === t1.slot && g.court === t1.court)?.teamA : result.schedule.find(g => g.slot === t1.slot && g.court === t1.court)?.teamB
+        if (team1Players) {
+          if (t2.team === 'A') updated.teamA = team1Players as [string, string]
+          else updated.teamB = team1Players as [string, string]
+        }
+        return updated
+      }
+      return s
+    })
+    updateSchedule(newSchedule)
+    setResult({ ...result, schedule: newSchedule })
+  }
+
+  function handleSwapSlots(g1: SlotSwapTarget, g2: SlotSwapTarget) {
+    if (!result) return
+    const newSchedule = applySlotSwap(result.schedule, g1, g2)
+    updateSchedule(newSchedule)
+    setResult({ ...result, schedule: newSchedule })
+  }
+
+  function handleReplacePlayer(playerId: string, newName: string) {
+    if (!result) return
+    const newSchedule = result.schedule.map(s => ({
+      ...s,
+      teamA: s.teamA.map(id => id === playerId ? newName : id) as [string, string],
+      teamB: s.teamB.map(id => id === playerId ? newName : id) as [string, string],
+    }))
+    updateSchedule(newSchedule)
+    setResult({ ...result, schedule: newSchedule })
+  }
+
+  function handleSetAbsent(_nextAbsent: string[]) {
+    void _nextAbsent
+    // Absent is tracked via cloud session only; for local, this is a no-op
+    // but we pass it through so the UI works
   }
 
   function buildOffsets() {
@@ -633,6 +705,11 @@ export default function GeneratePage() {
           slotMinutes={session.slotMinutes}
           courtTimes={session.courtTimes}
           saving={isPublishing}
+          onSwapPlayers={handleSwapPlayers}
+          onSwapTeams={handleSwapTeams}
+          onSwapSlots={handleSwapSlots}
+          onReplacePlayer={handleReplacePlayer}
+          onSetAbsent={handleSetAbsent}
         />
       )}
     </div>

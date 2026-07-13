@@ -85,6 +85,7 @@ interface AppState {
 
   summaryOpen: boolean
   setResult: (r: GeneratorResult) => void
+  updateSchedule: (schedule: ScheduleSlot[]) => void
   togglePlayedGame: (key: string) => void
   setGameScore: (key: string, a: number, b: number) => void
   clearGameScore: (key: string) => void
@@ -265,6 +266,11 @@ export const useStore = create<AppState>()(
         set((s) => ({ fixMatches: s.fixMatches.filter((m) => m.id !== id), schedule: [], lastResult: null })),
 
       setResult: (r) => set({ schedule: r.schedule, lastResult: r, playedGames: [], gameScores: {} }),
+
+      updateSchedule: (schedule) => set((s) => ({
+        schedule,
+        lastResult: s.lastResult ? { ...s.lastResult, schedule } : null,
+      })),
 
       togglePlayedGame: (key) =>
         set((s) => {
