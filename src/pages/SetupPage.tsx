@@ -294,8 +294,7 @@ export default function SetupPage() {
                     value={session.courtNames?.[i] ?? ''}
                     onChange={(e) => setCourtName(i, e.target.value)}
                     placeholder={`Court ${i + 1}`}
-                    disabled={session.locked}
-                    className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:text-white disabled:cursor-not-allowed"
+                    className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:text-white"
                   />
                   <TimeSelect
                     value={ct.start}
