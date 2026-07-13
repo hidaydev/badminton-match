@@ -527,7 +527,7 @@ export default function InstagramPostPage() {
       if (!snapshot) return
 
       const standings = computeStandings(
-        snapshot.players,
+        snapshot.players.filter(p => !(snapshot.absentPlayers ?? []).includes(p.id)),
         snapshot.schedule,
         snapshot.gameScores,
       )
