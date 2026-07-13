@@ -1111,6 +1111,89 @@ export default function SummaryModal({
             </DndContext>
           ) : scheduleGrid
         })()}
+
+        {/* Player Stats — shown below schedule */}
+        {activeTab === 'schedule' && (() => {
+          const players = [...playerMap.values()]
+          if (players.length === 0 || result.schedule.length === 0) return null
+
+          // Compute stats from schedule
+          const playCount: Record<string, number> = Object.fromEntries(players.map(p => [p.id, 0]))
+          const partnerWith: Record<string, Record<string, number>> = {}
+          const facedBy: Record<string, Record<string, number>> = {}
+
+          for (const g of result.schedule) {
+            const allPlayers = [...g.teamA, ...g.teamB]
+            for (const id of allPlayers) playCount[id]++
+
+            // Partners
+            const inc2 = (obj: Record<string, Record<string, number>>, a: string, b: string) => {
+              obj[a] ??= {}; obj[a][b] = (obj[a][b] ?? 0) + 1
+              obj[b] ??= {}; obj[b][a] = (obj[b][a] ?? 0) + 1
+            }
+            inc2(partnerWith, g.teamA[0], g.teamA[1])
+            inc2(partnerWith, g.teamB[0], g.teamB[1])
+
+            // Opponents
+            for (const a of g.teamA) {
+              for (const b of g.teamB) {
+                facedBy[a] ??= {}; facedBy[a][b] = (facedBy[a][b] ?? 0) + 1
+                facedBy[b] ??= {}; facedBy[b][a] = (facedBy[b][a] ?? 0) + 1
+              }
+            }
+          }
+
+          // Compute sit count
+          const slotPlayerSet = new Map<number, Set<string>>()
+          for (const g of result.schedule) {
+            const set = slotPlayerSet.get(g.slot) ?? new Set<string>()
+            g.teamA.forEach(id => set.add(id)); g.teamB.forEach(id => set.add(id))
+            slotPlayerSet.set(g.slot, set)
+          }
+          const maxSlots = Math.max(...result.schedule.map(g => g.slot)) + 1
+          const sitCount: Record<string, number> = Object.fromEntries(players.map(p => [p.id, 0]))
+          for (let t = 0; t < maxSlots; t++) {
+            const playing = slotPlayerSet.get(t) ?? new Set<string>()
+            for (const p of players) {
+              if (!playing.has(p.id)) sitCount[p.id]++
+            }
+          }
+
+          const idealPlays = (result.schedule.length * 4) / players.length
+
+          return (
+            <div className="mt-6 bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-white">Player Stats</span>
+                <span className="text-xs text-slate-500">target ~{idealPlays.toFixed(1)} plays</span>
+              </div>
+              <div className="grid grid-cols-1 gap-y-2">
+                {players
+                  .sort((a, b) => (playCount[b.id] ?? 0) - (playCount[a.id] ?? 0))
+                  .map((p) => {
+                    const plays = playCount[p.id] ?? 0
+                    const sits = sitCount[p.id] ?? 0
+                    const partners = Object.keys(partnerWith[p.id] ?? {}).length
+                    const opponents = Object.keys(facedBy[p.id] ?? {}).length
+                    const over = plays > Math.ceil(idealPlays)
+                    const under = plays < Math.floor(idealPlays)
+                    return (
+                      <div key={p.id} className="flex items-center gap-2">
+                        <span className="text-xs text-slate-300 w-20 truncate">{p.name}</span>
+                        <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
+                          {plays}×
+                        </span>
+                        <span className="text-[10px] text-slate-600">
+                          {sits} sit · {partners} P · {opponents} O
+                        </span>
+                      </div>
+                    )
+                  })}
+              </div>
+              <p className="text-[10px] text-slate-600">P = unique partners · O = unique opponents faced</p>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Swap confirm bar */}

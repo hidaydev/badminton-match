@@ -1,4 +1,5 @@
-import type { Player, FixMatch, ScheduleSlot } from '../store'
+import type { Player, FixMatch, ScheduleSlot, SessionConfig } from '../store'
+import { timeToSlotIndex } from '../store'
 
 interface State {
   playCount: Record<string, number>
@@ -195,7 +196,8 @@ export function generate(
   players: Player[],
   slotsPerCourt: number[],
   fixMatches: FixMatch[],
-  courtOffsets: number[] = []
+  courtOffsets: number[] = [],
+  session?: SessionConfig
 ): GeneratorResult {
   const ids = players.map((p) => p.id)
   const tierMap: Record<string, number> = Object.fromEntries(players.map((p) => [p.id, p.tier]))
@@ -217,6 +219,54 @@ export function generate(
   }
   const fixPlayCount: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]))
 
+  // ── Pre-place pinned matches ─────────────────────────────────────────────────
+  const pinnedMatches = session
+    ? sorted.filter(fm => fm.mode === 'pinned' && fm.pinnedTime && fm.pinnedCourt !== undefined)
+    : []
+  const pinnedIds = new Set(pinnedMatches.map(fm => fm.id))
+
+  for (const fm of pinnedMatches) {
+    const c = fm.pinnedCourt!
+    const t = timeToSlotIndex(session!, fm.pinnedTime!)
+
+    // Validate slot is within court bounds
+    const offset = courtOffsets[c] ?? 0
+    if (t < offset || t >= offset + slotsPerCourt[c]) {
+      unplacedFixMatches.push(fm.id)
+      continue
+    }
+
+    // Validate slot is empty
+    if (grid[c][t] !== null) {
+      unplacedFixMatches.push(fm.id)
+      continue
+    }
+
+    // Validate no player conflicts
+    const usedAtT = getUsedAtT(grid, t, slotsPerCourt, courtOffsets)
+    const specifiedPlayers = fm.slots.filter(Boolean)
+    if (specifiedPlayers.some(p => usedAtT.has(p))) {
+      unplacedFixMatches.push(fm.id)
+      continue
+    }
+
+    // Fill wildcard slots
+    const available = ids.filter(id => !usedAtT.has(id))
+    const game = fillGame(fm.slots, available, state, tierMap, totalFixCommitments, fixPlayCount)
+
+    if (!game) {
+      unplacedFixMatches.push(fm.id)
+      continue
+    }
+
+    grid[c][t] = { teamA: [game[0], game[1]], teamB: [game[2], game[3]] }
+    recordGame(game[0], game[1], game[2], game[3], state)
+    fm.slots.filter(Boolean).forEach(id => { if (id) fixPlayCount[id]++ })
+  }
+
+  // Filter out pinned matches from further processing
+  const flexibleFixes = sorted.filter(fm => !pinnedIds.has(fm.id))
+
   // ── Merge pairable fix matches (A-side only) into single games ───────────────
   // Two "A1+A2 vs open" matches can share one slot: one pair becomes Team A, the other Team B
   const isPairable = (fm: FixMatch) => !!(fm.slots[0] && fm.slots[1] && !fm.slots[2] && !fm.slots[3])
@@ -224,7 +274,7 @@ export function generate(
   const usedInMerge = new Set<string>()
   const effectiveFixes: FixMatch[] = []
 
-  const pairableSorted = shuffle(sorted.filter(isPairable))
+  const pairableSorted = shuffle(flexibleFixes.filter(isPairable))
   for (const fm of pairableSorted) {
     if (usedInMerge.has(fm.id)) continue
     let bestPartner: FixMatch | null = null
@@ -241,14 +291,14 @@ export function generate(
     }
     if (bestPartner) {
       const mergedId = `__merged_${fm.id}_${bestPartner.id}`
-      effectiveFixes.push({ id: mergedId, slots: [fm.slots[0], fm.slots[1], bestPartner.slots[0], bestPartner.slots[1]] })
+      effectiveFixes.push({ id: mergedId, slots: [fm.slots[0], fm.slots[1], bestPartner.slots[0], bestPartner.slots[1]], mode: 'flexible' })
       mergedSourceIds.set(mergedId, [fm.id, bestPartner.id])
       usedInMerge.add(fm.id)
       usedInMerge.add(bestPartner.id)
     }
   }
   // Add non-pairable and unmerged fix matches
-  for (const fm of sorted) {
+  for (const fm of flexibleFixes) {
     if (!usedInMerge.has(fm.id)) effectiveFixes.push(fm)
   }
   effectiveFixes.sort((a, b) => b.slots.filter(Boolean).length - a.slots.filter(Boolean).length)
