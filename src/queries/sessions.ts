@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, listSessions, RpcError } from './endpoints'
+import { getSession, publishSession, listSessions, deleteSession, RpcError } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
@@ -330,4 +330,14 @@ export function useFetchSession() {
       }),
     [queryClient],
   )
+}
+
+export function useDeleteSession() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (sessionId: string) => deleteSession(sessionId),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    },
+  })
 }

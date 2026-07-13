@@ -10,6 +10,7 @@ import {
   useReplacePlayer,
   useSwapSlots,
   useSwapTeams,
+  useDeleteSession,
   type CloudSnapshot,
 } from '../queries'
 import { registerPlayer } from '../queries/endpoints'
@@ -34,6 +35,7 @@ export default function SharedSessionPage() {
   const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
   const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
+  const { mutate: deleteSessionMutate, isPending: deletePending } = useDeleteSession()
 
   const { save } = useLastSession()
 
@@ -172,6 +174,13 @@ export default function SharedSessionPage() {
         standalone
         onRefetch={() => refetch()}
         isRefetching={isFetching}
+        onDelete={() => {
+          if (!sessionId) return
+          deleteSessionMutate(sessionId, {
+            onSuccess: () => navigate('/sessions'),
+          })
+        }}
+        deleteLoading={deletePending}
       />
     </div>
   )

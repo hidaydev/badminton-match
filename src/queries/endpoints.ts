@@ -116,6 +116,10 @@ export async function registerPlayer(name: string, canonicalName?: string): Prom
   return { playerId: result }
 }
 
+export async function deleteSession(lookup: string): Promise<{ deleted: boolean; sessionId: string }> {
+  return await callRpc<{ deleted: boolean; sessionId: string }>('delete_session', { p_lookup: lookup })
+}
+
 export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
   return await callRpc<TournamentSnapshot | null>('get_tournament', { p_id: id })
 }
