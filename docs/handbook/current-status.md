@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-06-18
+Last updated: 2026-07-13
 
 This is the fastest handover file for continuing work on this repository.
 
@@ -58,6 +58,17 @@ Applied migration:
 - [`supabase/migrations/20260618_000032_bm_drop_legacy_identity_sync_triggers.sql`](../../supabase/migrations/20260618_000032_bm_drop_legacy_identity_sync_triggers.sql)
 - [`supabase/migrations/20260618_000033_bm_reapply_player_stats_uuid_only.sql`](../../supabase/migrations/20260618_000033_bm_reapply_player_stats_uuid_only.sql)
 - [`supabase/migrations/20260618_000034_bm_tournament_snapshot_validation_fix.sql`](../../supabase/migrations/20260618_000034_bm_tournament_snapshot_validation_fix.sql)
+- [`supabase/migrations/20260618_000035_bm_register_player_rpc.sql`](../../supabase/migrations/20260618_000035_bm_register_player_rpc.sql)
+- [`supabase/migrations/20260618_000036_bm_restore_errcodes.sql`](../../supabase/migrations/20260618_000036_bm_restore_errcodes.sql)
+- [`supabase/migrations/20260618_000037_bm_drop_errcodes_for_postgrest_compat.sql`](../../supabase/migrations/20260618_000037_bm_drop_errcodes_for_postgrest_compat.sql)
+- [`supabase/migrations/20260618_000038_bm_cleanup_rpcs.sql`](../../supabase/migrations/20260618_000038_bm_cleanup_rpcs.sql)
+- [`supabase/migrations/20260618_000039_bm_fix_register_player_case.sql`](../../supabase/migrations/20260618_000039_bm_fix_register_player_case.sql)
+- [`supabase/migrations/20260618_000040_bm_fix_delete_player_use_id.sql`](../../supabase/migrations/20260618_000040_bm_fix_delete_player_use_id.sql)
+- [`supabase/migrations/20260618_000041_bm_fix_publish_new_session_internal_id.sql`](../../supabase/migrations/20260618_000041_bm_fix_publish_new_session_internal_id.sql)
+- [`supabase/migrations/20260621_000042_bm_fix_publish_v_id_null_for_new_sessions.sql`](../../supabase/migrations/20260621_000042_bm_fix_publish_v_id_null_for_new_sessions.sql)
+- [`supabase/migrations/20260621_000043_bm_publish_session_advisory_lock.sql`](../../supabase/migrations/20260621_000043_bm_publish_session_advisory_lock.sql)
+- [`supabase/migrations/20260713_000044_bm_delete_session_anon_access.sql`](../../supabase/migrations/20260713_000044_bm_delete_session_anon_access.sql)
+- [`supabase/migrations/20260713_000045_bm_session_lock.sql`](../../supabase/migrations/20260713_000045_bm_session_lock.sql)
 
 Created:
 
@@ -68,13 +79,17 @@ Created:
 
 RPC functions created for local app usage:
 
-- `bm_publish_session`
-- `bm_get_session`
-- `bm_list_sessions`
-- `bm_list_players`
-- `bm_get_player_stats`
-- `bm_publish_tournament`
-- `bm_get_tournament`
+- `bm.publish_session`
+- `bm.get_session`
+- `bm.list_sessions`
+- `bm.list_players`
+- `bm.get_player_stats`
+- `bm.register_player`
+- `bm.publish_tournament`
+- `bm.get_tournament`
+- `bm.delete_session` (admin-only)
+- `bm.delete_player` (admin-only)
+- `bm.unlock_session` (admin-only, not wired to UI)
 
 The local app now targets the underlying `bm.*` functions directly through the
 `bm` PostgREST profile.
@@ -87,6 +102,8 @@ Main practical state now:
 - `badminton_match` is now historical migration context, not a live runtime target
 - active relational graph in `bm` is UUID-first
 - exposed-schema/runtime drift was fixed during verification
+- session lock enforcement is active (`publish_session` rejects writes when `locked=true`)
+- delete session and unlock session are admin-only RPCs (not wired to UI)
 
 ### Frontend migration
 
@@ -143,7 +160,7 @@ Verified result:
 
 ## What is not done yet
 
-1. production security hardening
+1. production security hardening (partial: session lock enforcement delivered)
 2. formal long-term export boundary for `MDEF`
 3. broader end-to-end/UI regression coverage beyond the compact RPC/writeflow suite
 
@@ -189,6 +206,11 @@ These are the main migration/doc checkpoints so far:
 - `1b5c835` — `Add project baseline and migration docs`
 - `f38e038` — `Organize docs into handbook and archive`
 - `32d0593` — `Remove duplicated SQL from docs`
+- `89dd9c2` — `feat: add delete session button + fix IG leaderboard absent bug`
+- `a0b6a2b` — `feat: editable court names after lock + edit schedule before share`
+- `3aff325` — `feat: manual match + time assignment (pinned fix matches)`
+- `032711b` — `feat: show player stats in shared session schedule tab`
+- `19ffbf2` — `feat: lock session feature`
 
 ## Recommended next task
 
@@ -201,10 +223,34 @@ Order:
 1. keep smoke-checking the direct `bm.*` RPC surface after changes
 2. expand regression coverage from compact RPC checks into higher-level UI or browser flows
 3. harden production-facing access controls if deployment scope expands
+4. document unlock procedure for locked sessions (admin-only via Supabase SQL Editor)
 
 Latest audit:
 
 - [bm-write-flow-audit.md](bm-write-flow-audit.md)
+
+## Session lock feature
+
+### How it works
+
+1. Host clicks "🔒 Lock session" in Actions dropdown
+2. Confirmation dialog appears
+3. On confirm, `publish_session` is called with `locked: true` in the snapshot
+4. All interactive elements are disabled (checkboxes, scores, actions)
+5. Any mutation attempt is rejected by the server
+
+### How to unlock (admin-only)
+
+Unlock is intentionally NOT available in the UI. To unlock a session:
+
+1. Open Supabase Dashboard → SQL Editor
+2. Run:
+   ```sql
+   SELECT bm.unlock_session('<session-id>');
+   ```
+   Replace `<session-id>` with the actual session ID.
+
+This clears the `locked` flag and sets status back to `draft`.
 
 ## If continuing in a new session
 

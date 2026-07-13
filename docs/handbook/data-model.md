@@ -26,11 +26,16 @@ Fields:
 
 - `id`
 - `slots: [string, string, string, string]`
+- `mode: 'flexible' | 'pinned'`
+- optional `pinnedTime` (HH:MM format)
+- optional `pinnedCourt` (0-based court index)
 
 Semantics:
 
 - empty string means open slot
 - can represent exact pairing or partially specified match
+- `pinned` mode: match is locked to specific time and court
+- `flexible` mode: generator decides placement
 
 ### ScheduleSlot
 
@@ -89,6 +94,13 @@ Fields:
 - `playedGames`
 - `gameScores`
 - optional `absentPlayers`
+- optional `locked`
+
+Notes:
+
+- `locked` when `true` causes `publish_session` to reject all subsequent writes
+- `locked` is set via the lock session feature in the UI
+- unlock is admin-only via `bm.unlock_session` RPC
 
 This is the operational persisted payload for published sessions.
 
