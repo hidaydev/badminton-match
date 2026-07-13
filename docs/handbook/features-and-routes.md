@@ -83,6 +83,8 @@ Key capabilities:
 - build fixed matches
 - validate impossible or overloaded constraints
 - prevent continuing with invalid constraint set
+- pinned matches: assign time and court to specific matches
+- flexible matches: generator decides placement
 
 ### Generate page
 
@@ -110,10 +112,30 @@ Capabilities:
 - mutate scores and played flags
 - swap players
 - swap slots
+- swap teams
 - mark absences
 - rename session-local players
+- delete session
+- lock session (prevents all mutations)
 
 The summary modal acts as the operations console for live session management.
+
+### Lock behavior
+
+When a session is locked:
+
+- all interactive elements are disabled (checkboxes, scores, actions)
+- server rejects any mutation via `publish_session`
+- unlock is admin-only via `bm.unlock_session` RPC (not in UI)
+
+### Player stats in shared view
+
+The schedule tab in SummaryModal shows per-player stats:
+
+- play count (how many times each player plays)
+- sit count (how many times each player sits out)
+- unique partners
+- unique opponents
 
 ## Player history flow
 

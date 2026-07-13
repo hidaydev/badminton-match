@@ -53,7 +53,7 @@ Tasks:
 
 ## Phase 4: Security hardening
 
-Status: pending
+Status: partial (session lock delivered)
 
 Goal:
 
@@ -66,7 +66,14 @@ Decisions needed:
 - who can write tournaments?
 - do public links imply public write access or only public read access?
 
-Tasks:
+Delivered:
+
+- session lock enforcement: `publish_session` rejects writes when `locked=true`
+- lock button in UI with confirmation dialog
+- unlock is admin-only via `bm.unlock_session` RPC (not in UI)
+- delete session is admin-only (granted to anon for UI, but could be restricted)
+
+Tasks remaining:
 
 1. review current grants
 2. decide whether to use RLS, auth, or explicit public-write rules
