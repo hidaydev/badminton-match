@@ -120,6 +120,11 @@ export async function deleteSession(lookup: string): Promise<{ deleted: boolean;
   return await callRpc<{ deleted: boolean; sessionId: string }>('delete_session', { p_lookup: lookup })
 }
 
+// Admin-only unlock RPC — NOT wired to UI
+export async function unlockSession(id: string): Promise<CloudSnapshot> {
+  return await callRpc<CloudSnapshot>('unlock_session', { p_id: id })
+}
+
 export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
   return await callRpc<TournamentSnapshot | null>('get_tournament', { p_id: id })
 }
