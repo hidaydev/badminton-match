@@ -11,6 +11,7 @@ import {
   useSwapSlots,
   useSwapTeams,
   useDeleteSession,
+  useLockSession,
   type CloudSnapshot,
 } from '../queries'
 import { registerPlayer } from '../queries/endpoints'
@@ -36,6 +37,7 @@ export default function SharedSessionPage() {
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
   const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
   const { mutate: deleteSessionMutate, isPending: deletePending } = useDeleteSession()
+  const { mutate: lockSession, isPending: lockPending } = useLockSession(sessionId!)
 
   const { save } = useLastSession()
 
@@ -181,6 +183,9 @@ export default function SharedSessionPage() {
           })
         }}
         deleteLoading={deletePending}
+        locked={!!snapshot?.locked}
+        onLock={() => lockSession()}
+        lockLoading={lockPending}
       />
     </div>
   )

@@ -10,6 +10,7 @@ export interface CloudSnapshot {
   playedGames: string[]
   gameScores: Record<string, GameScore>
   absentPlayers?: string[]
+  locked?: boolean
 }
 
 export interface SessionMeta {
