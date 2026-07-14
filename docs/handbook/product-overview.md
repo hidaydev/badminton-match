@@ -64,6 +64,7 @@ Once a session is published:
 - players can be swapped
 - slots can be swapped
 - teams can be swapped
+- one player in a specific game can be changed
 - absences can be recorded
 - player stats (play count, sit count, partners, opponents) are visible
 - session can be locked to prevent further changes
