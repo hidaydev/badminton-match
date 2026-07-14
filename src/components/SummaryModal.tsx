@@ -775,9 +775,9 @@ export default function SummaryModal({
                     type="text"
                     value={replaceName}
                     onChange={(e) => setReplaceName(e.target.value)}
-                    onKeyDown={(e) => {
+                    onKeyDown={async (e) => {
                       if (e.key === 'Enter' && replaceName.trim()) {
-                        onReplacePlayer?.(replaceTarget, replaceName.trim())
+                        await onReplacePlayer?.(replaceTarget, replaceName.trim())
                         exitReplaceMode()
                       }
                     }}
@@ -786,9 +786,9 @@ export default function SummaryModal({
                     className="flex-1 bg-slate-900 border border-emerald-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
                   />
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (!replaceName.trim()) return
-                      onReplacePlayer?.(replaceTarget, replaceName.trim())
+                      await onReplacePlayer?.(replaceTarget, replaceName.trim())
                       exitReplaceMode()
                     }}
                     disabled={!replaceName.trim() || saving}

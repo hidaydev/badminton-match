@@ -82,6 +82,7 @@ export async function listSessions(): Promise<SessionMeta[]> {
     date: string
     player_count: number
     total_games: number
+    locked: boolean
   }>>('list_sessions', {})
 
   return rows.map((row) => ({
@@ -90,6 +91,7 @@ export async function listSessions(): Promise<SessionMeta[]> {
     date: row.date,
     playerCount: row.player_count,
     totalGames: row.total_games,
+    locked: row.locked,
   }))
 }
 

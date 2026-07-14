@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-07-13 (lock fix)
+Last updated: 2026-07-14
 
 This is the fastest handover file for continuing work on this repository.
 
@@ -244,23 +244,19 @@ Latest audit:
 5. All interactive elements are disabled (checkboxes, scores, actions)
 6. Any mutation attempt is rejected by the server
 
-### Important: locked must be set in both places
+### Important: locked must be set in session object
 
-The `locked` flag must be set in **both** `CloudSnapshot.locked` AND `session.locked`:
+The server reads `p_snapshot->'session'->>'locked'` to set the `status` column. On subsequent writes, the server checks `bm.sessions.status = 'locked'` (not the snapshot JSON) to enforce the lock.
 
 ```typescript
-// Correct:
+// Correct: set locked in session object
 await publishSession(sessionId, { 
   ...current, 
-  locked: true,
   session: { ...current.session, locked: true }
 })
-
-// Wrong (only sets CloudSnapshot.locked, not session.locked):
-await publishSession(sessionId, { ...current, locked: true })
 ```
 
-The server reads `p_snapshot->'session'->>'locked'` to determine the lock state. If only `CloudSnapshot.locked` is set, the server ignores it.
+The `status` column is the source of truth for lock enforcement. The `locked` field in the snapshot is only used at write time to determine what `status` value to set.
 
 ### How to unlock (admin-only)
 

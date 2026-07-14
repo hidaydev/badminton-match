@@ -49,6 +49,7 @@ export default function SharedSessionPage() {
       date: snapshot.session.date,
       playerCount: snapshot.players.length,
       totalGames: snapshot.schedule.length,
+      locked: !!snapshot.session.locked,
     })
   }, [save, sessionId, snapshot])
 
@@ -180,10 +181,11 @@ export default function SharedSessionPage() {
           if (!sessionId) return
           deleteSessionMutate(sessionId, {
             onSuccess: () => navigate('/sessions'),
+            onError: (err) => setSaveError(getSaveErrorMessage(err)),
           })
         }}
         deleteLoading={deletePending}
-        locked={!!snapshot?.locked}
+        locked={!!snapshot?.session?.locked}
         onLock={() => lockSession()}
         lockLoading={lockPending}
       />
