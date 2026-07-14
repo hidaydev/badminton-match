@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-07-13
+Last updated: 2026-07-13 (lock fix)
 
 This is the fastest handover file for continuing work on this repository.
 
@@ -69,6 +69,7 @@ Applied migration:
 - [`supabase/migrations/20260621_000043_bm_publish_session_advisory_lock.sql`](../../supabase/migrations/20260621_000043_bm_publish_session_advisory_lock.sql)
 - [`supabase/migrations/20260713_000044_bm_delete_session_anon_access.sql`](../../supabase/migrations/20260713_000044_bm_delete_session_anon_access.sql)
 - [`supabase/migrations/20260713_000045_bm_session_lock.sql`](../../supabase/migrations/20260713_000045_bm_session_lock.sql)
+- [`supabase/migrations/20260713_000046_bm_fix_session_lock.sql`](../../supabase/migrations/20260713_000046_bm_fix_session_lock.sql)
 
 Created:
 
@@ -211,6 +212,9 @@ These are the main migration/doc checkpoints so far:
 - `3aff325` — `feat: manual match + time assignment (pinned fix matches)`
 - `032711b` — `feat: show player stats in shared session schedule tab`
 - `19ffbf2` — `feat: lock session feature`
+- `823a940` — `fix: session lock enforcement uses status column`
+- `884a406` — `fix: show Locked badge when session is locked`
+- (pending) — `fix: lock flag must be set in both CloudSnapshot and session object`
 
 ## Recommended next task
 
@@ -239,6 +243,24 @@ Latest audit:
 4. The session status is set to `'locked'` in the database
 5. All interactive elements are disabled (checkboxes, scores, actions)
 6. Any mutation attempt is rejected by the server
+
+### Important: locked must be set in both places
+
+The `locked` flag must be set in **both** `CloudSnapshot.locked` AND `session.locked`:
+
+```typescript
+// Correct:
+await publishSession(sessionId, { 
+  ...current, 
+  locked: true,
+  session: { ...current.session, locked: true }
+})
+
+// Wrong (only sets CloudSnapshot.locked, not session.locked):
+await publishSession(sessionId, { ...current, locked: true })
+```
+
+The server reads `p_snapshot->'session'->>'locked'` to determine the lock state. If only `CloudSnapshot.locked` is set, the server ignores it.
 
 ### How to unlock (admin-only)
 
