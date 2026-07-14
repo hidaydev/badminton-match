@@ -180,6 +180,23 @@ function fillGame(
     return bestGame
   }
 
+  if (needed === 4) {
+    let bestGame: [string, string, string, string] | null = null
+    let bestScore = Infinity
+    for (let i = 0; i < candidates.length; i++) {
+      for (let j = i + 1; j < candidates.length; j++) {
+        for (let k = j + 1; k < candidates.length; k++) {
+          for (let l = k + 1; l < candidates.length; l++) {
+            const filled = [candidates[i], candidates[j], candidates[k], candidates[l]] as [string, string, string, string]
+            const s = scoreGame(...filled, state, tierMap)
+            if (s < bestScore) { bestScore = s; bestGame = filled }
+          }
+        }
+      }
+    }
+    return bestGame
+  }
+
   return null
 }
 

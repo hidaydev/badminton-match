@@ -63,6 +63,7 @@ interface AppState {
   playedGames: string[]
   gameScores: Record<string, GameScore>
   cloudSessionId: string | null
+  sessionEpoch: number
   setCloudSessionId: (id: string) => void
 
   setCourts: (n: number) => void
@@ -173,7 +174,7 @@ export const useStore = create<AppState>()(
       session: makeDefaultSession(),
       players: [],
       fixMatches: [],
-      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [],
+      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, sessionEpoch: 0, absentPlayers: [],
 
       setCourts: (n) =>
         set((s) => {
@@ -249,7 +250,7 @@ export const useStore = create<AppState>()(
         set((s) => ({ session: { ...s.session, locked: true } })),
 
       resetSession: () =>
-        set({ sessionId: nanoid(), session: makeDefaultSession(), players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [] }),
+        set((s) => ({ sessionId: nanoid(), session: makeDefaultSession(), players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, sessionEpoch: s.sessionEpoch + 1, absentPlayers: [] })),
 
       addPlayer: (p) =>
         set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
@@ -306,7 +307,7 @@ export const useStore = create<AppState>()(
         lastResult: s.lastResult ? { ...s.lastResult, schedule } : null,
       })),
 
-      setAbsentPlayers: (ids) => set({ absentPlayers: ids }),
+      setAbsentPlayers: (ids) => set({ absentPlayers: [...new Set(ids)] }),
 
       togglePlayedGame: (key) =>
         set((s) => {
@@ -349,7 +350,7 @@ export const useStore = create<AppState>()(
         session: makeDefaultSession(),
         players: [],
         fixMatches: [],
-      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [],
+      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, sessionEpoch: 0, absentPlayers: [],
       }),
     }
   )

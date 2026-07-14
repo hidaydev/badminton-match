@@ -20,6 +20,12 @@ export function applyChange(
   target: ChangeTarget,
   replacementPlayerId: string,
 ): ScheduleSlot[] {
+  // Early return if replacement is same as current player
+  const game = schedule.find(s => s.slot === target.slot && s.court === target.court)
+  if (game) {
+    const currentId = target.team === 'A' ? game.teamA[target.index] : game.teamB[target.index]
+    if (currentId === replacementPlayerId) return schedule
+  }
   return schedule.map(s => {
     if (s.slot !== target.slot || s.court !== target.court) return s
     const teamA = [...s.teamA] as [string, string]
@@ -37,8 +43,13 @@ export function detectChangeConflict(
 ): string | null {
   const game = schedule.find(s => s.slot === target.slot && s.court === target.court)
   if (!game) return null
-  const gamePlayers = [...game.teamA, ...game.teamB]
-  if (gamePlayers.includes(replacementPlayerId)) return replacementPlayerId
+  // Exclude the player being replaced from conflict check
+  const otherPlayers = [...game.teamA, ...game.teamB].filter((_, i) => {
+    const team = i < 2 ? 'A' : 'B'
+    const idx = i % 2
+    return !(team === target.team && idx === target.index)
+  })
+  if (otherPlayers.includes(replacementPlayerId)) return replacementPlayerId
   return null
 }
 
@@ -82,6 +93,9 @@ export function applyTeamSwap(
   t1: TeamSwapTarget,
   t2: TeamSwapTarget,
 ): ScheduleSlot[] {
+  // Early return if same team in same game
+  if (t1.slot === t2.slot && t1.court === t2.court && t1.team === t2.team) return schedule
+
   const game1 = schedule.find(s => s.slot === t1.slot && s.court === t1.court)
   const game2 = schedule.find(s => s.slot === t2.slot && s.court === t2.court)
   if (!game1 || !game2) return schedule
