@@ -100,7 +100,9 @@ Notes:
 
 - `locked` when `true` causes `publish_session` to reject all subsequent writes
 - `locked` is set via the lock session feature in the UI
-- unlock is admin-only via `bm.unlock_session` RPC
+- unlock is admin-only via `bm.unlock_session` RPC (service_role only)
+- `delete_session` also rejects deletion of non-draft (locked) sessions
+- `unlock_session` bumps the version when resetting to draft
 
 This is the operational persisted payload for published sessions.
 
