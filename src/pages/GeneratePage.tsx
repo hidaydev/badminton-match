@@ -426,6 +426,8 @@ export default function GeneratePage() {
   const setGameScore = useStore((s) => s.setGameScore)
   const cloudSessionId = useStore((s) => s.cloudSessionId)
   const schedule = useStore((s) => s.schedule)
+  const absentPlayers = useStore((s) => s.absentPlayers)
+  const setAbsentPlayers = useStore((s) => s.setAbsentPlayers)
   const [result, setResult] = useState<GeneratorResult | null>(
     isSharedView ? (snapshot?.lastResult ?? null) : storeResult
   )
@@ -535,10 +537,8 @@ export default function GeneratePage() {
     setResult({ ...result, schedule: newSchedule })
   }
 
-  function handleSetAbsent(_nextAbsent: string[]) {
-    void _nextAbsent
-    // Absent is tracked via cloud session only; for local, this is a no-op
-    // but we pass it through so the UI works
+  function handleSetAbsent(nextAbsent: string[]) {
+    setAbsentPlayers(nextAbsent)
   }
 
   function buildOffsets() {
@@ -710,6 +710,7 @@ export default function GeneratePage() {
           onSwapSlots={handleSwapSlots}
           onReplacePlayer={handleReplacePlayer}
           onSetAbsent={handleSetAbsent}
+          absentPlayers={absentPlayers}
         />
       )}
     </div>
