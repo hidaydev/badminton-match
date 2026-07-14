@@ -395,6 +395,16 @@ export default function SummaryModal({
     setChangeMode(true)
   }
 
+  function enterSwapMode() {
+    exitAbsentMode()
+    exitReplaceMode()
+    exitSlotSwapMode()
+    exitTeamSwapMode()
+    exitChangeMode()
+    setActionsOpen(false)
+    setSwapMode(true)
+  }
+
   function handleTeamClick(target: TeamSwapTarget) {
     if (!teamSwapMode) return
     if (
@@ -531,13 +541,13 @@ export default function SummaryModal({
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
             <button
-              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode() }}
+              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); exitChangeMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Schedule
             </button>
             <button
-              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode() }}
+              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); exitChangeMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
             >
               Leaderboard
@@ -580,7 +590,7 @@ export default function SummaryModal({
                     >
                       {onSwapPlayers && (
                         <button
-                          onClick={() => { setActionsOpen(false); setSwapMode(true) }}
+                          onClick={() => enterSwapMode()}
                           className="w-full text-left px-4 py-2.5 text-xs font-medium text-indigo-300 hover:bg-slate-800 transition-colors"
                         >
                           ⇄ Swap players

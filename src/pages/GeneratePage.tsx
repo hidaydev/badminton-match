@@ -470,7 +470,6 @@ export default function GeneratePage() {
   const togglePlayedGame = useStore((s) => s.togglePlayedGame)
   const setGameScore = useStore((s) => s.setGameScore)
   const cloudSessionId = useStore((s) => s.cloudSessionId)
-  const schedule = useStore((s) => s.schedule)
   const absentPlayers = useStore((s) => s.absentPlayers)
   const setAbsentPlayers = useStore((s) => s.setAbsentPlayers)
   const [result, setResult] = useState<GeneratorResult | null>(
@@ -485,8 +484,10 @@ export default function GeneratePage() {
 
   function publishToCloud(buildFn: (snap: CloudSnapshot) => CloudSnapshot) {
     if (!cloudSessionId) return
+    // Read schedule directly from store to avoid stale closure after updateSchedule (which is async)
+    const freshSchedule = useStore.getState().schedule
     const current = buildPublishableSessionSnapshot({
-      session, players, fixMatches, schedule, playedGames: playedArr, gameScores,
+      session, players, fixMatches, schedule: freshSchedule, playedGames: playedArr, gameScores,
     })
     const snap = buildFn(current)
     publish(snap, {
@@ -555,9 +556,12 @@ export default function GeneratePage() {
       setSaveError(getSaveErrorMessage(err))
       return
     }
-    const newSchedule = applyChange(result.schedule, target, newName)
+    // Re-read result from store to avoid stale closure after await
+    const freshResult = useStore.getState().lastResult
+    if (!freshResult) return
+    const newSchedule = applyChange(freshResult.schedule, target, newName)
     updateSchedule(newSchedule)
-    setResult({ ...result, schedule: newSchedule })
+    setResult({ ...freshResult, schedule: newSchedule })
     publishToCloud((snap) => changePlayerInSnapshot(snap, target, newName))
   }
 
