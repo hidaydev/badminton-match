@@ -87,8 +87,10 @@ interface AppState {
   removeFixMatch: (id: string) => void
 
   summaryOpen: boolean
+  absentPlayers: string[]
   setResult: (r: GeneratorResult) => void
   updateSchedule: (schedule: ScheduleSlot[]) => void
+  setAbsentPlayers: (ids: string[]) => void
   togglePlayedGame: (key: string) => void
   setGameScore: (key: string, a: number, b: number) => void
   clearGameScore: (key: string) => void
@@ -171,7 +173,7 @@ export const useStore = create<AppState>()(
       session: makeDefaultSession(),
       players: [],
       fixMatches: [],
-      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null,
+      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [],
 
       setCourts: (n) =>
         set((s) => {
@@ -247,7 +249,7 @@ export const useStore = create<AppState>()(
         set((s) => ({ session: { ...s.session, locked: true } })),
 
       resetSession: () =>
-        set({ sessionId: nanoid(), session: makeDefaultSession(), players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null }),
+        set({ sessionId: nanoid(), session: makeDefaultSession(), players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [] }),
 
       addPlayer: (p) =>
         set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
@@ -271,6 +273,7 @@ export const useStore = create<AppState>()(
             ...m,
             slots: m.slots.map((s) => (s === id ? '' : s)) as FixMatch['slots'],
           })),
+          absentPlayers: s.absentPlayers.filter((pid) => pid !== id),
           schedule: [], lastResult: null,
         })),
 
@@ -302,6 +305,8 @@ export const useStore = create<AppState>()(
         schedule,
         lastResult: s.lastResult ? { ...s.lastResult, schedule } : null,
       })),
+
+      setAbsentPlayers: (ids) => set({ absentPlayers: ids }),
 
       togglePlayedGame: (key) =>
         set((s) => {
@@ -344,7 +349,7 @@ export const useStore = create<AppState>()(
         session: makeDefaultSession(),
         players: [],
         fixMatches: [],
-        schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null,
+      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [],
       }),
     }
   )
