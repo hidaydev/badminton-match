@@ -8,6 +8,40 @@ export interface SwapTarget {
   index: 0 | 1
 }
 
+export interface ChangeTarget {
+  slot: number
+  court: number
+  team: 'A' | 'B'
+  index: 0 | 1
+}
+
+export function applyChange(
+  schedule: ScheduleSlot[],
+  target: ChangeTarget,
+  replacementPlayerId: string,
+): ScheduleSlot[] {
+  return schedule.map(s => {
+    if (s.slot !== target.slot || s.court !== target.court) return s
+    const teamA = [...s.teamA] as [string, string]
+    const teamB = [...s.teamB] as [string, string]
+    if (target.team === 'A') teamA[target.index] = replacementPlayerId
+    else teamB[target.index] = replacementPlayerId
+    return { ...s, teamA, teamB }
+  })
+}
+
+export function detectChangeConflict(
+  schedule: ScheduleSlot[],
+  target: ChangeTarget,
+  replacementPlayerId: string,
+): string | null {
+  const game = schedule.find(s => s.slot === target.slot && s.court === target.court)
+  if (!game) return null
+  const gamePlayers = [...game.teamA, ...game.teamB]
+  if (gamePlayers.includes(replacementPlayerId)) return replacementPlayerId
+  return null
+}
+
 export function applySwap(
   schedule: ScheduleSlot[],
   t1: SwapTarget,

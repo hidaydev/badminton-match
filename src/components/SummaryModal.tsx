@@ -14,8 +14,8 @@ import type { GeneratorResult } from '../generator'
 import type { Player, GameScore, CourtTime } from '../store'
 import { timeToMinutes, minutesToTime } from '../store'
 import { computeStandings } from '../utils/standings'
-import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
-import { detectTeamSwapConflict } from '../utils/swap'
+import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
+import { detectTeamSwapConflict, detectChangeConflict } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import { detectSlotSwapConflict } from '../utils/slotSwap'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
@@ -218,6 +218,7 @@ export default function SummaryModal({
   onReplacePlayer,
   onSwapSlots,
   onSwapTeams,
+  onChangePlayer,
   onRefetch,
   isRefetching = false,
   onDelete,
@@ -248,6 +249,7 @@ export default function SummaryModal({
   onReplacePlayer?: (playerId: string, newName: string) => void
   onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
   onSwapTeams?: (t1: TeamSwapTarget, t2: TeamSwapTarget) => void
+  onChangePlayer?: (target: ChangeTarget, newName: string) => void
   onRefetch?: () => void
   isRefetching?: boolean
   onDelete?: () => void
@@ -285,6 +287,11 @@ export default function SummaryModal({
   const [teamSwapSelected, setTeamSwapSelected] = useState<TeamSwapTarget | null>(null)
   const [pendingTeamSwap, setPendingTeamSwap] = useState<{ t1: TeamSwapTarget; t2: TeamSwapTarget } | null>(null)
   const [teamSwapError, setTeamSwapError] = useState<string | null>(null)
+
+  const [changeMode, setChangeMode] = useState(false)
+  const [changeTarget, setChangeTarget] = useState<ChangeTarget | null>(null)
+  const [changeName, setChangeName] = useState('')
+  const [changeError, setChangeError] = useState<string | null>(null)
 
   const [actionsOpen, setActionsOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -349,6 +356,7 @@ export default function SummaryModal({
     exitSwapMode()
     exitAbsentMode()
     exitReplaceMode()
+    exitChangeMode()
     setActionsOpen(false)
     setSlotSwapMode(true)
   }
@@ -365,8 +373,26 @@ export default function SummaryModal({
     exitAbsentMode()
     exitReplaceMode()
     exitSlotSwapMode()
+    exitChangeMode()
     setActionsOpen(false)
     setTeamSwapMode(true)
+  }
+
+  function exitChangeMode() {
+    setChangeMode(false)
+    setChangeTarget(null)
+    setChangeName('')
+    setChangeError(null)
+  }
+
+  function enterChangeMode() {
+    exitSwapMode()
+    exitAbsentMode()
+    exitReplaceMode()
+    exitSlotSwapMode()
+    exitTeamSwapMode()
+    setActionsOpen(false)
+    setChangeMode(true)
   }
 
   function handleTeamClick(target: TeamSwapTarget) {
@@ -576,6 +602,14 @@ export default function SummaryModal({
                           ↔ Replace player
                         </button>
                       )}
+                      {onChangePlayer && (
+                        <button
+                          onClick={() => { setActionsOpen(false); enterChangeMode() }}
+                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                        >
+                          🔄 Change player
+                        </button>
+                      )}
                       {onSwapSlots && (
                         <button
                           onClick={() => { setActionsOpen(false); enterSlotSwapMode() }}
@@ -714,7 +748,7 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || pendingTeamSwap ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
+      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || pendingTeamSwap || changeTarget ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
         {swapMode && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
@@ -820,6 +854,54 @@ export default function SummaryModal({
             )}
           </div>
         )}
+        {changeMode && (
+          <div className="mb-3 rounded-lg bg-sky-950/30 border border-sky-900/40 px-3 py-2 flex flex-col gap-2">
+            {changeTarget === null ? (
+              <span className="text-xs text-sky-300 font-medium">Tap a player to change them out</span>
+            ) : (
+              <>
+                <span className="text-xs text-sky-300 font-medium">
+                  Change <strong>{playerMap.get(result.schedule.find(g => g.slot === changeTarget.slot && g.court === changeTarget.court)?.[changeTarget.team === 'A' ? 'teamA' : 'teamB'][changeTarget.index] ?? '')?.name ?? '?'}</strong> (Slot {changeTarget.slot + 1}, {courtLabel(changeTarget.court)}) to:
+                </span>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={changeName}
+                    onChange={(e) => { setChangeName(e.target.value); setChangeError(null) }}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' && changeName.trim()) {
+                        const conflict = detectChangeConflict(result.schedule, changeTarget, changeName.trim())
+                        if (conflict) { setChangeError(`${changeName.trim()} is already in this game`); return }
+                        await onChangePlayer?.(changeTarget, changeName.trim())
+                        exitChangeMode()
+                      }
+                    }}
+                    placeholder="New name…"
+                    autoFocus
+                    className="flex-1 bg-slate-900 border border-sky-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!changeName.trim()) return
+                      const conflict = detectChangeConflict(result.schedule, changeTarget, changeName.trim())
+                      if (conflict) { setChangeError(`${changeName.trim()} is already in this game`); return }
+                      await onChangePlayer?.(changeTarget, changeName.trim())
+                      exitChangeMode()
+                    }}
+                    disabled={!changeName.trim() || saving}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5"
+                  >
+                    {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                    {saving ? 'Saving…' : '✓ Change'}
+                  </button>
+                </div>
+                {changeError && (
+                  <span className="text-[11px] text-red-400">{changeError}</span>
+                )}
+              </>
+            )}
+          </div>
+        )}
         {activeTab === 'standings' ? (
           <StandingsTab
             players={[...playerMap.values()]}
@@ -858,8 +940,8 @@ export default function SummaryModal({
                             >
                               {/* Played checkbox */}
                               <div
-                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${locked || swapMode || replaceMode || slotSwapMode || teamSwapMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                                onClick={() => { if (!locked && !saving && !swapMode && !replaceMode && !slotSwapMode && !teamSwapMode) onTogglePlayedGame(key) }}
+                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${locked || swapMode || replaceMode || changeMode || slotSwapMode || teamSwapMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                                onClick={() => { if (!locked && !saving && !swapMode && !replaceMode && !changeMode && !slotSwapMode && !teamSwapMode) onTogglePlayedGame(key) }}
                               >
                                 {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                               </div>
@@ -927,6 +1009,22 @@ export default function SummaryModal({
                                                 replaceTarget === id
                                                   ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
                                                   : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
+                                              }`}
+                                            >
+                                              {n}
+                                            </button>
+                                          ) : changeMode ? (
+                                            <button
+                                              onClick={() => {
+                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'A', index: i }
+                                                setChangeTarget(tgt)
+                                                setChangeName('')
+                                                setChangeError(null)
+                                              }}
+                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                                changeTarget?.slot === s && changeTarget?.court === g.court && changeTarget?.team === 'A' && changeTarget?.index === i
+                                                  ? 'bg-sky-900/50 border-sky-500 text-sky-200 ring-1 ring-sky-500/60'
+                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-sky-400 hover:text-sky-200'
                                               }`}
                                             >
                                               {n}
@@ -1028,6 +1126,22 @@ export default function SummaryModal({
                                             >
                                               {n}
                                             </button>
+                                          ) : changeMode ? (
+                                            <button
+                                              onClick={() => {
+                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'B', index: i }
+                                                setChangeTarget(tgt)
+                                                setChangeName('')
+                                                setChangeError(null)
+                                              }}
+                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+                                                changeTarget?.slot === s && changeTarget?.court === g.court && changeTarget?.team === 'B' && changeTarget?.index === i
+                                                  ? 'bg-sky-900/50 border-sky-500 text-sky-200 ring-1 ring-sky-500/60'
+                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-sky-400 hover:text-sky-200'
+                                              }`}
+                                            >
+                                              {n}
+                                            </button>
                                           ) : swapMode && !done && !pendingSwap ? (
                                             <button
                                               onClick={() => handleChipClick(target)}
@@ -1063,7 +1177,7 @@ export default function SummaryModal({
                                 )}
                               </div>
                               {/* Score toggle / saved score */}
-                              {!swapMode && !replaceMode && !slotSwapMode && !teamSwapMode && (savedScore && !isOpen ? (
+                              {!changeMode && !swapMode && !replaceMode && !slotSwapMode && !teamSwapMode && (savedScore && !isOpen ? (
                                 <button
                                   onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) } }}
                                   className={`text-[11px] font-bold shrink-0 whitespace-nowrap ${locked ? 'text-slate-500 cursor-default' : 'text-emerald-400 hover:text-emerald-300'}`}

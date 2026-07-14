@@ -5,6 +5,7 @@ import { useSharedView } from '../sharedView'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
 import { usePublishSession, type CloudSnapshot } from '../queries'
+import { registerPlayer } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
 import {
   buildPublishableSessionSnapshot,
@@ -15,8 +16,9 @@ import {
   swapSlotsInSnapshot,
   setAbsentPlayersInSnapshot,
   replacePlayerNameInSnapshot,
+  changePlayerInSnapshot,
 } from '../utils/sessionSnapshot'
-import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from '../utils/swap'
+import { applySwap, applyTeamSwap, applyChange, type SwapTarget, type TeamSwapTarget, type ChangeTarget } from '../utils/swap'
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 
 const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
@@ -207,34 +209,72 @@ function ScheduleView({
         })}
       </div>
 
-      {/* Player stats */}
+      {/* Player stats — computed on-the-fly from schedule */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-white">Player Stats</span>
           <span className="text-xs text-slate-500">target ~{idealPlays.toFixed(1)} plays</span>
         </div>
         <div className="grid grid-cols-1 gap-y-2">
-          {players
-            .sort((a, b) => (result.playCount[b.id] ?? 0) - (result.playCount[a.id] ?? 0))
-            .map((p) => {
-              const plays = result.playCount[p.id] ?? 0
-              const sits = result.sitCount[p.id] ?? 0
-              const partners = Object.keys(result.partnerWith[p.id] ?? {}).length
-              const opponents = Object.keys(result.facedBy[p.id] ?? {}).length
-              const over = plays > Math.ceil(idealPlays)
-              const under = plays < Math.floor(idealPlays)
-              return (
-                <div key={p.id} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-300 w-20 truncate">{p.name}</span>
-                  <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
-                    {plays}×
-                  </span>
-                  <span className="text-[10px] text-slate-600">
-                    {sits} sit · {partners} P · {opponents} O
-                  </span>
-                </div>
-              )
-            })}
+          {(() => {
+            // Compute stats on-the-fly from schedule
+            const playCount: Record<string, number> = Object.fromEntries(players.map(p => [p.id, 0]))
+            const partnerWith: Record<string, Record<string, number>> = {}
+            const facedBy: Record<string, Record<string, number>> = {}
+
+            for (const g of result.schedule) {
+              for (const id of [...g.teamA, ...g.teamB]) playCount[id]++
+              const inc2 = (obj: Record<string, Record<string, number>>, a: string, b: string) => {
+                obj[a] ??= {}; obj[a][b] = (obj[a][b] ?? 0) + 1
+                obj[b] ??= {}; obj[b][a] = (obj[b][a] ?? 0) + 1
+              }
+              inc2(partnerWith, g.teamA[0], g.teamA[1])
+              inc2(partnerWith, g.teamB[0], g.teamB[1])
+              for (const a of g.teamA) {
+                for (const b of g.teamB) {
+                  facedBy[a] ??= {}; facedBy[a][b] = (facedBy[a][b] ?? 0) + 1
+                  facedBy[b] ??= {}; facedBy[b][a] = (facedBy[b][a] ?? 0) + 1
+                }
+              }
+            }
+
+            // Compute sit count
+            const slotPlayerSet = new Map<number, Set<string>>()
+            for (const g of result.schedule) {
+              const set = slotPlayerSet.get(g.slot) ?? new Set<string>()
+              g.teamA.forEach(id => set.add(id)); g.teamB.forEach(id => set.add(id))
+              slotPlayerSet.set(g.slot, set)
+            }
+            const sitCount: Record<string, number> = Object.fromEntries(players.map(p => [p.id, 0]))
+            for (let t = 0; t < maxSlots; t++) {
+              const playing = slotPlayerSet.get(t) ?? new Set<string>()
+              for (const p of players) {
+                if (!playing.has(p.id)) sitCount[p.id]++
+              }
+            }
+
+            return players
+              .sort((a, b) => (playCount[b.id] ?? 0) - (playCount[a.id] ?? 0))
+              .map((p) => {
+                const plays = playCount[p.id] ?? 0
+                const sits = sitCount[p.id] ?? 0
+                const partners = Object.keys(partnerWith[p.id] ?? {}).length
+                const opponents = Object.keys(facedBy[p.id] ?? {}).length
+                const over = plays > Math.ceil(idealPlays)
+                const under = plays < Math.floor(idealPlays)
+                return (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <span className="text-xs text-slate-300 w-20 truncate">{p.name}</span>
+                    <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
+                      {plays}×
+                    </span>
+                    <span className="text-[10px] text-slate-600">
+                      {sits} sit · {partners} P · {opponents} O
+                    </span>
+                  </div>
+                )
+              })
+          })()}
         </div>
         <p className="text-[10px] text-slate-600">P = unique partners · O = unique opponents faced</p>
       </div>
@@ -506,6 +546,21 @@ export default function GeneratePage() {
     publishToCloud((snap) => setAbsentPlayersInSnapshot(snap, nextAbsent))
   }
 
+  async function handleChangePlayer(target: ChangeTarget, newName: string) {
+    if (!result) return
+    // Register the new name first (idempotent)
+    try {
+      await registerPlayer(newName)
+    } catch (err) {
+      setSaveError(getSaveErrorMessage(err))
+      return
+    }
+    const newSchedule = applyChange(result.schedule, target, newName)
+    updateSchedule(newSchedule)
+    setResult({ ...result, schedule: newSchedule })
+    publishToCloud((snap) => changePlayerInSnapshot(snap, target, newName))
+  }
+
   function buildOffsets() {
     return session.courtTimes.map((ct) =>
       Math.floor((timeToMinutes(ct.start) - timeToMinutes(session.sessionStart)) / session.slotMinutes)
@@ -674,6 +729,7 @@ export default function GeneratePage() {
           onSwapTeams={handleSwapTeams}
           onSwapSlots={handleSwapSlots}
           onReplacePlayer={handleReplacePlayer}
+          onChangePlayer={handleChangePlayer}
           onSetAbsent={handleSetAbsent}
           absentPlayers={absentPlayers}
         />
