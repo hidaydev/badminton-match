@@ -529,7 +529,7 @@ export default function SummaryModal({
               🔒<span className="hidden sm:inline"> Locked</span>
             </span>
           )}
-          {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams) && (
+          {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams || onLock) && (
             swapMode || absentMode || replaceMode || slotSwapMode || teamSwapMode ? (
               <button
                 onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); setActionsOpen(false) }}
@@ -606,68 +606,63 @@ export default function SummaryModal({
               </div>
             )
           )}
-          {onClose && (
+          {/* Delete button */}
+          {onDelete && !deleteConfirm && (
+            <button
+              onClick={() => setDeleteConfirm(true)}
+              className="text-slate-600 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors text-sm"
+              title="Delete session"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+              </svg>
+            </button>
+          )}
+          {onDelete && deleteConfirm && (
+            <button
+              onClick={() => { onDelete(); setDeleteConfirm(false) }}
+              disabled={deleteLoading}
+              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {deleteLoading && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+              {deleteLoading ? 'Deleting…' : 'Confirm delete'}
+            </button>
+          )}
+          {deleteConfirm && (
+            <button
+              onClick={() => setDeleteConfirm(false)}
+              className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
+            >
+              ✕
+            </button>
+          )}
+          {/* Lock confirmation */}
+          {onLock && lockConfirm && !locked && (
             <>
-              {onDelete && !deleteConfirm && (
-                <button
-                  onClick={() => setDeleteConfirm(true)}
-                  className="text-slate-600 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors text-sm"
-                  title="Delete session"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                  </svg>
-                </button>
-              )}
-              {onDelete && deleteConfirm && (
-                <button
-                  onClick={() => { onDelete(); setDeleteConfirm(false) }}
-                  disabled={deleteLoading}
-                  className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {deleteLoading && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                  {deleteLoading ? 'Deleting…' : 'Confirm delete'}
-                </button>
-              )}
-              {deleteConfirm && (
-                <button
-                  onClick={() => setDeleteConfirm(false)}
-                  className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
-                >
-                  ✕
-                </button>
-              )}
-              {/* Lock confirmation */}
-              {onLock && lockConfirm && !locked && (
-                <>
-                  <button
-                    onClick={() => { onLock(); setLockConfirm(false) }}
-                    disabled={lockLoading}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    {lockLoading && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                    {lockLoading ? 'Locking…' : 'Confirm lock'}
-                  </button>
-                  <button
-                    onClick={() => setLockConfirm(false)}
-                    className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
-                  >
-                    ✕
-                  </button>
-                </>
-              )}
-              {locked && (
-                <span className="text-xs text-amber-400 font-medium px-2">🔒 Locked</span>
-              )}
-              {!deleteConfirm && !lockConfirm && (
-                <button
-                  onClick={onClose}
-                  className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
-                >
-                  Close
-                </button>
-              )}
+              <button
+                onClick={() => { onLock(); setLockConfirm(false) }}
+                disabled={lockLoading}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {lockLoading && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                {lockLoading ? 'Locking…' : 'Confirm lock'}
+              </button>
+              <button
+                onClick={() => setLockConfirm(false)}
+                className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
+              >
+                ✕
+              </button>
             </>
+          )}
+          {/* Close button — only when onClose is provided */}
+          {onClose && !deleteConfirm && !lockConfirm && (
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
+            >
+              Close
+            </button>
           )}
         </div>
       </div>
@@ -1068,14 +1063,14 @@ export default function SummaryModal({
                                 )}
                               </div>
                               {/* Score toggle / saved score */}
-                              {!locked && !swapMode && !replaceMode && !slotSwapMode && !teamSwapMode && (savedScore && !isOpen ? (
+                              {!swapMode && !replaceMode && !slotSwapMode && !teamSwapMode && (savedScore && !isOpen ? (
                                 <button
-                                  onClick={() => { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) }}
-                                  className="text-[11px] font-bold text-emerald-400 shrink-0 whitespace-nowrap hover:text-emerald-300"
+                                  onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) } }}
+                                  className={`text-[11px] font-bold shrink-0 whitespace-nowrap ${locked ? 'text-slate-500 cursor-default' : 'text-emerald-400 hover:text-emerald-300'}`}
                                 >
                                   {savedScore.a}–{savedScore.b}
                                 </button>
-                              ) : (
+                              ) : !locked ? (
                                 <button
                                   onClick={() => {
                                     if (isOpen) { setExpandedScore(null); setScoreError(null) }
@@ -1085,7 +1080,7 @@ export default function SummaryModal({
                                 >
                                   {isOpen ? '▲ score' : '+ score'}
                                 </button>
-                              ))}
+                              ) : null)}
                             </div>
 
                             {/* Expandable score panel */}
