@@ -57,6 +57,9 @@ export function setScoreInSnapshot(
   a: number,
   b: number,
 ): CloudSnapshot {
+  // Reject equal scores (including 0-0)
+  if (a === b) return snapshot
+
   const playedGames = snapshot.playedGames.includes(key)
     ? snapshot.playedGames
     : [...snapshot.playedGames, key]

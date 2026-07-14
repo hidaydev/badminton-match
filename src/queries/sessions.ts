@@ -2,7 +2,8 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions, deleteSession, RpcError } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
-import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
+import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
+import { applyChange } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import {
   replacePlayerNameInSnapshot,
@@ -75,11 +76,21 @@ export function usePublishSession(sessionId: string | undefined) {
       }
       return publishSession(sessionId!, next)
     },
+    onMutate: async () => {
+      if (!sessionId) return undefined
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      return { previous }
+    },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
     },
-    onError: async (error) => {
+    onError: async (error, _vars, context) => {
       if (!sessionId) return
+      // Rollback to previous snapshot
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(['session', sessionId], context.previous)
+      }
       // On version mismatch, refetch the latest snapshot so the user can retry
       // without manually reloading the page.
       const isVersionMismatch =
@@ -95,10 +106,6 @@ export function usePublishSession(sessionId: string | undefined) {
           // ignore — stale cache is better than nothing
         }
       }
-    },
-    onSettled: async () => {
-      if (!sessionId) return
-      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -127,9 +134,6 @@ export function useTogglePlayed(sessionId: string) {
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
     },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
-    },
   })
 }
 
@@ -156,9 +160,6 @@ export function useSetScore(sessionId: string) {
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -187,9 +188,6 @@ export function useSwapPlayers(sessionId: string) {
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
     },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
-    },
   })
 }
 
@@ -216,9 +214,6 @@ export function useSwapTeams(sessionId: string) {
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -247,9 +242,6 @@ export function useSetAbsent(sessionId: string) {
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
     },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
-    },
   })
 }
 
@@ -276,9 +268,6 @@ export function useReplacePlayer(sessionId: string) {
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -320,9 +309,6 @@ export function useSwapSlots(sessionId: string) {
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
     },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
-    },
   })
 }
 
@@ -343,7 +329,37 @@ export function useDeleteSession() {
   return useMutation({
     mutationFn: (sessionId: string) => deleteSession(sessionId),
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      await invalidateRelatedQueries(queryClient)
+    },
+  })
+}
+
+export function useChangePlayer(sessionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ target, newName }: { target: ChangeTarget; newName: string }) => {
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      const updated = {
+        ...current,
+        schedule: applyChange(current.schedule, target, newName),
+      }
+      return await publishSession(sessionId, updated)
+    },
+    onMutate: async ({ target, newName }) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
+        if (!old) return old
+        return { ...old, schedule: applyChange(old.schedule, target, newName) }
+      })
+      return { previous }
+    },
+    onError: (_err, _vars, context) => {
+      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    },
+    onSuccess: (published) => {
+      queryClient.setQueryData(['session', sessionId], published)
     },
   })
 }
@@ -373,9 +389,6 @@ export function useLockSession(sessionId: string) {
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
     },
   })
 }

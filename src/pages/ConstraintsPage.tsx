@@ -1,4 +1,4 @@
-import { useStore, PLAYERS_PER_GAME, computeTimeSlots, courtsAtTime, type Player, type FixMatch } from '../store'
+import { useStore, PLAYERS_PER_GAME, computeTimeSlots, courtsAtTime, timeToMinutes, type Player, type FixMatch } from '../store'
 import { useNavigate } from 'react-router-dom'
 
 const TIER_LABELS: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
@@ -256,6 +256,14 @@ function useValidation(players: Player[], matches: FixMatch[]): ValidationResult
       conflicts.push('Time and court must be set for pinned match')
       pinnedConflicts.set(mIdx, conflicts)
       continue
+    }
+
+    // Check time alignment with slot grid
+    const sessionStartMin = timeToMinutes(session.sessionStart)
+    const pinnedTimeMin = timeToMinutes(m.pinnedTime)
+    const offsetFromStart = pinnedTimeMin - sessionStartMin
+    if (offsetFromStart % session.slotMinutes !== 0) {
+      conflicts.push(`Time ${m.pinnedTime} doesn't align with ${session.slotMinutes}-minute slot grid`)
     }
 
     // Check against other pinned matches

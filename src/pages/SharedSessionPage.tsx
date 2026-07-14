@@ -12,13 +12,13 @@ import {
   useSwapTeams,
   useDeleteSession,
   useLockSession,
+  useChangePlayer,
   type CloudSnapshot,
 } from '../queries'
 import { registerPlayer } from '../queries/endpoints'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import type { TeamSwapTarget, ChangeTarget } from '../utils/swap'
-import { changePlayerInSnapshot } from '../utils/sessionSnapshot'
 import SummaryModal from '../components/SummaryModal'
 import { useLastSession } from '../hooks/useLastSession'
 import { getSaveErrorMessage } from '../queries/errors'
@@ -28,6 +28,13 @@ export default function SharedSessionPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Auto-dismiss error toast after 5 seconds
+  useEffect(() => {
+    if (!saveError) return
+    const timer = setTimeout(() => setSaveError(null), 5000)
+    return () => clearTimeout(timer)
+  }, [saveError])
 
   const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId)
   const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
@@ -39,6 +46,7 @@ export default function SharedSessionPage() {
   const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
   const { mutate: deleteSessionMutate, isPending: deletePending } = useDeleteSession()
   const { mutate: lockSession, isPending: lockPending } = useLockSession(sessionId!)
+  const { mutate: changePlayer, isPending: changePlayerPending } = useChangePlayer(sessionId!)
 
   const { save } = useLastSession()
 
@@ -98,18 +106,18 @@ export default function SharedSessionPage() {
     )
   }
 
-  const playerMap = new Map(snapshot.players.map((p) => [p.id, p]))
+  const playerMap = snapshot ? new Map(snapshot.players.map((p) => [p.id, p])) : new Map()
 
-  const result: GeneratorResult = {
+  const result: GeneratorResult | null = snapshot ? {
     schedule: snapshot.schedule,
     playCount: {},
     sitCount: {},
     partnerWith: {},
     facedBy: {},
     unplacedFixMatches: [],
-  }
+  } : null
 
-  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending
+  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -120,7 +128,7 @@ export default function SharedSessionPage() {
         </div>
       )}
       <SummaryModal
-        result={result}
+        result={result!}
         playerMap={playerMap}
         slotsPerCourt={snapshot.session.slotsPerCourt}
         courtNames={snapshot.session.courtNames ?? []}
@@ -182,19 +190,10 @@ export default function SharedSessionPage() {
             setSaveError(getSaveErrorMessage(err))
             return
           }
-          // Apply change and publish
-          const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-          if (!current) return
-          const updated = changePlayerInSnapshot(current, target, newName)
-          // Use existing publishSession pattern
-          const { publishSession } = await import('../queries/endpoints')
-          try {
-            const published = await publishSession(sessionId!, updated)
-            queryClient.setQueryData(['session', sessionId], published)
-            setSaveError(null)
-          } catch (err) {
-            setSaveError(getSaveErrorMessage(err))
-          }
+          changePlayer({ target, newName }, {
+            onSuccess: () => setSaveError(null),
+            onError: (err) => setSaveError(getSaveErrorMessage(err)),
+          })
         }}
         standalone
         onRefetch={() => refetch()}
