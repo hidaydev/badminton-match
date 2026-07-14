@@ -236,8 +236,9 @@ Latest audit:
 1. Host clicks "🔒 Lock session" in Actions dropdown
 2. Confirmation dialog appears
 3. On confirm, `publish_session` is called with `locked: true` in the snapshot
-4. All interactive elements are disabled (checkboxes, scores, actions)
-5. Any mutation attempt is rejected by the server
+4. The session status is set to `'locked'` in the database
+5. All interactive elements are disabled (checkboxes, scores, actions)
+6. Any mutation attempt is rejected by the server
 
 ### How to unlock (admin-only)
 
@@ -250,7 +251,7 @@ Unlock is intentionally NOT available in the UI. To unlock a session:
    ```
    Replace `<session-id>` with the actual session ID.
 
-This clears the `locked` flag and sets status back to `draft`.
+This sets the session status back to `'draft'` and allows edits again.
 
 ## If continuing in a new session
 
