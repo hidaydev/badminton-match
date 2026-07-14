@@ -175,15 +175,21 @@ Current approach is aggregate-root plus normalized relational support:
 
 ### Main aggregate roots
 
-- `bm.sessions`
-- `bm.tournaments`
-- `bm.players`
+- `bm.sessions` — session metadata with `version` (optimistic concurrency), `status` (draft/locked/published), `internal_id` (UUID), `share_id`
+- `bm.tournaments` — tournament snapshots with `version` and `snapshot` (JSONB)
+- `bm.players` — canonical player records (UUID PK, canonical_name)
+- `bm.player_aliases` — normalized name → player_id mapping for fuzzy resolution
 
 ### Main child entities
 
-- `bm.session_players`
-- `bm.fix_matches`
-- `bm.scheduled_games`
+- `bm.session_players` — player roster per session (with gender, tier, sort order, absent status)
+- `bm.session_courts` — per-court time ranges and names
+- `bm.fix_matches` — pre-assigned match constraints per session
+- `bm.fix_match_slots` — individual slot assignments within fix matches
+- `bm.scheduled_games` — generated/scheduled games (slot, court, status, source)
+- `bm.scheduled_game_players` — team/position assignments per scheduled game
+- `bm.game_progress` — played status and order per game
+- `bm.game_scores` — score (A/B) per game
 
 ### Why this shape
 
