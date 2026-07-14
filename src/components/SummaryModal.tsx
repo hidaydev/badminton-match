@@ -524,7 +524,12 @@ export default function SummaryModal({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {activeTab === 'schedule' && !locked && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams) && (
+          {locked && (
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-900/40 border border-amber-700 text-amber-400">
+              🔒<span className="hidden sm:inline"> Locked</span>
+            </span>
+          )}
+          {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams) && (
             swapMode || absentMode || replaceMode || slotSwapMode || teamSwapMode ? (
               <button
                 onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); setActionsOpen(false) }}
