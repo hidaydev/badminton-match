@@ -2,6 +2,8 @@
 --
 -- Returns locked=true when session status is not 'draft'.
 
+drop function if exists bm.list_sessions();
+
 create or replace function bm.list_sessions()
 returns table (
   id text,
