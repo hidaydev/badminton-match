@@ -70,6 +70,12 @@ Applied migration:
 - [`supabase/migrations/20260713_000044_bm_delete_session_anon_access.sql`](../../supabase/migrations/20260713_000044_bm_delete_session_anon_access.sql)
 - [`supabase/migrations/20260713_000045_bm_session_lock.sql`](../../supabase/migrations/20260713_000045_bm_session_lock.sql)
 - [`supabase/migrations/20260713_000046_bm_fix_session_lock.sql`](../../supabase/migrations/20260713_000046_bm_fix_session_lock.sql)
+- [`supabase/migrations/20260714_000047_bm_fix_unlock_session.sql`](../../supabase/migrations/20260714_000047_bm_fix_unlock_session.sql)
+- [`supabase/migrations/20260714_000048_bm_list_sessions_lock_status.sql`](../../supabase/migrations/20260714_000048_bm_list_sessions_lock_status.sql)
+- [`supabase/migrations/20260714_000049_bm_fix_stale_published_status.sql`](../../supabase/migrations/20260714_000049_bm_fix_stale_published_status.sql)
+- [`supabase/migrations/20260714_000050_bm_publish_unlock_rpc_fixes.sql`](../../supabase/migrations/20260714_000050_bm_publish_unlock_rpc_fixes.sql)
+- [`supabase/migrations/20260714_000051_bm_delete_session_lock_check_and_public_list_sessions_fix.sql`](../../supabase/migrations/20260714_000051_bm_delete_session_lock_check_and_public_list_sessions_fix.sql)
+- [`supabase/migrations/20260714_000052_bm_fix_register_player_toctou.sql`](../../supabase/migrations/20260714_000052_bm_fix_register_player_toctou.sql)
 
 Created:
 
@@ -90,7 +96,7 @@ RPC functions created for local app usage:
 - `bm.get_tournament`
 - `bm.delete_session` (admin-only)
 - `bm.delete_player` (admin-only)
-- `bm.unlock_session` (admin-only, not wired to UI)
+- `bm.unlock_session` (admin-only, service_role only, not wired to UI)
 
 The local app now targets the underlying `bm.*` functions directly through the
 `bm` PostgREST profile.
@@ -103,8 +109,12 @@ Main practical state now:
 - `badminton_match` is now historical migration context, not a live runtime target
 - active relational graph in `bm` is UUID-first
 - exposed-schema/runtime drift was fixed during verification
-- session lock enforcement is active (`publish_session` rejects writes when `locked=true`)
+- session lock enforcement is active (`publish_session` rejects writes when `locked=true` or any non-draft status)
 - delete session and unlock session are admin-only RPCs (not wired to UI)
+- `list_sessions` returns `locked` status column
+- `register_player` is TOCTOU-safe (re-queries alias after INSERT)
+- `unlock_session` bumps version when resetting to draft
+- `delete_session` rejects deletion of non-draft (locked) sessions
 
 ### Frontend migration
 
@@ -161,7 +171,7 @@ Verified result:
 
 ## What is not done yet
 
-1. production security hardening (partial: session lock enforcement delivered)
+1. production security hardening (partial: session lock, delete lock check, publish lock check all non-draft statuses delivered)
 2. formal long-term export boundary for `MDEF`
 3. broader end-to-end/UI regression coverage beyond the compact RPC/writeflow suite
 
@@ -214,7 +224,13 @@ These are the main migration/doc checkpoints so far:
 - `19ffbf2` — `feat: lock session feature`
 - `823a940` — `fix: session lock enforcement uses status column`
 - `884a406` — `fix: show Locked badge when session is locked`
-- (pending) — `fix: lock flag must be set in both CloudSnapshot and session object`
+- `74e0ac9` — `fix: set locked flag in both CloudSnapshot and session object`
+- `ca520ff` — `fix: audit cleanup - locked field, unlock_session, list_sessions, mutations, docs`
+- `2d00b1e` — `feat: change player feature + fix play count on-the-fly computation`
+- `6739460` — `fix: detectTeamSwapConflict false positive on same-game team swaps + mode exits cleanup`
+- `3f75c35` — `fix: critical + medium audit cleanup (16 issues)`
+- `9abb7d7` — `fix: backend audit cleanup (6 issues)`
+- `4395af3` — `fix: low severity cleanup (4 issues)`
 
 ## Recommended next task
 
@@ -242,11 +258,11 @@ Latest audit:
 3. On confirm, `publish_session` is called with `locked: true` in the snapshot
 4. The session status is set to `'locked'` in the database
 5. All interactive elements are disabled (checkboxes, scores, actions)
-6. Any mutation attempt is rejected by the server
+6. Any mutation attempt is rejected by the server (any non-draft status blocks writes)
 
 ### Important: locked must be set in session object
 
-The server reads `p_snapshot->'session'->>'locked'` to set the `status` column. On subsequent writes, the server checks `bm.sessions.status = 'locked'` (not the snapshot JSON) to enforce the lock.
+The server reads `p_snapshot->'session'->>'locked'` to set the `status` column. On subsequent writes, the server checks `bm.sessions.status <> 'draft'` (not the snapshot JSON) to enforce the lock. This means any non-draft status (locked, completed, archived) will block writes.
 
 ```typescript
 // Correct: set locked in session object
@@ -269,7 +285,7 @@ Unlock is intentionally NOT available in the UI. To unlock a session:
    ```
    Replace `<session-id>` with the actual session ID.
 
-This sets the session status back to `'draft'` and allows edits again.
+This sets the session status back to `'draft'`, bumps the version, and allows edits again. The function is restricted to `service_role` only (not exposed to `anon` or `authenticated`).
 
 ## If continuing in a new session
 

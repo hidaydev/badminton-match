@@ -81,6 +81,7 @@ Remote read/write access is wrapped in:
 | `useReplacePlayer` | Replace player name in session |
 | `useDeleteSession` | Delete session (admin) |
 | `useLockSession` | Lock session (prevent edits) |
+| `useChangePlayer` | Change one player in a specific game |
 | `useFetchSession` | Fetch session for imperative use |
 
 All mutations follow the optimistic update pattern: `onMutate` → `mutationFn` → `onSuccess`/`onError` with version mismatch retry.

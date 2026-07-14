@@ -113,6 +113,7 @@ Capabilities:
 - swap players
 - swap slots
 - swap teams
+- change one player in a specific game
 - mark absences
 - rename session-local players
 - delete session
@@ -125,8 +126,10 @@ The summary modal acts as the operations console for live session management.
 When a session is locked:
 
 - all interactive elements are disabled (checkboxes, scores, actions)
-- server rejects any mutation via `publish_session`
+- server rejects any mutation via `publish_session` (any non-draft status blocks writes)
+- delete session is also blocked for locked sessions
 - unlock is admin-only via `bm.unlock_session` RPC (not in UI)
+- unlock bumps the session version
 
 ### Player stats in shared view
 
