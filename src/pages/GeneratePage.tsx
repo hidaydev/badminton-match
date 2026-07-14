@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore, type Player, timeToMinutes } from '../store'
 import { generate, type GeneratorResult } from '../generator'
 import { useSharedView } from '../sharedView'
@@ -478,6 +478,14 @@ export default function GeneratePage() {
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
+
+  // Auto-dismiss error toast after 5 seconds
+  useEffect(() => {
+    if (!saveError) return
+    const timer = setTimeout(() => setSaveError(null), 5000)
+    return () => clearTimeout(timer)
+  }, [saveError])
+
   const { mutate: publish, isPending: isPublishing } = usePublishSession(cloudSessionId ?? undefined)
 
   const playerMap = new Map(players.map((p) => [p.id, p]))

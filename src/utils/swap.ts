@@ -58,6 +58,11 @@ export function applySwap(
   t1: SwapTarget,
   t2: SwapTarget,
 ): ScheduleSlot[] {
+  // Early return if same position
+  if (t1.slot === t2.slot && t1.court === t2.court && t1.team === t2.team && t1.index === t2.index) return schedule
+  // Early return if same player (no-op swap)
+  if (t1.playerId === t2.playerId) return schedule
+
   const sameGame = t1.slot === t2.slot && t1.court === t2.court
   return schedule.map((s) => {
     if (s.slot === t1.slot && s.court === t1.court) {

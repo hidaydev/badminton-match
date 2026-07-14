@@ -63,7 +63,6 @@ interface AppState {
   playedGames: string[]
   gameScores: Record<string, GameScore>
   cloudSessionId: string | null
-  sessionEpoch: number
   setCloudSessionId: (id: string) => void
 
   setCourts: (n: number) => void
@@ -174,7 +173,7 @@ export const useStore = create<AppState>()(
       session: makeDefaultSession(),
       players: [],
       fixMatches: [],
-      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, sessionEpoch: 0, absentPlayers: [],
+      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [],
 
       setCourts: (n) =>
         set((s) => {
@@ -250,7 +249,7 @@ export const useStore = create<AppState>()(
         set((s) => ({ session: { ...s.session, locked: true } })),
 
       resetSession: () =>
-        set((s) => ({ sessionId: nanoid(), session: makeDefaultSession(), players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, sessionEpoch: s.sessionEpoch + 1, absentPlayers: [] })),
+        set({ sessionId: nanoid(), session: makeDefaultSession(), players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [] }),
 
       addPlayer: (p) =>
         set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
@@ -323,13 +322,15 @@ export const useStore = create<AppState>()(
           return { playedGames, gameScores }
         }),
 
-      setGameScore: (key, a, b) =>
+      setGameScore: (key, a, b) => {
+        if (a === b) return // Reject equal scores
         set((s) => ({
           playedGames: s.playedGames.includes(key)
             ? s.playedGames
             : [...s.playedGames, key],
           gameScores: { ...s.gameScores, [key]: { a, b } },
-        })),
+        }))
+      },
 
       clearGameScore: (key) =>
         set((s) => {
@@ -350,7 +351,7 @@ export const useStore = create<AppState>()(
         session: makeDefaultSession(),
         players: [],
         fixMatches: [],
-      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, sessionEpoch: 0, absentPlayers: [],
+      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [],
       }),
     }
   )
