@@ -17,7 +17,8 @@ import {
 import { registerPlayer } from '../queries/endpoints'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
-import type { TeamSwapTarget } from '../utils/swap'
+import type { TeamSwapTarget, ChangeTarget } from '../utils/swap'
+import { changePlayerInSnapshot } from '../utils/sessionSnapshot'
 import SummaryModal from '../components/SummaryModal'
 import { useLastSession } from '../hooks/useLastSession'
 import { getSaveErrorMessage } from '../queries/errors'
@@ -174,6 +175,27 @@ export default function SharedSessionPage() {
           onSuccess: () => setSaveError(null),
           onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
+        onChangePlayer={async (target: ChangeTarget, newName: string) => {
+          try {
+            await registerPlayer(newName)
+          } catch (err) {
+            setSaveError(getSaveErrorMessage(err))
+            return
+          }
+          // Apply change and publish
+          const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+          if (!current) return
+          const updated = changePlayerInSnapshot(current, target, newName)
+          // Use existing publishSession pattern
+          const { publishSession } = await import('../queries/endpoints')
+          try {
+            const published = await publishSession(sessionId!, updated)
+            queryClient.setQueryData(['session', sessionId], published)
+            setSaveError(null)
+          } catch (err) {
+            setSaveError(getSaveErrorMessage(err))
+          }
+        }}
         standalone
         onRefetch={() => refetch()}
         isRefetching={isFetching}
