@@ -10,8 +10,13 @@ import {
   buildPublishableSessionSnapshot,
   setScoreInSnapshot,
   togglePlayedInSnapshot,
+  swapPlayersInSnapshot,
+  swapTeamsInSnapshot,
+  swapSlotsInSnapshot,
+  setAbsentPlayersInSnapshot,
+  replacePlayerNameInSnapshot,
 } from '../utils/sessionSnapshot'
-import { applySwap, type SwapTarget, type TeamSwapTarget } from '../utils/swap'
+import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from '../utils/swap'
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 
 const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
@@ -438,40 +443,26 @@ export default function GeneratePage() {
 
   const playerMap = new Map(players.map((p) => [p.id, p]))
 
-  function handleTogglePlayed(key: string) {
-    togglePlayedGame(key)
+  function publishToCloud(buildFn: (snap: CloudSnapshot) => CloudSnapshot) {
     if (!cloudSessionId) return
-    const current: CloudSnapshot = buildPublishableSessionSnapshot({
-      session,
-      players,
-      fixMatches,
-      schedule,
-      playedGames: playedArr,
-      gameScores,
+    const current = buildPublishableSessionSnapshot({
+      session, players, fixMatches, schedule, playedGames: playedArr, gameScores,
     })
-    const snap = togglePlayedInSnapshot(current, key)
+    const snap = buildFn(current)
     publish(snap, {
       onSuccess: () => setSaveError(null),
       onError: (err) => setSaveError(getSaveErrorMessage(err)),
     })
   }
 
+  function handleTogglePlayed(key: string) {
+    togglePlayedGame(key)
+    publishToCloud((snap) => togglePlayedInSnapshot(snap, key))
+  }
+
   function handleSetScore(key: string, a: number, b: number) {
     setGameScore(key, a, b)
-    if (!cloudSessionId) return
-    const current: CloudSnapshot = buildPublishableSessionSnapshot({
-      session,
-      players,
-      fixMatches,
-      schedule,
-      playedGames: playedArr,
-      gameScores,
-    })
-    const snap = setScoreInSnapshot(current, key, a, b)
-    publish(snap, {
-      onSuccess: () => setSaveError(null),
-      onError: (err) => setSaveError(getSaveErrorMessage(err)),
-    })
+    publishToCloud((snap) => setScoreInSnapshot(snap, key, a, b))
   }
 
   function handleSwapPlayers(t1: SwapTarget, t2: SwapTarget) {
@@ -479,44 +470,15 @@ export default function GeneratePage() {
     const newSchedule = applySwap(result.schedule, t1, t2)
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
+    publishToCloud((snap) => swapPlayersInSnapshot(snap, t1, t2))
   }
 
   function handleSwapTeams(t1: TeamSwapTarget, t2: TeamSwapTarget) {
     if (!result) return
-    const newSchedule = result.schedule.map(s => {
-      const sameGame = t1.slot === s.slot && t1.court === s.court && t2.slot === s.slot && t2.court === s.court
-      if (sameGame) {
-        const updated = { ...s }
-        const team1Players = t1.team === 'A' ? [...s.teamA] : [...s.teamB]
-        const team2Players = t2.team === 'A' ? [...s.teamA] : [...s.teamB]
-        if (t1.team === 'A') updated.teamA = team2Players as [string, string]
-        else updated.teamB = team2Players as [string, string]
-        if (t2.team === 'A') updated.teamA = team1Players as [string, string]
-        else updated.teamB = team1Players as [string, string]
-        return updated
-      }
-      if (s.slot === t1.slot && s.court === t1.court) {
-        const updated = { ...s }
-        const team2Players = t2.team === 'A' ? result.schedule.find(g => g.slot === t2.slot && g.court === t2.court)?.teamA : result.schedule.find(g => g.slot === t2.slot && g.court === t2.court)?.teamB
-        if (team2Players) {
-          if (t1.team === 'A') updated.teamA = team2Players as [string, string]
-          else updated.teamB = team2Players as [string, string]
-        }
-        return updated
-      }
-      if (s.slot === t2.slot && s.court === t2.court) {
-        const updated = { ...s }
-        const team1Players = t1.team === 'A' ? result.schedule.find(g => g.slot === t1.slot && g.court === t1.court)?.teamA : result.schedule.find(g => g.slot === t1.slot && g.court === t1.court)?.teamB
-        if (team1Players) {
-          if (t2.team === 'A') updated.teamA = team1Players as [string, string]
-          else updated.teamB = team1Players as [string, string]
-        }
-        return updated
-      }
-      return s
-    })
+    const newSchedule = applyTeamSwap(result.schedule, t1, t2)
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
+    publishToCloud((snap) => swapTeamsInSnapshot(snap, t1, t2))
   }
 
   function handleSwapSlots(g1: SlotSwapTarget, g2: SlotSwapTarget) {
@@ -524,6 +486,7 @@ export default function GeneratePage() {
     const newSchedule = applySlotSwap(result.schedule, g1, g2)
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
+    publishToCloud((snap) => swapSlotsInSnapshot(snap, g1, g2))
   }
 
   function handleReplacePlayer(playerId: string, newName: string) {
@@ -535,10 +498,12 @@ export default function GeneratePage() {
     }))
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
+    publishToCloud((snap) => replacePlayerNameInSnapshot(snap, playerId, newName))
   }
 
   function handleSetAbsent(nextAbsent: string[]) {
     setAbsentPlayers(nextAbsent)
+    publishToCloud((snap) => setAbsentPlayersInSnapshot(snap, nextAbsent))
   }
 
   function buildOffsets() {

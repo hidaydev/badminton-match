@@ -58,10 +58,32 @@ utility functions rather than this store alone.
 
 Remote read/write access is wrapped in:
 
-- `src/queries/endpoints.ts`
-- `src/queries/sessions.ts`
-- `src/queries/players.ts`
-- `src/queries/tournament.ts`
+- `src/queries/endpoints.ts` — raw Supabase RPC fetch functions
+- `src/queries/sessions.ts` — session query hooks
+- `src/queries/players.ts` — player query hooks
+- `src/queries/tournament.ts` — tournament query hooks
+- `src/queries/types.ts` — CloudSnapshot, SessionMeta, PlayerSummary, PlayerStats types
+- `src/queries/errors.ts` — user-friendly error message mapper
+
+### Session query hooks
+
+| Hook | Purpose |
+|------|---------|
+| `useListSessions` | List all published sessions |
+| `useGetSession` | Fetch single session snapshot |
+| `usePublishSession` | Publish/update session to cloud |
+| `useTogglePlayed` | Toggle game played status |
+| `useSetScore` | Set game score |
+| `useSwapPlayers` | Swap two players between games |
+| `useSwapTeams` | Swap two teams between games |
+| `useSwapSlots` | Swap two game slots |
+| `useSetAbsent` | Mark/unmark players as absent |
+| `useReplacePlayer` | Replace player name in session |
+| `useDeleteSession` | Delete session (admin) |
+| `useLockSession` | Lock session (prevent edits) |
+| `useFetchSession` | Fetch session for imperative use |
+
+All mutations follow the optimistic update pattern: `onMutate` → `mutationFn` → `onSuccess`/`onError` with version mismatch retry.
 
 The pages and components should depend on these query hooks rather than
 embedding storage details directly.

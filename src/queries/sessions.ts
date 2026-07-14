@@ -127,6 +127,9 @@ export function useTogglePlayed(sessionId: string) {
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
     },
+    onSettled: async () => {
+      await invalidateRelatedQueries(queryClient)
+    },
   })
 }
 
@@ -153,6 +156,9 @@ export function useSetScore(sessionId: string) {
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+    },
+    onSettled: async () => {
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -350,7 +356,6 @@ export function useLockSession(sessionId: string) {
       if (!current) throw new Error('no data')
       return await publishSession(sessionId, { 
         ...current, 
-        locked: true,
         session: { ...current.session, locked: true }
       })
     },
@@ -359,7 +364,7 @@ export function useLockSession(sessionId: string) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        return { ...old, locked: true, session: { ...old.session, locked: true } }
+        return { ...old, session: { ...old.session, locked: true } }
       })
       return { previous }
     },
