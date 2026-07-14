@@ -324,6 +324,8 @@ export default function SummaryModal({
     exitSwapMode()
     exitReplaceMode()
     exitSlotSwapMode()
+    exitTeamSwapMode()
+    exitChangeMode()
     setAbsentPending(new Set(absentPlayers))
     setAbsentMode(true)
   }
@@ -343,6 +345,8 @@ export default function SummaryModal({
     exitSwapMode()
     exitAbsentMode()
     exitSlotSwapMode()
+    exitTeamSwapMode()
+    exitChangeMode()
     setReplaceMode(true)
   }
 
@@ -356,6 +360,7 @@ export default function SummaryModal({
     exitSwapMode()
     exitAbsentMode()
     exitReplaceMode()
+    exitTeamSwapMode()
     exitChangeMode()
     setActionsOpen(false)
     setSlotSwapMode(true)
@@ -566,9 +571,9 @@ export default function SummaryModal({
             </span>
           )}
           {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams || onLock) && (
-            swapMode || absentMode || replaceMode || slotSwapMode || teamSwapMode ? (
+            swapMode || absentMode || replaceMode || slotSwapMode || teamSwapMode || changeMode ? (
               <button
-                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); setActionsOpen(false) }}
+                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); exitChangeMode(); setActionsOpen(false) }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
                 ✕<span className="hidden sm:inline"> Cancel</span>
