@@ -348,14 +348,18 @@ export function useLockSession(sessionId: string) {
     mutationFn: async () => {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      return await publishSession(sessionId, { ...current, locked: true })
+      return await publishSession(sessionId, { 
+        ...current, 
+        locked: true,
+        session: { ...current.session, locked: true }
+      })
     },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        return { ...old, locked: true }
+        return { ...old, locked: true, session: { ...old.session, locked: true } }
       })
       return { previous }
     },
