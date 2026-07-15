@@ -376,12 +376,19 @@ export default function InstagramPostPage() {
   useEffect(() => {
     const loadOverlays = async () => {
       try {
+        const [logo, footer, brushStroke, chevrons, storyBg] = await Promise.all([
+          TEMPLATE.logo ? loadImage(TEMPLATE.logo) : Promise.resolve(undefined),
+          TEMPLATE.footer ? loadImage(TEMPLATE.footer) : Promise.resolve(undefined),
+          TEMPLATE.brushStroke ? loadImage(TEMPLATE.brushStroke) : Promise.resolve(undefined),
+          TEMPLATE.chevrons ? loadImage(TEMPLATE.chevrons) : Promise.resolve(undefined),
+          TEMPLATE.storyBg ? loadImage(TEMPLATE.storyBg) : Promise.resolve(undefined),
+        ])
         const result: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement; chevrons?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
-        if (TEMPLATE.logo) result.logo = await loadImage(TEMPLATE.logo)
-        if (TEMPLATE.footer) result.footer = await loadImage(TEMPLATE.footer)
-        if (TEMPLATE.brushStroke) result.brushStroke = await loadImage(TEMPLATE.brushStroke)
-        if (TEMPLATE.chevrons) result.chevrons = await loadImage(TEMPLATE.chevrons)
-        if (TEMPLATE.storyBg) result.storyBg = await loadImage(TEMPLATE.storyBg)
+        if (logo) result.logo = logo
+        if (footer) result.footer = footer
+        if (brushStroke) result.brushStroke = brushStroke
+        if (chevrons) result.chevrons = chevrons
+        if (storyBg) result.storyBg = storyBg
         setOverlays(result)
       } catch (err) {
         console.error('Failed to load overlay images', err)
