@@ -69,6 +69,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const [isPortrait, setIsPortrait] = useState(() => window.innerWidth < window.innerHeight)
   const [pendingClose, setPendingClose] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const initialRed = useRef<number | null>(null)
   const initialBlue = useRef<number | null>(null)
@@ -154,9 +155,13 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const handleSave = useCallback(async () => {
     if (!overlay) return
     setIsSaving(true)
+    setSaveError(null)
     try {
       await overlay.onSave(red, blue)
       overlay.onClose()
+    } catch (err) {
+      console.error('Save failed', err)
+      setSaveError(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setIsSaving(false)
     }
@@ -442,6 +447,14 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
           >
             {fsError}
+          </div>
+        )}
+        {saveError && (
+          <div
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-red-200 text-center"
+            style={{ maxWidth: '80vw', background: 'rgba(127,29,29,0.9)', border: '1px solid rgba(220,38,38,0.4)' }}
+          >
+            {saveError}
           </div>
         )}
         {footer}
