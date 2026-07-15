@@ -355,11 +355,30 @@ export function useChangePlayer(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (error, _vars, context) => {
+      // Rollback FIRST (immediate, synchronous)
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(['session', sessionId], context.previous)
+      }
+      // On version mismatch, refetch latest so user can retry
+      const isVersionMismatch =
+        (error instanceof RpcError && error.code === '40001') ||
+        (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
+      if (isVersionMismatch) {
+        try {
+          await queryClient.fetchQuery<CloudSnapshot | null>({
+            queryKey: ['session', sessionId],
+            queryFn: () => getSession(sessionId),
+          })
+        } catch {
+          // ignore — stale cache is better than nothing
+        }
+      }
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      // Refetch related queries (player list, player stats)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
