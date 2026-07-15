@@ -13,7 +13,6 @@ export interface ChangeTarget {
   court: number
   team: 'A' | 'B'
   index: 0 | 1
-  playerId: string
 }
 
 export function applyChange(
@@ -21,11 +20,18 @@ export function applyChange(
   target: ChangeTarget,
   newName: string,
 ): ScheduleSlot[] {
-  if (target.playerId === newName) return schedule
+  // Early return if replacement is same as current player
+  const game = schedule.find(s => s.slot === target.slot && s.court === target.court)
+  if (game) {
+    const currentId = target.team === 'A' ? game.teamA[target.index] : game.teamB[target.index]
+    if (currentId === newName) return schedule
+  }
   return schedule.map(s => {
-    const teamA = s.teamA.map(id => id === target.playerId ? newName : id) as [string, string]
-    const teamB = s.teamB.map(id => id === target.playerId ? newName : id) as [string, string]
-    if (teamA[0] === s.teamA[0] && teamA[1] === s.teamA[1] && teamB[0] === s.teamB[0] && teamB[1] === s.teamB[1]) return s
+    if (s.slot !== target.slot || s.court !== target.court) return s
+    const teamA = [...s.teamA] as [string, string]
+    const teamB = [...s.teamB] as [string, string]
+    if (target.team === 'A') teamA[target.index] = newName
+    else teamB[target.index] = newName
     return { ...s, teamA, teamB }
   })
 }
@@ -35,14 +41,15 @@ export function detectChangeConflict(
   target: ChangeTarget,
   newName: string,
 ): string | null {
-  for (const game of schedule) {
-    const allPlayers = [...game.teamA, ...game.teamB]
-    // Skip games where the old player isn't present
-    if (!allPlayers.includes(target.playerId)) continue
-    // Check if new name conflicts with other players in this game
-    const others = allPlayers.filter(id => id !== target.playerId)
-    if (others.includes(newName)) return newName
-  }
+  const game = schedule.find(s => s.slot === target.slot && s.court === target.court)
+  if (!game) return null
+  // Exclude the player being replaced from conflict check
+  const otherPlayers = [...game.teamA, ...game.teamB].filter((_, i) => {
+    const team = i < 2 ? 'A' : 'B'
+    const idx = i % 2
+    return !(team === target.team && idx === target.index)
+  })
+  if (otherPlayers.includes(newName)) return newName
   return null
 }
 
