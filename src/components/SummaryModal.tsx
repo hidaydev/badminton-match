@@ -18,6 +18,7 @@ import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
 import { detectTeamSwapConflict, detectChangeConflict } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import { detectSlotSwapConflict } from '../utils/slotSwap'
+import { computePlayerStats } from '../utils/playerStats'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
 import { ordinal } from '../utils/ordinal'
 
@@ -1334,43 +1335,7 @@ export default function SummaryModal({
           const players = [...playerMap.values()]
           if (players.length === 0 || result.schedule.length === 0) return null
 
-          const playCount: Record<string, number> = Object.fromEntries(players.map(p => [p.id, 0]))
-          const partnerWith: Record<string, Record<string, number>> = {}
-          const facedBy: Record<string, Record<string, number>> = {}
-
-          for (const g of result.schedule) {
-            const allPlayers = [...g.teamA, ...g.teamB]
-            for (const id of allPlayers) playCount[id]++
-
-            const inc2 = (obj: Record<string, Record<string, number>>, a: string, b: string) => {
-              obj[a] ??= {}; obj[a][b] = (obj[a][b] ?? 0) + 1
-              obj[b] ??= {}; obj[b][a] = (obj[b][a] ?? 0) + 1
-            }
-            inc2(partnerWith, g.teamA[0], g.teamA[1])
-            inc2(partnerWith, g.teamB[0], g.teamB[1])
-
-            for (const a of g.teamA) {
-              for (const b of g.teamB) {
-                facedBy[a] ??= {}; facedBy[a][b] = (facedBy[a][b] ?? 0) + 1
-                facedBy[b] ??= {}; facedBy[b][a] = (facedBy[b][a] ?? 0) + 1
-              }
-            }
-          }
-
-          const slotPlayerSet = new Map<number, Set<string>>()
-          for (const g of result.schedule) {
-            const set = slotPlayerSet.get(g.slot) ?? new Set<string>()
-            g.teamA.forEach(id => set.add(id)); g.teamB.forEach(id => set.add(id))
-            slotPlayerSet.set(g.slot, set)
-          }
-          const maxSlots = Math.max(...result.schedule.map(g => g.slot)) + 1
-          const sitCount: Record<string, number> = Object.fromEntries(players.map(p => [p.id, 0]))
-          for (let t = 0; t < maxSlots; t++) {
-            const playing = slotPlayerSet.get(t) ?? new Set<string>()
-            for (const p of players) {
-              if (!playing.has(p.id)) sitCount[p.id]++
-            }
-          }
+          const { playCount, sitCount, partnerWith, facedBy } = computePlayerStats(result.schedule, players.map(p => p.id))
 
           const idealPlays = (result.schedule.length * 4) / players.length
 
