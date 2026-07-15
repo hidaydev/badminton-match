@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTournament, publishTournament, TOURNAMENT_ID } from './endpoints'
+import { getTournament, publishTournament, TOURNAMENT_ID, RpcError } from './endpoints'
 import type { TournamentSnapshot } from './types'
 import type { GroupId, TournamentPair } from '../utils/tournament'
 import {
@@ -54,6 +54,9 @@ export function useConfirmGroups() {
     onSuccess: (published) => {
       queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
     },
+    onError: (_err) => {
+      console.error('Failed to confirm groups:', _err)
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })
 }
@@ -86,8 +89,25 @@ export function useSetTournamentScore() {
     onSuccess: (published) => {
       queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
     },
-    onError: (_err, _vars, context) => {
-      queryClient.setQueryData(['tournament', TOURNAMENT_ID], context?.previous)
+    onError: async (_err, _vars, context) => {
+      // Rollback FIRST (immediate)
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(['tournament', TOURNAMENT_ID], context.previous)
+      }
+      // On version mismatch, refetch latest
+      const isVersionMismatch =
+        (_err instanceof RpcError && _err.code === '40001') ||
+        (_err instanceof Error && _err.message.toLowerCase().includes('version mismatch'))
+      if (isVersionMismatch) {
+        try {
+          await queryClient.fetchQuery({
+            queryKey: ['tournament', TOURNAMENT_ID],
+            queryFn: () => getTournament(TOURNAMENT_ID),
+          })
+        } catch {
+          // ignore
+        }
+      }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })
@@ -121,6 +141,9 @@ export function useResetTournament() {
     onSuccess: (published) => {
       queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
     },
+    onError: (_err) => {
+      console.error('Failed to reset tournament:', _err)
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })
 }
@@ -143,6 +166,9 @@ export function useRegeneratePics() {
     },
     onSuccess: (published) => {
       queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
+    },
+    onError: (_err) => {
+      console.error('Failed to regenerate PICs:', _err)
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] }),
   })
