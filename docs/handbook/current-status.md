@@ -312,3 +312,24 @@ A new session should read these first:
 4. [`docs/handbook/roadmap.md`](roadmap.md)
 
 That is enough context to resume efficiently.
+
+## Historical Context
+
+### Environment variable migration
+
+The app originally used `VITE_APPS_SCRIPT_URL` to connect to a Google Apps Script backend. During the Supabase migration, this was replaced with:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_KEY`
+
+See [.env.local.example](../../.env.local.example) for the current contract.
+
+### Google Sheets export limitations
+
+The repository does not contain Google service account credentials, Sheets API credentials, or OAuth client setup. Automatic export of historical Google Sheets data is not possible from the repo alone. Old data can only be recovered through:
+
+1. Manual spreadsheet export
+2. A temporary one-off script using your Google access
+3. A direct Apps Script/Sheet dump performed outside this repo
+
+This is no longer a blocker for the local app runtime — it only matters if you need to recover older external history not already carried into the `bm`-based working set.
