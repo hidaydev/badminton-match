@@ -13,6 +13,7 @@ export interface ChangeTarget {
   court: number
   team: 'A' | 'B'
   index: 0 | 1
+  playerId: string
 }
 
 export function applyChange(
@@ -20,18 +21,11 @@ export function applyChange(
   target: ChangeTarget,
   newName: string,
 ): ScheduleSlot[] {
-  // Early return if replacement is same as current player
-  const game = schedule.find(s => s.slot === target.slot && s.court === target.court)
-  if (game) {
-    const currentId = target.team === 'A' ? game.teamA[target.index] : game.teamB[target.index]
-    if (currentId === newName) return schedule
-  }
+  if (target.playerId === newName) return schedule
   return schedule.map(s => {
-    if (s.slot !== target.slot || s.court !== target.court) return s
-    const teamA = [...s.teamA] as [string, string]
-    const teamB = [...s.teamB] as [string, string]
-    if (target.team === 'A') teamA[target.index] = newName
-    else teamB[target.index] = newName
+    const teamA = s.teamA.map(id => id === target.playerId ? newName : id) as [string, string]
+    const teamB = s.teamB.map(id => id === target.playerId ? newName : id) as [string, string]
+    if (teamA[0] === s.teamA[0] && teamA[1] === s.teamA[1] && teamB[0] === s.teamB[0] && teamB[1] === s.teamB[1]) return s
     return { ...s, teamA, teamB }
   })
 }
