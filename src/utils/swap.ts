@@ -18,20 +18,20 @@ export interface ChangeTarget {
 export function applyChange(
   schedule: ScheduleSlot[],
   target: ChangeTarget,
-  replacementPlayerId: string,
+  newName: string,
 ): ScheduleSlot[] {
   // Early return if replacement is same as current player
   const game = schedule.find(s => s.slot === target.slot && s.court === target.court)
   if (game) {
     const currentId = target.team === 'A' ? game.teamA[target.index] : game.teamB[target.index]
-    if (currentId === replacementPlayerId) return schedule
+    if (currentId === newName) return schedule
   }
   return schedule.map(s => {
     if (s.slot !== target.slot || s.court !== target.court) return s
     const teamA = [...s.teamA] as [string, string]
     const teamB = [...s.teamB] as [string, string]
-    if (target.team === 'A') teamA[target.index] = replacementPlayerId
-    else teamB[target.index] = replacementPlayerId
+    if (target.team === 'A') teamA[target.index] = newName
+    else teamB[target.index] = newName
     return { ...s, teamA, teamB }
   })
 }
@@ -39,7 +39,7 @@ export function applyChange(
 export function detectChangeConflict(
   schedule: ScheduleSlot[],
   target: ChangeTarget,
-  replacementPlayerId: string,
+  newName: string,
 ): string | null {
   const game = schedule.find(s => s.slot === target.slot && s.court === target.court)
   if (!game) return null
@@ -49,7 +49,7 @@ export function detectChangeConflict(
     const idx = i % 2
     return !(team === target.team && idx === target.index)
   })
-  if (otherPlayers.includes(replacementPlayerId)) return replacementPlayerId
+  if (otherPlayers.includes(newName)) return newName
   return null
 }
 
