@@ -26,3 +26,5 @@ dist-ssr
 *.sw?
 
 supabase/.temp
+
+.opencode
