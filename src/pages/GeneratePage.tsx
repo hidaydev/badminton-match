@@ -522,9 +522,11 @@ export default function GeneratePage() {
 
   async function handleChangePlayer(target: ChangeTarget, newName: string) {
     if (!result) return
-    // Register the new name first (idempotent)
+    // Register the new name first (idempotent) and use the returned playerId
+    let playerId: string
     try {
-      await registerPlayer(newName)
+      const res = await registerPlayer(newName)
+      playerId = res.playerId
     } catch (err) {
       setSaveError(getSaveErrorMessage(err))
       return
@@ -532,10 +534,10 @@ export default function GeneratePage() {
     // Re-read result from store to avoid stale closure after await
     const freshResult = useStore.getState().lastResult
     if (!freshResult) return
-    const newSchedule = applyChange(freshResult.schedule, target, newName)
+    const newSchedule = applyChange(freshResult.schedule, target, playerId)
     updateSchedule(newSchedule)
     setResult({ ...freshResult, schedule: newSchedule })
-    publishToCloud((snap) => changePlayerInSnapshot(snap, target, newName))
+    publishToCloud((snap) => changePlayerInSnapshot(snap, target, playerId))
   }
 
   function buildOffsets() {

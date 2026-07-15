@@ -15,7 +15,7 @@ import type { Player, GameScore, CourtTime } from '../store'
 import { timeToMinutes, minutesToTime } from '../store'
 import { computeStandings } from '../utils/standings'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
-import { detectTeamSwapConflict, detectChangeConflict } from '../utils/swap'
+import { detectTeamSwapConflict } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import { detectSlotSwapConflict } from '../utils/slotSwap'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
@@ -832,7 +832,7 @@ export default function SummaryModal({
             ) : (
               <>
                 <span className="text-xs text-sky-300 font-medium">
-                  Change <strong>{playerMap.get(result.schedule.find(g => g.slot === changeTarget.slot && g.court === changeTarget.court)?.[changeTarget.team === 'A' ? 'teamA' : 'teamB'][changeTarget.index] ?? '')?.name ?? '?'}</strong> (Slot {changeTarget.slot + 1}, {courtLabel(changeTarget.court)}) to:
+                  Change <strong>{playerMap.get(changeTarget.playerId)?.name ?? '?'}</strong> (Slot {changeTarget.slot + 1}, {courtLabel(changeTarget.court)}) to:
                 </span>
                 <div className="flex gap-2 items-center">
                   <input
@@ -842,11 +842,34 @@ export default function SummaryModal({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && changeName.trim()) {
                         const name = changeName.trim()
-                        const conflict = detectChangeConflict(result.schedule, changeTarget, name)
-                        if (conflict) { setChangeError(`${name} is already in this game`); return }
-                        const crossSlot = slotPlayerSet.get(changeTarget.slot)?.has(name)
-                        if (crossSlot) { setChangeError(`${name} already plays in another game this slot`); return }
-                        const b2b = isB2B(name, changeTarget.slot)
+                        // Check same-game conflict: compare new name against other players' NAMES in this game
+                        const game = result.schedule.find(g => g.slot === changeTarget.slot && g.court === changeTarget.court)
+                        const otherNames = game
+                          ? [...game.teamA, ...game.teamB]
+                              .filter(id => id !== changeTarget.playerId)
+                              .map(id => playerMap.get(id)?.name ?? id)
+                          : []
+                        if (otherNames.some(n => n.toLowerCase() === name.toLowerCase())) { setChangeError(`${name} is already in this game`); return }
+                        // Check cross-slot: does the new name already play in another game this slot?
+                        const slotNames = new Set<string>()
+                        for (const g of result.schedule) {
+                          if (g.slot === changeTarget.slot && !(g.court === changeTarget.court)) {
+                            for (const id of [...g.teamA, ...g.teamB]) {
+                              slotNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
+                            }
+                          }
+                        }
+                        if (slotNames.has(name.toLowerCase())) { setChangeError(`${name} already plays in another game this slot`); return }
+                        // Check B2B: does the new name play in adjacent slots?
+                        const b2bNames = new Set<string>()
+                        for (const g of result.schedule) {
+                          if (g.slot === changeTarget.slot - 1 || g.slot === changeTarget.slot + 1) {
+                            for (const id of [...g.teamA, ...g.teamB]) {
+                              b2bNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
+                            }
+                          }
+                        }
+                        const b2b = b2bNames.has(name.toLowerCase())
                         setPendingChange({ target: changeTarget, newName: name, b2b })
                       }
                     }}
@@ -858,11 +881,34 @@ export default function SummaryModal({
                     onClick={() => {
                       if (!changeName.trim()) return
                       const name = changeName.trim()
-                      const conflict = detectChangeConflict(result.schedule, changeTarget, name)
-                      if (conflict) { setChangeError(`${name} is already in this game`); return }
-                      const crossSlot = slotPlayerSet.get(changeTarget.slot)?.has(name)
-                      if (crossSlot) { setChangeError(`${name} already plays in another game this slot`); return }
-                      const b2b = isB2B(name, changeTarget.slot)
+                      // Check same-game conflict: compare new name against other players' NAMES in this game
+                      const game = result.schedule.find(g => g.slot === changeTarget.slot && g.court === changeTarget.court)
+                      const otherNames = game
+                        ? [...game.teamA, ...game.teamB]
+                            .filter(id => id !== changeTarget.playerId)
+                            .map(id => playerMap.get(id)?.name ?? id)
+                        : []
+                      if (otherNames.some(n => n.toLowerCase() === name.toLowerCase())) { setChangeError(`${name} is already in this game`); return }
+                      // Check cross-slot: does the new name already play in another game this slot?
+                      const slotNames = new Set<string>()
+                      for (const g of result.schedule) {
+                        if (g.slot === changeTarget.slot && !(g.court === changeTarget.court)) {
+                          for (const id of [...g.teamA, ...g.teamB]) {
+                            slotNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
+                          }
+                        }
+                      }
+                      if (slotNames.has(name.toLowerCase())) { setChangeError(`${name} already plays in another game this slot`); return }
+                      // Check B2B: does the new name play in adjacent slots?
+                      const b2bNames = new Set<string>()
+                      for (const g of result.schedule) {
+                        if (g.slot === changeTarget.slot - 1 || g.slot === changeTarget.slot + 1) {
+                          for (const id of [...g.teamA, ...g.teamB]) {
+                            b2bNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
+                          }
+                        }
+                      }
+                      const b2b = b2bNames.has(name.toLowerCase())
                       setPendingChange({ target: changeTarget, newName: name, b2b })
                     }}
                     disabled={!changeName.trim() || saving}
@@ -992,7 +1038,9 @@ export default function SummaryModal({
                                           ) : changeMode ? (
                                             <button
                                               onClick={() => {
-                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'A', index: i }
+                                                const hasScore = !!gameScores[`${s}-${g.court}`]
+                                                if (hasScore) return
+                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'A', index: i, playerId: id }
                                                 setChangeTarget(tgt)
                                                 setChangeName('')
                                                 setChangeError(null)
@@ -1105,7 +1153,9 @@ export default function SummaryModal({
                                           ) : changeMode ? (
                                             <button
                                               onClick={() => {
-                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'B', index: i }
+                                                const hasScore = !!gameScores[`${s}-${g.court}`]
+                                                if (hasScore) return
+                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'B', index: i, playerId: id }
                                                 setChangeTarget(tgt)
                                                 setChangeName('')
                                                 setChangeError(null)

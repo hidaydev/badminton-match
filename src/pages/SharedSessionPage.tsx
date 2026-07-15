@@ -185,15 +185,14 @@ export default function SharedSessionPage() {
         })}
         onChangePlayer={async (target: ChangeTarget, newName: string) => {
           try {
-            await registerPlayer(newName)
+            const { playerId } = await registerPlayer(newName)
+            changePlayer({ target, newName: playerId }, {
+              onSuccess: () => setSaveError(null),
+              onError: (err) => setSaveError(getSaveErrorMessage(err)),
+            })
           } catch (err) {
             setSaveError(getSaveErrorMessage(err))
-            return
           }
-          changePlayer({ target, newName }, {
-            onSuccess: () => setSaveError(null),
-            onError: (err) => setSaveError(getSaveErrorMessage(err)),
-          })
         }}
         standalone
         onRefetch={() => refetch()}
@@ -207,7 +206,10 @@ export default function SharedSessionPage() {
         }}
         deleteLoading={deletePending}
         locked={!!snapshot?.session?.locked}
-        onLock={() => lockSession()}
+        onLock={() => lockSession(undefined, {
+          onSuccess: () => setSaveError(null),
+          onError: (err) => setSaveError(getSaveErrorMessage(err)),
+        })}
         lockLoading={lockPending}
       />
     </div>
