@@ -20,17 +20,15 @@ import {
 } from '../utils/sessionSnapshot'
 import { applySwap, applyTeamSwap, applyChange, type SwapTarget, type TeamSwapTarget, type ChangeTarget } from '../utils/swap'
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
-
-const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
-const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400', 4: 'text-green-400' }
+import { TIER_LABELS, TIER_COLORS } from '../config/tiers'
 
 function renderTierLetters(tiers: number[]) {
   return tiers.map((tier, index) => (
     <span
       key={`${tier}-${index}`}
-      className={`text-[10px] font-bold ${TIER_COLOR[tier] ?? 'text-slate-400'}`}
+      className={`text-[10px] font-bold ${TIER_COLORS[tier] ?? 'text-slate-400'}`}
     >
-      {TIER_LABEL[tier] ?? tier}
+      {TIER_LABELS[tier] ?? tier}
     </span>
   ))
 }
@@ -43,7 +41,7 @@ function PlayerChip({ player, backToBack }: { player: Player; backToBack?: boole
       <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-pink-400'}`}>
         {player.gender}
       </span>
-      <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${TIER_COLOR[player.tier]}`}>{TIER_LABEL[player.tier]}</span>
+      <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${TIER_COLORS[player.tier]}`}>{TIER_LABELS[player.tier]}</span>
     </span>
   )
 }
