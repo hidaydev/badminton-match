@@ -1280,10 +1280,58 @@ export default function SummaryModal({
 
         {/* Player Stats — shown below schedule */}
         {activeTab === 'schedule' && (() => {
+          const absentSet = new Set(absentPlayers)
+
+          if (standalone) {
+            // Published session: include ALL players from schedule (not just playerMap)
+            const schedulePlayerIds = new Set<string>()
+            for (const g of result.schedule) {
+              for (const id of [...g.teamA, ...g.teamB]) schedulePlayerIds.add(id)
+            }
+            const allPlayerIds = [...new Set([...playerMap.keys(), ...schedulePlayerIds])]
+            if (allPlayerIds.length === 0 || result.schedule.length === 0) return null
+
+            const playCount: Record<string, number> = Object.fromEntries(allPlayerIds.map(id => [id, 0]))
+            for (const g of result.schedule) {
+              for (const id of [...g.teamA, ...g.teamB]) playCount[id]++
+            }
+
+            // Sort: non-absent by play count desc, then absent at bottom
+            const sorted = allPlayerIds.sort((a, b) => {
+              const aAbsent = absentSet.has(a) ? 1 : 0
+              const bAbsent = absentSet.has(b) ? 1 : 0
+              if (aAbsent !== bAbsent) return aAbsent - bAbsent
+              return (playCount[b] ?? 0) - (playCount[a] ?? 0)
+            })
+
+            return (
+              <div className="mt-6 bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
+                <span className="text-sm font-semibold text-white">Player Stats</span>
+                <div className="grid grid-cols-2 gap-y-2">
+                  {sorted.map((id) => {
+                    const p = playerMap.get(id)
+                    const name = p?.name ?? id
+                    const plays = playCount[id] ?? 0
+                    const isAbsent = absentSet.has(id)
+                    return (
+                      <div key={id} className={`flex items-center gap-1.5 ${isAbsent ? 'opacity-40' : ''}`}>
+                        <span className={`text-xs truncate ${isAbsent ? 'text-slate-500 line-through' : 'text-slate-300'}`}>{name}</span>
+                        {isAbsent && <span className="text-[10px] text-slate-600 bg-slate-800 rounded px-1 py-0.5 shrink-0">absent</span>}
+                        <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-600' : 'text-white'}`}>
+                          {plays}×
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          }
+
+          // Generate page: original behavior with target plays
           const players = [...playerMap.values()]
           if (players.length === 0 || result.schedule.length === 0) return null
 
-          // Compute stats from schedule
           const playCount: Record<string, number> = Object.fromEntries(players.map(p => [p.id, 0]))
           const partnerWith: Record<string, Record<string, number>> = {}
           const facedBy: Record<string, Record<string, number>> = {}
@@ -1292,7 +1340,6 @@ export default function SummaryModal({
             const allPlayers = [...g.teamA, ...g.teamB]
             for (const id of allPlayers) playCount[id]++
 
-            // Partners
             const inc2 = (obj: Record<string, Record<string, number>>, a: string, b: string) => {
               obj[a] ??= {}; obj[a][b] = (obj[a][b] ?? 0) + 1
               obj[b] ??= {}; obj[b][a] = (obj[b][a] ?? 0) + 1
@@ -1300,7 +1347,6 @@ export default function SummaryModal({
             inc2(partnerWith, g.teamA[0], g.teamA[1])
             inc2(partnerWith, g.teamB[0], g.teamB[1])
 
-            // Opponents
             for (const a of g.teamA) {
               for (const b of g.teamB) {
                 facedBy[a] ??= {}; facedBy[a][b] = (facedBy[a][b] ?? 0) + 1
@@ -1309,7 +1355,6 @@ export default function SummaryModal({
             }
           }
 
-          // Compute sit count
           const slotPlayerSet = new Map<number, Set<string>>()
           for (const g of result.schedule) {
             const set = slotPlayerSet.get(g.slot) ?? new Set<string>()
