@@ -30,23 +30,6 @@ export function applyChange(
   })
 }
 
-export function detectChangeConflict(
-  schedule: ScheduleSlot[],
-  target: ChangeTarget,
-  newName: string,
-): string | null {
-  const game = schedule.find(s => s.slot === target.slot && s.court === target.court)
-  if (!game) return null
-  // Exclude the player being replaced from conflict check
-  const otherPlayers = [...game.teamA, ...game.teamB].filter((_, i) => {
-    const team = i < 2 ? 'A' : 'B'
-    const idx = i % 2
-    return !(team === target.team && idx === target.index)
-  })
-  if (otherPlayers.includes(newName)) return newName
-  return null
-}
-
 export function applySwap(
   schedule: ScheduleSlot[],
   t1: SwapTarget,
