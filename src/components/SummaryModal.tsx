@@ -19,12 +19,7 @@ import { detectTeamSwapConflict, detectChangeConflict } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import { detectSlotSwapConflict } from '../utils/slotSwap'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
-
-function ordinal(n: number): string {
-  const s = ['th', 'st', 'nd', 'rd']
-  const v = n % 100
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0])
-}
+import { ordinal } from '../utils/ordinal'
 
 function SlotGameCard({ id, children }: { id: string; children: React.ReactNode }) {
   const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({ id })

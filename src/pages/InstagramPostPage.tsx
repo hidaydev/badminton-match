@@ -6,6 +6,7 @@ import { useListSessions, useFetchSession } from '../queries'
 import { computeStandings, type PlayerStanding } from '../utils/standings'
 import type { SessionMeta } from '../queries'
 import { loadImage, drawCoverFill, drawHeader } from '../utils/canvasPost'
+import { ordinal } from '../utils/ordinal'
 
 const TEMPLATE = instagramTemplates[0]
 
@@ -298,14 +299,10 @@ function drawStandingsCanvas(
       ctx.textAlign = 'center'
       ctx.fillText(MEDALS[i], RANK_CX, baseline)
     } else {
-      const ordinalSuffix = (n: number) => {
-        const v = n % 100
-        return n + (['th','st','nd','rd'][(v - 20) % 10] ?? ['th','st','nd','rd'][v] ?? 'th')
-      }
       ctx.font = `bold ${ROW_FONT_SIZE * 0.62}px Arial, sans-serif`
       ctx.fillStyle = '#64748b'
       ctx.textAlign = 'center'
-      ctx.fillText(ordinalSuffix(i + 1), RANK_CX, baseline)
+      ctx.fillText(ordinal(i + 1), RANK_CX, baseline)
     }
     ctx.restore()
 
