@@ -15,22 +15,15 @@ Important status:
 
 ## Files To Run
 
-If you are rebuilding from scratch, apply the full migration stack under:
+If you are rebuilding from scratch, `supabase db reset` applies the 3 squashed
+migrations in order:
 
-- [supabase/migrations/](../../supabase/migrations/)
+1. [supabase/migrations/20260616_000001_schema.sql](../../supabase/migrations/20260616_000001_schema.sql) — all tables, indexes, constraints, triggers, grants
+2. [supabase/migrations/20260616_000002_functions.sql](../../supabase/migrations/20260616_000002_functions.sql) — all 26 functions in final form
+3. [supabase/migrations/20260616_000003_seeds.sql](../../supabase/migrations/20260616_000003_seeds.sql) — legacy backfill, identity seed, tournament seed, data fixes, validation
 
-Then apply the relevant seeds under:
-
-- [supabase/seeds/](../../supabase/seeds/)
-
-Do not stop at `000023`. The current working local runtime also expects the
-later hardening and regression-fix migrations, including:
-
-- `000024`
-- `000025`
-- `000026`
-- `000027`
-- `000028`
+The seeds file inserts legacy snapshots into `badminton_match`, backfills into
+`bm`, runs parity/smoke checks, then drops the `badminton_match` schema.
 
 ## Supabase API Config Note
 
