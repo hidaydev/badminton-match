@@ -40,6 +40,8 @@ Effort: 10 min. Impact: Medium.
 
 ### 1.3 `staleTime: 0` Causes Over-fetching
 
+**Status: RESOLVED (2026-07-15)** — Changed to `staleTime: 30_000` in `main.tsx`
+
 File: [src/main.tsx:10](/Users/user/Projects/badminton-match/src/main.tsx:10)
 
 Current behavior:
@@ -139,6 +141,8 @@ Fix:
 Effort: 1 day. Impact: Medium (reduces maintenance surface and inconsistency risk).
 
 ### 2.5 No Mutation Queue
+
+**Status: RESOLVED (2026-07-15)** — All session and tournament hooks now have `cancelQueries` in `onMutate`
 
 Current behavior:
 
