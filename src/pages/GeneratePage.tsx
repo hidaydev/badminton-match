@@ -1,22 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useStore, type Player, timeToMinutes } from '../store'
 import { generate, type GeneratorResult } from '../generator'
 import { useSharedView } from '../sharedView'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
-import { usePublishSession, type CloudSnapshot } from '../queries'
+import { usePublishSession } from '../queries'
 import { registerPlayer } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
 import {
   buildPublishableSessionSnapshot,
-  setScoreInSnapshot,
-  togglePlayedInSnapshot,
-  swapPlayersInSnapshot,
-  swapTeamsInSnapshot,
-  swapSlotsInSnapshot,
-  setAbsentPlayersInSnapshot,
-  replacePlayerNameInSnapshot,
-  changePlayerInSnapshot,
 } from '../utils/sessionSnapshot'
 import { applySwap, applyTeamSwap, applyChange, type SwapTarget, type TeamSwapTarget, type ChangeTarget } from '../utils/swap'
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
@@ -456,28 +448,50 @@ export default function GeneratePage() {
 
   const playerMap = new Map(players.map((p) => [p.id, p]))
 
-  function publishToCloud(buildFn: (snap: CloudSnapshot) => CloudSnapshot) {
+  // Debounce cloud publishes so rapid local changes batch into a single RPC.
+  // The store is always updated *before* publishToCloud is called (optimistic),
+  // so reading from useStore.getState() at fire time captures the full truth.
+  const publishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function publishToCloud() {
     if (!cloudSessionId) return
-    // Read schedule directly from store to avoid stale closure after updateSchedule (which is async)
-    const freshSchedule = useStore.getState().schedule
-    const current = buildPublishableSessionSnapshot({
-      session, players, fixMatches, schedule: freshSchedule, playedGames: playedArr, gameScores,
-    })
-    const snap = buildFn(current)
-    publish(snap, {
-      onSuccess: () => setSaveError(null),
-      onError: (err) => setSaveError(getSaveErrorMessage(err)),
-    })
+
+    if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
+
+    publishTimerRef.current = setTimeout(() => {
+      publishTimerRef.current = null
+      const state = useStore.getState()
+      const snap = buildPublishableSessionSnapshot({
+        session: state.session,
+        players: state.players,
+        fixMatches: state.fixMatches,
+        schedule: state.schedule,
+        playedGames: state.playedGames,
+        gameScores: state.gameScores,
+        existingAbsentPlayers: state.absentPlayers,
+      })
+      publish(snap, {
+        onSuccess: () => setSaveError(null),
+        onError: (err) => setSaveError(getSaveErrorMessage(err)),
+      })
+    }, 300)
   }
+
+  // Flush pending publish on unmount
+  useEffect(() => {
+    return () => {
+      if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
+    }
+  }, [])
 
   function handleTogglePlayed(key: string) {
     togglePlayedGame(key)
-    publishToCloud((snap) => togglePlayedInSnapshot(snap, key))
+    publishToCloud()
   }
 
   function handleSetScore(key: string, a: number, b: number) {
     setGameScore(key, a, b)
-    publishToCloud((snap) => setScoreInSnapshot(snap, key, a, b))
+    publishToCloud()
   }
 
   function handleSwapPlayers(t1: SwapTarget, t2: SwapTarget) {
@@ -485,7 +499,7 @@ export default function GeneratePage() {
     const newSchedule = applySwap(result.schedule, t1, t2)
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
-    publishToCloud((snap) => swapPlayersInSnapshot(snap, t1, t2))
+    publishToCloud()
   }
 
   function handleSwapTeams(t1: TeamSwapTarget, t2: TeamSwapTarget) {
@@ -493,7 +507,7 @@ export default function GeneratePage() {
     const newSchedule = applyTeamSwap(result.schedule, t1, t2)
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
-    publishToCloud((snap) => swapTeamsInSnapshot(snap, t1, t2))
+    publishToCloud()
   }
 
   function handleSwapSlots(g1: SlotSwapTarget, g2: SlotSwapTarget) {
@@ -501,7 +515,7 @@ export default function GeneratePage() {
     const newSchedule = applySlotSwap(result.schedule, g1, g2)
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
-    publishToCloud((snap) => swapSlotsInSnapshot(snap, g1, g2))
+    publishToCloud()
   }
 
   function handleReplacePlayer(playerId: string, newName: string) {
@@ -513,12 +527,12 @@ export default function GeneratePage() {
     }))
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
-    publishToCloud((snap) => replacePlayerNameInSnapshot(snap, playerId, newName))
+    publishToCloud()
   }
 
   function handleSetAbsent(nextAbsent: string[]) {
     setAbsentPlayers(nextAbsent)
-    publishToCloud((snap) => setAbsentPlayersInSnapshot(snap, nextAbsent))
+    publishToCloud()
   }
 
   async function handleChangePlayer(target: ChangeTarget, newName: string) {
@@ -538,7 +552,7 @@ export default function GeneratePage() {
     const newSchedule = applyChange(freshResult.schedule, target, playerId)
     updateSchedule(newSchedule)
     setResult({ ...freshResult, schedule: newSchedule })
-    publishToCloud((snap) => changePlayerInSnapshot(snap, target, playerId))
+    publishToCloud()
   }
 
   function buildOffsets() {
