@@ -171,19 +171,17 @@ function CourtTimeline({
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default function SetupPage() {
-  const {
-    session,
-    setCourts,
-    setSessionStart,
-    setSlotMinutes,
-    setCourtTime,
-    setCourtName,
-    setPlayerCount,
-    setTitle,
-    setDate,
-    lockSession,
-    resetSession,
-  } = useStore()
+  const session = useStore((s) => s.session)
+  const setCourts = useStore((s) => s.setCourts)
+  const setSessionStart = useStore((s) => s.setSessionStart)
+  const setSlotMinutes = useStore((s) => s.setSlotMinutes)
+  const setCourtTime = useStore((s) => s.setCourtTime)
+  const setCourtName = useStore((s) => s.setCourtName)
+  const setPlayerCount = useStore((s) => s.setPlayerCount)
+  const setTitle = useStore((s) => s.setTitle)
+  const setDate = useStore((s) => s.setDate)
+  const lockSession = useStore((s) => s.lockSession)
+  const resetSession = useStore((s) => s.resetSession)
   const navigate = useNavigate()
 
   const sessionStartMin = timeToMinutes(session.sessionStart)
