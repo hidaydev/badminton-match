@@ -1,4 +1,4 @@
-# BM Canonical Schema Map 2026-06-18
+# BM Canonical Schema Map
 
 This document is the easiest way to understand the current `bm` schema without replaying the full migration chain.
 
@@ -283,6 +283,16 @@ Important rules:
 
 - `bm.publish_session(text, jsonb, text)`
 - `bm.publish_tournament(text, jsonb)`
+
+### Player registration
+
+- `bm.register_player(text, text)` — Register a player name or alias
+
+### Admin / maintenance
+
+- `bm.delete_session(text)` — Admin-only session deletion
+- `bm.delete_player(uuid, boolean)` — Admin-only player deletion
+- `bm.unlock_session(text)` — Admin-only session unlock
 
 ### Compatibility helpers
 
