@@ -140,6 +140,22 @@ The schedule tab in SummaryModal shows per-player stats:
 - unique partners
 - unique opponents
 
+In standalone mode (host view), the stats panel uses a 2-column grid layout without
+target/ideal plays. Absent players are greyed out with an absent badge and sorted
+to the bottom of the list. All players from the schedule are included (not just
+those in playerMap), supporting the Change Player flow.
+
+### Change player
+
+Change Player allows the host to swap one player in a specific game slot:
+
+- **Cross-slot conflict detection** — prevents assigning the same player to
+  multiple games in the same time slot across different courts
+- **Confirmation bar** — changes are staged and shown in a bottom confirm bar
+  (consistent with swap/absent patterns) before being committed
+- **Back-to-back warning** — the confirm bar shows a warning when the replacement
+  player would play back-to-back games
+
 ## Player history flow
 
 Files:

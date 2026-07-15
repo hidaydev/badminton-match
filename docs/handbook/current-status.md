@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 This is the fastest handover file for continuing work on this repository.
 
@@ -124,6 +124,20 @@ Main file:
 
 - [`src/queries/endpoints.ts`](../../src/queries/endpoints.ts)
 
+### Refactoring and extraction (2026-07-15)
+
+Code quality improvements completed:
+
+- **Deleted `store/tournament.ts`** — dead code, never imported (TournamentPage uses React Query)
+- **Renamed `replacementPlayerId` → `newName`** in `utils/swap.ts` and `utils/sessionSnapshot.ts` for clarity
+- **Extracted tier constants** to `config/tiers.ts` — shared across GeneratePage, PlayersPage, ConstraintsPage
+- **Extracted `ordinal()`** to `utils/ordinal.ts` — shared across SummaryModal, PlayerMatchDetailSheet, InstagramPostPage
+- **Extracted `computePlayerStats()`** to `utils/playerStats.ts` — shared across GeneratePage and SummaryModal
+- **Fixed `useStore()` selectors** in SetupPage, PlayersPage, ConstraintsPage — prevents unnecessary re-renders
+- **Decomposed SummaryModal** (1575 → 1277 lines) — extracted `ConfirmBars.tsx`, `ActionsMenu.tsx`, `PlayerStatsPanel.tsx`
+- **Player Stats (published session)** — standalone mode with 2-column grid, no target/ideal plays, absent players greyed with badge and sorted at bottom, includes all players from schedule
+- **Change Player improvements** — cross-slot conflict detection, confirmation bar (consistent with swap/absent pattern), back-to-back warning in confirm bar
+
 ### Documentation baseline
 
 Current-state docs exist under:
@@ -231,6 +245,7 @@ These are the main migration/doc checkpoints so far:
 - `3f75c35` — `fix: critical + medium audit cleanup (16 issues)`
 - `9abb7d7` — `fix: backend audit cleanup (6 issues)`
 - `4395af3` — `fix: low severity cleanup (4 issues)`
+- (latest session) — `refactor: extract shared utilities, decompose SummaryModal, fix selectors, remove dead code`
 
 ## Recommended next task
 
