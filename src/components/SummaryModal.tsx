@@ -832,7 +832,7 @@ export default function SummaryModal({
             ) : (
               <>
                 <span className="text-xs text-sky-300 font-medium">
-                  Change <strong>{playerMap.get(changeTarget.playerId)?.name ?? '?'}</strong> (Slot {changeTarget.slot + 1}, {courtLabel(changeTarget.court)}) to:
+                  Change <strong>{playerMap.get(result.schedule.find(g => g.slot === changeTarget.slot && g.court === changeTarget.court)?.[changeTarget.team === 'A' ? 'teamA' : 'teamB'][changeTarget.index] ?? '')?.name ?? '?'}</strong> (Slot {changeTarget.slot + 1}, {courtLabel(changeTarget.court)}) to:
                 </span>
                 <div className="flex gap-2 items-center">
                   <input
@@ -992,7 +992,7 @@ export default function SummaryModal({
                                           ) : changeMode ? (
                                             <button
                                               onClick={() => {
-                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'A', index: i, playerId: g.teamA[i] }
+                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'A', index: i }
                                                 setChangeTarget(tgt)
                                                 setChangeName('')
                                                 setChangeError(null)
@@ -1105,7 +1105,7 @@ export default function SummaryModal({
                                           ) : changeMode ? (
                                             <button
                                               onClick={() => {
-                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'B', index: i, playerId: g.teamB[i] }
+                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'B', index: i }
                                                 setChangeTarget(tgt)
                                                 setChangeName('')
                                                 setChangeError(null)

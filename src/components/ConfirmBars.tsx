@@ -222,7 +222,9 @@ export default function ConfirmBars({
       })()}
       {/* Change player confirm bar */}
       {pendingChange && (() => {
-        const oldName = playerMap.get(pendingChange.target.playerId)?.name ?? pendingChange.target.playerId
+        const game = schedule.find(g => g.slot === pendingChange.target.slot && g.court === pendingChange.target.court)
+        const oldId = game?.[pendingChange.target.team === 'A' ? 'teamA' : 'teamB'][pendingChange.target.index] ?? ''
+        const oldName = playerMap.get(oldId)?.name ?? oldId
         return (
           <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-sky-900/40 px-4 pt-3 pb-4">
             <div className="max-w-xl mx-auto flex flex-col gap-2">
