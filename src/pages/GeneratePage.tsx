@@ -443,6 +443,7 @@ export default function GeneratePage() {
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
 
   // Auto-dismiss error toast after 5 seconds
   useEffect(() => {
@@ -565,16 +566,19 @@ export default function GeneratePage() {
     return q.playSpread <= 1 && q.unevenGames === 0 && q.repeatedPairs === 0
   }
 
-  function handleRetryUntilGood() {
+  async function handleRetryUntilGood() {
+    if (isGenerating) return
     setError(null)
     const err = validatePlayers()
     if (err) { setError(err); return }
+    setIsGenerating(true)
     try {
       const offsets = buildOffsets()
       let best = generate(players, session.slotsPerCourt, fixMatches, offsets, session)
       let attempts = 1
       const MAX = 30
       while (attempts < MAX && !isGood(best)) {
+        await new Promise<void>(r => requestAnimationFrame(() => r()))
         const candidate = generate(players, session.slotsPerCourt, fixMatches, offsets, session)
         if (qualityScore(candidate) < qualityScore(best)) best = candidate
         attempts++
@@ -585,6 +589,8 @@ export default function GeneratePage() {
       setRetryInfo({ attempts, perfect: isGood(best) })
     } catch (e) {
       setError(String(e))
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -624,9 +630,10 @@ export default function GeneratePage() {
                 {!cloudSessionId && (
                   <button
                     onClick={handleRetryUntilGood}
-                    className="text-xs text-emerald-400 hover:text-emerald-200 px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
+                    disabled={isGenerating}
+                    className="text-xs text-emerald-400 hover:text-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
                   >
-                    ↺ Regenerate
+                    {isGenerating ? '⏳ Generating…' : '↺ Regenerate'}
                   </button>
                 )}
                 <ShareButton />
@@ -673,10 +680,10 @@ export default function GeneratePage() {
       {!result ? (
         <button
           onClick={handleRetryUntilGood}
-          disabled={players.length < 4}
+          disabled={players.length < 4 || isGenerating}
           className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors"
         >
-          ▶ Generate Schedule
+          {isGenerating ? '⏳ Generating…' : '▶ Generate Schedule'}
         </button>
       ) : (
         <ScheduleView
