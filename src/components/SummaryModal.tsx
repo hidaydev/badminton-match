@@ -292,6 +292,7 @@ export default function SummaryModal({
   const [changeTarget, setChangeTarget] = useState<ChangeTarget | null>(null)
   const [changeName, setChangeName] = useState('')
   const [changeError, setChangeError] = useState<string | null>(null)
+  const [pendingChange, setPendingChange] = useState<{ target: ChangeTarget; newName: string; b2b: boolean } | null>(null)
 
   const [actionsOpen, setActionsOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -388,6 +389,7 @@ export default function SummaryModal({
     setChangeTarget(null)
     setChangeName('')
     setChangeError(null)
+    setPendingChange(null)
   }
 
   function enterChangeMode() {
@@ -763,7 +765,7 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || pendingTeamSwap || changeTarget ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
+      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
         {swapMode && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
@@ -883,12 +885,15 @@ export default function SummaryModal({
                     type="text"
                     value={changeName}
                     onChange={(e) => { setChangeName(e.target.value); setChangeError(null) }}
-                    onKeyDown={async (e) => {
+                    onKeyDown={(e) => {
                       if (e.key === 'Enter' && changeName.trim()) {
-                        const conflict = detectChangeConflict(result.schedule, changeTarget, changeName.trim())
-                        if (conflict) { setChangeError(`${changeName.trim()} is already in this game`); return }
-                        await onChangePlayer?.(changeTarget, changeName.trim())
-                        exitChangeMode()
+                        const name = changeName.trim()
+                        const conflict = detectChangeConflict(result.schedule, changeTarget, name)
+                        if (conflict) { setChangeError(`${name} is already in this game`); return }
+                        const crossSlot = slotPlayerSet.get(changeTarget.slot)?.has(name)
+                        if (crossSlot) { setChangeError(`${name} already plays in another game this slot`); return }
+                        const b2b = isB2B(name, changeTarget.slot)
+                        setPendingChange({ target: changeTarget, newName: name, b2b })
                       }
                     }}
                     placeholder="New name…"
@@ -896,18 +901,20 @@ export default function SummaryModal({
                     className="flex-1 bg-slate-900 border border-sky-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
                   />
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       if (!changeName.trim()) return
-                      const conflict = detectChangeConflict(result.schedule, changeTarget, changeName.trim())
-                      if (conflict) { setChangeError(`${changeName.trim()} is already in this game`); return }
-                      await onChangePlayer?.(changeTarget, changeName.trim())
-                      exitChangeMode()
+                      const name = changeName.trim()
+                      const conflict = detectChangeConflict(result.schedule, changeTarget, name)
+                      if (conflict) { setChangeError(`${name} is already in this game`); return }
+                      const crossSlot = slotPlayerSet.get(changeTarget.slot)?.has(name)
+                      if (crossSlot) { setChangeError(`${name} already plays in another game this slot`); return }
+                      const b2b = isB2B(name, changeTarget.slot)
+                      setPendingChange({ target: changeTarget, newName: name, b2b })
                     }}
                     disabled={!changeName.trim() || saving}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5"
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                   >
-                    {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                    {saving ? 'Saving…' : '✓ Change'}
+                    Next
                   </button>
                 </div>
                 {changeError && (
@@ -1554,6 +1561,46 @@ export default function SummaryModal({
                   onClick={() => { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitTeamSwapMode() }}
                   disabled={saving}
                   className="text-xs font-bold px-4 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
+                >
+                  {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                  {saving ? 'Saving…' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+      {/* Change player confirm bar */}
+      {pendingChange && (() => {
+        const game = result.schedule.find(g => g.slot === pendingChange.target.slot && g.court === pendingChange.target.court)
+        const oldId = game?.[pendingChange.target.team === 'A' ? 'teamA' : 'teamB'][pendingChange.target.index] ?? ''
+        const oldName = playerMap.get(oldId)?.name ?? oldId
+        return (
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-sky-900/40 px-4 pt-3 pb-4">
+            <div className="max-w-xl mx-auto flex flex-col gap-2">
+              <div className="bg-sky-950/40 border border-sky-800/40 rounded-xl px-3 py-2.5 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-slate-200">
+                    <span className="text-slate-400 line-through">{oldName}</span>
+                    {' '}→{' '}
+                    <span className="text-sky-300">{pendingChange.newName}</span>
+                    <span className="text-slate-500 ml-1">Slot {pendingChange.target.slot + 1}, {courtLabel(pendingChange.target.court)}</span>
+                  </p>
+                  {pendingChange.b2b && (
+                    <p className="text-[10px] text-amber-400 mt-0.5">⚠ {pendingChange.newName} plays back-to-back</p>
+                  )}
+                  <p className="text-[10px] text-red-400 mt-0.5">⚠ Cannot be undone</p>
+                </div>
+                <button
+                  onClick={() => setPendingChange(null)}
+                  className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+                >
+                  ✕
+                </button>
+                <button
+                  onClick={() => { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitChangeMode() }}
+                  disabled={saving}
+                  className="text-xs font-bold px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
                 >
                   {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
                   {saving ? 'Saving…' : 'Confirm'}
