@@ -29,6 +29,11 @@ async function refetchOnVersionMismatch(
   error: unknown,
   context: { previous?: CloudSnapshot | null } | undefined,
 ) {
+  // ROLLBACK FIRST (synchronous, immediate)
+  if (context?.previous !== undefined) {
+    queryClient.setQueryData(['session', sessionId], context.previous)
+  }
+  // On version mismatch, refetch latest so user can retry
   const isVersionMismatch =
     (error instanceof RpcError && error.code === '40001') ||
     (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
@@ -38,13 +43,9 @@ async function refetchOnVersionMismatch(
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      return
     } catch {
-      // fall through to rollback
+      // ignore — stale cache (rolled back) is better than nothing
     }
-  }
-  if (context?.previous !== undefined) {
-    queryClient.setQueryData(['session', sessionId], context.previous)
   }
 }
 
@@ -82,8 +83,9 @@ export function usePublishSession(sessionId: string | undefined) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       return { previous }
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      await invalidateRelatedQueries(queryClient)
     },
     onError: async (error, _vars, context) => {
       if (!sessionId) return
@@ -128,11 +130,12 @@ export function useTogglePlayed(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -155,11 +158,12 @@ export function useSetScore(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -182,11 +186,12 @@ export function useSwapPlayers(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -209,11 +214,12 @@ export function useSwapTeams(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -236,11 +242,12 @@ export function useSetAbsent(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -263,11 +270,12 @@ export function useReplacePlayer(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -303,11 +311,12 @@ export function useSwapSlots(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -403,11 +412,12 @@ export function useLockSession(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
+    onSuccess: async (published) => {
       queryClient.setQueryData(['session', sessionId], published)
+      await invalidateRelatedQueries(queryClient)
     },
   })
 }
