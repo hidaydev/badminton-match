@@ -105,9 +105,14 @@ export default function ShareButton() {
 
   async function handleCopy() {
     if (!shareUrl) return
-    await navigator.clipboard.writeText(shareUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Clipboard write failed', err)
+      setError('Failed to copy link. Please copy it manually.')
+    }
   }
 
   return (
