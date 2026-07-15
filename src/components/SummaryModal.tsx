@@ -18,8 +18,10 @@ import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
 import { detectTeamSwapConflict, detectChangeConflict } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import { detectSlotSwapConflict } from '../utils/slotSwap'
-import { computePlayerStats } from '../utils/playerStats'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
+import ConfirmBars from './ConfirmBars'
+import ActionsMenu from './ActionsMenu'
+import PlayerStatsPanel from './PlayerStatsPanel'
 import { ordinal } from '../utils/ordinal'
 
 function SlotGameCard({ id, children }: { id: string; children: React.ReactNode }) {
@@ -537,6 +539,17 @@ export default function SummaryModal({
     if (trySaveScore(key)) setExpandedScore(null)
   }
 
+  // ConfirmBars callbacks
+  function handleCancelSwap() { setPendingSwap(null) }
+  function handleConfirmSwap() { if (pendingSwap) { onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2); exitSwapMode() } }
+  function handleCancelSlotSwap() { setPendingSlotSwap(null) }
+  function handleConfirmSlotSwap() { if (pendingSlotSwap) { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitSlotSwapMode() } }
+  function handleCancelTeamSwap() { exitTeamSwapMode() }
+  function handleConfirmTeamSwap() { if (pendingTeamSwap) { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitTeamSwapMode() } }
+  function handleCancelChange() { setPendingChange(null) }
+  function handleConfirmChange() { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitChangeMode() } }
+  function handleConfirmAbsent() { onSetAbsent?.([...absentPending]); exitAbsentMode() }
+
   return (
     <div className={standalone ? 'flex-1 flex flex-col bg-slate-950 overflow-hidden' : 'fixed inset-0 z-50 bg-slate-950 flex flex-col overflow-hidden'}>
       {/* Toolbar */}
@@ -577,80 +590,25 @@ export default function SummaryModal({
                 ✕<span className="hidden sm:inline"> Cancel</span>
               </button>
             ) : (
-              <div className="relative">
-                <button
-                  onClick={() => setActionsOpen((v) => !v)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 hover:text-white transition-colors"
-                >
-                  ⋯<span className="hidden sm:inline"> Actions</span>
-                </button>
-                {actionsOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setActionsOpen(false)} />
-                    <div
-                      className="absolute right-0 top-full mt-1 z-20 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden"
-                      style={{ minWidth: '160px' }}
-                    >
-                      {onSwapPlayers && (
-                        <button
-                          onClick={() => enterSwapMode()}
-                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-indigo-300 hover:bg-slate-800 transition-colors"
-                        >
-                          ⇄ Swap players
-                        </button>
-                      )}
-                      {onSwapTeams && (
-                        <button
-                          onClick={() => enterTeamSwapMode()}
-                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-violet-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
-                        >
-                          ⇄ Swap team
-                        </button>
-                      )}
-                      {onReplacePlayer && (
-                        <button
-                          onClick={() => { setActionsOpen(false); enterReplaceMode() }}
-                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-emerald-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
-                        >
-                          ↔ Replace player
-                        </button>
-                      )}
-                      {onChangePlayer && (
-                        <button
-                          onClick={() => { setActionsOpen(false); enterChangeMode() }}
-                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
-                        >
-                          🔄 Change player
-                        </button>
-                      )}
-                      {onSwapSlots && (
-                        <button
-                          onClick={() => { setActionsOpen(false); enterSlotSwapMode() }}
-                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-orange-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
-                        >
-                          ↕ Switch slot
-                        </button>
-                      )}
-                      {onSetAbsent && (
-                        <button
-                          onClick={() => { setActionsOpen(false); enterAbsentMode() }}
-                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-red-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
-                        >
-                          👤 Mark absent
-                        </button>
-                      )}
-                      {onLock && !locked && (
-                        <button
-                          onClick={() => { setActionsOpen(false); setLockConfirm(true) }}
-                          className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
-                        >
-                          🔒 Lock session
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+              <ActionsMenu
+                actionsOpen={actionsOpen}
+                onToggle={() => setActionsOpen((v) => !v)}
+                onClose={() => setActionsOpen(false)}
+                onEnterSwapMode={() => { setActionsOpen(false); enterSwapMode() }}
+                onEnterTeamSwapMode={() => { setActionsOpen(false); enterTeamSwapMode() }}
+                onEnterReplaceMode={() => { setActionsOpen(false); enterReplaceMode() }}
+                onEnterChangeMode={() => { setActionsOpen(false); enterChangeMode() }}
+                onEnterSlotSwapMode={() => { setActionsOpen(false); enterSlotSwapMode() }}
+                onEnterAbsentMode={() => { setActionsOpen(false); enterAbsentMode() }}
+                onLockSession={() => { setActionsOpen(false); setLockConfirm(true) }}
+                hasSwapPlayers={!!onSwapPlayers}
+                hasSwapTeams={!!onSwapTeams}
+                hasReplacePlayer={!!onReplacePlayer}
+                hasChangePlayer={!!onChangePlayer}
+                hasSwapSlots={!!onSwapSlots}
+                hasSetAbsent={!!onSetAbsent}
+                hasLock={!!onLock && !locked}
+              />
             )
           )}
           {/* Delete button */}
@@ -1282,294 +1240,38 @@ export default function SummaryModal({
         })()}
 
         {/* Player Stats — shown below schedule */}
-        {activeTab === 'schedule' && (() => {
-          const absentSet = new Set(absentPlayers)
-
-          if (standalone) {
-            // Published session: include ALL players from schedule (not just playerMap)
-            const schedulePlayerIds = new Set<string>()
-            for (const g of result.schedule) {
-              for (const id of [...g.teamA, ...g.teamB]) schedulePlayerIds.add(id)
-            }
-            const allPlayerIds = [...new Set([...playerMap.keys(), ...schedulePlayerIds])]
-            if (allPlayerIds.length === 0 || result.schedule.length === 0) return null
-
-            const playCount: Record<string, number> = Object.fromEntries(allPlayerIds.map(id => [id, 0]))
-            for (const g of result.schedule) {
-              for (const id of [...g.teamA, ...g.teamB]) playCount[id]++
-            }
-
-            // Sort: non-absent by play count desc, then absent at bottom
-            const sorted = allPlayerIds.sort((a, b) => {
-              const aAbsent = absentSet.has(a) ? 1 : 0
-              const bAbsent = absentSet.has(b) ? 1 : 0
-              if (aAbsent !== bAbsent) return aAbsent - bAbsent
-              return (playCount[b] ?? 0) - (playCount[a] ?? 0)
-            })
-
-            return (
-              <div className="mt-6 bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
-                <span className="text-sm font-semibold text-white">Player Stats</span>
-                <div className="grid grid-cols-2 gap-y-2">
-                  {sorted.map((id) => {
-                    const p = playerMap.get(id)
-                    const name = p?.name ?? id
-                    const plays = playCount[id] ?? 0
-                    const isAbsent = absentSet.has(id)
-                    return (
-                      <div key={id} className={`flex items-center gap-1.5 ${isAbsent ? 'opacity-40' : ''}`}>
-                        <span className={`text-xs truncate ${isAbsent ? 'text-slate-500 line-through' : 'text-slate-300'}`}>{name}</span>
-                        {isAbsent && <span className="text-[10px] text-slate-600 bg-slate-800 rounded px-1 py-0.5 shrink-0">absent</span>}
-                        <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-600' : 'text-white'}`}>
-                          {plays}×
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          }
-
-          // Generate page: original behavior with target plays
-          const players = [...playerMap.values()]
-          if (players.length === 0 || result.schedule.length === 0) return null
-
-          const { playCount, sitCount, partnerWith, facedBy } = computePlayerStats(result.schedule, players.map(p => p.id))
-
-          const idealPlays = (result.schedule.length * 4) / players.length
-
-          return (
-            <div className="mt-6 bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-white">Player Stats</span>
-                <span className="text-xs text-slate-500">target ~{idealPlays.toFixed(1)} plays</span>
-              </div>
-              <div className="grid grid-cols-1 gap-y-2">
-                {players
-                  .sort((a, b) => (playCount[b.id] ?? 0) - (playCount[a.id] ?? 0))
-                  .map((p) => {
-                    const plays = playCount[p.id] ?? 0
-                    const sits = sitCount[p.id] ?? 0
-                    const partners = Object.keys(partnerWith[p.id] ?? {}).length
-                    const opponents = Object.keys(facedBy[p.id] ?? {}).length
-                    const over = plays > Math.ceil(idealPlays)
-                    const under = plays < Math.floor(idealPlays)
-                    return (
-                      <div key={p.id} className="flex items-center gap-2">
-                        <span className="text-xs text-slate-300 w-20 truncate">{p.name}</span>
-                        <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
-                          {plays}×
-                        </span>
-                        <span className="text-[10px] text-slate-600">
-                          {sits} sit · {partners} P · {opponents} O
-                        </span>
-                      </div>
-                    )
-                  })}
-              </div>
-              <p className="text-[10px] text-slate-600">P = unique partners · O = unique opponents faced</p>
-            </div>
-          )
-        })()}
+        {activeTab === 'schedule' && (
+          <PlayerStatsPanel
+            schedule={result.schedule}
+            playerMap={playerMap}
+            absentPlayers={absentPlayers}
+            standalone={standalone}
+          />
+        )}
       </div>
 
-      {/* Swap confirm bar */}
-      {pendingSwap && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-indigo-900/40 px-4 py-3">
-          <div className="max-w-xl mx-auto">
-          <div className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-200 truncate">
-                <span className="text-indigo-200">{playerMap.get(pendingSwap.t1.playerId)?.name}</span>
-                {' '}⇄{' '}
-                <span className="text-indigo-200">{playerMap.get(pendingSwap.t2.playerId)?.name}</span>
-              </p>
-              <p className="text-[10px] text-red-400 mt-0.5">⚠ Cannot be undone</p>
-            </div>
-            <button
-              onClick={() => setPendingSwap(null)}
-              className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
-            >
-              ✕
-            </button>
-            <button
-              onClick={() => { onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2); exitSwapMode() }}
-              disabled={saving}
-              className="text-xs font-bold px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
-            >
-              {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-              {saving ? 'Saving…' : 'Confirm'}
-            </button>
-          </div>
-          </div>
-        </div>
-      )}
-      {/* Absent confirm bar */}
-      {absentChanged && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-red-900/40 px-4 py-3">
-          <div className="max-w-xl mx-auto">
-          <div className="bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-200 truncate">
-                {absentPending.size === 0
-                  ? 'Remove all absent tags'
-                  : [...playerMap.values()].filter(p => absentPending.has(p.id)).map(p => p.name).join(', ')}
-              </p>
-              <p className="text-[10px] text-slate-500 mt-0.5">Excluded from leaderboard</p>
-            </div>
-            <button
-              onClick={exitAbsentMode}
-              className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
-            >
-              ✕
-            </button>
-            <button
-              onClick={() => { onSetAbsent?.([...absentPending]); exitAbsentMode() }}
-              disabled={saving}
-              className="text-xs font-bold px-4 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
-            >
-              {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-              {saving ? 'Saving…' : 'Confirm'}
-            </button>
-          </div>
-          </div>
-        </div>
-      )}
-      {/* Slot swap confirm bar */}
-      {pendingSlotSwap && (() => {
-        const slotInfo = (t: { slot: number; court: number }) => {
-          const game = result.schedule.find((g) => g.slot === t.slot && g.court === t.court)
-          const label = `Slot ${t.slot + 1} - ${courtLabel(t.court)}`
-          if (!game) return { label, players: '' }
-          const aNames = game.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
-          const bNames = game.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
-          return { label, players: `${aNames} vs ${bNames}` }
-        }
-        const s1 = slotInfo(pendingSlotSwap.g1)
-        const s2 = slotInfo(pendingSlotSwap.g2)
-        return (
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-orange-900/40 px-4 pt-3 pb-4">
-            <div className="max-w-xl mx-auto flex flex-col gap-2.5">
-              <div className="bg-orange-950/40 border border-orange-800/40 rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
-                <div className="flex items-start gap-2">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">{s1.label}</span>
-                    {s1.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s1.players}</p>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="h-px flex-1 bg-orange-900/40" />
-                  <span className="text-[10px] text-orange-500 font-bold">↕ switch</span>
-                  <div className="h-px flex-1 bg-orange-900/40" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[10px] font-bold text-orange-400 uppercase tracking-wider">{s2.label}</span>
-                  {s2.players && <p className="text-xs text-slate-200 leading-snug mt-0.5">{s2.players}</p>}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-red-400 flex-1">⚠ Cannot be undone</span>
-                <button
-                  onClick={() => setPendingSlotSwap(null)}
-                  className="text-xs text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitSlotSwapMode() }}
-                  disabled={saving}
-                  className="text-xs font-bold px-5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
-                >
-                  {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                  {saving ? 'Saving…' : 'Confirm'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-      {/* Team swap confirm bar */}
-      {pendingTeamSwap && (() => {
-        const t1game = result.schedule.find(g => g.slot === pendingTeamSwap.t1.slot && g.court === pendingTeamSwap.t1.court)
-        const t2game = result.schedule.find(g => g.slot === pendingTeamSwap.t2.slot && g.court === pendingTeamSwap.t2.court)
-        const t1names = t1game
-          ? (pendingTeamSwap.t1.team === 'A' ? t1game.teamA : t1game.teamB).map(id => playerMap.get(id)?.name ?? id).join(' & ')
-          : '?'
-        const t2names = t2game
-          ? (pendingTeamSwap.t2.team === 'A' ? t2game.teamA : t2game.teamB).map(id => playerMap.get(id)?.name ?? id).join(' & ')
-          : '?'
-        return (
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-violet-900/40 px-4 py-3">
-            <div className="max-w-xl mx-auto">
-              <div className="bg-violet-950/50 border border-violet-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-200 truncate">
-                    <span className="text-violet-200">{t1names}</span>
-                    {' '}⇄{' '}
-                    <span className="text-violet-200">{t2names}</span>
-                  </p>
-                  <p className="text-[10px] text-red-400 mt-0.5">⚠ Cannot be undone</p>
-                </div>
-                <button
-                  onClick={exitTeamSwapMode}
-                  className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
-                >
-                  ✕
-                </button>
-                <button
-                  onClick={() => { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitTeamSwapMode() }}
-                  disabled={saving}
-                  className="text-xs font-bold px-4 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
-                >
-                  {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                  {saving ? 'Saving…' : 'Confirm'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-      {/* Change player confirm bar */}
-      {pendingChange && (() => {
-        const game = result.schedule.find(g => g.slot === pendingChange.target.slot && g.court === pendingChange.target.court)
-        const oldId = game?.[pendingChange.target.team === 'A' ? 'teamA' : 'teamB'][pendingChange.target.index] ?? ''
-        const oldName = playerMap.get(oldId)?.name ?? oldId
-        return (
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-sky-900/40 px-4 pt-3 pb-4">
-            <div className="max-w-xl mx-auto flex flex-col gap-2">
-              <div className="bg-sky-950/40 border border-sky-800/40 rounded-xl px-3 py-2.5 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-200">
-                    <span className="text-slate-400 line-through">{oldName}</span>
-                    {' '}→{' '}
-                    <span className="text-sky-300">{pendingChange.newName}</span>
-                    <span className="text-slate-500 ml-1">Slot {pendingChange.target.slot + 1}, {courtLabel(pendingChange.target.court)}</span>
-                  </p>
-                  {pendingChange.b2b && (
-                    <p className="text-[10px] text-amber-400 mt-0.5">⚠ {pendingChange.newName} plays back-to-back</p>
-                  )}
-                  <p className="text-[10px] text-red-400 mt-0.5">⚠ Cannot be undone</p>
-                </div>
-                <button
-                  onClick={() => setPendingChange(null)}
-                  className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
-                >
-                  ✕
-                </button>
-                <button
-                  onClick={() => { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitChangeMode() }}
-                  disabled={saving}
-                  className="text-xs font-bold px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5"
-                >
-                  {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                  {saving ? 'Saving…' : 'Confirm'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
+      <ConfirmBars
+        pendingSwap={pendingSwap}
+        onCancelSwap={handleCancelSwap}
+        onConfirmSwap={handleConfirmSwap}
+        absentChanged={absentChanged}
+        absentPending={absentPending}
+        onCancelAbsent={exitAbsentMode}
+        onConfirmAbsent={handleConfirmAbsent}
+        pendingSlotSwap={pendingSlotSwap}
+        onCancelSlotSwap={handleCancelSlotSwap}
+        onConfirmSlotSwap={handleConfirmSlotSwap}
+        pendingTeamSwap={pendingTeamSwap}
+        onCancelTeamSwap={handleCancelTeamSwap}
+        onConfirmTeamSwap={handleConfirmTeamSwap}
+        pendingChange={pendingChange}
+        onCancelChange={handleCancelChange}
+        onConfirmChange={handleConfirmChange}
+        playerMap={playerMap}
+        schedule={result.schedule}
+        saving={saving}
+        courtLabel={courtLabel}
+      />
     </div>
   )
 }
