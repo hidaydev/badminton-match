@@ -47,12 +47,9 @@ This is the operational in-progress session state.
 
 ### Tournament state
 
-There is also a tournament-specific local store file:
-
-- `src/store/tournament.ts`
-
-Current tournament pages are primarily driven through the query layer and
-utility functions rather than this store alone.
+Tournament state is managed through React Query hooks rather than a local store.
+The previous `store/tournament.ts` was removed as dead code — TournamentPage uses
+the query layer directly.
 
 ## Query layer
 
@@ -121,19 +118,27 @@ This file owns:
 - knockout bracket propagation
 - group PIC assignment
 
+### Shared config
+
+- `src/config/tiers.ts` — tier labels, colors, badge colors, and tier names shared across GeneratePage, PlayersPage, and ConstraintsPage
+
 ### Operational mutations
 
 Utility files:
 
-- `src/utils/swap.ts`
-- `src/utils/slotSwap.ts`
-- `src/utils/standings.ts`
+- `src/utils/swap.ts` — player swaps, change player logic
+- `src/utils/slotSwap.ts` — game slot swaps
+- `src/utils/standings.ts` — standings computation for live session views
+- `src/utils/sessionSnapshot.ts` — snapshot mutation helpers (change player, rename)
+- `src/utils/playerStats.ts` — `computePlayerStats()` for play/sit/partner/opponent counts
+- `src/utils/ordinal.ts` — `ordinal()` helper (1st, 2nd, 3rd, etc.)
 
 These support:
 
 - player swaps
 - slot swaps
 - standings computation for live session views
+- player stats computation for shared session and generate page
 
 ## Layout structure
 
@@ -159,6 +164,16 @@ Used for the guided setup flow:
 2. players
 3. constraints
 4. generate
+
+### SummaryModal sub-components
+
+The SummaryModal is the operations console for live session management. It has been
+decomposed into focused sub-components:
+
+- `src/components/SummaryModal.tsx` — main modal (1277 lines)
+- `src/components/ConfirmBars.tsx` — 5 fixed bottom confirm bars (swap, absent, change player, lock, share)
+- `src/components/ActionsMenu.tsx` — actions dropdown with mode entry buttons
+- `src/components/PlayerStatsPanel.tsx` — player stats display with standalone/generate branches
 
 ## Persistence model
 
