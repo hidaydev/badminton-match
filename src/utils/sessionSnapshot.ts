@@ -165,10 +165,10 @@ export function swapSlotsInSnapshot(
 export function changePlayerInSnapshot(
   snapshot: CloudSnapshot,
   target: ChangeTarget,
-  replacementPlayerId: string,
+  newName: string,
 ): CloudSnapshot {
   return {
     ...snapshot,
-    schedule: applyChange(snapshot.schedule, target, replacementPlayerId),
+    schedule: applyChange(snapshot.schedule, target, newName),
   }
 }
