@@ -1,5 +1,6 @@
 import type { Player, ScheduleSlot, GameScore } from '../store'
 import type { PlayerStanding } from '../utils/standings'
+import { ordinal } from '../utils/ordinal'
 
 interface GameRow {
   slot: number
@@ -61,11 +62,6 @@ function getPlayerGames(
     })
 }
 
-function ordinal(n: number): string {
-  const s = ['th', 'st', 'nd', 'rd']
-  const v = n % 100
-  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0])
-}
 
 export default function PlayerMatchDetailSheet({ player, rank, schedule, gameScores, players, onClose }: Props) {
   if (!player) return null
