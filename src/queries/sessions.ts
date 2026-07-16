@@ -387,6 +387,15 @@ export function useChangePlayer(sessionId: string) {
         }
       }
       const byId = new Map(fresh.players.map(p => [p.id, p]))
+      const existingForNew = byId.get(newName)
+      console.log('[changePlayer]', {
+        targetPlayerId: target.playerId,
+        newName,
+        playerName,
+        existingForNew: existingForNew ? { id: existingForNew.id, name: existingForNew.name } : null,
+        freshPlayersCount: fresh.players.length,
+        freshPlayersSample: fresh.players.slice(0, 5).map(p => ({ id: p.id, name: p.name })),
+      })
       if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
       // Dedup by ID only (not canonical name — server validates canonical)
       const seen = new Set<string>()
