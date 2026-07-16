@@ -402,6 +402,14 @@ export function useChangePlayer(sessionId: string) {
       if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
       const rebuilt = [...scheduleIds].map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
       const newPlayers = dedupPlayersByCanonicalName(rebuilt)
+      // Debug: log mismatch between schedule and players
+      const playerIds = new Set(newPlayers.map(p => p.id))
+      const missing = [...scheduleIds].filter(id => !playerIds.has(id))
+      if (missing.length > 0) {
+        console.error('MISMATCH: schedule references IDs not in players:', missing)
+        console.error('scheduleIds:', [...scheduleIds])
+        console.error('playerIds:', [...playerIds])
+      }
       const updated = {
         ...fresh,
         schedule: newSchedule,
