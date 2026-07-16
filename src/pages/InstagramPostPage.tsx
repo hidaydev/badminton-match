@@ -361,6 +361,7 @@ export default function InstagramPostPage() {
   const [overlayError, setOverlayError] = useState<string | null>(null)
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
   const pinchStart = useRef<{ dist: number; zoom: number } | null>(null)
+  const rafRef = useRef<number | null>(null)
 
   const parsedDate = useMemo(() => {
     const [year, month, day] = dateValue.split('-')
@@ -462,7 +463,10 @@ export default function InstagramPostPage() {
       const pos = toCanvasCoords(t.clientX, t.clientY)
       const dx = pos.x - dragStart.current.x
       const dy = pos.y - dragStart.current.y
-      setPhotoOffset(clampOffset(dragStart.current!.ox + dx, dragStart.current!.oy + dy, userPhoto, photoZoom))
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        setPhotoOffset(clampOffset(dragStart.current!.ox + dx, dragStart.current!.oy + dy, userPhoto, photoZoom))
+      })
     }
     canvas.addEventListener('touchmove', handler, { passive: false })
     return () => canvas.removeEventListener('touchmove', handler)
@@ -480,12 +484,19 @@ export default function InstagramPostPage() {
     const pos = toCanvasCoords(e.clientX, e.clientY)
     const dx = pos.x - dragStart.current.x
     const dy = pos.y - dragStart.current.y
-    setPhotoOffset(clampOffset(dragStart.current.ox + dx, dragStart.current.oy + dy, userPhoto, photoZoom))
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      setPhotoOffset(clampOffset(dragStart.current!.ox + dx, dragStart.current!.oy + dy, userPhoto, photoZoom))
+    })
   }, [toCanvasCoords, userPhoto, clampOffset, photoZoom])
 
   const onMouseUp = useCallback(() => {
     dragStart.current = null
     setIsDragging(false)
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
   }, [])
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -508,6 +519,10 @@ export default function InstagramPostPage() {
     dragStart.current = null
     pinchStart.current = null
     setIsDragging(false)
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
   }, [])
 
   const [showDownloadSheet, setShowDownloadSheet] = useState(false)
