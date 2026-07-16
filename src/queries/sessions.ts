@@ -15,7 +15,11 @@ import {
   togglePlayedInSnapshot,
 } from '../utils/sessionSnapshot'
 
-async function invalidateRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
+async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  await queryClient.invalidateQueries({ queryKey: ['sessions'] })
+}
+
+async function invalidateAllQueries(queryClient: ReturnType<typeof useQueryClient>) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['sessions'] }),
     queryClient.invalidateQueries({ queryKey: ['players'] }),
@@ -89,7 +93,7 @@ export function usePublishSession(sessionId: string | undefined) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateSessionQueries(queryClient)
     },
     onError: async (error, _vars, context) => {
       if (!sessionId) return
@@ -142,7 +146,7 @@ export function useTogglePlayed(sessionId: string) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -173,7 +177,7 @@ export function useSetScore(sessionId: string) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -204,7 +208,7 @@ export function useSwapPlayers(sessionId: string) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -235,7 +239,7 @@ export function useSwapTeams(sessionId: string) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -266,7 +270,7 @@ export function useSetAbsent(sessionId: string) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateAllQueries(queryClient)
     },
   })
 }
@@ -297,7 +301,7 @@ export function useReplacePlayer(sessionId: string) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateAllQueries(queryClient)
     },
   })
 }
@@ -341,7 +345,7 @@ export function useSwapSlots(sessionId: string) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -363,7 +367,7 @@ export function useDeleteSession() {
   return useMutation({
     mutationFn: (sessionId: string) => deleteSession(sessionId),
     onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
+      await invalidateAllQueries(queryClient)
     },
   })
 }
@@ -416,7 +420,7 @@ export function useChangePlayer(sessionId: string) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateAllQueries(queryClient)
     },
   })
 }
@@ -449,7 +453,7 @@ export function useLockSession(sessionId: string) {
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      await invalidateRelatedQueries(queryClient)
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
