@@ -391,13 +391,15 @@ export function useChangePlayer(sessionId: string) {
       const fresh = await getSession(sessionId)
       if (!fresh) throw new Error('no data')
       const newSchedule = applyChange(fresh.schedule, target, newName)
-      // Rebuild players from schedule: every UUID in schedule must have an entry
+      // Rebuild players from schedule: every non-blank UUID must have an entry
       const scheduleIds = new Set<string>()
       for (const g of newSchedule) {
-        for (const id of [...g.teamA, ...g.teamB]) scheduleIds.add(id)
+        for (const id of [...g.teamA, ...g.teamB]) {
+          if (id.trim()) scheduleIds.add(id)
+        }
       }
       const byId = new Map(fresh.players.map(p => [p.id, p]))
-      if (!byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
+      if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
       const rebuilt = [...scheduleIds].map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
       const newPlayers = dedupPlayersByCanonicalName(rebuilt)
       const updated = {
@@ -414,13 +416,15 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const newSchedule = applyChange(old.schedule, target, newName)
-        // Rebuild players from schedule: every UUID in schedule must have an entry
+        // Rebuild players from schedule: every non-blank UUID must have an entry
         const scheduleIds = new Set<string>()
         for (const g of newSchedule) {
-          for (const id of [...g.teamA, ...g.teamB]) scheduleIds.add(id)
+          for (const id of [...g.teamA, ...g.teamB]) {
+            if (id.trim()) scheduleIds.add(id)
+          }
         }
         const byId = new Map(old.players.map(p => [p.id, p]))
-        if (!byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
+        if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
         const rebuilt = [...scheduleIds].map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
         const newPlayers = dedupPlayersByCanonicalName(rebuilt)
         return {
@@ -432,7 +436,8 @@ export function useChangePlayer(sessionId: string) {
       })
       return { previous }
     },
-    onError: async () => {
+    onError: async (error) => {
+      console.error('changePlayer publish failed:', error)
       // Always refetch from server to get clean snapshot (avoid stale/corrupt cache)
       try {
         await queryClient.fetchQuery<CloudSnapshot | null>({
