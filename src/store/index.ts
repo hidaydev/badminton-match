@@ -345,7 +345,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'badminton-store',
-      version: 13,
+      version: 14,
       migrate: () => ({
         sessionId: nanoid(),
         session: makeDefaultSession(),
