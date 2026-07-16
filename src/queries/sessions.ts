@@ -376,11 +376,12 @@ export function useChangePlayer(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ target, newName, playerName }: { target: ChangeTarget; newName: string; playerName: string }) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      const newSchedule = applyChange(current.schedule, target, newName)
-      // Update the old player entry in-place (change its ID and name), then deduplicate
-      const updatedPlayers = current.players.map(p =>
+      // Read FRESH from server to avoid stale/corrupt cache
+      const fresh = await getSession(sessionId)
+      if (!fresh) throw new Error('no data')
+      const newSchedule = applyChange(fresh.schedule, target, newName)
+      // Update the old player entry in-place, then deduplicate
+      const updatedPlayers = fresh.players.map(p =>
         p.id === target.playerId ? { ...p, id: newName, name: playerName } : p
       )
       const seen = new Set<string>()
@@ -390,10 +391,10 @@ export function useChangePlayer(sessionId: string) {
         return true
       })
       const updated = {
-        ...current,
+        ...fresh,
         schedule: newSchedule,
         players: newPlayers,
-        session: { ...current.session, playerCount: newPlayers.length },
+        session: { ...fresh.session, playerCount: newPlayers.length },
       }
       return await publishSession(sessionId, updated)
     },
@@ -403,7 +404,7 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const newSchedule = applyChange(old.schedule, target, newName)
-        // Update the old player entry in-place (change its ID and name), then deduplicate
+        // Update the old player entry in-place, then deduplicate
         const updatedPlayers = old.players.map(p =>
           p.id === target.playerId ? { ...p, id: newName, name: playerName } : p
         )
@@ -422,24 +423,15 @@ export function useChangePlayer(sessionId: string) {
       })
       return { previous }
     },
-    onError: async (error, _vars, context) => {
-      // Rollback FIRST (immediate, synchronous)
-      if (context?.previous !== undefined) {
-        queryClient.setQueryData(['session', sessionId], context.previous)
-      }
-      // On version mismatch, refetch latest so user can retry
-      const isVersionMismatch =
-        (error instanceof RpcError && error.code === '40001') ||
-        (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
-      if (isVersionMismatch) {
-        try {
-          await queryClient.fetchQuery<CloudSnapshot | null>({
-            queryKey: ['session', sessionId],
-            queryFn: () => getSession(sessionId),
-          })
-        } catch {
-          // ignore — stale cache is better than nothing
-        }
+    onError: async () => {
+      // Always refetch from server to get clean snapshot (avoid stale/corrupt cache)
+      try {
+        await queryClient.fetchQuery<CloudSnapshot | null>({
+          queryKey: ['session', sessionId],
+          queryFn: () => getSession(sessionId),
+        })
+      } catch {
+        // ignore — better to have stale cache than crash
       }
     },
     onSuccess: async () => {
