@@ -388,20 +388,14 @@ export function useChangePlayer(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ target, newName, playerName }: { target: ChangeTarget; newName: string; playerName: string }) => {
-      // Read FRESH from server to avoid stale/corrupt cache
       const fresh = await getSession(sessionId)
       if (!fresh) throw new Error('no data')
       const newSchedule = applyChange(fresh.schedule, target, newName)
-      // Update the old player entry in-place, then deduplicate by ID and canonical name
-      const updatedPlayers = fresh.players.map(p =>
-        p.id === target.playerId ? { ...p, id: newName, name: playerName } : p
-      )
+      // Add new player if not present, then deduplicate by ID and canonical name
+      const hasNew = fresh.players.some(p => p.id === newName)
+      const withNew = hasNew ? fresh.players : [...fresh.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
       const seen = new Set<string>()
-      const dedupedById = updatedPlayers.filter(p => {
-        if (seen.has(p.id)) return false
-        seen.add(p.id)
-        return true
-      })
+      const dedupedById = withNew.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
       const newPlayers = dedupPlayersByCanonicalName(dedupedById)
       const updated = {
         ...fresh,
@@ -417,16 +411,11 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const newSchedule = applyChange(old.schedule, target, newName)
-        // Update the old player entry in-place, then deduplicate by ID and canonical name
-        const updatedPlayers = old.players.map(p =>
-          p.id === target.playerId ? { ...p, id: newName, name: playerName } : p
-        )
+        // Add new player if not present, then deduplicate by ID and canonical name
+        const hasNew = old.players.some(p => p.id === newName)
+        const withNew = hasNew ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
         const seen = new Set<string>()
-        const dedupedById = updatedPlayers.filter(p => {
-          if (seen.has(p.id)) return false
-          seen.add(p.id)
-          return true
-        })
+        const dedupedById = withNew.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
         const newPlayers = dedupPlayersByCanonicalName(dedupedById)
         return {
           ...old,
