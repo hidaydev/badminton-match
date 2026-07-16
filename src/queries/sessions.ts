@@ -379,14 +379,16 @@ export function useChangePlayer(sessionId: string) {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
       const newSchedule = applyChange(current.schedule, target, newName)
-      // Rebuild players from schedule: collect all unique IDs, map to existing entries or create new
-      const scheduleIds = new Set<string>()
-      for (const g of newSchedule) {
-        for (const id of [...g.teamA, ...g.teamB]) scheduleIds.add(id)
-      }
-      const byId = new Map(current.players.map(p => [p.id, p]))
-      if (!byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
-      const newPlayers = [...scheduleIds].map(id => byId.get(id)).filter(Boolean) as typeof current.players
+      // Update the old player entry in-place (change its ID and name), then deduplicate
+      const updatedPlayers = current.players.map(p =>
+        p.id === target.playerId ? { ...p, id: newName, name: playerName } : p
+      )
+      const seen = new Set<string>()
+      const newPlayers = updatedPlayers.filter(p => {
+        if (seen.has(p.id)) return false
+        seen.add(p.id)
+        return true
+      })
       const updated = {
         ...current,
         schedule: newSchedule,
@@ -401,14 +403,16 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const newSchedule = applyChange(old.schedule, target, newName)
-        // Rebuild players from schedule: collect all unique IDs, map to existing entries or create new
-        const scheduleIds = new Set<string>()
-        for (const g of newSchedule) {
-          for (const id of [...g.teamA, ...g.teamB]) scheduleIds.add(id)
-        }
-        const byId = new Map(old.players.map(p => [p.id, p]))
-        if (!byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
-        const newPlayers = [...scheduleIds].map(id => byId.get(id)).filter(Boolean) as typeof old.players
+        // Update the old player entry in-place (change its ID and name), then deduplicate
+        const updatedPlayers = old.players.map(p =>
+          p.id === target.playerId ? { ...p, id: newName, name: playerName } : p
+        )
+        const seen = new Set<string>()
+        const newPlayers = updatedPlayers.filter(p => {
+          if (seen.has(p.id)) return false
+          seen.add(p.id)
+          return true
+        })
         return {
           ...old,
           schedule: newSchedule,
