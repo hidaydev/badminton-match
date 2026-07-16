@@ -83,8 +83,12 @@ export function usePublishSession(sessionId: string | undefined) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       return { previous }
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      if (!sessionId) return
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
     onError: async (error, _vars, context) => {
@@ -133,8 +137,11 @@ export function useTogglePlayed(sessionId: string) {
     onError: async (_err, _vars, context) => {
       await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
   })
@@ -161,8 +168,11 @@ export function useSetScore(sessionId: string) {
     onError: async (_err, _vars, context) => {
       await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
   })
@@ -189,8 +199,11 @@ export function useSwapPlayers(sessionId: string) {
     onError: async (_err, _vars, context) => {
       await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
   })
@@ -217,8 +230,11 @@ export function useSwapTeams(sessionId: string) {
     onError: async (_err, _vars, context) => {
       await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
   })
@@ -245,8 +261,11 @@ export function useSetAbsent(sessionId: string) {
     onError: async (_err, _vars, context) => {
       await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
   })
@@ -273,8 +292,11 @@ export function useReplacePlayer(sessionId: string) {
     onError: async (_err, _vars, context) => {
       await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
   })
@@ -314,8 +336,11 @@ export function useSwapSlots(sessionId: string) {
     onError: async (_err, _vars, context) => {
       await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
   })
@@ -384,9 +409,13 @@ export function useChangePlayer(sessionId: string) {
         }
       }
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
-      // Refetch related queries (player list, player stats)
+    onSuccess: async () => {
+      // Don't set cache from server response — it can race with subsequent mutations.
+      // Instead, refetch fresh data from server.
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
   })
@@ -415,8 +444,11 @@ export function useLockSession(sessionId: string) {
     onError: async (_err, _vars, context) => {
       await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: async (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
       await invalidateRelatedQueries(queryClient)
     },
   })
