@@ -2,19 +2,7 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions, deleteSession, RpcError } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
-import type { Player } from '../store'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
-
-/** Deduplicate players by canonical name (lowercase, trimmed). Keeps first occurrence. */
-function dedupPlayersByCanonicalName(players: Player[]): Player[] {
-  const seen = new Set<string>()
-  return players.filter(p => {
-    const key = p.name.trim().toLowerCase()
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
 import { applyChange } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import {
@@ -400,16 +388,11 @@ export function useChangePlayer(sessionId: string) {
       }
       const byId = new Map(fresh.players.map(p => [p.id, p]))
       if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
-      const rebuilt = [...scheduleIds].map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
-      const newPlayers = dedupPlayersByCanonicalName(rebuilt)
-      // Debug: log mismatch between schedule and players
-      const playerIds = new Set(newPlayers.map(p => p.id))
-      const missing = [...scheduleIds].filter(id => !playerIds.has(id))
-      if (missing.length > 0) {
-        console.error('MISMATCH: schedule references IDs not in players:', missing)
-        console.error('scheduleIds:', [...scheduleIds])
-        console.error('playerIds:', [...playerIds])
-      }
+      // Dedup by ID only (not canonical name — server validates canonical)
+      const seen = new Set<string>()
+      const newPlayers = [...scheduleIds]
+        .map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
+        .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
       const updated = {
         ...fresh,
         schedule: newSchedule,
@@ -433,8 +416,11 @@ export function useChangePlayer(sessionId: string) {
         }
         const byId = new Map(old.players.map(p => [p.id, p]))
         if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
-        const rebuilt = [...scheduleIds].map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
-        const newPlayers = dedupPlayersByCanonicalName(rebuilt)
+        // Dedup by ID only (not canonical name — server validates canonical)
+        const seen = new Set<string>()
+        const newPlayers = [...scheduleIds]
+          .map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
+          .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
         return {
           ...old,
           schedule: newSchedule,
