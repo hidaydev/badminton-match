@@ -186,7 +186,7 @@ export default function SharedSessionPage() {
         onChangePlayer={async (target: ChangeTarget, newName: string) => {
           try {
             const { playerId } = await registerPlayer(newName)
-            changePlayer({ target, newName: playerId }, {
+            changePlayer({ target, newName: playerId, playerName: newName }, {
               onSuccess: () => setSaveError(null),
               onError: (err) => setSaveError(getSaveErrorMessage(err)),
             })
