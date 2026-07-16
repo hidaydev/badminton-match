@@ -384,10 +384,11 @@ export function useChangePlayer(sessionId: string) {
       for (const g of newSchedule) {
         for (const id of [...g.teamA, ...g.teamB]) usedIds.add(id)
       }
-      // Add new player if not present, remove players no longer in schedule
-      const hasPlayer = current.players.some(p => p.id === newName)
-      const basePlayers = hasPlayer ? current.players : [...current.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
-      const newPlayers = basePlayers.filter(p => usedIds.has(p.id))
+      // Remove the old player entry, add the new one, then keep only players in schedule
+      const withoutOld = current.players.filter(p => p.id !== target.playerId)
+      const hasNew = withoutOld.some(p => p.id === newName)
+      const withNew = hasNew ? withoutOld : [...withoutOld, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
+      const newPlayers = withNew.filter(p => usedIds.has(p.id))
       const updated = {
         ...current,
         schedule: newSchedule,
@@ -407,10 +408,11 @@ export function useChangePlayer(sessionId: string) {
         for (const g of newSchedule) {
           for (const id of [...g.teamA, ...g.teamB]) usedIds.add(id)
         }
-        // Add new player if not present, remove players no longer in schedule
-        const hasPlayer = old.players.some(p => p.id === newName)
-        const basePlayers = hasPlayer ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
-        const newPlayers = basePlayers.filter(p => usedIds.has(p.id))
+        // Remove the old player entry, add the new one, then keep only players in schedule
+        const withoutOld = old.players.filter(p => p.id !== target.playerId)
+        const hasNew = withoutOld.some(p => p.id === newName)
+        const withNew = hasNew ? withoutOld : [...withoutOld, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
+        const newPlayers = withNew.filter(p => usedIds.has(p.id))
         return {
           ...old,
           schedule: newSchedule,
