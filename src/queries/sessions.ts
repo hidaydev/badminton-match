@@ -391,12 +391,15 @@ export function useChangePlayer(sessionId: string) {
       const fresh = await getSession(sessionId)
       if (!fresh) throw new Error('no data')
       const newSchedule = applyChange(fresh.schedule, target, newName)
-      // Add new player if not present, then deduplicate by ID and canonical name
-      const hasNew = fresh.players.some(p => p.id === newName)
-      const withNew = hasNew ? fresh.players : [...fresh.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
-      const seen = new Set<string>()
-      const dedupedById = withNew.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
-      const newPlayers = dedupPlayersByCanonicalName(dedupedById)
+      // Rebuild players from schedule: every UUID in schedule must have an entry
+      const scheduleIds = new Set<string>()
+      for (const g of newSchedule) {
+        for (const id of [...g.teamA, ...g.teamB]) scheduleIds.add(id)
+      }
+      const byId = new Map(fresh.players.map(p => [p.id, p]))
+      if (!byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
+      const rebuilt = [...scheduleIds].map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
+      const newPlayers = dedupPlayersByCanonicalName(rebuilt)
       const updated = {
         ...fresh,
         schedule: newSchedule,
@@ -411,12 +414,15 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const newSchedule = applyChange(old.schedule, target, newName)
-        // Add new player if not present, then deduplicate by ID and canonical name
-        const hasNew = old.players.some(p => p.id === newName)
-        const withNew = hasNew ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
-        const seen = new Set<string>()
-        const dedupedById = withNew.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
-        const newPlayers = dedupPlayersByCanonicalName(dedupedById)
+        // Rebuild players from schedule: every UUID in schedule must have an entry
+        const scheduleIds = new Set<string>()
+        for (const g of newSchedule) {
+          for (const id of [...g.teamA, ...g.teamB]) scheduleIds.add(id)
+        }
+        const byId = new Map(old.players.map(p => [p.id, p]))
+        if (!byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
+        const rebuilt = [...scheduleIds].map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
+        const newPlayers = dedupPlayersByCanonicalName(rebuilt)
         return {
           ...old,
           schedule: newSchedule,
