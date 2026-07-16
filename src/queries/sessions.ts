@@ -378,12 +378,19 @@ export function useChangePlayer(sessionId: string) {
     mutationFn: async ({ target, newName, playerName }: { target: ChangeTarget; newName: string; playerName: string }) => {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
-      // Add new player to snapshot if not already present
+      const newSchedule = applyChange(current.schedule, target, newName)
+      // Collect all player IDs actually referenced in the schedule
+      const usedIds = new Set<string>()
+      for (const g of newSchedule) {
+        for (const id of [...g.teamA, ...g.teamB]) usedIds.add(id)
+      }
+      // Add new player if not present, remove players no longer in schedule
       const hasPlayer = current.players.some(p => p.id === newName)
-      const newPlayers = hasPlayer ? current.players : [...current.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
+      const basePlayers = hasPlayer ? current.players : [...current.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
+      const newPlayers = basePlayers.filter(p => usedIds.has(p.id))
       const updated = {
         ...current,
-        schedule: applyChange(current.schedule, target, newName),
+        schedule: newSchedule,
         players: newPlayers,
         session: { ...current.session, playerCount: newPlayers.length },
       }
@@ -394,11 +401,19 @@ export function useChangePlayer(sessionId: string) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
+        const newSchedule = applyChange(old.schedule, target, newName)
+        // Collect all player IDs actually referenced in the schedule
+        const usedIds = new Set<string>()
+        for (const g of newSchedule) {
+          for (const id of [...g.teamA, ...g.teamB]) usedIds.add(id)
+        }
+        // Add new player if not present, remove players no longer in schedule
         const hasPlayer = old.players.some(p => p.id === newName)
-        const newPlayers = hasPlayer ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
+        const basePlayers = hasPlayer ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
+        const newPlayers = basePlayers.filter(p => usedIds.has(p.id))
         return {
           ...old,
-          schedule: applyChange(old.schedule, target, newName),
+          schedule: newSchedule,
           players: newPlayers,
           session: { ...old.session, playerCount: newPlayers.length },
         }
