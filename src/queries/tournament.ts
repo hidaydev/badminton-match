@@ -51,8 +51,11 @@ export function useConfirmGroups() {
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<TournamentSnapshot | null>({
+        queryKey: ['tournament', TOURNAMENT_ID],
+        queryFn: () => getTournament(TOURNAMENT_ID),
+      })
     },
     onError: (_err) => {
       console.error('Failed to confirm groups:', _err)
@@ -86,8 +89,11 @@ export function useSetTournamentScore() {
       }
       return { previous }
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<TournamentSnapshot | null>({
+        queryKey: ['tournament', TOURNAMENT_ID],
+        queryFn: () => getTournament(TOURNAMENT_ID),
+      })
     },
     onError: async (_err, _vars, context) => {
       // Rollback FIRST (immediate)
@@ -138,8 +144,11 @@ export function useResetTournament() {
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<TournamentSnapshot | null>({
+        queryKey: ['tournament', TOURNAMENT_ID],
+        queryFn: () => getTournament(TOURNAMENT_ID),
+      })
     },
     onError: (_err) => {
       console.error('Failed to reset tournament:', _err)
@@ -164,8 +173,11 @@ export function useRegeneratePics() {
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['tournament', TOURNAMENT_ID], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<TournamentSnapshot | null>({
+        queryKey: ['tournament', TOURNAMENT_ID],
+        queryFn: () => getTournament(TOURNAMENT_ID),
+      })
     },
     onError: (_err) => {
       console.error('Failed to regenerate PICs:', _err)
