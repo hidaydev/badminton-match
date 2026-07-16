@@ -25,6 +25,8 @@ Effort: 5 min. Impact: Low-Medium (cuts total load time to the slowest single im
 
 ### 1.2 Unnecessary `['player']` Invalidation
 
+**Status: RESOLVED (2026-07-16)** — Split into `invalidateSessionQueries` (8 hooks) and `invalidateAllQueries` (4 hooks that change player data).
+
 File: [src/queries/sessions.ts:18-24](/Users/sachiel/Projects/badminton-match/src/queries/sessions.ts:18)
 
 Current behavior:
@@ -118,6 +120,8 @@ Effort: Days (requires backend migration). Impact: Medium (reduces payload size 
 
 ### 2.3 Canvas Drawing on Main Thread
 
+**Status: RESOLVED (2026-07-16)** — Canvas drag redraws now throttled via `requestAnimationFrame`.
+
 File: [src/pages/InstagramPostPage.tsx:394-399](/Users/sachiel/Projects/badminton-match/src/pages/InstagramPostPage.tsx:394)
 
 Current behavior:
@@ -148,7 +152,7 @@ Effort: 1 day. Impact: Medium (reduces maintenance surface and inconsistency ris
 
 ### 2.5 No Mutation Queue
 
-**Status: RESOLVED (2026-07-15)** — All session and tournament hooks now have `cancelQueries` in `onMutate`
+**Status: RESOLVED (2026-07-16)** — Debounce (300ms) + max delay (1s) + flush on unmount + onSuccess refetch prevents race conditions.
 
 Current behavior:
 
