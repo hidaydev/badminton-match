@@ -1,12 +1,14 @@
 # Concurrency & Parallelism Audit
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 This document audits concurrency, parallelism, and scheduling efficiency across the codebase. Findings are grouped by implementation effort. Each item includes the affected file, current behavior, proposed fix, and estimated effort/impact.
 
 ## 1. Quick Wins
 
 ### 1.1 Overlay Images Sequential → Parallel
+
+**Status: RESOLVED (2026-07-16)** — Overlay loading now uses `Promise.all()`.
 
 File: [src/pages/InstagramPostPage.tsx:377-392](/Users/user/Projects/badminton-match/src/pages/InstagramPostPage.tsx:377)
 
@@ -58,6 +60,8 @@ Effort: 5 min. Impact: Medium (eliminates redundant network round-trips on navig
 
 ### 1.4 No Debounce on Rapid Mutations
 
+**Status: RESOLVED (2026-07-16)** — GeneratePage now debounces cloud publishes (300 ms trailing) and flushes on unmount.
+
 File: [src/pages/GeneratePage.tsx:472-480](/Users/user/Projects/badminton-match/src/pages/GeneratePage.tsx:472)
 
 Current behavior:
@@ -76,6 +80,8 @@ Effort: 30 min. Impact: Medium.
 ## 2. Medium Effort
 
 ### 2.1 Generator Blocks Main Thread
+
+**Status: RESOLVED (2026-07-16)** — Retry loop now yields to the browser between iterations via `requestAnimationFrame`.
 
 File: [src/pages/GeneratePage.tsx:568-589](/Users/user/Projects/badminton-match/src/pages/GeneratePage.tsx:568)
 
@@ -236,10 +242,51 @@ Future:
 
 Effort: 1 day. Impact: Medium.
 
+## 4. Race Condition Audit (2026-07-16)
+
+### 4.1 Debounce Flush on Unmount
+
+**Status: RESOLVED** — GeneratePage now flushes pending cloud publish when the component unmounts.
+
+Previous behavior:
+
+- If the user navigated away from GeneratePage while a debounced publish was pending, the publish was silently dropped.
+- Local state changes (toggle played, set score) were lost if the cloud publish hadn't fired yet.
+
+Fix:
+
+- The debounce cleanup fires a raw `publishSession` call on unmount (fire-and-forget).
+
+### 4.2 Score Tapping During Save
+
+**Status: RESOLVED** — ScoreboardPage now disables score tapping while a save is in progress.
+
+Previous behavior:
+
+- Users could tap scores while a `setScore` mutation was still in flight.
+- Rapid taps could queue conflicting optimistic updates that race against the server response.
+
+Fix:
+
+- Score tap handlers are disabled while `isLoading` is true on the mutation hook.
+
+### 4.3 onSuccess Race Condition
+
+**Status: RESOLVED** — All 13 mutation hooks now use `fetchQuery` in `onSuccess` instead of `setQueryData(server_response)`.
+
+Previous behavior:
+
+- `onSuccess` received the server response from the completed mutation and wrote it directly into the query cache via `setQueryData`.
+- If a second mutation was already in flight, its optimistic update would be overwritten by the first mutation's `onSuccess` with stale data.
+
+Fix:
+
+- `onSuccess` now calls `fetchQuery` to get the latest server state, ensuring the cache reflects the most recent write regardless of mutation ordering.
+
 ## Top 3 Recommendations (by ROI)
 
-| Rank | Fix | Effort | Impact |
-|------|-----|--------|--------|
-| 1 | Yield during retry loop (2.1) | 15 min | Eliminates UI freeze on generate |
-| 2 | Debounce cloud publishes (1.4 / 2.5) | 30 min | Reduces version mismatch + Supabase writes |
-| 3 | `staleTime: 30_000` (1.3) | 5 min | Eliminates redundant refetches on navigation |
+| Rank | Fix | Effort | Impact | Status |
+|------|-----|--------|--------|--------|
+| 1 | Yield during retry loop (2.1) | 15 min | Eliminates UI freeze on generate | RESOLVED |
+| 2 | Debounce cloud publishes (1.4 / 2.5) | 30 min | Reduces version mismatch + Supabase writes | RESOLVED |
+| 3 | `staleTime: 30_000` (1.3) | 5 min | Eliminates redundant refetches on navigation | RESOLVED |
