@@ -5,12 +5,12 @@ import { useSharedView } from '../sharedView'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
 import { usePublishSession } from '../queries'
-import { registerPlayer, publishSession } from '../queries/endpoints'
+import { publishSession } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
 import {
   buildPublishableSessionSnapshot,
 } from '../utils/sessionSnapshot'
-import { applySwap, applyTeamSwap, applyChange, type SwapTarget, type TeamSwapTarget, type ChangeTarget } from '../utils/swap'
+import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from '../utils/swap'
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 import { computePlayerStats } from '../utils/playerStats'
 import { TIER_LABELS, TIER_COLORS } from '../config/tiers'
@@ -556,32 +556,6 @@ export default function GeneratePage() {
     publishToCloud()
   }
 
-  async function handleChangePlayer(target: ChangeTarget, newName: string) {
-    if (!result) return
-    // Register the new name first (idempotent) and use the returned playerId
-    let playerId: string
-    try {
-      const res = await registerPlayer(newName)
-      playerId = res.playerId
-    } catch (err) {
-      setSaveError(getSaveErrorMessage(err))
-      return
-    }
-    // Re-read result from store to avoid stale closure after await
-    const freshResult = useStore.getState().lastResult
-    if (!freshResult) return
-    const newSchedule = applyChange(freshResult.schedule, target, playerId)
-    updateSchedule(newSchedule)
-    setResult({ ...freshResult, schedule: newSchedule })
-    // Add player to store without invalidating schedule
-    useStore.setState((s) => ({
-      players: s.players.some(p => p.id === playerId)
-        ? s.players
-        : [...s.players, { id: playerId, name: newName, gender: 'M' as const, tier: 1 as const }],
-    }))
-    publishToCloud()
-  }
-
   function buildOffsets() {
     return session.courtTimes.map((ct) =>
       Math.floor((timeToMinutes(ct.start) - timeToMinutes(session.sessionStart)) / session.slotMinutes)
@@ -756,7 +730,6 @@ export default function GeneratePage() {
           onSwapTeams={handleSwapTeams}
           onSwapSlots={handleSwapSlots}
           onReplacePlayer={handleReplacePlayer}
-          onChangePlayer={handleChangePlayer}
           onSetAbsent={handleSetAbsent}
           absentPlayers={absentPlayers}
         />
