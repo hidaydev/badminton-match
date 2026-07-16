@@ -112,20 +112,22 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     }
   }
 
-  const addRed = useCallback(() => { setRed(r => r + 1); triggerPop('red') }, [])
-  const addBlue = useCallback(() => { setBlue(b => b + 1); triggerPop('blue') }, [])
+  const addRed = useCallback(() => { if (isSaving) return; setRed(r => r + 1); triggerPop('red') }, [isSaving])
+  const addBlue = useCallback(() => { if (isSaving) return; setBlue(b => b + 1); triggerPop('blue') }, [isSaving])
 
   const minusRed = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    if (isSaving) return
     setRed(r => Math.max(0, r - 1))
     triggerPop('red')
-  }, [])
+  }, [isSaving])
 
   const minusBlue = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    if (isSaving) return
     setBlue(b => Math.max(0, b - 1))
     triggerPop('blue')
-  }, [])
+  }, [isSaving])
 
   const reset = useCallback(() => { setRed(0); setBlue(0) }, [])
 

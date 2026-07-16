@@ -5,7 +5,7 @@ import { useSharedView } from '../sharedView'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
 import { usePublishSession } from '../queries'
-import { registerPlayer } from '../queries/endpoints'
+import { registerPlayer, publishSession } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
 import {
   buildPublishableSessionSnapshot,
@@ -480,9 +480,21 @@ export default function GeneratePage() {
   // Flush pending publish on unmount
   useEffect(() => {
     return () => {
-      if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
+      if (publishTimerRef.current) {
+        clearTimeout(publishTimerRef.current)
+        // Flush: publish immediately (fire-and-forget)
+        if (cloudSessionId) {
+          const state = useStore.getState()
+          const snap = buildPublishableSessionSnapshot({
+            session: state.session, players: state.players, fixMatches: state.fixMatches,
+            schedule: state.schedule, playedGames: state.playedGames, gameScores: state.gameScores,
+            existingAbsentPlayers: state.absentPlayers,
+          })
+          publishSession(cloudSessionId, snap).catch(() => {})
+        }
+      }
     }
-  }, [])
+  }, [cloudSessionId])
 
   function handleTogglePlayed(key: string) {
     togglePlayedGame(key)
