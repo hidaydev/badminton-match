@@ -380,10 +380,12 @@ export function useChangePlayer(sessionId: string) {
       if (!current) throw new Error('no data')
       // Add new player to snapshot if not already present
       const hasPlayer = current.players.some(p => p.id === newName)
+      const newPlayers = hasPlayer ? current.players : [...current.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
       const updated = {
         ...current,
         schedule: applyChange(current.schedule, target, newName),
-        players: hasPlayer ? current.players : [...current.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }],
+        players: newPlayers,
+        session: { ...current.session, playerCount: newPlayers.length },
       }
       return await publishSession(sessionId, updated)
     },
@@ -393,10 +395,12 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const hasPlayer = old.players.some(p => p.id === newName)
+        const newPlayers = hasPlayer ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
         return {
           ...old,
           schedule: applyChange(old.schedule, target, newName),
-          players: hasPlayer ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }],
+          players: newPlayers,
+          session: { ...old.session, playerCount: newPlayers.length },
         }
       })
       return { previous }
