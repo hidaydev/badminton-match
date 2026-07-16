@@ -573,6 +573,12 @@ export default function GeneratePage() {
     const newSchedule = applyChange(freshResult.schedule, target, playerId)
     updateSchedule(newSchedule)
     setResult({ ...freshResult, schedule: newSchedule })
+    // Add player to store without invalidating schedule
+    useStore.setState((s) => ({
+      players: s.players.some(p => p.id === playerId)
+        ? s.players
+        : [...s.players, { id: playerId, name: newName, gender: 'M' as const, tier: 1 as const }],
+    }))
     publishToCloud()
   }
 
