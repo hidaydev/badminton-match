@@ -2,7 +2,19 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions, deleteSession, RpcError } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
+import type { Player } from '../store'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
+
+/** Deduplicate players by canonical name (lowercase, trimmed). Keeps first occurrence. */
+function dedupPlayersByCanonicalName(players: Player[]): Player[] {
+  const seen = new Set<string>()
+  return players.filter(p => {
+    const key = p.name.trim().toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 import { applyChange } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import {
@@ -380,16 +392,17 @@ export function useChangePlayer(sessionId: string) {
       const fresh = await getSession(sessionId)
       if (!fresh) throw new Error('no data')
       const newSchedule = applyChange(fresh.schedule, target, newName)
-      // Update the old player entry in-place, then deduplicate
+      // Update the old player entry in-place, then deduplicate by ID and canonical name
       const updatedPlayers = fresh.players.map(p =>
         p.id === target.playerId ? { ...p, id: newName, name: playerName } : p
       )
       const seen = new Set<string>()
-      const newPlayers = updatedPlayers.filter(p => {
+      const dedupedById = updatedPlayers.filter(p => {
         if (seen.has(p.id)) return false
         seen.add(p.id)
         return true
       })
+      const newPlayers = dedupPlayersByCanonicalName(dedupedById)
       const updated = {
         ...fresh,
         schedule: newSchedule,
@@ -404,16 +417,17 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const newSchedule = applyChange(old.schedule, target, newName)
-        // Update the old player entry in-place, then deduplicate
+        // Update the old player entry in-place, then deduplicate by ID and canonical name
         const updatedPlayers = old.players.map(p =>
           p.id === target.playerId ? { ...p, id: newName, name: playerName } : p
         )
         const seen = new Set<string>()
-        const newPlayers = updatedPlayers.filter(p => {
+        const dedupedById = updatedPlayers.filter(p => {
           if (seen.has(p.id)) return false
           seen.add(p.id)
           return true
         })
+        const newPlayers = dedupPlayersByCanonicalName(dedupedById)
         return {
           ...old,
           schedule: newSchedule,
