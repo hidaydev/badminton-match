@@ -21,11 +21,13 @@ export function applyChange(
   target: ChangeTarget,
   newName: string,
 ): ScheduleSlot[] {
-  if (target.playerId === newName) return schedule
+  // Only change the specific position in the target game, not all occurrences
   return schedule.map(s => {
-    const teamA = s.teamA.map(id => id === target.playerId ? newName : id) as [string, string]
-    const teamB = s.teamB.map(id => id === target.playerId ? newName : id) as [string, string]
-    if (teamA[0] === s.teamA[0] && teamA[1] === s.teamA[1] && teamB[0] === s.teamB[0] && teamB[1] === s.teamB[1]) return s
+    if (s.slot !== target.slot || s.court !== target.court) return s
+    const teamA = [...s.teamA] as [string, string]
+    const teamB = [...s.teamB] as [string, string]
+    if (target.team === 'A') teamA[target.index] = newName
+    else teamB[target.index] = newName
     return { ...s, teamA, teamB }
   })
 }
