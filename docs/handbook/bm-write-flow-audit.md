@@ -1,6 +1,6 @@
 # BM Write Flow Audit
 
-Last updated: 2026-06-18
+Last updated: 2026-07-16
 
 This document audits the main write flows after the local app was moved to the
 normalized `bm` schema.
@@ -295,6 +295,12 @@ For local use, current write flows are:
 - operationally acceptable
 - internally coherent
 - not yet ideal for multi-user production concurrency
+
+Mitigations now in place:
+
+- optimistic version checks on publish (advisory locks)
+- `onSuccess` uses `fetchQuery` instead of `setQueryData(server_response)` — prevents race conditions where a subsequent mutation's optimistic update gets overwritten by a stale server response
+- debounced cloud publish on GeneratePage (300 ms trailing) with flush on unmount
 
 The biggest structural weakness is not that the flows are incorrect.
 
