@@ -185,7 +185,13 @@ export default function SharedSessionPage() {
         })}
         onChangePlayer={async (target: ChangeTarget, newName: string) => {
           try {
-            const { playerId } = await registerPlayer(newName)
+            // Check if typed name matches an existing player in the snapshot
+            const existingPlayer = snapshot?.players.find(
+              p => p.name.trim().toLowerCase() === newName.trim().toLowerCase()
+            )
+            const playerId = existingPlayer
+              ? existingPlayer.id  // Use existing UUID — don't call registerPlayer
+              : (await registerPlayer(newName)).playerId
             changePlayer({ target, newName: playerId, playerName: newName }, {
               onSuccess: () => setSaveError(null),
               onError: (err) => setSaveError(getSaveErrorMessage(err)),
