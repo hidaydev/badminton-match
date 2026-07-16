@@ -452,14 +452,22 @@ export default function GeneratePage() {
   // The store is always updated *before* publishToCloud is called (optimistic),
   // so reading from useStore.getState() at fire time captures the full truth.
   const publishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const publishStartRef = useRef<number | null>(null)
 
   function publishToCloud() {
     if (!cloudSessionId) return
 
     if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
 
+    const now = Date.now()
+    if (!publishStartRef.current) publishStartRef.current = now
+
+    const elapsed = now - publishStartRef.current
+    const delay = elapsed > 1000 ? 0 : 300
+
     publishTimerRef.current = setTimeout(() => {
       publishTimerRef.current = null
+      publishStartRef.current = null
       const state = useStore.getState()
       const snap = buildPublishableSessionSnapshot({
         session: state.session,
@@ -474,7 +482,7 @@ export default function GeneratePage() {
         onSuccess: () => setSaveError(null),
         onError: (err) => setSaveError(getSaveErrorMessage(err)),
       })
-    }, 300)
+    }, delay)
   }
 
   // Flush pending publish on unmount
@@ -493,6 +501,7 @@ export default function GeneratePage() {
           publishSession(cloudSessionId, snap).catch(() => {})
         }
       }
+      publishStartRef.current = null
     }
   }, [cloudSessionId])
 
