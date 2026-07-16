@@ -81,10 +81,12 @@ Remote read/write access is wrapped in:
 | `useChangePlayer` | Change one player in a specific game |
 | `useFetchSession` | Fetch session for imperative use |
 
-All mutations follow the optimistic update pattern: `onMutate` → `mutationFn` → `onSuccess`/`onError` with version mismatch retry.
+All mutations follow the optimistic update pattern: `onMutate` → `mutationFn` → `onSuccess`/`onError` with version mismatch retry. `onSuccess` uses `fetchQuery` to refetch from the server rather than `setQueryData(server_response)`, preventing race conditions where a subsequent mutation's optimistic update gets overwritten by a stale response.
 
 The pages and components should depend on these query hooks rather than
 embedding storage details directly.
+
+GeneratePage debounces cloud publishes (300 ms trailing) to coalesce rapid local mutations. The pending publish is flushed on component unmount as a fire-and-forget call.
 
 ## Domain logic
 

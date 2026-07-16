@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 This is the fastest handover file for continuing work on this repository.
 
@@ -23,59 +23,13 @@ This is the fastest handover file for continuing work on this repository.
 
 ### Database migration
 
-Applied migration:
+Applied migrations (53 original migrations squashed into 3 files):
 
-- [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](../../supabase/migrations/20260616_000001_badminton_match_schema.sql)
-- [`supabase/migrations/20260617_000003_bm_normalized_schema.sql`](../../supabase/migrations/20260617_000003_bm_normalized_schema.sql)
-- [`supabase/migrations/20260617_000004_bm_compat_parity_fix.sql`](../../supabase/migrations/20260617_000004_bm_compat_parity_fix.sql)
-- [`supabase/migrations/20260617_000005_bm_tournaments.sql`](../../supabase/migrations/20260617_000005_bm_tournaments.sql)
-- [`supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql`](../../supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql)
-- [`supabase/migrations/20260618_000007_bm_session_optimistic_concurrency.sql`](../../supabase/migrations/20260618_000007_bm_session_optimistic_concurrency.sql)
-- [`supabase/migrations/20260618_000008_bm_publish_session_fail_fast.sql`](../../supabase/migrations/20260618_000008_bm_publish_session_fail_fast.sql)
-- [`supabase/migrations/20260618_000009_bm_publish_session_conflict_errors.sql`](../../supabase/migrations/20260618_000009_bm_publish_session_conflict_errors.sql)
-- [`supabase/migrations/20260618_000010_bm_identity_and_tournament_concurrency.sql`](../../supabase/migrations/20260618_000010_bm_identity_and_tournament_concurrency.sql)
-- [`supabase/migrations/20260618_000011_bm_schema_hardening_batch_2.sql`](../../supabase/migrations/20260618_000011_bm_schema_hardening_batch_2.sql)
-- [`supabase/migrations/20260618_000012_bm_tournament_snapshot_validation.sql`](../../supabase/migrations/20260618_000012_bm_tournament_snapshot_validation.sql)
-- [`supabase/migrations/20260618_000013_bm_session_snapshot_validation.sql`](../../supabase/migrations/20260618_000013_bm_session_snapshot_validation.sql)
-- [`supabase/migrations/20260618_000014_bm_runtime_schema_cleanup.sql`](../../supabase/migrations/20260618_000014_bm_runtime_schema_cleanup.sql)
-- [`supabase/migrations/20260618_000015_bm_uuid_first_phase_a_batch_1.sql`](../../supabase/migrations/20260618_000015_bm_uuid_first_phase_a_batch_1.sql)
-- [`supabase/migrations/20260618_000016_bm_uuid_first_phase_a_batch_2.sql`](../../supabase/migrations/20260618_000016_bm_uuid_first_phase_a_batch_2.sql)
-- [`supabase/migrations/20260618_000017_bm_uuid_first_phase_a_batch_3.sql`](../../supabase/migrations/20260618_000017_bm_uuid_first_phase_a_batch_3.sql)
-- [`supabase/migrations/20260618_000018_bm_uuid_first_phase_a_batch_4.sql`](../../supabase/migrations/20260618_000018_bm_uuid_first_phase_a_batch_4.sql)
-- [`supabase/migrations/20260618_000019_bm_phase_b_domain_internal_ids.sql`](../../supabase/migrations/20260618_000019_bm_phase_b_domain_internal_ids.sql)
-- [`supabase/migrations/20260618_000020_bm_phase_b_internal_id_adoption.sql`](../../supabase/migrations/20260618_000020_bm_phase_b_internal_id_adoption.sql)
-- [`supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql`](../../supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql)
-- [`supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql`](../../supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql)
-- [`supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql`](../../supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql)
-- [`supabase/migrations/20260618_000024_bm_phase_c_uuid_relations_batch_1.sql`](../../supabase/migrations/20260618_000024_bm_phase_c_uuid_relations_batch_1.sql)
-- [`supabase/migrations/20260618_000025_bm_phase_c_uuid_relations_batch_2.sql`](../../supabase/migrations/20260618_000025_bm_phase_c_uuid_relations_batch_2.sql)
-- [`supabase/migrations/20260618_000026_bm_phase_c_uuid_relations_batch_3.sql`](../../supabase/migrations/20260618_000026_bm_phase_c_uuid_relations_batch_3.sql)
-- [`supabase/migrations/20260618_000027_bm_runtime_hardening.sql`](../../supabase/migrations/20260618_000027_bm_runtime_hardening.sql)
-- [`supabase/migrations/20260618_000028_bm_runtime_regression_fix.sql`](../../supabase/migrations/20260618_000028_bm_runtime_regression_fix.sql)
-- [`supabase/migrations/20260618_000029_bm_perf_indexes.sql`](../../supabase/migrations/20260618_000029_bm_perf_indexes.sql)
-- [`supabase/migrations/20260618_000030_bm_tournament_concurrency_hardening.sql`](../../supabase/migrations/20260618_000030_bm_tournament_concurrency_hardening.sql)
-- [`supabase/migrations/20260618_000031_bm_validate_session_snapshot_record_alias_fix.sql`](../../supabase/migrations/20260618_000031_bm_validate_session_snapshot_record_alias_fix.sql)
-- [`supabase/migrations/20260618_000032_bm_drop_legacy_identity_sync_triggers.sql`](../../supabase/migrations/20260618_000032_bm_drop_legacy_identity_sync_triggers.sql)
-- [`supabase/migrations/20260618_000033_bm_reapply_player_stats_uuid_only.sql`](../../supabase/migrations/20260618_000033_bm_reapply_player_stats_uuid_only.sql)
-- [`supabase/migrations/20260618_000034_bm_tournament_snapshot_validation_fix.sql`](../../supabase/migrations/20260618_000034_bm_tournament_snapshot_validation_fix.sql)
-- [`supabase/migrations/20260618_000035_bm_register_player_rpc.sql`](../../supabase/migrations/20260618_000035_bm_register_player_rpc.sql)
-- [`supabase/migrations/20260618_000036_bm_restore_errcodes.sql`](../../supabase/migrations/20260618_000036_bm_restore_errcodes.sql)
-- [`supabase/migrations/20260618_000037_bm_drop_errcodes_for_postgrest_compat.sql`](../../supabase/migrations/20260618_000037_bm_drop_errcodes_for_postgrest_compat.sql)
-- [`supabase/migrations/20260618_000038_bm_cleanup_rpcs.sql`](../../supabase/migrations/20260618_000038_bm_cleanup_rpcs.sql)
-- [`supabase/migrations/20260618_000039_bm_fix_register_player_case.sql`](../../supabase/migrations/20260618_000039_bm_fix_register_player_case.sql)
-- [`supabase/migrations/20260618_000040_bm_fix_delete_player_use_id.sql`](../../supabase/migrations/20260618_000040_bm_fix_delete_player_use_id.sql)
-- [`supabase/migrations/20260618_000041_bm_fix_publish_new_session_internal_id.sql`](../../supabase/migrations/20260618_000041_bm_fix_publish_new_session_internal_id.sql)
-- [`supabase/migrations/20260621_000042_bm_fix_publish_v_id_null_for_new_sessions.sql`](../../supabase/migrations/20260621_000042_bm_fix_publish_v_id_null_for_new_sessions.sql)
-- [`supabase/migrations/20260621_000043_bm_publish_session_advisory_lock.sql`](../../supabase/migrations/20260621_000043_bm_publish_session_advisory_lock.sql)
-- [`supabase/migrations/20260713_000044_bm_delete_session_anon_access.sql`](../../supabase/migrations/20260713_000044_bm_delete_session_anon_access.sql)
-- [`supabase/migrations/20260713_000045_bm_session_lock.sql`](../../supabase/migrations/20260713_000045_bm_session_lock.sql)
-- [`supabase/migrations/20260713_000046_bm_fix_session_lock.sql`](../../supabase/migrations/20260713_000046_bm_fix_session_lock.sql)
-- [`supabase/migrations/20260714_000047_bm_fix_unlock_session.sql`](../../supabase/migrations/20260714_000047_bm_fix_unlock_session.sql)
-- [`supabase/migrations/20260714_000048_bm_list_sessions_lock_status.sql`](../../supabase/migrations/20260714_000048_bm_list_sessions_lock_status.sql)
-- [`supabase/migrations/20260714_000049_bm_fix_stale_published_status.sql`](../../supabase/migrations/20260714_000049_bm_fix_stale_published_status.sql)
-- [`supabase/migrations/20260714_000050_bm_publish_unlock_rpc_fixes.sql`](../../supabase/migrations/20260714_000050_bm_publish_unlock_rpc_fixes.sql)
-- [`supabase/migrations/20260714_000051_bm_delete_session_lock_check_and_public_list_sessions_fix.sql`](../../supabase/migrations/20260714_000051_bm_delete_session_lock_check_and_public_list_sessions_fix.sql)
-- [`supabase/migrations/20260714_000052_bm_fix_register_player_toctou.sql`](../../supabase/migrations/20260714_000052_bm_fix_register_player_toctou.sql)
+- [`supabase/migrations/20260616_000001_schema.sql`](../../supabase/migrations/20260616_000001_schema.sql) — all DDL: tables, indexes, constraints, triggers, grants
+- [`supabase/migrations/20260616_000002_functions.sql`](../../supabase/migrations/20260616_000002_functions.sql) — all 26 functions in final form
+- [`supabase/migrations/20260616_000003_seeds.sql`](../../supabase/migrations/20260616_000003_seeds.sql) — seeds, legacy backfill, data fixes, validation
+
+See [migration-tracking.md](migration-tracking.md) for squash details.
 
 Created:
 
@@ -137,6 +91,12 @@ Code quality improvements completed:
 - **Decomposed SummaryModal** (1575 → 1277 lines) — extracted `ConfirmBars.tsx`, `ActionsMenu.tsx`, `PlayerStatsPanel.tsx`
 - **Player Stats (published session)** — standalone mode with 2-column grid, no target/ideal plays, absent players greyed with badge and sorted at bottom, includes all players from schedule
 - **Change Player improvements** — cross-slot conflict detection, confirmation bar (consistent with swap/absent pattern), back-to-back warning in confirm bar
+
+### Concurrency and race condition fixes (2026-07-16)
+
+- **onSuccess race condition fix** — All 13 mutation hooks (9 session + 4 tournament) now use `fetchQuery` instead of `setQueryData(server_response)` in `onSuccess`. This prevents race conditions where a subsequent mutation's optimistic update gets overwritten by a stale server response.
+- **Debounced publish flush on unmount** — `GeneratePage` now flushes pending cloud publish when component unmounts (fire-and-forget via raw `publishSession` endpoint).
+- **Score tapping disabled during save** — `ScoreboardPage` now disables score tapping while save is in progress.
 
 ### Documentation baseline
 
@@ -246,6 +206,7 @@ These are the main migration/doc checkpoints so far:
 - `9abb7d7` — `fix: backend audit cleanup (6 issues)`
 - `4395af3` — `fix: low severity cleanup (4 issues)`
 - (latest session) — `refactor: extract shared utilities, decompose SummaryModal, fix selectors, remove dead code`
+- (latest session) — `fix: race condition in onSuccess (fetchQuery), debounced publish flush, score tap guard, squash migrations`
 
 ## Recommended next task
 
