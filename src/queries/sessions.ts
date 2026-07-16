@@ -375,21 +375,29 @@ export function useDeleteSession() {
 export function useChangePlayer(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ target, newName }: { target: ChangeTarget; newName: string }) => {
+    mutationFn: async ({ target, newName, playerName }: { target: ChangeTarget; newName: string; playerName: string }) => {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
+      // Add new player to snapshot if not already present
+      const hasPlayer = current.players.some(p => p.id === newName)
       const updated = {
         ...current,
         schedule: applyChange(current.schedule, target, newName),
+        players: hasPlayer ? current.players : [...current.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }],
       }
       return await publishSession(sessionId, updated)
     },
-    onMutate: async ({ target, newName }) => {
+    onMutate: async ({ target, newName, playerName }) => {
       await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
-        return { ...old, schedule: applyChange(old.schedule, target, newName) }
+        const hasPlayer = old.players.some(p => p.id === newName)
+        return {
+          ...old,
+          schedule: applyChange(old.schedule, target, newName),
+          players: hasPlayer ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }],
+        }
       })
       return { previous }
     },
