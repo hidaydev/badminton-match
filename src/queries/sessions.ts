@@ -379,11 +379,14 @@ export function useChangePlayer(sessionId: string) {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
       const newSchedule = applyChange(current.schedule, target, newName)
-      // Add new player if not present, then deduplicate by ID
-      const hasNew = current.players.some(p => p.id === newName)
-      const withNew = hasNew ? current.players : [...current.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
-      const seen = new Set<string>()
-      const newPlayers = withNew.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
+      // Rebuild players from schedule: collect all unique IDs, map to existing entries or create new
+      const scheduleIds = new Set<string>()
+      for (const g of newSchedule) {
+        for (const id of [...g.teamA, ...g.teamB]) scheduleIds.add(id)
+      }
+      const byId = new Map(current.players.map(p => [p.id, p]))
+      if (!byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
+      const newPlayers = [...scheduleIds].map(id => byId.get(id)).filter(Boolean) as typeof current.players
       const updated = {
         ...current,
         schedule: newSchedule,
@@ -398,11 +401,14 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const newSchedule = applyChange(old.schedule, target, newName)
-        // Add new player if not present, then deduplicate by ID
-        const hasNew = old.players.some(p => p.id === newName)
-        const withNew = hasNew ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
-        const seen = new Set<string>()
-        const newPlayers = withNew.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
+        // Rebuild players from schedule: collect all unique IDs, map to existing entries or create new
+        const scheduleIds = new Set<string>()
+        for (const g of newSchedule) {
+          for (const id of [...g.teamA, ...g.teamB]) scheduleIds.add(id)
+        }
+        const byId = new Map(old.players.map(p => [p.id, p]))
+        if (!byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
+        const newPlayers = [...scheduleIds].map(id => byId.get(id)).filter(Boolean) as typeof old.players
         return {
           ...old,
           schedule: newSchedule,
