@@ -379,16 +379,11 @@ export function useChangePlayer(sessionId: string) {
       const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       if (!current) throw new Error('no data')
       const newSchedule = applyChange(current.schedule, target, newName)
-      // Collect all player IDs actually referenced in the schedule
-      const usedIds = new Set<string>()
-      for (const g of newSchedule) {
-        for (const id of [...g.teamA, ...g.teamB]) usedIds.add(id)
-      }
-      // Remove the old player entry, add the new one, then keep only players in schedule
-      const withoutOld = current.players.filter(p => p.id !== target.playerId)
-      const hasNew = withoutOld.some(p => p.id === newName)
-      const withNew = hasNew ? withoutOld : [...withoutOld, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
-      const newPlayers = withNew.filter(p => usedIds.has(p.id))
+      // Add new player if not present, then deduplicate by ID
+      const hasNew = current.players.some(p => p.id === newName)
+      const withNew = hasNew ? current.players : [...current.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
+      const seen = new Set<string>()
+      const newPlayers = withNew.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
       const updated = {
         ...current,
         schedule: newSchedule,
@@ -403,16 +398,11 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const newSchedule = applyChange(old.schedule, target, newName)
-        // Collect all player IDs actually referenced in the schedule
-        const usedIds = new Set<string>()
-        for (const g of newSchedule) {
-          for (const id of [...g.teamA, ...g.teamB]) usedIds.add(id)
-        }
-        // Remove the old player entry, add the new one, then keep only players in schedule
-        const withoutOld = old.players.filter(p => p.id !== target.playerId)
-        const hasNew = withoutOld.some(p => p.id === newName)
-        const withNew = hasNew ? withoutOld : [...withoutOld, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
-        const newPlayers = withNew.filter(p => usedIds.has(p.id))
+        // Add new player if not present, then deduplicate by ID
+        const hasNew = old.players.some(p => p.id === newName)
+        const withNew = hasNew ? old.players : [...old.players, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const }]
+        const seen = new Set<string>()
+        const newPlayers = withNew.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
         return {
           ...old,
           schedule: newSchedule,
