@@ -83,6 +83,8 @@ Key capabilities:
 - build fixed matches
 - validate impossible or overloaded constraints
 - prevent continuing with invalid constraint set
+- pinned matches: assign time and court to specific matches
+- flexible matches: generator decides placement
 
 ### Generate page
 
@@ -110,10 +112,50 @@ Capabilities:
 - mutate scores and played flags
 - swap players
 - swap slots
+- swap teams
+- change one player in a specific game
 - mark absences
 - rename session-local players
+- delete session
+- lock session (prevents all mutations)
 
 The summary modal acts as the operations console for live session management.
+
+### Lock behavior
+
+When a session is locked:
+
+- all interactive elements are disabled (checkboxes, scores, actions)
+- server rejects any mutation via `publish_session` (any non-draft status blocks writes)
+- delete session is also blocked for locked sessions
+- unlock is admin-only via `bm.unlock_session` RPC (not in UI)
+- unlock bumps the session version
+
+### Player stats in shared view
+
+The schedule tab in SummaryModal shows per-player stats:
+
+- play count (how many times each player plays)
+- sit count (how many times each player sits out)
+- unique partners
+- unique opponents
+
+In standalone mode (host view), the stats panel uses a 2-column grid layout without
+target/ideal plays. Absent players are greyed out with an absent badge and sorted
+to the bottom of the list. All players from the schedule are included (not just
+those in playerMap), supporting the Change Player flow.
+
+### Change player
+
+Change Player allows the host to swap one player in a specific game slot.
+Restricted to published sessions only (not available during schedule generation).
+
+- **Cross-slot conflict detection** — prevents assigning the same player to
+  multiple games in the same time slot across different courts
+- **Confirmation bar** — changes are staged and shown in a bottom confirm bar
+  (consistent with swap/absent patterns) before being committed
+- **Back-to-back warning** — the confirm bar shows a warning when the replacement
+  player would play back-to-back games
 
 ## Player history flow
 

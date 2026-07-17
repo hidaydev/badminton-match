@@ -69,6 +69,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const [isPortrait, setIsPortrait] = useState(() => window.innerWidth < window.innerHeight)
   const [pendingClose, setPendingClose] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const initialRed = useRef<number | null>(null)
   const initialBlue = useRef<number | null>(null)
@@ -111,20 +112,22 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     }
   }
 
-  const addRed = useCallback(() => { setRed(r => r + 1); triggerPop('red') }, [])
-  const addBlue = useCallback(() => { setBlue(b => b + 1); triggerPop('blue') }, [])
+  const addRed = useCallback(() => { if (isSaving) return; setRed(r => r + 1); triggerPop('red') }, [isSaving])
+  const addBlue = useCallback(() => { if (isSaving) return; setBlue(b => b + 1); triggerPop('blue') }, [isSaving])
 
   const minusRed = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    if (isSaving) return
     setRed(r => Math.max(0, r - 1))
     triggerPop('red')
-  }, [])
+  }, [isSaving])
 
   const minusBlue = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
+    if (isSaving) return
     setBlue(b => Math.max(0, b - 1))
     triggerPop('blue')
-  }, [])
+  }, [isSaving])
 
   const reset = useCallback(() => { setRed(0); setBlue(0) }, [])
 
@@ -154,9 +157,13 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   const handleSave = useCallback(async () => {
     if (!overlay) return
     setIsSaving(true)
+    setSaveError(null)
     try {
       await overlay.onSave(red, blue)
       overlay.onClose()
+    } catch (err) {
+      console.error('Save failed', err)
+      setSaveError(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setIsSaving(false)
     }
@@ -442,6 +449,14 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
           >
             {fsError}
+          </div>
+        )}
+        {saveError && (
+          <div
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-red-200 text-center"
+            style={{ maxWidth: '80vw', background: 'rgba(127,29,29,0.9)', border: '1px solid rgba(220,38,38,0.4)' }}
+          >
+            {saveError}
           </div>
         )}
         {footer}

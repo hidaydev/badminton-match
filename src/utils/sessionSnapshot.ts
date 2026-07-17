@@ -1,5 +1,5 @@
 import type { CloudSnapshot } from '../queries/types.ts'
-import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from './swap.ts'
+import { applySwap, applyTeamSwap, applyChange, type SwapTarget, type TeamSwapTarget, type ChangeTarget } from './swap.ts'
 import { applySlotSwap, type SlotSwapTarget } from './slotSwap.ts'
 import type { FixMatch, Player, ScheduleSlot, SessionConfig } from '../store/index.ts'
 
@@ -57,6 +57,9 @@ export function setScoreInSnapshot(
   a: number,
   b: number,
 ): CloudSnapshot {
+  // Reject equal scores (including 0-0)
+  if (a === b) return snapshot
+
   const playedGames = snapshot.playedGames.includes(key)
     ? snapshot.playedGames
     : [...snapshot.playedGames, key]
@@ -156,5 +159,16 @@ export function swapSlotsInSnapshot(
     schedule: applySlotSwap(snapshot.schedule, g1, g2),
     playedGames: migratePlayedGames(snapshot.playedGames, g1, g2),
     gameScores: migrateKeys(snapshot.gameScores, g1, g2),
+  }
+}
+
+export function changePlayerInSnapshot(
+  snapshot: CloudSnapshot,
+  target: ChangeTarget,
+  newName: string,
+): CloudSnapshot {
+  return {
+    ...snapshot,
+    schedule: applyChange(snapshot.schedule, target, newName),
   }
 }

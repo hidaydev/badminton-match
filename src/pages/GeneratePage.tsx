@@ -1,29 +1,27 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useStore, type Player, timeToMinutes } from '../store'
 import { generate, type GeneratorResult } from '../generator'
 import { useSharedView } from '../sharedView'
 import ShareButton from '../components/ShareButton'
 import SummaryModal from '../components/SummaryModal'
-import { usePublishSession, type CloudSnapshot } from '../queries'
+import { usePublishSession } from '../queries'
+import { publishSession } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
 import {
   buildPublishableSessionSnapshot,
-  setScoreInSnapshot,
-  togglePlayedInSnapshot,
 } from '../utils/sessionSnapshot'
-import { applySwap, type SwapTarget, type TeamSwapTarget } from '../utils/swap'
+import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from '../utils/swap'
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
-
-const TIER_LABEL: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
-const TIER_COLOR: Record<number, string> = { 1: 'text-red-400', 2: 'text-orange-400', 3: 'text-yellow-400', 4: 'text-green-400' }
+import { computePlayerStats } from '../utils/playerStats'
+import { TIER_LABELS, TIER_COLORS } from '../config/tiers'
 
 function renderTierLetters(tiers: number[]) {
   return tiers.map((tier, index) => (
     <span
       key={`${tier}-${index}`}
-      className={`text-[10px] font-bold ${TIER_COLOR[tier] ?? 'text-slate-400'}`}
+      className={`text-[10px] font-bold ${TIER_COLORS[tier] ?? 'text-slate-400'}`}
     >
-      {TIER_LABEL[tier] ?? tier}
+      {TIER_LABELS[tier] ?? tier}
     </span>
   ))
 }
@@ -36,7 +34,7 @@ function PlayerChip({ player, backToBack }: { player: Player; backToBack?: boole
       <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-pink-400'}`}>
         {player.gender}
       </span>
-      <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${TIER_COLOR[player.tier]}`}>{TIER_LABEL[player.tier]}</span>
+      <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${TIER_COLORS[player.tier]}`}>{TIER_LABELS[player.tier]}</span>
     </span>
   )
 }
@@ -202,34 +200,38 @@ function ScheduleView({
         })}
       </div>
 
-      {/* Player stats */}
+      {/* Player stats — computed on-the-fly from schedule */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-white">Player Stats</span>
           <span className="text-xs text-slate-500">target ~{idealPlays.toFixed(1)} plays</span>
         </div>
         <div className="grid grid-cols-1 gap-y-2">
-          {players
-            .sort((a, b) => (result.playCount[b.id] ?? 0) - (result.playCount[a.id] ?? 0))
-            .map((p) => {
-              const plays = result.playCount[p.id] ?? 0
-              const sits = result.sitCount[p.id] ?? 0
-              const partners = Object.keys(result.partnerWith[p.id] ?? {}).length
-              const opponents = Object.keys(result.facedBy[p.id] ?? {}).length
-              const over = plays > Math.ceil(idealPlays)
-              const under = plays < Math.floor(idealPlays)
-              return (
-                <div key={p.id} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-300 w-20 truncate">{p.name}</span>
-                  <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
-                    {plays}×
-                  </span>
-                  <span className="text-[10px] text-slate-600">
-                    {sits} sit · {partners} P · {opponents} O
-                  </span>
-                </div>
-              )
-            })}
+          {(() => {
+            const { playCount, sitCount, partnerWith, facedBy } = computePlayerStats(result.schedule, players.map(p => p.id))
+
+            return players
+              .sort((a, b) => (playCount[b.id] ?? 0) - (playCount[a.id] ?? 0))
+              .map((p) => {
+                const plays = playCount[p.id] ?? 0
+                const sits = sitCount[p.id] ?? 0
+                const partners = Object.keys(partnerWith[p.id] ?? {}).length
+                const opponents = Object.keys(facedBy[p.id] ?? {}).length
+                const over = plays > Math.ceil(idealPlays)
+                const under = plays < Math.floor(idealPlays)
+                return (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <span className="text-xs text-slate-300 w-20 truncate">{p.name}</span>
+                    <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
+                      {plays}×
+                    </span>
+                    <span className="text-[10px] text-slate-600">
+                      {sits} sit · {partners} P · {opponents} O
+                    </span>
+                  </div>
+                )
+              })
+          })()}
         </div>
         <p className="text-[10px] text-slate-600">P = unique partners · O = unique opponents faced</p>
       </div>
@@ -425,51 +427,92 @@ export default function GeneratePage() {
   const togglePlayedGame = useStore((s) => s.togglePlayedGame)
   const setGameScore = useStore((s) => s.setGameScore)
   const cloudSessionId = useStore((s) => s.cloudSessionId)
-  const schedule = useStore((s) => s.schedule)
+  const absentPlayers = useStore((s) => s.absentPlayers)
+  const setAbsentPlayers = useStore((s) => s.setAbsentPlayers)
   const [result, setResult] = useState<GeneratorResult | null>(
     isSharedView ? (snapshot?.lastResult ?? null) : storeResult
   )
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+
+  // Auto-dismiss error toast after 5 seconds
+  useEffect(() => {
+    if (!saveError) return
+    const timer = setTimeout(() => setSaveError(null), 5000)
+    return () => clearTimeout(timer)
+  }, [saveError])
+
   const { mutate: publish, isPending: isPublishing } = usePublishSession(cloudSessionId ?? undefined)
 
   const playerMap = new Map(players.map((p) => [p.id, p]))
 
+  // Debounce cloud publishes so rapid local changes batch into a single RPC.
+  // The store is always updated *before* publishToCloud is called (optimistic),
+  // so reading from useStore.getState() at fire time captures the full truth.
+  const publishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const publishStartRef = useRef<number | null>(null)
+
+  function publishToCloud() {
+    if (!cloudSessionId) return
+
+    if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
+
+    const now = Date.now()
+    if (!publishStartRef.current) publishStartRef.current = now
+
+    const elapsed = now - publishStartRef.current
+    const delay = elapsed > 1000 ? 0 : 300
+
+    publishTimerRef.current = setTimeout(() => {
+      publishTimerRef.current = null
+      publishStartRef.current = null
+      const state = useStore.getState()
+      const snap = buildPublishableSessionSnapshot({
+        session: state.session,
+        players: state.players,
+        fixMatches: state.fixMatches,
+        schedule: state.schedule,
+        playedGames: state.playedGames,
+        gameScores: state.gameScores,
+        existingAbsentPlayers: state.absentPlayers,
+      })
+      publish(snap, {
+        onSuccess: () => setSaveError(null),
+        onError: (err) => setSaveError(getSaveErrorMessage(err)),
+      })
+    }, delay)
+  }
+
+  // Flush pending publish on unmount
+  useEffect(() => {
+    return () => {
+      if (publishTimerRef.current) {
+        clearTimeout(publishTimerRef.current)
+        // Flush: publish immediately (fire-and-forget)
+        if (cloudSessionId) {
+          const state = useStore.getState()
+          const snap = buildPublishableSessionSnapshot({
+            session: state.session, players: state.players, fixMatches: state.fixMatches,
+            schedule: state.schedule, playedGames: state.playedGames, gameScores: state.gameScores,
+            existingAbsentPlayers: state.absentPlayers,
+          })
+          publishSession(cloudSessionId, snap).catch(() => {})
+        }
+      }
+      publishStartRef.current = null
+    }
+  }, [cloudSessionId])
+
   function handleTogglePlayed(key: string) {
     togglePlayedGame(key)
-    if (!cloudSessionId) return
-    const current: CloudSnapshot = buildPublishableSessionSnapshot({
-      session,
-      players,
-      fixMatches,
-      schedule,
-      playedGames: playedArr,
-      gameScores,
-    })
-    const snap = togglePlayedInSnapshot(current, key)
-    publish(snap, {
-      onSuccess: () => setSaveError(null),
-      onError: (err) => setSaveError(getSaveErrorMessage(err)),
-    })
+    publishToCloud()
   }
 
   function handleSetScore(key: string, a: number, b: number) {
     setGameScore(key, a, b)
-    if (!cloudSessionId) return
-    const current: CloudSnapshot = buildPublishableSessionSnapshot({
-      session,
-      players,
-      fixMatches,
-      schedule,
-      playedGames: playedArr,
-      gameScores,
-    })
-    const snap = setScoreInSnapshot(current, key, a, b)
-    publish(snap, {
-      onSuccess: () => setSaveError(null),
-      onError: (err) => setSaveError(getSaveErrorMessage(err)),
-    })
+    publishToCloud()
   }
 
   function handleSwapPlayers(t1: SwapTarget, t2: SwapTarget) {
@@ -477,44 +520,15 @@ export default function GeneratePage() {
     const newSchedule = applySwap(result.schedule, t1, t2)
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
+    publishToCloud()
   }
 
   function handleSwapTeams(t1: TeamSwapTarget, t2: TeamSwapTarget) {
     if (!result) return
-    const newSchedule = result.schedule.map(s => {
-      const sameGame = t1.slot === s.slot && t1.court === s.court && t2.slot === s.slot && t2.court === s.court
-      if (sameGame) {
-        const updated = { ...s }
-        const team1Players = t1.team === 'A' ? [...s.teamA] : [...s.teamB]
-        const team2Players = t2.team === 'A' ? [...s.teamA] : [...s.teamB]
-        if (t1.team === 'A') updated.teamA = team2Players as [string, string]
-        else updated.teamB = team2Players as [string, string]
-        if (t2.team === 'A') updated.teamA = team1Players as [string, string]
-        else updated.teamB = team1Players as [string, string]
-        return updated
-      }
-      if (s.slot === t1.slot && s.court === t1.court) {
-        const updated = { ...s }
-        const team2Players = t2.team === 'A' ? result.schedule.find(g => g.slot === t2.slot && g.court === t2.court)?.teamA : result.schedule.find(g => g.slot === t2.slot && g.court === t2.court)?.teamB
-        if (team2Players) {
-          if (t1.team === 'A') updated.teamA = team2Players as [string, string]
-          else updated.teamB = team2Players as [string, string]
-        }
-        return updated
-      }
-      if (s.slot === t2.slot && s.court === t2.court) {
-        const updated = { ...s }
-        const team1Players = t1.team === 'A' ? result.schedule.find(g => g.slot === t1.slot && g.court === t1.court)?.teamA : result.schedule.find(g => g.slot === t1.slot && g.court === t1.court)?.teamB
-        if (team1Players) {
-          if (t2.team === 'A') updated.teamA = team1Players as [string, string]
-          else updated.teamB = team1Players as [string, string]
-        }
-        return updated
-      }
-      return s
-    })
+    const newSchedule = applyTeamSwap(result.schedule, t1, t2)
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
+    publishToCloud()
   }
 
   function handleSwapSlots(g1: SlotSwapTarget, g2: SlotSwapTarget) {
@@ -522,6 +536,7 @@ export default function GeneratePage() {
     const newSchedule = applySlotSwap(result.schedule, g1, g2)
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
+    publishToCloud()
   }
 
   function handleReplacePlayer(playerId: string, newName: string) {
@@ -533,12 +548,12 @@ export default function GeneratePage() {
     }))
     updateSchedule(newSchedule)
     setResult({ ...result, schedule: newSchedule })
+    publishToCloud()
   }
 
-  function handleSetAbsent(_nextAbsent: string[]) {
-    void _nextAbsent
-    // Absent is tracked via cloud session only; for local, this is a no-op
-    // but we pass it through so the UI works
+  function handleSetAbsent(nextAbsent: string[]) {
+    setAbsentPlayers(nextAbsent)
+    publishToCloud()
   }
 
   function buildOffsets() {
@@ -566,16 +581,19 @@ export default function GeneratePage() {
     return q.playSpread <= 1 && q.unevenGames === 0 && q.repeatedPairs === 0
   }
 
-  function handleRetryUntilGood() {
+  async function handleRetryUntilGood() {
+    if (isGenerating) return
     setError(null)
     const err = validatePlayers()
     if (err) { setError(err); return }
+    setIsGenerating(true)
     try {
       const offsets = buildOffsets()
       let best = generate(players, session.slotsPerCourt, fixMatches, offsets, session)
       let attempts = 1
       const MAX = 30
       while (attempts < MAX && !isGood(best)) {
+        await new Promise<void>(r => requestAnimationFrame(() => r()))
         const candidate = generate(players, session.slotsPerCourt, fixMatches, offsets, session)
         if (qualityScore(candidate) < qualityScore(best)) best = candidate
         attempts++
@@ -586,6 +604,8 @@ export default function GeneratePage() {
       setRetryInfo({ attempts, perfect: isGood(best) })
     } catch (e) {
       setError(String(e))
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -625,9 +645,10 @@ export default function GeneratePage() {
                 {!cloudSessionId && (
                   <button
                     onClick={handleRetryUntilGood}
-                    className="text-xs text-emerald-400 hover:text-emerald-200 px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
+                    disabled={isGenerating}
+                    className="text-xs text-emerald-400 hover:text-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 transition-colors whitespace-nowrap"
                   >
-                    ↺ Regenerate
+                    {isGenerating ? '⏳ Generating…' : '↺ Regenerate'}
                   </button>
                 )}
                 <ShareButton />
@@ -674,10 +695,10 @@ export default function GeneratePage() {
       {!result ? (
         <button
           onClick={handleRetryUntilGood}
-          disabled={players.length < 4}
+          disabled={players.length < 4 || isGenerating}
           className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors"
         >
-          ▶ Generate Schedule
+          {isGenerating ? '⏳ Generating…' : '▶ Generate Schedule'}
         </button>
       ) : (
         <ScheduleView
@@ -710,6 +731,7 @@ export default function GeneratePage() {
           onSwapSlots={handleSwapSlots}
           onReplacePlayer={handleReplacePlayer}
           onSetAbsent={handleSetAbsent}
+          absentPlayers={absentPlayers}
         />
       )}
     </div>

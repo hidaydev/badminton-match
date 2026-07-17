@@ -34,9 +34,8 @@ This is a single-page React app (React 19, Vite, Tailwind v4, TypeScript) that g
 Two independent Zustand stores, both persisted to `localStorage`:
 
 - **Main store** ([src/store/index.ts](src/store/index.ts)) — key `badminton-store`, `version: 13`. Holds session config, players, fix matches, schedule, played games, game scores, absent players, and `cloudSessionId`. Mutating any player, fix match, or session field resets `schedule` and `lastResult` to `null`.
-- **Tournament store** ([src/store/tournament.ts](src/store/tournament.ts)) — separate store, `version: 2`. Holds 16 pairs, 4 groups (A/B/C/D), group stage matches, and knockout bracket state.
 
-Migration in both stores resets to defaults on any version mismatch.
+Migration resets to defaults on any version mismatch. The tournament store was removed — TournamentPage uses React Query directly.
 
 ### Generator
 
@@ -72,7 +71,7 @@ Migration in both stores resets to defaults on any version mismatch.
 
 - `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `getTournament`, `publishTournament`) + `TOURNAMENT_ID` constant. Internal to the layer — not re-exported from `index.ts`.
 - `types.ts` — shared types: `CloudSnapshot`, `SessionMeta`, `PlayerSummary`, `PlayerStats`, re-exports `TournamentSnapshot`.
-- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSetAbsent`. Mutations own all cache logic (optimistic update, rollback, invalidation); UI callbacks are passed by components via `mutate(vars, { onSuccess, onError })`.
+- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSetAbsent`, `useChangePlayer`. Mutations own all cache logic (optimistic update, rollback-first error handling, smart invalidation). `onSuccess` uses `fetchQuery` (not `setQueryData`) to prevent race conditions; `onError` rolls back before refetch. UI callbacks are passed by components via `mutate(vars, { onSuccess, onError })`.
 - `players.ts` — `useListPlayers`, `useGetPlayerStats`.
 - `tournament.ts` — `useGetTournament`, `useConfirmGroups`, `useSetTournamentScore`, `useResetTournament`.
 - `index.ts` — barrel export of all hooks and types. Also re-exports `TOURNAMENT_ID` for components that need to invalidate the tournament query manually.
@@ -89,6 +88,9 @@ togglePlayed(vars, { onSuccess: () => ..., onError: () => ... })
 - `src/utils/standings.ts` — computes per-player W/L and point diff for a session.
 - `src/utils/shareUrl.ts` — encode/decode session state into URL hash (uses `lz-string` for compression).
 - `src/utils/swap.ts` — swap players between games (used in `useSwapPlayers` hook).
+- `src/utils/playerStats.ts` — `computePlayerStats()` for play/sit/partner/opponent counts (shared by GeneratePage and SummaryModal).
+- `src/utils/ordinal.ts` — `ordinal()` helper (1st, 2nd, 3rd).
+- `src/config/tiers.ts` — tier labels, colors, badge colors shared across GeneratePage, PlayersPage, ConstraintsPage.
 
 ### Instagram Post Scripts
 

@@ -18,24 +18,11 @@ function parsePlayerList(raw: string): string[] {
     .filter((name) => name.length > 0)
 }
 
-const TIER_COLORS: Record<number, string> = {
-  1: 'bg-red-500/20 text-red-400 border-red-600',
-  2: 'bg-orange-500/20 text-orange-400 border-orange-600',
-  3: 'bg-yellow-500/20 text-yellow-400 border-yellow-600',
-  4: 'bg-green-500/20 text-green-400 border-green-600',
-}
-const TIER_ACTIVE: Record<number, string> = {
-  1: 'bg-red-500 text-white',
-  2: 'bg-orange-500 text-white',
-  3: 'bg-yellow-500 text-slate-900',
-  4: 'bg-green-500 text-white',
-}
-const TIER_LABELS: Record<number, string> = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' }
-const TIER_NAMES: Record<number, string> = { 1: 'Senior', 2: 'Intermediate', 3: 'Recreational', 4: 'Beginner' }
+import { TIER_LABELS, TIER_BADGE_COLORS, TIER_ACTIVE, TIER_NAMES } from '../config/tiers'
 
 function TierBadge({ tier }: { tier: Tier }) {
   return (
-    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md border text-xs font-bold ${TIER_COLORS[tier] ?? TIER_COLORS[3]}`}>
+    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md border text-xs font-bold ${TIER_BADGE_COLORS[tier] ?? TIER_BADGE_COLORS[3]}`}>
       {TIER_LABELS[tier] ?? tier}
     </span>
   )
@@ -263,7 +250,10 @@ function BulkImport({ onClose, existingCount, max }: { onClose: () => void; exis
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PlayersPage() {
-  const { players, addPlayer, removePlayer, session } = useStore()
+  const players = useStore((s) => s.players)
+  const session = useStore((s) => s.session)
+  const addPlayer = useStore((s) => s.addPlayer)
+  const removePlayer = useStore((s) => s.removePlayer)
   const [showForm, setShowForm] = useState(false)
   const [showBulk, setShowBulk] = useState(false)
   const navigate = useNavigate()

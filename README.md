@@ -1,83 +1,66 @@
-# badminton-match
+# 🏸 Majadu App
 
-`badminton-match` is the operational app for running badminton sessions end to
-end: planning players and courts, generating doubles schedules, publishing live
-session state, tracking scores, managing tournaments, and exporting social
-graphics.
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=flat-square)
 
-It is intentionally separate from `MDEF`. This repo owns operations. `MDEF`
-owns analytics and long-term rating/history concerns.
+> The operational app for running badminton sessions end to end — planning, scheduling, live scoring, tournaments, and social export.
 
-## What It Covers
+---
 
-### Session operations
+## ✨ Features
 
-- configure title, date, courts, court hours, and slot duration
-- define player count and player pool
-- apply fixed-match constraints
-- generate balanced doubles schedules
-- retry generation for better schedule quality
+### 🎯 Session Planning
+- Configure courts, time slots, player count, and game duration
+- Define fixed-match constraints with time & court pinning
+- Generate balanced doubles schedules with quality analysis
+- Retry generation for optimal partner/opponent distribution
 
-### Live session control
+### 🔴 Live Session Control
+- Publish sessions and share via URL
+- Mark games played, enter/revise scores
+- Swap players, teams, and game slots
+- Change individual players in specific games
+- Mark players absent (excluded from leaderboard)
+- **Lock session** to prevent further edits
 
-- publish a live session and open it from a shared link
-- mark games played
-- enter and revise scores
-- swap players between games
-- swap full game slots
-- mark players absent
-- rename players inside the published session
+### 📊 Player Stats & History
+- Browse historical sessions
+- Per-player career stats (W/L, points, partners, opponents)
+- Real-time leaderboard with on-the-fly computation
 
-### History and stats
+### 🏆 Tournament
+- 16 pairs → 4 groups → round-robin → knockout bracket
+- Automatic bracket propagation
+- Match PIC assignment
+- Scoreboard overlay
 
-- browse historical sessions
-- browse known players
-- inspect player stats:
-  wins, losses, points for/against, top partners, top opponents
+### 📸 Social Export
+- Instagram-style post & story graphics (1080×1350 / 1080×1920)
+- Leaderboard export (absent players filtered)
+- Tournament bracket & standings visuals
 
-### Tournament
+---
 
-- assign 16 pairs into 4 groups
-- compute standings
-- propagate knockout bracket automatically
-- score tournament matches
-- generate tournament visuals
+## 🛠️ Tech Stack
 
-### Social export
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | React 19 + TypeScript 6 |
+| **Build** | Vite 8 |
+| **Styling** | Tailwind CSS v4 |
+| **State** | Zustand (local) + TanStack React Query (server) |
+| **Routing** | React Router v7 |
+| **Backend** | Supabase (PostgreSQL + PostgREST RPC) |
+| **PWA** | vite-plugin-pwa |
+| **DnD** | @dnd-kit/core |
 
-- generate Instagram-style session graphics
-- generate standings and bracket visuals
+---
 
-## Stack
-
-| Layer | Tools |
-| --- | --- |
-| App | React 19, TypeScript, Vite |
-| State | Zustand, TanStack React Query |
-| Routing | React Router |
-| UI | Tailwind CSS v4 |
-| PWA | `vite-plugin-pwa` |
-| Backend | Supabase Postgres + PostgREST RPC |
-
-## Persistence Status
-
-This branch is the Supabase migration branch.
-
-Current runtime direction:
-
-- app runtime source of truth: schema `bm`
-- frontend RPC target: `bm.*` via Supabase PostgREST profile headers
-- historical bridge: Google Sheets -> `badminton_match` -> `bm`
-- current local/runtime target: `bm` only
-
-Important clarification:
-
-- `badminton_match` is historical migration context, not the intended runtime
-  ownership model for this app
-- `public.bm_*` wrappers may still exist for compatibility, but this app should
-  not rely on them
-
-## Quick Start
+## 🚀 Quick Start
 
 ### 1. Install
 
@@ -85,125 +68,99 @@ Important clarification:
 npm ci
 ```
 
-### 2. Configure env
-
-Copy `.env.local.example` to `.env.local` and fill in:
+### 2. Configure
 
 ```bash
-VITE_SUPABASE_URL=...
-VITE_SUPABASE_KEY=...
+cp .env.local.example .env.local
+# Fill in VITE_SUPABASE_URL and VITE_SUPABASE_KEY
 ```
 
-### 3. Apply migrations
+### 3. Apply Migrations
 
-Apply the Supabase migration stack under:
+Apply the SQL migrations from `supabase/migrations/` to your Supabase project.
 
-- [`supabase/migrations/`](supabase/migrations/)
-
-For the current runtime shape, the important end state is:
-
-- schema `bm` exists and is current
-- schema `bm` is exposed in Supabase API settings
-- removed legacy schemas such as `badminton_match` are also removed from exposed
-  schemas
-
-If you are reconstructing the full local migration history, use the runbook:
-
-- [`docs/handbook/bm-supabase-runbook.md`](docs/handbook/bm-supabase-runbook.md)
-
-### 4. Run locally
+### 4. Run
 
 ```bash
 npm run dev
 ```
 
-## Verification
+---
 
-### Static checks
+## 🧪 Verification
 
 ```bash
+# Static checks (types + lint + tailwind + regression)
 npm run check
+
+# Supabase smoke tests
+source .env.local && npm run check:smoke
 ```
 
-### Supabase smoke checks
+---
 
-```bash
-source .env.local
-npm run check:smoke
+## 📁 Project Structure
+
+```
+src/
+├── components/     # Shared UI components (SummaryModal, ShareButton, etc.)
+├── config/         # Instagram template configs
+├── generator/      # Schedule generation algorithm (pure TS)
+├── hooks/          # Custom React hooks
+├── pages/          # Route pages (Setup, Players, Generate, etc.)
+├── queries/        # React Query hooks + Supabase RPC endpoints
+├── store/          # Zustand stores (session, tournament)
+└── utils/          # Utility functions (swap, standings, canvas, etc.)
 ```
 
-Smoke coverage includes:
+---
 
-- session list
-- player list
-- session fetch
-- tournament fetch
-- session republish/version increment
-- session absent mutation
-- session swap mutation
-- session played/score mutation
-- player stats fetch
-- tournament republish/version increment
-- tournament score mutation
+## 🔐 Security Model
 
-Current branch status:
+| RPC | Access | Notes |
+|-----|--------|-------|
+| `publish_session` | anon | Rejects writes when status ≠ 'draft' |
+| `get_session` | anon | Read-only |
+| `list_sessions` | anon | Returns lock status |
+| `delete_session` | anon | Rejects deletion of locked sessions |
+| `unlock_session` | service_role | Admin-only, not in UI |
+| `register_player` | anon | Idempotent with TOCTOU fix |
 
-- `npm run check` passes
-- `npm run check:smoke` passes against the active Supabase project
+---
 
-## Documentation Map
+## 📖 Documentation
 
-### Start here
+- [Handbook](docs/handbook/README.md) — Start here
+- [Current Status](docs/handbook/current-status.md) — Latest state
+- [Architecture](docs/handbook/architecture.md) — System design
+- [Data Model](docs/handbook/data-model.md) — Schema & types
+- [Features & Routes](docs/handbook/features-and-routes.md) — Feature map
+- [Roadmap](docs/handbook/roadmap.md) — What's next
 
-- [`docs/README.md`](docs/README.md)
-- [`docs/handbook/README.md`](docs/handbook/README.md)
+---
 
-### Core handbook
+## 🏗️ Architecture
 
-- [`docs/handbook/current-status.md`](docs/handbook/current-status.md)
-- [`docs/handbook/product-overview.md`](docs/handbook/product-overview.md)
-- [`docs/handbook/architecture.md`](docs/handbook/architecture.md)
-- [`docs/handbook/data-model.md`](docs/handbook/data-model.md)
-- [`docs/handbook/features-and-routes.md`](docs/handbook/features-and-routes.md)
-- [`docs/handbook/supabase-migration.md`](docs/handbook/supabase-migration.md)
-- [`docs/handbook/bm-supabase-runbook.md`](docs/handbook/bm-supabase-runbook.md)
-- [`docs/handbook/mdef-integration.md`](docs/handbook/mdef-integration.md)
-- [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md)
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Local State   │ ←→  │  Domain Logic   │ ←→  │  Remote State   │
+│    (Zustand)    │     │ (Generator/Utils)│     │   (Supabase)    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        ↓                       ↓                       ↓
+   localStorage           Pure Functions          PostgREST RPC
+```
 
-### Historical archive
+---
 
-- [`docs/superpowers/`](docs/superpowers)
+## 🤝 Relationship to MDEF
 
-Use `docs/superpowers/` for implementation history and rationale, not as the
-current source of truth.
+| App | Role |
+|-----|------|
+| **Majadu App** | Operations — session planning, live control, tournaments |
+| **MDEF** | Analytics — canonical players, match history, ratings |
 
-## Role In The Wider System
+---
 
-`badminton-match` should remain the operational source app:
+## 📄 License
 
-- session planning
-- live session control
-- tournament administration
-
-`MDEF` should remain the analytics destination:
-
-- canonical players and aliases
-- exported match history
-- rating and longitudinal analysis
-
-## Current Reality
-
-What is already working on the Supabase branch:
-
-- create and publish sessions
-- open shared session links
-- mark played and enter scores
-- load session history
-- load player history and stats
-- load and update tournament state
-
-What is still not “fully final”:
-
-- richer automated end-to-end regression coverage
-- tournament normalization beyond snapshot-first persistence
-- longer-term export contract into `MDEF`
+Private project.
