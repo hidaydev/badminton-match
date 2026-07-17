@@ -53,7 +53,7 @@ Tasks:
 
 ## Phase 4: Security hardening
 
-Status: pending
+Status: partial (session lock + backend hardening delivered)
 
 Goal:
 
@@ -66,7 +66,18 @@ Decisions needed:
 - who can write tournaments?
 - do public links imply public write access or only public read access?
 
-Tasks:
+Delivered:
+
+- session lock enforcement: `publish_session` rejects writes for any non-draft status (not just `locked`)
+- lock button in UI with confirmation dialog
+- unlock is admin-only via `bm.unlock_session` RPC (service_role only, not in UI)
+- `unlock_session` bumps version when resetting to draft
+- `delete_session` rejects deletion of non-draft (locked) sessions
+- `register_player` TOCTOU race condition fixed (re-queries alias after INSERT)
+- `list_sessions` returns `locked` status column
+- stale `published` status values corrected to `locked`
+
+Tasks remaining:
 
 1. review current grants
 2. decide whether to use RLS, auth, or explicit public-write rules

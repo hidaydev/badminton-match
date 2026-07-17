@@ -34,10 +34,14 @@ export default function HomePage() {
     )
 
   async function handleInstall() {
-    await prompt()
-    localStorage.setItem('pwa-install-shown', today)
-    setInstallDismissed(true)
-    setManualInstallOpen(false)
+    try {
+      await prompt()
+      localStorage.setItem('pwa-install-shown', today)
+      setInstallDismissed(true)
+      setManualInstallOpen(false)
+    } catch (err) {
+      console.error('PWA install prompt failed', err)
+    }
   }
 
   return (

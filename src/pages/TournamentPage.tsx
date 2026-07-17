@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetTournament,
@@ -79,6 +79,13 @@ export default function TournamentPage() {
     () => ({ A: [null, null, null, null], B: [null, null, null, null], C: [null, null, null, null], D: [null, null, null, null] })
   )
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Auto-dismiss error toast after 5 seconds
+  useEffect(() => {
+    if (!saveError) return
+    const timer = setTimeout(() => setSaveError(null), 5000)
+    return () => clearTimeout(timer)
+  }, [saveError])
 
   const queryClient = useQueryClient()
   const { data: snapshot, isFetching, refetch } = useGetTournament()

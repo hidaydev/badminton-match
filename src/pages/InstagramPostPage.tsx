@@ -6,6 +6,7 @@ import { useListSessions, useFetchSession } from '../queries'
 import { computeStandings, type PlayerStanding } from '../utils/standings'
 import type { SessionMeta } from '../queries'
 import { loadImage, drawCoverFill, drawHeader } from '../utils/canvasPost'
+import { ordinal } from '../utils/ordinal'
 
 const TEMPLATE = instagramTemplates[0]
 
@@ -298,14 +299,10 @@ function drawStandingsCanvas(
       ctx.textAlign = 'center'
       ctx.fillText(MEDALS[i], RANK_CX, baseline)
     } else {
-      const ordinalSuffix = (n: number) => {
-        const v = n % 100
-        return n + (['th','st','nd','rd'][(v - 20) % 10] ?? ['th','st','nd','rd'][v] ?? 'th')
-      }
       ctx.font = `bold ${ROW_FONT_SIZE * 0.62}px Arial, sans-serif`
       ctx.fillStyle = '#64748b'
       ctx.textAlign = 'center'
-      ctx.fillText(ordinalSuffix(i + 1), RANK_CX, baseline)
+      ctx.fillText(ordinal(i + 1), RANK_CX, baseline)
     }
     ctx.restore()
 
@@ -360,8 +357,11 @@ export default function InstagramPostPage() {
   const [isDragging, setIsDragging] = useState(false)
   const [fontReady, setFontReady] = useState(false) // true once browser fonts are loaded
   const [dateValue, setDateValue] = useState(() => new Date().toISOString().split('T')[0])
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [overlayError, setOverlayError] = useState<string | null>(null)
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
   const pinchStart = useRef<{ dist: number; zoom: number } | null>(null)
+  const rafRef = useRef<number | null>(null)
 
   const parsedDate = useMemo(() => {
     const [year, month, day] = dateValue.split('-')
@@ -376,13 +376,25 @@ export default function InstagramPostPage() {
   // Load template overlay images once
   useEffect(() => {
     const loadOverlays = async () => {
-      const result: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement; chevrons?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
-      if (TEMPLATE.logo) result.logo = await loadImage(TEMPLATE.logo)
-      if (TEMPLATE.footer) result.footer = await loadImage(TEMPLATE.footer)
-      if (TEMPLATE.brushStroke) result.brushStroke = await loadImage(TEMPLATE.brushStroke)
-      if (TEMPLATE.chevrons) result.chevrons = await loadImage(TEMPLATE.chevrons)
-      if (TEMPLATE.storyBg) result.storyBg = await loadImage(TEMPLATE.storyBg)
-      setOverlays(result)
+      try {
+        const [logo, footer, brushStroke, chevrons, storyBg] = await Promise.all([
+          TEMPLATE.logo ? loadImage(TEMPLATE.logo) : Promise.resolve(undefined),
+          TEMPLATE.footer ? loadImage(TEMPLATE.footer) : Promise.resolve(undefined),
+          TEMPLATE.brushStroke ? loadImage(TEMPLATE.brushStroke) : Promise.resolve(undefined),
+          TEMPLATE.chevrons ? loadImage(TEMPLATE.chevrons) : Promise.resolve(undefined),
+          TEMPLATE.storyBg ? loadImage(TEMPLATE.storyBg) : Promise.resolve(undefined),
+        ])
+        const result: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement; chevrons?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
+        if (logo) result.logo = logo
+        if (footer) result.footer = footer
+        if (brushStroke) result.brushStroke = brushStroke
+        if (chevrons) result.chevrons = chevrons
+        if (storyBg) result.storyBg = storyBg
+        setOverlays(result)
+      } catch (err) {
+        console.error('Failed to load overlay images', err)
+        setOverlayError('Failed to load template images. Some features may not work.')
+      }
     }
     loadOverlays()
   }, [])
@@ -398,11 +410,17 @@ export default function InstagramPostPage() {
     const file = e.target.files?.[0]
     if (!file) return
     const url = URL.createObjectURL(file)
-    const img = await loadImage(url)
-    URL.revokeObjectURL(url)
-    setUserPhoto(img)
-    setPhotoOffset({ x: 0, y: 0 })
-    setPhotoZoom(1)
+    try {
+      const img = await loadImage(url)
+      setUserPhoto(img)
+      setPhotoOffset({ x: 0, y: 0 })
+      setPhotoZoom(1)
+    } catch (err) {
+      console.error('Failed to load image', err)
+      setExportError('Failed to load image. Please try another file.')
+    } finally {
+      URL.revokeObjectURL(url)
+    }
   }, [])
 
   const toCanvasCoords = useCallback((clientX: number, clientY: number) => {
@@ -445,7 +463,10 @@ export default function InstagramPostPage() {
       const pos = toCanvasCoords(t.clientX, t.clientY)
       const dx = pos.x - dragStart.current.x
       const dy = pos.y - dragStart.current.y
-      setPhotoOffset(clampOffset(dragStart.current!.ox + dx, dragStart.current!.oy + dy, userPhoto, photoZoom))
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        setPhotoOffset(clampOffset(dragStart.current!.ox + dx, dragStart.current!.oy + dy, userPhoto, photoZoom))
+      })
     }
     canvas.addEventListener('touchmove', handler, { passive: false })
     return () => canvas.removeEventListener('touchmove', handler)
@@ -463,12 +484,19 @@ export default function InstagramPostPage() {
     const pos = toCanvasCoords(e.clientX, e.clientY)
     const dx = pos.x - dragStart.current.x
     const dy = pos.y - dragStart.current.y
-    setPhotoOffset(clampOffset(dragStart.current.ox + dx, dragStart.current.oy + dy, userPhoto, photoZoom))
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(() => {
+      setPhotoOffset(clampOffset(dragStart.current!.ox + dx, dragStart.current!.oy + dy, userPhoto, photoZoom))
+    })
   }, [toCanvasCoords, userPhoto, clampOffset, photoZoom])
 
   const onMouseUp = useCallback(() => {
     dragStart.current = null
     setIsDragging(false)
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
   }, [])
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -491,6 +519,10 @@ export default function InstagramPostPage() {
     dragStart.current = null
     pinchStart.current = null
     setIsDragging(false)
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
   }, [])
 
   const [showDownloadSheet, setShowDownloadSheet] = useState(false)
@@ -548,6 +580,8 @@ export default function InstagramPostPage() {
 
       offscreen.toBlob((blob) => {
         if (!blob) {
+          console.error('toBlob returned null for standing export')
+          setExportError('Failed to generate image. Please try again.')
           setIsGenerating(false)
           return
         }
@@ -557,19 +591,24 @@ export default function InstagramPostPage() {
       }, 'image/jpeg', 0.92)
     } catch (err) {
       console.error('Standing export failed', err)
+      setExportError('Failed to export standings. Please try again.')
       setIsGenerating(false)
     }
-  }, [pendingStandingMode, fetchSession, overlays, triggerDownload, closeSheet, photoOffset, photoZoom, userPhoto])
+  }, [pendingStandingMode, fetchSession, overlays, triggerDownload, closeSheet, photoOffset, photoZoom, userPhoto, setExportError, setIsGenerating])
 
   const handleDownloadPost = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || !userPhoto) return
     closeSheet()
     canvas.toBlob((blob) => {
-      if (!blob) return
+      if (!blob) {
+        console.error('toBlob returned null for post download')
+        setExportError('Failed to generate image. Please try again.')
+        return
+      }
       triggerDownload(blob, `majadu-post-${dateValue}.jpg`)
     }, 'image/jpeg', 0.92)
-  }, [userPhoto, dateValue, triggerDownload, closeSheet])
+  }, [userPhoto, dateValue, triggerDownload, closeSheet, setExportError])
 
   const handleDownloadStory = useCallback(() => {
     const postCanvas = canvasRef.current
@@ -619,13 +658,28 @@ export default function InstagramPostPage() {
     ctx.restore()
 
     offscreen.toBlob((blob) => {
-      if (!blob) return
+      if (!blob) {
+        console.error('toBlob returned null for story download')
+        setExportError('Failed to generate image. Please try again.')
+        return
+      }
       triggerDownload(blob, `majadu-story-${dateValue}.jpg`)
     }, 'image/jpeg', 0.92)
-  }, [userPhoto, overlays, dateValue, triggerDownload, closeSheet])
+  }, [userPhoto, overlays, dateValue, triggerDownload, closeSheet, setExportError])
 
   return (
     <div className="flex flex-col">
+      {(exportError || overlayError) && (
+        <div className="mx-1 mt-2 rounded-xl border border-red-700 bg-red-950/80 px-3 py-2 text-xs text-red-200 flex items-center justify-between gap-2">
+          <span>{exportError || overlayError}</span>
+          <button
+            onClick={() => { setExportError(null); setOverlayError(null) }}
+            className="text-red-400 hover:text-red-200 shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {/* Compact header */}
       <div className="flex items-center gap-3 px-1 pt-4 pb-3">
         <button

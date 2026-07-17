@@ -26,11 +26,16 @@ Fields:
 
 - `id`
 - `slots: [string, string, string, string]`
+- `mode: 'flexible' | 'pinned'`
+- optional `pinnedTime` (HH:MM format)
+- optional `pinnedCourt` (0-based court index)
 
 Semantics:
 
 - empty string means open slot
 - can represent exact pairing or partially specified match
+- `pinned` mode: match is locked to specific time and court
+- `flexible` mode: generator decides placement
 
 ### ScheduleSlot
 
@@ -89,6 +94,15 @@ Fields:
 - `playedGames`
 - `gameScores`
 - optional `absentPlayers`
+- optional `locked`
+
+Notes:
+
+- `locked` when `true` causes `publish_session` to reject all subsequent writes
+- `locked` is set via the lock session feature in the UI
+- unlock is admin-only via `bm.unlock_session` RPC (service_role only)
+- `delete_session` also rejects deletion of non-draft (locked) sessions
+- `unlock_session` bumps the version when resetting to draft
 
 This is the operational persisted payload for published sessions.
 
@@ -163,15 +177,21 @@ Current approach is aggregate-root plus normalized relational support:
 
 ### Main aggregate roots
 
-- `bm.sessions`
-- `bm.tournaments`
-- `bm.players`
+- `bm.sessions` — session metadata with `version` (optimistic concurrency), `status` (draft/locked/published), `internal_id` (UUID), `share_id`
+- `bm.tournaments` — tournament snapshots with `version` and `snapshot` (JSONB)
+- `bm.players` — canonical player records (UUID PK, canonical_name)
+- `bm.player_aliases` — normalized name → player_id mapping for fuzzy resolution
 
 ### Main child entities
 
-- `bm.session_players`
-- `bm.fix_matches`
-- `bm.scheduled_games`
+- `bm.session_players` — player roster per session (with gender, tier, sort order, absent status)
+- `bm.session_courts` — per-court time ranges and names
+- `bm.fix_matches` — pre-assigned match constraints per session
+- `bm.fix_match_slots` — individual slot assignments within fix matches
+- `bm.scheduled_games` — generated/scheduled games (slot, court, status, source)
+- `bm.scheduled_game_players` — team/position assignments per scheduled game
+- `bm.game_progress` — played status and order per game
+- `bm.game_scores` — score (A/B) per game
 
 ### Why this shape
 

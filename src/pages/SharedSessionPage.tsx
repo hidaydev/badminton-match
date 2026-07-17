@@ -11,12 +11,14 @@ import {
   useSwapSlots,
   useSwapTeams,
   useDeleteSession,
+  useLockSession,
+  useChangePlayer,
   type CloudSnapshot,
 } from '../queries'
 import { registerPlayer } from '../queries/endpoints'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
-import type { TeamSwapTarget } from '../utils/swap'
+import type { TeamSwapTarget, ChangeTarget } from '../utils/swap'
 import SummaryModal from '../components/SummaryModal'
 import { useLastSession } from '../hooks/useLastSession'
 import { getSaveErrorMessage } from '../queries/errors'
@@ -27,6 +29,13 @@ export default function SharedSessionPage() {
   const queryClient = useQueryClient()
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // Auto-dismiss error toast after 5 seconds
+  useEffect(() => {
+    if (!saveError) return
+    const timer = setTimeout(() => setSaveError(null), 5000)
+    return () => clearTimeout(timer)
+  }, [saveError])
+
   const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId)
   const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
   const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
@@ -36,6 +45,8 @@ export default function SharedSessionPage() {
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
   const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
   const { mutate: deleteSessionMutate, isPending: deletePending } = useDeleteSession()
+  const { mutate: lockSession, isPending: lockPending } = useLockSession(sessionId!)
+  const { mutate: changePlayer, isPending: changePlayerPending } = useChangePlayer(sessionId!)
 
   const { save } = useLastSession()
 
@@ -47,6 +58,7 @@ export default function SharedSessionPage() {
       date: snapshot.session.date,
       playerCount: snapshot.players.length,
       totalGames: snapshot.schedule.length,
+      locked: !!snapshot.session.locked,
     })
   }, [save, sessionId, snapshot])
 
@@ -94,18 +106,18 @@ export default function SharedSessionPage() {
     )
   }
 
-  const playerMap = new Map(snapshot.players.map((p) => [p.id, p]))
+  const playerMap = snapshot ? new Map(snapshot.players.map((p) => [p.id, p])) : new Map()
 
-  const result: GeneratorResult = {
+  const result: GeneratorResult | null = snapshot ? {
     schedule: snapshot.schedule,
     playCount: {},
     sitCount: {},
     partnerWith: {},
     facedBy: {},
     unplacedFixMatches: [],
-  }
+  } : null
 
-  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending
+  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -116,7 +128,7 @@ export default function SharedSessionPage() {
         </div>
       )}
       <SummaryModal
-        result={result}
+        result={result!}
         playerMap={playerMap}
         slotsPerCourt={snapshot.session.slotsPerCourt}
         courtNames={snapshot.session.courtNames ?? []}
@@ -171,6 +183,23 @@ export default function SharedSessionPage() {
           onSuccess: () => setSaveError(null),
           onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
+        onChangePlayer={async (target: ChangeTarget, newName: string) => {
+          try {
+            // Check if typed name matches an existing player in the snapshot
+            const existingPlayer = snapshot?.players.find(
+              p => p.name.trim().toLowerCase() === newName.trim().toLowerCase()
+            )
+            const playerId = existingPlayer
+              ? existingPlayer.id  // Use existing UUID — don't call registerPlayer
+              : (await registerPlayer(newName)).playerId
+            changePlayer({ target, newName: playerId, playerName: newName }, {
+              onSuccess: () => setSaveError(null),
+              onError: (err) => setSaveError(getSaveErrorMessage(err)),
+            })
+          } catch (err) {
+            setSaveError(getSaveErrorMessage(err))
+          }
+        }}
         standalone
         onRefetch={() => refetch()}
         isRefetching={isFetching}
@@ -178,9 +207,16 @@ export default function SharedSessionPage() {
           if (!sessionId) return
           deleteSessionMutate(sessionId, {
             onSuccess: () => navigate('/sessions'),
+            onError: (err) => setSaveError(getSaveErrorMessage(err)),
           })
         }}
         deleteLoading={deletePending}
+        locked={!!snapshot?.session?.locked}
+        onLock={() => lockSession(undefined, {
+          onSuccess: () => setSaveError(null),
+          onError: (err) => setSaveError(getSaveErrorMessage(err)),
+        })}
+        lockLoading={lockPending}
       />
     </div>
   )

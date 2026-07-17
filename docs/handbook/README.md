@@ -1,44 +1,38 @@
 # Handbook
 
-This is the active documentation set for `badminton-match`.
-
-Read this folder as the working source of truth for the app in its current
-Supabase-backed shape, with `bm` as the intended runtime schema.
-
 ## Start Here
 
-If you only read five files, read these:
+- [current-status.md](current-status.md) — Primary handover document
+- [product-overview.md](product-overview.md) — Product description
+- [architecture.md](architecture.md) — System architecture
 
-1. [`current-status.md`](current-status.md)
-2. [`product-overview.md`](product-overview.md)
-3. [`architecture.md`](architecture.md)
-4. [`bm-supabase-runbook.md`](bm-supabase-runbook.md)
-5. [`roadmap.md`](roadmap.md)
+## Reference
 
-## Map
+- [data-model.md](data-model.md) — Data types and schema
+- [features-and-routes.md](features-and-routes.md) — UI routes and features
+- [roadmap.md](roadmap.md) — Phase plan and status
+- [bm-canonical-schema-map.md](bm-canonical-schema-map.md) — Schema reference
+- [bm-supabase-runbook.md](bm-supabase-runbook.md) — Operational runbook
+- [bm-schema-invariants-checklist.md](bm-schema-invariants-checklist.md) — Operational checklist
+- [bm-write-flow-audit.md](bm-write-flow-audit.md) — Write flow assessment
+- [concurrency-audit.md](concurrency-audit.md) — Performance audit
+- [cleanup-rpcs.md](cleanup-rpcs.md) — Admin RPC docs
+- [mdef-integration.md](mdef-integration.md) — Integration boundary
 
-### Product and runtime
+## Archive
 
-- [`current-status.md`](current-status.md)
-- [`product-overview.md`](product-overview.md)
-- [`features-and-routes.md`](features-and-routes.md)
-- [`data-model.md`](data-model.md)
-- [`architecture.md`](architecture.md)
+Historical documents preserved for context. These document completed work and are no longer active references.
 
-### Supabase and operations
-
-- [`supabase-migration.md`](supabase-migration.md)
-- [`bm-supabase-runbook.md`](bm-supabase-runbook.md)
-- [`bm-write-flow-audit.md`](bm-write-flow-audit.md)
-- [`mdef-integration.md`](mdef-integration.md)
-- [`roadmap.md`](roadmap.md)
-
-### Schema and migration detail
-
-- [`bm-schema-audit-2026-06-18.md`](bm-schema-audit-2026-06-18.md)
-- [`bm-canonical-schema-map-2026-06-18.md`](bm-canonical-schema-map-2026-06-18.md)
-- [`persistence-migration-closure-2026-06-18.md`](persistence-migration-closure-2026-06-18.md)
-- [`../../supabase/migrations/`](../../supabase/migrations/)
+- [archive/bm-normalization-plan.md](archive/bm-normalization-plan.md) — Schema normalization plan (completed)
+- [archive/bm-finalization-plan-2026-06-18.md](archive/bm-finalization-plan-2026-06-18.md) — Finalization phases (completed)
+- [archive/bm-schema-audit-2026-06-18.md](archive/bm-schema-audit-2026-06-18.md) — Schema audit (point-in-time)
+- [archive/bm-compatibility-surface-2026-06-18.md](archive/bm-compatibility-surface-2026-06-18.md) — Compatibility layers (point-in-time)
+- [archive/bm-v2-schema-plan.md](archive/bm-v2-schema-plan.md) — V2 schema plan (partially implemented)
+- [archive/bugfix-2026-06-21.md](archive/bugfix-2026-06-21.md) — Bug fix log (all fixed)
+- [archive/bm-player-name-audit.md](archive/bm-player-name-audit.md) — Player name audit (completed)
+- [archive/bm-player-resolution-map.md](archive/bm-player-resolution-map.md) — Player resolution decisions (finalized)
+- [archive/persistence-migration-closure-2026-06-18.md](archive/persistence-migration-closure-2026-06-18.md) — Migration closure (completed)
+- [archive/supabase-migration.md](archive/supabase-migration.md) — Migration narrative (superseded by current-status)
 
 ## Historical Notes
 
