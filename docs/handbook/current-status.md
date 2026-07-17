@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-06-18
+Last updated: 2026-07-16
 
 This is the fastest handover file for continuing work on this repository.
 
@@ -23,41 +23,13 @@ This is the fastest handover file for continuing work on this repository.
 
 ### Database migration
 
-Applied migration:
+Applied migrations (53 original migrations squashed into 3 files):
 
-- [`supabase/migrations/20260616_000001_badminton_match_schema.sql`](../../supabase/migrations/20260616_000001_badminton_match_schema.sql)
-- [`supabase/migrations/20260617_000003_bm_normalized_schema.sql`](../../supabase/migrations/20260617_000003_bm_normalized_schema.sql)
-- [`supabase/migrations/20260617_000004_bm_compat_parity_fix.sql`](../../supabase/migrations/20260617_000004_bm_compat_parity_fix.sql)
-- [`supabase/migrations/20260617_000005_bm_tournaments.sql`](../../supabase/migrations/20260617_000005_bm_tournaments.sql)
-- [`supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql`](../../supabase/migrations/20260617_000006_public_bm_rpc_wrappers.sql)
-- [`supabase/migrations/20260618_000007_bm_session_optimistic_concurrency.sql`](../../supabase/migrations/20260618_000007_bm_session_optimistic_concurrency.sql)
-- [`supabase/migrations/20260618_000008_bm_publish_session_fail_fast.sql`](../../supabase/migrations/20260618_000008_bm_publish_session_fail_fast.sql)
-- [`supabase/migrations/20260618_000009_bm_publish_session_conflict_errors.sql`](../../supabase/migrations/20260618_000009_bm_publish_session_conflict_errors.sql)
-- [`supabase/migrations/20260618_000010_bm_identity_and_tournament_concurrency.sql`](../../supabase/migrations/20260618_000010_bm_identity_and_tournament_concurrency.sql)
-- [`supabase/migrations/20260618_000011_bm_schema_hardening_batch_2.sql`](../../supabase/migrations/20260618_000011_bm_schema_hardening_batch_2.sql)
-- [`supabase/migrations/20260618_000012_bm_tournament_snapshot_validation.sql`](../../supabase/migrations/20260618_000012_bm_tournament_snapshot_validation.sql)
-- [`supabase/migrations/20260618_000013_bm_session_snapshot_validation.sql`](../../supabase/migrations/20260618_000013_bm_session_snapshot_validation.sql)
-- [`supabase/migrations/20260618_000014_bm_runtime_schema_cleanup.sql`](../../supabase/migrations/20260618_000014_bm_runtime_schema_cleanup.sql)
-- [`supabase/migrations/20260618_000015_bm_uuid_first_phase_a_batch_1.sql`](../../supabase/migrations/20260618_000015_bm_uuid_first_phase_a_batch_1.sql)
-- [`supabase/migrations/20260618_000016_bm_uuid_first_phase_a_batch_2.sql`](../../supabase/migrations/20260618_000016_bm_uuid_first_phase_a_batch_2.sql)
-- [`supabase/migrations/20260618_000017_bm_uuid_first_phase_a_batch_3.sql`](../../supabase/migrations/20260618_000017_bm_uuid_first_phase_a_batch_3.sql)
-- [`supabase/migrations/20260618_000018_bm_uuid_first_phase_a_batch_4.sql`](../../supabase/migrations/20260618_000018_bm_uuid_first_phase_a_batch_4.sql)
-- [`supabase/migrations/20260618_000019_bm_phase_b_domain_internal_ids.sql`](../../supabase/migrations/20260618_000019_bm_phase_b_domain_internal_ids.sql)
-- [`supabase/migrations/20260618_000020_bm_phase_b_internal_id_adoption.sql`](../../supabase/migrations/20260618_000020_bm_phase_b_internal_id_adoption.sql)
-- [`supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql`](../../supabase/migrations/20260618_000021_bm_phase_b_identity_consistency.sql)
-- [`supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql`](../../supabase/migrations/20260618_000022_bm_phase_b_identity_sync_triggers.sql)
-- [`supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql`](../../supabase/migrations/20260618_000023_bm_drop_legacy_schema_surface.sql)
-- [`supabase/migrations/20260618_000024_bm_phase_c_uuid_relations_batch_1.sql`](../../supabase/migrations/20260618_000024_bm_phase_c_uuid_relations_batch_1.sql)
-- [`supabase/migrations/20260618_000025_bm_phase_c_uuid_relations_batch_2.sql`](../../supabase/migrations/20260618_000025_bm_phase_c_uuid_relations_batch_2.sql)
-- [`supabase/migrations/20260618_000026_bm_phase_c_uuid_relations_batch_3.sql`](../../supabase/migrations/20260618_000026_bm_phase_c_uuid_relations_batch_3.sql)
-- [`supabase/migrations/20260618_000027_bm_runtime_hardening.sql`](../../supabase/migrations/20260618_000027_bm_runtime_hardening.sql)
-- [`supabase/migrations/20260618_000028_bm_runtime_regression_fix.sql`](../../supabase/migrations/20260618_000028_bm_runtime_regression_fix.sql)
-- [`supabase/migrations/20260618_000029_bm_perf_indexes.sql`](../../supabase/migrations/20260618_000029_bm_perf_indexes.sql)
-- [`supabase/migrations/20260618_000030_bm_tournament_concurrency_hardening.sql`](../../supabase/migrations/20260618_000030_bm_tournament_concurrency_hardening.sql)
-- [`supabase/migrations/20260618_000031_bm_validate_session_snapshot_record_alias_fix.sql`](../../supabase/migrations/20260618_000031_bm_validate_session_snapshot_record_alias_fix.sql)
-- [`supabase/migrations/20260618_000032_bm_drop_legacy_identity_sync_triggers.sql`](../../supabase/migrations/20260618_000032_bm_drop_legacy_identity_sync_triggers.sql)
-- [`supabase/migrations/20260618_000033_bm_reapply_player_stats_uuid_only.sql`](../../supabase/migrations/20260618_000033_bm_reapply_player_stats_uuid_only.sql)
-- [`supabase/migrations/20260618_000034_bm_tournament_snapshot_validation_fix.sql`](../../supabase/migrations/20260618_000034_bm_tournament_snapshot_validation_fix.sql)
+- [`supabase/migrations/20260616_000001_schema.sql`](../../supabase/migrations/20260616_000001_schema.sql) — all DDL: tables, indexes, constraints, triggers, grants
+- [`supabase/migrations/20260616_000002_functions.sql`](../../supabase/migrations/20260616_000002_functions.sql) — all 26 functions in final form
+- [`supabase/migrations/20260616_000003_seeds.sql`](../../supabase/migrations/20260616_000003_seeds.sql) — seeds, legacy backfill, data fixes, validation
+
+See [migration-tracking.md](migration-tracking.md) for squash details.
 
 Created:
 
@@ -68,13 +40,17 @@ Created:
 
 RPC functions created for local app usage:
 
-- `bm_publish_session`
-- `bm_get_session`
-- `bm_list_sessions`
-- `bm_list_players`
-- `bm_get_player_stats`
-- `bm_publish_tournament`
-- `bm_get_tournament`
+- `bm.publish_session`
+- `bm.get_session`
+- `bm.list_sessions`
+- `bm.list_players`
+- `bm.get_player_stats`
+- `bm.register_player`
+- `bm.publish_tournament`
+- `bm.get_tournament`
+- `bm.delete_session` (admin-only)
+- `bm.delete_player` (admin-only)
+- `bm.unlock_session` (admin-only, service_role only, not wired to UI)
 
 The local app now targets the underlying `bm.*` functions directly through the
 `bm` PostgREST profile.
@@ -87,6 +63,12 @@ Main practical state now:
 - `badminton_match` is now historical migration context, not a live runtime target
 - active relational graph in `bm` is UUID-first
 - exposed-schema/runtime drift was fixed during verification
+- session lock enforcement is active (`publish_session` rejects writes when `locked=true` or any non-draft status)
+- delete session and unlock session are admin-only RPCs (not wired to UI)
+- `list_sessions` returns `locked` status column
+- `register_player` is TOCTOU-safe (re-queries alias after INSERT)
+- `unlock_session` bumps version when resetting to draft
+- `delete_session` rejects deletion of non-draft (locked) sessions
 
 ### Frontend migration
 
@@ -95,6 +77,43 @@ The query layer has been switched from Apps Script to Supabase RPCs.
 Main file:
 
 - [`src/queries/endpoints.ts`](../../src/queries/endpoints.ts)
+
+### Refactoring and extraction (2026-07-15)
+
+Code quality improvements completed:
+
+- **Deleted `store/tournament.ts`** — dead code, never imported (TournamentPage uses React Query)
+- **Renamed `replacementPlayerId` → `newName`** in `utils/swap.ts` and `utils/sessionSnapshot.ts` for clarity
+- **Extracted tier constants** to `config/tiers.ts` — shared across GeneratePage, PlayersPage, ConstraintsPage
+- **Extracted `ordinal()`** to `utils/ordinal.ts` — shared across SummaryModal, PlayerMatchDetailSheet, InstagramPostPage
+- **Extracted `computePlayerStats()`** to `utils/playerStats.ts` — shared across GeneratePage and SummaryModal
+- **Fixed `useStore()` selectors** in SetupPage, PlayersPage, ConstraintsPage — prevents unnecessary re-renders
+- **Decomposed SummaryModal** (1575 → 1277 lines) — extracted `ConfirmBars.tsx`, `ActionsMenu.tsx`, `PlayerStatsPanel.tsx`
+- **Player Stats (published session)** — standalone mode with 2-column grid, no target/ideal plays, absent players greyed with badge and sorted at bottom, includes all players from schedule
+- **Change Player improvements** — cross-slot conflict detection, confirmation bar (consistent with swap/absent pattern), back-to-back warning in confirm bar
+- **Change Player restricted to published sessions** — removed from GeneratePage, only available in SharedSessionPage
+
+### Concurrency and race condition fixes (2026-07-16)
+
+- **onSuccess race condition fix** — All 13 mutation hooks (9 session + 4 tournament) now use `fetchQuery` instead of `setQueryData(server_response)` in `onSuccess`. This prevents race conditions where a subsequent mutation's optimistic update gets overwritten by a stale server response.
+- **Smart query invalidation** — Split into `invalidateSessionQueries` (8 hooks that don't change player data) and `invalidateAllQueries` (4 hooks that do: change player, replace player, set absent). Avoids unnecessary N+1 refetches of individual player stat queries.
+- **Debounced publish flush on unmount** — `GeneratePage` now flushes pending cloud publish when component unmounts (fire-and-forget via raw `publishSession` endpoint). Debounce is 300ms trailing with 1s max delay.
+- **Score tapping disabled during save** — `ScoreboardPage` now disables score tapping while save is in progress.
+- **All session/tournament mutation hooks** — rollback-first error handling with async/await in `onError`.
+- **`registerPlayer` return value** — `useChangePlayer` uses the returned player UUID (not the name string) for identity.
+- **`applyChange` single-position replacement** — only changes the specific position in the target game, not all occurrences globally.
+- **Change Player snapshot integrity** — adds player to `snapshot.players[]` with `playerCount` update; rebuilds players from schedule to prevent orphaned UUIDs; uses existing player UUID from snapshot instead of `registerPlayer` to prevent duplicate canonical names.
+- **Store version bumped to 14** — resets stale locked state from prior versions.
+
+### Silent error handling (2026-07-16)
+
+Non-critical errors in InstagramPostPage, ScoreboardPage, ShareButton, HomePage, and SharedSessionPage now use silent handling (`catch (_error) { void _error }` or `catch { /* skip */ }`) to prevent console noise for expected failures (fullscreen lock, clipboard, image load failures).
+
+### Cleanup (2026-07-16)
+
+- **Deleted `detectChangeConflict`** from `swap.ts` — dead code, never imported
+- **53 SQL migrations consolidated into 3 files** — removed 16,544 lines of incremental migration history
+- **10 handbook files archived**, 3 updated, 1 new (`migration-tracking.md`)
 
 ### Documentation baseline
 
@@ -143,7 +162,7 @@ Verified result:
 
 ## What is not done yet
 
-1. production security hardening
+1. production security hardening (partial: session lock, delete lock check, publish lock check all non-draft statuses delivered)
 2. formal long-term export boundary for `MDEF`
 3. broader end-to-end/UI regression coverage beyond the compact RPC/writeflow suite
 
@@ -189,6 +208,24 @@ These are the main migration/doc checkpoints so far:
 - `1b5c835` — `Add project baseline and migration docs`
 - `f38e038` — `Organize docs into handbook and archive`
 - `32d0593` — `Remove duplicated SQL from docs`
+- `89dd9c2` — `feat: add delete session button + fix IG leaderboard absent bug`
+- `a0b6a2b` — `feat: editable court names after lock + edit schedule before share`
+- `3aff325` — `feat: manual match + time assignment (pinned fix matches)`
+- `032711b` — `feat: show player stats in shared session schedule tab`
+- `19ffbf2` — `feat: lock session feature`
+- `823a940` — `fix: session lock enforcement uses status column`
+- `884a406` — `fix: show Locked badge when session is locked`
+- `74e0ac9` — `fix: set locked flag in both CloudSnapshot and session object`
+- `ca520ff` — `fix: audit cleanup - locked field, unlock_session, list_sessions, mutations, docs`
+- `2d00b1e` — `feat: change player feature + fix play count on-the-fly computation`
+- `6739460` — `fix: detectTeamSwapConflict false positive on same-game team swaps + mode exits cleanup`
+- `3f75c35` — `fix: critical + medium audit cleanup (16 issues)`
+- `9abb7d7` — `fix: backend audit cleanup (6 issues)`
+- `4395af3` — `fix: low severity cleanup (4 issues)`
+- (latest session) — `refactor: extract shared utilities, decompose SummaryModal, fix selectors, remove dead code`
+- (latest session) — `fix: race condition in onSuccess (fetchQuery), debounced publish flush, score tap guard, squash migrations`
+- (latest session) — `fix: change player snapshot integrity, applyChange single-position, registerPlayer return value, store v14 bump`
+- (latest session) — `refactor: archive old handbook docs, consolidate migration tracking, silent error handling`
 
 ## Recommended next task
 
@@ -201,10 +238,49 @@ Order:
 1. keep smoke-checking the direct `bm.*` RPC surface after changes
 2. expand regression coverage from compact RPC checks into higher-level UI or browser flows
 3. harden production-facing access controls if deployment scope expands
+4. document unlock procedure for locked sessions (admin-only via Supabase SQL Editor)
 
 Latest audit:
 
 - [bm-write-flow-audit.md](bm-write-flow-audit.md)
+
+## Session lock feature
+
+### How it works
+
+1. Host clicks "🔒 Lock session" in Actions dropdown
+2. Confirmation dialog appears
+3. On confirm, `publish_session` is called with `locked: true` in the snapshot
+4. The session status is set to `'locked'` in the database
+5. All interactive elements are disabled (checkboxes, scores, actions)
+6. Any mutation attempt is rejected by the server (any non-draft status blocks writes)
+
+### Important: locked must be set in session object
+
+The server reads `p_snapshot->'session'->>'locked'` to set the `status` column. On subsequent writes, the server checks `bm.sessions.status <> 'draft'` (not the snapshot JSON) to enforce the lock. This means any non-draft status (locked, completed, archived) will block writes.
+
+```typescript
+// Correct: set locked in session object
+await publishSession(sessionId, { 
+  ...current, 
+  session: { ...current.session, locked: true }
+})
+```
+
+The `status` column is the source of truth for lock enforcement. The `locked` field in the snapshot is only used at write time to determine what `status` value to set.
+
+### How to unlock (admin-only)
+
+Unlock is intentionally NOT available in the UI. To unlock a session:
+
+1. Open Supabase Dashboard → SQL Editor
+2. Run:
+   ```sql
+   SELECT bm.unlock_session('<session-id>');
+   ```
+   Replace `<session-id>` with the actual session ID.
+
+This sets the session status back to `'draft'`, bumps the version, and allows edits again. The function is restricted to `service_role` only (not exposed to `anon` or `authenticated`).
 
 ## If continuing in a new session
 
@@ -216,3 +292,24 @@ A new session should read these first:
 4. [`docs/handbook/roadmap.md`](roadmap.md)
 
 That is enough context to resume efficiently.
+
+## Historical Context
+
+### Environment variable migration
+
+The app originally used `VITE_APPS_SCRIPT_URL` to connect to a Google Apps Script backend. During the Supabase migration, this was replaced with:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_KEY`
+
+See [.env.local.example](../../.env.local.example) for the current contract.
+
+### Google Sheets export limitations
+
+The repository does not contain Google service account credentials, Sheets API credentials, or OAuth client setup. Automatic export of historical Google Sheets data is not possible from the repo alone. Old data can only be recovered through:
+
+1. Manual spreadsheet export
+2. A temporary one-off script using your Google access
+3. A direct Apps Script/Sheet dump performed outside this repo
+
+This is no longer a blocker for the local app runtime — it only matters if you need to recover older external history not already carried into the `bm`-based working set.

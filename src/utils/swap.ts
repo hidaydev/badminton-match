@@ -8,11 +8,40 @@ export interface SwapTarget {
   index: 0 | 1
 }
 
+export interface ChangeTarget {
+  slot: number
+  court: number
+  team: 'A' | 'B'
+  index: 0 | 1
+  playerId: string
+}
+
+export function applyChange(
+  schedule: ScheduleSlot[],
+  target: ChangeTarget,
+  newName: string,
+): ScheduleSlot[] {
+  // Only change the specific position in the target game, not all occurrences
+  return schedule.map(s => {
+    if (s.slot !== target.slot || s.court !== target.court) return s
+    const teamA = [...s.teamA] as [string, string]
+    const teamB = [...s.teamB] as [string, string]
+    if (target.team === 'A') teamA[target.index] = newName
+    else teamB[target.index] = newName
+    return { ...s, teamA, teamB }
+  })
+}
+
 export function applySwap(
   schedule: ScheduleSlot[],
   t1: SwapTarget,
   t2: SwapTarget,
 ): ScheduleSlot[] {
+  // Early return if same position
+  if (t1.slot === t2.slot && t1.court === t2.court && t1.team === t2.team && t1.index === t2.index) return schedule
+  // Early return if same player (no-op swap)
+  if (t1.playerId === t2.playerId) return schedule
+
   const sameGame = t1.slot === t2.slot && t1.court === t2.court
   return schedule.map((s) => {
     if (s.slot === t1.slot && s.court === t1.court) {
@@ -48,6 +77,9 @@ export function applyTeamSwap(
   t1: TeamSwapTarget,
   t2: TeamSwapTarget,
 ): ScheduleSlot[] {
+  // Early return if same team in same game
+  if (t1.slot === t2.slot && t1.court === t2.court && t1.team === t2.team) return schedule
+
   const game1 = schedule.find(s => s.slot === t1.slot && s.court === t1.court)
   const game2 = schedule.find(s => s.slot === t2.slot && s.court === t2.court)
   if (!game1 || !game2) return schedule
@@ -86,6 +118,8 @@ export function detectTeamSwapConflict(
   if (!game1 || !game2) return null
 
   // Same-game swap (Team A ↔ Team B of the same game) is always valid — no conflict possible
+  if (t1.slot === t2.slot && t1.court === t2.court) return null
+
   const team1Players = t1.team === 'A' ? [...game1.teamA] : [...game1.teamB]
   const team1Other = t1.team === 'A' ? [...game1.teamB] : [...game1.teamA]
   const team2Players = t2.team === 'A' ? [...game2.teamA] : [...game2.teamB]

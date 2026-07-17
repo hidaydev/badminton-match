@@ -2,7 +2,8 @@ import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions, deleteSession, RpcError } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
-import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
+import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
+import { applyChange } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import {
   replacePlayerNameInSnapshot,
@@ -14,7 +15,11 @@ import {
   togglePlayedInSnapshot,
 } from '../utils/sessionSnapshot'
 
-async function invalidateRelatedQueries(queryClient: ReturnType<typeof useQueryClient>) {
+async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  await queryClient.invalidateQueries({ queryKey: ['sessions'] })
+}
+
+async function invalidateAllQueries(queryClient: ReturnType<typeof useQueryClient>) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ['sessions'] }),
     queryClient.invalidateQueries({ queryKey: ['players'] }),
@@ -28,6 +33,11 @@ async function refetchOnVersionMismatch(
   error: unknown,
   context: { previous?: CloudSnapshot | null } | undefined,
 ) {
+  // ROLLBACK FIRST (synchronous, immediate)
+  if (context?.previous !== undefined) {
+    queryClient.setQueryData(['session', sessionId], context.previous)
+  }
+  // On version mismatch, refetch latest so user can retry
   const isVersionMismatch =
     (error instanceof RpcError && error.code === '40001') ||
     (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
@@ -37,13 +47,9 @@ async function refetchOnVersionMismatch(
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),
       })
-      return
     } catch {
-      // fall through to rollback
+      // ignore — stale cache (rolled back) is better than nothing
     }
-  }
-  if (context?.previous !== undefined) {
-    queryClient.setQueryData(['session', sessionId], context.previous)
   }
 }
 
@@ -75,11 +81,26 @@ export function usePublishSession(sessionId: string | undefined) {
       }
       return publishSession(sessionId!, next)
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onMutate: async () => {
+      if (!sessionId) return undefined
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      return { previous }
     },
-    onError: async (error) => {
+    onSuccess: async () => {
       if (!sessionId) return
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateSessionQueries(queryClient)
+    },
+    onError: async (error, _vars, context) => {
+      if (!sessionId) return
+      // Rollback to previous snapshot
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(['session', sessionId], context.previous)
+      }
       // On version mismatch, refetch the latest snapshot so the user can retry
       // without manually reloading the page.
       const isVersionMismatch =
@@ -95,10 +116,6 @@ export function usePublishSession(sessionId: string | undefined) {
           // ignore — stale cache is better than nothing
         }
       }
-    },
-    onSettled: async () => {
-      if (!sessionId) return
-      await invalidateRelatedQueries(queryClient)
     },
   })
 }
@@ -121,11 +138,15 @@ export function useTogglePlayed(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -148,11 +169,15 @@ export function useSetScore(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -175,14 +200,15 @@ export function useSwapPlayers(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -205,14 +231,15 @@ export function useSwapTeams(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -235,14 +262,15 @@ export function useSetAbsent(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateAllQueries(queryClient)
     },
   })
 }
@@ -265,14 +293,15 @@ export function useReplacePlayer(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateAllQueries(queryClient)
     },
   })
 }
@@ -308,14 +337,15 @@ export function useSwapSlots(sessionId: string) {
       })
       return { previous }
     },
-    onError: (_err, _vars, context) => {
-      void refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
     },
-    onSuccess: (published) => {
-      queryClient.setQueryData(['session', sessionId], published)
-    },
-    onSettled: async () => {
-      await invalidateRelatedQueries(queryClient)
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
@@ -337,7 +367,121 @@ export function useDeleteSession() {
   return useMutation({
     mutationFn: (sessionId: string) => deleteSession(sessionId),
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      await invalidateAllQueries(queryClient)
+    },
+  })
+}
+
+export function useChangePlayer(sessionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ target, newName, playerName }: { target: ChangeTarget; newName: string; playerName: string }) => {
+      const fresh = await getSession(sessionId)
+      if (!fresh) throw new Error('no data')
+      const newSchedule = applyChange(fresh.schedule, target, newName)
+      // Rebuild players from schedule: every non-blank UUID must have an entry
+      const scheduleIds = new Set<string>()
+      for (const g of newSchedule) {
+        for (const id of [...g.teamA, ...g.teamB]) {
+          if (id.trim()) scheduleIds.add(id)
+        }
+      }
+      const byId = new Map(fresh.players.map(p => [p.id, p]))
+      if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
+      // Dedup by ID only (not canonical name — server validates canonical)
+      const seen = new Set<string>()
+      const newPlayers = [...scheduleIds]
+        .map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
+        .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
+      const updated = {
+        ...fresh,
+        schedule: newSchedule,
+        players: newPlayers,
+        session: { ...fresh.session, playerCount: newPlayers.length },
+      }
+      return await publishSession(sessionId, updated)
+    },
+    onMutate: async ({ target, newName, playerName }) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
+        if (!old) return old
+        const newSchedule = applyChange(old.schedule, target, newName)
+        // Rebuild players from schedule: every non-blank UUID must have an entry
+        const scheduleIds = new Set<string>()
+        for (const g of newSchedule) {
+          for (const id of [...g.teamA, ...g.teamB]) {
+            if (id.trim()) scheduleIds.add(id)
+          }
+        }
+        const byId = new Map(old.players.map(p => [p.id, p]))
+        if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
+        // Dedup by ID only (not canonical name — server validates canonical)
+        const seen = new Set<string>()
+        const newPlayers = [...scheduleIds]
+          .map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
+          .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
+        return {
+          ...old,
+          schedule: newSchedule,
+          players: newPlayers,
+          session: { ...old.session, playerCount: newPlayers.length },
+        }
+      })
+      return { previous }
+    },
+    onError: async () => {
+      // Always refetch from server to get clean snapshot (avoid stale/corrupt cache)
+      try {
+        await queryClient.fetchQuery<CloudSnapshot | null>({
+          queryKey: ['session', sessionId],
+          queryFn: () => getSession(sessionId),
+        })
+      } catch {
+        // ignore — better to have stale cache than crash
+      }
+    },
+    onSuccess: async () => {
+      // Don't set cache from server response — it can race with subsequent mutations.
+      // Instead, refetch fresh data from server.
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateAllQueries(queryClient)
+    },
+  })
+}
+
+export function useLockSession(sessionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (!current) throw new Error('no data')
+      return await publishSession(sessionId, { 
+        ...current, 
+        session: { ...current.session, locked: true }
+      })
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
+        if (!old) return old
+        return { ...old, session: { ...old.session, locked: true } }
+      })
+      return { previous }
+    },
+    onError: async (_err, _vars, context) => {
+      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
+    },
+    onSuccess: async () => {
+      await queryClient.fetchQuery<CloudSnapshot | null>({
+        queryKey: ['session', sessionId],
+        queryFn: () => getSession(sessionId),
+      })
+      await invalidateSessionQueries(queryClient)
     },
   })
 }
