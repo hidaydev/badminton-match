@@ -300,7 +300,9 @@ Mitigations now in place:
 
 - optimistic version checks on publish (advisory locks)
 - `onSuccess` uses `fetchQuery` instead of `setQueryData(server_response)` — prevents race conditions where a subsequent mutation's optimistic update gets overwritten by a stale server response
-- debounced cloud publish on GeneratePage (300 ms trailing) with flush on unmount
+- rollback-first error handling — `onError` rolls back the optimistic update before any refetch, preventing stale cache on failure
+- `registerPlayer` return value — `useChangePlayer` uses the returned player UUID (not the name string) for identity, preventing UUID mismatches and duplicate canonical names
+- debounced cloud publish on GeneratePage (300 ms trailing, 1s max delay) with flush on unmount
 
 The biggest structural weakness is not that the flows are incorrect.
 

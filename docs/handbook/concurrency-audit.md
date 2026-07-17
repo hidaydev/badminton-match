@@ -287,6 +287,21 @@ Fix:
 
 - `onSuccess` now calls `fetchQuery` to get the latest server state, ensuring the cache reflects the most recent write regardless of mutation ordering.
 
+### 4.4 registerPlayer UUID Mismatch
+
+**Status: RESOLVED** — `useChangePlayer` now uses the existing player UUID from the snapshot instead of calling `registerPlayer`, preventing duplicate canonical names.
+
+Previous behavior:
+
+- `useChangePlayer` called `registerPlayer` for every replacement player, which could create a new canonical player record even if the player already existed in the snapshot.
+- The returned UUID was not used — the name string was used for identity instead.
+
+Fix:
+
+- Snapshot-first lookup: checks `snapshot.players[]` for an existing UUID match before falling back to `registerPlayer`.
+- `applyChange` uses the returned player UUID (not the name string) for identity.
+- Rebuilds players from schedule to prevent orphaned UUIDs in the snapshot.
+
 ## Top 3 Recommendations (by ROI)
 
 | Rank | Fix | Effort | Impact | Status |

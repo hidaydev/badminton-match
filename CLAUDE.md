@@ -71,7 +71,7 @@ Migration resets to defaults on any version mismatch. The tournament store was r
 
 - `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `getTournament`, `publishTournament`) + `TOURNAMENT_ID` constant. Internal to the layer — not re-exported from `index.ts`.
 - `types.ts` — shared types: `CloudSnapshot`, `SessionMeta`, `PlayerSummary`, `PlayerStats`, re-exports `TournamentSnapshot`.
-- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSetAbsent`, `useChangePlayer`. Mutations own all cache logic (optimistic update, rollback, invalidation); UI callbacks are passed by components via `mutate(vars, { onSuccess, onError })`.
+- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSetAbsent`, `useChangePlayer`. Mutations own all cache logic (optimistic update, rollback-first error handling, smart invalidation). `onSuccess` uses `fetchQuery` (not `setQueryData`) to prevent race conditions; `onError` rolls back before refetch. UI callbacks are passed by components via `mutate(vars, { onSuccess, onError })`.
 - `players.ts` — `useListPlayers`, `useGetPlayerStats`.
 - `tournament.ts` — `useGetTournament`, `useConfirmGroups`, `useSetTournamentScore`, `useResetTournament`.
 - `index.ts` — barrel export of all hooks and types. Also re-exports `TOURNAMENT_ID` for components that need to invalidate the tournament query manually.

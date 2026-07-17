@@ -147,7 +147,8 @@ those in playerMap), supporting the Change Player flow.
 
 ### Change player
 
-Change Player allows the host to swap one player in a specific game slot:
+Change Player allows the host to swap one player in a specific game slot.
+Restricted to published sessions only (not available during schedule generation).
 
 - **Cross-slot conflict detection** — prevents assigning the same player to
   multiple games in the same time slot across different courts
