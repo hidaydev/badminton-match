@@ -91,12 +91,29 @@ Code quality improvements completed:
 - **Decomposed SummaryModal** (1575 → 1277 lines) — extracted `ConfirmBars.tsx`, `ActionsMenu.tsx`, `PlayerStatsPanel.tsx`
 - **Player Stats (published session)** — standalone mode with 2-column grid, no target/ideal plays, absent players greyed with badge and sorted at bottom, includes all players from schedule
 - **Change Player improvements** — cross-slot conflict detection, confirmation bar (consistent with swap/absent pattern), back-to-back warning in confirm bar
+- **Change Player restricted to published sessions** — removed from GeneratePage, only available in SharedSessionPage
 
 ### Concurrency and race condition fixes (2026-07-16)
 
 - **onSuccess race condition fix** — All 13 mutation hooks (9 session + 4 tournament) now use `fetchQuery` instead of `setQueryData(server_response)` in `onSuccess`. This prevents race conditions where a subsequent mutation's optimistic update gets overwritten by a stale server response.
-- **Debounced publish flush on unmount** — `GeneratePage` now flushes pending cloud publish when component unmounts (fire-and-forget via raw `publishSession` endpoint).
+- **Smart query invalidation** — Split into `invalidateSessionQueries` (8 hooks that don't change player data) and `invalidateAllQueries` (4 hooks that do: change player, replace player, set absent). Avoids unnecessary N+1 refetches of individual player stat queries.
+- **Debounced publish flush on unmount** — `GeneratePage` now flushes pending cloud publish when component unmounts (fire-and-forget via raw `publishSession` endpoint). Debounce is 300ms trailing with 1s max delay.
 - **Score tapping disabled during save** — `ScoreboardPage` now disables score tapping while save is in progress.
+- **All session/tournament mutation hooks** — rollback-first error handling with async/await in `onError`.
+- **`registerPlayer` return value** — `useChangePlayer` uses the returned player UUID (not the name string) for identity.
+- **`applyChange` single-position replacement** — only changes the specific position in the target game, not all occurrences globally.
+- **Change Player snapshot integrity** — adds player to `snapshot.players[]` with `playerCount` update; rebuilds players from schedule to prevent orphaned UUIDs; uses existing player UUID from snapshot instead of `registerPlayer` to prevent duplicate canonical names.
+- **Store version bumped to 14** — resets stale locked state from prior versions.
+
+### Silent error handling (2026-07-16)
+
+Non-critical errors in InstagramPostPage, ScoreboardPage, ShareButton, HomePage, and SharedSessionPage now use silent handling (`catch (_error) { void _error }` or `catch { /* skip */ }`) to prevent console noise for expected failures (fullscreen lock, clipboard, image load failures).
+
+### Cleanup (2026-07-16)
+
+- **Deleted `detectChangeConflict`** from `swap.ts` — dead code, never imported
+- **53 SQL migrations consolidated into 3 files** — removed 16,544 lines of incremental migration history
+- **10 handbook files archived**, 3 updated, 1 new (`migration-tracking.md`)
 
 ### Documentation baseline
 
@@ -207,6 +224,8 @@ These are the main migration/doc checkpoints so far:
 - `4395af3` — `fix: low severity cleanup (4 issues)`
 - (latest session) — `refactor: extract shared utilities, decompose SummaryModal, fix selectors, remove dead code`
 - (latest session) — `fix: race condition in onSuccess (fetchQuery), debounced publish flush, score tap guard, squash migrations`
+- (latest session) — `fix: change player snapshot integrity, applyChange single-position, registerPlayer return value, store v14 bump`
+- (latest session) — `refactor: archive old handbook docs, consolidate migration tracking, silent error handling`
 
 ## Recommended next task
 
