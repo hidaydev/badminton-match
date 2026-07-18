@@ -276,7 +276,7 @@ Fix:
 
 ### 4.3 onSuccess Race Condition
 
-**Status: RESOLVED** — All 13 mutation hooks now use `fetchQuery` in `onSuccess` instead of `setQueryData(server_response)`.
+**Status: RESOLVED** — All 15 mutation hooks (11 session + 4 tournament) now use `fetchQuery` in `onSuccess` instead of `setQueryData(server_response)` (except `useDeleteSession` which uses `onSettled`).
 
 Previous behavior:
 
