@@ -1,6 +1,6 @@
 # BM Supabase Runbook
 
-Last updated: 2026-06-18
+Last updated: 2026-07-18
 
 This runbook describes the exact SQL execution order for the new normalized
 `bm` schema.
@@ -43,25 +43,15 @@ Minimum recovery steps:
 3. if needed, also run:
    `notify pgrst, 'reload config';`
 
-## Recommended Execution Flow
+## What Is In The Seeds File
 
-1. Apply the full migration stack in order up to the current head in
-   `supabase/migrations/`.
+The third migration [`supabase/migrations/20260616_000003_seeds.sql`](../../supabase/migrations/20260616_000003_seeds.sql) consolidates all seed and validation logic:
 
-2. Seed the canonical identity layer:
-   [20260617_bm_identity_seed.sql](/Users/user/Projects/badminton-match/supabase/seeds/20260617_bm_identity_seed.sql:1)
-
-3. Run normalized backfill:
-   [20260617_bm_backfill.sql](/Users/user/Projects/badminton-match/supabase/seeds/20260617_bm_backfill.sql:1)
-
-4. Run parity checks:
-   [20260617_bm_parity_checks.sql](/Users/user/Projects/badminton-match/supabase/seeds/20260617_bm_parity_checks.sql:1)
-
-5. Backfill tournament snapshot into `bm.tournaments`:
-   [20260617_bm_tournament_backfill.sql](/Users/user/Projects/badminton-match/supabase/seeds/20260617_bm_tournament_backfill.sql:1)
-
-6. Run smoke checks for the RPC surface used by the local frontend:
-   [20260617_bm_smoke_checks.sql](/Users/user/Projects/badminton-match/supabase/seeds/20260617_bm_smoke_checks.sql:1)
+1. Legacy snapshot insertion into `badminton_match`
+2. Backfill into `bm` (identity seed, normalized session backfill)
+3. Tournament snapshot backfill into `bm.tournaments`
+4. Parity/smoke checks
+5. Data fixes and validation
 
 ## What Success Looks Like
 
@@ -88,6 +78,5 @@ Supabase SQL Editor or via your normal migration flow.
 
 Minimum safe first step:
 
-1. run the full migration stack to current head
-2. run [20260617_bm_identity_seed.sql](/Users/user/Projects/badminton-match/supabase/seeds/20260617_bm_identity_seed.sql:1)
-3. run backfill and parity checks only if you still need to rebuild normalized state from legacy history
+1. run the full migration stack to current head (`supabase db reset` applies all 3 squashed migrations)
+2. backfill and parity checks are embedded in the seeds migration — they run automatically
