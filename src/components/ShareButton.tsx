@@ -47,6 +47,8 @@ export default function ShareButton() {
         playedGames,
         gameScores,
       })
+      // Don't lock on publish — host needs to input scores after publishing
+      snapshot.session = { ...snapshot.session, locked: false }
       await publishSession(id, snapshot)
       setCloudSessionId(id)
       setShareUrl(`${window.location.origin}/s/${id}`)
@@ -135,7 +137,7 @@ export default function ShareButton() {
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 shadow-2xl">
             <div className="flex flex-col gap-1">
               <h2 className="text-white font-bold text-lg">Publish this session?</h2>
-              <p className="text-slate-400 text-sm">Once published, the match schedule will be <span className="text-white font-medium">locked</span> — you won't be able to regenerate it.</p>
+              <p className="text-slate-400 text-sm">Share this session with players. You can still input scores and manage the live session after publishing.</p>
             </div>
             <div className="flex flex-col gap-2 text-sm">
               <div className="flex items-center gap-2 text-slate-400">
