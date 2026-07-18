@@ -128,10 +128,10 @@ This file owns:
 
 Utility files:
 
-- `src/utils/swap.ts` — player swaps, change player logic
+- `src/utils/swap.ts` — player swaps, team swaps, change player logic, conflict detection
 - `src/utils/slotSwap.ts` — game slot swaps
 - `src/utils/standings.ts` — standings computation for live session views
-- `src/utils/sessionSnapshot.ts` — snapshot mutation helpers (change player, rename)
+- `src/utils/sessionSnapshot.ts` — snapshot mutation helpers (toggle played, set score, swap players/teams/slots, set absent, replace player name, change player)
 - `src/utils/playerStats.ts` — `computePlayerStats()` for play/sit/partner/opponent counts
 - `src/utils/ordinal.ts` — `ordinal()` helper (1st, 2nd, 3rd, etc.)
 
@@ -172,7 +172,7 @@ Used for the guided setup flow:
 The SummaryModal is the operations console for live session management. It has been
 decomposed into focused sub-components:
 
-- `src/components/SummaryModal.tsx` — main modal (1277 lines)
+- `src/components/SummaryModal.tsx` — main modal (1327 lines)
 - `src/components/ConfirmBars.tsx` — 5 fixed bottom confirm bars (swap, absent, change player, lock, share)
 - `src/components/ActionsMenu.tsx` — actions dropdown with mode entry buttons
 - `src/components/PlayerStatsPanel.tsx` — player stats display with standalone/generate branches
