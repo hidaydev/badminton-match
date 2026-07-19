@@ -11,7 +11,13 @@ npm run lint      # ESLint
 npm run preview   # Preview production build locally
 ```
 
-No test suite exists in this project.
+No formal test framework, but compact regression tests exist via `node:test`:
+
+```bash
+npm run check          # Types + lint + tailwind + regression tests
+npm run check:smoke    # Live Supabase RPC smoke tests
+npm run check:regression  # Regression tests only (node:test)
+```
 
 ## Architecture
 
@@ -20,20 +26,20 @@ This is a single-page React app (React 19, Vite, Tailwind v4, TypeScript) that g
 ### Core Session Flow
 
 **User flow (4 steps, enforced by route guards in [App.tsx](src/App.tsx)):**
-1. **Setup** (`/`) — configure courts, slot duration, court times, player count, tier count. Locks the session.
-2. **Players** (`/players`) — add/edit players with name, gender, and tier (1–4).
-3. **Constraints** (`/constraints`) — define "fix matches": pre-assigned pairings (fully or partially specified) that must appear in the schedule.
-4. **Generate** (`/generate`) — run the scheduler, view the schedule, retry until quality is good.
+1. **Setup** (`/session/new`) — configure courts, slot duration, court times, player count, tier count. Locks the session.
+2. **Players** (`/session/players`) — add/edit players with name, gender, and tier (1–4).
+3. **Constraints** (`/session/constraints`) — define "fix matches": pre-assigned pairings (fully or partially specified) that must appear in the schedule.
+4. **Generate** (`/session/generate`) — run the scheduler, view the schedule, retry until quality is good.
 
-**Routing:** `RequireSession` redirects to `/` if the session isn't locked; `RequirePlayers` additionally checks that the exact `playerCount` players have been entered before allowing access to `/constraints` or `/generate`.
+**Routing:** `RequireSession` redirects to `/session/new` if the session isn't locked; `RequirePlayers` additionally checks that the exact `playerCount` players have been entered before allowing access to `/session/constraints` or `/session/generate`.
 
 **Home page** shows 5 menu items: Create Session, Sessions, Player History, Tournament, Instagram Post.
 
 ### State Management
 
-Two independent Zustand stores, both persisted to `localStorage`:
+One Zustand store, persisted to `localStorage`:
 
-- **Main store** ([src/store/index.ts](src/store/index.ts)) — key `badminton-store`, `version: 13`. Holds session config, players, fix matches, schedule, played games, game scores, absent players, and `cloudSessionId`. Mutating any player, fix match, or session field resets `schedule` and `lastResult` to `null`.
+- **Main store** ([src/store/index.ts](src/store/index.ts)) — key `badminton-store`, `version: 14`. Holds session config, players, fix matches, schedule, played games, game scores, absent players, and `cloudSessionId`. Mutating any player, fix match, or session field resets `schedule` and `lastResult` to `null`.
 
 Migration resets to defaults on any version mismatch. The tournament store was removed — TournamentPage uses React Query directly.
 
@@ -48,7 +54,7 @@ Migration resets to defaults on any version mismatch. The tournament store was r
 
 ### Pages
 
-- **GeneratePage** ([src/pages/GeneratePage.tsx](src/pages/GeneratePage.tsx)) — `QualityBanner` grades the schedule; "Retry until good" runs up to 30 generations; `SummaryModal` is a full-screen overlay with a checklist view (tap to mark games as played, support for absent players). Back-to-back games flagged with `*` on player chips.
+- **GeneratePage** ([src/pages/GeneratePage.tsx](src/pages/GeneratePage.tsx)) — 739 lines. `QualityBanner` grades the schedule; "Retry until good" runs up to 30 generations (yields to browser via `requestAnimationFrame` between iterations); `SummaryModal` is a full-screen overlay with a checklist view (tap to mark games as played, support for absent players). Back-to-back games flagged with `*` on player chips. Debounces cloud publishes (300 ms trailing, 1s max delay) and flushes on unmount.
 - **TournamentPage** ([src/pages/TournamentPage.tsx](src/pages/TournamentPage.tsx)) — tabbed UI with three tabs: **Groups** (assign 16 pairs to numbered slots #1–#16 across 4 groups via tap-slot-then-pick-pair; switches to GroupMatches when locked), **Bracket** (horizontal scrolling QF→SF→Final knockout bracket with connector lines), **Standings** (per-group W/L, point diff, head-to-head table). Local draft group state is `Record<GroupId, (string | null)[]>` — always 4 elements, null for empty slots.
 - **SessionListPage** ([src/pages/SessionListPage.tsx](src/pages/SessionListPage.tsx)) — browse past cloud-synced sessions with date filter.
 - **PlayerHistoryPage** ([src/pages/PlayerHistoryPage.tsx](src/pages/PlayerHistoryPage.tsx)) — list all players from cloud history.
@@ -64,16 +70,17 @@ Migration resets to defaults on any version mismatch. The tournament store was r
 - `BracketTab.tsx` — knockout bracket visualization.
 - `StandingsTab.tsx` — standings table per group.
 - `ScoreModal.tsx` — modal for score entry.
+- `ScoreboardOverlay.tsx` — fullscreen scoreboard overlay for tournament matches (wraps ScoreboardPage).
 
 ### Queries Layer
 
 `src/queries/` is the single access point for all server state. No page or component imports fetch functions directly.
 
-- `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `getTournament`, `publishTournament`) + `TOURNAMENT_ID` constant. Internal to the layer — not re-exported from `index.ts`.
+- `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `registerPlayer`, `deleteSession`, `unlockSession`, `getTournament`, `publishTournament`) + `TOURNAMENT_ID` constant and `RpcError` class. Internal to the layer — not re-exported from `index.ts`.
 - `types.ts` — shared types: `CloudSnapshot`, `SessionMeta`, `PlayerSummary`, `PlayerStats`, re-exports `TournamentSnapshot`.
-- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSetAbsent`, `useChangePlayer`. Mutations own all cache logic (optimistic update, rollback-first error handling, smart invalidation). `onSuccess` uses `fetchQuery` (not `setQueryData`) to prevent race conditions; `onError` rolls back before refetch. UI callbacks are passed by components via `mutate(vars, { onSuccess, onError })`.
+- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSwapTeams`, `useSwapSlots`, `useSetAbsent`, `useReplacePlayer`, `useChangePlayer`, `useLockSession`, `useDeleteSession`, `useFetchSession`. Mutations own all cache logic (optimistic update, rollback-first error handling, smart invalidation). `onSuccess` uses `fetchQuery` (not `setQueryData`) to prevent race conditions; `onError` rolls back before refetch. UI callbacks are passed by components via `mutate(vars, { onSuccess, onError })`.
 - `players.ts` — `useListPlayers`, `useGetPlayerStats`.
-- `tournament.ts` — `useGetTournament`, `useConfirmGroups`, `useSetTournamentScore`, `useResetTournament`.
+- `tournament.ts` — `useGetTournament`, `useConfirmGroups`, `useSetTournamentScore`, `useResetTournament`, `useRegeneratePics`.
 - `index.ts` — barrel export of all hooks and types. Also re-exports `TOURNAMENT_ID` for components that need to invalidate the tournament query manually.
 
 **Mutation call-site pattern** — destructure `{ mutate, isPending }` rather than storing the full mutation object:
@@ -84,12 +91,15 @@ togglePlayed(vars, { onSuccess: () => ..., onError: () => ... })
 
 ### Utilities
 
-- `src/utils/tournament.ts` — pure TS: `generateGroupMatches()` (6 round-robin games per group), `initKnockoutMatches()`, `propagateBracket()`, `computeGroupStandings()`.
+- `src/utils/tournament.ts` — pure TS: `generateGroupMatches()` (6 round-robin games per group), `initKnockoutMatches()`, `propagateBracket()`, `computeGroupStandings()`, `assignGroupPics()`.
 - `src/utils/standings.ts` — computes per-player W/L and point diff for a session.
 - `src/utils/shareUrl.ts` — encode/decode session state into URL hash (uses `lz-string` for compression).
-- `src/utils/swap.ts` — swap players between games (used in `useSwapPlayers` hook).
+- `src/utils/swap.ts` — swap players between games, swap teams, change player logic, conflict detection.
+- `src/utils/slotSwap.ts` — swap game slots and detect cross-slot conflicts.
+- `src/utils/sessionSnapshot.ts` — snapshot mutation helpers (toggle played, set score, swap players/teams/slots, set absent, replace player name, change player).
 - `src/utils/playerStats.ts` — `computePlayerStats()` for play/sit/partner/opponent counts (shared by GeneratePage and SummaryModal).
 - `src/utils/ordinal.ts` — `ordinal()` helper (1st, 2nd, 3rd).
+- `src/utils/resolvePlayers.ts` — player resolution helpers (`findUnresolvedPlayers`, `buildResolveResult`) for publish-time identity reconciliation.
 - `src/config/tiers.ts` — tier labels, colors, badge colors shared across GeneratePage, PlayersPage, ConstraintsPage.
 
 ### Instagram Post Scripts
