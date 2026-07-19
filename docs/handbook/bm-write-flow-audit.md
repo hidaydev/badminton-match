@@ -269,8 +269,8 @@ Assessment:
 
 Relevant files:
 
-- [20260617_000003_bm_normalized_schema.sql](/Users/user/Projects/badminton-match/supabase/migrations/20260617_000003_bm_normalized_schema.sql:421)
-- [20260617_000004_bm_compat_parity_fix.sql](/Users/user/Projects/badminton-match/supabase/migrations/20260617_000004_bm_compat_parity_fix.sql:182)
+- [20260616_000001_schema.sql](../../supabase/migrations/20260616_000001_schema.sql) — tables, indexes, constraints, triggers, grants
+- [20260616_000002_functions.sql](../../supabase/migrations/20260616_000002_functions.sql) — all functions including `publish_session`
 
 Current `bm.publish_session` behavior:
 
@@ -299,7 +299,7 @@ For local use, current write flows are:
 Mitigations now in place:
 
 - optimistic version checks on publish (advisory locks)
-- `onSuccess` uses `fetchQuery` instead of `setQueryData(server_response)` — prevents race conditions where a subsequent mutation's optimistic update gets overwritten by a stale server response
+- `onSuccess` uses `fetchQuery` instead of `setQueryData(server_response)` — all 15 mutation hooks (11 session + 4 tournament) use this pattern (except `useDeleteSession` which uses `onSettled`), preventing race conditions where a subsequent mutation's optimistic update gets overwritten by a stale server response
 - rollback-first error handling — `onError` rolls back the optimistic update before any refetch, preventing stale cache on failure
 - `registerPlayer` return value — `useChangePlayer` uses the returned player UUID (not the name string) for identity, preventing UUID mismatches and duplicate canonical names
 - debounced cloud publish on GeneratePage (300 ms trailing, 1s max delay) with flush on unmount
