@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useStore, PLAYERS_PER_GAME, timeToMinutes, minutesToTime } from '../store'
 import { useNavigate } from 'react-router-dom'
 
@@ -183,6 +184,11 @@ export default function SetupPage() {
   const lockSession = useStore((s) => s.lockSession)
   const resetSession = useStore((s) => s.resetSession)
   const navigate = useNavigate()
+
+  // Auto-reset if session is locked (stale state from previous session)
+  useEffect(() => {
+    if (session.locked) resetSession()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sessionStartMin = timeToMinutes(session.sessionStart)
   const startOpts = timeOptions(6 * 60, 22 * 60)

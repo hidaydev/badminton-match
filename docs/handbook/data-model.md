@@ -87,6 +87,7 @@ Main source:
 
 Fields:
 
+- optional `version`
 - `session`
 - `players`
 - `fixMatches`
@@ -94,12 +95,12 @@ Fields:
 - `playedGames`
 - `gameScores`
 - optional `absentPlayers`
-- optional `locked`
 
 Notes:
 
-- `locked` when `true` causes `publish_session` to reject all subsequent writes
-- `locked` is set via the lock session feature in the UI
+- `version` enables optimistic concurrency on publish
+- `locked` is a field on the nested `session` (SessionConfig), not on CloudSnapshot directly
+- when `session.locked` is `true`, `publish_session` sets the session status to `'locked'`
 - unlock is admin-only via `bm.unlock_session` RPC (service_role only)
 - `delete_session` also rejects deletion of non-draft (locked) sessions
 - `unlock_session` bumps the version when resetting to draft

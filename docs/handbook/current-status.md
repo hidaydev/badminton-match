@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-07-16
+Last updated: 2026-07-18
 
 This is the fastest handover file for continuing work on this repository.
 
@@ -88,15 +88,15 @@ Code quality improvements completed:
 - **Extracted `ordinal()`** to `utils/ordinal.ts` — shared across SummaryModal, PlayerMatchDetailSheet, InstagramPostPage
 - **Extracted `computePlayerStats()`** to `utils/playerStats.ts` — shared across GeneratePage and SummaryModal
 - **Fixed `useStore()` selectors** in SetupPage, PlayersPage, ConstraintsPage — prevents unnecessary re-renders
-- **Decomposed SummaryModal** (1575 → 1277 lines) — extracted `ConfirmBars.tsx`, `ActionsMenu.tsx`, `PlayerStatsPanel.tsx`
+- **Decomposed SummaryModal** (1575 → 1327 lines) — extracted `ConfirmBars.tsx`, `ActionsMenu.tsx`, `PlayerStatsPanel.tsx`
 - **Player Stats (published session)** — standalone mode with 2-column grid, no target/ideal plays, absent players greyed with badge and sorted at bottom, includes all players from schedule
 - **Change Player improvements** — cross-slot conflict detection, confirmation bar (consistent with swap/absent pattern), back-to-back warning in confirm bar
 - **Change Player restricted to published sessions** — removed from GeneratePage, only available in SharedSessionPage
 
 ### Concurrency and race condition fixes (2026-07-16)
 
-- **onSuccess race condition fix** — All 13 mutation hooks (9 session + 4 tournament) now use `fetchQuery` instead of `setQueryData(server_response)` in `onSuccess`. This prevents race conditions where a subsequent mutation's optimistic update gets overwritten by a stale server response.
-- **Smart query invalidation** — Split into `invalidateSessionQueries` (8 hooks that don't change player data) and `invalidateAllQueries` (4 hooks that do: change player, replace player, set absent). Avoids unnecessary N+1 refetches of individual player stat queries.
+- **onSuccess race condition fix** — All 15 mutation hooks (11 session + 4 tournament) now use `fetchQuery` instead of `setQueryData(server_response)` in `onSuccess` (except `useDeleteSession` which uses `onSettled`). This prevents race conditions where a subsequent mutation's optimistic update gets overwritten by a stale server response.
+- **Smart query invalidation** — Split into `invalidateSessionQueries` (7 hooks that don't change player data) and `invalidateAllQueries` (4 hooks that do: change player, replace player, set absent, delete session). Avoids unnecessary N+1 refetches of individual player stat queries.
 - **Debounced publish flush on unmount** — `GeneratePage` now flushes pending cloud publish when component unmounts (fire-and-forget via raw `publishSession` endpoint). Debounce is 300ms trailing with 1s max delay.
 - **Score tapping disabled during save** — `ScoreboardPage` now disables score tapping while save is in progress.
 - **All session/tournament mutation hooks** — rollback-first error handling with async/await in `onError`.
@@ -287,8 +287,8 @@ This sets the session status back to `'draft'`, bumps the version, and allows ed
 A new session should read these first:
 
 1. [`docs/handbook/current-status.md`](current-status.md)
-2. [`docs/handbook/supabase-migration.md`](supabase-migration.md)
-3. [`docs/handbook/persistence-migration-closure-2026-06-18.md`](persistence-migration-closure-2026-06-18.md)
+2. [`docs/handbook/archive/supabase-migration.md`](archive/supabase-migration.md)
+3. [`docs/handbook/archive/persistence-migration-closure-2026-06-18.md`](archive/persistence-migration-closure-2026-06-18.md)
 4. [`docs/handbook/roadmap.md`](roadmap.md)
 
 That is enough context to resume efficiently.
