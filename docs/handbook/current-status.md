@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-07-18
+Last updated: 2026-07-20 (post-audit)
 
 This is the fastest handover file for continuing work on this repository.
 
@@ -124,6 +124,66 @@ Current-state docs exist under:
 Historical implementation archive remains under:
 
 - [`docs/superpowers/`](../superpowers)
+
+### Design system & accessibility (2026-07-20)
+
+Formalized design system, WCAG compliance, and performance optimization for mobile PWA.
+
+**Typography:**
+- Body font: IBM Plex Sans (400, 500, 600, 700) — replaces system-ui
+- Monospace: IBM Plex Mono (400, 500) — replaces default monospace
+- Instagram canvas decorative: Granesta + Edosz (unchanged, loaded on-demand)
+- Dead fonts removed: Anton, Third Rail, Rushon Ground
+- Google Fonts loaded non-render-blocking (`media="print" onload`)
+
+**WCAG Contrast Fixes (2 rounds):**
+- Round 1: All `text-slate-600` (51 instances) → `text-slate-500`, all `text-slate-700` (6) → `text-slate-500`
+- Round 2 (audit): All `text-slate-500` (100+ instances) → `text-slate-400` (~7.1:1 on dark bg)
+- Hover states adjusted: `hover:text-slate-300` → `hover:text-slate-200`
+- Small text on `bg-slate-800` upgraded to `text-slate-300` (~4.6:1)
+- Body color fixed: `#e2e8f0` → `#f1f5f9` (matches `--color-fg` token)
+
+**Accessibility (Mobile-First):**
+- `focus-visible:ring-2` on all form inputs (NOT `focus:ring` — no tap flash on mobile)
+- `aria-label` on all icon-only buttons (ScoreboardPage, PlayersPage, ConstraintsPage, ConfirmBars, PlayerMatchDetailSheet)
+- `role="dialog"` + `aria-modal="true"` on all modals (SummaryModal, InstallModal, ScoreModal, ResolvePlayersModal, ShareButton, PlayerMatchDetailSheet, UpdateBanner)
+- `aria-live="polite"` on error toasts (GeneratePage, SharedSessionPage, TournamentPage)
+- `aria-label` on score inputs (ScoreboardPage, SummaryModal)
+- `prefers-reduced-motion` media query in index.css
+- Touch target fixes: tier picker (min-w-8 h-8), delete button (p-2), action buttons (px-2.5 py-1.5)
+- ScoreboardPage: `role="button" tabIndex={0}` on score tap zones for keyboard accessibility
+- ActionsMenu: `aria-expanded`, `aria-haspopup`, `role="menu"`, `role="menuitem"`
+- ScoreboardPage: `<main>` landmark added
+
+**Design Tokens (Tailwind v4 `@theme`):**
+- `--color-ground` (#0f172a) → `bg-ground` — page background
+- `--color-surface` (#1e293b) → `bg-surface` — cards
+- `--color-elevated` (#334155) → `bg-elevated` — inputs
+- `--color-fg` (#f1f5f9) → `text-fg` — primary text
+- `--color-fg-dim` (#94a3b8) → `text-fg-dim` — dimmed text (WCAG AA)
+- `--color-accent` (#fbbf24) → `text-accent` — brand color
+- `--color-border` (#475569) → `border-border` — borders
+- Tokens actively adopted across all pages and components
+- JS tokens in `src/config/tokens.ts` for programmatic access
+
+**Reusable Components:**
+- `src/components/ui/Card.tsx` — surface, elevated, interactive variants (uses semantic tokens)
+- `src/components/ui/Chip.tsx` — default, selected, success, warning, error
+- `src/components/ui/Badge.tsx` — success, warning, error, info, neutral
+- `src/components/ui/EmptyState.tsx` — icon + title + description
+- `src/components/ui/index.ts` — barrel export
+
+**Performance Optimization:**
+- Code splitting: React.lazy() for ScoreboardPage, InstagramPostPage, TournamentPage, SharedSessionPage
+- Initial JS: 154 KB → 107 KB gzip (30% reduction)
+- Logo: 1.3 MB PNG → 14.5 KB (192px) + 88.1 KB (512px)
+- Decorative fonts (Granesta/Edosz): removed preload, loaded on-demand via @font-face
+- Google Fonts: non-render-blocking, removed unused weight 700
+
+**Documentation:**
+- `docs/design-system.md` — complete design system reference
+- `backlog.md` — original revamp trail (96 items, 9 phases)
+- `backlog-audit.md` — post-audit fixes (34 items, 4 batches)
 
 ## What has been verified
 

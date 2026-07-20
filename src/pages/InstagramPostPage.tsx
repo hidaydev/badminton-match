@@ -219,14 +219,14 @@ function drawStandingsCanvas(
   const tableTop   = innerTop + META_H
 
   ctx.save()
-  ctx.font = '20px monospace'
+  ctx.font = '20px "IBM Plex Mono", monospace'
   ctx.fillStyle = '#94a3b8'
   ctx.textAlign = 'left'
   ctx.fillText(`${meta.date} · ${meta.title}`, innerPadX, innerTop)
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 28px Arial, sans-serif'
+  ctx.font = 'bold 28px "IBM Plex Sans", Arial, sans-serif'
   ctx.fillStyle = '#facc15'
   ctx.textAlign = 'left'
   ctx.fillText(`TOP ${top10.length} OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 44)
@@ -253,7 +253,7 @@ function drawStandingsCanvas(
   ctx.restore()
 
   ctx.save()
-  ctx.font = `bold ${HDR_FONT_SIZE}px monospace`
+  ctx.font = `bold ${HDR_FONT_SIZE}px "IBM Plex Mono", monospace`
   ctx.fillStyle = '#475569'
   ctx.textAlign = 'center'; ctx.fillText('#',    RANK_CX, headerY)
   ctx.textAlign = 'left';   ctx.fillText('Name', NAME_X,  headerY)
@@ -295,11 +295,11 @@ function drawStandingsCanvas(
     // Rank / medal
     ctx.save()
     if (i < 3) {
-      ctx.font = `${ROW_FONT_SIZE}px Arial`
+      ctx.font = `${ROW_FONT_SIZE}px "IBM Plex Sans", Arial`
       ctx.textAlign = 'center'
       ctx.fillText(MEDALS[i], RANK_CX, baseline)
     } else {
-      ctx.font = `bold ${ROW_FONT_SIZE * 0.62}px Arial, sans-serif`
+      ctx.font = `bold ${ROW_FONT_SIZE * 0.62}px "IBM Plex Sans", Arial, sans-serif`
       ctx.fillStyle = '#64748b'
       ctx.textAlign = 'center'
       ctx.fillText(ordinal(i + 1), RANK_CX, baseline)
@@ -308,7 +308,7 @@ function drawStandingsCanvas(
 
     // Name
     ctx.save()
-    ctx.font = `bold ${ROW_FONT_SIZE}px Arial, sans-serif`
+    ctx.font = `bold ${ROW_FONT_SIZE}px "IBM Plex Sans", Arial, sans-serif`
     ctx.fillStyle = i === 0 ? '#facc15' : i === 1 ? '#cbd5e1' : i === 2 ? '#fb923c' : '#e2e8f0'
     ctx.textAlign = 'left'
     const maxNameW = WL_X - NAME_X - 40
@@ -320,7 +320,7 @@ function drawStandingsCanvas(
 
     // W-L (green)
     ctx.save()
-    ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
+    ctx.font = `bold ${STATS_FONT_SIZE}px "IBM Plex Mono", monospace`
     ctx.fillStyle = '#4ade80'
     ctx.textAlign = 'right'
     ctx.fillText(`${s.wins}-${s.losses}`, WL_X, baseline)
@@ -329,7 +329,7 @@ function drawStandingsCanvas(
     // Diff
     const diff = s.diff
     ctx.save()
-    ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
+    ctx.font = `bold ${STATS_FONT_SIZE}px "IBM Plex Mono", monospace`
     ctx.fillStyle = diff > 0 ? '#4ade80' : diff < 0 ? '#f87171' : '#475569'
     ctx.textAlign = 'right'
     ctx.fillText(diff > 0 ? `+${diff}` : String(diff), DIFF_X, baseline)
@@ -337,7 +337,7 @@ function drawStandingsCanvas(
 
     // Pts
     ctx.save()
-    ctx.font = `bold ${STATS_FONT_SIZE}px monospace`
+    ctx.font = `bold ${STATS_FONT_SIZE}px "IBM Plex Mono", monospace`
     ctx.fillStyle = '#ffffff'
     ctx.textAlign = 'right'
     ctx.fillText(String(s.pointsFor), PTS_X, baseline)
@@ -690,7 +690,7 @@ export default function InstagramPostPage() {
         </button>
         <div>
           <p
-            className="text-[10px] font-mono text-slate-500 uppercase"
+            className="text-[10px] font-mono text-slate-400 uppercase"
             style={{ letterSpacing: '0.2em' }}
           >
             Create
@@ -787,7 +787,7 @@ export default function InstagramPostPage() {
 
             {sheetScreen === 'formats' && (
               <>
-                <p className="text-xs font-mono text-slate-500 tracking-widest uppercase mb-4">Download as</p>
+                <p className="text-xs font-mono text-slate-400 tracking-widest uppercase mb-4">Download as</p>
                 <div className="grid grid-cols-2 gap-3">
                   {/* Photo Post */}
                   <button
@@ -797,7 +797,7 @@ export default function InstagramPostPage() {
                     <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600" />
                     <div className="text-center">
                       <p className="text-sm font-bold text-white">Post</p>
-                      <p className="text-[11px] text-slate-500">1080 × 1350</p>
+                      <p className="text-[11px] text-slate-400">1080 × 1350</p>
                     </div>
                   </button>
 
@@ -825,7 +825,7 @@ export default function InstagramPostPage() {
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-bold text-white">Leaderboard Post</p>
-                      <p className="text-[11px] text-slate-500">1080 × 1350</p>
+                      <p className="text-[11px] text-slate-400">1080 × 1350</p>
                     </div>
                   </button>
 
@@ -855,7 +855,7 @@ export default function InstagramPostPage() {
                   >
                     ←
                   </button>
-                  <p className="text-xs font-mono text-slate-500 tracking-widest uppercase">Pick a session</p>
+                  <p className="text-xs font-mono text-slate-400 tracking-widest uppercase">Pick a session</p>
                 </div>
 
                 {isGenerating && (
@@ -868,10 +868,10 @@ export default function InstagramPostPage() {
                 {!isGenerating && (
                   <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
                     {!sessions && (
-                      <p className="text-sm text-slate-500 text-center py-4">Loading sessions…</p>
+                      <p className="text-sm text-slate-400 text-center py-4">Loading sessions…</p>
                     )}
                     {sessions?.length === 0 && (
-                      <p className="text-sm text-slate-500 text-center py-4">No sessions found</p>
+                      <p className="text-sm text-slate-400 text-center py-4">No sessions found</p>
                     )}
                     {sessions?.map(s => (
                       <button
@@ -881,9 +881,9 @@ export default function InstagramPostPage() {
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-white truncate">{s.title}</p>
-                          <p className="text-[11px] text-slate-500">{s.date} · {s.playerCount} players</p>
+                          <p className="text-[11px] text-slate-400">{s.date} · {s.playerCount} players</p>
                         </div>
-                        <span className="text-slate-600 text-xs">→</span>
+                        <span className="text-slate-400 text-xs">→</span>
                       </button>
                     ))}
                   </div>

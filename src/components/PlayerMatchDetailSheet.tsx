@@ -72,7 +72,7 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
   const rankLabel = ordinal(rank)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end" onClick={onClose} role="dialog" aria-modal="true" aria-label="Player match details">
       <div className="absolute inset-0 bg-black/60" />
       <div
         className="relative w-full bg-slate-900 rounded-t-3xl flex flex-col"
@@ -84,6 +84,7 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
           <button
             onClick={onClose}
             className="text-slate-400 active:text-slate-200 p-1 text-lg leading-none"
+            aria-label="Close player details"
           >
             ✕
           </button>
@@ -93,21 +94,21 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
         <div className="px-5 pt-1 pb-4 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <div className="text-base font-bold text-white truncate">{player.player.name}</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">{rankLabel} place</div>
+              <div className="text-[1rem] font-bold text-white truncate">{player.player.name}</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">{rankLabel} place</div>
             </div>
             <div className="flex gap-4">
               <div className="text-center">
                 <div className="text-lg font-bold text-emerald-400">{player.wins}</div>
-                <div className="text-[9px] text-slate-500 uppercase tracking-wide">W</div>
+                <div className="text-[9px] text-slate-400 uppercase tracking-wide">W</div>
               </div>
               <div className="text-center">
                 <div className="text-lg font-bold text-red-400">{player.losses}</div>
-                <div className="text-[9px] text-slate-500 uppercase tracking-wide">L</div>
+                <div className="text-[9px] text-slate-400 uppercase tracking-wide">L</div>
               </div>
               <div className="text-center">
                 <div className={`text-lg font-bold ${diffColor}`}>{diffLabel}</div>
-                <div className="text-[9px] text-slate-500 uppercase tracking-wide">Diff</div>
+                <div className="text-[9px] text-slate-400 uppercase tracking-wide">Diff</div>
               </div>
             </div>
           </div>
@@ -116,7 +117,7 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
         {/* Game list */}
         <div className="flex-1 overflow-y-auto px-4 py-3 pb-8">
           {games.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center mt-8">No games found.</p>
+            <p className="text-sm text-slate-400 text-center mt-8">No games found.</p>
           ) : (
             <div className="flex flex-col gap-2">
               {games.map((g, i) => {
@@ -130,10 +131,10 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
                     key={`${g.slot}-${g.court}`}
                     className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${hasScore ? 'bg-slate-800/40 border-slate-700/30' : 'bg-slate-800/20 border-slate-800/20 opacity-50'}`}
                   >
-                    <span className="text-[11px] text-slate-500 min-w-7 shrink-0">G{i + 1}</span>
+                    <span className="text-[11px] text-slate-400 min-w-7 shrink-0">G{i + 1}</span>
                     <span className="flex-1 min-w-0 text-xs text-slate-400 truncate">
                       w/ <span className="text-slate-200">{partnerName}</span>
-                      <span className="text-slate-600 mx-1">vs</span>
+                      <span className="text-slate-400 mx-1">vs</span>
                       {opp1}, {opp2}
                     </span>
                     {hasScore ? (
@@ -146,7 +147,7 @@ export default function PlayerMatchDetailSheet({ player, rank, schedule, gameSco
                         </span>
                       </>
                     ) : (
-                      <span className="text-[11px] text-slate-600 shrink-0">–</span>
+                      <span className="text-[11px] text-slate-400 shrink-0">–</span>
                     )}
                   </div>
                 )

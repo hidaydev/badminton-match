@@ -34,8 +34,8 @@ export default function SessionLayout() {
   ]
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+    <div className="min-h-screen bg-ground text-fg flex flex-col">
+      <header className="border-b border-border-subtle bg-surface/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-3 py-3 flex items-center gap-2">
           <button
             onClick={() => navigate(-1)}
@@ -47,7 +47,7 @@ export default function SessionLayout() {
             </svg>
           </button>
           <Link to="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
+            <img src="/logo-192.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
             <h1 className="text-sm font-bold text-white tracking-tight whitespace-nowrap">MAJADU APP</h1>
           </Link>
           {locked && (
@@ -85,12 +85,12 @@ export default function SessionLayout() {
                         ? 'bg-indigo-600 border-indigo-500 text-white'
                         : isDone
                         ? 'bg-emerald-900/60 border-emerald-600 text-emerald-400'
-                        : 'bg-slate-800 border-slate-700 text-slate-500'
+                        : 'bg-slate-800 border-slate-700 text-slate-300'
                     }`}>
                       {isDone ? '✓' : i + 1}
                     </div>
                     <span className={`text-[10px] font-medium transition-colors ${
-                      isActive ? 'text-indigo-400' : isDone ? 'text-emerald-500' : 'text-slate-600'
+                      isActive ? 'text-indigo-400' : isDone ? 'text-emerald-500' : 'text-slate-400'
                     }`}>
                       {s.label}
                     </span>

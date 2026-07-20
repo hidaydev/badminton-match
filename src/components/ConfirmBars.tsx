@@ -66,7 +66,7 @@ export default function ConfirmBars({
     <>
       {/* Swap confirm bar */}
       {pendingSwap && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-indigo-900/40 px-4 py-3">
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-ground border-t border-indigo-900/40 px-4 py-3">
           <div className="max-w-xl mx-auto">
           <div className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
             <div className="flex-1 min-w-0">
@@ -79,7 +79,8 @@ export default function ConfirmBars({
             </div>
             <button
               onClick={onCancelSwap}
-              className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+              className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+              aria-label="Cancel swap"
             >
               ✕
             </button>
@@ -97,7 +98,7 @@ export default function ConfirmBars({
       )}
       {/* Absent confirm bar */}
       {absentChanged && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-red-900/40 px-4 py-3">
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-ground border-t border-red-900/40 px-4 py-3">
           <div className="max-w-xl mx-auto">
           <div className="bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
             <div className="flex-1 min-w-0">
@@ -106,11 +107,12 @@ export default function ConfirmBars({
                   ? 'Remove all absent tags'
                   : [...playerMap.values()].filter(p => absentPending.has(p.id)).map(p => p.name).join(', ')}
               </p>
-              <p className="text-[10px] text-slate-500 mt-0.5">Excluded from leaderboard</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Excluded from leaderboard</p>
             </div>
             <button
               onClick={onCancelAbsent}
-              className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+              className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+              aria-label="Cancel absent change"
             >
               ✕
             </button>
@@ -139,7 +141,7 @@ export default function ConfirmBars({
         const s1 = slotInfo(pendingSlotSwap.g1)
         const s2 = slotInfo(pendingSlotSwap.g2)
         return (
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-orange-900/40 px-4 pt-3 pb-4">
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-ground border-t border-orange-900/40 px-4 pt-3 pb-4">
             <div className="max-w-xl mx-auto flex flex-col gap-2.5">
               <div className="bg-orange-950/40 border border-orange-800/40 rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
                 <div className="flex items-start gap-2">
@@ -190,7 +192,7 @@ export default function ConfirmBars({
           ? (pendingTeamSwap.t2.team === 'A' ? t2game.teamA : t2game.teamB).map(id => playerMap.get(id)?.name ?? id).join(' & ')
           : '?'
         return (
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-violet-900/40 px-4 py-3">
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-ground border-t border-violet-900/40 px-4 py-3">
             <div className="max-w-xl mx-auto">
               <div className="bg-violet-950/50 border border-violet-800/50 rounded-xl px-3 py-2.5 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
@@ -203,7 +205,8 @@ export default function ConfirmBars({
                 </div>
                 <button
                   onClick={onCancelTeamSwap}
-                  className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+                  className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+                  aria-label="Cancel team swap"
                 >
                   ✕
                 </button>
@@ -224,7 +227,7 @@ export default function ConfirmBars({
       {pendingChange && (() => {
         const oldName = playerMap.get(pendingChange.target.playerId)?.name ?? pendingChange.target.playerId
         return (
-          <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950 border-t border-sky-900/40 px-4 pt-3 pb-4">
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-ground border-t border-sky-900/40 px-4 pt-3 pb-4">
             <div className="max-w-xl mx-auto flex flex-col gap-2">
               <div className="bg-sky-950/40 border border-sky-800/40 rounded-xl px-3 py-2.5 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
@@ -232,7 +235,7 @@ export default function ConfirmBars({
                     <span className="text-slate-400 line-through">{oldName}</span>
                     {' '}→{' '}
                     <span className="text-sky-300">{pendingChange.newName}</span>
-                    <span className="text-slate-500 ml-1">Slot {pendingChange.target.slot + 1}, {courtLabel(pendingChange.target.court)}</span>
+                    <span className="text-slate-400 ml-1">Slot {pendingChange.target.slot + 1}, {courtLabel(pendingChange.target.court)}</span>
                   </p>
                   {pendingChange.b2b && (
                     <p className="text-[10px] text-amber-400 mt-0.5">⚠ {pendingChange.newName} plays back-to-back</p>
@@ -241,7 +244,8 @@ export default function ConfirmBars({
                 </div>
                 <button
                   onClick={onCancelChange}
-                  className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+                  className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
+                  aria-label="Cancel player change"
                 >
                   ✕
                 </button>

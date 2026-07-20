@@ -71,7 +71,7 @@ export default function SharedSessionPage() {
           </svg>
         </button>
         <Link to="/" className="flex items-center gap-2">
-          <img src="/logo.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
+          <img src="/logo-192.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
           <h1 className="text-sm font-bold text-white tracking-tight">MAJADU APP</h1>
         </Link>
       </div>
@@ -80,7 +80,7 @@ export default function SharedSessionPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-ground text-fg flex flex-col">
         {header}
         <div className="flex-1 flex items-center justify-center">
           <span className="text-slate-400 text-sm">Loading session…</span>
@@ -91,7 +91,7 @@ export default function SharedSessionPage() {
 
   if (isError || !snapshot) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      <div className="min-h-screen bg-ground text-fg flex flex-col">
         {header}
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <span className="text-slate-300 text-sm">Session not found.</span>
@@ -120,10 +120,10 @@ export default function SharedSessionPage() {
   const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <main className="min-h-screen bg-ground text-fg flex flex-col">
       {header}
       {saveError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg" role="alert" aria-live="polite">
           {saveError}
         </div>
       )}
@@ -218,6 +218,6 @@ export default function SharedSessionPage() {
         })}
         lockLoading={lockPending}
       />
-    </div>
+    </main>
   )
 }

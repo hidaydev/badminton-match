@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="apple-touch-icon" href="/logo.png">
+    <link rel="apple-touch-icon" href="/logo-192.png">
     <link rel="manifest" href="/manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#0f172a">
@@ -11,13 +11,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Majadu">
     <title>Majadu App</title>
-    <link rel="preload" href="/anton.ttf" as="font" type="font/ttf" crossorigin="">
-    <link rel="preload" href="/Granesta.ttf" as="font" type="font/ttf" crossorigin="">
-    <link rel="preload" href="/edosz.ttf" as="font" type="font/ttf" crossorigin="">
+    <!-- IBM Plex Sans + Mono (UI typography) — non-render-blocking -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <!-- Decorative fonts for Instagram canvas only (loaded on-demand via @font-face) -->
     <style>
-      @font-face { font-family: 'Anton'; src: url('/anton.ttf') format('truetype'); }
-      @font-face { font-family: 'Granesta'; src: url('/Granesta.ttf') format('truetype'); }
-      @font-face { font-family: 'Edosz'; src: url('/edosz.ttf') format('truetype'); }
+      @font-face { font-family: 'Granesta'; src: url('/Granesta.ttf') format('truetype'); font-display: swap; }
+      @font-face { font-family: 'Edosz'; src: url('/edosz.ttf') format('truetype'); font-display: swap; }
     </style>
     <link rel="apple-touch-startup-image" href="/splash/apple-splash-2048-2732.jpg" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
     <link rel="apple-touch-startup-image" href="/splash/apple-splash-2732-2048.jpg" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">

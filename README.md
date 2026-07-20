@@ -52,6 +52,7 @@
 | **Framework** | React 19 + TypeScript 6 |
 | **Build** | Vite 8 |
 | **Styling** | Tailwind CSS v4 |
+| **Typography** | IBM Plex Sans + IBM Plex Mono (Google Fonts, non-blocking) |
 | **State** | Zustand (local) + TanStack React Query (server) |
 | **Routing** | React Router v7 |
 | **Backend** | Supabase (PostgreSQL + PostgREST RPC) |
@@ -104,7 +105,8 @@ source .env.local && npm run check:smoke
 ```
 src/
 ├── components/     # Shared UI components (SummaryModal, ShareButton, etc.)
-├── config/         # Instagram template configs
+│   └── ui/         # Reusable UI primitives (Card, Chip, Badge, EmptyState)
+├── config/         # Tier config, design tokens, Instagram templates
 ├── generator/      # Schedule generation algorithm (pure TS)
 ├── hooks/          # Custom React hooks
 ├── pages/          # Route pages (Setup, Players, Generate, etc.)
@@ -132,10 +134,23 @@ src/
 
 - [Handbook](docs/handbook/README.md) — Start here
 - [Current Status](docs/handbook/current-status.md) — Latest state
+- [Design System](docs/design-system.md) — Colors, typography, components, tokens
 - [Architecture](docs/handbook/architecture.md) — System design
 - [Data Model](docs/handbook/data-model.md) — Schema & types
 - [Features & Routes](docs/handbook/features-and-routes.md) — Feature map
 - [Roadmap](docs/handbook/roadmap.md) — What's next
+
+---
+
+## ⚡ Performance
+
+| Metric | Value |
+|--------|-------|
+| Initial JS (gzip) | ~107 KB (code-split) |
+| CSS (gzip) | ~13 KB |
+| PWA precache | ~638 KB |
+| Logo assets | 14.5 KB + 88.1 KB (optimized PNG) |
+| Font loading | Non-render-blocking, on-demand decorative |
 
 ---
 

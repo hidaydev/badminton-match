@@ -277,7 +277,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
             if (confirm('Reassign scoring PICs? Current assignments will be replaced.')) onRegeneratePics()
           }}
           disabled={isRegeneratingPics}
-          className="text-xs text-slate-500 hover:text-slate-300 underline disabled:opacity-50"
+          className="text-xs text-slate-400 hover:text-slate-200 underline disabled:opacity-50"
         >
           {isRegeneratingPics ? 'Regenerating…' : 'Regenerate PICs'}
         </button>
@@ -285,7 +285,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
           onClick={() => {
             if (confirm('Reset group assignment? All scores will be lost.')) onResetGroups()
           }}
-          className="text-xs text-slate-500 hover:text-slate-300 underline"
+          className="text-xs text-slate-400 hover:text-slate-200 underline"
         >
           Reset groups
         </button>
@@ -332,7 +332,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                       <span className="text-xs text-slate-300 flex-1 text-right truncate">{getPairName(m.pairBId)}</span>
                     </div>
                     {m.picName && (
-                      <span className="text-[9px] text-slate-500 leading-none text-center w-full">{m.picName}</span>
+                      <span className="text-[9px] text-slate-400 leading-none text-center w-full">{m.picName}</span>
                     )}
                   </button>
 
@@ -363,7 +363,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
             {/* Download bar */}
             {postModeGroups[g] && (
               <div className="px-4 py-2.5 flex items-center justify-between bg-slate-900/50 border-t border-slate-700">
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-400">
                   {Object.keys(matchPhotos).filter(id => groupMatches.some(m => m.id === id)).length} of {groupMatches.length} photos
                 </span>
                 <button
@@ -382,7 +382,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
 
             {/* Mini standings */}
             <div className="border-t border-slate-700 px-4 py-2">
-              <div className="grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] text-[10px] text-slate-600 mb-1 px-1 gap-x-2">
+              <div className="grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] text-[10px] text-slate-400 mb-1 px-1 gap-x-2">
                 <span>#</span><span></span>
                 <span className="text-center">W</span>
                 <span className="text-center">L</span>
@@ -394,11 +394,11 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                   key={row.pairId}
                   className={`grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] items-center py-1 px-1 rounded gap-x-2 text-xs ${i < 2 ? 'bg-yellow-400/6' : ''}`}
                 >
-                  <span className={`font-bold ${i < 2 ? 'text-yellow-100' : 'text-slate-600'}`}>{i + 1}</span>
+                  <span className={`font-bold ${i < 2 ? 'text-yellow-100' : 'text-slate-400'}`}>{i + 1}</span>
                   <span className={`truncate font-medium ${i < 2 ? 'text-yellow-100' : 'text-slate-400'}`}>{getPairName(row.pairId)}</span>
-                  <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-500'}`}>{row.wins}</span>
-                  <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-500'}`}>{row.losses}</span>
-                  <span className={`text-center font-medium ${row.pointDiff > 0 ? 'text-green-400' : row.pointDiff < 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                  <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-400'}`}>{row.wins}</span>
+                  <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-400'}`}>{row.losses}</span>
+                  <span className={`text-center font-medium ${row.pointDiff > 0 ? 'text-green-400' : row.pointDiff < 0 ? 'text-red-400' : 'text-slate-400'}`}>
                     {row.pointDiff > 0 ? `+${row.pointDiff}` : row.pointDiff === 0 ? '—' : row.pointDiff}
                   </span>
                   <span className={`w-1.5 h-1.5 rounded-full mx-auto ${i < 2 ? 'bg-yellow-400' : ''}`} />

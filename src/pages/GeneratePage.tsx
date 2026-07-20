@@ -51,7 +51,7 @@ function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: number[] })
     : 'text-red-400 bg-red-900/30 border-red-800'
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10px] text-slate-600">
+      <span className="text-[10px] text-slate-400">
         <span>{renderTierLetters(tiersA)}</span> vs <span>{renderTierLetters(tiersB)}</span>
       </span>
       <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${color}`}>{badge}</span>
@@ -79,9 +79,9 @@ function GameCard({
   const tiersB = teamB.map((id) => playerMap.get(id)?.tier ?? 2)
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 flex flex-col gap-1.5">
+    <div className="bg-elevated border border-border rounded-xl px-3 py-2 flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-slate-500 font-medium">{courtName || `Court ${court + 1}`}</span>
+        <span className="text-[10px] text-slate-400 font-medium">{courtName || `Court ${court + 1}`}</span>
         <TierBalance tiersA={tiersA} tiersB={tiersB} />
       </div>
       <div className="flex items-center gap-2">
@@ -91,7 +91,7 @@ function GameCard({
             return p ? <PlayerChip key={id} player={p} backToBack={backToBackIds?.has(id)} /> : null
           })}
         </div>
-        <span className="text-slate-500 text-xs font-bold shrink-0">vs</span>
+        <span className="text-slate-400 text-xs font-bold shrink-0">vs</span>
         <div className="flex gap-1 flex-1 min-w-0 overflow-hidden">
           {teamB.map((id) => {
             const p = getPlayer(id)
@@ -186,9 +186,9 @@ function ScheduleView({
                 ))}
                 {out.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap mt-1">
-                    <span className="text-[10px] text-slate-600">sits out:</span>
+                    <span className="text-[10px] text-slate-400">sits out:</span>
                     {out.map((p) => (
-                      <span key={p.id} className="text-[10px] text-slate-500 bg-slate-800/50 px-1.5 py-0.5 rounded">
+                      <span key={p.id} className="text-[10px] text-slate-400 bg-slate-800/50 px-1.5 py-0.5 rounded">
                         {p.name}
                       </span>
                     ))}
@@ -201,10 +201,10 @@ function ScheduleView({
       </div>
 
       {/* Player stats — computed on-the-fly from schedule */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
+      <div className="bg-surface border border-border-subtle rounded-2xl p-3 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-white">Player Stats</span>
-          <span className="text-xs text-slate-500">target ~{idealPlays.toFixed(1)} plays</span>
+          <span className="text-xs text-slate-400">target ~{idealPlays.toFixed(1)} plays</span>
         </div>
         <div className="grid grid-cols-1 gap-y-2">
           {(() => {
@@ -225,7 +225,7 @@ function ScheduleView({
                     <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
                       {plays}×
                     </span>
-                    <span className="text-[10px] text-slate-600">
+                    <span className="text-[10px] text-slate-400">
                       {sits} sit · {partners} P · {opponents} O
                     </span>
                   </div>
@@ -233,7 +233,7 @@ function ScheduleView({
               })
           })()}
         </div>
-        <p className="text-[10px] text-slate-600">P = unique partners · O = unique opponents faced</p>
+        <p className="text-[10px] text-slate-400">P = unique partners · O = unique opponents faced</p>
       </div>
     </div>
   )
@@ -371,7 +371,7 @@ function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood, retryI
             {hasBad ? '⚠ Consider regenerating' : hasWarn ? '~ Could be better' : '✓ Good schedule'}
           </span>
           {retryInfo && (
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-slate-400">
               {retryInfo.perfect ? `· found in ${retryInfo.attempts} attempt${retryInfo.attempts > 1 ? 's' : ''}` : `· best of ${retryInfo.attempts} attempts`}
             </span>
           )}
@@ -389,16 +389,16 @@ function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood, retryI
         {items.map((item) => (
           <div key={item.label} className="flex items-center gap-1.5 min-w-0">
             <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot[item.level]}`} />
-            <span className="text-[11px] text-slate-500 shrink-0">{item.label}:</span>
+            <span className="text-[11px] text-slate-400 shrink-0">{item.label}:</span>
             <span className={`text-[11px] font-medium truncate ${text[item.level]}`}>{item.detail}</span>
             {item.hint && (
-              <span title={item.hint} className="text-[10px] text-slate-600 hover:text-slate-400 cursor-help shrink-0">ⓘ</span>
+              <span title={item.hint} className="text-[10px] text-slate-400 hover:text-slate-400 cursor-help shrink-0">ⓘ</span>
             )}
           </div>
         ))}
         <div className="col-span-2 flex items-center gap-1.5 min-w-0">
           <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot[backToBackItem.level]}`} />
-          <span className="text-[11px] text-slate-500 shrink-0">{backToBackItem.label}:</span>
+          <span className="text-[11px] text-slate-400 shrink-0">{backToBackItem.label}:</span>
           <span className={`text-[11px] font-medium ${text[backToBackItem.level]}`}>{backToBackItem.detail}</span>
         </div>
       </div>
@@ -659,12 +659,12 @@ export default function GeneratePage() {
       </div>
 
       {error && (
-        <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm">
+        <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm" role="alert" aria-live="polite">
           {error}
         </div>
       )}
       {saveError && (
-        <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm">
+        <div className="p-3 bg-red-900/30 border border-red-700 rounded-xl text-red-400 text-sm" role="alert" aria-live="polite">
           {saveError}
         </div>
       )}
@@ -696,7 +696,7 @@ export default function GeneratePage() {
         <button
           onClick={handleRetryUntilGood}
           disabled={players.length < 4 || isGenerating}
-          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-colors"
+          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-[1rem] rounded-2xl transition-colors"
         >
           {isGenerating ? '⏳ Generating…' : '▶ Generate Schedule'}
         </button>

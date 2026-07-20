@@ -20,31 +20,31 @@ export default function SessionListPage() {
           type="date"
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value)}
-          className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-300 [color-scheme:dark]"
+          className="flex-1 bg-surface border border-border-subtle rounded-lg px-3 py-2 text-xs font-mono text-slate-300 scheme-dark"
         />
         {dateFilter && (
           <button
             onClick={() => setDateFilter('')}
-            className="text-xs text-slate-500 hover:text-slate-300 border border-slate-800 rounded-lg px-3 py-2 transition-colors"
+            className="text-xs text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg px-3 py-2 transition-colors"
           >
             Clear
           </button>
         )}
       </div>
 
-      <p className="text-xs font-mono text-slate-500">
+      <p className="text-xs font-mono text-slate-400">
         <span className="text-indigo-400">{filtered.length}</span> session{filtered.length !== 1 ? 's' : ''}
       </p>
 
       {filtered.length === 0 && (
-        <p className="text-slate-600 text-xs font-mono text-center py-8">No sessions on this date.</p>
+        <p className="text-slate-400 text-xs font-mono text-center py-8">No sessions on this date.</p>
       )}
 
       {filtered.map((s) => (
         <a
           key={s.id}
           href={`/s/${s.id}`}
-          className="block bg-slate-900 border border-slate-800 rounded-xl p-4 hover:border-slate-600 transition-colors"
+          className="block bg-surface border border-border-subtle rounded-xl p-4 hover:border-slate-600 transition-colors"
         >
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -53,7 +53,7 @@ export default function SessionListPage() {
             </div>
             <div className="text-right shrink-0">
               <p className="text-xs text-slate-400">{s.playerCount} players</p>
-              <p className="text-xs text-slate-500">{s.totalGames} games</p>
+              <p className="text-xs text-slate-400">{s.totalGames} games</p>
             </div>
           </div>
         </a>

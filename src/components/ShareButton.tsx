@@ -133,7 +133,7 @@ export default function ShareButton() {
       />
       {/* Confirmation modal */}
       {confirming && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Confirm publish session">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 shadow-2xl">
             <div className="flex flex-col gap-1">
               <h2 className="text-white font-bold text-lg">Publish this session?</h2>
@@ -170,7 +170,7 @@ export default function ShareButton() {
 
       {/* Inline share URL (after publish) */}
       {shareUrl ? (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-elevated border border-border">
           <span className="text-xs text-slate-400 truncate max-w-50">{shareUrl}</span>
           <button
             onClick={handleCopy}

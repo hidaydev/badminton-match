@@ -135,28 +135,28 @@ export default function TournamentPage() {
   return (
     <div className="flex flex-col gap-0 -mx-3 -mt-4">
       {saveError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg" role="alert" aria-live="polite">
           {saveError}
         </div>
       )}
       {/* Header */}
       <div className="bg-slate-800 px-4 pt-3 pb-0 border-b border-slate-700">
         <div className="flex items-center gap-2">
-          <h2 className="text-base font-bold text-white leading-tight">{name}</h2>
+          <h2 className="text-[1rem] font-bold text-white leading-tight">{name}</h2>
           {groupsFull && (
             isSaving ? (
-              <svg className="animate-spin w-3.5 h-3.5 text-slate-500 shrink-0" viewBox="0 0 24 24" fill="none">
+              <svg className="animate-spin w-3.5 h-3.5 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             ) : (
-              <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             )
           )}
         </div>
-        <p className="text-xs text-slate-500 mt-0.5 mb-3">
+        <p className="text-xs text-slate-400 mt-0.5 mb-3">
           {new Date(date).toLocaleDateString('id-ID', {
             day: 'numeric',
             month: 'long',
@@ -172,7 +172,7 @@ export default function TournamentPage() {
               className={`flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 tab === t.id
                   ? 'text-yellow-400 border-yellow-400'
-                  : 'text-slate-500 border-transparent hover:text-slate-300'
+                  : 'text-slate-400 border-transparent hover:text-slate-200'
               }`}
             >
               {t.label}
