@@ -17,6 +17,7 @@ No formal test framework, but compact regression tests exist via `node:test`:
 npm run check          # Types + lint + tailwind + regression tests
 npm run check:smoke    # Live Supabase RPC smoke tests
 npm run check:regression  # Regression tests only (node:test)
+npx playwright test    # E2E tests (Playwright, requires dev server)
 ```
 
 ## Architecture
