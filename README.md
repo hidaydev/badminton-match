@@ -94,6 +94,9 @@ npm run dev
 # Static checks (types + lint + tailwind + regression)
 npm run check
 
+# E2E tests (Playwright — requires dev server)
+npx playwright test
+
 # Supabase smoke tests
 source .env.local && npm run check:smoke
 ```
@@ -113,6 +116,8 @@ src/
 ├── queries/        # React Query hooks + Supabase RPC endpoints
 ├── store/          # Zustand stores (session, tournament)
 └── utils/          # Utility functions (swap, standings, canvas, etc.)
+e2e/                # Playwright E2E tests
+scripts/            # Build scripts, regression tests, Instagram automation
 ```
 
 ---

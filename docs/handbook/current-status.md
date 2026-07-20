@@ -185,6 +185,19 @@ Formalized design system, WCAG compliance, and performance optimization for mobi
 - `backlog.md` — original revamp trail (96 items, 9 phases)
 - `backlog-audit.md` — post-audit fixes (34 items, 4 batches)
 
+**E2E Testing (Playwright):**
+- `e2e/revamp.spec.ts` — 15 tests covering revamp changes
+- Config: `playwright.config.ts` (mobile viewport, Chromium headless)
+- Run: `npx playwright test`
+- Tests:
+  - Homepage: no errors, logo renders, IBM Plex Sans loaded, token colors applied, navigation grid
+  - Scoreboard: code-split load, keyboard accessibility, aria-labels
+  - Session Setup: focus-visible ring, semantic tokens
+  - Players: touch target sizes
+  - ARIA: `<main>` landmark, aria-labels
+  - Images: no broken image responses
+  - Reduced Motion: `prefers-reduced-motion` CSS present
+
 ## What has been verified
 
 Verified against the real Supabase project:
