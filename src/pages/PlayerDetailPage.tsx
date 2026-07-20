@@ -1,9 +1,8 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useGetPlayerStats } from '../queries'
 
 export default function PlayerDetailPage() {
   const { name } = useParams<{ name: string }>()
-  const navigate = useNavigate()
 
   const { data: stats, isLoading, isError } = useGetPlayerStats(name)
 
@@ -17,13 +16,6 @@ export default function PlayerDetailPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <button
-        onClick={() => navigate(-1)}
-        className="text-xs text-slate-400 hover:text-slate-200 self-start transition-colors"
-      >
-        ← Back
-      </button>
-
       <h2 className="text-xl font-bold text-white">{stats.name}</h2>
 
       <div className="grid grid-cols-2 gap-3">
@@ -33,7 +25,7 @@ export default function PlayerDetailPage() {
           { label: 'Wins', value: stats.wins },
           { label: 'Losses', value: stats.losses },
         ] as const).map((stat) => (
-          <div key={stat.label} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div key={stat.label} className="bg-surface border border-border-subtle rounded-xl p-4">
             <p className="text-xs text-slate-400">{stat.label}</p>
             <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
           </div>
@@ -41,16 +33,16 @@ export default function PlayerDetailPage() {
       </div>
 
       {stats.sessions.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
+        <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-2">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Sessions ({stats.sessions.length})
           </p>
           {stats.sessions.map((s) => (
             <div key={s.id} className="flex justify-between items-center text-sm gap-2">
-              <span className={s.absent ? 'text-slate-500 line-through' : 'text-slate-200'}>{s.title || 'Untitled'}</span>
+              <span className={s.absent ? 'text-slate-400 line-through' : 'text-slate-200'}>{s.title || 'Untitled'}</span>
               <div className="flex items-center gap-2 shrink-0">
-                {s.absent && <span className="text-[10px] text-slate-600">absent</span>}
-                <span className="text-slate-500">{s.date.split('-').reverse().join('-')}</span>
+                {s.absent && <span className="text-[10px] text-slate-400">absent</span>}
+                <span className="text-slate-400">{s.date.split('-').reverse().join('-')}</span>
               </div>
             </div>
           ))}
@@ -58,7 +50,7 @@ export default function PlayerDetailPage() {
       )}
 
       {stats.topPartners.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
+        <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-2">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Top Partners</p>
           {stats.topPartners.map((p) => (
             <div key={p.name} className="flex items-center justify-between">
@@ -66,7 +58,7 @@ export default function PlayerDetailPage() {
               <div className="flex items-center gap-1.5 font-mono text-[9px]">
                 <span className="text-emerald-400 font-semibold">{p.wins}W</span>
                 <span className="text-red-400 font-semibold">{p.losses}L</span>
-                <span className="text-slate-500">{p.count}×</span>
+                <span className="text-slate-400">{p.count}×</span>
               </div>
             </div>
           ))}
@@ -74,7 +66,7 @@ export default function PlayerDetailPage() {
       )}
 
       {stats.topOpponents.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2">
+        <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-2">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Top Opponents</p>
           {stats.topOpponents.map((p) => (
             <div key={p.name} className="flex items-center justify-between">
@@ -82,7 +74,7 @@ export default function PlayerDetailPage() {
               <div className="flex items-center gap-1.5 font-mono text-[9px]">
                 <span className="text-emerald-400 font-semibold">{p.wins}W</span>
                 <span className="text-red-400 font-semibold">{p.losses}L</span>
-                <span className="text-slate-500">{p.count}×</span>
+                <span className="text-slate-400">{p.count}×</span>
               </div>
             </div>
           ))}

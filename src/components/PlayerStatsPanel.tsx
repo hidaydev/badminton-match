@@ -39,7 +39,7 @@ export default function PlayerStatsPanel({
     })
 
     return (
-      <div className="mt-6 bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
+      <div className="mt-6 bg-surface border border-border-subtle rounded-2xl p-3 flex flex-col gap-2">
         <span className="text-sm font-semibold text-white">Player Stats</span>
         <div className="grid grid-cols-2 gap-y-2">
           {sorted.map((id) => {
@@ -49,9 +49,9 @@ export default function PlayerStatsPanel({
             const isAbsent = absentSet.has(id)
             return (
               <div key={id} className={`flex items-center gap-1.5 ${isAbsent ? 'opacity-40' : ''}`}>
-                <span className={`text-xs truncate ${isAbsent ? 'text-slate-500 line-through' : 'text-slate-300'}`}>{name}</span>
-                {isAbsent && <span className="text-[10px] text-slate-600 bg-slate-800 rounded px-1 py-0.5 shrink-0">absent</span>}
-                <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-600' : 'text-white'}`}>
+                <span className={`text-xs truncate ${isAbsent ? 'text-slate-400 line-through' : 'text-slate-300'}`}>{name}</span>
+                {isAbsent && <span className="text-[10px] text-slate-300 bg-slate-800 rounded px-1 py-0.5 shrink-0">absent</span>}
+                <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-400' : 'text-white'}`}>
                   {plays}×
                 </span>
               </div>
@@ -71,10 +71,10 @@ export default function PlayerStatsPanel({
   const idealPlays = (schedule.length * 4) / players.length
 
   return (
-    <div className="mt-6 bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
+    <div className="mt-6 bg-surface border border-border-subtle rounded-2xl p-3 flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-white">Player Stats</span>
-        <span className="text-xs text-slate-500">target ~{idealPlays.toFixed(1)} plays</span>
+        <span className="text-xs text-slate-400">target ~{idealPlays.toFixed(1)} plays</span>
       </div>
       <div className="grid grid-cols-1 gap-y-2">
         {players
@@ -92,14 +92,14 @@ export default function PlayerStatsPanel({
                 <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
                   {plays}×
                 </span>
-                <span className="text-[10px] text-slate-600">
+                <span className="text-[10px] text-slate-400">
                   {sits} sit · {partners} P · {opponents} O
                 </span>
               </div>
             )
           })}
       </div>
-      <p className="text-[10px] text-slate-600">P = unique partners · O = unique opponents faced</p>
+      <p className="text-[10px] text-slate-400">P = unique partners · O = unique opponents faced</p>
     </div>
   )
 }

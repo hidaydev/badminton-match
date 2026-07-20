@@ -90,7 +90,7 @@ export default function GroupAssignment({
                       key={slotIdx}
                       className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5"
                     >
-                      <span className="text-[8px] font-bold text-slate-500" style={{ minWidth: '18px' }}>
+                      <span className="text-[8px] font-bold text-slate-400" style={{ minWidth: '18px' }}>
                         #{num}
                       </span>
                       <span className="text-xs text-slate-300 truncate flex-1">
@@ -99,7 +99,7 @@ export default function GroupAssignment({
                       <button
                         onClick={() => onRemovePairFromGroup(pairId)}
                         aria-label={`Remove ${getPairName(pairId)}`}
-                        className="text-slate-600 hover:text-slate-400 shrink-0 ml-1"
+                        className="text-slate-400 hover:text-slate-400 shrink-0 ml-1"
                       >
                         ×
                       </button>
@@ -119,12 +119,12 @@ export default function GroupAssignment({
                     ].join(' ')}
                   >
                     <span
-                      className={`text-[8px] font-bold ${active ? 'text-amber-400' : 'text-slate-500'}`}
+                      className={`text-[8px] font-bold ${active ? 'text-amber-400' : 'text-slate-400'}`}
                       style={{ minWidth: '18px' }}
                     >
                       #{num}
                     </span>
-                    <span className={`text-xs ${active ? 'text-amber-300 font-semibold' : 'text-slate-600'}`}>
+                    <span className={`text-xs ${active ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
                       {active ? '← pick a pair below' : 'tap to fill'}
                     </span>
                   </button>
@@ -138,7 +138,7 @@ export default function GroupAssignment({
       {/* Unassigned pool */}
       {unassigned.length > 0 && (
         <div>
-          <p className={`text-xs mb-2 ${activeSlot ? 'text-yellow-400 font-semibold' : 'text-slate-500'}`}>
+          <p className={`text-xs mb-2 ${activeSlot ? 'text-yellow-400 font-semibold' : 'text-slate-400'}`}>
             {activeLabel ?? 'Unassigned — tap a slot above first'}
           </p>
           <div className="flex flex-wrap gap-2">

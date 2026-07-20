@@ -8,6 +8,9 @@ export default function UpdateBanner({ onReload, onDismiss }: Props) {
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
       onClick={onDismiss}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Update available"
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
@@ -37,10 +40,10 @@ export default function UpdateBanner({ onReload, onDismiss }: Props) {
 
         {/* What's new hint */}
         <div className="flex items-start gap-4 px-6 py-5">
-          <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">✨</div>
+          <div className="shrink-0 w-8 h-8 rounded-full bg-elevated flex items-center justify-center text-[1rem]">✨</div>
           <div className="flex flex-col gap-0.5 pt-0.5">
             <span className="text-sm font-semibold text-white">Improvements & fixes</span>
-            <span className="text-xs text-slate-500">Reload to get the latest version</span>
+            <span className="text-xs text-slate-400">Reload to get the latest version</span>
           </div>
         </div>
 
@@ -57,7 +60,7 @@ export default function UpdateBanner({ onReload, onDismiss }: Props) {
           </button>
           <button
             onClick={onDismiss}
-            className="w-full py-3 rounded-2xl text-slate-500 font-medium text-sm
+            className="w-full py-3 rounded-2xl text-slate-400 font-medium text-sm
               active:scale-98 transition-transform"
           >
             Later

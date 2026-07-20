@@ -90,7 +90,7 @@ export default function StandingsTab({ pairs, groups, matches }: Props) {
 
       {/* Full ranking */}
       <div className="bg-slate-800 rounded-xl overflow-hidden">
-        <div className="px-4 py-2 border-b border-slate-700 text-xs text-slate-500 font-semibold">
+        <div className="px-4 py-2 border-b border-slate-700 text-xs text-slate-400 font-semibold">
           Full Leaderboard
         </div>
         {ranked.map((pair, i) => {
@@ -101,15 +101,15 @@ export default function StandingsTab({ pairs, groups, matches }: Props) {
               key={pair.id}
               className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/50 last:border-0"
             >
-              <span className="text-slate-500 font-bold w-5 text-sm shrink-0">{i + 1}</span>
+              <span className="text-slate-400 font-bold w-5 text-sm shrink-0">{i + 1}</span>
               <div className="flex-1 min-w-0">
                 <div className="text-sm text-slate-200 truncate">{getPairName(pair.id)}</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">
+                <div className="text-[10px] text-slate-400 mt-0.5">
                   {STAGE_LABEL[Math.min(rank, 5)]}
                 </div>
               </div>
               <div className="text-right shrink-0">
-                <div className="text-[10px] text-slate-600">
+                <div className="text-[10px] text-slate-400">
                   {rec.wins}W {rec.losses}L
                 </div>
               </div>

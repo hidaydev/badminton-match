@@ -48,13 +48,13 @@ export default function HomePage() {
     <div className="flex flex-col gap-6 pt-6">
       <div className="flex flex-col gap-1">
         <p
-          className="text-[10px] font-mono text-slate-500 uppercase"
+          className="text-[10px] font-mono text-slate-400 uppercase"
           style={{ letterSpacing: '0.2em' }}
         >
           Badminton
         </p>
         <h2 className="text-3xl font-bold text-yellow-400 tracking-tight leading-none">Scheduler</h2>
-        <p className="text-slate-500 text-xs mt-2 font-mono">Select an option to get started</p>
+        <p className="text-slate-400 text-xs mt-2 font-mono">Select an option to get started</p>
       </div>
 
       {lastSession && (
@@ -67,19 +67,19 @@ export default function HomePage() {
           <span className="text-3xl">📋</span>
           <div className="flex flex-col gap-0.5 flex-1 min-w-0">
             <span
-              className="text-[10px] font-mono text-slate-500 uppercase"
+              className="text-[10px] font-mono text-slate-400 uppercase"
               style={{ letterSpacing: '0.15em' }}
             >
               Continue Session
             </span>
-            <span className="text-base font-bold text-white leading-tight truncate">
+            <span className="text-[1rem] font-bold text-white leading-tight truncate">
               {lastSession.title || 'Untitled Session'}
             </span>
             <span className="text-xs text-slate-400 font-mono">
               {lastSession.date.split('-').reverse().join('-')} · {lastSession.playerCount} players · {lastSession.totalGames} games
             </span>
           </div>
-          <span className="text-slate-600 font-mono text-sm shrink-0">→</span>
+          <span className="text-slate-400 font-mono text-sm shrink-0">→</span>
         </button>
       )}
 
@@ -96,9 +96,9 @@ export default function HomePage() {
             <span className="text-2xl">{item.icon}</span>
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-semibold text-white leading-tight">{item.label}</span>
-              <span className="text-[11px] text-slate-500">{item.description}</span>
+              <span className="text-[11px] text-slate-400">{item.description}</span>
             </div>
-            <span className="absolute bottom-4 right-4 text-slate-700 group-hover:text-slate-500 transition-colors text-sm font-mono">→</span>
+            <span className="absolute bottom-4 right-4 text-slate-400 group-hover:text-slate-200 transition-colors text-sm font-mono">→</span>
           </button>
         ))}
 
@@ -112,9 +112,9 @@ export default function HomePage() {
             <span className="text-2xl">📲</span>
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-semibold text-white leading-tight">Install App</span>
-              <span className="text-[11px] text-slate-500">Add to your home screen</span>
+              <span className="text-[11px] text-slate-400">Add to your home screen</span>
             </div>
-            <span className="absolute bottom-4 right-4 text-slate-700 group-hover:text-slate-500 transition-colors text-sm font-mono">→</span>
+            <span className="absolute bottom-4 right-4 text-slate-400 group-hover:text-slate-200 transition-colors text-sm font-mono">→</span>
           </button>
         )}
       </div>

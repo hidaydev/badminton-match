@@ -62,7 +62,7 @@ export default function ResolvePlayersModal({
   const allResolved = list.length > 0 && list.every((e) => e.mode === 'new' || (e.mode === 'merge' && e.mergeTarget))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Resolve new players">
       <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full flex flex-col gap-4 shadow-2xl max-h-screen overflow-auto">
         <div className="flex flex-col gap-1">
           <h2 className="text-white font-bold text-lg">Resolve new players</h2>
@@ -76,7 +76,7 @@ export default function ResolvePlayersModal({
 
         <div className="flex flex-col gap-3">
           {list.map((entry) => (
-            <div key={entry.player.id} className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 flex flex-col gap-2">
+            <div key={entry.player.id} className="bg-elevated border border-border rounded-xl px-3 py-2.5 flex flex-col gap-2">
               <span className="text-sm font-semibold text-white">{entry.player.name}</span>
               <div className="flex gap-1.5">
                 <button
@@ -104,7 +104,7 @@ export default function ResolvePlayersModal({
                 <select
                   value={entry.mergeTarget ?? ''}
                   onChange={(e) => setMergeTarget(entry.player.id, e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
                 >
                   <option value="">— Select existing player —</option>
                   {knownPlayers.map((kp) => (
@@ -115,7 +115,7 @@ export default function ResolvePlayersModal({
                 </select>
               )}
               {entry.mode === 'merge' && entry.mergeTarget && (
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[10px] text-slate-400">
                   &quot;{entry.player.name}&quot; will be registered as an alias of{' '}
                   <span className="text-indigo-400 font-medium">{entry.mergeTarget}</span>.
                   Future sessions with this name will auto-resolve.

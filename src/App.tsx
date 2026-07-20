@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import UpdateBanner from './components/UpdateBanner'
@@ -9,16 +9,26 @@ import SetupPage from './pages/SetupPage'
 import PlayersPage from './pages/PlayersPage'
 import ConstraintsPage from './pages/ConstraintsPage'
 import GeneratePage from './pages/GeneratePage'
-import SharedSessionPage from './pages/SharedSessionPage'
 import SessionListPage from './pages/SessionListPage'
 import PlayerHistoryPage from './pages/PlayerHistoryPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
-import TournamentPage from './pages/TournamentPage'
-import InstagramPostPage from './pages/InstagramPostPage'
-import ScoreboardPage from './pages/ScoreboardPage'
 import { useStore } from './store'
 import { decodeSnapshot, type SharedSnapshot } from './utils/shareUrl'
 import { SharedViewContext, useSharedView } from './sharedView'
+
+// Lazy-loaded heavy pages (code-split)
+const ScoreboardPage = lazy(() => import('./pages/ScoreboardPage'))
+const InstagramPostPage = lazy(() => import('./pages/InstagramPostPage'))
+const TournamentPage = lazy(() => import('./pages/TournamentPage'))
+const SharedSessionPage = lazy(() => import('./pages/SharedSessionPage'))
+
+function Loading() {
+  return (
+    <div className="min-h-screen bg-ground text-fg flex items-center justify-center">
+      <span className="text-fg-dim text-sm">Loading…</span>
+    </div>
+  )
+}
 
 function RequireSession({ children }: { children: React.ReactNode }) {
   const locked = useStore((s) => s.session.locked)
@@ -71,10 +81,10 @@ export default function App() {
             <Route path="sessions" element={<SessionListPage />} />
             <Route path="player-history" element={<PlayerHistoryPage />} />
             <Route path="player-history/:name" element={<PlayerDetailPage />} />
-            <Route path="tournament" element={<TournamentPage />} />
-            <Route path="instagram-post" element={<InstagramPostPage />} />
+            <Route path="tournament" element={<Suspense fallback={<Loading />}><TournamentPage /></Suspense>} />
+            <Route path="instagram-post" element={<Suspense fallback={<Loading />}><InstagramPostPage /></Suspense>} />
           </Route>
-          <Route path="scoreboard" element={<ScoreboardPage />} />
+          <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ScoreboardPage /></Suspense>} />
           <Route element={<SessionLayout />}>
             <Route path="session/new" element={<SetupPage />} />
             <Route path="session/players" element={<RequireSession><PlayersPage /></RequireSession>} />
@@ -82,7 +92,7 @@ export default function App() {
             <Route path="session/generate" element={<RequirePlayers><GeneratePage /></RequirePlayers>} />
             <Route path="view" element={<SharedViewPage />} />
           </Route>
-          <Route path="s/:sessionId" element={<SharedSessionPage />} />
+          <Route path="s/:sessionId" element={<Suspense fallback={<Loading />}><SharedSessionPage /></Suspense>} />
         </Routes>
       </BrowserRouter>
     </SharedViewContext.Provider>
