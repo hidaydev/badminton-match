@@ -41,7 +41,7 @@ function SlotGameCard({ id, children }: { id: string; children: React.ReactNode 
         <span
           {...listeners}
           {...attributes}
-          className="text-slate-500 hover:text-orange-400 cursor-grab active:cursor-grabbing text-base shrink-0 select-none touch-none px-0.5"
+          className="text-slate-400 hover:text-orange-400 cursor-grab active:cursor-grabbing text-[1rem] shrink-0 select-none touch-none px-0.5"
         >
           ⠿
         </span>
@@ -75,15 +75,15 @@ function StandingsTab({
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-center min-h-50">
-          <p className="text-sm text-slate-500 text-center">Enter scores in the Schedule tab to see leaderboard.</p>
+          <p className="text-sm text-slate-400 text-center">Enter scores in the Schedule tab to see leaderboard.</p>
         </div>
         {absentList.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider px-2">Absent</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">Absent</p>
             {absentList.map(p => (
               <div key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
-                <span className="flex-1 text-sm font-medium text-slate-600 line-through">{p.name}</span>
-                <span className="text-[10px] text-slate-700">absent</span>
+                <span className="flex-1 text-sm font-medium text-slate-400 line-through">{p.name}</span>
+                <span className="text-[10px] text-slate-400">absent</span>
               </div>
             ))}
           </div>
@@ -95,7 +95,7 @@ function StandingsTab({
   return (
     <div className="flex flex-col gap-1.5">
       {/* Tiebreaker order strip — hugs top divider */}
-      <div className="flex justify-end gap-1 items-center pl-2 pr-2 -mt-4 pt-1 pb-3 text-[8px] text-slate-700">
+      <div className="flex justify-end gap-1 items-center pl-2 pr-2 -mt-4 pt-1 pb-3 text-[8px] text-slate-400">
         <span>ranked by:</span>
         <span className="font-semibold">W-L</span>
         <span>›</span>
@@ -107,11 +107,11 @@ function StandingsTab({
       </div>
       {/* Header */}
       <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
-        <span className="w-8 text-[10px] font-bold text-slate-600 text-center shrink-0">#</span>
-        <span className="flex-1 text-[10px] font-bold text-slate-600">Name</span>
-        <span className="w-11 text-[10px] font-bold text-slate-600 text-center shrink-0">W-L</span>
-        <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Diff</span>
-        <span className="w-9 text-[10px] font-bold text-slate-600 text-center shrink-0">Pts</span>
+        <span className="w-8 text-[10px] font-bold text-slate-400 text-center shrink-0">#</span>
+        <span className="flex-1 text-[10px] font-bold text-slate-400">Name</span>
+        <span className="w-11 text-[10px] font-bold text-slate-400 text-center shrink-0">W-L</span>
+        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0">Diff</span>
+        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0">Pts</span>
       </div>
 
       {standings.map((s, i) => {
@@ -138,7 +138,7 @@ function StandingsTab({
             <div className="w-8 flex justify-center shrink-0">
               {medal
                 ? <span className="text-lg leading-none">{medal}</span>
-                : <span className="text-[11px] font-semibold text-slate-500">{ordinal(rank)}</span>
+                : <span className="text-[11px] font-semibold text-slate-400">{ordinal(rank)}</span>
               }
             </div>
             <span
@@ -156,11 +156,11 @@ function StandingsTab({
       {absentList.length > 0 && (
         <>
           <div className="h-px bg-slate-800 my-1" />
-          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider px-2 mt-1">Absent</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mt-1">Absent</p>
           {absentList.map(p => (
             <div key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
-              <span className="flex-1 text-sm font-medium text-slate-600 line-through">{p.name}</span>
-              <span className="text-[10px] text-slate-700">absent</span>
+              <span className="flex-1 text-sm font-medium text-slate-400 line-through">{p.name}</span>
+              <span className="text-[10px] text-slate-400">absent</span>
             </div>
           ))}
         </>
@@ -551,26 +551,26 @@ export default function SummaryModal({
   function handleConfirmAbsent() { onSetAbsent?.([...absentPending]); exitAbsentMode() }
 
   return (
-    <div className={standalone ? 'flex-1 flex flex-col bg-slate-950 overflow-hidden' : 'fixed inset-0 z-50 bg-slate-950 flex flex-col overflow-hidden'}>
+    <div className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-50 bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label="Session summary">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
             <button
               onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); exitChangeMode() }}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Schedule
             </button>
             <button
               onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); exitChangeMode() }}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Leaderboard
             </button>
           </div>
           {playedCount > 0 && (
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-400">
               {playedCount}/{totalGames} played
             </span>
           )}
@@ -615,7 +615,7 @@ export default function SummaryModal({
           {onDelete && !deleteConfirm && (
             <button
               onClick={() => setDeleteConfirm(true)}
-              className="text-slate-600 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors text-sm"
+              className="text-slate-400 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors text-sm"
               title="Delete session"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -636,7 +636,7 @@ export default function SummaryModal({
           {deleteConfirm && (
             <button
               onClick={() => setDeleteConfirm(false)}
-              className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
+              className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
             >
               ✕
             </button>
@@ -654,7 +654,7 @@ export default function SummaryModal({
               </button>
               <button
                 onClick={() => setLockConfirm(false)}
-                className="text-xs text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
+                className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
               >
                 ✕
               </button>
@@ -676,7 +676,7 @@ export default function SummaryModal({
       {(title || date) && (
         <div className="px-5 py-3 border-b border-slate-800 shrink-0 flex items-center gap-2">
           <div className="flex-1 min-w-0">
-            {title && <p className="text-white font-bold text-base leading-tight">{title}</p>}
+            {title && <p className="text-white font-bold text-[1rem] leading-tight">{title}</p>}
             {date && (
               <p className="text-slate-400 text-xs mt-0.5">
                 {new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
@@ -686,7 +686,7 @@ export default function SummaryModal({
                   year: 'numeric',
                 })}
                 {courtTimes.length > 0 && (
-                  <span className="text-slate-600"> · {mergeCourtTimes(courtTimes)}</span>
+                  <span className="text-slate-400"> · {mergeCourtTimes(courtTimes)}</span>
                 )}
               </p>
             )}
@@ -788,7 +788,7 @@ export default function SummaryModal({
                     }}
                     placeholder="New name…"
                     autoFocus
-                    className="flex-1 bg-slate-900 border border-emerald-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+                    className="flex-1 bg-slate-900 border border-emerald-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                   />
                   <button
                     onClick={async () => {
@@ -875,7 +875,7 @@ export default function SummaryModal({
                     }}
                     placeholder="New name…"
                     autoFocus
-                    className="flex-1 bg-slate-900 border border-sky-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
+                    className="flex-1 bg-slate-900 border border-sky-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/50"
                   />
                   <button
                     onClick={() => {
@@ -939,8 +939,8 @@ export default function SummaryModal({
                 return (
                   <div key={s} className="flex items-start gap-4 py-4">
                     <div className="flex flex-col items-center w-4 shrink-0 pt-0.5 gap-0.5">
-                      <span className="text-xs font-bold text-slate-600">#{s + 1}</span>
-                      <span className="text-[8px] text-slate-700 font-medium leading-none">
+                      <span className="text-xs font-bold text-slate-400">#{s + 1}</span>
+                      <span className="text-[8px] text-slate-400 font-medium leading-none">
                         {minutesToTime(timeToMinutes(sessionStart) + s * slotMinutes)}
                       </span>
                     </div>
@@ -969,7 +969,7 @@ export default function SummaryModal({
                               </div>
                               {/* Teams */}
                               <div className="grid items-center gap-2 flex-1 min-w-0" style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
-                                <span className="text-[10px] font-semibold text-slate-600 whitespace-nowrap">
+                                <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
                                   {courtLabel(g.court)}
                                 </span>
                                 {teamSwapMode ? (
@@ -993,7 +993,7 @@ export default function SummaryModal({
                                       >
                                         {g.teamA.map((id, i) => (
                                           <span key={i} className="flex items-center gap-1">
-                                            {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
+                                            {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
                                             <span className="text-xs font-medium text-slate-200">{name(id, s)}</span>
                                           </span>
                                         ))}
@@ -1015,7 +1015,7 @@ export default function SummaryModal({
                                       const isDimmed = !!pendingSwap && !isSelected
                                       return (
                                         <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
-                                          {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
+                                          {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
                                           {replaceMode ? (
                                             <button
                                               onClick={() => {
@@ -1069,13 +1069,13 @@ export default function SummaryModal({
                                               isSelected
                                                 ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
                                                 : effectiveAbsent.has(id)
-                                                  ? 'border-transparent text-slate-500 line-through'
+                                                  ? 'border-transparent text-slate-400 line-through'
                                                   : 'border-transparent text-white'
                                             }`}>{n}</span>
                                           ) : (
                                             <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
                                               effectiveAbsent.has(id)
-                                                ? 'border-transparent text-slate-500 line-through'
+                                                ? 'border-transparent text-slate-400 line-through'
                                                 : done
                                                   ? 'border-transparent text-slate-400 line-through'
                                                   : 'border-transparent text-white'
@@ -1086,7 +1086,7 @@ export default function SummaryModal({
                                     })}
                                   </div>
                                 )}
-                                <span className="text-slate-600 text-xs text-center">vs</span>
+                                <span className="text-slate-400 text-xs text-center">vs</span>
                                 {teamSwapMode ? (
                                   (() => {
                                     const tgt: TeamSwapTarget = { slot: s, court: g.court, team: 'B' }
@@ -1108,7 +1108,7 @@ export default function SummaryModal({
                                       >
                                         {g.teamB.map((id, i) => (
                                           <span key={i} className="flex items-center gap-1">
-                                            {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
+                                            {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
                                             <span className="text-xs font-medium text-slate-200">{name(id, s)}</span>
                                           </span>
                                         ))}
@@ -1130,7 +1130,7 @@ export default function SummaryModal({
                                       const isDimmed = !!pendingSwap && !isSelected
                                       return (
                                         <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
-                                          {i > 0 && <span className="text-[10px] text-slate-600">&</span>}
+                                          {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
                                           {replaceMode ? (
                                             <button
                                               onClick={() => {
@@ -1184,13 +1184,13 @@ export default function SummaryModal({
                                               isSelected
                                                 ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
                                                 : effectiveAbsent.has(id)
-                                                  ? 'border-transparent text-slate-500 line-through'
+                                                  ? 'border-transparent text-slate-400 line-through'
                                                   : 'border-transparent text-white'
                                             }`}>{n}</span>
                                           ) : (
                                             <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
                                               effectiveAbsent.has(id)
-                                                ? 'border-transparent text-slate-500 line-through'
+                                                ? 'border-transparent text-slate-400 line-through'
                                                 : done
                                                   ? 'border-transparent text-slate-400 line-through'
                                                   : 'border-transparent text-white'
@@ -1206,7 +1206,7 @@ export default function SummaryModal({
                               {!changeMode && !swapMode && !replaceMode && !slotSwapMode && !teamSwapMode && (savedScore && !isOpen ? (
                                 <button
                                   onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) } }}
-                                  className={`text-[11px] font-bold shrink-0 whitespace-nowrap ${locked ? 'text-slate-500 cursor-default' : 'text-emerald-400 hover:text-emerald-300'}`}
+                                  className={`text-[11px] font-bold shrink-0 whitespace-nowrap ${locked ? 'text-slate-400 cursor-default' : 'text-emerald-400 hover:text-emerald-300'}`}
                                 >
                                   {savedScore.a}–{savedScore.b}
                                 </button>
@@ -1216,7 +1216,7 @@ export default function SummaryModal({
                                     if (isOpen) { setExpandedScore(null); setScoreError(null) }
                                     else { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draft })) }
                                   }}
-                                  className="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 whitespace-nowrap transition-colors"
+                                  className="text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap transition-colors"
                                 >
                                   {isOpen ? '▲ score' : '+ score'}
                                 </button>
@@ -1228,26 +1228,28 @@ export default function SummaryModal({
                               <div className="ml-6 bg-slate-900 border border-indigo-800/60 rounded-lg px-3 py-2.5 flex flex-col gap-2">
                                 <div className="flex items-center justify-center gap-3">
                                   <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[10px] text-slate-500 truncate max-w-20 text-center">{teamANames}</span>
+                                    <span className="text-[10px] text-slate-400 truncate max-w-20 text-center">{teamANames}</span>
                                     <input
                                       type="number"
                                       min={0}
                                       max={99}
                                       value={draft.a}
                                       onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), a: e.target.value } }))}
-                                      className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-indigo-500"
+                                      className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                                      aria-label={`Score for ${teamANames}`}
                                     />
                                   </div>
-                                  <span className="text-slate-600 font-bold text-lg mt-4">–</span>
+                                  <span className="text-slate-400 font-bold text-lg mt-4">–</span>
                                   <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[10px] text-slate-500 truncate max-w-20 text-center">{teamBNames}</span>
+                                    <span className="text-[10px] text-slate-400 truncate max-w-20 text-center">{teamBNames}</span>
                                     <input
                                       type="number"
                                       min={0}
                                       max={99}
                                       value={draft.b}
                                       onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), b: e.target.value } }))}
-                                      className="w-14 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-indigo-500"
+                                      className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                                      aria-label={`Score for ${teamBNames}`}
                                     />
                                   </div>
                                 </div>

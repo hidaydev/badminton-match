@@ -21,11 +21,11 @@ function SlotPicker({
 
   return (
     <div className="flex flex-col gap-1 flex-1 min-w-0">
-      <span className="text-[10px] text-slate-500 text-center">{label}</span>
+      <span className="text-[10px] text-slate-400 text-center">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer w-full"
+        className="bg-elevated border border-border rounded-lg px-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer w-full"
       >
         <option value="">— Any —</option>
         {available.map((p) => (
@@ -94,18 +94,19 @@ function FixMatchCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {isPinned && <span className="text-xs">📌</span>}
-          <span className="text-xs text-slate-500 font-medium">Match #{index + 1}</span>
+          <span className="text-xs text-slate-400 font-medium">Match #{index + 1}</span>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => duplicateFixMatch(match.id)}
-            className="text-xs text-slate-500 hover:text-slate-300 px-2 py-0.5 rounded hover:bg-slate-800 transition-colors"
+            className="text-xs text-slate-400 hover:text-slate-200 px-2.5 py-1.5 rounded hover:bg-slate-800 transition-colors"
           >
             Copy
           </button>
           <button
             onClick={() => removeFixMatch(match.id)}
-            className="text-xs text-slate-500 hover:text-red-400 px-2 py-0.5 rounded hover:bg-slate-800 transition-colors"
+            className="text-xs text-slate-400 hover:text-red-400 px-2.5 py-1.5 rounded hover:bg-slate-800 transition-colors"
+            aria-label="Remove match"
           >
             ✕
           </button>
@@ -142,7 +143,7 @@ function FixMatchCard({
           <SlotPicker label="A1" value={A1} onChange={(v) => setSlot(0, v)} players={players} exclude={used.filter((id) => id !== A1)} />
           <SlotPicker label="A2" value={A2} onChange={(v) => setSlot(1, v)} players={players} exclude={used.filter((id) => id !== A2)} />
         </div>
-        <span className="text-slate-500 font-bold text-xs shrink-0">vs</span>
+        <span className="text-slate-400 font-bold text-xs shrink-0">vs</span>
         <div className="flex gap-1.5 flex-1 min-w-0">
           <SlotPicker label="B1" value={B1} onChange={(v) => setSlot(2, v)} players={players} exclude={used.filter((id) => id !== B1)} />
           <SlotPicker label="B2" value={B2} onChange={(v) => setSlot(3, v)} players={players} exclude={used.filter((id) => id !== B2)} />
@@ -153,11 +154,11 @@ function FixMatchCard({
       {isPinned && (
         <div className="flex gap-2 items-end">
           <div className="flex flex-col gap-1 flex-1">
-            <span className="text-[10px] text-slate-500">⏰ Time</span>
+            <span className="text-[10px] text-slate-400">⏰ Time</span>
             <select
               value={match.pinnedTime ?? ''}
               onChange={(e) => updateFixMatch(match.id, { pinnedTime: e.target.value || undefined, pinnedCourt: undefined })}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer"
             >
               <option value="">— Select time —</option>
               {timeSlots.map((t) => (
@@ -166,12 +167,12 @@ function FixMatchCard({
             </select>
           </div>
           <div className="flex flex-col gap-1 flex-1">
-            <span className="text-[10px] text-slate-500">🏸 Court</span>
+            <span className="text-[10px] text-slate-400">🏸 Court</span>
             <select
               value={match.pinnedCourt ?? ''}
               onChange={(e) => updateFixMatch(match.id, { pinnedCourt: e.target.value ? Number(e.target.value) : undefined })}
               disabled={!match.pinnedTime}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <option value="">— Select court —</option>
               {availableCourts.map((c) => (
@@ -357,10 +358,10 @@ function ValidationPanel({ players, matches }: { players: Player[]; matches: Fix
       )}
 
       {/* Per-player counts */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
+      <div className="bg-surface border border-border-subtle rounded-2xl p-3 flex flex-col gap-2">
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-semibold text-white">Fix Match Assignments</span>
-          <span className="text-xs text-slate-500">max {expectedPlays}x per player (balanced)</span>
+          <span className="text-xs text-slate-400">max {expectedPlays}x per player (balanced)</span>
         </div>
         <div className="flex flex-col gap-1.5">
           {players.map((p) => {
@@ -369,14 +370,14 @@ function ValidationPanel({ players, matches }: { players: Player[]; matches: Fix
             const pct = Math.min((count / expectedPlays) * 100, 100)
             return (
               <div key={p.id} className="flex items-center gap-2">
-                <span className={`w-24 text-xs truncate ${over ? 'text-red-400' : count > 0 ? 'text-slate-300' : 'text-slate-600'}`}>{p.name}</span>
+                <span className={`w-24 text-xs truncate ${over ? 'text-red-400' : count > 0 ? 'text-slate-300' : 'text-slate-400'}`}>{p.name}</span>
                 <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${over ? 'bg-red-500' : count > 0 ? 'bg-indigo-500' : 'bg-slate-700'}`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span className={`text-xs w-14 text-right ${over ? 'text-red-400 font-semibold' : count > 0 ? 'text-slate-400' : 'text-slate-600'}`}>
+                <span className={`text-xs w-14 text-right ${over ? 'text-red-400 font-semibold' : count > 0 ? 'text-slate-400' : 'text-slate-400'}`}>
                   {count}/{expectedPlays}{over ? ' ⚠' : ''}
                 </span>
               </div>
@@ -427,7 +428,7 @@ export default function ConstraintsPage() {
       )}
 
       {fixMatches.length === 0 && (
-        <div className="text-center py-12 text-slate-500">
+        <div className="text-center py-12 text-slate-400">
           <div className="text-4xl mb-3">🎯</div>
           <p className="text-sm">No fixed matches yet. Add one to force specific pairings.</p>
         </div>
@@ -442,7 +443,7 @@ export default function ConstraintsPage() {
       </button>
 
       {players.length < 2 && (
-        <p className="text-xs text-center text-slate-500">Add at least 2 players first.</p>
+        <p className="text-xs text-center text-slate-400">Add at least 2 players first.</p>
       )}
 
       <button

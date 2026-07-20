@@ -5,6 +5,7 @@
 - [current-status.md](current-status.md) — Primary handover document
 - [product-overview.md](product-overview.md) — Product description
 - [architecture.md](architecture.md) — System architecture
+- [design-system.md](../design-system.md) — Colors, typography, components, tokens
 
 ## Reference
 
@@ -18,6 +19,11 @@
 - [concurrency-audit.md](concurrency-audit.md) — Performance audit
 - [cleanup-rpcs.md](cleanup-rpcs.md) — Admin RPC docs
 - [mdef-integration.md](mdef-integration.md) — Integration boundary
+
+## Design System Backlogs
+
+- [backlog.md](../../backlog.md) — Original revamp (96 items, 9 phases, all complete)
+- [backlog-audit.md](../../backlog-audit.md) — Post-audit fixes (34 items, 4 batches, all complete)
 
 ## Archive
 

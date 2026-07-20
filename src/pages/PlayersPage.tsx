@@ -48,7 +48,7 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
   }
 
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl px-2.5 py-2 group transition-colors">
+    <div className="flex items-center gap-1.5 sm:gap-2 bg-surface border border-border-subtle hover:border-slate-700 rounded-xl px-2.5 py-2 group transition-colors">
       {/* Avatar */}
       <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
         {player.name[0].toUpperCase()}
@@ -62,7 +62,7 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
           onChange={(e) => setName(e.target.value)}
           onBlur={save}
           onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setName(player.name); setEditing(false) } }}
-          className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-2 py-1 text-white text-sm focus:outline-none"
+          className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
         />
       ) : (
         <span
@@ -82,7 +82,7 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
             className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
               player.gender === g
                 ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
-                : 'text-slate-500 hover:text-slate-300'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             {g}
@@ -96,8 +96,8 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
           <button
             key={t}
             onClick={() => updatePlayer(player.id, { tier: t })}
-            className={`w-8 py-1 text-xs font-bold transition-colors ${
-              player.tier === t ? TIER_ACTIVE[t] : 'text-slate-500 hover:text-slate-300'
+            className={`min-w-8 h-8 text-xs font-bold transition-colors ${
+              player.tier === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             {TIER_LABELS[t]}
@@ -108,7 +108,8 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
       {/* Delete */}
       <button
         onClick={onRemove}
-        className="text-slate-600 hover:text-red-400 active:text-red-400 text-sm transition-colors shrink-0 p-1"
+        className="text-slate-400 hover:text-red-400 active:text-red-400 text-sm transition-colors shrink-0 p-2"
+        aria-label="Remove player"
       >
         ✕
       </button>
@@ -131,7 +132,7 @@ function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gende
 
   return (
     <form onSubmit={submit} className="flex items-center gap-2 bg-slate-900 border border-indigo-600 rounded-xl px-3 py-2">
-      <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-slate-500 text-xs shrink-0">
+      <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 text-xs shrink-0">
         ?
       </div>
       <input
@@ -140,7 +141,7 @@ function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gende
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
         placeholder="Player name"
-        className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none"
+        className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
       />
       {/* Gender picker */}
       <div className="flex rounded-lg overflow-hidden border border-slate-700">
@@ -152,7 +153,7 @@ function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gende
             className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
               gender === g
                 ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
-                : 'text-slate-500 hover:text-slate-300'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             {g}
@@ -166,8 +167,8 @@ function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gende
             key={t}
             type="button"
             onClick={() => setTier(t)}
-            className={`w-8 py-1 text-xs font-bold transition-colors ${
-              tier === t ? TIER_ACTIVE[t] : 'text-slate-500 hover:text-slate-300'
+            className={`min-w-8 h-8 text-xs font-bold transition-colors ${
+              tier === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             {TIER_LABELS[t]}
@@ -181,7 +182,7 @@ function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gende
       >
         Add
       </button>
-      <button type="button" onClick={onCancel} className="text-slate-500 hover:text-slate-300 text-sm transition-colors">
+      <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-200 text-sm transition-colors" aria-label="Cancel add player">
         ✕
       </button>
     </form>
@@ -205,10 +206,10 @@ function BulkImport({ onClose, existingCount, max }: { onClose: () => void; exis
   }
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-col gap-4">
+    <div className="bg-elevated border border-border rounded-xl p-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-white">Paste player list</span>
-        <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-sm">✕</button>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-sm" aria-label="Close bulk import">✕</button>
       </div>
       <textarea
         autoFocus
@@ -216,7 +217,7 @@ function BulkImport({ onClose, existingCount, max }: { onClose: () => void; exis
         onChange={(e) => setText(e.target.value)}
         placeholder={"1. Rakha ✅\n2. Vina ✅\n3. Fakhri ✅"}
         rows={6}
-        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-600 text-sm font-mono focus:outline-none focus:border-indigo-500 resize-none"
+        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm font-mono focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 resize-none"
       />
       {preview.length > 0 && (
         <div className="flex flex-col gap-1">
@@ -229,7 +230,7 @@ function BulkImport({ onClose, existingCount, max }: { onClose: () => void; exis
               <span key={name} className="text-xs bg-slate-700 text-slate-200 px-2 py-0.5 rounded-full">{name}</span>
             ))}
           </div>
-          <p className="text-xs text-slate-500 mt-1">Gender defaults to M, Tier to A — click to change after import.</p>
+          <p className="text-xs text-slate-400 mt-1">Gender defaults to M, Tier to A — click to change after import.</p>
         </div>
       )}
       <div className="flex gap-2">
@@ -283,7 +284,7 @@ export default function PlayersPage() {
             ? 'text-emerald-400 border-emerald-700 bg-emerald-900/30'
             : players.length > required
             ? 'text-red-400 border-red-700 bg-red-900/30'
-            : 'text-slate-400 border-slate-700 bg-slate-800'
+            : 'text-slate-300 border-slate-700 bg-slate-800'
         }`}>
           {players.length}/{required}
         </span>
@@ -302,7 +303,7 @@ export default function PlayersPage() {
               <div key={tier}>
                 <div className="flex items-center gap-2 mb-2">
                   <TierBadge tier={tier} />
-                  <span className="text-xs text-slate-500">{TIER_NAMES[tier]}</span>
+                  <span className="text-xs text-slate-400">{TIER_NAMES[tier]}</span>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {group.map((player) => (
@@ -339,7 +340,7 @@ export default function PlayersPage() {
       )}
 
       {players.length === 0 && !showForm && !showBulk && (
-        <div className="text-center py-12 text-slate-500">
+        <div className="text-center py-12 text-slate-400">
           <div className="text-4xl mb-3">👥</div>
           <p>No players yet. Add {required} players to continue.</p>
         </div>
@@ -347,7 +348,7 @@ export default function PlayersPage() {
 
       {/* Progress hint */}
       {players.length > 0 && !isComplete && (
-        <p className="text-xs text-center text-slate-500">
+        <p className="text-xs text-center text-slate-400">
           {players.length < required
             ? `${required - players.length} more player${required - players.length > 1 ? 's' : ''} needed`
             : `${players.length - required} too many — remove ${players.length - required} to match session`}

@@ -6,8 +6,8 @@ export default function HomeLayout() {
   const isHome = location.pathname === '/'
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+    <div className="min-h-screen bg-ground text-fg flex flex-col">
+      <header className="border-b border-border-subtle bg-surface/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-3 py-3 flex items-center gap-2">
           {!isHome && (
             <button
@@ -21,12 +21,12 @@ export default function HomeLayout() {
             </button>
           )}
           <Link to="/" className="flex items-center gap-2 flex-1">
-            <img src="/logo.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
+            <img src="/logo-192.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
             <h1 className="text-sm font-bold text-white tracking-tight">MAJADU APP</h1>
           </Link>
           <button
             onClick={() => window.location.reload()}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 active:scale-90 transition-all"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 active:scale-90 transition-all"
             aria-label="Refresh"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

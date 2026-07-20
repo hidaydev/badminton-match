@@ -9,6 +9,9 @@ export default function InstallModal({ isIos, onInstall, onClose }: Props) {
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Install app"
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
@@ -25,7 +28,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: Props) {
 
         {/* App identity */}
         <div className="flex flex-col items-center gap-2 px-6 pt-4 pb-5">
-          <img src="/logo.png" alt="Majadu" className="w-16 h-16 rounded-2xl object-contain" />
+          <img src="/logo-192.png" alt="Majadu" className="w-16 h-16 rounded-2xl object-contain" />
           <div className="text-center">
             <p className="text-white font-bold text-lg leading-tight">Install Majadu App</p>
             <p className="text-slate-400 text-sm mt-0.5">
@@ -41,18 +44,18 @@ export default function InstallModal({ isIos, onInstall, onClose }: Props) {
         {isIos ? (
           <ol className="flex flex-col gap-0 px-6 py-4">
             <li className="flex items-start gap-4 py-3">
-              <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">⬆️</div>
+              <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[1rem]">⬆️</div>
               <div className="flex flex-col gap-0.5 pt-0.5">
                 <span className="text-sm font-semibold text-white">Tap the Share button</span>
-                <span className="text-xs text-slate-500">In Safari's toolbar at the bottom</span>
+                <span className="text-xs text-slate-400">In Safari's toolbar at the bottom</span>
               </div>
             </li>
             <li className="flex flex-col gap-2 py-3">
               <div className="flex items-start gap-4">
-                <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">➕</div>
+                <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[1rem]">➕</div>
                 <div className="flex flex-col gap-0.5 pt-0.5">
                   <span className="text-sm font-semibold text-white">Tap "Add to Home Screen"</span>
-                  <span className="text-xs text-slate-500">Scroll down in the share sheet</span>
+                  <span className="text-xs text-slate-400">Scroll down in the share sheet</span>
                 </div>
               </div>
               <img
@@ -62,19 +65,19 @@ export default function InstallModal({ isIos, onInstall, onClose }: Props) {
               />
             </li>
             <li className="flex items-start gap-4 py-3">
-              <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">✅</div>
+              <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[1rem]">✅</div>
               <div className="flex flex-col gap-0.5 pt-0.5">
                 <span className="text-sm font-semibold text-white">Tap "Add" to confirm</span>
-                <span className="text-xs text-slate-500">The app will appear on your home screen</span>
+                <span className="text-xs text-slate-400">The app will appear on your home screen</span>
               </div>
             </li>
           </ol>
         ) : (
           <div className="flex items-start gap-4 px-6 py-5">
-            <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-base">📲</div>
+            <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[1rem]">📲</div>
             <div className="flex flex-col gap-1 pt-0.5">
               <span className="text-sm font-semibold text-white">One tap to install</span>
-              <span className="text-xs text-slate-500">Works offline · Fast · No app store needed</span>
+              <span className="text-xs text-slate-400">Works offline · Fast · No app store needed</span>
             </div>
           </div>
         )}
@@ -95,7 +98,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: Props) {
           )}
           <button
             onClick={onClose}
-            className="w-full py-3 rounded-2xl text-slate-500 font-medium text-sm
+            className="w-full py-3 rounded-2xl text-slate-400 font-medium text-sm
               active:scale-98 transition-transform"
           >
             {isIos ? 'Got it' : 'Not now'}

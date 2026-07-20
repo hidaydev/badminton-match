@@ -1,14 +1,44 @@
 @import "tailwindcss";
 
+/* -- Design Tokens --------------------------------------------------------- */
+@theme {
+  /* Typography */
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Background */
+  --color-ground: #0f172a;
+  --color-surface: #1e293b;
+  --color-elevated: #334155;
+
+  /* Border */
+  --color-border: #475569;
+  --color-border-subtle: #334155;
+
+  /* Text */
+  --color-fg: #f1f5f9;
+  --color-fg-dim: #94a3b8;
+
+  /* Accent */
+  --color-accent: #fbbf24;
+  --color-accent-alt: #818cf8;
+
+  /* Status */
+  --color-success: #34d399;
+  --color-error: #f87171;
+  --color-warning: #fbbf24;
+  --color-info: #38bdf8;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
+  font-family: var(--font-sans);
+  background: var(--color-ground);
+  color: var(--color-fg);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -20,4 +50,14 @@ body {
 /* Prevent iOS Safari from auto-zooming on input focus */
 input, select, textarea {
   font-size: max(16px, 1em);
+}
+
+/* -- Reduced Motion -------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

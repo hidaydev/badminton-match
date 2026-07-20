@@ -178,6 +178,9 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
       className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 duration-75"
       style={{ background: '#b91c1c', transitionProperty: 'filter' }}
       onClick={addRed}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addRed() } }}
     >
       {/* Player name */}
       <div className="absolute top-0 left-0 right-0 flex justify-center pt-5" onClick={e => e.stopPropagation()}>
@@ -198,6 +201,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             onKeyDown={e => { if (e.key === 'Enter') setEditingRed(false) }}
             className="bg-transparent text-center text-white/70 font-bold uppercase outline-none border-b border-white/30 w-36"
             style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
+            aria-label="Red team name"
           />
         ) : (
           <span
@@ -232,6 +236,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
         onClick={minusRed}
         className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors"
         style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
+        aria-label="Decrease red score"
       >
         −
       </button>
@@ -243,6 +248,9 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
       className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 duration-75"
       style={{ background: '#1d4ed8', transitionProperty: 'filter' }}
       onClick={addBlue}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addBlue() } }}
     >
       {/* Player name */}
       <div className="absolute top-0 left-0 right-0 flex justify-center pt-5" onClick={e => e.stopPropagation()}>
@@ -263,6 +271,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             onKeyDown={e => { if (e.key === 'Enter') setEditingBlue(false) }}
             className="bg-transparent text-center text-white/70 font-bold uppercase outline-none border-b border-white/30 w-36"
             style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
+            aria-label="Blue team name"
           />
         ) : (
           <span
@@ -297,6 +306,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
         onClick={minusBlue}
         className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors"
         style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
+        aria-label="Decrease blue score"
       >
         −
       </button>
@@ -344,6 +354,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
               disabled={isSaving}
               className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto disabled:opacity-30 disabled:cursor-not-allowed"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              aria-label="Close scoreboard"
             >
               ✕
             </button>
@@ -351,6 +362,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
               onClick={reset}
               className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              aria-label="Reset scores"
             >
               ↺
             </button>
@@ -358,6 +370,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
               onClick={doSwap}
               className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              aria-label="Swap sides"
             >
               ⇄
             </button>
@@ -365,6 +378,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
               onClick={toggleFullscreen}
               className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
             >
               {isFullscreen ? '⊠' : '⛶'}
             </button>
@@ -392,6 +406,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             onClick={async () => { await exitFullscreen(); navigate('/') }}
             className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            aria-label="Back to home"
           >
             ←
           </button>
@@ -399,6 +414,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             onClick={reset}
             className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            aria-label="Reset scores"
           >
             ↺
           </button>
@@ -406,6 +422,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             onClick={doSwap}
             className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            aria-label="Swap sides"
           >
             ⇄
           </button>
@@ -413,6 +430,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
             onClick={toggleFullscreen}
             className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
           >
             {isFullscreen ? '⊠' : '⛶'}
           </button>
@@ -466,7 +484,7 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   // Standalone page mode
   return (
-    <div
+    <main
       className="flex overflow-hidden select-none"
       style={isPortrait ? {
         position: 'fixed',
@@ -493,6 +511,6 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
         </div>
       )}
       {footer}
-    </div>
+    </main>
   )
 }

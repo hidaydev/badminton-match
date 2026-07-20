@@ -86,7 +86,7 @@ function TimeSelect({
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
+      className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
     >
       {options.map((o) => (
         <option key={o} value={o}>{hourLabel(o)}</option>
@@ -126,7 +126,7 @@ function CourtTimeline({
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-xs text-slate-500">Timeline</span>
+      <span className="text-xs text-slate-400">Timeline</span>
       <div className="relative">
         {/* tick labels */}
         <div className="flex relative h-5 mb-1">
@@ -135,7 +135,7 @@ function CourtTimeline({
             return (
               <span
                 key={t}
-                className="absolute text-[10px] text-slate-600 -translate-x-1/2"
+                className="absolute text-[10px] text-slate-400 -translate-x-1/2"
                 style={{ left: `${pct}%` }}
               >
                 {minutesToTime(t)}
@@ -151,7 +151,7 @@ function CourtTimeline({
             const slots = Math.max(0, Math.floor((timeToMinutes(ct.end) - timeToMinutes(ct.start)) / slotMinutes))
             return (
               <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-500 w-12 shrink-0">{courtNames[i] || `Court ${i + 1}`}</span>
+                <span className="text-[10px] text-slate-400 w-12 shrink-0">{courtNames[i] || `Court ${i + 1}`}</span>
                 <div className="flex-1 relative h-5 bg-slate-800 rounded">
                   <div
                     className={`absolute h-full rounded ${COURT_COLORS[i % COURT_COLORS.length]} opacity-80 flex items-center justify-center`}
@@ -215,7 +215,7 @@ export default function SetupPage() {
         <p className="text-slate-400 text-sm">Configure courts and time slots. Settings lock once session starts.</p>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-5">
+      <div className="bg-surface border border-border-subtle rounded-2xl p-4 flex flex-col gap-5">
 
         {/* Block 0: Session identity */}
         <div className="flex flex-wrap gap-4">
@@ -227,7 +227,7 @@ export default function SetupPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Sunday Morning Session"
               disabled={session.locked}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed h-9"
+              className="bg-elevated border border-border rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed h-9"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-35">
@@ -237,7 +237,7 @@ export default function SetupPage() {
               value={session.date}
               onChange={(e) => setDate(e.target.value)}
               disabled={session.locked}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
             />
           </div>
         </div>
@@ -275,7 +275,7 @@ export default function SetupPage() {
               value={session.slotMinutes}
               disabled={session.locked}
               onChange={(e) => setSlotMinutes(Number(e.target.value))}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
             >
               {DURATION_OPTIONS.map((d) => (
                 <option key={d} value={d}>{d} min</option>
@@ -298,7 +298,7 @@ export default function SetupPage() {
                     value={session.courtNames?.[i] ?? ''}
                     onChange={(e) => setCourtName(i, e.target.value)}
                     placeholder={`Court ${i + 1}`}
-                    className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-500 focus:outline-none focus:text-white"
+                    className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-400 focus:outline-none focus:text-white focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus-visible:rounded-lg"
                   />
                   <TimeSelect
                     value={ct.start}
@@ -306,14 +306,14 @@ export default function SetupPage() {
                     onChange={(v) => setCourtTime(i, v, ct.end)}
                     disabled={session.locked}
                   />
-                  <span className="text-slate-600 text-xs">→</span>
+                  <span className="text-slate-400 text-xs">→</span>
                   <TimeSelect
                     value={ct.end}
                     options={endOpts}
                     onChange={(v) => setCourtTime(i, ct.start, v)}
                     disabled={session.locked}
                   />
-                  <span className="text-xs text-slate-500 ml-auto">
+                  <span className="text-xs text-slate-400 ml-auto">
                     {slots} game{slots !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -339,7 +339,7 @@ export default function SetupPage() {
         )}
 
         {!session.locked && (!session.title.trim() || !session.date) && !courtError && (
-          <p className="text-xs text-slate-500">Session title and date are required to start.</p>
+          <p className="text-xs text-slate-400">Session title and date are required to start.</p>
         )}
 
         {session.locked ? (
@@ -364,7 +364,7 @@ export default function SetupPage() {
         )}
       </div>
 
-      <div className="text-xs text-slate-500 leading-relaxed">
+      <div className="text-xs text-slate-400 leading-relaxed">
         <p>
           {session.courts} court{session.courts > 1 ? 's' : ''} · {session.totalGames} total games.
           <PlaysPerPlayer totalGames={session.totalGames} playerCount={session.playerCount} />

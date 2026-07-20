@@ -68,7 +68,7 @@ function MatchCard({
           {scored ? (
             <div className="text-[10px] font-bold text-yellow-400 text-center my-1">{match.scoreA} – {match.scoreB}</div>
           ) : (
-            <div className="text-[9px] text-slate-600 text-center my-1">vs</div>
+            <div className="text-[9px] text-slate-400 text-center my-1">vs</div>
           )}
           <div className="text-xs text-slate-200 font-medium truncate">{getPairName(match.pairBId)}</div>
         </div>
@@ -387,7 +387,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
             <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos['sf-2']} onUploadPhoto={() => { activeUploadMatchId.current = 'sf-2'; fileInputRef.current?.click() }} />
             <span /> {/* no connector to 3rd place */}
-            <MatchCard match={third} label="🥉 3RD" borderColor="border-slate-600" labelColor="text-slate-500" getPairName={getPairName} onSelect={handleSelect}
+            <MatchCard match={third} label="🥉 3RD" borderColor="border-slate-600" labelColor="text-slate-400" getPairName={getPairName} onSelect={handleSelect}
               showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos['3rd-1']} onUploadPhoto={() => { activeUploadMatchId.current = '3rd-1'; fileInputRef.current?.click() }} />
           </div>
         </div>
@@ -408,7 +408,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
               {positions.map(({ pos, emoji, label, positionLabel, name, mt, champion: isChamp }) => (
                 <div key={pos} className={`text-center ${mt}`}>
                   <div className={isChamp ? 'text-3xl' : 'text-2xl'}>{emoji}</div>
-                  <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-yellow-400' : 'text-slate-500'}`}>{label}</div>
+                  <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-yellow-400' : 'text-slate-400'}`}>{label}</div>
                   <div className={`text-xs mt-1 font-medium ${isChamp ? 'text-yellow-200 text-sm' : 'text-slate-300'}`}>{name}</div>
                   <div className="mt-2 flex items-center justify-center gap-1.5">
                     <button
