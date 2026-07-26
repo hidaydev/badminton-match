@@ -29,3 +29,6 @@ test-results/
 supabase/.temp
 
 .opencode
+
+# Graphify
+graphify-out/
