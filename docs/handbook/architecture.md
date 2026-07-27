@@ -26,13 +26,29 @@ The app is a client-heavy React application with three distinct layers:
 
 ## State model
 
+### Domain types
+
+Shared domain types are in:
+
+- `src/types/index.ts`
+
+This module defines `Player`, `FixMatch`, `ScheduleSlot`, `GameScore`, `CourtTime`, `SessionConfig`, `Gender`, `Tier`, and `PLAYERS_PER_GAME`. Zero dependencies — imported by all layers.
+
+### Time utilities
+
+Pure time/scheduling functions are in:
+
+- `src/utils/time.ts`
+
+This module defines `timeToMinutes`, `minutesToTime`, `computeTimeSlots`, `courtsAtTime`, `timeToSlotIndex`, `derivedFromCourtTimes`. Imports only from `types/`.
+
 ### Local app state: Zustand
 
 Primary local state is in:
 
 - `src/store/index.ts`
 
-This store owns:
+This store imports types from `types/` and time utilities from `utils/time/`. It owns:
 
 - session config
 - players
@@ -83,6 +99,8 @@ Remote read/write access is wrapped in:
 
 All mutations follow the optimistic update pattern: `onMutate` → `mutationFn` → `onSuccess`/`onError` with version mismatch retry. Error handling is rollback-first — `onError` rolls back the optimistic update before any refetch. `onSuccess` uses `fetchQuery` to refetch from the server rather than `setQueryData(server_response)`, preventing race conditions where a subsequent mutation's optimistic update gets overwritten by a stale response.
 
+Most session mutations use the `useOptimisticSessionMutation` factory (`queries/useOptimisticMutation.ts`) which encapsulates the shared onMutate/onError/onSuccess boilerplate. Each hook only needs to provide an `optimisticUpdate` function.
+
 The pages and components should depend on these query hooks rather than
 embedding storage details directly.
 
@@ -96,7 +114,7 @@ Main file:
 
 - `src/generator/index.ts`
 
-This is the core scheduling engine.
+This is the core scheduling engine. It imports domain types from `types/` and `timeToSlotIndex` from `utils/time/` — it has no dependency on the store.
 
 It tracks:
 
@@ -123,11 +141,21 @@ This file owns:
 ### Shared config
 
 - `src/config/tiers.ts` — tier labels, colors, badge colors, and tier names shared across GeneratePage, PlayersPage, and ConstraintsPage
+- `src/config/generator.ts` — named constants for the generator algorithm (scoring weights, retry counts, candidate limits)
+- `src/config/canvas.ts` — canvas dimensions, font families, header/logo sizes
 
 ### Operational mutations
 
 Utility files:
 
+- `src/utils/time.ts` — time/slot computation (`timeToMinutes`, `minutesToTime`, `computeTimeSlots`, `courtsAtTime`, `timeToSlotIndex`, `derivedFromCourtTimes`)
+- `src/utils/counter.ts` — shared symmetric co-occurrence counter (`bumpCoOccurrence`)
+- `src/utils/array.ts` — shared array utilities (`shuffle`)
+- `src/utils/quality.ts` — schedule quality analysis (`computeQuality`, `qualityScore`, `isGoodQuality`)
+- `src/utils/reconcilePlayers.ts` — player list rebuild from schedule (`rebuildPlayersFromSchedule`)
+- `src/utils/tally.ts` — shared match tallying logic (`initTallyRow`, `tallyMatch`, `computeDiff`, `standardStandingSort`)
+- `src/utils/share.ts` — iOS share / fallback download (`canvasToBlob`, `shareOrDownload`)
+- `src/utils/overlays.ts` — overlay image loading utility (`loadOverlayImages`)
 - `src/utils/swap.ts` — player swaps, team swaps, change player logic, conflict detection
 - `src/utils/slotSwap.ts` — game slot swaps
 - `src/utils/standings.ts` — standings computation for live session views

@@ -1,5 +1,4 @@
-import type { Player } from '../store'
-import type { PlayerSummary } from '../queries'
+import type { Player, PlayerSummary } from '../types'
 
 export function isKnownPlayer(name: string, knownPlayers: PlayerSummary[]): boolean {
   const normalized = name.trim().toLowerCase().replace(/\s+/g, ' ')

@@ -1,5 +1,5 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
-import type { Player, SessionConfig, ScheduleSlot } from '../store'
+import type { Player, SessionConfig, ScheduleSlot } from '../types'
 import type { GeneratorResult } from '../generator'
 
 export interface SharedSnapshot {

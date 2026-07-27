@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTournament, publishTournament, TOURNAMENT_ID, RpcError } from './endpoints'
+import { getTournament, publishTournament, TOURNAMENT_ID } from './endpoints'
 import type { TournamentSnapshot } from './types'
+import { isVersionMismatch } from './errors'
 import type { GroupId, TournamentPair } from '../utils/tournament'
 import {
   generateGroupMatches,
@@ -101,10 +102,7 @@ export function useSetTournamentScore() {
         queryClient.setQueryData(['tournament', TOURNAMENT_ID], context.previous)
       }
       // On version mismatch, refetch latest
-      const isVersionMismatch =
-        (_err instanceof RpcError && _err.code === '40001') ||
-        (_err instanceof Error && _err.message.toLowerCase().includes('version mismatch'))
-      if (isVersionMismatch) {
+      if (isVersionMismatch(_err)) {
         try {
           await queryClient.fetchQuery({
             queryKey: ['tournament', TOURNAMENT_ID],

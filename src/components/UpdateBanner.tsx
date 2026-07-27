@@ -1,9 +1,9 @@
-interface Props {
+interface UpdateBannerProps {
   onReload(): void
   onDismiss(): void
 }
 
-export default function UpdateBanner({ onReload, onDismiss }: Props) {
+export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"

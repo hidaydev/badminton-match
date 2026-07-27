@@ -1,5 +1,13 @@
 import { RpcError } from './endpoints'
 
+/** Check if an error is a version mismatch (optimistic concurrency failure). */
+export function isVersionMismatch(error: unknown): boolean {
+  return (
+    (error instanceof RpcError && error.code === '40001') ||
+    (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
+  )
+}
+
 export function getSaveErrorMessage(error: unknown): string {
   const fallback = 'Failed to save, please try again.'
 

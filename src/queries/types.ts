@@ -1,16 +1,5 @@
-import type { SessionConfig, Player, FixMatch, ScheduleSlot, GameScore } from '../store'
+export type { CloudSnapshot, PlayerSummary } from '../types'
 export type { TournamentSnapshot } from '../utils/tournament'
-
-export interface CloudSnapshot {
-  version?: number
-  session: SessionConfig
-  players: Player[]
-  fixMatches: FixMatch[]
-  schedule: ScheduleSlot[]
-  playedGames: string[]
-  gameScores: Record<string, GameScore>
-  absentPlayers?: string[]
-}
 
 export interface SessionMeta {
   id: string
@@ -19,12 +8,6 @@ export interface SessionMeta {
   playerCount: number
   totalGames: number
   locked: boolean
-}
-
-export interface PlayerSummary {
-  name: string
-  gender: 'M' | 'F'
-  tier: 1 | 2 | 3 | 4
 }
 
 export interface PlayerStats {

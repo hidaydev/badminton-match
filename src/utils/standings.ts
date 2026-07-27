@@ -1,12 +1,9 @@
-import type { Player, ScheduleSlot, GameScore } from '../store'
+import type { Player, ScheduleSlot, GameScore } from '../types'
+import { toGameKey } from '../types'
+import { initTallyRow, tallyMatch, computeDiff, standardStandingSort, type TallyRow } from './tally'
 
-export interface PlayerStanding {
+export interface PlayerStanding extends TallyRow {
   player: Player
-  wins: number
-  losses: number
-  pointsFor: number
-  pointsAgainst: number
-  diff: number
 }
 
 export function computeStandings(
@@ -17,50 +14,30 @@ export function computeStandings(
   const map = new Map<string, PlayerStanding>()
 
   for (const p of players) {
-    map.set(p.id, { player: p, wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0, diff: 0 })
+    map.set(p.id, { ...initTallyRow(), player: p })
   }
 
   for (const slot of schedule) {
-    const key = `${slot.slot}-${slot.court}`
+    const key = toGameKey(slot.slot, slot.court)
     const score = gameScores[key]
     if (!score) continue
 
     const { a, b } = score
-    const teamAWon = a > b
 
     for (const id of slot.teamA) {
-      const s = map.get(id)
-      if (!s) continue
-      if (teamAWon) {
-        s.wins++
-      } else {
-        s.losses++
-      }
-      s.pointsFor += a
-      s.pointsAgainst += b
+      const standing = map.get(id)
+      if (standing) tallyMatch(standing, a, b)
     }
 
     for (const id of slot.teamB) {
-      const s = map.get(id)
-      if (!s) continue
-      if (!teamAWon) {
-        s.wins++
-      } else {
-        s.losses++
-      }
-      s.pointsFor += b
-      s.pointsAgainst += a
+      const standing = map.get(id)
+      if (standing) tallyMatch(standing, b, a)
     }
   }
 
-  for (const s of map.values()) {
-    s.diff = s.pointsFor - s.pointsAgainst
-  }
+  for (const standing of map.values()) computeDiff(standing)
 
-  return [...map.values()].sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins
-    if (b.diff !== a.diff) return b.diff - a.diff
-    if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor
-    return a.player.name.localeCompare(b.player.name)
-  })
+  return [...map.values()].sort((a, b) =>
+    standardStandingSort(a, b) || a.player.name.localeCompare(b.player.name)
+  )
 }

@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { computeGroupStandings, GROUP_COURTS } from '../../utils/tournament'
-import type { GroupId, TournamentMatch, TournamentPair, StandingRow } from '../../utils/tournament'
+import type { GroupId, TournamentMatch, TournamentPair } from '../../utils/tournament'
 import ScoreModal from './ScoreModal'
-import { loadImage, drawHeader, drawMatchPost } from '../../utils/canvasPost'
+import { drawMatchPost, drawGroupSummary } from '../../utils/canvasPost'
+import { canvasToBlob, shareOrDownload } from '../../utils/share'
+import { loadOverlayImages } from '../../utils/overlays'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
-interface Props {
+interface GroupMatchesProps {
   pairs: TournamentPair[]
   groups: Record<GroupId, string[]>
   matches: TournamentMatch[]
@@ -19,168 +21,7 @@ interface Props {
   refetch: () => Promise<unknown>
 }
 
-function drawGroupSummary(
-  canvas: HTMLCanvasElement,
-  groupId: string,
-  standings: StandingRow[],
-  getPairName: (id: string | null) => string,
-  summaryBg: HTMLImageElement | undefined,
-  sponsor: HTMLImageElement | undefined,
-  logo: HTMLImageElement | undefined,
-) {
-  const W = 1080
-  const H = 1350
-  canvas.width = W
-  canvas.height = H
-  const ctx = canvas.getContext('2d')!
-  ctx.clearRect(0, 0, W, H)
-
-  // Background
-  if (summaryBg) {
-    ctx.drawImage(summaryBg, 0, 0, W, H)
-  } else {
-    ctx.fillStyle = '#f59e0b'
-    ctx.fillRect(0, 0, W, H)
-  }
-
-  // Header band
-  drawHeader(ctx, W, logo)
-
-  // Dark card
-  const CARD_X = 80
-  const CARD_W = W - CARD_X * 2
-  const ROW_H = 110
-  const ROW_GAP = 10
-  const CARD_PAD_TOP = 120
-  const TITLE_H = 130
-  const HDR_H = 50
-  const CARD_PAD_BOT = 50
-  const CARD_H = CARD_PAD_TOP + TITLE_H + HDR_H + standings.length * (ROW_H + ROW_GAP) + CARD_PAD_BOT
-  const CARD_Y = (H - CARD_H) / 2 + 80
-
-  ctx.save()
-  ctx.fillStyle = 'rgba(4,7,14,0.82)'
-  ctx.beginPath()
-  ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
-  ctx.fill()
-  ctx.restore()
-
-  // Sponsor logo inside card, centered at top
-  if (sponsor) {
-    const sH = 80
-    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    ctx.drawImage(sponsor, (W - sW) / 2, CARD_Y + 20, sW, sH)
-  }
-
-  // Title
-  const INNER_X = CARD_X + 60
-  ctx.save()
-  ctx.font = '28px monospace'
-  ctx.fillStyle = '#64748b'
-  ctx.letterSpacing = '4px'
-  ctx.textAlign = 'left'
-  ctx.fillText('FINAL STANDINGS', INNER_X, CARD_Y + CARD_PAD_TOP + 36)
-  ctx.restore()
-
-  ctx.save()
-  ctx.font = 'bold 72px Arial, sans-serif'
-  ctx.fillStyle = '#facc15'
-  ctx.letterSpacing = '2px'
-  ctx.textAlign = 'left'
-  ctx.fillText(`GROUP ${groupId}`, INNER_X, CARD_Y + CARD_PAD_TOP + 120)
-  ctx.restore()
-
-  // Column header
-  const HDR_Y = CARD_Y + CARD_PAD_TOP + TITLE_H + 30
-  const RIGHT_X = CARD_X + CARD_W - 60
-  const DIFF_X = RIGHT_X - 120
-  const L_X = DIFF_X - 90
-  const W_X = L_X - 90
-  const DOT_X = RIGHT_X
-
-  ctx.save()
-  ctx.font = 'bold 26px monospace'
-  ctx.fillStyle = '#475569'
-  ctx.textAlign = 'center'; ctx.fillText('W', W_X, HDR_Y)
-  ctx.textAlign = 'center'; ctx.fillText('L', L_X, HDR_Y)
-  ctx.textAlign = 'right';  ctx.fillText('+/-', DIFF_X, HDR_Y)
-  ctx.restore()
-
-  // Rows
-  const ROWS_Y = CARD_Y + CARD_PAD_TOP + TITLE_H + HDR_H
-
-  standings.forEach((row, i) => {
-    const rowY = ROWS_Y + i * (ROW_H + ROW_GAP)
-    const baseline = rowY + ROW_H * 0.65
-    const isAdvancing = i < 2
-
-    if (isAdvancing) {
-      ctx.save()
-      ctx.fillStyle = 'rgba(250,204,21,0.07)'
-      ctx.beginPath()
-      ctx.roundRect(CARD_X + 16, rowY, CARD_W - 32, ROW_H, 16)
-      ctx.fill()
-      ctx.restore()
-    }
-
-    // Rank
-    ctx.save()
-    ctx.font = 'bold 44px Arial, sans-serif'
-    ctx.fillStyle = isAdvancing ? '#facc15' : '#475569'
-    ctx.textAlign = 'center'
-    ctx.fillText(String(i + 1), INNER_X - 10, baseline)
-    ctx.restore()
-
-    // Name
-    ctx.save()
-    ctx.font = 'bold 40px Arial, sans-serif'
-    ctx.fillStyle = isAdvancing ? '#fef08a' : '#64748b'
-    ctx.textAlign = 'left'
-    const nameX = INNER_X + 50
-    const maxW = W_X - nameX - 40
-    let name = getPairName(row.pairId)
-    while (ctx.measureText(name).width > maxW && name.length > 1) name = name.slice(0, -1)
-    if (name !== getPairName(row.pairId)) name += '…'
-    ctx.fillText(name, nameX, baseline)
-    ctx.restore()
-
-    // W
-    ctx.save()
-    ctx.font = 'bold 36px monospace'
-    ctx.fillStyle = isAdvancing ? '#e2e8f0' : '#64748b'
-    ctx.textAlign = 'center'
-    ctx.fillText(String(row.wins), W_X, baseline)
-    ctx.restore()
-
-    // L
-    ctx.save()
-    ctx.font = 'bold 36px monospace'
-    ctx.fillStyle = isAdvancing ? '#e2e8f0' : '#64748b'
-    ctx.textAlign = 'center'
-    ctx.fillText(String(row.losses), L_X, baseline)
-    ctx.restore()
-
-    // +/-
-    ctx.save()
-    ctx.font = 'bold 36px monospace'
-    ctx.fillStyle = row.pointDiff > 0 ? '#4ade80' : row.pointDiff < 0 ? '#f87171' : '#475569'
-    ctx.textAlign = 'right'
-    ctx.fillText(row.pointDiff > 0 ? `+${row.pointDiff}` : row.pointDiff === 0 ? '—' : String(row.pointDiff), DIFF_X, baseline)
-    ctx.restore()
-
-    // Yellow dot for top 2
-    if (isAdvancing) {
-      ctx.save()
-      ctx.fillStyle = '#facc15'
-      ctx.beginPath()
-      ctx.arc(DOT_X, rowY + ROW_H / 2, 8, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
-    }
-  })
-}
-
-export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: Props) {
+export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: GroupMatchesProps) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
   const [postModeGroups, setPostModeGroups] = useState<Record<string, boolean>>({})
@@ -191,17 +32,14 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
   const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; summaryBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement }>({})
 
   useEffect(() => {
-    const load = async () => {
-      const result: { logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; summaryBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement } = {}
-      try { result.logo = await loadImage('/instagram-logo.png') } catch { /* skip */ }
-      try { result.badge = await loadImage('/tournament-badge.png') } catch { /* skip */ }
-      try { result.storyBg = await loadImage('/story-bg.png') } catch { /* skip */ }
-      try { result.summaryBg = await loadImage('/summary-bg.png') } catch { /* skip */ }
-      try { result.chevrons = await loadImage('/chevrons.png') } catch { /* skip */ }
-      try { result.sponsor = await loadImage('/sponsor-logo.png') } catch { /* skip */ }
-      setOverlays(result)
-    }
-    load()
+    loadOverlayImages({
+      logo: '/instagram-logo.png',
+      badge: '/tournament-badge.png',
+      storyBg: '/story-bg.png',
+      summaryBg: '/summary-bg.png',
+      chevrons: '/chevrons.png',
+      sponsor: '/sponsor-logo.png',
+    }).then(setOverlays)
   }, [])
 
   const getPairName = (id: string | null) =>
@@ -214,7 +52,6 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     allMatches: TournamentMatch[],
   ) => {
     const groupSlug = `group-${g.toLowerCase()}`
-    const blobOf = (c: HTMLCanvasElement) => new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
 
     const files: File[] = []
 
@@ -237,7 +74,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         overlays.chevrons,
         overlays.sponsor,
       )
-      const matchBlob = await blobOf(matchCanvas)
+      const matchBlob = await canvasToBlob(matchCanvas)
       if (matchBlob) files.push(new File([matchBlob], `${groupSlug}-match-${matchIndex}.jpg`, { type: 'image/jpeg' }))
       matchIndex++
     }
@@ -246,27 +83,11 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     const standings = computeGroupStandings(g, pairIds, allMatches)
     const summaryCanvas = document.createElement('canvas')
     drawGroupSummary(summaryCanvas, g, standings, getPairName, overlays.summaryBg, overlays.sponsor, overlays.logo)
-    const summaryBlob = await blobOf(summaryCanvas)
+    const summaryBlob = await canvasToBlob(summaryCanvas)
     if (summaryBlob) files.push(new File([summaryBlob], `${groupSlug}-summary.jpg`, { type: 'image/jpeg' }))
 
     if (files.length === 0) return
-
-    // iOS Safari blocks multiple programmatic downloads — use Web Share API on iOS only
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    if (isIOS && navigator.canShare?.({ files })) {
-      await navigator.share({ files, title: `Group ${g} Photos` })
-    } else {
-      for (const file of files) {
-        const url = URL.createObjectURL(file)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = file.name
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        await new Promise<void>(r => setTimeout(() => { URL.revokeObjectURL(url); r() }, 300))
-      }
-    }
+    await shareOrDownload(files, `Group ${g} Photos`)
   }
 
   return (
@@ -398,8 +219,8 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                   <span className={`truncate font-medium ${i < 2 ? 'text-yellow-100' : 'text-slate-400'}`}>{getPairName(row.pairId)}</span>
                   <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-400'}`}>{row.wins}</span>
                   <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-400'}`}>{row.losses}</span>
-                  <span className={`text-center font-medium ${row.pointDiff > 0 ? 'text-green-400' : row.pointDiff < 0 ? 'text-red-400' : 'text-slate-400'}`}>
-                    {row.pointDiff > 0 ? `+${row.pointDiff}` : row.pointDiff === 0 ? '—' : row.pointDiff}
+                  <span className={`text-center font-medium ${row.diff > 0 ? 'text-green-400' : row.diff < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                    {row.diff > 0 ? `+${row.diff}` : row.diff === 0 ? '—' : row.diff}
                   </span>
                   <span className={`w-1.5 h-1.5 rounded-full mx-auto ${i < 2 ? 'bg-yellow-400' : ''}`} />
                 </div>

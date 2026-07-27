@@ -1,8 +1,10 @@
 import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, listSessions, deleteSession, RpcError } from './endpoints'
+import { getSession, publishSession, listSessions, deleteSession } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
+import { isVersionMismatch } from './errors'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
+import { rebuildPlayersFromSchedule } from '../utils/reconcilePlayers'
 import { applyChange } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import {
@@ -14,6 +16,7 @@ import {
   swapTeamsInSnapshot,
   togglePlayedInSnapshot,
 } from '../utils/sessionSnapshot'
+import { useOptimisticSessionMutation } from './useOptimisticMutation'
 
 async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryClient>) {
   await queryClient.invalidateQueries({ queryKey: ['sessions'] })
@@ -25,32 +28,6 @@ async function invalidateAllQueries(queryClient: ReturnType<typeof useQueryClien
     queryClient.invalidateQueries({ queryKey: ['players'] }),
     queryClient.invalidateQueries({ queryKey: ['player'] }),
   ])
-}
-
-async function refetchOnVersionMismatch(
-  queryClient: ReturnType<typeof useQueryClient>,
-  sessionId: string,
-  error: unknown,
-  context: { previous?: CloudSnapshot | null } | undefined,
-) {
-  // ROLLBACK FIRST (synchronous, immediate)
-  if (context?.previous !== undefined) {
-    queryClient.setQueryData(['session', sessionId], context.previous)
-  }
-  // On version mismatch, refetch latest so user can retry
-  const isVersionMismatch =
-    (error instanceof RpcError && error.code === '40001') ||
-    (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
-  if (isVersionMismatch) {
-    try {
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-    } catch {
-      // ignore — stale cache (rolled back) is better than nothing
-    }
-  }
 }
 
 export function useListSessions(options?: { enabled?: boolean }) {
@@ -103,10 +80,7 @@ export function usePublishSession(sessionId: string | undefined) {
       }
       // On version mismatch, refetch the latest snapshot so the user can retry
       // without manually reloading the page.
-      const isVersionMismatch =
-        (error instanceof RpcError && error.code === '40001') ||
-        (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
-      if (isVersionMismatch) {
+      if (isVersionMismatch(error)) {
         try {
           await queryClient.fetchQuery<CloudSnapshot | null>({
             queryKey: ['session', sessionId],
@@ -122,232 +96,80 @@ export function usePublishSession(sessionId: string | undefined) {
 
 export function useTogglePlayed(sessionId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ key }: { key: string; nextPlayed: string[] }) => {
-      void key
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      return await publishSession(sessionId, current)
-    },
-    onMutate: async ({ key }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return togglePlayedInSnapshot(old, key)
-      })
-      return { previous }
-    },
-    onError: async (_err, _vars, context) => {
-      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
-    },
-    onSuccess: async () => {
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-      await invalidateSessionQueries(queryClient)
-    },
-  })
+  return useOptimisticSessionMutation(
+    sessionId,
+    (old, vars) => togglePlayedInSnapshot(old, (vars as { key: string }).key),
+    () => invalidateSessionQueries(queryClient),
+  )
 }
 
 export function useSetScore(sessionId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ key, a, b }: { key: string; a: number; b: number }) => {
-      void key; void a; void b
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      return await publishSession(sessionId, current)
+  return useOptimisticSessionMutation(
+    sessionId,
+    (old, vars) => {
+      const { key, a, b } = vars as { key: string; a: number; b: number }
+      return setScoreInSnapshot(old, key, a, b)
     },
-    onMutate: async ({ key, a, b }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return setScoreInSnapshot(old, key, a, b)
-      })
-      return { previous }
-    },
-    onError: async (_err, _vars, context) => {
-      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
-    },
-    onSuccess: async () => {
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-      await invalidateSessionQueries(queryClient)
-    },
-  })
+    () => invalidateSessionQueries(queryClient),
+  )
 }
 
 export function useSwapPlayers(sessionId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (_vars: { t1: SwapTarget; t2: SwapTarget }) => {
-      void _vars
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      return await publishSession(sessionId, current)
+  return useOptimisticSessionMutation(
+    sessionId,
+    (old, vars) => {
+      const { t1, t2 } = vars as { t1: SwapTarget; t2: SwapTarget }
+      return swapPlayersInSnapshot(old, t1, t2)
     },
-    onMutate: async ({ t1, t2 }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return swapPlayersInSnapshot(old, t1, t2)
-      })
-      return { previous }
-    },
-    onError: async (_err, _vars, context) => {
-      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
-    },
-    onSuccess: async () => {
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-      await invalidateSessionQueries(queryClient)
-    },
-  })
+    () => invalidateSessionQueries(queryClient),
+  )
 }
 
 export function useSwapTeams(sessionId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (_vars: { t1: TeamSwapTarget; t2: TeamSwapTarget }) => {
-      void _vars
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      return await publishSession(sessionId, current)
+  return useOptimisticSessionMutation(
+    sessionId,
+    (old, vars) => {
+      const { t1, t2 } = vars as { t1: TeamSwapTarget; t2: TeamSwapTarget }
+      return swapTeamsInSnapshot(old, t1, t2)
     },
-    onMutate: async ({ t1, t2 }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return swapTeamsInSnapshot(old, t1, t2)
-      })
-      return { previous }
-    },
-    onError: async (_err, _vars, context) => {
-      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
-    },
-    onSuccess: async () => {
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-      await invalidateSessionQueries(queryClient)
-    },
-  })
+    () => invalidateSessionQueries(queryClient),
+  )
 }
 
 export function useSetAbsent(sessionId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ nextAbsent }: { nextAbsent: string[] }) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      const updated = setAbsentPlayersInSnapshot(current, nextAbsent)
-      return await publishSession(sessionId, updated)
-    },
-    onMutate: async ({ nextAbsent }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return setAbsentPlayersInSnapshot(old, nextAbsent)
-      })
-      return { previous }
-    },
-    onError: async (_err, _vars, context) => {
-      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
-    },
-    onSuccess: async () => {
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-      await invalidateAllQueries(queryClient)
-    },
-  })
+  return useOptimisticSessionMutation(
+    sessionId,
+    (old, vars) => setAbsentPlayersInSnapshot(old, (vars as { nextAbsent: string[] }).nextAbsent),
+    () => invalidateAllQueries(queryClient),
+  )
 }
 
 export function useReplacePlayer(sessionId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ playerId, newName }: { playerId: string; newName: string }) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      const updated = replacePlayerNameInSnapshot(current, playerId, newName)
-      return await publishSession(sessionId, updated)
+  return useOptimisticSessionMutation(
+    sessionId,
+    (old, vars) => {
+      const { playerId, newName } = vars as { playerId: string; newName: string }
+      return replacePlayerNameInSnapshot(old, playerId, newName)
     },
-    onMutate: async ({ playerId, newName }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return replacePlayerNameInSnapshot(old, playerId, newName)
-      })
-      return { previous }
-    },
-    onError: async (_err, _vars, context) => {
-      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
-    },
-    onSuccess: async () => {
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-      await invalidateAllQueries(queryClient)
-    },
-  })
+    () => invalidateAllQueries(queryClient),
+  )
 }
 
 export function useSwapSlots(sessionId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (vars: { g1: SlotSwapTarget; g2: SlotSwapTarget }) => {
-      void vars
-      // Publish the optimistic cache directly. onMutate already applied
-      // swapSlotsInSnapshot which rewrites schedule entries AND migrates
-      // playedGames/gameScores keys to follow the swapped games.
-      //
-      // We must NOT re-apply swapSlotsInSnapshot here: it matches by
-      // {slot, court} which have already been exchanged, so calling it
-      // again would revert the swap (involutive). This is the same pattern
-      // as useSwapPlayers/useSwapTeams: onMutate is the single mutation
-      // source-of-truth, mutationFn just publishes the cache.
-      //
-      // The narrow risk: if a concurrent refetch overwrites the cache
-      // between onMutate and mutationFn, the swap is lost from the payload.
-      // cancelQueries in onMutate minimizes this window.
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      return await publishSession(sessionId, current)
+  return useOptimisticSessionMutation(
+    sessionId,
+    (old, vars) => {
+      const { g1, g2 } = vars as { g1: SlotSwapTarget; g2: SlotSwapTarget }
+      return swapSlotsInSnapshot(old, g1, g2)
     },
-    onMutate: async ({ g1, g2 }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return swapSlotsInSnapshot(old, g1, g2)
-      })
-      return { previous }
-    },
-    onError: async (_err, _vars, context) => {
-      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
-    },
-    onSuccess: async () => {
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-      await invalidateSessionQueries(queryClient)
-    },
-  })
+    () => invalidateSessionQueries(queryClient),
+  )
 }
 
 export function useFetchSession() {
@@ -379,20 +201,7 @@ export function useChangePlayer(sessionId: string) {
       const fresh = await getSession(sessionId)
       if (!fresh) throw new Error('no data')
       const newSchedule = applyChange(fresh.schedule, target, newName)
-      // Rebuild players from schedule: every non-blank UUID must have an entry
-      const scheduleIds = new Set<string>()
-      for (const g of newSchedule) {
-        for (const id of [...g.teamA, ...g.teamB]) {
-          if (id.trim()) scheduleIds.add(id)
-        }
-      }
-      const byId = new Map(fresh.players.map(p => [p.id, p]))
-      if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
-      // Dedup by ID only (not canonical name — server validates canonical)
-      const seen = new Set<string>()
-      const newPlayers = [...scheduleIds]
-        .map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
-        .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
+      const newPlayers = rebuildPlayersFromSchedule(newSchedule, fresh.players, newName, playerName)
       const updated = {
         ...fresh,
         schedule: newSchedule,
@@ -407,20 +216,7 @@ export function useChangePlayer(sessionId: string) {
       queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
         if (!old) return old
         const newSchedule = applyChange(old.schedule, target, newName)
-        // Rebuild players from schedule: every non-blank UUID must have an entry
-        const scheduleIds = new Set<string>()
-        for (const g of newSchedule) {
-          for (const id of [...g.teamA, ...g.teamB]) {
-            if (id.trim()) scheduleIds.add(id)
-          }
-        }
-        const byId = new Map(old.players.map(p => [p.id, p]))
-        if (newName.trim() && !byId.has(newName)) byId.set(newName, { id: newName, name: playerName, gender: 'M' as const, tier: 1 as const })
-        // Dedup by ID only (not canonical name — server validates canonical)
-        const seen = new Set<string>()
-        const newPlayers = [...scheduleIds]
-          .map(id => byId.get(id) ?? { id, name: id, gender: 'M' as const, tier: 1 as const })
-          .filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
+        const newPlayers = rebuildPlayersFromSchedule(newSchedule, old.players, newName, playerName)
         return {
           ...old,
           schedule: newSchedule,
@@ -455,33 +251,9 @@ export function useChangePlayer(sessionId: string) {
 
 export function useLockSession(sessionId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async () => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (!current) throw new Error('no data')
-      return await publishSession(sessionId, { 
-        ...current, 
-        session: { ...current.session, locked: true }
-      })
-    },
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        return { ...old, session: { ...old.session, locked: true } }
-      })
-      return { previous }
-    },
-    onError: async (_err, _vars, context) => {
-      await refetchOnVersionMismatch(queryClient, sessionId, _err, context)
-    },
-    onSuccess: async () => {
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-      await invalidateSessionQueries(queryClient)
-    },
-  })
+  return useOptimisticSessionMutation(
+    sessionId,
+    (old) => ({ ...old, session: { ...old.session, locked: true } }),
+    () => invalidateSessionQueries(queryClient),
+  )
 }

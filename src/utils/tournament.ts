@@ -1,3 +1,6 @@
+import { shuffle } from './array'
+import { initTallyRow, tallyMatch, computeDiff, standardStandingSort, type TallyRow } from './tally'
+
 export type GroupId = 'A' | 'B' | 'C' | 'D'
 export type MatchPhase = 'group' | 'qf' | 'sf' | '3rd' | 'final'
 
@@ -17,13 +20,8 @@ export interface TournamentMatch {
   picName?: string | null
 }
 
-export interface StandingRow {
+export interface StandingRow extends TallyRow {
   pairId: string
-  wins: number
-  losses: number
-  pointFor: number
-  pointAgainst: number
-  pointDiff: number
 }
 
 export const GROUP_COURTS: Record<GroupId, number> = { A: 9, B: 10, C: 11, D: 12 }
@@ -82,7 +80,7 @@ export function computeGroupStandings(
   const groupMatches = matches.filter((m) => m.phase === 'group' && m.groupId === groupId)
   const rows: Record<string, StandingRow> = {}
   for (const id of pairIds) {
-    rows[id] = { pairId: id, wins: 0, losses: 0, pointFor: 0, pointAgainst: 0, pointDiff: 0 }
+    rows[id] = { ...initTallyRow(), pairId: id }
   }
 
   for (const m of groupMatches) {
@@ -90,16 +88,15 @@ export function computeGroupStandings(
     const a = rows[m.pairAId]
     const b = rows[m.pairBId]
     if (!a || !b) continue
-    a.pointFor += m.scoreA; a.pointAgainst += m.scoreB
-    b.pointFor += m.scoreB; b.pointAgainst += m.scoreA
-    if (m.scoreA > m.scoreB) { a.wins++; b.losses++ } else { b.wins++; a.losses++ }
+    tallyMatch(a, m.scoreA, m.scoreB)
+    tallyMatch(b, m.scoreB, m.scoreA)
   }
 
-  for (const row of Object.values(rows)) row.pointDiff = row.pointFor - row.pointAgainst
+  for (const row of Object.values(rows)) computeDiff(row)
 
   return Object.values(rows).sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins
-    if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff
+    const base = standardStandingSort(a, b)
+    if (base !== 0) return base
     // head-to-head — always decisive since draws are impossible
     const h2h = groupMatches.find(
       (m) =>
@@ -130,7 +127,7 @@ export function propagateBracket(
     return m
   }
 
-  const s: Record<GroupId, StandingRow[]> = {
+  const standings: Record<GroupId, StandingRow[]> = {
     A: computeGroupStandings('A', groups.A, result),
     B: computeGroupStandings('B', groups.B, result),
     C: computeGroupStandings('C', groups.C, result),
@@ -138,10 +135,10 @@ export function propagateBracket(
   }
 
   // QF seeding: A1 vs B2, C2 vs D1, C1 vs D2, A2 vs B1
-  update('qf-1', s.A[0]?.pairId ?? null, s.B[1]?.pairId ?? null)
-  update('qf-2', s.C[1]?.pairId ?? null, s.D[0]?.pairId ?? null)
-  update('qf-3', s.C[0]?.pairId ?? null, s.D[1]?.pairId ?? null)
-  update('qf-4', s.A[1]?.pairId ?? null, s.B[0]?.pairId ?? null)
+  update('qf-1', standings.A[0]?.pairId ?? null, standings.B[1]?.pairId ?? null)
+  update('qf-2', standings.C[1]?.pairId ?? null, standings.D[0]?.pairId ?? null)
+  update('qf-3', standings.C[0]?.pairId ?? null, standings.D[1]?.pairId ?? null)
+  update('qf-4', standings.A[1]?.pairId ?? null, standings.B[0]?.pairId ?? null)
 
   update('sf-1', getMatchWinner(find('qf-1')), getMatchWinner(find('qf-2')))
   update('sf-2', getMatchWinner(find('qf-3')), getMatchWinner(find('qf-4')))
@@ -160,12 +157,12 @@ export function assignGroupPics(
   const pairNameMap = new Map(pairs.map((p) => [p.id, p.name]))
 
   const MAX_PIC_ATTEMPTS = 20
-  const result = matches.map((m) => ({ ...m }))
+  const result = matches.map((match) => ({ ...match }))
 
-  for (const g of ['A', 'B', 'C', 'D'] as GroupId[]) {
+  for (const groupId of ['A', 'B', 'C', 'D'] as GroupId[]) {
     // Build pairId -> individual names
     const pairNames = new Map<string, string[]>()
-    for (const pairId of groups[g]) {
+    for (const pairId of groups[groupId]) {
       const name = pairNameMap.get(pairId) ?? pairId
       pairNames.set(pairId, name.includes(' & ') ? name.split(' & ') : [name])
     }
@@ -174,39 +171,37 @@ export function assignGroupPics(
     const pool: string[] = []
     for (const names of pairNames.values()) pool.push(...names)
 
-    const groupMatches = result.filter((m) => m.phase === 'group' && m.groupId === g)
+    const groupMatches = result.filter((match) => match.phase === 'group' && match.groupId === groupId)
 
     let assigned = false
     for (let attempt = 0; attempt < MAX_PIC_ATTEMPTS; attempt++) {
-      // Fisher-Yates shuffle
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        ;[pool[i], pool[j]] = [pool[j], pool[i]]
-      }
+      const shuffled = shuffle(pool)
+      pool.length = 0
+      pool.push(...shuffled)
       const used = new Set<string>()
-      const assignments: Array<{ m: TournamentMatch; pic: string }> = []
+      const assignments: Array<{ match: TournamentMatch; pic: string }> = []
       let ok = true
-      for (const m of groupMatches) {
+      for (const match of groupMatches) {
         const playing = new Set<string>([
-          ...(m.pairAId ? (pairNames.get(m.pairAId) ?? []) : []),
-          ...(m.pairBId ? (pairNames.get(m.pairBId) ?? []) : []),
+          ...(match.pairAId ? (pairNames.get(match.pairAId) ?? []) : []),
+          ...(match.pairBId ? (pairNames.get(match.pairBId) ?? []) : []),
         ])
         const pic = pool.find((name) => !playing.has(name) && !used.has(name))
         if (!pic) {
           ok = false
           break
         }
-        assignments.push({ m, pic })
+        assignments.push({ match, pic })
         used.add(pic)
       }
       if (ok) {
-        for (const { m, pic } of assignments) m.picName = pic
+        for (const { match, pic } of assignments) match.picName = pic
         assigned = true
         break
       }
     }
     if (!assigned) {
-      console.warn(`assignGroupPics: could not assign all PICs for group ${g}`)
+      console.warn(`assignGroupPics: could not assign all PICs for group ${groupId}`)
     }
   }
 

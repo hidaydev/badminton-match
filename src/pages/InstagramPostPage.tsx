@@ -1,349 +1,19 @@
 // src/pages/InstagramPostPage.tsx
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { instagramTemplates, type PostTemplate } from '../config/instagramTemplates'
+import { instagramTemplates } from '../config/instagramTemplates'
 import { useListSessions, useFetchSession } from '../queries'
-import { computeStandings, type PlayerStanding } from '../utils/standings'
+import { computeStandings } from '../utils/standings'
 import type { SessionMeta } from '../queries'
-import { loadImage, drawCoverFill, drawHeader } from '../utils/canvasPost'
-import { ordinal } from '../utils/ordinal'
+import { loadImage, drawPostCanvas, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
+import { loadOverlayImages } from '../utils/overlays'
 
 const TEMPLATE = instagramTemplates[0]
 
 const MONTHS = ['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGU','SEP','OKT','NOV','DES']
 
 
-function drawDate(
-  ctx: CanvasRenderingContext2D,
-  canvasW: number,
-  day: string,
-  month: string,
-  year: string,
-  brushStroke?: HTMLImageElement,
-) {
-  const daySize = 200
-  const monthSize = 82
-  const yearSize = 72
-
-  // Measure all parts to compute total width for centering
-  ctx.font = `${daySize}px Granesta, Impact, sans-serif`
-  const dayW = ctx.measureText(day).width
-  ctx.font = `${monthSize}px Granesta, Impact, sans-serif`
-  const monthW = ctx.measureText(month).width
-  ctx.font = `${yearSize}px Edosz, Impact, sans-serif`
-  const yearW = ctx.measureText(year).width
-
-  const rightColW = Math.max(monthW, yearW + 30) + 20
-  const gapX = 16
-  const totalW = dayW + gapX + rightColW
-  const startX = (canvasW - totalW) / 2
-
-  // Vertical layout
-  const dayH = daySize * 0.88
-  const monthH = monthSize * 0.88
-  const brushH = yearSize + 22
-  const rightColH = monthH + 14 + brushH
-  const topY = 150
-
-  const dayBaselineY = topY + Math.max(dayH, rightColH) * 0.5 + dayH * 0.5
-  const rightColX = startX + dayW + gapX
-  const rightColTopY = topY + (Math.max(dayH, rightColH) - rightColH) / 2
-  const monthBaselineY = rightColTopY + monthH
-  const brushY = monthBaselineY + 4
-
-  // Day — black shadow + yellow fill
-  ctx.save()
-  ctx.font = `${daySize}px Granesta, Impact, sans-serif`
-  ctx.fillStyle = '#000000'
-  ctx.fillText(day, startX + 5, dayBaselineY + 20)
-  ctx.fillStyle = '#F5B400'
-  ctx.fillText(day, startX, dayBaselineY + 15)
-  ctx.restore()
-
-  // Month — black, rotated -5deg
-  ctx.save()
-  ctx.font = `${monthSize}px Granesta, Impact, sans-serif`
-  const mCX = rightColX + monthW / 2
-  const mCY = monthBaselineY - monthH / 2
-  ctx.translate(mCX, mCY)
-  ctx.rotate(-5 * Math.PI / 180)
-  ctx.translate(-mCX, -mCY)
-  ctx.strokeStyle = '#F5B400'
-  ctx.lineWidth = 10
-  ctx.lineJoin = 'round'
-  ctx.strokeText(month, rightColX + 24, monthBaselineY + 30)
-  ctx.fillStyle = '#111111'
-  ctx.fillText(month, rightColX + 24, monthBaselineY + 30)
-  ctx.restore()
-
-  // Brush stroke background + year text
-  const bW = rightColW + 160
-  const bH = brushH + 110
-  const bCX = rightColX + rightColW / 2
-  const bCY = brushY + bH / 2 - 10
-  ctx.save()
-  ctx.translate(bCX, bCY)
-  ctx.rotate(-6 * Math.PI / 180)
-  if (brushStroke) {
-    ctx.drawImage(brushStroke, -bW / 2, -bH / 2, bW, bH)
-  } else {
-    ctx.fillStyle = '#F5B400'
-    ctx.fillRect(-bW / 2, -bH / 2, bW, bH)
-  }
-  ctx.font = `${yearSize}px Edosz, Impact, sans-serif`
-  ctx.fillStyle = '#111111'
-  ctx.textAlign = 'center'
-  ctx.fillText(year, 0, yearSize * 0.22 - 5)
-  ctx.restore()
-}
-
-
-function drawCanvas(
-  canvas: HTMLCanvasElement,
-  _template: PostTemplate,
-  userPhoto: HTMLImageElement | null,
-  photoOffset: { x: number; y: number },
-  photoZoom: number,
-  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement; chevrons?: HTMLImageElement; storyBg?: HTMLImageElement },
-  date: { day: string; month: string; year: string } | null,
-) {
-  const ctx = canvas.getContext('2d')!
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-  // Layer 1: user photo
-  if (userPhoto) {
-    drawCoverFill(ctx, userPhoto, canvas.width, canvas.height, photoOffset.x, photoOffset.y, photoZoom)
-  } else {
-    ctx.fillStyle = '#1e293b'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-  }
-
-  // Layer 2: date + chevron ornament
-  if (date) {
-    drawDate(ctx, canvas.width, date.day, date.month, date.year, overlays.brushStroke)
-  }
-  if (overlays.chevrons) {
-    const img = overlays.chevrons
-    const h = 115
-    const w = h * (img.naturalWidth / img.naturalHeight)
-    ctx.drawImage(img, canvas.width - w - 30, canvas.height * 0.3, w, h)
-  }
-
-  // Layer 3: header band
-  drawHeader(ctx, canvas.width, overlays.logo)
-
-  // Layer 4: footer
-  if (overlays.footer) {
-    const img = overlays.footer
-    const h = canvas.width * (img.naturalHeight / img.naturalWidth)
-    ctx.drawImage(img, 0, canvas.height - h, canvas.width, h)
-  }
-}
-
 type StandingMode = 'post' | 'story'
-
-function drawStandingsCanvas(
-  canvas: HTMLCanvasElement,
-  standings: PlayerStanding[],
-  meta: { date: string; title: string; playerCount: number },
-  overlays: { logo?: HTMLImageElement; footer?: HTMLImageElement; storyBg?: HTMLImageElement; chevrons?: HTMLImageElement },
-  isStory: boolean,
-  userPhoto?: HTMLImageElement | null,
-  photoOffset?: { x: number; y: number },
-  photoZoom?: number,
-) {
-  const ctx = canvas.getContext('2d')!
-  const W = canvas.width
-  const H = canvas.height
-
-  ctx.clearRect(0, 0, W, H)
-
-  if (isStory && overlays.storyBg) {
-    ctx.drawImage(overlays.storyBg, 0, 0, W, H)
-  } else if (!isStory && userPhoto) {
-    drawCoverFill(ctx, userPhoto, W, H, photoOffset?.x ?? 0, photoOffset?.y ?? 0, photoZoom ?? 1)
-  } else {
-    ctx.fillStyle = '#1e293b'
-    ctx.fillRect(0, 0, W, H)
-  }
-
-  if (!isStory) drawHeader(ctx, W, overlays.logo)
-
-  const FOOTER_H = (!isStory && overlays.footer)
-    ? W * (overlays.footer.naturalHeight / overlays.footer.naturalWidth)
-    : 0
-  if (!isStory && overlays.footer) {
-    ctx.drawImage(overlays.footer, 0, H - FOOTER_H, W, FOOTER_H)
-  }
-
-  // Chevrons ornament (post only, same position as regular post)
-  if (!isStory && overlays.chevrons) {
-    const img = overlays.chevrons
-    const h = 115
-    const w = h * (img.naturalWidth / img.naturalHeight)
-    ctx.drawImage(img, W - w - 30, H * 0.3, w, h)
-  }
-
-  const HEADER_H_PX  = 90
-  const CONTENT_TOP  = HEADER_H_PX + 30
-  const cardPadX     = 90
-  const innerPadX    = 150
-
-  // Fixed row size — works for 4–10 players
-  const ROW_H        = 68
-  const ROW_GAP      = 6
-  const ROW_RADIUS   = 16
-  const ROW_FONT     = 28
-  const STATS_FONT   = 24
-  const HDR_FONT     = 18
-  const HEADER_ROW_H = 36
-  const META_H       = 90   // date + title text block
-  const BOT_PAD      = 28
-
-  const top10 = standings.slice(0, 10)
-
-  // Card sized to content, vertically centered for story
-  const CARD_TOP_PAD = 38
-  const outerCardH   = CARD_TOP_PAD + META_H + HEADER_ROW_H + top10.length * ROW_H + BOT_PAD
-  const cardTop      = isStory ? Math.round((H - outerCardH) / 2) : CONTENT_TOP + 20
-  if (isStory || (!isStory && userPhoto)) {
-    ctx.save()
-    ctx.fillStyle = 'rgba(4, 7, 14, 0.94)'
-    ctx.beginPath()
-    ctx.roundRect(cardPadX, cardTop, W - cardPadX * 2, outerCardH, 32)
-    ctx.fill()
-    ctx.restore()
-  }
-
-  const innerTop   = cardTop + CARD_TOP_PAD
-  const tableTop   = innerTop + META_H
-
-  ctx.save()
-  ctx.font = '20px "IBM Plex Mono", monospace'
-  ctx.fillStyle = '#94a3b8'
-  ctx.textAlign = 'left'
-  ctx.fillText(`${meta.date} · ${meta.title}`, innerPadX, innerTop)
-  ctx.restore()
-
-  ctx.save()
-  ctx.font = 'bold 28px "IBM Plex Sans", Arial, sans-serif'
-  ctx.fillStyle = '#facc15'
-  ctx.textAlign = 'left'
-  ctx.fillText(`TOP ${top10.length} OF ${meta.playerCount} PLAYERS`, innerPadX, innerTop + 44)
-  ctx.restore()
-
-  // Column x positions
-  const RANK_CX = innerPadX + 28
-  const NAME_X  = innerPadX + 80
-  const PTS_X   = W - innerPadX
-  const DIFF_X  = W - innerPadX - 120
-  const WL_X    = W - innerPadX - 240
-
-  const MEDALS      = ['🥇', '🥈', '🥉']
-  const ROW_FONT_SIZE   = ROW_FONT
-  const STATS_FONT_SIZE = STATS_FONT
-  const HDR_FONT_SIZE   = HDR_FONT
-  const rowH            = ROW_H
-
-  // Table header row
-  const headerY = tableTop + HEADER_ROW_H * 0.72
-  ctx.save()
-  ctx.fillStyle = 'rgba(255,255,255,0.04)'
-  ctx.fillRect(innerPadX - 10, tableTop, W - (innerPadX - 10) * 2, HEADER_ROW_H)
-  ctx.restore()
-
-  ctx.save()
-  ctx.font = `bold ${HDR_FONT_SIZE}px "IBM Plex Mono", monospace`
-  ctx.fillStyle = '#475569'
-  ctx.textAlign = 'center'; ctx.fillText('#',    RANK_CX, headerY)
-  ctx.textAlign = 'left';   ctx.fillText('Name', NAME_X,  headerY)
-  ctx.textAlign = 'right';  ctx.fillText('W-L',  WL_X,    headerY)
-  ctx.textAlign = 'right';  ctx.fillText('Diff', DIFF_X,  headerY)
-  ctx.textAlign = 'right';  ctx.fillText('Pts',  PTS_X,   headerY)
-  ctx.restore()
-
-  const rowsTop = tableTop + HEADER_ROW_H
-
-  for (let i = 0; i < top10.length; i++) {
-    const s = top10[i]
-    const rowY = rowsTop + i * rowH
-    const cardH = rowH - ROW_GAP
-    const baseline = rowY + cardH * 0.64
-
-    // Individual card background
-    const cardBg = i < 3
-      ? 'rgba(250, 204, 21, 0.14)'
-      : 'rgba(255, 255, 255, 0.04)'
-    ctx.save()
-    ctx.fillStyle = cardBg
-    ctx.beginPath()
-    ctx.roundRect(innerPadX - 10, rowY, W - (innerPadX - 10) * 2, cardH, ROW_RADIUS)
-    ctx.fill()
-    ctx.restore()
-
-    // Left accent strip for top 3
-    if (i < 3) {
-      const accentColor = i === 0 ? '#facc15' : i === 1 ? '#cbd5e1' : '#fb923c'
-      ctx.save()
-      ctx.fillStyle = accentColor
-      ctx.beginPath()
-      ctx.roundRect(innerPadX - 10, rowY, 7, cardH, [ROW_RADIUS, 0, 0, ROW_RADIUS])
-      ctx.fill()
-      ctx.restore()
-    }
-
-    // Rank / medal
-    ctx.save()
-    if (i < 3) {
-      ctx.font = `${ROW_FONT_SIZE}px "IBM Plex Sans", Arial`
-      ctx.textAlign = 'center'
-      ctx.fillText(MEDALS[i], RANK_CX, baseline)
-    } else {
-      ctx.font = `bold ${ROW_FONT_SIZE * 0.62}px "IBM Plex Sans", Arial, sans-serif`
-      ctx.fillStyle = '#64748b'
-      ctx.textAlign = 'center'
-      ctx.fillText(ordinal(i + 1), RANK_CX, baseline)
-    }
-    ctx.restore()
-
-    // Name
-    ctx.save()
-    ctx.font = `bold ${ROW_FONT_SIZE}px "IBM Plex Sans", Arial, sans-serif`
-    ctx.fillStyle = i === 0 ? '#facc15' : i === 1 ? '#cbd5e1' : i === 2 ? '#fb923c' : '#e2e8f0'
-    ctx.textAlign = 'left'
-    const maxNameW = WL_X - NAME_X - 40
-    let name = s.player.name
-    while (ctx.measureText(name).width > maxNameW && name.length > 1) name = name.slice(0, -1)
-    if (name !== s.player.name) name += '…'
-    ctx.fillText(name, NAME_X, baseline)
-    ctx.restore()
-
-    // W-L (green)
-    ctx.save()
-    ctx.font = `bold ${STATS_FONT_SIZE}px "IBM Plex Mono", monospace`
-    ctx.fillStyle = '#4ade80'
-    ctx.textAlign = 'right'
-    ctx.fillText(`${s.wins}-${s.losses}`, WL_X, baseline)
-    ctx.restore()
-
-    // Diff
-    const diff = s.diff
-    ctx.save()
-    ctx.font = `bold ${STATS_FONT_SIZE}px "IBM Plex Mono", monospace`
-    ctx.fillStyle = diff > 0 ? '#4ade80' : diff < 0 ? '#f87171' : '#475569'
-    ctx.textAlign = 'right'
-    ctx.fillText(diff > 0 ? `+${diff}` : String(diff), DIFF_X, baseline)
-    ctx.restore()
-
-    // Pts
-    ctx.save()
-    ctx.font = `bold ${STATS_FONT_SIZE}px "IBM Plex Mono", monospace`
-    ctx.fillStyle = '#ffffff'
-    ctx.textAlign = 'right'
-    ctx.fillText(String(s.pointsFor), PTS_X, baseline)
-    ctx.restore()
-  }
-}
 
 export default function InstagramPostPage() {
   const navigate = useNavigate()
@@ -353,7 +23,7 @@ export default function InstagramPostPage() {
   const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
   const [photoOffset, setPhotoOffset] = useState({ x: 0, y: 0 })
   const [photoZoom, setPhotoZoom] = useState(1)
-  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement; chevrons?: HTMLImageElement; storyBg?: HTMLImageElement }>({})
+  const [overlays, setOverlays] = useState<OverlayImages>({})
   const [isDragging, setIsDragging] = useState(false)
   const [fontReady, setFontReady] = useState(false) // true once browser fonts are loaded
   const [dateValue, setDateValue] = useState(() => new Date().toISOString().split('T')[0])
@@ -377,20 +47,14 @@ export default function InstagramPostPage() {
   useEffect(() => {
     const loadOverlays = async () => {
       try {
-        const [logo, footer, brushStroke, chevrons, storyBg] = await Promise.all([
-          TEMPLATE.logo ? loadImage(TEMPLATE.logo) : Promise.resolve(undefined),
-          TEMPLATE.footer ? loadImage(TEMPLATE.footer) : Promise.resolve(undefined),
-          TEMPLATE.brushStroke ? loadImage(TEMPLATE.brushStroke) : Promise.resolve(undefined),
-          TEMPLATE.chevrons ? loadImage(TEMPLATE.chevrons) : Promise.resolve(undefined),
-          TEMPLATE.storyBg ? loadImage(TEMPLATE.storyBg) : Promise.resolve(undefined),
-        ])
-        const result: { logo?: HTMLImageElement; footer?: HTMLImageElement; brushStroke?: HTMLImageElement; chevrons?: HTMLImageElement; storyBg?: HTMLImageElement } = {}
-        if (logo) result.logo = logo
-        if (footer) result.footer = footer
-        if (brushStroke) result.brushStroke = brushStroke
-        if (chevrons) result.chevrons = chevrons
-        if (storyBg) result.storyBg = storyBg
-        setOverlays(result)
+        const loaded = await loadOverlayImages({
+          logo: TEMPLATE.logo,
+          footer: TEMPLATE.footer,
+          brushStroke: TEMPLATE.brushStroke,
+          chevrons: TEMPLATE.chevrons,
+          storyBg: TEMPLATE.storyBg,
+        })
+        setOverlays(loaded as OverlayImages)
       } catch (err) {
         console.error('Failed to load overlay images', err)
         setOverlayError('Failed to load template images. Some features may not work.')
@@ -403,7 +67,7 @@ export default function InstagramPostPage() {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    drawCanvas(canvas, TEMPLATE, userPhoto, photoOffset, photoZoom, overlays, parsedDate)
+    drawPostCanvas({ canvas, userPhoto, photoOffset, photoZoom, overlays, date: parsedDate })
   }, [userPhoto, photoOffset, photoZoom, overlays, parsedDate, fontReady])
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -459,8 +123,8 @@ export default function InstagramPostPage() {
         return
       }
       if (!dragStart.current || !userPhoto) return
-      const t = e.touches[0]
-      const pos = toCanvasCoords(t.clientX, t.clientY)
+      const touch = e.touches[0]
+      const pos = toCanvasCoords(touch.clientX, touch.clientY)
       const dx = pos.x - dragStart.current.x
       const dy = pos.y - dragStart.current.y
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
@@ -508,8 +172,8 @@ export default function InstagramPostPage() {
       dragStart.current = null
       return
     }
-    const t = e.touches[0]
-    const pos = toCanvasCoords(t.clientX, t.clientY)
+    const touch = e.touches[0]
+    const pos = toCanvasCoords(touch.clientX, touch.clientY)
     dragStart.current = { x: pos.x, y: pos.y, ox: photoOffset.x, oy: photoOffset.y }
     pinchStart.current = null
     setIsDragging(true)
@@ -572,11 +236,20 @@ export default function InstagramPostPage() {
       offscreen.width = W
       offscreen.height = H
 
-      drawStandingsCanvas(offscreen, standings, {
-        date: sessionMeta.date,
-        title: sessionMeta.title,
-        playerCount: sessionMeta.playerCount,
-      }, overlays, isStory, userPhoto, photoOffset, photoZoom)
+      drawStandingsCanvas({
+        canvas: offscreen,
+        standings,
+        meta: {
+          date: sessionMeta.date,
+          title: sessionMeta.title,
+          playerCount: sessionMeta.playerCount,
+        },
+        overlays,
+        isStory,
+        userPhoto,
+        photoOffset,
+        photoZoom,
+      })
 
       offscreen.toBlob((blob) => {
         if (!blob) {

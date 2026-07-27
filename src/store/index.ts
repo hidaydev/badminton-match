@@ -1,357 +1,48 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { GeneratorResult } from '../generator'
 
-export const PLAYERS_PER_GAME = 4
+import type { SessionSlice } from './sessionSlice'
+import { createSessionSlice } from './sessionSlice'
+import type { PlayersSlice } from './playersSlice'
+import { createPlayersSlice } from './playersSlice'
+import type { ScheduleSlice } from './scheduleSlice'
+import { createScheduleSlice } from './scheduleSlice'
+import type { FixMatchesSlice } from './fixMatchesSlice'
+import { createFixMatchesSlice } from './fixMatchesSlice'
+import type { UISlice } from './uiSlice'
+import { createUISlice } from './uiSlice'
 
-export type Gender = 'M' | 'F'
-export type Tier = 1 | 2 | 3 | 4
+// Re-export types for backward compatibility
+export type { Player, MatchConstraint, MatchConstraintFlexible, MatchConstraintPinned, ScheduleSlot, GameScore, CourtTime, SessionConfig, Gender, Tier } from '../types'
+export type { FixMatch, FixMatchFlexible, FixMatchPinned } from '../types'
+export { PLAYERS_PER_GAME } from '../types'
+export { timeToMinutes, minutesToTime, computeTimeSlots, courtsAtTime, timeToSlotIndex } from '../utils/time'
+export { selectSlotsPerCourt, selectTotalGames } from './selectors'
 
-export interface Player {
-  id: string
-  name: string
-  gender: Gender
-  tier: Tier
-}
+// Combined state type
+type AppState = SessionSlice & PlayersSlice & ScheduleSlice & FixMatchesSlice & UISlice
 
-export interface FixMatch {
-  id: string
-  slots: [string, string, string, string] // '' = any
-  mode: 'flexible' | 'pinned'
-  pinnedTime?: string    // "09:40"
-  pinnedCourt?: number   // court index (0-based)
-}
-
-export interface ScheduleSlot {
-  slot: number   // absolute time slot index
-  court: number
-  teamA: [string, string]
-  teamB: [string, string]
-}
-
-export interface GameScore {
-  a: number  // Team A score
-  b: number  // Team B score
-}
-
-export interface CourtTime {
-  start: string  // "09:00"
-  end: string    // "11:00"
-}
-
-export interface SessionConfig {
-  title: string
-  date: string
-  courts: number
-  sessionStart: string    // "09:00"
-  slotMinutes: number     // minutes per game slot
-  courtTimes: CourtTime[]
-  playerCount: number
-  slotsPerCourt: number[] // derived
-  totalGames: number      // derived
-  courtNames: string[]
-  locked: boolean
-}
-
-interface AppState {
-  sessionId: string
-  session: SessionConfig
-  players: Player[]
-  fixMatches: FixMatch[]
-  schedule: ScheduleSlot[]
-  lastResult: GeneratorResult | null
-  playedGames: string[]
-  gameScores: Record<string, GameScore>
-  cloudSessionId: string | null
-  setCloudSessionId: (id: string) => void
-
-  setCourts: (n: number) => void
-  setSessionStart: (time: string) => void
-  setSlotMinutes: (min: number) => void
-  setCourtTime: (index: number, start: string, end: string) => void
-  setPlayerCount: (n: number) => void
-  setCourtName: (index: number, name: string) => void
-  setTitle: (title: string) => void
-  setDate: (date: string) => void
-  lockSession: () => void
-  resetSession: () => void
-
-  addPlayer: (player: Omit<Player, 'id'>) => void
-  addPlayers: (players: Omit<Player, 'id'>[]) => void
-  updatePlayer: (id: string, patch: Partial<Omit<Player, 'id'>>) => void
-  removePlayer: (id: string) => void
-
-  addFixMatch: (m: Omit<FixMatch, 'id'>) => void
-  updateFixMatch: (id: string, patch: Partial<Omit<FixMatch, 'id'>>) => void
-  duplicateFixMatch: (id: string) => void
-  removeFixMatch: (id: string) => void
-
-  summaryOpen: boolean
-  absentPlayers: string[]
-  setResult: (r: GeneratorResult) => void
-  updateSchedule: (schedule: ScheduleSlot[]) => void
-  setAbsentPlayers: (ids: string[]) => void
-  togglePlayedGame: (key: string) => void
-  setGameScore: (key: string, a: number, b: number) => void
-  clearGameScore: (key: string) => void
-  setSummaryOpen: (open: boolean) => void
-}
-
-export function timeToMinutes(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h * 60 + (m || 0)
-}
-
-export function minutesToTime(m: number): string {
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-}
-
-export function computeTimeSlots(session: SessionConfig): string[] {
-  const allSlots = new Set<string>()
-  for (const ct of session.courtTimes) {
-    const start = timeToMinutes(ct.start)
-    const end = timeToMinutes(ct.end)
-    for (let m = start; m < end; m += session.slotMinutes) {
-      allSlots.add(minutesToTime(m))
-    }
-  }
-  return [...allSlots].sort()
-}
-
-export function courtsAtTime(session: SessionConfig, time: string): number[] {
-  const t = timeToMinutes(time)
-  return session.courtTimes
-    .map((ct, i) => ({ ct, i }))
-    .filter(({ ct }) => {
-      const start = timeToMinutes(ct.start)
-      const end = timeToMinutes(ct.end)
-      return t >= start && t + session.slotMinutes <= end
-    })
-    .map(({ i }) => i)
-}
-
-export function timeToSlotIndex(session: SessionConfig, time: string): number {
-  return Math.floor((timeToMinutes(time) - timeToMinutes(session.sessionStart)) / session.slotMinutes)
-}
-
-function derivedFromCourtTimes(courtTimes: CourtTime[], slotMinutes: number) {
-  const slotsPerCourt = courtTimes.map((ct) =>
-    Math.max(0, Math.floor((timeToMinutes(ct.end) - timeToMinutes(ct.start)) / slotMinutes))
-  )
-  return { slotsPerCourt, totalGames: slotsPerCourt.reduce((a, b) => a + b, 0) }
-}
-
-const DEFAULT_SLOT_MINUTES = 20
-const DEFAULT_COURT_TIMES: CourtTime[] = [
-  { start: '09:00', end: '11:00' },
-  { start: '09:00', end: '11:00' },
-]
-
-function makeDefaultSession(): SessionConfig {
-  return {
-    title: '',
-    date: new Date().toISOString().slice(0, 10),
-    courts: 2,
-    sessionStart: '09:00',
-    slotMinutes: DEFAULT_SLOT_MINUTES,
-    courtTimes: DEFAULT_COURT_TIMES,
-    playerCount: 8,
-    ...derivedFromCourtTimes(DEFAULT_COURT_TIMES, DEFAULT_SLOT_MINUTES),
-    courtNames: [],
-    locked: false,
-  }
-}
-
-function nanoid() {
-  return Math.random().toString(36).slice(2, 9)
-}
+// Type for Zustand set function
+export type SetState = (fn: (state: AppState) => Partial<AppState>) => void
 
 export const useStore = create<AppState>()(
   persist(
     (set) => ({
-      sessionId: nanoid(),
-      session: makeDefaultSession(),
-      players: [],
-      fixMatches: [],
-      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [],
-
-      setCourts: (n) =>
-        set((s) => {
-          const prev = s.session.courtTimes
-          const courtTimes = Array.from({ length: n }, (_, i) => prev[i] ?? { start: s.session.sessionStart, end: '11:00' })
-          return {
-            session: {
-              ...s.session,
-              courts: n,
-              courtTimes,
-              ...derivedFromCourtTimes(courtTimes, s.session.slotMinutes),
-            },
-          }
-        }),
-
-      setSessionStart: (time) =>
-        set((s) => {
-          const courtTimes = s.session.courtTimes.map((ct) => ({
-            start: timeToMinutes(ct.start) < timeToMinutes(time) ? time : ct.start,
-            end: timeToMinutes(ct.end) <= timeToMinutes(time)
-              ? minutesToTime(timeToMinutes(time) + s.session.slotMinutes)
-              : ct.end,
-          }))
-          return {
-            session: {
-              ...s.session,
-              sessionStart: time,
-              courtTimes,
-              ...derivedFromCourtTimes(courtTimes, s.session.slotMinutes),
-            },
-          }
-        }),
-
-      setSlotMinutes: (min) =>
-        set((s) => ({
-          session: {
-            ...s.session,
-            slotMinutes: min,
-            ...derivedFromCourtTimes(s.session.courtTimes, min),
-          },
-        })),
-
-      setCourtTime: (index, start, end) =>
-        set((s) => {
-          const courtTimes = [...s.session.courtTimes]
-          courtTimes[index] = { start, end }
-          return {
-            session: {
-              ...s.session,
-              courtTimes,
-              ...derivedFromCourtTimes(courtTimes, s.session.slotMinutes),
-            },
-          }
-        }),
-
-      setPlayerCount: (n) =>
-        set((s) => ({ session: { ...s.session, playerCount: n } })),
-
-      setCourtName: (index, name) =>
-        set((s) => {
-          const courtNames = [...s.session.courtNames]
-          courtNames[index] = name
-          return { session: { ...s.session, courtNames } }
-        }),
-
-      setTitle: (title) =>
-        set((s) => ({ session: { ...s.session, title } })),
-
-      setDate: (date) =>
-        set((s) => ({ session: { ...s.session, date } })),
-
-      lockSession: () =>
-        set((s) => ({ session: { ...s.session, locked: true } })),
-
-      resetSession: () =>
-        set({ sessionId: nanoid(), session: makeDefaultSession(), players: [], fixMatches: [], schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [] }),
-
-      addPlayer: (p) =>
-        set((s) => ({ players: [...s.players, { ...p, id: nanoid() }], schedule: [], lastResult: null })),
-
-      addPlayers: (newPlayers) =>
-        set((s) => ({
-          players: [...s.players, ...newPlayers.map((p) => ({ ...p, id: nanoid() }))],
-          schedule: [], lastResult: null,
-        })),
-
-      updatePlayer: (id, patch) =>
-        set((s) => ({
-          players: s.players.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-          schedule: [], lastResult: null,
-        })),
-
-      removePlayer: (id) =>
-        set((s) => ({
-          players: s.players.filter((p) => p.id !== id),
-          fixMatches: s.fixMatches.map((m) => ({
-            ...m,
-            slots: m.slots.map((s) => (s === id ? '' : s)) as FixMatch['slots'],
-          })),
-          absentPlayers: s.absentPlayers.filter((pid) => pid !== id),
-          schedule: [], lastResult: null,
-        })),
-
-      addFixMatch: (m) =>
-        set((s) => ({ fixMatches: [...s.fixMatches, { ...m, id: nanoid(), mode: m.mode ?? 'flexible' }], schedule: [], lastResult: null })),
-
-      updateFixMatch: (id, patch) =>
-        set((s) => ({
-          fixMatches: s.fixMatches.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-          schedule: [], lastResult: null,
-        })),
-
-      duplicateFixMatch: (id) =>
-        set((s) => {
-          const idx = s.fixMatches.findIndex((m) => m.id === id)
-          if (idx === -1) return s
-          const copy = { ...s.fixMatches[idx], id: nanoid() }
-          const next = [...s.fixMatches]
-          next.splice(idx + 1, 0, copy)
-          return { fixMatches: next, schedule: [], lastResult: null }
-        }),
-
-      removeFixMatch: (id) =>
-        set((s) => ({ fixMatches: s.fixMatches.filter((m) => m.id !== id), schedule: [], lastResult: null })),
-
-      setResult: (r) => set({ schedule: r.schedule, lastResult: r, playedGames: [], gameScores: {} }),
-
-      updateSchedule: (schedule) => set((s) => ({
-        schedule,
-        lastResult: s.lastResult ? { ...s.lastResult, schedule } : null,
-      })),
-
-      setAbsentPlayers: (ids) => set({ absentPlayers: [...new Set(ids)] }),
-
-      togglePlayedGame: (key) =>
-        set((s) => {
-          const isPlayed = s.playedGames.includes(key)
-          const playedGames = isPlayed
-            ? s.playedGames.filter((k) => k !== key)
-            : [...s.playedGames, key]
-
-          if (!isPlayed) return { playedGames }
-
-          const gameScores = { ...s.gameScores }
-          delete gameScores[key]
-          return { playedGames, gameScores }
-        }),
-
-      setGameScore: (key, a, b) => {
-        if (a === b) return // Reject equal scores
-        set((s) => ({
-          playedGames: s.playedGames.includes(key)
-            ? s.playedGames
-            : [...s.playedGames, key],
-          gameScores: { ...s.gameScores, [key]: { a, b } },
-        }))
-      },
-
-      clearGameScore: (key) =>
-        set((s) => {
-          const next = { ...s.gameScores }
-          delete next[key]
-          return { gameScores: next }
-        }),
-
-      setSummaryOpen: (open) => set({ summaryOpen: open }),
-
-      setCloudSessionId: (id) => set({ cloudSessionId: id }),
+      ...createSessionSlice(set as SetState),
+      ...createPlayersSlice(set as SetState),
+      ...createScheduleSlice(set as SetState),
+      ...createFixMatchesSlice(set as SetState),
+      ...createUISlice(set as SetState),
     }),
     {
       name: 'badminton-store',
       version: 14,
       migrate: () => ({
-        sessionId: nanoid(),
-        session: makeDefaultSession(),
-        players: [],
-        fixMatches: [],
-      schedule: [], lastResult: null, playedGames: [], gameScores: {}, summaryOpen: false, cloudSessionId: null, absentPlayers: [],
+        ...createSessionSlice((fn) => fn as any), // eslint-disable-line @typescript-eslint/no-explicit-any
+        ...createPlayersSlice((fn) => fn as any), // eslint-disable-line @typescript-eslint/no-explicit-any
+        ...createScheduleSlice((fn) => fn as any), // eslint-disable-line @typescript-eslint/no-explicit-any
+        ...createFixMatchesSlice((fn) => fn as any), // eslint-disable-line @typescript-eslint/no-explicit-any
+        ...createUISlice((fn) => fn as any), // eslint-disable-line @typescript-eslint/no-explicit-any
       }),
     }
   )

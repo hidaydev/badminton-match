@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { TournamentMatch } from '../../utils/tournament'
 import ScoreboardOverlay from './ScoreboardOverlay'
 
-interface Props {
+interface ScoreModalProps {
   match: TournamentMatch
   pairAName: string
   pairBName: string
@@ -12,7 +12,7 @@ interface Props {
   refetch: () => Promise<unknown>
 }
 
-export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onClose, isFetching = false, refetch }: Props) {
+export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onClose, isFetching = false, refetch }: ScoreModalProps) {
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? '')
   const [scoreB, setScoreB] = useState(match.scoreB?.toString() ?? '')
   const [showScoreboard, setShowScoreboard] = useState(false)

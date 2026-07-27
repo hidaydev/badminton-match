@@ -1,4 +1,4 @@
-import type { ScheduleSlot } from '../store'
+import type { ScheduleSlot } from '../types'
 
 export interface SlotSwapTarget {
   slot: number

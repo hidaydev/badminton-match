@@ -1,55 +1,28 @@
 import { useState } from 'react'
 import {
   DndContext,
-  useDraggable,
-  useDroppable,
   PointerSensor,
   TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { CSS } from '@dnd-kit/utilities'
 import type { GeneratorResult } from '../generator'
-import type { Player, GameScore, CourtTime } from '../store'
-import { timeToMinutes, minutesToTime } from '../store'
+import type { Player, GameScore, CourtTime, ScheduleSlot } from '../types'
+import { toPlayerId, toGameKey } from '../types'
+import { timeToMinutes, minutesToTime } from '../utils/time'
 import { computeStandings } from '../utils/standings'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
 import { detectTeamSwapConflict } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import { detectSlotSwapConflict } from '../utils/slotSwap'
-import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
-import ConfirmBars from './ConfirmBars'
-import ActionsMenu from './ActionsMenu'
-import PlayerStatsPanel from './PlayerStatsPanel'
+import PlayerMatchDetailSheet from './summary/PlayerMatchDetailSheet'
+import ConfirmBars from './summary/ConfirmBars'
+import ActionsMenu from './summary/ActionsMenu'
+import PlayerStatsPanel from './summary/PlayerStatsPanel'
+import SlotGameCard from './summary/SlotGameCard'
 import { ordinal } from '../utils/ordinal'
-
-function SlotGameCard({ id, children }: { id: string; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({ id })
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id })
-
-  return (
-    <div
-      ref={setDropRef}
-      className={isOver && !isDragging ? 'border border-dashed border-orange-400/60 rounded-lg' : 'border border-transparent rounded-lg'}
-    >
-      <div
-        ref={setDragRef}
-        style={transform ? { transform: CSS.Translate.toString(transform), position: 'relative', zIndex: 50 } : undefined}
-        className={`flex items-center gap-2 ${isDragging ? 'opacity-40' : ''}`}
-      >
-        <span
-          {...listeners}
-          {...attributes}
-          className="text-slate-400 hover:text-orange-400 cursor-grab active:cursor-grabbing text-[1rem] shrink-0 select-none touch-none px-0.5"
-        >
-          ⠿
-        </span>
-        {children}
-      </div>
-    </div>
-  )
-}
+import { validateScore } from '../utils/scoreValidation'
 
 function StandingsTab({
   players,
@@ -193,6 +166,47 @@ function mergeCourtTimes(courtTimes: CourtTime[]): string {
   return merged.map((r) => `${minutesToTime(r.start)}–${minutesToTime(r.end)}`).join(' · ')
 }
 
+function validateChangeName(
+  target: ChangeTarget,
+  name: string,
+  schedule: ScheduleSlot[],
+  playerMap: Map<string, Player>,
+): { error: string | null; b2b: boolean } {
+  // Same-game conflict: compare new name against other players' NAMES in this game
+  const game = schedule.find(g => g.slot === target.slot && g.court === target.court)
+  const otherNames = game
+    ? [...game.teamA, ...game.teamB]
+        .filter(id => id !== target.playerId)
+        .map(id => playerMap.get(id)?.name ?? id)
+    : []
+  if (otherNames.some(n => n.toLowerCase() === name.toLowerCase())) {
+    return { error: `${name} is already in this game`, b2b: false }
+  }
+  // Cross-slot: does the new name already play in another game this slot?
+  const slotNames = new Set<string>()
+  for (const g of schedule) {
+    if (g.slot === target.slot && !(g.court === target.court)) {
+      for (const id of [...g.teamA, ...g.teamB]) {
+        slotNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
+      }
+    }
+  }
+  if (slotNames.has(name.toLowerCase())) {
+    return { error: `${name} already plays in another game this slot`, b2b: false }
+  }
+  // B2B: does the new name play in adjacent slots?
+  const b2bNames = new Set<string>()
+  for (const g of schedule) {
+    if (g.slot === target.slot - 1 || g.slot === target.slot + 1) {
+      for (const id of [...g.teamA, ...g.teamB]) {
+        b2bNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
+      }
+    }
+  }
+  const b2b = b2bNames.has(name.toLowerCase())
+  return { error: null, b2b }
+}
+
 export default function SummaryModal({
   result,
   playerMap,
@@ -257,7 +271,10 @@ export default function SummaryModal({
   lockLoading?: boolean
 }) {
   const courts = slotsPerCourt.length
-  const maxSlots = Math.max(...slotsPerCourt)
+  const maxSlots = Math.max(
+    Math.max(...slotsPerCourt),
+    ...result.schedule.map(g => g.slot + 1)
+  )
   const played = new Set(playedArr)
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings'>('schedule')
@@ -265,28 +282,26 @@ export default function SummaryModal({
   const [scoreError, setScoreError] = useState<string | null>(null)
   const [draftScores, setDraftScores] = useState<Record<string, { a: string; b: string }>>({})
 
-  const [swapMode, setSwapMode] = useState(false)
+  // Discriminated union for modal modes - replaces 6 separate boolean states
+  type ModalMode = 'idle' | 'swap' | 'absent' | 'replace' | 'slotSwap' | 'teamSwap' | 'change'
+  const [mode, setMode] = useState<ModalMode>('idle')
+
   const [swapSelected, setSwapSelected] = useState<SwapTarget | null>(null)
   const [swapError, setSwapError] = useState<string | null>(null)
   const [pendingSwap, setPendingSwap] = useState<{ t1: SwapTarget; t2: SwapTarget } | null>(null)
 
-  const [absentMode, setAbsentMode] = useState(false)
   const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
 
-  const [replaceMode, setReplaceMode] = useState(false)
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceName, setReplaceName] = useState('')
 
-  const [slotSwapMode, setSlotSwapMode] = useState(false)
   const [pendingSlotSwap, setPendingSlotSwap] = useState<{ g1: SlotSwapTarget; g2: SlotSwapTarget } | null>(null)
   const [slotSwapError, setSlotSwapError] = useState<string | null>(null)
 
-  const [teamSwapMode, setTeamSwapMode] = useState(false)
   const [teamSwapSelected, setTeamSwapSelected] = useState<TeamSwapTarget | null>(null)
   const [pendingTeamSwap, setPendingTeamSwap] = useState<{ t1: TeamSwapTarget; t2: TeamSwapTarget } | null>(null)
   const [teamSwapError, setTeamSwapError] = useState<string | null>(null)
 
-  const [changeMode, setChangeMode] = useState(false)
   const [changeTarget, setChangeTarget] = useState<ChangeTarget | null>(null)
   const [changeName, setChangeName] = useState('')
   const [changeError, setChangeError] = useState<string | null>(null)
@@ -319,99 +334,80 @@ export default function SummaryModal({
     setPendingSlotSwap({ g1, g2 })
   }
 
-  function enterAbsentMode() {
-    exitSwapMode()
-    exitReplaceMode()
-    exitSlotSwapMode()
-    exitTeamSwapMode()
-    exitChangeMode()
-    setAbsentPending(new Set(absentPlayers))
-    setAbsentMode(true)
-  }
-
-  function exitAbsentMode() {
-    setAbsentMode(false)
-    setAbsentPending(new Set())
-  }
-
-  function exitReplaceMode() {
-    setReplaceMode(false)
-    setReplaceTarget(null)
-    setReplaceName('')
-  }
-
-  function enterReplaceMode() {
-    exitSwapMode()
-    exitAbsentMode()
-    exitSlotSwapMode()
-    exitTeamSwapMode()
-    exitChangeMode()
-    setReplaceMode(true)
-  }
-
-  function exitSlotSwapMode() {
-    setSlotSwapMode(false)
-    setPendingSlotSwap(null)
-    setSlotSwapError(null)
-  }
-
-  function enterSlotSwapMode() {
-    exitSwapMode()
-    exitAbsentMode()
-    exitReplaceMode()
-    exitTeamSwapMode()
-    exitChangeMode()
-    setActionsOpen(false)
-    setSlotSwapMode(true)
-  }
-
-  function exitTeamSwapMode() {
-    setTeamSwapMode(false)
-    setTeamSwapSelected(null)
-    setPendingTeamSwap(null)
-    setTeamSwapError(null)
-  }
-
-  function enterTeamSwapMode() {
-    exitSwapMode()
-    exitAbsentMode()
-    exitReplaceMode()
-    exitSlotSwapMode()
-    exitChangeMode()
-    setActionsOpen(false)
-    setTeamSwapMode(true)
-  }
-
-  function exitChangeMode() {
-    setChangeMode(false)
-    setChangeTarget(null)
-    setChangeName('')
-    setChangeError(null)
-    setPendingChange(null)
-  }
-
-  function enterChangeMode() {
-    exitSwapMode()
-    exitAbsentMode()
-    exitReplaceMode()
-    exitSlotSwapMode()
-    exitTeamSwapMode()
-    setActionsOpen(false)
-    setChangeMode(true)
+  // Exit current mode and reset associated state
+  function exitCurrentMode() {
+    switch (mode) {
+      case 'swap':
+        setSwapSelected(null)
+        setSwapError(null)
+        setPendingSwap(null)
+        break
+      case 'absent':
+        setAbsentPending(new Set())
+        break
+      case 'replace':
+        setReplaceTarget(null)
+        setReplaceName('')
+        break
+      case 'slotSwap':
+        setPendingSlotSwap(null)
+        setSlotSwapError(null)
+        break
+      case 'teamSwap':
+        setTeamSwapSelected(null)
+        setPendingTeamSwap(null)
+        setTeamSwapError(null)
+        break
+      case 'change':
+        setChangeTarget(null)
+        setChangeName('')
+        setChangeError(null)
+        setPendingChange(null)
+        break
+    }
+    setMode('idle')
+    // Reset score-related state
+    setExpandedScore(null)
+    setDraftScores({})
+    setScoreError(null)
   }
 
   function enterSwapMode() {
-    exitAbsentMode()
-    exitReplaceMode()
-    exitSlotSwapMode()
-    exitTeamSwapMode()
-    exitChangeMode()
+    exitCurrentMode()
+    setMode('swap')
+  }
+
+  function enterAbsentMode() {
+    exitCurrentMode()
+    setAbsentPending(new Set(absentPlayers))
+    setMode('absent')
+  }
+
+  function enterReplaceMode() {
+    exitCurrentMode()
+    setMode('replace')
+  }
+
+  function enterSlotSwapMode() {
+    exitCurrentMode()
     setActionsOpen(false)
-    setSwapMode(true)
+    setMode('slotSwap')
+  }
+
+  function enterTeamSwapMode() {
+    exitCurrentMode()
+    setActionsOpen(false)
+    setMode('teamSwap')
+  }
+
+  function enterChangeMode() {
+    exitCurrentMode()
+    setActionsOpen(false)
+    setMode('change')
   }
 
   function handleTeamClick(target: TeamSwapTarget) {
-    if (!teamSwapMode) return
+    if (mode !== 'teamSwap') return
     if (
       teamSwapSelected &&
       teamSwapSelected.slot === target.slot &&
@@ -439,25 +435,18 @@ export default function SummaryModal({
   }
 
   // In absent mode, preview pending selections; otherwise use saved state
-  const effectiveAbsent = absentMode ? absentPending : new Set(absentPlayers)
+  const effectiveAbsent = mode === 'absent' ? absentPending : new Set(absentPlayers)
 
   // True when pending state differs from saved state
-  const absentChanged = absentMode && (() => {
+  const absentChanged = mode === 'absent' && (() => {
     const saved = new Set(absentPlayers)
     if (absentPending.size !== saved.size) return true
     for (const id of absentPending) if (!saved.has(id)) return true
     return false
   })()
 
-  function exitSwapMode() {
-    setSwapMode(false)
-    setSwapSelected(null)
-    setSwapError(null)
-    setPendingSwap(null)
-  }
-
   function handleChipClick(target: SwapTarget) {
-    if (!swapMode) return
+    if (mode !== 'swap') return
     if (!swapSelected) {
       setSwapSelected(target)
       setSwapError(null)
@@ -486,7 +475,7 @@ export default function SummaryModal({
       const selectedGame = result.schedule.find(g => g.slot === swapSelected.slot && g.court === swapSelected.court)
       const targetGamePlayers = targetGame ? [...targetGame.teamA, ...targetGame.teamB] : []
       const selectedGamePlayers = selectedGame ? [...selectedGame.teamA, ...selectedGame.teamB] : []
-      if (targetGamePlayers.includes(swapSelected.playerId) || selectedGamePlayers.includes(target.playerId)) {
+      if (targetGamePlayers.includes(toPlayerId(swapSelected.playerId)) || selectedGamePlayers.includes(toPlayerId(target.playerId))) {
         setSwapError('One player already plays in the other\'s game')
         setSwapSelected(null)
         return
@@ -529,7 +518,8 @@ export default function SummaryModal({
     const b = parseInt(draft.b, 10)
     if (isNaN(a) || isNaN(b)) return false
     if (a < 0 || a > 99 || b < 0 || b > 99) return false
-    if (a === b) { setScoreError('Scores can\'t be equal'); return false }
+    const err = validateScore(a, b)
+    if (err) { setScoreError(err); return false }
     setScoreError(null)
     onSetGameScore(key, a, b)
     return true
@@ -541,14 +531,14 @@ export default function SummaryModal({
 
   // ConfirmBars callbacks
   function handleCancelSwap() { setPendingSwap(null) }
-  function handleConfirmSwap() { if (pendingSwap) { onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2); exitSwapMode() } }
+  function handleConfirmSwap() { if (pendingSwap) { onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2); exitCurrentMode() } }
   function handleCancelSlotSwap() { setPendingSlotSwap(null) }
-  function handleConfirmSlotSwap() { if (pendingSlotSwap) { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitSlotSwapMode() } }
-  function handleCancelTeamSwap() { exitTeamSwapMode() }
-  function handleConfirmTeamSwap() { if (pendingTeamSwap) { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitTeamSwapMode() } }
+  function handleConfirmSlotSwap() { if (pendingSlotSwap) { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitCurrentMode() } }
+  function handleCancelTeamSwap() { exitCurrentMode() }
+  function handleConfirmTeamSwap() { if (pendingTeamSwap) { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitCurrentMode() } }
   function handleCancelChange() { setPendingChange(null) }
-  function handleConfirmChange() { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitChangeMode() } }
-  function handleConfirmAbsent() { onSetAbsent?.([...absentPending]); exitAbsentMode() }
+  function handleConfirmChange() { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitCurrentMode() } }
+  function handleConfirmAbsent() { onSetAbsent?.([...absentPending]); exitCurrentMode() }
 
   return (
     <div className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-50 bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label="Session summary">
@@ -557,13 +547,13 @@ export default function SummaryModal({
         <div className="flex items-center gap-3">
           <div className="flex gap-1">
             <button
-              onClick={() => { setActiveTab('schedule'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); exitChangeMode() }}
+              onClick={() => { setActiveTab('schedule'); exitCurrentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Schedule
             </button>
             <button
-              onClick={() => { setActiveTab('standings'); exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); exitChangeMode() }}
+              onClick={() => { setActiveTab('standings'); exitCurrentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Leaderboard
@@ -582,9 +572,9 @@ export default function SummaryModal({
             </span>
           )}
           {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams || onLock) && (
-            swapMode || absentMode || replaceMode || slotSwapMode || teamSwapMode || changeMode ? (
+            mode !== 'idle' ? (
               <button
-                onClick={() => { exitSwapMode(); exitAbsentMode(); exitReplaceMode(); exitSlotSwapMode(); exitTeamSwapMode(); exitChangeMode(); setActionsOpen(false) }}
+                onClick={() => { exitCurrentMode(); setActionsOpen(false) }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
                 ✕<span className="hidden sm:inline"> Cancel</span>
@@ -720,7 +710,7 @@ export default function SummaryModal({
 
       {/* Content */}
       <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
-        {swapMode && !pendingSwap && (
+        {mode === 'swap' && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
               {swapSelected
@@ -732,7 +722,7 @@ export default function SummaryModal({
             )}
           </div>
         )}
-        {absentMode && (
+        {mode === 'absent' && (
           <div className="mb-3 rounded-lg bg-red-950/30 border border-red-900/40 px-3 py-2 flex flex-col gap-2">
             <span className="text-xs text-red-300 font-medium">
               {absentPending.size > 0
@@ -766,7 +756,7 @@ export default function SummaryModal({
             </div>
           </div>
         )}
-        {replaceMode && (
+        {mode === 'replace' && (
           <div className="mb-3 rounded-lg bg-emerald-950/30 border border-emerald-900/40 px-3 py-2 flex flex-col gap-2">
             {replaceTarget === null ? (
               <span className="text-xs text-emerald-300 font-medium">Tap a player to replace</span>
@@ -783,7 +773,7 @@ export default function SummaryModal({
                     onKeyDown={async (e) => {
                       if (e.key === 'Enter' && replaceName.trim()) {
                         await onReplacePlayer?.(replaceTarget, replaceName.trim())
-                        exitReplaceMode()
+                        exitCurrentMode()
                       }
                     }}
                     placeholder="New name…"
@@ -794,7 +784,7 @@ export default function SummaryModal({
                     onClick={async () => {
                       if (!replaceName.trim()) return
                       await onReplacePlayer?.(replaceTarget, replaceName.trim())
-                      exitReplaceMode()
+                      exitCurrentMode()
                     }}
                     disabled={!replaceName.trim() || saving}
                     className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5"
@@ -807,7 +797,7 @@ export default function SummaryModal({
             )}
           </div>
         )}
-        {slotSwapMode && (
+        {mode === 'slotSwap' && (
           <div className="mb-3 rounded-lg bg-orange-950/30 border border-orange-900/40 px-3 py-2">
             {slotSwapError ? (
               <span className="text-xs text-red-400">{slotSwapError}</span>
@@ -816,7 +806,7 @@ export default function SummaryModal({
             )}
           </div>
         )}
-        {teamSwapMode && (
+        {mode === 'teamSwap' && (
           <div className="mb-3 rounded-lg bg-violet-950/30 border border-violet-900/40 px-3 py-2">
             {teamSwapError ? (
               <span className="text-xs text-red-400">{teamSwapError}</span>
@@ -825,7 +815,7 @@ export default function SummaryModal({
             )}
           </div>
         )}
-        {changeMode && (
+        {mode === 'change' && (
           <div className="mb-3 rounded-lg bg-sky-950/30 border border-sky-900/40 px-3 py-2 flex flex-col gap-2">
             {changeTarget === null ? (
               <span className="text-xs text-sky-300 font-medium">Tap a player to change them out</span>
@@ -842,35 +832,9 @@ export default function SummaryModal({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && changeName.trim()) {
                         const name = changeName.trim()
-                        // Check same-game conflict: compare new name against other players' NAMES in this game
-                        const game = result.schedule.find(g => g.slot === changeTarget.slot && g.court === changeTarget.court)
-                        const otherNames = game
-                          ? [...game.teamA, ...game.teamB]
-                              .filter(id => id !== changeTarget.playerId)
-                              .map(id => playerMap.get(id)?.name ?? id)
-                          : []
-                        if (otherNames.some(n => n.toLowerCase() === name.toLowerCase())) { setChangeError(`${name} is already in this game`); return }
-                        // Check cross-slot: does the new name already play in another game this slot?
-                        const slotNames = new Set<string>()
-                        for (const g of result.schedule) {
-                          if (g.slot === changeTarget.slot && !(g.court === changeTarget.court)) {
-                            for (const id of [...g.teamA, ...g.teamB]) {
-                              slotNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
-                            }
-                          }
-                        }
-                        if (slotNames.has(name.toLowerCase())) { setChangeError(`${name} already plays in another game this slot`); return }
-                        // Check B2B: does the new name play in adjacent slots?
-                        const b2bNames = new Set<string>()
-                        for (const g of result.schedule) {
-                          if (g.slot === changeTarget.slot - 1 || g.slot === changeTarget.slot + 1) {
-                            for (const id of [...g.teamA, ...g.teamB]) {
-                              b2bNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
-                            }
-                          }
-                        }
-                        const b2b = b2bNames.has(name.toLowerCase())
-                        setPendingChange({ target: changeTarget, newName: name, b2b })
+                        const validation = validateChangeName(changeTarget, name, result.schedule, playerMap)
+                        if (validation.error) { setChangeError(validation.error); return }
+                        setPendingChange({ target: changeTarget, newName: name, b2b: validation.b2b })
                       }
                     }}
                     placeholder="New name…"
@@ -881,35 +845,9 @@ export default function SummaryModal({
                     onClick={() => {
                       if (!changeName.trim()) return
                       const name = changeName.trim()
-                      // Check same-game conflict: compare new name against other players' NAMES in this game
-                      const game = result.schedule.find(g => g.slot === changeTarget.slot && g.court === changeTarget.court)
-                      const otherNames = game
-                        ? [...game.teamA, ...game.teamB]
-                            .filter(id => id !== changeTarget.playerId)
-                            .map(id => playerMap.get(id)?.name ?? id)
-                        : []
-                      if (otherNames.some(n => n.toLowerCase() === name.toLowerCase())) { setChangeError(`${name} is already in this game`); return }
-                      // Check cross-slot: does the new name already play in another game this slot?
-                      const slotNames = new Set<string>()
-                      for (const g of result.schedule) {
-                        if (g.slot === changeTarget.slot && !(g.court === changeTarget.court)) {
-                          for (const id of [...g.teamA, ...g.teamB]) {
-                            slotNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
-                          }
-                        }
-                      }
-                      if (slotNames.has(name.toLowerCase())) { setChangeError(`${name} already plays in another game this slot`); return }
-                      // Check B2B: does the new name play in adjacent slots?
-                      const b2bNames = new Set<string>()
-                      for (const g of result.schedule) {
-                        if (g.slot === changeTarget.slot - 1 || g.slot === changeTarget.slot + 1) {
-                          for (const id of [...g.teamA, ...g.teamB]) {
-                            b2bNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
-                          }
-                        }
-                      }
-                      const b2b = b2bNames.has(name.toLowerCase())
-                      setPendingChange({ target: changeTarget, newName: name, b2b })
+                      const validation = validateChangeName(changeTarget, name, result.schedule, playerMap)
+                      if (validation.error) { setChangeError(validation.error); return }
+                      setPendingChange({ target: changeTarget, newName: name, b2b: validation.b2b })
                     }}
                     disabled={!changeName.trim() || saving}
                     className="text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
@@ -946,7 +884,7 @@ export default function SummaryModal({
                     </div>
                     <div className="flex flex-col gap-2.5 flex-1">
                       {games.map((g) => {
-                        const key = `${s}-${g.court}`
+                        const key = toGameKey(s, g.court)
                         const done = played.has(key)
                         const savedScore = gameScores[key]
                         const isOpen = expandedScore === key
@@ -962,8 +900,8 @@ export default function SummaryModal({
                             >
                               {/* Played checkbox */}
                               <div
-                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${locked || swapMode || replaceMode || changeMode || slotSwapMode || teamSwapMode ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                                onClick={() => { if (!locked && !saving && !swapMode && !replaceMode && !changeMode && !slotSwapMode && !teamSwapMode) onTogglePlayedGame(key) }}
+                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${locked || mode !== 'idle' ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                                onClick={() => { if (!locked && !saving && mode === 'idle') onTogglePlayedGame(key) }}
                               >
                                 {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                               </div>
@@ -972,7 +910,7 @@ export default function SummaryModal({
                                 <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
                                   {courtLabel(g.court)}
                                 </span>
-                                {teamSwapMode ? (
+                                {mode === 'teamSwap' ? (
                                   (() => {
                                     const tgt: TeamSwapTarget = { slot: s, court: g.court, team: 'A' }
                                     const isSelected = teamSwapSelected?.slot === s && teamSwapSelected?.court === g.court && teamSwapSelected?.team === 'A'
@@ -1016,7 +954,7 @@ export default function SummaryModal({
                                       return (
                                         <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
                                           {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
-                                          {replaceMode ? (
+                                          {mode === 'replace' ? (
                                             <button
                                               onClick={() => {
                                                 if (replaceTarget === id) {
@@ -1035,10 +973,10 @@ export default function SummaryModal({
                                             >
                                               {n}
                                             </button>
-                                          ) : changeMode ? (
+                                          ) : mode === 'change' ? (
                                             <button
                                               onClick={() => {
-                                                const hasScore = !!gameScores[`${s}-${g.court}`]
+                                                const hasScore = !!gameScores[toGameKey(s, g.court)]
                                                 if (hasScore) return
                                                 const tgt: ChangeTarget = { slot: s, court: g.court, team: 'A', index: i, playerId: id }
                                                 setChangeTarget(tgt)
@@ -1053,7 +991,7 @@ export default function SummaryModal({
                                             >
                                               {n}
                                             </button>
-                                          ) : swapMode && !done && !pendingSwap ? (
+                                          ) : mode === 'swap' && !done && !pendingSwap ? (
                                             <button
                                               onClick={() => handleChipClick(target)}
                                               className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
@@ -1064,7 +1002,7 @@ export default function SummaryModal({
                                             >
                                               {n}
                                             </button>
-                                          ) : swapMode && !done && pendingSwap ? (
+                                          ) : mode === 'swap' && !done && pendingSwap ? (
                                             <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
                                               isSelected
                                                 ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
@@ -1087,7 +1025,7 @@ export default function SummaryModal({
                                   </div>
                                 )}
                                 <span className="text-slate-400 text-xs text-center">vs</span>
-                                {teamSwapMode ? (
+                                {mode === 'teamSwap' ? (
                                   (() => {
                                     const tgt: TeamSwapTarget = { slot: s, court: g.court, team: 'B' }
                                     const isSelected = teamSwapSelected?.slot === s && teamSwapSelected?.court === g.court && teamSwapSelected?.team === 'B'
@@ -1131,7 +1069,7 @@ export default function SummaryModal({
                                       return (
                                         <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
                                           {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
-                                          {replaceMode ? (
+                                          {mode === 'replace' ? (
                                             <button
                                               onClick={() => {
                                                 if (replaceTarget === id) {
@@ -1150,10 +1088,10 @@ export default function SummaryModal({
                                             >
                                               {n}
                                             </button>
-                                          ) : changeMode ? (
+                                          ) : mode === 'change' ? (
                                             <button
                                               onClick={() => {
-                                                const hasScore = !!gameScores[`${s}-${g.court}`]
+                                                const hasScore = !!gameScores[toGameKey(s, g.court)]
                                                 if (hasScore) return
                                                 const tgt: ChangeTarget = { slot: s, court: g.court, team: 'B', index: i, playerId: id }
                                                 setChangeTarget(tgt)
@@ -1168,7 +1106,7 @@ export default function SummaryModal({
                                             >
                                               {n}
                                             </button>
-                                          ) : swapMode && !done && !pendingSwap ? (
+                                          ) : mode === 'swap' && !done && !pendingSwap ? (
                                             <button
                                               onClick={() => handleChipClick(target)}
                                               className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
@@ -1179,7 +1117,7 @@ export default function SummaryModal({
                                             >
                                               {n}
                                             </button>
-                                          ) : swapMode && !done && pendingSwap ? (
+                                          ) : mode === 'swap' && !done && pendingSwap ? (
                                             <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
                                               isSelected
                                                 ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
@@ -1203,7 +1141,7 @@ export default function SummaryModal({
                                 )}
                               </div>
                               {/* Score toggle / saved score */}
-                              {!changeMode && !swapMode && !replaceMode && !slotSwapMode && !teamSwapMode && (savedScore && !isOpen ? (
+                              {mode === 'idle' && (savedScore && !isOpen ? (
                                 <button
                                   onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) } }}
                                   className={`text-[11px] font-bold shrink-0 whitespace-nowrap ${locked ? 'text-slate-400 cursor-default' : 'text-emerald-400 hover:text-emerald-300'}`}
@@ -1270,7 +1208,7 @@ export default function SummaryModal({
                             )}
                           </div>
                         )
-                        return slotSwapMode ? (
+                        return mode === 'slotSwap' ? (
                           <SlotGameCard key={key} id={key}>
                             {gameRow}
                           </SlotGameCard>
@@ -1284,7 +1222,7 @@ export default function SummaryModal({
               })}
             </div>
           )
-          return slotSwapMode ? (
+          return mode === 'slotSwap' ? (
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               {scheduleGrid}
             </DndContext>
@@ -1308,7 +1246,7 @@ export default function SummaryModal({
         onConfirmSwap={handleConfirmSwap}
         absentChanged={absentChanged}
         absentPending={absentPending}
-        onCancelAbsent={exitAbsentMode}
+        onCancelAbsent={exitCurrentMode}
         onConfirmAbsent={handleConfirmAbsent}
         pendingSlotSwap={pendingSlotSwap}
         onCancelSlotSwap={handleCancelSlotSwap}

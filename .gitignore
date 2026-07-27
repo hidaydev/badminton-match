@@ -32,3 +32,7 @@ supabase/.temp
 
 # Graphify
 graphify-out/
+.graphify/
+
+CLEANCODE_BACKLOG.md
+BUG_AUDIT_BACKLOG.md

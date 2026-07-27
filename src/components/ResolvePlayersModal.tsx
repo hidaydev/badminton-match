@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Player } from '../store'
+import type { Player } from '../types'
 import type { PlayerSummary } from '../queries'
 import type { ResolveEntry, ResolveResult } from '../utils/resolvePlayers'
 import { buildResolveResult } from '../utils/resolvePlayers'

@@ -1,10 +1,10 @@
-interface Props {
+interface InstallModalProps {
   isIos: boolean
   onInstall(): void
   onClose(): void
 }
 
-export default function InstallModal({ isIos, onInstall, onClose }: Props) {
+export default function InstallModal({ isIos, onInstall, onClose }: InstallModalProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"

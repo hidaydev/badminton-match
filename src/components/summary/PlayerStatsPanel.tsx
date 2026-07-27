@@ -1,5 +1,5 @@
-import type { Player, ScheduleSlot } from '../store'
-import { computePlayerStats } from '../utils/playerStats'
+import type { Player, ScheduleSlot } from '../../types'
+import { computePlayerStats } from '../../utils/playerStats'
 
 interface PlayerStatsPanelProps {
   schedule: ScheduleSlot[]
