@@ -1,14 +1,15 @@
-import type { CloudSnapshot } from '../queries/types.ts'
+import type { CloudSnapshot, MatchConstraint, Player, ScheduleSlot, SessionConfig } from '../types'
+import { toGameKey } from '../types'
 import { applySwap, applyTeamSwap, applyChange, type SwapTarget, type TeamSwapTarget, type ChangeTarget } from './swap.ts'
 import { applySlotSwap, type SlotSwapTarget } from './slotSwap.ts'
-import type { FixMatch, Player, ScheduleSlot, SessionConfig } from '../store/index.ts'
+import { validateScore } from './scoreValidation.ts'
 
 interface PublishableSessionInput {
   version?: number
   existingAbsentPlayers?: string[]
   session: SessionConfig
   players: Player[]
-  fixMatches: FixMatch[]
+  fixMatches: MatchConstraint[]
   schedule: ScheduleSlot[]
   playedGames: string[]
   gameScores: CloudSnapshot['gameScores']
@@ -57,8 +58,8 @@ export function setScoreInSnapshot(
   a: number,
   b: number,
 ): CloudSnapshot {
-  // Reject equal scores (including 0-0)
-  if (a === b) return snapshot
+  // Reject invalid scores (equal or negative)
+  if (validateScore(a, b) !== null) return snapshot
 
   const playedGames = snapshot.playedGames.includes(key)
     ? snapshot.playedGames
@@ -124,8 +125,8 @@ function migrateKeys<T>(
   g1: SlotSwapTarget,
   g2: SlotSwapTarget,
 ): Record<string, T> {
-  const k1 = `${g1.slot}-${g1.court}`
-  const k2 = `${g2.slot}-${g2.court}`
+  const k1 = toGameKey(g1.slot, g1.court)
+  const k2 = toGameKey(g2.slot, g2.court)
   const next: Record<string, T> = {}
   for (const [key, value] of Object.entries(record)) {
     if (key === k1) next[k2] = value
@@ -140,8 +141,8 @@ function migratePlayedGames(
   g1: SlotSwapTarget,
   g2: SlotSwapTarget,
 ): string[] {
-  const k1 = `${g1.slot}-${g1.court}`
-  const k2 = `${g2.slot}-${g2.court}`
+  const k1 = toGameKey(g1.slot, g1.court)
+  const k2 = toGameKey(g2.slot, g2.court)
   return playedGames.map((key) => {
     if (key === k1) return k2
     if (key === k2) return k1

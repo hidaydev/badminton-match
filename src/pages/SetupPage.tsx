@@ -1,5 +1,8 @@
 import { useEffect } from 'react'
-import { useStore, PLAYERS_PER_GAME, timeToMinutes, minutesToTime } from '../store'
+import { useStore } from '../store'
+import { selectTotalGames } from '../store/selectors'
+import { PLAYERS_PER_GAME } from '../types'
+import { timeToMinutes, minutesToTime } from '../utils/time'
 import { useNavigate } from 'react-router-dom'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -328,7 +331,7 @@ export default function SetupPage() {
         {/* Block 4: Summary */}
         <div className="flex items-center justify-between bg-slate-800 rounded-xl px-3 py-2">
           <span className="text-sm text-slate-400">Total Games</span>
-          <span className="text-2xl font-bold text-indigo-400">{session.totalGames}</span>
+          <span className="text-2xl font-bold text-indigo-400">{selectTotalGames(session)}</span>
         </div>
 
         {courtError && !session.locked && (
@@ -366,8 +369,8 @@ export default function SetupPage() {
 
       <div className="text-xs text-slate-400 leading-relaxed">
         <p>
-          {session.courts} court{session.courts > 1 ? 's' : ''} · {session.totalGames} total games.
-          <PlaysPerPlayer totalGames={session.totalGames} playerCount={session.playerCount} />
+          {session.courts} court{session.courts > 1 ? 's' : ''} · {selectTotalGames(session)} total games.
+          <PlaysPerPlayer totalGames={selectTotalGames(session)} playerCount={session.playerCount} />
         </p>
       </div>
     </div>

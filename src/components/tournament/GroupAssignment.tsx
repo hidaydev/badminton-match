@@ -15,7 +15,7 @@ interface ActiveSlot {
   slotIndex: number
 }
 
-interface Props {
+interface GroupAssignmentProps {
   pairs: TournamentPair[]
   groups: Record<GroupId, (string | null)[]>
   onAddPairToGroup: (pairId: string, groupId: GroupId, slotIndex: number) => void
@@ -31,7 +31,7 @@ export default function GroupAssignment({
   onRemovePairFromGroup,
   onConfirmGroups,
   isLoading,
-}: Props) {
+}: GroupAssignmentProps) {
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null)
 
   const assignedIds = new Set(Object.values(groups).flat().filter(Boolean) as string[])

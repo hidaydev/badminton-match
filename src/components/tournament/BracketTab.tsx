@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { loadImage, drawMatchPost, drawBracketRoundCover, drawPositionPost } from '../../utils/canvasPost'
+import { drawMatchPost, drawBracketRoundCover, drawPositionPost } from '../../utils/canvasPost'
 import type { TournamentMatch, TournamentPair } from '../../utils/tournament'
+import { canvasToBlob, shareOrDownload } from '../../utils/share'
+import { loadOverlayImages } from '../../utils/overlays'
 import ScoreModal from './ScoreModal'
 
-interface Props {
+interface BracketTabProps {
   pairs: TournamentPair[]
   matches: TournamentMatch[]
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
@@ -85,7 +87,7 @@ function Connector() {
   )
 }
 
-export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: Props) {
+export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: BracketTabProps) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const [postModeRounds, setPostModeRounds] = useState<Record<string, boolean>>({})
   const [bracketPhotos, setBracketPhotos] = useState<Record<string, HTMLImageElement>>({})
@@ -103,16 +105,13 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
   const activePodiumPos = useRef<string | null>(null)
 
   useEffect(() => {
-    const load = async () => {
-      const result: typeof overlays = {}
-      try { result.logo = await loadImage('/instagram-logo.png') } catch { /* skip */ }
-      try { result.badge = await loadImage('/tournament-badge.png') } catch { /* skip */ }
-      try { result.chevrons = await loadImage('/chevrons.png') } catch { /* skip */ }
-      try { result.sponsor = await loadImage('/sponsor-logo.png') } catch { /* skip */ }
-      try { result.summaryBg = await loadImage('/summary-bg.png') } catch { /* skip */ }
-      setOverlays(result)
-    }
-    load()
+    loadOverlayImages({
+      logo: '/instagram-logo.png',
+      badge: '/tournament-badge.png',
+      chevrons: '/chevrons.png',
+      sponsor: '/sponsor-logo.png',
+      summaryBg: '/summary-bg.png',
+    }).then(setOverlays)
   }, [])
 
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
@@ -192,24 +191,14 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     if (!photo) return
     const c = document.createElement('canvas')
     drawPositionPost(c, photo, positionLabel, name, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge)
-    const blob = await new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
+    const blob = await canvasToBlob(c)
     if (!blob) return
     const file = new File([blob], `bracket-${pos}.jpg`, { type: 'image/jpeg' })
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    if (isIOS && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: positionLabel })
-    } else {
-      const url = URL.createObjectURL(file)
-      const a = document.createElement('a')
-      a.href = url; a.download = file.name
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
-      setTimeout(() => URL.revokeObjectURL(url), 300)
-    }
+    await shareOrDownload([file], positionLabel)
   }
 
   const handleDownloadRound = async (roundMatchIds: string[], roundTitle: string) => {
     const roundSlug = roundTitle.toLowerCase().replace(/\s+/g, '-')
-    const blobOf = (c: HTMLCanvasElement) => new Promise<Blob | null>(res => c.toBlob(res, 'image/jpeg', 0.92))
     const files: File[] = []
 
     // Cover card — always included
@@ -225,7 +214,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     })
     const coverCanvas = document.createElement('canvas')
     drawBracketRoundCover(coverCanvas, roundTitle, coverRows, overlays.summaryBg, overlays.logo, overlays.sponsor)
-    const coverBlob = await blobOf(coverCanvas)
+    const coverBlob = await canvasToBlob(coverCanvas)
     if (coverBlob) files.push(new File([coverBlob], `bracket-${roundSlug}-cover.jpg`, { type: 'image/jpeg' }))
 
     // Per-match photo posts
@@ -247,27 +236,12 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
         overlays.chevrons,
         overlays.sponsor,
       )
-      const blob = await blobOf(c)
+      const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], `bracket-${id}.jpg`, { type: 'image/jpeg' }))
     }
 
     if (files.length === 0) return
-
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    if (isIOS && navigator.canShare?.({ files })) {
-      await navigator.share({ files, title: 'Bracket Photos' })
-    } else {
-      for (const file of files) {
-        const url = URL.createObjectURL(file)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = file.name
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        await new Promise<void>(r => setTimeout(() => { URL.revokeObjectURL(url); r() }, 300))
-      }
-    }
+    await shareOrDownload(files, 'Bracket Photos')
   }
 
   return (

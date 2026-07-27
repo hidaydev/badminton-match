@@ -1,4 +1,5 @@
-import type { ScheduleSlot } from '../store'
+import type { ScheduleSlot, PlayerId } from '../types'
+import { toPlayerId } from '../types'
 
 export interface SwapTarget {
   slot: number
@@ -8,13 +9,8 @@ export interface SwapTarget {
   index: 0 | 1
 }
 
-export interface ChangeTarget {
-  slot: number
-  court: number
-  team: 'A' | 'B'
-  index: 0 | 1
-  playerId: string
-}
+/** @deprecated Use SwapTarget instead — identical fields. */
+export type ChangeTarget = SwapTarget
 
 export function applyChange(
   schedule: ScheduleSlot[],
@@ -24,10 +20,10 @@ export function applyChange(
   // Only change the specific position in the target game, not all occurrences
   return schedule.map(s => {
     if (s.slot !== target.slot || s.court !== target.court) return s
-    const teamA = [...s.teamA] as [string, string]
-    const teamB = [...s.teamB] as [string, string]
-    if (target.team === 'A') teamA[target.index] = newName
-    else teamB[target.index] = newName
+    const teamA = [...s.teamA] as [PlayerId, PlayerId]
+    const teamB = [...s.teamB] as [PlayerId, PlayerId]
+    if (target.team === 'A') teamA[target.index] = toPlayerId(newName)
+    else teamB[target.index] = toPlayerId(newName)
     return { ...s, teamA, teamB }
   })
 }
@@ -45,21 +41,21 @@ export function applySwap(
   const sameGame = t1.slot === t2.slot && t1.court === t2.court
   return schedule.map((s) => {
     if (s.slot === t1.slot && s.court === t1.court) {
-      const teamA = [...s.teamA] as [string, string]
-      const teamB = [...s.teamB] as [string, string]
-      if (t1.team === 'A') teamA[t1.index] = t2.playerId
-      else teamB[t1.index] = t2.playerId
+      const teamA = [...s.teamA] as [PlayerId, PlayerId]
+      const teamB = [...s.teamB] as [PlayerId, PlayerId]
+      if (t1.team === 'A') teamA[t1.index] = toPlayerId(t2.playerId)
+      else teamB[t1.index] = toPlayerId(t2.playerId)
       if (sameGame) {
-        if (t2.team === 'A') teamA[t2.index] = t1.playerId
-        else teamB[t2.index] = t1.playerId
+        if (t2.team === 'A') teamA[t2.index] = toPlayerId(t1.playerId)
+        else teamB[t2.index] = toPlayerId(t1.playerId)
       }
       return { ...s, teamA, teamB }
     }
     if (!sameGame && s.slot === t2.slot && s.court === t2.court) {
-      const teamA = [...s.teamA] as [string, string]
-      const teamB = [...s.teamB] as [string, string]
-      if (t2.team === 'A') teamA[t2.index] = t1.playerId
-      else teamB[t2.index] = t1.playerId
+      const teamA = [...s.teamA] as [PlayerId, PlayerId]
+      const teamB = [...s.teamB] as [PlayerId, PlayerId]
+      if (t2.team === 'A') teamA[t2.index] = toPlayerId(t1.playerId)
+      else teamB[t2.index] = toPlayerId(t1.playerId)
       return { ...s, teamA, teamB }
     }
     return s
@@ -84,8 +80,8 @@ export function applyTeamSwap(
   const game2 = schedule.find(s => s.slot === t2.slot && s.court === t2.court)
   if (!game1 || !game2) return schedule
 
-  const team1Players = [...(t1.team === 'A' ? game1.teamA : game1.teamB)] as [string, string]
-  const team2Players = [...(t2.team === 'A' ? game2.teamA : game2.teamB)] as [string, string]
+  const team1Players = [...(t1.team === 'A' ? game1.teamA : game1.teamB)] as [PlayerId, PlayerId]
+  const team2Players = [...(t2.team === 'A' ? game2.teamA : game2.teamB)] as [PlayerId, PlayerId]
   const sameGame = t1.slot === t2.slot && t1.court === t2.court
 
   return schedule.map(s => {

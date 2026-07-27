@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { useStore, type Gender, type Tier, type Player } from '../store'
+import type { Gender, Tier, Player } from '../types'
+import { useStore } from '../store'
 import { useNavigate } from 'react-router-dom'
 
 function parsePlayerList(raw: string): string[] {

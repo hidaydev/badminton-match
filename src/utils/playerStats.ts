@@ -1,4 +1,5 @@
-import type { ScheduleSlot } from '../store'
+import type { ScheduleSlot } from '../types'
+import { bumpCoOccurrence } from './counter'
 
 /**
  * Compute play count, sit count, partner co-occurrence, and opponent
@@ -17,19 +18,13 @@ export function computePlayerStats(
   const partnerWith: Record<string, Record<string, number>> = {}
   const facedBy: Record<string, Record<string, number>> = {}
 
-  const inc2 = (obj: Record<string, Record<string, number>>, a: string, b: string) => {
-    obj[a] ??= {}; obj[a][b] = (obj[a][b] ?? 0) + 1
-    obj[b] ??= {}; obj[b][a] = (obj[b][a] ?? 0) + 1
-  }
-
   for (const g of schedule) {
     for (const id of [...g.teamA, ...g.teamB]) playCount[id]++
-    inc2(partnerWith, g.teamA[0], g.teamA[1])
-    inc2(partnerWith, g.teamB[0], g.teamB[1])
+    bumpCoOccurrence(partnerWith, g.teamA[0], g.teamA[1])
+    bumpCoOccurrence(partnerWith, g.teamB[0], g.teamB[1])
     for (const a of g.teamA) {
       for (const b of g.teamB) {
-        facedBy[a] ??= {}; facedBy[a][b] = (facedBy[a][b] ?? 0) + 1
-        facedBy[b] ??= {}; facedBy[b][a] = (facedBy[b][a] ?? 0) + 1
+        bumpCoOccurrence(facedBy, a, b)
       }
     }
   }

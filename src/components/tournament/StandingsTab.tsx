@@ -23,13 +23,13 @@ function stageRank(pairId: string, matches: TournamentMatch[]): number {
   return 5
 }
 
-interface Props {
+interface StandingsTabProps {
   pairs: TournamentPair[]
   groups: Record<GroupId, string[]>
   matches: TournamentMatch[]
 }
 
-export default function StandingsTab({ pairs, groups, matches }: Props) {
+export default function StandingsTab({ pairs, groups, matches }: StandingsTabProps) {
   const getPairName = (id: string) => pairs.find((p) => p.id === id)?.name ?? id
 
   const allStandings = GROUP_IDS.flatMap((g) => computeGroupStandings(g, groups[g], matches))
@@ -54,7 +54,7 @@ export default function StandingsTab({ pairs, groups, matches }: Props) {
         if (ra !== rb) return ra - rb
         const sa = allStandings.find((s) => s.pairId === a.id)
         const sb = allStandings.find((s) => s.pairId === b.id)
-        return (sb?.pointDiff ?? 0) - (sa?.pointDiff ?? 0)
+        return (sb?.diff ?? 0) - (sa?.diff ?? 0)
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pairs, matches]

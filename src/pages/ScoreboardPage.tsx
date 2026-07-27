@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../components/scoreboard'
 
 const LS_RED = 'score-red'
 const LS_BLUE = 'score-blue'
@@ -169,339 +170,98 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     }
   }, [overlay, red, blue])
 
+  const handleBack = useCallback(async () => {
+    await exitFullscreen()
+    navigate('/')
+  }, [navigate])
+
   // Overlay mode: name shown as read-only pill
   const nameA = overlay ? redName : (redName || 'RED')
   const nameB = overlay ? blueName : (blueName || 'BLUE')
 
-  const redSide = (
-    <div
-      className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 duration-75"
-      style={{ background: '#b91c1c', transitionProperty: 'filter' }}
-      onClick={addRed}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addRed() } }}
-    >
-      {/* Player name */}
-      <div className="absolute top-0 left-0 right-0 flex justify-center pt-5" onClick={e => e.stopPropagation()}>
-        {overlay ? (
-          <span
-            className="uppercase font-bold text-white truncate px-4 py-1 rounded-full pointer-events-none"
-            style={{ background: 'rgba(0,0,0,0.25)', fontSize: 'clamp(0.75rem,2.2vmax,1rem)', letterSpacing: '0.12em' }}
-          >
-            {nameA}
-          </span>
-        ) : editingRed ? (
-          <input
-            autoFocus
-            placeholder="RED"
-            value={redName}
-            onChange={e => setRedName(e.target.value)}
-            onBlur={() => setEditingRed(false)}
-            onKeyDown={e => { if (e.key === 'Enter') setEditingRed(false) }}
-            className="bg-transparent text-center text-white/70 font-bold uppercase outline-none border-b border-white/30 w-36"
-            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
-            aria-label="Red team name"
-          />
-        ) : (
-          <span
-            className={`uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${redName ? 'text-white/50' : 'text-white/30'}`}
-            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
-            onClick={() => setEditingRed(true)}
-          >
-            {nameA}
-          </span>
-        )}
-      </div>
-
-      {/* Score */}
-      <span
-        className="text-white font-black leading-none pointer-events-none"
-        style={{
-          fontSize: 'clamp(6rem, 22vmax, 13rem)',
-          transform: popRed ? 'scale(1.1)' : 'scale(1)',
-          transition: 'transform 0.08s ease-out',
-        }}
-      >
-        {red}
-      </span>
-      <span
-        className="text-white/20 tracking-widest mt-3 pointer-events-none"
-        style={{ fontSize: 'clamp(0.55rem,1.2vmax,0.75rem)' }}
-      >
-        tap to score
-      </span>
-
-      <button
-        onClick={minusRed}
-        className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors"
-        style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
-        aria-label="Decrease red score"
-      >
-        −
-      </button>
-    </div>
-  )
-
-  const blueSide = (
-    <div
-      className="flex-1 flex flex-col items-center justify-center relative cursor-pointer active:brightness-150 duration-75"
-      style={{ background: '#1d4ed8', transitionProperty: 'filter' }}
-      onClick={addBlue}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); addBlue() } }}
-    >
-      {/* Player name */}
-      <div className="absolute top-0 left-0 right-0 flex justify-center pt-5" onClick={e => e.stopPropagation()}>
-        {overlay ? (
-          <span
-            className="uppercase font-bold text-white truncate px-4 py-1 rounded-full pointer-events-none"
-            style={{ background: 'rgba(0,0,0,0.25)', fontSize: 'clamp(0.75rem,2.2vmax,1rem)', letterSpacing: '0.12em' }}
-          >
-            {nameB}
-          </span>
-        ) : editingBlue ? (
-          <input
-            autoFocus
-            placeholder="BLUE"
-            value={blueName}
-            onChange={e => setBlueName(e.target.value)}
-            onBlur={() => setEditingBlue(false)}
-            onKeyDown={e => { if (e.key === 'Enter') setEditingBlue(false) }}
-            className="bg-transparent text-center text-white/70 font-bold uppercase outline-none border-b border-white/30 w-36"
-            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
-            aria-label="Blue team name"
-          />
-        ) : (
-          <span
-            className={`uppercase font-bold cursor-text border-b border-transparent hover:border-white/20 transition-colors ${blueName ? 'text-white/50' : 'text-white/30'}`}
-            style={{ fontSize: 'clamp(0.7rem,2vmax,1rem)', letterSpacing: '0.18em' }}
-            onClick={() => setEditingBlue(true)}
-          >
-            {nameB}
-          </span>
-        )}
-      </div>
-
-      {/* Score */}
-      <span
-        className="text-white font-black leading-none pointer-events-none"
-        style={{
-          fontSize: 'clamp(6rem, 22vmax, 13rem)',
-          transform: popBlue ? 'scale(1.1)' : 'scale(1)',
-          transition: 'transform 0.08s ease-out',
-        }}
-      >
-        {blue}
-      </span>
-      <span
-        className="text-white/20 tracking-widest mt-3 pointer-events-none"
-        style={{ fontSize: 'clamp(0.55rem,1.2vmax,0.75rem)' }}
-      >
-        tap to score
-      </span>
-
-      <button
-        onClick={minusBlue}
-        className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-xl font-bold text-white/60 cursor-pointer active:bg-black/40 transition-colors"
-        style={{ background: 'rgba(0,0,0,0.22)', border: '1px solid rgba(255,255,255,0.15)' }}
-        aria-label="Decrease blue score"
-      >
-        −
-      </button>
-    </div>
-  )
-
-  const divider = (
-    <div
-      className="absolute left-1/2 w-px bg-white/8 pointer-events-none z-10"
-      style={{ top: '10%', height: '80%' }}
-    />
-  )
-
-  const footer = (
-    <div
-      className="fixed bottom-0 left-0 right-0 flex items-center justify-center gap-4 z-20 pointer-events-none"
-      style={{
-        paddingTop: '0.5rem',
-        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
-      }}
-    >
-      {overlay ? (
-        pendingClose ? (
-          <>
-            <span className="text-white/50 text-xs pointer-events-auto">Discard score?</span>
-            <button
-              onClick={overlay.onClose}
-              className="px-4 py-1 rounded-lg text-white/80 text-sm cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
-              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}
-            >
-              Discard
-            </button>
-            <button
-              onClick={() => setPendingClose(false)}
-              className="px-4 py-1 rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto"
-              style={{ background: '#fbbf24' }}
-            >
-              Keep scoring
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={handleOverlayClose}
-              disabled={isSaving}
-              className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto disabled:opacity-30 disabled:cursor-not-allowed"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-              aria-label="Close scoreboard"
-            >
-              ✕
-            </button>
-            <button
-              onClick={reset}
-              className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-              aria-label="Reset scores"
-            >
-              ↺
-            </button>
-            <button
-              onClick={doSwap}
-              className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-              aria-label="Swap sides"
-            >
-              ⇄
-            </button>
-            <button
-              onClick={toggleFullscreen}
-              className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            >
-              {isFullscreen ? '⊠' : '⛶'}
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="px-4 h-9 flex items-center rounded-lg text-slate-900 font-bold text-sm cursor-pointer active:opacity-80 transition-opacity pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ background: '#fbbf24' }}
-            >
-              {isSaving ? (
-                <>
-                  <svg className="animate-spin w-3.5 h-3.5 mr-1.5 shrink-0" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Saving…
-                </>
-              ) : 'Save Score'}
-            </button>
-          </>
-        )
-      ) : (
-        <>
-          <button
-            onClick={async () => { await exitFullscreen(); navigate('/') }}
-            className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-            aria-label="Back to home"
-          >
-            ←
-          </button>
-          <button
-            onClick={reset}
-            className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-            aria-label="Reset scores"
-          >
-            ↺
-          </button>
-          <button
-            onClick={doSwap}
-            className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-            aria-label="Swap sides"
-          >
-            ⇄
-          </button>
-          <button
-            onClick={toggleFullscreen}
-            className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-            aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-          >
-            {isFullscreen ? '⊠' : '⛶'}
-          </button>
-        </>
-      )}
-    </div>
-  )
-
-  if (overlay) {
-    return (
-      <div
-        className="flex overflow-hidden select-none"
-        style={isPortrait ? {
-          position: 'fixed',
-          top: 0,
-          left: '100vw',
-          width: '100dvh',
-          height: '100dvw',
-          transformOrigin: 'top left',
-          transform: 'rotate(90deg)',
-          zIndex: 60,
-        } : {
-          position: 'fixed',
-          inset: 0,
-          zIndex: 60,
-        }}
-      >
-        {isSwapped ? blueSide : redSide}
-        {divider}
-        {isSwapped ? redSide : blueSide}
-        {fsError && (
-          <div
-            className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
-            style={{ maxWidth: '80vw', background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.15)' }}
-          >
-            {fsError}
-          </div>
-        )}
-        {saveError && (
-          <div
-            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-red-200 text-center"
-            style={{ maxWidth: '80vw', background: 'rgba(127,29,29,0.9)', border: '1px solid rgba(220,38,38,0.4)' }}
-          >
-            {saveError}
-          </div>
-        )}
-        {footer}
-      </div>
-    )
+  const portraitStyle: React.CSSProperties = isPortrait ? {
+    position: 'fixed',
+    top: 0,
+    left: '100vw',
+    width: '100dvh',
+    height: '100dvw',
+    transformOrigin: 'top left',
+    transform: 'rotate(90deg)',
+    ...(overlay ? { zIndex: 60 } : {}),
+  } : overlay ? {
+    position: 'fixed',
+    inset: 0,
+    zIndex: 60,
+  } : {
+    width: '100vw',
+    height: '100dvh',
   }
 
-  // Standalone page mode
-  return (
-    <main
-      className="flex overflow-hidden select-none"
-      style={isPortrait ? {
-        position: 'fixed',
-        top: 0,
-        left: '100vw',
-        width: '100dvh',
-        height: '100dvw',
-        transformOrigin: 'top left',
-        transform: 'rotate(90deg)',
-      } : {
-        width: '100vw',
-        height: '100dvh',
-      }}
-    >
-      {isSwapped ? blueSide : redSide}
-      {divider}
-      {isSwapped ? redSide : blueSide}
+  const content = (
+    <>
+      {isSwapped ? (
+        <ScoreboardSide
+          side="blue"
+          score={blue}
+          displayName={nameB}
+          editValue={blueName}
+          isEditing={editingBlue}
+          isPop={popBlue}
+          isOverlay={!!overlay}
+          onScore={addBlue}
+          onMinus={minusBlue}
+          onNameChange={setBlueName}
+          onStartEditing={() => setEditingBlue(true)}
+          onStopEditing={() => setEditingBlue(false)}
+        />
+      ) : (
+        <ScoreboardSide
+          side="red"
+          score={red}
+          displayName={nameA}
+          editValue={redName}
+          isEditing={editingRed}
+          isPop={popRed}
+          isOverlay={!!overlay}
+          onScore={addRed}
+          onMinus={minusRed}
+          onNameChange={setRedName}
+          onStartEditing={() => setEditingRed(true)}
+          onStopEditing={() => setEditingRed(false)}
+        />
+      )}
+      <ScoreboardDivider />
+      {isSwapped ? (
+        <ScoreboardSide
+          side="red"
+          score={red}
+          displayName={nameA}
+          editValue={redName}
+          isEditing={editingRed}
+          isPop={popRed}
+          isOverlay={!!overlay}
+          onScore={addRed}
+          onMinus={minusRed}
+          onNameChange={setRedName}
+          onStartEditing={() => setEditingRed(true)}
+          onStopEditing={() => setEditingRed(false)}
+        />
+      ) : (
+        <ScoreboardSide
+          side="blue"
+          score={blue}
+          displayName={nameB}
+          editValue={blueName}
+          isEditing={editingBlue}
+          isPop={popBlue}
+          isOverlay={!!overlay}
+          onScore={addBlue}
+          onMinus={minusBlue}
+          onNameChange={setBlueName}
+          onStartEditing={() => setEditingBlue(true)}
+          onStopEditing={() => setEditingBlue(false)}
+        />
+      )}
       {fsError && (
         <div
           className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"
@@ -510,7 +270,43 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
           {fsError}
         </div>
       )}
-      {footer}
+      {saveError && (
+        <div
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-red-200 text-center"
+          style={{ maxWidth: '80vw', background: 'rgba(127,29,29,0.9)', border: '1px solid rgba(220,38,38,0.4)' }}
+        >
+          {saveError}
+        </div>
+      )}
+      <ScoreboardFooter
+        isFullscreen={isFullscreen}
+        onReset={reset}
+        onSwap={doSwap}
+        onToggleFullscreen={toggleFullscreen}
+        overlay={overlay ? {
+          pendingClose,
+          isSaving,
+          onClose: handleOverlayClose,
+          onSave: handleSave,
+          onDiscard: overlay.onClose,
+          onKeepScoring: () => setPendingClose(false),
+        } : undefined}
+        onBack={overlay ? undefined : handleBack}
+      />
+    </>
+  )
+
+  if (overlay) {
+    return (
+      <div className="flex overflow-hidden select-none" style={portraitStyle}>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <main className="flex overflow-hidden select-none" style={portraitStyle}>
+      {content}
     </main>
   )
 }

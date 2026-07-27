@@ -16,6 +16,7 @@ import {
   type CloudSnapshot,
 } from '../queries'
 import { registerPlayer } from '../queries/endpoints'
+import { selectSlotsPerCourt } from '../store/selectors'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import type { TeamSwapTarget, ChangeTarget } from '../utils/swap'
@@ -130,7 +131,7 @@ export default function SharedSessionPage() {
       <SummaryModal
         result={result!}
         playerMap={playerMap}
-        slotsPerCourt={snapshot.session.slotsPerCourt}
+        slotsPerCourt={selectSlotsPerCourt(snapshot.session)}
         courtNames={snapshot.session.courtNames ?? []}
         playedGames={snapshot.playedGames}
         gameScores={snapshot.gameScores}
