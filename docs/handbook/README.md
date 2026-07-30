@@ -2,9 +2,9 @@
 
 ## Start Here
 
-- [current-status.md](current-status.md) — Primary handover document
+- [current-status.md](current-status.md) — Primary handover document (last updated: 2026-07-30)
 - [product-overview.md](product-overview.md) — Product description
-- [architecture.md](architecture.md) — System architecture
+- [architecture.md](architecture.md) — System architecture + clean architecture patterns
 - [design-system.md](../design-system.md) — Colors, typography, components, tokens
 
 ## Reference
@@ -12,6 +12,7 @@
 - [data-model.md](data-model.md) — Data types and schema
 - [features-and-routes.md](features-and-routes.md) — UI routes and features
 - [roadmap.md](roadmap.md) — Phase plan and status
+- [migration-tracking.md](migration-tracking.md) — Squashed migration details
 - [bm-canonical-schema-map.md](bm-canonical-schema-map.md) — Schema reference
 - [bm-supabase-runbook.md](bm-supabase-runbook.md) — Operational runbook
 - [bm-schema-invariants-checklist.md](bm-schema-invariants-checklist.md) — Operational checklist
@@ -19,11 +20,6 @@
 - [concurrency-audit.md](concurrency-audit.md) — Performance audit
 - [cleanup-rpcs.md](cleanup-rpcs.md) — Admin RPC docs
 - [mdef-integration.md](mdef-integration.md) — Integration boundary
-
-## Design System Backlogs
-
-- [backlog.md](../../backlog.md) — Original revamp (96 items, 9 phases, all complete)
-- [backlog-audit.md](../../backlog-audit.md) — Post-audit fixes (34 items, 4 batches, all complete)
 
 ## Archive
 

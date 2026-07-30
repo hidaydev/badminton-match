@@ -1,6 +1,6 @@
 # Manual Cleanup RPCs
 
-Last updated: 2026-06-21
+Last updated: 2026-07-30
 
 Two maintenance RPCs for manually cleaning up test data via Supabase SQL
 Editor. These are **destructive** and **not exposed** to the app — only
@@ -8,9 +8,11 @@ Editor. These are **destructive** and **not exposed** to the app — only
 
 ## Migration
 
-- [`supabase/migrations/20260618_000038_bm_cleanup_rpcs.sql`](../../supabase/migrations/20260618_000038_bm_cleanup_rpcs.sql)
+These functions are included in the squashed migrations:
 
-Apply via Supabase SQL Editor if not already applied.
+- [`supabase/migrations/20260616_000002_functions.sql`](../../supabase/migrations/20260616_000002_functions.sql) — contains `bm.delete_session` and `bm.delete_player`
+
+Apply via `supabase db reset` or Supabase SQL Editor.
 
 ## bm.delete_session(p_lookup text)
 

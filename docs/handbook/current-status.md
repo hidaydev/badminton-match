@@ -1,12 +1,12 @@
 # Current Status
 
-Last updated: 2026-07-20 (post-audit)
+Last updated: 2026-07-30 (post-clean-code-audit + design-system-revamp)
 
 This is the fastest handover file for continuing work on this repository.
 
 ## Branch
 
-- current working branch: `supabase-migration`
+- current working branch: `ui-revamp` (merged design system + clean code audit)
 
 ## Core decision record
 
@@ -129,6 +129,27 @@ Historical implementation archive remains under:
 
 Formalized design system, WCAG compliance, and performance optimization for mobile PWA.
 
+### Clean code audit — Phase 1–12 complete (2026-07-26)
+
+Comprehensive clean code / clean architecture audit covering 139 of 151 items across 12 phases:
+
+- **Phase 1: Break Circular Dependency** — extracted domain types to `types/index.ts`, time utilities to `utils/time.ts`. `generator/` and `utils/` now have zero imports from `store/` or `queries/`.
+- **Phase 2: Extract Domain from Presentation** — canvas drawing consolidated to `utils/canvasPost.ts`, quality analysis to `utils/quality.ts`, player-rebuild logic to `utils/reconcilePlayers.ts`.
+- **Phase 3: DRY Consolidation** — shared `bumpCoOccurrence()` counter, unified `computeStandings()` via `utils/tally.ts`, `useOptimisticSessionMutation` factory hook (eliminated boilerplate in 7+ mutation hooks), shared iOS share/download utility, shared overlay image loader.
+- **Phase 4: SRP — Store/SummaryModal/Hooks** — store decomposed into 5 slices (session, players, schedule, game, ui), SummaryModal uses discriminated union modes, extracted `ConfirmBars`, `ActionsMenu`, `PlayerStatsPanel`, `SlotGameCard`, `PlayerMatchDetailSheet`, `ScheduleComponents`.
+- **Phase 5: OCP — Generator Extensibility** — generator phases extracted to named functions, scoring weights injectable via config, generic `combinations()` utility replaces hardcoded blocks.
+- **Phase 6: LSP** — `CourtTime` validation, `FixMatch` discriminated union, mutation hook signatures unified.
+- **Phase 7: ISP** — `CloudSnapshot` decoupled from `AppState`, `generate()` accepts minimal interface.
+- **Phase 8: DIP** — `domain/ports/` repository interfaces created, `GeneratePage` uses `useDebouncedPublish` hook.
+- **Phase 9: Function/Component Design** — god functions decomposed, parameter objects replace long param lists, inline components extracted from ConstraintsPage and ScoreboardPage.
+- **Phase 10: Naming & Type Hardening** — descriptive variable names throughout, branded types (`PlayerId`, `TimeString`, `GameKey`), `strict: true` enabled.
+- **Phase 11: Magic Numbers & Constants** — `config/generator.ts`, `config/canvas.ts`, `config/tiers.ts` extract all named constants.
+- **Phase 12: Dead Code & Cleanup** — removed 5 unused UI components, fixed devDependencies, dropped redundant indexes, fixed seed parity queries.
+
+Remaining: Phase 13 (Database Security — RLS, auth) and Phase 14 (Infrastructure Hardening — timeouts, retries, type validation) are out of scope for current work.
+
+See [CLEANCODE_BACKLOG.md](../../CLEANCODE_BACKLOG.md) for full tracking.
+
 **Typography:**
 - Body font: IBM Plex Sans (400, 500, 600, 700) — replaces system-ui
 - Monospace: IBM Plex Mono (400, 500) — replaces default monospace
@@ -167,11 +188,12 @@ Formalized design system, WCAG compliance, and performance optimization for mobi
 - JS tokens in `src/config/tokens.ts` for programmatic access
 
 **Reusable Components:**
-- `src/components/ui/Card.tsx` — surface, elevated, interactive variants (uses semantic tokens)
-- `src/components/ui/Chip.tsx` — default, selected, success, warning, error
-- `src/components/ui/Badge.tsx` — success, warning, error, info, neutral
-- `src/components/ui/EmptyState.tsx` — icon + title + description
-- `src/components/ui/index.ts` — barrel export
+- `src/components/summary/ConfirmBars.tsx` — 5 fixed bottom confirm bars
+- `src/components/summary/ActionsMenu.tsx` — actions dropdown
+- `src/components/summary/PlayerStatsPanel.tsx` — player stats display
+- `src/components/summary/SlotGameCard.tsx` — individual game card
+- `src/components/summary/PlayerMatchDetailSheet.tsx` — player match detail
+- `src/components/generate/ScheduleComponents.tsx` — QualityBanner, PlayerChip, TierBalance, ScheduleView
 
 **Performance Optimization:**
 - Code splitting: React.lazy() for ScoreboardPage, InstagramPostPage, TournamentPage, SharedSessionPage
@@ -182,8 +204,6 @@ Formalized design system, WCAG compliance, and performance optimization for mobi
 
 **Documentation:**
 - `docs/design-system.md` — complete design system reference
-- `backlog.md` — original revamp trail (96 items, 9 phases)
-- `backlog-audit.md` — post-audit fixes (34 items, 4 batches)
 
 **E2E Testing (Playwright):**
 - `e2e/revamp.spec.ts` — 15 tests covering revamp changes
@@ -277,6 +297,11 @@ What still matters:
 
 These are the main migration/doc checkpoints so far:
 
+- `c9c21a3` — `refactor: clean code audit + bug hunt (Phase 1-12, 92% backlog complete)`
+- `99525cf` — `chore: sync supabase migrations from remote (db dump --schema bm)`
+- `74d8e33` — `feat: graphify`
+- `baffbb4` — `test: add Playwright E2E tests for design system revamp`
+- `6c79cb7` — `feat: design system, WCAG accessibility, and performance overhaul`
 - `da02b91` — `Add Supabase schema and RPC query layer`
 - `1b5c835` — `Add project baseline and migration docs`
 - `f38e038` — `Organize docs into handbook and archive`
@@ -312,10 +337,13 @@ Order:
 2. expand regression coverage from compact RPC checks into higher-level UI or browser flows
 3. harden production-facing access controls if deployment scope expands
 4. document unlock procedure for locked sessions (admin-only via Supabase SQL Editor)
+5. Phase 13: Database Security (RLS policies, SECURITY INVOKER review, auth checks)
+6. Phase 14: Infrastructure Hardening (fetch timeouts, retry logic, runtime type validation)
 
 Latest audit:
 
 - [bm-write-flow-audit.md](bm-write-flow-audit.md)
+- [CLEANCODE_BACKLOG.md](../../CLEANCODE_BACKLOG.md) — 139/151 items complete
 
 ## Session lock feature
 
