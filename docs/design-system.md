@@ -1,6 +1,6 @@
 # Majadu App — Design System
 
-> Formalized and adopted across the codebase. Last updated: 2026-07-20.
+> Formalized and adopted across the codebase. Last updated: 2026-07-30.
 
 ## Typography
 
@@ -83,36 +83,14 @@ The semantic tokens are actively used across the codebase:
 | `0.5rem` | `rounded-lg` | Chips, inputs |
 | `1.5rem` | `gap-6` | Section gaps |
 
-## Component Library (`src/components/ui/`)
+## Component Patterns
 
-### Card
-```tsx
-import { Card } from './ui'
-<Card>Surface card</Card>
-<Card variant="elevated">Elevated card</Card>
-<Card variant="interactive">Clickable card</Card>
-```
+Components follow the semantic token system. Key patterns:
 
-### Chip
-```tsx
-import { Chip } from './ui'
-<Chip>Default</Chip>
-<Chip variant="selected">Selected</Chip>
-<Chip variant="success">Success</Chip>
-```
-
-### Badge
-```tsx
-import { Badge } from './ui'
-<Badge variant="success">Won</Badge>
-<Badge variant="error">Lost</Badge>
-```
-
-### EmptyState
-```tsx
-import { EmptyState } from './ui'
-<EmptyState icon="🏸" title="No sessions" description="Create one" />
-```
+- **Cards** use `bg-surface border border-border-subtle rounded-2xl p-4`
+- **Chips** use `bg-elevated border border-border rounded-lg` with variant colors
+- **Badges** use inline styling with status colors (`success`, `error`, `warning`, `info`)
+- **Empty states** use centered layout with icon + title + description
 
 ## Button Variants (inline)
 
@@ -157,7 +135,6 @@ className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-
 | Resource | Path |
 |----------|------|
 | CSS tokens (`@theme`) | `src/index.css` |
-| JS tokens | `src/config/tokens.ts` |
-| UI components | `src/components/ui/` |
-| Barrel export | `src/components/ui/index.ts` |
 | Tier config | `src/config/tiers.ts` |
+| Canvas config | `src/config/canvas.ts` |
+| Generator config | `src/config/generator.ts` |

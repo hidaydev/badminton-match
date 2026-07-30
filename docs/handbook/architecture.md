@@ -200,10 +200,13 @@ Used for the guided setup flow:
 The SummaryModal is the operations console for live session management. It has been
 decomposed into focused sub-components:
 
-- `src/components/SummaryModal.tsx` — main modal (1327 lines)
-- `src/components/ConfirmBars.tsx` — 5 fixed bottom confirm bars (swap, absent, change player, lock, share)
-- `src/components/ActionsMenu.tsx` — actions dropdown with mode entry buttons
-- `src/components/PlayerStatsPanel.tsx` — player stats display with standalone/generate branches
+- `src/components/SummaryModal.tsx` — main modal
+- `src/components/summary/ConfirmBars.tsx` — fixed bottom confirm bars (swap, absent, change player, lock, share)
+- `src/components/summary/ActionsMenu.tsx` — actions dropdown with mode entry buttons
+- `src/components/summary/PlayerStatsPanel.tsx` — player stats display with standalone/generate branches
+- `src/components/summary/SlotGameCard.tsx` — individual game card in schedule grid
+- `src/components/summary/PlayerMatchDetailSheet.tsx` — player match detail bottom sheet
+- `src/components/generate/ScheduleComponents.tsx` — QualityBanner, PlayerChip, TierBalance, ScheduleView
 
 ## Persistence model
 
@@ -235,3 +238,55 @@ The intended architecture is:
 - keep pure domain logic in generator and utility modules
 - avoid making `MDEF` shape the internal schema of `badminton-match`
 - treat `bm` as the primary production-target schema
+
+## Clean Architecture (post-audit)
+
+After the clean code audit (Phase 1–12), the codebase follows a strict dependency flow:
+
+```
+src/
+├── types/              # Domain types (zero deps) — Player, FixMatch, ScheduleSlot, etc.
+├── config/             # Named constants — generator weights, canvas dims, tier config, tokens
+├── generator/          # Pure scheduling engine — zero imports from store/ or queries/
+├── utils/              # Pure utilities — time, quality, standings, swap, canvas, stats
+├── domain/ports/       # Repository interfaces (prepared for DI)
+├── queries/            # React Query hooks + Supabase RPC endpoints
+│   ├── endpoints.ts    # Raw Supabase RPC fetch functions
+│   ├── sessions.ts     # Session query hooks (14 hooks)
+│   ├── players.ts      # Player query hooks
+│   ├── tournament.ts   # Tournament query hooks
+│   ├── types.ts        # CloudSnapshot, SessionMeta, PlayerSummary types
+│   ├── errors.ts       # User-friendly error mapper + isVersionMismatch helper
+│   └── useOptimisticMutation.ts  # Factory hook for optimistic mutations
+├── store/              # Zustand slices (session, players, schedule, game, ui)
+├── hooks/              # Custom React hooks (useDebouncedPublish, etc.)
+├── components/         # UI components
+│   ├── summary/        # SummaryModal sub-components (ConfirmBars, ActionsMenu, etc.)
+│   ├── tournament/     # Tournament tab components
+│   └── generate/       # Schedule view components (QualityBanner, PlayerChip, etc.)
+├── pages/              # Route pages
+└── infra/supabase/     # Supabase client setup
+```
+
+### Dependency rules
+
+| Layer | Can import from | Cannot import from |
+|-------|----------------|-------------------|
+| `types/` | nothing | everything else |
+| `config/` | `types/` | `store/`, `queries/`, `pages/` |
+| `generator/` | `types/`, `config/`, `utils/time` | `store/`, `queries/`, `pages/` |
+| `utils/` | `types/`, `config/` | `store/`, `queries/`, `pages/` |
+| `queries/` | `types/`, `config/`, `utils/`, `domain/ports` | `store/`, `pages/` |
+| `store/` | `types/`, `config/`, `utils/` | `queries/`, `pages/` |
+| `components/` | everything except `pages/` | `pages/` |
+| `pages/` | everything | — |
+
+### Key patterns
+
+- **Optimistic mutation factory** — `useOptimisticSessionMutation` eliminates boilerplate across 7+ mutation hooks. Each hook only provides an `optimisticUpdate` function.
+- **Snapshot-based persistence** — entire session state serialized as `CloudSnapshot` JSON. Publish is full replace with version concurrency.
+- **Debounced cloud publishing** — `useDebouncedPublish` batches rapid changes (300ms trailing, 1s max delay) with flush on unmount.
+- **Branded types** — `PlayerId`, `TimeString`, `GameKey` provide type safety without runtime overhead.
+- **Zustand sliced composition** — 5 slices with shared `SetState` type, persisted to localStorage with version migration.
+- **Computed selectors** — `selectSlotsPerCourt`, `selectTotalGames` derived from config, not stored.
+- **5-phase generator** — pinned placement → merge pairable → spread → flexible → greedy fill. Scoring weights injectable via config.
