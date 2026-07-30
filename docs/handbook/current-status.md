@@ -131,7 +131,7 @@ Formalized design system, WCAG compliance, and performance optimization for mobi
 
 ### Clean code audit — Phase 1–12 complete (2026-07-26)
 
-Comprehensive clean code / clean architecture audit covering 139 of 151 items across 12 phases:
+Comprehensive clean code / clean architecture audit covering 134 of 151 items across 12 phases (5 items partial, 12 remaining out of scope):
 
 - **Phase 1: Break Circular Dependency** — extracted domain types to `types/index.ts`, time utilities to `utils/time.ts`. `generator/` and `utils/` now have zero imports from `store/` or `queries/`.
 - **Phase 2: Extract Domain from Presentation** — canvas drawing consolidated to `utils/canvasPost.ts`, quality analysis to `utils/quality.ts`, player-rebuild logic to `utils/reconcilePlayers.ts`.
@@ -148,7 +148,7 @@ Comprehensive clean code / clean architecture audit covering 139 of 151 items ac
 
 Remaining: Phase 13 (Database Security — RLS, auth) and Phase 14 (Infrastructure Hardening — timeouts, retries, type validation) are out of scope for current work.
 
-See [CLEANCODE_BACKLOG.md](../../CLEANCODE_BACKLOG.md) for full tracking.
+See [CLEANCODE_BACKLOG.md](../../CLEANCODE_BACKLOG.md) for full tracking (134/151 verified, 5 partial).
 
 **Typography:**
 - Body font: IBM Plex Sans (400, 500, 600, 700) — replaces system-ui
