@@ -1,4 +1,4 @@
-import type { ScheduleSlot, PlayerId } from '../types'
+import type { ScheduleSlot, PlayerId, Player } from '../types'
 import { toPlayerId } from '../types'
 
 export interface SwapTarget {
@@ -129,4 +129,49 @@ export function detectTeamSwapConflict(
   }
 
   return null
+}
+
+/**
+ * Validate a player name change in a specific game slot.
+ * Checks for same-game conflict, cross-slot conflict, and back-to-back warning.
+ */
+export function validateChangeName(
+  target: ChangeTarget,
+  name: string,
+  schedule: ScheduleSlot[],
+  playerMap: Map<string, Player>,
+): { error: string | null; b2b: boolean } {
+  // Same-game conflict: compare new name against other players' NAMES in this game
+  const game = schedule.find(g => g.slot === target.slot && g.court === target.court)
+  const otherNames = game
+    ? [...game.teamA, ...game.teamB]
+        .filter(id => id !== target.playerId)
+        .map(id => playerMap.get(id)?.name ?? id)
+    : []
+  if (otherNames.some(n => n.toLowerCase() === name.toLowerCase())) {
+    return { error: `${name} is already in this game`, b2b: false }
+  }
+  // Cross-slot: does the new name already play in another game this slot?
+  const slotNames = new Set<string>()
+  for (const g of schedule) {
+    if (g.slot === target.slot && !(g.court === target.court)) {
+      for (const id of [...g.teamA, ...g.teamB]) {
+        slotNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
+      }
+    }
+  }
+  if (slotNames.has(name.toLowerCase())) {
+    return { error: `${name} already plays in another game this slot`, b2b: false }
+  }
+  // B2B: does the new name play in adjacent slots?
+  const b2bNames = new Set<string>()
+  for (const g of schedule) {
+    if (g.slot === target.slot - 1 || g.slot === target.slot + 1) {
+      for (const id of [...g.teamA, ...g.teamB]) {
+        b2bNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
+      }
+    }
+  }
+  const b2b = b2bNames.has(name.toLowerCase())
+  return { error: null, b2b }
 }

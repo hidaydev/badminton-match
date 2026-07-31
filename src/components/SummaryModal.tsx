@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import {
-  DndContext,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -8,204 +7,59 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import type { GeneratorResult } from '../generator'
-import type { Player, GameScore, CourtTime, ScheduleSlot } from '../types'
-import { toPlayerId, toGameKey } from '../types'
-import { timeToMinutes, minutesToTime } from '../utils/time'
-import { computeStandings } from '../utils/standings'
+import type { Player, GameScore, CourtTime } from '../types'
+import { toPlayerId } from '../types'
+import { formatMergedCourtTimes } from '../utils/time'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
-import { detectTeamSwapConflict } from '../utils/swap'
+import { detectTeamSwapConflict, validateChangeName } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import { detectSlotSwapConflict } from '../utils/slotSwap'
-import PlayerMatchDetailSheet from './summary/PlayerMatchDetailSheet'
 import ConfirmBars from './summary/ConfirmBars'
 import ActionsMenu from './summary/ActionsMenu'
 import PlayerStatsPanel from './summary/PlayerStatsPanel'
-import SlotGameCard from './summary/SlotGameCard'
-import { ordinal } from '../utils/ordinal'
+import ScheduleGrid from './summary/ScheduleGrid'
+import StandingsTab from './summary/StandingsTab'
 import { validateScore } from '../utils/scoreValidation'
 
-function StandingsTab({
-  players,
-  schedule,
-  gameScores,
-  absentPlayerIds,
-}: {
-  players: Player[]
-  schedule: import('../store').ScheduleSlot[]
+/** Read-only data props for SummaryModal */
+export interface SummaryModalBaseProps {
+  result: GeneratorResult
+  playerMap: Map<string, Player>
+  slotsPerCourt: number[]
+  courtNames: string[]
+  playedGames: string[]
   gameScores: Record<string, GameScore>
-  absentPlayerIds: string[]
-}) {
-  const absentList = players.filter(p => absentPlayerIds.includes(p.id))
-  const standings = computeStandings(
-    players.filter(p => !absentPlayerIds.includes(p.id)),
-    schedule,
-    gameScores,
-  )
-  const [selectedPlayer, setSelectedPlayer] = useState<{ standing: typeof standings[number]; rank: number } | null>(null)
-  const hasScores = Object.keys(gameScores).length > 0
-
-  if (!hasScores) {
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-center min-h-50">
-          <p className="text-sm text-slate-400 text-center">Enter scores in the Schedule tab to see leaderboard.</p>
-        </div>
-        {absentList.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">Absent</p>
-            {absentList.map(p => (
-              <div key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
-                <span className="flex-1 text-sm font-medium text-slate-400 line-through">{p.name}</span>
-                <span className="text-[10px] text-slate-400">absent</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      {/* Tiebreaker order strip — hugs top divider */}
-      <div className="flex justify-end gap-1 items-center pl-2 pr-2 -mt-4 pt-1 pb-3 text-[8px] text-slate-400">
-        <span>ranked by:</span>
-        <span className="font-semibold">W-L</span>
-        <span>›</span>
-        <span className="font-semibold">Diff</span>
-        <span>›</span>
-        <span className="font-semibold">Pts</span>
-        <span>›</span>
-        <span className="font-semibold">A-Z</span>
-      </div>
-      {/* Header */}
-      <div className="flex items-center gap-2 pl-2 pr-2 mb-1">
-        <span className="w-8 text-[10px] font-bold text-slate-400 text-center shrink-0">#</span>
-        <span className="flex-1 text-[10px] font-bold text-slate-400">Name</span>
-        <span className="w-11 text-[10px] font-bold text-slate-400 text-center shrink-0">W-L</span>
-        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0">Diff</span>
-        <span className="w-9 text-[10px] font-bold text-slate-400 text-center shrink-0">Pts</span>
-      </div>
-
-      {standings.map((s, i) => {
-        const rank = i + 1
-        const isFirst = rank === 1
-        const isSecond = rank === 2
-        const isThird = rank === 3
-        const isPodium = isFirst || isSecond || isThird
-        const wlColor = s.wins > s.losses ? 'text-emerald-400' : s.losses > s.wins ? 'text-red-400' : 'text-slate-400'
-        const diffColor = s.diff > 0 ? 'text-emerald-400' : s.diff < 0 ? 'text-red-400' : 'text-slate-400'
-        const diffLabel = s.diff > 0 ? `+${s.diff}` : String(s.diff)
-
-        const medal = isFirst ? '🥇' : isSecond ? '🥈' : isThird ? '🥉' : null
-
-        const rowBg = isPodium
-          ? 'bg-emerald-950/45 border-emerald-800/35'
-          : 'bg-slate-800/30 border-slate-700/20'
-
-        return (
-          <div
-            key={s.player.id}
-            className={`flex items-center gap-2 pl-2 pr-2 py-2.5 rounded-xl border ${rowBg}`}
-          >
-            <div className="w-8 flex justify-center shrink-0">
-              {medal
-                ? <span className="text-lg leading-none">{medal}</span>
-                : <span className="text-[11px] font-semibold text-slate-400">{ordinal(rank)}</span>
-              }
-            </div>
-            <span
-              className={`flex-1 min-w-0 truncate cursor-pointer active:opacity-70 ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}
-              onClick={() => setSelectedPlayer({ standing: s, rank })}
-            >
-              {s.player.name}
-            </span>
-            <span className={`w-11 text-[11px] font-semibold text-center shrink-0 ${wlColor}`}>{s.wins}-{s.losses}</span>
-            <span className={`w-9 text-[11px] font-semibold text-center shrink-0 ${diffColor}`}>{diffLabel}</span>
-            <span className="w-9 text-[11px] font-semibold text-center shrink-0 text-slate-400">{s.pointsFor}</span>
-          </div>
-        )
-      })}
-      {absentList.length > 0 && (
-        <>
-          <div className="h-px bg-slate-800 my-1" />
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mt-1">Absent</p>
-          {absentList.map(p => (
-            <div key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
-              <span className="flex-1 text-sm font-medium text-slate-400 line-through">{p.name}</span>
-              <span className="text-[10px] text-slate-400">absent</span>
-            </div>
-          ))}
-        </>
-      )}
-      <PlayerMatchDetailSheet
-        player={selectedPlayer?.standing ?? null}
-        rank={selectedPlayer?.rank ?? 1}
-        schedule={schedule}
-        gameScores={gameScores}
-        players={players}
-        onClose={() => setSelectedPlayer(null)}
-      />
-    </div>
-  )
+  title: string
+  date: string
+  sessionStart: string
+  slotMinutes: number
+  courtTimes: CourtTime[]
+  standalone?: boolean
+  locked?: boolean
+  absentPlayers?: string[]
 }
 
-function mergeCourtTimes(courtTimes: CourtTime[]): string {
-  if (courtTimes.length === 0) return ''
-  const ranges = courtTimes
-    .map((ct) => ({ start: timeToMinutes(ct.start), end: timeToMinutes(ct.end) }))
-    .sort((a, b) => a.start - b.start)
-  const merged: { start: number; end: number }[] = []
-  for (const r of ranges) {
-    if (merged.length === 0 || r.start > merged[merged.length - 1].end) {
-      merged.push({ ...r })
-    } else {
-      merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, r.end)
-    }
-  }
-  return merged.map((r) => `${minutesToTime(r.start)}–${minutesToTime(r.end)}`).join(' · ')
+/** Edit callback props for SummaryModal (all optional for read-only views) */
+export interface SummaryModalEditProps {
+  onTogglePlayedGame?: (key: string) => void
+  onSetGameScore?: (key: string, a: number, b: number) => void
+  onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
+  onSetAbsent?: (nextAbsent: string[]) => void
+  onReplacePlayer?: (playerId: string, newName: string) => void
+  onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
+  onSwapTeams?: (t1: TeamSwapTarget, t2: TeamSwapTarget) => void
+  onChangePlayer?: (target: ChangeTarget, newName: string) => void
+  onRefetch?: () => void
+  isRefetching?: boolean
+  onDelete?: () => void
+  deleteLoading?: boolean
+  onLock?: () => void
+  lockLoading?: boolean
+  onClose?: () => void
+  saving?: boolean
 }
 
-function validateChangeName(
-  target: ChangeTarget,
-  name: string,
-  schedule: ScheduleSlot[],
-  playerMap: Map<string, Player>,
-): { error: string | null; b2b: boolean } {
-  // Same-game conflict: compare new name against other players' NAMES in this game
-  const game = schedule.find(g => g.slot === target.slot && g.court === target.court)
-  const otherNames = game
-    ? [...game.teamA, ...game.teamB]
-        .filter(id => id !== target.playerId)
-        .map(id => playerMap.get(id)?.name ?? id)
-    : []
-  if (otherNames.some(n => n.toLowerCase() === name.toLowerCase())) {
-    return { error: `${name} is already in this game`, b2b: false }
-  }
-  // Cross-slot: does the new name already play in another game this slot?
-  const slotNames = new Set<string>()
-  for (const g of schedule) {
-    if (g.slot === target.slot && !(g.court === target.court)) {
-      for (const id of [...g.teamA, ...g.teamB]) {
-        slotNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
-      }
-    }
-  }
-  if (slotNames.has(name.toLowerCase())) {
-    return { error: `${name} already plays in another game this slot`, b2b: false }
-  }
-  // B2B: does the new name play in adjacent slots?
-  const b2bNames = new Set<string>()
-  for (const g of schedule) {
-    if (g.slot === target.slot - 1 || g.slot === target.slot + 1) {
-      for (const id of [...g.teamA, ...g.teamB]) {
-        b2bNames.add((playerMap.get(id)?.name ?? id).toLowerCase())
-      }
-    }
-  }
-  const b2b = b2bNames.has(name.toLowerCase())
-  return { error: null, b2b }
-}
+export type SummaryModalProps = SummaryModalBaseProps & SummaryModalEditProps
 
 export default function SummaryModal({
   result,
@@ -238,43 +92,8 @@ export default function SummaryModal({
   locked = false,
   onLock,
   lockLoading = false,
-}: {
-  result: GeneratorResult
-  playerMap: Map<string, Player>
-  slotsPerCourt: number[]
-  courtNames: string[]
-  playedGames: string[]
-  gameScores: Record<string, GameScore>
-  onTogglePlayedGame: (key: string) => void
-  onSetGameScore: (key: string, a: number, b: number) => void
-  onClose?: () => void
-  title: string
-  date: string
-  sessionStart: string
-  slotMinutes: number
-  courtTimes: CourtTime[]
-  saving?: boolean
-  standalone?: boolean
-  onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
-  absentPlayers?: string[]
-  onSetAbsent?: (nextAbsent: string[]) => void
-  onReplacePlayer?: (playerId: string, newName: string) => void
-  onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
-  onSwapTeams?: (t1: TeamSwapTarget, t2: TeamSwapTarget) => void
-  onChangePlayer?: (target: ChangeTarget, newName: string) => void
-  onRefetch?: () => void
-  isRefetching?: boolean
-  onDelete?: () => void
-  deleteLoading?: boolean
-  locked?: boolean
-  onLock?: () => void
-  lockLoading?: boolean
-}) {
+}: SummaryModalProps) {
   const courts = slotsPerCourt.length
-  const maxSlots = Math.max(
-    Math.max(...slotsPerCourt),
-    ...result.schedule.map(g => g.slot + 1)
-  )
   const played = new Set(playedArr)
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings'>('schedule')
@@ -486,6 +305,24 @@ export default function SummaryModal({
     setSwapSelected(null)
   }
 
+  // Toggle replace target selection
+  function handleReplaceToggle(playerId: string) {
+    if (replaceTarget === playerId) {
+      setReplaceTarget(null)
+      setReplaceName('')
+    } else {
+      setReplaceTarget(playerId)
+      setReplaceName('')
+    }
+  }
+
+  // Select change target
+  function handleChangeSelect(target: ChangeTarget) {
+    setChangeTarget(target)
+    setChangeName('')
+    setChangeError(null)
+  }
+
   const bySlot = new Map<number, (typeof result.schedule)>()
   for (const game of result.schedule) {
     const list = bySlot.get(game.slot) ?? []
@@ -498,12 +335,6 @@ export default function SummaryModal({
     const set = new Set<string>()
     for (const g of games) { g.teamA.forEach((id) => set.add(id)); g.teamB.forEach((id) => set.add(id)) }
     slotPlayerSet.set(t, set)
-  }
-  const isB2B = (id: string, t: number) => !!(slotPlayerSet.get(t - 1)?.has(id) || slotPlayerSet.get(t + 1)?.has(id))
-
-  const name = (id: string, slot: number) => {
-    const n = playerMap.get(id)?.name ?? id
-    return isB2B(id, slot) ? `${n}*` : n
   }
   const courtLabel = (i: number) =>
     courtNames[i] || (courts <= 26 ? String.fromCharCode(65 + i) : String(i + 1))
@@ -521,7 +352,7 @@ export default function SummaryModal({
     const err = validateScore(a, b)
     if (err) { setScoreError(err); return false }
     setScoreError(null)
-    onSetGameScore(key, a, b)
+    onSetGameScore?.(key, a, b)
     return true
   }
 
@@ -676,7 +507,7 @@ export default function SummaryModal({
                   year: 'numeric',
                 })}
                 {courtTimes.length > 0 && (
-                  <span className="text-slate-400"> · {mergeCourtTimes(courtTimes)}</span>
+                  <span className="text-slate-400"> · {formatMergedCourtTimes(courtTimes)}</span>
                 )}
               </p>
             )}
@@ -869,365 +700,42 @@ export default function SummaryModal({
             gameScores={gameScores}
             absentPlayerIds={[...effectiveAbsent]}
           />
-        ) : (() => {
-          const scheduleGrid = (
-            <div className="flex flex-col divide-y divide-slate-800">
-              {Array.from({ length: maxSlots }, (_, s) => {
-                const games = (bySlot.get(s) ?? []).sort((a, b) => a.court - b.court)
-                return (
-                  <div key={s} className="flex items-start gap-4 py-4">
-                    <div className="flex flex-col items-center w-4 shrink-0 pt-0.5 gap-0.5">
-                      <span className="text-xs font-bold text-slate-400">#{s + 1}</span>
-                      <span className="text-[8px] text-slate-400 font-medium leading-none">
-                        {minutesToTime(timeToMinutes(sessionStart) + s * slotMinutes)}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-2.5 flex-1">
-                      {games.map((g) => {
-                        const key = toGameKey(s, g.court)
-                        const done = played.has(key)
-                        const savedScore = gameScores[key]
-                        const isOpen = expandedScore === key
-                        const draft = draftScores[key] ?? { a: savedScore ? String(savedScore.a) : '', b: savedScore ? String(savedScore.b) : '' }
-                        const teamANames = g.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
-                        const teamBNames = g.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
-
-                        const gameRow = (
-                          <div className="flex flex-col gap-1">
-                            {/* Game row header */}
-                            <div
-                              className={`flex items-center gap-2 select-none rounded-lg px-1 py-0.5 -mx-1 transition-colors ${done ? 'opacity-40' : 'hover:bg-slate-800/40'}`}
-                            >
-                              {/* Played checkbox */}
-                              <div
-                                className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${locked || mode !== 'idle' ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                                onClick={() => { if (!locked && !saving && mode === 'idle') onTogglePlayedGame(key) }}
-                              >
-                                {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
-                              </div>
-                              {/* Teams */}
-                              <div className="grid items-center gap-2 flex-1 min-w-0" style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
-                                <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
-                                  {courtLabel(g.court)}
-                                </span>
-                                {mode === 'teamSwap' ? (
-                                  (() => {
-                                    const tgt: TeamSwapTarget = { slot: s, court: g.court, team: 'A' }
-                                    const isSelected = teamSwapSelected?.slot === s && teamSwapSelected?.court === g.court && teamSwapSelected?.team === 'A'
-                                    const isPending = !!(pendingTeamSwap && (
-                                      (pendingTeamSwap.t1.slot === s && pendingTeamSwap.t1.court === g.court && pendingTeamSwap.t1.team === 'A') ||
-                                      (pendingTeamSwap.t2.slot === s && pendingTeamSwap.t2.court === g.court && pendingTeamSwap.t2.team === 'A')
-                                    ))
-                                    const isDimmed = !!pendingTeamSwap && !isPending
-                                    return (
-                                      <button
-                                        onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
-                                        disabled={!!pendingTeamSwap}
-                                        className={`flex items-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md border transition-colors ${
-                                          isSelected || isPending
-                                            ? 'bg-violet-900/50 border-violet-500 ring-1 ring-violet-500/60'
-                                            : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
-                                        } ${isDimmed ? 'opacity-30' : ''}`}
-                                      >
-                                        {g.teamA.map((id, i) => (
-                                          <span key={i} className="flex items-center gap-1">
-                                            {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
-                                            <span className="text-xs font-medium text-slate-200">{name(id, s)}</span>
-                                          </span>
-                                        ))}
-                                      </button>
-                                    )
-                                  })()
-                                ) : (
-                                  <div className="flex items-center gap-1 min-w-0">
-                                    {([0, 1] as const).map((i) => {
-                                      const id = g.teamA[i]
-                                      const n = name(id, s)
-                                      const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'A', index: i }
-                                      const isSelected =
-                                        (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
-                                        !!(pendingSwap && (
-                                          (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
-                                          (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
-                                        ))
-                                      const isDimmed = !!pendingSwap && !isSelected
-                                      return (
-                                        <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
-                                          {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
-                                          {mode === 'replace' ? (
-                                            <button
-                                              onClick={() => {
-                                                if (replaceTarget === id) {
-                                                  setReplaceTarget(null)
-                                                  setReplaceName('')
-                                                } else {
-                                                  setReplaceTarget(id)
-                                                  setReplaceName('')
-                                                }
-                                              }}
-                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
-                                                replaceTarget === id
-                                                  ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
-                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
-                                              }`}
-                                            >
-                                              {n}
-                                            </button>
-                                          ) : mode === 'change' ? (
-                                            <button
-                                              onClick={() => {
-                                                const hasScore = !!gameScores[toGameKey(s, g.court)]
-                                                if (hasScore) return
-                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'A', index: i, playerId: id }
-                                                setChangeTarget(tgt)
-                                                setChangeName('')
-                                                setChangeError(null)
-                                              }}
-                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
-                                                changeTarget?.slot === s && changeTarget?.court === g.court && changeTarget?.team === 'A' && changeTarget?.index === i
-                                                  ? 'bg-sky-900/50 border-sky-500 text-sky-200 ring-1 ring-sky-500/60'
-                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-sky-400 hover:text-sky-200'
-                                              }`}
-                                            >
-                                              {n}
-                                            </button>
-                                          ) : mode === 'swap' && !done && !pendingSwap ? (
-                                            <button
-                                              onClick={() => handleChipClick(target)}
-                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
-                                                isSelected
-                                                  ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
-                                              }`}
-                                            >
-                                              {n}
-                                            </button>
-                                          ) : mode === 'swap' && !done && pendingSwap ? (
-                                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
-                                              isSelected
-                                                ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                                : effectiveAbsent.has(id)
-                                                  ? 'border-transparent text-slate-400 line-through'
-                                                  : 'border-transparent text-white'
-                                            }`}>{n}</span>
-                                          ) : (
-                                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
-                                              effectiveAbsent.has(id)
-                                                ? 'border-transparent text-slate-400 line-through'
-                                                : done
-                                                  ? 'border-transparent text-slate-400 line-through'
-                                                  : 'border-transparent text-white'
-                                            }`}>{n}</span>
-                                          )}
-                                        </span>
-                                      )
-                                    })}
-                                  </div>
-                                )}
-                                <span className="text-slate-400 text-xs text-center">vs</span>
-                                {mode === 'teamSwap' ? (
-                                  (() => {
-                                    const tgt: TeamSwapTarget = { slot: s, court: g.court, team: 'B' }
-                                    const isSelected = teamSwapSelected?.slot === s && teamSwapSelected?.court === g.court && teamSwapSelected?.team === 'B'
-                                    const isPending = !!(pendingTeamSwap && (
-                                      (pendingTeamSwap.t1.slot === s && pendingTeamSwap.t1.court === g.court && pendingTeamSwap.t1.team === 'B') ||
-                                      (pendingTeamSwap.t2.slot === s && pendingTeamSwap.t2.court === g.court && pendingTeamSwap.t2.team === 'B')
-                                    ))
-                                    const isDimmed = !!pendingTeamSwap && !isPending
-                                    return (
-                                      <button
-                                        onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
-                                        disabled={!!pendingTeamSwap}
-                                        className={`flex items-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md border transition-colors ${
-                                          isSelected || isPending
-                                            ? 'bg-violet-900/50 border-violet-500 ring-1 ring-violet-500/60'
-                                            : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
-                                        } ${isDimmed ? 'opacity-30' : ''}`}
-                                      >
-                                        {g.teamB.map((id, i) => (
-                                          <span key={i} className="flex items-center gap-1">
-                                            {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
-                                            <span className="text-xs font-medium text-slate-200">{name(id, s)}</span>
-                                          </span>
-                                        ))}
-                                      </button>
-                                    )
-                                  })()
-                                ) : (
-                                  <div className="flex items-center gap-1 min-w-0">
-                                    {([0, 1] as const).map((i) => {
-                                      const id = g.teamB[i]
-                                      const n = name(id, s)
-                                      const target: SwapTarget = { slot: s, court: g.court, playerId: id, team: 'B', index: i }
-                                      const isSelected =
-                                        (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
-                                        !!(pendingSwap && (
-                                          (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
-                                          (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
-                                        ))
-                                      const isDimmed = !!pendingSwap && !isSelected
-                                      return (
-                                        <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
-                                          {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
-                                          {mode === 'replace' ? (
-                                            <button
-                                              onClick={() => {
-                                                if (replaceTarget === id) {
-                                                  setReplaceTarget(null)
-                                                  setReplaceName('')
-                                                } else {
-                                                  setReplaceTarget(id)
-                                                  setReplaceName('')
-                                                }
-                                              }}
-                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
-                                                replaceTarget === id
-                                                  ? 'bg-emerald-900/50 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/60'
-                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
-                                              }`}
-                                            >
-                                              {n}
-                                            </button>
-                                          ) : mode === 'change' ? (
-                                            <button
-                                              onClick={() => {
-                                                const hasScore = !!gameScores[toGameKey(s, g.court)]
-                                                if (hasScore) return
-                                                const tgt: ChangeTarget = { slot: s, court: g.court, team: 'B', index: i, playerId: id }
-                                                setChangeTarget(tgt)
-                                                setChangeName('')
-                                                setChangeError(null)
-                                              }}
-                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
-                                                changeTarget?.slot === s && changeTarget?.court === g.court && changeTarget?.team === 'B' && changeTarget?.index === i
-                                                  ? 'bg-sky-900/50 border-sky-500 text-sky-200 ring-1 ring-sky-500/60'
-                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-sky-400 hover:text-sky-200'
-                                              }`}
-                                            >
-                                              {n}
-                                            </button>
-                                          ) : mode === 'swap' && !done && !pendingSwap ? (
-                                            <button
-                                              onClick={() => handleChipClick(target)}
-                                              className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
-                                                isSelected
-                                                  ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                                  : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
-                                              }`}
-                                            >
-                                              {n}
-                                            </button>
-                                          ) : mode === 'swap' && !done && pendingSwap ? (
-                                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
-                                              isSelected
-                                                ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
-                                                : effectiveAbsent.has(id)
-                                                  ? 'border-transparent text-slate-400 line-through'
-                                                  : 'border-transparent text-white'
-                                            }`}>{n}</span>
-                                          ) : (
-                                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
-                                              effectiveAbsent.has(id)
-                                                ? 'border-transparent text-slate-400 line-through'
-                                                : done
-                                                  ? 'border-transparent text-slate-400 line-through'
-                                                  : 'border-transparent text-white'
-                                            }`}>{n}</span>
-                                          )}
-                                        </span>
-                                      )
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                              {/* Score toggle / saved score */}
-                              {mode === 'idle' && (savedScore && !isOpen ? (
-                                <button
-                                  onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) } }}
-                                  className={`text-[11px] font-bold shrink-0 whitespace-nowrap ${locked ? 'text-slate-400 cursor-default' : 'text-emerald-400 hover:text-emerald-300'}`}
-                                >
-                                  {savedScore.a}–{savedScore.b}
-                                </button>
-                              ) : !locked ? (
-                                <button
-                                  onClick={() => {
-                                    if (isOpen) { setExpandedScore(null); setScoreError(null) }
-                                    else { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draft })) }
-                                  }}
-                                  className="text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap transition-colors"
-                                >
-                                  {isOpen ? '▲ score' : '+ score'}
-                                </button>
-                              ) : null)}
-                            </div>
-
-                            {/* Expandable score panel */}
-                            {isOpen && (
-                              <div className="ml-6 bg-slate-900 border border-indigo-800/60 rounded-lg px-3 py-2.5 flex flex-col gap-2">
-                                <div className="flex items-center justify-center gap-3">
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[10px] text-slate-400 truncate max-w-20 text-center">{teamANames}</span>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={99}
-                                      value={draft.a}
-                                      onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), a: e.target.value } }))}
-                                      className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
-                                      aria-label={`Score for ${teamANames}`}
-                                    />
-                                  </div>
-                                  <span className="text-slate-400 font-bold text-lg mt-4">–</span>
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[10px] text-slate-400 truncate max-w-20 text-center">{teamBNames}</span>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={99}
-                                      value={draft.b}
-                                      onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), b: e.target.value } }))}
-                                      className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
-                                      aria-label={`Score for ${teamBNames}`}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="flex flex-col items-center gap-1">
-                                  {scoreError && (
-                                    <p className="text-[10px] text-red-400 text-center">{scoreError}</p>
-                                  )}
-                                  <button
-                                    onClick={() => handleScoreSave(key)}
-                                    disabled={saving}
-                                    className="px-6 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                                  >
-                                    {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                                    {saving ? 'Saving…' : '✓ Save'}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                        return mode === 'slotSwap' ? (
-                          <SlotGameCard key={key} id={key}>
-                            {gameRow}
-                          </SlotGameCard>
-                        ) : (
-                          <div key={key}>{gameRow}</div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )
-          return mode === 'slotSwap' ? (
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-              {scheduleGrid}
-            </DndContext>
-          ) : scheduleGrid
-        })()}
+        ) : (
+          <ScheduleGrid
+            result={result}
+            slotsPerCourt={slotsPerCourt}
+            courtNames={courtNames}
+            sessionStart={sessionStart}
+            slotMinutes={slotMinutes}
+            mode={mode}
+            locked={locked}
+            saving={saving}
+            playerMap={playerMap}
+            playedGames={playedArr}
+            gameScores={gameScores}
+            effectiveAbsent={effectiveAbsent}
+            expandedScore={expandedScore}
+            draftScores={draftScores}
+            scoreError={scoreError}
+            swapSelected={swapSelected}
+            pendingSwap={pendingSwap}
+            teamSwapSelected={teamSwapSelected}
+            pendingTeamSwap={pendingTeamSwap}
+            replaceTarget={replaceTarget}
+            changeTarget={changeTarget}
+            sensors={sensors}
+            handleChipClick={handleChipClick}
+            handleTeamClick={handleTeamClick}
+            handleReplaceToggle={handleReplaceToggle}
+            handleChangeSelect={handleChangeSelect}
+            handleDragEnd={handleDragEnd}
+            handleScoreSave={handleScoreSave}
+            onTogglePlayedGame={onTogglePlayedGame}
+            setExpandedScore={setExpandedScore}
+            setScoreError={setScoreError}
+            setDraftScores={setDraftScores}
+          />
+        )}
 
         {/* Player Stats — shown below schedule */}
         {activeTab === 'schedule' && (

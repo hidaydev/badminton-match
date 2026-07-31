@@ -46,3 +46,23 @@ export function computeSlotAllocation(courtTimes: CourtTime[], slotMinutes: numb
   )
   return { slotsPerCourt, totalGames: slotsPerCourt.reduce((a, b) => a + b, 0) }
 }
+
+/**
+ * Merge overlapping court time ranges and return a formatted string.
+ * Example: "09:00–11:00 · 14:00–16:00"
+ */
+export function formatMergedCourtTimes(courtTimes: CourtTime[]): string {
+  if (courtTimes.length === 0) return ''
+  const ranges = courtTimes
+    .map((ct) => ({ start: timeToMinutes(ct.start), end: timeToMinutes(ct.end) }))
+    .sort((a, b) => a.start - b.start)
+  const merged: { start: number; end: number }[] = []
+  for (const r of ranges) {
+    if (merged.length === 0 || r.start > merged[merged.length - 1].end) {
+      merged.push({ ...r })
+    } else {
+      merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, r.end)
+    }
+  }
+  return merged.map((r) => `${minutesToTime(r.start)}–${minutesToTime(r.end)}`).join(' · ')
+}
