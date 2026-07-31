@@ -1,4 +1,4 @@
-import type { ScheduleSlot, GameScore } from '../types'
+import type { ScheduleSlot, GameScore, GameKey } from '../types'
 import { toGameKey } from '../types'
 import type { GeneratorResult } from '../generator'
 import type { SetState } from './index'
@@ -9,7 +9,7 @@ export interface ScheduleSlice {
   schedule: ScheduleSlot[]
   lastResult: GeneratorResult | null
   playedGames: string[]
-  gameScores: Record<string, GameScore>
+  gameScores: Record<GameKey, GameScore>
 
   setResult: (r: GeneratorResult) => void
   updateSchedule: (schedule: ScheduleSlot[]) => void
@@ -40,8 +40,8 @@ export const createScheduleSlice = (
     const k2 = toGameKey(g2.slot, g2.court)
 
     // Migrate gameScores keys
-    const gameScores: Record<string, GameScore> = {}
-    for (const [key, value] of Object.entries(s.gameScores)) {
+    const gameScores = {} as Record<GameKey, GameScore>
+    for (const [key, value] of Object.entries(s.gameScores) as [GameKey, GameScore][]) {
       if (key === k1) gameScores[k2] = value
       else if (key === k2) gameScores[k1] = value
       else gameScores[key] = value
@@ -72,7 +72,7 @@ export const createScheduleSlice = (
       if (!isPlayed) return { playedGames }
 
       const gameScores = { ...s.gameScores }
-      delete gameScores[key]
+      delete gameScores[key as GameKey]
       return { playedGames, gameScores }
     }),
 
@@ -82,14 +82,14 @@ export const createScheduleSlice = (
       playedGames: s.playedGames.includes(key)
         ? s.playedGames
         : [...s.playedGames, key],
-      gameScores: { ...s.gameScores, [key]: { a, b } },
+      gameScores: { ...s.gameScores, [key]: { a, b } } as Record<GameKey, GameScore>,
     }))
   },
 
   clearGameScore: (key) =>
     set((s) => {
       const next = { ...s.gameScores }
-      delete next[key]
+      delete next[key as GameKey]
       return { gameScores: next }
     }),
 })

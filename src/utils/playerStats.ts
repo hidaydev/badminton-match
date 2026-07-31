@@ -1,4 +1,5 @@
-import type { ScheduleSlot } from '../types'
+import type { ScheduleSlot, PlayerId } from '../types'
+import { toPlayerId } from '../types'
 import { bumpCoOccurrence } from './counter'
 
 /**
@@ -9,17 +10,17 @@ export function computePlayerStats(
   schedule: ScheduleSlot[],
   playerIds: string[],
 ): {
-  playCount: Record<string, number>
-  sitCount: Record<string, number>
-  partnerWith: Record<string, Record<string, number>>
-  facedBy: Record<string, Record<string, number>>
+  playCount: Record<PlayerId, number>
+  sitCount: Record<PlayerId, number>
+  partnerWith: Record<PlayerId, Record<PlayerId, number>>
+  facedBy: Record<PlayerId, Record<PlayerId, number>>
 } {
-  const playCount: Record<string, number> = Object.fromEntries(playerIds.map((id) => [id, 0]))
-  const partnerWith: Record<string, Record<string, number>> = {}
-  const facedBy: Record<string, Record<string, number>> = {}
+  const playCount = Object.fromEntries(playerIds.map((id) => [toPlayerId(id), 0])) as Record<PlayerId, number>
+  const partnerWith = {} as Record<PlayerId, Record<PlayerId, number>>
+  const facedBy = {} as Record<PlayerId, Record<PlayerId, number>>
 
   for (const g of schedule) {
-    for (const id of [...g.teamA, ...g.teamB]) playCount[id]++
+    for (const id of [...g.teamA, ...g.teamB]) playCount[toPlayerId(id)]++
     bumpCoOccurrence(partnerWith, g.teamA[0], g.teamA[1])
     bumpCoOccurrence(partnerWith, g.teamB[0], g.teamB[1])
     for (const a of g.teamA) {
@@ -37,11 +38,11 @@ export function computePlayerStats(
     slotPlayerSet.set(g.slot, set)
   }
   const maxSlots = schedule.length > 0 ? Math.max(...schedule.map((g) => g.slot)) + 1 : 0
-  const sitCount: Record<string, number> = Object.fromEntries(playerIds.map((id) => [id, 0]))
+  const sitCount = Object.fromEntries(playerIds.map((id) => [toPlayerId(id), 0])) as Record<PlayerId, number>
   for (let t = 0; t < maxSlots; t++) {
     const playing = slotPlayerSet.get(t) ?? new Set<string>()
     for (const id of playerIds) {
-      if (!playing.has(id)) sitCount[id]++
+      if (!playing.has(id)) sitCount[toPlayerId(id)]++
     }
   }
 

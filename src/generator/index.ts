@@ -1,32 +1,33 @@
-import type { Player, MatchConstraint, MatchConstraintPinned, ScheduleSlot } from '../types'
+import type { Player, MatchConstraint, MatchConstraintPinned, ScheduleSlot, PlayerId } from '../types'
 import { toPlayerId } from '../types'
 import { bumpCoOccurrence } from '../utils/counter'
 import { shuffle, combinations } from '../utils/array'
 import { DEFAULT_SCORING, DEFAULT_TIER, GROUPING_TRIES, FILL_CANDIDATES, type ScoringWeights } from '../config/generator'
 
 interface GeneratorState {
-  playCount: Record<string, number>
-  sitCount: Record<string, number>
-  partnerWith: Record<string, Record<string, number>>
-  facedBy: Record<string, Record<string, number>>
+  playCount: Record<PlayerId, number>
+  sitCount: Record<PlayerId, number>
+  partnerWith: Record<PlayerId, Record<PlayerId, number>>
+  facedBy: Record<PlayerId, Record<PlayerId, number>>
 }
 
 function initState(ids: string[]): GeneratorState {
   return {
-    playCount: Object.fromEntries(ids.map((id) => [id, 0])),
-    sitCount: Object.fromEntries(ids.map((id) => [id, 0])),
-    partnerWith: {},
-    facedBy: {},
+    playCount: Object.fromEntries(ids.map((id) => [toPlayerId(id), 0])) as Record<PlayerId, number>,
+    sitCount: Object.fromEntries(ids.map((id) => [toPlayerId(id), 0])) as Record<PlayerId, number>,
+    partnerWith: {} as Record<PlayerId, Record<PlayerId, number>>,
+    facedBy: {} as Record<PlayerId, Record<PlayerId, number>>,
   }
 }
 
 function recordScheduledGame(a1: string, a2: string, b1: string, b2: string, state: GeneratorState) {
-  state.playCount[a1]++; state.playCount[a2]++
-  state.playCount[b1]++; state.playCount[b2]++
-  bumpCoOccurrence(state.partnerWith, a1, a2)
-  bumpCoOccurrence(state.partnerWith, b1, b2)
-  bumpCoOccurrence(state.facedBy, a1, b1); bumpCoOccurrence(state.facedBy, a1, b2)
-  bumpCoOccurrence(state.facedBy, a2, b1); bumpCoOccurrence(state.facedBy, a2, b2)
+  const id1 = toPlayerId(a1), id2 = toPlayerId(a2), id3 = toPlayerId(b1), id4 = toPlayerId(b2)
+  state.playCount[id1]++; state.playCount[id2]++
+  state.playCount[id3]++; state.playCount[id4]++
+  bumpCoOccurrence(state.partnerWith, id1, id2)
+  bumpCoOccurrence(state.partnerWith, id3, id4)
+  bumpCoOccurrence(state.facedBy, id1, id3); bumpCoOccurrence(state.facedBy, id1, id4)
+  bumpCoOccurrence(state.facedBy, id2, id3); bumpCoOccurrence(state.facedBy, id2, id4)
 }
 
 interface ScoreGameOptions {
@@ -47,11 +48,12 @@ function scoreScheduledGame(options: ScoreGameOptions): number {
     (tierMap[a1] ?? DEFAULT_TIER) + (tierMap[a2] ?? DEFAULT_TIER) -
     (tierMap[b1] ?? DEFAULT_TIER) - (tierMap[b2] ?? DEFAULT_TIER)
   )
+  const id1 = toPlayerId(a1), id2 = toPlayerId(a2), id3 = toPlayerId(b1), id4 = toPlayerId(b2)
   return (
-    (partners[a1]?.[a2] ?? 0) * scoring.partnerPenalty +
-    (partners[b1]?.[b2] ?? 0) * scoring.partnerPenalty +
-    (opponents[a1]?.[b1] ?? 0) * scoring.opponentPenalty + (opponents[a1]?.[b2] ?? 0) * scoring.opponentPenalty +
-    (opponents[a2]?.[b1] ?? 0) * scoring.opponentPenalty + (opponents[a2]?.[b2] ?? 0) * scoring.opponentPenalty +
+    (partners[id1]?.[id2] ?? 0) * scoring.partnerPenalty +
+    (partners[id3]?.[id4] ?? 0) * scoring.partnerPenalty +
+    (opponents[id1]?.[id3] ?? 0) * scoring.opponentPenalty + (opponents[id1]?.[id4] ?? 0) * scoring.opponentPenalty +
+    (opponents[id2]?.[id3] ?? 0) * scoring.opponentPenalty + (opponents[id2]?.[id4] ?? 0) * scoring.opponentPenalty +
     tierDiff * scoring.tierDiffWeight
   )
 }
@@ -117,8 +119,8 @@ function fillScheduledGame(
   const fixed = [a1, a2, b1, b2].filter(Boolean)
   const pool = available.filter((id) => !fixed.includes(id))
 
-  const projected = (id: string) => state.playCount[id] + Math.max(0, (totalFixCommitments[id] ?? 0) - (fixPlayCount[id] ?? 0))
-  const sorted = [...pool].sort((a, b) => projected(a) - projected(b) || state.sitCount[b] - state.sitCount[a] || Math.random() - 0.5)
+  const projected = (id: string) => (state.playCount[toPlayerId(id)] ?? 0) + Math.max(0, (totalFixCommitments[id] ?? 0) - (fixPlayCount[id] ?? 0))
+  const sorted = [...pool].sort((a, b) => projected(a) - projected(b) || (state.sitCount[toPlayerId(b)] ?? 0) - (state.sitCount[toPlayerId(a)] ?? 0) || Math.random() - 0.5)
 
   const empty = [!a1, !a2, !b1, !b2]
   const needed = empty.filter(Boolean).length
@@ -465,27 +467,28 @@ function greedyFillRemaining(
 
     // Players not in any game this slot sit out (includes fix-match-only slots)
     if (need === 0) {
-      for (const id of available) state.sitCount[id]++
+      for (const id of available) state.sitCount[toPlayerId(id)]++
       continue
     }
 
     if (available.length < need) {
       // Increment sitCount for available players who can't fill this slot
       for (const id of available) {
-        state.sitCount[id] = (state.sitCount[id] ?? 0) + 1
+        const pid = toPlayerId(id)
+        state.sitCount[pid] = (state.sitCount[pid] ?? 0) + 1
       }
       continue
     }
 
-    const projected = (id: string) => state.playCount[id] + (totalFixCommitments[id] - fixPlayCount[id])
+    const projected = (id: string) => (state.playCount[toPlayerId(id)] ?? 0) + (totalFixCommitments[id] - fixPlayCount[id])
     const playedLastSlot = (id: string) => t > 0 ? getUsedAtT(grid, t - 1, slotsPerCourt, courtOffsets).has(id) : false
     const sortedAvail = [...available].sort(
-      (a, b) => projected(a) - projected(b) || (playedLastSlot(a) ? 1 : 0) - (playedLastSlot(b) ? 1 : 0) || state.sitCount[b] - state.sitCount[a] || Math.random() - 0.5
+      (a, b) => projected(a) - projected(b) || (playedLastSlot(a) ? 1 : 0) - (playedLastSlot(b) ? 1 : 0) || (state.sitCount[toPlayerId(b)] ?? 0) - (state.sitCount[toPlayerId(a)] ?? 0) || Math.random() - 0.5
     )
 
     const playing = sortedAvail.slice(0, need)
     const sittingOut = sortedAvail.slice(need)
-    for (const id of sittingOut) state.sitCount[id]++
+    for (const id of sittingOut) state.sitCount[toPlayerId(id)]++
 
     const groups = bestGrouping(playing, unfilledCourts.length, state, tierMap, GROUPING_TRIES, scoring)
     for (let i = 0; i < unfilledCourts.length; i++) {

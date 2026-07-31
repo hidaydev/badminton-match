@@ -1,4 +1,4 @@
-import type { CloudSnapshot, MatchConstraint, Player, ScheduleSlot, SessionConfig } from '../types'
+import type { CloudSnapshot, MatchConstraint, Player, ScheduleSlot, SessionConfig, GameKey } from '../types'
 import { toGameKey } from '../types'
 import { applySwap, applyTeamSwap, applyChange, type SwapTarget, type TeamSwapTarget, type ChangeTarget } from './swap.ts'
 import { applySlotSwap, type SlotSwapTarget } from './slotSwap.ts'
@@ -48,7 +48,7 @@ export function togglePlayedInSnapshot(snapshot: CloudSnapshot, key: string): Cl
   }
 
   const gameScores = { ...snapshot.gameScores }
-  delete gameScores[key]
+  delete gameScores[key as GameKey]
   return { ...snapshot, playedGames, gameScores }
 }
 

@@ -7,7 +7,7 @@ import {
   togglePlayedInSnapshot,
 } from '../../src/utils/sessionSnapshot.ts'
 import type { CloudSnapshot } from '../../src/queries/types.ts'
-import { toTimeString, toPlayerId } from '../../src/types/index.ts'
+import { toTimeString, toPlayerId, toGameKey } from '../../src/types/index.ts'
 
 function makeSnapshot(): CloudSnapshot {
   return {
@@ -39,7 +39,7 @@ function makeSnapshot(): CloudSnapshot {
     ],
     playedGames: ['0-0'],
     gameScores: {
-      '0-0': { a: 30, b: 27 },
+      [toGameKey(0, 0)]: { a: 30, b: 27 },
     },
     absentPlayers: [toPlayerId('p4')],
   }
@@ -50,7 +50,7 @@ test('togglePlayedInSnapshot removes orphan score when unplaying a game', () => 
   const next = togglePlayedInSnapshot(snapshot, '0-0')
 
   assert.deepEqual(next.playedGames, [])
-  assert.equal(next.gameScores['0-0'], undefined)
+  assert.equal(next.gameScores[toGameKey(0, 0)], undefined)
   assert.deepEqual(next.absentPlayers, ['p4'])
 })
 
@@ -59,7 +59,7 @@ test('setScoreInSnapshot auto-adds played game when scoring an unplayed slot', (
   const next = setScoreInSnapshot(snapshot, '1-1', 21, 18)
 
   assert.deepEqual(next.playedGames, ['0-0', '1-1'])
-  assert.deepEqual(next.gameScores['1-1'], { a: 21, b: 18 })
+  assert.deepEqual(next.gameScores[toGameKey(1, 1)], { a: 21, b: 18 })
 })
 
 test('swapSlotsInSnapshot migrates schedule, played keys, and scores together', () => {
@@ -73,8 +73,8 @@ test('swapSlotsInSnapshot migrates schedule, played keys, and scores together', 
   assert.deepEqual(next.schedule[0], { slot: 1, court: 1, teamA: ['p1', 'p2'], teamB: ['p3', 'p4'] })
   assert.deepEqual(next.schedule[1], { slot: 0, court: 0, teamA: ['p1', 'p3'], teamB: ['p2', 'p4'] })
   assert.deepEqual(next.playedGames, ['1-1'])
-  assert.deepEqual(next.gameScores['1-1'], { a: 30, b: 27 })
-  assert.equal(next.gameScores['0-0'], undefined)
+  assert.deepEqual(next.gameScores[toGameKey(1, 1)], { a: 30, b: 27 })
+  assert.equal(next.gameScores[toGameKey(0, 0)], undefined)
 })
 
 test('buildPublishableSessionSnapshot preserves existing absent players', () => {

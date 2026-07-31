@@ -1,4 +1,4 @@
-import type { Player, ScheduleSlot, GameScore } from '../types'
+import type { Player, ScheduleSlot, GameScore, GameKey } from '../types'
 import { toGameKey } from '../types'
 import { initTallyRow, tallyMatch, computeDiff, standardStandingSort, type TallyRow } from './tally'
 
@@ -9,7 +9,7 @@ export interface PlayerStanding extends TallyRow {
 export function computeStandings(
   players: Player[],
   schedule: ScheduleSlot[],
-  gameScores: Record<string, GameScore>,
+  gameScores: Record<GameKey, GameScore>,
 ): PlayerStanding[] {
   const map = new Map<string, PlayerStanding>()
 
