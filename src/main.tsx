@@ -8,7 +8,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      retry: 1,
+      // Retry is handled at the RPC layer (callRpc) with exponential backoff.
+      // Setting retry: false here prevents double-retry.
+      retry: false,
     },
   },
 })
