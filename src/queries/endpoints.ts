@@ -69,6 +69,23 @@ function isValidSnapshot(data: unknown): data is CloudSnapshot {
   )
 }
 
+/** Validate that a response has the shape of PlayerStats */
+function isValidPlayerStats(data: unknown): data is PlayerStats {
+  if (typeof data !== 'object' || data === null) return false
+  const stats = data as Record<string, unknown>
+  return (
+    typeof stats.name === 'string' &&
+    typeof stats.gamesPlayed === 'number' &&
+    typeof stats.wins === 'number' &&
+    typeof stats.losses === 'number' &&
+    typeof stats.pointsFor === 'number' &&
+    typeof stats.pointsAgainst === 'number' &&
+    Array.isArray(stats.sessions) &&
+    Array.isArray(stats.topPartners) &&
+    Array.isArray(stats.topOpponents)
+  )
+}
+
 const RPC_TIMEOUT_MS = 30_000
 const MAX_RETRIES = 3
 const RETRY_BASE_DELAY_MS = 1_000
@@ -188,6 +205,10 @@ export async function listPlayers(): Promise<PlayerSummary[]> {
 export async function getPlayerStats(name: string): Promise<PlayerStats> {
   const data = await callRpc<PlayerStats | null>('get_player_stats', { p_name: name })
   if (!data) throw new Error('no data')
+  if (!isValidPlayerStats(data)) {
+    console.warn('[getPlayerStats] response failed validation:', data)
+    throw new RpcError('Invalid player stats received from server')
+  }
   return data
 }
 
