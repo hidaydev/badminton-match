@@ -40,35 +40,111 @@ export class RpcError extends Error {
   }
 }
 
+/** Check if an error is retryable (transient server/network errors) */
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof RpcError) {
+    const code = error.code
+    return code === '429' || code === '503' || code === '500'
+  }
+  if (error instanceof DOMException && error.name === 'AbortError') return false
+  if (error instanceof TypeError && error.message.includes('fetch')) return true
+  return false
+}
+
+/** Check if an error is a timeout */
+export function isTimeoutError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+/** Validate that a response has the shape of a CloudSnapshot */
+function isValidSnapshot(data: unknown): data is CloudSnapshot {
+  if (typeof data !== 'object' || data === null) return false
+  const snap = data as Record<string, unknown>
+  return (
+    'session' in snap &&
+    'players' in snap &&
+    'schedule' in snap &&
+    Array.isArray(snap.players) &&
+    Array.isArray(snap.schedule)
+  )
+}
+
+const RPC_TIMEOUT_MS = 30_000
+const MAX_RETRIES = 3
+const RETRY_BASE_DELAY_MS = 1_000
+
 async function callRpc<T>(
   name: string,
   body: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<T> {
-  const res = await fetch(rpcUrl(name), {
-    method: 'POST',
-    headers: rpcHeaders(),
-    body: JSON.stringify(body),
-  })
+  let lastError: unknown
 
-  if (!res.ok) {
-    let detail = `${res.status} ${res.statusText}`
-    let code: string | null = null
-    try {
-      const json = await res.json() as { message?: string; error?: string; hint?: string; code?: string }
-      detail = json.message ?? json.error ?? json.hint ?? detail
-      code = json.code ?? null
-    } catch {
-      // keep HTTP detail
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = Math.min(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), 4_000)
+      await new Promise(resolve => setTimeout(resolve, delay))
     }
-    throw new RpcError(detail, code)
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS)
+
+    // Link external signal to internal controller
+    const onAbort = () => controller.abort()
+    signal?.addEventListener('abort', onAbort)
+
+    try {
+      const res = await fetch(rpcUrl(name), {
+        method: 'POST',
+        headers: rpcHeaders(),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+
+      if (!res.ok) {
+        let detail = `${res.status} ${res.statusText}`
+        let code: string | null = null
+        try {
+          const json = await res.json() as { message?: string; error?: string; hint?: string; code?: string }
+          detail = json.message ?? json.error ?? json.hint ?? detail
+          code = json.code ?? null
+        } catch {
+          // keep HTTP detail
+        }
+        const err = new RpcError(detail, code)
+        if (isRetryableError(err) && attempt < MAX_RETRIES) {
+          lastError = err
+          continue
+        }
+        throw err
+      }
+
+      if (res.status === 204) return undefined as T
+      return await res.json() as T
+    } catch (error) {
+      // Don't retry if the external signal was aborted
+      if (signal?.aborted) throw error
+      if (isRetryableError(error) && attempt < MAX_RETRIES) {
+        lastError = error
+        continue
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
+      signal?.removeEventListener('abort', onAbort)
+    }
   }
 
-  if (res.status === 204) return undefined as T
-  return await res.json() as T
+  throw lastError
 }
 
 export async function getSession(id: string): Promise<CloudSnapshot | null> {
-  return await callRpc<CloudSnapshot | null>('get_session', { p_id: id })
+  const data = await callRpc<CloudSnapshot | null>('get_session', { p_id: id })
+  if (data !== null && !isValidSnapshot(data)) {
+    console.warn('[getSession] response failed validation:', data)
+    throw new RpcError('Invalid session snapshot received from server')
+  }
+  return data
 }
 
 export async function publishSession(id: string, data: CloudSnapshot): Promise<CloudSnapshot> {
@@ -84,6 +160,11 @@ export async function listSessions(): Promise<SessionMeta[]> {
     total_games: number
     locked: boolean
   }>>('list_sessions', {})
+
+  if (!Array.isArray(rows)) {
+    console.warn('[listSessions] response is not an array:', rows)
+    throw new RpcError('Invalid session list received from server')
+  }
 
   return rows.map((row) => ({
     id: row.id,
