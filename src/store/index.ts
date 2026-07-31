@@ -37,6 +37,9 @@ export const useStore = create<AppState>()(
     {
       name: 'badminton-store',
       version: 14,
+      // Intentional: version bumps reset local state to prevent stale data
+      // from causing issues with new schema. Users can re-create sessions.
+      // Cloud-persisted sessions are unaffected by local store resets.
       migrate: () => ({
         ...createSessionSlice((fn) => fn as any), // eslint-disable-line @typescript-eslint/no-explicit-any
         ...createPlayersSlice((fn) => fn as any), // eslint-disable-line @typescript-eslint/no-explicit-any
