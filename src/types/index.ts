@@ -102,7 +102,7 @@ export interface CloudSnapshot {
   fixMatches: MatchConstraint[]
   schedule: ScheduleSlot[]
   playedGames: string[]
-  gameScores: Record<string, GameScore>
+  gameScores: Record<GameKey, GameScore>
   absentPlayers?: string[]
 }
 
