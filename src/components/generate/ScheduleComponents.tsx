@@ -269,10 +269,28 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
       : { label: 'Opponent variety', detail: `${q.repeatedOpponents} pair${q.repeatedOpponents > 1 ? 's' : ''} repeated`, level: (q.repeatedOpponents >= 3 ? 'bad' : 'warn') as Level, hint: q.excludedOpponents > 0 ? `${q.excludedOpponents} pair${q.excludedOpponents > 1 ? 's' : ''} excluded (constrained)` : undefined },
   ]
 
-  const backToBackItem = { label: 'Back-to-back', detail: q.backToBackCount === 0 ? 'none' : `${q.backToBackCount} instance${q.backToBackCount > 1 ? 's' : ''}`, level: q.backToBackCount > 0 ? 'warn' as Level : 'ok' as Level }
+  // Back-to-back: distinguish "generator can improve" from "config forces it".
+  const b2bRetryable = q.backToBackCount > q.backToBackFloor
+  const b2bConfigLimited = q.backToBackFloor > 0 && !b2bRetryable
+  const b2bDetail =
+    q.backToBackCount === 0
+      ? 'none'
+      : q.backToBackFloor > 0
+      ? `${q.backToBackCount} (min ${q.backToBackFloor})`
+      : `${q.backToBackCount} instance${q.backToBackCount > 1 ? 's' : ''}`
+  const backToBackItem = {
+    label: 'Back-to-back',
+    detail: b2bDetail,
+    level: (q.backToBackCount === 0 ? 'ok' : 'warn') as Level,
+    hint: b2bConfigLimited
+      ? 'Tak terhindarkan dengan jumlah pemain & court ini'
+      : b2bRetryable
+      ? 'Bisa dikurangi — coba generate ulang'
+      : undefined,
+  }
 
   const hasBad = items.some((i) => i.level === 'bad' && !i.infoOnly)
-  const hasWarn = items.some((i) => i.level === 'warn' && !i.infoOnly)
+  const hasWarn = items.some((i) => i.level === 'warn' && !i.infoOnly) || b2bRetryable
   const dot: Record<Level, string> = { ok: 'bg-emerald-400', warn: 'bg-amber-400', bad: 'bg-red-400' }
   const text: Record<Level, string> = { ok: 'text-emerald-400', warn: 'text-amber-400', bad: 'text-red-400' }
 
@@ -315,8 +333,16 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
           <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot[backToBackItem.level]}`} />
           <span className="text-[11px] text-slate-400 shrink-0">{backToBackItem.label}:</span>
           <span className={`text-[11px] font-medium ${text[backToBackItem.level]}`}>{backToBackItem.detail}</span>
+          {backToBackItem.hint && (
+            <span title={backToBackItem.hint} className="text-[10px] text-slate-400 hover:text-slate-400 cursor-help shrink-0">ⓘ</span>
+          )}
         </div>
       </div>
+      {b2bConfigLimited && (
+        <p className="text-[11px] text-amber-400/90 leading-snug border-t border-amber-800/50 pt-2">
+          ⚠ Konfigurasi ini membuat pemain main tanpa istirahat ({q.backToBackCount} back-to-back) — sudah di batas matematis, generate ulang tidak akan mengurangi. Tambah pemain atau kurangi jumlah slot untuk menghindarinya.
+        </p>
+      )}
     </div>
   )
 }
