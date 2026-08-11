@@ -34,6 +34,10 @@ supabase/.temp
 graphify-out/
 .graphify/
 
+# VPS setup kit (jangan di-commit — berisi kredensial & konfigurasi lokal)
+vps-setup/
+
 CLEANCODE_BACKLOG.md
 BUG_AUDIT_BACKLOG.md
 ACTIVE_BACKLOG.md
+DATA_MODEL_V2_TASKS.md
