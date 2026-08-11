@@ -8,6 +8,10 @@ function getEnv(name) {
   return value
 }
 
+// Skema backend per environment: default "bm" (prod), override via env
+// mis. VITE_SUPABASE_PROFILE=bm_dev untuk tes ke VPS.
+const backendProfile = process.env.VITE_SUPABASE_PROFILE ?? 'bm'
+
 function rpcUrl(baseUrl, name) {
   return `${baseUrl}/rest/v1/rpc/${name}`
 }
@@ -18,8 +22,8 @@ function rpcHeaders(key) {
     Authorization: `Bearer ${key}`,
     'Content-Type': 'application/json',
     Accept: 'application/json',
-    'Accept-Profile': 'bm',
-    'Content-Profile': 'bm',
+    'Accept-Profile': backendProfile,
+    'Content-Profile': backendProfile,
   }
 }
 
