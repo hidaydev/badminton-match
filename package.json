@@ -10,7 +10,7 @@
     "check:types": "tsc -b --pretty false",
     "check:lint": "eslint .",
     "check:tailwind": "node scripts/check-tailwind-arbitrary.mjs",
-    "check:regression": "node --experimental-strip-types --test scripts/tests/*.test.ts",
+    "check:regression": "node --import ./scripts/resolve-ts-imports.mjs --experimental-strip-types --test scripts/tests/*.test.ts",
     "check:smoke:supabase": "node scripts/check-supabase-rpc.mjs",
     "check:smoke:writeflows": "node scripts/check-supabase-writeflows.mjs",
     "check:smoke": "npm run check:smoke:supabase && npm run check:smoke:writeflows",
