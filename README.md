@@ -96,7 +96,8 @@ cp .env.local.example .env.local
 
 # 3. Apply database migrations
 # Run the SQL files in supabase/migrations/ against your Supabase project
-# Order: 000001_schema.sql → 000002_functions.sql → 000003_seeds.sql
+# Order (V2 baseline, 2026-08-11): 000001_functions.sql → 000002_schema.sql
+# Functions first — the player_aliases CHECK constraint references normalize_player_name().
 
 # 4. Start development
 npm run dev
