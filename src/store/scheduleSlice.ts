@@ -1,8 +1,7 @@
 import type { ScheduleSlot, GameScore, GameKey } from '../types'
-import { toGameKey } from '../types'
 import type { GeneratorResult } from '../generator'
 import type { SetState } from './index'
-import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
+import { applySlotSwap, swapKeys, swapKeyInList, type SlotSwapTarget } from '../utils/slotSwap'
 import { validateScore } from '../utils/scoreValidation'
 
 export interface ScheduleSlice {
@@ -36,28 +35,10 @@ export const createScheduleSlice = (
 
   swapSlotsWithScores: (g1, g2) => set((s) => {
     const schedule = applySlotSwap(s.schedule, g1, g2)
-    const k1 = toGameKey(g1.slot, g1.court)
-    const k2 = toGameKey(g2.slot, g2.court)
-
-    // Migrate gameScores keys
-    const gameScores = {} as Record<GameKey, GameScore>
-    for (const [key, value] of Object.entries(s.gameScores) as [GameKey, GameScore][]) {
-      if (key === k1) gameScores[k2] = value
-      else if (key === k2) gameScores[k1] = value
-      else gameScores[key] = value
-    }
-
-    // Migrate playedGames keys
-    const playedGames = s.playedGames.map((key) => {
-      if (key === k1) return k2
-      if (key === k2) return k1
-      return key
-    })
-
     return {
       schedule,
-      playedGames,
-      gameScores,
+      playedGames: swapKeyInList(s.playedGames, g1, g2),
+      gameScores: swapKeys(s.gameScores, g1, g2) as Record<GameKey, GameScore>,
       lastResult: s.lastResult ? { ...s.lastResult, schedule } : null,
     }
   }),
