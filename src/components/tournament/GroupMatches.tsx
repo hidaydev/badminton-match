@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { computeGroupStandings, GROUP_COURTS } from '../../utils/tournament'
+import { computeGroupStandings } from '../../utils/tournament'
+import { GROUP_COURTS } from '../../config/tournament'
 import type { GroupId, TournamentMatch, TournamentPair } from '../../utils/tournament'
 import ScoreModal from './ScoreModal'
 import { drawMatchPost, drawGroupSummary } from '../../utils/canvasPost'

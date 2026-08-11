@@ -184,6 +184,22 @@ interface MergePairableResult {
   mergedSourceIds: Map<string, [string, string]>
 }
 
+// ── Shared context untuk fase-fase penempatan ─────────────────────────────
+// Menggabungkan field yang di-share antar fase (sebelumnya parameter
+// positional 11-14 buah yang rawan salah urut).
+
+interface PhaseContext {
+  grid: (ScheduledGame | null)[][]
+  slotsPerCourt: number[]
+  courtOffsets: number[]
+  ids: string[]
+  state: GeneratorState
+  tierMap: Record<string, number>
+  scoring: ScoringWeights
+  totalFixCommitments: Record<string, number>
+  fixPlayCount: Record<string, number>
+}
+
 // ── Phase 1: Pre-place pinned matches ────────────────────────────────────────
 
 /**
@@ -199,16 +215,9 @@ interface MergePairableResult {
 function placePinnedMatches(
   sorted: MatchConstraint[],
   timeToSlotIndexFn: ((time: string) => number) | undefined,
-  grid: (ScheduledGame | null)[][],
-  slotsPerCourt: number[],
-  courtOffsets: number[],
-  state: GeneratorState,
-  tierMap: Record<string, number>,
-  ids: string[],
-  totalFixCommitments: Record<string, number>,
-  fixPlayCount: Record<string, number>,
-  scoring: ScoringWeights,
+  ctx: PhaseContext,
 ): PlacePinnedResult {
+  const { grid, slotsPerCourt, courtOffsets, ids, state, tierMap, totalFixCommitments, fixPlayCount, scoring } = ctx
   const pinnedMatches: MatchConstraintPinned[] = timeToSlotIndexFn
     ? sorted.filter((fm): fm is MatchConstraintPinned => fm.mode === 'pinned')
     : []
@@ -360,20 +369,13 @@ function spreadFixMatches(
  */
 function placeFlexibleFixMatches(
   effectiveFixes: MatchConstraint[],
-  grid: (ScheduledGame | null)[][],
-  slotsPerCourt: number[],
-  courtOffsets: number[],
-  ids: string[],
-  numCourts: number,
   maxSlots: number,
-  state: GeneratorState,
-  tierMap: Record<string, number>,
-  scoring: ScoringWeights,
   targetSlot: Map<string, number>,
   mergedSourceIds: Map<string, [string, string]>,
-  totalFixCommitments: Record<string, number>,
-  fixPlayCount: Record<string, number>,
+  ctx: PhaseContext,
 ): string[] {
+  const { grid, slotsPerCourt, courtOffsets, ids, state, tierMap, scoring, totalFixCommitments, fixPlayCount } = ctx
+  const numCourts = slotsPerCourt.length
   const unplacedIds: string[] = []
 
   for (const fm of effectiveFixes) {
@@ -442,17 +444,10 @@ function placeFlexibleFixMatches(
  * incremented.
  */
 function greedyFillRemaining(
-  ids: string[],
-  grid: (ScheduledGame | null)[][],
-  slotsPerCourt: number[],
-  courtOffsets: number[],
   maxSlots: number,
-  state: GeneratorState,
-  tierMap: Record<string, number>,
-  scoring: ScoringWeights,
-  totalFixCommitments: Record<string, number>,
-  fixPlayCount: Record<string, number>,
+  ctx: PhaseContext,
 ): void {
+  const { grid, slotsPerCourt, courtOffsets, ids, state, tierMap, scoring, totalFixCommitments, fixPlayCount } = ctx
   for (let t = 0; t < maxSlots; t++) {
     const activeCourts = slotsPerCourt.map((n, c) => {
       const offset = courtOffsets[c] ?? 0
@@ -539,10 +534,21 @@ export function generate(ctx: GenerateContext): GeneratorResult {
   }
   const fixPlayCount: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]))
 
+  // Shared context untuk semua fase penempatan
+  const phaseCtx: PhaseContext = {
+    grid,
+    slotsPerCourt,
+    courtOffsets,
+    ids,
+    state,
+    tierMap,
+    scoring,
+    totalFixCommitments,
+    fixPlayCount,
+  }
+
   // Phase 1 — Pre-place pinned matches
-  const { pinnedIds, unplacedIds: pinnedUnplaced } = placePinnedMatches(
-    sorted, timeToSlotIndex, grid, slotsPerCourt, courtOffsets, state, tierMap, ids, totalFixCommitments, fixPlayCount, scoring,
-  )
+  const { pinnedIds, unplacedIds: pinnedUnplaced } = placePinnedMatches(sorted, timeToSlotIndex, phaseCtx)
   unplacedFixMatches.push(...pinnedUnplaced)
 
   // Filter out pinned matches from further processing
@@ -555,13 +561,11 @@ export function generate(ctx: GenerateContext): GeneratorResult {
   const targetSlot = spreadFixMatches(effectiveFixes, maxSlots)
 
   // Phase 4 — Place flexible fix matches
-  const flexibleUnplaced = placeFlexibleFixMatches(
-    effectiveFixes, grid, slotsPerCourt, courtOffsets, ids, numCourts, maxSlots, state, tierMap, scoring, targetSlot, mergedSourceIds, totalFixCommitments, fixPlayCount,
-  )
+  const flexibleUnplaced = placeFlexibleFixMatches(effectiveFixes, maxSlots, targetSlot, mergedSourceIds, phaseCtx)
   unplacedFixMatches.push(...flexibleUnplaced)
 
   // Phase 5 — Fill remaining slots greedily
-  greedyFillRemaining(ids, grid, slotsPerCourt, courtOffsets, maxSlots, state, tierMap, scoring, totalFixCommitments, fixPlayCount)
+  greedyFillRemaining(maxSlots, phaseCtx)
 
   // ── Flatten to ScheduleSlot[] ────────────────────────────────────────────────
   const schedule: ScheduleSlot[] = []

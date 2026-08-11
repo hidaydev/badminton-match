@@ -1,6 +1,6 @@
 import type { SessionConfig, CourtTime } from '../types'
 import { toTimeString, createCourtTime } from '../types'
-import { timeToMinutes, minutesToTime, computeSlotAllocation } from '../utils/time'
+import { timeToMinutes, minutesToTime } from '../utils/time'
 import type { SetState } from './index'
 
 const DEFAULT_SLOT_MINUTES = 20
@@ -97,7 +97,6 @@ export const createSessionSlice = (
           session: {
             ...s.session,
             courtTimes,
-            ...computeSlotAllocation(courtTimes, s.session.slotMinutes),
           },
         }
       } catch (e) {

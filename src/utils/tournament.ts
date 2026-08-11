@@ -24,8 +24,6 @@ export interface StandingRow extends TallyRow {
   pairId: string
 }
 
-export const GROUP_COURTS: Record<GroupId, number> = { A: 9, B: 10, C: 11, D: 12 }
-
 export interface TournamentSnapshot {
   version?: number
   name: string
