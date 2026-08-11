@@ -26,8 +26,10 @@ function rpcHeaders(): HeadersInit {
     Authorization: `Bearer ${key}`,
     'Content-Type': 'application/json',
     Accept: 'application/json',
-    'Accept-Profile': 'bm',
-    'Content-Profile': 'bm',
+    // Skema backend per environment (bm = prod/Supabase, bm_dev = dev/staging/VPS).
+    // Di-inject saat build oleh vite.config.ts (__BACKEND_PROFILE__).
+    'Accept-Profile': __BACKEND_PROFILE__,
+    'Content-Profile': __BACKEND_PROFILE__,
   }
 }
 
@@ -82,8 +84,21 @@ function isValidPlayerStats(data: unknown): data is PlayerStats {
     typeof stats.pointsAgainst === 'number' &&
     Array.isArray(stats.sessions) &&
     Array.isArray(stats.topPartners) &&
-    Array.isArray(stats.topOpponents)
+    Array.isArray(stats.topOpponents) &&
+    // V2: tournamentStats wajib — kalau absen (server schema lama), fallback di
+    // getPlayerStats supaya UI tidak crash.
+    (stats.tournamentStats === undefined || typeof stats.tournamentStats === 'object')
   )
+}
+
+/** Empty tournamentStats — dipakai sebagai fallback kalau server schema lama. */
+const EMPTY_TOURNAMENT_STATS: PlayerStats['tournamentStats'] = {
+  gamesPlayed: 0,
+  wins: 0,
+  losses: 0,
+  tournaments: [],
+  topPartners: [],
+  topOpponents: [],
 }
 
 const RPC_TIMEOUT_MS = 30_000
@@ -208,6 +223,12 @@ export async function getPlayerStats(name: string): Promise<PlayerStats> {
   if (!isValidPlayerStats(data)) {
     console.warn('[getPlayerStats] response failed validation:', data)
     throw new RpcError('Invalid player stats received from server')
+  }
+  // V2: kalau server schema lama (belum ada tournamentStats), kasih default —
+  // UI tahan schema-mismatch saat dev/prod beda versi (risiko yang dikelola
+  // __BACKEND_PROFILE__).
+  if (!data.tournamentStats) {
+    data.tournamentStats = EMPTY_TOURNAMENT_STATS
   }
   return data
 }

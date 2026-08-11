@@ -17,6 +17,40 @@ export function applySlotSwap(
   })
 }
 
+/**
+ * Migrate object keys saat dua slot ditukar: nilai pada k1 pindah ke k2 dan
+ * sebaliknya. Dipakai untuk gameScores (key = "slot-court").
+ */
+export function swapKeys<T>(
+  obj: Record<string, T>,
+  g1: SlotSwapTarget,
+  g2: SlotSwapTarget,
+): Record<string, T> {
+  const k1 = `${g1.slot}-${g1.court}`
+  const k2 = `${g2.slot}-${g2.court}`
+  const next: Record<string, T> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === k1) next[k2] = value
+    else if (key === k2) next[k1] = value
+    else next[key] = value
+  }
+  return next
+}
+
+/**
+ * Migrate array items saat dua slot ditukar (key = "slot-court").
+ * Dipakai untuk playedGames.
+ */
+export function swapKeyInList(items: string[], g1: SlotSwapTarget, g2: SlotSwapTarget): string[] {
+  const k1 = `${g1.slot}-${g1.court}`
+  const k2 = `${g2.slot}-${g2.court}`
+  return items.map((key) => {
+    if (key === k1) return k2
+    if (key === k2) return k1
+    return key
+  })
+}
+
 export function detectSlotSwapConflict(
   schedule: ScheduleSlot[],
   g1: SlotSwapTarget,

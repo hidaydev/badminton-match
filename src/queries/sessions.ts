@@ -196,57 +196,21 @@ export function useDeleteSession() {
 
 export function useChangePlayer(sessionId: string) {
   const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ target, newName, playerName }: { target: ChangeTarget; newName: string; playerName: string }) => {
-      const fresh = await getSession(sessionId)
-      if (!fresh) throw new Error('no data')
-      const newSchedule = applyChange(fresh.schedule, target, newName)
-      const newPlayers = rebuildPlayersFromSchedule(newSchedule, fresh.players, newName, playerName)
-      const updated = {
-        ...fresh,
+  return useOptimisticSessionMutation(
+    sessionId,
+    (old, vars) => {
+      const { target, newName, playerName } = vars as { target: ChangeTarget; newName: string; playerName: string }
+      const newSchedule = applyChange(old.schedule, target, newName)
+      const newPlayers = rebuildPlayersFromSchedule(newSchedule, old.players, newName, playerName)
+      return {
+        ...old,
         schedule: newSchedule,
         players: newPlayers,
-        session: { ...fresh.session, playerCount: newPlayers.length },
-      }
-      return await publishSession(sessionId, updated)
-    },
-    onMutate: async ({ target, newName, playerName }) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      queryClient.setQueryData<CloudSnapshot | null>(['session', sessionId], (old) => {
-        if (!old) return old
-        const newSchedule = applyChange(old.schedule, target, newName)
-        const newPlayers = rebuildPlayersFromSchedule(newSchedule, old.players, newName, playerName)
-        return {
-          ...old,
-          schedule: newSchedule,
-          players: newPlayers,
-          session: { ...old.session, playerCount: newPlayers.length },
-        }
-      })
-      return { previous }
-    },
-    onError: async () => {
-      // Always refetch from server to get clean snapshot (avoid stale/corrupt cache)
-      try {
-        await queryClient.fetchQuery<CloudSnapshot | null>({
-          queryKey: ['session', sessionId],
-          queryFn: () => getSession(sessionId),
-        })
-      } catch {
-        // ignore — better to have stale cache than crash
+        session: { ...old.session, playerCount: newPlayers.length },
       }
     },
-    onSuccess: async () => {
-      // Don't set cache from server response — it can race with subsequent mutations.
-      // Instead, refetch fresh data from server.
-      await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
-        queryFn: () => getSession(sessionId),
-      })
-      await invalidateAllQueries(queryClient)
-    },
-  })
+    () => invalidateAllQueries(queryClient),
+  )
 }
 
 export function useLockSession(sessionId: string) {

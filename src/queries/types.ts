@@ -20,4 +20,13 @@ export interface PlayerStats {
   sessions: { id: string; date: string; title: string; absent?: boolean }[]
   topPartners: { name: string; count: number; wins: number; losses: number }[]
   topOpponents: { name: string; count: number; wins: number; losses: number }[]
+  // Tournament career stats — dihitung dari tabel tournament normalized (V2).
+  tournamentStats: {
+    gamesPlayed: number
+    wins: number
+    losses: number
+    tournaments: { name: string; date: string; games: number; wins: number; losses: number }[]
+    topPartners: { name: string; count: number; wins: number }[]
+    topOpponents: { name: string; count: number; wins: number }[]
+  }
 }

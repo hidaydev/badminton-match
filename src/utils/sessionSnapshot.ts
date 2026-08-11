@@ -1,7 +1,6 @@
 import type { CloudSnapshot, MatchConstraint, Player, ScheduleSlot, SessionConfig, GameKey } from '../types'
-import { toGameKey } from '../types'
-import { applySwap, applyTeamSwap, applyChange, type SwapTarget, type TeamSwapTarget, type ChangeTarget } from './swap.ts'
-import { applySlotSwap, type SlotSwapTarget } from './slotSwap.ts'
+import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from './swap.ts'
+import { applySlotSwap, swapKeys, swapKeyInList, type SlotSwapTarget } from './slotSwap.ts'
 import { validateScore } from './scoreValidation.ts'
 
 interface PublishableSessionInput {
@@ -120,36 +119,6 @@ export function replacePlayerNameInSnapshot(
   }
 }
 
-function migrateKeys<T>(
-  record: Record<string, T>,
-  g1: SlotSwapTarget,
-  g2: SlotSwapTarget,
-): Record<string, T> {
-  const k1 = toGameKey(g1.slot, g1.court)
-  const k2 = toGameKey(g2.slot, g2.court)
-  const next: Record<string, T> = {}
-  for (const [key, value] of Object.entries(record)) {
-    if (key === k1) next[k2] = value
-    else if (key === k2) next[k1] = value
-    else next[key] = value
-  }
-  return next
-}
-
-function migratePlayedGames(
-  playedGames: string[],
-  g1: SlotSwapTarget,
-  g2: SlotSwapTarget,
-): string[] {
-  const k1 = toGameKey(g1.slot, g1.court)
-  const k2 = toGameKey(g2.slot, g2.court)
-  return playedGames.map((key) => {
-    if (key === k1) return k2
-    if (key === k2) return k1
-    return key
-  })
-}
-
 export function swapSlotsInSnapshot(
   snapshot: CloudSnapshot,
   g1: SlotSwapTarget,
@@ -158,18 +127,7 @@ export function swapSlotsInSnapshot(
   return {
     ...snapshot,
     schedule: applySlotSwap(snapshot.schedule, g1, g2),
-    playedGames: migratePlayedGames(snapshot.playedGames, g1, g2),
-    gameScores: migrateKeys(snapshot.gameScores, g1, g2),
-  }
-}
-
-export function changePlayerInSnapshot(
-  snapshot: CloudSnapshot,
-  target: ChangeTarget,
-  newName: string,
-): CloudSnapshot {
-  return {
-    ...snapshot,
-    schedule: applyChange(snapshot.schedule, target, newName),
+    playedGames: swapKeyInList(snapshot.playedGames, g1, g2),
+    gameScores: swapKeys(snapshot.gameScores, g1, g2),
   }
 }
