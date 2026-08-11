@@ -69,7 +69,8 @@ export default function PlayerMatchDetailSheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-slate-900 rounded-t-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto p-4"
+        className="bg-slate-900 rounded-t-2xl w-full max-w-lg overflow-y-auto p-4"
+        style={{ maxHeight: '80vh' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
