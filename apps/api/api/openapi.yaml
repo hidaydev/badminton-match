@@ -1,0 +1,724 @@
+openapi: 3.0.3
+info:
+  title: Majadu API
+  version: 0.1.0
+  description: |
+    Backend Go untuk Majadu (badminton session operations).
+    Kontrak RESTful — pengganti PostgREST RPC. Frontend query layer
+    akan menyesuaikan dengan kontrak ini.
+  license:
+    name: Private
+
+servers:
+  - url: https://api.qouver.com/majadu
+    description: Production (base path /majadu)
+  - url: https://api.qouver.com/majadu
+    description: Dev/staging (base path /majadu)
+
+tags:
+  - name: System
+  - name: Sessions
+  - name: Games
+  - name: Players
+  - name: Tournaments
+
+paths:
+  # ── System ────────────────────────────────────────────────────────────
+  /healthz:
+    get:
+      tags: [System]
+      summary: Liveness
+      operationId: healthz
+      responses:
+        "200":
+          description: Server hidup
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+  /readyz:
+    get:
+      tags: [System]
+      summary: Readiness (cek koneksi DB)
+      operationId: readyz
+      responses:
+        "200":
+          description: DB reachable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+        "503":
+          description: DB tidak reachable
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /version:
+    get:
+      tags: [System]
+      summary: Informasi build
+      operationId: version
+      responses:
+        "200":
+          description: Versi binary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Version" }
+
+  # ── Sessions ──────────────────────────────────────────────────────────
+  /sessions:
+    get:
+      tags: [Sessions]
+      summary: List metadata session
+      operationId: listSessions
+      responses:
+        "200":
+          description: Daftar metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SessionMeta" }
+    post:
+      tags: [Sessions]
+      summary: Buat session baru
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SessionDraft" }
+      responses:
+        "201":
+          description: Session dibuat
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400":
+          description: Validasi gagal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /sessions/{id}:
+    get:
+      tags: [Sessions]
+      summary: Ambil session lengkap
+      operationId: getSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Snapshot session
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "404":
+          description: Tidak ditemukan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      tags: [Sessions]
+      summary: Update sebagian field session
+      operationId: patchSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SessionPatch" }
+      responses:
+        "200":
+          description: Session diupdate
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "409":
+          description: Version mismatch / session terkunci
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      tags: [Sessions]
+      summary: Hapus session (admin)
+      operationId: deleteSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "204":
+          description: Terhapus
+        "409":
+          description: Session terkunci
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /sessions/{id}/lock:
+    post:
+      tags: [Sessions]
+      summary: Kunci session (cegah semua write)
+      operationId: lockSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: Terkunci
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /sessions/{id}/unlock:
+    post:
+      tags: [Sessions]
+      summary: Buka kunci session (admin)
+      operationId: unlockSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+      responses:
+        "200":
+          description: Terbuka
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+
+  # ── Games ─────────────────────────────────────────────────────────────
+  /sessions/{id}/games/{gameKey}:
+    put:
+      tags: [Games]
+      summary: Set skor (dan tandai played)
+      operationId: setGameScore
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/GameKey"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Score"
+      responses:
+        "200":
+          description: Skor tersimpan
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+    delete:
+      tags: [Games]
+      summary: Hapus skor game (kembali belum played)
+      operationId: clearGameScore
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/GameKey"
+        - $ref: "#/components/parameters/IfMatch"
+      responses:
+        "200":
+          description: Skor dihapus
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+
+  # ── Players (session-scoped) ──────────────────────────────────────────
+  /sessions/{id}/players/{playerId}:
+    patch:
+      tags: [Players]
+      summary: Rename pemain dalam session
+      operationId: renamePlayer
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/PlayerId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RenamePlayer" }
+      responses:
+        "200":
+          description: Pemain di-rename
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /sessions/{id}/absent:
+    put:
+      tags: [Players]
+      summary: Set daftar pemain absent
+      operationId: setAbsent
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Absent" }
+      responses:
+        "200":
+          description: Absent tersimpan
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+
+  # ── Swaps ─────────────────────────────────────────────────────────────
+  /sessions/{id}/swaps/players:
+    post:
+      tags: [Sessions]
+      summary: Tukar dua pemain antar game
+      operationId: swapPlayers
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Swap" }
+      responses:
+        "200":
+          description: Swap diterapkan
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /sessions/{id}/swaps/teams:
+    post:
+      tags: [Sessions]
+      summary: Tukar dua team antar game
+      operationId: swapTeams
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Swap" }
+      responses:
+        "200":
+          description: Swap diterapkan
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+  /sessions/{id}/swaps/slots:
+    post:
+      tags: [Sessions]
+      summary: Tukar dua slot game
+      operationId: swapSlots
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Swap" }
+      responses:
+        "200":
+          description: Swap diterapkan
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+
+  # ── Players (registry) ────────────────────────────────────────────────
+  /players:
+    get:
+      tags: [Players]
+      summary: List pemain terdaftar
+      operationId: listPlayers
+      responses:
+        "200":
+          description: Daftar pemain
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlayerSummary" }
+    post:
+      tags: [Players]
+      summary: Daftarkan pemain baru
+      operationId: registerPlayer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterPlayer" }
+      responses:
+        "201":
+          description: Terdaftar
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlayerId" }
+  /players/{name}/stats:
+    get:
+      tags: [Players]
+      summary: Statistik karier pemain
+      operationId: playerStats
+      parameters:
+        - $ref: "#/components/parameters/PlayerName"
+      responses:
+        "200":
+          description: Statistik
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlayerStats" }
+
+  # ── Tournaments ───────────────────────────────────────────────────────
+  /tournaments:
+    post:
+      tags: [Tournaments]
+      summary: Buat tournament baru
+      operationId: createTournament
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TournamentDraft" }
+      responses:
+        "201":
+          description: Tournament dibuat
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tournament" }
+  /tournaments/{id}:
+    get:
+      tags: [Tournaments]
+      summary: Ambil tournament lengkap
+      operationId: getTournament
+      parameters:
+        - $ref: "#/components/parameters/TournamentId"
+      responses:
+        "200":
+          description: Tournament
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tournament" }
+    patch:
+      tags: [Tournaments]
+      summary: Update tournament (skor, bracket)
+      operationId: patchTournament
+      parameters:
+        - $ref: "#/components/parameters/TournamentId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TournamentDraft" }
+      responses:
+        "200":
+          description: Tournament diupdate
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Tournament" }
+
+components:
+  parameters:
+    SessionId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: share_code atau uuid session
+    TournamentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    PlayerId:
+      name: playerId
+      in: path
+      required: true
+      schema: { type: string }
+    PlayerName:
+      name: name
+      in: path
+      required: true
+      schema: { type: string }
+    GameKey:
+      name: gameKey
+      in: path
+      required: true
+      schema: { type: string }
+      description: Format "{slot}-{court}", contoh "0-0"
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: { type: string }
+      description: Version session dalam format `v{n}`. Opsional — kalau ada, server tolak kalau tidak cocok (optimistic concurrency).
+  headers:
+    ETag:
+      description: Version session saat ini (`v{n}`) — untuk If-Match berikutnya
+      schema: { type: string }
+
+  schemas:
+    Status:
+      type: object
+      properties:
+        status: { type: string, example: ok }
+    Version:
+      type: object
+      properties:
+        version: { type: string }
+        commit: { type: string }
+        date: { type: string }
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum: [not_found, conflict, validation_error, unauthorized, service_unavailable, internal, database_error]
+            message: { type: string }
+      required: [error]
+
+    SessionMeta:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        date: { type: string, format: date }
+        player_count: { type: integer }
+        total_games: { type: integer }
+        locked: { type: boolean }
+      required: [id, title, date, player_count, total_games, locked]
+
+    SessionDraft:
+      type: object
+      description: Data session untuk create (server generate id + version)
+      required: [title, date, courts, players]
+      properties:
+        title: { type: string }
+        date: { type: string, format: date }
+        courts: { type: integer, minimum: 1, maximum: 6 }
+        sessionStart: { type: string, example: "09:00" }
+        slotMinutes: { type: integer, default: 20 }
+        courtTimes:
+          type: array
+          items:
+            type: object
+            properties:
+              start: { type: string }
+              end: { type: string }
+        players:
+          type: array
+          minItems: 4
+          maxItems: 40
+          items: { $ref: "#/components/schemas/Player" }
+        fixMatches:
+          type: array
+          items: { $ref: "#/components/schemas/FixMatch" }
+        schedule:
+          type: array
+          items: { $ref: "#/components/schemas/ScheduleSlot" }
+
+    Session:
+      type: object
+      description: Session lengkap (mirror CloudSnapshot frontend)
+      properties:
+        version: { type: integer }
+        session: { $ref: "#/components/schemas/SessionConfig" }
+        players: { type: array, items: { $ref: "#/components/schemas/Player" } }
+        fixMatches: { type: array, items: { $ref: "#/components/schemas/FixMatch" } }
+        schedule: { type: array, items: { $ref: "#/components/schemas/ScheduleSlot" } }
+        playedGames: { type: array, items: { type: string } }
+        gameScores:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/Score" }
+        absentPlayers: { type: array, items: { type: string } }
+
+    SessionConfig:
+      type: object
+      properties:
+        title: { type: string }
+        date: { type: string, format: date }
+        courts: { type: integer }
+        sessionStart: { type: string }
+        slotMinutes: { type: integer }
+        courtTimes: { type: array, items: { type: object } }
+        playerCount: { type: integer }
+        courtNames: { type: array, items: { type: string } }
+        locked: { type: boolean }
+
+    Player:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        gender: { type: string, enum: [M, F] }
+        tier: { type: integer, minimum: 1, maximum: 4 }
+      required: [id, name]
+
+    FixMatch:
+      type: object
+      properties:
+        id: { type: string }
+        slots:
+          type: array
+          items: { type: [string, "null"] }
+          minItems: 4
+          maxItems: 4
+
+    ScheduleSlot:
+      type: object
+      properties:
+        slot: { type: integer }
+        court: { type: integer }
+        teamA:
+          type: array
+          items: { type: string }
+          minItems: 2
+          maxItems: 2
+        teamB:
+          type: array
+          items: { type: string }
+          minItems: 2
+          maxItems: 2
+
+    SessionPatch:
+      type: object
+      description: Field session yang bisa di-patch
+      properties:
+        title: { type: string }
+        date: { type: string }
+        courtNames: { type: array, items: { type: string } }
+
+    Score:
+      type: object
+      required: [scoreA, scoreB]
+      properties:
+        scoreA: { type: integer, minimum: 0, maximum: 99 }
+        scoreB: { type: integer, minimum: 0, maximum: 99 }
+
+    RenamePlayer:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+
+    Absent:
+      type: object
+      required: [playerIds]
+      properties:
+        playerIds: { type: array, items: { type: string } }
+
+    Swap:
+      type: object
+      description: Dua target yang ditukar (struktur tergantung jenis swap)
+      required: [targetA, targetB]
+      properties:
+        targetA: { $ref: "#/components/schemas/SwapTarget" }
+        targetB: { $ref: "#/components/schemas/SwapTarget" }
+
+    SwapTarget:
+      type: object
+      properties:
+        slot: { type: integer }
+        court: { type: integer }
+        team: { type: string, enum: [A, B] }
+        position: { type: integer }
+
+    PlayerSummary:
+      type: object
+      properties:
+        name: { type: string }
+        gender: { type: string, enum: [M, F] }
+        tier: { type: integer }
+
+    RegisterPlayer:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        canonicalName: { type: string }
+
+    PlayerId:
+      type: object
+      properties:
+        playerId: { type: string, format: uuid }
+
+    PlayerStats:
+      type: object
+      properties:
+        name: { type: string }
+        gamesPlayed: { type: integer }
+        wins: { type: integer }
+        losses: { type: integer }
+        pointsFor: { type: integer }
+        pointsAgainst: { type: integer }
+        sessions: { type: array, items: { type: object } }
+        topPartners: { type: array, items: { type: object } }
+        topOpponents: { type: array, items: { type: object } }
+        tournamentStats: { type: object }
+
+    TournamentDraft:
+      type: object
+      required: [name, pairs, groups, matches]
+      properties:
+        name: { type: string }
+        date: { type: string, format: date }
+        pairs:
+          type: array
+          minItems: 16
+          maxItems: 16
+          items:
+            type: object
+            properties:
+              id: { type: string, example: p1 }
+              name: { type: string }
+        groups:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+        matches:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              phase: { type: string, enum: [group, qf, sf, "3rd", final] }
+              groupId: { type: string }
+              pairAId: { type: [string, "null"] }
+              pairBId: { type: [string, "null"] }
+              scoreA: { type: [integer, "null"] }
+              scoreB: { type: [integer, "null"] }
+              picName: { type: [string, "null"] }
+
+    Tournament:
+      type: object
+      properties:
+        version: { type: integer }
+        name: { type: string }
+        date: { type: string }
+        pairs: { type: array, items: { type: object } }
+        groups: { type: object }
+        matches: { type: array, items: { type: object } }
