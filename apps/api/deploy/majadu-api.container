@@ -7,7 +7,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Container]
-Image=ghcr.io/hidaydev/majadu-api:main
+Image=ghcr.io/nferdazel/majadu-api:main
 ContainerName=majadu-api
 Network=qouver
 PublishPort=127.0.0.1:8080:8080

@@ -81,7 +81,7 @@ dev→main tidak membawa schema dev ke prod.
 
 ## Deploy
 
-**Arsitektur:** image di-build GitHub Actions → push `ghcr.io/hidaydev/majadu-api:{dev,main}` →
+**Arsitektur:** image di-build GitHub Actions → push `ghcr.io/nferdazel/majadu-api:{dev,main}` →
 VPS (rootless podman + systemd user/quadlet) pull & run → Caddy TLS.
 
 ```
