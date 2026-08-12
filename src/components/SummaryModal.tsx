@@ -22,7 +22,7 @@ import StandingsTab from './summary/StandingsTab'
 import { validateScore } from '../utils/scoreValidation'
 
 /** Read-only data props for SummaryModal */
-export interface SummaryModalBaseProps {
+interface SummaryModalBaseProps {
   result: GeneratorResult
   playerMap: Map<string, Player>
   slotsPerCourt: number[]
@@ -40,7 +40,7 @@ export interface SummaryModalBaseProps {
 }
 
 /** Edit callback props for SummaryModal (all optional for read-only views) */
-export interface SummaryModalEditProps {
+interface SummaryModalEditProps {
   onTogglePlayedGame?: (key: string) => void
   onSetGameScore?: (key: string, a: number, b: number) => void
   onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
@@ -59,7 +59,7 @@ export interface SummaryModalEditProps {
   saving?: boolean
 }
 
-export type SummaryModalProps = SummaryModalBaseProps & SummaryModalEditProps
+type SummaryModalProps = SummaryModalBaseProps & SummaryModalEditProps
 
 export default function SummaryModal({
   result,

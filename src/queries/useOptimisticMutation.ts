@@ -9,7 +9,7 @@ import type { CloudSnapshot, TournamentSnapshot } from './types'
 import { isVersionMismatch } from './errors'
 
 /** Snapshot yang di-publish — session atau tournament. */
-export type Snapshot = CloudSnapshot | TournamentSnapshot
+type Snapshot = CloudSnapshot | TournamentSnapshot
 
 interface OptimisticMutationOptions<TData extends Snapshot, TVars> {
   /** Query key snapshot (['session', id] atau ['tournament', id]). */

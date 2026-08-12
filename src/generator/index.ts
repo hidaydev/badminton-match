@@ -153,7 +153,7 @@ export interface GeneratorResult {
   unplacedFixMatches: string[] // ids of fix matches that couldn't be placed
 }
 
-export interface GeneratorOptions {
+interface GeneratorOptions {
   scoring?: ScoringWeights
 }
 

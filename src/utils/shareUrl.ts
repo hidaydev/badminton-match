@@ -1,4 +1,4 @@
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
+import { decompressFromEncodedURIComponent } from 'lz-string'
 import type { Player, SessionConfig, ScheduleSlot } from '../types'
 import type { GeneratorResult } from '../generator'
 
@@ -8,10 +8,6 @@ export interface SharedSnapshot {
   players: Player[]
   schedule: ScheduleSlot[]
   lastResult: GeneratorResult
-}
-
-export function encodeSnapshot(snapshot: SharedSnapshot): string {
-  return compressToEncodedURIComponent(JSON.stringify(snapshot))
 }
 
 export function decodeSnapshot(hash: string): SharedSnapshot | null {
@@ -26,9 +22,4 @@ export function decodeSnapshot(hash: string): SharedSnapshot | null {
   } catch {
     return null
   }
-}
-
-export function buildShareUrl(snapshot: SharedSnapshot): string {
-  const hash = encodeSnapshot(snapshot)
-  return `${window.location.origin}/view#${hash}`
 }

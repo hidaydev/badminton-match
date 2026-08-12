@@ -1,6 +1,6 @@
 // src/config/instagramTemplates.ts
 
-export interface PostTemplate {
+interface PostTemplate {
   id: string
   label: string
   width: number

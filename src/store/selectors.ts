@@ -5,7 +5,7 @@ import type { SessionConfig } from '../types'
 import { computeSlotAllocation } from '../utils/time'
 
 /** Compute slotsPerCourt and totalGames from session config. */
-export function selectSlotAllocation(session: SessionConfig) {
+function selectSlotAllocation(session: SessionConfig) {
   return computeSlotAllocation(session.courtTimes, session.slotMinutes)
 }
 
