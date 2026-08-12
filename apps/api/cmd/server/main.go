@@ -105,10 +105,12 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("PUT /tournaments/{id}", http.HandlerFunc(tournaments.Put))
 	mux.Handle("PATCH /tournaments/{id}", http.HandlerFunc(tournaments.Patch))
 
-	// Middleware chain.
+	// Middleware chain: recover (luar) → request-id → logging → CORS → rate limit → mux.
 	var h http.Handler = mux
+	h = middleware.RateLimit(cfg.RateLimitPerMin, logger)(h)
 	h = middleware.CORS(cfg.AllowedOrigins)(h)
 	h = middleware.Logging(logger)(h)
+	h = middleware.RequestID(h)
 	h = middleware.Recover(logger)(h)
 	return h
 }

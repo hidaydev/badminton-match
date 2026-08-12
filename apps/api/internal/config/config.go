@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -33,6 +34,9 @@ type Config struct {
 	// BaseURL — URL publik API (untuk header Location), mis.
 	// https://api.qouver.com/majadu/v1. Kosong = relative path.
 	BaseURL string
+
+	// RateLimitPerMin — batas request per menit per IP. 0 = disabled.
+	RateLimitPerMin int
 }
 
 // Load membaca env, me-load .env jika ada, lalu validasi.
@@ -57,6 +61,7 @@ func Load() (Config, error) {
 		return cfg, fmt.Errorf("MAJADU_DB_SCHEMA is required (bm for prod, bm_dev for dev)")
 	}
 	cfg.BaseURL = strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/")
+	cfg.RateLimitPerMin = atoiDefault(os.Getenv("MAJADU_RATE_LIMIT_PER_MIN"), 120)
 
 	for _, origin := range splitList(os.Getenv("CORS_ALLOWED_ORIGINS")) {
 		cfg.AllowedOrigins = append(cfg.AllowedOrigins, origin)
@@ -96,4 +101,15 @@ func splitList(s string) []string {
 		}
 	}
 	return out
+}
+
+func atoiDefault(s string, fallback int) int {
+	if s == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return fallback
+	}
+	return n
 }

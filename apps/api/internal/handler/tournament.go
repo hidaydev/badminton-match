@@ -53,6 +53,7 @@ func (h *TournamentHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // Put — PUT /tournaments/{id}: full snapshot replace (create-or-update).
 // Kontrak frontend lama: body = TournamentSnapshot lengkap dengan version.
+// Update (sudah ada) wajib version — cegah silent-overwrite.
 func (h *TournamentHandler) Put(w http.ResponseWriter, r *http.Request) {
 	var req domain.TournamentSnapshot
 	if err := decodeJSON(r, &req); err != nil {
@@ -68,7 +69,18 @@ func (h *TournamentHandler) Put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out, err := h.Store.Save(r.Context(), r.PathValue("id"), &req)
+	id := r.PathValue("id")
+	if _, err := h.Store.Load(r.Context(), id); err == nil {
+		if req.Version == nil {
+			httperr.WriteError(w, h.Logger, httperr.Precondition("If-Match (or snapshot version) is required to update an existing tournament"))
+			return
+		}
+	} else if !errors.Is(err, store.ErrNotFound) {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to check tournament", err))
+		return
+	}
+
+	out, err := h.Store.Save(r.Context(), id, &req)
 	if err != nil {
 		h.Logger.Warn("publish tournament rejected", "error", err)
 		httperr.WriteError(w, h.Logger, mapPublishError(err))

@@ -191,7 +191,10 @@ func (h *SessionHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Put — PUT /sessions/{id}: full snapshot replace (create-or-update).
 // Kontrak frontend: body = CloudSnapshot lengkap, version dibawa di body
-// (atau header If-Match). Ini jembatan integrasi — snapshot persistence.
+// (atau header If-Match). Aturan:
+//   - sesi BELUM ada  → create (tanpa version boleh)
+//   - sesi SUDAH ada  → WAJIB version (If-Match atau body.version),
+//     tolak update tanpa version (cegah silent-overwrite).
 func (h *SessionHandler) Put(w http.ResponseWriter, r *http.Request) {
 	var snap domain.CloudSnapshot
 	if err := decodeJSON(r, &snap); err != nil {
@@ -201,14 +204,26 @@ func (h *SessionHandler) Put(w http.ResponseWriter, r *http.Request) {
 
 	// Version: If-Match lebih disukai; fallback ke version di body
 	// (kontrak frontend lama mengirim version dalam snapshot).
-	if v, err := versionRequired(r); err == nil {
-		snap.Version = &v
-	} else if !errors.Is(err, errIfMatchMissing) {
+	version, versionErr := versionRequired(r)
+	if versionErr == nil {
+		snap.Version = &version
+	} else if !errors.Is(versionErr, errIfMatchMissing) {
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid If-Match header"))
 		return
 	}
 
 	id := r.PathValue("id")
+	// Update (sesi sudah ada) tanpa version = berbahaya → tolak.
+	if _, err := h.Store.Load(r.Context(), id); err == nil {
+		if snap.Version == nil {
+			httperr.WriteError(w, h.Logger, httperr.Precondition("If-Match (or snapshot version) is required to update an existing session"))
+			return
+		}
+	} else if !errors.Is(err, store.ErrNotFound) {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to check session", err))
+		return
+	}
+
 	// Registrasi pemain (idempotent) — syarat validasi resolve di publish.
 	if err := h.Store.EnsurePlayersRegistered(r.Context(), snap.Players); err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to register players", err))
