@@ -7,8 +7,10 @@ import { buildPublishableSessionSnapshot } from '../utils/sessionSnapshot'
 import ResolvePlayersModal from './ResolvePlayersModal'
 import { findUnresolvedPlayers } from '../utils/resolvePlayers'
 
-function nanoid6(): string {
-  return Math.random().toString(36).slice(2, 8)
+// Id sesi di-generate dengan crypto.randomUUID — unguessable & collision-free
+// (bukan Math.random 6-char: guessable, bisa menimpa sesi lain).
+function newSessionId(): string {
+  return crypto.randomUUID().replace(/-/g, '').slice(0, 16)
 }
 
 export default function ShareButton() {
@@ -34,7 +36,7 @@ export default function ShareButton() {
     setConfirming(false)
     setPublishing(true)
     setError(null)
-    const id = cloudSessionId ?? nanoid6()
+    const id = cloudSessionId ?? newSessionId()
     try {
       const existingSnapshot = cloudSessionId ? await getSession(id) : null
       const snapshot: CloudSnapshot = buildPublishableSessionSnapshot({
