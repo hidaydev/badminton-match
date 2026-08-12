@@ -17,6 +17,7 @@ type TournamentStore struct {
 	pool *pgxpool.Pool
 }
 
+// NewTournamentStore — buat TournamentStore dengan pool koneksi.
 func NewTournamentStore(pool *pgxpool.Pool) *TournamentStore {
 	return &TournamentStore{pool: pool}
 }

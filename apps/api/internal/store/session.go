@@ -1,3 +1,4 @@
+// Package store — akses data via fungsi Postgres yang tervalidasi.
 package store
 
 import (
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// ErrNotFound — error standar untuk resource yang tidak ada.
 var (
 	ErrNotFound = errors.New("not found")
 )
@@ -23,6 +25,7 @@ type SessionStore struct {
 	pool *pgxpool.Pool
 }
 
+// NewSessionStore — buat SessionStore dengan pool koneksi.
 func NewSessionStore(pool *pgxpool.Pool) *SessionStore {
 	return &SessionStore{pool: pool}
 }
@@ -110,6 +113,7 @@ type SessionMeta struct {
 	Locked      bool   `json:"locked"`
 }
 
+// ListSessions — daftar metadata semua session (list_sessions()).
 func (s *SessionStore) ListSessions(ctx context.Context) ([]SessionMeta, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, title, date, player_count, total_games, locked FROM list_sessions()`)

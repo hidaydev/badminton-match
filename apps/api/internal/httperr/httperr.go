@@ -11,13 +11,19 @@ import (
 type Code string
 
 const (
-	CodeNotFound     Code = "not_found"
-	CodeConflict     Code = "conflict"
-	CodeValidation   Code = "validation_error"
-	CodeUnauthorized Code = "unauthorized"
-	CodeUnavailable  Code = "service_unavailable"
-	CodeInternal     Code = "internal"
-	CodeDatabase     Code = "database_error"
+	// CodeNotFound — resource tidak ditemukan.
+	CodeNotFound Code = "not_found"
+	// CodeConflict — state conflict (locked/version mismatch).
+	CodeConflict Code = "conflict"
+	// CodeValidation — input tidak valid.
+	CodeValidation Code = "validation_error"
+	// CodeUnavailable — dependency tidak tersedia.
+	CodeUnavailable Code = "service_unavailable"
+	// CodeInternal — kegagalan server tak terduga.
+	CodeInternal Code = "internal"
+	// CodeDatabase — kegagalan database.
+	CodeDatabase Code = "database_error"
+	// CodePrecondition — prasyarat tidak terpenuhi (mis. If-Match).
 	CodePrecondition Code = "precondition_required"
 )
 
@@ -29,29 +35,44 @@ type Error struct {
 	Err error
 }
 
+// Error — implementasi interface error.
 func (e *Error) Error() string { return e.Message }
+
+// Unwrap — expose error asli untuk errors.Is/errors.As.
 func (e *Error) Unwrap() error { return e.Err }
 
+// New — buat Error tanpa error asli (cause).
 func New(code Code, message string) *Error {
 	return &Error{Code: code, Message: message}
 }
+
+// Wrap — buat Error dengan membungkus error asli (untuk log, tak dikirim ke klien).
 func Wrap(code Code, message string, err error) *Error {
 	return &Error{Code: code, Message: message, Err: err}
 }
 
-func NotFound(msg string) *Error     { return New(CodeNotFound, msg) }
-func Conflict(msg string) *Error     { return New(CodeConflict, msg) }
-func Validation(msg string) *Error   { return New(CodeValidation, msg) }
-func Unauthorized(msg string) *Error { return New(CodeUnauthorized, msg) }
-func Unavailable(msg string) *Error  { return New(CodeUnavailable, msg) }
-func Internal(msg string) *Error     { return New(CodeInternal, msg) }
+// NotFound — error 404 (resource tidak ditemukan).
+func NotFound(msg string) *Error { return New(CodeNotFound, msg) }
+
+// Conflict — error 409 (state conflict, mis. locked/version mismatch).
+func Conflict(msg string) *Error { return New(CodeConflict, msg) }
+
+// Validation — error 400 (input tidak valid).
+func Validation(msg string) *Error { return New(CodeValidation, msg) }
+
+// Unavailable — error 503 (dependency tidak siap).
+func Unavailable(msg string) *Error { return New(CodeUnavailable, msg) }
+
+// Internal — error 500 (kegagalan tak terduga).
+func Internal(msg string) *Error { return New(CodeInternal, msg) }
+
+// Precondition — error 428 (prasyarat tidak terpenuhi, mis. If-Match).
 func Precondition(msg string) *Error { return New(CodePrecondition, msg) }
 
 var statusByCode = map[Code]int{
 	CodeNotFound:     http.StatusNotFound,
 	CodeConflict:     http.StatusConflict,
 	CodeValidation:   http.StatusBadRequest,
-	CodeUnauthorized: http.StatusUnauthorized,
 	CodeUnavailable:  http.StatusServiceUnavailable,
 	CodeInternal:     http.StatusInternalServerError,
 	CodeDatabase:     http.StatusInternalServerError,

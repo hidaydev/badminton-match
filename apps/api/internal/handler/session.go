@@ -275,6 +275,7 @@ func (h *SessionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 // ── Lock / Unlock ───────────────────────────────────────────────────────
 
+// Lock — POST /sessions/{id}/lock: kunci sesi (cegah mutasi lebih lanjut).
 func (h *SessionHandler) Lock(w http.ResponseWriter, r *http.Request) {
 	h.mutate(w, r, func(snap *domain.CloudSnapshot) error {
 		snap.Session.Locked = true
@@ -282,6 +283,7 @@ func (h *SessionHandler) Lock(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Unlock — POST /sessions/{id}/unlock: buka kunci sesi.
 func (h *SessionHandler) Unlock(w http.ResponseWriter, r *http.Request) {
 	h.mutate(w, r, func(snap *domain.CloudSnapshot) error {
 		snap.Session.Locked = false

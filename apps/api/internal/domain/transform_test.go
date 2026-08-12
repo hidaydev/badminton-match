@@ -212,3 +212,107 @@ func TestTeamSwapTargetValidate(t *testing.T) {
 		t.Fatalf("team B should be valid: %v", err)
 	}
 }
+
+func TestApplyTeamSwapSameGame(t *testing.T) {
+	s := makeSnap()
+	// Game slot 0 court 0: teamA=[p1 p2], teamB=[p3 p4] — tukar team A ↔ team B.
+	s.Schedule = ApplyTeamSwap(s.Schedule,
+		TeamSwapTarget{Slot: 0, Court: 0, Team: "A"},
+		TeamSwapTarget{Slot: 0, Court: 0, Team: "B"},
+	)
+	g := s.Schedule[0]
+	if g.TeamA != [2]string{"p3", "p4"} {
+		t.Fatalf("teamA = %v, want [p3 p4]", g.TeamA)
+	}
+	if g.TeamB != [2]string{"p1", "p2"} {
+		t.Fatalf("teamB = %v, want [p1 p2]", g.TeamB)
+	}
+	// game lain tidak berubah.
+	if s.Schedule[1].TeamA != [2]string{"p1", "p3"} {
+		t.Fatalf("game1 teamA = %v", s.Schedule[1].TeamA)
+	}
+}
+
+func TestApplyTeamSwapMissingGameIsNoOp(t *testing.T) {
+	s := makeSnap()
+	before := append([]ScheduleSlot(nil), s.Schedule...)
+	// Slot 99 tidak ada di schedule → no-op.
+	got := ApplyTeamSwap(s.Schedule,
+		TeamSwapTarget{Slot: 0, Court: 0, Team: "A"},
+		TeamSwapTarget{Slot: 99, Court: 0, Team: "B"},
+	)
+	if len(got) != len(before) {
+		t.Fatalf("schedule length changed: %d -> %d", len(before), len(got))
+	}
+	for i := range before {
+		if got[i] != before[i] {
+			t.Fatalf("schedule[%d] changed: %+v -> %+v", i, before[i], got[i])
+		}
+	}
+}
+
+func TestApplySlotSwapSameTargetIsNoOp(t *testing.T) {
+	s := makeSnap()
+	before := append([]ScheduleSlot(nil), s.Schedule...)
+	got := ApplySlotSwap(s.Schedule,
+		SlotSwapTarget{Slot: 0, Court: 0},
+		SlotSwapTarget{Slot: 0, Court: 0},
+	)
+	if len(got) != len(before) {
+		t.Fatalf("schedule length changed: %d -> %d", len(before), len(got))
+	}
+	for i := range before {
+		if got[i] != before[i] {
+			t.Fatalf("schedule[%d] changed: %+v -> %+v", i, before[i], got[i])
+		}
+	}
+}
+
+func TestSwapKeysSameTargetIsNoOp(t *testing.T) {
+	s := makeSnap()
+	_ = s.SetScore("0-0", 21, 18)
+	_ = s.SetScore("1-0", 21, 10)
+	before := make(map[string]GameScore, len(s.GameScores))
+	for k, v := range s.GameScores {
+		before[k] = v
+	}
+	got := SwapKeys(s.GameScores,
+		SlotSwapTarget{Slot: 0, Court: 0},
+		SlotSwapTarget{Slot: 0, Court: 0},
+	)
+	if len(got) != len(before) {
+		t.Fatalf("map size changed: %d -> %d", len(before), len(got))
+	}
+	for k, v := range before {
+		if got[k] != v {
+			t.Fatalf("map[%q] changed: %+v -> %+v", k, v, got[k])
+		}
+	}
+}
+
+func TestSetScoreTwiceDoesNotDuplicatePlayedGame(t *testing.T) {
+	s := makeSnap()
+	if err := s.SetScore("0-0", 21, 18); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := s.SetScore("0-0", 21, 15); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(s.PlayedGames) != 1 || s.PlayedGames[0] != "0-0" {
+		t.Fatalf("playedGames = %v, want [0-0]", s.PlayedGames)
+	}
+	if got := s.GameScores["0-0"]; got != (GameScore{A: 21, B: 15}) {
+		t.Fatalf("score = %+v, want {21 15}", got)
+	}
+}
+
+func TestClearScoreMissingKeyIsSafe(t *testing.T) {
+	s := makeSnap()
+	s.ClearScore("9-9") // key tidak ada — tidak boleh panic.
+	if len(s.PlayedGames) != 0 {
+		t.Fatalf("playedGames = %v, want empty", s.PlayedGames)
+	}
+	if len(s.GameScores) != 0 {
+		t.Fatalf("gameScores = %v, want empty", s.GameScores)
+	}
+}

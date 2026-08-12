@@ -143,6 +143,7 @@ func (s *CloudSnapshot) SwapSlots(g1, g2 SlotSwapTarget) {
 
 // ── Schedule-level (pure) ────────────────────────────────────────────────
 
+// ApplySwap — tukar dua pemain antar game (pure, tanpa mutasi input).
 func ApplySwap(schedule []ScheduleSlot, t1, t2 SwapTarget) []ScheduleSlot {
 	if t1.Slot == t2.Slot && t1.Court == t2.Court && t1.Team == t2.Team && t1.Index == t2.Index {
 		return schedule
@@ -169,6 +170,7 @@ func ApplySwap(schedule []ScheduleSlot, t1, t2 SwapTarget) []ScheduleSlot {
 	return out
 }
 
+// ApplyTeamSwap — tukar dua team antar game (pure, tanpa mutasi input).
 func ApplyTeamSwap(schedule []ScheduleSlot, t1, t2 TeamSwapTarget) []ScheduleSlot {
 	if t1.Slot == t2.Slot && t1.Court == t2.Court && t1.Team == t2.Team {
 		return schedule
@@ -207,6 +209,7 @@ func ApplyTeamSwap(schedule []ScheduleSlot, t1, t2 TeamSwapTarget) []ScheduleSlo
 	return out
 }
 
+// ApplySlotSwap — tukar posisi dua slot game (pure, tanpa mutasi input).
 func ApplySlotSwap(schedule []ScheduleSlot, g1, g2 SlotSwapTarget) []ScheduleSlot {
 	out := make([]ScheduleSlot, len(schedule))
 	copy(out, schedule)

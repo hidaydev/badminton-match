@@ -10,6 +10,7 @@ import (
 // RequestID — menetapkan/meneruskan X-Request-ID untuk korelasi log & tracing.
 type ctxKey string
 
+// RequestIDKey — context key untuk request id (dipakai RequestIDFromContext).
 const RequestIDKey ctxKey = "request_id"
 
 // RequestIDFromContext — ambil request id (untuk log/handler).

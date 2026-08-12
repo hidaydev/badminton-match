@@ -16,6 +16,7 @@ type CloudSnapshot struct {
 	AbsentPlayers []string             `json:"absentPlayers,omitempty"`
 }
 
+// SessionConfig — konfigurasi sesi (judul, tanggal, court, slot, dst).
 type SessionConfig struct {
 	Title        string      `json:"title"`
 	Date         string      `json:"date"`
@@ -28,11 +29,13 @@ type SessionConfig struct {
 	Locked       bool        `json:"locked"`
 }
 
+// CourtTime — rentang waktu satu court (start–end).
 type CourtTime struct {
 	Start string `json:"start"`
 	End   string `json:"end"`
 }
 
+// Player — pemain dalam session (id, nama, gender, tier).
 type Player struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
@@ -40,11 +43,13 @@ type Player struct {
 	Tier   int    `json:"tier"`
 }
 
+// FixMatch — pertandingan fix (non-rotasi) dengan 4 slot pemain.
 type FixMatch struct {
 	ID    string     `json:"id"`
 	Slots [4]*string `json:"slots"`
 }
 
+// ScheduleSlot — satu game terjadwal (slot + court + kedua tim).
 type ScheduleSlot struct {
 	Slot  int       `json:"slot"`
 	Court int       `json:"court"`
@@ -52,6 +57,7 @@ type ScheduleSlot struct {
 	TeamB [2]string `json:"teamB"`
 }
 
+// GameScore — skor satu game (A vs B).
 type GameScore struct {
 	A int `json:"a"`
 	B int `json:"b"`

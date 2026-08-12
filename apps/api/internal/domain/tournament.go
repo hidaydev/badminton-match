@@ -11,11 +11,13 @@ type TournamentSnapshot struct {
 	Matches []TournamentMatch   `json:"matches"`
 }
 
+// TournamentPair — pasangan pemain dalam tournament.
 type TournamentPair struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
+// TournamentMatch — satu pertandingan bracket tournament.
 type TournamentMatch struct {
 	ID      string  `json:"id"`
 	Phase   string  `json:"phase"`

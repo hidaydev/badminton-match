@@ -11,6 +11,7 @@ type PlayerStore struct {
 	pool *pgxpool.Pool
 }
 
+// NewPlayerStore — buat PlayerStore dengan pool koneksi.
 func NewPlayerStore(pool *pgxpool.Pool) *PlayerStore {
 	return &PlayerStore{pool: pool}
 }
@@ -22,6 +23,7 @@ type PlayerSummary struct {
 	Tier   int    `json:"tier"`
 }
 
+// List — daftar semua pemain terdaftar (list_players()).
 func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 	rows, err := s.pool.Query(ctx, `SELECT name, gender, tier FROM list_players()`)
 	if err != nil {
@@ -65,13 +67,4 @@ func (s *PlayerStore) Stats(ctx context.Context, name string) ([]byte, error) {
 		return nil, ErrNotFound
 	}
 	return raw, nil
-}
-
-// EnsurePlayerRegistered — daftarkan jika belum (idempotent), dipakai saat
-// create session supaya validasi resolve player lolos.
-func (s *PlayerStore) EnsurePlayerRegistered(ctx context.Context, name string) error {
-	if _, err := s.Register(ctx, name, name); err != nil {
-		return err
-	}
-	return nil
 }

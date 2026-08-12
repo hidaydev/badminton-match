@@ -1,3 +1,4 @@
+// Package middleware — middleware HTTP: logging, recover, CORS, rate limit, request id.
 package middleware
 
 import (

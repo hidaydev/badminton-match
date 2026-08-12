@@ -1,3 +1,5 @@
+// Package config — konfigurasi runtime dari environment; `.env` di-load
+// untuk dev lokal, prod memakai systemd/podman env.
 package config
 
 import (
@@ -86,6 +88,7 @@ func (c Config) validate() error {
 	return nil
 }
 
+// getenv — ambil env key; kosong/absent → fallback.
 func getenv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -93,6 +96,7 @@ func getenv(key, fallback string) string {
 	return fallback
 }
 
+// splitList — pecah string comma-separated, buang bagian kosong.
 func splitList(s string) []string {
 	var out []string
 	for _, part := range strings.Split(s, ",") {
@@ -103,6 +107,7 @@ func splitList(s string) []string {
 	return out
 }
 
+// atoiDefault — parse int; string kosong/invalid/negatif → fallback.
 func atoiDefault(s string, fallback int) int {
 	if s == "" {
 		return fallback

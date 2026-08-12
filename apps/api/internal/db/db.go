@@ -1,3 +1,4 @@
+// Package db — koneksi pool Postgres (pgxpool) dengan search_path per schema.
 package db
 
 import (

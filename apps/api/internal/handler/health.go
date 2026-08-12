@@ -1,3 +1,4 @@
+// Package handler — HTTP handlers (REST) untuk health, session, player, tournament.
 package handler
 
 import (
