@@ -3,45 +3,43 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// ── Backend schema profile per deployment ────────────────────────────────
-// App memanggil {VITE_SUPABASE_URL}/rest/v1/rpc/* dengan header Accept-Profile.
-// Skema backend beda per environment:
-//   - prod (branch main)            → "bm"     (Supabase)
-//   - dev (branch ui-revamp)        → "bm_dev" (VPS)
-//   - staging (branch supabase-migration) → "bm_dev" (VPS, share schema)
+// ── API base URL per deployment ───────────────────────────────────────────
+// Frontend memanggil majadu-api (Go backend) via REST:
+//   - prod (branch main)     → https://api.qouver.com/majadu        (skema bm)
+//   - dev (branch ui-revamp) → https://api.qouver.com/majadu-dev    (skema bm_dev)
 //
 // VERCEL_GIT_COMMIT_REF di-inject otomatis oleh Vercel saat build (nama
-// branch) — TANPA perlu akses dashboard Vercel. Mapping ini identik di semua
-// branch, jadi merge tidak pernah konflik; profile ditentukan saat build.
+// branch) — TANPA perlu akses dashboard Vercel. Mapping identik di semua
+// branch, jadi merge tidak pernah konflik; URL ditentukan saat build.
 //
-// Override eksplisit via env VITE_SUPABASE_PROFILE (mis. local dev / manual).
-const BRANCH_PROFILES: Record<string, string> = {
-  main: 'bm',
-  'ui-revamp': 'bm_dev',
-  'supabase-migration': 'bm_dev',
+// Override eksplisit via env VITE_API_URL (mis. local dev → http://localhost:8080).
+const BRANCH_API_URLS: Record<string, string> = {
+  main: 'https://api.qouver.com/majadu',
+  'ui-revamp': 'https://api.qouver.com/majadu-dev',
 }
 
-function resolveBackendProfile(env: Record<string, string>): string {
-  const explicit = env.VITE_SUPABASE_PROFILE
+const DEV_API_URL = 'https://api.qouver.com/majadu-dev'
+
+function resolveApiBaseUrl(env: Record<string, string>): string {
+  const explicit = env.VITE_API_URL
   if (explicit) return explicit
   const branch = process.env.VERCEL_GIT_COMMIT_REF ?? ''
-  // Fail-closed: branch tak dikenal (mis. PR preview) JANGAN diam-diam nembak
-  // schema produksi. Default ke bm_dev (dev) — prod hanya branch yang terdaftar.
-  return BRANCH_PROFILES[branch] ?? 'bm_dev'
+  // Fail-closed: branch tak dikenal (mis. PR preview) JANGAN nembak prod.
+  return BRANCH_API_URLS[branch] ?? DEV_API_URL
 }
 
 export default defineConfig(({ mode }) => {
   // loadEnv baca .env, .env.local, .env.[mode] — tidak seperti process.env
   // yang tidak otomatis di-load untuk kode vite.config.
   const env = loadEnv(mode, process.cwd(), '')
-  const backendProfile = resolveBackendProfile(env)
-  console.log(`[vite] backend schema profile: ${backendProfile}`)
+  const apiBaseUrl = resolveApiBaseUrl(env)
+  console.log(`[vite] api base url: ${apiBaseUrl}`)
 
   return {
     define: {
       // Diganti saat build — identik di semua branch, ditentukan oleh branch
       // yang sedang di-deploy (bukan oleh hasil merge).
-      __BACKEND_PROFILE__: JSON.stringify(backendProfile),
+      __API_BASE_URL__: JSON.stringify(apiBaseUrl),
     },
     plugins: [
       react(),

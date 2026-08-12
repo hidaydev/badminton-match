@@ -3,6 +3,7 @@
 ## Start Here
 
 - [current-status.md](current-status.md) — Primary handover document (last updated: 2026-07-30)
+- [backend-go-decision.md](backend-go-decision.md) — Architecture decision: Go backend replaces PostgREST RPC (2026-08-11)
 - [product-overview.md](product-overview.md) — Product description
 - [architecture.md](architecture.md) — System architecture + clean architecture patterns
 - [design-system.md](../design-system.md) — Colors, typography, components, tokens
