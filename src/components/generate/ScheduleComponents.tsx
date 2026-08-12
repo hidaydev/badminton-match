@@ -22,7 +22,7 @@ function renderTierLetters(tiers: number[]) {
 
 // ── Player chip ──────────────────────────────────────────────────────────────
 
-export function PlayerChip({ player, backToBack }: { player: Player; backToBack?: boolean }) {
+function PlayerChip({ player, backToBack }: { player: Player; backToBack?: boolean }) {
   return (
     <span className="inline-flex items-center gap-1 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white min-w-0 overflow-hidden">
       <span className="overflow-hidden">{player.name}</span>
@@ -37,7 +37,7 @@ export function PlayerChip({ player, backToBack }: { player: Player; backToBack?
 
 // ── Tier balance badge ───────────────────────────────────────────────────────
 
-export function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: number[] }) {
+function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: number[] }) {
   const sumA = tiersA.reduce((a, b) => a + b, 0)
   const sumB = tiersB.reduce((a, b) => a + b, 0)
   const diff = Math.abs(sumA - sumB)
@@ -59,7 +59,7 @@ export function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: numb
 
 // ── Game card ────────────────────────────────────────────────────────────────
 
-export function GameCard({
+function GameCard({
   court,
   teamA,
   teamB,

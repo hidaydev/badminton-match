@@ -9,7 +9,7 @@ const DEFAULT_COURT_TIMES: CourtTime[] = [
   { start: toTimeString('09:00'), end: toTimeString('11:00') },
 ]
 
-export function makeDefaultSession(): SessionConfig {
+function makeDefaultSession(): SessionConfig {
   return {
     title: '',
     date: new Date().toISOString().slice(0, 10),

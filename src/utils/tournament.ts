@@ -2,7 +2,7 @@ import { shuffle } from './array'
 import { initTallyRow, tallyMatch, computeDiff, standardStandingSort, type TallyRow } from './tally'
 
 export type GroupId = 'A' | 'B' | 'C' | 'D'
-export type MatchPhase = 'group' | 'qf' | 'sf' | '3rd' | 'final'
+type MatchPhase = 'group' | 'qf' | 'sf' | '3rd' | 'final'
 
 export interface TournamentPair {
   id: string
@@ -60,12 +60,12 @@ export function initKnockoutMatches(): TournamentMatch[] {
   ]
 }
 
-export function getMatchWinner(match: TournamentMatch): string | null {
+function getMatchWinner(match: TournamentMatch): string | null {
   if (match.scoreA === null || match.scoreB === null || !match.pairAId || !match.pairBId) return null
   return match.scoreA > match.scoreB ? match.pairAId : match.pairBId
 }
 
-export function getMatchLoser(match: TournamentMatch): string | null {
+function getMatchLoser(match: TournamentMatch): string | null {
   if (match.scoreA === null || match.scoreB === null || !match.pairAId || !match.pairBId) return null
   return match.scoreA < match.scoreB ? match.pairAId : match.pairBId
 }

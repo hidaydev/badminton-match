@@ -2,7 +2,7 @@
 // Shared iOS share / fallback download utility.
 
 /** Detect if running on iOS. */
-export function isIOS(): boolean {
+function isIOS(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent)
 }
 

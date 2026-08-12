@@ -2,13 +2,13 @@
 // Named constants for the schedule generator algorithm.
 
 /** Penalty weight for repeated partner pairings. */
-export const PARTNER_PENALTY = 3
+const PARTNER_PENALTY = 3
 
 /** Penalty weight for repeated opponent pairings. */
-export const OPPONENT_PENALTY = 1
+const OPPONENT_PENALTY = 1
 
 /** Penalty weight for tier difference between teams. */
-export const TIER_DIFF_WEIGHT = 2
+const TIER_DIFF_WEIGHT = 2
 
 /** Default tier when player tier is unknown. */
 export const DEFAULT_TIER = 2

@@ -28,11 +28,6 @@ function isRetryableError(error: unknown): boolean {
   return false
 }
 
-/** Check if an error is a timeout */
-export function isTimeoutError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
-}
-
 const RPC_TIMEOUT_MS = 30_000
 const MAX_RETRIES = 3
 const RETRY_BASE_DELAY_MS = 1_000
@@ -112,6 +107,20 @@ function isValidSnapshot(data: unknown): data is CloudSnapshot {
     'schedule' in snap &&
     Array.isArray(snap.players) &&
     Array.isArray(snap.schedule)
+  )
+}
+
+/** Validate that a response has the shape of TournamentSnapshot */
+function isValidTournamentSnapshot(data: unknown): data is TournamentSnapshot {
+  if (typeof data !== 'object' || data === null) return false
+  const snap = data as Record<string, unknown>
+  return (
+    typeof snap.name === 'string' &&
+    Array.isArray(snap.pairs) &&
+    typeof snap.groups === 'object' &&
+    snap.groups !== null &&
+    !Array.isArray(snap.groups) &&
+    Array.isArray(snap.matches)
   )
 }
 
@@ -199,11 +208,6 @@ export async function deleteSession(lookup: string): Promise<{ deleted: boolean;
   return { deleted: true, sessionId: lookup }
 }
 
-// Admin-only unlock — NOT wired to UI
-export async function unlockSession(id: string): Promise<CloudSnapshot> {
-  return await request<CloudSnapshot>('POST', `/sessions/${enc(id)}/unlock`)
-}
-
 // ── Players ───────────────────────────────────────────────────────────────
 
 export async function listPlayers(): Promise<PlayerSummary[]> {
@@ -239,7 +243,12 @@ export async function registerPlayer(name: string, canonicalName?: string): Prom
 
 export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
   try {
-    return await request<TournamentSnapshot>('GET', `/tournaments/${enc(id)}`)
+    const data = await request<TournamentSnapshot>('GET', `/tournaments/${enc(id)}`)
+    if (!isValidTournamentSnapshot(data)) {
+      console.warn('[getTournament] response failed validation:', data)
+      throw new RpcError('Invalid tournament snapshot received from server')
+    }
+    return data
   } catch (err) {
     if (err instanceof RpcError && err.code === 'not_found') return null
     throw err

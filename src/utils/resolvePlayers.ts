@@ -1,6 +1,6 @@
 import type { Player, PlayerSummary } from '../types'
 
-export function isKnownPlayer(name: string, knownPlayers: PlayerSummary[]): boolean {
+function isKnownPlayer(name: string, knownPlayers: PlayerSummary[]): boolean {
   const normalized = name.trim().toLowerCase().replace(/\s+/g, ' ')
   return knownPlayers.some((kp) => {
     const kn = kp.name.trim().toLowerCase().replace(/\s+/g, ' ')

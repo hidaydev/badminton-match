@@ -6,7 +6,7 @@ import { ordinal } from './ordinal'
 import { HEADER_H, LOGO_H, POST_WIDTH, POST_HEIGHT, CANVAS_COLORS as C } from '../config/canvas'
 
 /** Truncate text to fit within maxWidth, appending '…' if truncated. */
-export function truncateToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+function truncateToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   let truncated = text
   while (ctx.measureText(truncated + '…').width > maxWidth && truncated.length > 1) truncated = truncated.slice(0, -1)
   if (truncated !== text) truncated += '…'
@@ -31,7 +31,7 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-export function drawCoverFill(
+function drawCoverFill(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   canvasW: number,
@@ -73,7 +73,7 @@ function drawSideText(
   }
 }
 
-export function drawHeader(
+function drawHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   logo: HTMLImageElement | undefined,
@@ -117,7 +117,7 @@ export function drawHeader(
 }
 
 /** @deprecated Use `drawHeader(ctx, canvasW, logo, 'MAJADU INTERNAL TOURNAMENT 2026')` instead. */
-export function drawTournamentHeader(
+function drawTournamentHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   logo: HTMLImageElement | undefined,
@@ -423,7 +423,7 @@ export function drawPositionPost(
 
 // ── Date overlay ─────────────────────────────────────────────────────────────
 
-export function drawDate(
+function drawDate(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   day: string,
@@ -507,7 +507,7 @@ export function drawDate(
 
 // ── Post canvas (photo + date + header + footer) ─────────────────────────────
 
-export interface PostCanvasOptions {
+interface PostCanvasOptions {
   canvas: HTMLCanvasElement
   userPhoto: HTMLImageElement | null
   photoOffset: { x: number; y: number }
@@ -553,7 +553,7 @@ export function drawPostCanvas(options: PostCanvasOptions) {
 
 // ── Standings canvas (leaderboard card) ──────────────────────────────────────
 
-export interface StandingsCanvasOptions {
+interface StandingsCanvasOptions {
   canvas: HTMLCanvasElement
   standings: PlayerStanding[]
   meta: { date: string; title: string; playerCount: number }

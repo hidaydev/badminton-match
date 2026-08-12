@@ -9,7 +9,7 @@ declare const __brand: unique symbol
 type Brand<T, B> = T & { readonly [__brand]: B }
 
 export type PlayerId = Brand<string, 'PlayerId'>
-export type TimeString = Brand<string, 'TimeString'>  // "HH:MM" format
+type TimeString = Brand<string, 'TimeString'>  // "HH:MM" format
 export type GameKey = Brand<string, 'GameKey'>  // "slot-court" format
 
 /** Create a PlayerId from a string */
@@ -39,7 +39,7 @@ export interface Player {
 
 export type MatchConstraint = MatchConstraintFlexible | MatchConstraintPinned
 
-export interface MatchConstraintFlexible {
+interface MatchConstraintFlexible {
   id: string
   slots: [PlayerId, PlayerId, PlayerId, PlayerId] // empty string = any
   mode: 'flexible'
@@ -52,13 +52,6 @@ export interface MatchConstraintPinned {
   pinnedTime: TimeString
   pinnedCourt: number   // court index (0-based)
 }
-
-/** @deprecated Use MatchConstraint instead */
-export type FixMatch = MatchConstraint
-/** @deprecated Use MatchConstraintFlexible instead */
-export type FixMatchFlexible = MatchConstraintFlexible
-/** @deprecated Use MatchConstraintPinned instead */
-export type FixMatchPinned = MatchConstraintPinned
 
 export interface ScheduleSlot {
   slot: number   // absolute time slot index
