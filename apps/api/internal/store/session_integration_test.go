@@ -32,7 +32,7 @@ func TestIntegrationSessionRoundTrip(t *testing.T) {
 		t.Fatalf("db connect: %v", err)
 	}
 	defer pool.Close()
-	st := NewSessionStore(pool)
+	st := NewSessionStore(pool, schema)
 	ctx := context.Background()
 
 	players := []domain.Player{
@@ -118,7 +118,7 @@ func TestIntegrationSessionWritePathSemantics(t *testing.T) {
 		t.Fatalf("db connect: %v", err)
 	}
 	defer pool.Close()
-	st := NewSessionStore(pool)
+	st := NewSessionStore(pool, schema)
 	ctx := context.Background()
 
 	players := []domain.Player{

@@ -38,11 +38,16 @@ var (
 // SessionStore — akses session.
 type SessionStore struct {
 	pool *pgxpool.Pool
+	// schema — nama schema aktif (MAJADU_DB_SCHEMA: bm / bm_dev). Dipakai
+	// sebagai namespace kunci advisory lock mengikuti konvensi per-env.
+	schema string
 }
 
-// NewSessionStore — buat SessionStore dengan pool koneksi.
-func NewSessionStore(pool *pgxpool.Pool) *SessionStore {
-	return &SessionStore{pool: pool}
+// NewSessionStore — buat SessionStore dengan pool koneksi + schema aktif.
+// Schema (bukan hardcode) menentukan namespace kunci advisory lock:
+// dev → "bm_dev.publish_session:...", prod → "bm.publish_session:...".
+func NewSessionStore(pool *pgxpool.Pool, schema string) *SessionStore {
+	return &SessionStore{pool: pool, schema: schema}
 }
 
 // Load — read-path: get_session(id) → snapshot ter-decode.
@@ -98,11 +103,13 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 	}
 	defer func() { _ = tx.Rollback(ctx) }() // no-op setelah Commit
 
-	// 1. Advisory lock — namespace netral (bukan schema): kunci identik untuk
-	//    id yang sama, independen dari bm/bm_dev (search_path per env).
+	// 1. Advisory lock — namespace = schema aktif dari config (bm / bm_dev),
+	//    mengikuti konvensi per-env. Kunci identik untuk id yang sama dalam
+	//    satu env; berbeda antar env (dev/prod tidak saling memblokir).
 	var locked bool
 	if err := tx.QueryRow(ctx,
-		`SELECT pg_try_advisory_xact_lock(hashtextextended('majadu.publish_session:' || $1, 0))`, id,
+		`SELECT pg_try_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))`,
+		s.schema+".publish_session", id,
 	).Scan(&locked); err != nil {
 		return nil, err
 	}
@@ -259,7 +266,8 @@ func (s *SessionStore) Unlock(ctx context.Context, id string) (*domain.CloudSnap
 
 	var locked bool
 	if err := tx.QueryRow(ctx,
-		`SELECT pg_try_advisory_xact_lock(hashtextextended('majadu.unlock_session:' || $1, 0))`, id,
+		`SELECT pg_try_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))`,
+		s.schema+".unlock_session", id,
 	).Scan(&locked); err != nil {
 		return nil, err
 	}

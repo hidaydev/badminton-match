@@ -79,7 +79,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("GET /readyz", http.HandlerFunc(health.Ready))
 	mux.Handle("GET /version", http.HandlerFunc(health.Version))
 
-	sessions := &handler.SessionHandler{Store: store.NewSessionStore(pool), Logger: logger, BaseURL: cfg.BaseURL}
+	sessions := &handler.SessionHandler{Store: store.NewSessionStore(pool, cfg.DatabaseSchema), Logger: logger, BaseURL: cfg.BaseURL}
 	mux.Handle("GET /sessions", http.HandlerFunc(sessions.List))
 	mux.Handle("POST /sessions", http.HandlerFunc(sessions.Create))
 	mux.Handle("GET /sessions/{id}", http.HandlerFunc(sessions.Get))
