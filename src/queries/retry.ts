@@ -16,16 +16,16 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 export const MAX_RETRY_AFTER_SECONDS = 10
 
 /**
- * Error untuk kegagalan RPC.
+ * Error untuk kegagalan API.
  * `code`   = kode bisnis dari body error backend (mis. SQLSTATE '40001')
  * `status` = HTTP status asli respons (dipakai untuk keputusan retry)
  */
-export class RpcError extends Error {
+export class ApiError extends Error {
   code: string | null
   status: number | null
   constructor(message: string, code: string | null = null, status: number | null = null) {
     super(message)
-    this.name = 'RpcError'
+    this.name = 'ApiError'
     this.code = code
     this.status = status
   }
@@ -33,7 +33,7 @@ export class RpcError extends Error {
 
 /** Apakah error retryable pada level transport (belum mempertimbangkan method). */
 export function isRetryableError(error: unknown): boolean {
-  if (error instanceof RpcError) {
+  if (error instanceof ApiError) {
     return error.status !== null && RETRYABLE_HTTP_STATUS.has(error.status)
   }
   // AbortError/timeout: request mungkin sudah diproses server — jangan retry.
@@ -55,7 +55,7 @@ export function shouldRetry(method: string, error: unknown, attempt: number, max
   if (attempt >= maxRetries) return false
   if (!isRetryableError(error)) return false
   // 5xx (bukan 429) untuk mutation: server mungkin sudah apply — no retry.
-  if (error instanceof RpcError && error.status !== 429 && !SAFE_METHODS.has(method.toUpperCase())) {
+  if (error instanceof ApiError && error.status !== 429 && !SAFE_METHODS.has(method.toUpperCase())) {
     return false
   }
   return true

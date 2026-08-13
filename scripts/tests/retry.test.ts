@@ -4,7 +4,7 @@ import {
   isRetryableError,
   MAX_RETRY_AFTER_SECONDS,
   parseRetryAfter,
-  RpcError,
+  ApiError,
   shouldRetry,
 } from '../../src/queries/retry.ts'
 
@@ -21,39 +21,39 @@ function abortError(): DOMException {
 // ── shouldRetry: policy method × error ───────────────────────────────────
 
 test('GET 500 → retry', () => {
-  assert.equal(shouldRetry('GET', new RpcError('boom', '500', 500), 0, 3), true)
+  assert.equal(shouldRetry('GET', new ApiError('boom', '500', 500), 0, 3), true)
 })
 
 test('GET 503 → retry', () => {
-  assert.equal(shouldRetry('GET', new RpcError('unavailable', '503', 503), 0, 3), true)
+  assert.equal(shouldRetry('GET', new ApiError('unavailable', '503', 503), 0, 3), true)
 })
 
 test('GET 429 → retry', () => {
-  assert.equal(shouldRetry('GET', new RpcError('rate limited', '429', 429), 0, 3), true)
+  assert.equal(shouldRetry('GET', new ApiError('rate limited', '429', 429), 0, 3), true)
 })
 
 test('PUT 500 → no retry (server may have applied the write)', () => {
-  assert.equal(shouldRetry('PUT', new RpcError('boom', '500', 500), 0, 3), false)
+  assert.equal(shouldRetry('PUT', new ApiError('boom', '500', 500), 0, 3), false)
 })
 
 test('POST 503 → no retry', () => {
-  assert.equal(shouldRetry('POST', new RpcError('unavailable', '503', 503), 0, 3), false)
+  assert.equal(shouldRetry('POST', new ApiError('unavailable', '503', 503), 0, 3), false)
 })
 
 test('PATCH 500 → no retry', () => {
-  assert.equal(shouldRetry('PATCH', new RpcError('boom', '500', 500), 0, 3), false)
+  assert.equal(shouldRetry('PATCH', new ApiError('boom', '500', 500), 0, 3), false)
 })
 
 test('DELETE 500 → no retry', () => {
-  assert.equal(shouldRetry('DELETE', new RpcError('boom', '500', 500), 0, 3), false)
+  assert.equal(shouldRetry('DELETE', new ApiError('boom', '500', 500), 0, 3), false)
 })
 
 test('PUT 429 → retry (rate limit, request not applied)', () => {
-  assert.equal(shouldRetry('PUT', new RpcError('rate limited', '429', 429), 0, 3), true)
+  assert.equal(shouldRetry('PUT', new ApiError('rate limited', '429', 429), 0, 3), true)
 })
 
 test('POST 429 → retry', () => {
-  assert.equal(shouldRetry('POST', new RpcError('rate limited', '429', 429), 0, 3), true)
+  assert.equal(shouldRetry('POST', new ApiError('rate limited', '429', 429), 0, 3), true)
 })
 
 test('PUT TypeError (fetch failed) → retry (request never sent)', () => {
@@ -73,14 +73,14 @@ test('AbortError → no retry for reads either', () => {
 })
 
 test('attempt == maxRetries → no retry', () => {
-  assert.equal(shouldRetry('GET', new RpcError('boom', '500', 500), 3, 3), false)
-  assert.equal(shouldRetry('GET', new RpcError('rate limited', '429', 429), 3, 3), false)
+  assert.equal(shouldRetry('GET', new ApiError('boom', '500', 500), 3, 3), false)
+  assert.equal(shouldRetry('GET', new ApiError('rate limited', '429', 429), 3, 3), false)
   assert.equal(shouldRetry('PUT', networkError(), 3, 3), false)
 })
 
 test('non-retryable errors → no retry', () => {
-  assert.equal(shouldRetry('GET', new RpcError('not found', 'not_found', 404), 0, 3), false)
-  assert.equal(shouldRetry('PUT', new RpcError('version mismatch', '40001', 409), 0, 3), false)
+  assert.equal(shouldRetry('GET', new ApiError('not found', 'not_found', 404), 0, 3), false)
+  assert.equal(shouldRetry('PUT', new ApiError('version mismatch', '40001', 409), 0, 3), false)
   assert.equal(shouldRetry('GET', new Error('plain error'), 0, 3), false)
 })
 
@@ -114,10 +114,10 @@ test('parseRetryAfter: missing or unparseable → null', () => {
 // ── isRetryableError ─────────────────────────────────────────────────────
 
 test('isRetryableError: transport-level classification', () => {
-  assert.equal(isRetryableError(new RpcError('x', '429', 429)), true)
-  assert.equal(isRetryableError(new RpcError('x', '503', 503)), true)
-  assert.equal(isRetryableError(new RpcError('x', '500', 500)), true)
-  assert.equal(isRetryableError(new RpcError('x', '40001', 409)), false)
+  assert.equal(isRetryableError(new ApiError('x', '429', 429)), true)
+  assert.equal(isRetryableError(new ApiError('x', '503', 503)), true)
+  assert.equal(isRetryableError(new ApiError('x', '500', 500)), true)
+  assert.equal(isRetryableError(new ApiError('x', '40001', 409)), false)
   assert.equal(isRetryableError(networkError()), true)
   assert.equal(isRetryableError(abortError()), false)
 })

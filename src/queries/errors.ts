@@ -1,9 +1,9 @@
-import { RpcError } from './endpoints'
+import { ApiError } from './endpoints'
 
 /** Check if an error is a version mismatch (optimistic concurrency failure). */
 export function isVersionMismatch(error: unknown): boolean {
   return (
-    (error instanceof RpcError && error.code === '40001') ||
+    (error instanceof ApiError && error.code === '40001') ||
     (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
   )
 }
@@ -14,7 +14,7 @@ export function getSaveErrorMessage(error: unknown): string {
   if (!(error instanceof Error)) return fallback
 
   const message = error.message.toLowerCase()
-  const code = error instanceof RpcError ? error.code : null
+  const code = error instanceof ApiError ? error.code : null
 
   if (code === '40001' || message.includes('version mismatch')) {
     if (message.includes('tournament')) {
