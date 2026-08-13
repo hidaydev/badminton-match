@@ -6,9 +6,8 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
+![Supabase](https://img.shields.io/badge/Backend-Go-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=flat-square)
-![Playwright](https://img.shields.io/badge/E2E-Playwright-2EAD33?style=flat-square&logo=playwright&logoColor=white)
 
 ---
 
@@ -77,10 +76,10 @@ Publish and share via URL. Full operations console:
 | **Local State** | Zustand 5 (sliced) | Minimal boilerplate, persist middleware |
 | **Server State** | TanStack React Query 5 | Optimistic updates, smart caching |
 | **Routing** | React Router v7 | File-based route guards |
-| **Backend** | Supabase (PostgreSQL) | PostgREST RPC with advisory locking |
+| **Backend** | Go (`majadu-api`, sister repo) | REST + Postgres, optimistic concurrency |
 | **PWA** | vite-plugin-pwa | Installable, offline-capable |
 | **DnD** | @dnd-kit/core | Accessible drag-and-drop |
-| **E2E** | Playwright | Mobile viewport, Chromium headless |
+| **Testing** | node:test (regression) + Go tests | `npm run check` · `make check` (majadu-api) |
 
 ---
 
@@ -114,7 +113,7 @@ The app runs at `http://localhost:5173` by default.
 | `npm run dev` | Start dev server with Vite HMR |
 | `npm run build` | Type-check + production build |
 | `npm run check` | Full validation: types + lint + tailwind + regression tests |
-| `npx playwright test` | E2E tests (requires dev server running) |
+| `npm run check:regression` | Regression tests only (node:test) |
 
 ---
 
@@ -127,8 +126,9 @@ src/
 ├── generator/          # 5-phase schedule engine (pure TypeScript, zero store deps)
 ├── utils/              # Pure utilities: time, quality, standings, swap, canvas, stats
 ├── domain/ports/       # Repository interfaces (prepared for dependency injection)
-├── queries/            # React Query hooks + Supabase RPC endpoints
-│   ├── endpoints.ts    # Raw RPC fetch functions
+├── queries/            # React Query hooks + REST client (majadu-api)
+│   ├── endpoints.ts    # Raw REST fetch functions (retry method-aware)
+│   ├── retry.ts        # Retry policy murni (testable)
 │   ├── sessions.ts     # 14 session mutation/query hooks
 │   ├── useOptimisticMutation.ts  # Factory hook for optimistic updates
 │   └── types.ts        # CloudSnapshot, SessionMeta, PlayerSummary types
@@ -139,14 +139,13 @@ src/
 │   ├── tournament/     #   Tournament tab components
 │   └── generate/       #   Schedule view components
 ├── pages/              # Route pages
-├── infra/supabase/     # Supabase client setup
 └── index.css           # Tailwind v4 @theme tokens + global styles
 
-e2e/                    # Playwright E2E tests
-scripts/                # Build scripts, regression tests, smoke tests
-supabase/migrations/    # SQL migrations (squashed into 3 files)
+scripts/                # Build & dev tooling (canvas export, tailwind check, regression tests)
 docs/                   # Handbook + design system + spec archive
 ```
+
+Schema & migrasi DB dimiliki backend: `majadu-api/migrations/`.
 
 ---
 
@@ -155,14 +154,16 @@ docs/                   # Handbook + design system + spec archive
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │  Presentation    │     │  Domain Logic    │     │  Infrastructure  │
-│  (Pages / UI)    │────▶│  (Generator /    │────▶│  (Supabase RPC)  │
-│                  │     │   Utils)         │     │                  │
+│  (Pages / UI)    │────▶│  (Generator /    │────▶│  (Go backend via  │
+│                  │     │   Utils)         │     │   REST)           │
 └──────────────────┘     └──────────────────┘     └──────────────────┘
         │                        │                        │
-   Zustand store           Pure functions           PostgREST RPC
+   Zustand store           Pure functions           REST client
    React Query             Zero store deps         Optimistic updates
    Route guards            Injected config         Version concurrency
 ```
+
+Backend: repo `majadu-api` (Go, `net/http` + pgx). Kontrak di `majadu-api/api/openapi.yaml`.
 
 **Dependency rules:**
 
@@ -202,16 +203,16 @@ Full reference: [docs/design-system.md](docs/design-system.md)
 
 ## 🔒 Security Model
 
-| RPC | Access | Behavior |
-|-----|--------|----------|
-| `publish_session` | anon | Rejects writes when status ≠ 'draft' |
-| `get_session` | anon | Read-only snapshot fetch |
-| `list_sessions` | anon | Returns lock status column |
-| `delete_session` | service_role | Admin-only, rejects locked sessions |
-| `unlock_session` | service_role | Admin-only, not in UI |
-| `register_player` | anon | Idempotent with TOCTOU-safe re-query |
+| Endpoint | Access | Behavior |
+|----------|--------|----------|
+| `PUT /sessions/{id}` | anon | Rejects writes when status ≠ 'draft' (lock) |
+| `GET /sessions/{id}` | anon | Read-only snapshot fetch |
+| `GET /sessions` | anon | Returns lock status column |
+| `DELETE /sessions/{id}` | anon | Rejects locked sessions |
+| `POST /sessions/{id}/unlock` | anon | Admin-only, not wired to UI |
+| `POST /players` | anon | Idempotent with TOCTOU-safe re-query |
 
-All mutations use advisory locks (`pg_try_advisory_xact_lock`) + `SELECT ... FOR UPDATE NOWAIT` for concurrency control.
+All mutations use advisory locks (`pg_try_advisory_xact_lock`) + `SELECT ... FOR UPDATE NOWAIT` for concurrency control. Auth (JWT) is deferred — see `docs/handbook/backend-go-decision.md`.
 
 ---
 
@@ -250,9 +251,6 @@ npm run check
 
 # Backend verification lives in the majadu-api repo (make check + env-guarded
 # integration tests) — see majadu-api/README.md.
-
-# E2E tests (requires dev server running on port 5173)
-npx playwright test
 ```
 
 ---

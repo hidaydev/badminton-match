@@ -11,13 +11,14 @@ npm run lint      # ESLint
 npm run preview   # Preview production build locally
 ```
 
-No formal test framework, but compact regression tests exist via `node:test`:
+Regression tests exist via `node:test` (pure logic — retry policy, generator quality, snapshot helpers, tournament bracket):
 
 ```bash
-npm run check          # Types + lint + tailwind + regression tests
-npm run check:regression  # Regression tests only (node:test)
-npx playwright test    # E2E tests (Playwright, requires dev server)
+npm run check              # Types + lint + tailwind + regression tests
+npm run check:regression   # Regression tests only (node:test)
 ```
+
+Backend tests live in the `majadu-api` repo (`make check` — unit + handler + middleware; integration test env-guarded via `MAJADU_TEST_DATABASE_URL`).
 
 ## Architecture
 
