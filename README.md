@@ -92,12 +92,12 @@ npm ci
 
 # 2. Configure environment
 cp .env.local.example .env.local
-# Fill in VITE_SUPABASE_URL and VITE_SUPABASE_KEY
+# Base URL API di-inject dari branch saat build (vite.config.ts) — lihat
+# .env.local.example untuk override VITE_API_URL (mis. local dev).
 
-# 3. Apply database migrations
-# Run the SQL files in supabase/migrations/ against your Supabase project
-# Order (V2 baseline, 2026-08-11): 000001_functions.sql → 000002_schema.sql
-# Functions first — the player_aliases CHECK constraint references normalize_player_name().
+# 3. Backend
+# Frontend memanggil majadu-api (Go backend) — setup & jalankan di repo
+# majadu-api (migrations SQL + `make run`). Skema DB: bm (prod) / bm_dev (dev).
 
 # 4. Start development
 npm run dev
@@ -114,7 +114,6 @@ The app runs at `http://localhost:5173` by default.
 | `npm run dev` | Start dev server with Vite HMR |
 | `npm run build` | Type-check + production build |
 | `npm run check` | Full validation: types + lint + tailwind + regression tests |
-| `npm run check:smoke` | Live Supabase RPC smoke tests |
 | `npx playwright test` | E2E tests (requires dev server running) |
 
 ---
@@ -249,8 +248,8 @@ Majadu is installable as a Progressive Web App:
 # Type checking + linting + tailwind validation + regression tests
 npm run check
 
-# Live Supabase RPC smoke tests (requires .env.local)
-npm run check:smoke
+# Backend verification lives in the majadu-api repo (make check + env-guarded
+# integration tests) — see majadu-api/README.md.
 
 # E2E tests (requires dev server running on port 5173)
 npx playwright test

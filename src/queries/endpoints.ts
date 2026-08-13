@@ -1,8 +1,8 @@
 import type { CloudSnapshot, SessionMeta, PlayerSummary, PlayerStats } from './types'
 import type { TournamentSnapshot } from '../utils/tournament'
-import { parseRetryAfter, RpcError, shouldRetry } from './retry'
+import { parseRetryAfter, ApiError, shouldRetry } from './retry'
 
-export { RpcError } from './retry'
+export { ApiError } from './retry'
 
 // ── REST client terhadap majadu-api (Go backend) ─────────────────────────
 // Base URL di-inject saat build oleh vite.config.ts (__API_BASE_URL__) —
@@ -11,7 +11,7 @@ const BASE_URL: string = __API_BASE_URL__
 
 export const TOURNAMENT_ID = 'tournament-2026-05-23-majadu'
 
-const RPC_TIMEOUT_MS = 30_000
+const API_TIMEOUT_MS = 30_000
 const MAX_RETRIES = 3
 const RETRY_BASE_DELAY_MS = 1_000
 const RETRY_MAX_DELAY_MS = 4_000
@@ -36,7 +36,7 @@ async function request<T>(
     }
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS)
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
     const onAbort = () => controller.abort()
     signal?.addEventListener('abort', onAbort)
 
@@ -58,7 +58,7 @@ async function request<T>(
         } catch {
           // keep HTTP status text
         }
-        const err = new RpcError(message, code, res.status)
+        const err = new ApiError(message, code, res.status)
         if (shouldRetry(method, err, attempt, MAX_RETRIES)) {
           lastError = err
           // 429 (rate limit) → hormati header Retry-After kalau ada.
@@ -153,11 +153,11 @@ export async function getSession(id: string): Promise<CloudSnapshot | null> {
     const data = await request<CloudSnapshot>('GET', `/sessions/${enc(id)}`)
     if (!isValidSnapshot(data)) {
       console.warn('[getSession] response failed validation:', data)
-      throw new RpcError('Invalid session snapshot received from server')
+      throw new ApiError('Invalid session snapshot received from server')
     }
     return data
   } catch (err) {
-    if (err instanceof RpcError && err.code === 'not_found') return null
+    if (err instanceof ApiError && err.code === 'not_found') return null
     throw err
   }
 }
@@ -166,7 +166,7 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
   const out = await request<CloudSnapshot>('PUT', `/sessions/${enc(id)}`, data)
   if (!isValidSnapshot(out)) {
     console.warn('[publishSession] response failed validation:', out)
-    throw new RpcError('Invalid session snapshot received from server')
+    throw new ApiError('Invalid session snapshot received from server')
   }
   return out
 }
@@ -183,7 +183,7 @@ export async function listSessions(): Promise<SessionMeta[]> {
 
   if (!Array.isArray(rows)) {
     console.warn('[listSessions] response is not an array:', rows)
-    throw new RpcError('Invalid session list received from server')
+    throw new ApiError('Invalid session list received from server')
   }
 
   return rows.map((row) => ({
@@ -217,7 +217,7 @@ export async function getPlayerStats(name: string): Promise<PlayerStats> {
   if (!data) throw new Error('no data')
   if (!isValidPlayerStats(data)) {
     console.warn('[getPlayerStats] response failed validation:', data)
-    throw new RpcError('Invalid player stats received from server')
+    throw new ApiError('Invalid player stats received from server')
   }
   if (!data.tournamentStats) {
     data.tournamentStats = EMPTY_TOURNAMENT_STATS
@@ -239,11 +239,11 @@ export async function getTournament(id: string): Promise<TournamentSnapshot | nu
     const data = await request<TournamentSnapshot>('GET', `/tournaments/${enc(id)}`)
     if (!isValidTournamentSnapshot(data)) {
       console.warn('[getTournament] response failed validation:', data)
-      throw new RpcError('Invalid tournament snapshot received from server')
+      throw new ApiError('Invalid tournament snapshot received from server')
     }
     return data
   } catch (err) {
-    if (err instanceof RpcError && err.code === 'not_found') return null
+    if (err instanceof ApiError && err.code === 'not_found') return null
     throw err
   }
 }

@@ -1,5 +1,6 @@
 // src/hooks/useDebouncedPublish.ts
-// Debounced cloud publish hook — batches rapid local changes into a single RPC.
+// Debounced cloud publish hook — batches rapid local changes into a single
+// publish request (PUT /sessions/{id}).
 
 import { useRef, useEffect, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
