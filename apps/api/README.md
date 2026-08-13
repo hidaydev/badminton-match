@@ -16,10 +16,10 @@ backend. Lihat keputusan arsitektur di repo `badminton-match`:
 cmd/server/              # entrypoint
 internal/config/         # env + godotenv (.env dev lokal) + validasi strict
 internal/db/             # koneksi pool pgx
-internal/domain/         # tipe CloudSnapshot + transform (di-port dari TS)
-internal/store/          # akses DB (fungsi bm_dev yang tervalidasi)
+internal/domain/         # tipe CloudSnapshot + transform + validasi (di-port dari TS/SQL)
+internal/store/          # akses DB: write-path session di Go, read-path fungsi SQL
 internal/handler/        # HTTP handlers (REST)
-internal/middleware/     # CORS, logging (slog), panic recovery
+internal/middleware/     # CORS, logging (slog), panic recovery, rate limit
 internal/httperr/        # error envelope JSON konsisten
 internal/build/          # versi binary (ldflags)
 api/openapi.yaml         # kontrak REST resmi
@@ -71,11 +71,22 @@ MAJADU_TEST_DATABASE_URL="postgres://majadu_app:...@localhost:15432/bm_dev" go t
 
 Akses DB memakai role khusus **`majadu_app`** (bukan superuser):
 - kredensial disimpan di VPS saja (file env mode 600, TIDAK pernah di repo ini)
-- privilege: `USAGE` schema + `EXECUTE` fungsi (get/publish/list/register/
-  delete/unlock session) — anon tetap tidak punya akses apa pun
+
+**Write-path session (publish/delete/unlock) dijalankan Go langsung ke tabel**
+dalam satu transaksi (port `bm.publish_session`/`bm.delete_session`) — butuh
+privilege tabel, bukan lagi EXECUTE fungsi. GRANT disediakan di
+`migrations/000003_drop_functions.sql` (aplikasikan sekali bersama drop fungsi
+write-path lama; anon tetap tanpa akses apa pun).
+
+**Read-path tetap fungsi SQL** (`get_session`, `list_sessions`,
+`get_player_stats`, `list_players`, `get_tournament`, `publish_tournament`):
+- `register_player`/`ensure_player`/`normalize_player_name` TIDAK di-drop —
+  `resolve_tournament_player` → `publish_tournament` masih SQL (turnamen
+  belum dimigrasi) dan `player_aliases` punya CHECK constraint ke
+  `normalize_player_name`.
 
 **Schema via `MAJADU_DB_SCHEMA` (env), BUKAN hardcode di SQL.** Store memakai
-fungsi tanpa prefix schema; `search_path` diarahkan per-koneksi. Ini penting
+kueri tanpa prefix schema; `search_path` diarahkan per-koneksi. Ini penting
 untuk alur branch: `dev` → `MAJADU_DB_SCHEMA=bm_dev`, `main` → `bm` — merge
 dev→main tidak membawa schema dev ke prod.
 

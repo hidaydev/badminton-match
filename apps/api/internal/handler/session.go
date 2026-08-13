@@ -26,9 +26,23 @@ var (
 	errIfMatchMalformed = errors.New("If-Match malformed")
 )
 
-// mapPublishError — mapping error dari publish/delete (pgconn.PgError) ke
-// respons yang bersih — jangan bocorkan SQLSTATE / detail internal ke klien.
+// mapPublishError — mapping error dari publish/delete (sentinels store atau
+// pgconn.PgError) ke respons yang bersih — jangan bocorkan SQLSTATE / detail
+// internal ke klien. Pesan mempertahankan substring yang dibaca frontend
+// (isVersionMismatch / getSaveErrorMessage di src/queries/errors.ts).
 func mapPublishError(err error) *httperr.Error {
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return httperr.NotFound("session not found")
+	case errors.Is(err, store.ErrLocked):
+		return httperr.Conflict("session is locked")
+	case errors.Is(err, store.ErrVersionMismatch):
+		return httperr.Conflict("version mismatch — reload the latest state and retry")
+	case errors.Is(err, store.ErrContention):
+		return httperr.Validation("invalid session state: " + err.Error())
+	case errors.Is(err, store.ErrValidation):
+		return httperr.Validation("invalid session state: " + err.Error())
+	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		msg := strings.ToLower(pgErr.Message)
@@ -283,12 +297,23 @@ func (h *SessionHandler) Lock(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Unlock — POST /sessions/{id}/unlock: buka kunci sesi.
+// Unlock — POST /sessions/{id}/unlock: buka kunci sesi. Tanpa If-Match
+// (mirror unlock_session SQL) — status → draft, version +1.
 func (h *SessionHandler) Unlock(w http.ResponseWriter, r *http.Request) {
-	h.mutate(w, r, func(snap *domain.CloudSnapshot) error {
-		snap.Session.Locked = false
-		return nil
-	})
+	out, err := h.Store.Unlock(r.Context(), r.PathValue("id"))
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			httperr.WriteError(w, h.Logger, httperr.NotFound("session not found"))
+		case errors.Is(err, store.ErrContention):
+			httperr.WriteError(w, h.Logger, httperr.Validation("invalid session state: "+err.Error()))
+		default:
+			h.Logger.Warn("unlock session failed", "session", r.PathValue("id"), "error", err)
+			httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to unlock session", err))
+		}
+		return
+	}
+	h.writeSession(w, http.StatusOK, out)
 }
 
 // ── Games ────────────────────────────────────────────────────────────────
