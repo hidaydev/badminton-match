@@ -30,7 +30,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx := context.Background()
+	// Context dibatalkan saat SIGINT/SIGTERM; dipakai juga untuk
+	// memberhentikan janitor rate limiter saat shutdown.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL, cfg.DatabaseSchema)
 	if err != nil {
 		logger.Error("database connection failed", "error", err)
@@ -40,7 +44,7 @@ func main() {
 	logger.Info("database connected")
 
 	mux := http.NewServeMux()
-	h := registerRoutes(mux, logger, cfg, pool)
+	h := registerRoutes(mux, logger, cfg, pool, ctx)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -59,9 +63,7 @@ func main() {
 	}()
 
 	// Graceful shutdown.
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
-	<-quit
+	<-ctx.Done()
 	logger.Info("shutting down...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -71,7 +73,7 @@ func main() {
 	}
 }
 
-func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, pool *pgxpool.Pool) http.Handler {
+func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, pool *pgxpool.Pool, ctx context.Context) http.Handler {
 	health := &handler.HealthHandler{Pool: pool}
 	mux.Handle("GET /healthz", http.HandlerFunc(health.Healthz))
 	mux.Handle("GET /readyz", http.HandlerFunc(health.Ready))
@@ -107,7 +109,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 
 	// Middleware chain: recover (luar) → request-id → logging → CORS → rate limit → mux.
 	var h http.Handler = mux
-	h = middleware.RateLimit(cfg.RateLimitPerMin, logger)(h)
+	h = middleware.RateLimit(ctx, cfg.RateLimitPerMin, logger)(h)
 	h = middleware.CORS(cfg.AllowedOrigins)(h)
 	h = middleware.Logging(logger)(h)
 	h = middleware.RequestID(h)
