@@ -1,5 +1,8 @@
 import type { CloudSnapshot, SessionMeta, PlayerSummary, PlayerStats } from './types'
 import type { TournamentSnapshot } from '../utils/tournament'
+import { parseRetryAfter, RpcError, shouldRetry } from './retry'
+
+export { RpcError } from './retry'
 
 // ── REST client terhadap majadu-api (Go backend) ─────────────────────────
 // Base URL di-inject saat build oleh vite.config.ts (__API_BASE_URL__) —
@@ -8,29 +11,15 @@ const BASE_URL: string = __API_BASE_URL__
 
 export const TOURNAMENT_ID = 'tournament-2026-05-23-majadu'
 
-export class RpcError extends Error {
-  code: string | null
-  constructor(message: string, code: string | null = null) {
-    super(message)
-    this.name = 'RpcError'
-    this.code = code
-  }
-}
-
-/** Check if an error is retryable (transient server/network errors) */
-function isRetryableError(error: unknown): boolean {
-  if (error instanceof RpcError) {
-    const code = error.code
-    return code === '429' || code === '503' || code === '500'
-  }
-  if (error instanceof DOMException && error.name === 'AbortError') return false
-  if (error instanceof TypeError && error.message.includes('fetch')) return true
-  return false
-}
-
 const RPC_TIMEOUT_MS = 30_000
 const MAX_RETRIES = 3
 const RETRY_BASE_DELAY_MS = 1_000
+const RETRY_MAX_DELAY_MS = 4_000
+
+/** Exponential backoff (ms) sebelum retry setelah attempt `attempt` gagal. */
+function backoffDelayMs(attempt: number): number {
+  return Math.min(RETRY_BASE_DELAY_MS * 2 ** attempt, RETRY_MAX_DELAY_MS)
+}
 
 async function request<T>(
   method: string,
@@ -39,11 +28,11 @@ async function request<T>(
   signal?: AbortSignal,
 ): Promise<T> {
   let lastError: unknown
+  let retryDelayMs = 0
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      const delay = Math.min(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), 4_000)
-      await new Promise(resolve => setTimeout(resolve, delay))
+      await new Promise(resolve => setTimeout(resolve, retryDelayMs))
     }
 
     const controller = new AbortController()
@@ -69,9 +58,12 @@ async function request<T>(
         } catch {
           // keep HTTP status text
         }
-        const err = new RpcError(message, code)
-        if (isRetryableError(err) && attempt < MAX_RETRIES) {
+        const err = new RpcError(message, code, res.status)
+        if (shouldRetry(method, err, attempt, MAX_RETRIES)) {
           lastError = err
+          // 429 (rate limit) → hormati header Retry-After kalau ada.
+          const retryAfter = parseRetryAfter(res.headers.get('Retry-After'))
+          retryDelayMs = retryAfter !== null ? retryAfter * 1_000 : backoffDelayMs(attempt)
           continue
         }
         throw err
@@ -81,8 +73,9 @@ async function request<T>(
       return await res.json() as T
     } catch (error) {
       if (signal?.aborted) throw error
-      if (isRetryableError(error) && attempt < MAX_RETRIES) {
+      if (shouldRetry(method, error, attempt, MAX_RETRIES)) {
         lastError = error
+        retryDelayMs = backoffDelayMs(attempt)
         continue
       }
       throw error
