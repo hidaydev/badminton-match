@@ -1,14 +1,13 @@
-// Package store — akses data. Write-path session (publish/delete) dijalankan
-// langsung di Go dalam satu transaksi (di-port dari bm.publish_session /
-// bm.delete_session); read-path tetap memakai fungsi SQL yang tervalidasi
-// (get_session, list_sessions).
+// Package store — akses data. Write-path session (publish/delete/unlock)
+// dijalankan langsung di Go dalam satu transaksi; read-path session/player
+// juga di Go (rebuild snapshot dari tabel relasional).
 package store
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -50,23 +49,308 @@ func NewSessionStore(pool *pgxpool.Pool, schema string) *SessionStore {
 	return &SessionStore{pool: pool, schema: schema}
 }
 
-// Load — read-path: get_session(id) → snapshot ter-decode.
+// Load — read-path (port bm.get_session + get_session_snapshot_compat):
+// rebuild CloudSnapshot langsung dari tabel relasional dalam Go. Hasilnya
+// identik dengan kontrak JSON lama (versi di-merge di level atas).
 func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapshot, error) {
-	var raw []byte
-	err := s.pool.QueryRow(ctx, `SELECT get_session($1)`, id).Scan(&raw)
+	if id = strings.TrimSpace(id); id == "" {
+		return nil, ErrNotFound
+	}
+
+	// Resolve lookup (share_code atau uuid) — mirror resolve_session_lookup.
+	var sessionID string
+	err := s.pool.QueryRow(ctx, `
+		SELECT s.id::text FROM sessions s
+		WHERE s.share_code = $1 OR s.id::text = $1
+		ORDER BY (s.share_code = $1) DESC
+		LIMIT 1`, id).Scan(&sessionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	// get_session mengembalikan NULL (bukan no-rows) saat sesi tak ada.
-	if raw == nil {
-		return nil, ErrNotFound
+
+	// ── baris sessions ───────────────────────────────────────────────────
+	var (
+		title         string
+		dateStr       time.Time
+		startTime     time.Time
+		slotMinutes   int
+		status        string
+		version       int
+		includeAbsent bool
+	)
+	if err := s.pool.QueryRow(ctx, `
+		SELECT title, session_date, session_start, slot_minutes, status, version, include_absent_players
+		FROM sessions WHERE id = $1::uuid`, sessionID).
+		Scan(&title, &dateStr, &startTime, &slotMinutes, &status, &version, &includeAbsent); err != nil {
+		return nil, err
 	}
-	snap := &domain.CloudSnapshot{}
-	if err := json.Unmarshal(raw, snap); err != nil {
-		return nil, fmt.Errorf("decode snapshot: %w", err)
+
+	// ── courts (+ game_count per court) ──────────────────────────────────
+	type courtRow struct {
+		index     int
+		name      string
+		start     time.Time
+		end       time.Time
+		gameCount int
+	}
+	courts := []courtRow{}
+	rows, err := s.pool.Query(ctx, `
+		SELECT sc.court_index, sc.court_name, sc.start_time, sc.end_time, coalesce(gc.game_count, 0)
+		FROM session_courts sc
+		LEFT JOIN (
+			SELECT sg.session_id, sg.court_index, count(*)::integer AS game_count
+			FROM scheduled_games sg GROUP BY sg.session_id, sg.court_index
+		) gc ON gc.session_id = sc.session_id AND gc.court_index = sc.court_index
+		WHERE sc.session_id = $1::uuid
+		ORDER BY sc.court_index`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var c courtRow
+		if err := rows.Scan(&c.index, &c.name, &c.start, &c.end, &c.gameCount); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		courts = append(courts, c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// ── players ──────────────────────────────────────────────────────────
+	type playerRow struct {
+		internalID string
+		ref        string
+		name       string
+		gender     string
+		tier       int
+		isAbsent   bool
+		absentOrd  *int
+	}
+	players := []playerRow{}
+	internalToRef := map[string]string{}
+	rows, err = s.pool.Query(ctx, `
+		SELECT sp.internal_id::text, sp.player_ref, sp.source_name, sp.gender, sp.tier, sp.is_absent, sp.absent_order
+		FROM session_players sp
+		WHERE sp.session_id = $1::uuid
+		ORDER BY sp.sort_order`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var p playerRow
+		if err := rows.Scan(&p.internalID, &p.ref, &p.name, &p.gender, &p.tier, &p.isAbsent, &p.absentOrd); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		players = append(players, p)
+		internalToRef[p.internalID] = p.ref
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// ── fixMatches (slot internal_id → player_ref; null → "") ────────────
+	type fixRow struct {
+		legacyRef string
+		slots     [4]*string
+	}
+	fixRows := []fixRow{}
+	rows, err = s.pool.Query(ctx, `
+		SELECT fm.legacy_ref, fm.slot_0, fm.slot_1, fm.slot_2, fm.slot_3
+		FROM fix_matches fm
+		WHERE fm.session_id = $1::uuid
+		ORDER BY fm.sort_order`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var f fixRow
+		if err := rows.Scan(&f.legacyRef, &f.slots[0], &f.slots[1], &f.slots[2], &f.slots[3]); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		fixRows = append(fixRows, f)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// ── games + game players ─────────────────────────────────────────────
+	type gameRow struct {
+		internalID string
+		legacyOrd  int
+		slot       int
+		court      int
+		isPlayed   bool
+		playedOrd  *int
+		scoreA     *int
+		scoreB     *int
+		teamA      [2]string
+		teamB      [2]string
+	}
+	games := []gameRow{}
+	gameIdx := map[string]int{} // internal_id → index di games
+	rows, err = s.pool.Query(ctx, `
+		SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
+		       sg.is_played, sg.played_order, sg.score_a, sg.score_b
+		FROM scheduled_games sg
+		WHERE sg.session_id = $1::uuid
+		ORDER BY sg.legacy_order`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var g gameRow
+		if err := rows.Scan(&g.internalID, &g.legacyOrd, &g.slot, &g.court, &g.isPlayed, &g.playedOrd, &g.scoreA, &g.scoreB); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		gameIdx[g.internalID] = len(games)
+		games = append(games, g)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// team members (ref, team, position) — mirror jsonb_agg ... order by position
+	rows, err = s.pool.Query(ctx, `
+		SELECT sgp.scheduled_game_internal_id::text, sgp.team, sgp.position, sp.player_ref
+		FROM scheduled_game_players sgp
+		JOIN session_players sp ON sp.internal_id = sgp.session_player_internal_id
+		JOIN scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id
+		WHERE sg.session_id = $1::uuid`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var (
+			gameID, team, ref string
+			position          int
+		)
+		if err := rows.Scan(&gameID, &team, &position, &ref); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		gi, ok := gameIdx[gameID]
+		if !ok || position < 0 || position > 1 {
+			continue
+		}
+		if team == "A" {
+			games[gi].teamA[position] = ref
+		} else {
+			games[gi].teamB[position] = ref
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// ── assemble CloudSnapshot ───────────────────────────────────────────
+	snap := &domain.CloudSnapshot{
+		Version: &version,
+		Session: domain.SessionConfig{
+			Title:        title,
+			Date:         dateStr.Format("2006-01-02"),
+			Courts:       len(courts),
+			SessionStart: startTime.Format("15:04"),
+			SlotMinutes:  slotMinutes,
+			PlayerCount:  len(players),
+			Locked:       status != "draft",
+		},
+		Players:     []domain.Player{},
+		FixMatches:  []domain.FixMatch{},
+		Schedule:    []domain.ScheduleSlot{},
+		PlayedGames: []string{},
+		GameScores:  map[string]domain.GameScore{},
+	}
+	// courtNames: mirror SQL — hanya di-emit kalau ada nama non-kosong; kalau
+	// semua kosong → [] (bukan array string kosong).
+	anyCourtName := false
+	for _, c := range courts {
+		if c.name != "" {
+			anyCourtName = true
+			break
+		}
+	}
+	for _, c := range courts {
+		snap.Session.CourtTimes = append(snap.Session.CourtTimes, domain.CourtTime{
+			Start: c.start.Format("15:04"),
+			End:   c.end.Format("15:04"),
+		})
+		if anyCourtName {
+			snap.Session.CourtNames = append(snap.Session.CourtNames, c.name)
+		}
+	}
+	type absentEntry struct {
+		ref       string
+		absentOrd int
+		sortOrd   int
+	}
+	absent := []absentEntry{}
+	for i, p := range players {
+		snap.Players = append(snap.Players, domain.Player{
+			ID:     p.ref,
+			Name:   p.name,
+			Gender: p.gender,
+			Tier:   p.tier,
+		})
+		if includeAbsent && p.isAbsent {
+			ao := 0
+			if p.absentOrd != nil {
+				ao = *p.absentOrd
+			}
+			absent = append(absent, absentEntry{ref: p.ref, absentOrd: ao, sortOrd: i})
+		}
+	}
+	sort.Slice(absent, func(i, j int) bool {
+		if absent[i].absentOrd != absent[j].absentOrd {
+			return absent[i].absentOrd < absent[j].absentOrd
+		}
+		return absent[i].sortOrd < absent[j].sortOrd
+	})
+	for _, a := range absent {
+		snap.AbsentPlayers = append(snap.AbsentPlayers, a.ref)
+	}
+
+	for _, f := range fixRows {
+		slots := [4]*string{}
+		for i := 0; i < 4; i++ {
+			// Mirror SQL coalesce(player_ref, ''): slot kosong → "" (bukan
+			// null), supaya kontrak JSON identik dengan era get_session.
+			empty := ""
+			slots[i] = &empty
+			if f.slots[i] != nil {
+				if ref, ok := internalToRef[*f.slots[i]]; ok {
+					slots[i] = &ref
+				}
+			}
+		}
+		snap.FixMatches = append(snap.FixMatches, domain.FixMatch{ID: f.legacyRef, Slots: slots})
+	}
+	for _, g := range games {
+		snap.Schedule = append(snap.Schedule, domain.ScheduleSlot{
+			Slot:  g.slot,
+			Court: g.court,
+			TeamA: g.teamA,
+			TeamB: g.teamB,
+		})
+		key := domain.GameKey(g.slot, g.court)
+		if g.isPlayed && g.playedOrd != nil {
+			snap.PlayedGames = append(snap.PlayedGames, key)
+		}
+		if g.scoreA != nil && g.scoreB != nil {
+			snap.GameScores[key] = domain.GameScore{A: *g.scoreA, B: *g.scoreB}
+		}
 	}
 	return snap, nil
 }
@@ -343,10 +627,23 @@ type SessionMeta struct {
 	Locked      bool   `json:"locked"`
 }
 
-// ListSessions — read-path: daftar metadata semua session (list_sessions()).
+// ListSessions — read-path (port bm.list_sessions): metadata semua session
+// (share_code, title, date, player_count, total_games, locked).
 func (s *SessionStore) ListSessions(ctx context.Context) ([]SessionMeta, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT id, title, date, player_count, total_games, locked FROM list_sessions()`)
+	rows, err := s.pool.Query(ctx, `
+		SELECT s.share_code, s.title, s.session_date::text,
+		       coalesce(pc.player_count, 0), coalesce(gc.total_games, 0),
+		       (s.status <> 'draft') AS locked
+		FROM sessions s
+		LEFT JOIN (
+			SELECT sp.session_id, count(*)::integer AS player_count
+			FROM session_players sp GROUP BY sp.session_id
+		) pc ON pc.session_id = s.id
+		LEFT JOIN (
+			SELECT sg.session_id, count(*)::integer AS total_games
+			FROM scheduled_games sg GROUP BY sg.session_id
+		) gc ON gc.session_id = s.id
+		ORDER BY s.session_date DESC, s.updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}

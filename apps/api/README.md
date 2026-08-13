@@ -78,12 +78,17 @@ privilege tabel, bukan lagi EXECUTE fungsi. GRANT disediakan di
 `migrations/000003_drop_functions.sql` (aplikasikan sekali bersama drop fungsi
 write-path lama; anon tetap tanpa akses apa pun).
 
-**Read-path tetap fungsi SQL** (`get_session`, `list_sessions`,
-`get_player_stats`, `list_players`, `get_tournament`, `publish_tournament`):
-- `register_player`/`ensure_player`/`normalize_player_name` TIDAK di-drop —
-  `resolve_tournament_player` → `publish_tournament` masih SQL (turnamen
-  belum dimigrasi) dan `player_aliases` punya CHECK constraint ke
-  `normalize_player_name`.
+**Read-path session/player juga Go** (rebuild snapshot, list sessions/players,
+player stats — diverifikasi identik via `TestIntegrationReadPathParity`):
+GRANT SELECT tabel tournament di `migrations/000004_drop_readpath_functions.sql`
+(stats membaca tabel tournament langsung).
+
+**Sisa fungsi SQL — hanya jalur TURNAMEN** (`get_tournament`,
+`publish_tournament`, `validate_tournament_snapshot`) plus pendukungnya:
+`register_player`/`register_player_alias`/`ensure_player`/`normalize_player_name`
+(dipakai `resolve_tournament_player` → `publish_tournament`) dan
+`normalize_player_name` juga dipakai CHECK constraint `player_aliases`.
+Turnamen belum dimigrasi ke Go (ditunda).
 
 **Schema via `MAJADU_DB_SCHEMA` (env), BUKAN hardcode di SQL.** Store memakai
 kueri tanpa prefix schema; `search_path` diarahkan per-koneksi. Ini penting
