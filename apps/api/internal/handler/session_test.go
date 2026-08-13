@@ -2,9 +2,12 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"majadu-api/internal/store"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -82,6 +85,34 @@ func TestMapPublishErrorTable(t *testing.T) {
 			name:     "unknown pg error maps to validation_error",
 			err:      &pgconn.PgError{Message: "ERROR: invalid input syntax for type integer"},
 			wantCode: "validation_error",
+		},
+		// ── sentinels write-path Go (store) ──
+		{
+			name:     "store ErrLocked maps to conflict",
+			err:      store.ErrLocked,
+			wantCode: "conflict",
+		},
+		{
+			name:     "store ErrVersionMismatch maps to conflict",
+			err:      fmt.Errorf("%w: expected 5, actual 3", store.ErrVersionMismatch),
+			wantCode: "conflict",
+		},
+		{
+			name:     "store ErrNotFound maps to not_found",
+			err:      fmt.Errorf("%w: session not found: sX", store.ErrNotFound),
+			wantCode: "not_found",
+		},
+		{
+			name:        "store ErrValidation maps to validation_error",
+			err:         fmt.Errorf("%w: unresolved players for session: \"X\"", store.ErrValidation),
+			wantCode:    "validation_error",
+			wantMsgPart: "unresolved player",
+		},
+		{
+			name:        "store ErrContention maps to validation_error with retry hint",
+			err:         store.ErrContention,
+			wantCode:    "validation_error",
+			wantMsgPart: "being updated by another request",
 		},
 	}
 	for _, c := range cases {
