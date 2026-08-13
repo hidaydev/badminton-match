@@ -98,10 +98,11 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 	}
 	defer func() { _ = tx.Rollback(ctx) }() // no-op setelah Commit
 
-	// 1. Advisory lock — mirror pg_try_advisory_xact_lock('bm.publish_session:'||id).
+	// 1. Advisory lock — namespace netral (bukan schema): kunci identik untuk
+	//    id yang sama, independen dari bm/bm_dev (search_path per env).
 	var locked bool
 	if err := tx.QueryRow(ctx,
-		`SELECT pg_try_advisory_xact_lock(hashtextextended('bm.publish_session:' || $1, 0))`, id,
+		`SELECT pg_try_advisory_xact_lock(hashtextextended('majadu.publish_session:' || $1, 0))`, id,
 	).Scan(&locked); err != nil {
 		return nil, err
 	}
@@ -258,7 +259,7 @@ func (s *SessionStore) Unlock(ctx context.Context, id string) (*domain.CloudSnap
 
 	var locked bool
 	if err := tx.QueryRow(ctx,
-		`SELECT pg_try_advisory_xact_lock(hashtextextended('bm.unlock_session:' || $1, 0))`, id,
+		`SELECT pg_try_advisory_xact_lock(hashtextextended('majadu.unlock_session:' || $1, 0))`, id,
 	).Scan(&locked); err != nil {
 		return nil, err
 	}
