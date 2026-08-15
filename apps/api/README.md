@@ -23,8 +23,10 @@ internal/middleware/     # CORS, logging (slog), panic recovery, rate limit
 internal/httperr/        # error envelope JSON konsisten
 internal/build/          # versi binary (ldflags)
 api/openapi.yaml         # kontrak REST resmi
-migrations/              # baseline schema bm/bm_dev (backend owns schema)
 ```
+
+> **SQL migrations TIDAK di repo GitHub** (sengaja — kode repo public).
+> Tersimpan di VPS: `/srv/qouver/majadu/migrations/` (000001–000005).
 
 ## Endpoint (ringkas)
 
@@ -73,19 +75,18 @@ Akses DB memakai role khusus **`majadu_app`** (bukan superuser):
 - kredensial disimpan di VPS saja (file env mode 600, TIDAK pernah di repo ini)
 
 **Write-path session (publish/delete/unlock) dijalankan Go langsung ke tabel**
-dalam satu transaksi (port `bm.publish_session`/`bm.delete_session`) — butuh
-privilege tabel, bukan lagi EXECUTE fungsi. GRANT disediakan di
-`migrations/000003_drop_functions.sql` (aplikasikan sekali bersama drop fungsi
-write-path lama; anon tetap tanpa akses apa pun).
+dalam satu transaksi (port `publish_session`/`delete_session` era SQL) — butuh
+privilege tabel, bukan lagi EXECUTE fungsi. GRANT disediakan di file migration
+`000003` (aplikasikan sekali bersama drop fungsi write-path lama; anon tetap
+tanpa akses apa pun). Migration ada di VPS: `/srv/qouver/majadu/migrations/`.
 
 **Read-path session/player juga Go** (rebuild snapshot, list sessions/players,
 player stats — diverifikasi identik via `TestIntegrationReadPathParity`):
-GRANT SELECT tabel tournament di `migrations/000004_drop_readpath_functions.sql`
-(stats membaca tabel tournament langsung).
+GRANT SELECT tabel tournament di `000004` (stats membaca tabel tournament
+langsung).
 
 **Tournament juga sudah Go** (write + read + register pemain — diverifikasi via
-`TestIntegrationTournamentParity`): GRANT DML di
-`migrations/000005_drop_tournament_functions.sql`.
+`TestIntegrationTournamentParity`): GRANT DML di `000005`.
 
 **Sisa fungsi SQL**: hanya `normalize_player_name` (dipakai CHECK constraint
 `player_aliases`) + utilitas `delete_player` / trigger `set_updated_at`. Semua
