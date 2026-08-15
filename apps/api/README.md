@@ -129,3 +129,7 @@ dev       → https://api.qouver.com/majadu-dev  → 127.0.0.1:8081 (dev, bm_dev
 
 - `dev` — aktif untuk development (skema `bm_dev`)
 - `main` — prod (skema `bm`), dibuat saat migrasi prod
+
+## License
+
+MIT — see [LICENSE](LICENSE).
