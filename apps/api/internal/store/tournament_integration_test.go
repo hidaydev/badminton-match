@@ -200,6 +200,48 @@ func TestIntegrationRegisterIdempotent(t *testing.T) {
 	}
 }
 
+// TestIntegrationTournamentList — create tournament lalu list → muncul di daftar.
+func TestIntegrationTournamentList(t *testing.T) {
+	url := os.Getenv("MAJADU_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("MAJADU_TEST_DATABASE_URL not set — skipping integration test")
+	}
+	schema := os.Getenv("MAJADU_TEST_DB_SCHEMA")
+	if schema == "" {
+		schema = "bm_dev"
+	}
+	pool, err := db.NewPool(context.Background(), url, schema)
+	if err != nil {
+		t.Fatalf("db connect: %v", err)
+	}
+	defer pool.Close()
+	ctx := context.Background()
+
+	ts := NewTournamentStore(pool, schema)
+	id := "it-tlist-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	if _, err := ts.Save(ctx, id, buildTestTournament("List Test Tournament")); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	defer cleanupTournament(ctx, pool, id)
+
+	metas, err := ts.List(ctx)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	found := false
+	for _, m := range metas {
+		if m.ID == id && m.Name == "List Test Tournament" {
+			found = true
+			if m.Date == "" {
+				t.Fatal("date kosong di metadata")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("tournament %s tidak muncul di list: %+v", id, metas)
+	}
+}
+
 func cleanupTournament(ctx context.Context, pool *pgxpool.Pool, id string) {
 	pool.Exec(ctx, `DELETE FROM tournaments WHERE share_code = $1`, id)
 }

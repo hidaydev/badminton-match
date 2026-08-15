@@ -384,6 +384,18 @@ paths:
 
   # ── Tournaments ───────────────────────────────────────────────────────
   /tournaments:
+    get:
+      tags: [Tournaments]
+      summary: Daftar tournament (metadata, terbaru dulu)
+      operationId: listTournaments
+      responses:
+        "200":
+          description: Daftar tournament
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TournamentMeta" }
     post:
       tags: [Tournaments]
       summary: Buat tournament baru
@@ -678,6 +690,14 @@ components:
         topPartners: { type: array, items: { type: object } }
         topOpponents: { type: array, items: { type: object } }
         tournamentStats: { type: object }
+
+    TournamentMeta:
+      type: object
+      required: [id, name, date]
+      properties:
+        id: { type: string, example: sAbc123XYZ }
+        name: { type: string }
+        date: { type: string, format: date }
 
     TournamentDraft:
       type: object

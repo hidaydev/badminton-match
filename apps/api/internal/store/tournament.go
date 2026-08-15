@@ -175,6 +175,35 @@ func (s *TournamentStore) Load(ctx context.Context, id string) (*domain.Tourname
 	return snap, nil
 }
 
+// TournamentMeta — baris list tournament (GET /tournaments).
+type TournamentMeta struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Date string `json:"date"`
+}
+
+// List — daftar metadata semua tournament, terbaru dulu.
+func (s *TournamentStore) List(ctx context.Context) ([]TournamentMeta, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT share_code, name, event_date::text
+		FROM tournaments
+		ORDER BY event_date DESC, updated_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]TournamentMeta, 0)
+	for rows.Next() {
+		var m TournamentMeta
+		if err := rows.Scan(&m.ID, &m.Name, &m.Date); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
 // Save — publish write-path (port bm.publish_tournament): satu transaksi
 // berisi validasi, advisory lock, version check, upsert header, lalu
 // delete-and-reinsert child tables (pairs, pair_players, groups, matches).

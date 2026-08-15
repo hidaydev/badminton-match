@@ -102,6 +102,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("GET /players/{name}/stats", http.HandlerFunc(players.Stats))
 
 	tournaments := &handler.TournamentHandler{Store: store.NewTournamentStore(pool, cfg.DatabaseSchema), Logger: logger, BaseURL: cfg.BaseURL}
+	mux.Handle("GET /tournaments", http.HandlerFunc(tournaments.List))
 	mux.Handle("POST /tournaments", http.HandlerFunc(tournaments.Create))
 	mux.Handle("GET /tournaments/{id}", http.HandlerFunc(tournaments.Get))
 	mux.Handle("PUT /tournaments/{id}", http.HandlerFunc(tournaments.Put))

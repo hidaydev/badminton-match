@@ -20,6 +20,16 @@ type TournamentHandler struct {
 	BaseURL string
 }
 
+// List — GET /tournaments: metadata semua tournament (terbaru dulu).
+func (h *TournamentHandler) List(w http.ResponseWriter, r *http.Request) {
+	metas, err := h.Store.List(r.Context())
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to list tournaments", err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, metas)
+}
+
 // Create — POST /tournaments.
 func (h *TournamentHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req domain.TournamentSnapshot
