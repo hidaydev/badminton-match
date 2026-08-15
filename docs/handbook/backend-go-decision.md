@@ -95,7 +95,7 @@ Catatan: bracket propagation turnamen masih di TS app (mengirim snapshot hasil c
 
 ## 8. Referensi
 
-- Baseline migrasi V2: `supabase/migrations/20260811_000001_functions.sql` + `...000002_schema.sql`
-- State DB V2: `vps-setup/migrations/v2/` (f1–f8) + `vps-setup/docs/DATA-MODEL-V2.md`
+- Baseline migrasi V2: `majadu-api/migrations/000001_functions.sql` + `000002_schema.sql` (dulu `supabase/migrations/`, dipindah 2026-08-13)
+- Data model V2: `docs/handbook/DATA-MODEL-V2.md` (arsip dari `vps-setup/docs/`, dihapus 2026-08-15)
 - Kontrak RPC app: `src/queries/endpoints.ts`
 - Audit RPC & utilisasi tabel: catatan sesi 2026-08-11 (HANDOFF + DATA_MODEL_V2_TASKS.md)
