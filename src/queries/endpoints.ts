@@ -9,8 +9,6 @@ export { ApiError } from './retry'
 // ditentukan dari branch (VERCEL_GIT_COMMIT_REF) atau override VITE_API_URL.
 const BASE_URL: string = __API_BASE_URL__
 
-export const TOURNAMENT_ID = 'tournament-2026-05-23-majadu'
-
 const API_TIMEOUT_MS = 30_000
 const MAX_RETRIES = 3
 const RETRY_BASE_DELAY_MS = 1_000
@@ -233,6 +231,22 @@ export async function registerPlayer(name: string, canonicalName?: string): Prom
 }
 
 // ── Tournaments ───────────────────────────────────────────────────────────
+
+/** Metadata tournament untuk list (GET /tournaments). */
+export interface TournamentMeta {
+  id: string
+  name: string
+  date: string
+}
+
+export async function listTournaments(): Promise<TournamentMeta[]> {
+  const rows = await request<Array<{ id: string; name: string; date: string }>>('GET', '/tournaments')
+  if (!Array.isArray(rows)) {
+    console.warn('[listTournaments] response is not an array:', rows)
+    throw new ApiError('Invalid tournament list received from server')
+  }
+  return rows.map((row) => ({ id: row.id, name: row.name, date: row.date }))
+}
 
 export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
   try {

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getTournament, TOURNAMENT_ID } from './endpoints'
+import { getTournament, listTournaments, type TournamentMeta } from './endpoints'
 import type { TournamentSnapshot } from './types'
 import type { GroupId, TournamentPair } from '../utils/tournament'
 import {
@@ -12,23 +12,32 @@ import { useOptimisticTournamentMutation } from './useOptimisticMutation'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
-export function useGetTournament() {
+/** Daftar tournament (metadata) untuk halaman list. */
+export function useListTournaments() {
+  return useQuery<TournamentMeta[]>({
+    queryKey: ['tournaments'],
+    queryFn: listTournaments,
+  })
+}
+
+export function useGetTournament(id: string) {
   return useQuery<TournamentSnapshot | null>({
-    queryKey: ['tournament', TOURNAMENT_ID],
-    queryFn: () => getTournament(TOURNAMENT_ID),
+    queryKey: ['tournament', id],
+    queryFn: () => getTournament(id),
+    enabled: !!id,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: true,
   })
 }
 
-export function useConfirmGroups() {
+export function useConfirmGroups(id: string) {
   return useOptimisticTournamentMutation<{
     localGroups: Record<GroupId, string[]>
     name: string
     date: string
     pairs: TournamentPair[]
   }>(
-    TOURNAMENT_ID,
+    id,
     (current, { localGroups, name, date, pairs }) => {
       const groupMatches = GROUP_IDS.flatMap((g) => generateGroupMatches(g, localGroups[g]))
       const allMatches = [...groupMatches, ...initKnockoutMatches()]
@@ -46,9 +55,9 @@ export function useConfirmGroups() {
   )
 }
 
-export function useSetTournamentScore() {
+export function useSetTournamentScore(id: string) {
   return useOptimisticTournamentMutation<{ matchId: string; scoreA: number; scoreB: number }>(
-    TOURNAMENT_ID,
+    id,
     (current, { matchId, scoreA, scoreB }) => {
       if (!current) return null
       const updated = current.matches.map((m) =>
@@ -60,13 +69,13 @@ export function useSetTournamentScore() {
   )
 }
 
-export function useResetTournament() {
+export function useResetTournament(id: string) {
   return useOptimisticTournamentMutation<{
     name: string
     date: string
     pairs: TournamentPair[]
   }>(
-    TOURNAMENT_ID,
+    id,
     (current, { name, date, pairs }) => ({
       version: current?.version,
       name,
@@ -78,11 +87,11 @@ export function useResetTournament() {
   )
 }
 
-export function useRegeneratePics() {
+export function useRegeneratePics(id: string) {
   // no optimistic update — result is non-deterministic (random shuffle);
   // applyOptimistic=false → onMutate hanya cancel, throw hanya di mutationFn.
   return useOptimisticTournamentMutation<undefined>(
-    TOURNAMENT_ID,
+    id,
     (current) => {
       if (!current) return null
       const newMatches = assignGroupPics(current.pairs, current.groups, current.matches)

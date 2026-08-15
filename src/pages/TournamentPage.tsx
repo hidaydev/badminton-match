@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetTournament,
@@ -6,7 +7,6 @@ import {
   useSetTournamentScore,
   useResetTournament,
   useRegeneratePics,
-  TOURNAMENT_ID,
 } from '../queries'
 import { getSaveErrorMessage } from '../queries/errors'
 import type { GroupId, TournamentPair } from '../utils/tournament'
@@ -74,6 +74,8 @@ function GroupLoadingSkeleton() {
 }
 
 export default function TournamentPage() {
+  const navigate = useNavigate()
+  const { id = '' } = useParams()
   const [tab, setTab] = useState<Tab>('groups')
   const [localGroups, setLocalGroups] = useState<Record<GroupId, (string | null)[]>>(
     () => ({ A: [null, null, null, null], B: [null, null, null, null], C: [null, null, null, null], D: [null, null, null, null] })
@@ -88,10 +90,10 @@ export default function TournamentPage() {
   }, [saveError])
 
   const queryClient = useQueryClient()
-  const { data: snapshot, isFetching, refetch } = useGetTournament()
+  const { data: snapshot, isFetching, refetch } = useGetTournament(id)
 
   const handleOpenModal = () => {
-    queryClient.invalidateQueries({ queryKey: ['tournament', TOURNAMENT_ID] })
+    queryClient.invalidateQueries({ queryKey: ['tournament', id] })
   }
 
   const pairs = snapshot?.pairs ?? INITIAL_PAIRS
@@ -117,12 +119,18 @@ export default function TournamentPage() {
       D: prev.D.map((id) => (id === pairId ? null : id)),
     }))
 
-  const { mutate: confirmGroups, isPending: confirmPending } = useConfirmGroups()
-  const { mutate: setTournamentScore, isPending: setScorePending } = useSetTournamentScore()
-  const { mutate: resetTournament, isPending: resetPending } = useResetTournament()
-  const { mutate: regeneratePics, isPending: regeneratePicsPending } = useRegeneratePics()
+  const { mutate: confirmGroups, isPending: confirmPending } = useConfirmGroups(id)
+  const { mutate: setTournamentScore, isPending: setScorePending } = useSetTournamentScore(id)
+  const { mutate: resetTournament, isPending: resetPending } = useResetTournament(id)
+  const { mutate: regeneratePics, isPending: regeneratePicsPending } = useRegeneratePics(id)
 
   const isSaving = confirmPending || setScorePending || resetPending || regeneratePicsPending
+
+  // Tanpa id di URL (mis. akses langsung /tournament) → kembali ke list.
+  if (!id) return <Navigate to="/tournaments" replace />
+
+  // Navigasi balik ke list tournament.
+  const goBack = () => navigate('/tournaments')
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'groups', label: 'Groups' },
@@ -142,6 +150,15 @@ export default function TournamentPage() {
       {/* Header */}
       <div className="bg-slate-800 px-4 pt-3 pb-0 border-b border-slate-700">
         <div className="flex items-center gap-2">
+          <button
+            onClick={goBack}
+            aria-label="Kembali ke daftar tournament"
+            className="p-1 -ml-1 rounded-lg text-slate-400 hover:text-white active:scale-90 transition-all shrink-0"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
           <h2 className="text-[1rem] font-bold text-white leading-tight">{name}</h2>
           {groupsFull && (
             isSaving ? (
