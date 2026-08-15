@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams, Navigate } from 'react-router-dom'
+import { useParams, Navigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetTournament,
@@ -74,7 +74,6 @@ function GroupLoadingSkeleton() {
 }
 
 export default function TournamentPage() {
-  const navigate = useNavigate()
   const { id = '' } = useParams()
   const [tab, setTab] = useState<Tab>('groups')
   const [localGroups, setLocalGroups] = useState<Record<GroupId, (string | null)[]>>(
@@ -129,9 +128,6 @@ export default function TournamentPage() {
   // Tanpa id di URL (mis. akses langsung /tournament) → kembali ke list.
   if (!id) return <Navigate to="/tournaments" replace />
 
-  // Navigasi balik ke list tournament.
-  const goBack = () => navigate('/tournaments')
-
   const tabs: { id: Tab; label: string }[] = [
     { id: 'groups', label: 'Groups' },
     { id: 'bracket', label: 'Bracket' },
@@ -150,15 +146,6 @@ export default function TournamentPage() {
       {/* Header */}
       <div className="bg-slate-800 px-4 pt-3 pb-0 border-b border-slate-700">
         <div className="flex items-center gap-2">
-          <button
-            onClick={goBack}
-            aria-label="Kembali ke daftar tournament"
-            className="p-1 -ml-1 rounded-lg text-slate-400 hover:text-white active:scale-90 transition-all shrink-0"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
           <h2 className="text-[1rem] font-bold text-white leading-tight">{name}</h2>
           {groupsFull && (
             isSaving ? (
