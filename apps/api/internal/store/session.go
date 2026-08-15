@@ -594,27 +594,26 @@ func (s *SessionStore) Unlock(ctx context.Context, id string) (*domain.CloudSnap
 	return s.Load(ctx, id)
 }
 
-// RegisterPlayer — registry pemain (register_player SQL). Fungsi SQL TETAP
-// dipakai: resolve_tournament_player → publish_tournament (masih SQL) bergantung
-// padanya. Satu source of truth — Go tidak punya implementasi kedua.
-func (s *SessionStore) RegisterPlayer(ctx context.Context, name, canonicalName string) (string, error) {
-	var id string
-	err := s.pool.QueryRow(ctx,
-		`SELECT register_player($1, $2)`,
-		name, canonicalName,
-	).Scan(&id)
-	return id, err
-}
-
-// EnsurePlayersRegistered — daftarkan semua pemain (idempotent) sebelum
-// publish pertama, supaya validasi resolve player di write-path lolos.
+// EnsurePlayersRegistered — daftarkan semua pemain (idempotent, TOCTOU-safe)
+// sebelum publish, supaya validasi resolve player di write-path lolos.
+// Satu transaksi untuk semua pemain (port bm.register_player — fungsi SQL
+// sudah pensiun; lihat registerPlayerInTx).
 func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []domain.Player) error {
+	if len(players) == 0 {
+		return nil
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	for _, p := range players {
-		if _, err := s.RegisterPlayer(ctx, p.Name, p.Name); err != nil {
+		if _, err := registerPlayerInTx(ctx, tx, p.Name, p.Name); err != nil {
 			return fmt.Errorf("register %q: %w", p.Name, err)
 		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 // SessionMeta — baris dari list_sessions() (key JSON sama dengan kontrak RPC).
