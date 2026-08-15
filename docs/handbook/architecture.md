@@ -71,7 +71,8 @@ the query layer directly.
 
 Remote read/write access is wrapped in:
 
-- `src/queries/endpoints.ts` — raw Supabase RPC fetch functions
+- `src/queries/endpoints.ts` — raw REST fetch functions (retry method-aware) terhadap `majadu-api`
+- `src/queries/retry.ts` — retry policy murni (method-aware, testable)
 - `src/queries/sessions.ts` — session query hooks
 - `src/queries/players.ts` — player query hooks
 - `src/queries/tournament.ts` — tournament query hooks
@@ -210,34 +211,33 @@ decomposed into focused sub-components:
 
 ## Persistence model
 
-### Previous model
+### Previous models
 
-The previous backend was Google Apps Script plus Google Sheets.
+1. Google Apps Script + Google Sheets (era 1) — JSON blobs per row, list/stats
+   dihitung dengan scanning dataset penuh.
+2. Supabase/PostgREST schema `bm` (era 2) — RPC functions SECURITY DEFINER.
 
-That model stored JSON blobs per row and computed list/stat views by scanning
-the full dataset.
+### Current runtime (era 3, 2026-08)
 
-### Current runtime direction
+Backend **Go (`majadu-api`)** menghubungkan frontend ke Postgres VPS langsung
+(pgx, tanpa PostgREST):
 
-The app now targets the `bm` schema as the runtime backend.
+- write-path session/tournament: transaksi + advisory lock + version concurrency
+- read-path: rebuild snapshot langsung di Go
+- schema `bm` (prod) / `bm_dev` (dev), migrasi di `majadu-api/migrations/`
+- semua logika validasi/lock/resolve ada di Go — sisa fungsi SQL hanya
+  `normalize_player_name` (CHECK constraint) + utilitas
 
-Current persistence strategy is:
-
-- aggregate-root oriented
-- compatibility-snapshot preserving
-- relationally normalized for session internals and player stats
-
-This keeps product behavior stable while reducing migration risk.
+Ini menjaga kontrak snapshot tetap stabil sambil memindahkan logika backend ke
+satu bahasa (Go) yang teruji.
 
 ## Design principle
-
-The intended architecture is:
 
 - keep product behavior in the frontend
 - keep storage concerns behind the query layer
 - keep pure domain logic in generator and utility modules
 - avoid making `MDEF` shape the internal schema of `badminton-match`
-- treat `bm` as the primary production-target schema
+- treat `bm`/`bm_dev` as the runtime schema, diakses via `majadu-api`
 
 ## Clean Architecture (post-audit)
 
@@ -250,8 +250,9 @@ src/
 ├── generator/          # Pure scheduling engine — zero imports from store/ or queries/
 ├── utils/              # Pure utilities — time, quality, standings, swap, canvas, stats
 ├── domain/ports/       # Repository interfaces (prepared for DI)
-├── queries/            # React Query hooks + Supabase RPC endpoints
-│   ├── endpoints.ts    # Raw Supabase RPC fetch functions
+├── queries/            # React Query hooks + REST client (majadu-api)
+│   ├── endpoints.ts    # Raw REST fetch functions (retry method-aware)
+│   ├── retry.ts        # Retry policy murni (testable)
 │   ├── sessions.ts     # Session query hooks (14 hooks)
 │   ├── players.ts      # Player query hooks
 │   ├── tournament.ts   # Tournament query hooks
@@ -265,7 +266,7 @@ src/
 │   ├── tournament/     # Tournament tab components
 │   └── generate/       # Schedule view components (QualityBanner, PlayerChip, etc.)
 ├── pages/              # Route pages
-└── infra/supabase/     # Supabase client setup
+└── index.css           # Tailwind v4 @theme tokens
 ```
 
 ### Dependency rules
