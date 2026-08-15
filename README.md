@@ -145,7 +145,7 @@ scripts/                # Build & dev tooling (canvas export, tailwind check, re
 docs/                   # Handbook + design system + spec archive
 ```
 
-Schema & migrasi DB dimiliki backend: `majadu-api/migrations/`.
+Schema & migrasi DB disimpan di VPS (repo public tanpa SQL): `/srv/qouver/majadu/migrations/`.
 
 ---
 
