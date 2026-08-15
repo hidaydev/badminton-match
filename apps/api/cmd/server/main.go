@@ -106,13 +106,6 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("DELETE /sessions/{id}", http.HandlerFunc(sessions.Delete))
 	mux.Handle("POST /sessions/{id}/lock", http.HandlerFunc(sessions.Lock))
 	mux.Handle("POST /sessions/{id}/unlock", http.HandlerFunc(sessions.Unlock))
-	mux.Handle("PUT /sessions/{id}/games/{gameKey}", http.HandlerFunc(sessions.SetScore))
-	mux.Handle("DELETE /sessions/{id}/games/{gameKey}", http.HandlerFunc(sessions.ClearScore))
-	mux.Handle("PATCH /sessions/{id}/players/{playerId}", http.HandlerFunc(sessions.RenamePlayer))
-	mux.Handle("PUT /sessions/{id}/absent", http.HandlerFunc(sessions.SetAbsent))
-	mux.Handle("POST /sessions/{id}/swaps/players", http.HandlerFunc(sessions.SwapPlayers))
-	mux.Handle("POST /sessions/{id}/swaps/teams", http.HandlerFunc(sessions.SwapTeams))
-	mux.Handle("POST /sessions/{id}/swaps/slots", http.HandlerFunc(sessions.SwapSlots))
 
 	players := &handler.PlayerHandler{Store: store.NewPlayerStore(pool), Logger: logger}
 	mux.Handle("GET /players", http.HandlerFunc(players.List))

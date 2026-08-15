@@ -71,10 +71,10 @@ func TestIntegrationSessionRoundTrip(t *testing.T) {
 		t.Fatalf("expected version 1, got %v", created.Version)
 	}
 
-	// Mutasi: set score + reload
-	if err := created.SetScore("0-0", 21, 18); err != nil {
-		t.Fatalf("set score: %v", err)
-	}
+	// Mutasi: set score langsung di snapshot (mirror cara app: hitung client-side
+	// lalu PUT snapshot lengkap) + reload
+	created.PlayedGames = []string{"0-0"}
+	created.GameScores = map[string]domain.GameScore{"0-0": {A: 21, B: 18}}
 	updated, err := st.Save(ctx, id, created)
 	if err != nil {
 		t.Fatalf("save update: %v", err)

@@ -41,14 +41,15 @@ Go backend melihat path bersih tanpa prefix).
 | `POST` / `GET` | `/sessions` | create / list |
 | `GET` / `PATCH` / `DELETE` | `/sessions/{id}` | get / patch / delete |
 | `POST` | `/sessions/{id}/lock` · `/unlock` | kunci / buka |
-| `PUT` / `DELETE` | `/sessions/{id}/games/{key}` | set skor / hapus skor |
-| `PATCH` | `/sessions/{id}/players/{pid}` | rename pemain |
-| `PUT` | `/sessions/{id}/absent` | set absent |
-| `POST` | `/sessions/{id}/swaps/{players\|teams\|slots}` | swap |
+| `PUT` / `DELETE` | ~~granular mutation endpoints~~ | **dihapus** — app mengirim full snapshot via PUT (lihat catatan di bawah) |
 | `GET` / `POST` | `/players` | list / register pemain |
 | `GET` | `/players/{name}/stats` | statistik karier |
 | `POST` | `/tournaments` | buat tournament |
 | `GET` / `PATCH` | `/tournaments/{id}` | get / update |
+
+> Catatan: endpoint granular mutation session (games/absent/swaps/rename) **dihapus**
+> 2026-08-15 — app mengirim full snapshot via `PUT /sessions/{id}` (bridge
+> contract); logika mutasi dihitung client-side dan divalidasi server.
 
 Concurrency: optimistic via header `If-Match: "v{n}"` / response `ETag`.
 
