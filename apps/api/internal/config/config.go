@@ -39,6 +39,10 @@ type Config struct {
 
 	// RateLimitPerMin — batas request per menit per IP. 0 = disabled.
 	RateLimitPerMin int
+
+	// LogDir — direktori log harian (app-YYYY-MM-DD.log, retensi 7 hari).
+	// Kosong = log ke stdout saja (default dev).
+	LogDir string
 }
 
 // Load membaca env, me-load .env jika ada, lalu validasi.
@@ -64,6 +68,7 @@ func Load() (Config, error) {
 	}
 	cfg.BaseURL = strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/")
 	cfg.RateLimitPerMin = atoiDefault(os.Getenv("MAJADU_RATE_LIMIT_PER_MIN"), 120)
+	cfg.LogDir = os.Getenv("MAJADU_LOG_DIR")
 
 	for _, origin := range splitList(os.Getenv("CORS_ALLOWED_ORIGINS")) {
 		cfg.AllowedOrigins = append(cfg.AllowedOrigins, origin)

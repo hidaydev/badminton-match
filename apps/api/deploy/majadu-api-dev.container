@@ -21,6 +21,7 @@ Network=qouver
 PublishPort=127.0.0.1:8081:8081
 Pull=always
 EnvironmentFile=/srv/qouver/majadu/env/majadu-dev.env
+Volume=/srv/qouver/majadu/logs:/logs:Z
 # AutoUpdate=registry — aktifkan update via: podman auto-update
 AutoUpdate=registry
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"majadu-api/internal/config"
 	"majadu-api/internal/db"
 	"majadu-api/internal/handler"
+	"majadu-api/internal/logfile"
 	"majadu-api/internal/middleware"
 	"majadu-api/internal/store"
 
@@ -19,15 +21,31 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-
 	// Fail-fast: prod harus punya config lengkap.
 	cfg, err := config.Load()
 	if err != nil {
-		logger.Error("config error", "error", err)
+		slog.Error("config error", "error", err)
 		os.Exit(1)
+	}
+
+	// Logger: stdout default; kalau MAJADU_LOG_DIR di-set → file harian
+	// (app-YYYY-MM-DD.log, retensi 7 hari — ala catalina.out).
+	var logCloser func() error
+	var logOut io.Writer = os.Stdout
+	if cfg.LogDir != "" {
+		w, err := logfile.New(cfg.LogDir, 7)
+		if err != nil {
+			slog.Error("log file init failed", "error", err)
+			os.Exit(1)
+		}
+		logOut = w
+		logCloser = w.Close
+	}
+	logger := slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	if logCloser != nil {
+		defer func() { _ = logCloser() }()
 	}
 
 	// Context dibatalkan saat SIGINT/SIGTERM; dipakai juga untuk
