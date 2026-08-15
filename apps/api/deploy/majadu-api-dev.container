@@ -22,6 +22,8 @@ PublishPort=127.0.0.1:8081:8081
 Pull=always
 EnvironmentFile=/srv/qouver/majadu/env/majadu-dev.env
 Volume=/srv/qouver/majadu/logs:/logs:Z
+# keep-id: container app (uid 10001) map ke host user → bisa tulis volume /logs
+UserNS=keep-id:uid=10001
 # AutoUpdate=registry — aktifkan update via: podman auto-update
 AutoUpdate=registry
 
