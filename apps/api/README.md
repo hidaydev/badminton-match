@@ -103,7 +103,7 @@ VPS (rootless podman + systemd user/quadlet) pull & run → Caddy TLS.
 ```
 Vercel (frontend)                          VPS api.qouver.com (Caddy)
 main      → https://api.qouver.com/majadu      → 127.0.0.1:8080 (prod, bm)
-ui-revamp → https://api.qouver.com/majadu-dev  → 127.0.0.1:8081 (dev, bm_dev)
+dev       → https://api.qouver.com/majadu-dev  → 127.0.0.1:8081 (dev, bm_dev)
 ```
 
 **Artefak di `deploy/`:**
@@ -114,7 +114,7 @@ ui-revamp → https://api.qouver.com/majadu-dev  → 127.0.0.1:8081 (dev, bm_dev
 **Langkah (sekali):**
 1. DNS: `api.qouver.com` → A → VPS IP (Cloudflare)
 2. Apply Caddy snippet → `systemctl reload caddy`
-3. VPS: buat `~/.config/containers/systemd/` + env file (`~/projects/vps-setup/jwt/majadu-dev.env`, chmod 600)
+3. VPS: buat `~/.config/containers/systemd/` + env file (`/srv/qouver/majadu/env/majadu-{dev,prod}.env`, chmod 600 — template di `deploy/env/*.env.example`)
 4. `./scripts/deploy.sh setup dev`
 
 **Update:**
