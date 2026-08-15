@@ -4,7 +4,7 @@
 
 Main source:
 
-- `src/store/index.ts`
+- `src/types/index.ts`
 
 ### Player
 
@@ -70,8 +70,6 @@ Fields:
 - `slotMinutes`
 - `courtTimes`
 - `playerCount`
-- `slotsPerCourt`
-- `totalGames`
 - `courtNames`
 - `locked`
 
@@ -100,10 +98,9 @@ Notes:
 
 - `version` enables optimistic concurrency on publish
 - `locked` is a field on the nested `session` (SessionConfig), not on CloudSnapshot directly
-- when `session.locked` is `true`, `publish_session` sets the session status to `'locked'`
-- unlock is admin-only via `bm.unlock_session` RPC (service_role only)
-- `delete_session` also rejects deletion of non-draft (locked) sessions
-- `unlock_session` bumps the version when resetting to draft
+- saat `session.locked` true, write-path Go set status session ke `'locked'`
+- unlock: `POST /sessions/{id}/unlock` (Go) — status → `draft`, version +1
+- `DELETE /sessions/{id}` juga menolak hapus session non-draft (locked)
 
 This is the operational persisted payload for published sessions.
 
@@ -167,9 +164,14 @@ Fields:
 
 ## Supabase persistence model
 
-Current main runtime schema:
+> 2026-08-15: Supabase sudah pensiun. Persistensi sekarang = Postgres VPS
+> (schema `bm` prod / `bm_dev` dev) yang diakses **langsung oleh backend Go
+> (`majadu-api`)** — tidak ada PostgREST/RPC. Definisi schema & migrasi:
+> `majadu-api/migrations/` (000001–000005). Referensi era Supabase: git history.
 
-1. `bm`
+Current runtime schema:
+
+1. `bm` (prod) / `bm_dev` (dev)
 
 Current approach is aggregate-root plus normalized relational support:
 
@@ -178,27 +180,20 @@ Current approach is aggregate-root plus normalized relational support:
 
 ### Main aggregate roots
 
-- `bm.sessions` — session metadata with `version` (optimistic concurrency), `status` (draft/locked/published), `internal_id` (UUID), `share_id`
-- `bm.tournaments` — tournament snapshots with `version` and `snapshot` (JSONB)
-- `bm.players` — canonical player records (UUID PK, canonical_name)
-- `bm.player_aliases` — normalized name → player_id mapping for fuzzy resolution
+- `sessions` — session metadata with `version` (optimistic concurrency), `status` (draft/locked/published), `id` (UUID), `share_code`
+- `tournaments` — tournament snapshots with `version`
+- `players` — canonical player records (UUID PK, canonical_name)
+- `player_aliases` — normalized name → player_id mapping for fuzzy resolution
 
 ### Main child entities
 
-- `bm.session_players` — player roster per session (with gender, tier, sort order, absent status)
-- `bm.session_courts` — per-court time ranges and names
-- `bm.fix_matches` — pre-assigned match constraints per session
-- `bm.fix_match_slots` — individual slot assignments within fix matches
-- `bm.scheduled_games` — generated/scheduled games (slot, court, status, source)
-- `bm.scheduled_game_players` — team/position assignments per scheduled game
-- `bm.game_progress` — played status and order per game
-- `bm.game_scores` — score (A/B) per game
+- `session_players` — player roster per session (with gender, tier, sort order, absent status)
+- `session_courts` — per-court time ranges and names
+- `fix_matches` — pre-assigned match constraints per session
+- `scheduled_games` — generated/scheduled games (slot, court, status, source)
+- `scheduled_game_players` — team/position assignments per scheduled game
+- `tournament_pairs` / `tournament_pair_players` / `tournament_groups` / `tournament_matches` — tournament structure
 
-### Why this shape
-
-Reasons:
-
-- keeps current app behavior stable
-- preserves compatibility snapshot contracts
-- enables stronger validation and integrity
-- allows progressive migration toward a cleaner normalized model
+Semua logika bisnis (validasi, version concurrency, lock, resolve alias) dijalankan
+di Go (`majadu-api/internal/`), bukan fungsi SQL. Sisa fungsi SQL di DB hanya
+`normalize_player_name` (CHECK constraint `player_aliases`) + utilitas.

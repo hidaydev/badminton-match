@@ -1,39 +1,37 @@
 # Docs
 
-This directory is split into two lanes:
+Dokumentasi proyek, terbagi dua lane:
 
-1. the current operating handbook for the app
-2. the historical archive of plans, specs, and migration-era notes
+1. **Handbook aktif** — cara kerja proyek hari ini
+2. **Arsip** — dokumen historis (era Apps Script / Supabase) sudah dihapus
+   2026-08-15; konteks historis tersedia di git history.
 
 ## Start Here
 
-If you want the current truth of the project, begin with:
+Mulai dari sini untuk kebenaran kondisi sekarang:
 
 - [`handbook/README.md`](handbook/README.md)
 - [`handbook/current-status.md`](handbook/current-status.md)
-- [`handbook/bm-supabase-runbook.md`](handbook/bm-supabase-runbook.md)
+- [`handbook/backend-go-decision.md`](handbook/backend-go-decision.md)
 
 ## What Lives Here
 
 ### `handbook/`
 
-The active documentation set for how the project works today:
+Dokumentasi aktif:
 
 - product overview
-- architecture and route map
-- `bm`-centric data model
-- Supabase runtime and migration status
-- operational runbooks
-- `MDEF` integration notes
-- roadmap and closure notes
+- architecture & route map
+- data model (`bm`/`bm_dev`, diakses via backend Go `majadu-api`)
+- backend decision record
+- roadmap
 
-### `superpowers/`
+### `design-system.md`
 
-The historical implementation archive:
+Design tokens, tipografi, dan pola UI (Tailwind v4 `@theme`).
 
-- dated plans
-- design specs
-- old rollout notes
+## Konvensi
 
-Use it for rationale and archaeology, not for present-day architecture or
-runtime decisions.
+- Dokumen yang mendeskripsikan runtime era lama (Supabase/PostgREST) dianggap
+  obsolete dan dihapus — jangan dihidupkan kembali.
+- Detail migrasi/arsip ada di git history (`git log --all`).

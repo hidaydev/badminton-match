@@ -228,7 +228,7 @@ All mutations use advisory locks (`pg_try_advisory_xact_lock`) + `SELECT ... FOR
 | [Features & Routes](docs/handbook/features-and-routes.md) | Feature map + route structure |
 | [Roadmap](docs/handbook/roadmap.md) | Phase plan and status |
 | [Clean Code Backlog](CLEANCODE_BACKLOG.md) | 139/151 items complete |
-| [Supabase Runbook](docs/handbook/bm-supabase-runbook.md) | Operational procedures |
+| [Backend](docs/handbook/backend-go-decision.md) | Keputusan arsitektur & fase migrasi Go |
 
 ---
 

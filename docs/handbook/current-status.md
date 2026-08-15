@@ -64,12 +64,16 @@ integration test: `ssh -f -N -L 15432:127.0.0.1:5432 user@198.51.100.10`.
    pensiunkan Supabase.
 2. **Auth** (ditunda): JWT/session middleware di Go, alur host tanpa friction untuk pemain.
 3. **Menu tournament list** (ditunda): `GET /tournaments` + list page ala sessions.
-4. **Refresh handbook lama** — banyak doc era Supabase di `docs/handbook/archive/`.
+
+Docs stale era Supabase sudah dibersihkan 2026-08-15 (archive/, superpowers/,
+runbook, audit — dihapus; konteks ada di git history).
 
 ## Riwayat singkat
 
 - Era 1: Google Apps Script + Sheets → Era 2: Supabase/PostgREST (`bm`) →
-  Era 3: Go backend (majadu-api). Detail arsip: `docs/handbook/archive/` + git history.
+  Era 3: Go backend (majadu-api). Dokumen era lama (archive/, superpowers/,
+  runbook, audit) dihapus 2026-08-15 — konteks historis ada di git history
+  (`git log --all -- docs/`).
 - Migrasi SQL→Go diselesaikan bertahap 2026-08-13 s/d 2026-08-15 (write-path →
   read-path → tournament), tiap fase diverifikasi parity test terhadap DB live.
 
