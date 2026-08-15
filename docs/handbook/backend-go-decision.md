@@ -23,14 +23,14 @@ sampai stabil, lalu **prod ikut migrasi** (Supabase ditinggalkan).
 ## 2. Struktur repo & mapping branch
 
 ```
-badminton-match (frontend)         <repo backend Go, nama TBD (saran: majadu-backend)>
+badminton-match (frontend)         majadu-api (backend Go)
 ├── main      → prod               ├── main   → prod
-└── ui-revamp → dev                └── dev    → dev
+└── dev       → dev                └── dev    → dev
 ```
 
-- Branch frontend `ui-revamp` memakai backend Go branch `dev`.
+- Branch frontend `dev` memakai backend Go branch `dev`.
 - Branch frontend `main` memakai backend Go branch `main` (setelah migrasi prod).
-- Asimetri nama (`ui-revamp` vs `dev`) disengaja — tidak worth rename.
+- Nama branch frontend `dev` (dulu `ui-revamp`, di-rename 2026-08-15) — konsisten dengan backend.
 
 ## 3. Topologi target
 
@@ -75,7 +75,7 @@ Catatan: bracket propagation turnamen masih di TS app (mengirim snapshot hasil c
 3. **Produksi-ready + REST** (2026-08-12) ✅ — endpoint REST penuh (sessions/players/tournaments),
    OpenAPI spec, concurrency If-Match/ETag, audit hardening, `MAJADU_DB_SCHEMA` env-driven
    (schema tidak hardcode — aman merge dev→main).
-4. **Integrasi frontend `ui-revamp`** (2026-08-12) ✅ — `endpoints.ts` di-rewrite jadi REST client
+4. **Integrasi frontend `dev`** (2026-08-12) ✅ — `endpoints.ts` di-rewrite jadi REST client
    terhadap majadu-api; `__BACKEND_PROFILE__` → `__API_BASE_URL__` (branch mapping);
    bridge `PUT /sessions/{id}` & `PUT /tournaments/{id}` (full snapshot replace, kontrak lama)
    supaya alur frontend (publish snapshot + optimistic updates) tidak berubah. Verifikasi
