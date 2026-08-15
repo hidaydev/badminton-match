@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -27,7 +29,7 @@ func TestIntegrationSessionRoundTrip(t *testing.T) {
 		schema = "bm_dev"
 	}
 
-	pool, err := db.NewPool(context.Background(), url, schema)
+	pool, err := db.NewPool(context.Background(), url, schema, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("db connect: %v", err)
 	}
@@ -113,7 +115,7 @@ func TestIntegrationSessionWritePathSemantics(t *testing.T) {
 		schema = "bm_dev"
 	}
 
-	pool, err := db.NewPool(context.Background(), url, schema)
+	pool, err := db.NewPool(context.Background(), url, schema, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("db connect: %v", err)
 	}

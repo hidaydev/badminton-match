@@ -5,32 +5,46 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 )
 
-// Logging mencatat method, path, status, durasi, request id via slog.
+// slowRequestThresholdMs — request lebih lambat dari ini dicatat level WARN.
+const slowRequestThresholdMs = 1000
+
+// Logging mencatat method, path, status, bytes, client IP, durasi, request id.
+// Request lambat (> slowRequestThresholdMs) di-log level WARN.
 func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(rec, r)
-			logger.Info("request",
+			durMs := time.Since(start).Milliseconds()
+			attrs := []any{
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", rec.status,
+				"bytes", rec.bytes,
+				"client_ip", clientIP(r),
 				"request_id", RequestIDFromContext(r.Context()),
-				"duration_ms", time.Since(start).Milliseconds(),
-			)
+				"duration_ms", durMs,
+			}
+			if durMs >= slowRequestThresholdMs {
+				logger.Warn("slow request", attrs...)
+			} else {
+				logger.Info("request", attrs...)
+			}
 		})
 	}
 }
 
-// statusRecorder — membungkus ResponseWriter untuk menangkap status code.
+// statusRecorder — membungkus ResponseWriter untuk menangkap status + ukuran.
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
+	bytes  int
 }
 
 func (r *statusRecorder) WriteHeader(status int) {
@@ -38,13 +52,25 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
-// Recover menangkap panic → 500 JSON (bukan crash, bukan text/plain).
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	n, err := r.ResponseWriter.Write(b)
+	r.bytes += n
+	return n, err
+}
+
+// Recover menangkap panic → 500 JSON + log lengkap (stack trace, IP, request id).
 func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if rec := recover(); rec != nil {
-					logger.Error("panic recovered", "panic", rec, "path", r.URL.Path)
+					logger.Error("panic recovered",
+						"panic", rec,
+						"stack", string(debug.Stack()),
+						"path", r.URL.Path,
+						"client_ip", clientIP(r),
+						"request_id", RequestIDFromContext(r.Context()),
+					)
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusInternalServerError)
 					_ = json.NewEncoder(w).Encode(map[string]any{

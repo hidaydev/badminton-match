@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -153,4 +154,33 @@ func TestClientIPFromXFF(t *testing.T) {
 	if got := clientIP(req); got != "203.0.113.5" {
 		t.Fatalf("clientIP = %q, want first XFF entry", got)
 	}
+}
+
+func TestLoggingIncludesIPAndBytes(t *testing.T) {
+	var got []string
+	logger := slog.New(slog.NewTextHandler(newCaptureWriter(func(s string) { got = append(got, s) }), nil))
+	h := Logging(logger)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte("hello"))
+	}))
+	req := httptest.NewRequest("POST", "/sessions/abc", nil)
+	req.RemoteAddr = "9.9.9.9:1234"
+	req.Header.Set("X-Forwarded-For", "9.9.9.9")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	joined := strings.Join(got, " ")
+	for _, want := range []string{"status=201", "bytes=5", "client_ip=9.9.9.9", "method=POST", "path=/sessions/abc"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("log tidak memuat %q: %s", want, joined)
+		}
+	}
+}
+
+// captureWriter — io.Writer yang meneruskan tiap baris ke callback.
+type captureWriter struct{ fn func(string) }
+
+func newCaptureWriter(fn func(string)) *captureWriter { return &captureWriter{fn: fn} }
+func (w *captureWriter) Write(p []byte) (int, error) {
+	w.fn(string(p))
+	return len(p), nil
 }

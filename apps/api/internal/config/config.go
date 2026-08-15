@@ -43,6 +43,9 @@ type Config struct {
 	// LogDir — direktori log harian (app-YYYY-MM-DD.log, retensi 7 hari).
 	// Kosong = log ke stdout saja (default dev).
 	LogDir string
+
+	// LogLevel — "debug" | "info" | "warn". Default info.
+	LogLevel string
 }
 
 // Load membaca env, me-load .env jika ada, lalu validasi.
@@ -69,6 +72,7 @@ func Load() (Config, error) {
 	cfg.BaseURL = strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/")
 	cfg.RateLimitPerMin = atoiDefault(os.Getenv("MAJADU_RATE_LIMIT_PER_MIN"), 120)
 	cfg.LogDir = os.Getenv("MAJADU_LOG_DIR")
+	cfg.LogLevel = os.Getenv("MAJADU_LOG_LEVEL")
 
 	for _, origin := range splitList(os.Getenv("CORS_ALLOWED_ORIGINS")) {
 		cfg.AllowedOrigins = append(cfg.AllowedOrigins, origin)

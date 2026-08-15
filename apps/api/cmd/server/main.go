@@ -42,7 +42,7 @@ func main() {
 		logCloser = w.Close
 	}
 	logger := slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: parseLogLevel(cfg.LogLevel),
 	}))
 	if logCloser != nil {
 		defer func() { _ = logCloser() }()
@@ -53,7 +53,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := db.NewPool(ctx, cfg.DatabaseURL, cfg.DatabaseSchema)
+	pool, err := db.NewPool(ctx, cfg.DatabaseURL, cfg.DatabaseSchema, logger)
 	if err != nil {
 		logger.Error("database connection failed", "error", err)
 		os.Exit(1)
@@ -134,4 +134,19 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	h = middleware.RequestID(h)
 	h = middleware.Recover(logger)(h)
 	return h
+}
+
+// parseLogLevel — map MAJADU_LOG_LEVEL ("debug"/"info"/"warn") ke slog.Level.
+// Nilai tidak dikenal → default Info.
+func parseLogLevel(s string) slog.Level {
+	switch s {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
 }
