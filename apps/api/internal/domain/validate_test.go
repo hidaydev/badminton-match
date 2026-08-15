@@ -81,6 +81,11 @@ func TestValidateSnapshotRejects(t *testing.T) {
 			// [4]*string tidak bisa >4 slot — invariant max-4 terjamin struktural.
 			return s
 		}, "never"},
+		{"fixMatch slot kosong (\"\") adalah open slot — lolos", func(s *CloudSnapshot) *CloudSnapshot {
+			empty := ""
+			s.FixMatches = []FixMatch{{ID: "f1", Slots: [4]*string{ptr("p1"), &empty, &empty, nil}}}
+			return s
+		}, "never"},
 		{"fixMatch unknown ref", func(s *CloudSnapshot) *CloudSnapshot {
 			s.FixMatches = []FixMatch{{ID: "f1", Slots: [4]*string{ptr("p1"), ptr("ghost")}}}
 			return s

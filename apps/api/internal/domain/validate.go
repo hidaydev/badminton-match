@@ -139,10 +139,15 @@ func ValidateSnapshot(snap *CloudSnapshot) error {
 			return fmt.Errorf("session fixMatches entries must contain a slots array with at most 4 items")
 		}
 		for _, slot := range fm.Slots {
+			// Slot kosong = open slot (mirror SQL nullif(trim(slot), '') → NULL:
+			// tidak wajib reference pemain).
 			if slot == nil {
 				continue
 			}
 			ref := trimPlayerRef(*slot)
+			if ref == "" {
+				continue
+			}
 			if _, ok := playerRefs[ref]; !ok {
 				return fmt.Errorf("session fixMatches must only reference known player ids")
 			}
