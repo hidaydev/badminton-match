@@ -20,6 +20,7 @@ import { SharedViewContext, useSharedView } from './sharedView'
 const ScoreboardPage = lazy(() => import('./pages/ScoreboardPage'))
 const InstagramPostPage = lazy(() => import('./pages/InstagramPostPage'))
 const TournamentPage = lazy(() => import('./pages/TournamentPage'))
+const TournamentListPage = lazy(() => import('./pages/TournamentListPage'))
 const SharedSessionPage = lazy(() => import('./pages/SharedSessionPage'))
 
 function Loading() {
@@ -81,7 +82,9 @@ export default function App() {
             <Route path="sessions" element={<SessionListPage />} />
             <Route path="player-history" element={<PlayerHistoryPage />} />
             <Route path="player-history/:name" element={<PlayerDetailPage />} />
-            <Route path="tournament" element={<Suspense fallback={<Loading />}><TournamentPage /></Suspense>} />
+            <Route path="tournament" element={<Navigate to="/tournaments" replace />} />
+            <Route path="tournaments" element={<Suspense fallback={<Loading />}><TournamentListPage /></Suspense>} />
+            <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><TournamentPage /></Suspense>} />
             <Route path="instagram-post" element={<Suspense fallback={<Loading />}><InstagramPostPage /></Suspense>} />
           </Route>
           <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ScoreboardPage /></Suspense>} />
