@@ -5,8 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // ── API base URL per deployment ───────────────────────────────────────────
 // Frontend memanggil majadu-api (Go backend) via REST:
-//   - prod (branch main)     → https://api.qouver.com/majadu        (skema bm)
-//   - dev (branch ui-revamp) → https://api.qouver.com/majadu-dev    (skema bm_dev)
+//   - prod (branch main) → https://api.qouver.com/majadu        (skema bm)
+//   - dev  (branch dev)  → https://api.qouver.com/majadu-dev    (skema bm_dev)
 //
 // VERCEL_GIT_COMMIT_REF di-inject otomatis oleh Vercel saat build (nama
 // branch) — TANPA perlu akses dashboard Vercel. Mapping identik di semua
@@ -15,7 +15,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Override eksplisit via env VITE_API_URL (mis. local dev → http://localhost:8080).
 const BRANCH_API_URLS: Record<string, string> = {
   main: 'https://api.qouver.com/majadu',
-  'ui-revamp': 'https://api.qouver.com/majadu-dev',
+  dev: 'https://api.qouver.com/majadu-dev',
 }
 
 const DEV_API_URL = 'https://api.qouver.com/majadu-dev'

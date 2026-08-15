@@ -6,7 +6,7 @@ This is the fastest handover file for continuing work on this repository.
 
 ## Branch
 
-- current working branch: `ui-revamp` (merged design system + clean code audit)
+- current working branch: `dev` (di-rename dari `ui-revamp` pada 2026-08-15, konsisten dengan backend)
 
 ## Core decision record
 
