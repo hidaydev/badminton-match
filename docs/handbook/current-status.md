@@ -22,8 +22,7 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go, net/http + pg
   lock), read-path session/player (rebuild snapshot, list, stats), tournament
   (write/read + register pemain). Sisa fungsi SQL di DB: `normalize_player_name`
   (dipakai CHECK constraint `player_aliases`), `delete_player`, `set_updated_at`.
-- Migrasi DB: `majadu-api/migrations/` 000001–000002 (baseline) → 000003 (write-path
-  drop) → 000004 (read-path drop) → 000005 (tournament drop). Semua applied di `bm_dev`.
+- Migrasi DB: 000001–000002 (baseline) → 000003 (write-path drop) → 000004 (read-path drop) → 000005 (tournament drop). Semua applied di `bm_dev`. File SQL disimpan di VPS: `/srv/qouver/majadu/migrations/` (sengaja tidak di repo GitHub).
 
 ## Deploy & infrastruktur
 

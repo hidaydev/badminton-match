@@ -166,8 +166,9 @@ Fields:
 
 > 2026-08-15: Supabase sudah pensiun. Persistensi sekarang = Postgres VPS
 > (schema `bm` prod / `bm_dev` dev) yang diakses **langsung oleh backend Go
-> (`majadu-api`)** — tidak ada PostgREST/RPC. Definisi schema & migrasi:
-> `majadu-api/migrations/` (000001–000005). Referensi era Supabase: git history.
+> (`majadu-api`)** — tidak ada PostgREST/RPC. Definisi schema & migrasi
+> (000001–000005) disimpan di VPS: `/srv/qouver/majadu/migrations/` (sengaja
+> tidak di repo public). Referensi era Supabase: git history.
 
 Current runtime schema:
 

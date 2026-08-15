@@ -224,7 +224,7 @@ Backend **Go (`majadu-api`)** menghubungkan frontend ke Postgres VPS langsung
 
 - write-path session/tournament: transaksi + advisory lock + version concurrency
 - read-path: rebuild snapshot langsung di Go
-- schema `bm` (prod) / `bm_dev` (dev), migrasi di `majadu-api/migrations/`
+- schema `bm` (prod) / `bm_dev` (dev), migrasi disimpan di VPS (`/srv/qouver/majadu/migrations/`, sengaja tidak di repo public)
 - semua logika validasi/lock/resolve ada di Go — sisa fungsi SQL hanya
   `normalize_player_name` (CHECK constraint) + utilitas
 
