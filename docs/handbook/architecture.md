@@ -233,6 +233,22 @@ satu bahasa (Go) yang teruji.
 
 ## Design principle
 
+**Thick client untuk UX computation, server authoritative untuk state** (pola
+Google Docs/Figma — bukan "frontend kosong"):
+
+| Lapisan | Pemilik | Contoh |
+|---|---|---|
+| **Komputasi interaktif** | Frontend | generator schedule, bracket tournament, standings preview, optimistic mutation, quality score |
+| **Validasi + kebijakan** | Backend (majadu-api) | invariant snapshot (ValidateSnapshot/Tournament), version concurrency, lock, alias resolution, aturan skor (ValidateScore) |
+| **Persistensi + identity** | Backend | snapshot storage, career stats (get_player_stats), read-path rebuild |
+
+Aturan domain yang TIDAK boleh dobel: setiap rule satu source of truth.
+Parity test menjaga konsistensi lintas bahasa: `transform_test.go` ↔
+`scoreValidation.test.ts`, `stats.go` ↔ `standings.test.ts`.
+
+Yang TIDAK dipindahkan ke backend (sengaja): generator & bracket — single-client
+PWA butuh feedback instan + offline; server tetap jadi penjaga invariant.
+
 - keep product behavior in the frontend
 - keep storage concerns behind the query layer
 - keep pure domain logic in generator and utility modules
