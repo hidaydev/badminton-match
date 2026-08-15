@@ -56,18 +56,26 @@ func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 	return out, rows.Err()
 }
 
-// Register — registry pemain (register_player SQL). Fungsi SQL TETAP dipakai:
-// resolve_tournament_player → publish_tournament (masih SQL) bergantung padanya.
+// Register — registry pemain (port bm.register_player): idempotent dan
+// TOCTOU-safe (re-query alias setelah INSERT ON CONFLICT DO NOTHING).
 func (s *PlayerStore) Register(ctx context.Context, name, canonicalName string) (string, error) {
-	var id string
-	err := s.pool.QueryRow(ctx,
-		`SELECT register_player($1, $2)`,
-		name, canonicalName,
-	).Scan(&id)
+	if canonicalName == "" {
+		canonicalName = name
+	}
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return "", err
 	}
-	return id, nil
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	pid, err := registerPlayerInTx(ctx, tx, name, canonicalName)
+	if err != nil {
+		return "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	return pid, nil
 }
 
 // Stats — statistik karier pemain (port bm.get_player_stats_compat) → JSON.

@@ -83,12 +83,13 @@ player stats — diverifikasi identik via `TestIntegrationReadPathParity`):
 GRANT SELECT tabel tournament di `migrations/000004_drop_readpath_functions.sql`
 (stats membaca tabel tournament langsung).
 
-**Sisa fungsi SQL — hanya jalur TURNAMEN** (`get_tournament`,
-`publish_tournament`, `validate_tournament_snapshot`) plus pendukungnya:
-`register_player`/`register_player_alias`/`ensure_player`/`normalize_player_name`
-(dipakai `resolve_tournament_player` → `publish_tournament`) dan
-`normalize_player_name` juga dipakai CHECK constraint `player_aliases`.
-Turnamen belum dimigrasi ke Go (ditunda).
+**Tournament juga sudah Go** (write + read + register pemain — diverifikasi via
+`TestIntegrationTournamentParity`): GRANT DML di
+`migrations/000005_drop_tournament_functions.sql`.
+
+**Sisa fungsi SQL**: hanya `normalize_player_name` (dipakai CHECK constraint
+`player_aliases`) + utilitas `delete_player` / trigger `set_updated_at`. Semua
+logika bisnis (session, player, tournament) sudah 100% di Go.
 
 **Schema via `MAJADU_DB_SCHEMA` (env), BUKAN hardcode di SQL.** Store memakai
 kueri tanpa prefix schema; `search_path` diarahkan per-koneksi. Ini penting
