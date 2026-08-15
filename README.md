@@ -257,4 +257,4 @@ npm run check
 
 ## 📄 License
 
-Private project.
+MIT — see [LICENSE](LICENSE).
