@@ -28,3 +28,11 @@ dist-ssr
 supabase/.temp
 
 .opencode
+ACTIVE_BACKLOG.md
+CLEANCODE_BACKLOG.md
+DATA_MODEL_V2_TASKS.md
+HANDOFF.md
+TASK_LIST.md
+
+.graphify
+graphify-out
