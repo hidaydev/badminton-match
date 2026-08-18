@@ -60,6 +60,7 @@ func (s *TournamentStore) Load(ctx context.Context, id string) (*domain.Tourname
 
 	snap := &domain.TournamentSnapshot{
 		Version: &version,
+		Format:  "classic",
 		Name:    name,
 		Date:    date,
 		Pairs:   []domain.TournamentPair{},
@@ -177,15 +178,16 @@ func (s *TournamentStore) Load(ctx context.Context, id string) (*domain.Tourname
 
 // TournamentMeta — baris list tournament (GET /tournaments).
 type TournamentMeta struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Date string `json:"date"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Date   string `json:"date"`
+	Format string `json:"format"`
 }
 
 // List — daftar metadata semua tournament, terbaru dulu.
 func (s *TournamentStore) List(ctx context.Context) ([]TournamentMeta, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT share_code, name, event_date::text
+		SELECT share_code, name, event_date::text, format
 		FROM tournaments
 		ORDER BY event_date DESC, updated_at DESC`)
 	if err != nil {
@@ -196,7 +198,7 @@ func (s *TournamentStore) List(ctx context.Context) ([]TournamentMeta, error) {
 	out := make([]TournamentMeta, 0)
 	for rows.Next() {
 		var m TournamentMeta
-		if err := rows.Scan(&m.ID, &m.Name, &m.Date); err != nil {
+		if err := rows.Scan(&m.ID, &m.Name, &m.Date, &m.Format); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

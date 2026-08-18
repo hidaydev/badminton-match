@@ -10,6 +10,7 @@ import (
 // src/utils/tournament.ts).
 type TournamentSnapshot struct {
 	Version *int                `json:"version,omitempty"`
+	Format  string              `json:"format"`
 	Name    string              `json:"name"`
 	Date    string              `json:"date"`
 	Pairs   []TournamentPair    `json:"pairs"`

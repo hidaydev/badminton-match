@@ -547,6 +547,7 @@ components:
         id: { type: string, example: sAbc123XYZ }
         name: { type: string }
         date: { type: string, format: date }
+        format: { type: string, enum: [classic, team], default: classic }
 
     TournamentDraft:
       type: object
@@ -591,3 +592,51 @@ components:
         pairs: { type: array, items: { type: object } }
         groups: { type: object }
         matches: { type: array, items: { type: object } }
+
+    TeamTournament:
+      type: object
+      required: [format, name, date, teams]
+      properties:
+        version: { type: integer }
+        format: { type: string, enum: [team] }
+        name: { type: string }
+        date: { type: string, format: date }
+        teams:
+          type: array
+          minItems: 6
+          maxItems: 6
+          items:
+            type: object
+            required: [id, name, players]
+            properties:
+              id: { type: string, example: t1 }
+              name: { type: string }
+              players:
+                type: array
+                minItems: 6
+                maxItems: 6
+                items:
+                  type: object
+                  required: [name, cls]
+                  properties:
+                    name: { type: string }
+                    cls: { type: string, enum: ["A+", A, "B+", B, "C+", C] }
+        matches:
+          type: array
+          items:
+            type: object
+            required: [id, phase, teamA, teamB, partai]
+            properties:
+              id: { type: string }
+              phase: { type: string, enum: [group, final] }
+              teamA: { type: string }
+              teamB: { type: string }
+              partai:
+                type: array
+                minItems: 3
+                maxItems: 3
+                items:
+                  type: object
+                  properties:
+                    scoreA: { type: [integer, "null"] }
+                    scoreB: { type: [integer, "null"] }
