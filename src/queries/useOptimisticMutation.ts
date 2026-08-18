@@ -122,7 +122,7 @@ export function useOptimisticSessionMutation(
   )
 }
 
-// ── Tournament-specific wrapper ────────────────────────────────────────────
+// ── Tournament-specific wrapper (CLASSIC format) ────────────────────────────
 
 export function useOptimisticTournamentMutation<TVars = unknown>(
   tournamentId: string,
@@ -134,8 +134,15 @@ export function useOptimisticTournamentMutation<TVars = unknown>(
     tournamentId,
     {
       queryKey: ['tournament', tournamentId],
-      fetchSnapshot: (id) => getTournament(id),
-      publish: (id, snap) => publishTournament(id, snap),
+      // Narrow ke classic — format team memakai mutation terpisah (Fase 5).
+      fetchSnapshot: async (id) => {
+        const s = await getTournament(id)
+        return s && s.format !== 'team' ? s : null
+      },
+      publish: async (id, snap) => {
+        const out = await publishTournament(id, snap)
+        return out.format !== 'team' ? out : snap
+      },
       optimisticUpdate,
       onSuccessCallback,
       applyOptimistic,

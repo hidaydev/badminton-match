@@ -19,8 +19,10 @@ import { SharedViewContext, useSharedView } from './sharedView'
 // Lazy-loaded heavy pages (code-split)
 const ScoreboardPage = lazy(() => import('./pages/ScoreboardPage'))
 const InstagramPostPage = lazy(() => import('./pages/InstagramPostPage'))
-const TournamentPage = lazy(() => import('./pages/TournamentPage'))
+const TournamentPage = lazy(() => import('./pages/TournamentRouter'))
 const TournamentListPage = lazy(() => import('./pages/TournamentListPage'))
+const NewTournamentPage = lazy(() => import('./pages/NewTournamentPage'))
+const NewTournamentWizard = lazy(() => import('./pages/NewTournamentWizard'))
 const SharedSessionPage = lazy(() => import('./pages/SharedSessionPage'))
 
 function Loading() {
@@ -84,6 +86,8 @@ export default function App() {
             <Route path="player-history/:name" element={<PlayerDetailPage />} />
             <Route path="tournament" element={<Navigate to="/tournaments" replace />} />
             <Route path="tournaments" element={<Suspense fallback={<Loading />}><TournamentListPage /></Suspense>} />
+            <Route path="tournaments/new" element={<Suspense fallback={<Loading />}><NewTournamentPage /></Suspense>} />
+            <Route path="tournaments/new/:format" element={<Suspense fallback={<Loading />}><NewTournamentWizard /></Suspense>} />
             <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><TournamentPage /></Suspense>} />
             <Route path="instagram-post" element={<Suspense fallback={<Loading />}><InstagramPostPage /></Suspense>} />
           </Route>

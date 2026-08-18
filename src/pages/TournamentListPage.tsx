@@ -1,7 +1,9 @@
+import { useNavigate } from 'react-router-dom'
 import { useListTournaments } from '../queries'
 
-/** Daftar tournament (metadata) — pola SessionListPage. Create menyusul. */
+/** Daftar tournament (metadata). */
 export default function TournamentListPage() {
+  const navigate = useNavigate()
   const { data: tournaments = [], isLoading, isError } = useListTournaments()
 
   if (isLoading) return <p className="text-fg-dim text-sm">Loading tournaments…</p>
@@ -9,8 +11,14 @@ export default function TournamentListPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-bold text-fg">Tournaments</h2>
+        <button
+          onClick={() => navigate('/tournaments/new')}
+          className="px-3 py-2 rounded-lg bg-accent text-slate-950 text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-all"
+        >
+          + Buat
+        </button>
       </div>
 
       <p className="text-xs font-mono text-fg-dim">
@@ -35,8 +43,12 @@ export default function TournamentListPage() {
                 <p className="text-sm font-semibold text-fg truncate">{t.name || 'Untitled Tournament'}</p>
                 <p className="text-xs text-fg-dim mt-0.5 font-mono">{t.date.split('-').reverse().join('-')}</p>
               </div>
-              <div className="text-right shrink-0">
-                <p className="text-xs text-fg-dim font-mono">16 pairs</p>
+              <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                <span className={`text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                  t.format === 'team' ? 'text-accent border-accent/40' : 'text-fg-dim border-border'
+                }`}>
+                  {t.format === 'team' ? 'team' : 'classic'}
+                </span>
               </div>
             </a>
           ))}

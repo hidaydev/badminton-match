@@ -91,15 +91,18 @@ export default function TournamentPage() {
   const queryClient = useQueryClient()
   const { data: snapshot, isFetching, refetch } = useGetTournament(id)
 
+  // Halaman ini khusus format classic — narrow dari union snapshot.
+  const classic = snapshot && snapshot.format !== 'team' ? snapshot : null
+
   const handleOpenModal = () => {
     queryClient.invalidateQueries({ queryKey: ['tournament', id] })
   }
 
-  const pairs = snapshot?.pairs ?? INITIAL_PAIRS
-  const committedGroups = snapshot?.groups ?? EMPTY_GROUPS
-  const matches = snapshot?.matches ?? []
-  const name = snapshot?.name ?? 'MAJADU Internal Tournament 2026'
-  const date = snapshot?.date ?? '2026-05-23'
+  const pairs = classic?.pairs ?? INITIAL_PAIRS
+  const committedGroups = classic?.groups ?? EMPTY_GROUPS
+  const matches = classic?.matches ?? []
+  const name = classic?.name ?? 'MAJADU Internal Tournament 2026'
+  const date = classic?.date ?? '2026-05-23'
 
   const groupsFull = GROUP_IDS.every((g) => committedGroups[g].length === 4)
 
