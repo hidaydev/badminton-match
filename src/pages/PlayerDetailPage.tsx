@@ -16,7 +16,7 @@ export default function PlayerDetailPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-xl font-bold text-white">{stats.name}</h2>
+      <h2 className="text-xl font-bold text-fg">{stats.name}</h2>
 
       <div className="grid grid-cols-2 gap-3">
         {([
@@ -25,15 +25,15 @@ export default function PlayerDetailPage() {
           { label: 'Wins', value: stats.wins },
           { label: 'Losses', value: stats.losses },
         ] as const).map((stat) => (
-          <div key={stat.label} className="bg-surface border border-border-subtle rounded-xl p-4">
+          <div key={stat.label} className="bg-surface border border-border-subtle rounded-lg p-4">
             <p className="text-xs text-slate-400">{stat.label}</p>
-            <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
+            <p className="text-2xl font-bold text-fg font-mono mt-1">{stat.value}</p>
           </div>
         ))}
       </div>
 
       {stats.sessions.length > 0 && (
-        <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-2">
+        <div className="bg-surface border border-border-subtle rounded-lg p-4 flex flex-col gap-2">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Sessions ({stats.sessions.length})
           </p>
@@ -50,7 +50,7 @@ export default function PlayerDetailPage() {
       )}
 
       {stats.topPartners.length > 0 && (
-        <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-2">
+        <div className="bg-surface border border-border-subtle rounded-lg p-4 flex flex-col gap-2">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Top Partners</p>
           {stats.topPartners.map((p) => (
             <div key={p.name} className="flex items-center justify-between">
@@ -66,7 +66,7 @@ export default function PlayerDetailPage() {
       )}
 
       {stats.topOpponents.length > 0 && (
-        <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-2">
+        <div className="bg-surface border border-border-subtle rounded-lg p-4 flex flex-col gap-2">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Top Opponents</p>
           {stats.topOpponents.map((p) => (
             <div key={p.name} className="flex items-center justify-between">
@@ -92,15 +92,15 @@ export default function PlayerDetailPage() {
               { label: 'Wins', value: stats.tournamentStats.wins },
               { label: 'Losses', value: stats.tournamentStats.losses },
             ] as const).map((stat) => (
-              <div key={stat.label} className="bg-surface border border-border-subtle rounded-xl p-4">
+              <div key={stat.label} className="bg-surface border border-border-subtle rounded-lg p-4">
                 <p className="text-xs text-slate-400">{stat.label}</p>
-                <p className="text-2xl font-bold text-white mt-1">{stat.value}</p>
+                <p className="text-2xl font-bold text-fg font-mono mt-1">{stat.value}</p>
               </div>
             ))}
           </div>
 
           {stats.tournamentStats.tournaments.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-2">
+            <div className="bg-surface border border-border-subtle rounded-lg p-4 flex flex-col gap-2">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Tournaments ({stats.tournamentStats.tournaments.length})
               </p>
@@ -119,7 +119,7 @@ export default function PlayerDetailPage() {
           )}
 
           {stats.tournamentStats.topPartners.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-2">
+            <div className="bg-surface border border-border-subtle rounded-lg p-4 flex flex-col gap-2">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tournament Partners</p>
               {stats.tournamentStats.topPartners.map((p) => (
                 <div key={p.name} className="flex items-center justify-between">
@@ -134,7 +134,7 @@ export default function PlayerDetailPage() {
           )}
 
           {stats.tournamentStats.topOpponents.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-2">
+            <div className="bg-surface border border-border-subtle rounded-lg p-4 flex flex-col gap-2">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tournament Opponents</p>
               {stats.tournamentStats.topOpponents.map((p) => (
                 <div key={p.name} className="flex items-center justify-between">

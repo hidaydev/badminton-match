@@ -4,14 +4,46 @@ import { usePwaInstall } from '../hooks/usePwaInstall'
 import { useLastSession } from '../hooks/useLastSession'
 import InstallModal from '../components/InstallModal'
 
-const grid = [
-  { icon: '🏸', label: 'Create Session', description: 'Set up a new game', to: '/session/new' },
-  { icon: '📋', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
-  { icon: '👤', label: 'Player History', description: 'Stats & records', to: '/player-history' },
-  { icon: '🎯', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
-  { icon: '📸', label: 'Instagram Post', description: 'Create a post from template', to: '/instagram-post' },
-  { icon: '🏆', label: 'Tournament', description: 'Leaderboard & cup', to: '/tournaments' },
+const secondary = [
+  { icon: 'sessions', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
+  { icon: 'history', label: 'Player History', description: 'Stats & records', to: '/player-history' },
+  { icon: 'scoreboard', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
+  { icon: 'tournament', label: 'Tournament', description: 'Leaderboard & cup', to: '/tournaments' },
+  { icon: 'post', label: 'Instagram Post', description: 'Create a post', to: '/instagram-post' },
 ] as const
+
+function Icon({ name, size = 20 }: { name: string; size?: number }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  }
+  switch (name) {
+    case 'plus':
+      return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>
+    case 'sessions':
+      return <svg {...common}><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></svg>
+    case 'history':
+      return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>
+    case 'scoreboard':
+      return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="1" /><path d="M8 3v4M16 3v4M3 12h18" /><path d="M7 15l2-2 2 2 2-2 2 2" /></svg>
+    case 'tournament':
+      return <svg {...common}><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z" /><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8" /></svg>
+    case 'post':
+      return <svg {...common}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+    case 'download':
+      return <svg {...common}><path d="M12 3v12M7 10l5 5 5-5" /><path d="M4 21h16" /></svg>
+    case 'play':
+      return <svg {...common}><path d="M6 4l14 8-14 8V4z" /></svg>
+    default:
+      return null
+  }
+}
 
 async function openScoreboard(navigate: (path: string) => void) {
   try { await document.documentElement.requestFullscreen() } catch (_error) { void _error }
@@ -45,78 +77,69 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 pt-6">
-      <div className="flex flex-col gap-1">
-        <p
-          className="text-[10px] font-mono text-slate-400 uppercase"
-          style={{ letterSpacing: '0.2em' }}
-        >
-          Badminton
-        </p>
-        <h2 className="text-3xl font-bold text-yellow-400 tracking-tight leading-none">Scheduler</h2>
-        <p className="text-slate-400 text-xs mt-2 font-mono">Select an option to get started</p>
-      </div>
+    <div className="flex flex-col gap-5 pt-2">
+      {/* Hero CTA — action harian */}
+      <button
+        onClick={() => navigate('/session/new')}
+        className="w-full flex items-center justify-center gap-2 py-4 rounded-lg bg-accent text-slate-950 font-bold text-[1rem] transition-all active:scale-[0.98] hover:brightness-110"
+      >
+        <Icon name="plus" size={20} />
+        New Session
+      </button>
 
       {lastSession && (
         <button
           onClick={() => navigate(`/s/${lastSession.id}`)}
-          className="relative overflow-hidden flex items-center gap-4 p-5 rounded-2xl text-left
-            bg-slate-900 border border-slate-700 hover:border-slate-500 hover:bg-slate-800/70
-            active:scale-98 transition-all duration-200"
+          className="flex items-center gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
         >
-          <span className="text-3xl">📋</span>
+          <Icon name="play" size={20} />
           <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-            <span
-              className="text-[10px] font-mono text-slate-400 uppercase"
-              style={{ letterSpacing: '0.15em' }}
-            >
+            <span className="text-[10px] font-mono text-fg-dim uppercase" style={{ letterSpacing: '0.12em' }}>
               Continue Session
             </span>
-            <span className="text-[1rem] font-bold text-white leading-tight truncate">
+            <span className="text-[1rem] font-bold text-fg leading-tight truncate">
               {lastSession.title || 'Untitled Session'}
             </span>
-            <span className="text-xs text-slate-400 font-mono">
+            <span className="text-xs text-fg-dim font-mono">
               {lastSession.date.split('-').reverse().join('-')} · {lastSession.playerCount} players · {lastSession.totalGames} games
             </span>
           </div>
-          <span className="text-slate-400 font-mono text-sm shrink-0">→</span>
         </button>
       )}
 
-      {/* 2×N grid */}
-      <div className="grid grid-cols-2 gap-2.5">
-        {grid.map((item) => (
-          <button
-            key={item.to}
-            onClick={() => item.to === '/scoreboard' ? openScoreboard(navigate) : navigate(item.to)}
-            className="group relative flex flex-col gap-4 p-5 rounded-2xl text-left
-              border transition-all duration-200
-              bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/70 active:scale-98"
-          >
-            <span className="text-2xl">{item.icon}</span>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-semibold text-white leading-tight">{item.label}</span>
-              <span className="text-[11px] text-slate-400">{item.description}</span>
-            </div>
-            <span className="absolute bottom-4 right-4 text-slate-400 group-hover:text-slate-200 transition-colors text-sm font-mono">→</span>
-          </button>
-        ))}
+      {/* Grid sekunder */}
+      <div className="flex flex-col gap-2.5">
+        <p className="text-[10px] font-mono text-fg-dim uppercase" style={{ letterSpacing: '0.12em' }}>
+          App
+        </p>
+        <div className="grid grid-cols-2 gap-2.5">
+          {secondary.map((item) => (
+            <button
+              key={item.to}
+              onClick={() => item.to === '/scoreboard' ? openScoreboard(navigate) : navigate(item.to)}
+              className="flex items-start gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
+            >
+              <Icon name={item.icon} size={20} />
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-sm font-semibold text-fg leading-tight">{item.label}</span>
+                <span className="text-[11px] text-fg-dim">{item.description}</span>
+              </div>
+            </button>
+          ))}
 
-        {isInstallable && (
-          <button
-            onClick={() => setManualInstallOpen(true)}
-            className="group relative flex flex-col gap-4 p-5 rounded-2xl text-left
-              border transition-all duration-200
-              bg-slate-900 border-slate-800 hover:border-slate-600 hover:bg-slate-800/70 active:scale-98"
-          >
-            <span className="text-2xl">📲</span>
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-semibold text-white leading-tight">Install App</span>
-              <span className="text-[11px] text-slate-400">Add to your home screen</span>
-            </div>
-            <span className="absolute bottom-4 right-4 text-slate-400 group-hover:text-slate-200 transition-colors text-sm font-mono">→</span>
-          </button>
-        )}
+          {isInstallable && (
+            <button
+              onClick={() => setManualInstallOpen(true)}
+              className="flex items-start gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
+            >
+              <Icon name="download" size={20} />
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-sm font-semibold text-fg leading-tight">Install App</span>
+                <span className="text-[11px] text-fg-dim">Add to home screen</span>
+              </div>
+            </button>
+          )}
+        </div>
       </div>
 
       {modalOpen && (

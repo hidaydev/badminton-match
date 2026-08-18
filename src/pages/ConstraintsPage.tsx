@@ -15,7 +15,7 @@ export default function ConstraintsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Constraints</h2>
+          <h2 className="text-lg font-bold text-fg mb-0.5">Constraints</h2>
           <p className="text-slate-400 text-sm">Define fixed matches. Pin to time & court or leave flexible for the generator.</p>
         </div>
         {fixMatches.length > 0 && (
@@ -43,7 +43,7 @@ export default function ConstraintsPage() {
 
       {fixMatches.length === 0 && (
         <div className="text-center py-12 text-slate-400">
-          <div className="text-4xl mb-3">🎯</div>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mx-auto mb-3 text-slate-500"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
           <p className="text-sm">No fixed matches yet. Add one to force specific pairings.</p>
         </div>
       )}
@@ -63,7 +63,7 @@ export default function ConstraintsPage() {
       <button
         onClick={() => navigate('/session/generate')}
         disabled={hasErrors}
-        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
+        className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors"
       >
         {hasErrors ? 'Fix errors above to continue' : 'Next: Generate →'}
       </button>

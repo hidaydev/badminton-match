@@ -47,7 +47,7 @@ export function FixMatchCard({
   const isPinned = match.mode === 'pinned'
 
   return (
-    <div className={`bg-slate-900 border rounded-2xl p-3 flex flex-col gap-2 ${isPinned ? 'border-indigo-700' : 'border-slate-800'}`}>
+    <div className={`bg-slate-900 border rounded-lg p-3 flex flex-col gap-2 ${isPinned ? 'border-indigo-700' : 'border-slate-800'}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {isPinned && <span className="text-xs">📌</span>}
@@ -124,7 +124,7 @@ export function FixMatchCard({
             </select>
           </div>
           <div className="flex flex-col gap-1 flex-1">
-            <span className="text-[10px] text-slate-400">🏸 Court</span>
+            <span className="text-[10px] text-slate-400">Court</span>
             <select
               value={match.pinnedCourt}
               onChange={(e) => updateFixMatch(match.id, { pinnedCourt: e.target.value ? Number(e.target.value) : 0 } as Partial<MatchConstraint>)}

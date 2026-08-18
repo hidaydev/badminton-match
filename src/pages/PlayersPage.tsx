@@ -238,7 +238,7 @@ function BulkImport({ onClose, existingCount, max }: { onClose: () => void; exis
         <button
           disabled={preview.length === 0}
           onClick={handleImport}
-          className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors"
+          className="flex-1 py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold rounded-lg transition-colors"
         >
           Import {preview.length > 0 ? preview.length : ''} Players
         </button>
@@ -277,7 +277,7 @@ export default function PlayersPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Players</h2>
+          <h2 className="text-lg font-bold text-fg mb-0.5">Players</h2>
           <p className="text-slate-400 text-sm">Click name to rename · Click badge to toggle gender/tier.</p>
         </div>
         <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${
@@ -335,14 +335,14 @@ export default function PlayersPage() {
             className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors"
             title="Bulk import from text"
           >
-            📋 Bulk
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg> Bulk
           </button>
         </div>
       )}
 
       {players.length === 0 && !showForm && !showBulk && (
         <div className="text-center py-12 text-slate-400">
-          <div className="text-4xl mb-3">👥</div>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 text-slate-400"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
           <p>No players yet. Add {required} players to continue.</p>
         </div>
       )}
@@ -359,7 +359,7 @@ export default function PlayersPage() {
       <button
         disabled={!isComplete || !session.locked}
         onClick={() => navigate('/session/constraints')}
-        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors mt-2"
+        className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors mt-2"
       >
         {!session.locked
           ? 'Go to Setup to start session'

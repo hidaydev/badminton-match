@@ -181,7 +181,7 @@ export default function GeneratePage() {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
-            <h2 className="text-xl sm:text-2xl font-bold text-white">Generate Schedule</h2>
+            <h2 className="text-lg font-bold text-fg">Generate Schedule</h2>
           </div>
           <p className="text-slate-400 text-xs sm:text-sm">
             {players.length} players · {selectTotalGames(session)} games · {session.courts} court{session.courts > 1 ? 's' : ''}
@@ -251,7 +251,7 @@ export default function GeneratePage() {
         <button
           onClick={handleRetryUntilGood}
           disabled={players.length < 4 || isGenerating}
-          className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-[1rem] rounded-2xl transition-colors"
+          className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-sm rounded-lg transition-colors"
         >
           {isGenerating ? '⏳ Generating…' : '▶ Generate Schedule'}
         </button>

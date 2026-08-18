@@ -6,28 +6,125 @@
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 
-  /* Background */
-  --color-ground: #0f172a;
-  --color-surface: #1e293b;
-  --color-elevated: #334155;
+  /* ── Neutral: graphite (warm-dark) — remap seluruh scale slate ────────── */
+  --color-slate-50:  #eef0f3;
+  --color-slate-100: #e2e5e8;
+  --color-slate-200: #c8cdd3;
+  --color-slate-300: #aab2ba;
+  --color-slate-400: #8b939c;
+  --color-slate-500: #3a4350;
+  --color-slate-600: #2a313c;
+  --color-slate-700: #1c212b;
+  --color-slate-800: #14181f;
+  --color-slate-900: #0b0e13;
+  --color-slate-950: #080a0e;
 
-  /* Border */
-  --color-border: #475569;
-  --color-border-subtle: #334155;
+  /* ── Accent: gold — satu-satunya aksen (yellow + amber + indigo → gold) ─ */
+  --color-yellow-50:  #faf3e3;
+  --color-yellow-100: #f3e6c4;
+  --color-yellow-200: #ecd9a6;
+  --color-yellow-300: #e8cd83;
+  --color-yellow-400: #e3b341;
+  --color-yellow-500: #c9972e;
+  --color-yellow-600: #a87c22;
+  --color-yellow-700: #866212;
+  --color-yellow-800: #644a0d;
+  --color-yellow-900: #423208;
+  --color-yellow-950: #2b2107;
+  --color-amber-50:  #faf3e3;
+  --color-amber-100: #f3e6c4;
+  --color-amber-200: #ecd9a6;
+  --color-amber-300: #e8cd83;
+  --color-amber-400: #e3b341;
+  --color-amber-500: #c9972e;
+  --color-amber-600: #a87c22;
+  --color-amber-700: #866212;
+  --color-amber-800: #644a0d;
+  --color-amber-900: #423208;
+  --color-amber-950: #2b2107;
+  --color-indigo-50:  #faf3e3;
+  --color-indigo-100: #f3e6c4;
+  --color-indigo-200: #ecd9a6;
+  --color-indigo-300: #e8cd83;
+  --color-indigo-400: #e3b341;
+  --color-indigo-500: #c9972e;
+  --color-indigo-600: #a87c22;
+  --color-indigo-700: #866212;
+  --color-indigo-800: #644a0d;
+  --color-indigo-900: #423208;
+  --color-indigo-950: #2b2107;
 
-  /* Text */
-  --color-fg: #f1f5f9;
-  --color-fg-dim: #94a3b8;
+  /* ── Status: muted ────────────────────────────────────────────────────── */
+  --color-emerald-50:  #e8f4ee;
+  --color-emerald-100: #cbe9d9;
+  --color-emerald-200: #a8d8c0;
+  --color-emerald-300: #82c6a6;
+  --color-emerald-400: #5fb58f;
+  --color-emerald-500: #43a57d;
+  --color-emerald-600: #34846a;
+  --color-emerald-700: #286a55;
+  --color-emerald-800: #1d5041;
+  --color-emerald-900: #14372d;
+  --color-emerald-950: #0d241d;
+  --color-green-50:  #e8f4ee;
+  --color-green-100: #cbe9d9;
+  --color-green-200: #a8d8c0;
+  --color-green-300: #82c6a6;
+  --color-green-400: #5fb58f;
+  --color-green-500: #43a57d;
+  --color-green-600: #34846a;
+  --color-green-700: #286a55;
+  --color-green-800: #1d5041;
+  --color-green-900: #14372d;
+  --color-green-950: #0d241d;
+  --color-red-50:  #fbeae9;
+  --color-red-100: #f5d2d0;
+  --color-red-200: #ebb0ad;
+  --color-red-300: #e08d89;
+  --color-red-400: #d86f6a;
+  --color-red-500: #d65a5a;
+  --color-red-600: #b04848;
+  --color-red-700: #8c3a3a;
+  --color-red-800: #6a2d2d;
+  --color-red-900: #482020;
+  --color-red-950: #301515;
+  --color-sky-50:  #e9f1f8;
+  --color-sky-100: #d0e2f0;
+  --color-sky-200: #aecbe3;
+  --color-sky-300: #8bb2d5;
+  --color-sky-400: #6d9dc8;
+  --color-sky-500: #5b8fbd;
+  --color-sky-600: #4a759c;
+  --color-sky-700: #3a5d7d;
+  --color-sky-800: #2c465f;
+  --color-sky-900: #1f3245;
+  --color-sky-950: #14212e;
+  --color-blue-50:  #e9f1f8;
+  --color-blue-100: #d0e2f0;
+  --color-blue-200: #aecbe3;
+  --color-blue-300: #8bb2d5;
+  --color-blue-400: #6d9dc8;
+  --color-blue-500: #5b8fbd;
+  --color-blue-600: #4a759c;
+  --color-blue-700: #3a5d7d;
+  --color-blue-800: #2c465f;
+  --color-blue-900: #1f3245;
+  --color-blue-950: #14212e;
 
-  /* Accent */
-  --color-accent: #fbbf24;
-  --color-accent-alt: #818cf8;
-
-  /* Status */
-  --color-success: #34d399;
-  --color-error: #f87171;
-  --color-warning: #fbbf24;
-  --color-info: #38bdf8;
+  /* ── Semantic tokens (tetap, titik-titik yang sama) ───────────────────── */
+  --color-ground: #0b0e13;
+  --color-surface: #14181f;
+  --color-elevated: #1c212b;
+  --color-border: #2a313c;
+  --color-border-subtle: #22272f;
+  --color-fg: #eef0f3;
+  --color-fg-dim: #8b939c;
+  --color-accent: #e3b341;
+  --color-accent-alt: #e3b341;
+  --color-success: #43a57d;
+  --color-error: #d65a5a;
+  --color-warning: #e3b341;
+  --color-info: #5b8fbd;
 }
 
 * {
@@ -40,6 +137,17 @@ body {
   background: var(--color-ground);
   color: var(--color-fg);
   -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #0b0e13;
+}
+
+/* Focus ring global — gold, terlihat di dark */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 @keyframes slideUp {

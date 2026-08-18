@@ -27,7 +27,7 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
 
         {/* Icon + heading */}
         <div className="flex flex-col items-center gap-2 px-6 pt-4 pb-5">
-          <div className="w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-3xl">
+          <div className="w-14 h-14 rounded-lg bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-3xl">
             🚀
           </div>
           <div className="text-center">
@@ -53,14 +53,14 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
         <div className="flex flex-col gap-2 px-6 pt-4 pb-2">
           <button
             onClick={onReload}
-            className="w-full py-3.5 rounded-2xl bg-yellow-400 text-slate-950 font-bold text-sm
+            className="w-full py-3.5 rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm
               active:scale-98 transition-transform"
           >
             Reload Now
           </button>
           <button
             onClick={onDismiss}
-            className="w-full py-3 rounded-2xl text-slate-400 font-medium text-sm
+            className="w-full py-3 rounded-lg text-slate-400 font-medium text-sm
               active:scale-98 transition-transform"
           >
             Later

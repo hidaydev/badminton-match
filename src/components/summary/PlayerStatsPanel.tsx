@@ -39,7 +39,7 @@ export default function PlayerStatsPanel({
     })
 
     return (
-      <div className="mt-6 bg-surface border border-border-subtle rounded-2xl p-3 flex flex-col gap-2">
+      <div className="mt-6 bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
         <span className="text-sm font-semibold text-white">Player Stats</span>
         <div className="grid grid-cols-2 gap-y-2">
           {sorted.map((id) => {
@@ -71,7 +71,7 @@ export default function PlayerStatsPanel({
   const idealPlays = (schedule.length * 4) / players.length
 
   return (
-    <div className="mt-6 bg-surface border border-border-subtle rounded-2xl p-3 flex flex-col gap-2">
+    <div className="mt-6 bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-white">Player Stats</span>
         <span className="text-xs text-slate-400">target ~{idealPlays.toFixed(1)} plays</span>

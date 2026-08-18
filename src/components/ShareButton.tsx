@@ -136,7 +136,7 @@ export default function ShareButton() {
       {/* Confirmation modal */}
       {confirming && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Confirm publish session">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 shadow-2xl">
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-sm w-full flex flex-col gap-4 shadow-2xl">
             <div className="flex flex-col gap-1">
               <h2 className="text-white font-bold text-lg">Publish this session?</h2>
               <p className="text-slate-400 text-sm">Share this session with players. You can still input scores and manage the live session after publishing.</p>
@@ -161,7 +161,7 @@ export default function ShareButton() {
               </button>
               <button
                 onClick={handleShareClick}
-                className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors"
               >
                 Publish & Share
               </button>

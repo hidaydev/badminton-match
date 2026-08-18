@@ -133,7 +133,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
   if (!qf1) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-        <span className="text-4xl">🏆</span>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
         <p className="text-slate-400 text-sm">Assign groups and confirm to see the bracket.</p>
       </div>
     )
@@ -345,7 +345,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
             <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos['sf-1']} onUploadPhoto={() => { activeUploadMatchId.current = 'sf-1'; fileInputRef.current?.click() }} />
             <Connector />
-            <MatchCard match={final} label="🏆 FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} onSelect={handleSelect}
+            <MatchCard match={final} label="FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} onSelect={handleSelect}
               showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos['final-1']} onUploadPhoto={() => { activeUploadMatchId.current = 'final-1'; fileInputRef.current?.click() }} />
           </div>
 
@@ -361,7 +361,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
             <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos['sf-2']} onUploadPhoto={() => { activeUploadMatchId.current = 'sf-2'; fileInputRef.current?.click() }} />
             <span /> {/* no connector to 3rd place */}
-            <MatchCard match={third} label="🥉 3RD" borderColor="border-slate-600" labelColor="text-slate-400" getPairName={getPairName} onSelect={handleSelect}
+            <MatchCard match={third} label="3RD" borderColor="border-slate-600" labelColor="text-slate-400" getPairName={getPairName} onSelect={handleSelect}
               showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos['3rd-1']} onUploadPhoto={() => { activeUploadMatchId.current = '3rd-1'; fileInputRef.current?.click() }} />
           </div>
         </div>
@@ -373,17 +373,17 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
         const runnerUpName = loser(final) ?? 'TBD'
         const thirdName = winner(third) ?? 'TBD'
         const positions = [
-          { pos: 'runner-up', emoji: '🥈', label: '2nd', positionLabel: '🥈 RUNNER UP', name: runnerUpName, mt: '', champion: false },
-          { pos: 'champion', emoji: '🏆', label: 'CHAMPION', positionLabel: '🏆 WINNER', name: championName, mt: '-mt-4', champion: true },
-          { pos: 'third', emoji: '🥉', label: '3rd', positionLabel: '🥉 3RD PLACE', name: thirdName, mt: '', champion: false },
+          { pos: 'runner-up', rank: '2', rankCls: 'text-slate-300', label: '2nd', positionLabel: 'RUNNER UP', name: runnerUpName, mt: '', champion: false },
+          { pos: 'champion', rank: '1', rankCls: 'text-accent', label: 'CHAMPION', positionLabel: 'WINNER', name: championName, mt: '-mt-4', champion: true },
+          { pos: 'third', rank: '3', rankCls: 'text-slate-400', label: '3rd', positionLabel: '3RD PLACE', name: thirdName, mt: '', champion: false },
         ]
         return (
-          <div className="mt-5 bg-slate-800 rounded-2xl p-4 flex justify-around items-end">
-              {positions.map(({ pos, emoji, label, positionLabel, name, mt, champion: isChamp }) => (
+          <div className="mt-5 bg-slate-800 rounded-lg p-4 flex justify-around items-end">
+              {positions.map(({ pos, rank, rankCls, label, positionLabel, name, mt, champion: isChamp }) => (
                 <div key={pos} className={`text-center ${mt}`}>
-                  <div className={isChamp ? 'text-3xl' : 'text-2xl'}>{emoji}</div>
-                  <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-yellow-400' : 'text-slate-400'}`}>{label}</div>
-                  <div className={`text-xs mt-1 font-medium ${isChamp ? 'text-yellow-200 text-sm' : 'text-slate-300'}`}>{name}</div>
+                  <div className={`${isChamp ? 'text-3xl' : 'text-2xl'} font-bold font-mono ${rankCls}`}>{rank}</div>
+                  <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-accent' : 'text-slate-400'}`}>{label}</div>
+                  <div className={`text-xs mt-1 font-medium ${isChamp ? 'text-slate-200 text-sm' : 'text-slate-300'}`}>{name}</div>
                   <div className="mt-2 flex items-center justify-center gap-1.5">
                     <button
                       onClick={() => { activePodiumPos.current = pos; podiumFileInputRef.current?.click() }}

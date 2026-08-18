@@ -4,42 +4,44 @@ import { useListTournaments } from '../queries'
 export default function TournamentListPage() {
   const { data: tournaments = [], isLoading, isError } = useListTournaments()
 
-  if (isLoading) return <p className="text-slate-400 text-sm">Loading tournaments…</p>
-  if (isError) return <p className="text-red-400 text-sm">Failed to load tournaments.</p>
+  if (isLoading) return <p className="text-fg-dim text-sm">Loading tournaments…</p>
+  if (isError) return <p className="text-error text-sm">Failed to load tournaments.</p>
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white">Tournaments</h2>
+        <h2 className="text-lg font-bold text-fg">Tournaments</h2>
       </div>
 
-      <p className="text-xs font-mono text-slate-400">
-        <span className="text-amber-400">{tournaments.length}</span> tournament{tournaments.length !== 1 ? 's' : ''}
+      <p className="text-xs font-mono text-fg-dim">
+        <span className="text-accent">{tournaments.length}</span> tournament{tournaments.length !== 1 ? 's' : ''}
       </p>
 
       {tournaments.length === 0 && (
-        <p className="text-slate-400 text-xs font-mono text-center py-8">
+        <p className="text-fg-dim text-xs font-mono text-center py-8">
           Belum ada tournament.
         </p>
       )}
 
-      {tournaments.map((t) => (
-        <a
-          key={t.id}
-          href={`/tournaments/${t.id}`}
-          className="block bg-surface border border-border-subtle rounded-xl p-4 hover:border-slate-600 transition-colors"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-sm font-semibold text-white">{t.name || 'Untitled Tournament'}</p>
-              <p className="text-xs text-slate-400 mt-0.5 font-mono">{t.date.split('-').reverse().join('-')}</p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="text-xs text-slate-400">16 pairs</p>
-            </div>
-          </div>
-        </a>
-      ))}
+      {tournaments.length > 0 && (
+        <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
+          {tournaments.map((t) => (
+            <a
+              key={t.id}
+              href={`/tournaments/${t.id}`}
+              className="flex items-center gap-3 px-4 py-3 hover:bg-elevated transition-colors"
+            >
+              <div className="flex flex-col min-w-0 flex-1">
+                <p className="text-sm font-semibold text-fg truncate">{t.name || 'Untitled Tournament'}</p>
+                <p className="text-xs text-fg-dim mt-0.5 font-mono">{t.date.split('-').reverse().join('-')}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-xs text-fg-dim font-mono">16 pairs</p>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
