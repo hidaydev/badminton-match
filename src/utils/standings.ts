@@ -10,8 +10,13 @@ export function computeStandings(
   players: Player[],
   schedule: ScheduleSlot[],
   gameScores: Record<GameKey, GameScore>,
+  voidPlayerIds?: Iterable<string>,
 ): PlayerStanding[] {
   const map = new Map<string, PlayerStanding>()
+  // Game VOID: memuat ≥1 pemain yang tidak benar-benar bermain (absent /
+  // placeholder) → tidak ditallikan untuk SIAPA PUN. Semantik
+  // ABSENT_TBD_PLAYERS_DESIGN.md §4 — konsisten dengan store/stats.go.
+  const voidSet = voidPlayerIds ? new Set(voidPlayerIds) : null
 
   for (const p of players) {
     map.set(p.id, { ...initTallyRow(), player: p })
@@ -21,6 +26,9 @@ export function computeStandings(
     const key = toGameKey(slot.slot, slot.court)
     const score = gameScores[key]
     if (!score) continue
+    if (voidSet && (slot.teamA.some((id) => voidSet.has(id)) || slot.teamB.some((id) => voidSet.has(id)))) {
+      continue
+    }
 
     const { a, b } = score
 

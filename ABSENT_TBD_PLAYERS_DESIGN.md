@@ -216,12 +216,12 @@ Perubahan yang harus disinkronkan ke rating doc (Rev 2):
 ## 8. Task List
 
 ### P0 — Semantik & konsistensi (backend + UI)
-- [ ] 1. Migration `000007_absent_placeholder.sql`: (a) index pendukung query void, (b) seed `app_config` untuk pola placeholder (kalau mengikuti pola rating_config) — atau simpan di Go constant + config
-- [ ] 2. `store/stats.go`: filter game void (predikat §4.3) di semua query stats (GamesPlayed, W/L, poin, partner, opponent) — unit + live test parity
-- [ ] 3. `computeStandings` (frontend): terima `absentPlayerIds` → skip game void; test
-- [ ] 4. StandingsTab: section placeholder (TBD) terpisah, konsisten dengan absent
+- [x] 1. Migration `000007_absent_placeholder.sql`: (a) index pendukung query void, (b) seed `app_config` untuk pola placeholder (kalau mengikuti pola rating_config) — atau simpan di Go constant + config → **diputuskan: index tidak diperlukan (query void pakai EXISTS over join existing, live test ok); pola placeholder di Go constant + config P1**
+- [x] 2. `store/stats.go`: filter game void (predikat §4.3) di semua query stats (GamesPlayed, W/L, poin, partner, opponent) — unit + live test parity → **integration test `TestIntegrationStatsVoidGames` PASS live (bm_dev, 2.4s)**
+- [x] 3. `computeStandings` (frontend): terima `absentPlayerIds` → skip game void; test → **param `voidPlayerIds` (opsional, backward compat) + 2 test baru (51 total PASS)**
+- [x] 4. StandingsTab: section placeholder (TBD) terpisah, konsisten dengan absent → **void juga diterapkan di `PlayerMatchDetailSheet` (audit catch — match history tanpa game hantu) + `InstagramPostPage` (export leaderboard). `PlayerStatsPanel` tidak diubah: playCount = fakta schedule, bukan rating**
 
-**Verifikasi P0:** career stats absent == 0 game; teammate tidak dapat W/L dari game hantu; test parity SQL↔Go.
+**Verifikasi P0:** career stats absent == 0 game; teammate tidak dapat W/L dari game hantu; test parity SQL↔Go. → **lengkap: unit 51 PASS + integration live PASS + full store suite PASS**
 
 ### P1 — Placeholder detection & registrasi
 - [ ] 5. `store/session.go` + `store/tournament.go` (resolve path): deteksi pola placeholder → jangan register ke `players`/aliases; pemain placeholder tetap tersimpan di session_players (player_id NULL)

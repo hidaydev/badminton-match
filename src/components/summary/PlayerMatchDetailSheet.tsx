@@ -19,6 +19,7 @@ interface PlayerMatchDetailSheetProps {
   schedule: ScheduleSlot[]
   gameScores: Record<string, GameScore>
   players: Player[]
+  voidPlayerIds?: Iterable<string>
   onClose: () => void
 }
 
@@ -27,12 +28,17 @@ function buildGameRows(
   schedule: ScheduleSlot[],
   gameScores: Record<string, GameScore>,
   players: Player[],
+  voidPlayerIds?: Iterable<string>,
 ): GameRow[] {
   const pid = toPlayerId(playerId)
+  const voidSet = voidPlayerIds ? new Set(voidPlayerIds) : null
   const findPlayer = (id: PlayerId) => players.find(p => p.id === id)
 
   return schedule
     .filter(slot => slot.teamA.includes(pid) || slot.teamB.includes(pid))
+    // Game VOID (memuat pemain absent/placeholder) tidak ditampilkan —
+    // konsisten dengan computeStandings (ABSENT_TBD_PLAYERS_DESIGN.md §4)
+    .filter(slot => !(voidSet && (slot.teamA.some(id => voidSet.has(id)) || slot.teamB.some(id => voidSet.has(id)))))
     .sort((a, b) => a.slot - b.slot || a.court - b.court)
     .map(slot => {
       const inTeamA = slot.teamA.includes(pid)
@@ -60,11 +66,12 @@ export default function PlayerMatchDetailSheet({
   schedule,
   gameScores,
   players,
+  voidPlayerIds,
   onClose,
 }: PlayerMatchDetailSheetProps) {
   if (!player) return null
 
-  const games = buildGameRows(player.player.id, schedule, gameScores, players)
+  const games = buildGameRows(player.player.id, schedule, gameScores, players, voidPlayerIds)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" onClick={onClose}>
