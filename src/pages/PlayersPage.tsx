@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { Gender, Tier, Player } from '../types'
 import { useStore } from '../store'
 import { useNavigate } from 'react-router-dom'
+import { isPlaceholderName } from '../utils/placeholders'
 
 function parsePlayerList(raw: string): string[] {
   return raw
@@ -71,6 +72,11 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
           className="flex-1 text-white font-medium text-sm cursor-text hover:text-indigo-300 transition-colors"
         >
           {player.name}
+          {isPlaceholderName(player.name) && (
+            <span className="ml-2 text-[9px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 py-0.5 uppercase tracking-wider">
+              tbd
+            </span>
+          )}
         </span>
       )}
 
@@ -328,6 +334,14 @@ export default function PlayersPage() {
             className="flex-1 py-2.5 border-2 border-dashed border-slate-700 hover:border-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-indigo-400 rounded-xl text-sm font-medium transition-colors"
           >
             + Add Player
+          </button>
+          <button
+            disabled={players.length >= required}
+            onClick={() => handleAdd('tbd', 'M', 2)}
+            className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-amber-400 rounded-xl text-sm font-medium transition-colors"
+            title="Add a TBD slot — replace with a real player before play (games involving it are void)"
+          >
+            + TBD
           </button>
           <button
             disabled={players.length >= required}

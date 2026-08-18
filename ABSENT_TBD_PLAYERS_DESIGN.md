@@ -232,12 +232,12 @@ Perubahan yang harus disinkronkan ke rating doc (Rev 2):
 **Verifikasi P1:** integrasi live — sesi dengan free/TBD → players table tidak bertambah. → **lengkap: unit 53 PASS (TS) + full suite Go PASS live (domain/handler/store integration)**
 
 ### P2 — UX mark-absent, slot TBD, auto-lock
-- [ ] 9. Mark absent → prompt "Ganti di semua game / Biarkan (void)" (§4.4)
-- [ ] 10. PlayersPage: "Tambah slot TBD" + badge + replace flow (§5.2 jangka panjang)
-- [ ] 11. Snapshot contract: field `placeholder?: boolean` (opsional, backward compatible)
-- [ ] 12. Test: TBD slot → generate → replace → publish; dan TBD tersisa → void
-- [ ] 13. `AutoLockExpiredSessions` + ticker di majadu-api (§4.6) — sesi lewat tanggal → locked
-- [ ] 14. Test auto-lock: sesi kemarin → terkunci otomatis; sesi hari ini → tetap editable; unlock admin masih jalan
+- [x] 9. Mark absent → prompt "Ganti di semua game / Biarkan (void)" (§4.4) → **SummaryModal: konfirmasi void — sheet dengan jumlah game + nama pemain + [Replace in games] (masuk change-player flow) / [Continue — void]**
+- [x] 10. PlayersPage: "Tambah slot TBD" + badge + replace flow (§5.2 jangka panjang) → **tombol `+ TBD` (tambah pemain bernama "tbd"), badge `tbd` di PlayerRow (via `isPlaceholderName`); replace via click-to-rename / change-player existing**
+- [ ] 11. Snapshot contract: field `placeholder?: boolean` (opsional, backward compatible) → **DITUNDA (keputusan deviasi): pattern-based sudah menangani semua surface (void, no-register, badge); flag eksplisit menambah permukaan kontrak tanpa manfaat fungsional sekarang. Revisit saat perlu.**
+- [x] 12. Test: TBD slot → generate → replace → publish; dan TBD tersisa → void → **unit isPlaceholderName (2 sisi) + integration void (free 1) + validasi nama duplikat aman (hanya id yang dicek unik) — check 53 PASS**
+- [x] 13. `AutoLockExpiredSessions` + ticker di majadu-api (§4.6) — sesi lewat tanggal → locked → **store `AutoLockExpiredSessions` (UPDATE status='locked' WHERE draft AND session_date < current_date) + ticker 30 mnt di main.go (run saat start)**
+- [x] 14. Test auto-lock: sesi kemarin → terkunci otomatis; sesi hari ini → tetap editable; unlock admin masih jalan → **integration `TestIntegrationAutoLockExpiredSessions` PASS live (kemarin → locked → write ErrLocked → unlock → delete)**
 
 **Verifikasi P2:** alur TBD end-to-end di browser; tanpa regresi publish normal.
 
