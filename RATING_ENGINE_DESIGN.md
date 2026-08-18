@@ -2,6 +2,7 @@
 
 **Status:** PROPOSAL — belum diimplementasikan
 **Tanggal:** 2026-08-18
+**Rev:** 2 (hasil review 3 sudut pandang: perilaku aplikasi nyata, atomicity/concurrency/data model, matematika)
 **Lokasi:** root badminton-match
 **Referensi analisis:** M-DEF (`/Users/user/Projects/mdef`) — serap prinsip, BUKAN merge fungsionalitas.
 
@@ -12,13 +13,13 @@
 M-DEF adalah leaderboard ELO badminton (Flutter + Supabase) dengan "MAJADU Dynamic-Elo Framework". Analisis menyimpulkan model rating-nya bagus secara konsep tetapi rapuh secara pelaksanaan dan kurang fair secara struktural. Dokumen ini mendesain **engine rating baru** untuk ekosistem Majadu (badminton-match + majadu-api) dengan prinsip:
 
 1. **Server-authoritative** — perhitungan di backend Go dalam satu transaksi, bukan di client.
-2. **Atomic** — satu batch masuk semua-atau-tidak-sama-sekali.
-3. **Idempotent** — re-import/re-run tidak menggandakan efek.
+2. **Atomic** — satu batch masuk semua-atau-tidak-sama-sekali; urutan commit = urutan seq.
+3. **Idempotent** — re-import/re-run tidak menggandakan efek; edit sumber terdeteksi.
 4. **Fair** — uncertainty (RD) menggantikan K-tier; positional pairing untuk format team.
-5. **Deterministik** — urutan pemrosesan global, hasil reproducible.
-6. **Auditable** — delta per pemain per match tersimpan permanen.
+5. **Deterministik** — urutan pemrosesan global dan basis waktu dari data sumber (reproducible).
+6. **Auditable** — delta per pemain per match tersimpan permanen; replay = source of truth.
 
-Bukan merge: tidak ada fitur M-DEF yang dipindahkan. Yang diserap hanya *prinsip*: stable match key, peak ELO, revert terkontrol, tier, decay.
+Bukan merge: tidak ada fitur M-DEF yang dipindahkan. Yang diserap hanya *prinsip*: stable match identity, peak ELO, revert terkontrol, tier, decay.
 
 ---
 
@@ -27,14 +28,14 @@ Bukan merge: tidak ada fitur M-DEF yang dipindahkan. Yang diserap hanya *prinsip
 | # | Kelemahan M-DEF | Solusi desain |
 |---|---|---|
 | A | ELO dihitung di client (Dart), DB hanya mirror | Hitung di Go, satu transaksi per batch |
-| B | Ordering antar sesi se-date nondeterministik | Global `(date, created_at)` sequence |
+| B | Ordering antar sesi se-date nondeterministik | Ordering key `(date, created_at sumber, source_id, game_order)` |
 | C | Team rating = rata-rata (masalah carry / varians) | Positional pairing di format team; RD-aware di classic |
 | D | K-tier lifetime (8/12/24) tanpa konsep kepercayaan | Glicko RD (uncertainty) per pemain |
 | E | MoVM tidak ternormalisasi terhadap target skor | `m = margin/target`, MoVM di-cap |
 | F | Bonus tournament flat +8 tanpa bobot fase | Phase weight configurable |
-| G | Decay global per-import (session-triggered) | RD growth berbasis waktu (deterministik) |
+| G | Decay global per-import (session-triggered) | RD growth berbasis waktu sumber (deterministik) |
 | H | Replay peak pakai rating saat ini (perkiraan) | Audit trail lengkap → peak dari history |
-| I | Tidak bisa import format team baru | Ingest terpisah per format (classic/team) |
+| I | Tidak bisa import format team baru | Ingest terpisah per format (branch via `TournamentFormat`) |
 
 ---
 
@@ -52,9 +53,9 @@ r0     = 1250   rating awal
 rd0    = 350    RD awal (provisional)
 rd_min = 30     RD minimum (pemain sangat konsisten)
 rd_max = 350    RD maksimum
-c      = 15     pertumbuhan RD per hari (kalibrasi, §3.6)
+c      = 15     pertumbuhan RD per hari (kalibrasi §3.6)
 
-clamp rating: [1000, 2500]
+clamp rating: [1000, 2500] · clamp RD: [30, 350]
 ```
 
 ### 3.2 Expected Score & Update per Pemain
@@ -64,19 +65,18 @@ Pemain `i` (tim A) melawan lawan `j` (tim B, 1–2 pemain; format team: hanya *c
 ```
 E_j   = 1 / (1 + 10^(−g(rd_j)·(r_i − r_j)/400))      expected vs tiap lawan
 S     = 1 (menang) | 0 (kalah) | 0.5 (seri)           (seri tidak terjadi di badminton)
-MoVM  = §3.4 (pengali margin)
-w     = phase_weight (§3.5)
+MoVM  = §3.4 (pengali margin) · w = phase_weight (§3.5)
 
 d²    = ( q² · Σ_j g(rd_j)² · E_j·(1−E_j) )⁻¹
-r_i'  = r_i + ( q / (1/rd_i² + 1/d²) ) · Σ_j g(rd_j) · (MoVM·w·S − E_j)
+r_i'  = r_i + MoVM·w · ( q / (1/rd_i² + 1/d²) ) · Σ_j g(rd_j) · (S − E_j)
 rd_i' = sqrt( 1 / (1/rd_i² + 1/d²) )
 ```
 
-Detail implementasi: `MoVM·w` mengalikan **S** (outcome), bukan E. Untuk yang kalah (S=0), delta murni dari `−E` — pertandingan tidak seimbang (favorite vs underdog) tidak menghukum underdog dua kali lipat.
+**Keputusan Rev 2:** `MoVM·w` mengalikan **seluruh update** (bukan hanya S) — simetris untuk pemenang & pecundang. Konsekuensi: pemenang menang `X`, pecundang kalah `X` (pool netral, kecuali seri). Ini mempertahankan struktur Glicko dan transfer poin yang bisa diinterpretasikan. Alternatif (scale S saja) bersifat asimetris dan meng-inflasi pool — **ditolak**.
 
 ### 3.3 Positional Pairing (team) vs Team-Average (classic)
 
-**Format TEAM** (6 tim × 6 pemain, 3 partai per team-match): setiap partai adalah ganda `X+&X` vs `X+&X` (urutan: partai 1 = C+&C, partai 2 = A+&A, partai 3 = B+&B). Karena berpasangan **per kelas**, expected setiap pemain dihitung hanya terhadap **counterpart langsung**:
+**Format TEAM** (6 tim × 6 pemain, 3 partai per team-match): setiap partai adalah ganda `X+&X` vs `X+&X` (partai 1 = C+&C, partai 2 = A+&A, partai 3 = B+&B). Expected setiap pemain dihitung hanya terhadap **counterpart langsung**:
 
 ```
 partai 1: (C+ A vs C+ B) dan (C A vs C B)
@@ -84,7 +84,7 @@ partai 2: (A+ A vs A+ B) dan (A A vs A B)
 partai 3: (B+ A vs B+ B) dan (B A vs B B)
 ```
 
-Fairness: pemain A+ tidak diuntungkan oleh partner C+ yang kalah; pemain C+ tidak dihukum karena expected dihitung dari lawan C+ sebenarnya. **Menghilangkan masalah carry (§2.C) secara struktural.**
+Fairness: pemain A+ tidak diuntungkan partner C+ yang kalah; pemain C+ tidak dihukum karena expected dihitung dari lawan C+ sebenarnya. Partner diabaikan dari expected — dapat dibenarkan karena pairing kelas **simetris lintas tim** (partner kualitas sebanding di kelas yang sama). **Menghilangkan masalah carry (§2.C) secara struktural.**
 
 **Format CLASSIC** (pasangan acak dari snapshot): tidak ada posisi tetap → expected per pemain terhadap **kedua** lawan (team-average, RD-aware). Carry tetap ada secara teoretis — ini informasi terbaik yang tersedia.
 
@@ -103,7 +103,7 @@ MoVM   = min(2.0, 0.5 + m)
 | Team final | 42–40 | 0.048 | 0.55 |
 | Whitewash | 21–0 | 1.0 | 1.50 (cap 2.0) |
 
-MoVM lama M-DEF (21–19 → 0.64; 30–28 → 0.60) lebih berat untuk rally panjang; normalisasi membuatnya adil secara proporsional.
+Aritmetika terverifikasi (Rev 2). MoVM lama M-DEF (21–19 → 0.64; 30–28 → 0.60) lebih berat untuk rally panjang; normalisasi membuatnya adil secara proporsional. **Catatan:** sesi/classic tournament menyimpan skor bebas target (22–30 sah, sampai 99); MoVM memakai `max(scoreA,scoreB)` sebagai denom-implisit via m — aman untuk skor apa pun yang tersimpan.
 
 ### 3.5 Phase Weight (turnamen)
 
@@ -116,157 +116,221 @@ team:    group 1.0 · final 1.25
 
 ### 3.6 RD Growth + Inactivity (pengganti decay M-DEF)
 
-Saat pemain diproses, `hari_idle = now − last_played_at` (hari):
+**Basis waktu = tanggal SUMBER (event `date`), BUKAN wall-clock.** `rating_players` menyimpan `last_played_at` yang di-set dari `date` event terakhir pemain; `hari_idle` dihitung dari selisih `date` antar event berturut-turut pemain (bukan `now() − last_played_at`). Ini menjamin **reproducibility**: replay/revert menghasilkan angka identik kapan pun dijalankan.
 
 ```
 rd' = min(rd_max, sqrt(rd² + (c·hari_idle)²))
 ```
 
-- Pemain baru/lama tidak aktif → RD tinggi → update besar saat kembali (kepercayaan turun, bukan rating dihukum −5/minggu).
-- Pemain konsisten → RD menuju rd_min → update kecil (stabil).
-- **Opsional (config)**: decay rating −5/minggu setelah 60 hari idle, berbasis waktu (bukan per-import), floor 1000 — agar leaderboard tidak beku.
+Kalibrasi (dari rd=30): ±6,4 hari → rd 100 · ±13 hari → rd 200 · ±23 hari → rd 350 (max). Untuk liga mingguan, jeda 1 pekan → rd≈109 (sedikit provisional), 1 bulan → rd 350 (full uncertainty). Masuk akal; **kalibrasi `c` final di P3** terhadap data riil. Decay rating tambahan (opsional, config): −5/minggu setelah 60 hari idle, berbasis `date`, floor 1000 — non-replayable pass terpisah bila diaktifkan (didokumentasikan sebagai non-deterministik).
 
 ### 3.7 Clamp & Finalisasi
 
 - `r ∈ [1000, 2500]`, `rd ∈ [30, 350]` setelah update.
-- `peak_rating` = max(histori rating) dari audit trail (bukan replay/perkiraan).
+- `peak_rating` = max(histori rating) dari audit trail `rating_deltas.new_rating` (bukan replay/perkiraan).
+- Rounding: semua nilai (expected, movm, delta) di-round ke presisi penyimpanan dengan **satu code path yang sama** dipakai kalkulasi asli dan replay (bit-identical; §m3).
 
 ---
 
-## 4. Urutan, Idempotency, Atomicity
+## 4. Urutan, Idempotency, Atomicity, Concurrency
 
-### 4.1 Match Key (deterministik)
+### 4.1 Match Key — identitas STABIL (bukan hash konten yang bisa berubah)
+
+Konten sumber (skor, nama, judul) **mudah diedit** di aplikasi nyata (optimistic mutation, autosave debounce, swap/rename/absent, edit skor kapan saja). Karena itu match_key TIDAK boleh bergantung pada konten yang bisa berubah. Identitas game yang benar:
 
 ```
 match_key = sha256hex(
-  date | kind | title
-  | sort(teamA names) | sort(teamB names)
-  | scoreA | scoreB | target | game_order
+  kind | source_id | stable_game_id | sort(player_ids tim A) | sort(player_ids tim B)
+  | scoreA | scoreB | target | phase | game_order
 )
 ```
 
-- `game_order`: sesi = urutan slot-court; tournament = match index.
-- Idempoten: import ulang sesi sama → no-op.
+- `stable_game_id`:
+  - **Team tournament**: kolom `tournament_team_matches.match_key` yang sudah dipersist (`g-1`…`g-9`, `final`).
+  - **Classic tournament**: kolom `tournament_matches.match_key` yang sudah dipersist (`group-A-0`…`final-1`).
+  - **Session**: **tidak ada id stabil** — gunakan `legacy_order` (indeks array schedule) yang **di-capture saat ingest**, bukan slot-court (posisi yang bergerak saat slot-swap). Regenerasi schedule menghancurkannya → terdeteksi oleh fingerprint (§4.4) → wajib revert.
+- Nama → **canonical `player_id`** (resolve via `player_aliases`/`players` di dalam transaksi ingest, mirror `resolvePlayerAliases` store/session.go). Rename pemain tidak mengubah identitas.
+- Skor masuk dalam key **untuk deteksi perubahan** (kombinasi dengan fingerprint), bukan sebagai satu-satunya mekanisme — edit skor = key berubah = fingerprint juga berubah → kena policy §4.4 (bukan double-count diam-diam).
 
-### 4.2 Global Sequence
+### 4.2 Ordering (seq) — deterministik dari data sumber
 
 ```
-seq = (date, created_at sumber, game_order)
+UNIQUE (date, created_at sumber, source_id, game_order)
 ```
 
-- Dua sesi se-date → urut oleh `created_at` (insertion order) → deterministik.
-- Disimpan di `rating_events.seq`, unik.
+- `created_at` sumber = timestamp yang **di-capture saat ingest** (bukan dibaca ulang dari tabel live yang bisa berubah — store write-path hanya menyentuh `updated_at`).
+- `game_order`: sesi = `(slot_index, court_index)`; tournament = match_index/partai index. Didefinisikan deterministik dari kolom sumber.
+- `seq` kolom `bigserial` hanya **identitas padat**; urutan logis dari composite key di atas. Invariant: urutan commit = urutan seq (§4.3).
+- Backfill data lama (banyak sesi satu transaksi, `created_at` identik) → diselamatkan oleh `source_id` sebagai tie-break (source_id unik per sesi/tournament).
 
 ### 4.3 Alur Ingest (satu transaksi, ALL-OR-NOTHING)
 
 ```
 POST /ratings/ingest-session     { sessionId }
-POST /ratings/ingest-tournament  { tournamentId }     // classic | team otomatis
+POST /ratings/ingest-tournament  { tournamentId }     // branch via TournamentFormat
 
-1. BEGIN
-2. Baca sumber: bm.sessions + scheduled_games + game_scores, atau bm.tournaments
-   + tabel team (tournament_teams/_team_matches/_team_match_games)
-3. Bangun match list mentah (format-specific)
-4. Hitung match_key tiap match; skip yang sudah ada di rating_events (idempotent)
-5. Urutkan by (date, created_at, game_order)
-6. Proses berurutan: SELECT ... FOR UPDATE per pemain di rating_players
-   → hitung Glicko (§3) → tulis rating_deltas + rating_events + update rating_players
-7. COMMIT — semua atau tidak sama sekali
+1. BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ   (M9: hindari torn read sumber)
+2. Ambil advisory lock global ingest (blocking pg_advisory_xact_lock, key "ratings_ingest")
+3. Baca sumber: bm.sessions + scheduled_games (skor = kolom score_a/score_b di
+   scheduled_games — TIDAK ada tabel game_scores), atau bm.tournaments + tabel team
+4. Resolve nama → player_id via aliases; auto-register bm.players bila belum ada
+   (INSERT ... ON CONFLICT DO NOTHING + re-select, pattern registerPlayerInTx)
+5. Hitung source_fingerprint (hash kanonis seluruh sumber) → bandingkan rating_sources
+   (§4.4): sama → no-op; beda → 409 SOURCE_CHANGED
+6. Hitung match_key tiap game; skip yang sudah ada (idempotent)
+7. Cek invariant seq: reject batch yang min seq ≤ max seq yang sudah ada (409 out-of-order)
+8. Kumpulkan player_id, SORT, lock SELECT ... FOR UPDATE urut (deterministik, anti-deadlock)
+9. Proses berurutan: Glicko (§3) → insert rating_events + rating_deltas
+   + update rating_players + rating_sources
+10. COMMIT — semua atau tidak sama sekali
 ```
 
-- Kesalahan validasi mana pun → ROLLBACK total (atomic).
-- Konflik concurrent ingest sesi berbeda yang memuat pemain sama → serialized via row lock; urutan ditentukan seq (bukan siapa datang duluan).
+- Kesalahan struktural (player unresolvable, format rusak) → ROLLBACK total (400, sertakan `game_ref`).
+- Game "tidak playable" (skor belum lengkap / legacy aneh) → **skip game**, catat reason di respons `skipped`, transaksi lanjut (§M2).
+- Konflik concurrent (55P03 / 40P01) → map ke retryable error via `mapRatingsError` (mirror `mapPublishError`).
+
+### 4.4 Source Fingerprint & Edit Detection (WAJIB sebelum ingest aman)
+
+Aplikasi nyata mengizinkan edit sumber kapan saja (skor, swap, rename, absent, reset grup, undian ulang). Tanpa deteksi, edit setelah ingest = double-count diam-diam.
+
+```
+source_fingerprint = sha256hex( representasi kanonis seluruh match list sumber,
+                                setelah resolve player_id, diurutkan deterministik )
+```
+
+- Disimpan di `rating_sources(source_id, source_kind, fingerprint, last_ingested_seq, ingested_at)` + per-baris di `rating_events.source_fingerprint`.
+- Policy re-ingest:
+  - source belum pernah di-ingest → proses.
+  - fingerprint sama → **no-op** (`{processed: 0, skipped: N}`).
+  - fingerprint beda → **409 `source_changed`** — wajib `revert-*` dulu (atau `auto_reconcile=true` di `rating_config`: hapus events source + re-ingest **dalam satu transaksi**).
+- **Tidak ada partial re-ingest.** "Revert lalu re-ingest" adalah satu-satunya jalur perbaikan dan di-enforce, bukan opsional.
+- Classic tournament: edit 1 skor grup mengubah bracket turunan (QF/SF/Final) → banyak match_key berubah → fingerprint menangkap seluruh tournament; policy = revert-tournament + re-ingest (32 match dihitung ulang).
+
+### 4.5 Ingest Timing Policy (siapa memutuskan "final")
+
+- **Session**: hanya ingest saat `status = 'locked'` (lock = gate rating). Lock bersifat soft (bisa unlock tanpa If-Match) — unlock setelah ingest → fingerprint akan beda → re-ingest ditolak sampai revert. Default config: `ingest_locked_only = true`.
+- **Tournament**: TIDAK punya status/lock di backend → tambah flag admin `rating_sources.finalized` (endpoint/UI admin). Default: tournament hanya ingest saat `finalized = true`.
+- Backfill (P3): wajib `auto_reconcile` atau finalize semua sumber dulu.
+
+### 4.6 Concurrency — ringkasan
+
+| Risiko | Mitigasi |
+|---|---|
+| Dua ingest overlap, urutan commit ≠ seq | Advisory lock global + invariant reject out-of-order (§4.3.2/7) |
+| Deadlock AB-BA antar pemain | Lock player_id **sorted** + advisory lock global |
+| Missing-row race (auto-register) | INSERT ON CONFLICT DO NOTHING + re-select dalam transaksi |
+| Torn read sumber (publish koncurrent) | REPEATABLE READ |
+| Revert vs ingest overlap | Keduanya ambil advisory lock yang sama |
 
 ---
 
-## 5. Data Model (schema `bm`)
+## 5. Data Model (schema `bm`) — DDL terkoreksi Rev 2
 
-### 5.1 `rating_players` — state per pemain
+```sql
+-- 5.1 rating_players — state per pemain
+CREATE TABLE bm.rating_players (
+  player_id       uuid PRIMARY KEY REFERENCES bm.players(id),
+  rating          numeric(8,2) NOT NULL DEFAULT 1250,
+  rd              numeric(8,2) NOT NULL DEFAULT 350,
+  peak_rating     numeric(8,2) NOT NULL DEFAULT 1250,
+  games_played    integer     NOT NULL DEFAULT 0,
+  wins            integer     NOT NULL DEFAULT 0,
+  losses          integer     NOT NULL DEFAULT 0,
+  last_played_at  date,                        -- dari event date (basis RD growth, bukan wall-clock)
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT rating_players_rating_ck CHECK (rating BETWEEN 1000 AND 2500),
+  CONSTRAINT rating_players_rd_ck     CHECK (rd BETWEEN 30 AND 350),
+  CONSTRAINT rating_players_games_ck  CHECK (games_played = wins + losses)
+);
 
-```
-player_id       uuid PK → bm.players(id)
-rating          numeric(8,2) NOT NULL DEFAULT 1250
-rd              numeric(8,2) NOT NULL DEFAULT 350
-peak_rating     numeric(8,2) NOT NULL DEFAULT 1250
-games_played    integer     NOT NULL DEFAULT 0
-wins            integer     NOT NULL DEFAULT 0
-losses          integer     NOT NULL DEFAULT 0
-last_played_at  timestamptz
-last_processed  timestamptz          -- untuk RD growth
-created_at, updated_at
-```
+-- 5.2 rating_events — idempotency + ordering + audit sumber
+CREATE TABLE bm.rating_events (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  match_key         text UNIQUE NOT NULL,          -- §4.1 (termasuk source_id)
+  seq               bigserial UNIQUE NOT NULL,     -- identitas padat; urutan = composite key
+  kind              text NOT NULL CHECK (kind IN ('session','tournament_classic','tournament_team')),
+  source_id         text NOT NULL,
+  source_fingerprint text NOT NULL,                -- §4.4
+  stable_game_id    text NOT NULL,                 -- match_key tournament / legacy_order sesi
+  date              date NOT NULL,
+  created_at        timestamptz NOT NULL,          -- capture saat ingest (ordering)
+  game_order        text NOT NULL,                 -- (slot,court) / partai index — deterministik
+  title             text NOT NULL,
+  score_a           integer NOT NULL,
+  score_b           integer NOT NULL,
+  target            integer NOT NULL CHECK (target IN (21,30,42)),
+  phase             text NOT NULL CHECK (phase IN ('group','qf','sf','3rd','final','regular')),
+  phase_weight      numeric NOT NULL,
+  processed_at      timestamptz NOT NULL,
+  CONSTRAINT rating_events_order_uniq UNIQUE (date, created_at, source_id, game_order)
+);
+-- TIDAK ada team_a/team_b text[] — sisi diturunkan dari rating_deltas.team (§M5)
 
-### 5.2 `rating_events` — idempotency + urutan + audit sumber
+-- 5.3 rating_deltas — audit trail (satu baris per pemain per event)
+CREATE TABLE bm.rating_deltas (
+  event_id    uuid NOT NULL REFERENCES bm.rating_events(id) ON DELETE CASCADE,
+  player_id   uuid NOT NULL REFERENCES bm.players(id),
+  team        text NOT NULL CHECK (team IN ('A','B')),
+  outcome     text NOT NULL CHECK (outcome IN ('W','L')),   -- draw tidak mungkin
+  expected    numeric(8,4) NOT NULL,
+  movm        numeric(8,4) NOT NULL,
+  delta       numeric(8,2) NOT NULL,
+  new_rating  numeric(8,2) NOT NULL,
+  PRIMARY KEY (event_id, player_id)
+);
 
-```
-id            uuid PK
-match_key     text UNIQUE NOT NULL   -- §4.1
-seq           bigint NOT NULL        -- §4.2
-kind          text CHECK IN ('session','tournament_classic','tournament_team')
-source_id     text NOT NULL          -- id sesi / id tournament
-game_ref      text NOT NULL          -- 'slot-court' atau match id team
-date          date NOT NULL
-title         text NOT NULL
-team_a        text[] NOT NULL        -- canonical names (urut tetap)
-team_b        text[] NOT NULL
-score_a       integer NOT NULL
-score_b       integer NOT NULL
-target        integer NOT NULL       -- 21 | 30 | 42
-phase         text NOT NULL          -- 'group'|'qf'|'sf'|'3rd'|'final'|'regular'
-phase_weight  numeric NOT NULL
-processed_at  timestamptz NOT NULL
-```
+-- 5.4 rating_sources — registry sumber + fingerprint (edit detection)
+CREATE TABLE bm.rating_sources (
+  source_id         text PRIMARY KEY,
+  source_kind       text NOT NULL CHECK (source_kind IN ('session','tournament_classic','tournament_team')),
+  fingerprint       text NOT NULL,
+  finalized         boolean NOT NULL DEFAULT false,   -- gate ingest tournament
+  last_ingested_seq bigint NOT NULL,
+  ingested_at       timestamptz NOT NULL DEFAULT now()
+);
 
-### 5.3 `rating_deltas` — audit trail (basis peak & history)
+-- 5.5 rating_config — tuning tanpa redeploy
+CREATE TABLE bm.rating_config (
+  key        text PRIMARY KEY,
+  value      jsonb NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- Seed default di migration (initial_rating, initial_rd, rd_min/max, rd_growth_per_day,
+-- rating_min/max, movm_scale, movm_cap, phase_weights, decay_*, ingest_locked_only,
+-- auto_reconcile, absent_policy). Loader Go: typed struct + validasi range (fail-fast di prod).
 
-```
-event_id    uuid PK → rating_events(id)
-player_id   uuid NOT NULL → bm.players(id)
-outcome     text CHECK IN ('W','L','D')
-expected    numeric NOT NULL
-movm        numeric NOT NULL
-delta       numeric NOT NULL
-new_rating  numeric NOT NULL
-```
-
-### 5.4 `rating_config` — tuning tanpa redeploy
-
-```
-key   text PK
-value jsonb NOT NULL
-```
-
-Default keys: `initial_rating`, `initial_rd`, `rd_min`, `rd_max`, `rd_growth_per_day`,
-`rating_min`, `rating_max`, `movm_scale`, `movm_cap`, `phase_weights` (jsonb),
-`decay_enabled`, `decay_threshold_days`, `decay_per_week`, `decay_floor`.
-
-### 5.5 Index
-
-```
-rating_events(match_key) UNIQUE
-rating_events(seq) UNIQUE
-rating_deltas(player_id, event_id DESC)
-rating_players(peak_rating DESC)
-rating_players(rating DESC)
+-- 5.6 Index
+CREATE UNIQUE INDEX rating_events_match_key_idx ON bm.rating_events (match_key);
+CREATE UNIQUE INDEX rating_events_seq_idx      ON bm.rating_events (seq);
+CREATE INDEX rating_events_source_idx          ON bm.rating_events (source_id);
+CREATE INDEX rating_deltas_player_idx          ON bm.rating_deltas (player_id, event_id);
+CREATE INDEX rating_players_peak_idx           ON bm.rating_players (peak_rating DESC);
+CREATE INDEX rating_players_rating_idx         ON bm.rating_players (rating DESC);
 ```
 
 ---
 
 ## 6. Kontrak API (majadu-api)
 
-Semua di bawah schema `bm`; write = admin, read = publik.
+**Auth:** backend saat ini TIDAK punya lapisan auth. Tambah `MAJADU_ADMIN_TOKEN` (fail-fast di prod, config.go) + middleware `Authorization: Bearer <token>` untuk SEMUA endpoint write ratings. `internal/httperr` perlu `CodeUnauthorized` (401).
+
+**Error contract:** envelope `{"error":{"code","message"}}` (konvensi `internal/httperr`). Map: source tidak ditemukan → 404 `not_found` · fingerprint beda → 409 `source_changed` · out-of-order/contention → 409 `conflict` · validasi → 400 `validation_error` (+ `game_ref`). Jangan meniru `mapPublishError` yang memetakan ErrContention → 400.
 
 ```
-POST   /ratings/ingest-session     body {sessionId}      → {processed, skipped, players}
-POST   /ratings/ingest-tournament  body {tournamentId}   → {processed, skipped, players}
-GET    /ratings/leaderboard        ?active&limit&offset  → [{name, rating, rd, tier, peak, games, trend}]
-GET    /ratings/players/{playerId}                        → detail + history (sparkline data)
-GET    /ratings/players/{playerId}/history                → [{date, rating, delta, opponent, outcome}]
-POST   /ratings/revert-session     body {sessionId}      → hapus events + rollback rating ke state sebelum sesi
+POST   /ratings/ingest-session     { sessionId }       → {processed, skipped:[{game_ref,reason}], players}
+POST   /ratings/ingest-tournament  { tournamentId }    → {processed, skipped, players, warnings}
+GET    /ratings/leaderboard        ?active&limit(100,max 500)&offset   → {total, rows:[{name,rating,rd,tier,peak,games,trend}]}
+GET    /ratings/players/{playerId}                     → detail + history (sparkline data)
+GET    /ratings/players/{playerId}/history             → [{date, delta, expected, movm, outcome, opponent, game_ref}]
+POST   /ratings/revert-session     { sessionId }       → idempotent (source tanpa event = {processed:0})
+POST   /ratings/revert-tournament  { tournamentId }    → idempotent (sama)
+POST   /ratings/sources/{sourceId}/finalize            → set finalized (gate ingest tournament)
+GET    /ratings/sources            ?changed=true       → daftar sumber yg fingerprint-nya divergen
 GET    /ratings/status                                 → jumlah events, player ter-rating, last ingest
 ```
 
-- `revert-session` = transaksi: hapus `rating_events` sesi itu (by source_id) → rebuild ulang rating untuk player yang terpengaruh dengan replay sisa history (deterministik, dari audit trail).
+**Revert = replay-from-scratch** (bukan rollback snapshot — schema tidak menyimpan pre-state, dan replay murah + self-healing): hapus `rating_events`/`rating_deltas` by `source_id`, lalu rebuild `rating_players` untuk pemain terpengaruh dengan replay sisa history **menggunakan fungsi murni yang sama + rounding yang sama** (§3.7). Pemain yang tersisa 0 game → **reset ke default** (r0/rd0, zeros, NULL timestamp). Revert source tanpa event = no-op sukses. Karena ordering & basis waktu deterministik (§4.2/§3.6), replay reproduksi angka identik dengan run asli.
 
 ---
 
@@ -289,19 +353,27 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 
 ---
 
-## 8. Edge Cases & Keputusan
+## 8. Edge Cases & Keputusan (berdasarkan perilaku APLIKASI NYATA)
 
 | Kasus | Keputusan |
 |---|---|
-| Skor 0-0 (belum dimainkan) | Skip match (tidak diingest) |
-| Skor invalid (negatif / > target+5) | Tolak **seluruh batch** (atomic) |
-| Pemain sama di kedua tim | Skip match (guard) |
-| Sesi/tournament diedit setelah ingest | Deteksi via `source_id` + fingerprint sumber; wajib revert lalu re-ingest manual |
-| Rubber 3 final (format team) | Tetap diingest (ada skor) |
-| Match grup tanpa skor | Diabaikan (menunggu lengkap) |
-| Re-import sesi yang sama | No-op (match_key) |
-| Pemain baru muncul di sesi | Auto-register `rating_players` (row baru, r0/rd0) |
-| Absen / walkover | Tidak ada data skor → otomatis tidak ikut |
+| **Skor belum ada** (played tapi unscored; partai null) | **Skip game** (bukan tolak batch); catat `played_unscored` |
+| **Skor 0-0** | Tidak bisa disimpan di app (tie ditolak) — hanya legacy; skip |
+| **Skor deuce 22–30** (sesi/classic) | **Sah** — MoVM menangani; JANGAN tolak |
+| **Skor classic bebas target** (mis. 30-10) | **Sah** — tidak ada validasi target di classic; MoVM menangani |
+| **Skor invalid sesi** (negatif / >99 / tie) | Legacy-only; **skip** (bukan tolak batch) |
+| **Skor team invalid** (winner ≠ 30/42) | Backend sudah strict — data buruk = bug; **skip** + catat |
+| **Pemain sama di kedua tim** | Skip game (guard) |
+| **Pemain absent muncul di game berskor** | **absent_policy** config: `skip_player` (default — delta pemain absent dilewati, game tetap diproses untuk lawan) \| `skip_game` \| `count`. BUKAN otomatis tidak ikut (data nyata menunjukkan absent tetap di schedule) |
+| **Rename/swap pemain** | Identitas via player_id (§4.1); fingerprint mendeteksi perubahan sumber |
+| **Edit skor sesi/tournament setelah ingest** | 409 `source_changed` → revert + re-ingest (atau auto_reconcile) |
+| **Reset grup / undian ulang tournament** | Fingerprint beda → wajib revert-tournament |
+| **Final team tidak sinkron standings** (group diedit setelah final) | Ingest verifikasi final pair vs standings top-2; mismatch → `warning` di respons, butuh keputusan admin |
+| **Rubber 3 final (format team)** | Tetap diingest (ada skor) |
+| **Re-import sumber identik** | No-op (fingerprint sama) |
+| **Pemain baru di sumber** | Auto-register `bm.players` (TOCTOU-safe) + row `rating_players` baru |
+| **Duplikat game dalam satu sumber** | match_key unik → dedupe otomatis |
+| **Dua sesi se-date, judul sama, game identik** | match_key memuat `source_id` → tidak bertabrakan |
 
 ---
 
@@ -309,62 +381,67 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 
 | Dimensi | M-DEF | Proposal |
 |---|---|---|
-| Otoritas kalkulasi | Client (Dart) | Server (Go, transaksi) |
-| Atomicity | Per-RPC upsert buta | Batch all-or-nothing + row lock |
-| Idempotency | Stable ID (klien) | match_key (server) |
-| Urutan global | Nondeterministik (se-date) | (date, created_at, game_order) |
+| Otoritas kalkulasi | Client (Dart) | Server (Go, transaksi REPEATABLE READ) |
+| Atomicity | Per-RPC upsert buta | Batch all-or-nothing + advisory lock + seq invariant |
+| Idempotency | Stable ID (klien, konten) | match_key berbasis source+player_id + source fingerprint |
+| Edit setelah import | Double-count diam-diam | 409 source_changed / auto_reconcile |
+| Urutan global | Nondeterministik (se-date) | (date, created_at, source_id, game_order) |
+| Basis waktu | Wall-clock (non-reproducible) | Tanggal sumber (deterministik) |
 | Uncertainty | K-tier lifetime | Glicko RD + RD growth |
 | Struktur tim | Rata-rata (carry bias) | Positional pairing (team) |
-| Margin | MoVM raw (bias rally) | m = margin/target, capped |
+| Margin | MoVM raw (bias rally) | m = margin/target, capped, simetris |
 | Tournament | +8 flat | Phase weight |
-| Decay | Per-import, global | RD growth berbasis waktu |
+| Decay | Per-import, global | RD growth berbasis tanggal sumber |
 | Peak ELO | Replay perkiraan | Dari audit trail |
-| Audit | player_deltas jsonb | rating_deltas relasional |
+| Audit | player_deltas jsonb | rating_deltas relasional (per pemain) |
+| Revert | Script manual | Endpoint idempotent, replay-from-scratch |
 
 ---
 
 ## 10. Task List (implementasi bertahap)
 
 ### P0 — Fondasi matematika & schema
-- [ ] 1. Buat migration `000007_rating_schema.sql` (tabel §5 + index + config default)
-- [ ] 2. `internal/domain/rating.go`: Glicko-1-lite (§3.1–3.4, 3.6) — murni, tanpa IO
-- [ ] 3. Unit test golden: expected/delta/rd untuk skenario standar (favorite menang, underdog menang, whitewash, draw-impossible guard, clamp, RD growth)
+- [ ] 1. Migration `000007_rating_schema.sql`: tabel §5 + seed `rating_config` + index
+- [ ] 2. `internal/domain/rating.go`: Glicko-1-lite murni (§3.1–3.4, 3.6) — fungsi murni, tanpa IO, satu code path rounding
+- [ ] 3. Golden unit tests: favorite menang, underdog menang, whitewash, deuce 30-28, clamp, RD growth (jadwal hari), simetri MoVM (gain == loss)
 - [ ] 4. Unit test MoVM normalisasi (21-19, 30-28, 42-40, 21-0) + phase weight
-- [ ] 5. `rating_config` loader + override
+- [ ] 5. `rating_config` loader: typed struct + validasi range (fail-fast prod)
 
-**Verifikasi P0:** `make check` hijau; golden test reproduksi deterministik (double-run identik).
+**Verifikasi P0:** `make check` hijau; golden test deterministik (double-run identik).
 
 ### P1 — Ingest (write path)
-- [ ] 6. `internal/store/rating.go`: SELECT FOR UPDATE, upsert events, insert deltas — transaksi
-- [ ] 7. Ingest session: baca sesi → match list (game_order dari slot-court, skip 0-0, target 21)
-- [ ] 8. Ingest tournament classic: baca snapshot → 32 match (group/qf/sf/3rd/final, target 21)
-- [ ] 9. Ingest tournament team: partai per team-match → 6 pemain, positional pairing (§3.3), target 30/42
-- [ ] 10. Idempotency + seq global + rollback on error
-- [ ] 11. `internal/handler/ratings.go`: endpoint §6 (ingest + status)
-- [ ] 12. Integration test live: ingest sesi asli bm_dev → parity + determinisme (2× run hasil sama)
+- [ ] 6. `internal/store/rating.go`: REPEATABLE READ tx, advisory lock global, lock player sorted, invariant seq, upsert events/deltas/sources — satu transaksi
+- [ ] 7. Resolve nama → player_id + auto-register TOCTOU-safe (pattern `registerPlayerInTx`)
+- [ ] 8. Ingest session: `legacy_order` capture, skip unscored, target 21, gate `locked`
+- [ ] 9. Ingest tournament classic: branch via `TournamentFormat`, stable_game_id = match_key persisted, phase weight, gate `finalized`
+- [ ] 10. Ingest tournament team: partai → 6 pemain, positional pairing (§3.3), target 30/42, verify final vs standings (warning)
+- [ ] 11. Fingerprint: hitung + simpan; policy 409/auto_reconcile
+- [ ] 12. `internal/handler/ratings.go` + `MAJADU_ADMIN_TOKEN` middleware + `CodeUnauthorized` + `mapRatingsError`
+- [ ] 13. Integration test live: ingest sesi bm_dev → parity + determinisme (2× run identik); edit sumber → 409; auto_reconcile → bersih
 
-**Verifikasi P1:** `make check` hijau; live test ingest → query rating_events/deltas valid; re-run → skipped semua.
+**Verifikasi P1:** `make check` hijau; re-run → no-op; edit → 409.
 
 ### P2 — Read path & revert
-- [ ] 13. `GET /ratings/leaderboard` (sort, tier, active filter)
-- [ ] 14. `GET /ratings/players/{id}` + history (sparkline)
-- [ ] 15. `POST /ratings/revert-session` (hapus events + replay ulang)
-- [ ] 16. Unit + integration test revert (state kembali identik)
+- [ ] 14. `GET /ratings/leaderboard` (sort, tier, provisional badge, pagination, active)
+- [ ] 15. `GET /ratings/players/{id}` + history (sparkline)
+- [ ] 16. `POST /ratings/revert-session` + `revert-tournament`: hapus by source_id + replay dari audit trail (fungsi murni sama); reset pemain 0-game ke default; idempotent
+- [ ] 17. `GET /ratings/sources?changed=true` + `POST .../finalize`
+- [ ] 18. Integration test revert: state kembali identik dengan fresh ingest; revert dua kali = no-op
 
-**Verifikasi P2:** leaderboard konsisten dengan audit trail; revert → rating player kembali persis.
+**Verifikasi P2:** leaderboard konsisten dengan audit trail; revert → rating persis.
 
 ### P3 — Backfill & tuning
-- [ ] 17. Backfill: ingest semua published session + tournament (classic + team) dari bm
-- [ ] 18. Kalibrasi `c` (RD growth) & `movm_scale` terhadap data riil (distribusi delta sehat)
-- [ ] 19. Validasi fairness: korelasi tier vs winrate riil (tidak ada pemain "inflated")
-- [ ] 20. Catat hasil backfill + parameter final ke `rating_config`
+- [ ] 19. Backfill: semua published session (locked) + tournament classic/team (finalize) dari bm
+- [ ] 20. Kalibrasi `c` (RD growth), `movm_scale`, `phase_weights` terhadap data riil (distribusi delta sehat, tidak ada pemain "inflated")
+- [ ] 21. Validasi fairness: korelasi tier vs winrate riil
+- [ ] 22. Catat parameter final ke `rating_config`
 
-**Verifikasi P3:** semua data historis ter-cover; tidak ada double-count; distribusi delta masuk akal.
+**Verifikasi P3:** semua data historis ter-cover; no double-count; distribusi delta wajar.
 
 ### P4 — Frontend (opsional, scope terpisah)
-- [ ] 21. Halaman leaderboard rating di badminton-match (tabel tier + badge provisional)
-- [ ] 22. Player detail: sparkline rating + history
-- [ ] 23. Tombol ingest/revert di admin (jika ada)
+- [ ] 23. Halaman leaderboard rating (tabel tier + badge provisional) di badminton-match
+- [ ] 24. Player detail: sparkline rating + history
+- [ ] 25. Admin: tombol ingest/revert/finalize (jika ada panel admin)
 
 **Verifikasi P4:** UI render dari API; navigasi konsisten pola existing.
 
@@ -374,4 +451,13 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 
 - Pipeline M-DEF (`020_majadu_import_rpc`) membaca schema `bm` di Supabase. Setelah badminton-match pindah ke VPS (`bm_dev`/`bm`), RPC itu hanya berfungsi jika di-recreate di VPS.
 - Engine rating ini **tidak** memindahkan fitur M-DEF; hanya menyediakan data yang sama (match + skor) yang bisa dikonsumsi siapa pun.
-- Keputusan akhir: apakah `rating_players` juga disinkronkan ke M-DEF, atau M-DEF pensiun setelah leaderboard rating lahir di badminton-match — dibuka untuk diskusi.
+- Keputusan akhir: apakah `rating_players` disinkronkan ke M-DEF, atau M-DEF pensiun setelah leaderboard rating lahir di badminton-match — dibuka untuk diskusi.
+
+---
+
+## 12. Log Revisi
+
+- **Rev 2 (2026-08-18):** review 3 sudut pandang:
+  1. *Perilaku aplikasi nyata* — match_key harus berbasis identitas stabil + source_id (bukan konten); edit sumber = normal, wajib fingerprint + 409/auto_reconcile; absent tetap muncul di game (absent_policy); skor sesi/classic bebas target (skip vs reject); legacy_order untuk sesi; tidak ada tabel game_scores; lock sesi = gate ingest; tournament perlu finalized.
+  2. *Atomicity/concurrency/data model* — rating_deltas PK komposit (event_id,player_id); advisory lock global + lock player sorted + invariant seq; REPEATABLE READ; RD growth basis tanggal sumber; revert replay-from-scratch; drop team_a/team_b → kolom team; MAJADU_ADMIN_TOKEN; mapRatingsError; config typed + seed; DDL terkoreksi.
+  3. *Matematika* — MoVM·w simetris (scale seluruh update, pool netral); verifikasi aritmetika contoh; kalibrasi RD growth (6/13/23 hari); numeric stability aman; peak dari audit trail sound.
