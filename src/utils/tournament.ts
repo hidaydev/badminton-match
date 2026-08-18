@@ -26,6 +26,7 @@ export interface StandingRow extends TallyRow {
 
 export interface TournamentSnapshot {
   version?: number
+  format?: 'classic'
   name: string
   date: string
   pairs: TournamentPair[]

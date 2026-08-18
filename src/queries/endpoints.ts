@@ -1,5 +1,6 @@
 import type { CloudSnapshot, SessionMeta, PlayerSummary, PlayerStats } from './types'
 import type { TournamentSnapshot } from '../utils/tournament'
+import type { AnyTournamentSnapshot, TeamTournamentSnapshot } from '../utils/teamTournament'
 import { parseRetryAfter, ApiError, shouldRetry } from './retry'
 
 export { ApiError } from './retry'
@@ -111,6 +112,18 @@ function isValidTournamentSnapshot(data: unknown): data is TournamentSnapshot {
     typeof snap.groups === 'object' &&
     snap.groups !== null &&
     !Array.isArray(snap.groups) &&
+    Array.isArray(snap.matches)
+  )
+}
+
+/** Validate bahwa response berbentuk TeamTournamentSnapshot (format 'team'). */
+function isValidTeamTournamentSnapshot(data: unknown): data is TeamTournamentSnapshot {
+  if (typeof data !== 'object' || data === null) return false
+  const snap = data as Record<string, unknown>
+  return (
+    snap.format === 'team' &&
+    typeof snap.name === 'string' &&
+    Array.isArray(snap.teams) &&
     Array.isArray(snap.matches)
   )
 }
@@ -237,21 +250,27 @@ export interface TournamentMeta {
   id: string
   name: string
   date: string
+  format: 'classic' | 'team'
 }
 
 export async function listTournaments(): Promise<TournamentMeta[]> {
-  const rows = await request<Array<{ id: string; name: string; date: string }>>('GET', '/tournaments')
+  const rows = await request<Array<{ id: string; name: string; date: string; format?: string }>>('GET', '/tournaments')
   if (!Array.isArray(rows)) {
     console.warn('[listTournaments] response is not an array:', rows)
     throw new ApiError('Invalid tournament list received from server')
   }
-  return rows.map((row) => ({ id: row.id, name: row.name, date: row.date }))
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    date: row.date,
+    format: row.format === 'team' ? 'team' : 'classic',
+  }))
 }
 
-export async function getTournament(id: string): Promise<TournamentSnapshot | null> {
+export async function getTournament(id: string): Promise<AnyTournamentSnapshot | null> {
   try {
-    const data = await request<TournamentSnapshot>('GET', `/tournaments/${enc(id)}`)
-    if (!isValidTournamentSnapshot(data)) {
+    const data = await request<AnyTournamentSnapshot>('GET', `/tournaments/${enc(id)}`)
+    if (data.format === 'team' ? !isValidTeamTournamentSnapshot(data) : !isValidTournamentSnapshot(data)) {
       console.warn('[getTournament] response failed validation:', data)
       throw new ApiError('Invalid tournament snapshot received from server')
     }
@@ -262,6 +281,38 @@ export async function getTournament(id: string): Promise<TournamentSnapshot | nu
   }
 }
 
-export async function publishTournament(id: string, data: TournamentSnapshot): Promise<TournamentSnapshot> {
-  return await request<TournamentSnapshot>('PUT', `/tournaments/${enc(id)}`, data)
+export async function publishTournament(id: string, data: AnyTournamentSnapshot): Promise<AnyTournamentSnapshot> {
+  return await request<AnyTournamentSnapshot>('PUT', `/tournaments/${enc(id)}`, data)
+}
+
+/** Create tournament (classic atau team — format di body). Kembalikan id baru
+ * (dari header Location) + snapshot hasil create. Fetch langsung (bukan request)
+ * karena mutasi tidak di-retry — dan butuh akses header. */
+export async function createTournament(data: AnyTournamentSnapshot): Promise<{ id: string; snapshot: AnyTournamentSnapshot }> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${BASE_URL}/tournaments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      let message = `${res.status} ${res.statusText}`
+      let code: string | null = null
+      try {
+        const json = await res.json() as { error?: { message?: string; code?: string } }
+        message = json.error?.message ?? message
+        code = json.error?.code ?? null
+      } catch { /* keep status text */ }
+      throw new ApiError(message, code, res.status)
+    }
+    const snapshot = await res.json() as AnyTournamentSnapshot
+    const loc = res.headers.get('Location') ?? ''
+    const id = loc.split('/').pop() ?? ''
+    return { id, snapshot }
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
