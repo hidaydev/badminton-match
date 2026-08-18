@@ -104,7 +104,7 @@ export default function PlayerMatchDetailSheet({
 
         <h3 className="text-sm font-medium text-slate-300 mb-2">Match History</h3>
         {games.length === 0 ? (
-          <p className="text-sm text-slate-500">No games played yet.</p>
+          <p className="text-sm text-slate-400">No games played yet.</p>
         ) : (
           <div className="space-y-2">
             {games.map((game, i) => (
@@ -123,7 +123,7 @@ export default function PlayerMatchDetailSheet({
                   <span className="text-sm text-slate-200">
                     {game.partner?.name ?? '?'}
                   </span>
-                  <span className="text-xs text-slate-500">vs</span>
+                  <span className="text-xs text-slate-400">vs</span>
                   <span className="text-sm text-slate-200">
                     {game.opponents[0]?.name ?? '?'} & {game.opponents[1]?.name ?? '?'}
                   </span>

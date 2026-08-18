@@ -198,7 +198,7 @@ export function ScheduleView({
         })}
       </div>
 
-      <div className="bg-surface border border-border-subtle rounded-2xl p-3 flex flex-col gap-2">
+      <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-white">Player Stats</span>
           <span className="text-xs text-slate-400">target ~{idealPlays.toFixed(1)} plays</span>
@@ -295,7 +295,7 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
   const text: Record<Level, string> = { ok: 'text-emerald-400', warn: 'text-amber-400', bad: 'text-red-400' }
 
   return (
-    <div className={`rounded-2xl border p-3 flex flex-col gap-2.5 ${
+    <div className={`rounded-lg border p-3 flex flex-col gap-2.5 ${
       hasBad ? 'bg-red-900/20 border-red-800' : hasWarn ? 'bg-amber-900/20 border-amber-800' : 'bg-emerald-900/20 border-emerald-800'
     }`}>
       <div className="flex items-center justify-between">

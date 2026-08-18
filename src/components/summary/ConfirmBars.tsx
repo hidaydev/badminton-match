@@ -4,12 +4,12 @@ import type { SlotSwapTarget } from '../../utils/slotSwap'
 
 type BarColor = 'indigo' | 'red' | 'orange' | 'violet' | 'sky'
 
-const COLOR_MAP: Record<BarColor, { border: string; bg: string; btn: string; btnHover: string; accent: string }> = {
-  indigo: { border: 'border-indigo-900/40', bg: 'bg-indigo-950/50 border-indigo-800/50', btn: 'bg-indigo-600', btnHover: 'hover:bg-indigo-500', accent: 'text-indigo-200' },
-  red:    { border: 'border-red-900/40',    bg: 'bg-red-950/40 border-red-800/50',     btn: 'bg-red-700',    btnHover: 'hover:bg-red-600',    accent: 'text-red-300' },
-  orange: { border: 'border-orange-900/40', bg: 'bg-orange-950/40 border-orange-800/40', btn: 'bg-orange-600', btnHover: 'hover:bg-orange-500', accent: 'text-orange-300' },
-  violet: { border: 'border-violet-900/40', bg: 'bg-violet-950/50 border-violet-800/50', btn: 'bg-violet-600', btnHover: 'hover:bg-violet-500', accent: 'text-violet-200' },
-  sky:    { border: 'border-sky-900/40',    bg: 'bg-sky-950/40 border-sky-800/40',     btn: 'bg-sky-600',    btnHover: 'hover:bg-sky-500',    accent: 'text-sky-300' },
+const COLOR_MAP: Record<BarColor, { border: string; bg: string; btn: string; btnHover: string; btnText: string; accent: string }> = {
+  indigo: { border: 'border-indigo-900/40', bg: 'bg-indigo-950/50 border-indigo-800/50', btn: 'bg-indigo-400', btnHover: 'hover:bg-indigo-300', btnText: 'text-slate-950', accent: 'text-indigo-200' },
+  red:    { border: 'border-red-900/40',    bg: 'bg-red-950/40 border-red-800/50',     btn: 'bg-red-700',    btnHover: 'hover:bg-red-600',    btnText: 'text-white', accent: 'text-red-300' },
+  orange: { border: 'border-orange-900/40', bg: 'bg-orange-950/40 border-orange-800/40', btn: 'bg-orange-600', btnHover: 'hover:bg-orange-500', btnText: 'text-white', accent: 'text-orange-300' },
+  violet: { border: 'border-violet-900/40', bg: 'bg-violet-950/50 border-violet-800/50', btn: 'bg-violet-600', btnHover: 'hover:bg-violet-500', btnText: 'text-white', accent: 'text-violet-200' },
+  sky:    { border: 'border-sky-900/40',    bg: 'bg-sky-950/40 border-sky-800/40',     btn: 'bg-sky-600',    btnHover: 'hover:bg-sky-500',    btnText: 'text-white', accent: 'text-sky-300' },
 }
 
 const SPINNER = <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -55,7 +55,7 @@ function ConfirmActionBar({
             <button
               onClick={onConfirm}
               disabled={saving}
-              className={`text-xs font-bold px-4 py-1.5 rounded-lg ${c.btn} ${c.btnHover} text-white transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5`}
+              className={`text-xs font-bold px-4 py-1.5 rounded-lg ${c.btn} ${c.btnHover} ${c.btnText} transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1.5`}
             >
               {saving && SPINNER}
               {saving ? 'Saving…' : 'Confirm'}

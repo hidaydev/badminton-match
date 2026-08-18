@@ -79,11 +79,14 @@ export default function StandingsTab({
         const diffColor = s.diff > 0 ? 'text-emerald-400' : s.diff < 0 ? 'text-red-400' : 'text-slate-400'
         const diffLabel = s.diff > 0 ? `+${s.diff}` : String(s.diff)
 
-        const medal = isFirst ? '🥇' : isSecond ? '🥈' : isThird ? '🥉' : null
+        const medal = isFirst ? 'gold' : isSecond ? 'silver' : isThird ? 'bronze' : null
 
         const rowBg = isPodium
           ? 'bg-emerald-950/45 border-emerald-800/35'
           : 'bg-slate-800/30 border-slate-700/20'
+
+        const rankCls =
+          medal === 'gold' ? 'text-accent' : medal === 'silver' ? 'text-slate-200' : medal === 'bronze' ? 'text-slate-400' : 'text-slate-400'
 
         return (
           <div
@@ -91,10 +94,7 @@ export default function StandingsTab({
             className={`flex items-center gap-2 pl-2 pr-2 py-2.5 rounded-xl border ${rowBg}`}
           >
             <div className="w-8 flex justify-center shrink-0">
-              {medal
-                ? <span className="text-lg leading-none">{medal}</span>
-                : <span className="text-[11px] font-semibold text-slate-400">{ordinal(rank)}</span>
-              }
+              <span className={`text-[11px] font-bold font-mono ${rankCls}`}>{ordinal(rank)}</span>
             </div>
             <span
               className={`flex-1 min-w-0 truncate cursor-pointer active:opacity-70 ${isFirst ? 'text-sm font-bold text-emerald-300' : isPodium ? 'text-sm font-semibold text-emerald-100/80' : 'text-sm font-medium text-slate-400'}`}

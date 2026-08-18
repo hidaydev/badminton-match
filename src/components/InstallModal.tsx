@@ -28,7 +28,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
 
         {/* App identity */}
         <div className="flex flex-col items-center gap-2 px-6 pt-4 pb-5">
-          <img src="/logo-192.png" alt="Majadu" className="w-16 h-16 rounded-2xl object-contain" />
+          <img src="/logo-192.png" alt="Majadu" className="w-16 h-16 rounded-lg object-contain" />
           <div className="text-center">
             <p className="text-white font-bold text-lg leading-tight">Install Majadu App</p>
             <p className="text-slate-400 text-sm mt-0.5">
@@ -74,7 +74,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
           </ol>
         ) : (
           <div className="flex items-start gap-4 px-6 py-5">
-            <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[1rem]">📲</div>
+            <div className="shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-fg-dim"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 21h16"/></svg></div>
             <div className="flex flex-col gap-1 pt-0.5">
               <span className="text-sm font-semibold text-white">One tap to install</span>
               <span className="text-xs text-slate-400">Works offline · Fast · No app store needed</span>
@@ -90,7 +90,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
           {!isIos && (
             <button
               onClick={onInstall}
-              className="w-full py-3.5 rounded-2xl bg-yellow-400 text-slate-950 font-bold text-sm
+              className="w-full py-3.5 rounded-lg bg-yellow-400 text-slate-950 font-bold text-sm
                 active:scale-98 transition-transform"
             >
               Install App
@@ -98,7 +98,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
           )}
           <button
             onClick={onClose}
-            className="w-full py-3 rounded-2xl text-slate-400 font-medium text-sm
+            className="w-full py-3 rounded-lg text-slate-400 font-medium text-sm
               active:scale-98 transition-transform"
           >
             {isIos ? 'Got it' : 'Not now'}

@@ -72,7 +72,7 @@ export function ValidationPanel({ players, matches }: { players: Player[]; match
       )}
 
       {/* Per-player counts */}
-      <div className="bg-surface border border-border-subtle rounded-2xl p-3 flex flex-col gap-2">
+      <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
         <div className="flex flex-col gap-0.5">
           <span className="text-sm font-semibold text-white">Fix Match Assignments</span>
           <span className="text-xs text-slate-400">max {expectedPlays}x per player (balanced)</span>

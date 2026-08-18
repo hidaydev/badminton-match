@@ -3,7 +3,7 @@ import { computeGroupStandings } from '../../utils/tournament'
 import type { TournamentMatch, TournamentPair, GroupId } from '../../utils/tournament'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
-const STAGE_LABEL = ['🥇 Champion', '🥈 Runner-up', '🥉 3rd Place', '4th Place', 'QF Exit', 'Group Stage']
+const STAGE_LABEL = ['Champion', 'Runner-up', '3rd Place', '4th Place', 'QF Exit', 'Group Stage']
 
 function stageRank(pairId: string, matches: TournamentMatch[]): number {
   const final = matches.find((m) => m.id === 'final-1')
@@ -70,17 +70,24 @@ export default function StandingsTab({ pairs, groups, matches }: StandingsTabPro
   }
 
   const top3 = [ranked[1], ranked[0], ranked[2]]
-  const top3Emojis = ['🥈', '🏆', '🥉']
+  // Indikator peringkat netral (bukan emoji): 1 = gold, 2 = silver, 3 = slate
+  const top3Indicators = [
+    { rank: '2', cls: 'text-slate-300' },
+    { rank: '1', cls: 'text-accent' },
+    { rank: '3', cls: 'text-slate-400' },
+  ]
   const top3Sizes = ['text-2xl', 'text-3xl', 'text-2xl']
   const top3MTop = ['', '-mt-4', '']
 
   return (
     <div className="space-y-4">
       {/* Podium */}
-      <div className="bg-slate-800 rounded-2xl p-4 flex justify-around items-end">
+      <div className="bg-slate-800 rounded-lg p-4 flex justify-around items-end">
         {top3.map((p, i) => (
           <div key={p?.id ?? i} className={`text-center ${top3MTop[i]}`}>
-            <div className={top3Sizes[i]}>{top3Emojis[i]}</div>
+            <div className={`${top3Sizes[i]} font-bold font-mono ${top3Indicators[i].cls}`}>
+              {top3Indicators[i].rank}
+            </div>
             <div className="text-xs text-slate-300 mt-1 font-medium max-w-20 truncate">
               {p ? getPairName(p.id) : 'TBD'}
             </div>

@@ -214,11 +214,11 @@ export default function SetupPage() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-0.5">Session Setup</h2>
+        <h2 className="text-lg font-bold text-fg mb-0.5">Session Setup</h2>
         <p className="text-slate-400 text-sm">Configure courts and time slots. Settings lock once session starts.</p>
       </div>
 
-      <div className="bg-surface border border-border-subtle rounded-2xl p-4 flex flex-col gap-5">
+      <div className="bg-surface border border-border-subtle rounded-lg p-4 flex flex-col gap-5">
 
         {/* Block 0: Session identity */}
         <div className="flex flex-wrap gap-4">
@@ -331,7 +331,7 @@ export default function SetupPage() {
         {/* Block 4: Summary */}
         <div className="flex items-center justify-between bg-slate-800 rounded-xl px-3 py-2">
           <span className="text-sm text-slate-400">Total Games</span>
-          <span className="text-2xl font-bold text-indigo-400">{selectTotalGames(session)}</span>
+          <span className="text-xl font-bold text-indigo-400">{selectTotalGames(session)}</span>
         </div>
 
         {courtError && !session.locked && (
@@ -360,7 +360,7 @@ export default function SetupPage() {
           <button
             onClick={handleLock}
             disabled={!canLock}
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
+            className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors"
           >
             Start Session →
           </button>

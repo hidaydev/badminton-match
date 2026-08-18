@@ -42,7 +42,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
   if (isFetching) {
     return (
       <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label="Enter score">
-        <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-slate-800 rounded-lg w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
           <div className="animate-pulse">
             <div className="h-5 bg-slate-700 rounded w-1/3 mx-auto mb-1" />
             <div className="h-4 bg-slate-700 rounded w-1/2 mx-auto mb-4" />
@@ -70,7 +70,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
 
   return (
     <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-slate-800 rounded-lg w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-bold text-slate-300 text-center mb-1">Enter Score</h3>
         <p className="text-xs text-slate-400 text-center mb-4">
           {pairAName} vs {pairBName}
@@ -127,7 +127,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
           className="w-full py-2.5 rounded-xl text-slate-400 text-sm font-medium flex items-center justify-center gap-2 active:bg-slate-700/60 transition-colors"
           style={{ border: '1px solid rgba(148,163,184,0.15)' }}
         >
-          🎯 Open Scoreboard
+          Open Scoreboard
         </button>
       </div>
     </div>

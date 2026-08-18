@@ -63,7 +63,7 @@ export default function ResolvePlayersModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Resolve new players">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-lg w-full flex flex-col gap-4 shadow-2xl max-h-screen overflow-auto">
+      <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-lg w-full flex flex-col gap-4 shadow-2xl max-h-screen overflow-auto">
         <div className="flex flex-col gap-1">
           <h2 className="text-white font-bold text-lg">Resolve new players</h2>
           <p className="text-slate-400 text-sm">
@@ -93,7 +93,7 @@ export default function ResolvePlayersModal({
                   onClick={() => setMode(entry.player.id, 'merge')}
                   className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                     entry.mode === 'merge'
-                      ? 'bg-indigo-700 text-white border border-indigo-500'
+                      ? 'bg-indigo-400 text-slate-950 border border-indigo-300'
                       : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
                   }`}
                 >
@@ -135,7 +135,7 @@ export default function ResolvePlayersModal({
           <button
             onClick={handleConfirm}
             disabled={!allResolved}
-            className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 py-2 rounded-xl text-sm font-bold bg-indigo-400 hover:bg-indigo-300 text-slate-950 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Confirm
           </button>
