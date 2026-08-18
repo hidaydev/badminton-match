@@ -17,7 +17,7 @@ const PAIR_COUNT = 16
 const emptyPair = () => ({ a: '', b: '' })
 
 /**
- * Wizard tournament — format classic (16 pasangan → 4 grup → create).
+ * Wizard tournament — format classic (16 pairs → 4 grup → create).
  * Format team menyusul (Fase 5).
  */
 export default function NewTournamentWizard() {
@@ -99,14 +99,14 @@ function TeamWizard() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-fg">Tournament Team</h2>
-        <span className="text-xs font-mono text-fg-dim">{step} · {['Setup', 'Pemain', 'Tim'][step - 1]}</span>
+        <h2 className="text-lg font-bold text-fg">Team Tournament</h2>
+        <span className="text-xs font-mono text-fg-dim">{step} · {['Setup', 'Players', 'Teams'][step - 1]}</span>
       </div>
 
       {step === 1 && (
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">Nama tournament</span>
+            <span className="text-xs text-fg-dim">Tournament name</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -115,7 +115,7 @@ function TeamWizard() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">Tanggal</span>
+            <span className="text-xs text-fg-dim">Date</span>
             <input
               type="date"
               value={date}
@@ -128,7 +128,7 @@ function TeamWizard() {
             disabled={!name.trim()}
             className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Lanjut
+            Next
           </button>
         </div>
       )}
@@ -136,9 +136,9 @@ function TeamWizard() {
       {step === 2 && (
         <div className="flex flex-col gap-2.5">
           <p className="text-xs text-fg-dim">
-            36 peserta · kelas: {TEAM_CLASSES.map((c, i) => `${c}=${classCount[i]}`).join(' · ')}
+            36 participants · kelas: {TEAM_CLASSES.map((c, i) => `${c}=${classCount[i]}`).join(' · ')}
             <span className={classesBalanced ? ' text-success' : ' text-warning'}>
-              {classesBalanced ? ' ✓' : ' (harus 6 per kelas)'}
+              {classesBalanced ? ' ✓' : ' (must be 6 per class)'}
             </span>
           </p>
           <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
@@ -148,7 +148,7 @@ function TeamWizard() {
                 <input
                   value={p.name}
                   onChange={(e) => updatePlayer(i, { name: e.target.value })}
-                  placeholder={`Peserta ${i + 1}`}
+                  placeholder={`Participant ${i + 1}`}
                   className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none min-w-0"
                 />
                 <select
@@ -168,7 +168,7 @@ function TeamWizard() {
             disabled={!namesComplete || !classesBalanced}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Lanjut
+            Next
           </button>
         </div>
       )}
@@ -176,17 +176,17 @@ function TeamWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-fg-dim">Nama tim (1 pemain per kelas)</p>
+            <p className="text-xs text-fg-dim">Team names (1 player per class)</p>
             <button
               onClick={drawTeams}
               className="text-xs px-3 py-1.5 rounded-md border border-border-subtle text-fg-dim hover:text-fg"
             >
-              {teams.length === 6 ? 'Acak Ulang' : 'Bentuk Tim'}
+              {teams.length === 6 ? 'Re-draw' : 'Form Teams'}
             </button>
           </div>
           {teams.length === 0 && (
             <p className="text-xs text-fg-dim">
-              Tekan <span className="text-accent">Bentuk Tim</span> untuk membagi 36 peserta.
+              Click <span className="text-accent">Form Teams</span> to split the 36 participants into teams.
             </p>
           )}
           <div className="flex flex-col gap-2.5">
@@ -219,7 +219,7 @@ function TeamWizard() {
             disabled={teams.length !== 6 || teams.some((t) => t.players.length !== 6) || isPending}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {isPending ? 'Membuat…' : 'Buat Tournament'}
+            {isPending ? 'Creating…' : 'Create Tournament'}
           </button>
         </div>
       )}
@@ -295,8 +295,8 @@ function ClassicWizard() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-fg">Tournament Classic</h2>
-        <span className="text-xs font-mono text-fg-dim">{step} · {['Setup', 'Pasangan', 'Undian'][step - 1]}</span>
+        <h2 className="text-lg font-bold text-fg">Classic Tournament</h2>
+        <span className="text-xs font-mono text-fg-dim">{step} · {['Setup', 'Pairs', 'Draw'][step - 1]}</span>
       </div>
 
       {step === 1 && (
@@ -324,7 +324,7 @@ function ClassicWizard() {
             disabled={!name.trim()}
             className="mt-2 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Lanjut
+            Next
           </button>
         </div>
       )}
@@ -333,7 +333,7 @@ function ClassicWizard() {
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
             <p className="text-xs text-fg-dim">
-              Masukkan <span className="text-accent">{PAIR_COUNT}</span> pasangan
+              Add <span className="text-accent">{PAIR_COUNT}</span> pairs
             </p>
             <button
               onClick={() => setPairs(Array.from({ length: PAIR_COUNT }, emptyPair))}
@@ -349,14 +349,14 @@ function ClassicWizard() {
                 <input
                   value={p.a}
                   onChange={(e) => updatePair(i, 'a', e.target.value)}
-                  placeholder="Pemain 1"
+                  placeholder="Player 1"
                   className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none min-w-0"
                 />
                 <span className="text-fg-dim text-xs shrink-0">&</span>
                 <input
                   value={p.b}
                   onChange={(e) => updatePair(i, 'b', e.target.value)}
-                  placeholder="Pemain 2"
+                  placeholder="Player 2"
                   className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none min-w-0"
                 />
               </div>
@@ -367,7 +367,7 @@ function ClassicWizard() {
             disabled={!pairsComplete}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Lanjut
+            Next
           </button>
         </div>
       )}
@@ -375,24 +375,24 @@ function ClassicWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-fg-dim">Undian 4 grup × 4 pasangan</p>
+            <p className="text-xs text-fg-dim">Draw: 4 groups × 4 pairs</p>
             <button
               onClick={drawGroups}
               className="text-xs px-3 py-1.5 rounded-md border border-border-subtle text-fg-dim hover:text-fg"
             >
-              Acak Ulang
+              Re-draw
             </button>
           </div>
           {!groupsFull && (
             <p className="text-xs text-fg-dim">
-              Tekan <span className="text-accent">Acak Ulang</span> untuk membagi pasangan ke grup.
+              Click <span className="text-accent">Re-draw</span> to split the pairs into groups.
             </p>
           )}
           <div className="flex flex-col gap-2.5">
             {GROUP_IDS.map((g) => (
               <div key={g} className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
                 <div className="px-3 py-1.5 border-b border-border-subtle text-xs font-mono text-fg-dim uppercase tracking-wider">
-                  Grup {g}
+                  Group {g}
                 </div>
                 {groupNames[g].map((n, i) => (
                   <div key={i} className="px-3 py-2 border-b border-border-subtle/50 last:border-0 text-sm text-fg truncate">
@@ -407,7 +407,7 @@ function ClassicWizard() {
             disabled={!groupsFull || isPending}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {isPending ? 'Membuat…' : 'Buat Tournament'}
+            {isPending ? 'Creating…' : 'Create Tournament'}
           </button>
         </div>
       )}

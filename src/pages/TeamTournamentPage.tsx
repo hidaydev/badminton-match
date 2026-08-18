@@ -55,7 +55,7 @@ export default function TeamTournamentPage() {
   }, [publishError])
 
   if (!snap) {
-    return <p className="text-fg-dim text-sm">{isFetching ? 'Loading team tournament…' : 'Tournament tidak ditemukan.'}</p>
+    return <p className="text-fg-dim text-sm">{isFetching ? 'Loading team tournament…' : 'Tournament not found.'}</p>
   }
 
   const teams = snap.teams
@@ -110,8 +110,8 @@ export default function TeamTournamentPage() {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'klasemen', label: 'Klasemen' },
-    { id: 'jadwal', label: 'Jadwal' },
+    { id: 'klasemen', label: 'Standings' },
+    { id: 'jadwal', label: 'Schedule' },
     { id: 'final', label: 'Final' },
   ]
 
@@ -125,7 +125,7 @@ export default function TeamTournamentPage() {
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
           <h2 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h2>
-          {publish.isPending && <span className="text-xs text-fg-dim font-mono">menyimpan…</span>}
+          {publish.isPending && <span className="text-xs text-fg-dim font-mono">saving…</span>}
         </div>
         <p className="text-xs text-fg-dim mt-0.5 mb-3 font-mono">
           {snap.date} · 6 tim · 3 partai ganda · rally {teamTarget('group')}/{teamTarget('final')}
@@ -171,7 +171,7 @@ export default function TeamTournamentPage() {
                 disabled={publish.isPending}
                 className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
               >
-                Undian Grup (hari-H)
+                Group Draw (match day)
               </button>
             )}
             {groupComplete && !hasFinal && (
@@ -180,11 +180,11 @@ export default function TeamTournamentPage() {
                 disabled={publish.isPending}
                 className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
               >
-                Buat Final (top 2)
+                Create Final (top 2)
               </button>
             )}
             {!groupComplete && groupMatches.length > 0 && (
-              <p className="text-xs text-fg-dim text-center">Selesaikan 9 pertandingan grup untuk menentukan final.</p>
+              <p className="text-xs text-fg-dim text-center">Finish all 9 group matches to determine the final.</p>
             )}
           </>
         )}
@@ -228,7 +228,7 @@ export default function TeamTournamentPage() {
               />
             ) : (
               <p className="text-fg-dim text-xs text-center py-8">
-                {groupComplete ? 'Klik "Buat Final" di tab Klasemen.' : 'Selesaikan fase grup dulu.'}
+                {groupComplete ? 'Click "Create Final" in the Standings tab.' : 'Finish the group phase first.'}
               </p>
             )}
           </>
@@ -260,7 +260,7 @@ function MatchCard({
   const out = teamMatchOutcome(match)
   const target = teamTarget(match.phase)
   const dirty = match.partai.some((p) => p.scoreA !== null || p.scoreB !== null)
-  const label = match.phase === 'final' ? 'FINAL' : `Grup · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
+  const label = match.phase === 'final' ? 'FINAL' : `Group · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
 
   return (
     <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
@@ -268,7 +268,7 @@ function MatchCard({
         <span className="text-xs font-mono text-fg-dim uppercase tracking-wider">{label}</span>
         {dirty && (
           <span className="text-[10px] font-mono text-fg-dim">
-            {out.complete ? `${out.aWins}-${out.bWins}${match.phase === 'final' && out.aWins + out.bWins === 3 ? ' (partai 3 tetap dimainkan)' : ''}` : 'belum lengkap'}
+            {out.complete ? `${out.aWins}-${out.bWins}${match.phase === 'final' && out.aWins + out.bWins === 3 ? ' (rubber 3 still played)' : ''}` : 'incomplete'}
           </span>
         )}
       </div>
@@ -306,7 +306,7 @@ function MatchCard({
           disabled={saving || !dirty}
           className="w-full py-2 rounded-lg bg-accent/15 border border-accent/30 text-accent text-sm font-bold disabled:opacity-40"
         >
-          {saving ? 'Menyimpan…' : 'Simpan'}
+          {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
     </div>

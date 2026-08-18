@@ -1,6 +1,5 @@
 // src/pages/InstagramPostPage.tsx
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { instagramTemplates } from '../config/instagramTemplates'
 import { useListSessions, useFetchSession } from '../queries'
 import { computeStandings } from '../utils/standings'
@@ -16,7 +15,6 @@ const MONTHS = ['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGU','SEP','OKT','NOV
 type StandingMode = 'post' | 'story'
 
 export default function InstagramPostPage() {
-  const navigate = useNavigate()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -353,14 +351,8 @@ export default function InstagramPostPage() {
           </button>
         </div>
       )}
-      {/* Compact header */}
+      {/* Compact header — back ditangani HomeLayout (global) */}
       <div className="flex items-center gap-3 px-1 pt-4 pb-3">
-        <button
-          onClick={() => navigate('/')}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-800 text-slate-300 active:bg-slate-700 transition-colors"
-        >
-          ←
-        </button>
         <div>
           <p
             className="text-[10px] font-mono text-slate-400 uppercase"
