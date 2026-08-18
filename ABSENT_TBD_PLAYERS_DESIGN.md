@@ -104,6 +104,27 @@ Ini mengubah mark-absent dari "jebakan data kotor" menjadi alur dua-langkah yang
 
 - Jika game void tapi host ingin menghitungnya (sub tak tercatat tapi beneran main) → solusi yang benar adalah mencatat sub-nya (change player / TBD → nama asli), bukan mengecualikan game dari aturan void. Jangan buat pengecualian berbasis perasaan — konsistensi > fleksibilitas.
 - Absent tidak memengaruhi rating pemain itu sendiri (dia tidak main → tidak ada event). Yang berubah: lawan/partner tidak dapat poin dari game hantu.
+- **Sub hasil change player** — entah sudah terdaftar di roster atau nama baru yang diketik saat replace — **otomatis masuk leaderboard**: `rebuildPlayersFromSchedule` menambahkan sub ke daftar pemain sesi, lalu resolve/auto-register saat publish. Ini perilaku yang diinginkan (keputusan §9.5) dan sudah didukung tanpa perubahan kode.
+
+### 4.6 Lock otomatis saat ganti hari (auto-lock) — basis "data final" yang andal
+
+**Masalah:** lock manual bergantung disiplin host — sering telat atau tidak pernah, padahal rating engine memakai `status = 'locked'` sebagai gate ingest (`ingest_locked_only`). Sesi yang tidak pernah di-lock = tidak pernah final = tidak pernah ter-rating.
+
+**Desain:** scheduler auto-lock — sesi yang **tanggalnya sudah lewat** otomatis di-lock:
+
+```
+AutoLockExpiredSessions:
+  UPDATE bm.sessions
+  SET status = 'locked', updated_at = now()
+  WHERE status = 'draft' AND session_date < current_date
+```
+
+- Dijalankan oleh **ticker berkala** di majadu-api (misal tiap 30–60 menit) — murah, idempotent (hanya draft yang lewat tanggal).
+- Sesi hari ini / belum lewat **tetap editable** — auto-lock tidak pernah mendahului data final; lock hanya terjadi saat hari berganti.
+- **Unlock tetap tersedia** (admin, existing) untuk koreksi sesi yang salah lock. Unlock setelah ingest → fingerprint beda → wajib revert + re-ingest (alur rating §4.4).
+- Menjawab keputusan §9.4: sesi tidak boleh terkunci sebelum data final — mekanismenya bukan "dilarang lock", tapi lock manual **tidak lagi wajib** karena auto-lock menangani finalisasi.
+
+**Catatan operasional:** sesi yang di-lock otomatis tetap bisa di-unlock admin (misal host lupa skor satu game) — proses koreksinya sama seperti sekarang. Auto-lock bukan penghapus edit, hanya penanda final default.
 
 ---
 
@@ -123,6 +144,7 @@ Ini mengubah mark-absent dari "jebakan data kotor" menjadi alur dua-langkah yang
 pola placeholder (config, case-insensitive):
   "free", "free 1", "free 2", ...      (pola ^free(\s+\d+)?$)
   "tbd", "tbd 1", ...
+  "default", "default 1", ...          (pola ^default(\s+\d+)?$)
   "?", "??", "xxx", "unknown", "kosong", "belum ada"
 ```
 
@@ -209,26 +231,30 @@ Perubahan yang harus disinkronkan ke rating doc (Rev 2):
 
 **Verifikasi P1:** integrasi live — sesi dengan free/TBD → players table tidak bertambah.
 
-### P2 — UX mark-absent & slot TBD
+### P2 — UX mark-absent, slot TBD, auto-lock
 - [ ] 9. Mark absent → prompt "Ganti di semua game / Biarkan (void)" (§4.4)
 - [ ] 10. PlayersPage: "Tambah slot TBD" + badge + replace flow (§5.2 jangka panjang)
 - [ ] 11. Snapshot contract: field `placeholder?: boolean` (opsional, backward compatible)
 - [ ] 12. Test: TBD slot → generate → replace → publish; dan TBD tersisa → void
+- [ ] 13. `AutoLockExpiredSessions` + ticker di majadu-api (§4.6) — sesi lewat tanggal → locked
+- [ ] 14. Test auto-lock: sesi kemarin → terkunci otomatis; sesi hari ini → tetap editable; unlock admin masih jalan
 
 **Verifikasi P2:** alur TBD end-to-end di browser; tanpa regresi publish normal.
 
 ### P3 — Rating engine sync
-- [ ] 13. Update `RATING_ENGINE_DESIGN.md`: absent_policy `skip_game`, placeholder_policy, fingerprint memuat game void (§6)
-- [ ] 14. Rating ingest: implementasi policy + test game void/placeholder
+- [ ] 15. Update `RATING_ENGINE_DESIGN.md`: absent_policy `skip_game`, placeholder_policy, fingerprint memuat game void, gate ingest pakai auto-lock (§6)
+- [ ] 16. Rating ingest: implementasi policy + test game void/placeholder
 
 **Verifikasi P3:** dokumentasi sinkron; rating test dengan data mengandung absent/placeholder.
 
 ---
 
-## 9. Open Questions / Keputusan yang Dibutuhkan
+## 9. Keputusan (2026-08-18)
 
-1. **Pola placeholder default**: cukup `^free\s*\d*$`, `^tbd`, `^xxx`, `^unknown`, `^\?+$`? Ada nama nyata yang berisiko ke-match?
-2. **Publish dengan TBD tersisa**: boleh dipublish (jadwal belum dimainkan) atau ditolak sampai semua TBD diganti? (Rekomendasi: boleh, karena "publish" = simpan progres, bukan final.)
-3. **Snapshot field `placeholder`** vs murni pattern-based: eksplisit lebih aman (tidak salah identifikasi), tapi menambah kontrak. (Rekomendasi: keduanya — flag eksplisit untuk TBD baru, pattern untuk backward compat.)
-4. **Absent di session yang di-lock**: void tetap berlaku? (Rekomendasi: ya — semantik absent tidak berubah oleh lock.)
-5. **Stats "sessions" list** tetap memuat sesi absent (flag) — setuju? (Rekomendasi: ya — kehadiran sesi ≠ game dimainkan.)
+| # | Pertanyaan | Keputusan |
+|---|---|---|
+| 1 | Pola placeholder default | Setuju pola default (`free*`, `tbd`, `xxx`, `unknown`, `?+`) **+ tambah `default`** (`^default\s*\d*$`) |
+| 2 | Publish dengan TBD tersisa | **Boleh** — "publish" = simpan progres, bukan final |
+| 3 | Field `placeholder` vs pattern-only | **Keduanya**: flag eksplisit untuk TBD baru (anti salah-identifikasi), pattern untuk backward compat "free*" |
+| 4 | Lock sesi sebelum data final | **Sesi tidak boleh terkunci sebelum final** — solusi: auto-lock saat ganti hari (§4.6); lock manual tidak lagi wajib; unlock admin tetap ada |
+| 5 | Stats list sesi dengan absent | **Ya** — flag `absent` + section terpisah di leaderboard sesi (sudah ada di StandingsTab). Sub hasil change player — dari roster atau nama baru — **tetap masuk leaderboard** (§4.5) |
