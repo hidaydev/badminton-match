@@ -22,6 +22,7 @@ export default function StandingsTab({
     players.filter(p => !absentPlayerIds.includes(p.id)),
     schedule,
     gameScores,
+    absentPlayerIds, // game yang memuat pemain absent = VOID (tidak ditallikan)
   )
   const [selectedPlayer, setSelectedPlayer] = useState<{ standing: typeof standings[number]; rank: number } | null>(null)
   const hasScores = Object.keys(gameScores).length > 0
@@ -126,6 +127,7 @@ export default function StandingsTab({
         schedule={schedule}
         gameScores={gameScores}
         players={players}
+        voidPlayerIds={absentPlayerIds}
         onClose={() => setSelectedPlayer(null)}
       />
     </div>

@@ -224,6 +224,7 @@ export default function InstagramPostPage() {
         snapshot.players.filter(p => !(snapshot.absentPlayers ?? []).includes(p.id)),
         snapshot.schedule,
         snapshot.gameScores,
+        snapshot.absentPlayers ?? [], // game yang memuat pemain absent = VOID
       )
 
       const isStory = mode === 'story'
