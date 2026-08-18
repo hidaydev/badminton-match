@@ -9,13 +9,13 @@ This is the fastest handover file. Start here, lalu baca dokumen terkait di bawa
 ```
 badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http+pgx) ──▶ Postgres VPS
   dev  (aktif)                          dev  (aktif)          DB bm_dev (dev)
-  main → prod (belum migrasi)            main → prod           DB bm (belum)
-  staging (Supabase — legacy)           —                     (Supabase: data sudah dipindah, bisa pensiun)
+  main → prod (belum migrasi)            main (lokal, belum di-push)   DB bm (belum)
+                                         → push main = trigger CI deploy prod (tahan dulu)
 ```
 
 - Frontend `dev` → `https://api.qouver.com/majadu-dev` (Vercel) · `main` → `api.qouver.com/majadu`
-- Backend deploy: push → CI image ghcr → VPS podman (auto-update 05:00 / `./scripts/deploy.sh dev`)
-- **Semua kerjaan baru di frontend branch `dev`**; backend cuma punya `dev`.
+- **Branch `staging` SUDAH DIHAPUS (2026-08-18)** — dulu sempat di-merge dev→staging, konten jadi identik dev, lalu dihapus lokal+remote karena tak bernilai lagi (stack sudah seragam Go REST, Supabase pensiun). `vite.config.ts` mapping branch: `main`→prod, selain itu (dev/dll)→majadu-dev (fail-closed).
+- Backend deploy: push → CI image ghcr → VPS podman (auto-update 05:00 / `./scripts/deploy.sh dev`).
 
 ## Fitur tournament (baru, sesi ini)
 
