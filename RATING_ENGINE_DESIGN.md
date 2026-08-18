@@ -2,9 +2,9 @@
 
 **Status:** PROPOSAL — belum diimplementasikan
 **Tanggal:** 2026-08-18
-**Rev:** 2 (hasil review 3 sudut pandang: perilaku aplikasi nyata, atomicity/concurrency/data model, matematika)
+**Rev:** 3 (hasil review 3 sudut pandang + sinkronisasi absent/TBD + ekstensibilitas format baru)
 **Lokasi:** root badminton-match
-**Referensi analisis:** M-DEF (`/Users/sachiel/Projects/mdef`) — serap prinsip, BUKAN merge fungsionalitas.
+**Referensi analisis:** M-DEF (`/Users/sachiel/Projects/mdef`) — serap prinsip, BUKAN merge fungsionalitas. Terkait: `ABSENT_TBD_PLAYERS_DESIGN.md` (semantik void/placeholder, auto-lock).
 
 ---
 
@@ -215,7 +215,7 @@ ada double-count diam-diam.
 ### 4.5 Ingest Timing Policy (siapa memutuskan "final")
 
 - **Session**: hanya ingest saat `status = 'locked'` (lock = gate rating). **Auto-lock saat ganti hari** (ABSENT_TBD_PLAYERS_DESIGN.md §4.6): sesi draft yang tanggalnya lewat otomatis di-lock oleh ticker backend → gate andal tanpa disiplin host. Unlock admin tetap ada — unlock setelah ingest → fingerprint akan beda → re-ingest ditolak sampai revert. Default config: `ingest_locked_only = true`.
-- **Tournament**: TIDAK punya status/lock di backend → tambah flag admin `rating_sources.finalized` (endpoint/UI admin). Default: tournament hanya ingest saat `finalized = true`.
+- **Tournament**: TIDAK punya status/lock di backend → tambah flag admin `rating_sources.finalized` (endpoint/UI admin). Default: tournament hanya ingest saat `finalized = true`. **Auto-finalize tournament TIDAK dibuat** (Rev 3): bracket klasik turunan (edit skor grup mengubah pairing) dan undian team terjadi hari-H — auto-finalize berisiko mengunci data di tengah alur. Manual `finalized` = keputusan sadar admin.
 - Backfill (P3): wajib `auto_reconcile` atau finalize semua sumber dulu.
 
 ### 4.6 Concurrency — ringkasan
@@ -227,6 +227,37 @@ ada double-count diam-diam.
 | Missing-row race (auto-register) | INSERT ON CONFLICT DO NOTHING + re-select dalam transaksi |
 | Torn read sumber (publish koncurrent) | REPEATABLE READ |
 | Revert vs ingest overlap | Keduanya ambil advisory lock yang sama |
+
+### 4.7 Ekstensibilitas Format Baru (Rev 3)
+
+Engine rating bersifat **agnostik jumlah pemain** (1v1 singles, 2v2 doubles, partai 6 pemain — semuanya baris `rating_deltas`; positional pairing otomatis menangani singles = counterpart 1 orang) dan **agnostik target** (MoVM menormalkan margin/target). Yang membuat engine format-specific hanyalah **ekstraksi sumber → daftar match mentah**.
+
+**Kind Registry (Go, satu-satunya titik ekstensi):**
+
+```
+kind                    → extractor: ExtractMatches(source) → []RawMatch
+                          + target (skor target valid)
+                          + phases valid + phase_weights
+                          + pairing strategy (positional | team-average | singles)
+                          + player count per game (2/4/6 — informasi, bukan constraint)
+```
+
+Alur inti (match_key, seq, fingerprint, transaksi, lock, replay) **tidak berubah** untuk format apa pun. Menambahkan format baru =:
+
+1. Implementasikan `ExtractMatches` untuk sumber baru (baca tabel format itu).
+2. Tambah 1 entri ke registry (target, phases, pairing, player count).
+3. Migration kecil HANYA jika ingin CHECK `kind`/`phase` diperluas — opsional (Rev 3 melonggarkan `target` ke `BETWEEN 1 AND 99` dan menghapus CHECK `phase`, sehingga kebanyakan format baru **tanpa perubahan schema**).
+4. Rating pool tetap satu (pemain global) — format baru otomatis masuk ke rating yang sama.
+
+`RawMatch` (kontrak minimal antar lapisan):
+
+```
+RawMatch { stable_game_id, date, kind, source_id,
+           players: [{player_id | placeholder, team, position}],
+           scoreA, scoreB, target, phase }
+```
+
+Catatan: placeholder player (rate_as_unknown) dan absent (skip_game) berlaku sama di semua format — tidak ada logika format-specific di lapisan ingest.
 
 ---
 
@@ -265,8 +296,8 @@ CREATE TABLE bm.rating_events (
   title             text NOT NULL,
   score_a           integer NOT NULL,
   score_b           integer NOT NULL,
-  target            integer NOT NULL CHECK (target IN (21,30,42)),
-  phase             text NOT NULL CHECK (phase IN ('group','qf','sf','3rd','final','regular')),
+  target            integer NOT NULL CHECK (target BETWEEN 1 AND 99),   -- Rev 3: loosened (format baru bebas target)
+  phase             text NOT NULL,                 -- Rev 3: tanpa CHECK — valid per kind di Go registry
   phase_weight      numeric NOT NULL,
   processed_at      timestamptz NOT NULL,
   CONSTRAINT rating_events_order_uniq UNIQUE (date, created_at, source_id, game_order)
@@ -420,6 +451,7 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 ### P1 — Ingest (write path)
 - [ ] 6. `internal/store/rating.go`: REPEATABLE READ tx, advisory lock global, lock player sorted, invariant seq, upsert events/deltas/sources — satu transaksi
 - [ ] 7. Resolve nama → player_id + auto-register TOCTOU-safe (pattern `registerPlayerInTx`)
+- [ ] 7b. **Kind registry + `ExtractMatches` interface (§4.7)**: struktur `RawMatch`, registry entry per kind (target/phases/pairing) — dasar semua ingest
 - [ ] 8. Ingest session: `legacy_order` capture, skip unscored, target 21, gate `locked`
 - [ ] 9. Ingest tournament classic: branch via `TournamentFormat`, stable_game_id = match_key persisted, phase weight, gate `finalized`
 - [ ] 10. Ingest tournament team: partai → 6 pemain, positional pairing (§3.3), target 30/42, verify final vs standings (warning)
@@ -465,6 +497,11 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 
 ## 12. Log Revisi
 
+- **Rev 3 (2026-08-18):** sinkronisasi absent/TBD + ekstensibilitas:
+  1. `absent_policy` default `skip_game` (void, konsisten ABSENT_TBD §4); `placeholder_policy` = `rate_as_unknown` (config) — player placeholder tak pernah punya rating.
+  2. Fingerprint memuat SEMUA game termasuk yang void (replace sub setelah ingest → 409/auto_reconcile).
+  3. Gate ingest session memakai **auto-lock saat ganti hari** (bukan manual); tournament tetap manual `finalized` (auto-finalize DITOLAK — bracket turunan/undian hari-H).
+  4. **Ekstensibilitas**: `target` CHECK dilonggarkan `BETWEEN 1 AND 99`, CHECK `phase` dihapus (validasi di Go registry), section baru §4.7 (Kind Registry + `ExtractMatches` interface + RawMatch) — format baru kebanyakan tanpa perubahan schema.
 - **Rev 2 (2026-08-18):** review 3 sudut pandang:
   1. *Perilaku aplikasi nyata* — match_key harus berbasis identitas stabil + source_id (bukan konten); edit sumber = normal, wajib fingerprint + 409/auto_reconcile; absent tetap muncul di game (absent_policy); skor sesi/classic bebas target (skip vs reject); legacy_order untuk sesi; tidak ada tabel game_scores; lock sesi = gate ingest; tournament perlu finalized.
   2. *Atomicity/concurrency/data model* — rating_deltas PK komposit (event_id,player_id); advisory lock global + lock player sorted + invariant seq; REPEATABLE READ; RD growth basis tanggal sumber; revert replay-from-scratch; drop team_a/team_b → kolom team; MAJADU_ADMIN_TOKEN; mapRatingsError; config typed + seed; DDL terkoreksi.
