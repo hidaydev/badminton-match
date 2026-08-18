@@ -96,6 +96,8 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 	out.Name = canonical
 
 	// ── session stats (mirror base_stats) ────────────────────────────────
+	// Game VOID (memuat ≥1 pemain is_absent) tidak dihitung — lihat
+	// ABSENT_TBD_PLAYERS_DESIGN.md §4. Predikat sama untuk semua query stats.
 	if err := pool.QueryRow(ctx, `
 		SELECT
 			count(*)::integer,
@@ -112,7 +114,16 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 		FROM session_players sp
 		JOIN scheduled_game_players sgp ON sgp.session_player_internal_id = sp.internal_id
 		JOIN scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id AND sg.session_id = sp.session_id
-		WHERE sp.player_id = $1::uuid`, playerID).
+		WHERE sp.player_id = $1::uuid
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM scheduled_game_players sgpv
+			JOIN session_players spv ON spv.internal_id = sgpv.session_player_internal_id
+				AND spv.session_id = sg.session_id
+			WHERE sgpv.scheduled_game_internal_id = sg.internal_id
+			  AND spv.is_absent = true
+		  )`,
+		playerID).
 		Scan(&out.GamesPlayed, &out.Wins, &out.Losses, &out.PointsFor, &out.PointsAgainst); err != nil {
 		return nil, err
 	}
@@ -182,6 +193,14 @@ func loadStatEntries(ctx context.Context, pool *pgxpool.Pool, playerID string, o
 		JOIN session_players tsp ON tsp.internal_id = tl.session_player_internal_id AND tsp.session_id = sg.session_id
 		JOIN players partner ON partner.id = tsp.player_id
 		WHERE sp.player_id = $1::uuid
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM scheduled_game_players sgpv
+			JOIN session_players spv ON spv.internal_id = sgpv.session_player_internal_id
+				AND spv.session_id = sg.session_id
+			WHERE sgpv.scheduled_game_internal_id = sg.internal_id
+			  AND spv.is_absent = true
+		  )
 		GROUP BY partner.canonical_name
 		ORDER BY count(*) DESC, lower(partner.canonical_name)
 		LIMIT 5`
