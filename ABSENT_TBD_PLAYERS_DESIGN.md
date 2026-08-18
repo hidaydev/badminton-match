@@ -239,12 +239,11 @@ Perubahan yang harus disinkronkan ke rating doc (Rev 2):
 - [x] 13. `AutoLockExpiredSessions` + ticker di majadu-api (§4.6) — sesi lewat tanggal → locked → **store `AutoLockExpiredSessions` (UPDATE status='locked' WHERE draft AND session_date < current_date) + ticker 30 mnt di main.go (run saat start)**
 - [x] 14. Test auto-lock: sesi kemarin → terkunci otomatis; sesi hari ini → tetap editable; unlock admin masih jalan → **integration `TestIntegrationAutoLockExpiredSessions` PASS live (kemarin → locked → write ErrLocked → unlock → delete)**
 
-**Verifikasi P2:** alur TBD end-to-end di browser; tanpa regresi publish normal.
+**Verifikasi P2:** alur TBD end-to-end di browser; tanpa regresi publish normal. → **unit 53 PASS (TS) + full suite Go PASS live + integration auto-lock PASS. Efek samping: deploy berikutnya auto-lock mengunci SEMUA sesi draft lama yang tanggalnya lewat (sesuai desain — data final). Visual pass browser menyusul.**
 
 ### P3 — Rating engine sync
 - [ ] 15. Update `RATING_ENGINE_DESIGN.md`: absent_policy `skip_game`, placeholder_policy, fingerprint memuat game void, gate ingest pakai auto-lock (§6)
 - [ ] 16. Rating ingest: implementasi policy + test game void/placeholder
-
 **Verifikasi P3:** dokumentasi sinkron; rating test dengan data mengandung absent/placeholder.
 
 ---

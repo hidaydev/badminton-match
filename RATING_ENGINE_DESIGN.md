@@ -196,6 +196,12 @@ Aplikasi nyata mengizinkan edit sumber kapan saja (skor, swap, rename, absent, r
 ```
 source_fingerprint = sha256hex( representasi kanonis seluruh match list sumber,
                                 setelah resolve player_id, diurutkan deterministik )
+
+**Penting:** fingerprint memuat SEMUA game dari sumber — termasuk game yang
+VOID (absent/placeholder, §8). "Void" hanya berarti tidak dihitung rating,
+BUKAN berarti game itu dikeluarkan dari representasi sumber. Konsekuensi:
+replace sub setelah ingest mengubah fingerprint → 409/auto_reconcile — tidak
+ada double-count diam-diam.
 ```
 
 - Disimpan di `rating_sources(source_id, source_kind, fingerprint, last_ingested_seq, ingested_at)` + per-baris di `rating_events.source_fingerprint`.
@@ -208,7 +214,7 @@ source_fingerprint = sha256hex( representasi kanonis seluruh match list sumber,
 
 ### 4.5 Ingest Timing Policy (siapa memutuskan "final")
 
-- **Session**: hanya ingest saat `status = 'locked'` (lock = gate rating). Lock bersifat soft (bisa unlock tanpa If-Match) — unlock setelah ingest → fingerprint akan beda → re-ingest ditolak sampai revert. Default config: `ingest_locked_only = true`.
+- **Session**: hanya ingest saat `status = 'locked'` (lock = gate rating). **Auto-lock saat ganti hari** (ABSENT_TBD_PLAYERS_DESIGN.md §4.6): sesi draft yang tanggalnya lewat otomatis di-lock oleh ticker backend → gate andal tanpa disiplin host. Unlock admin tetap ada — unlock setelah ingest → fingerprint akan beda → re-ingest ditolak sampai revert. Default config: `ingest_locked_only = true`.
 - **Tournament**: TIDAK punya status/lock di backend → tambah flag admin `rating_sources.finalized` (endpoint/UI admin). Default: tournament hanya ingest saat `finalized = true`.
 - Backfill (P3): wajib `auto_reconcile` atau finalize semua sumber dulu.
 
@@ -298,7 +304,8 @@ CREATE TABLE bm.rating_config (
 );
 -- Seed default di migration (initial_rating, initial_rd, rd_min/max, rd_growth_per_day,
 -- rating_min/max, movm_scale, movm_cap, phase_weights, decay_*, ingest_locked_only,
--- auto_reconcile, absent_policy). Loader Go: typed struct + validasi range (fail-fast di prod).
+-- auto_reconcile, absent_policy (skip_game default), placeholder_policy (rate_as_unknown
+-- default)). Loader Go: typed struct + validasi range (fail-fast di prod).
 
 -- 5.6 Index
 CREATE UNIQUE INDEX rating_events_match_key_idx ON bm.rating_events (match_key);
@@ -364,7 +371,8 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 | **Skor invalid sesi** (negatif / >99 / tie) | Legacy-only; **skip** (bukan tolak batch) |
 | **Skor team invalid** (winner ≠ 30/42) | Backend sudah strict — data buruk = bug; **skip** + catat |
 | **Pemain sama di kedua tim** | Skip game (guard) |
-| **Pemain absent muncul di game berskor** | **absent_policy** config: `skip_player` (default — delta pemain absent dilewati, game tetap diproses untuk lawan) \| `skip_game` \| `count`. BUKAN otomatis tidak ikut (data nyata menunjukkan absent tetap di schedule) |
+| **Pemain absent muncul di game berskor** | **`absent_policy = skip_game`** (default — game yang memuat ≥1 pemain absent = VOID, tidak diingest untuk siapa pun; konsisten dengan semantik absent di seluruh app, ABSENT_TBD_PLAYERS_DESIGN.md §4). Alternatif config: `skip_player` \| `count` |
+| **Pemain placeholder (free/tbd/dst) di game** | **`placeholder_policy = rate_as_unknown`** (default — game diingest untuk pemain NYATA, placeholder diperlakukan pemain baru 1250/rd350 tanpa dipersist) \| `skip`. Placeholder TIDAK pernah punya rating |
 | **Rename/swap pemain** | Identitas via player_id (§4.1); fingerprint mendeteksi perubahan sumber |
 | **Edit skor sesi/tournament setelah ingest** | 409 `source_changed` → revert + re-ingest (atau auto_reconcile) |
 | **Reset grup / undian ulang tournament** | Fingerprint beda → wajib revert-tournament |
