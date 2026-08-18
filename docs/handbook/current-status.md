@@ -1,84 +1,81 @@
 # Current Status
 
-Last updated: 2026-08-15 (pasca migrasi backend Go + branch rename)
+Last updated: 2026-08-22 (kompaksi — setelah redesign + tournament + auto-rebase)
 
-This is the fastest handover file for continuing work on this repository.
+This is the fastest handover file. Start here, lalu baca dokumen terkait di bawah.
 
-## Branch
-
-- current working branch: `dev` (di-rename dari `ui-revamp` pada 2026-08-15)
-- `main` → prod · `dev` → dev · `staging` → dev API (fallback)
-- Frontend `dev` ↔ backend Go `dev` (schema `bm_dev`) · `main` ↔ `main` (schema `bm`)
-
-## Arsitektur sekarang (2026-08-15)
+## Repo & branch
 
 ```
-badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go, net/http + pgx) ──▶ Postgres VPS
+badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http+pgx) ──▶ Postgres VPS
+  dev  (aktif)                          dev  (aktif)          DB bm_dev (dev)
+  main → prod (belum migrasi)            main → prod           DB bm (belum)
+  staging (Supabase — legacy)           —                     (Supabase: data sudah dipindah, bisa pensiun)
 ```
 
-- **Supabase/PostgREST sudah pensiun** — backend Go (`majadu-api`) satu-satunya backend.
-  Keputusan: [`backend-go-decision.md`](backend-go-decision.md).
-- **Semua logika bisnis 100% di Go**: write-path session (transaksi + advisory
-  lock), read-path session/player (rebuild snapshot, list, stats), tournament
-  (write/read + register pemain). Sisa fungsi SQL di DB: `normalize_player_name`
-  (dipakai CHECK constraint `player_aliases`), `delete_player`, `set_updated_at`.
-- Migrasi DB: 000001–000002 (baseline) → 000003 (write-path drop) → 000004 (read-path drop) → 000005 (tournament drop). Semua applied di `bm_dev`. File SQL disimpan di VPS: `/srv/qouver/majadu/migrations/` (sengaja tidak di repo GitHub).
+- Frontend `dev` → `https://api.qouver.com/majadu-dev` (Vercel) · `main` → `api.qouver.com/majadu`
+- Backend deploy: push → CI image ghcr → VPS podman (auto-update 05:00 / `./scripts/deploy.sh dev`)
+- **Semua kerjaan baru di frontend branch `dev`**; backend cuma punya `dev`.
 
-## Deploy & infrastruktur
+## Fitur tournament (baru, sesi ini)
 
-| Komponen | Detail |
-|---|---|
-| Frontend dev | Vercel preview dari branch `dev` (subdomain custom sudah diset) |
-| Backend dev | VPS `majadu-api-dev` container, image dari GHCR `:dev`, **auto-update 05:00** (`majadu-auto-update.timer`) |
-| Backend prod | Belum aktif — menunggu migrasi prod (phase 7 decision doc) |
-| Database | Postgres 18 di container `qouver-postgres`, DB `bm_dev` (dev) / `bm` (prod nanti) |
-| Backup | `majadu-backup.timer` harian 03:00 → dump SEMUA db ke `/srv/qouver/backups/postgres/{daily,weekly,monthly}` |
-| CI | Backend: `make check` (vet+test+gofmt) di tiap push `dev/main`. Frontend: tanpa CI (di-hapus atas permintaan) |
+**Dua format, discriminated oleh `tournaments.format` (`classic` | `team`):**
 
-Deploy manual: `./scripts/deploy.sh dev` (majadu-api repo). Tunnel lokal untuk
-integration test: `ssh -f -N -L 15432:127.0.0.1:5432 user@198.51.100.10`.
+1. **Classic** (existing): 16 pasangan → 4 grup × 4 → 32 match (24 grup + QF/SF/3rd/Final). Tabel relasional existing. **Creation wizard baru**: Tournaments → `+ New` → Classic → Setup → 16 Pairs → Draw → create (POST snapshot valid).
+2. **Team** (baru): 6 tim × 6 pemain (kelas A+/A/B+/B/C+/C), tiap team-match 3 partai (C+ C, A+ A, B+ B), rally **30 grup / 42 final** (no deuce, pemenang tepat target), 9 match grup (tiap tim 3×, undian hari-H), **top-2 → final** (partai 3 tetap dimainkan). Poin: 3-0=3 · 2-1=2 · 1-2=1 · 0-3=0. Klasemen: poin → selisih W-L → selisih poin agregat.
+   - DB: migration `000006` (VPS `/srv/qouver/majadu/migrations/`) — kolom `format` + tabel `tournament_teams/_team_players/_team_matches/_team_match_games` (player_id di team_players).
+   - Backend: `ValidateTeamTournament` (Go), store branch by format (`TeamSave`/`TeamLoad`), handler probe `format`, format-mismatch guard, snapshot emit `format`.
+   - Frontend: `utils/teamTournament.ts` (draw/standings/outcome) + `TeamWizard` + `TeamTournamentPage` (tabs Standings/Schedule/Final, Group Draw, skor partai, Create Final).
+
+## Redesign UI (sesi ini, selesai)
+
+- Arah **"scorekeeper editorial"**: palet graphite hangat + **satu aksen gold**, IBM Plex (angka mono), zero emoji-ikon (SVG line), zero indigo/violet, radius `rounded-lg`, header solid + safe-area.
+- Fase 1–5 selesai (token, shell, data pages, scoreboard, polish) + audit loop. Backlog: `DESIGN_BACKLOG.md` (gitignored).
+
+## Auto-rebase (branch `staging`, commit `9928ff8`)
+
+- **2 admin update skor beda game tanpa refresh**: di `src/queries/sessions.ts` (staging, stack Supabase RPC) — factory `useSessionRebaseMutation`: saat 409 version mismatch → fetch terbaru → re-apply perubahan lokal → publish ulang (1×). Game SAMA = last-write-wins (disepakati).
+- **Belum di-port ke `dev`** (dev pakai factory `useOptimisticMutation` yang beda struktur) — backlog potensial.
+
+## Migrasi data Supabase → bm_dev (selesai)
+
+- Supabase (skema era-2, dump via SQL Editor jsonb_populate_record) → staging `bm_old` → transform → bm_dev. Hasil: 26 sessions, 138 players, 1 tournament classic, dsb. Terverifikasi parity + API.
+- Supabase bisa dipensiunkan (data sudah di VPS). PostgREST/GoTrue di VPS sudah dimatikan.
+
+## Infra & ops
+
+- **Migrations SQL TIDAK di repo** — di VPS `/srv/qouver/majadu/migrations/` (000001–000006). Apply dev: remap `bm.` → `bm_dev.`.
+- Tunnel integration test: `ssh -f -N -L 15432:127.0.0.1:5432 user@198.51.100.10` (mudah mati — cek `nc -z localhost 15432`).
+- Log: `/srv/qouver/majadu/logs/app-YYYY-MM-DD.log` (rotasi harian, retensi 7 hari; `client_ip/bytes`, slow request, slow query tracer, `MAJADU_LOG_LEVEL`).
+- Backup Postgres: `majadu-backup.timer` (03:00, semua db) · auto-update backend: `majadu-auto-update.timer` (05:00).
+- VPS SSH: `user@198.51.100.10` (key ed25519). Container dev: `majadu-api-dev` (UserNS keep-id).
 
 ## Testing
 
-- `make check` (majadu-api): 90+ unit tests + integration env-guarded
-  (`MAJADU_TEST_DATABASE_URL`). Integration: round-trip session, write-path
-  semantics, **parity read-path** (Go vs SQL — auto-skip setelah drop), **parity
-  tournament**, register idempotent.
-- `npm run check` (badminton-match): 36 regression tests (node:test) — retry
-  policy, generator quality, snapshot helpers, tournament bracket.
-- E2E Playwright & supabase smoke: dihapus (2026-08-15).
+- Backend `make check`: unit + integration live (env `MAJADU_TEST_DATABASE_URL` dari `.env`).
+- Frontend `npm run check`: 49 regression (node:test) — retry, quality, snapshot, tournament, standings, teamTournament.
+- E2E team flow live: create → undian → skor → klasemen → final **PASS**.
 
-## Security model
+## Pending / next
 
-- Endpoint API anonim (auth ditunda — lihat decision doc). Session ID unguessable
-  (`crypto/rand`). Mutasi via `If-Match`/version concurrency + advisory lock.
-- Rate limit per-IP (token bucket + janitor). Secret hanya di VPS
-  (`/srv/qouver/majadu/env/`, mode 600) — tidak pernah di repo/image. Repo public;
-  audit 2026-08-15: tidak ada kredensial ter-push (riwayat git dicek).
+1. **Visual pass browser** (user) — wizard classic/team, undian, skor partai, klasemen, final.
+2. **Migrasi prod** (fase 7 decision doc): backup `bm` Supabase → restore VPS → backend `main` → frontend `main` → pensiunkan Supabase.
+3. **Auth** (ditunda): JWT middleware Go.
+4. **Menu tournament list** selesai; opsi merge ke Sessions masih terbuka.
+5. **Sticky bottom Back/Next wizard** (4 halaman) — deferred.
+6. **Team player career stats** — `get_player_stats` belum aggregate team matches (hanya classic); player_id sudah disimpan.
+7. **Port auto-rebase ke dev** (factory `useOptimisticMutation`).
+8. **Fitur baru berikutnya** — menunggu definisi.
 
-## What is NOT done yet
+## Kunci arsitektur (jangan dilanggar)
 
-1. **Migrasi prod** (phase 7): backup data `bm` dari Supabase → restore ke VPS →
-   deploy backend `main` → arahkan frontend `main` (`__API_BASE_URL__` mapping) →
-   pensiunkan Supabase.
-2. **Auth** (ditunda): JWT/session middleware di Go, alur host tanpa friction untuk pemain.
-3. **Menu tournament list** (ditunda): `GET /tournaments` + list page ala sessions.
+- Backend authoritative (validasi/concurrency/identity) · frontend komputasi interaktif (generator/bracket/standings) — "thick client, server authoritative".
+- Snapshot-bridge: frontend kirim full snapshot (PUT), server validasi + simpan; zero jsonb di schema app.
+- Error contract: frontend baca substring pesan backend (`version mismatch`, `unresolved player`, dll.).
+- Aturan skor di dua tempat (TS `scoreValidation.ts` ↔ Go `ValidateScore`) — parity test jaga konsisten.
 
-Docs stale era Supabase sudah dibersihkan 2026-08-15 (archive/, superpowers/,
-runbook, audit — dihapus; konteks ada di git history).
+## Dokumen terkait
 
-## Riwayat singkat
-
-- Era 1: Google Apps Script + Sheets → Era 2: Supabase/PostgREST (`bm`) →
-  Era 3: Go backend (majadu-api). Dokumen era lama (archive/, superpowers/,
-  runbook, audit) dihapus 2026-08-15 — konteks historis ada di git history
-  (`git log --all -- docs/`).
-- Migrasi SQL→Go diselesaikan bertahap 2026-08-13 s/d 2026-08-15 (write-path →
-  read-path → tournament), tiap fase diverifikasi parity test terhadap DB live.
-
-## If continuing in a new session
-
-1. [`backend-go-decision.md`](backend-go-decision.md) — keputusan arsitektur & fase
-2. [`../../TASK_LIST.md`](../../TASK_LIST.md) — backlog (A/B/C done, E/F ditunda)
-3. `majadu-api/README.md` — backend: kontrak REST, deploy, DB role
-4. [`../design-system.md`](../design-system.md) — tokens & UI patterns
+- Keputusan arsitektur: `docs/handbook/backend-go-decision.md`
+- Backlog (gitignored, root): `TASK_LIST.md` · `DESIGN_BACKLOG.md` · `TOURNAMENT_BACKLOG.md`
+- Backend: `majadu-api/README.md`
