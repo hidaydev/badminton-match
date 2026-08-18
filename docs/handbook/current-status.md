@@ -51,6 +51,8 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http
 - VPS SSH: `sachiel@43.133.148.191` (key ed25519). Container dev: `majadu-api-dev` (UserNS keep-id).
 - **DB `bm` (prod) sudah dibuat + schema lengkap** (2026-08-18): migrations 000001→000006 diaplikasikan berurutan (000003–000005 harus pakai `PGOPTIONS='-c search_path=bm'` karena GRANT-nya tanpa prefix schema). Parity dengan bm_dev: 17 tabel + 3 fungsi identik, ACL schema sama (majadu_app punya USAGE), role qouver/majadu_app/anon/authenticated/service_role siap. Belum ada data (restore dari backup Supabase menyusul).
 - **Postgres cuma bind `127.0.0.1:5432`** — DBeaver/client luar WAJIB pakai SSH tunnel (konek langsung ke IP publik → timeout/drop). Tunnel: `ssh -L 15432:127.0.0.1:5432 sachiel@43.133.148.191`.
+- **Backend PROD sudah deploy (2026-08-18)**: container `majadu-api` via Quadlet `~/.config/containers/systemd/majadu-api.container` (mirror pola dev) — image `ghcr.io/nferdazel/majadu-api:main` (commit 21f4d95), `Network=qouver`, `UserNS=keep-id:uid=10001` (WAJIB — tanpa ini log init fail: permission denied), port `127.0.0.1:8080` → Caddy `/majadu/*`, env `MAJADU_ENV=prod` + `MAJADU_DB_SCHEMA=bm`, label `AutoUpdate=registry` (ikut auto-update 05:00 bersama dev). Smoke test PASS: healthz/readyz (direct+Caddy), players/sessions/tournaments write-path — data uji sudah dibersihkan (bm kosong).
+- **Catatan userns**: container `majadu-api` dibuat manual dengan `--userns=keep-id:uid=10001,gid=10001` juga valid; Quadlet cukup `UserNS=keep-id:uid=10001` (mirror dev). Log init error = tanda mapping userns salah.
 
 ## Testing
 
