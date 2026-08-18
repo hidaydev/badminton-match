@@ -120,8 +120,10 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 			FROM scheduled_game_players sgpv
 			JOIN session_players spv ON spv.internal_id = sgpv.session_player_internal_id
 				AND spv.session_id = sg.session_id
+			LEFT JOIN players pv ON pv.id = spv.player_id
 			WHERE sgpv.scheduled_game_internal_id = sg.internal_id
-			  AND spv.is_absent = true
+			  AND (spv.is_absent = true OR spv.player_id IS NULL
+			       OR pv.canonical_name ~* '^(free|tbd|default|xxx|unknown|kosong|belum ada)( [0-9]+)?$|\?+$')
 		  )`,
 		playerID).
 		Scan(&out.GamesPlayed, &out.Wins, &out.Losses, &out.PointsFor, &out.PointsAgainst); err != nil {
@@ -198,8 +200,10 @@ func loadStatEntries(ctx context.Context, pool *pgxpool.Pool, playerID string, o
 			FROM scheduled_game_players sgpv
 			JOIN session_players spv ON spv.internal_id = sgpv.session_player_internal_id
 				AND spv.session_id = sg.session_id
+			LEFT JOIN players pv ON pv.id = spv.player_id
 			WHERE sgpv.scheduled_game_internal_id = sg.internal_id
-			  AND spv.is_absent = true
+			  AND (spv.is_absent = true OR spv.player_id IS NULL
+			       OR pv.canonical_name ~* '^(free|tbd|default|xxx|unknown|kosong|belum ada)( [0-9]+)?$|\?+$')
 		  )
 		GROUP BY partner.canonical_name
 		ORDER BY count(*) DESC, lower(partner.canonical_name)

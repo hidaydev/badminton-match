@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 
+	"majadu-api/internal/domain"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -50,6 +52,11 @@ func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 		var p PlayerSummary
 		if err := rows.Scan(&p.Name, &p.Gender, &p.Tier); err != nil {
 			return nil, err
+		}
+		// Read-time filter placeholder (ABSENT_TBD_PLAYERS_DESIGN.md §5.5) —
+		// pemain legacy "free*" disembunyikan dari daftar tanpa dihapus.
+		if domain.IsPlaceholderName(p.Name) {
+			continue
 		}
 		out = append(out, p)
 	}

@@ -452,7 +452,8 @@ func splitPairNames(name string) []string {
 // → (false); yang belum terdaftar di-auto-register (TOCTOU-safe).
 func resolveTournamentPlayer(ctx context.Context, tx pgx.Tx, name string) (string, bool, error) {
 	v := strings.TrimSpace(name)
-	if v == "" || strings.HasPrefix(strings.ToLower(v), "x") || v == "-" || v == "?" {
+	// Placeholder legacy (x-prefix, "-") + pola placeholder (§5.2 ABSENT_TBD).
+	if v == "" || v == "-" || strings.HasPrefix(strings.ToLower(v), "x") || domain.IsPlaceholderName(v) {
 		return "", false, nil
 	}
 	norm := domain.NormalizePlayerName(v)

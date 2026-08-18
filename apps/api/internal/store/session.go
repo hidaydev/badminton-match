@@ -609,6 +609,11 @@ func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []do
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	for _, p := range players {
+		// Placeholder (free/tbd/dst — ABSENT_TBD_PLAYERS_DESIGN.md §5) tidak
+		// diregistrasi ke players/aliases.
+		if domain.IsPlaceholderName(p.Name) {
+			continue
+		}
 		if _, err := registerPlayerInTx(ctx, tx, p.Name, p.Name); err != nil {
 			return fmt.Errorf("register %q: %w", p.Name, err)
 		}
@@ -677,6 +682,11 @@ func resolvePlayerAliases(ctx context.Context, tx pgx.Tx, players []domain.Playe
 		norm := domain.NormalizePlayerName(p.Name)
 		if norm == "" {
 			return nil, fmt.Errorf("%w: unresolved players for session: blank name for ref %q", ErrValidation, ref)
+		}
+		// Placeholder → player_id NULL (resolved[ref] = ""), tanpa resolve alias.
+		if domain.IsPlaceholderName(p.Name) {
+			resolved[ref] = ""
+			continue
 		}
 		var pid string
 		err := tx.QueryRow(ctx,
@@ -767,7 +777,7 @@ func syncSessionTables(ctx context.Context, tx pgx.Tx, sessionID string, snap *d
 				(session_id, player_id, player_ref, source_name, sort_order, absent_order, gender, tier, is_absent)
 			VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9)
 			RETURNING internal_id::text`,
-			sessionID, resolved[ref], ref, p.Name, i, nilableInt(ao), p.Gender, p.Tier, isAbsent).Scan(&internalID); err != nil {
+			sessionID, nilableString(resolved[ref]), ref, p.Name, i, nilableInt(ao), p.Gender, p.Tier, isAbsent).Scan(&internalID); err != nil {
 			return err
 		}
 		playerInternal[ref] = internalID
