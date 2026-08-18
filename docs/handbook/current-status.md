@@ -49,6 +49,8 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http
 - Log: `/srv/qouver/majadu/logs/app-YYYY-MM-DD.log` (rotasi harian, retensi 7 hari; `client_ip/bytes`, slow request, slow query tracer, `MAJADU_LOG_LEVEL`).
 - Backup Postgres: `majadu-backup.timer` (03:00, semua db) · auto-update backend: `majadu-auto-update.timer` (05:00).
 - VPS SSH: `user@198.51.100.10` (key ed25519). Container dev: `majadu-api-dev` (UserNS keep-id).
+- **DB `bm` (prod) sudah dibuat + schema lengkap** (2026-08-18): migrations 000001→000006 diaplikasikan berurutan (000003–000005 harus pakai `PGOPTIONS='-c search_path=bm'` karena GRANT-nya tanpa prefix schema). Parity dengan bm_dev: 17 tabel + 3 fungsi identik, ACL schema sama (majadu_app punya USAGE), role qouver/majadu_app/anon/authenticated/service_role siap. Belum ada data (restore dari backup Supabase menyusul).
+- **Postgres cuma bind `127.0.0.1:5432`** — DBeaver/client luar WAJIB pakai SSH tunnel (konek langsung ke IP publik → timeout/drop). Tunnel: `ssh -L 15432:127.0.0.1:5432 user@198.51.100.10`.
 
 ## Testing
 
