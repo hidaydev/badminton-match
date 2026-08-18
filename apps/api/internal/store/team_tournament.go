@@ -184,8 +184,8 @@ func (s *TournamentStore) TeamLoad(ctx context.Context, id string) (*domain.Team
 	for rows.Next() {
 		var (
 			internal string
-			idx       int
-			a, b      *int
+			idx      int
+			a, b     *int
 		)
 		if err := rows.Scan(&internal, &idx, &a, &b); err != nil {
 			rows.Close()

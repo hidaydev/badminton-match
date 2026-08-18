@@ -90,10 +90,16 @@ func TestValidateTeamRejects(t *testing.T) {
 		{"self match", func(s *TeamTournamentSnapshot) { s.Matches[0].TeamB = s.Matches[0].TeamA }, "with itself"},
 		{"team tak dikenal", func(s *TeamTournamentSnapshot) { s.Matches[0].TeamA = "tX" }, "unknown team"},
 		{"3 partai wajib", func(s *TeamTournamentSnapshot) { s.Matches[0].Partai = s.Matches[0].Partai[:2] }, "exactly 3 partai"},
-		{"duplikat pairing grup", func(s *TeamTournamentSnapshot) { s.Matches[1].TeamA, s.Matches[1].TeamB = s.Matches[0].TeamA, s.Matches[0].TeamB }, "must not repeat a pairing"},
+		{"duplikat pairing grup", func(s *TeamTournamentSnapshot) {
+			s.Matches[1].TeamA, s.Matches[1].TeamB = s.Matches[0].TeamA, s.Matches[0].TeamB
+		}, "must not repeat a pairing"},
 		{"tim main tidak 3×", func(s *TeamTournamentSnapshot) { s.Matches[0].TeamB = "t5" }, "exactly 3 group matches"},
-		{"skor tie", func(s *TeamTournamentSnapshot) { s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(30), ScoreB: intPtr(30)} }, "must not be equal"},
-		{"skor bukan target", func(s *TeamTournamentSnapshot) { s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(31), ScoreB: intPtr(28)} }, "reach the target exactly"},
+		{"skor tie", func(s *TeamTournamentSnapshot) {
+			s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(30), ScoreB: intPtr(30)}
+		}, "must not be equal"},
+		{"skor bukan target", func(s *TeamTournamentSnapshot) {
+			s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(31), ScoreB: intPtr(28)}
+		}, "reach the target exactly"},
 		{"skor final bukan 42", func(s *TeamTournamentSnapshot) {
 			s.Matches = append(s.Matches, TeamMatch{ID: "final", Phase: "final", TeamA: "t1", TeamB: "t2", Partai: []TeamPartai{{ScoreA: intPtr(30), ScoreB: intPtr(20)}, {}, {}}})
 		}, "reach the target exactly"},
