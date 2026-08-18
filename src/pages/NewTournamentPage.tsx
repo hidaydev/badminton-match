@@ -8,13 +8,13 @@ export default function NewTournamentPage() {
     {
       format: 'classic' as const,
       title: 'Classic',
-      desc: '16 pasangan · 4 grup · bracket knockout',
+      desc: '16 pairs · 4 groups · knockout bracket',
       to: '/tournaments/new/classic',
     },
     {
       format: 'team' as const,
       title: 'Team',
-      desc: '6 tim × 6 pemain · 3 partai ganda · rally 30/42',
+      desc: '6 teams × 6 players · 3 doubles matches · rally 30/42',
       to: '/tournaments/new/team',
     },
   ]
@@ -22,8 +22,8 @@ export default function NewTournamentPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-bold text-fg">Buat Tournament</h2>
-        <p className="text-xs text-fg-dim">Pilih format turnamen</p>
+        <h2 className="text-lg font-bold text-fg">New Tournament</h2>
+        <p className="text-xs text-fg-dim">Choose tournament format</p>
       </div>
 
       <div className="flex flex-col gap-2.5">

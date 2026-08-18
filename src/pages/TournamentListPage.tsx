@@ -17,7 +17,7 @@ export default function TournamentListPage() {
           onClick={() => navigate('/tournaments/new')}
           className="px-3 py-2 rounded-lg bg-accent text-slate-950 text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-all"
         >
-          + Buat
+          + New
         </button>
       </div>
 
@@ -27,7 +27,7 @@ export default function TournamentListPage() {
 
       {tournaments.length === 0 && (
         <p className="text-fg-dim text-xs font-mono text-center py-8">
-          Belum ada tournament.
+          No tournaments yet.
         </p>
       )}
 
