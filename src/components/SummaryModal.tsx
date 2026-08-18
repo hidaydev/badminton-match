@@ -110,6 +110,8 @@ export default function SummaryModal({
   const [pendingSwap, setPendingSwap] = useState<{ t1: SwapTarget; t2: SwapTarget } | null>(null)
 
   const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
+  // P2 — konfirmasi void saat mark absent (game memuat pemain absent).
+  const [absentConfirm, setAbsentConfirm] = useState<{ ids: string[]; gameCount: number } | null>(null)
 
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceName, setReplaceName] = useState('')
@@ -189,6 +191,7 @@ export default function SummaryModal({
     setExpandedScore(null)
     setDraftScores({})
     setScoreError(null)
+    setAbsentConfirm(null)
   }
 
   function enterSwapMode() {
@@ -369,7 +372,21 @@ export default function SummaryModal({
   function handleConfirmTeamSwap() { if (pendingTeamSwap) { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitCurrentMode() } }
   function handleCancelChange() { setPendingChange(null) }
   function handleConfirmChange() { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitCurrentMode() } }
-  function handleConfirmAbsent() { onSetAbsent?.([...absentPending]); exitCurrentMode() }
+  function handleConfirmAbsent() {
+    // P2 — prompt sebelum void: hitung game yang memuat pemain yang baru
+    // di-mark absent (ABSENT_TBD_PLAYERS_DESIGN.md §4.4).
+    const ids = [...absentPending]
+    const gameCount = result.schedule.filter(
+      (slot) => slot.teamA.some((id) => ids.includes(id)) || slot.teamB.some((id) => ids.includes(id)),
+    ).length
+    if (gameCount > 0 && !locked) {
+      setAbsentConfirm({ ids, gameCount })
+      exitCurrentMode()
+      return
+    }
+    onSetAbsent?.(ids)
+    exitCurrentMode()
+  }
 
   return (
     <div className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-50 bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label="Session summary">
@@ -770,6 +787,45 @@ export default function SummaryModal({
         saving={saving}
         courtLabel={courtLabel}
       />
+
+      {/* P2 — konfirmasi VOID saat mark absent */}
+      {absentConfirm && (
+        <div className="fixed inset-0 z-60 flex items-end justify-center bg-black/50" onClick={() => setAbsentConfirm(null)}>
+          <div
+            className="bg-slate-900 border border-slate-700 rounded-t-2xl w-full max-w-lg p-4 pb-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-bold text-slate-100 mb-1">
+              {absentConfirm.ids.length} player{absentConfirm.ids.length === 1 ? '' : 's'} marked absent
+            </h3>
+            <p className="text-xs text-slate-400 mb-3">
+              <span className="text-slate-300">{absentConfirm.gameCount} game{absentConfirm.gameCount === 1 ? '' : 's'}</span>{' '}
+              involving{' '}
+              <span className="text-slate-300">
+                {absentConfirm.ids.map((id) => playerMap.get(id)?.name ?? id).join(', ')}
+              </span>{' '}
+              will not count (void). Replace the player in those games first, or leave them as-is.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => { setAbsentConfirm(null); enterChangeMode() }}
+                className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold"
+              >
+                Replace in games
+              </button>
+              <button
+                onClick={() => {
+                  onSetAbsent?.(absentConfirm.ids)
+                  setAbsentConfirm(null)
+                }}
+                className="w-full py-2.5 rounded-lg bg-red-900/50 border border-red-700 text-red-200 text-sm font-bold"
+              >
+                Continue — void those games
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
