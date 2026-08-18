@@ -72,6 +72,39 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Ticker auto-lock: sesi draft yang tanggalnya lewat → locked (gate data
+	// final untuk rating ingest; ABSENT_TBD_PLAYERS_DESIGN.md §4.6).
+	{
+		locker := store.NewSessionStore(pool, cfg.DatabaseSchema)
+		autoLockCtx, cancelAutoLock := context.WithCancel(ctx)
+		defer cancelAutoLock()
+		go func() {
+			run := func() {
+				runCtx, cancel := context.WithTimeout(autoLockCtx, 30*time.Second)
+				defer cancel()
+				n, err := locker.AutoLockExpiredSessions(runCtx)
+				if err != nil {
+					logger.Error("auto-lock gagal", "error", err)
+					return
+				}
+				if n > 0 {
+					logger.Info("auto-lock", "sessions_locked", n)
+				}
+			}
+			ticker := time.NewTicker(30 * time.Minute)
+			defer ticker.Stop()
+			run() // sekali saat start
+			for {
+				select {
+				case <-ticker.C:
+					run()
+				case <-autoLockCtx.Done():
+					return
+				}
+			}
+		}()
+	}
+
 	go func() {
 		logger.Info("server listening", "addr", srv.Addr, "env", cfg.Env)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

@@ -226,3 +226,97 @@ func TestIntegrationSessionWritePathSemantics(t *testing.T) {
 }
 
 func ptrInt(n int) *int { return &n }
+
+// TestIntegrationAutoLockExpiredSessions — sesi draft yang tanggalnya sudah
+// lewat otomatis di-lock (ABSENT_TBD_PLAYERS_DESIGN.md §4.6): status → locked,
+// write ditolak, unlock admin tetap berfungsi. Hanya jalan dengan test DB.
+func TestIntegrationAutoLockExpiredSessions(t *testing.T) {
+	url := os.Getenv("MAJADU_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("MAJADU_TEST_DATABASE_URL not set — skipping integration test")
+	}
+	schema := os.Getenv("MAJADU_TEST_DB_SCHEMA")
+	if schema == "" {
+		schema = "bm_dev"
+	}
+
+	pool, err := db.NewPool(context.Background(), url, schema, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("db connect: %v", err)
+	}
+	defer pool.Close()
+	st := NewSessionStore(pool, schema)
+	ctx := context.Background()
+
+	players := []domain.Player{
+		{ID: "itl1", Name: "ITL One", Gender: "M", Tier: 1},
+		{ID: "itl2", Name: "ITL Two", Gender: "M", Tier: 2},
+		{ID: "itl3", Name: "ITL Three", Gender: "M", Tier: 3},
+		{ID: "itl4", Name: "ITL Four", Gender: "M", Tier: 4},
+	}
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	// Sesi draft dengan tanggal KEMARIN (harus sudah lewat hari ini)
+	id := "it-autolock-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	created, err := st.Save(ctx, id, &domain.CloudSnapshot{
+		Session: domain.SessionConfig{
+			Title: "ITL", Date: yesterday, Courts: 1,
+			SessionStart: "09:00", SlotMinutes: 20,
+			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
+			PlayerCount: len(players),
+			CourtNames:  []string{"C1"},
+		},
+		Players:     players,
+		FixMatches:  []domain.FixMatch{},
+		Schedule:    []domain.ScheduleSlot{{Slot: 0, Court: 0, TeamA: [2]string{"itl1", "itl2"}, TeamB: [2]string{"itl3", "itl4"}}},
+		PlayedGames: []string{},
+		GameScores:  map[string]domain.GameScore{},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if created.Session.Locked {
+		t.Fatal("expected draft (unlocked) session")
+	}
+
+	// Auto-lock
+	n, err := st.AutoLockExpiredSessions(ctx)
+	if err != nil {
+		t.Fatalf("auto-lock: %v", err)
+	}
+	if n < 1 {
+		t.Fatalf("auto-lock tidak melock apa pun: %d", n)
+	}
+
+	loaded, err := st.Load(ctx, id)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !loaded.Session.Locked {
+		t.Fatal("sesi kemarin harusnya terkunci otomatis")
+	}
+
+	// Write ke sesi yang sudah auto-lock → ditolak
+	again := *created
+	again.Session.Locked = false
+	if _, err := st.Save(ctx, id, &again); !errors.Is(err, ErrLocked) {
+		t.Fatalf("expected ErrLocked setelah auto-lock, got %v", err)
+	}
+
+	// Unlock admin masih berfungsi
+	unlocked, err := st.Unlock(ctx, id)
+	if err != nil {
+		t.Fatalf("unlock: %v", err)
+	}
+	if unlocked.Session.Locked {
+		t.Fatal("expected unlocked after admin unlock")
+	}
+
+	// Cleanup
+	if err := st.Delete(ctx, id); err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+}

@@ -621,6 +621,19 @@ func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []do
 	return tx.Commit(ctx)
 }
 
+// AutoLockExpiredSessions — sesi draft yang tanggalnya sudah lewat otomatis
+// di-lock (ABSENT_TBD_PLAYERS_DESIGN.md §4.6). Dipanggil berkala oleh ticker
+// di main.go. Idempotent; hanya menyentuh status='draft' AND session_date < today.
+func (s *SessionStore) AutoLockExpiredSessions(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE sessions SET status = 'locked', updated_at = now()
+		WHERE status = 'draft' AND session_date < current_date`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // SessionMeta — baris dari list_sessions() (key JSON sama dengan kontrak RPC).
 type SessionMeta struct {
 	ID          string `json:"id"`
