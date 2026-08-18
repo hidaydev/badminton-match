@@ -224,12 +224,12 @@ Perubahan yang harus disinkronkan ke rating doc (Rev 2):
 **Verifikasi P0:** career stats absent == 0 game; teammate tidak dapat W/L dari game hantu; test parity SQL↔Go. → **lengkap: unit 51 PASS + integration live PASS + full store suite PASS**
 
 ### P1 — Placeholder detection & registrasi
-- [ ] 5. `store/session.go` + `store/tournament.go` (resolve path): deteksi pola placeholder → jangan register ke `players`/aliases; pemain placeholder tetap tersimpan di session_players (player_id NULL)
-- [ ] 6. Frontend publish flow: pastikan "free*" tidak memicu modal resolve-player; tampil sebagai placeholder
-- [ ] 7. Read-time filter: stats & player list menyembunyikan placeholder (kecuali sesi terkait)
-- [ ] 8. Test: publish sesi dengan "free" → tidak ada row baru di players; stats bebas placeholder
+- [x] 5. `store/session.go` + `store/tournament.go` (resolve path): deteksi pola placeholder → jangan register ke players/aliases; pemain placeholder tetap tersimpan di session_players (player_id NULL) → **`domain.IsPlaceholderName` (regex: free/tbd/default/xxx/unknown/kosong/belum ada/?+); skip di `EnsurePlayersRegistered`; `resolved[ref]=""` → `nilableString` → NULL; `resolveTournamentPlayer` diperluas pakai IsPlaceholderName; migration VPS `000007_placeholder_support.sql` (session_players.player_id DROP NOT NULL — diaplikasikan ke bm_dev + bm)**
+- [x] 6. Frontend publish flow: pastikan "free*" tidak memicu modal resolve-player; tampil sebagai placeholder → **`findUnresolvedPlayers` (ShareButton/publish) mengecualikan placeholder; StandingsTab section "Not playing" (badge `tbd`)**
+- [x] 7. Read-time filter: stats & player list menyembunyikan placeholder (kecuali sesi terkait) → **void predicate diperluas: `is_absent OR player_id IS NULL OR canonical_name ~* pola` (menangkap legacy "free*" bm_dev yang ternyata ADA di data riil Juni–Juli — dikonfirmasi oleh test); `PlayerStore.List` filter `IsPlaceholderName`**
+- [x] 8. Test: publish sesi dengan "free" → tidak ada row baru di players; stats bebas placeholder → **unit `placeholder_test.go` (Go + TS, 2 sisi) + integration `TestIntegrationStatsVoidGames` diperluas (pre/post-count row, round-trip snapshot) — PASS live (bm_dev)**
 
-**Verifikasi P1:** integrasi live — sesi dengan free/TBD → players table tidak bertambah.
+**Verifikasi P1:** integrasi live — sesi dengan free/TBD → players table tidak bertambah. → **lengkap: unit 53 PASS (TS) + full suite Go PASS live (domain/handler/store integration)**
 
 ### P2 — UX mark-absent, slot TBD, auto-lock
 - [ ] 9. Mark absent → prompt "Ganti di semua game / Biarkan (void)" (§4.4)

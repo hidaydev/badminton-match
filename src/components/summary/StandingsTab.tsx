@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Player, GameScore, ScheduleSlot } from '../../types'
 import { computeStandings } from '../../utils/standings'
+import { isPlaceholderName } from '../../utils/placeholders'
 import { ordinal } from '../../utils/ordinal'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
 
@@ -18,11 +19,14 @@ export default function StandingsTab({
   absentPlayerIds,
 }: StandingsTabProps) {
   const absentList = players.filter(p => absentPlayerIds.includes(p.id))
+  const placeholderList = players.filter(p => isPlaceholderName(p.name))
+  // VOID = absent + placeholder (game yang memuat keduanya tidak ditallikan)
+  const voidPlayerIds = [...absentPlayerIds, ...placeholderList.map(p => p.id)]
   const standings = computeStandings(
-    players.filter(p => !absentPlayerIds.includes(p.id)),
+    players.filter(p => !absentPlayerIds.includes(p.id) && !isPlaceholderName(p.name)),
     schedule,
     gameScores,
-    absentPlayerIds, // game yang memuat pemain absent = VOID (tidak ditallikan)
+    voidPlayerIds,
   )
   const [selectedPlayer, setSelectedPlayer] = useState<{ standing: typeof standings[number]; rank: number } | null>(null)
   const hasScores = Object.keys(gameScores).length > 0
@@ -33,13 +37,19 @@ export default function StandingsTab({
         <div className="flex items-center justify-center min-h-50">
           <p className="text-sm text-slate-400 text-center">Enter scores in the Schedule tab to see leaderboard.</p>
         </div>
-        {absentList.length > 0 && (
+        {(absentList.length > 0 || placeholderList.length > 0) && (
           <div className="flex flex-col gap-1.5">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">Absent</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">Not playing</p>
             {absentList.map(p => (
               <div key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
                 <span className="flex-1 text-sm font-medium text-slate-400 line-through">{p.name}</span>
                 <span className="text-[10px] text-slate-400">absent</span>
+              </div>
+            ))}
+            {placeholderList.map(p => (
+              <div key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
+                <span className="flex-1 text-sm font-medium text-slate-400">{p.name}</span>
+                <span className="text-[10px] text-slate-400">tbd</span>
               </div>
             ))}
           </div>
@@ -109,14 +119,20 @@ export default function StandingsTab({
           </div>
         )
       })}
-      {absentList.length > 0 && (
+      {(absentList.length > 0 || placeholderList.length > 0) && (
         <>
           <div className="h-px bg-slate-800 my-1" />
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mt-1">Absent</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mt-1">Not playing</p>
           {absentList.map(p => (
             <div key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
               <span className="flex-1 text-sm font-medium text-slate-400 line-through">{p.name}</span>
               <span className="text-[10px] text-slate-400">absent</span>
+            </div>
+          ))}
+          {placeholderList.map(p => (
+            <div key={p.id} className="flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl border border-slate-800/50 bg-slate-800/20">
+              <span className="flex-1 text-sm font-medium text-slate-400">{p.name}</span>
+              <span className="text-[10px] text-slate-400">tbd</span>
             </div>
           ))}
         </>
@@ -127,7 +143,7 @@ export default function StandingsTab({
         schedule={schedule}
         gameScores={gameScores}
         players={players}
-        voidPlayerIds={absentPlayerIds}
+        voidPlayerIds={voidPlayerIds}
         onClose={() => setSelectedPlayer(null)}
       />
     </div>
