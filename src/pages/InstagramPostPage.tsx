@@ -3,6 +3,7 @@ import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { instagramTemplates } from '../config/instagramTemplates'
 import { useListSessions, useFetchSession } from '../queries'
 import { computeStandings } from '../utils/standings'
+import { isPlaceholderName } from '../utils/placeholders'
 import type { SessionMeta } from '../queries'
 import { loadImage, drawPostCanvas, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
 import { loadOverlayImages } from '../utils/overlays'
@@ -221,10 +222,13 @@ export default function InstagramPostPage() {
       if (!snapshot) return
 
       const standings = computeStandings(
-        snapshot.players.filter(p => !(snapshot.absentPlayers ?? []).includes(p.id)),
+        snapshot.players.filter(p => !(snapshot.absentPlayers ?? []).includes(p.id) && !isPlaceholderName(p.name)),
         snapshot.schedule,
         snapshot.gameScores,
-        snapshot.absentPlayers ?? [], // game yang memuat pemain absent = VOID
+        [
+          ...(snapshot.absentPlayers ?? []),
+          ...snapshot.players.filter(p => isPlaceholderName(p.name)).map(p => p.id),
+        ], // game yang memuat absent/placeholder = VOID
       )
 
       const isStory = mode === 'story'

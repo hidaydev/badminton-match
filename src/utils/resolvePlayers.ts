@@ -1,4 +1,5 @@
 import type { Player, PlayerSummary } from '../types'
+import { isPlaceholderName } from './placeholders'
 
 function isKnownPlayer(name: string, knownPlayers: PlayerSummary[]): boolean {
   const normalized = name.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -9,7 +10,9 @@ function isKnownPlayer(name: string, knownPlayers: PlayerSummary[]): boolean {
 }
 
 export function findUnresolvedPlayers(localPlayers: Player[], knownPlayers: PlayerSummary[]): Player[] {
-  return localPlayers.filter((p) => !isKnownPlayer(p.name, knownPlayers))
+  // Placeholder (free/tbd/dst) tidak memicu modal resolve — mereka bukan
+  // pemain nyata (ABSENT_TBD_PLAYERS_DESIGN.md §5.4).
+  return localPlayers.filter((p) => !isKnownPlayer(p.name, knownPlayers) && !isPlaceholderName(p.name))
 }
 
 export interface ResolveEntry {
