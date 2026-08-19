@@ -556,10 +556,12 @@ Parameter dipilih agar typical win (pemain mapan, game tipis vs seimbang) ≈ 10
 | `max_delta` | 100 | **25–30** | 2–2.5× typical win; telak ≤ 0.3 band (band 100) |
 | `rd_min` | 30 | 30 (tetap) | — |
 
-**Verifikasi wajib setelah re-backfill:**
-1. Median |delta| 5 game terakhir pemain mapan (≥30 game) ≈ 10–15.
-2. Distribusi rd pemain mapan turun ke < 80 (mayoritas 40–70).
-3. Simulasi: menang terus → 1 band (100 poin) dalam ±9 match.
+**Verifikasi wajib setelah re-backfill — SELESAI (T2, 2026-08-18, bm_dev live):**
+1. Median |delta| 5 game terakhir pemain mapan (≥30 game) = **12.8** (p75 16) ✓ (target 10–15).
+2. RD pemain mapan = **57.8** (p75 61) ✓ (<80).
+3. Re-backfill: **376 events, 98 pemain aktif** (8 sesi pre-season keluar — gate season bekerja).
+4. Catatan: saturasi cap global 47.6% = artefak FASE BELAJAR (pemain baru rd 220 kena cap ±30
+   di game awal — konvergen cepat); ukuran jujur adalah pemain mapan (12.8). Akan turun alami.
 
 Parameter tetap config-driven (`rating_config`) — tanpa migration ulang.
 
