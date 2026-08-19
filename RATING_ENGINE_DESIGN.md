@@ -2,7 +2,7 @@
 
 **Status:** PROPOSAL — belum diimplementasikan
 **Tanggal:** 2026-08-18
-**Rev:** 3 (hasil review 3 sudut pandang + sinkronisasi absent/TBD + ekstensibilitas format baru)
+**Rev:** 3.1 (review 3 sudut pandang + sinkronisasi absent/TBD + ekstensibilitas + deep review lanjutan: full rebuild, delta cap, RawMatch nama, regex fix)
 **Lokasi:** root badminton-match
 **Referensi analisis:** M-DEF (`/Users/user/Projects/mdef`) — serap prinsip, BUKAN merge fungsionalitas. Terkait: `ABSENT_TBD_PLAYERS_DESIGN.md` (semantik void/placeholder, auto-lock).
 
@@ -127,6 +127,10 @@ Kalibrasi (dari rd=30): ±6,4 hari → rd 100 · ±13 hari → rd 200 · ±23 ha
 ### 3.7 Clamp & Finalisasi
 
 - `r ∈ [1000, 2500]`, `rd ∈ [30, 350]` setelah update.
+- **Cap delta per game** (`max_delta_per_game`, default 60): tanpa cap, pemain
+  provisional (rd=350) bisa swing ±300+ per game — perilaku Glicko standar untuk
+  pemain baru, tapi dengan MoVM·w (maks 2.5×) bisa jadi ±800 pada whitewash
+  final. Cap menjaga leaderboard stabil. (Rev 3.1)
 - `peak_rating` = max(histori rating) dari audit trail `rating_deltas.new_rating` (bukan replay/perkiraan).
 - Rounding: semua nilai (expected, movm, delta) di-round ke presisi penyimpanan dengan **satu code path yang sama** dipakai kalkulasi asli dan replay (bit-identical; §m3).
 
@@ -208,7 +212,7 @@ ada double-count diam-diam.
 - Policy re-ingest:
   - source belum pernah di-ingest → proses.
   - fingerprint sama → **no-op** (`{processed: 0, skipped: N}`).
-  - fingerprint beda → **409 `source_changed`** — wajib `revert-*` dulu (atau `auto_reconcile=true` di `rating_config`: hapus events source + re-ingest **dalam satu transaksi**).
+  - fingerprint beda → **409 `source_changed`** — wajib `revert-*` dulu (atau `auto_reconcile=true` di `rating_config`: hapus events source + re-ingest **dalam satu transaksi**), lalu **FULL REBUILD** (§4.4a).
 - **Tidak ada partial re-ingest.** "Revert lalu re-ingest" adalah satu-satunya jalur perbaikan dan di-enforce, bukan opsional.
 - Classic tournament: edit 1 skor grup mengubah bracket turunan (QF/SF/Final) → banyak match_key berubah → fingerprint menangkap seluruh tournament; policy = revert-tournament + re-ingest (32 match dihitung ulang).
 
@@ -217,6 +221,33 @@ ada double-count diam-diam.
 - **Session**: hanya ingest saat `status = 'locked'` (lock = gate rating). **Auto-lock saat ganti hari** (ABSENT_TBD_PLAYERS_DESIGN.md §4.6): sesi draft yang tanggalnya lewat otomatis di-lock oleh ticker backend → gate andal tanpa disiplin host. Unlock admin tetap ada — unlock setelah ingest → fingerprint akan beda → re-ingest ditolak sampai revert. Default config: `ingest_locked_only = true`.
 - **Tournament**: TIDAK punya status/lock di backend → tambah flag admin `rating_sources.finalized` (endpoint/UI admin). Default: tournament hanya ingest saat `finalized = true`. **Auto-finalize tournament TIDAK dibuat** (Rev 3): bracket klasik turunan (edit skor grup mengubah pairing) dan undian team terjadi hari-H — auto-finalize berisiko mengunci data di tengah alur. Manual `finalized` = keputusan sadar admin.
 - Backfill (P3): wajib `auto_reconcile` atau finalize semua sumber dulu.
+
+### 4.4a FULL REBUILD setelah revert/reconcile (Rev 3.1 — KRITIS)
+
+**Masalah:** rating bersifat **transitif melalui lawan**. Jika source X di-revert
+(events-nya dihapus), events dari source LAIN yang diingest SETELAH X pada
+awalnya dihitung di atas rating yang sudah memuat X. Menghapus X lalu hanya
+mengganti events-nya — atau "replay per pemain" dengan **memakai ulang stored
+delta** — menghasilkan rating yang menyimpang dari perhitungan segar (oponen
+yang rating-nya ikut berubah karena X ikut mengubah rating mereka, dst.).
+
+**Solusi — full rebuild:** setelah revert (atau auto_reconcile delete+reinsert):
+
+```
+1. DELETE rating_events/rating_deltas by source_id (revert) ATAU replace events (reconcile)
+2. FULL REBUILD: recompute rating_players untuk SEMUA pemain dari
+   SEMUA rating_events yang tersisa, urut by (date, created_at, source_id, game_order)
+   — dari state default (r0/rd0), pakai fungsi murni + rounding yang sama (§3.7)
+3. rating_deltas DITULIS ULANG (bukan reuse) — audit trail selalu konsisten
+   dengan rating_players
+```
+
+- Biaya O(semua events) — ribuan baris, trivial; deterministik (ordering + basis
+  waktu dari data sumber).
+- `rating_players` TIDAK PERNAH disimpan dari hasil incremental tanpa rebuild
+  penuh setelah setiap revert/reconcile.
+- Transitivitas = alasan "replay per pemain terpengaruh" DITOLAK sebagai
+  optimasi (affected set secara praktis bisa meluas ke semua pemain klub).
 
 ### 4.6 Concurrency — ringkasan
 
@@ -253,8 +284,9 @@ Alur inti (match_key, seq, fingerprint, transaksi, lock, replay) **tidak berubah
 
 ```
 RawMatch { stable_game_id, date, kind, source_id,
-           players: [{player_id | placeholder, team, position}],
-           scoreA, scoreB, target, phase }
+           players: [{name | placeholder, team, position}],   -- NAMA (bukan id);
+           scoreA, scoreB, target, phase }                    -- resolve → player_id
+                                                              -- terjadi di pipeline ingest (§4.3.4)
 ```
 
 Catatan: placeholder player (rate_as_unknown) dan absent (skip_game) berlaku sama di semua format — tidak ada logika format-specific di lapisan ingest.
@@ -334,9 +366,9 @@ CREATE TABLE bm.rating_config (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 -- Seed default di migration (initial_rating, initial_rd, rd_min/max, rd_growth_per_day,
--- rating_min/max, movm_scale, movm_cap, phase_weights, decay_*, ingest_locked_only,
--- auto_reconcile, absent_policy (skip_game default), placeholder_policy (rate_as_unknown
--- default)). Loader Go: typed struct + validasi range (fail-fast di prod).
+-- rating_min/max, max_delta_per_game (60), movm_scale, movm_cap, phase_weights, decay_*,
+-- ingest_locked_only, auto_reconcile, absent_policy (skip_game), placeholder_policy
+-- (rate_as_unknown)). Loader Go: typed struct + validasi range (fail-fast di prod).
 
 -- 5.6 Index
 CREATE UNIQUE INDEX rating_events_match_key_idx ON bm.rating_events (match_key);
@@ -368,7 +400,15 @@ GET    /ratings/sources            ?changed=true       → daftar sumber yg fing
 GET    /ratings/status                                 → jumlah events, player ter-rating, last ingest
 ```
 
-**Revert = replay-from-scratch** (bukan rollback snapshot — schema tidak menyimpan pre-state, dan replay murah + self-healing): hapus `rating_events`/`rating_deltas` by `source_id`, lalu rebuild `rating_players` untuk pemain terpengaruh dengan replay sisa history **menggunakan fungsi murni yang sama + rounding yang sama** (§3.7). Pemain yang tersisa 0 game → **reset ke default** (r0/rd0, zeros, NULL timestamp). Revert source tanpa event = no-op sukses. Karena ordering & basis waktu deterministik (§4.2/§3.6), replay reproduksi angka identik dengan run asli.
+**Revert = hapus + FULL REBUILD** (bukan rollback snapshot — schema tidak
+menyimpan pre-state): hapus `rating_events`/`rating_deltas` by `source_id`, lalu
+**FULL REBUILD semua `rating_players` dari semua events tersisa** (§4.4a —
+recompute, BUKAN reuse stored delta; transitivity melalui lawan). Pemain yang
+tersisa 0 game → **reset ke default** (r0/rd0, zeros, NULL timestamp). Revert
+source tanpa event = no-op sukses. Karena ordering & basis waktu deterministik
+(§4.2/§3.6), full rebuild reproduksi angka identik dengan run asli. Replay
+memakai `phase_weight` yang TERSIMPAN di `rating_events` (snapshot saat ingest —
+perubahan config tidak retro-apply).
 
 ---
 
@@ -464,11 +504,13 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 ### P2 — Read path & revert
 - [ ] 14. `GET /ratings/leaderboard` (sort, tier, provisional badge, pagination, active)
 - [ ] 15. `GET /ratings/players/{id}` + history (sparkline)
-- [ ] 16. `POST /ratings/revert-session` + `revert-tournament`: hapus by source_id + replay dari audit trail (fungsi murni sama); reset pemain 0-game ke default; idempotent
+- [ ] 16. `POST /ratings/revert-session` + `revert-tournament`: hapus by source_id + **FULL REBUILD semua rating_players** dari events tersisa (§4.4a — recompute, BUKAN reuse delta); reset pemain 0-game ke default; idempotent
 - [ ] 17. `GET /ratings/sources?changed=true` + `POST .../finalize`
-- [ ] 18. Integration test revert: state kembali identik dengan fresh ingest; revert dua kali = no-op
+- [ ] 18. Integration test revert: state FULL REBUILD identik dengan fresh ingest; **test transitivity** (revert source A → rating pemain yang hanya main di source lain ikut ter-recompute benar); revert dua kali = no-op
+- [ ] 18b. Test `max_delta_per_game` cap (provisional rd=350 + whitewash final → delta ≤ cap)
+- [ ] 18c. `rating_ingest_runs` audit log (opsional): riwayat ingest/reconcile/revert (mode, source, jumlah events, timestamp)
 
-**Verifikasi P2:** leaderboard konsisten dengan audit trail; revert → rating persis.
+**Verifikasi P2:** leaderboard konsisten dengan audit trail; revert → rating persis (full rebuild).
 
 ### P3 — Backfill & tuning
 - [ ] 19. Backfill: semua published session (locked) + tournament classic/team (finalize) dari bm
@@ -497,6 +539,13 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 
 ## 12. Log Revisi
 
+- **Rev 3.1 (2026-08-18):** deep review lanjutan (kode nyata + matematika):
+  1. **KRITIS — §4.4a FULL REBUILD**: revert/reconcile = hapus events + recompute SEMUA rating dari events tersisa (transitivity via lawan). "Replay per pemain" dengan reuse stored delta DITOLAK (bisa menyimpang). §6 revert + task P2 di-update.
+  2. **§3.7 `max_delta_per_game`** (default 60): pemain provisional (rd=350) tanpa cap bisa swing ±300–800 per game (MoVM·w 2.5× pada whitewash final).
+  3. **§4.7 RawMatch** membawa NAMA pemain (bukan id) — resolve di pipeline ingest.
+  4. **Regex placeholder tidak konsisten** (kode): SQL `\?+$` tanpa anchor vs Go `^\?+$` → nama "Budi??" ikut void. DIPERBAIKI di `store/stats.go` + integration test PASS.
+  5. `phase_weight` tersimpan = snapshot saat ingest (replay konsisten; config tidak retro-apply) — dinyatakan eksplisit di §6.
+  6. Task list: test transitivity revert, test delta cap, `rating_ingest_runs` audit log.
 - **Rev 3 (2026-08-18):** sinkronisasi absent/TBD + ekstensibilitas:
   1. `absent_policy` default `skip_game` (void, konsisten ABSENT_TBD §4); `placeholder_policy` = `rate_as_unknown` (config) — player placeholder tak pernah punya rating.
   2. Fingerprint memuat SEMUA game termasuk yang void (replace sub setelah ingest → 409/auto_reconcile).
