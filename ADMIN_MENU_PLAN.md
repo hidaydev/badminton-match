@@ -84,7 +84,12 @@ Semua sudah ada di backend (token; season = baru) — **belum ada UI**. Menu adm
 
 - **Endpoint baru**: `PATCH /ratings/players/{playerId}/class {class, source:"admin"}` → update `rating_players.class` + `class_source='admin'`.
 - Efek: floor berubah (§3.3 RATING_TIERING_REVAMP). Tidak perlu rebuild.
-- UI: di halaman detail rating `/ratings/:playerId`, admin melihat dropdown 12 sub-tier → simpan.
+- UI: ~~di halaman detail rating `/ratings/:playerId`, admin melihat dropdown 12 sub-tier → simpan~~.
+- **DEVASI (2026-08-19):** UI edit class **dihapus** — admin hanya boleh ubah **tier induk**
+  (`PATCH /players/{id}/tier`, §3.4). Class sub-tier **auto-adjust**: `SetPlayerTier`
+  sudah meng-update `rating_players.class` = tier baru + memanggil RebuildAll otomatis,
+  atau admin menjalankan tombol **Rebuild All** manual di /admin. Endpoint class tetap
+  ada di API (curl), hanya tidak lagi dipakai UI.
 
 ### 3.4 Manajemen pemain
 

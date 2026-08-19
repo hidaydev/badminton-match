@@ -7,7 +7,6 @@ import { useRatingSources, useRatingSeasons } from '../queries/ratings'
 import { adminRequest } from '../queries/admin'
 
 const TIERS = ['A', 'B', 'C', 'D']
-const CLASSES = ['D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']
 const PAGE = 10
 
 // Tombol aksi kecil — gaya seragam.
@@ -284,12 +283,6 @@ export default function AdminPage() {
                   run(() => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: newTier2.toUpperCase() }), 'Tier diubah + recalculate')
                 }
               }}>Tier</ActionButton>
-              <ActionButton onClick={() => {
-                const cls = window.prompt(`Class rating (D-..A+) untuk ${pl.name}:`, 'C')
-                if (cls && CLASSES.includes(cls)) {
-                  run(() => adminRequest('PATCH', `/ratings/players/${pl.playerId}/class`, { class: cls }), 'Class diubah')
-                }
-              }}>Class</ActionButton>
               <ActionButton tone="red" onClick={() => {
                 if (window.confirm(`Hapus player "${pl.name}"? (riwayat sesi tetap, rating ikut terhapus)`)) {
                   run(() => adminRequest('DELETE', `/players/${pl.playerId}`), 'Player dihapus')
