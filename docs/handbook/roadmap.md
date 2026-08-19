@@ -18,7 +18,7 @@ ditutup; detail historisnya ada di git history.
 |---|------|--------|
 | 1 | **Migrasi prod**: backup data `bm` (Supabase) → restore VPS → deploy backend `main` → arahkan frontend `main` → pensiunkan Supabase sepenuhnya | Belum |
 | 2 | **Auth** (ditunda): JWT/session middleware di Go, alur host tanpa friction | Ditunda |
-| 3 | **Menu tournament list** (ditunda): `GET /tournaments` + list page ala sessions | Ditunda |
+| 3 | **Menu tournament list** (ditunda): `GET /tournaments` + list page ala sessions | ✅ Selesai — `TournamentListPage` + routes `/tournaments`, `/tournaments/new` (classic/team wizard) |
 | 4 | **Hardening lanjutan** kalau scope meluas: monitoring/alert API, staging env | Opsional |
 
 ## Catatan operasional

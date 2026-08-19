@@ -88,10 +88,10 @@ Catatan: bracket propagation turnamen masih di TS app (mengirim snapshot hasil c
 
 ## 7. Pertanyaan terbuka
 
-- [ ] Nama repo backend (saran: `majadu-backend`)
-- [ ] Kontrak API: mirror snapshot vs RESTful granular
-- [ ] Timing auth (sebelum/bersamaan/sesudah migrasi prod)
-- [ ] Subdomain Caddy untuk Go backend (mis. `api-dev.qouver.com` vs path di `mjd-api`)
+- [x] Nama repo backend (saran: `majadu-backend`) → **diputuskan: `majadu-api`**
+- [x] Kontrak API: mirror snapshot vs RESTful granular → **diputuskan: mirror snapshot (bridge `PUT /sessions/{id}` & `PUT /tournaments/{id}`)**; granular mutation dihapus 2026-08-15
+- [ ] Timing auth (sebelum/bersamaan/sesudah migrasi prod) → **masih terbuka (roadmap #2, ditunda)**
+- [x] Subdomain Caddy untuk Go backend (mis. `api-dev.qouver.com` vs path di `mjd-api`) → **diputuskan: path-based di `api.qouver.com` (`/majadu` prod, `/majadu-dev` dev)**
 
 ## 8. Referensi
 
