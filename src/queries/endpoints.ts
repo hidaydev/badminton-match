@@ -375,3 +375,36 @@ export async function getRatingPlayer(playerId: string): Promise<RatingPlayer> {
   if (!data) throw new Error('no data')
   return data
 }
+
+
+// ── Season (plan RATINGS_FRONTEND_PLAN Rev 3.7) ──────────────────────────
+
+export interface RatingSeason {
+  id: string
+  name: string
+  start_date: string
+  end_date: string | null
+  open: boolean
+}
+
+export interface SeasonStandingRow {
+  name: string
+  rating: number
+  rd: number
+  peak: number
+  class: string
+  class_display: string
+  games: number
+  wins: number
+  losses: number
+}
+
+export async function getRatingSeasons(): Promise<RatingSeason[]> {
+  const data = await request<{ seasons: RatingSeason[] }>('GET', `/ratings/seasons`)
+  return data?.seasons ?? []
+}
+
+export async function getSeasonStandings(seasonId: string): Promise<SeasonStandingRow[]> {
+  const data = await request<{ rows: SeasonStandingRow[] }>('GET', `/ratings/seasons/${enc(seasonId)}/standings`)
+  return data?.rows ?? []
+}
