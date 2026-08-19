@@ -152,7 +152,10 @@ tertunda (deferred), opsional, dan keputusan terbuka dari seluruh dokumen MD di 
 ## 3. B. Checkbox Stale — SUDAH SELESAI (docs lag, bukan backlog)
 
 Item ini masih `[ ]` di docs tapi kode sudah ada / catatan task lain membuktikan selesai.
-**Aksi:** centang + update status di docs (cleanup kecil).
+**Aksi:** centang + update status di docs (cleanup kecil). → **SELESAI 2026-08-19**
+(S1–S14 sudah dicentang & diberi catatan status di dokumen masing-masing —
+RATING_TIERING_REVAMP, RATING_ENGINE_DESIGN, ABSENT_TBD, roadmap,
+backend-go-decision, HANDOFF). Tabel di bawah untuk referensi:
 
 | # | Item | Lokasi checkbox | Bukti selesai |
 |---|---|---|---|

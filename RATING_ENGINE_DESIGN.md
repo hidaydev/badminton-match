@@ -521,9 +521,9 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 **Verifikasi P3:** semua data historis ter-cover; no double-count; distribusi delta wajar.
 
 ### P4 — Frontend (opsional, scope terpisah)
-- [ ] 23. Halaman leaderboard rating (tabel tier + badge provisional) di badminton-match
-- [ ] 24. Player detail: sparkline rating + history
-- [ ] 25. Admin: tombol ingest/revert/finalize (jika ada panel admin)
+- [x] 23. Halaman leaderboard rating (tabel tier + badge provisional) di badminton-match → **RATINGS_FRONTEND_PLAN P1: `RatingsPage` + badge 12-band (PAGE 100, toggle, podium, trend)**
+- [x] 24. Player detail: sparkline rating + history → **RATINGS_FRONTEND_PLAN P2: `RatingPlayerPage` + `RatingSparkline` + cross-link dua arah**
+- [x] 25. Admin: tombol ingest/revert/finalize (jika ada panel admin) → **ADMIN_MENU_PLAN P1: `/admin` lengkap (ingest/revert/finalize/rebuild/season/player)**
 
 **Verifikasi P4:** UI render dari API; navigasi konsisten pola existing.
 

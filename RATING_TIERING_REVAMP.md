@@ -326,9 +326,9 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 - [x] 0. **Tier induk terpusat (STICKY) + registered_at + season_start** → **SELESAI**: migration 000009 (bm+bm_dev, backfill 128 tier/registered + 106 class), first-set di session Save (sticky), gate match ≥ max(season_start, registered_at) di ingest, config loader (SeasonStart/SessionTierInit/ClassBands) + unit (ClassForRating/FloorOf/DisplayClass/ValidClass) + integration (`TestIntegrationTierFirstSetSticky`, `TestIntegrationRatingSeasonGate`) PASS live. **Temuan audit T1:** (a) backfill harus DISTINCT ON (tier dari sesi PERTAMA, bukan last/arbitrary); (b) `Processed` harus counter aktual (bukan len(fresh)) — gate skip tidak boleh dihitung; (c) source yang 0 ter-proses JANGAN dicatat fingerprint (re-ingest setelah season digeser tetap bisa); (d) boundary band top INKLUSIF (`r > hi`); (e) test harus di-scope ke pemain test (DB berbagi data backfill)
 - [x] 0b. **Season archive** → **T4 SELESAI**: migration 000010 (bm+bm_dev, "Season 2026-1" terbuka), `CloseAndStartSeason` (arsip→tutup→musim baru auto "Season YYYY-N"→config→hapus events→**invalidasi fingerprint**→RebuildAll), read path seasons/standings (beku), frontend season picker (live vs frozen), integration `TestIntegrationSeasonReset` PASS live. **Temuan audit T4:** (a) filter pre-season harus SEBELUM seq invariant (bukan tolak out-of-order); (b) backfill registered_at harus hitung tournament (kemunculan terawal); (c) reset WAJIB invalidasi fingerprint source (kalau tidak re-ingest no-op); (d) AutoIngest harus exclude sesi pre-season (session_date >= season_start)
 - [x] 1. Migration `000009_rating_class.sql` (class + class_source + config seed) → **T1+T2 selesai**
-- [ ] 2. `domain`: `ClassForRating` 12-band (config-driven) + `floorOf(class)` + `initForSessionTier(tier)` + unit test (semua 12 band, floor, init mapping)
-- [ ] 3. `rating_config`: `ClassBands` + `SessionTierInit` (typed + validasi)
-- [ ] 4. Integration test: player baru tier C → class C + rating 1225; floor display
+- [x] 2. `domain`: `ClassForRating` 12-band (config-driven) + `floorOf(class)` + `initForSessionTier(tier)` + unit test (semua 12 band, floor, init mapping) → **`domain/rating_config.go` (ClassForRating/FloorOf/MidRatingForClass/FormingForTier/DisplayClass) + `rating_tiering_test.go` PASS**
+- [x] 3. `rating_config`: `ClassBands` + `SessionTierInit` (typed + validasi) → **`domain/rating_config.go` + `store/rating_config.go` loader (typed + validate)**
+- [x] 4. Integration test: player baru tier C → class C + rating mid + floor display → **`TestIntegrationTierFirstSetSticky` PASS live (T1)**
 
 **Verifikasi P0:** unit + integration live PASS.
 
@@ -341,8 +341,8 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 **Verifikasi P1:** ingest player baru → class/rating benar; rebuild → class tetap; UI render class.
 
 ### P2 — Backfill & kalibrasi
-- [ ] 9. Backfill class player existing dari tier session pertama (tool/test live bm_dev)
-- [ ] 10. Kalibrasi lebar band terhadap data riil (frekuensi ganti sub-tier) → sesuaikan config
+- [x] 9. Backfill class player existing dari tier session pertama (tool/test live bm_dev) → **T1 note: backfill 128 tier/registered + 106 class (DISTINCT ON tier sesi pertama)**
+- [ ] 10. Kalibrasi lebar band terhadap data riil (frekuensi ganti sub-tier) → sesuaikan config → **DIBATALKAN (keputusan 2026-08-19, BACKLOG_ANALYSIS A11): band tetap 100**
 
 **Verifikasi P2:** semua player aktif punya class; distribusi sub-tier wajar.
 

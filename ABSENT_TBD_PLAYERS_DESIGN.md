@@ -242,8 +242,8 @@ Perubahan yang harus disinkronkan ke rating doc (Rev 2):
 **Verifikasi P2:** alur TBD end-to-end di browser; tanpa regresi publish normal. → **unit 53 PASS (TS) + full suite Go PASS live + integration auto-lock PASS. Efek samping: deploy berikutnya auto-lock mengunci SEMUA sesi draft lama yang tanggalnya lewat (sesuai desain — data final). Visual pass browser menyusul.**
 
 ### P3 — Rating engine sync
-- [ ] 15. Update `RATING_ENGINE_DESIGN.md`: absent_policy `skip_game`, placeholder_policy, fingerprint memuat game void, gate ingest pakai auto-lock (§6)
-- [ ] 16. Rating ingest: implementasi policy + test game void/placeholder
+- [x] 15. Update `RATING_ENGINE_DESIGN.md`: absent_policy `skip_game`, placeholder_policy, fingerprint memuat game void, gate ingest pakai auto-lock (§6) → **sudah masuk RATING_ENGINE_DESIGN Rev 3.1**
+- [x] 16. Rating ingest: implementasi policy + test game void/placeholder → **`absent_policy=skip_game` + `placeholder_policy=rate_as_unknown` terimplementasi; integration live PASS**
 **Verifikasi P3:** dokumentasi sinkron; rating test dengan data mengandung absent/placeholder.
 
 ---
