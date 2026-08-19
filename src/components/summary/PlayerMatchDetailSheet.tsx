@@ -126,12 +126,12 @@ export default function PlayerMatchDetailSheet({
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-slate-200">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-sm text-slate-200 truncate min-w-0">
                     {game.partner?.name ?? '?'}
                   </span>
                   <span className="text-xs text-slate-400">vs</span>
-                  <span className="text-sm text-slate-200">
+                  <span className="text-sm text-slate-200 truncate min-w-0">
                     {game.opponents[0]?.name ?? '?'} & {game.opponents[1]?.name ?? '?'}
                   </span>
                 </div>
