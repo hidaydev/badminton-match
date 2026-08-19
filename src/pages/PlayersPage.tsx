@@ -99,7 +99,7 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
 
       {/* Tier picker */}
       <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {([1, 2, 3, 4] as Tier[]).map((t) => (
+        {([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => (
           <button
             key={t}
             onClick={() => updatePlayer(player.id, { tier: t })}
@@ -169,7 +169,7 @@ function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gende
       </div>
       {/* Tier picker */}
       <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {([1, 2, 3, 4] as Tier[]).map((t) => (
+        {([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -274,7 +274,7 @@ export default function PlayersPage() {
     setShowForm(false)
   }
 
-  const tierGroups = ([1, 2, 3, 4] as Tier[]).map((t) => ({
+  const tierGroups = ([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => ({
     tier: t,
     players: players.filter((p) => p.tier === t),
   }))

@@ -11,7 +11,7 @@ const OPPONENT_PENALTY = 1
 const TIER_DIFF_WEIGHT = 2
 
 /** Default tier when player tier is unknown. */
-export const DEFAULT_TIER = 2
+export const DEFAULT_TIER = 5 // 8-tier: 5 = B (upper-middle; TIER_8_UNIFICATION)
 
 /** Number of random shuffles to try when grouping players into courts. */
 export const GROUPING_TRIES = 40

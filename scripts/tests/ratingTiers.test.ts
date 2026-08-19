@@ -1,21 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RATING_TIER_BADGE_COLORS, type RatingClass } from '../../src/config/ratingTiers.ts'
+import { RATING_TIER_BADGE_COLORS, type RatingTier } from '../../src/config/ratingTiers.ts'
 
-// Kelas rating 12 sub-tier (D-..A+) — warna lengkap untuk semua band.
-const CLASSES: RatingClass[] = ['D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']
+// Tier rating 8-band (TIER_8_UNIFICATION.md §3.2) — warna lengkap semua band.
+const TIERS: RatingTier[] = ['D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+']
 
-test('ratingTiers: 12 kelas lengkap dengan warna', () => {
-  assert.equal(CLASSES.length, 12)
-  for (const c of CLASSES) {
-    assert.ok(RATING_TIER_BADGE_COLORS[c], `kelas ${c} tidak punya warna`)
-    assert.ok(RATING_TIER_BADGE_COLORS[c].includes('border'), `kelas ${c} tanpa border color`)
+test('ratingTiers: 8 tier lengkap dengan warna', () => {
+  assert.equal(TIERS.length, 8)
+  for (const t of TIERS) {
+    assert.ok(RATING_TIER_BADGE_COLORS[t], `tier ${t} tidak punya warna`)
+    assert.ok(RATING_TIER_BADGE_COLORS[t].includes('border'), `tier ${t} tanpa border color`)
   }
 })
 
-test('ratingTiers: fallback aman untuk kelas tak dikenal', () => {
+test('ratingTiers: fallback aman untuk tier tak dikenal', () => {
   assert.equal(
-    RATING_TIER_BADGE_COLORS['ZZ' as RatingClass] ?? RATING_TIER_BADGE_COLORS['D-'],
-    RATING_TIER_BADGE_COLORS['D-'],
+    RATING_TIER_BADGE_COLORS['ZZ' as RatingTier] ?? RATING_TIER_BADGE_COLORS['D'],
+    RATING_TIER_BADGE_COLORS['D'],
   )
 })

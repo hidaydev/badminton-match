@@ -28,7 +28,8 @@ export function toGameKey(slot: number, court: number): GameKey {
 }
 
 export type Gender = 'M' | 'F'
-export type Tier = 1 | 2 | 3 | 4
+// 8-tier (TIER_8_UNIFICATION.md): 1=D, 2=D+, 3=C, 4=C+, 5=B, 6=B+, 7=A, 8=A+
+export type Tier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 
 export interface Player {
   id: PlayerId
@@ -103,6 +104,6 @@ export interface PlayerSummary {
   playerId?: string
   name: string
   gender: 'M' | 'F'
-  tier: 1 | 2 | 3 | 4
-  tierInduk?: string // A/B/C/D — sticky (admin)
+  tier: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+  tierInduk?: string // 8-tier (D..A+) — sticky (admin)
 }
