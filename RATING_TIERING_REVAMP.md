@@ -1,7 +1,7 @@
 # RATING_TIERING_REVAMP.md
 
 **Status:** PLAN — belum diimplementasikan
-**Rev:** 3.6 (assign tier induk HANYA 2 pintu: registrasi pertama nama baru ATAU admin — session flow tidak pernah assign tier existing)
+**Rev:** 3.7 (SEASON ARCHIVE — snapshot final standings sebelum reset; history musim berjalan)
 **Tanggal:** 2026-08-18
 **Lokasi:** root badminton-match
 **Terkait:** `RATING_ENGINE_DESIGN.md` (engine rating) · `RATINGS_FRONTEND_PLAN.md` (UI ratings) · `ADMIN_MENU_PLAN.md` (menu admin)
@@ -114,6 +114,52 @@ rating_config.season_start (date)  ← GLOBAL, diatur admin (endpoint POST /rati
   ("next season dia tereset ke kelas/tier induk yang sudah diupdate").
 - Backfill: `season_start` awal = **2026-05-23** (tournament pertama) — sekali set, admin
   bebas pindah (8 sesi sebelum itu tidak ter-rating).
+
+### 2.5.8 Season Archive — jejarak musim lalu (Rev 3.7)
+
+Reset season menghapus events & mereset rating → **tanpa arsip, "rating orang waktu itu" hilang**.
+Solusi: snapshot final standings SEBELUM reset.
+
+```
+ADMIN: "Close & Start New Season" (set season_start baru)
+  1. ARSIP final standings musim berjalan (per pemain: rating, rd, peak, kelas, games, W-L)
+  2. Hapus events musim lama (history = musim berjalan — keputusan sebelumnya)
+  3. Reset semua pemain ke mid kelas
+  4. season_start = tanggal baru
+```
+
+**Data model (migration 000010):**
+
+```sql
+CREATE TABLE bm.rating_seasons (
+  id uuid PK DEFAULT gen_random_uuid(),
+  name text NOT NULL,                       -- auto "Season YYYY-N"; admin boleh rename
+  start_date date NOT NULL,
+  end_date date,                            -- hari sebelum musim berikutnya (NULL = terbuka)
+  closed_at timestamptz
+);
+CREATE TABLE bm.season_player_snapshots (
+  season_id uuid NOT NULL REFERENCES bm.rating_seasons(id) ON DELETE CASCADE,
+  player_id uuid NOT NULL REFERENCES bm.players(id) ON DELETE CASCADE,
+  player_name text NOT NULL,                -- duplikat — arsip terbaca walau pemain dihapus
+  rating numeric(8,2) NOT NULL,
+  rd numeric(8,2) NOT NULL,
+  peak numeric(8,2) NOT NULL,
+  class text,
+  games int NOT NULL,
+  wins int NOT NULL,
+  losses int NOT NULL,
+  PRIMARY KEY (season_id, player_id)
+);
+```
+
+**Read path:** `GET /ratings/seasons` (daftar) · `GET /ratings/seasons/{id}/standings` (leaderboard
+BEKU, urut rating final — tier saat itu dihitung dari rating snapshot, bukan class sekarang).
+**UI:** picker musim di halaman ratings → leaderboard frozen; (opsional) riwayat per musim di
+detail player.
+
+**Backfill:** musim pertama = **"Season 2026-1", start 2026-05-23, TERBUKA** — di-close otomatis
+saat admin reset pertama kali. Rank tidak disimpan (deterministik dari rating final).
 
 ### 2.5.5 Keputusan yang perlu dikonfirmasi
 
@@ -278,6 +324,7 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 
 ### P0 — Fondasi skema & math
 - [ ] 0. **Tier induk terpusat (STICKY) + registered_at + season_start**: migration `players.tier`+`registered_at` + `rating_config.season_start`; first-set di session Save (sticky, admin-only); backfill dari sesi PERTAMA (era baseline season_start=2026-05-23); gate match ≥ max(season_start, registered_at) di ingest + integration test (PRASYARAT forming)
+- [ ] 0b. **Season archive**: migration 000010 (`rating_seasons` + `season_player_snapshots`), backfill "Season 2026-1" terbuka, endpoint close&reset (arsip→hapus events→reset), read path seasons/standings + integration test
 - [ ] 1. Migration `000009_rating_class.sql` (class + class_source + config seed)
 - [ ] 2. `domain`: `ClassForRating` 12-band (config-driven) + `floorOf(class)` + `initForSessionTier(tier)` + unit test (semua 12 band, floor, init mapping)
 - [ ] 3. `rating_config`: `ClassBands` + `SessionTierInit` (typed + validasi)

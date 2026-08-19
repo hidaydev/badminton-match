@@ -164,7 +164,7 @@ useRatingPlayer(playerId)                     // queryKey ['ratings-player', pla
   - **Provisional badge**: `rd > 200` → chip `prov` (amber).
   - **Trend**: delta terakhir, hijau `+X` / merah `−X`.
   - Row tap → `/ratings/:playerId`.
-- **Empty state**: "No ratings yet — ratings appear automatically once sessions are locked." (+ petunjuk bahwa data lama keingest oleh backfill).
+- **Season picker** (Rev 3.7): dropdown musim (dari `GET /ratings/seasons`) — musim berjalan = leaderboard live; musim tertutup = **standings beku** (`GET /ratings/seasons/{id}/standings`). Empty state: "No ratings yet — ratings appear automatically once sessions are locked." (+ petunjuk bahwa data lama keingest oleh backfill).
 - **Loading/error**: skeleton pulse + pesan error konsisten pola existing.
 - Design tokens: `bg-surface`, `border-border-subtle`, `text-fg`, `text-fg-dim`, `bg-elevated`, `accent` (pola halaman tournament dev).
 
