@@ -7,6 +7,10 @@ tertunda (deferred), opsional, dan keputusan terbuka dari seluruh dokumen MD di 
 (badminton-match + majadu-api) untuk memisahkan **backlog asli** dari
 **checkbox stale** (sudah selesai tapi docs tidak di-update).
 **Tujuan:** satu sumber kebenaran backlog — pengganti berburu item di 10+ dokumen.
+> **Catatan (2026-08-19):** dokumen desain yang direferensikan di tabel bawah
+> (RATING_ENGINE_DESIGN, ADMIN_MENU_PLAN, dst.) sudah dikonsolidasi ke
+> `DESIGN_ARCHIVE.md`; referensi `§n` di sini = nomor section dokumen asli
+> (tersedia di git history).
 
 ---
 

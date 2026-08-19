@@ -6,12 +6,12 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
-![Supabase](https://img.shields.io/badge/Backend-Go-00ADD8?style=flat-square&logo=go&logoColor=white)
+![Go](https://img.shields.io/badge/Backend-Go-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=flat-square)
 
 ---
 
-Majadu is a **mobile-first PWA** for running badminton sessions end-to-end. Configure courts and players, generate balanced doubles schedules with quality scoring, run live scoring with real-time sync, manage tournaments with knockout brackets, and export branded social media content — all from one installable app.
+Majadu is a **mobile-first PWA** for running badminton sessions end-to-end. Configure courts and players, generate balanced doubles schedules with quality scoring, run live scoring with real-time sync, manage tournaments (classic & team), track **skill ratings (Glicko + 8-tier bands)** across seasons, and export branded social media content — all from one installable app.
 
 ---
 
@@ -22,9 +22,9 @@ Majadu is a **mobile-first PWA** for running badminton sessions end-to-end. Conf
 | Step | What happens |
 |------|-------------|
 | **Setup** | Configure title, date, courts (1–6), players (4–40), game duration, per-court time windows with visual timeline |
-| **Players** | Add individually or bulk-import from text. Gender (M/F), skill tier (A–D), inline rename |
+| **Players** | Add individually or bulk-import from text. Gender (M/F), skill tier (**8-tier: D..A+**, sticky), inline rename, TBD slots |
 | **Constraints** | Define forced pairings — **flexible** (generator picks slot) or **pinned** (locked to time + court) |
-| **Generate** | 5-phase scheduling engine with quality analysis, retry logic, and partner/opponent balancing |
+| **Generate** | 5-phase scheduling engine with quality analysis, retry logic, and 8-level tier balancing |
 
 ### Live Session Management
 
@@ -33,22 +33,28 @@ Publish and share via URL. Full operations console:
 - 📊 Toggle played status & enter scores
 - 🔄 Swap players, teams, or game slots
 - 👤 Change individual players with cross-slot conflict detection
-- 🚫 Mark absences
+- 🚫 Mark absences (with void-game confirmation)
 - 📈 Per-player stats (play count, sit count, partners, opponents)
-- 🔒 Lock session to prevent edits (server-enforced)
+- 🔒 Lock session to prevent edits (server-enforced; auto-lock when the date passes)
+
+### Ratings & Leaderboard
+
+- **Glicko-1-lite** engine (server-authoritative, idempotent, auditable)
+- **8-tier bands** (D, D+, C, C+, B, B+, A, A+) — assigned tier never demotes below its letter
+- Season system: live standings, frozen archives, close & start new season
+- Player detail: rating sparkline, recent matches, and **career stats** (sessions, partners, opponents) in one place
 
 ### Tournament Manager
 
-- 16 pairs → 4 groups → round-robin → knockout bracket
-- Automatic bracket propagation (QF → SF → 3rd → Final)
-- PIC (person-in-charge) assignment per match
-- Standings with head-to-head tiebreakers
+- **Classic**: 16 pairs → 4 groups → round-robin → knockout bracket (QF → SF → 3rd → Final)
+- **Team**: 6 teams × 6 players, 3 doubles per team-match, rally scoring, match-day draw
+- PIC (person-in-charge) assignment · standings with head-to-head tiebreakers
 
-### Player History
+### Admin Area
 
-- Career stats across all sessions: W/L record, points for/against
-- Top partners and opponents
-- Session attendance history
+- Login once (password) — admin menus appear right on the home page
+- Unlock/delete sessions · ingest/revert/rebuild ratings · close & start season
+- Player management: add, rename, change tier, rebaseline, delete · delete tournaments
 
 ### Social Export
 
@@ -122,14 +128,16 @@ The app runs at `http://localhost:5173` by default.
 ```
 src/
 ├── types/              # Domain types (zero dependencies)
-├── config/             # Generator weights, canvas dims, tier config, design tokens
+├── config/             # Generator weights, canvas dims, 8-tier config, design tokens
+├── i18n/               # Skeleton i18n (typed en dict, t()/useT(), zero deps)
 ├── generator/          # 5-phase schedule engine (pure TypeScript, zero store deps)
 ├── utils/              # Pure utilities: time, quality, standings, swap, canvas, stats
 ├── domain/ports/       # Repository interfaces (prepared for dependency injection)
 ├── queries/            # React Query hooks + REST client (majadu-api)
 │   ├── endpoints.ts    # Raw REST fetch functions (retry method-aware)
 │   ├── retry.ts        # Retry policy murni (testable)
-│   ├── sessions.ts     # 14 session mutation/query hooks
+│   ├── sessions.ts     # Session mutation/query hooks
+│   ├── ratings.ts      # Rating/season hooks
 │   ├── useOptimisticMutation.ts  # Factory hook for optimistic updates
 │   └── types.ts        # CloudSnapshot, SessionMeta, PlayerSummary types
 ├── store/              # Zustand 5 slices (session, players, schedule, game, ui)
@@ -137,7 +145,9 @@ src/
 ├── components/         # UI components
 │   ├── summary/        #   SummaryModal sub-components
 │   ├── tournament/     #   Tournament tab components
-│   └── generate/       #   Schedule view components
+│   ├── generate/       #   Schedule view components
+│   ├── ratings/        #   RatingTierBadge, RatingSparkline, CareerStats
+│   └── admin/          #   AdminMenuGrid (home)
 ├── pages/              # Route pages
 └── index.css           # Tailwind v4 @theme tokens + global styles
 
@@ -189,13 +199,16 @@ Semantic design tokens defined in Tailwind v4 `@theme`:
 
 | Token | Hex | Role |
 |-------|-----|------|
-| `--color-ground` | `#0f172a` | Page background |
-| `--color-surface` | `#1e293b` | Cards, panels |
-| `--color-elevated` | `#334155` | Inputs, inner cards |
-| `--color-fg` | `#f1f5f9` | Primary text (WCAG AA ~15.5:1) |
-| `--color-fg-dim` | `#94a3b8` | Secondary text (WCAG AA ~7.1:1) |
-| `--color-accent` | `#fbbf24` | Brand, CTA |
-| `--color-accent-alt` | `#818cf8` | Interactive, links |
+| `--color-ground` | `#0b0e13` | Page background |
+| `--color-surface` | `#14181f` | Cards, panels |
+| `--color-elevated` | `#1c212b` | Inputs, inner cards |
+| `--color-border` | `#2a313c` | Visible borders |
+| `--color-border-subtle` | `#22272f` | Dividers, card borders |
+| `--color-fg` | `#eef0f3` | Primary text |
+| `--color-fg-dim` | `#8b939c` | Secondary text |
+| `--color-accent` | `#e3b341` | Brand, CTA (gold) |
+| `--color-success` | `#43a57d` | Positive states |
+| `--color-error` | `#d65a5a` | Errors, destructive |
 
 Full reference: [docs/design-system.md](docs/design-system.md)
 
@@ -205,14 +218,20 @@ Full reference: [docs/design-system.md](docs/design-system.md)
 
 | Endpoint | Access | Behavior |
 |----------|--------|----------|
+| `GET /sessions` · `GET /sessions/{id}` | anon | Read-only list / snapshot |
 | `PUT /sessions/{id}` | anon | Rejects writes when status ≠ 'draft' (lock) |
-| `GET /sessions/{id}` | anon | Read-only snapshot fetch |
-| `GET /sessions` | anon | Returns lock status column |
-| `DELETE /sessions/{id}` | anon | Rejects locked sessions |
-| `POST /sessions/{id}/unlock` | anon | Admin-only, not wired to UI |
-| `POST /players` | anon | Idempotent with TOCTOU-safe re-query |
+| `DELETE /sessions/{id}` | anon | Draft sessions only |
+| `POST /sessions/{id}/lock` | anon | Host flow (server-enforced) |
+| `POST /sessions/{id}/unlock` · `/delete` | **admin** | AdminGuard (Bearer `MAJADU_ADMIN_TOKEN`) |
+| `POST /tournaments/{id}/delete` | **admin** | Delete + rating cleanup + rebuild |
+| `POST /players` | anon | Register (TOCTOU-safe; optional 8-tier) |
+| `PATCH /players/{id}/tier` · `/name` · `DELETE /players/{id}` | **admin** | Tier change (+rebuild) · rename · delete |
+| `POST /ratings/*` (ingest/revert/finalize/rebuild/season/rebaseline) | **admin** | Bearer token |
+| `GET /ratings/*` | anon | Public read (leaderboard, player, sources, seasons) |
 
-All mutations use advisory locks (`pg_try_advisory_xact_lock`) + `SELECT ... FOR UPDATE NOWAIT` for concurrency control. Auth (JWT) is deferred — see `docs/handbook/backend-go-decision.md`.
+Concurrency: advisory locks (`pg_try_advisory_xact_lock` / `pg_advisory_xact_lock`) +
+`SELECT ... FOR UPDATE NOWAIT` + optimistic `If-Match`/ETag. Auth (JWT) is deferred —
+single shared admin token; see `docs/handbook/backend-go-decision.md`.
 
 ---
 

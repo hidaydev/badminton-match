@@ -9,15 +9,21 @@ Defined in:
 ### Home shell routes
 
 - `/`
-  - home page
+  - home page (menu APP + section ADMIN saat login admin)
 - `/sessions`
   - published session list
-- `/player-history`
-  - player index
-- `/player-history/:name`
-  - player detail stats
-- `/tournament`
-  - tournament module
+- `/ratings`
+  - rating leaderboard (8-tier) — pemain history digabung di detail (Career)
+- `/ratings/:playerId`
+  - detail rating + career stats (bekas Player History)
+- `/tournaments`
+  - tournament list (classic + team)
+- `/tournaments/new` · `/tournaments/new/:format`
+  - wizard tournament
+- `/tournaments/:id`
+  - detail tournament (branch format)
+- `/admin`
+  - halaman operasi admin (bisa di-autofocus via `/admin?section=X`)
 - `/instagram-post`
   - session and tournament media export
 
@@ -157,18 +163,18 @@ Restricted to published sessions only (not available during schedule generation)
 - **Back-to-back warning** — the confirm bar shows a warning when the replacement
   player would play back-to-back games
 
-## Player history flow
+## Player history flow (diserap ke Ratings — 2026-08-19)
 
 Files:
 
-- `src/pages/PlayerHistoryPage.tsx`
-- `src/pages/PlayerDetailPage.tsx`
+- `src/pages/RatingPlayerPage.tsx` (section Career)
+- `src/components/ratings/CareerStats.tsx`
 
 Capabilities:
 
-- list known players
-- fetch aggregate player stats
-- display sessions, partners, and opponents
+- career stats (W/L, points, sessions, top partners/opponents, tournament)
+  dirender di `/ratings/:playerId` — satu halaman, tanpa cross-link nested.
+- Route `/player-history*` dan halaman terpisah DIHAPUS (keputusan 2026-08-19).
 
 ## Tournament flow
 
