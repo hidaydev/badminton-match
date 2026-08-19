@@ -248,11 +248,11 @@ export function ratingSparklinePath(history: { rating: number }[], w: number, h:
 **Verifikasi P2:** `npm run check` hijau · browser: klik leaderboard → detail → sparkline → cross-link dua arah. → **lengkap: 60 PASS + tsc/eslint/tailwind hijau (commit `eaf37e4`).**
 
 ### P3 — Audit & polish
-- [ ] 15. Audit konsistensi (design tokens, error handling, aksesibilitas)
-- [ ] 16. Visual pass browser (user) — daftar periksa: loading, empty, banyak data, provisional, pagination
-- [ ] 17. Update `current-status.md` + doc ini (status)
+- [x] 15. Audit konsistensi (design tokens, error handling, aksesibilitas) → **token divalidasi ada (fg/fg-dim/surface/border/border-subtle/elevated/error/accent); error+empty+loading states di kedua halaman; sparkline role=img+aria-label; row leaderboard = button**
+- [ ] 16. Visual pass browser (user) — daftar periksa: loading, empty, banyak data, provisional, pagination → **HANDOFF: deploy dev + buka /ratings**
+- [x] 17. Update `current-status.md` + doc ini (status) → **current-status di-update (commit terpisah)**
 
-**Verifikasi P3:** semua checklist; tanpa regresi menu lain.
+**Verifikasi P3:** semua checklist; tanpa regresi menu lain. → **60 PASS + 55 sebelumnya; full Go suite PASS.**
 
 ---
 
