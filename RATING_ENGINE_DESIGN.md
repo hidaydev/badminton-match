@@ -502,15 +502,15 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 **Verifikasi P1:** `make check` hijau; re-run → no-op; edit → 409. → **lengkap: unit 100+ PASS, integration live PASS. Temuan audit P1: (a) pgx melarang 2 query paralel di satu tx → extractor dibaca-tuntas-dulu; (b) range-map = keys bukan values → bug uuid; (c) sequence butuh GRANT USAGE; (d) revert harus invalidasi fingerprint (kalau tidak re-ingest jadi no-op); (e) scan date → *time.Time.**
 
 ### P2 — Read path & revert
-- [ ] 14. `GET /ratings/leaderboard` (sort, tier, provisional badge, pagination, active)
-- [ ] 15. `GET /ratings/players/{id}` + history (sparkline)
-- [ ] 16. `POST /ratings/revert-session` + `revert-tournament`: hapus by source_id + **FULL REBUILD semua rating_players** dari events tersisa (§4.4a — recompute, BUKAN reuse delta); reset pemain 0-game ke default; idempotent
-- [ ] 17. `GET /ratings/sources?changed=true` + `POST .../finalize`
-- [ ] 18. Integration test revert: state FULL REBUILD identik dengan fresh ingest; **test transitivity** (revert source A → rating pemain yang hanya main di source lain ikut ter-recompute benar); revert dua kali = no-op
-- [ ] 18b. Test `max_delta_per_game` cap (provisional rd=350 + whitewash final → delta ≤ cap)
-- [ ] 18c. `rating_ingest_runs` audit log (opsional): riwayat ingest/reconcile/revert (mode, source, jumlah events, timestamp)
+- [x] 14. `GET /ratings/leaderboard` (sort, tier, provisional badge, pagination, active) → **`RatingLeaderboard` + handler (limit default 100/max 500, offset, active = main 90 hari, trend = delta terakhir via lateral)**
+- [x] 15. `GET /ratings/players/{id}` + history (sparkline) → **`RatingPlayer` + `RatingPlayerHistory` (desc by event date, limit)**
+- [x] 16. `POST /ratings/revert-session` + `revert-tournament`: hapus by source_id + **FULL REBUILD semua rating_players** dari events tersisa (§4.4a — recompute, BUKAN reuse delta); reset pemain 0-game ke default; idempotent → **`RevertSource` (kind session/tournament) — full rebuild + reset-to-default + fingerprint invalidasi; idempotent (0 event = no-op)**
+- [x] 17. `GET /ratings/sources?changed=true` + `POST .../finalize` → **`ListRatingSources` (event_count) + `SetSourceFinalized` (upsert; fingerprint '' = belum diingest) — `?changed=true` (re-extraction) ditunda ke P3**
+- [x] 18. Integration test revert: state FULL REBUILD identik dengan fresh ingest; **test transitivity** (revert source A → rating pemain yang hanya main di source lain ikut ter-recompute benar); revert dua kali = no-op → **`TestIntegrationRatingReadPathAndTransitivity` PASS live: revert-A state == fresh B-only ingest state (identik bit-per-bit)**
+- [x] 18b. Test `max_delta_per_game` cap (provisional rd=350 + whitewash final → delta ≤ cap) → **unit `TestGlickoUpdateCapWhitewashFinal` PASS**
+- [ ] 18c. `rating_ingest_runs` audit log (opsional): riwayat ingest/reconcile/revert (mode, source, jumlah events, timestamp) → **didefer (P3/opsional — rating_sources sudah menyimpan ingested_at)**
 
-**Verifikasi P2:** leaderboard konsisten dengan audit trail; revert → rating persis (full rebuild).
+**Verifikasi P2:** leaderboard konsisten dengan audit trail; revert → rating persis (full rebuild). → **lengkap: unit 100+ PASS, integration live PASS (ingest/no-op/409/reconcile/revert/transitivity/read path). Temuan audit P2: (a) runtime pemain baru harus di-init default (state {0,0} merusak math); (b) rebuildAll harus baca event→player mapping SEBELUM reset deltas; (c) cleanup test harus pakai share_code bukan id sesi; (d) asersi transitivity "berubah" tidak cukup — bandingkan state utuh vs fresh ingest.**
 
 ### P3 — Backfill & tuning
 - [ ] 19. Backfill: semua published session (locked) + tournament classic/team (finalize) dari bm
