@@ -316,3 +316,58 @@ export async function createTournament(data: AnyTournamentSnapshot): Promise<{ i
     clearTimeout(timeoutId)
   }
 }
+
+// ── Rating (plan RATINGS_FRONTEND_PLAN.md §6.3) ───────────────────────────
+
+export interface RatingLeaderboardRow {
+  player_id: string
+  name: string
+  rating: number
+  rd: number
+  tier: number
+  peak: number
+  games: number
+  trend: number
+  provisional: boolean
+}
+
+export interface RatingHistoryRow {
+  date: string
+  title: string
+  game_ref: string
+  outcome: 'W' | 'L'
+  delta: number
+  expected: number
+  movm: number
+  score_a: number
+  score_b: number
+  new_rating: number
+}
+
+export interface RatingPlayer {
+  name: string
+  rating: number
+  rd: number
+  tier: number
+  peak: number
+  games: number
+  wins: number
+  losses: number
+  history: RatingHistoryRow[]
+}
+
+export async function getRatingLeaderboard(
+  active: boolean,
+  limit: number,
+  offset: number,
+): Promise<{ total: number; rows: RatingLeaderboardRow[] }> {
+  const q = `?active=${active}&limit=${limit}&offset=${offset}`
+  const data = await request<{ total: number; rows: RatingLeaderboardRow[] }>('GET', `/ratings/leaderboard${q}`)
+  return data ?? { total: 0, rows: [] }
+}
+
+export async function getRatingPlayer(playerId: string): Promise<RatingPlayer> {
+  const data = await request<RatingPlayer | null>('GET', `/ratings/players/${enc(playerId)}`)
+  if (!data) throw new Error('no data')
+  return data
+}

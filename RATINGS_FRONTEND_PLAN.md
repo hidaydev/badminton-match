@@ -222,14 +222,14 @@ export function ratingSparklinePath(history: { rating: number }[], w: number, h:
 ## 9. Task List
 
 ### P0 — Fondasi API (backend + frontend data layer)
-- [ ] 1. Backend: `player_id` di `LeaderboardRow` (+ query) — `rating_read.go`
-- [ ] 2. Backend: `playerId` di response stats — `stats.go`/`player.go`
-- [ ] 3. Backend: `new_rating` di `RatingHistoryRow` (untuk sparkline)
-- [ ] 4. Backend: `AutoIngestLockedSessions` + wire ke ticker (setelah AutoLockExpiredSessions) + integration test
-- [ ] 5. Frontend: endpoints (`getRatingLeaderboard`, `getRatingPlayer`) + types (`RatingLeaderboardRow`, `RatingPlayer`, `RatingHistoryRow`)
-- [ ] 6. Frontend: hooks (`useRatingLeaderboard`, `useRatingPlayer`) + `playerId?: string` di type stats (opsional)
+- [x] 1. Backend: `player_id` di `LeaderboardRow` (+ query) — `rating_read.go` → **`PlayerID` + scan**
+- [x] 2. Backend: `playerId` di response stats — `stats.go`/`player.go` → **`PlayerStatsJSON.PlayerID` set dari resolved id**
+- [x] 3. Backend: `new_rating` di `RatingHistoryRow` (untuk sparkline) → **`rd.new_rating` di query history**
+- [x] 4. Backend: `AutoIngestLockedSessions` + wire ke ticker (setelah AutoLockExpiredSessions) + integration test → **`TestIntegrationAutoIngestLockedSessions` PASS live (draft dilewati, lock→ingest, idempotent, player_id/new_rating/playerId terverifikasi). Temuan audit: integration tests harus scoped (DB kini berbagi dengan backfill 474 events) + tanggal test = future (seq invariant vs max date real 08-18) + cleanup hapus session locked (unlock dulu)**
+- [x] 5. Frontend: endpoints (`getRatingLeaderboard`, `getRatingPlayer`) + types (`RatingLeaderboardRow`, `RatingPlayer`, `RatingHistoryRow`) → **`endpoints.ts`**
+- [x] 6. Frontend: hooks (`useRatingLeaderboard`, `useRatingPlayer`) + `playerId?: string` di type stats (opsional) → **`queries/ratings.ts`**
 
-**Verifikasi P0:** `make check` + integration auto-ingest PASS live · `npm run check` hijau.
+**Verifikasi P0:** `make check` + integration auto-ingest PASS live · `npm run check` hijau. → **lengkap: full Go suite PASS live (44s), tsc+eslint PASS, commit backend `419b1eb`.**
 
 ### P1 — Leaderboard
 - [ ] 7. `RatingTierBadge` (1–10)
