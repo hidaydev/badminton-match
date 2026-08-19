@@ -1,0 +1,182 @@
+# ADMIN_MENU_PLAN.md
+
+**Status:** PLAN — belum diimplementasikan
+**Tanggal:** 2026-08-18
+**Lokasi:** root badminton-match
+**Terkait:** `RATING_TIERING_REVAMP.md` (skema sub-tier 12 band) · `RATING_ENGINE_DESIGN.md` (engine rating, API admin) · `RATINGS_FRONTEND_PLAN.md`
+
+---
+
+## 1. Latar & Tujuan
+
+Menu admin untuk operasional harian host/admin:
+- **Login** via tombol di HomeLayout (sebelah tombol Refresh).
+- Setelah login → **menu admin** berisi fungsi yang sudah direncanakan (unlock session, ingest/revert/finalize/rebuild rating) + manajemen pemain (tambah/hapus/edit) + ubah kelas (ratings) / tier (session).
+- Admin token = `MAJADU_ADMIN_TOKEN` (sudah ada di backend untuk endpoint write ratings; saat ini `unlock` masih TANPA auth).
+
+---
+
+## 2. Login
+
+### 2.1 UI
+
+- **Tombol login** di `HomeLayout` (sebelah tombol Refresh — yang sudah ada, `aria-label="Refresh"`).
+  - Belum login: ikon/user icon → tap → modal input `MAJADU_ADMIN_TOKEN` + [Login].
+  - Sudah login: ikon admin (badge "admin") → tap → menu admin.
+
+### 2.2 Penyimpanan token
+
+- **`sessionStorage`** (hilang saat tab ditutup — lebih aman daripada localStorage; XSS window lebih kecil).
+- API client: semua request admin menyertakan `Authorization: Bearer <token>` bila ada.
+- [Logout] membersihkan token + state admin.
+
+### 2.3 Backend
+
+- `MAJADU_ADMIN_TOKEN` sudah di `config` (wajib di prod, fail-fast). Tidak ada perubahan backend untuk login — endpoint admin sudah mengecek Bearer.
+
+---
+
+## 3. Menu Admin — Fungsi
+
+### 3.1 Session
+
+| Fungsi | Endpoint (existing) | Auth | Catatan |
+|---|---|---|---|
+| Unlock session | `POST /sessions/{id}/unlock` | **SAAT INI TANPA AUTH — perlu di-gate** | Unlock = operasi admin (docs lama sudah menyebut admin-only). Frontend belum punya tombol unlock — menu admin menyediakannya |
+| Lock session | `POST /sessions/{id}/lock` | open (host flow) | — |
+
+**Perubahan:** `Unlock` handler diberi middleware `RequireAdmin`. Verifikasi frontend existing tidak memanggil unlock tanpa token (saat ini tidak ada tombol unlock di UI — aman).
+
+### 3.2 Rating (sudah ada endpoint, token)
+
+| Fungsi | Endpoint |
+|---|---|
+| Ingest session | `POST /ratings/ingest-session {sessionId}` |
+| Ingest tournament | `POST /ratings/ingest-tournament {tournamentId}` |
+| Revert session | `POST /ratings/revert-session {sessionId}` |
+| Revert tournament | `POST /ratings/revert-tournament {tournamentId}` |
+| Finalize tournament | `POST /ratings/sources/{id}/finalize {finalized}` |
+| Rebuild all | `POST /ratings/rebuild-all` |
+
+Semua sudah ada di backend (token) — **belum ada UI**. Menu admin: daftar sumber (dari `GET /ratings/sources`) + tombol aksi per sumber + rebuild-all.
+
+### 3.3 Ubah kelas (ratings) — BARU
+
+- **Endpoint baru**: `PATCH /ratings/players/{playerId}/class {class, source:"admin"}` → update `rating_players.class` + `class_source='admin'`.
+- Efek: floor berubah (§3.3 RATING_TIERING_REVAMP). Tidak perlu rebuild.
+- UI: di halaman detail rating `/ratings/:playerId`, admin melihat dropdown 12 sub-tier → simpan.
+
+### 3.4 Manajemen pemain
+
+| Fungsi | Mekanisme |
+|---|---|
+| **Add player (ke session, dengan tier session)** | Alur normal: menu admin navigasi ke `/session/players` (atau inline form add ke sesi aktif). Class RATINGS TIDAK di-set di sini — hanya tier session (sesuai permintaan: "dengan kelas sesuai session, bukan ratings") |
+| **Delete player** | **Endpoint baru Go**: `DELETE /players/{playerId}` → memanggil fungsi SQL `bm.delete_player(p_player_id, p_force)` (sudah ada di DB, belum di-expose). Perlu analisis FK (session_players.player_id kini nullable; tournament_team_players ON DELETE SET NULL; rating_players FK → perlu cascade/set null) — detail §4.1 |
+| **Edit player** | Rename/canonical: reuse `POST /players` (register dengan canonicalName) + alias. UI: form edit nama di daftar pemain |
+
+### 3.5 Struktur UI
+
+```
+HomeLayout ──(token)──▶ [Admin icon] ──▶ AdminSheet (bottom sheet / drawer):
+  ─ Session ──────────────  Unlock session (pilih dari list)
+  ─ Rating ───────────────  Ingest / Revert / Finalize (per source, dari GET /ratings/sources)
+                            Rebuild all
+  ─ Player ───────────────  Add player (ke session) · Delete player · Edit name
+  ─ Class ────────────────  Ubah kelas (dropdown 12) — dari detail rating
+  ─ [Logout]
+```
+
+- Komponen: `components/admin/AdminSheet.tsx` + `context/AdminContext.tsx` (state token + isAdmin).
+- Akses: hanya tampil/aktif kalau token valid (validasi via satu request admin, mis. `GET /ratings/sources`).
+
+---
+
+## 4. Backend — Endpoint Baru
+
+### 4.1 Delete player (analisis FK)
+
+`bm.delete_player(p_player_id uuid, p_force boolean)` sudah ada (fungsi SQL). Referensi `players(id)`:
+- `session_players.player_id` → **nullable** (sudah relax 000007) → SET NULL aman.
+- `player_aliases.player_id` → `ON DELETE CASCADE` (schema awal) ✓.
+- `tournament_team_players.player_id` → `ON DELETE SET NULL` ✓.
+- `tournament_pair_players.player_id` → perlu cek FK action (kemungkinan tidak ada FK atau harus diset).
+- `rating_players.player_id` → FK `REFERENCES players(id)` **tanpa action** → perlu `ON DELETE CASCADE` atau hapus dulu di Go (transaksi: delete rating data → panggil delete_player).
+
+Keputusan: **panggil `delete_player` dalam transaksi Go**, setelah menghapus baris `rating_players`/`rating_deltas` milik pemain (cascade via events). `p_force=false` dulu; error FK → pesan jelas.
+
+### 4.2 Ubah kelas
+
+```go
+// handler/ratings.go — PATCH /ratings/players/{playerId}/class (admin)
+// body: { "class": "C" }  → UPDATE rating_players SET class=$2, class_source='admin'
+// validasi 12 sub-tier; 404 kalau pemain belum ter-rating
+```
+
+### 4.3 Gate unlock
+
+`handler/session.go Unlock` → bungkus `RequireAdmin` (dari handler ratings — pindahkan middleware ke package bersama atau duplikat kecil).
+
+---
+
+## 5. Security
+
+| Risiko | Mitigasi |
+|---|---|
+| Token di sessionStorage → XSS | App tanpa konten user-generated (input player name — sanitized display). Acceptable untuk klub; Logout membersihkan |
+| Token bocor via log | Jangan log Authorization header (middleware logging existing hanya method/path/status — cek) |
+| Unlock sekarang open | Di-gate admin (perubahan perilaku — dokumentasikan) |
+| Endpoint admin lain | Sudah token-protected (ingest/revert/finalize/rebuild) |
+| Rate limit | Sudah global (per IP) |
+
+**Catatan:** ini bukan sistem auth penuh (tidak ada user/password, tidak ada per-role). Satu token bersama = "admin tunggal" — sesuai skala klub. Upgrade ke multi-user (mis. Supabase Auth / JWT) di luar scope, tercatat sebagai backlog.
+
+---
+
+## 6. Edge Cases
+
+| Kasus | Keputusan |
+|---|---|
+| Token salah / kedaluwarsa | 401 → admin sheet tutup + prompt login ulang |
+| Token tidak pernah diset (dev) | `MAJADU_ADMIN_TOKEN` kosong → semua endpoint admin 401 (sudah perilaku handler) — admin sheet tampil "not configured" |
+| Delete player yang punya riwayat sesi | `p_force=false` → ditolak FK → pesan "player has history" (atau `p_force=true` jika admin yakin — tombol konfirmasi) |
+| Revert session yang belum diingest | Idempotent (no-op) — sudah |
+| Unlock sesi yang sudah unlock | Idempotent (no-op) — sudah |
+| Add player tanpa sesi aktif | Arahkan ke alur session (bukan form mandiri) |
+
+---
+
+## 7. Task List
+
+### P0 — Backend endpoints & gate
+- [ ] 1. `PATCH /ratings/players/{id}/class` (validasi 12-tier, source='admin')
+- [ ] 2. `DELETE /players/{playerId}` (Go + delete_player SQL, transaksi: bersihkan rating → panggil fn; analisis FK tournament_pair_players)
+- [ ] 3. Gate `Unlock` dengan RequireAdmin (verifikasi tidak ada caller tanpa token)
+- [ ] 4. Unit + integration test: class update, delete player, unlock 401 tanpa token
+
+**Verifikasi P0:** `make check` + integration live PASS.
+
+### P1 — Frontend auth & sheet
+- [ ] 5. `AdminContext` (token di sessionStorage, Bearer header otomatis, isAdmin, logout)
+- [ ] 6. Tombol login di HomeLayout (sebelah Refresh) + modal input token
+- [ ] 7. `AdminSheet` (session unlock, rating ops per source dari GET /ratings/sources, rebuild-all)
+- [ ] 8. Admin badge di detail rating (ubah kelas dropdown)
+
+**Verifikasi P1:** `npm run check` + browser flow (login → menu → aksi).
+
+### P2 — Manajemen pemain di UI
+- [ ] 9. Add player (ke sesi) dari sheet — navigasi alur session
+- [ ] 10. Delete player (konfirmasi, p_force=false dulu)
+- [ ] 11. Edit player name (reuse register+alias)
+
+**Verifikasi P2:** flow lengkap di browser; tanpa regresi alur normal.
+
+### P3 — Polish
+- [ ] 12. Audit keamanan ringan (log tidak membocorkan token; sessionStorage lifecycle)
+- [ ] 13. Visual pass (user) + update current-status
+
+---
+
+## 8. Di Luar Scope
+
+- Multi-user auth / per-role.
+- Admin UI untuk mengedit skor langsung di sesi terkunci (cukup unlock → edit normal).
