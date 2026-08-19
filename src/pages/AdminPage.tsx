@@ -5,6 +5,7 @@ import { useAdmin } from '../context/AdminContext'
 import { useListSessions, useListPlayers, useListTournaments } from '../queries'
 import { useRatingSources, useRatingSeasons } from '../queries/ratings'
 import { adminRequest } from '../queries/admin'
+import { t, en } from '../i18n'
 
 // 8-tier (TIER_8_UNIFICATION): D, D+, C, C+, B, B+, A, A+
 const TIERS = ['D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+']
@@ -44,7 +45,7 @@ function Pager({ page, total, onPage }: { page: number; total: number; onPage: (
         disabled={page <= 0}
         className="text-xs font-mono text-fg-dim hover:text-fg disabled:opacity-30"
       >
-        ← Prev
+        {t('common.prev')}
       </button>
       <span className="text-[10px] font-mono text-fg-dim">{page + 1} / {pages}</span>
       <button
@@ -52,7 +53,7 @@ function Pager({ page, total, onPage }: { page: number; total: number; onPage: (
         disabled={page >= pages - 1}
         className="text-xs font-mono text-fg-dim hover:text-fg disabled:opacity-30"
       >
-        Next →
+        {t('common.next')}
       </button>
     </div>
   )
@@ -84,7 +85,7 @@ export default function AdminPage() {
     setRebuildMsg(null)
     try {
       await adminRequest('POST', '/ratings/rebuild-all')
-      setRebuildMsg({ kind: 'ok', text: 'Rebuild done — semua rating dihitung ulang dari events' })
+      setRebuildMsg({ kind: 'ok', text: t('admin.rebuildDone') })
     } catch (e) {
       setRebuildMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Rebuild failed' })
     } finally {
@@ -144,37 +145,37 @@ export default function AdminPage() {
       {/* Banner pembeda */}
       <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-amber-950/30 border border-amber-800/60">
         <div className="flex flex-col">
-          <p className="text-sm font-bold text-amber-200">Admin</p>
-          <p className="text-[10px] font-mono text-amber-300/60 uppercase tracking-wider">operations</p>
+          <p className="text-sm font-bold text-amber-200">{t('admin.title')}</p>
+          <p className="text-[10px] font-mono text-amber-300/60 uppercase tracking-wider">{t('admin.subtitle')}</p>
         </div>
-        <button onClick={logout} className="text-xs font-mono text-fg-dim hover:text-red-400 transition-colors">Logout</button>
+        <button onClick={logout} className="text-xs font-mono text-fg-dim hover:text-red-400 transition-colors">{t('admin.logout')}</button>
       </div>
 
       {error && <p className="text-red-400 text-xs bg-red-950/30 border border-red-800/60 rounded-lg px-3 py-2">{error}</p>}
       {okMsg && <p className="text-emerald-400 text-xs bg-emerald-950/30 border border-emerald-800/60 rounded-lg px-3 py-2">{okMsg}</p>}
 
-      {/* ── Session (SEMUA, paginasi 10) ── */}
+      {/* ── Session ── */}
       <section className="flex flex-col gap-2">
-        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">Session · unlock</p>
+        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionSession')}</p>
         <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-          {sessSlice.length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">No sessions.</p>}
+          {sessSlice.length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">{t('admin.noSessions')}</p>}
           {sessSlice.map((s) => (
-            <div key={s.id} className="flex items-center gap-2 px-3 py-2">
+            <div key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
               <span className="flex-1 min-w-0 text-sm text-fg truncate">{s.title || 'Untitled'}</span>
               <span className="text-[10px] font-mono text-fg-dim">{s.date}</span>
-              <span className={`text-[10px] font-mono ${s.locked ? 'text-amber-300/70' : 'text-fg-dim'}`}>{s.locked ? 'locked' : 'draft'}</span>
+              <span className={`text-[10px] font-mono ${s.locked ? 'text-amber-300/70' : 'text-fg-dim'}`}>{s.locked ? t('admin.locked') : t('admin.draft')}</span>
               {s.locked && (
-                <ActionButton tone="amber" onClick={() => run(() => adminRequest('POST', `/sessions/${s.id}/unlock`), 'Unlocked')}>
+                <ActionButton tone="amber" onClick={() => run(() => adminRequest('POST', `/sessions/${s.id}/unlock`), t('admin.unlocked'))}>
                   Unlock
                 </ActionButton>
               )}
               <ActionButton
                 tone="red"
                 onClick={() => {
-                  if (window.confirm(`Hapus sesi "${s.title || 'Untitled'}" (${s.date})?\n\nRating source ikut terhapus & semua rating di-rebuild.`)) {
+                  if (window.confirm(en.admin.sessionDeleteConfirm(s.title || 'Untitled', s.date))) {
                     run(
                       () => adminRequest('POST', `/sessions/${s.id}/delete`),
-                      'Session dihapus + rating di-rebuild',
+                      t('admin.sessionDeleted'),
                       () => { refetchSessions(); refetchSources() },
                     )
                   }
@@ -190,11 +191,11 @@ export default function AdminPage() {
 
       {/* ── Rating ── */}
       <section className="flex flex-col gap-2">
-        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">Rating · ingest / revert</p>
+        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionRating')}</p>
         <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-          {srcSlice.length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">No sources.</p>}
+          {srcSlice.length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">{t('admin.noSources')}</p>}
           {srcSlice.map((src) => (
-            <div key={src.source_id} className="flex items-center gap-2 px-3 py-2">
+            <div key={src.source_id} className="flex flex-wrap items-center gap-2 px-3 py-2">
               <span className="flex-1 min-w-0 text-fg truncate font-mono text-xs">{src.source_id}</span>
               <span className="text-[10px] font-mono text-fg-dim">{src.event_count} ev</span>
               {src.source_kind.startsWith('tournament') && (
@@ -221,36 +222,34 @@ export default function AdminPage() {
             disabled={rebuilding}
             className="py-2 rounded-lg border border-border-subtle text-sm text-fg-dim hover:text-fg disabled:opacity-40"
           >
-            {rebuilding ? 'Rebuilding…' : 'Rebuild All'}
+            {rebuilding ? t('admin.rebuilding') : t('admin.rebuild')}
           </button>
           {rebuildMsg && (
             <p className={`text-[10px] font-mono ${rebuildMsg.kind === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
               {rebuildMsg.text}
             </p>
           )}
-          <p className="text-[10px] text-fg-dim">
-            Rebuild All = hitung ulang SEMUA rating dari events (dipakai setelah ubah config rating / koreksi; normalnya tidak perlu).
-          </p>
+          <p className="text-[10px] text-fg-dim">{t('admin.rebuildHelp')}</p>
         </div>
       </section>
 
       {/* ── Tournament ── */}
       <section className="flex flex-col gap-2">
-        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">Tournament · delete</p>
+        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionTournament')}</p>
         <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-          {(tournaments ?? []).length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">No tournaments.</p>}
-          {(tournaments ?? []).map((t) => (
-            <div key={t.id} className="flex items-center gap-2 px-3 py-2">
-              <span className="flex-1 min-w-0 text-sm text-fg truncate">{t.name || 'Untitled Tournament'}</span>
-              <span className="text-[10px] font-mono text-fg-dim">{t.date}</span>
-              <span className={`text-[10px] font-mono ${t.format === 'team' ? 'text-accent' : 'text-fg-dim'}`}>{t.format}</span>
+          {(tournaments ?? []).length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">{t('admin.noTournaments')}</p>}
+          {(tournaments ?? []).map((t2) => (
+            <div key={t2.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+              <span className="flex-1 min-w-0 text-sm text-fg truncate">{t2.name || 'Untitled Tournament'}</span>
+              <span className="text-[10px] font-mono text-fg-dim">{t2.date}</span>
+              <span className={`text-[10px] font-mono ${t2.format === 'team' ? 'text-accent' : 'text-fg-dim'}`}>{t2.format}</span>
               <ActionButton
                 tone="red"
                 onClick={() => {
-                  if (window.confirm(`Hapus tournament "${t.name || 'Untitled Tournament'}"?\n\nRating source ikut terhapus & semua rating di-rebuild.`)) {
+                  if (window.confirm(en.admin.tournamentDeleteConfirm(t2.name || 'Untitled Tournament'))) {
                     run(
-                      () => adminRequest('POST', `/tournaments/${t.id}/delete`),
-                      'Tournament dihapus + rating di-rebuild',
+                      () => adminRequest('POST', `/tournaments/${t2.id}/delete`),
+                      t('admin.tournamentDeleted'),
                       () => { refetchTournaments(); refetchSources() },
                     )
                   }
@@ -265,10 +264,10 @@ export default function AdminPage() {
 
       {/* ── Season ── */}
       <section className="flex flex-col gap-2">
-        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">Season</p>
-        <div className="flex gap-2 items-end">
-          <label className="flex flex-col gap-1 flex-1">
-            <span className="text-[10px] font-mono text-fg-dim">Tanggal mulai season baru</span>
+        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionSeason')}</p>
+        <div className="flex flex-wrap gap-2 items-end">
+          <label className="flex flex-col gap-1 flex-1 min-w-40">
+            <span className="text-[10px] font-mono text-fg-dim">{t('admin.seasonDateLabel')}</span>
             <input
               type="date"
               value={effectiveSeasonDate}
@@ -279,7 +278,7 @@ export default function AdminPage() {
           <button
             onClick={() => run(
               async () => { await adminRequest('POST', '/ratings/season', { startDate: effectiveSeasonDate }) },
-              'Season ditutup & musim baru dimulai',
+              t('admin.seasonStarted'),
               () => { setSeasonDate(null) },
             )}
             className="px-3 py-2 rounded-lg bg-amber-700/60 text-amber-100 text-sm font-bold"
@@ -287,19 +286,19 @@ export default function AdminPage() {
             Close & Start New
           </button>
         </div>
-        <p className="text-[10px] text-fg-dim">Default = tanggal mulai season aktif. Menutup = arsip standings beku, semua pemain balik ke mid kelas.</p>
+        <p className="text-[10px] text-fg-dim">{t('admin.seasonHelp')}</p>
 
         <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
           {(seasons ?? []).map((s) => {
-            const endLabel = s.open ? 'aktif' : s.end_date ?? '—'
+            const endLabel = s.open ? t('admin.active') : s.end_date ?? '—'
             return (
-              <div key={s.id} className="flex items-center gap-3 px-3 py-2">
+              <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2">
                 <span className={`text-sm font-semibold ${s.open ? 'text-accent' : 'text-fg'}`}>{s.name}</span>
-                <span className={`text-[10px] font-mono ${s.open ? 'text-emerald-400' : 'text-fg-dim'}`}>{s.open ? '● aktif' : 'closed'}</span>
-                <span className="flex-1 text-[10px] font-mono text-fg-dim truncate">
-                  {s.start_date} → {endLabel} · {daySpan(s.start_date, s.end_date, nowMs)} hari
+                <span className={`text-[10px] font-mono ${s.open ? 'text-emerald-400' : 'text-fg-dim'}`}>{s.open ? `● ${t('admin.active')}` : 'closed'}</span>
+                <span className="flex-1 min-w-36 text-[10px] font-mono text-fg-dim">
+                  {s.start_date} → {endLabel} · {daySpan(s.start_date, s.end_date, nowMs)} {t('admin.days')}
                 </span>
-                <a href="/ratings" className="text-[10px] font-mono text-accent shrink-0">standings →</a>
+                <a href="/ratings" className="text-[10px] font-mono text-accent shrink-0">{t('admin.standings')} →</a>
               </div>
             )
           })}
@@ -308,71 +307,71 @@ export default function AdminPage() {
 
       {/* ── Player ── */}
       <section className="flex flex-col gap-2">
-        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">Player</p>
+        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionPlayer')}</p>
 
         {/* Add player standalone (registry) */}
-        <div className="flex gap-2 items-center bg-surface border border-border-subtle rounded-lg px-3 py-2">
+        <div className="flex flex-wrap gap-2 items-center bg-surface border border-border-subtle rounded-lg px-3 py-2">
           <input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Nama player baru"
+            placeholder={t('admin.newPlayerName')}
             className="flex-1 min-w-0 bg-transparent text-sm text-fg placeholder:text-fg-dim/60 focus:outline-none"
           />
           <select
             value={newTier}
             onChange={(e) => setNewTier(e.target.value)}
             className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-fg focus:outline-none"
-            aria-label="Tier induk"
+            aria-label={t('admin.tierInduk')}
           >
-            {TIERS.map((t) => <option key={t} value={t}>Tier {t}</option>)}
+            {TIERS.map((tier) => <option key={tier} value={tier}>Tier {tier}</option>)}
           </select>
           <button
             onClick={() => run(
               async () => {
-                if (!newName.trim()) throw new Error('Nama wajib diisi')
+                if (!newName.trim()) throw new Error(t('admin.nameRequired'))
                 await adminRequest('POST', '/players', { name: newName.trim(), tier: newTier })
               },
-              'Player ditambahkan',
+              t('admin.playerAdded'),
             )}
             className="px-3 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold"
           >
-            Add
+            {t('admin.addPlayer')}
           </button>
         </div>
 
         <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
           {(players ?? []).map((pl) => (
-            <div key={pl.playerId ?? pl.name} className="px-3 py-2 flex items-center gap-2">
+            <div key={pl.playerId ?? pl.name} className="px-3 py-2 flex flex-wrap items-center gap-2">
               <span className="flex-1 min-w-0 text-sm text-fg truncate">{pl.name}</span>
               {pl.tierInduk && (
                 <span className="text-[10px] font-mono text-amber-300/80 border border-amber-800/50 rounded px-1.5 py-0.5">tier {pl.tierInduk}</span>
               )}
               <ActionButton onClick={() => {
-                const newTier2 = window.prompt(`Tier induk (D..A+) untuk ${pl.name}:`, pl.tierInduk ?? 'C')
+                const newTier2 = window.prompt(en.admin.tierPrompt(pl.name), pl.tierInduk ?? 'C')
                 if (newTier2 && TIERS.includes(newTier2.toUpperCase())) {
-                  run(() => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: newTier2.toUpperCase() }), 'Tier diubah + recalculate')
+                  run(() => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: newTier2.toUpperCase() }), t('admin.tierChanged'))
                 }
               }}>Tier</ActionButton>
               <ActionButton onClick={() => {
-                const newName2 = window.prompt(`Rename "${pl.name}" menjadi:`, pl.name)
+                const newName2 = window.prompt(en.admin.renamePrompt(pl.name), pl.name)
                 if (newName2 && newName2.trim() && newName2.trim() !== pl.name) {
                   run(
                     () => adminRequest('PATCH', `/players/${pl.playerId}/name`, { name: newName2.trim() }),
-                    'Nama diubah (alias lama disimpan)',
+                    t('admin.nameChanged'),
                     () => refetchPlayers(),
                   )
                 }
               }}>Rename</ActionButton>
               <ActionButton tone="amber" onClick={() => {
-                if (window.confirm(`Rebaseline rating "${pl.name}" ke mid kelas?\n\nRating di-set ke tengah band kelasnya (efektif sampai rebuild berikutnya).`)) {
-                  run(() => adminRequest('POST', `/ratings/players/${pl.playerId}/rebaseline`), 'Rebaseline — rating = mid kelas')
+                if (window.confirm(en.admin.rebaselineConfirm(pl.name))) {
+                  run(() => adminRequest('POST', `/ratings/players/${pl.playerId}/rebaseline`), t('admin.rebaselined'))
                 }
               }}>Rebaseline</ActionButton>
               <ActionButton tone="red" onClick={() => {
-                if (window.confirm(`Hapus player "${pl.name}"? (riwayat sesi tetap, rating ikut terhapus)`)) {
-                  run(() => adminRequest('DELETE', `/players/${pl.playerId}`), 'Player dihapus')
+                if (window.confirm(en.admin.playerDeleteConfirm(pl.name))) {
+                  run(() => adminRequest('DELETE', `/players/${pl.playerId}`), t('admin.playerDeleted'))
                 }
-              }}>Hapus</ActionButton>
+              }}>Delete</ActionButton>
             </div>
           ))}
         </div>
