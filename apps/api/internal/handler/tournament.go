@@ -21,6 +21,9 @@ type TournamentHandler struct {
 	Logger *slog.Logger
 	// BaseURL — URL publik API (untuk header Location).
 	BaseURL string
+	// AdminStore — SessionStore untuk operasi admin (delete tournament +
+	// cleanup rating source). Mirip pola PlayerHandler.
+	AdminStore *store.SessionStore
 }
 
 // List — GET /tournaments: metadata semua tournament (terbaru dulu).
@@ -260,6 +263,26 @@ func (h *TournamentHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeTournament(w, http.StatusOK, out)
+}
+
+// DeleteAdmin — POST /tournaments/{id}/delete (admin, AdminGuard): hapus
+// tournament (classic | team) + bersihkan rating source + full rebuild.
+// Dipakai menu admin / halaman tournament.
+func (h *TournamentHandler) DeleteAdmin(w http.ResponseWriter, r *http.Request) {
+	share, err := h.AdminStore.AdminDeleteTournament(r.Context(), r.PathValue("id"))
+	if err != nil {
+		h.Logger.Warn("admin delete tournament rejected", "error", err)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			httperr.WriteError(w, h.Logger, httperr.NotFound("tournament not found"))
+		case errors.Is(err, store.ErrValidation):
+			httperr.WriteError(w, h.Logger, httperr.Validation("invalid tournament id"))
+		default:
+			httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to delete tournament", err))
+		}
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]any{"deleted": true, "tournamentId": share})
 }
 
 func (h *TournamentHandler) writeTournament(w http.ResponseWriter, status int, snap *domain.TournamentSnapshot) {

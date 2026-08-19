@@ -139,6 +139,52 @@ func (s *SessionStore) DeletePlayer(ctx context.Context, playerID string, force 
 	return tx.Commit(ctx)
 }
 
+// AdminDeleteTournament — hapus tournament oleh ADMIN (classic | team):
+// rating source ikut dibersihkan (events+deltas, rating_sources) lalu
+// FULL REBUILD (transitivitas). Child tables (pairs/groups/matches/team)
+// cascade via FK. Kembalikan share_code.
+func (s *SessionStore) AdminDeleteTournament(ctx context.Context, lookup string) (string, error) {
+	if strings.TrimSpace(lookup) == "" {
+		return "", fmt.Errorf("%w: tournament lookup must not be blank", ErrValidation)
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var rowID, shareCode string
+	err = tx.QueryRow(ctx, `
+		SELECT t.id::text, t.share_code FROM `+s.schema+`.tournaments t
+		WHERE t.share_code = $1 OR t.id::text = $1
+		ORDER BY (t.share_code = $1) DESC LIMIT 1`, lookup).Scan(&rowID, &shareCode)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("%w: tournament not found: %s", ErrNotFound, lookup)
+	}
+	if err != nil {
+		return "", err
+	}
+	// Rating source ikut dihapus (events → deltas cascade; source registry row).
+	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_events WHERE source_id = $1`, shareCode); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_sources WHERE source_id = $1`, shareCode); err != nil {
+		return "", err
+	}
+	// Hapus tournament (child tables: pairs/groups/matches/team cascade).
+	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.tournaments WHERE id = $1::uuid`, rowID); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	// Transitivitas: pemain yang rating-nya terpengaruh harus dihitung ulang.
+	if _, err := s.RebuildAll(ctx); err != nil {
+		return "", err
+	}
+	return shareCode, nil
+}
+
 // SetPlayerTierOnRegister — set tier induk saat registrasi player baru
 // (POST /players optional tier). First-set (tier IS NULL).
 func (s *SessionStore) SetPlayerTierOnRegister(ctx context.Context, playerID, tier string) error {
