@@ -1,6 +1,6 @@
 // src/queries/ratings.ts — hooks rating (plan RATINGS_FRONTEND_PLAN.md §6.3)
 import { useQuery } from '@tanstack/react-query'
-import { getRatingLeaderboard, getRatingPlayer, getRatingSeasons, getSeasonStandings } from './endpoints'
+import { getRatingLeaderboard, getRatingPlayer, getRatingSeasons, getSeasonStandings, request } from './endpoints'
 import type { RatingPlayer, RatingLeaderboardRow, RatingSeason, SeasonStandingRow } from './endpoints'
 
 export function useRatingLeaderboard(active: boolean, limit: number, offset: number) {
@@ -33,5 +33,24 @@ export function useSeasonStandings(seasonId: string | null) {
     queryKey: ['ratings-season-standings', seasonId],
     queryFn: () => getSeasonStandings(seasonId!),
     enabled: !!seasonId,
+  })
+}
+
+// RatingSourceRow — dari GET /ratings/sources
+export interface RatingSourceRow {
+  source_id: string
+  source_kind: string
+  finalized: boolean
+  ingested_at: string
+  event_count: number
+}
+
+export function useRatingSources() {
+  return useQuery<RatingSourceRow[]>({
+    queryKey: ['ratings-sources'],
+    queryFn: async () => {
+      const data = await request<{ sources: RatingSourceRow[] }>('GET', '/ratings/sources')
+      return data?.sources ?? []
+    },
   })
 }

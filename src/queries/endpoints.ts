@@ -20,7 +20,14 @@ function backoffDelayMs(attempt: number): number {
   return Math.min(RETRY_BASE_DELAY_MS * 2 ** attempt, RETRY_MAX_DELAY_MS)
 }
 
-async function request<T>(
+let adminToken = ''
+
+/** Set admin token (Bearer) untuk semua request — dipanggil AdminContext. */
+export function setAdminToken(token: string) {
+  adminToken = token
+}
+
+export async function request<T>(
   method: string,
   path: string,
   body?: unknown,
@@ -42,7 +49,10 @@ async function request<T>(
     try {
       const res = await fetch(`${BASE_URL}${path}`, {
         method,
-        headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+        headers: {
+          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       })
