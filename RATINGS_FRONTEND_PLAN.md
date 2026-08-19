@@ -233,7 +233,7 @@ export function ratingSparklinePath(history: { rating: number }[], w: number, h:
 **Verifikasi P0:** `make check` + integration auto-ingest PASS live · `npm run check` hijau. → **lengkap: full Go suite PASS live (44s), tsc+eslint PASS, commit backend `419b1eb`.**
 
 ### P1 — Leaderboard
-- [x] 7. `RatingTierBadge` (1–10) → **`components/ratings/RatingTierBadge.tsx` + `config/ratingTiers.ts` (palet graphite+gold, tanpa indigo)**
+- [x] 7. `RatingTierBadge` (1–10) → **T3: diubah ke 12-band string (D-..A+) — `config/ratingTiers.ts` (RatingClass) + badge pakai `class_display`**
 - [x] 8. `RatingsPage` (filter active/all, load more, podium, provisional, trend, empty/loading/error) → **`pages/RatingsPage.tsx` (PAGE 100, toggle Active/All, podium rank 1-3, badge `prov`, trend ±, skeleton+error+empty)**
 - [x] 9. Rute `/ratings` + card HomePage — **pola Suspense/lazy + redirect (konvensi tournament)** → **lazy import + card HomePage + ikon SVG baru (`ratings` — bar chart line)**
 - [x] 10. Unit test: tier badge band, trend formatting, empty state logic → **`ratingTiers.test.ts` (label 10 band + warna lengkap + fallback) — 55 total PASS**
