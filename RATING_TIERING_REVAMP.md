@@ -1,7 +1,7 @@
 # RATING_TIERING_REVAMP.md
 
 **Status:** PLAN — belum diimplementasikan
-**Rev:** 3.4 (tier sticky: tanpa opsi ubah di session — hanya admin; nama baru WAJIB pilih tier)
+**Rev:** 3.5 (mekanisme SEASON — season_start global, reset season, forming = baseline musim, recalculate via RebuildAll)
 **Tanggal:** 2026-08-18
 **Lokasi:** root badminton-match
 **Terkait:** `RATING_ENGINE_DESIGN.md` (engine rating) · `RATINGS_FRONTEND_PLAN.md` (UI ratings) · `ADMIN_MENU_PLAN.md` (menu admin)
@@ -94,13 +94,37 @@ contoh: X diregis 19, match 20 → journey mulai match tgl 20
 - Ini menjaga kejujuran: riwayat rating = perjalanan sejak didaftarkan, bukan data hantu
   dari match historis sebelum registrasi.
 
+### 2.5.7 Mekanisme SEASON (Rev 3.5)
+
+```
+rating_config.season_start (date)  ← GLOBAL, diatur admin (endpoint POST /ratings/season)
+   ├─ Ingest: match < max(season_start, players.registered_at) → TIDAK masuk rating
+   ├─ RebuildAll: forming tiap pemain di match pertama ≥ season_start
+   │    → baseline = mid band KELAS saat itu (bukan 1250 flat)
+   └─ RESET SEASON = set season_start (tanggal pilihan admin) → RebuildAll
+        → semua pemain balik ke MID KELAS yang di-assign
+        → kelas/floor TETAP (identitas lintas musim — "tidak pernah turun kelas" lintas musim)
+        → pemain yang tidak main musim baru: rating reset ke mid kelas (konsisten reset-to-default)
+```
+
+- **Ubah tier induk → recalculate**: admin update `players.tier`/class → RebuildAll →
+  baseline pemain itu berubah (forming ulang), riwayat musim terhitung ulang, efek merambat
+  jujur ke lawan.
+- **Kelas updated oleh admin** dipakai sebagai baseline reset musim BERIKUTNYA
+  ("next season dia tereset ke kelas/tier induk yang sudah diupdate").
+- Backfill: `season_start` awal = **2026-05-23** (tournament pertama) — sekali set, admin
+  bebas pindah (8 sesi sebelum itu tidak ter-rating).
+
 ### 2.5.5 Keputusan yang perlu dikonfirmasi
 
 | Pertanyaan | Usulan |
 |---|---|
 | Sinkron: sesi terbaru menang? | **TIDAK — STICKY** (set sekali di registrasi; admin-only setelahnya) |
 | Player tanpa tier (NULL) | **TIDAK terjadi di alur normal** (Rev 3.4): nama baru wajib pilih tier saat registrasi → `players.tier` selalu terisi. NULL hanya dari edge case: registrasi via API tanpa tier, anomali backfill → fallback initial_rating (tanpa kelas khusus) |
-| Edit tier induk via admin → apa efeknya ke ratings? | Hanya memengaruhi forming PEMAIN BARU (class di-lock sekali); untuk pemain existing, admin ubah class rating langsung (menu admin) |
+| Edit tier induk via admin → apa efeknya ke ratings? | **Recalculate**: class update → RebuildAll → baseline pemain itu berubah; efek merambat ke lawan (2.5.7) |
+| Reset season | Global (`season_start`), semua pemain balik ke mid kelas; kelas tetap (2.5.7) |
+| POST /players tier | Tambah param opsional `tier` |
+| Player pertama di tournament | registered_at = event_date tournament pertama; fallback C/1250 |
 
 ---
 
@@ -190,8 +214,9 @@ Satu kali proses (P2): untuk tiap player aktif di rating_players, ambil tier ses
 | `internal/domain/rating_config.go` | Tambah `ClassBands map[string][2]*float64` + `SessionTierInit` |
 | `internal/store/rating.go` (ingest) | Inisialisasi player BARU: `class` + `initial rating` dari **`players.tier` terpusat** (Rev 3.2) — pengganti flat `initial_rating` |
 | `internal/store/session.go` (write path) | Sync `players.tier` dari tier session (guard tanggal) |
-| Migration `000009` | `players.tier` (sticky) + `registered_at` + backfill dari sesi PERTAMA + gate match ≥ registered_at |
-| `internal/store/rating_revert.go` (rebuild) | Reset-to-default: **class & class_source dipertahankan** (assigned attribute, bukan computed); hanya rating/rd/peak/games yang direset |
+| Migration `000009` | `players.tier` (sticky) + `registered_at` + `rating_config.season_start` + backfill dari sesi PERTAMA + gate match ≥ max(season_start, registered_at) |
+| `internal/store/rating_revert.go` (rebuild) | Reset-to-default: **class & class_source dipertahankan**; hanya rating/rd/peak/games yang direset. **RebuildAll = forming ulang per pemain dari mid kelas di match pertama ≥ season_start** (bukan flat initial) — konsisten dengan ingest; basis mekanisme season & recalculate |
+| `internal/handler/ratings.go` | Endpoint `POST /ratings/season {startDate}` (admin) → set season_start + RebuildAll; `POST /players` + param opsional `tier` |
 | `internal/store/rating_read.go` | Leaderboard/detail: tambah `class` (assigned) + `class_derived` (dari rating) + `class_display` (max) |
 | Frontend ratings | `RatingTierBadge` → tampilkan `class_display`; provisional tetap rd>200 |
 
@@ -251,7 +276,7 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 ## 8. Task List
 
 ### P0 — Fondasi skema & math
-- [ ] 0. **Tier induk terpusat (STICKY) + registered_at**: migration `players.tier`+`registered_at`, first-set di session Save (sticky, admin-only), backfill dari sesi PERTAMA, gate match ≥ registered_at di ingest + integration test (PRASYARAT forming)
+- [ ] 0. **Tier induk terpusat (STICKY) + registered_at + season_start**: migration `players.tier`+`registered_at` + `rating_config.season_start`; first-set di session Save (sticky, admin-only); backfill dari sesi PERTAMA (era baseline season_start=2026-05-23); gate match ≥ max(season_start, registered_at) di ingest + integration test (PRASYARAT forming)
 - [ ] 1. Migration `000009_rating_class.sql` (class + class_source + config seed)
 - [ ] 2. `domain`: `ClassForRating` 12-band (config-driven) + `floorOf(class)` + `initForSessionTier(tier)` + unit test (semua 12 band, floor, init mapping)
 - [ ] 3. `rating_config`: `ClassBands` + `SessionTierInit` (typed + validasi)
