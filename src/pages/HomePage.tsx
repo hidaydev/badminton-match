@@ -8,10 +8,11 @@ import InstallModal from '../components/InstallModal'
 const secondary = [
   { icon: 'sessions', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
   { icon: 'history', label: 'Player History', description: 'Stats & records', to: '/player-history' },
-  { icon: 'ratings', label: 'Ratings', description: 'Skill rating & leaderboard', to: '/ratings' },
+  { icon: 'ratings', label: 'Ratings', description: 'Skill ratings', to: '/ratings' },
   { icon: 'scoreboard', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
   { icon: 'tournament', label: 'Tournament', description: 'Leaderboard & cup', to: '/tournaments' },
   { icon: 'post', label: 'Instagram Post', description: 'Create a post', to: '/instagram-post' },
+  { icon: 'admin', label: 'Admin Area', description: 'Admin & operations', to: '/admin', admin: true },
 ] as const
 
 function Icon({ name, size = 20 }: { name: string; size?: number }) {
@@ -59,7 +60,7 @@ async function openScoreboard(navigate: (path: string) => void) {
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { isAdmin, login, logout } = useAdmin()
+  const { isAdmin, login } = useAdmin()
   const [adminLoginOpen, setAdminLoginOpen] = useState(false)
   const [adminTokenInput, setAdminTokenInput] = useState('')
   const { isInstallable, isIos, prompt } = usePwaInstall()
@@ -125,7 +126,13 @@ export default function HomePage() {
           {secondary.map((item) => (
             <button
               key={item.to}
-              onClick={() => item.to === '/scoreboard' ? openScoreboard(navigate) : navigate(item.to)}
+              onClick={() =>
+                'admin' in item
+                  ? (isAdmin ? navigate('/admin') : setAdminLoginOpen(true))
+                  : item.to === '/scoreboard'
+                    ? openScoreboard(navigate)
+                    : navigate(item.to)
+              }
               className="flex items-start gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
             >
               <Icon name={item.icon} size={20} />
@@ -149,37 +156,6 @@ export default function HomePage() {
             </button>
           )}
         </div>
-      </div>
-
-      {/* Segmen ADMIN — pembeda amber (ADMIN_MENU_PLAN §2.1) */}
-      <div className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] font-mono text-amber-500/80 uppercase" style={{ letterSpacing: '0.12em' }}>
-            Admin
-          </p>
-          {isAdmin && (
-            <button
-              onClick={logout}
-              className="text-[10px] font-mono text-fg-dim hover:text-red-400 transition-colors"
-            >
-              Logout
-            </button>
-          )}
-        </div>
-        <button
-          onClick={() => (isAdmin ? navigate('/admin') : setAdminLoginOpen(true))}
-          className="flex items-start gap-3 p-4 rounded-lg bg-amber-950/20 border border-amber-800/50 hover:border-amber-600/70 active:scale-[0.98] transition-all text-left"
-        >
-          <Icon name="admin" size={20} />
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-sm font-semibold text-amber-200 leading-tight">
-              {isAdmin ? 'Admin' : 'Admin Area'}
-            </span>
-            <span className="text-[11px] text-amber-300/70">
-              {isAdmin ? 'Admin mode active — tap to open' : 'Admin & operations'}
-            </span>
-          </div>
-        </button>
       </div>
 
       {/* Login popup admin */}
