@@ -1,12 +1,17 @@
 // src/pages/RatingPlayerPage.tsx — detail rating pemain (plan §6.5)
 import { Link, useParams } from 'react-router-dom'
 import { useRatingPlayer } from '../queries/ratings'
+import { useAdmin } from '../context/AdminContext'
+import { adminRequest } from '../queries/admin'
+
+const CLASSES = ['D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import RatingSparkline from '../components/ratings/RatingSparkline'
 
 export default function RatingPlayerPage() {
   const { playerId } = useParams<{ playerId: string }>()
-  const { data, isLoading, isError } = useRatingPlayer(playerId)
+  const { isAdmin } = useAdmin()
+  const { data, isLoading, isError, refetch } = useRatingPlayer(playerId)
 
   if (isLoading) return <p className="text-fg-dim text-sm">Loading rating…</p>
   if (isError) return <p className="text-error text-sm">Failed to load rating.</p>
@@ -37,6 +42,21 @@ export default function RatingPlayerPage() {
           >
             Player history →
           </Link>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                const newCls = window.prompt(`Ubah class rating untuk ${name} (D-..A+):`, cls)
+                if (newCls && CLASSES.includes(newCls)) {
+                  adminRequest('PATCH', `/ratings/players/${playerId}/class`, { class: newCls })
+                    .then(() => refetch())
+                    .catch(() => {})
+                }
+              }}
+              className="text-[10px] font-mono text-amber-300 border border-amber-800/50 rounded px-2 py-0.5 w-fit hover:bg-amber-900/40"
+            >
+              ubah class
+            </button>
+          )}
         </div>
         <span className="text-right">
           <span className="block text-2xl font-bold font-mono text-accent leading-none">{rating.toFixed(0)}</span>
