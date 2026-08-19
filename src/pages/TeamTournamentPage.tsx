@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGetTournament } from '../queries'
 import { publishTournament } from '../queries/endpoints'
-import { adminRequest } from '../queries/admin'
-import { useAdmin } from '../context/AdminContext'
 import {
   computeTeamStandings,
   generateTeamDraw,
@@ -19,8 +17,6 @@ type Tab = 'klasemen' | 'jadwal' | 'final'
 /** Halaman tournament format TIM: klasemen, undian, jadwal skor partai, final. */
 export default function TeamTournamentPage() {
   const { id = '' } = useParams()
-  const navigate = useNavigate()
-  const { isAdmin } = useAdmin()
   const queryClient = useQueryClient()
   const { data, isFetching } = useGetTournament(id)
   const snap = data && data.format === 'team' ? data : null
@@ -29,7 +25,6 @@ export default function TeamTournamentPage() {
   const [localMatches, setLocalMatches] = useState<TeamMatch[] | null>(null)
   const [prevSnap, setPrevSnap] = useState<TeamTournamentSnapshot | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
-  const [deleteBusy, setDeleteBusy] = useState(false)
 
   // Sinkronkan editor dengan snapshot server saat refetch (pola "adjust state
   // during render" — rekomendasi React, bukan setState di effect).
@@ -73,16 +68,6 @@ export default function TeamTournamentPage() {
   const saveMatches = (matches: TeamMatch[]) => {
     setLocalMatches(matches)
     publish.mutate(matches)
-  }
-
-  const handleDelete = () => {
-    if (deleteBusy) return
-    if (!window.confirm(`Hapus tournament "${snap.name}"?\n\nRating source ikut terhapus & semua rating di-rebuild.`)) return
-    setDeleteBusy(true)
-    adminRequest('POST', `/tournaments/${id}/delete`)
-      .then(() => navigate('/tournaments'))
-      .catch((e) => setPublishError(e instanceof Error ? e.message : 'Gagal menghapus.'))
-      .finally(() => setDeleteBusy(false))
   }
 
   const handleUndian = () => {
@@ -141,18 +126,6 @@ export default function TeamTournamentPage() {
         <div className="flex items-center gap-2">
           <h2 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h2>
           {publish.isPending && <span className="text-xs text-fg-dim font-mono">saving…</span>}
-          {isAdmin && (
-            <button
-              onClick={handleDelete}
-              disabled={deleteBusy}
-              title="Delete tournament"
-              className="ml-auto text-fg-dim hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors shrink-0"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-              </svg>
-            </button>
-          )}
         </div>
         <p className="text-xs text-fg-dim mt-0.5 mb-3 font-mono">
           {snap.date} · 6 tim · 3 partai ganda · rally {teamTarget('group')}/{teamTarget('final')}

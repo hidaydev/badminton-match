@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../context/AdminContext'
-import { useListSessions, useListPlayers } from '../queries'
+import { useListSessions, useListPlayers, useListTournaments } from '../queries'
 import { useRatingSources, useRatingSeasons } from '../queries/ratings'
 import { adminRequest } from '../queries/admin'
 
@@ -96,6 +96,7 @@ export default function AdminPage() {
   const { data: players } = useListPlayers()
   const { data: sources, refetch: refetchSources } = useRatingSources()
   const { data: seasons } = useRatingSeasons()
+  const { data: tournaments, refetch: refetchTournaments } = useListTournaments()
 
   // Season aktif → default tanggal = tanggal mulai season aktif
   const openSeason = useMemo(() => (seasons ?? []).find((s) => s.open), [seasons])
@@ -229,6 +230,35 @@ export default function AdminPage() {
           <p className="text-[10px] text-fg-dim">
             Rebuild All = hitung ulang SEMUA rating dari events (dipakai setelah ubah config rating / koreksi; normalnya tidak perlu).
           </p>
+        </div>
+      </section>
+
+      {/* ── Tournament ── */}
+      <section className="flex flex-col gap-2">
+        <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">Tournament · delete</p>
+        <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
+          {(tournaments ?? []).length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">No tournaments.</p>}
+          {(tournaments ?? []).map((t) => (
+            <div key={t.id} className="flex items-center gap-2 px-3 py-2">
+              <span className="flex-1 min-w-0 text-sm text-fg truncate">{t.name || 'Untitled Tournament'}</span>
+              <span className="text-[10px] font-mono text-fg-dim">{t.date}</span>
+              <span className={`text-[10px] font-mono ${t.format === 'team' ? 'text-accent' : 'text-fg-dim'}`}>{t.format}</span>
+              <ActionButton
+                tone="red"
+                onClick={() => {
+                  if (window.confirm(`Hapus tournament "${t.name || 'Untitled Tournament'}"?\n\nRating source ikut terhapus & semua rating di-rebuild.`)) {
+                    run(
+                      () => adminRequest('POST', `/tournaments/${t.id}/delete`),
+                      'Tournament dihapus + rating di-rebuild',
+                      () => { refetchTournaments(); refetchSources() },
+                    )
+                  }
+                }}
+              >
+                Delete
+              </ActionButton>
+            </div>
+          ))}
         </div>
       </section>
 
