@@ -2,9 +2,13 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"majadu-api/internal/domain"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // ── Admin: tier induk, class rating, delete player (ADMIN_MENU_PLAN.md §3.3-3.4) ──
@@ -62,6 +66,53 @@ func (s *SessionStore) SetPlayerClass(ctx context.Context, playerID, class strin
 		return fmt.Errorf("%w: player not rated", ErrSourceNotFound)
 	}
 	return nil
+}
+
+// AdminDeleteSession — hapus sesi oleh ADMIN: boleh status apa pun (locked
+// sekalipun, tidak seperti DELETE /sessions/{id} anon). Rating source ikut
+// dibersihkan (rating_events → deltas cascade; rating_sources row) lalu
+// FULL REBUILD — transitivity mengharuskan pemain lain yang terpengaruh
+// dihitung ulang (alur sama dengan RevertSource). Kembalikan share_code.
+func (s *SessionStore) AdminDeleteSession(ctx context.Context, lookup string) (string, error) {
+	if strings.TrimSpace(lookup) == "" {
+		return "", fmt.Errorf("%w: session lookup must not be blank", ErrValidation)
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var rowID, shareCode string
+	err = tx.QueryRow(ctx, `
+		SELECT s.id::text, s.share_code FROM `+s.schema+`.sessions s
+		WHERE s.share_code = $1 OR s.id::text = $1
+		ORDER BY (s.share_code = $1) DESC LIMIT 1`, lookup).Scan(&rowID, &shareCode)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("%w: session not found: %s", ErrNotFound, lookup)
+	}
+	if err != nil {
+		return "", err
+	}
+	// Rating source ikut dihapus (events → deltas cascade; source registry row).
+	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_events WHERE source_id = $1`, shareCode); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_sources WHERE source_id = $1`, shareCode); err != nil {
+		return "", err
+	}
+	// Hapus sesi (child tables: session_players/scheduled_games/dll. cascade).
+	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.sessions WHERE id = $1::uuid`, rowID); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	// Transitivitas: pemain yang rating-nya terpengaruh harus dihitung ulang.
+	if _, err := s.RebuildAll(ctx); err != nil {
+		return "", err
+	}
+	return shareCode, nil
 }
 
 // DeletePlayer — hapus pemain (admin). Hapus data rating dulu (FK), lalu

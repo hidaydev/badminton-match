@@ -270,6 +270,19 @@ func (h *SessionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DeleteAdmin — POST /sessions/{id}/delete (admin, AdminGuard): hapus sesi
+// status apa pun (locked termasuk) + bersihkan rating source + full rebuild.
+// Dipakai menu admin (ADMIN_MENU_PLAN).
+func (h *SessionHandler) DeleteAdmin(w http.ResponseWriter, r *http.Request) {
+	share, err := h.Store.AdminDeleteSession(r.Context(), r.PathValue("id"))
+	if err != nil {
+		h.Logger.Warn("admin delete session rejected", "error", err)
+		httperr.WriteError(w, h.Logger, mapPublishError(err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]any{"deleted": true, "sessionId": share})
+}
+
 // ── Lock / Unlock ───────────────────────────────────────────────────────
 
 // Lock — POST /sessions/{id}/lock: kunci sesi (cegah mutasi lebih lanjut).

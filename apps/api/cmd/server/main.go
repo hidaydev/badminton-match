@@ -150,6 +150,8 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /sessions/{id}/lock", http.HandlerFunc(sessions.Lock))
 	// Unlock = operasi admin (ADMIN_MENU_PLAN.md §3.1) — di-gate.
 	mux.Handle("POST /sessions/{id}/unlock", handler.AdminGuard(cfg.AdminToken, sessions.Unlock))
+	// Delete admin: sesi status apa pun (locked termasuk) + bersihkan rating source.
+	mux.Handle("POST /sessions/{id}/delete", handler.AdminGuard(cfg.AdminToken, sessions.DeleteAdmin))
 
 	players := &handler.PlayerHandler{
 		Store:      store.NewPlayerStore(pool),
