@@ -24,6 +24,19 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http
   Trade-off: pool kecil sebaran lebar (8P-2C) pass-rate turun — struktural.
 - Migration `000011` applied bm_dev (prod bm belum). Detail: `TIER_8_UNIFICATION.md`.
 
+## 🎨 UI/UX POLISH — SELESAI (2026-08-19, belum push)
+
+- **Bahasa Inggris** semua string user-facing + **skeleton i18n** (`src/i18n/` typed dict,
+  `t()`/`useT()`, zero deps).
+- **Home admin trigger**: card Admin Area = login/logout (konfirmasi, styling amber) · section
+  **ADMIN permanen** (grid 5 card) di bawah App → `/admin?section=X`.
+- **AdminPage**: urutan Session→Player→Rating→Tournament→Season · autofocus `?section` ·
+  player pagination + search · season meta wrap · baris aksi flex-wrap.
+- **Player History diserap** ke `/ratings/:playerId` (section Career) — route `/player-history*`
+  dihapus, tanpa cross-link nested.
+- **Mobile audit**: team standings & match detail flex-wrap.
+  Detail: `UI_UX_POLISH_PLAN.md`.
+
 - Frontend `dev` → `https://api.qouver.com/majadu-dev` · backend dev image `ghcr.io/nferdazel/majadu-api:dev` (auto-update 05:00).
 - Branch `staging` SUDAH DIHAPUS (2026-08-18). Supabase pensiun — semua stack Go REST.
 - Backend prod: container `majadu-api` (:main, commit 21f4d95) SUDAH deploy di VPS — DB bm kosong.
