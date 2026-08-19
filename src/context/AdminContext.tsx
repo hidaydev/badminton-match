@@ -1,5 +1,5 @@
 // src/context/AdminContext.tsx — state admin (token di localStorage — persist sampai logout).
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { setAdminToken } from '../queries/endpoints'
 
 const STORAGE_KEY = 'majadu_admin_token'
@@ -18,6 +18,13 @@ const AdminContext = createContext<AdminContextValue>({
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string>(() => localStorage.getItem(STORAGE_KEY) ?? '')
+
+  // Sinkronkan token (termasuk hasil restorasi localStorage saat reload halaman)
+  // ke module endpoints. Tanpa ini: reload → isAdmin=true (dari localStorage)
+  // tapi request admin TIDAK membawa Bearer → backend 401 "missing Bearer token".
+  useEffect(() => {
+    setAdminToken(token)
+  }, [token])
 
   const login = useCallback((t: string) => {
     const trimmed = t.trim()
