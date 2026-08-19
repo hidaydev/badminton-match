@@ -216,13 +216,11 @@ MAINTENANCE DOCS (bisa kapan saja, 15 menit)
 
 | Dokumen | Status relevansi |
 |---|---|
-| `docs/handbook/current-status.md` (2026-08-22) | **Primer** — kondisi terkini |
+| `docs/handbook/current-status.md` | **Primer** — kondisi terkini |
 | `docs/handbook/roadmap.md` | Fase berikutnya |
 | `docs/handbook/backend-go-decision.md` | Pertanyaan terbuka + keputusan |
-| `RATING_ENGINE_DESIGN.md` (Rev 3.3) | Backlog rating opsional |
-| `RATING_TIERING_REVAMP.md` (Rev 3.7) | Backlog tiering |
-| `RATINGS_FRONTEND_PLAN.md` | Backlog UI ratings |
-| `ADMIN_MENU_PLAN.md` | Backlog admin |
+| `DESIGN_ARCHIVE.md` | Arsip keputusan desain (8-tier, rating engine, admin, absent/void, UI/UX) — pengganti 8 dokumen desain lama yang dihapus 2026-08-19 |
+| `E2E_TESTING_PLAN.md` | Rencana sweep end-to-end |
 | `ABSENT_TBD_PLAYERS_DESIGN.md` | Backlog absent/placeholder |
 | `HANDOFF.md` (2026-08-11) | Historis — banyak item sudah selesai (lihat §3) |
 | Backlog gitignored (`TASK_LIST.md` · `DESIGN_BACKLOG.md` · `TOURNAMENT_BACKLOG.md`) | **TIDAK ada di lokal** — hanya di VPS/branch lain; itemnya tidak masuk analisis ini |

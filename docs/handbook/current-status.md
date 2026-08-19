@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-08-19 (TIER_8_UNIFICATION — 8-tier single source of truth, DEPLOYED dev)
+Last updated: 2026-08-19 (8-tier + UI/UX polish + audit fix, DEPLOYED dev)
 
 This is the fastest handover file. Start here, lalu baca dokumen terkait di bawah.
 
@@ -22,7 +22,7 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http
 - **Floor = basis huruf**: B+ floor B (boleh naik A/A+); A+/A→A, dst. API: `tier`/`tier_derived`/`tier_display`.
 - **Generator 8-level** (DEFAULT_TIER 5, weight 2): threshold unevenGames diskala 2→4.
   Trade-off: pool kecil sebaran lebar (8P-2C) pass-rate turun — struktural.
-- Migration `000011` applied bm_dev (prod bm belum). Detail: `TIER_8_UNIFICATION.md`.
+- Migration `000011` applied bm_dev + bm (schema sync, kosong). Detail: `DESIGN_ARCHIVE.md` §6.
 
 ## 🎨 UI/UX POLISH — SELESAI (2026-08-19, belum push)
 
@@ -35,7 +35,7 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http
 - **Player History diserap** ke `/ratings/:playerId` (section Career) — route `/player-history*`
   dihapus, tanpa cross-link nested.
 - **Mobile audit**: team standings & match detail flex-wrap.
-  Detail: `UI_UX_POLISH_PLAN.md`.
+  Detail: `DESIGN_ARCHIVE.md` §7.
 
 - Frontend `dev` → `https://api.qouver.com/majadu-dev` · backend dev image `ghcr.io/nferdazel/majadu-api:dev` (auto-update 05:00).
 - Branch `staging` SUDAH DIHAPUS (2026-08-18). Supabase pensiun — semua stack Go REST.
@@ -94,15 +94,17 @@ Dua format, `tournaments.format` (`classic` | `team`):
 2. **Migrasi prod**: backup Supabase `bm` → restore VPS DB bm → backend `main` (push → CI → auto-update) → frontend `main`.
 3. Auth JWT (ditunda). Sticky wizard bottom bar (deferred). Team player career stats (belum aggregate team matches). Port auto-rebase ke dev (backlog).
 4. Revert/finalize tetap API-only (token) — tombol admin sudah ada untuk ingest/revert/finalize/season.
-5. **Rating engine docs**: RATING_ENGINE_DESIGN (Rev 3.3) · RATING_TIERING_REVAMP (Rev 3.7) · RATINGS_FRONTEND_PLAN · ADMIN_MENU_PLAN · ABSENT_TBD_PLAYERS_DESIGN — semuanya sudah diimplementasi.
+5. **Rating engine docs**: konsolidasi ke `DESIGN_ARCHIVE.md` (2026-08-19) — detail asli di git history.
 
 ## Kunci arsitektur (jangan dilanggar)
 
 - Backend authoritative (validasi/concurrency/identity) · frontend komputasi interaktif (generator/bracket/standings) — "thick client, server authoritative".
 - Snapshot-bridge: full snapshot (PUT), server validasi + simpan; zero jsonb di schema app.
-- Rating: **honest** (typical win 10–12 = 1/9 band; bukan mainan data) · forming = mid kelas sticky · floor `{kelas}-` · journey dari registered_at · season global.
+- Rating: **honest** (typical win 10–12 ≈ 1/12 band 8-tier; bukan mainan data) · forming = mid tier sticky · floor = basis huruf (`B+` floor `B`) · journey dari registered_at · season global.
 - Error contract: frontend baca substring pesan backend.
 
-## Dokumen terkait (root badminton-match, semua sudah diimplementasi)
+## Dokumen terkait
 
-`RATING_ENGINE_DESIGN.md` · `RATING_TIERING_REVAMP.md` · `RATINGS_FRONTEND_PLAN.md` · `ADMIN_MENU_PLAN.md` · `ABSENT_TBD_PLAYERS_DESIGN.md` · `docs/handbook/backend-go-decision.md` · backlog gitignored: `TASK_LIST.md` · `DESIGN_BACKLOG.md` · `TOURNAMENT_BACKLOG.md`.
+- **Keputusan desain (terarsip):** `DESIGN_ARCHIVE.md` (engine rating, 8-tier, admin, absent/void, UI/UX) — detail asli di git history
+- `docs/handbook/backend-go-decision.md` · `BACKLOG.md` (backlog hidup) · `E2E_TESTING_PLAN.md` (rencana tes)
+- Backlog gitignored: `TASK_LIST.md` · `DESIGN_BACKLOG.md` · `TOURNAMENT_BACKLOG.md`.
