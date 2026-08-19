@@ -567,6 +567,7 @@ Parameter tetap config-driven (`rating_config`) — tanpa migration ulang.
 
 ## 12. Log Revisi
 
+- **Rev 3.3 (2026-08-18):** mekanisme season terintegrasi — `season_start` global (admin), ingest & rebuild memfilter match ≥ max(season_start, players.registered_at), forming = mid kelas sticky di match pertama, reset season = set tanggal + RebuildAll (semua balik ke mid kelas, kelas tetap). Per-player `registered_at` (awal journey). Referensi: RATING_TIERING_REVAMP.md §2.5.6-2.5.7.
 - **Rev 3.1 (2026-08-18):** deep review lanjutan (kode nyata + matematika):
   1. **KRITIS — §4.4a FULL REBUILD**: revert/reconcile = hapus events + recompute SEMUA rating dari events tersisa (transitivity via lawan). "Replay per pemain" dengan reuse stored delta DITOLAK (bisa menyimpang). §6 revert + task P2 di-update.
   2. **§3.7 `max_delta_per_game`** (default 60): pemain provisional (rd=350) tanpa cap bisa swing ±300–800 per game (MoVM·w 2.5× pada whitewash final).
