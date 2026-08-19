@@ -17,9 +17,14 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http
 - **Branch `staging` SUDAH DIHAPUS (2026-08-18)** — dulu sempat di-merge dev→staging, konten jadi identik dev, lalu dihapus lokal+remote karena tak bernilai lagi (stack sudah seragam Go REST, Supabase pensiun). `vite.config.ts` mapping branch: `main`→prod, selain itu (dev/dll)→majadu-dev (fail-closed).
 - Backend deploy: push → CI image ghcr → VPS podman (auto-update 05:00 / `./scripts/deploy.sh dev`).
 
-## Fitur tournament (baru, sesi ini)
+## Fitur Rating (2026-08-18, frontend selesai P0-P3)
 
-**Dua format, discriminated oleh `tournaments.format` (`classic` | `team`):**
+- **Menu baru "Ratings"** di HomePage → `/ratings` (leaderboard: tier D..S+, provisional badge, trend, load-more, filter Active/All) + `/ratings/:playerId` (detail: stat cards, sparkline SVG manual, recent matches). **Cross-link dua arah** dengan Player History (playerId kini ada di stats + leaderboard).
+- **Backend rating engine sudah live di bm_dev** (P0-P3): Glicko-1-lite, ingest session/classic/team, revert full-rebuild, leaderboard/player/history API. Backfill: 27 source, 474 events, 106 pemain aktif. Kalibrasi: `max_delta_per_game=100` (saturasi 57%→29%), korelasi tier-winrate monotonik.
+- **Auto-ingest**: ticker backend (bersama auto-lock 30 mnt) mengingest sesi yang baru terkunci otomatis → rating mengalir tanpa aksi manual. Revert/finalize = API-only (MAJADU_ADMIN_TOKEN).
+- Visual pass browser: **belum** (handoff user). Doc: `RATING_ENGINE_DESIGN.md` (Rev 3.1) + `RATINGS_FRONTEND_PLAN.md`.
+
+## Fitur tournament (baru, sesi ini)**Dua format, discriminated oleh `tournaments.format` (`classic` | `team`):**
 
 1. **Classic** (existing): 16 pasangan → 4 grup × 4 → 32 match (24 grup + QF/SF/3rd/Final). Tabel relasional existing. **Creation wizard baru**: Tournaments → `+ New` → Classic → Setup → 16 Pairs → Draw → create (POST snapshot valid).
 2. **Team** (baru): 6 tim × 6 pemain (kelas A+/A/B+/B/C+/C), tiap team-match 3 partai (C+ C, A+ A, B+ B), rally **30 grup / 42 final** (no deuce, pemenang tepat target), 9 match grup (tiap tim 3×, undian hari-H), **top-2 → final** (partai 3 tetap dimainkan). Poin: 3-0=3 · 2-1=2 · 1-2=1 · 0-3=0. Klasemen: poin → selisih W-L → selisih poin agregat.
