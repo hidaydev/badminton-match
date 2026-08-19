@@ -18,6 +18,32 @@ import (
 // melalui lawan). Deterministik: ordering (date, created_at, source_id,
 // game_order) + basis waktu tanggal sumber + phase_weight tersimpan.
 
+// RebuildAll — full rebuild SEMUA rating dari semua events (tool tuning
+// config: ubah rating_config → RebuildAll → revalidate). Idempotent.
+func (s *SessionStore) RebuildAll(ctx context.Context) (int, error) {
+	cfg, err := s.LoadRatingConfig(ctx, false)
+	if err != nil {
+		return 0, err
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+		s.schema+":ratings_ingest"); err != nil {
+		return 0, err
+	}
+	n, err := s.rebuildAll(ctx, tx, cfg)
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 // RevertSource — hapus events sebuah source (session/tournament) + full rebuild.
 func (s *SessionStore) RevertSource(ctx context.Context, lookup, kind string) (*IngestResult, error) {
 	cfg, err := s.LoadRatingConfig(ctx, false)

@@ -152,6 +152,17 @@ func (h *RatingsHandler) FinalizeSource(w http.ResponseWriter, r *http.Request) 
 	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// RebuildAll — POST /ratings/rebuild-all (admin) — full rebuild dari events
+// tersisa (tool tuning config).
+func (h *RatingsHandler) RebuildAll(w http.ResponseWriter, r *http.Request) {
+	n, err := h.Store.RebuildAll(r.Context())
+	if err != nil {
+		httperr.WriteError(w, nil, mapRatingError(err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]int{"rebuilt": n})
+}
+
 // Leaderboard — GET /ratings/leaderboard?active&limit&offset → publik.
 func (h *RatingsHandler) Leaderboard(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
