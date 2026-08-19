@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,8 +74,9 @@ func TestBackfillDev(t *testing.T) {
 
 	ingested, skipped := 0, 0
 	for _, s := range sources {
-		// Lewati sesi test integration (it-rating*) — bukan data riil
-		if len(s.id) >= 9 && s.id[:9] == "it-rating" {
+		// Lewati source test integrasi (it-rating*, it-season*, dll.) — bukan
+		// data riil. AutoIngest/backfill tidak boleh memproses sesi test.
+		if strings.HasPrefix(s.id, "it-") {
 			continue
 		}
 		var res *IngestResult
