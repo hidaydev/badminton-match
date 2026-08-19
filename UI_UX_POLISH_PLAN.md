@@ -14,11 +14,11 @@ diserap ke Ratings, (4) audit mobile (text/label desekan).
 
 | # | Keputusan | Nilai |
 |---|---|---|
-| 1.1 | Bahasa | English untuk SEMUA string user-facing. Skeleton i18n: **opsional** (lihat §2, keputusan terbuka A/B) |
-| 1.2 | Admin Area card | = trigger/switch: belum login → popup password · sudah login → styling amber + tombol **Logout** |
+| 1.1 | Bahasa | English untuk SEMUA string user-facing. **Skeleton i18n ringan DIPILIH (Opsi A)** — `src/i18n/en.ts` typed dict + `t()`/`useT()`, zero deps |
+| 1.2 | Admin Area card | = trigger/switch: belum login → popup password · sudah login → styling amber + tombol **Logout** (dengan **konfirmasi**) |
 | 1.3 | Section ADMIN di home | Muncul PERMANEN di bawah section APP kalau `isAdmin` (tanpa collapse). Isi = **grid card menu admin** → `/admin?section=X` |
 | 1.4 | Halaman `/admin` | Tetap ada (operasi sesungguhnya). Section diurut ulang + autofocus via `?section=` + perbaikan mobile |
-| 1.5 | Player History | Menu & halaman terpisah DIHAPUS — diserap ke `/ratings/:playerId` (section CAREER) |
+| 1.5 | Player History | Menu & halaman terpisah DIHAPUS — diserap ke `/ratings/:playerId` (section CAREER). **Route `/player-history*` LANGSUNG DIHAPUS** (tanpa resolver redirect) |
 | 1.6 | Collapsible | TIDAK dipakai di mana pun (home maupun /admin) — halaman admin cukup diurutkan + dipaginasi |
 
 ---
@@ -39,11 +39,13 @@ UI mayoritas sudah English. String Indonesia yang perlu diganti:
 ### Opsi implementasi
 | Opsi | Deskripsi | Kelebihan | Kekurangan |
 |---|---|---|---|
-| **A. Skeleton i18n ringan** | `src/i18n/en.ts` (typed dict) + `t()` + `useT()` — zero deps (~60 baris) | Semua string satu tempat; siap multi-bahasa nanti | Churn lebih besar (semua pemakaian lewat hook) |
-| **B. Inline English** (rekomendasi) | Ganti string → English langsung di tempat | Minimal, cepat, tidak ada indirection | Kalau nanti mau i18n, sweep ulang |
+| **A. Skeleton i18n ringan** ✅ DIPILIH | `src/i18n/en.ts` (typed dict) + `t()` + `useT()` — zero deps (~60 baris) | Semua string satu tempat; siap multi-bahasa nanti | Churn lebih besar (semua pemakaian lewat hook) |
+| ~~B. Inline English~~ | ~~Ganti string → English langsung di tempat~~ | — | — |
 
-**Rekomendasi: B** — aplikasi single-language, cost-conscious. Skeleton A bisa ditambah
-belakangan kalau kebutuhan multi-bahasa nyata muncul. ⚠️ **KEPUTUSAN TERBUKA: konfirmasi A/B.**
+**Keputusan: A** — `src/i18n/` dengan typed dictionary (`MessageKey` deep-type) +
+`t(key)` + `useT()` hook. Migrasi bertahap: dimulai dari AdminPage + TeamTournamentPage
+(string Indonesia + label sekitarnya); halaman lain yang sudah English tetap inline
+(scope: hilangkan non-English, skeleton siap untuk ekspansi).
 
 ---
 
@@ -68,8 +70,8 @@ HOME PAGE (setelah login)
 Perilaku:
 - **Belum login**: klik "Admin Area" → popup password (existing) → sukses → section ADMIN
   muncul otomatis (tidak navigate ke /admin lagi).
-- **Sudah login**: card Admin jadi Logout (konfirmasi? — langsung logout saja, konsisten
-  dengan kebiasaan sekarang). Section ADMIN hilang.
+- **Sudah login**: card Admin jadi **Logout** — klik → **dialog konfirmasi** ("Log out of
+  admin?") → ya = logout (section ADMIN hilang). Section ADMIN hilang saat logout.
 - Card menu admin: icon + label + deskripsi singkat, gaya card APP tapi aksen amber.
 
 ### 3.2 Card menu admin → `/admin?section=X`
@@ -131,16 +133,13 @@ SESUDAH:
 - **Seragam design**: reuse pola kartu & tipografi RatingPlayerPage (1 set token,
   ukuran font konsisten).
 
-### 4.2 Route lama
+### 4.2 Route lama — LANGSUNG DIHAPUS (keputusan user)
 
 | Route | Aksi |
 |---|---|
-| `/player-history` | Redirect → `/ratings` |
-| `/player-history/:name` | Resolver kecil: `getPlayerStats(name)` → dapat `playerId` → Navigate `/ratings/:playerId` (404/empty → /ratings) |
+| `/player-history` | **Dihapus** (route + page) |
+| `/player-history/:name` | **Dihapus** (route + page) — bookmark lama putus, risiko kecil |
 | Menu "Player History" di grid home | Dihapus (grid jadi 6 card: Sessions, Ratings, Scoreboard, Tournament, IG Post, Admin) |
-
-⚠️ **KEPUTUSAN TERBUKA**: redirect dengan resolver (aman untuk bookmark lama) vs hapus
-route langsung. Rekomendasi: resolver redirect.
 
 ---
 
@@ -165,15 +164,16 @@ route langsung. Rekomendasi: resolver redirect.
 
 ## 6. Task List (fase eksekusi)
 
-### Fase A — English sweep
-- [ ] A1. Keputusan i18n: A (skeleton) / B (inline) — konfirmasi user
-- [ ] A2. Sweep string Indonesia di `AdminPage` → English (daftar §2)
-- [ ] A3. Sweep `TeamTournamentPage` ("saving…", "Gagal menyimpan.", "Gagal menghapus.")
-- [ ] A4. Grep `[^\x00-\x7F]` di `src/` (non-ASCII di string user-facing) → bersihkan
-- [ ] A5. `npm run check` hijau
+### Fase A — English sweep (i18n skeleton Opsi A)
+- [x] A1. Keputusan i18n: **A (skeleton)** — `src/i18n/` typed dict + `t()`/`useT()`
+- [ ] A2. Bangun skeleton: `src/i18n/en.ts` (dict) + `src/i18n/index.ts` (`MessageKey`, `t`, `useT`)
+- [ ] A3. Migrasi AdminPage → dict (string Indonesia + label section + prompt/confirm)
+- [ ] A4. Migrasi TeamTournamentPage ("saving…", "Gagal menyimpan.", "Gagal menghapus.")
+- [ ] A5. Grep non-ASCII di `src/` (string user-facing) → bersihkan / pindahkan ke dict
+- [ ] A6. `npm run check` hijau
 
 ### Fase B — Home trigger & section ADMIN
-- [ ] B1. HomePage: card Admin jadi switcher (login popup / logout, styling amber + badge)
+- [ ] B1. HomePage: card Admin jadi switcher (login popup / **logout dengan konfirmasi**, styling amber + badge)
 - [ ] B2. Komponen baru `AdminMenuGrid` (5 card → `/admin?section=X`) — render kalau `isAdmin`, tanpa collapse
 - [ ] B3. Section label "Admin" (amber) di bawah "App" grid
 - [ ] B4. Login sukses → tidak navigate ke /admin lagi (section muncul di home)
@@ -191,10 +191,9 @@ route langsung. Rekomendasi: resolver redirect.
 - [ ] D1. Hapus card "Player History" dari grid home
 - [ ] D2. `/ratings/:playerId`: tambah section CAREER (W/L, poin, top partners/opponents, sesi) dari `getPlayerStats(name)` — reuse desain rating (font seragam)
 - [ ] D3. Hapus cross-link "View player history ⇄ View rating"
-- [ ] D4. Route `/player-history` → redirect `/ratings`
-- [ ] D5. Route `/player-history/:name` → resolver redirect ke `/ratings/:playerId` (atau hapus — konfirmasi)
-- [ ] D6. `PlayerHistoryPage`/`PlayerDetailPage` dihapus dari App.tsx (atau jadi komponen career)
-- [ ] D7. `npm run check` + verifikasi navigasi (leaderboard → detail → career)
+- [ ] D4. Route `/player-history` **&** `/player-history/:name` **dihapus** (page + route) — keputusan user
+- [ ] D5. `PlayerHistoryPage`/`PlayerDetailPage` dihapus dari App.tsx (konten career dipindah ke RatingPlayerPage)
+- [ ] D6. `npm run check` + verifikasi navigasi (leaderboard → detail → career)
 
 ### Fase E — Mobile audit
 - [ ] E1. Grep hotspot flex/truncate → daftar normalisasi
