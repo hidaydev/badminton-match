@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import { AdminProvider } from './context/AdminContext'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import UpdateBanner from './components/UpdateBanner'
@@ -22,6 +23,7 @@ const InstagramPostPage = lazy(() => import('./pages/InstagramPostPage'))
 const TournamentPage = lazy(() => import('./pages/TournamentRouter'))
 const TournamentListPage = lazy(() => import('./pages/TournamentListPage'))
 const RatingsPage = lazy(() => import('./pages/RatingsPage'))
+const AdminPage = lazy(() => import('./pages/AdminPage'))
 const RatingPlayerPage = lazy(() => import('./pages/RatingPlayerPage'))
 const NewTournamentPage = lazy(() => import('./pages/NewTournamentPage'))
 const NewTournamentWizard = lazy(() => import('./pages/NewTournamentWizard'))
@@ -79,7 +81,7 @@ export default function App() {
           onDismiss={() => setNeedRefresh(false)}
         />
       )}
-      <BrowserRouter>
+      <AdminProvider><BrowserRouter>
         <Routes>
           <Route element={<HomeLayout />}>
             <Route index element={<HomePage />} />
@@ -94,6 +96,7 @@ export default function App() {
             <Route path="tournaments/new/:format" element={<Suspense fallback={<Loading />}><NewTournamentWizard /></Suspense>} />
             <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><TournamentPage /></Suspense>} />
             <Route path="instagram-post" element={<Suspense fallback={<Loading />}><InstagramPostPage /></Suspense>} />
+            <Route path="admin" element={<Suspense fallback={<Loading />}><AdminPage /></Suspense>} />
           </Route>
           <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ScoreboardPage /></Suspense>} />
           <Route element={<SessionLayout />}>
@@ -105,7 +108,7 @@ export default function App() {
           </Route>
           <Route path="s/:sessionId" element={<Suspense fallback={<Loading />}><SharedSessionPage /></Suspense>} />
         </Routes>
-      </BrowserRouter>
+      </BrowserRouter></AdminProvider>
     </SharedViewContext.Provider>
   )
 }

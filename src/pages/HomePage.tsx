@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { usePwaInstall } from '../hooks/usePwaInstall'
 import { useLastSession } from '../hooks/useLastSession'
+import { useAdmin } from '../context/AdminContext'
 import InstallModal from '../components/InstallModal'
 
 const secondary = [
@@ -37,6 +38,8 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
       return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="1" /><path d="M8 3v4M16 3v4M3 12h18" /><path d="M7 15l2-2 2 2 2-2 2 2" /></svg>
     case 'tournament':
       return <svg {...common}><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z" /><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8" /></svg>
+    case 'admin':
+      return <svg {...common}><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" /><path d="M9.5 12l2 2 3-3.5" /></svg>
     case 'post':
       return <svg {...common}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
     case 'download':
@@ -56,6 +59,9 @@ async function openScoreboard(navigate: (path: string) => void) {
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const { isAdmin, login, logout } = useAdmin()
+  const [adminLoginOpen, setAdminLoginOpen] = useState(false)
+  const [adminTokenInput, setAdminTokenInput] = useState('')
   const { isInstallable, isIos, prompt } = usePwaInstall()
   const { lastSession } = useLastSession()
   const [installDismissed, setInstallDismissed] = useState(false)
@@ -144,6 +150,73 @@ export default function HomePage() {
           )}
         </div>
       </div>
+
+      {/* Segmen ADMIN — pembeda amber (ADMIN_MENU_PLAN §2.1) */}
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-mono text-amber-500/80 uppercase" style={{ letterSpacing: '0.12em' }}>
+            Admin
+          </p>
+          {isAdmin && (
+            <button
+              onClick={logout}
+              className="text-[10px] font-mono text-fg-dim hover:text-red-400 transition-colors"
+            >
+              Logout
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => (isAdmin ? navigate('/admin') : setAdminLoginOpen(true))}
+          className="flex items-start gap-3 p-4 rounded-lg bg-amber-950/20 border border-amber-800/50 hover:border-amber-600/70 active:scale-[0.98] transition-all text-left"
+        >
+          <Icon name="admin" size={20} />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-sm font-semibold text-amber-200 leading-tight">
+              {isAdmin ? 'Admin' : 'Admin Area'}
+            </span>
+            <span className="text-[11px] text-amber-300/70">
+              {isAdmin ? 'Admin mode active — tap to open' : 'Admin & operations'}
+            </span>
+          </div>
+        </button>
+      </div>
+
+      {/* Login popup admin */}
+      {adminLoginOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4" onClick={() => setAdminLoginOpen(false)}>
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (login(adminTokenInput)) navigate('/admin')
+            }}
+            className="w-full max-w-sm bg-surface border border-border rounded-xl p-4 flex flex-col gap-3"
+          >
+            <p className="text-sm font-bold text-fg">Admin login</p>
+            <input
+              autoFocus
+              type="password"
+              value={adminTokenInput}
+              onChange={(e) => setAdminTokenInput(e.target.value)}
+              placeholder="MAJADU_ADMIN_TOKEN"
+              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none"
+            />
+            <div className="flex gap-2">
+              <button type="submit" className="flex-1 py-2.5 rounded-lg bg-accent text-slate-950 text-sm font-bold">
+                Login
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdminLoginOpen(false)}
+                className="px-4 py-2 text-sm text-fg-dim hover:text-fg"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {modalOpen && (
         <InstallModal
