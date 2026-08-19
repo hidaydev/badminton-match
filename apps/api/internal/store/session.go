@@ -460,6 +460,13 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 		return nil, err
 	}
 
+	// 5b. First-set tier induk STICKY + registered_at (RATING_TIERING_REVAMP §2.5.2).
+	//     Hanya diisi kalau players.tier IS NULL (registrasi pertama). Tier/tanggal
+	//     dari sesi ini = baseline forming rating; tidak pernah diubah otomatis.
+	if err := s.firstSetPlayerTier(ctx, tx, snap.Players, snap.Session.Date); err != nil {
+		return nil, err
+	}
+
 	// 6. Upsert sessions.
 	var sessionID string
 	if found {
@@ -681,6 +688,37 @@ func (s *SessionStore) ListSessions(ctx context.Context) ([]SessionMeta, error) 
 
 // playerRef — padanan trim(player.value->>'id') di SQL.
 func playerRef(id string) string { return strings.TrimSpace(id) }
+
+// firstSetPlayerTier — set players.tier + registered_at HANYA untuk pemain yang
+// belum punya tier (registrasi pertama). STICKY: tidak pernah menimpa tier existing.
+// Tier session 1-4 → 'A'|'B'|'C'|'D'.
+func (s *SessionStore) firstSetPlayerTier(ctx context.Context, tx pgx.Tx, players []domain.Player, sessionDate string) error {
+	if sessionDate == "" {
+		return nil
+	}
+	for _, p := range players {
+		if domain.IsPlaceholderName(p.Name) || p.Tier < 1 || p.Tier > 4 {
+			continue
+		}
+		// Resolve nama → player_id (alias). Placeholder di-skip.
+		pid, ok, err := resolveTournamentPlayer(ctx, tx, p.Name)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		tierLetter := [...]string{"", "A", "B", "C", "D"}[p.Tier]
+		if _, err := tx.Exec(ctx, `
+			UPDATE `+s.schema+`.players
+			SET tier = $2, registered_at = $3::date
+			WHERE id = $1::uuid AND tier IS NULL`,
+			pid, tierLetter, sessionDate); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // resolvePlayerAliases — resolve tiap pemain snapshot ke player_id via
 // player_aliases (normalized name). Mirror baris 1061–1161 SQL: unresolved,

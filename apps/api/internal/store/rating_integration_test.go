@@ -158,10 +158,24 @@ func TestIntegrationRatingIngestSession(t *testing.T) {
 		t.Fatalf("re-ingest processed = %d, want 0 (no-op)", res2.Processed)
 	}
 
-	// Snapshot rating sebelum revert
-	before := ratingPlayers(t, st, ctx)
+	// Snapshot rating sebelum revert — bandingkan hanya 4 pemain ITR
+	// (DB berisi data backfill 106+ pemain).
+	itrPids := map[string]bool{}
+	for _, nm := range []string{"itr one", "itr two", "itr three", "itr four"} {
+		itrPids[resolveIDByAlias(t, st, nm)] = true
+	}
+	filterITR := func(m map[string]domain.RatingState) map[string]domain.RatingState {
+		out := map[string]domain.RatingState{}
+		for pid, r := range m {
+			if itrPids[pid] {
+				out[pid] = r
+			}
+		}
+		return out
+	}
+	before := filterITR(ratingPlayers(t, st, ctx))
 	if len(before) != 4 {
-		t.Fatalf("rating_players = %d, want 4", len(before))
+		t.Fatalf("rating_players ITR = %d, want 4", len(before))
 	}
 
 	// Revert → full rebuild → rating identik (deterministik)
@@ -179,7 +193,7 @@ func TestIntegrationRatingIngestSession(t *testing.T) {
 	if res3.Processed != 2 {
 		t.Fatalf("re-ingest processed = %d, want 2", res3.Processed)
 	}
-	after := ratingPlayers(t, st, ctx)
+	after := filterITR(ratingPlayers(t, st, ctx))
 	for pid, r := range before {
 		a, ok := after[pid]
 		if !ok {
@@ -425,12 +439,17 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 	}
 	stateFreshB := ratingPlayers(t, st, ctx)
 
-	// (Jumlah row bisa beda: reset-to-default menyimpan row P1/P2 dengan 0
-	// games — bandingkan hanya pemain aktif dari fresh B.)
-	if len(stateFreshB) != 4 {
-		t.Fatalf("fresh B players = %d, want 4", len(stateFreshB))
+	// (DB berisi data backfill 106+ pemain — bandingkan hanya 4 pemain ITT.)
+	ittPids := map[string]bool{}
+	for _, nm := range []string{"itt three", "itt four", "itt five", "itt six"} {
+		ittPids[resolveIDByAlias(t, st, nm)] = true
 	}
+	checked := 0
 	for pid, r := range stateFreshB {
+		if !ittPids[pid] {
+			continue
+		}
+		checked++
 		a, ok := stateAfterRevert[pid]
 		if !ok {
 			t.Fatalf("player %s tidak ada di state revert", pid)
@@ -439,6 +458,9 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 			t.Fatalf("transitivity gagal: player %s revert=%.2f/%.2f vs freshB=%.2f/%.2f",
 				pid, a.Rating, a.RD, r.Rating, r.RD)
 		}
+	}
+	if checked != 4 {
+		t.Fatalf("pemain ITT yang diperiksa = %d, want 4", checked)
 	}
 }
 

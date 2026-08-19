@@ -254,9 +254,64 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		runtime[id] = rt
 	}
 
+	// Load registered_at per pemain (gate journey §2.5.6)
+	registeredAt := map[string]string{}
+	if len(ids) > 0 {
+		rrows, err := tx.Query(ctx,
+			`SELECT id::text, coalesce(registered_at::text, '') FROM `+s.schema+`.players WHERE id = ANY($1::uuid[])`, ids)
+		if err != nil {
+			return nil, err
+		}
+		for rrows.Next() {
+			var pid, ra string
+			if err := rrows.Scan(&pid, &ra); err != nil {
+				rrows.Close()
+				return nil, err
+			}
+			registeredAt[pid] = ra
+		}
+		rrows.Close()
+		if err := rrows.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	// Proses berurutan (§4.3.9)
 	var lastInsertedSeq int64
+	processedCount := 0
 	for _, m := range fresh {
+		// GATE season + journey (RATING_TIERING_REVAMP §2.5.6-2.5.7):
+		// match sebelum season_start → skip seluruh match (pre-season).
+		if m.Date < cfg.SeasonStart {
+			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "pre-season"})
+			continue
+		}
+		// Per-player: match sebelum registered_at pemain → pemain tidak ikut.
+		// Jika salah satu sisi kosong → skip match.
+		eligibleA := []domain.RawPlayer{}
+		eligibleB := []domain.RawPlayer{}
+		for _, p := range m.PlayersByTeam("A") {
+			if pid, ok := playerIDs[p.Name]; ok {
+				ra, ok := registeredAt[pid]
+				// registered_at NULL (belum pernah sesi) → tidak ada gate per-player
+				if !ok || ra == "" || m.Date >= ra {
+					eligibleA = append(eligibleA, p)
+				}
+			}
+		}
+		for _, p := range m.PlayersByTeam("B") {
+			if pid, ok := playerIDs[p.Name]; ok {
+				ra, ok := registeredAt[pid]
+				if !ok || ra == "" || m.Date >= ra {
+					eligibleB = append(eligibleB, p)
+				}
+			}
+		}
+		if len(eligibleA) == 0 || len(eligibleB) == 0 {
+			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "no eligible players (season/journey)"})
+			continue
+		}
+
 		eventID, err := s.insertRatingEvent(ctx, tx, &m, meta, cfg)
 		if err != nil {
 			return nil, err
@@ -264,6 +319,7 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		if err := tx.QueryRow(ctx, `SELECT lastval()`).Scan(&lastInsertedSeq); err != nil {
 			return nil, err
 		}
+		processedCount++
 
 		phaseWeight := cfg.PhaseWeights[m.Phase]
 		if phaseWeight <= 0 {
@@ -303,12 +359,12 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 			opps []domain.RatingOpponent
 		}
 		updates := []updateEntry{}
-		for _, p := range m.PlayersByTeam("A") {
+		for _, p := range eligibleA {
 			if rt := runtime[playerIDs[p.Name]]; rt != nil {
 				updates = append(updates, updateEntry{rt: rt, team: "A", out: outcomeA, opps: opponentsFor("A")})
 			}
 		}
-		for _, p := range m.PlayersByTeam("B") {
+		for _, p := range eligibleB {
 			if rt := runtime[playerIDs[p.Name]]; rt != nil {
 				updates = append(updates, updateEntry{rt: rt, team: "B", out: outcomeB, opps: opponentsFor("B")})
 			}
@@ -381,23 +437,28 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 	}
 
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO `+s.schema+`.rating_sources
-			(source_id, source_kind, fingerprint, finalized, last_ingested_seq, ingested_at)
-		VALUES ($1, $2, $3, $4, $5, now())
-		ON CONFLICT (source_id) DO UPDATE SET
-			fingerprint = EXCLUDED.fingerprint,
-			last_ingested_seq = EXCLUDED.last_ingested_seq,
-			ingested_at = now()`,
-		meta.SourceID, meta.Kind, meta.Fingerprint, meta.Final, lastInsertedSeq); err != nil {
-		return nil, err
+	// Hanya catat source kalau ADA yang ter-proses — kalau semua match ke-gate
+	// (pre-season / tidak eligible), source TIDAK ditandai ingested supaya
+	// re-ingest setelah season_start digeser tetap bisa memprosesnya.
+	if processedCount > 0 {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO `+s.schema+`.rating_sources
+				(source_id, source_kind, fingerprint, finalized, last_ingested_seq, ingested_at)
+			VALUES ($1, $2, $3, $4, $5, now())
+			ON CONFLICT (source_id) DO UPDATE SET
+				fingerprint = EXCLUDED.fingerprint,
+				last_ingested_seq = EXCLUDED.last_ingested_seq,
+				ingested_at = now()`,
+			meta.SourceID, meta.Kind, meta.Fingerprint, meta.Final, lastInsertedSeq); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
-	return &IngestResult{Processed: len(fresh), Skipped: skipped, Players: len(ids), Reconcile: reconcile}, nil
+	return &IngestResult{Processed: processedCount, Skipped: skipped, Players: len(ids), Reconcile: reconcile}, nil
 }
 
 // deleteSourceEvents — hapus events + deltas by source_id (revert/reconcile).

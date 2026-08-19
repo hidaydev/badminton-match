@@ -162,6 +162,31 @@ func (s *SessionStore) LoadRatingConfig(ctx context.Context, failFast bool) (dom
 	if err := apply("decay_floor", func(v json.RawMessage) error { return f("decay_floor")(v, &cfg.DecayFloor) }); err != nil {
 		return domain.RatingConfig{}, err
 	}
+	if err := apply("season_start", func(v json.RawMessage) error {
+		return asString("season_start", &cfg.SeasonStart)
+	}); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("session_tier_init", func(v json.RawMessage) error {
+		var m map[string]domain.TierInit
+		if err := json.Unmarshal(v, &m); err != nil {
+			return fmt.Errorf("rating_config.session_tier_init: %w", err)
+		}
+		cfg.SessionTierInit = m
+		return nil
+	}); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("class_bands", func(v json.RawMessage) error {
+		var raw map[string][2]*float64
+		if err := json.Unmarshal(v, &raw); err != nil {
+			return fmt.Errorf("rating_config.class_bands: %w", err)
+		}
+		cfg.ClassBands = raw
+		return nil
+	}); err != nil {
+		return domain.RatingConfig{}, err
+	}
 
 	if err := cfg.Validate(); err != nil {
 		if failFast {
