@@ -73,6 +73,25 @@ export default function AdminPage() {
   const [newName, setNewName] = useState('')
   const [newTier, setNewTier] = useState('C')
 
+  // Feedback Rebuild All — inline dekat tombol (bukan flash global di atas)
+  const [rebuildMsg, setRebuildMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const [rebuilding, setRebuilding] = useState(false)
+
+  const runRebuild = async () => {
+    if (rebuilding) return
+    setRebuilding(true)
+    setRebuildMsg(null)
+    try {
+      await adminRequest('POST', '/ratings/rebuild-all')
+      setRebuildMsg({ kind: 'ok', text: 'Rebuild done — semua rating dihitung ulang dari events' })
+    } catch (e) {
+      setRebuildMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Rebuild failed' })
+    } finally {
+      setRebuilding(false)
+      setTimeout(() => setRebuildMsg(null), 5000)
+    }
+  }
+
   const { data: sessions } = useListSessions()
   const { data: players } = useListPlayers()
   const { data: sources } = useRatingSources()
@@ -182,11 +201,17 @@ export default function AdminPage() {
         <Pager page={srcPage} total={(sources ?? []).length} onPage={setSrcPage} />
         <div className="flex flex-col gap-1">
           <button
-            onClick={() => run(() => adminRequest('POST', '/ratings/rebuild-all'), 'Rebuild done')}
-            className="py-2 rounded-lg border border-border-subtle text-sm text-fg-dim hover:text-fg"
+            onClick={runRebuild}
+            disabled={rebuilding}
+            className="py-2 rounded-lg border border-border-subtle text-sm text-fg-dim hover:text-fg disabled:opacity-40"
           >
-            Rebuild All
+            {rebuilding ? 'Rebuilding…' : 'Rebuild All'}
           </button>
+          {rebuildMsg && (
+            <p className={`text-[10px] font-mono ${rebuildMsg.kind === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
+              {rebuildMsg.text}
+            </p>
+          )}
           <p className="text-[10px] text-fg-dim">
             Rebuild All = hitung ulang SEMUA rating dari events (dipakai setelah ubah config rating / koreksi; normalnya tidak perlu).
           </p>
