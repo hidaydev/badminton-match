@@ -1,7 +1,7 @@
 // src/pages/RatingsPage.tsx — leaderboard rating (plan RATINGS_FRONTEND_PLAN.md §6.4)
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useRatingLeaderboard } from '../queries/ratings'
+import { useRatingLeaderboard, useRatingSeasons, useSeasonStandings } from '../queries/ratings'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
 
 const PAGE = 100
@@ -10,12 +10,15 @@ export default function RatingsPage() {
   const navigate = useNavigate()
   const [active, setActive] = useState(true)
   const [offset, setOffset] = useState(0)
+  // Season picker (Rev 3.7): null = musim berjalan (live); id = arsip beku
+  const [seasonId, setSeasonId] = useState<string | null>(null)
+  const { data: seasons } = useRatingSeasons()
 
   const { data, isLoading, isError, isFetching } = useRatingLeaderboard(active, PAGE, offset)
+  const { data: frozen, isLoading: frozenLoading } = useSeasonStandings(seasonId)
 
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
-
   const loading = isLoading
   const error = isError
 
@@ -24,6 +27,18 @@ export default function RatingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-bold text-fg">Ratings</h2>
+        <div className="flex items-center gap-2">
+        <select
+          value={seasonId ?? ''}
+          onChange={(e) => { setSeasonId(e.target.value || null); setOffset(0) }}
+          className="bg-elevated border border-border-subtle rounded-lg px-2 py-1.5 text-xs font-mono text-fg focus:outline-none focus:border-accent"
+          aria-label="Pilih musim"
+        >
+          <option value="">Current season</option>
+          {(seasons ?? []).filter((s) => !s.open).map((s) => (
+            <option key={s.id} value={s.id}>{s.name} (closed)</option>
+          ))}
+        </select>
         <div className="flex rounded-lg overflow-hidden border border-border-subtle">
           {([true, false] as const).map((a) => (
             <button
@@ -36,6 +51,7 @@ export default function RatingsPage() {
               {a ? 'Active' : 'All'}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -61,6 +77,23 @@ export default function RatingsPage() {
         <p className="text-fg-dim text-xs font-mono text-center py-8">
           No ratings yet — ratings appear automatically once sessions are locked.
         </p>
+      )}
+
+      {/* Arsip musim tertutup — standings beku */}
+      {seasonId && !frozenLoading && (frozen ?? []).length > 0 && (
+        <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden divide-y divide-border-subtle">
+          {(frozen ?? []).map((r, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+              <span className={`w-6 text-sm font-mono shrink-0 ${i === 0 ? 'text-accent' : i < 3 ? 'text-slate-200' : 'text-fg-dim'}`}>{i + 1}</span>
+              <RatingTierBadge class={r.class_display} />
+              <span className="flex-1 min-w-0 truncate text-sm font-medium text-fg">{r.name}</span>
+              <span className="shrink-0 text-right font-mono">
+                <span className="block text-sm font-bold text-fg">{r.rating.toFixed(0)}</span>
+                <span className="block text-[10px] text-fg-dim">{r.games} game{r.games !== 1 ? 's' : ''} · {r.wins}-{r.losses}</span>
+              </span>
+            </div>
+          ))}
+        </div>
       )}
 
       {!error && !loading && rows.length > 0 && (
