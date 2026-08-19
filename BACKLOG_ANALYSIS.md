@@ -8,6 +8,10 @@ risiko, dan rekomendasi. Basis keputusan sebelum mulai implementasi.
 **Terkait:** `BACKLOG.md` (inventaris) · `RATING_ENGINE_DESIGN.md` · `RATING_TIERING_REVAMP.md`
 · `ADMIN_MENU_PLAN.md` · `ABSENT_TBD_PLAYERS_DESIGN.md`
 
+> **UPDATE EKSEKUSI (2026-08-19):** sesuai rekomendasi, yang dikerjakan =
+> **B, O3, A5, A10 — semua SELESAI**. Yang di-skip/drop: A11 (band tetap 100),
+> A13, A12, O6. A6 ditunda tanpa batas. Detail status di `BACKLOG.md` §2/§4.
+
 ---
 
 ## Ringkasan Eksekutif
