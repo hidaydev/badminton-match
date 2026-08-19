@@ -68,6 +68,45 @@ func (s *SessionStore) SetPlayerClass(ctx context.Context, playerID, class strin
 	return nil
 }
 
+// RebaselinePlayer — POST /ratings/players/{id}/rebaseline (admin): set
+// rating = mid kelas assigned LANGSUNG, TANPA rebuild (rebuild menimpa
+// rating manual dari events — RATING_TIERING_REVAMP §8 P3 #11). Ingest
+// berikutnya melanjutkan dari baseline baru secara alami.
+// Catatan: bersifat "lunak" — hilang saat RebuildAll/reset season berikutnya.
+func (s *SessionStore) RebaselinePlayer(ctx context.Context, playerID string) error {
+	cfg, err := s.LoadRatingConfig(ctx, false)
+	if err != nil {
+		return err
+	}
+	var class *string
+	var peak float64
+	err = s.pool.QueryRow(ctx, `
+		SELECT class, peak_rating FROM `+s.schema+`.rating_players
+		WHERE player_id = $1::uuid`, playerID).Scan(&class, &peak)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("%w: player not rated", ErrSourceNotFound)
+	}
+	if err != nil {
+		return err
+	}
+	if class == nil || *class == "" {
+		return fmt.Errorf("%w: player has no assigned class", ErrValidation)
+	}
+	mid, ok := cfg.MidRatingForClass(*class)
+	if !ok {
+		return fmt.Errorf("%w: unknown class %q", ErrValidation, *class)
+	}
+	newPeak := peak
+	if mid > newPeak {
+		newPeak = mid
+	}
+	_, err = s.pool.Exec(ctx, `
+		UPDATE `+s.schema+`.rating_players
+		SET rating = $2, peak_rating = $3, updated_at = now()
+		WHERE player_id = $1::uuid`, playerID, mid, newPeak)
+	return err
+}
+
 // AdminDeleteSession — hapus sesi oleh ADMIN: boleh status apa pun (locked
 // sekalipun, tidak seperti DELETE /sessions/{id} anon). Rating source ikut
 // dibersihkan (rating_events → deltas cascade; rating_sources row) lalu

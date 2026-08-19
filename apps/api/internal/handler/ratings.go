@@ -181,6 +181,17 @@ func (h *RatingsHandler) RebuildAll(w http.ResponseWriter, r *http.Request) {
 	httperr.WriteJSON(w, http.StatusOK, map[string]int{"rebuilt": n})
 }
 
+// Rebaseline — POST /ratings/players/{playerId}/rebaseline (admin): set
+// rating = mid kelas assigned, tanpa rebuild (RATING_TIERING_REVAMP P3 #11).
+func (h *RatingsHandler) Rebaseline(w http.ResponseWriter, r *http.Request) {
+	playerID := r.PathValue("playerId")
+	if err := h.Store.RebaselinePlayer(r.Context(), playerID); err != nil {
+		httperr.WriteError(w, nil, mapRatingError(err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // Leaderboard — GET /ratings/leaderboard?active&limit&offset → publik.
 func (h *RatingsHandler) Leaderboard(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
