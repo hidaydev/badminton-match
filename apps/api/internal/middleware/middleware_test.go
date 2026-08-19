@@ -156,6 +156,28 @@ func TestClientIPFromXFF(t *testing.T) {
 	}
 }
 
+func TestCORSPreflightAllowsAuthHeader(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	h := CORS([]string{"https://*.vercel.app", "http://localhost:5173"})(next)
+
+	req := httptest.NewRequest(http.MethodOptions, "/ratings/sources", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	req.Header.Set("Access-Control-Request-Headers", "authorization, content-type")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("preflight status = %d, want 204", rec.Code)
+	}
+	got := rec.Header().Get("Access-Control-Allow-Headers")
+	for _, want := range []string{"Authorization", "Content-Type", "If-Match", "ETag"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("Access-Control-Allow-Headers %q tidak memuat %q", got, want)
+		}
+	}
+}
+
 func TestLoggingIncludesIPAndBytes(t *testing.T) {
 	var got []string
 	logger := slog.New(slog.NewTextHandler(newCaptureWriter(func(s string) { got = append(got, s) }), nil))
