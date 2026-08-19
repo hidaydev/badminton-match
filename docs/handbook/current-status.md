@@ -63,7 +63,7 @@ Dua format, `tournaments.format` (`classic` | `team`):
 ## Infra & ops
 
 - Migrations di VPS `/srv/qouver/majadu/migrations/` **000001–000010** (tidak di repo). Apply dev: remap `bm.`→`bm_dev.`; 000003–000005 butuh `PGOPTIONS='-c search_path=bm'`.
-- **DB `bm` (prod)**: schema lengkap parity bm_dev (17+ tabel, 3 fungsi, rating tables, season tables) — kosong.
+- **DB `bm` (prod)**: schema parity bm_dev (24 tabel + rating + season + **migration 000011 tier8 applied** 2026-08-19) — **kosong**. Bedanya hanya kosmetik: urutan kolom & nama 1 FK di `tournament_team_players`.
 - Postgres bind `127.0.0.1:5432` — DBeaver WAJIB SSH tunnel (`ssh -L 15432:127.0.0.1:5432 sachiel@43.133.148.191`).
 - Log `/srv/qouver/majadu/logs/` · backup 03:00 · auto-update 05:00 · prod container `majadu-api` (Quadlet, `UserNS=keep-id:uid=10001`).
 - **Admin token**: di `/srv/qouver/majadu/env/majadu-dev.env` + `majadu-prod.env` (MAJADU_ADMIN_TOKEN — bukan di repo). Login admin = password itu.
