@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useGetPlayerStats } from '../queries'
 
 export default function PlayerDetailPage() {
@@ -17,6 +17,16 @@ export default function PlayerDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-xl font-bold text-fg">{stats.name}</h2>
+
+      {/* Cross-link ke rating — tampil jika player sudah ter-rating */}
+      {stats.playerId && stats.gamesPlayed > 0 && (
+        <Link
+          to={`/ratings/${stats.playerId}`}
+          className="text-xs text-accent hover:brightness-110 transition-colors"
+        >
+          View rating →
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         {([

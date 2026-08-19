@@ -22,6 +22,7 @@ const InstagramPostPage = lazy(() => import('./pages/InstagramPostPage'))
 const TournamentPage = lazy(() => import('./pages/TournamentRouter'))
 const TournamentListPage = lazy(() => import('./pages/TournamentListPage'))
 const RatingsPage = lazy(() => import('./pages/RatingsPage'))
+const RatingPlayerPage = lazy(() => import('./pages/RatingPlayerPage'))
 const NewTournamentPage = lazy(() => import('./pages/NewTournamentPage'))
 const NewTournamentWizard = lazy(() => import('./pages/NewTournamentWizard'))
 const SharedSessionPage = lazy(() => import('./pages/SharedSessionPage'))
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="player-history" element={<PlayerHistoryPage />} />
             <Route path="player-history/:name" element={<PlayerDetailPage />} />
             <Route path="ratings" element={<Suspense fallback={<Loading />}><RatingsPage /></Suspense>} />
+            <Route path="ratings/:playerId" element={<Suspense fallback={<Loading />}><RatingPlayerPage /></Suspense>} />
             <Route path="tournament" element={<Navigate to="/tournaments" replace />} />
             <Route path="tournaments" element={<Suspense fallback={<Loading />}><TournamentListPage /></Suspense>} />
             <Route path="tournaments/new" element={<Suspense fallback={<Loading />}><NewTournamentPage /></Suspense>} />
