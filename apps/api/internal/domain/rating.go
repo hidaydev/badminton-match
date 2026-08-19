@@ -104,6 +104,11 @@ func round2(v float64) float64 { return math.Round(v*100) / 100 }
 // round4 — pembulatan ke 4 desimal (expected/movm) — satu code path.
 func round4(v float64) float64 { return math.Round(v*10000) / 10000 }
 
+// Round2 / Round4 — ekspor publik (dipakai store layer untuk penyimpanan
+// dengan code path pembulatan yang SAMA dengan kalkulasi asli — §3.7).
+func Round2(v float64) float64 { return round2(v) }
+func Round4(v float64) float64 { return round4(v) }
+
 // GlickoUpdate — update satu pemain melawan daftar lawan (1–2 untuk ganda;
 // 1 untuk singles/positional). MoVM·w mengalikan SELURUH update (simetris,
 // §3.2). Delta di-cap max_delta_per_game; rating di-clamp [rating_min,max];

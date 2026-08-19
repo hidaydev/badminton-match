@@ -46,6 +46,11 @@ type Config struct {
 
 	// LogLevel — "debug" | "info" | "warn". Default info.
 	LogLevel string
+
+	// AdminToken — token admin (Authorization: Bearer) untuk endpoint write
+	// ratings (ingest/revert/finalize). Wajib di prod (fail-fast). Kosong di
+	// dev = endpoint admin ditolak 401 (bukan open).
+	AdminToken string
 }
 
 // Load membaca env, me-load .env jika ada, lalu validasi.
@@ -73,6 +78,7 @@ func Load() (Config, error) {
 	cfg.RateLimitPerMin = atoiDefault(os.Getenv("MAJADU_RATE_LIMIT_PER_MIN"), 120)
 	cfg.LogDir = os.Getenv("MAJADU_LOG_DIR")
 	cfg.LogLevel = os.Getenv("MAJADU_LOG_LEVEL")
+	cfg.AdminToken = os.Getenv("MAJADU_ADMIN_TOKEN")
 
 	for _, origin := range splitList(os.Getenv("CORS_ALLOWED_ORIGINS")) {
 		cfg.AllowedOrigins = append(cfg.AllowedOrigins, origin)
@@ -93,6 +99,9 @@ func (c Config) validate() error {
 	}
 	if c.Env == "prod" && len(c.AllowedOrigins) == 0 {
 		return fmt.Errorf("CORS_ALLOWED_ORIGINS is required in prod")
+	}
+	if c.Env == "prod" && c.AdminToken == "" {
+		return fmt.Errorf("MAJADU_ADMIN_TOKEN is required in prod")
 	}
 	return nil
 }

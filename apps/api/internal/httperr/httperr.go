@@ -25,6 +25,10 @@ const (
 	CodeDatabase Code = "database_error"
 	// CodePrecondition — prasyarat tidak terpenuhi (mis. If-Match).
 	CodePrecondition Code = "precondition_required"
+	// CodeUnauthorized — admin token salah / tidak ada.
+	CodeUnauthorized Code = "unauthorized"
+	// CodeSourceChanged — fingerprint sumber berubah sejak ingest (wajib revert).
+	CodeSourceChanged Code = "source_changed"
 )
 
 // Error — error ter-struktur yang bisa di-map ke HTTP response.
@@ -69,14 +73,22 @@ func Internal(msg string) *Error { return New(CodeInternal, msg) }
 // Precondition — error 428 (prasyarat tidak terpenuhi, mis. If-Match).
 func Precondition(msg string) *Error { return New(CodePrecondition, msg) }
 
+// Unauthorized — error 401 (admin token salah / tidak ada).
+func Unauthorized(msg string) *Error { return New(CodeUnauthorized, msg) }
+
+// SourceChanged — error 409 (fingerprint sumber berubah — wajib revert dulu).
+func SourceChanged(msg string) *Error { return New(CodeSourceChanged, msg) }
+
 var statusByCode = map[Code]int{
-	CodeNotFound:     http.StatusNotFound,
-	CodeConflict:     http.StatusConflict,
-	CodeValidation:   http.StatusBadRequest,
-	CodeUnavailable:  http.StatusServiceUnavailable,
-	CodeInternal:     http.StatusInternalServerError,
-	CodeDatabase:     http.StatusInternalServerError,
-	CodePrecondition: http.StatusPreconditionRequired,
+	CodeNotFound:      http.StatusNotFound,
+	CodeConflict:      http.StatusConflict,
+	CodeSourceChanged: http.StatusConflict,
+	CodeValidation:    http.StatusBadRequest,
+	CodeUnauthorized:  http.StatusUnauthorized,
+	CodeUnavailable:   http.StatusServiceUnavailable,
+	CodeInternal:      http.StatusInternalServerError,
+	CodeDatabase:      http.StatusInternalServerError,
+	CodePrecondition:  http.StatusPreconditionRequired,
 }
 
 // WriteError menulis error envelope JSON. Error non-httperr → 500.

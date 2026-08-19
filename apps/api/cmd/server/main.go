@@ -152,6 +152,17 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("PUT /tournaments/{id}", http.HandlerFunc(tournaments.Put))
 	mux.Handle("PATCH /tournaments/{id}", http.HandlerFunc(tournaments.Patch))
 
+	// ── Rating engine (design §6): write = admin token, read = publik.
+	ratings := &handler.RatingsHandler{
+		Store:      store.NewSessionStore(pool, cfg.DatabaseSchema),
+		AdminToken: cfg.AdminToken,
+	}
+	mux.Handle("POST /ratings/ingest-session", http.HandlerFunc(ratings.RequireAdmin(ratings.IngestSession)))
+	mux.Handle("POST /ratings/ingest-tournament", http.HandlerFunc(ratings.RequireAdmin(ratings.IngestTournament)))
+	mux.Handle("POST /ratings/revert-session", http.HandlerFunc(ratings.RequireAdmin(ratings.RevertSession)))
+	mux.Handle("POST /ratings/revert-tournament", http.HandlerFunc(ratings.RequireAdmin(ratings.RevertTournament)))
+	mux.Handle("POST /ratings/sources/{sourceId}/finalize", http.HandlerFunc(ratings.RequireAdmin(ratings.FinalizeSource)))
+
 	// Middleware chain: recover (luar) → request-id → logging → CORS → rate limit → mux.
 	var h http.Handler = mux
 	h = middleware.RateLimit(ctx, cfg.RateLimitPerMin, logger)(h)
