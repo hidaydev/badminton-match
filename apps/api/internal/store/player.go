@@ -20,16 +20,18 @@ func NewPlayerStore(pool *pgxpool.Pool) *PlayerStore {
 
 // PlayerSummary — baris dari list_players (read-path port bm.list_players).
 type PlayerSummary struct {
-	Name   string `json:"name"`
-	Gender string `json:"gender"`
-	Tier   int    `json:"tier"`
+	PlayerID  string `json:"playerId"`
+	Name      string `json:"name"`
+	Gender    string `json:"gender"`
+	Tier      int    `json:"tier"`      // tier penampilan terakhir (legacy)
+	TierInduk string `json:"tierInduk"` // tier induk STICKY (players.tier) — admin
 }
 
 // List — daftar pemain terdaftar (port bm.list_players): gender/tier diambil
 // dari penampilan TERAKHIR (session_date desc, updated_at desc), urut by lower(name).
 func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT ra.canonical_name, ra.gender, ra.tier
+		SELECT ra.id::text, ra.canonical_name, ra.gender, ra.tier, coalesce(p2.tier, '')
 		FROM (
 			SELECT p.id, p.canonical_name, sp.gender, sp.tier,
 			       row_number() OVER (
@@ -40,6 +42,7 @@ func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 			JOIN session_players sp ON sp.player_id = p.id
 			JOIN sessions s ON s.id = sp.session_id
 		) ra
+		JOIN players p2 ON p2.id = ra.id
 		WHERE ra.rn = 1
 		ORDER BY lower(ra.canonical_name)`)
 	if err != nil {
@@ -50,7 +53,7 @@ func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 	out := make([]PlayerSummary, 0)
 	for rows.Next() {
 		var p PlayerSummary
-		if err := rows.Scan(&p.Name, &p.Gender, &p.Tier); err != nil {
+		if err := rows.Scan(&p.PlayerID, &p.Name, &p.Gender, &p.Tier, &p.TierInduk); err != nil {
 			return nil, err
 		}
 		// Read-time filter placeholder (ABSENT_TBD_PLAYERS_DESIGN.md §5.5) —
