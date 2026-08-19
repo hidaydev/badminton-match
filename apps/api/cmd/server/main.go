@@ -140,7 +140,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("GET /readyz", http.HandlerFunc(health.Ready))
 	mux.Handle("GET /version", http.HandlerFunc(health.Version))
 
-	sessions := &handler.SessionHandler{Store: store.NewSessionStore(pool, cfg.DatabaseSchema), Logger: logger, BaseURL: cfg.BaseURL}
+	sessions := &handler.SessionHandler{Store: store.NewSessionStore(pool, cfg.DatabaseSchema), Logger: logger, BaseURL: cfg.BaseURL, AdminToken: cfg.AdminToken}
 	mux.Handle("GET /sessions", http.HandlerFunc(sessions.List))
 	mux.Handle("POST /sessions", http.HandlerFunc(sessions.Create))
 	mux.Handle("GET /sessions/{id}", http.HandlerFunc(sessions.Get))
@@ -148,9 +148,17 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("PATCH /sessions/{id}", http.HandlerFunc(sessions.Patch))
 	mux.Handle("DELETE /sessions/{id}", http.HandlerFunc(sessions.Delete))
 	mux.Handle("POST /sessions/{id}/lock", http.HandlerFunc(sessions.Lock))
-	mux.Handle("POST /sessions/{id}/unlock", http.HandlerFunc(sessions.Unlock))
+	// Unlock = operasi admin (ADMIN_MENU_PLAN.md §3.1) — di-gate.
+	mux.Handle("POST /sessions/{id}/unlock", handler.AdminGuard(cfg.AdminToken, sessions.Unlock))
 
-	players := &handler.PlayerHandler{Store: store.NewPlayerStore(pool), Logger: logger}
+	players := &handler.PlayerHandler{
+		Store:      store.NewPlayerStore(pool),
+		Logger:     logger,
+		AdminToken: cfg.AdminToken,
+		AdminStore: store.NewSessionStore(pool, cfg.DatabaseSchema),
+	}
+	mux.Handle("PATCH /players/{playerId}/tier", handler.AdminGuard(cfg.AdminToken, players.SetTier))
+	mux.Handle("DELETE /players/{playerId}", handler.AdminGuard(cfg.AdminToken, players.Delete))
 	mux.Handle("GET /players", http.HandlerFunc(players.List))
 	mux.Handle("POST /players", http.HandlerFunc(players.Register))
 	mux.Handle("GET /players/{name}/stats", http.HandlerFunc(players.Stats))
@@ -174,6 +182,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /ratings/sources/{sourceId}/finalize", http.HandlerFunc(ratings.RequireAdmin(ratings.FinalizeSource)))
 	mux.Handle("POST /ratings/rebuild-all", http.HandlerFunc(ratings.RequireAdmin(ratings.RebuildAll)))
 	mux.Handle("POST /ratings/season", http.HandlerFunc(ratings.RequireAdmin(ratings.Season)))
+	mux.Handle("PATCH /ratings/players/{playerId}/class", http.HandlerFunc(ratings.RequireAdmin(ratings.SetClass)))
 	// Read path (publik)
 	mux.Handle("GET /ratings/leaderboard", http.HandlerFunc(ratings.Leaderboard))
 	mux.Handle("GET /ratings/players/{playerId}", http.HandlerFunc(ratings.Player))

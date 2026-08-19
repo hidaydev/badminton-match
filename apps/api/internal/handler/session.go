@@ -65,7 +65,8 @@ type SessionHandler struct {
 	Store  *store.SessionStore
 	Logger *slog.Logger
 	// BaseURL — URL publik API (untuk header Location), mis. https://api.qouver.com/majadu/v1.
-	BaseURL string
+	BaseURL    string
+	AdminToken string
 }
 
 // ── Types request ────────────────────────────────────────────────────────

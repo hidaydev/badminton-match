@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"majadu-api/internal/httperr"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,6 +48,37 @@ func TestRatingsAdminAuth(t *testing.T) {
 				t.Fatalf("status = %d, want %d (body=%s)", rec.Code, c.wantStatus, rec.Body.String())
 			}
 		})
+	}
+}
+
+// TestAdminGuardAuth — endpoint admin (tier/delete/class) harus 401 tanpa token.
+func TestAdminGuardAuth(t *testing.T) {
+	next := func(w http.ResponseWriter, r *http.Request) {
+		httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	}
+	h := AdminGuard("sekret", next)
+
+	req := httptest.NewRequest(http.MethodPatch, "/x", nil)
+	rec := httptest.NewRecorder()
+	h(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("tanpa token status=%d, want 401", rec.Code)
+	}
+
+	req2 := httptest.NewRequest(http.MethodPatch, "/x", nil)
+	req2.Header.Set("Authorization", "Bearer salah")
+	rec2 := httptest.NewRecorder()
+	h(rec2, req2)
+	if rec2.Code != http.StatusUnauthorized {
+		t.Fatalf("token salah status=%d, want 401", rec2.Code)
+	}
+
+	req3 := httptest.NewRequest(http.MethodPatch, "/x", nil)
+	req3.Header.Set("Authorization", "Bearer sekret")
+	rec3 := httptest.NewRecorder()
+	h(rec3, req3)
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("token benar status=%d, want 200", rec3.Code)
 	}
 }
 

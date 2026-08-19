@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -11,13 +12,44 @@ import (
 
 // PlayerHandler — REST endpoints registry pemain.
 type PlayerHandler struct {
-	Store  *store.PlayerStore
-	Logger *slog.Logger
+	Store      *store.PlayerStore
+	Logger     *slog.Logger
+	AdminToken string
+	// AdminStore — SessionStore untuk operasi admin (tier induk, delete).
+	AdminStore *store.SessionStore
 }
 
 type registerPlayerRequest struct {
 	Name          string `json:"name"`
 	CanonicalName string `json:"canonicalName,omitempty"`
+	Tier          string `json:"tier,omitempty"` // opsional — tier induk (first-set)
+}
+
+// SetTier — PATCH /players/{playerId}/tier (admin): ubah tier induk → class
+// rating ikut + recalculate (Q3).
+func (h *PlayerHandler) SetTier(w http.ResponseWriter, r *http.Request) {
+	playerID := r.PathValue("playerId")
+	var body registerPlayerRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Tier == "" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("tier is required (A/B/C/D)"))
+		return
+	}
+	if err := h.AdminStore.SetPlayerTier(r.Context(), playerID, body.Tier); err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Internal(err.Error()))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// Delete — DELETE /players/{playerId}?force=true (admin).
+func (h *PlayerHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	playerID := r.PathValue("playerId")
+	force := r.URL.Query().Get("force") == "true"
+	if err := h.AdminStore.DeletePlayer(r.Context(), playerID, force); err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Conflict(err.Error()))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // List — GET /api/players.
@@ -45,6 +77,12 @@ func (h *PlayerHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to register player", err))
 		return
+	}
+	if req.Tier != "" && h.AdminStore != nil {
+		if err := h.AdminStore.SetPlayerTierOnRegister(r.Context(), id, req.Tier); err != nil {
+			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
+			return
+		}
 	}
 	httperr.WriteJSON(w, http.StatusCreated, map[string]string{"playerId": id})
 }
