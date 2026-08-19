@@ -12,6 +12,7 @@ export interface SessionMeta {
 
 export interface PlayerStats {
   name: string
+  playerId?: string
   gamesPlayed: number
   wins: number
   losses: number
