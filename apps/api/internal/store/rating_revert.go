@@ -101,7 +101,7 @@ func (s *SessionStore) RevertSource(ctx context.Context, lookup, kind string) (*
 }
 
 // SetSourceFinalized — upsert rating_sources.finalized (gate ingest tournament).
-// Row baru dengan fingerprint '' (belum diingest) — ingest pertama menimpa.
+// Row baru dengan fingerprint ” (belum diingest) — ingest pertama menimpa.
 // Fix audit 2026-08-19: source_kind diambil dari format tournament asli
 // (classic | team) — sebelumnya hardcode 'tournament_classic'.
 func (s *SessionStore) SetSourceFinalized(ctx context.Context, sourceID string, finalized bool) error {
