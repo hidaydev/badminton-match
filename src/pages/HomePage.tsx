@@ -7,6 +7,7 @@ import InstallModal from '../components/InstallModal'
 const secondary = [
   { icon: 'sessions', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
   { icon: 'history', label: 'Player History', description: 'Stats & records', to: '/player-history' },
+  { icon: 'ratings', label: 'Ratings', description: 'Skill rating & leaderboard', to: '/ratings' },
   { icon: 'scoreboard', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
   { icon: 'tournament', label: 'Tournament', description: 'Leaderboard & cup', to: '/tournaments' },
   { icon: 'post', label: 'Instagram Post', description: 'Create a post', to: '/instagram-post' },
@@ -30,6 +31,8 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
       return <svg {...common}><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></svg>
     case 'history':
       return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>
+    case 'ratings':
+      return <svg {...common}><path d="M4 19v-8M10 19V9M16 19V5" /><path d="M2 19h20" /></svg>
     case 'scoreboard':
       return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="1" /><path d="M8 3v4M16 3v4M3 12h18" /><path d="M7 15l2-2 2 2 2-2 2 2" /></svg>
     case 'tournament':
