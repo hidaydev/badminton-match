@@ -100,7 +100,9 @@ export interface CloudSnapshot {
 }
 
 export interface PlayerSummary {
+  playerId?: string
   name: string
   gender: 'M' | 'F'
   tier: 1 | 2 | 3 | 4
+  tierInduk?: string // A/B/C/D — sticky (admin)
 }
