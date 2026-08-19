@@ -1,6 +1,7 @@
 # RATING_TIERING_REVAMP.md
 
 **Status:** PLAN — belum diimplementasikan
+**Rev:** 2 (hasil review: distribusi riil + interplay initial_rating + tournament-first + rebaseline + API contract)
 **Tanggal:** 2026-08-18
 **Lokasi:** root badminton-match
 **Terkait:** `RATING_ENGINE_DESIGN.md` (engine rating) · `RATINGS_FRONTEND_PLAN.md` (UI ratings) · `ADMIN_MENU_PLAN.md` (menu admin)
@@ -121,6 +122,19 @@ Satu kali proses (P2): untuk tiap player aktif di rating_players, ambil tier ses
 
 Kelas bukan input matematika engine — Glicko hanya memakai (rating, rd, skor). Kelas = **atribut display/floor**. Ini menjawab pertanyaan kunci: mengubah kelas TIDAK mengubah hasil perhitungan masa lalu (tidak perlu rebuild).
 
+### 5.2 Interplay dengan `initial_rating` (Rev 2 — temuan review)
+
+`initial_rating` (1250) **TETAP dipakai untuk**:
+- **Placeholder** (rate_as_unknown): sub tak dikenal = 1250/350 — TIDAK terpengaruh skema kelas.
+- **Fallback** player real yang tidak punya tier session (mis. pertama kali muncul di TOURNAMENT — `tournament_*` tidak menyimpan tier, beda dari `session_players.tier`).
+- **Reset-to-default** 0-game: rating → **mid kelasnya bila class ada, else initial_rating**. (Keputusan: kelas = identitas → reset ke mid kelas konsisten; fallback 1250.)
+
+Jadi ada DUA sumber inisialisasi: `session_tier_init` (real player dengan tier) vs `initial_rating` (placeholder/fallback/tanpa kelas). Keduanya wajib ada di config — `session_tier_init` bukan pengganti `initial_rating`.
+
+### 5.3 Tournament-first player (Rev 2)
+
+Player yang **pertama kali muncul di tournament** tidak punya tier session → fallback: **class = C (tengah sistem), rating = initial_rating (1250)**. Tanpa floor khusus (display = derived murni). Ditangani di ingest: kalau tidak ada `session_players.tier` untuk player itu → pakai fallback.
+
 ---
 
 ## 6. Jawaban: "Edit tier player (session) berdampak ke ratings?"
@@ -152,6 +166,7 @@ Kelas bukan input matematika engine — Glicko hanya memakai (rating, rd, skor).
 | Admin turunkan kelas A → C | Floor TURUN ke C- — satu-satunya cara "turun kelas" (manual admin) |
 | Rebuild setelah revert | Class dipertahankan (bukan direset) |
 | Duplicate player (dua uuid nama sama) | Class per uuid (per rating_players) — konsisten |
+| Player existing sebelum backfill class (class NULL) | Display = derived murni (tanpa floor); backfill P2 mengisi |
 | Band 50 poin terlalu sempit? | Kalibrasi P3: jika terlalu bising (player ganti sub-tier tiap game), lebar band diubah via config (tanpa migration) |
 
 ---
@@ -181,7 +196,25 @@ Kelas bukan input matematika engine — Glicko hanya memakai (rating, rd, skor).
 **Verifikasi P2:** semua player aktif punya class; distribusi sub-tier wajar.
 
 ### P3 — Rebaseline (opsional, admin doc)
-- [ ] 11. Endpoint `POST /ratings/players/{id}/rebaseline` (set rating = mid class + rebuild) — bila dibutuhkan
+- [ ] 11. Endpoint `POST /ratings/players/{id}/rebaseline` — **set `rating_players.rating = mid kelas` LANGSUNG (tanpa rebuild!)**: rebuild akan menimpa rating manual dari events. Ingest berikutnya membaca state saat ini → melanjutkan dari baseline baru secara alami. (Rev 2 — desain awal "set + rebuild" SALAH)
+
+---
+
+## 8.5 Perubahan Kontrak API & Frontend (Rev 2 — BREAKING)
+
+Response leaderboard/detail berubah:
+```
+SEBELUM: tier: number (1-10, D..S+)
+SESUDAH: class: string|null          (assigned, 12-band: "C", "A+", dll)
+        class_derived: string        (dari rating, 12-band)
+        class_display: string        (max(derived, floor) — yang ditampilkan)
+        provisional: bool            (tetap)
+```
+
+- Frontend `RatingTierBadge` + `ratingTiers.ts` → **12 band D-..A+** (label string, bukan number).
+- `RATINGS_FRONTEND_PLAN.md` response shape ikut di-update.
+- Band S/S+ hilang (A+ jadi puncak — sesuai spesifikasi 12-band user).
+- Backward compat: tidak ada — API ratings masih baru (belum dipakai produksi), aman diubah.
 
 ---
 
