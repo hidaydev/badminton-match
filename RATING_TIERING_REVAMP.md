@@ -1,7 +1,7 @@
 # RATING_TIERING_REVAMP.md
 
 **Status:** PLAN — belum diimplementasikan
-**Rev:** 3.3 (tier induk STICKY + registered_at = awal journey rating)
+**Rev:** 3.4 (tier sticky: tanpa opsi ubah di session — hanya admin; nama baru WAJIB pilih tier)
 **Tanggal:** 2026-08-18
 **Lokasi:** root badminton-match
 **Terkait:** `RATING_ENGINE_DESIGN.md` (engine rating) · `RATINGS_FRONTEND_PLAN.md` (UI ratings) · `ADMIN_MENU_PLAN.md` (menu admin)
@@ -55,10 +55,12 @@ ALTER TABLE bm.players ADD COLUMN registered_at date; -- awal journey rating (Re
 ### 2.5.2 Sinkronisasi dari session — TIER INDUK STICKY (Rev 3.3)
 
 - **STICKY**: `players.tier` ditetapkan SATU KALI saat pemain pertama kali diregistrasi
-  (dari tier sesi pertama tempat dia masuk). **TIDAK pernah diubah otomatis** oleh sesi
-  berikutnya — pemain yang pindah tier di sesi lain TETAP dengan tier induknya.
+  (dari tier sesi pertama tempat dia masuk). **TIDAK pernah diubah** oleh sesi berikutnya.
 - `players.registered_at` = tanggal registrasi pertama (awal journey) — sticky.
-- Perubahan tier induk HANYA via admin (`PATCH /players/{id}/tier`).
+- **TIDAK ADA opsi ubah tier di session lain** (Rev 3.4): nama BARU → host memilih tier
+  (itu yang jadi sticky); pemain EXISTING → tier ditampilkan STICKY & LOCKED di UI session
+  (PlayersPage tier picker dinonaktifkan). Satu-satunya pintu ubah = **halaman admin**
+  (`PATCH /players/{id}/tier`).
 - Implementasi: pada session Save, hanya isi kalau `players.tier IS NULL` (first-set).
 
 ### 2.5.3 Backfill (satu kali)
@@ -97,7 +99,7 @@ contoh: X diregis 19, match 20 → journey mulai match tgl 20
 | Pertanyaan | Usulan |
 |---|---|
 | Sinkron: sesi terbaru menang? | **TIDAK — STICKY** (set sekali di registrasi; admin-only setelahnya) |
-| Player tanpa sesi → tier NULL | Ya — ratings fallback ke initial_rating (tanpa kelas khusus) |
+| Player tanpa tier (NULL) | **TIDAK terjadi di alur normal** (Rev 3.4): nama baru wajib pilih tier saat registrasi → `players.tier` selalu terisi. NULL hanya dari edge case: registrasi via API tanpa tier, anomali backfill → fallback initial_rating (tanpa kelas khusus) |
 | Edit tier induk via admin → apa efeknya ke ratings? | Hanya memengaruhi forming PEMAIN BARU (class di-lock sekali); untuk pemain existing, admin ubah class rating langsung (menu admin) |
 
 ---
