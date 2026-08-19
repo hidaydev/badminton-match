@@ -70,18 +70,18 @@ tertunda (deferred), opsional, dan keputusan terbuka dari seluruh dokumen MD di 
 | **Deskripsi** | PR open & dirty oleh ppabimanyu. Analisis sudah diberikan ke user: **AdminToken hilang** (env rename memutus auth), **`validate()` dibuang** (invariant turun), **env rename breaking** (MAJADU_* → nama lain). User sudah copas komentar; belum ada aksi dari author |
 | **Aksi** | Putuskan: request revisi, close, atau merge manual (sangat disarankan revisi dulu — ada risiko security/regresi) |
 
-#### A5. Endpoint rename canonical player
+#### A5. Endpoint rename canonical player — ✅ SELESAI (2026-08-19)
 | | |
 |---|---|
 | **Sumber** | ADMIN_MENU_PLAN §7 #11 (DITUNDA) |
-| **Deskripsi** | Rename nama kanonikal pemain. `registerPlayer` + alias saat ini = **merge** (bukan rename). Butuh endpoint khusus (mis. `PATCH /players/{id}/name` → update `players.canonical_name` + alias) |
-| **Mengapa tertunda** | Menghindari salah-salah merge dua pemain berbeda |
+| **Deskripsi** | ~~Rename nama kanonikal pemain.~~ → **`PATCH /players/{id}/name`** (admin): anti-collision (nama dipakai player lain ditolak), guard placeholder, alias nama lama disimpan (referensi historis tetap resolve). Rating leaderboard (player_id) tidak terpengaruh. UI: tombol **Rename** di /admin |
+| **Mengapa tertunda** | Menghindari salah-salah merge dua pemain berbeda → sudah di-handle anti-collision |
 
-#### A6. Team player career stats (belum aggregate team matches)
+#### A6. Team player career stats — 🚫 DROP (2026-08-19)
 | | |
 |---|---|
 | **Sumber** | current-status "Pending #3" (terverifikasi: `store/stats.go` hanya query sessions) |
-| **Deskripsi** | `GET /players/{name}/stats` belum menghitung match tournament format **team** (6 tim × 6 pemain). Perlu query tambahan ke `tournament_team_*` tables (partai → W/L, partner, opponent) |
+| **Deskripsi** | ~~`GET /players/{name}/stats` belum menghitung match tournament format **team**~~ — ditunda tanpa batas (keputusan user, BACKLOG_ANALYSIS A6) |
 | **Risiko** | Beda semantik dengan classic tournament stats yang sudah ada — perlu desain kecil |
 
 #### A7. Auth JWT (ditunda)
@@ -105,34 +105,31 @@ tertunda (deferred), opsional, dan keputusan terbuka dari seluruh dokumen MD di 
 
 ### 2.3 🟢 Kecil / Opsional
 
-#### A10. Rebaseline endpoint — `POST /ratings/players/{id}/rebaseline`
+#### A10. Rebaseline endpoint — ✅ SELESAI (2026-08-19)
 | | |
 |---|---|
-| **Sumber** | RATING_TIERING_REVAMP §8 P3 #11 (opsional) — terverifikasi **tidak ada** di kode |
-| **Deskripsi** | Set `rating_players.rating = mid kelas` LANGSUNG (tanpa rebuild — rebuild menimpa rating manual dari events). Ingest berikutnya melanjutkan dari baseline baru secara alami |
-| **Desain penting** | Rev 2: "set + rebuild" SALAH (rebuild menimpa). Hanya set langsung |
-| **Guna** | Re-baseline pemain yang kelasnya diubah admin ke level rating baru |
+| **Sumber** | RATING_TIERING_REVAMP §8 P3 #11 (opsional) |
+| **Deskripsi** | **`POST /ratings/players/{id}/rebaseline`** (admin): set `rating_players.rating = mid kelas` LANGSUNG (tanpa rebuild — rebuild menimpa rating manual dari events). `peak = max(peak, mid)`. UI: tombol **Rebaseline** di /admin |
+| **Desain penting** | Rev 2: "set + rebuild" SALAH (rebuild menimpa). Hanya set langsung. Caveat: lunak — hilang saat RebuildAll/reset season |
 
-#### A11. Kalibrasi lebar band terhadap data riil
+#### A11. Kalibrasi lebar band — 🚫 DIBATALKAN (2026-08-19)
 | | |
 |---|---|
 | **Sumber** | RATING_TIERING_REVAMP §8 P2 #10 |
-| **Deskripsi** | Ukur frekuensi ganti sub-tier per pemain di data riil bm_dev. Jika terlalu bising (ganti sub-tier tiap game), lebar band (sekarang 100) diubah via `rating_config.class_bands` (tanpa migration) |
-| **Catatan** | Dengan delta settled 12.8/match (~1/9 band), pindah sub-tier wajar membutuhkan ±7-8 match — kemungkinan sudah OK, tapi belum diverifikasi terukur |
+| **Deskripsi** | ~~Ukur frekuensi ganti sub-tier per pemain di data riil bm_dev~~ — **band tetap 100** (keputusan user; analisis BACKLOG_ANALYSIS A11 menyimpulkan kemungkinan sudah pas) |
 
-#### A12. `rating_ingest_runs` audit log (opsional)
+#### A12. `rating_ingest_runs` audit log — 🚫 DROP (2026-08-19)
 | | |
 |---|---|
-| **Sumber** | RATING_ENGINE_DESIGN §10 #18c (didefer ke P3/opsional) — terverifikasi **tidak ada** |
-| **Deskripsi** | Log riwayat ingest/reconcile/revert: mode, source, jumlah events, timestamp. `rating_sources.ingested_at` sudah menyimpan sebagian info ini |
+| **Sumber** | RATING_ENGINE_DESIGN §10 #18c (didefer ke P3/opsional) |
+| **Deskripsi** | ~~Log riwayat ingest/reconcile/revert~~ — nilai rendah untuk single-admin (analisis BACKLOG_ANALYSIS A12), ditunda tanpa batas. `rating_sources.ingested_at` sudah menyimpan sebagian info ini |
 | **Nilai** | Audit operasional (siapa kapan ngapain) — nilai rendah untuk single-admin, tinggi untuk debugging |
 
-#### A13. Decay rating inactivity (opsional)
+#### A13. Decay rating inactivity — 🚫 DROP (2026-08-19)
 | | |
 |---|---|
 | **Sumber** | RATING_ENGINE_DESIGN §3.6 — terverifikasi: config `decay_*` sudah ada di `rating_config.go` tapi `DecayEnabled=false` default & **logika aplikasi belum diimplementasi** |
-| **Deskripsi** | −5 poin/minggu setelah 60 hari idle (basis tanggal sumber), floor 1000. Pass non-replayable terpisah (didokumentasikan non-deterministik) — sengaja tidak default |
-| **Keputusan** | RD growth sudah menangani ketidakpastian inactivity — decay ini bonus. Hanya aktifkan kalau leaderboard butuh "penalti absen lama" |
+| **Deskripsi** | ~~−5 poin/minggu setelah 60 hari idle~~ — dibatalkan (keputusan user, analisis BACKLOG_ANALYSIS A13): RD growth sudah menangani inaktivitas; floor kelas display sudah otomatis (DisplayClass = max(derived, floor)); kalau dipaksa, desain pilih read-time effective rating |
 
 #### A14. `GET /ratings/sources?changed=true` (re-extraction)
 | | |

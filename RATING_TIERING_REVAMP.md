@@ -347,7 +347,7 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 **Verifikasi P2:** semua player aktif punya class; distribusi sub-tier wajar.
 
 ### P3 — Rebaseline (opsional, admin doc)
-- [ ] 11. Endpoint `POST /ratings/players/{id}/rebaseline` — **set `rating_players.rating = mid kelas` LANGSUNG (tanpa rebuild!)**: rebuild akan menimpa rating manual dari events. Ingest berikutnya membaca state saat ini → melanjutkan dari baseline baru secara alami. (Rev 2 — desain awal "set + rebuild" SALAH)
+- [x] 11. Endpoint `POST /ratings/players/{id}/rebaseline` — **set `rating_players.rating = mid kelas` LANGSUNG (tanpa rebuild!)**: rebuild akan menimpa rating manual dari events. Ingest berikutnya membaca state saat ini → melanjutkan dari baseline baru secara alami. (Rev 2 — desain awal "set + rebuild" SALAH) → **SELESAI 2026-08-19**: `RebaselinePlayer` (peak = max(peak, mid)), handler + route admin, tombol di AdminPage. Caveat: lunak (hilang saat RebuildAll/reset season)
 
 ---
 
