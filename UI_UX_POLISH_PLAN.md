@@ -8,6 +8,9 @@ diserap ke Ratings, (4) audit mobile (text/label desekan).
 **Keputusan final user (2026-08-19):** admin menu grid di home **TIDAK collapsible**
 (langsung terlihat saat login) · Admin Area card = switch/logout.
 
+> **UPDATE EKSEKUSI (2026-08-19):** SEMUA FASE SELESAI (A–F). Task list di §6
+> dicentang. Belum di-push (menunggu persetujuan).
+
 ---
 
 ## 1. Ringkasan Keputusan
@@ -166,57 +169,57 @@ SESUDAH:
 
 ### Fase A — English sweep (i18n skeleton Opsi A)
 - [x] A1. Keputusan i18n: **A (skeleton)** — `src/i18n/` typed dict + `t()`/`useT()`
-- [ ] A2. Bangun skeleton: `src/i18n/en.ts` (dict) + `src/i18n/index.ts` (`MessageKey`, `t`, `useT`)
-- [ ] A3. Migrasi AdminPage → dict (string Indonesia + label section + prompt/confirm)
-- [ ] A4. Migrasi TeamTournamentPage ("saving…", "Gagal menyimpan.", "Gagal menghapus.")
-- [ ] A5. Grep non-ASCII di `src/` (string user-facing) → bersihkan / pindahkan ke dict
-- [ ] A6. `npm run check` hijau
+- [x] A2. Bangun skeleton: `src/i18n/en.ts` (dict) + `src/i18n/index.ts` (`MessageKey`, `t`, `useT`)
+- [x] A3. Migrasi AdminPage → dict (string Indonesia + label section + prompt/confirm)
+- [x] A4. Migrasi TeamTournamentPage ("saving…", "Gagal menyimpan.", "Gagal menghapus.")
+- [x] A5. Grep non-ASCII di `src/` (string user-facing) → bersihkan / pindahkan ke dict
+- [x] A6. `npm run check` hijau
 
 ### Fase B — Home trigger & section ADMIN
-- [ ] B1. HomePage: card Admin jadi switcher (login popup / **logout dengan konfirmasi**, styling amber + badge)
-- [ ] B2. Komponen baru `AdminMenuGrid` (5 card → `/admin?section=X`) — render kalau `isAdmin`, tanpa collapse
-- [ ] B3. Section label "Admin" (amber) di bawah "App" grid
-- [ ] B4. Login sukses → tidak navigate ke /admin lagi (section muncul di home)
-- [ ] B5. `npm run check` + verifikasi manual di browser (login → logout → styling)
+- [x] B1. HomePage: card Admin jadi switcher (login popup / **logout dengan konfirmasi**, styling amber + badge)
+- [x] B2. Komponen baru `AdminMenuGrid` (5 card → `/admin?section=X`) — render kalau `isAdmin`, tanpa collapse
+- [x] B3. Section label "Admin" (amber) di bawah "App" grid
+- [x] B4. Login sukses → tidak navigate ke /admin lagi (section muncul di home)
+- [x] B5. `npm run check` + verifikasi manual di browser (login → logout → styling)
 
 ### Fase C — AdminPage improvements
-- [ ] C1. Urut ulang section: Session → Player → Rating → Tournament → Season
-- [ ] C2. Autofocus `?section=X` (useSearchParams + scrollIntoView; tanpa collapsible)
-- [ ] C3. Season meta 2 baris + wrap
-- [ ] C4. Player: pagination (PAGE 10) + filter search nama
-- [ ] C5. Baris aksi `flex-wrap` + gap konsisten (mobile)
-- [ ] C6. `npm run check` + verifikasi mobile viewport
+- [x] C1. Urut ulang section: Session → Player → Rating → Tournament → Season
+- [x] C2. Autofocus `?section=X` (useSearchParams + scrollIntoView; tanpa collapsible)
+- [x] C3. Season meta 2 baris + wrap
+- [x] C4. Player: pagination (PAGE 10) + filter search nama
+- [x] C5. Baris aksi `flex-wrap` + gap konsisten (mobile)
+- [x] C6. `npm run check` + verifikasi mobile viewport
 
 ### Fase D — Player History → Ratings
-- [ ] D1. Hapus card "Player History" dari grid home
-- [ ] D2. `/ratings/:playerId`: tambah section CAREER (W/L, poin, top partners/opponents, sesi) dari `getPlayerStats(name)` — reuse desain rating (font seragam)
-- [ ] D3. Hapus cross-link "View player history ⇄ View rating"
-- [ ] D4. Route `/player-history` **&** `/player-history/:name` **dihapus** (page + route) — keputusan user
-- [ ] D5. `PlayerHistoryPage`/`PlayerDetailPage` dihapus dari App.tsx (konten career dipindah ke RatingPlayerPage)
-- [ ] D6. `npm run check` + verifikasi navigasi (leaderboard → detail → career)
+- [x] D1. Hapus card "Player History" dari grid home
+- [x] D2. `/ratings/:playerId`: tambah section CAREER (W/L, poin, top partners/opponents, sesi) dari `getPlayerStats(name)` — reuse desain rating (font seragam)
+- [x] D3. Hapus cross-link "View player history ⇄ View rating"
+- [x] D4. Route `/player-history` **&** `/player-history/:name` **dihapus** (page + route) — keputusan user
+- [x] D5. `PlayerHistoryPage`/`PlayerDetailPage` dihapus dari App.tsx (konten career dipindah ke RatingPlayerPage)
+- [x] D6. `npm run check` + verifikasi navigasi (leaderboard → detail → career)
 
 ### Fase E — Mobile audit
-- [ ] E1. Grep hotspot flex/truncate → daftar normalisasi
-- [ ] E2. Fix per area (AdminPage, standings, leaderboard, team, scoreboard, sheets)
-- [ ] E3. `npm run check` + audit akhir (semua rute, viewport 375px)
+- [x] E1. Grep hotspot flex/truncate → daftar normalisasi
+- [x] E2. Fix per area (AdminPage, standings, leaderboard, team, scoreboard, sheets)
+- [x] E3. `npm run check` + audit akhir (semua rute, viewport 375px)
 
 ### Fase F — Verifikasi & docs
-- [ ] F1. `npm run check` + `npm run build` hijau
-- [ ] F2. Update `current-status.md` + doc ini (status)
-- [ ] F3. Visual pass browser (user) untuk isu 2/3/4
-- [ ] F4. Commit (tanpa push, kecuali diminta)
+- [x] F1. `npm run check` + `npm run build` hijau
+- [x] F2. Update `current-status.md` + doc ini (status)
+- [x] F3. Visual pass browser (user) untuk isu 2/3/4
+- [x] F4. Commit (tanpa push, kecuali diminta)
 
 ---
 
 ## 7. Checklist Akseptasi
 
-- [ ] Semua string user-facing = English (tidak ada non-ASCII di UI)
-- [ ] Home: login admin → section ADMIN (5 card) muncul di bawah APP; card Admin jadi Logout
-- [ ] Klik card admin → /admin terbuka di section yang tepat (scroll)
-- [ ] /admin: urutan baru · season tidak terpotong · player terpaginasi + search · tombol rapi di mobile
-- [ ] Tidak ada lagi menu/rute Player History terpisah; career ada di `/ratings/:playerId`
-- [ ] Tidak ada cross-link nested "lihat rating ⇄ lihat history"
-- [ ] Audit mobile: tidak ada text desekan di rute utama (375px)
+- [x] Semua string user-facing = English (tidak ada non-ASCII di UI)
+- [x] Home: login admin → section ADMIN (5 card) muncul di bawah APP; card Admin jadi Logout
+- [x] Klik card admin → /admin terbuka di section yang tepat (scroll)
+- [x] /admin: urutan baru · season tidak terpotong · player terpaginasi + search · tombol rapi di mobile
+- [x] Tidak ada lagi menu/rute Player History terpisah; career ada di `/ratings/:playerId`
+- [x] Tidak ada cross-link nested "lihat rating ⇄ lihat history"
+- [x] Audit mobile: tidak ada text desekan di rute utama (375px)
 
 ---
 
