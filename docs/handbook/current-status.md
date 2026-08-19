@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-08-22 (kompaksi — setelah redesign + tournament + auto-rebase)
+Last updated: 2026-08-22 (kompaksi — setelah rating engine + tiering + season + admin, semua DEPLOYED)
 
 This is the fastest handover file. Start here, lalu baca dokumen terkait di bawah.
 
@@ -8,92 +8,76 @@ This is the fastest handover file. Start here, lalu baca dokumen terkait di bawa
 
 ```
 badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http+pgx) ──▶ Postgres VPS
-  dev  (aktif)                          dev  (aktif)          DB bm_dev (dev)
-  main → prod (belum migrasi)            main (lokal, belum di-push)   DB bm (belum)
-                                         → push main = trigger CI deploy prod (tahan dulu)
+  dev  (aktif) · DEPLOYED Vercel        dev  (aktif) · DEPLOYED podman   DB bm_dev (data live)
+  main → prod (belum)                   main (lokal, belum push)          DB bm (schema, kosong)
 ```
 
-- Frontend `dev` → `https://api.qouver.com/majadu-dev` (Vercel) · `main` → `api.qouver.com/majadu`
-- **Branch `staging` SUDAH DIHAPUS (2026-08-18)** — dulu sempat di-merge dev→staging, konten jadi identik dev, lalu dihapus lokal+remote karena tak bernilai lagi (stack sudah seragam Go REST, Supabase pensiun). `vite.config.ts` mapping branch: `main`→prod, selain itu (dev/dll)→majadu-dev (fail-closed).
-- Backend deploy: push → CI image ghcr → VPS podman (auto-update 05:00 / `./scripts/deploy.sh dev`).
+- Frontend `dev` → `https://api.qouver.com/majadu-dev` · backend dev image `ghcr.io/nferdazel/majadu-api:dev` (auto-update 05:00).
+- Branch `staging` SUDAH DIHAPUS (2026-08-18). Supabase pensiun — semua stack Go REST.
+- Backend prod: container `majadu-api` (:main, commit 21f4d95) SUDAH deploy di VPS — DB bm kosong.
 
-## Fitur Rating (2026-08-18, frontend selesai P0-P3)
+## Fitur Rating — LENGKAP & DEPLOYED (2026-08-18/22)
 
-- **Menu baru "Ratings"** di HomePage → `/ratings` (leaderboard: tier D..S+, provisional badge, trend, load-more, filter Active/All) + `/ratings/:playerId` (detail: stat cards, sparkline SVG manual, recent matches). **Cross-link dua arah** dengan Player History (playerId kini ada di stats + leaderboard).
-- **Backend rating engine sudah live di bm_dev** (P0-P3): Glicko-1-lite, ingest session/classic/team, revert full-rebuild, leaderboard/player/history API. Backfill: 27 source, 474 events, 106 pemain aktif. Kalibrasi: `max_delta_per_game=100` (saturasi 57%→29%), korelasi tier-winrate monotonik.
-- **Auto-ingest**: ticker backend (bersama auto-lock 30 mnt) mengingest sesi yang baru terkunci otomatis → rating mengalir tanpa aksi manual. Revert/finalize = API-only (MAJADU_ADMIN_TOKEN).
-- Visual pass browser: **belum** (handoff user). Doc: `RATING_ENGINE_DESIGN.md` (Rev 3.1) + `RATINGS_FRONTEND_PLAN.md`.
+**Engine** (RATING_ENGINE_DESIGN.md Rev 3.3):
+- Glicko-1-lite: ingest session/classic/team, revert full-rebuild (transitivity), leaderboard/player/history, fingerprint+409/auto_reconcile, advisory lock global, idempotent match_key.
+- **Rekalibrasi honest**: rd_growth 3 · initial_rd 220 · max_delta 30 → settled delta 12.8/match (1/8 band), rd mapan 58. Backfill live: 381 events, 98 pemain aktif.
 
-## Fitur Rating UI + Tiering + Season + Admin (2026-08-18, backend+frontend selesai)
+**Tiering** (RATING_TIERING_REVAMP.md Rev 3.7):
+- **Tier induk terpusat** (`players.tier` STICKY + `registered_at`): set sekali saat registrasi pertama (nama baru wajib pilih tier), tanpa opsi ubah di session — hanya admin.
+- **12 sub-band** (D-..A+, band 100, mid 1150/1450/1750/2050): class/class_derived/class_display di API + badge 12-band; forming = mid kelas (ingest↔rebuild konsisten); floor `{kelas}-` (tidak pernah turun kelas).
+- **Season**: `season_start` global, `POST /ratings/season` = close & start (arsip standings beku → hapus events → invalidasi fingerprint → rebuild). Arsip `rating_seasons`+`season_player_snapshots`. Picker musim di UI.
 
-- **Tier induk terpusat** (`players.tier` STICKY + `registered_at`): set sekali saat registrasi pertama (nama baru wajib pilih tier), tanpa opsi ubah di session — hanya admin. Gate rating: match ≥ max(season_start, registered_at).
-- **Rekalibrasi honest**: rd_growth 3, initial_rd 220, max_delta 30 → settled delta 12.8/match (1/8 band), rd mapan 58. Backfill live: 381 events, 98 pemain aktif.
-- **Tiering 12 sub-band** (D-..A+, band 100, mid 1150/1450/1750/2050): class/class_derived/class_display di API + badge 12-band di UI; forming = mid kelas; floor `{kelas}-` (tidak pernah turun kelas, admin-only ubah).
-- **Season**: `season_start` global, `POST /ratings/season` = close & start (arsip standings beku → hapus events → invalidasi fingerprint → rebuild). Arsip: `rating_seasons` + `season_player_snapshots` (migration 000010). Picker musim di UI (live vs frozen).
-- **Admin Area**: card di HomePage (segmen amber) → login token → `/admin` (unlock, ingest/revert, rebuild, season, class/tier). `unlock` kini di-gate admin. Backend: PATCH tier/class, DELETE player, POST players tier.
-- **Belum deploy** (commit lokal). Visual pass menyusul.
+**UI Ratings** (RATINGS_FRONTEND_PLAN.md): `/ratings` leaderboard (class badge, provisional, trend, pagination, season picker live/frozen) + `/ratings/:playerId` (stat cards, sparkline SVG, recent matches, ubah class admin) + cross-link dua arah dengan Player History.
 
-## Fitur tournament (baru, sesi ini)**Dua format, discriminated oleh `tournaments.format` (`classic` | `team`):**
+**Admin** (ADMIN_MENU_PLAN.md): card "Admin Area" di grid HomePage → login password (token, persist localStorage) → `/admin` (unlock sesi, ingest/revert/finalize, rebuild, season close&start + arsip, add/delete player standalone, ubah tier induk & class rating). `unlock` di-gate admin.
 
-1. **Classic** (existing): 16 pasangan → 4 grup × 4 → 32 match (24 grup + QF/SF/3rd/Final). Tabel relasional existing. **Creation wizard baru**: Tournaments → `+ New` → Classic → Setup → 16 Pairs → Draw → create (POST snapshot valid).
-2. **Team** (baru): 6 tim × 6 pemain (kelas A+/A/B+/B/C+/C), tiap team-match 3 partai (C+ C, A+ A, B+ B), rally **30 grup / 42 final** (no deuce, pemenang tepat target), 9 match grup (tiap tim 3×, undian hari-H), **top-2 → final** (partai 3 tetap dimainkan). Poin: 3-0=3 · 2-1=2 · 1-2=1 · 0-3=0. Klasemen: poin → selisih W-L → selisih poin agregat.
-   - DB: migration `000006` (VPS `/srv/qouver/majadu/migrations/`) — kolom `format` + tabel `tournament_teams/_team_players/_team_matches/_team_match_games` (player_id di team_players).
-   - Backend: `ValidateTeamTournament` (Go), store branch by format (`TeamSave`/`TeamLoad`), handler probe `format`, format-mismatch guard, snapshot emit `format`.
-   - Frontend: `utils/teamTournament.ts` (draw/standings/outcome) + `TeamWizard` + `TeamTournamentPage` (tabs Standings/Schedule/Final, Group Draw, skor partai, Create Final).
+## Fitur tournament (sesi ini)
 
-## Redesign UI (sesi ini, selesai)
+Dua format, `tournaments.format` (`classic` | `team`):
+1. **Classic**: 16 pasangan → 4 grup → knockout (32 match). Wizard baru (Setup → 16 Pairs → Draw).
+2. **Team**: 6 tim × 6 pemain (kelas A+/A/B+/B/C+/C), 3 partai ganda per team-match (C+C, A+A, B+B), rally 30 grup/42 final (no deuce), undian hari-H, top-2 → final (rubber 3 tetap). Poin 3/2/1/0; klasemen poin → W-L diff → poin diff.
+- DB: migration 000006 (format column + 4 tabel team). Backend: ValidateTeamTournament + store branch by format. Frontend: TeamWizard + TeamTournamentPage.
 
-- Arah **"scorekeeper editorial"**: palet graphite hangat + **satu aksen gold**, IBM Plex (angka mono), zero emoji-ikon (SVG line), zero indigo/violet, radius `rounded-lg`, header solid + safe-area.
-- Fase 1–5 selesai (token, shell, data pages, scoreboard, polish) + audit loop. Backlog: `DESIGN_BACKLOG.md` (gitignored).
+## Absent / TBD (ABSENT_TBD_PLAYERS_DESIGN.md — selesai)
 
-## Auto-rebase (branch `staging`, commit `9928ff8`)
+- **Void game**: match yang memuat pemain absent/placeholder tidak dihitung siapa pun (standings + career stats + rating). Placeholder (free/tbd/default/dst) tidak diregistrasi; legacy "free*" difilter read-time.
+- **Auto-lock**: sesi draft yang tanggalnya lewat otomatis terkunci (ticker 30 mnt) — gate data final + auto-ingest rating.
+- Sub hasil change-player masuk leaderboard. Prompt konfirmasi void saat mark absent.
 
-- **2 admin update skor beda game tanpa refresh**: di `src/queries/sessions.ts` (staging, stack Supabase RPC) — factory `useSessionRebaseMutation`: saat 409 version mismatch → fetch terbaru → re-apply perubahan lokal → publish ulang (1×). Game SAMA = last-write-wins (disepakati).
-- **Belum di-port ke `dev`** (dev pakai factory `useOptimisticMutation` yang beda struktur) — backlog potensial.
+## Redesign UI (selesai)
 
-## Migrasi data Supabase → bm_dev (selesai)
-
-- Supabase (skema era-2, dump via SQL Editor jsonb_populate_record) → staging `bm_old` → transform → bm_dev. Hasil: 26 sessions, 138 players, 1 tournament classic, dsb. Terverifikasi parity + API.
-- Supabase bisa dipensiunkan (data sudah di VPS). PostgREST/GoTrue di VPS sudah dimatikan.
+"Scorekeeper editorial": palet graphite hangat + satu aksen gold, IBM Plex mono, SVG line (zero emoji), zero indigo/violet. Fase 1–5 + audit loop. Backlog: `DESIGN_BACKLOG.md` (gitignored).
 
 ## Infra & ops
 
-- **Migrations SQL TIDAK di repo** — di VPS `/srv/qouver/majadu/migrations/` (000001–000006). Apply dev: remap `bm.` → `bm_dev.`.
-- Tunnel integration test: `ssh -f -N -L 15432:127.0.0.1:5432 sachiel@43.133.148.191` (mudah mati — cek `nc -z localhost 15432`).
-- Log: `/srv/qouver/majadu/logs/app-YYYY-MM-DD.log` (rotasi harian, retensi 7 hari; `client_ip/bytes`, slow request, slow query tracer, `MAJADU_LOG_LEVEL`).
-- Backup Postgres: `majadu-backup.timer` (03:00, semua db) · auto-update backend: `majadu-auto-update.timer` (05:00).
-- VPS SSH: `sachiel@43.133.148.191` (key ed25519). Container dev: `majadu-api-dev` (UserNS keep-id).
-- **DB `bm` (prod) sudah dibuat + schema lengkap** (2026-08-18): migrations 000001→000006 diaplikasikan berurutan (000003–000005 harus pakai `PGOPTIONS='-c search_path=bm'` karena GRANT-nya tanpa prefix schema). Parity dengan bm_dev: 17 tabel + 3 fungsi identik, ACL schema sama (majadu_app punya USAGE), role qouver/majadu_app/anon/authenticated/service_role siap. Belum ada data (restore dari backup Supabase menyusul).
-- **Postgres cuma bind `127.0.0.1:5432`** — DBeaver/client luar WAJIB pakai SSH tunnel (konek langsung ke IP publik → timeout/drop). Tunnel: `ssh -L 15432:127.0.0.1:5432 sachiel@43.133.148.191`.
-- **Backend PROD sudah deploy (2026-08-18)**: container `majadu-api` via Quadlet `~/.config/containers/systemd/majadu-api.container` (mirror pola dev) — image `ghcr.io/nferdazel/majadu-api:main` (commit 21f4d95), `Network=qouver`, `UserNS=keep-id:uid=10001` (WAJIB — tanpa ini log init fail: permission denied), port `127.0.0.1:8080` → Caddy `/majadu/*`, env `MAJADU_ENV=prod` + `MAJADU_DB_SCHEMA=bm`, label `AutoUpdate=registry` (ikut auto-update 05:00 bersama dev). Smoke test PASS: healthz/readyz (direct+Caddy), players/sessions/tournaments write-path — data uji sudah dibersihkan (bm kosong).
-- **Catatan userns**: container `majadu-api` dibuat manual dengan `--userns=keep-id:uid=10001,gid=10001` juga valid; Quadlet cukup `UserNS=keep-id:uid=10001` (mirror dev). Log init error = tanda mapping userns salah.
+- Migrations di VPS `/srv/qouver/majadu/migrations/` **000001–000010** (tidak di repo). Apply dev: remap `bm.`→`bm_dev.`; 000003–000005 butuh `PGOPTIONS='-c search_path=bm'`.
+- **DB `bm` (prod)**: schema lengkap parity bm_dev (17+ tabel, 3 fungsi, rating tables, season tables) — kosong.
+- Postgres bind `127.0.0.1:5432` — DBeaver WAJIB SSH tunnel (`ssh -L 15432:127.0.0.1:5432 sachiel@43.133.148.191`).
+- Log `/srv/qouver/majadu/logs/` · backup 03:00 · auto-update 05:00 · prod container `majadu-api` (Quadlet, `UserNS=keep-id:uid=10001`).
+- **Admin token**: di `/srv/qouver/majadu/env/majadu-dev.env` + `majadu-prod.env` (MAJADU_ADMIN_TOKEN — bukan di repo). Login admin = password itu.
+- **PR #1 (lumberjack)**: open, dirty, oleh ppabimanyu — analisis diberikan (AdminToken hilang, validate() dibuang, env rename breaking); user copas komentar; belum ada aksi.
 
 ## Testing
 
-- Backend `make check`: unit + integration live (env `MAJADU_TEST_DATABASE_URL` dari `.env`).
-- Frontend `npm run check`: 49 regression (node:test) — retry, quality, snapshot, tournament, standings, teamTournament.
-- E2E team flow live: create → undian → skor → klasemen → final **PASS**.
+- Backend `make check` (unit + integration live via tunnel, `MAJADU_TEST_DATABASE_URL` dari .env).
+- Frontend `npm run check`: **60 regression** (standings, tournament, teamTournament, sparkline, tiering, placeholders, retry, dll.).
+- E2E team flow live PASS. Backfill + season + tiering integration tests PASS live.
 
 ## Pending / next
 
-1. **Visual pass browser** (user) — wizard classic/team, undian, skor partai, klasemen, final.
-2. **Migrasi prod** (fase 7 decision doc): backup `bm` Supabase → restore VPS → backend `main` → frontend `main` → pensiunkan Supabase.
-3. **Auth** (ditunda): JWT middleware Go.
-4. **Menu tournament list** selesai; opsi merge ke Sessions masih terbuka.
-5. **Sticky bottom Back/Next wizard** (4 halaman) — deferred.
-6. **Team player career stats** — `get_player_stats` belum aggregate team matches (hanya classic); player_id sudah disimpan.
-7. **Port auto-rebase ke dev** (factory `useOptimisticMutation`).
-8. **Fitur baru berikutnya** — menunggu definisi.
+1. **Visual pass browser** (user) — wizard tournament, ratings (leaderboard/class badge/season picker/detail), admin area (login → /admin → unlock/ingest/season/player).
+2. **Migrasi prod**: backup Supabase `bm` → restore VPS DB bm → backend `main` (push → CI → auto-update) → frontend `main`.
+3. Auth JWT (ditunda). Sticky wizard bottom bar (deferred). Team player career stats (belum aggregate team matches). Port auto-rebase ke dev (backlog).
+4. Revert/finalize tetap API-only (token) — tombol admin sudah ada untuk ingest/revert/finalize/season.
+5. **Rating engine docs**: RATING_ENGINE_DESIGN (Rev 3.3) · RATING_TIERING_REVAMP (Rev 3.7) · RATINGS_FRONTEND_PLAN · ADMIN_MENU_PLAN · ABSENT_TBD_PLAYERS_DESIGN — semuanya sudah diimplementasi.
 
 ## Kunci arsitektur (jangan dilanggar)
 
 - Backend authoritative (validasi/concurrency/identity) · frontend komputasi interaktif (generator/bracket/standings) — "thick client, server authoritative".
-- Snapshot-bridge: frontend kirim full snapshot (PUT), server validasi + simpan; zero jsonb di schema app.
-- Error contract: frontend baca substring pesan backend (`version mismatch`, `unresolved player`, dll.).
-- Aturan skor di dua tempat (TS `scoreValidation.ts` ↔ Go `ValidateScore`) — parity test jaga konsisten.
+- Snapshot-bridge: full snapshot (PUT), server validasi + simpan; zero jsonb di schema app.
+- Rating: **honest** (typical win 10–12 = 1/9 band; bukan mainan data) · forming = mid kelas sticky · floor `{kelas}-` · journey dari registered_at · season global.
+- Error contract: frontend baca substring pesan backend.
 
-## Dokumen terkait
+## Dokumen terkait (root badminton-match, semua sudah diimplementasi)
 
-- Keputusan arsitektur: `docs/handbook/backend-go-decision.md`
-- Backlog (gitignored, root): `TASK_LIST.md` · `DESIGN_BACKLOG.md` · `TOURNAMENT_BACKLOG.md`
-- Backend: `majadu-api/README.md`
+`RATING_ENGINE_DESIGN.md` · `RATING_TIERING_REVAMP.md` · `RATINGS_FRONTEND_PLAN.md` · `ADMIN_MENU_PLAN.md` · `ABSENT_TBD_PLAYERS_DESIGN.md` · `docs/handbook/backend-go-decision.md` · backlog gitignored: `TASK_LIST.md` · `DESIGN_BACKLOG.md` · `TOURNAMENT_BACKLOG.md`.
