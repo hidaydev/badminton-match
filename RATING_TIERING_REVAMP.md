@@ -325,7 +325,7 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 ### P0 — Fondasi skema & math
 - [x] 0. **Tier induk terpusat (STICKY) + registered_at + season_start** → **SELESAI**: migration 000009 (bm+bm_dev, backfill 128 tier/registered + 106 class), first-set di session Save (sticky), gate match ≥ max(season_start, registered_at) di ingest, config loader (SeasonStart/SessionTierInit/ClassBands) + unit (ClassForRating/FloorOf/DisplayClass/ValidClass) + integration (`TestIntegrationTierFirstSetSticky`, `TestIntegrationRatingSeasonGate`) PASS live. **Temuan audit T1:** (a) backfill harus DISTINCT ON (tier dari sesi PERTAMA, bukan last/arbitrary); (b) `Processed` harus counter aktual (bukan len(fresh)) — gate skip tidak boleh dihitung; (c) source yang 0 ter-proses JANGAN dicatat fingerprint (re-ingest setelah season digeser tetap bisa); (d) boundary band top INKLUSIF (`r > hi`); (e) test harus di-scope ke pemain test (DB berbagi data backfill)
 - [ ] 0b. **Season archive**: migration 000010 (`rating_seasons` + `season_player_snapshots`), backfill "Season 2026-1" terbuka, endpoint close&reset (arsip→hapus events→reset), read path seasons/standings + integration test
-- [ ] 1. Migration `000009_rating_class.sql` (class + class_source + config seed)
+- [x] 1. Migration `000009_rating_class.sql` (class + class_source + config seed) → **T1+T2 selesai**
 - [ ] 2. `domain`: `ClassForRating` 12-band (config-driven) + `floorOf(class)` + `initForSessionTier(tier)` + unit test (semua 12 band, floor, init mapping)
 - [ ] 3. `rating_config`: `ClassBands` + `SessionTierInit` (typed + validasi)
 - [ ] 4. Integration test: player baru tier C → class C + rating 1225; floor display
@@ -333,10 +333,10 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 **Verifikasi P0:** unit + integration live PASS.
 
 ### P1 — Wire ke ingest & read path
-- [ ] 5. Ingest: inisialisasi player baru pakai `initForSessionTier` (dari `session_players.tier` match pertama)
-- [ ] 6. Rebuild: pertahankan class saat reset-to-default
-- [ ] 7. Leaderboard/detail: `class` + `class_derived` + `class_display` di response
-- [ ] 8. Frontend: badge tampil `class_display` (RatingTierBadge update)
+- [x] 5. Ingest: inisialisasi player baru pakai `FormingForTier` (dari `players.tier` terpusat) → **forming mid kelas (C=1450 dst) + class di-flush**
+- [x] 6. Rebuild: pertahankan class + **forming ulang = mid kelas assigned** (reset-to-default juga mid kelas) — konsisten ingest↔rebuild (temuan: `MidRatingForClass` harus round — 1449.5 vs 1450)
+- [x] 7. Leaderboard/detail: `class` + `class_derived` + `class_display` di response (BREAKING: tier 1-10 diganti) → **`rating_read.go` + config `ClassForRating`/`DisplayClass`**
+- [x] 8. Frontend: badge tampil `class_display` (RatingTierBadge 12-band) → **`config/ratingTiers.ts` + `RatingTierBadge` + RatingsPage/RatingPlayerPage — 60 PASS**
 
 **Verifikasi P1:** ingest player baru → class/rating benar; rebuild → class tetap; UI render class.
 
