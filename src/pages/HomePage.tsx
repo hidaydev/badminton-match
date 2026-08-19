@@ -194,12 +194,13 @@ export default function HomePage() {
             className="w-full max-w-sm bg-surface border border-border rounded-xl p-4 flex flex-col gap-3"
           >
             <p className="text-sm font-bold text-fg">Admin login</p>
+            <p className="text-[11px] text-fg-dim">Enter the admin password to access operations.</p>
             <input
               autoFocus
               type="password"
               value={adminTokenInput}
               onChange={(e) => setAdminTokenInput(e.target.value)}
-              placeholder="MAJADU_ADMIN_TOKEN"
+              placeholder="Admin password"
               className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none"
             />
             <div className="flex gap-2">

@@ -1,4 +1,4 @@
-// src/context/AdminContext.tsx — state admin (token di sessionStorage).
+// src/context/AdminContext.tsx — state admin (token di localStorage — persist sampai logout).
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 import { setAdminToken } from '../queries/endpoints'
 
@@ -17,19 +17,19 @@ const AdminContext = createContext<AdminContextValue>({
 })
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string>(() => sessionStorage.getItem(STORAGE_KEY) ?? '')
+  const [token, setToken] = useState<string>(() => localStorage.getItem(STORAGE_KEY) ?? '')
 
   const login = useCallback((t: string) => {
     const trimmed = t.trim()
     if (!trimmed) return false
-    sessionStorage.setItem(STORAGE_KEY, trimmed)
+    localStorage.setItem(STORAGE_KEY, trimmed)
     setAdminToken(trimmed)
     setToken(trimmed)
     return true
   }, [])
 
   const logout = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(STORAGE_KEY)
     setAdminToken('')
     setToken('')
   }, [])
