@@ -162,6 +162,10 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /ratings/revert-session", http.HandlerFunc(ratings.RequireAdmin(ratings.RevertSession)))
 	mux.Handle("POST /ratings/revert-tournament", http.HandlerFunc(ratings.RequireAdmin(ratings.RevertTournament)))
 	mux.Handle("POST /ratings/sources/{sourceId}/finalize", http.HandlerFunc(ratings.RequireAdmin(ratings.FinalizeSource)))
+	// Read path (publik)
+	mux.Handle("GET /ratings/leaderboard", http.HandlerFunc(ratings.Leaderboard))
+	mux.Handle("GET /ratings/players/{playerId}", http.HandlerFunc(ratings.Player))
+	mux.Handle("GET /ratings/sources", http.HandlerFunc(ratings.Sources))
 
 	// Middleware chain: recover (luar) → request-id → logging → CORS → rate limit → mux.
 	var h http.Handler = mux

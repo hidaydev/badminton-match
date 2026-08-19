@@ -174,6 +174,9 @@ func TestIntegrationRatingIngestSession(t *testing.T) {
 	}
 	after := ratingPlayers(t, st, ctx)
 	for pid, r := range before {
+		t.Logf("DBG player=%s before=%.2f/%.2f", pid, r.Rating, r.RD)
+	}
+	for pid, r := range before {
 		a, ok := after[pid]
 		if !ok {
 			t.Fatalf("player %s hilang setelah rebuild", pid)
@@ -266,4 +269,190 @@ func TestIntegrationRatingIngestGateLocked(t *testing.T) {
 	if !errors.Is(err, ErrSourceNotFinal) {
 		t.Fatalf("draft harus ditolak (ErrSourceNotFinal), got %v", err)
 	}
+}
+
+// TestIntegrationRatingReadPathAndTransitivity — read path (leaderboard,
+// player, history, sources) + transitivity revert (§4.4a): pemain yang hanya
+// main di source LAIN ikut ter-recompute saat source lain di-revert.
+func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	players := []domain.Player{
+		{ID: "itt1", Name: "ITT One", Gender: "M", Tier: 1},
+		{ID: "itt2", Name: "ITT Two", Gender: "M", Tier: 2},
+		{ID: "itt3", Name: "ITT Three", Gender: "M", Tier: 3},
+		{ID: "itt4", Name: "ITT Four", Gender: "M", Tier: 4},
+		{ID: "itt5", Name: "ITT Five", Gender: "M", Tier: 2},
+		{ID: "itt6", Name: "ITT Six", Gender: "M", Tier: 3},
+	}
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rating-tr%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE 'it-rating-tr%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players`)
+	})
+
+	// Session A: P1-P4 (tidak berbagi dengan B); Session B: P3-P6 (berbagi P3/P4)
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	twoDaysAgo := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
+	idA := fmt.Sprintf("it-rating-tr-A-%d", time.Now().UnixNano())
+	idB := fmt.Sprintf("it-rating-tr-B-%d", time.Now().UnixNano())
+
+	mkSession := func(id, date string, pl []domain.Player, label string) {
+		_, err := st.Save(ctx, id, &domain.CloudSnapshot{
+			Session: domain.SessionConfig{
+				Title: "TR " + label, Date: date, Courts: 1,
+				SessionStart: "09:00", SlotMinutes: 20,
+				CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
+				PlayerCount: len(pl), CourtNames: []string{"C1"},
+			},
+			Players: pl, FixMatches: []domain.FixMatch{},
+			Schedule: []domain.ScheduleSlot{
+				{Slot: 0, Court: 0, TeamA: [2]string{pl[0].ID, pl[1].ID}, TeamB: [2]string{pl[2].ID, pl[3].ID}},
+				{Slot: 1, Court: 0, TeamA: [2]string{pl[0].ID, pl[2].ID}, TeamB: [2]string{pl[1].ID, pl[3].ID}},
+			},
+			PlayedGames: []string{"0-0", "1-0"},
+			GameScores: map[string]domain.GameScore{
+				"0-0": {A: 21, B: 15},
+				"1-0": {A: 18, B: 21},
+			},
+		})
+		if err != nil {
+			t.Fatalf("save %s: %v", label, err)
+		}
+		// lock
+		created, _ := st.Load(ctx, id)
+		created.Session.Locked = true
+		if _, err := st.Save(ctx, id, created); err != nil {
+			t.Fatalf("lock %s: %v", label, err)
+		}
+	}
+	mkSession(idA, twoDaysAgo, players[:4], "A")
+	mkSession(idB, yesterday, players[2:], "B")
+
+	// Ingest B dulu (tanggal lebih baru), lalu A (lebih lama) — urutan
+	// kronologis: A (2 hari lalu) < B (kemarin).
+	// NOTE: ingest harus urut kronologis (seq invariant). Ingest A dulu, baru B.
+	if _, err := st.IngestSession(ctx, idA); err != nil {
+		t.Fatalf("ingest A: %v", err)
+	}
+	if _, err := st.IngestSession(ctx, idB); err != nil {
+		t.Fatalf("ingest B: %v", err)
+	}
+
+	// Read path: leaderboard
+	total, rows, err := st.RatingLeaderboard(ctx, false, 100, 0)
+	if err != nil {
+		t.Fatalf("leaderboard: %v", err)
+	}
+	if total != 6 {
+		t.Fatalf("leaderboard total = %d, want 6", total)
+	}
+	rowByName := map[string]LeaderboardRow{}
+	for _, r := range rows {
+		rowByName[r.Name] = r
+	}
+	itt3, ok := rowByName["ITT Three"]
+	if !ok || itt3.Games != 4 {
+		t.Fatalf("ITT Three leaderboard salah: %+v (ok=%v)", itt3, ok)
+	}
+
+	// Read path: player detail + history
+	pid3 := resolveIDByAlias(t, st, "itt three")
+	d, err := st.RatingPlayer(ctx, pid3)
+	if err != nil {
+		t.Fatalf("player detail: %v", err)
+	}
+	if d == nil || d.Games != 4 || d.Tier == 0 {
+		t.Fatalf("player detail salah: %+v", d)
+	}
+	hist, err := st.RatingPlayerHistory(ctx, pid3, 10)
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	if len(hist) != 4 {
+		t.Fatalf("history = %d, want 4", len(hist))
+	}
+
+	// Read path: sources
+	srcs, err := st.ListRatingSources(ctx)
+	if err != nil {
+		t.Fatalf("sources: %v", err)
+	}
+	if len(srcs) < 2 {
+		t.Fatalf("sources = %d, want ≥2", len(srcs))
+	}
+
+	// Revert A → full rebuild. P1/P2 (hanya di A) → reset default (0 game).
+	if _, err := st.RevertSource(ctx, idA, "session"); err != nil {
+		t.Fatalf("revert A: %v", err)
+	}
+
+	// verifikasi P1/P2 reset ke default
+	for _, nm := range []string{"ITT One", "ITT Two"} {
+		pid := resolveIDByAlias(t, st, lowerAlias(nm))
+		dt, err := st.RatingPlayer(ctx, pid)
+		if err != nil || dt == nil {
+			t.Fatalf("detail %s: %v", nm, err)
+		}
+		if dt.Games != 0 || dt.Rating != 1250 {
+			t.Fatalf("%s setelah revert A: games=%d rating=%.2f, want 0/1250", nm, dt.Games, dt.Rating)
+		}
+	}
+
+	// TRANSTIVITY: state hasil revert A (hanya B tersisa) HARUS identik dengan
+	// fresh ingest B-only. (Asersi "P5 berubah" tidak cukup — delta cap bisa
+	// menghasilkan nilai kebetulan sama.)
+	stateAfterRevert := ratingPlayers(t, st, ctx)
+
+	// Hapus semua state rating, ingest ulang hanya B
+	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events`)
+	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources`)
+	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas`)
+	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players`)
+	if _, err := st.IngestSession(ctx, idB); err != nil {
+		t.Fatalf("fresh ingest B: %v", err)
+	}
+	stateFreshB := ratingPlayers(t, st, ctx)
+
+	// (Jumlah row bisa beda: reset-to-default menyimpan row P1/P2 dengan 0
+	// games — bandingkan hanya pemain aktif dari fresh B.)
+	if len(stateFreshB) != 4 {
+		t.Fatalf("fresh B players = %d, want 4", len(stateFreshB))
+	}
+	for pid, r := range stateFreshB {
+		a, ok := stateAfterRevert[pid]
+		if !ok {
+			t.Fatalf("player %s tidak ada di state revert", pid)
+		}
+		if a.Rating != r.Rating || a.RD != r.RD {
+			t.Fatalf("transitivity gagal: player %s revert=%.2f/%.2f vs freshB=%.2f/%.2f",
+				pid, a.Rating, a.RD, r.Rating, r.RD)
+		}
+	}
+}
+
+func resolveIDByAlias(t *testing.T, st *SessionStore, alias string) string {
+	t.Helper()
+	var pid string
+	if err := st.pool.QueryRow(context.Background(),
+		`SELECT player_id::text FROM `+st.schema+`.player_aliases WHERE alias_name = $1`, alias).Scan(&pid); err != nil {
+		t.Fatalf("resolve alias %q: %v", alias, err)
+	}
+	return pid
+}
+
+func lowerAlias(s string) string {
+	out := make([]byte, 0, len(s))
+	for _, c := range s {
+		if c >= 'A' && c <= 'Z' {
+			c += 32
+		}
+		out = append(out, byte(c))
+	}
+	return string(out)
 }

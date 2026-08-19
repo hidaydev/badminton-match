@@ -109,6 +109,36 @@ func round4(v float64) float64 { return math.Round(v*10000) / 10000 }
 func Round2(v float64) float64 { return round2(v) }
 func Round4(v float64) float64 { return round4(v) }
 
+// TierForRating — tier D..S+ dari band rating (design §7). 1=D .. 10=S+.
+// Badge provisional = rd > 200 (keputusan display, bukan fungsi ini).
+func TierForRating(r float64) int {
+	switch {
+	case r >= 1800:
+		return 10
+	case r >= 1700:
+		return 9
+	case r >= 1600:
+		return 8
+	case r >= 1500:
+		return 7
+	case r >= 1400:
+		return 6
+	case r >= 1300:
+		return 5
+	case r >= 1200:
+		return 4
+	case r >= 1100:
+		return 3
+	case r >= 1050:
+		return 2
+	default:
+		return 1
+	}
+}
+
+// Provisional — RD > 200 → rating belum stabil (badge di UI).
+func Provisional(rd float64) bool { return rd > 200 }
+
 // GlickoUpdate — update satu pemain melawan daftar lawan (1–2 untuk ganda;
 // 1 untuk singles/positional). MoVM·w mengalikan SELURUH update (simetris,
 // §3.2). Delta di-cap max_delta_per_game; rating di-clamp [rating_min,max];

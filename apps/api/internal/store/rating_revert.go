@@ -122,11 +122,22 @@ func (s *SessionStore) resolveSourceID(ctx context.Context, tx pgx.Tx, lookup, k
 // (date, created_at, source_id, game_order). Memakai stored phase_weight &
 // target & scores dari rating_events; pemain dari rating_deltas (team).
 func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.RatingConfig) (int, error) {
-	// Reset semua state
-	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_players`); err != nil {
+	// Tangkap pemain yang pernah ter-rating (untuk reset-to-default)
+	priorRows, err := tx.Query(ctx, `SELECT player_id::text FROM `+s.schema+`.rating_players`)
+	if err != nil {
 		return 0, err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_deltas`); err != nil {
+	prior := map[string]bool{}
+	for priorRows.Next() {
+		var id string
+		if err := priorRows.Scan(&id); err != nil {
+			priorRows.Close()
+			return 0, err
+		}
+		prior[id] = true
+	}
+	priorRows.Close()
+	if err := priorRows.Err(); err != nil {
 		return 0, err
 	}
 
@@ -143,8 +154,9 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		players     []evPlayer
 	}
 
-	// Baca events urut global + pemainnya (via rating_deltas yang TERSISA —
-	// sumber pemain per event; kolom komputasi lama dibuang & di-recompute).
+	// Baca events urut global + pemainnya (via rating_deltas — SATU-SATUNYA
+	// sumber pemetaan event→pemain). DIBACA DULU sebelum reset, karena
+	// rating_deltas akan dihapus.
 	rows, err := tx.Query(ctx, `
 		SELECT re.id::text, re.date::text, re.score_a, re.score_b, re.target,
 		       re.phase_weight,
@@ -157,7 +169,6 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
 
 	events := []ev{}
 	for rows.Next() {
@@ -165,6 +176,7 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		var playersJSON []byte
 		if err := rows.Scan(&e.id, &e.date, &e.scoreA, &e.scoreB, &e.target,
 			&e.phaseWeight, &playersJSON); err != nil {
+			rows.Close()
 			return 0, err
 		}
 		type pj struct {
@@ -173,6 +185,7 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		}
 		var ps []pj
 		if err := jsonUnmarshal(playersJSON, &ps); err != nil {
+			rows.Close()
 			return 0, err
 		}
 		for _, p := range ps {
@@ -180,7 +193,16 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		}
 		events = append(events, e)
 	}
+	rows.Close()
 	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	// Reset semua state (setelah pemetaan event→pemain tersimpan di memori)
+	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_players`); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_deltas`); err != nil {
 		return 0, err
 	}
 
@@ -315,6 +337,24 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 				games_played = EXCLUDED.games_played, wins = EXCLUDED.wins, losses = EXCLUDED.losses,
 				last_played_at = EXCLUDED.last_played_at, updated_at = now()`,
 			id, rt.state.Rating, rt.state.RD, rt.peak, rt.games, rt.wins, rt.losses, lastPlayed); err != nil {
+			return 0, err
+		}
+	}
+
+	// Reset-to-default: pemain yang sebelumnya ter-rating tapi kini 0 event
+	// (semua game-nya di source yang di-revert) → row default (r0/rd0, 0 game).
+	for id := range prior {
+		if _, ok := runtime[id]; ok {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO `+s.schema+`.rating_players
+				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, updated_at)
+			VALUES ($1::uuid, $2, $3, $4, 0, 0, 0, NULL, now())
+			ON CONFLICT (player_id) DO UPDATE SET
+				rating = EXCLUDED.rating, rd = EXCLUDED.rd, peak_rating = EXCLUDED.peak_rating,
+				games_played = 0, wins = 0, losses = 0, last_played_at = NULL, updated_at = now()`,
+			id, cfg.Params.InitialRating, cfg.Params.InitialRD, cfg.Params.InitialRating); err != nil {
 			return 0, err
 		}
 	}
