@@ -82,7 +82,7 @@ export default function RatingsPage() {
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
               >
                 <span className={`w-6 text-sm font-mono shrink-0 ${medal}`}>{rank}</span>
-                <RatingTierBadge tier={r.tier} />
+                <RatingTierBadge class={r.class_display} />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-medium text-fg truncate">{r.name}</span>
                   <span className="block text-[10px] font-mono text-fg-dim">

@@ -12,7 +12,7 @@ export default function RatingPlayerPage() {
   if (isError) return <p className="text-error text-sm">Failed to load rating.</p>
   if (!data) return null
 
-  const { name, rating, rd, tier, peak, games, wins, losses, history } = data
+  const { name, rating, rd, class: cls, class_display, peak, games, wins, losses, history } = data
   const provisional = rd > 200
   // API DESC → balik untuk sparkline (kronologis); sparkline pakai new_rating
   const chrono = [...history].reverse().map((h) => ({ rating: h.new_rating }))
@@ -24,7 +24,7 @@ export default function RatingPlayerPage() {
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-fg">{name}</h2>
-            <RatingTierBadge tier={tier} size="md" />
+            <RatingTierBadge class={class_display} size="md" />
             {provisional && (
               <span className="text-[9px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1.5 py-0.5 uppercase tracking-wider">
                 provisional
@@ -50,7 +50,7 @@ export default function RatingPlayerPage() {
           { label: 'Peak', value: peak.toFixed(0) },
           { label: 'Games', value: String(games) },
           { label: 'W-L', value: `${wins}-${losses}` },
-          { label: 'Tier', value: String(tier) },
+          { label: 'Class', value: cls || '—' },
         ].map((s) => (
           <div key={s.label} className="bg-surface border border-border-subtle rounded-lg p-2.5 text-center">
             <div className="text-base font-bold font-mono text-fg">{s.value}</div>
