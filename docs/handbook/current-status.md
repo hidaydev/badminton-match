@@ -24,6 +24,15 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http
 - **Auto-ingest**: ticker backend (bersama auto-lock 30 mnt) mengingest sesi yang baru terkunci otomatis → rating mengalir tanpa aksi manual. Revert/finalize = API-only (MAJADU_ADMIN_TOKEN).
 - Visual pass browser: **belum** (handoff user). Doc: `RATING_ENGINE_DESIGN.md` (Rev 3.1) + `RATINGS_FRONTEND_PLAN.md`.
 
+## Fitur Rating UI + Tiering + Season + Admin (2026-08-18, backend+frontend selesai)
+
+- **Tier induk terpusat** (`players.tier` STICKY + `registered_at`): set sekali saat registrasi pertama (nama baru wajib pilih tier), tanpa opsi ubah di session — hanya admin. Gate rating: match ≥ max(season_start, registered_at).
+- **Rekalibrasi honest**: rd_growth 3, initial_rd 220, max_delta 30 → settled delta 12.8/match (1/8 band), rd mapan 58. Backfill live: 381 events, 98 pemain aktif.
+- **Tiering 12 sub-band** (D-..A+, band 100, mid 1150/1450/1750/2050): class/class_derived/class_display di API + badge 12-band di UI; forming = mid kelas; floor `{kelas}-` (tidak pernah turun kelas, admin-only ubah).
+- **Season**: `season_start` global, `POST /ratings/season` = close & start (arsip standings beku → hapus events → invalidasi fingerprint → rebuild). Arsip: `rating_seasons` + `season_player_snapshots` (migration 000010). Picker musim di UI (live vs frozen).
+- **Admin Area**: card di HomePage (segmen amber) → login token → `/admin` (unlock, ingest/revert, rebuild, season, class/tier). `unlock` kini di-gate admin. Backend: PATCH tier/class, DELETE player, POST players tier.
+- **Belum deploy** (commit lokal). Visual pass menyusul.
+
 ## Fitur tournament (baru, sesi ini)**Dua format, discriminated oleh `tournaments.format` (`classic` | `team`):**
 
 1. **Classic** (existing): 16 pasangan → 4 grup × 4 → 32 match (24 grup + QF/SF/3rd/Final). Tabel relasional existing. **Creation wizard baru**: Tournaments → `+ New` → Classic → Setup → 16 Pairs → Draw → create (POST snapshot valid).
