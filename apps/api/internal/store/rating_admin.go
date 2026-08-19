@@ -134,6 +134,8 @@ func (s *SessionStore) AdminDeleteSession(ctx context.Context, lookup string) (s
 
 // DeletePlayer — hapus pemain (admin). Hapus data rating dulu (FK), lalu
 // panggil fungsi SQL delete_player (cek session refs; force utk paksa).
+// Setelah commit: RebuildAll — rating transitif, pemain lain yang W/L-nya
+// melibatkan pemain ini harus dihitung ulang (temuan audit 2026-08-19).
 func (s *SessionStore) DeletePlayer(ctx context.Context, playerID string, force bool) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -153,7 +155,12 @@ func (s *SessionStore) DeletePlayer(ctx context.Context, playerID string, force 
 	if _, err := tx.Exec(ctx, `SELECT `+s.schema+`.delete_player($1::uuid, $2)`, playerID, force); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	// Transitivitas: pemain lain yang rating-nya terpengaruh harus dihitung ulang.
+	_, err = s.RebuildAll(ctx)
+	return err
 }
 
 // AdminDeleteTournament — hapus tournament oleh ADMIN (classic | team):

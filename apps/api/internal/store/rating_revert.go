@@ -101,7 +101,9 @@ func (s *SessionStore) RevertSource(ctx context.Context, lookup, kind string) (*
 }
 
 // SetSourceFinalized — upsert rating_sources.finalized (gate ingest tournament).
-// Row baru dengan fingerprint ” (belum diingest) — ingest pertama menimpa.
+// Row baru dengan fingerprint '' (belum diingest) — ingest pertama menimpa.
+// Fix audit 2026-08-19: source_kind diambil dari format tournament asli
+// (classic | team) — sebelumnya hardcode 'tournament_classic'.
 func (s *SessionStore) SetSourceFinalized(ctx context.Context, sourceID string, finalized bool) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -109,12 +111,26 @@ func (s *SessionStore) SetSourceFinalized(ctx context.Context, sourceID string, 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	// Kind dari format tournament sebenarnya (default classic).
+	kind := "tournament_classic"
+	var format string
+	err = tx.QueryRow(ctx, `
+		SELECT format FROM `+s.schema+`.tournaments
+		WHERE share_code = $1 OR id::text = $1
+		ORDER BY (share_code = $1) DESC LIMIT 1`, sourceID).Scan(&format)
+	if err == nil && format == "team" {
+		kind = "tournament_team"
+	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO `+s.schema+`.rating_sources
 			(source_id, source_kind, fingerprint, finalized, last_ingested_seq, ingested_at)
-		VALUES ($1, 'tournament_classic', '', $2, 0, now())
-		ON CONFLICT (source_id) DO UPDATE SET finalized = EXCLUDED.finalized`,
-		sourceID, finalized); err != nil {
+		VALUES ($1, $2, '', $3, 0, now())
+		ON CONFLICT (source_id) DO UPDATE SET
+			finalized = EXCLUDED.finalized, source_kind = EXCLUDED.source_kind`,
+		sourceID, kind, finalized); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

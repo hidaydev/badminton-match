@@ -461,6 +461,7 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 			VALUES ($1, $2, $3, $4, $5, now())
 			ON CONFLICT (source_id) DO UPDATE SET
 				fingerprint = EXCLUDED.fingerprint,
+				source_kind = EXCLUDED.source_kind,
 				last_ingested_seq = EXCLUDED.last_ingested_seq,
 				ingested_at = now()`,
 			meta.SourceID, meta.Kind, meta.Fingerprint, meta.Final, lastInsertedSeq); err != nil {
