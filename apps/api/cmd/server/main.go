@@ -160,6 +160,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 		AdminStore: store.NewSessionStore(pool, cfg.DatabaseSchema),
 	}
 	mux.Handle("PATCH /players/{playerId}/tier", handler.AdminGuard(cfg.AdminToken, players.SetTier))
+	mux.Handle("PATCH /players/{playerId}/name", handler.AdminGuard(cfg.AdminToken, players.Rename))
 	mux.Handle("DELETE /players/{playerId}", handler.AdminGuard(cfg.AdminToken, players.Delete))
 	mux.Handle("GET /players", http.HandlerFunc(players.List))
 	mux.Handle("POST /players", http.HandlerFunc(players.Register))

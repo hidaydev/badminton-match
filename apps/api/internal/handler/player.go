@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"majadu-api/internal/httperr"
 	"majadu-api/internal/store"
@@ -47,6 +48,33 @@ func (h *PlayerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	force := r.URL.Query().Get("force") == "true"
 	if err := h.AdminStore.DeletePlayer(r.Context(), playerID, force); err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Conflict(err.Error()))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// Rename — PATCH /players/{playerId}/name (admin): rename canonical player.
+// Alias nama lama disimpan (referensi historis tetap resolve); nama baru
+// yang sudah dipakai player lain ditolak (anti-collision).
+func (h *PlayerHandler) Rename(w http.ResponseWriter, r *http.Request) {
+	playerID := r.PathValue("playerId")
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("name is required"))
+		return
+	}
+	if err := h.Store.RenamePlayer(r.Context(), playerID, body.Name); err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			httperr.WriteError(w, h.Logger, httperr.NotFound("player not found"))
+		case errors.Is(err, store.ErrValidation):
+			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
+		default:
+			h.Logger.Warn("rename player failed", "player", playerID, "error", err)
+			httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to rename player", err))
+		}
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})

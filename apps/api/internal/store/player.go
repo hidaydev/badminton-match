@@ -2,9 +2,13 @@ package store
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strings"
 
 	"majadu-api/internal/domain"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -92,4 +96,60 @@ func (s *PlayerStore) Register(ctx context.Context, name, canonicalName string) 
 // Pemain tidak dikenal → statistik kosong dengan `name` = nama yang dicari.
 func (s *PlayerStore) Stats(ctx context.Context, name string) ([]byte, error) {
 	return computePlayerStats(ctx, s.pool, name)
+}
+
+// RenamePlayer — rename canonical player (admin, BACKLOG_ANALYSIS A5).
+// Anti-collision: nama baru yang sudah resolve ke player LAIN ditolak.
+// Alias nama lama disimpan → referensi historis (snapshot sesi, stats)
+// tetap resolve. Rating leaderboard (player_id) tidak terpengaruh.
+func (s *PlayerStore) RenamePlayer(ctx context.Context, playerID, newName string) error {
+	newNorm := domain.NormalizePlayerName(newName)
+	if newNorm == "" {
+		return fmt.Errorf("%w: player name must not be blank", ErrValidation)
+	}
+	if domain.IsPlaceholderName(newName) {
+		return fmt.Errorf("%w: cannot rename to a placeholder name", ErrValidation)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var oldCanonical string
+	if err := tx.QueryRow(ctx,
+		`SELECT canonical_name FROM players WHERE id = $1::uuid`, playerID).Scan(&oldCanonical); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: player not found", ErrNotFound)
+		}
+		return err
+	}
+	// Anti-collision: nama baru resolve ke pemain LAIN?
+	var owner string
+	err = tx.QueryRow(ctx, `
+		SELECT p.id::text FROM player_aliases pa
+		JOIN players p ON p.id = pa.player_id
+		WHERE pa.alias_name = $1 LIMIT 1`, newNorm).Scan(&owner)
+	if err == nil && owner != playerID {
+		return fmt.Errorf("%w: name is already taken by another player", ErrValidation)
+	}
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE players SET canonical_name = $2, updated_at = now() WHERE id = $1::uuid`,
+		playerID, strings.TrimSpace(newName)); err != nil {
+		return err
+	}
+	// Alias nama lama → referensi historis tetap resolve.
+	oldNorm := domain.NormalizePlayerName(oldCanonical)
+	if oldNorm != "" && oldNorm != newNorm {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO player_aliases (player_id, alias_name) VALUES ($1, $2)
+			ON CONFLICT DO NOTHING`, playerID, oldNorm); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
