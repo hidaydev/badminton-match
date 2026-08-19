@@ -170,10 +170,11 @@ Keputusan: **panggil `delete_player` dalam transaksi Go**, setelah menghapus bar
 ## 7. Task List
 
 ### P0 — Backend endpoints & gate
-- [ ] 1. `PATCH /ratings/players/{id}/class` (validasi 12-tier, source='admin')
-- [ ] 2. `DELETE /players/{playerId}` (Go + delete_player SQL, transaksi: bersihkan rating → panggil fn; analisis FK tournament_pair_players)
-- [ ] 3. Gate `Unlock` dengan RequireAdmin (verifikasi tidak ada caller tanpa token)
-- [ ] 4. Unit + integration test: class update, delete player, unlock 401 tanpa token
+- [x] 1. `PATCH /ratings/players/{id}/class` (validasi 12-tier, source='admin') → **`SetPlayerClass` (floor, tanpa rebuild)**
+- [x] 2. `DELETE /players/{playerId}` (Go + delete_player SQL, transaksi: bersihkan rating → panggil fn) → **`DeletePlayer` (rating events/players dulu, lalu delete_player; ?force=)**
+- [x] 3. Gate `Unlock` dengan RequireAdmin → **`AdminGuard` (shared middleware) — unlock 401 tanpa token**
+- [x] 4. Unit test admin guard (401 tanpa/salah token, 200 benar) → **`TestAdminGuardAuth` PASS**
+- [x] 4b. `PATCH /players/{id}/tier` (ubah tier induk → class ikut + recalculate RebuildAll) + `POST /players` param opsional `tier` → **`SetPlayerTier` + `SetPlayerTierOnRegister`**
 
 **Verifikasi P0:** `make check` + integration live PASS.
 
