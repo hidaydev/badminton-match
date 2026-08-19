@@ -1,7 +1,7 @@
 # RATING_TIERING_REVAMP.md
 
 **Status:** PLAN — belum diimplementasikan
-**Rev:** 3 (band 100 tetap + mid bersih + floor {kelas}- + cap 60 + 3 konsekuensi)
+**Rev:** 3.2 (band 100 + mid bersih + floor {kelas}- + cap 25-30 + prasyarat TIER INDUK terpusat)
 **Tanggal:** 2026-08-18
 **Lokasi:** root badminton-match
 **Terkait:** `RATING_ENGINE_DESIGN.md` (engine rating) · `RATINGS_FRONTEND_PLAN.md` (UI ratings) · `ADMIN_MENU_PLAN.md` (menu admin)
@@ -29,6 +29,57 @@
 | Tier di ratings | `domain.TierForRating` — 10-band (D..S+) murni derived dari rating |
 | Initial rating | Flat `1250` untuk semua pemain baru (config `initial_rating`) |
 | Reset-to-default (rebuild) | Row rating_players direset ke r0/rd0 saat 0 game |
+
+---
+
+## 2.5 PRASYARAT — Normalisasi Tier Induk Terpusat (Rev 3.2)
+
+**"Forming" rating membutuhkan tier awal yang DIKETAHUI.** Saat ini tier hanya ada
+per-session (`session_players.tier`) — tersebar, tanpa satu sumber kebenaran. Prasyarat:
+**normalisasi tier induk (A/B/C/D) ke `bm.players`** yang dikonsumsi oleh ratings engine.
+
+```
+SESSION (4 tier, per-session)
+   └─► bm.players.tier   ← TIER INDUK TERPUSAT (satu sumber kebenaran)
+          └─► RATINGS: kelas awal + rating awal (dikonsumsi saat forming)
+```
+
+### 2.5.1 Migration `000009` (gabung dengan class) — tambah kolom
+
+```sql
+ALTER TABLE bm.players ADD COLUMN tier text;                 -- 'A'|'B'|'C'|'D'|NULL
+ALTER TABLE bm.players ADD COLUMN tier_updated_at date;      -- tanggal sesi penentu
+-- (rating_players.class + class_source tetap seperti §4.1)
+```
+
+### 2.5.2 Sinkronisasi dari session (write path)
+
+- Pada **session Save**: untuk tiap pemain dalam snapshot, upsert `players.tier` dari tier
+  session — **dengan guard `session_date >= tier_updated_at`** (sesi lebih baru berhak
+  menimpa; edit sesi LAMA tidak boleh memundurkan tier induk).
+- Idempotent & murah (satu statement upsert per sesi).
+
+### 2.5.3 Backfill (satu kali)
+
+- `players.tier` diisi dari **sesi TERAKHIR** per pemain (MAX(session_date), lalu
+  MAX(updated_at) tie-break) — materialisasi nilai "tier saat ini" yang selama ini hanya
+  diturunkan di query list.
+
+### 2.5.4 Dikonsumsi oleh
+
+- **Ratings forming** (inisialisasi kelas + rating awal) — pengganti desain lama
+  "baca session_players.tier saat ingest pertama".
+- **UI session** (default tier saat add player — referensi konsisten).
+- **Admin** ("ubah tier (session)" = edit `players.tier` — lihat ADMIN_MENU_PLAN.md).
+- M-DEF/sinkronisasi lain di masa depan.
+
+### 2.5.5 Keputusan yang perlu dikonfirmasi
+
+| Pertanyaan | Usulan |
+|---|---|
+| Sinkron: sesi terbaru menang? | Ya, dengan guard tanggal (2.5.2) |
+| Player tanpa sesi → tier NULL | Ya — ratings fallback ke initial_rating (tanpa kelas khusus) |
+| Edit tier induk via admin → apa efeknya ke ratings? | Hanya memengaruhi forming PEMAIN BARU (class di-lock sekali); untuk pemain existing, admin ubah class rating langsung (menu admin) |
 
 ---
 
@@ -116,7 +167,9 @@ Satu kali proses (P2): untuk tiap player aktif di rating_players, ambil tier ses
 |---|---|
 | `internal/domain/rating.go` | `TierForRating` → `ClassForRating(rating, config)` 12-band (dari config, bukan hardcode) |
 | `internal/domain/rating_config.go` | Tambah `ClassBands map[string][2]*float64` + `SessionTierInit` |
-| `internal/store/rating.go` (ingest) | Inisialisasi player BARU: `class` + `initial rating` dari tier session pertama (`session_players.tier` saat match pertama diekstrak) — pengganti flat `initial_rating` |
+| `internal/store/rating.go` (ingest) | Inisialisasi player BARU: `class` + `initial rating` dari **`players.tier` terpusat** (Rev 3.2) — pengganti flat `initial_rating` |
+| `internal/store/session.go` (write path) | Sync `players.tier` dari tier session (guard tanggal) |
+| Migration `000009` | `players.tier` + `tier_updated_at` + backfill dari sesi terakhir |
 | `internal/store/rating_revert.go` (rebuild) | Reset-to-default: **class & class_source dipertahankan** (assigned attribute, bukan computed); hanya rating/rd/peak/games yang direset |
 | `internal/store/rating_read.go` | Leaderboard/detail: tambah `class` (assigned) + `class_derived` (dari rating) + `class_display` (max) |
 | Frontend ratings | `RatingTierBadge` → tampilkan `class_display`; provisional tetap rd>200 |
@@ -134,9 +187,9 @@ Kelas bukan input matematika engine — Glicko hanya memakai (rating, rd, skor).
 
 Jadi ada DUA sumber inisialisasi: `session_tier_init` (real player dengan tier) vs `initial_rating` (placeholder/fallback/tanpa kelas). Keduanya wajib ada di config — `session_tier_init` bukan pengganti `initial_rating`.
 
-### 5.3 Tournament-first player (Rev 2)
+### 5.3 Player tanpa tier induk (Rev 3.2)
 
-Player yang **pertama kali muncul di tournament** tidak punya tier session → fallback: **class = C (tengah sistem), rating = initial_rating (1250)**. Tanpa floor khusus (display = derived murni). Ditangani di ingest: kalau tidak ada `session_players.tier` untuk player itu → pakai fallback.
+Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama kali muncul di tournament) → fallback: **class = C (tengah sistem), rating = initial_rating (1250)**. Tanpa floor khusus (display = derived murni). Ratings engine membaca `players.tier` (terpusat), bukan `session_players.tier`.
 
 ---
 
@@ -177,6 +230,7 @@ Player yang **pertama kali muncul di tournament** tidak punya tier session → f
 ## 8. Task List
 
 ### P0 — Fondasi skema & math
+- [ ] 0. **Tier induk terpusat**: migration `players.tier`+`tier_updated_at`, sync di session Save (guard tanggal), backfill dari sesi terakhir + integration test (PRASYARAT forming)
 - [ ] 1. Migration `000009_rating_class.sql` (class + class_source + config seed)
 - [ ] 2. `domain`: `ClassForRating` 12-band (config-driven) + `floorOf(class)` + `initForSessionTier(tier)` + unit test (semua 12 band, floor, init mapping)
 - [ ] 3. `rating_config`: `ClassBands` + `SessionTierInit` (typed + validasi)
