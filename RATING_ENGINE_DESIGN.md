@@ -127,7 +127,7 @@ Kalibrasi (dari rd=30): ±6,4 hari → rd 100 · ±13 hari → rd 200 · ±23 ha
 ### 3.7 Clamp & Finalisasi
 
 - `r ∈ [1000, 2500]`, `rd ∈ [30, 350]` setelah update.
-- **Cap delta per game** (`max_delta_per_game`, default 60): tanpa cap, pemain
+- **Cap delta per game** (`max_delta_per_game`, default 100 — dikalibrasi P3): tanpa cap, pemain
   provisional (rd=350) bisa swing ±300+ per game — perilaku Glicko standar untuk
   pemain baru, tapi dengan MoVM·w (maks 2.5×) bisa jadi ±800 pada whitewash
   final. Cap menjaga leaderboard stabil. (Rev 3.1)
@@ -366,7 +366,7 @@ CREATE TABLE bm.rating_config (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 -- Seed default di migration (initial_rating, initial_rd, rd_min/max, rd_growth_per_day,
--- rating_min/max, max_delta_per_game (60), movm_scale, movm_cap, phase_weights, decay_*,
+-- rating_min/max, max_delta_per_game (100), movm_scale, movm_cap, phase_weights, decay_*,
 -- ingest_locked_only, auto_reconcile, absent_policy (skip_game), placeholder_policy
 -- (rate_as_unknown)). Loader Go: typed struct + validasi range (fail-fast di prod).
 
@@ -513,10 +513,10 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 **Verifikasi P2:** leaderboard konsisten dengan audit trail; revert → rating persis (full rebuild). → **lengkap: unit 100+ PASS, integration live PASS (ingest/no-op/409/reconcile/revert/transitivity/read path). Temuan audit P2: (a) runtime pemain baru harus di-init default (state {0,0} merusak math); (b) rebuildAll harus baca event→player mapping SEBELUM reset deltas; (c) cleanup test harus pakai share_code bukan id sesi; (d) asersi transitivity "berubah" tidak cukup — bandingkan state utuh vs fresh ingest.**
 
 ### P3 — Backfill & tuning
-- [ ] 19. Backfill: semua published session (locked) + tournament classic/team (finalize) dari bm
-- [ ] 20. Kalibrasi `c` (RD growth), `movm_scale`, `phase_weights` terhadap data riil (distribusi delta sehat, tidak ada pemain "inflated")
-- [ ] 21. Validasi fairness: korelasi tier vs winrate riil
-- [ ] 22. Catat parameter final ke `rating_config`
+- [x] 19. Backfill: semua published session (locked) + tournament classic/team (finalize) dari bm → **`TestBackfillDev` PASS live (bm_dev): 27 source (26 sesi + 1 tournament classic) urut kronologis, 474 events, 106 pemain aktif. Temuan: UNION harus gabung sesi+tournament urut tanggal (tournament Mei gagal out-of-order saat diingest setelah sesi Juni); sesi test `it-rating*` disaring. `RebuildAll` ditambahkan (endpoint admin + store) sebagai tool tuning config.**
+- [x] 20. Kalibrasi `c` (RD growth), `movm_scale`, `phase_weights` terhadap data riil → **temuan: cap 60 → 57% delta mentok di cap (avg_abs 49.9); dengan cap 100 → 29% (avg_abs 65.9) — distribusi lebih sehat. `max_delta_per_game` default 60→100 (seed migration 000008 + bm/bm_dev + doc di-update). Parameter lain tetap (rd0 350, c 15, movm 0.5/2.0)**
+- [x] 21. Validasi fairness: korelasi tier vs winrate riil → **monotonik: A(≥1400) 0.776 · B 0.642 · C 0.473 · D 0.327 · E(<1100) 0.110 — sistem membedakan skill dengan benar**
+- [x] 22. Catat parameter final ke `rating_config` → **bm_dev: max_delta=100; bm (prod): max_delta=100; seed migration patched**
 
 **Verifikasi P3:** semua data historis ter-cover; no double-count; distribusi delta wajar.
 
