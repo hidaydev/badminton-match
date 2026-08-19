@@ -10,14 +10,11 @@ import {
   useReplacePlayer,
   useSwapSlots,
   useSwapTeams,
-  useDeleteSession,
   useLockSession,
   useChangePlayer,
   type CloudSnapshot,
 } from '../queries'
 import { registerPlayer } from '../queries/endpoints'
-import { adminRequest } from '../queries/admin'
-import { useAdmin } from '../context/AdminContext'
 import { selectSlotsPerCourt } from '../store/selectors'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
@@ -30,9 +27,7 @@ export default function SharedSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { isAdmin } = useAdmin()
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [deleteBusy, setDeleteBusy] = useState(false)
 
   // Auto-dismiss error toast after 5 seconds
   useEffect(() => {
@@ -49,7 +44,6 @@ export default function SharedSessionPage() {
   const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
   const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
-  const { mutate: deleteSessionMutate, isPending: deletePending } = useDeleteSession()
   const { mutate: lockSession, isPending: lockPending } = useLockSession(sessionId!)
   const { mutate: changePlayer, isPending: changePlayerPending } = useChangePlayer(sessionId!)
 
@@ -208,25 +202,6 @@ export default function SharedSessionPage() {
         standalone
         onRefetch={() => refetch()}
         isRefetching={isFetching}
-        onDelete={() => {
-          if (!sessionId || deleteBusy) return
-          const fail = (err: unknown) => setSaveError(getSaveErrorMessage(err))
-          if (isAdmin) {
-            // Admin: hapus status apa pun (locked termasuk) + bersihkan rating source.
-            setDeleteBusy(true)
-            adminRequest('POST', `/sessions/${sessionId}/delete`)
-              .then(() => navigate('/sessions'))
-              .catch(fail)
-              .finally(() => setDeleteBusy(false))
-          } else {
-            // Non-admin: anon delete — hanya jalan untuk sesi draft.
-            deleteSessionMutate(sessionId, {
-              onSuccess: () => navigate('/sessions'),
-              onError: fail,
-            })
-          }
-        }}
-        deleteLoading={deletePending || deleteBusy}
         locked={!!snapshot?.session?.locked}
         onLock={() => lockSession(undefined, {
           onSuccess: () => setSaveError(null),
