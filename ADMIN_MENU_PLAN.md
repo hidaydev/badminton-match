@@ -16,23 +16,42 @@ Menu admin untuk operasional harian host/admin:
 
 ---
 
-## 2. Login
+## 2. Login & Admin Area (Rev 2 — alur baru)
 
-### 2.1 UI
+### 2.1 UI — Card "Admin Area" di HomePage (bukan tombol dekat Refresh)
 
-- **Tombol login** di `HomeLayout` (sebelah tombol Refresh — yang sudah ada, `aria-label="Refresh"`).
-  - Belum login: ikon/user icon → tap → modal input `MAJADU_ADMIN_TOKEN` + [Login].
-  - Sudah login: ikon admin (badge "admin") → tap → menu admin.
+- **Card "Admin Area"** di HomePage, **segmen terpisah di bawah grid utama** (bukan nyampur
+  dengan menu player-facing), gaya pembeda: border aksen gold/amber + tag kecil `admin`.
+- **Belum login** → tap card → **popup login** (input `MAJADU_ADMIN_TOKEN` + [Login]) →
+  sukses → navigate `/admin`.
+- **Sudah login** → tap card → langsung `/admin` (tanpa prompt).
+- **Setelah login card berubah**: label `Admin Area` → `Admin` + badge aktif; tombol
+  **Logout** tersedia (di card & header halaman admin).
 
-### 2.2 Penyimpanan token
+### 2.2 Halaman `/admin` (route baru, segmen khusus)
+
+```
+[Admin] banner pembeda (amber/gold) + [Logout]
+  ─ Session ─  Unlock session
+  ─ Rating ─   Ingest / Revert / Finalize (per source) · Rebuild All
+  ─ Season ─   Close & Start New Season (picker tanggal) · Lihat arsip musim
+  ─ Player ─   Add (ke sesi) · Delete · Edit nama
+  ─ Class ─    Ubah tier induk / class rating
+```
+
+- Tampilan pembeda konsisten (aksen amber/gold) supaya "admin mode" tidak tertukar dengan UI biasa.
+- Opsional: badge `admin` kecil di HomeLayout saat login aktif.
+
+### 2.3 Penyimpanan token
 
 - **`sessionStorage`** (hilang saat tab ditutup — lebih aman daripada localStorage; XSS window lebih kecil).
 - API client: semua request admin menyertakan `Authorization: Bearer <token>` bila ada.
 - [Logout] membersihkan token + state admin.
 
-### 2.3 Backend
+### 2.4 Backend
 
 - `MAJADU_ADMIN_TOKEN` sudah di `config` (wajib di prod, fail-fast). Tidak ada perubahan backend untuk login — endpoint admin sudah mengecek Bearer.
+- Route baru `GET /admin` (frontend-only — tidak perlu endpoint backend).
 
 ---
 
@@ -158,10 +177,10 @@ Keputusan: **panggil `delete_player` dalam transaksi Go**, setelah menghapus bar
 
 **Verifikasi P0:** `make check` + integration live PASS.
 
-### P1 — Frontend auth & sheet
+### P1 — Frontend auth & admin area
 - [ ] 5. `AdminContext` (token di sessionStorage, Bearer header otomatis, isAdmin, logout)
-- [ ] 6. Tombol login di HomeLayout (sebelah Refresh) + modal input token
-- [ ] 7. `AdminSheet` (session unlock, rating ops per source dari GET /ratings/sources, rebuild-all)
+- [ ] 6. Card "Admin Area" di HomePage (segmen terpisah, gaya pembeda amber) + popup login + label berubah jadi Admin+Logout setelah login
+- [ ] 7. Halaman `/admin` (banner pembeda, segmen Session/Rating/Season/Player/Class) — session unlock, rating ops per source dari GET /ratings/sources, rebuild-all, reset season, arsip musim
 - [ ] 8. Admin badge di detail rating (ubah kelas dropdown)
 
 **Verifikasi P1:** `npm run check` + browser flow (login → menu → aksi).
