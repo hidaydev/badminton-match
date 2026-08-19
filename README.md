@@ -227,7 +227,9 @@ All mutations use advisory locks (`pg_try_advisory_xact_lock`) + `SELECT ... FOR
 | [Design System](docs/design-system.md) | Colors, typography, tokens, patterns |
 | [Features & Routes](docs/handbook/features-and-routes.md) | Feature map + route structure |
 | [Roadmap](docs/handbook/roadmap.md) | Phase plan and status |
-| [Clean Code Backlog](CLEANCODE_BACKLOG.md) | 139/151 items complete |
+| [Design Archive](DESIGN_ARCHIVE.md) | Keputusan desain terarsip (rating engine, 8-tier, admin, UI/UX) |
+| [Backlog](BACKLOG.md) | Inventaris backlog & status |
+| [E2E Testing Plan](E2E_TESTING_PLAN.md) | Rencana sweep end-to-end |
 | [Backend](docs/handbook/backend-go-decision.md) | Keputusan arsitektur & fase migrasi Go |
 
 ---
