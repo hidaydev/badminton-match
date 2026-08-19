@@ -41,7 +41,7 @@ function Pager({ page, total, onPage }: { page: number; total: number; onPage: (
     <div className="flex items-center justify-between px-1">
       <button
         onClick={() => onPage(page - 1)}
-        disabled={page <= 1}
+        disabled={page <= 0}
         className="text-xs font-mono text-fg-dim hover:text-fg disabled:opacity-30"
       >
         ← Prev
