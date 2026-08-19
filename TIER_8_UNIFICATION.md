@@ -9,6 +9,11 @@ migrasi penuh (tanpa arsip) · 4-tier lama tidak valid · host pilih tier dari 8
 **Terkait:** `RATING_TIERING_REVAMP.md` (desain lama — akan disupersede) ·
 `RATING_ENGINE_DESIGN.md` · `BACKLOG.md` · `BACKLOG_ANALYSIS.md`
 
+> **UPDATE EKSEKUSI (2026-08-19):** SELESAI di branch `dev` (backend + frontend,
+> migration `000011` applied bm_dev, RebuildAll verifikasi 0 rating berubah).
+> Audit generator: threshold unevenGames diskala 2→4; weight tier tetap 2.
+> Detail di §9 task list + §6.2.
+
 ---
 
 ## 1. Latar & Masalah
@@ -198,15 +203,22 @@ team ke 8 kelas nanti (di luar scope revamp ini).
 | Max `tierDiff` | 6 | **14** (8+8-1-1) |
 | Max kontribusi tier | 12 | 28 |
 
-### 6.2 Rencana audit (WAJIB sebelum merge)
+### 6.2 Rencana audit (WAJIB sebelum merge) — ✅ SELESAI
 
 1. **Regression**: `quality.test.ts` di-update untuk tierMap 1-8 (unit: qualityScore, isGoodQuality).
-2. **Audit empiris**: generate ×100 run untuk konfigurasi kunci (16P-3C, 12P-2C, 24P-3C) →
-   ukur playCount spread, back-to-back, repeated pairs, uneven games — bandingkan baseline
-   OLD (4-tier) vs NEW (8-tier). Target: tidak ada regresi signifikan di metrik non-tier.
-3. **Weight tuning**: jika repeated-pairs/partner-variety memburuk karena tier terlalu dominan
-   → turunkan `TIER_DIFF_WEIGHT` ke 1.5 → re-audit. JANGAN langsung asal turun.
-4. Keuntungan yang dicari: balance antar pemain lebih halus (B+ vs B kini beda 1 level,
+2. **Audit empiris** (best-of-100 + pass-rate ×100-200 run, pool sintetik & realistis):
+   - **Threshold `unevenGames` diskala**: `>=2` (range 1-4) → `>=4` (range 1-8) — proporsi sama
+     (1/3 range). Tanpa ini pass-rate 'good' anjlok (16P-3C 48→16) karena resolusi 8-tier
+     membuat selisih 2 jadi relatif kecil.
+   - **Weight tierDiff TETAP 2**: tuning 1.5/1 tidak menaikkan net pass-rate (hanya memindah
+     kegagalan uneven ↔ repeatedPairs) — trade-off timpang.
+   - Hasil pool realistis (tier mengelompok): 16P-3C 78→69 · 12P-2C 100→92 · 24P-3C 92→80 ·
+     16P-2C 90→82 — semua masih nyaman untuk "Retry until good" (≤2 percobaan rata-rata).
+   - **Trade-off terdokumentasi**: pool kecil + sebaran tier lebar (8P-2C) pass-rate turun
+     (91%→~25%) — game timpang TERPAKSA struktural (8 pemain pasti saling berhadapan);
+     4-tier dulu menutupinya dengan melumpuhkan tier. Sesuai keinginan granularity.
+3. **Weight tuning**: (tidak dilakukan — lihat hasil di atas).
+4. Keuntungan yang didapat: balance antar pemain lebih halus (B+ vs B kini beda 1 level,
    dulu sama-sama 2).
 
 ---
@@ -251,42 +263,42 @@ user refresh (standard). Jangan deploy backend sendirian dulu.
 
 ---
 
-## 9. Task List (fase eksekusi)
+## 9. Task List (fase eksekusi) — ✅ SELESAI 2026-08-19 (dev)
 
 ### Fase 1 — Domain & config (backend)
-- [ ] 1. `domain/rating_config.go`: ClassBands 8, SessionTierInit 8, FloorOf (basis huruf),
-      ValidClass 8, DisplayTier. Unit test (semua 8 band, floor, forming, fresh-player derived == assigned)
-- [ ] 2. `store/rating_config.go` loader + validate (8 entri)
+- [x] 1. `domain/rating_config.go`: ClassBands 8, SessionTierInit 8, FloorOf (basis huruf),
+      ValidTier 8, DisplayTier. Unit test (semua 8 band, floor, forming, fresh-player derived == assigned)
+- [x] 2. `store/rating_config.go` loader + validate (8 entri)
 
 ### Fase 2 — Migration 000011 (VPS: bm_dev + bm)
-- [ ] 3. SQL: backfill players.tier → map session_players.tier 1-8 → map
+- [x] 3. SQL: backfill players.tier → map session_players.tier 1-8 → map
       season_player_snapshots.class → DROP class/class_source → seed config 8
-- [ ] 4. Apply ke bm_dev; `RebuildAll`; **verifikasi leaderboard sebelum/after IDENTIK**
-      (bukti forming letter tidak berubah)
+- [x] 4. Apply ke bm_dev; `RebuildAll`; **verifikasi leaderboard sebelum/after IDENTIK**
+      (114 pemain, 0 rating berubah — forming letter tidak berubah)
 
 ### Fase 3 — Backend write/read path
-- [ ] 5. Ingest forming: hapus tulis class; forming baca players.tier
-- [ ] 6. `rebuildAll`: priorTier dari players; reset-to-default mid dari players.tier
-- [ ] 7. Read path: response `tier`/`tier_derived`/`tier_display`; hapus SetClass
+- [x] 5. Ingest forming: hapus tulis class; forming baca players.tier
+- [x] 6. `rebuildAll`: priorTier dari players; reset-to-default mid dari players.tier
+- [x] 7. Read path: response `tier`/`tier_derived`/`tier_display`; hapus SetClass
       (handler + route + store); SetPlayerTier validasi 8; firstSetPlayerTier map 1-8→text
-- [ ] 8. `make check` + integration live (forming, floor, rebuild identik)
+- [x] 8. `make check` + integration live (forming, floor, rebuild identik)
 
 ### Fase 4 — Frontend
-- [ ] 9. types + config tiers 8 + ratingTiers 8 + badge
-- [ ] 10. PlayersPage picker 8; AdminPage picker 8
-- [ ] 11. Generator: tierMap 1-8, DEFAULT_TIER 5; quality.test.ts update
-- [ ] 12. `npm run check` hijau
+- [x] 9. types + config tiers 8 + ratingTiers 8 + badge
+- [x] 10. PlayersPage picker 8; AdminPage picker 8
+- [x] 11. Generator: tierMap 1-8, DEFAULT_TIER 5; quality.test.ts update
+- [x] 12. `npm run check` hijau (60 PASS)
 
 ### Fase 5 — Audit generator (SUPER HATI-HATI — keputusan 2.2)
-- [ ] 13. Audit empiris OLD vs NEW (playcount/b2b/repeated pairs/uneven) ×100 run
-- [ ] 14. Weight tuning kalau perlu (2 → 1.5); re-audit
-- [ ] 15. Visual pass browser: badge 8-tier, picker, leaderboard, admin
+- [x] 13. Audit empiris OLD vs NEW (playcount/b2b/repeated pairs/uneven) ×100 run
+- [x] 14. Weight tuning kalau perlu (2 → 1.5); re-audit → **diputuskan tetap 2**
+- [ ] 15. Visual pass browser: badge 8-tier, picker, leaderboard, admin → **HANDOFF: user**
 
 ### Fase 6 — Deploy & docs
-- [ ] 16. Push backend + frontend bersama (deploy barengan), VPS reload
-- [ ] 17. Update docs: `RATING_TIERING_REVAMP.md` (superseded → referensi),
+- [x] 16. Push backend + frontend bersama (deploy barengan), VPS reload
+- [x] 17. Update docs: `RATING_TIERING_REVAMP.md` (superseded → referensi),
       `RATING_ENGINE_DESIGN.md` (band/floor), `current-status.md`, `BACKLOG.md`
-- [ ] 18. Verifikasi live: leaderboard, forming player baru, floor display
+- [x] 18. Verifikasi live: leaderboard, forming player baru, floor display
 
 ---
 

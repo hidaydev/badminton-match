@@ -1,16 +1,28 @@
 # Current Status
 
-Last updated: 2026-08-22 (kompaksi — setelah rating engine + tiering + season + admin, semua DEPLOYED)
+Last updated: 2026-08-19 (TIER_8_UNIFICATION — 8-tier single source of truth, DEPLOYED dev)
 
 This is the fastest handover file. Start here, lalu baca dokumen terkait di bawah.
 
-## Repo & branch
+## REPO & BRANCH
 
 ```
 badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http+pgx) ──▶ Postgres VPS
   dev  (aktif) · DEPLOYED Vercel        dev  (aktif) · DEPLOYED podman   DB bm_dev (data live)
   main → prod (belum)                   main (lokal, belum push)          DB bm (schema, kosong)
 ```
+
+## ⭐ TIER 8 UNIFICATION — SELESAI & DEPLOYED (2026-08-19)
+
+- **Single source of truth**: `players.tier` (8: D, D+, C, C+, B, B+, A, A+) —
+  tier induk 4 + class rating 12 **digabung**. `rating_players.class/class_source` DROP.
+- **Bands** (collapse 12→8, grid 100 dipertahankan): D ≤1199 · D+ 1200-1299 · C 1300-1499 ·
+  C+ 1500-1599 · B 1600-1799 · B+ 1800-1899 · A 1900-2099 · A+ ≥2100.
+  Forming letter TIDAK berubah (1150/1450/1750/2050) → RebuildAll IDENTIK (0 rating berubah).
+- **Floor = basis huruf**: B+ floor B (boleh naik A/A+); A+/A→A, dst. API: `tier`/`tier_derived`/`tier_display`.
+- **Generator 8-level** (DEFAULT_TIER 5, weight 2): threshold unevenGames diskala 2→4.
+  Trade-off: pool kecil sebaran lebar (8P-2C) pass-rate turun — struktural.
+- Migration `000011` applied bm_dev (prod bm belum). Detail: `TIER_8_UNIFICATION.md`.
 
 - Frontend `dev` → `https://api.qouver.com/majadu-dev` · backend dev image `ghcr.io/nferdazel/majadu-api:dev` (auto-update 05:00).
 - Branch `staging` SUDAH DIHAPUS (2026-08-18). Supabase pensiun — semua stack Go REST.

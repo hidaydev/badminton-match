@@ -1,5 +1,10 @@
 # RATING_TIERING_REVAMP.md
 
+> **⚠️ SUPERSEDED (2026-08-19):** desain ini (tier induk 4 + 12-band) digantikan
+> oleh **`TIER_8_UNIFICATION.md`** — unifikasi ke 8-tier single source of truth
+> (sudah diimplementasi di `dev`). Dokumen ini dipertahankan sebagai arsip
+> keputusan & riwayat desain.
+
 **Status:** PLAN — belum diimplementasikan
 **Rev:** 3.7 (SEASON ARCHIVE — snapshot final standings sebelum reset; history musim berjalan)
 **Tanggal:** 2026-08-18
