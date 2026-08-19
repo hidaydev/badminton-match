@@ -24,14 +24,14 @@ type RatingParams struct {
 
 // DefaultRatingParams — fallback bila config tidak ada/invalid.
 var DefaultRatingParams = RatingParams{
-	InitialRating:  1250,
-	InitialRD:      350,
+	InitialRating:  1250, // forming berbasis tier menyusul (T3) — flat fallback
+	InitialRD:      220,  // T2 rekalibrasi: pemain baru mulai provisional, konvergen lebih cepat
 	RDMin:          30,
 	RDMax:          350,
-	RDGrowthPerDay: 15,
+	RDGrowthPerDay: 3, // T2: growth mingguan ~9 (bukan 105) → steady-state rd ~55-65
 	RatingMin:      1000,
 	RatingMax:      2500,
-	MaxDelta:       60,
+	MaxDelta:       30, // T2: 2.5-3x typical win (10-12) → 1 match ≤ 0.3 band
 	MovmScale:      0.5,
 	MovmCap:        2.0,
 }
