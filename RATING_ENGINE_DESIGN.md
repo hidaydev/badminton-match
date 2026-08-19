@@ -489,17 +489,17 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 **Verifikasi P0:** `make check` hijau; golden test deterministik (double-run identik). → **lengkap: 90+ test domain PASS, gofmt clean. Audit P0: klaim "pool netral" §3.2 DIKOREKSI (Glicko bukan zero-sum — tiap pemain faktor sendiri).**
 
 ### P1 — Ingest (write path)
-- [ ] 6. `internal/store/rating.go`: REPEATABLE READ tx, advisory lock global, lock player sorted, invariant seq, upsert events/deltas/sources — satu transaksi
-- [ ] 7. Resolve nama → player_id + auto-register TOCTOU-safe (pattern `registerPlayerInTx`)
-- [ ] 7b. **Kind registry + `ExtractMatches` interface (§4.7)**: struktur `RawMatch`, registry entry per kind (target/phases/pairing) — dasar semua ingest
-- [ ] 8. Ingest session: `legacy_order` capture, skip unscored, target 21, gate `locked`
-- [ ] 9. Ingest tournament classic: branch via `TournamentFormat`, stable_game_id = match_key persisted, phase weight, gate `finalized`
-- [ ] 10. Ingest tournament team: partai → 6 pemain, positional pairing (§3.3), target 30/42, verify final vs standings (warning)
-- [ ] 11. Fingerprint: hitung + simpan; policy 409/auto_reconcile
-- [ ] 12. `internal/handler/ratings.go` + `MAJADU_ADMIN_TOKEN` middleware + `CodeUnauthorized` + `mapRatingsError`
-- [ ] 13. Integration test live: ingest sesi bm_dev → parity + determinisme (2× run identik); edit sumber → 409; auto_reconcile → bersih
+- [x] 6. `internal/store/rating.go`: REPEATABLE READ tx, advisory lock global, lock player sorted, invariant seq, upsert events/deltas/sources — satu transaksi → **implementasi lengkap; seq invariant via (date,created_at,source_id) tuple**
+- [x] 7. Resolve nama → player_id + auto-register TOCTOU-safe (pattern `registerPlayerInTx`) → **`resolveRatingPlayers` (resolveTournamentPlayer)**
+- [x] 7b. **Kind registry + `ExtractMatches` interface (§4.7)**: struktur `RawMatch`, registry entry per kind (target/phases/pairing) — dasar semua ingest → **`domain.KindRegistry` + `RawMatch` + `SourceFingerprint` + `MatchKey` (unit tested)**
+- [x] 8. Ingest session: `legacy_order` capture, skip unscored, target 21, gate `locked` → **`extractSessionMatches` (legacy-<N> stable id, slot-court game_order)**
+- [x] 9. Ingest tournament classic: branch via `TournamentFormat`, stable_game_id = match_key persisted, phase weight, gate `finalized` → **`extractClassicMatches`**
+- [x] 10. Ingest tournament team: partai → 6 pemain, positional pairing (§3.3), target 30/42, verify final vs standings (warning) → **`extractTeamMatches` (partai = RawMatch, position per kelas, target 30/42) — verify final vs standings: P2 (warning)**
+- [x] 11. Fingerprint: hitung + simpan; policy 409/auto_reconcile → **`SourceFingerprint` + `rating_sources`; `''` = belum diingest (finalize); revert invalidasi fingerprint (temuan audit)**
+- [x] 12. `internal/handler/ratings.go` + `MAJADU_ADMIN_TOKEN` middleware + `CodeUnauthorized` + `mapRatingsError` → **handler + auth + error codes (unit tested) + routes**
+- [x] 13. Integration test live: ingest sesi bm_dev → parity + determinisme (2× run identik); edit sumber → 409; auto_reconcile → bersih → **`TestIntegrationRatingIngestSession` + `GateLocked` PASS live (ingest→no-op→revert deterministik→409→reconcile)**
 
-**Verifikasi P1:** `make check` hijau; re-run → no-op; edit → 409.
+**Verifikasi P1:** `make check` hijau; re-run → no-op; edit → 409. → **lengkap: unit 100+ PASS, integration live PASS. Temuan audit P1: (a) pgx melarang 2 query paralel di satu tx → extractor dibaca-tuntas-dulu; (b) range-map = keys bukan values → bug uuid; (c) sequence butuh GRANT USAGE; (d) revert harus invalidasi fingerprint (kalau tidak re-ingest jadi no-op); (e) scan date → *time.Time.**
 
 ### P2 — Read path & revert
 - [ ] 14. `GET /ratings/leaderboard` (sort, tier, provisional badge, pagination, active)
