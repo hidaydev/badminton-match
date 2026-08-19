@@ -73,6 +73,7 @@ Semua sudah ada di backend (token) — **belum ada UI**. Menu admin: daftar sumb
 | **Add player (ke session, dengan tier session)** | Alur normal: menu admin navigasi ke `/session/players` (atau inline form add ke sesi aktif). Class RATINGS TIDAK di-set di sini — hanya tier session (sesuai permintaan: "dengan kelas sesuai session, bukan ratings") |
 | **Delete player** | **Endpoint baru Go**: `DELETE /players/{playerId}` → memanggil fungsi SQL `bm.delete_player(p_player_id, p_force)` (sudah ada di DB, belum di-expose). Perlu analisis FK (session_players.player_id kini nullable; tournament_team_players ON DELETE SET NULL; rating_players FK → perlu cascade/set null) — detail §4.1 |
 | **Edit player** | Rename/canonical: reuse `POST /players` (register dengan canonicalName) + alias. UI: form edit nama di daftar pemain |
+| **Ubah tier induk (session)** | Endpoint `PATCH /players/{id}/tier` → update `players.tier` (terpusat — §2.5 RATING_TIERING_REVAMP). Mempengaruhi forming rating pemain BARU; pemain existing → ubah class rating langsung |
 
 ### 3.5 Struktur UI
 
