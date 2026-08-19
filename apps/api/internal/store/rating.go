@@ -229,51 +229,67 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 	}
 
-	// Muat state runtime per pemain (dari DB atau default)
+	// Load registered_at + tier induk per pemain (gate journey §2.5.6 + forming §3.2)
+	registeredAt := map[string]string{}
+	tierByPlayer := map[string]string{}
+	if len(ids) > 0 {
+		rrows, err := tx.Query(ctx,
+			`SELECT id::text, coalesce(registered_at::text, ''), coalesce(tier, '')
+			 FROM `+s.schema+`.players WHERE id = ANY($1::uuid[])`, ids)
+		if err != nil {
+			return nil, err
+		}
+		for rrows.Next() {
+			var pid, ra, tier string
+			if err := rrows.Scan(&pid, &ra, &tier); err != nil {
+				rrows.Close()
+				return nil, err
+			}
+			registeredAt[pid] = ra
+			tierByPlayer[pid] = tier
+		}
+		rrows.Close()
+		if err := rrows.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	// Muat state runtime per pemain (dari DB atau default+forming)
 	runtime := map[string]*playerRuntime{}
 	for _, id := range ids {
-		// Default dulu — state {0,0} akan merusak math (bug ditemukan audit P1)
 		rt := &playerRuntime{
 			id:    id,
 			state: domain.RatingState{Rating: cfg.Params.InitialRating, RD: cfg.Params.InitialRD},
 			peak:  cfg.Params.InitialRating,
 		}
 		var lastPlayed *time.Time
+		var class *string
 		err := tx.QueryRow(ctx, `
-			SELECT rating, rd, peak_rating, games_played, wins, losses, last_played_at
+			SELECT rating, rd, peak_rating, games_played, wins, losses, last_played_at, class
 			FROM `+s.schema+`.rating_players WHERE player_id = $1::uuid`, id).
-			Scan(&rt.state.Rating, &rt.state.RD, &rt.peak, &rt.games, &rt.wins, &rt.losses, &lastPlayed)
+			Scan(&rt.state.Rating, &rt.state.RD, &rt.peak, &rt.games, &rt.wins, &rt.losses, &lastPlayed, &class)
 		if err == nil {
 			rt.exists = true
 			if lastPlayed != nil {
 				rt.lastPlayedAt = lastPlayed.Format("2006-01-02")
 			}
+			if class != nil {
+				rt.class = *class
+			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
+		} else {
+			// PEMAIN BARU — FORMING dari tier induk (RATING_TIERING_REVAMP §3.2):
+			// rating awal = mid band kelas sticky; class = kelas tengah huruf.
+			if tier := tierByPlayer[rt.id]; tier != "" {
+				if init, ok := cfg.FormingForTier(tier); ok {
+					rt.state.Rating = init.Rating
+					rt.peak = init.Rating
+					rt.class = init.Class
+				}
+			}
 		}
 		runtime[id] = rt
-	}
-
-	// Load registered_at per pemain (gate journey §2.5.6)
-	registeredAt := map[string]string{}
-	if len(ids) > 0 {
-		rrows, err := tx.Query(ctx,
-			`SELECT id::text, coalesce(registered_at::text, '') FROM `+s.schema+`.players WHERE id = ANY($1::uuid[])`, ids)
-		if err != nil {
-			return nil, err
-		}
-		for rrows.Next() {
-			var pid, ra string
-			if err := rrows.Scan(&pid, &ra); err != nil {
-				rrows.Close()
-				return nil, err
-			}
-			registeredAt[pid] = ra
-		}
-		rrows.Close()
-		if err := rrows.Err(); err != nil {
-			return nil, err
-		}
 	}
 
 	// Proses berurutan (§4.3.9)
@@ -424,15 +440,19 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		if rt.lastPlayedAt != "" {
 			lastPlayed = rt.lastPlayedAt
 		}
+		classVal := any(nil)
+		if rt.class != "" {
+			classVal = rt.class
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO `+s.schema+`.rating_players
-				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, updated_at)
-			VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, now())
+				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, class, updated_at)
+			VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, $9, now())
 			ON CONFLICT (player_id) DO UPDATE SET
 				rating = EXCLUDED.rating, rd = EXCLUDED.rd, peak_rating = EXCLUDED.peak_rating,
 				games_played = EXCLUDED.games_played, wins = EXCLUDED.wins, losses = EXCLUDED.losses,
-				last_played_at = EXCLUDED.last_played_at, updated_at = now()`,
-			id, rt.state.Rating, rt.state.RD, rt.peak, rt.games, rt.wins, rt.losses, lastPlayed); err != nil {
+				last_played_at = EXCLUDED.last_played_at, class = EXCLUDED.class, updated_at = now()`,
+			id, rt.state.Rating, rt.state.RD, rt.peak, rt.games, rt.wins, rt.losses, lastPlayed, classVal); err != nil {
 			return nil, err
 		}
 	}
@@ -525,5 +545,6 @@ type playerRuntime struct {
 	wins         int
 	losses       int
 	lastPlayedAt string
+	class        string // kelas 12 sub-tier (assigned)
 	exists       bool
 }

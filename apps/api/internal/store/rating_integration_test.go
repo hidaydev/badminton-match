@@ -386,7 +386,7 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("player detail: %v", err)
 	}
-	if d == nil || d.Games != 4 || d.Tier == 0 {
+	if d == nil || d.Games != 4 || d.ClassDisplay == "" {
 		t.Fatalf("player detail salah: %+v", d)
 	}
 	hist, err := st.RatingPlayerHistory(ctx, pid3, 10)
@@ -418,8 +418,10 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 		if err != nil || dt == nil {
 			t.Fatalf("detail %s: %v", nm, err)
 		}
-		if dt.Games != 0 || dt.Rating != 1250 {
-			t.Fatalf("%s setelah revert A: games=%d rating=%.2f, want 0/1250", nm, dt.Games, dt.Rating)
+		// Reset-to-default = mid KELAS (Rev 3.2): tier 1(A)→2050, tier 2(B)→1750
+		wantMid := map[string]float64{"ITT One": 2050, "ITT Two": 1750}[nm]
+		if dt.Games != 0 || dt.Rating != wantMid {
+			t.Fatalf("%s setelah revert A: games=%d rating=%.2f, want 0/%.0f (mid kelas)", nm, dt.Games, dt.Rating, wantMid)
 		}
 	}
 

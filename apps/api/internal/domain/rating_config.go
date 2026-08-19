@@ -1,6 +1,9 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 // ── RatingConfig — parameter + policy rating (RATING_ENGINE_DESIGN.md §5.5).
 // Disimpan di tabel rating_config (jsonb per key); loader (store) membaca →
@@ -215,4 +218,33 @@ func classOrder(cls string) int {
 		}
 	}
 	return 0
+}
+
+// MidRatingForClass — rating tengah sebuah sub-band: (lo+hi)/2; band tanpa
+// batas pakai offset 50 dari batas yang ada. Basis "reset ke mid kelas".
+func (c *RatingConfig) MidRatingForClass(cls string) (float64, bool) {
+	band, ok := c.ClassBands[cls]
+	if !ok {
+		return 0, false
+	}
+	lo, hi := band[0], band[1]
+	switch {
+	case lo != nil && hi != nil:
+		// round → mid BERSIH (1450 utk C [1400,1499]) — konsisten dengan session_tier_init
+		return math.Round((*lo + *hi) / 2), true
+	case lo != nil:
+		return *lo + 50, true // A+ (atas)
+	case hi != nil:
+		return *hi - 50, true // D- (bawah)
+	default:
+		return 0, false
+	}
+}
+
+// FormingForTier — forming kelas + rating awal dari tier induk (letter A-D).
+// Tier session (1-4) dipetakan ke letter, lalu SessionTierInit.
+func (c *RatingConfig) FormingForTier(tierLetter string) (TierInit, bool) {
+	key := map[string]string{"A": "1", "B": "2", "C": "3", "D": "4"}[tierLetter]
+	init, ok := c.SessionTierInit[key]
+	return init, ok
 }

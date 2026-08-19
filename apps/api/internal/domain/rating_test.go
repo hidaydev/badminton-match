@@ -61,22 +61,18 @@ func TestMarginOfVictory(t *testing.T) {
 }
 
 func TestGrowRD(t *testing.T) {
-	p := DefaultRatingParams
-	// rd=30: 7 hari → sqrt(900+15²·7²)=sqrt(900+11025)=sqrt(11925)=109.20
-	if got := GrowRD(30, 7, p); math.Abs(got-109.20) > 0.01 {
-		t.Fatalf("GrowRD(30,7) = %v, want ≈109.2", got)
+	p := DefaultRatingParams // rd_growth = 3/hari (T2 rekalibrasi)
+	// rd=30: 7 hari → sqrt(900+(3·7)²)=sqrt(900+441)=sqrt(1341)=36.62
+	if got := GrowRD(30, 7, p); math.Abs(got-36.62) > 0.01 {
+		t.Fatalf("GrowRD(30,7) = %v, want ≈36.6", got)
 	}
-	// 13 hari → sqrt(38925)=197.30
-	if got := GrowRD(30, 13, p); math.Abs(got-197.30) > 0.01 {
-		t.Fatalf("GrowRD(30,13) = %v, want ≈197.3", got)
+	// 30 hari → sqrt(900+8100)=sqrt(9000)=94.87
+	if got := GrowRD(30, 30, p); math.Abs(got-94.87) > 0.01 {
+		t.Fatalf("GrowRD(30,30) = %v, want ≈94.9", got)
 	}
-	// 23 hari → sqrt(119925)=346.30
-	if got := GrowRD(30, 23, p); math.Abs(got-346.30) > 0.01 {
-		t.Fatalf("GrowRD(30,23) = %v, want ≈346.3", got)
-	}
-	// 24 hari → 361.3 → capped 350
-	if got := GrowRD(30, 24, p); got != 350 {
-		t.Fatalf("GrowRD(30,24) = %v, want 350 (cap)", got)
+	// 116 hari → sqrt(900+(3·116)²)=sqrt(900+121104)=sqrt(122004)=349.3 → ~cap
+	if got := GrowRD(30, 116, p); math.Abs(got-349.3) > 1 {
+		t.Fatalf("GrowRD(30,116) = %v, want ≈349.3", got)
 	}
 	// idle 0 → tidak berubah
 	if got := GrowRD(123, 0, p); got != 123 {
@@ -85,23 +81,22 @@ func TestGrowRD(t *testing.T) {
 }
 
 func TestGlickoUpdateGolden(t *testing.T) {
-	p := DefaultRatingParams
-	// Pemain baru 1250/350 menang lawan 1250/350, movm=1, w=1:
-	// E=0.5, g=0.669, d²=269651, factor=484.88, raw=162.2 → CAP 60
+	p := DefaultRatingParams // initial_rd 220, cap 30 (T2)
+	// Pemain baru 1250/220 menang lawan 1250/220, movm=1, w=1:
+	// raw ≈ 90 → CAP 30; newRD ≈ 195.3
 	st, delta := GlickoUpdate(
-		RatingState{Rating: 1250, RD: 350},
-		[]RatingOpponent{{Rating: 1250, RD: 350}},
+		RatingState{Rating: 1250, RD: 220},
+		[]RatingOpponent{{Rating: 1250, RD: 220}},
 		OutcomeWin, 1.0, 1.0, p,
 	)
-	if delta != 60 {
-		t.Fatalf("delta = %v, want 60 (cap)", delta)
+	if delta != 30 {
+		t.Fatalf("delta = %v, want 30 (cap)", delta)
 	}
-	if st.Rating != 1310 {
-		t.Fatalf("rating = %v, want 1310", st.Rating)
+	if st.Rating != 1280 {
+		t.Fatalf("rating = %v, want 1280", st.Rating)
 	}
-	// newRD = sqrt(1/(1/350²+1/269651)) = sqrt(84233) = 290.23
-	if math.Abs(st.RD-290.23) > 0.01 {
-		t.Fatalf("rd = %v, want ≈290.23", st.RD)
+	if math.Abs(st.RD-195.3) > 0.5 {
+		t.Fatalf("rd = %v, want ≈195.3", st.RD)
 	}
 }
 
@@ -131,14 +126,14 @@ func TestGlickoUpdateZeroSumEqualStates(t *testing.T) {
 
 func TestGlickoUpdateCapWhitewashFinal(t *testing.T) {
 	p := DefaultRatingParams
-	// provisional rd=350, whitewash (movm 1.5) + final (w=1.25) → raw ~304 → cap
+	// provisional rd=220, whitewash (movm 1.5) + final (w=1.25) → raw besar → cap 30
 	_, delta := GlickoUpdate(
-		RatingState{Rating: 1250, RD: 350},
-		[]RatingOpponent{{Rating: 1250, RD: 350}},
+		RatingState{Rating: 1250, RD: 220},
+		[]RatingOpponent{{Rating: 1250, RD: 220}},
 		OutcomeWin, 1.5, 1.25, p,
 	)
-	if delta != 60 {
-		t.Fatalf("delta = %v, want 60 (cap melindungi swing provisional)", delta)
+	if delta != 30 {
+		t.Fatalf("delta = %v, want 30 (cap melindungi swing provisional)", delta)
 	}
 }
 

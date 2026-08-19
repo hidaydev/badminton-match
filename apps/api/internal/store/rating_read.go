@@ -12,22 +12,28 @@ import (
 
 // ── Rating read path (RATING_ENGINE_DESIGN.md §6) ─────────────────────────
 
-// LeaderboardRow — baris leaderboard.
+// LeaderboardRow — baris leaderboard (BREAKING: tier 1-10 → class string 12-band).
 type LeaderboardRow struct {
-	PlayerID    string  `json:"player_id"`
-	Name        string  `json:"name"`
-	Rating      float64 `json:"rating"`
-	RD          float64 `json:"rd"`
-	Tier        int     `json:"tier"`
-	Peak        float64 `json:"peak"`
-	Games       int     `json:"games"`
-	Trend       float64 `json:"trend"`
-	Provisional bool    `json:"provisional"`
+	PlayerID     string  `json:"player_id"`
+	Name         string  `json:"name"`
+	Rating       float64 `json:"rating"`
+	RD           float64 `json:"rd"`
+	Class        string  `json:"class"`         // assigned (12 sub-tier), "" = belum
+	ClassDerived string  `json:"class_derived"` // dari rating
+	ClassDisplay string  `json:"class_display"` // max(derived, floor)
+	Peak         float64 `json:"peak"`
+	Games        int     `json:"games"`
+	Trend        float64 `json:"trend"`
+	Provisional  bool    `json:"provisional"`
 }
 
 // RatingLeaderboard — leaderboard rating, urut rating desc. `active` =
 // games_played > 0 (dan, opsional, main dalam 90 hari terakhir).
 func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit, offset int) (int, []LeaderboardRow, error) {
+	cfg, err := s.LoadRatingConfig(ctx, false)
+	if err != nil {
+		return 0, nil, err
+	}
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
@@ -47,8 +53,8 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 	}
 
 	rows, err := s.pool.Query(ctx, `
-		SELECT rp.player_id::text, p.canonical_name, rp.rating, rp.rd, rp.peak_rating, rp.games_played,
-		       coalesce(tr.delta, 0)
+		SELECT rp.player_id::text, p.canonical_name, rp.rating, rp.rd, coalesce(rp.class, ''),
+		       rp.peak_rating, rp.games_played, coalesce(tr.delta, 0)
 		FROM `+s.schema+`.rating_players rp
 		JOIN `+s.schema+`.players p ON p.id = rp.player_id
 		LEFT JOIN LATERAL (
@@ -69,10 +75,11 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 	out := []LeaderboardRow{}
 	for rows.Next() {
 		var r LeaderboardRow
-		if err := rows.Scan(&r.PlayerID, &r.Name, &r.Rating, &r.RD, &r.Peak, &r.Games, &r.Trend); err != nil {
+		if err := rows.Scan(&r.PlayerID, &r.Name, &r.Rating, &r.RD, &r.Class, &r.Peak, &r.Games, &r.Trend); err != nil {
 			return 0, nil, err
 		}
-		r.Tier = domain.TierForRating(r.Rating)
+		r.ClassDerived = cfg.ClassForRating(r.Rating)
+		r.ClassDisplay = cfg.DisplayClass(r.Rating, r.Class)
 		r.Provisional = domain.Provisional(r.RD)
 		out = append(out, r)
 	}
@@ -95,34 +102,41 @@ type RatingHistoryRow struct {
 
 // RatingPlayerDetail — detail pemain + history.
 type RatingPlayerDetail struct {
-	Name    string             `json:"name"`
-	Rating  float64            `json:"rating"`
-	RD      float64            `json:"rd"`
-	Tier    int                `json:"tier"`
-	Peak    float64            `json:"peak"`
-	Games   int                `json:"games"`
-	Wins    int                `json:"wins"`
-	Losses  int                `json:"losses"`
-	History []RatingHistoryRow `json:"history"`
+	Name         string             `json:"name"`
+	Rating       float64            `json:"rating"`
+	RD           float64            `json:"rd"`
+	Class        string             `json:"class"`
+	ClassDerived string             `json:"class_derived"`
+	ClassDisplay string             `json:"class_display"`
+	Peak         float64            `json:"peak"`
+	Games        int                `json:"games"`
+	Wins         int                `json:"wins"`
+	Losses       int                `json:"losses"`
+	History      []RatingHistoryRow `json:"history"`
 }
 
 // RatingPlayer — detail pemain (by player_id uuid).
 func (s *SessionStore) RatingPlayer(ctx context.Context, playerID string) (*RatingPlayerDetail, error) {
+	cfg, err := s.LoadRatingConfig(ctx, false)
+	if err != nil {
+		return nil, err
+	}
 	var d RatingPlayerDetail
-	err := s.pool.QueryRow(ctx, `
-		SELECT p.canonical_name, rp.rating, rp.rd, rp.peak_rating, rp.games_played,
-		       rp.wins, rp.losses
+	err = s.pool.QueryRow(ctx, `
+		SELECT p.canonical_name, rp.rating, rp.rd, coalesce(rp.class, ''), rp.peak_rating,
+		       rp.games_played, rp.wins, rp.losses
 		FROM `+s.schema+`.rating_players rp
 		JOIN `+s.schema+`.players p ON p.id = rp.player_id
 		WHERE rp.player_id = $1::uuid`, playerID).
-		Scan(&d.Name, &d.Rating, &d.RD, &d.Peak, &d.Games, &d.Wins, &d.Losses)
+		Scan(&d.Name, &d.Rating, &d.RD, &d.Class, &d.Peak, &d.Games, &d.Wins, &d.Losses)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	d.Tier = domain.TierForRating(d.Rating)
+	d.ClassDerived = cfg.ClassForRating(d.Rating)
+	d.ClassDisplay = cfg.DisplayClass(d.Rating, d.Class)
 	d.History, err = s.RatingPlayerHistory(ctx, playerID, 200)
 	if err != nil {
 		return nil, err

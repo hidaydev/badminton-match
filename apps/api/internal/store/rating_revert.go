@@ -149,18 +149,20 @@ func (s *SessionStore) resolveSourceID(ctx context.Context, tx pgx.Tx, lookup, k
 // target & scores dari rating_events; pemain dari rating_deltas (team).
 func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.RatingConfig) (int, error) {
 	// Tangkap pemain yang pernah ter-rating (untuk reset-to-default)
-	priorRows, err := tx.Query(ctx, `SELECT player_id::text FROM `+s.schema+`.rating_players`)
+	priorRows, err := tx.Query(ctx, `SELECT player_id::text, coalesce(class, '') FROM `+s.schema+`.rating_players`)
 	if err != nil {
 		return 0, err
 	}
 	prior := map[string]bool{}
+	priorClass := map[string]string{}
 	for priorRows.Next() {
-		var id string
-		if err := priorRows.Scan(&id); err != nil {
+		var id, cls string
+		if err := priorRows.Scan(&id, &cls); err != nil {
 			priorRows.Close()
 			return 0, err
 		}
 		prior[id] = true
+		priorClass[id] = cls
 	}
 	priorRows.Close()
 	if err := priorRows.Err(); err != nil {
@@ -232,7 +234,8 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		return 0, err
 	}
 
-	// runtime state (semua dimulai dari default — full rebuild)
+	// runtime state — forming ulang: baseline = mid kelas assigned (bukan flat
+	// initial). Pemain tanpa kelas → initial_rating (fallback).
 	runtime := map[string]*playerRuntime{}
 	getRT := func(id string) *playerRuntime {
 		rt, ok := runtime[id]
@@ -241,6 +244,13 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 				id:    id,
 				state: domain.RatingState{Rating: cfg.Params.InitialRating, RD: cfg.Params.InitialRD},
 				peak:  cfg.Params.InitialRating,
+			}
+			if cls := priorClass[id]; cls != "" {
+				if mid, ok := cfg.MidRatingForClass(cls); ok {
+					rt.state.Rating = mid
+					rt.peak = mid
+					rt.class = cls
+				}
 			}
 			runtime[id] = rt
 		}
@@ -354,33 +364,45 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		if rt.lastPlayedAt != "" {
 			lastPlayed = rt.lastPlayedAt
 		}
+		classVal := any(nil)
+		if rt.class != "" {
+			classVal = rt.class
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO `+s.schema+`.rating_players
-				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, updated_at)
-			VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, now())
+				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, class, updated_at)
+			VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, $9, now())
 			ON CONFLICT (player_id) DO UPDATE SET
 				rating = EXCLUDED.rating, rd = EXCLUDED.rd, peak_rating = EXCLUDED.peak_rating,
 				games_played = EXCLUDED.games_played, wins = EXCLUDED.wins, losses = EXCLUDED.losses,
-				last_played_at = EXCLUDED.last_played_at, updated_at = now()`,
-			id, rt.state.Rating, rt.state.RD, rt.peak, rt.games, rt.wins, rt.losses, lastPlayed); err != nil {
+				last_played_at = EXCLUDED.last_played_at, class = EXCLUDED.class, updated_at = now()`,
+			id, rt.state.Rating, rt.state.RD, rt.peak, rt.games, rt.wins, rt.losses, lastPlayed, classVal); err != nil {
 			return 0, err
 		}
 	}
 
 	// Reset-to-default: pemain yang sebelumnya ter-rating tapi kini 0 event
-	// (semua game-nya di source yang di-revert) → row default (r0/rd0, 0 game).
+	// (semua game-nya di source yang di-revert) → mid kelas (atau initial), 0 game.
 	for id := range prior {
 		if _, ok := runtime[id]; ok {
 			continue
 		}
+		base := cfg.Params.InitialRating
+		classVal := any(nil)
+		if cls := priorClass[id]; cls != "" {
+			if mid, ok := cfg.MidRatingForClass(cls); ok {
+				base = mid
+			}
+			classVal = cls
+		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO `+s.schema+`.rating_players
-				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, updated_at)
-			VALUES ($1::uuid, $2, $3, $4, 0, 0, 0, NULL, now())
+				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, class, updated_at)
+			VALUES ($1::uuid, $2, $3, $4, 0, 0, 0, NULL, $5, now())
 			ON CONFLICT (player_id) DO UPDATE SET
 				rating = EXCLUDED.rating, rd = EXCLUDED.rd, peak_rating = EXCLUDED.peak_rating,
-				games_played = 0, wins = 0, losses = 0, last_played_at = NULL, updated_at = now()`,
-			id, cfg.Params.InitialRating, cfg.Params.InitialRD, cfg.Params.InitialRating); err != nil {
+				games_played = 0, wins = 0, losses = 0, last_played_at = NULL, class = EXCLUDED.class, updated_at = now()`,
+			id, base, cfg.Params.InitialRD, base, classVal); err != nil {
 			return 0, err
 		}
 	}
