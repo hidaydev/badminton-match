@@ -240,12 +240,12 @@ export function ratingSparklinePath(history: { rating: number }[], w: number, h:
 **Verifikasi P1:** `npm run check` hijau · browser: data bm_dev live (106 pemain aktif). → **lengkap: 55 PASS + tsc/eslint/tailwind hijau. Route detail `/ratings/:playerId` ditunda ke P2 (file belum ada).**
 
 ### P2 — Detail & cross-link
-- [ ] 11. `sparkline.ts` + `RatingSparkline` + unit test (path SVG deterministik)
-- [ ] 12. `RatingPlayerPage` (header, stat cards, sparkline, recent matches)
-- [ ] 13. Cross-link: PlayerDetailPage → rating; RatingPlayerPage → player history — **link history pakai `encodeURIComponent(name)`**
-- [ ] 14. Rute `/ratings/:playerId`
+- [x] 11. `sparkline.ts` + `RatingSparkline` + unit test (path SVG deterministik) → **`utils/sparkline.ts` + `components/ratings/RatingSparkline.tsx` (pakai `<path>`, util tunggal) + 5 test (kosong/titik/deterministik/naik/span-nol)**
+- [x] 12. `RatingPlayerPage` (header, stat cards, sparkline, recent matches) → **header (name+tier+prov badge+RD), 4 stat cards (Peak/Games/W-L/Tier), sparkline dari `new_rating` (API DESC → dibalik), recent matches (W/L + delta ±)**
+- [x] 13. Cross-link: PlayerDetailPage → rating; RatingPlayerPage → player history — **link history pakai `encodeURIComponent(name)`** → **keduanya terpasang (PlayerDetailPage: jika `playerId` & games>0)**
+- [x] 14. Rute `/ratings/:playerId` → **lazy + Suspense (konvensi)**
 
-**Verifikasi P2:** `npm run check` hijau · browser: klik leaderboard → detail → sparkline → cross-link dua arah.
+**Verifikasi P2:** `npm run check` hijau · browser: klik leaderboard → detail → sparkline → cross-link dua arah. → **lengkap: 60 PASS + tsc/eslint/tailwind hijau (commit `eaf37e4`).**
 
 ### P3 — Audit & polish
 - [ ] 15. Audit konsistensi (design tokens, error handling, aksesibilitas)
