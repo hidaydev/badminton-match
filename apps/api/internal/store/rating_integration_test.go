@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -42,10 +43,12 @@ func ratingCreateLockedSession(t *testing.T, st *SessionStore, ctx context.Conte
 		t.Fatalf("register: %v", err)
 	}
 	id := fmt.Sprintf("it-rating-%s-%d", suffix, time.Now().UnixNano())
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	// Tanggal FUTURE — data riil bm_dev sudah berisi events s/d hari ini;
+	// seq invariant menolak ingest tanggal lebih lama dari max existing.
+	future := time.Now().AddDate(0, 0, 2).Format("2006-01-02")
 	snap := &domain.CloudSnapshot{
 		Session: domain.SessionConfig{
-			Title: "Rating IT " + suffix, Date: yesterday, Courts: 1,
+			Title: "Rating IT " + suffix, Date: future, Courts: 1,
 			SessionStart: "09:00", SlotMinutes: 20,
 			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
 			PlayerCount: len(players),
@@ -107,12 +110,15 @@ func TestIntegrationRatingIngestSession(t *testing.T) {
 	}
 	id := ratingCreateLockedSession(t, st, ctx, players, "sess")
 
-	// Bersihkan data rating dari run ini
+	// Bersihkan data rating run ini SAJA (scoped — DB bersama data backfill).
+	// rating_deltas ikut terhapus via FK cascade dari rating_events.
 	t.Cleanup(func() {
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rating-sess%'`)
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE 'it-rating-sess%'`)
-		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas`)
-		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (
+			SELECT id FROM `+schema+`.players WHERE canonical_name IN ('ITR One','ITR Two','ITR Three','ITR Four'))`)
+		_, _ = st.pool.Exec(ctx, `UPDATE `+schema+`.sessions SET status='draft' WHERE share_code LIKE 'it-rating-sess%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE 'it-rating-sess%'`)
 	})
 
 	// Ingest pertama
@@ -129,10 +135,11 @@ func TestIntegrationRatingIngestSession(t *testing.T) {
 
 	// rating_events & rating_deltas
 	var evCount, dlCount int
-	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM `+schema+`.rating_events`).Scan(&evCount); err != nil {
+	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rating-sess%'`).Scan(&evCount); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM `+schema+`.rating_deltas`).Scan(&dlCount); err != nil {
+	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM `+schema+`.rating_deltas rd
+		JOIN `+schema+`.rating_events re ON re.id = rd.event_id WHERE re.source_id LIKE 'it-rating-sess%'`).Scan(&dlCount); err != nil {
 		t.Fatal(err)
 	}
 	if evCount != 2 {
@@ -173,9 +180,6 @@ func TestIntegrationRatingIngestSession(t *testing.T) {
 		t.Fatalf("re-ingest processed = %d, want 2", res3.Processed)
 	}
 	after := ratingPlayers(t, st, ctx)
-	for pid, r := range before {
-		t.Logf("DBG player=%s before=%.2f/%.2f", pid, r.Rating, r.RD)
-	}
 	for pid, r := range before {
 		a, ok := after[pid]
 		if !ok {
@@ -292,13 +296,15 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rating-tr%'`)
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE 'it-rating-tr%'`)
-		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas`)
-		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (
+			SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'ITT %')`)
+		_, _ = st.pool.Exec(ctx, `UPDATE `+schema+`.sessions SET status='draft' WHERE share_code LIKE 'it-rating-tr%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE 'it-rating-tr%'`)
 	})
 
 	// Session A: P1-P4 (tidak berbagi dengan B); Session B: P3-P6 (berbagi P3/P4)
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
-	twoDaysAgo := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
+	futureA := time.Now().AddDate(0, 0, 2).Format("2006-01-02")
+	futureB := time.Now().AddDate(0, 0, 3).Format("2006-01-02")
 	idA := fmt.Sprintf("it-rating-tr-A-%d", time.Now().UnixNano())
 	idB := fmt.Sprintf("it-rating-tr-B-%d", time.Now().UnixNano())
 
@@ -331,8 +337,8 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 			t.Fatalf("lock %s: %v", label, err)
 		}
 	}
-	mkSession(idA, twoDaysAgo, players[:4], "A")
-	mkSession(idB, yesterday, players[2:], "B")
+	mkSession(idA, futureA, players[:4], "A")
+	mkSession(idB, futureB, players[2:], "B")
 
 	// Ingest B dulu (tanggal lebih baru), lalu A (lebih lama) — urutan
 	// kronologis: A (2 hari lalu) < B (kemarin).
@@ -349,9 +355,7 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("leaderboard: %v", err)
 	}
-	if total != 6 {
-		t.Fatalf("leaderboard total = %d, want 6", total)
-	}
+	// total global berisi data backfill juga — cukup cek row ITT.
 	rowByName := map[string]LeaderboardRow{}
 	for _, r := range rows {
 		rowByName[r.Name] = r
@@ -360,6 +364,7 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 	if !ok || itt3.Games != 4 {
 		t.Fatalf("ITT Three leaderboard salah: %+v (ok=%v)", itt3, ok)
 	}
+	_ = total
 
 	// Read path: player detail + history
 	pid3 := resolveIDByAlias(t, st, "itt three")
@@ -409,11 +414,12 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 	// menghasilkan nilai kebetulan sama.)
 	stateAfterRevert := ratingPlayers(t, st, ctx)
 
-	// Hapus semua state rating, ingest ulang hanya B
-	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events`)
-	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources`)
-	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas`)
-	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players`)
+	// Hapus state rating source TEST saja (A+B), lalu ingest ulang hanya B —
+	// backfill tidak tersentuh. stateAfterRevert harus == fresh B-only.
+	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rating-tr%'`)
+	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE 'it-rating-tr%'`)
+	_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (
+		SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'ITT %')`)
 	if _, err := st.IngestSession(ctx, idB); err != nil {
 		t.Fatalf("fresh ingest B: %v", err)
 	}
@@ -433,6 +439,129 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 			t.Fatalf("transitivity gagal: player %s revert=%.2f/%.2f vs freshB=%.2f/%.2f",
 				pid, a.Rating, a.RD, r.Rating, r.RD)
 		}
+	}
+}
+
+// TestIntegrationAutoIngestLockedSessions — P0 frontend plan: sesi yang
+// menjadi locked otomatis diingest oleh ticker helper; draft dilewati;
+// leaderboard membawa player_id; history membawa new_rating.
+func TestIntegrationAutoIngestLockedSessions(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	players := []domain.Player{
+		{ID: "itai1", Name: "ITAI One", Gender: "M", Tier: 1},
+		{ID: "itai2", Name: "ITAI Two", Gender: "M", Tier: 2},
+		{ID: "itai3", Name: "ITAI Three", Gender: "M", Tier: 3},
+		{ID: "itai4", Name: "ITAI Four", Gender: "M", Tier: 4},
+	}
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	id := fmt.Sprintf("it-rating-auto-%d", time.Now().UnixNano())
+	yesterday := time.Now().AddDate(0, 0, 2).Format("2006-01-02") // future
+	mkSnap := func() *domain.CloudSnapshot {
+		return &domain.CloudSnapshot{
+			Session: domain.SessionConfig{
+				Title: "ITAI", Date: yesterday, Courts: 1,
+				SessionStart: "09:00", SlotMinutes: 20,
+				CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
+				PlayerCount: 4, CourtNames: []string{"C1"},
+			},
+			Players: players, FixMatches: []domain.FixMatch{},
+			Schedule:    []domain.ScheduleSlot{{Slot: 0, Court: 0, TeamA: [2]string{"itai1", "itai2"}, TeamB: [2]string{"itai3", "itai4"}}},
+			PlayedGames: []string{"0-0"},
+			GameScores:  map[string]domain.GameScore{"0-0": {A: 21, B: 10}},
+		}
+	}
+	t.Cleanup(func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rating-auto%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE 'it-rating-auto%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (
+			SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rating-auto%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (
+			SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'ITAI %')`)
+		// session bisa locked → unlock dulu, baru delete
+		_, _ = st.pool.Exec(ctx, `UPDATE `+schema+`.sessions SET status='draft' WHERE share_code LIKE 'it-rating-auto%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE 'it-rating-auto%'`)
+	})
+
+	// Draft → auto-ingest harusnya tidak menyentuh
+	if _, err := st.Save(ctx, id, mkSnap()); err != nil {
+		t.Fatalf("save draft: %v", err)
+	}
+	n, err := st.AutoIngestLockedSessions(ctx)
+	if err != nil {
+		t.Fatalf("auto-ingest: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("draft ter-ingest (n=%d), want 0", n)
+	}
+
+	// Lock → auto-ingest memproses
+	created, _ := st.Load(ctx, id)
+	created.Session.Locked = true
+	if _, err := st.Save(ctx, id, created); err != nil {
+		t.Fatalf("lock: %v", err)
+	}
+	n, err = st.AutoIngestLockedSessions(ctx)
+	if err != nil {
+		t.Fatalf("auto-ingest: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("auto-ingest n=%d, want 1", n)
+	}
+
+	// Idempotent: kedua kalinya no-op
+	n2, err := st.AutoIngestLockedSessions(ctx)
+	if err != nil || n2 != 0 {
+		t.Fatalf("auto-ingest kedua n=%d err=%v, want 0", n2, err)
+	}
+
+	// Leaderboard membawa player_id
+	total, rows, err := st.RatingLeaderboard(ctx, false, 100, 0)
+	if err != nil {
+		t.Fatalf("leaderboard: %v", err)
+	}
+	if total < 4 {
+		t.Fatalf("leaderboard total = %d, want ≥4", total)
+	}
+	found := 0
+	for _, r := range rows {
+		if r.PlayerID == "" {
+			t.Fatal("leaderboard row tanpa player_id")
+		}
+		if r.Name == "ITAI One" {
+			found++
+		}
+	}
+	if found != 1 {
+		t.Fatalf("ITAI One tidak ditemukan di leaderboard")
+	}
+
+	// History membawa new_rating
+	pid := resolveIDByAlias(t, st, "itai one")
+	hist, err := st.RatingPlayerHistory(ctx, pid, 10)
+	if err != nil {
+		t.Fatalf("history: %v", err)
+	}
+	if len(hist) == 0 || hist[0].NewRating <= 0 {
+		t.Fatalf("history new_rating kosong: %+v", hist)
+	}
+
+	// Stats response membawa playerId
+	raw, err := NewPlayerStore(st.pool).Stats(ctx, "ITAI One")
+	if err != nil {
+		t.Fatalf("stats: %v", err)
+	}
+	var ss struct {
+		PlayerID string `json:"playerId"`
+	}
+	if err := json.Unmarshal(raw, &ss); err != nil {
+		t.Fatalf("unmarshal stats: %v", err)
+	}
+	if ss.PlayerID == "" {
+		t.Fatal("stats response tanpa playerId")
 	}
 }
 

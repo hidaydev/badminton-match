@@ -44,6 +44,7 @@ type tournamentEntrySmall struct {
 
 type playerStatsJSON struct {
 	Name            string              `json:"name"`
+	PlayerID        string              `json:"playerId"`
 	GamesPlayed     int                 `json:"gamesPlayed"`
 	Wins            int                 `json:"wins"`
 	Losses          int                 `json:"losses"`
@@ -94,6 +95,7 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 		return nil, err
 	}
 	out.Name = canonical
+	out.PlayerID = playerID
 
 	// ── session stats (mirror base_stats) ────────────────────────────────
 	// Game VOID (memuat ≥1 pemain is_absent) tidak dihitung — lihat

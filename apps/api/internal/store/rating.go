@@ -27,6 +27,41 @@ var (
 	ErrSourceNotFinal = errors.New("rating: source not final (session unlocked / tournament not finalized)")
 )
 
+// AutoIngestLockedSessions — ingest otomatis sesi yang sudah final (status
+// != draft) tapi belum pernah diingest (tidak ada rating_sources dengan
+// fingerprint terisi). Urut kronologis. Idempotent; sesi yang diedit setelah
+// ingest (fingerprint berubah) TIDAK disentuh — butuh revert manual.
+// Dipanggil ticker setelah AutoLockExpiredSessions (plan frontend §4.3).
+func (s *SessionStore) AutoIngestLockedSessions(ctx context.Context) (int, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT share_code
+		FROM `+s.schema+`.sessions s
+		WHERE s.status != 'draft'
+		  AND NOT EXISTS (
+			SELECT 1 FROM `+s.schema+`.rating_sources rs
+			WHERE rs.source_id = s.share_code AND rs.fingerprint != ''
+		  )
+		ORDER BY s.session_date ASC, s.created_at ASC`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	ingested := 0
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return ingested, err
+		}
+		if _, err := s.IngestSession(ctx, id); err != nil {
+			// Jangan block sesi lain — log via return (caller log).
+			continue
+		}
+		ingested++
+	}
+	return ingested, rows.Err()
+}
+
 // IngestResult — ringkasan ingest.
 type IngestResult struct {
 	Processed int           `json:"processed"`

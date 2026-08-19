@@ -14,6 +14,7 @@ import (
 
 // LeaderboardRow — baris leaderboard.
 type LeaderboardRow struct {
+	PlayerID    string  `json:"player_id"`
 	Name        string  `json:"name"`
 	Rating      float64 `json:"rating"`
 	RD          float64 `json:"rd"`
@@ -46,7 +47,7 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 	}
 
 	rows, err := s.pool.Query(ctx, `
-		SELECT p.canonical_name, rp.rating, rp.rd, rp.peak_rating, rp.games_played,
+		SELECT rp.player_id::text, p.canonical_name, rp.rating, rp.rd, rp.peak_rating, rp.games_played,
 		       coalesce(tr.delta, 0)
 		FROM `+s.schema+`.rating_players rp
 		JOIN `+s.schema+`.players p ON p.id = rp.player_id
@@ -68,7 +69,7 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 	out := []LeaderboardRow{}
 	for rows.Next() {
 		var r LeaderboardRow
-		if err := rows.Scan(&r.Name, &r.Rating, &r.RD, &r.Peak, &r.Games, &r.Trend); err != nil {
+		if err := rows.Scan(&r.PlayerID, &r.Name, &r.Rating, &r.RD, &r.Peak, &r.Games, &r.Trend); err != nil {
 			return 0, nil, err
 		}
 		r.Tier = domain.TierForRating(r.Rating)
@@ -80,15 +81,16 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 
 // RatingHistoryRow — satu baris history pemain.
 type RatingHistoryRow struct {
-	Date     string  `json:"date"`
-	Title    string  `json:"title"`
-	GameRef  string  `json:"game_ref"`
-	Outcome  string  `json:"outcome"`
-	Delta    float64 `json:"delta"`
-	Expected float64 `json:"expected"`
-	Movm     float64 `json:"movm"`
-	ScoreA   int     `json:"score_a"`
-	ScoreB   int     `json:"score_b"`
+	Date      string  `json:"date"`
+	Title     string  `json:"title"`
+	GameRef   string  `json:"game_ref"`
+	Outcome   string  `json:"outcome"`
+	Delta     float64 `json:"delta"`
+	Expected  float64 `json:"expected"`
+	Movm      float64 `json:"movm"`
+	ScoreA    int     `json:"score_a"`
+	ScoreB    int     `json:"score_b"`
+	NewRating float64 `json:"new_rating"`
 }
 
 // RatingPlayerDetail — detail pemain + history.
@@ -135,7 +137,7 @@ func (s *SessionStore) RatingPlayerHistory(ctx context.Context, playerID string,
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT re.date::text, re.title, re.stable_game_id, rd.outcome,
-		       rd.delta, rd.expected, rd.movm, re.score_a, re.score_b
+		       rd.delta, rd.expected, rd.movm, re.score_a, re.score_b, rd.new_rating
 		FROM `+s.schema+`.rating_deltas rd
 		JOIN `+s.schema+`.rating_events re ON re.id = rd.event_id
 		WHERE rd.player_id = $1::uuid
@@ -150,7 +152,7 @@ func (s *SessionStore) RatingPlayerHistory(ctx context.Context, playerID string,
 	for rows.Next() {
 		var h RatingHistoryRow
 		if err := rows.Scan(&h.Date, &h.Title, &h.GameRef, &h.Outcome,
-			&h.Delta, &h.Expected, &h.Movm, &h.ScoreA, &h.ScoreB); err != nil {
+			&h.Delta, &h.Expected, &h.Movm, &h.ScoreA, &h.ScoreB, &h.NewRating); err != nil {
 			return nil, err
 		}
 		out = append(out, h)

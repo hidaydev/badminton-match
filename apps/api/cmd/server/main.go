@@ -80,7 +80,7 @@ func main() {
 		defer cancelAutoLock()
 		go func() {
 			run := func() {
-				runCtx, cancel := context.WithTimeout(autoLockCtx, 30*time.Second)
+				runCtx, cancel := context.WithTimeout(autoLockCtx, 2*time.Minute)
 				defer cancel()
 				n, err := locker.AutoLockExpiredSessions(runCtx)
 				if err != nil {
@@ -89,6 +89,16 @@ func main() {
 				}
 				if n > 0 {
 					logger.Info("auto-lock", "sessions_locked", n)
+				}
+				// Auto-ingest sesi yang baru final (rating mengalir otomatis —
+				// plan frontend §4.3).
+				if n > 0 {
+					ni, err := locker.AutoIngestLockedSessions(runCtx)
+					if err != nil {
+						logger.Error("auto-ingest gagal", "error", err)
+						return
+					}
+					logger.Info("auto-ingest", "sessions_ingested", ni)
 				}
 			}
 			ticker := time.NewTicker(30 * time.Minute)
