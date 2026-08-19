@@ -37,6 +37,7 @@ func (s *SessionStore) AutoIngestLockedSessions(ctx context.Context) (int, error
 		SELECT share_code
 		FROM `+s.schema+`.sessions s
 		WHERE s.status != 'draft'
+		  AND s.session_date >= (SELECT (value #>> '{}')::date FROM `+s.schema+`.rating_config WHERE key = 'season_start')
 		  AND NOT EXISTS (
 			SELECT 1 FROM `+s.schema+`.rating_sources rs
 			WHERE rs.source_id = s.share_code AND rs.fingerprint != ''
@@ -156,6 +157,12 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 	for _, m := range matches {
 		if m.Void() {
 			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "void (absent)"})
+			continue
+		}
+		// PRE-SEASON filter SEBELUM seq invariant: match sebelum season_start
+		// tidak pernah valid — drop di sini (bukan tolak out-of-order).
+		if m.Date < cfg.SeasonStart {
+			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "pre-season"})
 			continue
 		}
 		playable = append(playable, m)
@@ -296,13 +303,8 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 	var lastInsertedSeq int64
 	processedCount := 0
 	for _, m := range fresh {
-		// GATE season + journey (RATING_TIERING_REVAMP §2.5.6-2.5.7):
-		// match sebelum season_start → skip seluruh match (pre-season).
-		if m.Date < cfg.SeasonStart {
-			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "pre-season"})
-			continue
-		}
-		// Per-player: match sebelum registered_at pemain → pemain tidak ikut.
+		// GATE journey per-player (RATING_TIERING_REVAMP §2.5.6): match sebelum
+		// registered_at pemain → pemain tidak ikut.
 		// Jika salah satu sisi kosong → skip match.
 		eligibleA := []domain.RawPlayer{}
 		eligibleB := []domain.RawPlayer{}

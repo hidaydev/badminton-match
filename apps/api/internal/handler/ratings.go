@@ -54,6 +54,7 @@ type ratingBody struct {
 	TournamentID string `json:"tournamentId"`
 	SourceID     string `json:"sourceId"`
 	Finalized    *bool  `json:"finalized"`
+	StartDate    string `json:"startDate"`
 }
 
 // mapRatingError — sentinel store → httperr (design §6 error contract).
@@ -203,6 +204,42 @@ func (h *RatingsHandler) Sources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]any{"sources": srcs})
+}
+
+// Season — POST /ratings/season {startDate} (admin) — close & start new season.
+func (h *RatingsHandler) Season(w http.ResponseWriter, r *http.Request) {
+	var body ratingBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.StartDate == "" {
+		httperr.WriteError(w, nil, httperr.Validation("startDate is required"))
+		return
+	}
+	id, err := h.Store.CloseAndStartSeason(r.Context(), body.StartDate)
+	if err != nil {
+		httperr.WriteError(w, nil, mapRatingError(err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]string{"season_id": id})
+}
+
+// Seasons — GET /ratings/seasons → daftar musim.
+func (h *RatingsHandler) Seasons(w http.ResponseWriter, r *http.Request) {
+	seasons, err := h.Store.ListSeasons(r.Context())
+	if err != nil {
+		httperr.WriteError(w, nil, httperr.Internal(err.Error()))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]any{"seasons": seasons})
+}
+
+// SeasonStandings — GET /ratings/seasons/{seasonId}/standings → beku.
+func (h *RatingsHandler) SeasonStandings(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("seasonId")
+	rows, err := h.Store.SeasonStandings(r.Context(), id)
+	if err != nil {
+		httperr.WriteError(w, nil, httperr.Internal(err.Error()))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]any{"rows": rows})
 }
 
 // atoiSafe — parse int query param dengan fallback.
