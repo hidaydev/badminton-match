@@ -93,7 +93,7 @@ export default function AdminPage() {
   }
 
   const { data: sessions, refetch: refetchSessions } = useListSessions()
-  const { data: players } = useListPlayers()
+  const { data: players, refetch: refetchPlayers } = useListPlayers()
   const { data: sources, refetch: refetchSources } = useRatingSources()
   const { data: seasons } = useRatingSeasons()
   const { data: tournaments, refetch: refetchTournaments } = useListTournaments()
@@ -352,6 +352,16 @@ export default function AdminPage() {
                   run(() => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: newTier2.toUpperCase() }), 'Tier diubah + recalculate')
                 }
               }}>Tier</ActionButton>
+              <ActionButton onClick={() => {
+                const newName2 = window.prompt(`Rename "${pl.name}" menjadi:`, pl.name)
+                if (newName2 && newName2.trim() && newName2.trim() !== pl.name) {
+                  run(
+                    () => adminRequest('PATCH', `/players/${pl.playerId}/name`, { name: newName2.trim() }),
+                    'Nama diubah (alias lama disimpan)',
+                    () => refetchPlayers(),
+                  )
+                }
+              }}>Rename</ActionButton>
               <ActionButton tone="red" onClick={() => {
                 if (window.confirm(`Hapus player "${pl.name}"? (riwayat sesi tetap, rating ikut terhapus)`)) {
                   run(() => adminRequest('DELETE', `/players/${pl.playerId}`), 'Player dihapus')
