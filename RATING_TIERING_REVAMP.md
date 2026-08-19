@@ -1,7 +1,7 @@
 # RATING_TIERING_REVAMP.md
 
 **Status:** PLAN — belum diimplementasikan
-**Rev:** 3.5 (mekanisme SEASON — season_start global, reset season, forming = baseline musim, recalculate via RebuildAll)
+**Rev:** 3.6 (assign tier induk HANYA 2 pintu: registrasi pertama nama baru ATAU admin — session flow tidak pernah assign tier existing)
 **Tanggal:** 2026-08-18
 **Lokasi:** root badminton-match
 **Terkait:** `RATING_ENGINE_DESIGN.md` (engine rating) · `RATINGS_FRONTEND_PLAN.md` (UI ratings) · `ADMIN_MENU_PLAN.md` (menu admin)
@@ -246,12 +246,12 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 
 | Skenario | Dampak ke ratings? | Mekanisme |
 |---|---|---|
-| Ubah tier player DI DALAM sesi (biasa, via UI session) | **Tidak langsung** — hanya memengaruhi grouping/generator sesi itu | — |
-| Player baru masuk sesi tier X | Ya — menentukan **kelas awal + rating awal** (sekali, saat ingest pertama) | Inisialisasi §5 |
+| **Ubah tier player DI DALAM sesi — TIDAK ADA mekanisme ini** (Rev 3.6) | — | Assign tier induk cuma 2 pintu: (a) registrasi pertama nama BARU, (b) menu admin. Session flow untuk pemain EXISTING: tier sticky prefilled + LOCKED (dipakai generator, tidak bisa diubah) |
+| Player baru (nama belum terdaftar) masuk sesi | Ya — host pilih tier → jadi sticky + menentukan **kelas awal + rating awal** (sekali, saat ingest pertama) | Inisialisasi §5 |
 | Admin ubah kelas di menu ratings | Ya — mengubah **floor** (+ opsional rebaseline) | Endpoint baru `PATCH /ratings/players/{id}/class` |
 | Ingin "re-baseline" rating ke kelas baru + hitung ulang semua | Ya — **mekanisme sudah ada: `POST /ratings/rebuild-all`** (full rebuild dari events) | RebuildAll |
 
-**Rekomendasi desain: session tier dan ratings class DICOUPLE-KAN HANYA SATU ARAH** (session tier → inisialisasi kelas saat pertama kali). Setelah itu **independen**: kelas hanya berubah oleh admin. Ini menjaga mekanisme "tidak pernah turun kelas" tetap bermakna (kalau setiap edit tier session menyinkronkan kelas, floor jadi tidak stabil).
+**Rekomendasi desain: coupling session-tier → ratings class = SATU ARAH, SATU KALI** (saat registrasi pertama nama baru). Setelah itu **TIDAK ADA mekanisme tier di session sama sekali** (locked; generator memakai sticky tier) — kelas hanya berubah oleh admin. Ini menjaga "tidak pernah turun kelas" bermakna dan UX konsisten: host tidak pernah memikirkan tier untuk pemain lama.
 
 **Rebaseline** (optional, fase lanjut): aksi admin "set kelas X + rating = mid band X + rebuild" — memakai RebuildAll yang sudah ada.
 
@@ -263,7 +263,7 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 |---|---|
 | Player baru tanpa game (0 game) | Tidak punya row rating_players → tidak punya class; muncul saat game pertama |
 | Player di backfill (sudah ter-rating) | Class di-backfill dari tier session pertama (P2) |
-| Tier session berubah antar sesi (C di sesi 1, B di sesi 2) | Class TETAP dari sesi pertama (tidak sinkron ulang) — "kelas awal" sekali saja |
+| Tier pemain existing di sesi baru | **LOCKED (sticky)** — UI session tidak punya mekanisme assign/ubah tier untuk pemain existing; prefilled dari players.tier untuk generator |
 | Rating turun jauh di bawah floor | Display di-floor (C-); rating angka tetap rendah; naik lagi → kelas ikut naik dari floor |
 | Admin naikkan kelas C → A | Floor naik ke A-; display tidak pernah di bawah A- |
 | Admin turunkan kelas A → C | Floor TURUN ke C- — satu-satunya cara "turun kelas" (manual admin) |
