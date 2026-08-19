@@ -16,6 +16,8 @@ import {
   type CloudSnapshot,
 } from '../queries'
 import { registerPlayer } from '../queries/endpoints'
+import { adminRequest } from '../queries/admin'
+import { useAdmin } from '../context/AdminContext'
 import { selectSlotsPerCourt } from '../store/selectors'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
@@ -28,7 +30,9 @@ export default function SharedSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { isAdmin } = useAdmin()
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   // Auto-dismiss error toast after 5 seconds
   useEffect(() => {
@@ -205,13 +209,24 @@ export default function SharedSessionPage() {
         onRefetch={() => refetch()}
         isRefetching={isFetching}
         onDelete={() => {
-          if (!sessionId) return
-          deleteSessionMutate(sessionId, {
-            onSuccess: () => navigate('/sessions'),
-            onError: (err) => setSaveError(getSaveErrorMessage(err)),
-          })
+          if (!sessionId || deleteBusy) return
+          const fail = (err: unknown) => setSaveError(getSaveErrorMessage(err))
+          if (isAdmin) {
+            // Admin: hapus status apa pun (locked termasuk) + bersihkan rating source.
+            setDeleteBusy(true)
+            adminRequest('POST', `/sessions/${sessionId}/delete`)
+              .then(() => navigate('/sessions'))
+              .catch(fail)
+              .finally(() => setDeleteBusy(false))
+          } else {
+            // Non-admin: anon delete — hanya jalan untuk sesi draft.
+            deleteSessionMutate(sessionId, {
+              onSuccess: () => navigate('/sessions'),
+              onError: fail,
+            })
+          }
         }}
-        deleteLoading={deletePending}
+        deleteLoading={deletePending || deleteBusy}
         locked={!!snapshot?.session?.locked}
         onLock={() => lockSession(undefined, {
           onSuccess: () => setSaveError(null),

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Navigate } from 'react-router-dom'
+import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetTournament,
@@ -8,6 +8,8 @@ import {
   useResetTournament,
   useRegeneratePics,
 } from '../queries'
+import { adminRequest } from '../queries/admin'
+import { useAdmin } from '../context/AdminContext'
 import { getSaveErrorMessage } from '../queries/errors'
 import type { GroupId, TournamentPair } from '../utils/tournament'
 import GroupAssignment from '../components/tournament/GroupAssignment'
@@ -75,11 +77,14 @@ function GroupLoadingSkeleton() {
 
 export default function TournamentPage() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
+  const { isAdmin } = useAdmin()
   const [tab, setTab] = useState<Tab>('groups')
   const [localGroups, setLocalGroups] = useState<Record<GroupId, (string | null)[]>>(
     () => ({ A: [null, null, null, null], B: [null, null, null, null], C: [null, null, null, null], D: [null, null, null, null] })
   )
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   // Auto-dismiss error toast after 5 seconds
   useEffect(() => {
@@ -96,6 +101,16 @@ export default function TournamentPage() {
 
   const handleOpenModal = () => {
     queryClient.invalidateQueries({ queryKey: ['tournament', id] })
+  }
+
+  const handleDelete = () => {
+    if (deleteBusy) return
+    if (!window.confirm(`Hapus tournament "${name}"?\n\nRating source ikut terhapus & semua rating di-rebuild.`)) return
+    setDeleteBusy(true)
+    adminRequest('POST', `/tournaments/${id}/delete`)
+      .then(() => navigate('/tournaments'))
+      .catch((e) => setSaveError(getSaveErrorMessage(e)))
+      .finally(() => setDeleteBusy(false))
   }
 
   const pairs = classic?.pairs ?? INITIAL_PAIRS
@@ -161,6 +176,18 @@ export default function TournamentPage() {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             )
+          )}
+          {isAdmin && (
+            <button
+              onClick={handleDelete}
+              disabled={deleteBusy}
+              title="Delete tournament"
+              className="ml-auto text-slate-400 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors shrink-0"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+              </svg>
+            </button>
           )}
         </div>
         <p className="text-xs text-slate-400 mt-0.5 mb-3">
