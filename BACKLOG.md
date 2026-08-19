@@ -182,10 +182,10 @@ backend-go-decision, HANDOFF). Tabel di bawah untuk referensi:
 |---|---|---|---|
 | O1 | **Multi-user auth / per-role** — satu token = "admin tunggal" (sesuai skala klub). Upgrade → Supabase Auth/JWT = backlog | By design | ADMIN_MENU_PLAN §8 |
 | O2 | **Admin UI edit skor sesi terkunci** — cukup unlock → edit normal | By design | ADMIN_MENU_PLAN §8 |
-| O3 | **Nasib M-DEF** — sinkronisasi `rating_players` ke M-DEF vs pensiunkan M-DEF setelah leaderboard rating lahir | **Belum ada keputusan** | RATING_ENGINE_DESIGN §11 |
-| O4 | Pipeline M-DEF `020_majadu_import_rpc` — perlu di-recreate di VPS kalau M-DEF lanjut | Tergantung O3 | RATING_ENGINE_DESIGN §11 |
+| O3 | **Nasib M-DEF** — sinkronisasi `rating_players` ke M-DEF vs pensiunkan M-DEF setelah leaderboard rating lahir | ✅ **DIPUTUSKAN (2026-08-19): M-DEF PENSIUN** — repo di-archive (SUPERSEDED.md), tanpa sinkronisasi | RATING_ENGINE_DESIGN §11 |
+| O4 | Pipeline M-DEF `020_majadu_import_rpc` — perlu di-recreate di VPS kalau M-DEF lanjut | ✅ **TIDAK PERLU** (O3 → pensiun) | RATING_ENGINE_DESIGN §11 |
 | O5 | **Hardening lanjutan** — monitoring/alert API, staging env | Opsional | roadmap #4 |
-| O6 | **Fitur rating lain** — promosi/degradasi band, perbandingan antar pemain | Di luar scope | RATINGS_FRONTEND_PLAN §10 |
+| O6 | **Fitur rating lain** — promosi/degradasi band, perbandingan antar pemain | 🚫 **DROP (2026-08-19)** — promosi/degradasi sudah otomatis via class_display; H2H/insights ditunda tanpa batas | RATINGS_FRONTEND_PLAN §10 |
 
 ---
 

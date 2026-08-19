@@ -531,9 +531,15 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 
 ## 11. Catatan Integrasi M-DEF (BUKAN merge)
 
-- Pipeline M-DEF (`020_majadu_import_rpc`) membaca schema `bm` di Supabase. Setelah badminton-match pindah ke VPS (`bm_dev`/`bm`), RPC itu hanya berfungsi jika di-recreate di VPS.
-- Engine rating ini **tidak** memindahkan fitur M-DEF; hanya menyediakan data yang sama (match + skor) yang bisa dikonsumsi siapa pun.
-- Keputusan akhir: apakah `rating_players` disinkronkan ke M-DEF, atau M-DEF pensiun setelah leaderboard rating lahir di badminton-match — dibuka untuk diskusi.
+- **KEPUTUSAN (2026-08-19): M-DEF PENSIUN.** Leaderboard & rating kini milik
+  Majadu sendiri; tidak ada sinkronisasi ke M-DEF. Repo mdef di-archive
+  dengan catatan `SUPERSEDED.md`. Opsi "sync `rating_players` ke M-DEF"
+  DITUTUP. Fitur M-DEF yang mungkin dirindukan (matchup simulator, insights)
+  = kandidat backlog Majadu (lihat BACKLOG_ANALYSIS.md O6).
+- Pipeline M-DEF (`020_majadu_import_rpc`) membaca schema `bm` di Supabase —
+  **tidak perlu di-recreate di VPS** (M-DEF pensiun).
+- Engine rating ini **tidak** memindahkan fitur M-DEF; hanya menyediakan
+  data yang sama (match + skor) yang bisa dikonsumsi siapa pun.
 
 ---
 
