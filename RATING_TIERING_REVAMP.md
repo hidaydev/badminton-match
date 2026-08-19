@@ -16,6 +16,7 @@
   2. **Player baru** yang diregistrasi saat create session (tier A/B/C/D) → otomatis masuk **sub-tier tengah** hurufnya dengan **rating tengah** band tersebut.
   3. **Mekanisme "tidak pernah turun kelas"**: player yang di-assign kelas C **tidak akan pernah tampil di bawah C-** (floor = sub-tier terendah hurufnya), kecuali diubah manual admin.
 - Ini memisahkan dua konsep yang selama ini tercampur: **kelas (assigned, stabil, admin-editable)** vs **band rating (derived dari angka, bergerak)**.
+- **Prinsip (Rev 3.1): leaderboard harus REAL, REPRESENTATIF, HONEST** — bukan dihidupkan dengan mainan data. Delta per match harus cukup kecil sehingga rating stabil saat skill stabil; hanya bergerak bermakna saat skill benar-benar berubah. Parameter dipilih dari konvensi ELO/Glicko (akurasi), bukan dari keinginan membuat leaderboard "hidup".
 
 ---
 
@@ -44,7 +45,7 @@ D+  1200–1299 D   1100–1199  D-  1000–1099
 
 - 12 band × 100 = rentang 1000–2200 (muat dalam clamp [1000,2500]).
 - **Mid rating (kelas tengah huruf, angka bulat):** D=**1150** · C=**1450** · B=**1750** · A=**2050**.
-- Hubungan poin/match vs band: **typical win (pemain mapan) ≈ 1/3 band** · **max_delta cap 60 = 0.6 band** → 1 match TIDAK PERNAH naik 1 band penuh; menang terus ≈ 3 match/sub-band.
+- Hubungan poin/match vs band (Rev 3.1 — jujur, bukan mainan): **typical win (pemain mapan) ≈ 10–12 poin = ~1/9 band** · **max_delta cap 25–30 = ≤0.3 band** → 1 match tidak pernah melewati sepertiga band; menang terus ≈ 9–10 match/sub-band; perubahan skill nyata (60% win konsisten) ≈ 1 band per musim.
 
 ### 3.2 Mapping session tier → kelas awal + rating awal
 
