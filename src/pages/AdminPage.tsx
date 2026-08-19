@@ -362,6 +362,11 @@ export default function AdminPage() {
                   )
                 }
               }}>Rename</ActionButton>
+              <ActionButton tone="amber" onClick={() => {
+                if (window.confirm(`Rebaseline rating "${pl.name}" ke mid kelas?\n\nRating di-set ke tengah band kelasnya (efektif sampai rebuild berikutnya).`)) {
+                  run(() => adminRequest('POST', `/ratings/players/${pl.playerId}/rebaseline`), 'Rebaseline — rating = mid kelas')
+                }
+              }}>Rebaseline</ActionButton>
               <ActionButton tone="red" onClick={() => {
                 if (window.confirm(`Hapus player "${pl.name}"? (riwayat sesi tetap, rating ikut terhapus)`)) {
                   run(() => adminRequest('DELETE', `/players/${pl.playerId}`), 'Player dihapus')
