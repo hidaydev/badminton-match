@@ -44,7 +44,7 @@ export default function TeamTournamentPage() {
       setPublishError(null)
     },
     onError: (err) => {
-      setPublishError(err instanceof Error ? err.message : 'Gagal menyimpan.')
+      setPublishError(err instanceof Error ? err.message : 'Failed to save.')
     },
   })
 
@@ -128,7 +128,7 @@ export default function TeamTournamentPage() {
           {publish.isPending && <span className="text-xs text-fg-dim font-mono">saving…</span>}
         </div>
         <p className="text-xs text-fg-dim mt-0.5 mb-3 font-mono">
-          {snap.date} · 6 tim · 3 partai ganda · rally {teamTarget('group')}/{teamTarget('final')}
+          {snap.date} · 6 teams · 3 doubles · rally {teamTarget('group')}/{teamTarget('final')}
         </p>
         <div className="flex">
           {tabs.map((t) => (
@@ -150,7 +150,7 @@ export default function TeamTournamentPage() {
           <>
             <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
               <div className="px-4 py-2 border-b border-border-subtle text-xs font-mono text-fg-dim uppercase tracking-wider">
-                Klasemen
+                Standings
               </div>
               {standings.map((r, i) => {
                 const isTop = i < 2 && groupComplete
@@ -197,7 +197,7 @@ export default function TeamTournamentPage() {
                 disabled={publish.isPending}
                 className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
               >
-                Undian Grup (hari-H)
+                Group Draw (match day)
               </button>
             )}
             {groupMatches.map((m, mi) => (
@@ -284,7 +284,7 @@ function MatchCard({
               value={match.partai[pi].scoreA ?? ''}
               onChange={(e) => onChange(matchIdx, pi, { scoreA: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
               className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-mono text-fg text-center focus:border-accent focus:outline-none"
-              aria-label={`Skor ${teamName(teams, match.teamA)} partai ${pi + 1}`}
+              aria-label={`Score ${teamName(teams, match.teamA)} partai ${pi + 1}`}
             />
             <span className="text-fg-dim text-xs shrink-0">:</span>
             <input
@@ -294,7 +294,7 @@ function MatchCard({
               value={match.partai[pi].scoreB ?? ''}
               onChange={(e) => onChange(matchIdx, pi, { scoreB: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
               className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-mono text-fg text-center focus:border-accent focus:outline-none"
-              aria-label={`Skor ${teamName(teams, match.teamB)} partai ${pi + 1}`}
+              aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
             />
             <span className="flex-1 text-xs text-fg truncate text-right">{teamName(teams, match.teamB)}</span>
           </div>
