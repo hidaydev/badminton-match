@@ -1,12 +1,17 @@
-// src/pages/RatingPlayerPage.tsx — detail rating pemain (plan §6.5)
-import { Link, useParams } from 'react-router-dom'
+// src/pages/RatingPlayerPage.tsx — detail rating + career pemain.
+// Player History diserap ke sini (UI_UX_POLISH_PLAN §4) — satu halaman,
+// tanpa cross-link nested.
+import { useParams } from 'react-router-dom'
 import { useRatingPlayer } from '../queries/ratings'
+import { useGetPlayerStats } from '../queries'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import RatingSparkline from '../components/ratings/RatingSparkline'
+import CareerStats from '../components/ratings/CareerStats'
 
 export default function RatingPlayerPage() {
   const { playerId } = useParams<{ playerId: string }>()
   const { data, isLoading, isError } = useRatingPlayer(playerId)
+  const { data: stats } = useGetPlayerStats(data?.name ?? '')
 
   if (isLoading) return <p className="text-fg-dim text-sm">Loading rating…</p>
   if (isError) return <p className="text-error text-sm">Failed to load rating.</p>
@@ -31,12 +36,6 @@ export default function RatingPlayerPage() {
               </span>
             )}
           </div>
-          <Link
-            to={`/player-history/${encodeURIComponent(name)}`}
-            className="text-xs text-accent hover:brightness-110 transition-colors"
-          >
-            Player history →
-          </Link>
         </div>
         <span className="text-right">
           <span className="block text-2xl font-bold font-mono text-accent leading-none">{rating.toFixed(0)}</span>
@@ -86,6 +85,12 @@ export default function RatingPlayerPage() {
             </div>
           )
         })}
+      </div>
+
+      {/* Career (bekas Player History) */}
+      <div className="flex flex-col gap-2">
+        <p className="text-[10px] font-mono text-fg-dim uppercase tracking-wider px-1">Career</p>
+        {stats ? <CareerStats stats={stats} /> : <p className="text-fg-dim text-xs font-mono text-center py-6">No career stats yet.</p>}
       </div>
     </div>
   )

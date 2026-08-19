@@ -11,8 +11,6 @@ import PlayersPage from './pages/PlayersPage'
 import ConstraintsPage from './pages/ConstraintsPage'
 import GeneratePage from './pages/GeneratePage'
 import SessionListPage from './pages/SessionListPage'
-import PlayerHistoryPage from './pages/PlayerHistoryPage'
-import PlayerDetailPage from './pages/PlayerDetailPage'
 import { useStore } from './store'
 import { decodeSnapshot, type SharedSnapshot } from './utils/shareUrl'
 import { SharedViewContext, useSharedView } from './sharedView'
@@ -86,8 +84,6 @@ export default function App() {
           <Route element={<HomeLayout />}>
             <Route index element={<HomePage />} />
             <Route path="sessions" element={<SessionListPage />} />
-            <Route path="player-history" element={<PlayerHistoryPage />} />
-            <Route path="player-history/:name" element={<PlayerDetailPage />} />
             <Route path="ratings" element={<Suspense fallback={<Loading />}><RatingsPage /></Suspense>} />
             <Route path="ratings/:playerId" element={<Suspense fallback={<Loading />}><RatingPlayerPage /></Suspense>} />
             <Route path="tournament" element={<Navigate to="/tournaments" replace />} />
