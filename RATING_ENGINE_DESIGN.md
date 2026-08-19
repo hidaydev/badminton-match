@@ -537,6 +537,34 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 
 ---
 
+## 11.5 Rekalibrasi Param (Rev 3.2 — "leaderboard honest")
+
+**Latar:** audit data bm_dev menemukan engine TIDAK pernah mencapai settled state —
+median RD 148 (target rd_min 30 tak tercapai), median |delta| 58–66/match. Akar masalah:
+`rd_growth=15/hari` membuat pemain mingguan teratchet ke rd~109+ antar sesi (growth 7 hari
+= sqrt(rd²+11025)) sehingga shrink per game tidak sanggup mengejar → delta tetap panas,
+rating = noise. Kalibrasi P3 sebelumnya hanya menyentuh max_delta (60→100 — malah makin
+panas); rd_growth & initial_rd tidak dikalibrasi — diakui sebagai miss.
+
+**Prinsip: leaderboard real/representatif/honest — bukan dihidupkan dengan mainan data.**
+Parameter dipilih agar typical win (pemain mapan, game tipis vs seimbang) ≈ 10–12 poin.
+
+| Param | Lama | Baru | Alasan |
+|---|---|---|---|
+| `rd_growth` | 15/hari | **3/hari** | Growth mingguan ~9 (bukan 105) → steady-state rd ≈ 55 |
+| `initial_rd` | 350 | **200** | Swing pemain baru wajar; konvergensi tetap cepat |
+| `max_delta` | 100 | **25–30** | 2–2.5× typical win; telak ≤ 0.3 band (band 100) |
+| `rd_min` | 30 | 30 (tetap) | — |
+
+**Verifikasi wajib setelah re-backfill:**
+1. Median |delta| 5 game terakhir pemain mapan (≥30 game) ≈ 10–15.
+2. Distribusi rd pemain mapan turun ke < 80 (mayoritas 40–70).
+3. Simulasi: menang terus → 1 band (100 poin) dalam ±9 match.
+
+Parameter tetap config-driven (`rating_config`) — tanpa migration ulang.
+
+---
+
 ## 12. Log Revisi
 
 - **Rev 3.1 (2026-08-18):** deep review lanjutan (kode nyata + matematika):
