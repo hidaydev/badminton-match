@@ -197,7 +197,12 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 	// Muat state runtime per pemain (dari DB atau default)
 	runtime := map[string]*playerRuntime{}
 	for _, id := range ids {
-		rt := &playerRuntime{id: id}
+		// Default dulu — state {0,0} akan merusak math (bug ditemukan audit P1)
+		rt := &playerRuntime{
+			id:    id,
+			state: domain.RatingState{Rating: cfg.Params.InitialRating, RD: cfg.Params.InitialRD},
+			peak:  cfg.Params.InitialRating,
+		}
 		var lastPlayed *time.Time
 		err := tx.QueryRow(ctx, `
 			SELECT rating, rd, peak_rating, games_played, wins, losses, last_played_at
