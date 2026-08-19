@@ -1,13 +1,14 @@
 # majadu-api
 
 Backend Go untuk Majadu — menggantikan PostgREST RPC (Supabase) sebagai satu-satunya
-backend. Lihat keputusan arsitektur di repo `badminton-match`:
-`docs/handbook/backend-go-decision.md`.
+backend. Lihat keputusan arsitektur & keputusan desain di repo `badminton-match`:
+`docs/handbook/backend-go-decision.md` · `DESIGN_ARCHIVE.md`.
 
 ## Stack
 
 - Go 1.26, stdlib `net/http` (Go 1.22+ routing) — tanpa framework HTTP
 - `pgx/v5` untuk Postgres (schema `bm_dev` / `bm`)
+- Rating engine **Glicko-1-lite** (server-authoritative, idempotent, auditable)
 - Kontrak RESTful didokumentasikan di [`api/openapi.yaml`](api/openapi.yaml)
 
 ## Struktur
@@ -16,8 +17,8 @@ backend. Lihat keputusan arsitektur di repo `badminton-match`:
 cmd/server/              # entrypoint
 internal/config/         # env + godotenv (.env dev lokal) + validasi strict
 internal/db/             # koneksi pool pgx
-internal/domain/         # tipe CloudSnapshot + transform + validasi (di-port dari TS/SQL)
-internal/store/          # akses DB: write-path session di Go, read-path fungsi SQL
+internal/domain/         # tipe + transform + validasi + rating math (Glicko, 8-tier)
+internal/store/          # akses DB: write/read-path Go, rating ingest/revert/rebuild
 internal/handler/        # HTTP handlers (REST)
 internal/middleware/     # CORS, logging (slog), panic recovery, rate limit
 internal/httperr/        # error envelope JSON konsisten
@@ -26,7 +27,7 @@ api/openapi.yaml         # kontrak REST resmi
 ```
 
 > **SQL migrations TIDAK di repo GitHub** (sengaja — kode repo public).
-> Tersimpan di VPS: `/srv/qouver/majadu/migrations/` (000001–000005).
+> Tersimpan di VPS: `/srv/qouver/majadu/migrations/` (000001–000011).
 
 ## Endpoint (ringkas)
 
@@ -35,23 +36,33 @@ Go backend melihat path bersih tanpa prefix).
 
 | Method | Path | Fungsi |
 |---|---|---|
-| `GET` | `/healthz` | liveness (infra, tanpa base) |
-| `GET` | `/readyz` | readiness — ping DB (infra) |
-| `GET` | `/version` | build info |
+| `GET` | `/healthz` · `/readyz` · `/version` | liveness / readiness / build info |
 | `POST` / `GET` | `/sessions` | create / list |
-| `GET` / `PATCH` / `DELETE` | `/sessions/{id}` | get / patch / delete |
-| `POST` | `/sessions/{id}/lock` · `/unlock` | kunci / buka |
-| `PUT` / `DELETE` | ~~granular mutation endpoints~~ | **dihapus** — app mengirim full snapshot via PUT (lihat catatan di bawah) |
-| `GET` / `POST` | `/players` | list / register pemain |
-| `GET` | `/players/{name}/stats` | statistik karier |
-| `POST` | `/tournaments` | buat tournament |
-| `GET` / `PATCH` | `/tournaments/{id}` | get / update |
+| `GET` / `PUT` / `PATCH` / `DELETE` | `/sessions/{id}` | get / full-snapshot update / patch / delete (draft only) |
+| `POST` | `/sessions/{id}/lock` | kunci sesi (host flow) |
+| `POST` | `/sessions/{id}/unlock` · `/delete` | **admin** — unlock / delete (status apa pun + rating cleanup + rebuild) |
+| `GET` / `POST` | `/players` | list / register (opsional tier 8) |
+| `GET` | `/players/{name}/stats` | statistik karier (session + classic + void-filtered) |
+| `PATCH` | `/players/{playerId}/tier` · `/name` | **admin** — ubah tier 8 (+rebuild) / rename (alias lama disimpan) |
+| `DELETE` | `/players/{playerId}` | **admin** — hapus pemain (+rebuild; `?force=true` bila ada riwayat) |
+| `GET` / `POST` | `/tournaments` | list / create (classic \| team) |
+| `GET` / `PUT` / `PATCH` | `/tournaments/{id}` | get / update snapshot |
+| `POST` | `/tournaments/{id}/delete` | **admin** — hapus + rating cleanup + rebuild |
+| `POST` | `/ratings/ingest-{session,tournament}` | **admin** — hitung & catat rating dari sumber |
+| `POST` | `/ratings/revert-{session,tournament}` | **admin** — cabut source + full rebuild |
+| `POST` | `/ratings/rebuild-all` · `/season` · `/players/{id}/rebaseline` | **admin** — recompute semua / close & start season / set rating ke mid tier |
+| `POST` | `/ratings/sources/{id}/finalize` | **admin** — gate ingest tournament |
+| `GET` | `/ratings/leaderboard` · `/players/{id}` · `/sources` · `/seasons` · `/seasons/{id}/standings` | publik — read path 8-tier |
+
+Semua endpoint **admin** memakai `Authorization: Bearer MAJADU_ADMIN_TOKEN`
+(middleware `AdminGuard`). Rating read path publik.
 
 > Catatan: endpoint granular mutation session (games/absent/swaps/rename) **dihapus**
 > 2026-08-15 — app mengirim full snapshot via `PUT /sessions/{id}` (bridge
 > contract); logika mutasi dihitung client-side dan divalidasi server.
 
-Concurrency: optimistic via header `If-Match: "v{n}"` / response `ETag`.
+Concurrency: optimistic via header `If-Match: "v{n}"` / response `ETag`;
+advisory locks (`pg_advisory_xact_lock`) + `SELECT ... FOR UPDATE NOWAIT`.
 
 ## Menjalankan
 
@@ -91,7 +102,12 @@ langsung).
 
 **Sisa fungsi SQL**: hanya `normalize_player_name` (dipakai CHECK constraint
 `player_aliases`) + utilitas `delete_player` / trigger `set_updated_at`. Semua
-logika bisnis (session, player, tournament) sudah 100% di Go.
+logika bisnis (session, player, tournament, **rating**) sudah 100% di Go.
+
+**Rating engine & season**: tabel `rating_*` (events/deltas/players/sources/config/seasons)
+dari migration `000008`–`000011`; unifikasi **8-tier** di `000011`
+(`players.tier` single source, `rating_players.class` di-drop). RebuildAll
+recomputs rating_players dari events (transitivity) — deterministik.
 
 **Schema via `MAJADU_DB_SCHEMA` (env), BUKAN hardcode di SQL.** Store memakai
 kueri tanpa prefix schema; `search_path` diarahkan per-koneksi. Ini penting
