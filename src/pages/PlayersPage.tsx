@@ -237,7 +237,7 @@ function BulkImport({ onClose, existingCount, max }: { onClose: () => void; exis
               <span key={name} className="text-xs bg-slate-700 text-slate-200 px-2 py-0.5 rounded-full">{name}</span>
             ))}
           </div>
-          <p className="text-xs text-slate-400 mt-1">Gender defaults to M, Tier to A — click to change after import.</p>
+          <p className="text-xs text-slate-400 mt-1">Gender defaults to M, Tier to D+ — click to change after import.</p>
         </div>
       )}
       <div className="flex gap-2">
