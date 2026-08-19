@@ -155,7 +155,7 @@ export default function TeamTournamentPage() {
               {standings.map((r, i) => {
                 const isTop = i < 2 && groupComplete
                 return (
-                  <div key={r.teamId} className={`flex items-center gap-3 px-4 py-2.5 border-b border-border-subtle last:border-0 ${isTop ? 'bg-accent/5' : ''}`}>
+                  <div key={r.teamId} className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5 border-b border-border-subtle last:border-0 ${isTop ? 'bg-accent/5' : ''}`}>
                     <span className={`w-5 text-sm font-mono shrink-0 ${i === 0 ? 'text-accent' : i === 1 ? 'text-slate-200' : 'text-fg-dim'}`}>{i + 1}</span>
                     <span className="flex-1 text-sm text-fg truncate">{r.teamName}</span>
                     <span className="text-xs text-fg-dim font-mono shrink-0">
