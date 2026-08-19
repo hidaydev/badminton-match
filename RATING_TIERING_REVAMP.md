@@ -44,7 +44,7 @@ SESSION (4 tier, per-session)
           └─► RATINGS: kelas awal + rating awal (dikonsumsi saat forming)
 ```
 
-### 2.5.1 Migration `000009` (gabung dengan class) — tambah kolom
+### 2.5.1 Migration `000009` (SATU file gabungan — lihat juga §4.1) — tambah kolom
 
 ```sql
 ALTER TABLE bm.players ADD COLUMN tier text;          -- 'A'|'B'|'C'|'D'|NULL — STICKY
@@ -182,7 +182,8 @@ contoh: player assigned B, rating turun ke 1200 (band D+) → TAMPIL B- (bukan D
 
 ## 4. Dampak Data Model (migration)
 
-### 4.1 Migration `000009_rating_class.sql`
+### 4.1 Migration `000009_rating_class.sql` — SATU migration gabungan berisi:
+`players.tier` + `players.registered_at` (2.5.1) + `rating_players.class` + `class_source` + seed `rating_config` (`season_start` = 2026-05-23, `session_tier_init`, `class_bands`).
 
 ```sql
 -- Kelas assigned per player (12 sub-tier). NULL = belum pernah ter-assign.

@@ -57,8 +57,9 @@ Menu admin untuk operasional harian host/admin:
 | Revert tournament | `POST /ratings/revert-tournament {tournamentId}` |
 | Finalize tournament | `POST /ratings/sources/{id}/finalize {finalized}` |
 | Rebuild all | `POST /ratings/rebuild-all` |
+| **Reset Season** | `POST /ratings/season {startDate}` (BARU — RATING_TIERING_REVAMP §2.5.7): set `season_start` + RebuildAll → semua pemain balik ke mid kelas; kelas/floor tetap |
 
-Semua sudah ada di backend (token) — **belum ada UI**. Menu admin: daftar sumber (dari `GET /ratings/sources`) + tombol aksi per sumber + rebuild-all.
+Semua sudah ada di backend (token; season = baru) — **belum ada UI**. Menu admin: daftar sumber (dari `GET /ratings/sources`) + tombol aksi per sumber + rebuild-all + **reset season (picker tanggal)**.
 
 ### 3.3 Ubah kelas (ratings) — BARU
 
@@ -81,7 +82,7 @@ Semua sudah ada di backend (token) — **belum ada UI**. Menu admin: daftar sumb
 HomeLayout ──(token)──▶ [Admin icon] ──▶ AdminSheet (bottom sheet / drawer):
   ─ Session ──────────────  Unlock session (pilih dari list)
   ─ Rating ───────────────  Ingest / Revert / Finalize (per source, dari GET /ratings/sources)
-                            Rebuild all
+                            Rebuild all · Reset Season (picker tanggal)
   ─ Player ───────────────  Add player (ke session) · Delete player · Edit name
   ─ Class ────────────────  Ubah kelas (dropdown 12) — dari detail rating
   ─ [Logout]

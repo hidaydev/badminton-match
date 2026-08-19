@@ -160,7 +160,7 @@ useRatingPlayer(playerId)                     // queryKey ['ratings-player', pla
   2   [C+] [prov]   Ani           1275     213.0   1310   6   -1.5
   ```
   - Rank: 1–3 dengan warna podium (gold/silver/bronze — konsisten StandingsTab).
-  - `TierBadge` baru (1–10, D..S+) — beda dari TierBadge session (1–4).
+  - `RatingTierBadge` → **12 band string (D-..A+)** — BREAKING dari tier 1–10 (RATING_TIERING_REVAMP §8.5); tampilkan `class_display`. Beda dari TierBadge session (1–4).
   - **Provisional badge**: `rd > 200` → chip `prov` (amber).
   - **Trend**: delta terakhir, hijau `+X` / merah `−X`.
   - Row tap → `/ratings/:playerId`.
@@ -196,7 +196,8 @@ export function ratingSparklinePath(history: { rating: number }[], w: number, h:
 
 | Komponen | File | Catatan |
 |---|---|---|
-| `RatingTierBadge` | `src/components/ratings/RatingTierBadge.tsx` | band D..S+ (1–10), warna dari rating — reuse palet, bukan lib baru |
+| `RatingTierBadge` | `src/components/ratings/RatingTierBadge.tsx` | **12 band string (D-..A+)**, warna dari rating — reuse palet, bukan lib baru; label = `class_display` |
+| response shape (breaking) | leaderboard/detail: `tier` → `class` + `class_derived` + `class_display` (string 12-band) + `provisional` |
 | `RatingLeaderboardTable` | `src/components/ratings/LeaderboardTable.tsx` | tabel + podium + provisional + trend |
 | `RatingSparkline` | `src/components/ratings/RatingSparkline.tsx` | SVG dari util |
 | `RatingStatCard` | inline di RatingPlayerPage | kartu stat |
