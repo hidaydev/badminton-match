@@ -114,11 +114,11 @@ POST /ratings/rebuild-all
 
 ### 6.1 Rute (App.tsx)
 
-```
-<Route element={<HomeLayout />}>
-  ...
-  <Route path="ratings" element={<RatingsPage />} />
-  <Route path="ratings/:playerId" element={<RatingPlayerPage />} />
+Konvensi routing dev: halaman di-lazy-load dengan `<Suspense fallback={<Loading />}>`; redirect pola `<Navigate>` bila perlu (pola tournament existing).
+
+```tsx
+<Route path="ratings" element={<Suspense fallback={<Loading />}><RatingsPage /></Suspense>} />
+<Route path="ratings/:playerId" element={<Suspense fallback={<Loading />}><RatingPlayerPage /></Suspense>} />
 ```
 
 ### 6.2 HomePage card
@@ -141,7 +141,12 @@ useRatingLeaderboard(active, limit, offset)   // queryKey ['ratings', active, of
 useRatingPlayer(playerId)                     // queryKey ['ratings-player', playerId]
 ```
 
-`PlayerStats` type + `useGetPlayerStats` response: tambah `playerId` (untuk cross-link).
+`PlayerStats` type + `useGetPlayerStats` response: tambah `playerId?: string` (opsional — aman untuk respons lama; wajib setelah backend P0.2 untuk cross-link).
+
+### 6.4 Encoding cross-link
+
+- Link ke player history **harus encode**: `/player-history/${encodeURIComponent(name)}` — pola `PlayerHistoryPage` existing; `useGetPlayerStats` me-decode (`decodeURIComponent`).
+- Link ke rating detail pakai `player_id` (uuid — aman tanpa encoding khusus).
 
 ### 6.4 Halaman leaderboard — `/ratings` (`RatingsPage.tsx`)
 
@@ -210,7 +215,7 @@ export function ratingSparklinePath(history: { rating: number }[], w: number, h:
 | Offset melewati total | Load more disabled / tombol hilang |
 | Duplicate name (dua pemain beda uuid nama sama) | Rating leaderboard tampil per pemain (uuid); cross-link dari stats menggunakan playerId milik pemain itu — aman |
 | Auto-ingest gagal sebagian (satu sesi error) | Ticker lanjut ke sesi berikutnya (log error per sesi) — tidak block |
-| Sesi diedit setelah ingest (unlock) | Rating stale sampai revert+re-ingest manual (API) — didokumentasikan; leaderboard menampilkan data terakhir yang valid |
+| Sesi diedit setelah ingest (unlock) | **By design:** auto-ingest TIDAK menyentuh sesi yang diedit (fingerprint ≠ '' → tidak terpilih `NOT EXISTS`) — rating stale sampai revert+re-ingest manual (API); leaderboard menampilkan data terakhir yang valid |
 
 ---
 
@@ -222,14 +227,14 @@ export function ratingSparklinePath(history: { rating: number }[], w: number, h:
 - [ ] 3. Backend: `new_rating` di `RatingHistoryRow` (untuk sparkline)
 - [ ] 4. Backend: `AutoIngestLockedSessions` + wire ke ticker (setelah AutoLockExpiredSessions) + integration test
 - [ ] 5. Frontend: endpoints (`getRatingLeaderboard`, `getRatingPlayer`) + types (`RatingLeaderboardRow`, `RatingPlayer`, `RatingHistoryRow`)
-- [ ] 6. Frontend: hooks (`useRatingLeaderboard`, `useRatingPlayer`) + `playerId` di type stats
+- [ ] 6. Frontend: hooks (`useRatingLeaderboard`, `useRatingPlayer`) + `playerId?: string` di type stats (opsional)
 
 **Verifikasi P0:** `make check` + integration auto-ingest PASS live · `npm run check` hijau.
 
 ### P1 — Leaderboard
 - [ ] 7. `RatingTierBadge` (1–10)
 - [ ] 8. `RatingsPage` (filter active/all, load more, podium, provisional, trend, empty/loading/error)
-- [ ] 9. Rute `/ratings` + card HomePage
+- [ ] 9. Rute `/ratings` + card HomePage — **pola Suspense/lazy + redirect (konvensi tournament)**
 - [ ] 10. Unit test: tier badge band, trend formatting, empty state logic
 
 **Verifikasi P1:** `npm run check` hijau · browser: data bm_dev live (106 pemain aktif).
@@ -237,7 +242,7 @@ export function ratingSparklinePath(history: { rating: number }[], w: number, h:
 ### P2 — Detail & cross-link
 - [ ] 11. `sparkline.ts` + `RatingSparkline` + unit test (path SVG deterministik)
 - [ ] 12. `RatingPlayerPage` (header, stat cards, sparkline, recent matches)
-- [ ] 13. Cross-link: PlayerDetailPage → rating; RatingPlayerPage → player history
+- [ ] 13. Cross-link: PlayerDetailPage → rating; RatingPlayerPage → player history — **link history pakai `encodeURIComponent(name)`**
 - [ ] 14. Rute `/ratings/:playerId`
 
 **Verifikasi P2:** `npm run check` hijau · browser: klik leaderboard → detail → sparkline → cross-link dua arah.
