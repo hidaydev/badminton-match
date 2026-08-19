@@ -226,9 +226,11 @@ export async function deleteSession(lookup: string): Promise<{ deleted: boolean;
 
 export async function listPlayers(): Promise<PlayerSummary[]> {
   const rows = await request<Array<{
+    playerId?: string
     name: string
     gender: 'M' | 'F'
     tier: 1 | 2 | 3 | 4
+    tierInduk?: string
   }>>('GET', '/players')
   return rows
 }

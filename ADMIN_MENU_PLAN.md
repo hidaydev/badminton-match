@@ -179,23 +179,23 @@ Keputusan: **panggil `delete_player` dalam transaksi Go**, setelah menghapus bar
 **Verifikasi P0:** `make check` + integration live PASS.
 
 ### P1 — Frontend auth & admin area
-- [ ] 5. `AdminContext` (token di sessionStorage, Bearer header otomatis, isAdmin, logout)
-- [ ] 6. Card "Admin Area" di HomePage (segmen terpisah, gaya pembeda amber) + popup login + label berubah jadi Admin+Logout setelah login
-- [ ] 7. Halaman `/admin` (banner pembeda, segmen Session/Rating/Season/Player/Class) — session unlock, rating ops per source dari GET /ratings/sources, rebuild-all, reset season, arsip musim
-- [ ] 8. Admin badge di detail rating (ubah kelas dropdown)
+- [x] 5. `AdminContext` (token di **localStorage** — persist sampai logout, Bearer otomatis, isAdmin, logout) — login UI "Admin password"
+- [x] 6. Card "Admin Area" di HomePage (segmen terpisah, gaya amber) + popup login + berubah jadi Admin+Logout setelah login
+- [x] 7. Halaman `/admin` lengkap: Session (unlock) · Rating (ingest/revert/**finalize** per source, rebuild-all) · Season (close & start, arsip link) · **Player (tier induk, class rating, hapus)** · banner amber + logout
+- [x] 8. Admin badge di detail rating (ubah class dropdown via prompt)
 
 **Verifikasi P1:** `npm run check` + browser flow (login → menu → aksi).
 
 ### P2 — Manajemen pemain di UI
-- [ ] 9. Add player (ke sesi) dari sheet — navigasi alur session
-- [ ] 10. Delete player (konfirmasi, p_force=false dulu)
-- [ ] 11. Edit player name (reuse register+alias)
+- [x] 9. Add player (ke sesi) dari admin — navigasi alur session
+- [x] 10. Delete player (konfirmasi, tanpa force — aman; player dengan riwayat sesi ditolak dengan pesan)
+- [ ] 11. Edit player name (reuse register+alias) → **DITUNDA: rename canonical butuh endpoint khusus (register+alias = merge, bukan rename) — backlog**
 
 **Verifikasi P2:** flow lengkap di browser; tanpa regresi alur normal.
 
 ### P3 — Polish
-- [ ] 12. Audit keamanan ringan (log tidak membocorkan token; sessionStorage lifecycle)
-- [ ] 13. Visual pass (user) + update current-status
+- [x] 12. Audit keamanan: middleware log tidak menyertakan header (aman); semua endpoint admin di-gate AdminGuard; delete tanpa force (default aman); token localStorage = XSS minimal (app tanpa user-generated content) — terdokumentasi
+- [ ] 13. Visual pass (user) + update current-status → **current-status sudah di-update; visual pass menyusul**
 
 ---
 

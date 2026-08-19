@@ -2,9 +2,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../context/AdminContext'
-import { useListSessions } from '../queries'
-import { useRatingSources, useRatingSeasons } from '../queries/ratings'
+import { useListSessions, useListPlayers } from '../queries'
 import { adminRequest } from '../queries/admin'
+
+const TIERS = ['A', 'B', 'C', 'D']
+const CLASSES = ['D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']
+import { useRatingSources, useRatingSeasons } from '../queries/ratings'
 
 export default function AdminPage() {
   const { isAdmin, logout } = useAdmin()
@@ -14,6 +17,7 @@ export default function AdminPage() {
   const [seasonDate, setSeasonDate] = useState(() => new Date().toISOString().slice(0, 10))
 
   const { data: sessions } = useListSessions()
+  const { data: players } = useListPlayers()
   const { data: sources } = useRatingSources()
   const { data: seasons } = useRatingSeasons()
 
@@ -85,6 +89,14 @@ export default function AdminPage() {
             <div key={src.source_id} className="flex items-center gap-2 px-3 py-2">
               <span className="flex-1 min-w-0 text-sm text-fg truncate font-mono text-xs">{src.source_id}</span>
               <span className="text-[10px] font-mono text-fg-dim">{src.event_count} ev</span>
+              {src.source_kind.startsWith('tournament') && (
+                <button
+                  onClick={() => run(() => adminRequest('POST', `/ratings/sources/${src.source_id}/finalize`, { finalized: !src.finalized }), src.finalized ? 'Un-finalized' : 'Finalized')}
+                  className={`text-[10px] font-mono px-2 py-1 rounded border ${src.finalized ? 'border-emerald-700/60 text-emerald-400' : 'border-border text-fg-dim hover:text-fg'}`}
+                >
+                  {src.finalized ? 'Finalized' : 'Finalize'}
+                </button>
+              )}
               <button
                 onClick={() => run(() => adminRequest('POST', '/ratings/ingest-session', { sessionId: src.source_id }), 'Ingested')}
                 className="text-[10px] font-mono px-2 py-1 rounded border border-border text-fg-dim hover:text-fg"
@@ -132,6 +144,7 @@ export default function AdminPage() {
           </button>
         </div>
         <p className="text-[10px] font-mono text-fg-dim">{(seasons ?? []).map((s) => `${s.name}${s.open ? ' (open)' : ''}`).join(' · ')}</p>
+        <a href="/ratings" className="text-xs text-accent">Lihat arsip musim (standings beku) →</a>
       </section>
 
       {/* ── Player ── */}
@@ -140,6 +153,48 @@ export default function AdminPage() {
         <button onClick={() => navigate('/session/players')} className="py-2 rounded-lg border border-border-subtle text-sm text-fg-dim hover:text-fg">
           Add player (ke sesi) →
         </button>
+        <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
+          {(players ?? []).map((pl) => (
+            <div key={pl.playerId ?? pl.name} className="px-3 py-2 flex items-center gap-2">
+              <span className="flex-1 min-w-0 text-sm text-fg truncate">{pl.name}</span>
+              {pl.tierInduk && (
+                <span className="text-[10px] font-mono text-amber-300/80 border border-amber-800/50 rounded px-1.5 py-0.5">tier {pl.tierInduk}</span>
+              )}
+              <button
+                onClick={() => {
+                  const newTier = window.prompt(`Tier induk (A/B/C/D) untuk ${pl.name}:`, pl.tierInduk ?? 'C')
+                  if (newTier && TIERS.includes(newTier.toUpperCase())) {
+                    run(() => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: newTier.toUpperCase() }), 'Tier diubah + recalculate')
+                  }
+                }}
+                className="text-[10px] font-mono px-2 py-1 rounded border border-border text-fg-dim hover:text-fg"
+              >
+                Tier
+              </button>
+              <button
+                onClick={() => {
+                  const cls = window.prompt(`Class rating (D-..A+) untuk ${pl.name}:`, 'C')
+                  if (cls && CLASSES.includes(cls)) {
+                    run(() => adminRequest('PATCH', `/ratings/players/${pl.playerId}/class`, { class: cls }), 'Class diubah')
+                  }
+                }}
+                className="text-[10px] font-mono px-2 py-1 rounded border border-border text-fg-dim hover:text-fg"
+              >
+                Class
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Hapus player "${pl.name}"? (riwayat sesi tetap, rating ikut terhapus)`)) {
+                    run(() => adminRequest('DELETE', `/players/${pl.playerId}`), 'Player dihapus')
+                  }
+                }}
+                className="text-[10px] font-mono px-2 py-1 rounded border border-red-800/50 text-red-400 hover:bg-red-950/40"
+              >
+                Hapus
+              </button>
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   )
