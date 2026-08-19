@@ -72,7 +72,7 @@ r_i'  = r_i + MoVM·w · ( q / (1/rd_i² + 1/d²) ) · Σ_j g(rd_j) · (S − E_
 rd_i' = sqrt( 1 / (1/rd_i² + 1/d²) )
 ```
 
-**Keputusan Rev 2:** `MoVM·w` mengalikan **seluruh update** (bukan hanya S) — simetris untuk pemenang & pecundang. Konsekuensi: pemenang menang `X`, pecundang kalah `X` (pool netral, kecuali seri). Ini mempertahankan struktur Glicko dan transfer poin yang bisa diinterpretasikan. Alternatif (scale S saja) bersifat asimetris dan meng-inflasi pool — **ditolak**.
+**Keputusan Rev 2 (dikoreksi Rev 3.1):** `MoVM·w` mengalikan **seluruh update** (bukan hanya S) — simetris untuk pemenang & pecundang. Catatan: **Glicko bukan sistem zero-sum** — tiap pemain memakai faktor `q/(1/rd_i²+1/d²)` sendiri (rd & d² berbeda), jadi `+X` pemenang ≠ `−X` pecundang kecuali state identik. Pool dapat bergeser sedikit — perilaku Glicko normal. Alternatif (scale S saja) meng-inflasi sisi pemenang secara asimetris — **ditolak**.
 
 ### 3.3 Positional Pairing (team) vs Team-Average (classic)
 
@@ -480,13 +480,13 @@ Band rating sederhana (D..S+), plus **badge provisional** saat `rd > 200`:
 ## 10. Task List (implementasi bertahap)
 
 ### P0 — Fondasi matematika & schema
-- [ ] 1. Migration `000007_rating_schema.sql`: tabel §5 + seed `rating_config` + index
-- [ ] 2. `internal/domain/rating.go`: Glicko-1-lite murni (§3.1–3.4, 3.6) — fungsi murni, tanpa IO, satu code path rounding
-- [ ] 3. Golden unit tests: favorite menang, underdog menang, whitewash, deuce 30-28, clamp, RD growth (jadwal hari), simetri MoVM (gain == loss)
-- [ ] 4. Unit test MoVM normalisasi (21-19, 30-28, 42-40, 21-0) + phase weight
-- [ ] 5. `rating_config` loader: typed struct + validasi range (fail-fast prod)
+- [x] 1. Migration `000008_rating_schema.sql` (nomor terakhir di VPS; 000007 terpakai placeholder): tabel §5 + seed `rating_config` (19 key) + index — **dibuat di VPS, diaplikasikan bm_dev + bm (5 tabel, 19 config)**
+- [x] 2. `internal/domain/rating.go`: Glicko-1-lite murni (§3.1–3.4, 3.6) — fungsi murni, tanpa IO, satu code path rounding (`G`, `ExpectedScore`, `MarginOfVictory`, `GrowRD`, `GlickoUpdate`, clamp/cap/round2/round4)
+- [x] 3. Golden unit tests: **10 test PASS** — golden pemain baru (delta 60 cap, rating 1310, rd 290.23), zero-sum state identik, cap whitewash final, clamp min/max, underdog > favorite, determinisme, round
+- [x] 4. Unit test MoVM normalisasi (21-19/30-28/42-40/21-0/cap) — PASS
+- [x] 5. `rating_config` loader: `store.LoadRatingConfig` (typed `domain.RatingConfig` + `Validate` fail-fast prod / fallback non-prod) — unit validate PASS
 
-**Verifikasi P0:** `make check` hijau; golden test deterministik (double-run identik).
+**Verifikasi P0:** `make check` hijau; golden test deterministik (double-run identik). → **lengkap: 90+ test domain PASS, gofmt clean. Audit P0: klaim "pool netral" §3.2 DIKOREKSI (Glicko bukan zero-sum — tiap pemain faktor sendiri).**
 
 ### P1 — Ingest (write path)
 - [ ] 6. `internal/store/rating.go`: REPEATABLE READ tx, advisory lock global, lock player sorted, invariant seq, upsert events/deltas/sources — satu transaksi
