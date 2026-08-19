@@ -38,13 +38,14 @@ type RatingConfig struct {
 	// SeasonStart — awal musim (RATING_TIERING_REVAMP §2.5.7). Match < season_start
 	// tidak masuk rating. Format yyyy-mm-dd.
 	SeasonStart string
-	// SessionTierInit — mapping tier session (1-4) → kelas awal + rating awal.
+	// SessionTierInit — baseline forming per tier (8-tier: D..A+).
+	// Key = tier itu sendiri (single source — TIER_8_UNIFICATION.md §3.4).
 	SessionTierInit map[string]TierInit
-	// ClassBands — band 12 sub-tier (D-..A+): kelas → [min, max) (nilai nil = unbounded).
+	// ClassBands — band 8-tier (D..A+): tier → [min, max] (nilai nil = unbounded).
 	ClassBands map[string][2]*float64
 }
 
-// TierInit — baseline forming dari tier session.
+// TierInit — baseline forming dari tier.
 type TierInit struct {
 	Class  string  `json:"class"`
 	Rating float64 `json:"rating"`
@@ -66,16 +67,21 @@ var DefaultRatingConfig = RatingConfig{
 	DecayFloor:         1000,
 	SeasonStart:        "2026-05-23",
 	SessionTierInit: map[string]TierInit{
-		"1": {Class: "A", Rating: 2050},
-		"2": {Class: "B", Rating: 1750},
-		"3": {Class: "C", Rating: 1450},
-		"4": {Class: "D", Rating: 1150},
+		"D":  {Class: "D", Rating: 1150},
+		"D+": {Class: "D+", Rating: 1250},
+		"C":  {Class: "C", Rating: 1450},
+		"C+": {Class: "C+", Rating: 1550},
+		"B":  {Class: "B", Rating: 1750},
+		"B+": {Class: "B+", Rating: 1850},
+		"A":  {Class: "A", Rating: 2050},
+		"A+": {Class: "A+", Rating: 2150},
 	},
+	// Collapse 12→8 mempertahankan grid 100: D = D-∪D (≤1199), dst.
 	ClassBands: map[string][2]*float64{
-		"D-": {nil, fptr(1099)}, "D": {fptr(1100), fptr(1199)}, "D+": {fptr(1200), fptr(1299)},
-		"C-": {fptr(1300), fptr(1399)}, "C": {fptr(1400), fptr(1499)}, "C+": {fptr(1500), fptr(1599)},
-		"B-": {fptr(1600), fptr(1699)}, "B": {fptr(1700), fptr(1799)}, "B+": {fptr(1800), fptr(1899)},
-		"A-": {fptr(1900), fptr(1999)}, "A": {fptr(2000), fptr(2099)}, "A+": {fptr(2100), nil},
+		"D": {fptr(1000), fptr(1199)}, "D+": {fptr(1200), fptr(1299)},
+		"C": {fptr(1300), fptr(1499)}, "C+": {fptr(1500), fptr(1599)},
+		"B": {fptr(1600), fptr(1799)}, "B+": {fptr(1800), fptr(1899)},
+		"A": {fptr(1900), fptr(2099)}, "A+": {fptr(2100), nil},
 	},
 }
 
@@ -130,19 +136,19 @@ func (c *RatingConfig) Validate() error {
 	if c.SeasonStart == "" {
 		return fmt.Errorf("rating_config: season_start must not be empty")
 	}
-	if len(c.SessionTierInit) != 4 {
-		return fmt.Errorf("rating_config: session_tier_init harus memuat tier 1-4")
+	if len(c.SessionTierInit) != 8 {
+		return fmt.Errorf("rating_config: session_tier_init harus memuat 8 tier (D..A+)")
 	}
 	for tier, init := range c.SessionTierInit {
-		if !ValidClass(init.Class) || init.Rating <= 0 {
+		if !ValidTier(tier) || !ValidTier(init.Class) || init.Rating <= 0 {
 			return fmt.Errorf("rating_config: session_tier_init[%s] invalid (class %q rating %.0f)", tier, init.Class, init.Rating)
 		}
 	}
-	if len(c.ClassBands) != 12 {
-		return fmt.Errorf("rating_config: class_bands harus memuat 12 sub-tier")
+	if len(c.ClassBands) != 8 {
+		return fmt.Errorf("rating_config: class_bands harus memuat 8 tier")
 	}
 	for cls, band := range c.ClassBands {
-		if !ValidClass(cls) {
+		if !ValidTier(cls) {
 			return fmt.Errorf("rating_config: class_bands key %q tidak valid", cls)
 		}
 		if band[0] != nil && band[1] != nil && *band[0] >= *band[1] {
@@ -152,19 +158,19 @@ func (c *RatingConfig) Validate() error {
 	return nil
 }
 
-// ValidClass — 12 sub-tier valid (D-..A+).
-func ValidClass(cls string) bool {
-	switch cls {
-	case "D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+":
+// ValidTier — 8 tier valid (D..A+).
+func ValidTier(tier string) bool {
+	switch tier {
+	case "D", "D+", "C", "C+", "B", "B+", "A", "A+":
 		return true
 	}
 	return false
 }
 
-// ClassForRating — kelas derived dari rating (12 band, config-driven).
-func (c *RatingConfig) ClassForRating(r float64) string {
-	best := "D-"
-	for cls, band := range c.ClassBands {
+// TierForRating — tier derived dari rating (8 band, config-driven).
+func (c *RatingConfig) TierForRating(r float64) string {
+	best := "D"
+	for tier, band := range c.ClassBands {
 		lo, hi := band[0], band[1]
 		if lo != nil && r < *lo {
 			continue
@@ -172,79 +178,78 @@ func (c *RatingConfig) ClassForRating(r float64) string {
 		if hi != nil && r > *hi {
 			continue
 		}
-		best = cls
+		best = tier
 		break
 	}
 	return best
 }
 
-// FloorOf — floor kelas: sub-tier minus huruf (C → C-). A+ → A+.
-func FloorOf(class string) string {
-	if class == "" || !ValidClass(class) {
-		return class
+// FloorOf — floor tier: basis huruf (TIER_8_UNIFICATION.md §3.3).
+// B+ → B (tidak boleh tampil di bawah B, boleh naik ke A/A+); A+/A → A; dst.
+func FloorOf(tier string) string {
+	switch tier {
+	case "A+", "A":
+		return "A"
+	case "B+", "B":
+		return "B"
+	case "C+", "C":
+		return "C"
+	case "D+", "D":
+		return "D"
 	}
-	switch class {
-	case "D+", "D", "D-":
-		return "D-"
-	case "C+", "C", "C-":
-		return "C-"
-	case "B+", "B", "B-":
-		return "B-"
-	case "A+", "A", "A-":
-		return "A-"
-	}
-	return class
+	return tier
 }
 
-// DisplayClass — max(derived, floor) — kelas yang ditampilkan.
-func (c *RatingConfig) DisplayClass(rating float64, assigned string) string {
-	derived := c.ClassForRating(rating)
+// DisplayTier — max(derived, floor) — tier yang ditampilkan.
+func (c *RatingConfig) DisplayTier(rating float64, assigned string) string {
+	derived := c.TierForRating(rating)
 	if assigned == "" {
 		return derived
 	}
 	floor := FloorOf(assigned)
-	if classOrder(derived) < classOrder(floor) {
+	if tierOrder(derived) < tierOrder(floor) {
 		return floor
 	}
 	return derived
 }
 
-// classOrder — urutan 12 sub-tier untuk perbandingan (D- = 1 .. A+ = 12).
-func classOrder(cls string) int {
-	order := []string{"D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"}
+// tierOrder — urutan 8 tier untuk perbandingan (D = 1 .. A+ = 8).
+func tierOrder(tier string) int {
+	order := []string{"D", "D+", "C", "C+", "B", "B+", "A", "A+"}
 	for i, c := range order {
-		if c == cls {
+		if c == tier {
 			return i + 1
 		}
 	}
 	return 0
 }
 
-// MidRatingForClass — rating tengah sebuah sub-band: (lo+hi)/2; band tanpa
-// batas pakai offset 50 dari batas yang ada. Basis "reset ke mid kelas".
-func (c *RatingConfig) MidRatingForClass(cls string) (float64, bool) {
-	band, ok := c.ClassBands[cls]
+// MidRatingForTier — baseline rating sebuah tier: nilai forming dari
+// session_tier_init (konsisten di ingest/rebuild/rebaseline/reset), fallback
+// mid band. Basis "reset ke mid tier".
+func (c *RatingConfig) MidRatingForTier(tier string) (float64, bool) {
+	if init, ok := c.SessionTierInit[tier]; ok {
+		return init.Rating, true
+	}
+	band, ok := c.ClassBands[tier]
 	if !ok {
 		return 0, false
 	}
 	lo, hi := band[0], band[1]
 	switch {
 	case lo != nil && hi != nil:
-		// round → mid BERSIH (1450 utk C [1400,1499]) — konsisten dengan session_tier_init
 		return math.Round((*lo + *hi) / 2), true
 	case lo != nil:
 		return *lo + 50, true // A+ (atas)
 	case hi != nil:
-		return *hi - 50, true // D- (bawah)
+		return *hi - 50, true // D (bawah)
 	default:
 		return 0, false
 	}
 }
 
-// FormingForTier — forming kelas + rating awal dari tier induk (letter A-D).
-// Tier session (1-4) dipetakan ke letter, lalu SessionTierInit.
-func (c *RatingConfig) FormingForTier(tierLetter string) (TierInit, bool) {
-	key := map[string]string{"A": "1", "B": "2", "C": "3", "D": "4"}[tierLetter]
-	init, ok := c.SessionTierInit[key]
+// FormingForTier — forming baseline dari tier induk (key = tier itu sendiri).
+func (c *RatingConfig) FormingForTier(tier string) (TierInit, bool) {
+	init, ok := c.SessionTierInit[tier]
 	return init, ok
 }

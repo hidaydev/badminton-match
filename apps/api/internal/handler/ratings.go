@@ -55,7 +55,6 @@ type ratingBody struct {
 	SourceID     string `json:"sourceId"`
 	Finalized    *bool  `json:"finalized"`
 	StartDate    string `json:"startDate"`
-	Class        string `json:"class"`
 }
 
 // mapRatingError — sentinel store → httperr (design §6 error contract).
@@ -148,22 +147,6 @@ func (h *RatingsHandler) FinalizeSource(w http.ResponseWriter, r *http.Request) 
 	}
 	err := h.Store.SetSourceFinalized(r.Context(), sourceID, *body.Finalized)
 	if err != nil {
-		httperr.WriteError(w, nil, mapRatingError(err))
-		return
-	}
-	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
-}
-
-// SetClass — PATCH /ratings/players/{playerId}/class (admin): ubah class rating
-// (12 sub-tier) — floor berubah, tanpa rebuild.
-func (h *RatingsHandler) SetClass(w http.ResponseWriter, r *http.Request) {
-	playerID := r.PathValue("playerId")
-	var body ratingBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Class == "" {
-		httperr.WriteError(w, nil, httperr.Validation("class is required (D-..A+)"))
-		return
-	}
-	if err := h.Store.SetPlayerClass(r.Context(), playerID, body.Class); err != nil {
 		httperr.WriteError(w, nil, mapRatingError(err))
 		return
 	}

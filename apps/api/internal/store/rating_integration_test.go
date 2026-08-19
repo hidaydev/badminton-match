@@ -386,7 +386,7 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("player detail: %v", err)
 	}
-	if d == nil || d.Games != 4 || d.ClassDisplay == "" {
+	if d == nil || d.Games != 4 || d.TierDisplay == "" {
 		t.Fatalf("player detail salah: %+v", d)
 	}
 	hist, err := st.RatingPlayerHistory(ctx, pid3, 10)

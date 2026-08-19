@@ -691,13 +691,13 @@ func playerRef(id string) string { return strings.TrimSpace(id) }
 
 // firstSetPlayerTier — set players.tier + registered_at HANYA untuk pemain yang
 // belum punya tier (registrasi pertama). STICKY: tidak pernah menimpa tier existing.
-// Tier session 1-4 → 'A'|'B'|'C'|'D'.
+// Snapshot Player.tier (numeric 1-8, TIER_8_UNIFICATION) → text 8-tier.
 func (s *SessionStore) firstSetPlayerTier(ctx context.Context, tx pgx.Tx, players []domain.Player, sessionDate string) error {
 	if sessionDate == "" {
 		return nil
 	}
 	for _, p := range players {
-		if domain.IsPlaceholderName(p.Name) || p.Tier < 1 || p.Tier > 4 {
+		if domain.IsPlaceholderName(p.Name) || p.Tier < 1 || p.Tier > 8 {
 			continue
 		}
 		// Resolve nama → player_id (alias). Placeholder di-skip.
@@ -708,12 +708,12 @@ func (s *SessionStore) firstSetPlayerTier(ctx context.Context, tx pgx.Tx, player
 		if !ok {
 			continue
 		}
-		tierLetter := [...]string{"", "A", "B", "C", "D"}[p.Tier]
+		tierText := [...]string{"", "D", "D+", "C", "C+", "B", "B+", "A", "A+"}[p.Tier]
 		if _, err := tx.Exec(ctx, `
 			UPDATE `+s.schema+`.players
 			SET tier = $2, registered_at = $3::date
 			WHERE id = $1::uuid AND tier IS NULL`,
-			pid, tierLetter, sessionDate); err != nil {
+			pid, tierText, sessionDate); err != nil {
 			return err
 		}
 	}

@@ -11,14 +11,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// ── Admin: tier induk, class rating, delete player (ADMIN_MENU_PLAN.md §3.3-3.4) ──
+// ── Admin: tier induk, delete player (ADMIN_MENU_PLAN.md §3.3-3.4) ──
 
-// SetPlayerTier — ubah tier induk (STICKY, admin-only). RATING_TIERING_REVAMP
-// §2.5.2: mengubah tier → update class rating (source='admin') + recalculate
-// (RebuildAll) supaya baseline forming berubah.
+// SetPlayerTier — ubah tier induk (STICKY, admin-only). TIER_8_UNIFICATION:
+// players.tier = single source; mengubah tier → RebuildAll supaya baseline
+// forming berubah (tier baru dipakai forming ulang).
 func (s *SessionStore) SetPlayerTier(ctx context.Context, playerID, tier string) error {
-	if tier != "A" && tier != "B" && tier != "C" && tier != "D" {
-		return fmt.Errorf("%w: tier must be A/B/C/D", ErrValidation)
+	if !domain.ValidTier(tier) {
+		return fmt.Errorf("%w: tier must be 8-tier (D..A+)", ErrValidation)
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -33,13 +33,7 @@ func (s *SessionStore) SetPlayerTier(ctx context.Context, playerID, tier string)
 	if !exists {
 		return fmt.Errorf("%w: player", ErrSourceNotFound)
 	}
-	if _, err := tx.Exec(ctx, `UPDATE `+s.schema+`.players SET tier = $2 WHERE id = $1::uuid`, playerID, tier); err != nil {
-		return err
-	}
-	// Class rating ikut (Q3): source='admin', baseline forming baru.
-	if _, err := tx.Exec(ctx, `
-		UPDATE `+s.schema+`.rating_players SET class = $2, class_source = 'admin' WHERE player_id = $1::uuid`,
-		playerID, tier); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE `+s.schema+`.players SET tier = $2, updated_at = now() WHERE id = $1::uuid`, playerID, tier); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -50,51 +44,35 @@ func (s *SessionStore) SetPlayerTier(ctx context.Context, playerID, tier string)
 	return err
 }
 
-// SetPlayerClass — ubah class rating (12 sub-tier) langsung (admin).
-// Floor berubah; TIDAK rebuild (class bukan input Glicko).
-func (s *SessionStore) SetPlayerClass(ctx context.Context, playerID, class string) error {
-	if !domain.ValidClass(class) {
-		return fmt.Errorf("%w: class must be 12 sub-tier (D-..A+)", ErrValidation)
-	}
-	tag, err := s.pool.Exec(ctx, `
-		UPDATE `+s.schema+`.rating_players SET class = $2, class_source = 'admin'
-		WHERE player_id = $1::uuid`, playerID, class)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("%w: player not rated", ErrSourceNotFound)
-	}
-	return nil
-}
-
 // RebaselinePlayer — POST /ratings/players/{id}/rebaseline (admin): set
-// rating = mid kelas assigned LANGSUNG, TANPA rebuild (rebuild menimpa
-// rating manual dari events — RATING_TIERING_REVAMP §8 P3 #11). Ingest
-// berikutnya melanjutkan dari baseline baru secara alami.
+// rating = baseline tier assigned (session_tier_init) LANGSUNG, TANPA rebuild
+// (rebuild menimpa rating manual dari events — RATING_TIERING_REVAMP §8 P3 #11).
+// Ingest berikutnya melanjutkan dari baseline baru secara alami.
 // Catatan: bersifat "lunak" — hilang saat RebuildAll/reset season berikutnya.
 func (s *SessionStore) RebaselinePlayer(ctx context.Context, playerID string) error {
 	cfg, err := s.LoadRatingConfig(ctx, false)
 	if err != nil {
 		return err
 	}
-	var class *string
+	var tier *string
 	var peak float64
 	err = s.pool.QueryRow(ctx, `
-		SELECT class, peak_rating FROM `+s.schema+`.rating_players
-		WHERE player_id = $1::uuid`, playerID).Scan(&class, &peak)
+		SELECT p.tier, rp.peak_rating
+		FROM `+s.schema+`.rating_players rp
+		JOIN `+s.schema+`.players p ON p.id = rp.player_id
+		WHERE rp.player_id = $1::uuid`, playerID).Scan(&tier, &peak)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("%w: player not rated", ErrSourceNotFound)
 	}
 	if err != nil {
 		return err
 	}
-	if class == nil || *class == "" {
-		return fmt.Errorf("%w: player has no assigned class", ErrValidation)
+	if tier == nil || *tier == "" {
+		return fmt.Errorf("%w: player has no assigned tier", ErrValidation)
 	}
-	mid, ok := cfg.MidRatingForClass(*class)
+	mid, ok := cfg.MidRatingForTier(*tier)
 	if !ok {
-		return fmt.Errorf("%w: unknown class %q", ErrValidation, *class)
+		return fmt.Errorf("%w: unknown tier %q", ErrValidation, *tier)
 	}
 	newPeak := peak
 	if mid > newPeak {
@@ -225,10 +203,10 @@ func (s *SessionStore) AdminDeleteTournament(ctx context.Context, lookup string)
 }
 
 // SetPlayerTierOnRegister — set tier induk saat registrasi player baru
-// (POST /players optional tier). First-set (tier IS NULL).
+// (POST /players optional tier). First-set (tier IS NULL). Validasi 8-tier.
 func (s *SessionStore) SetPlayerTierOnRegister(ctx context.Context, playerID, tier string) error {
-	if tier != "A" && tier != "B" && tier != "C" && tier != "D" {
-		return fmt.Errorf("%w: tier must be A/B/C/D", ErrValidation)
+	if !domain.ValidTier(tier) {
+		return fmt.Errorf("%w: tier must be 8-tier (D..A+)", ErrValidation)
 	}
 	_, err := s.pool.Exec(ctx, `UPDATE `+s.schema+`.players SET tier = $2 WHERE id = $1::uuid AND tier IS NULL`,
 		playerID, tier)

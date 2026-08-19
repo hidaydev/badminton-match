@@ -187,7 +187,6 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /ratings/sources/{sourceId}/finalize", http.HandlerFunc(ratings.RequireAdmin(ratings.FinalizeSource)))
 	mux.Handle("POST /ratings/rebuild-all", http.HandlerFunc(ratings.RequireAdmin(ratings.RebuildAll)))
 	mux.Handle("POST /ratings/season", http.HandlerFunc(ratings.RequireAdmin(ratings.Season)))
-	mux.Handle("PATCH /ratings/players/{playerId}/class", http.HandlerFunc(ratings.RequireAdmin(ratings.SetClass)))
 	mux.Handle("POST /ratings/players/{playerId}/rebaseline", http.HandlerFunc(ratings.RequireAdmin(ratings.Rebaseline)))
 	// Read path (publik)
 	mux.Handle("GET /ratings/leaderboard", http.HandlerFunc(ratings.Leaderboard))

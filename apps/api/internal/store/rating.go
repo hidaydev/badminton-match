@@ -270,29 +270,25 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 			peak:  cfg.Params.InitialRating,
 		}
 		var lastPlayed *time.Time
-		var class *string
 		err := tx.QueryRow(ctx, `
-			SELECT rating, rd, peak_rating, games_played, wins, losses, last_played_at, class
+			SELECT rating, rd, peak_rating, games_played, wins, losses, last_played_at
 			FROM `+s.schema+`.rating_players WHERE player_id = $1::uuid`, id).
-			Scan(&rt.state.Rating, &rt.state.RD, &rt.peak, &rt.games, &rt.wins, &rt.losses, &lastPlayed, &class)
+			Scan(&rt.state.Rating, &rt.state.RD, &rt.peak, &rt.games, &rt.wins, &rt.losses, &lastPlayed)
 		if err == nil {
 			rt.exists = true
 			if lastPlayed != nil {
 				rt.lastPlayedAt = lastPlayed.Format("2006-01-02")
 			}
-			if class != nil {
-				rt.class = *class
-			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
 		} else {
-			// PEMAIN BARU — FORMING dari tier induk (RATING_TIERING_REVAMP §3.2):
-			// rating awal = mid band kelas sticky; class = kelas tengah huruf.
+			// PEMAIN BARU — FORMING dari tier induk (single source players.tier):
+			// rating awal = baseline tier (session_tier_init). TIER_8_UNIFICATION §3.4.
 			if tier := tierByPlayer[rt.id]; tier != "" {
 				if init, ok := cfg.FormingForTier(tier); ok {
 					rt.state.Rating = init.Rating
 					rt.peak = init.Rating
-					rt.class = init.Class
+					rt.tier = tier
 				}
 			}
 		}
@@ -442,19 +438,15 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		if rt.lastPlayedAt != "" {
 			lastPlayed = rt.lastPlayedAt
 		}
-		classVal := any(nil)
-		if rt.class != "" {
-			classVal = rt.class
-		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO `+s.schema+`.rating_players
-				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, class, updated_at)
-			VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, $9, now())
+				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, updated_at)
+			VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, now())
 			ON CONFLICT (player_id) DO UPDATE SET
 				rating = EXCLUDED.rating, rd = EXCLUDED.rd, peak_rating = EXCLUDED.peak_rating,
 				games_played = EXCLUDED.games_played, wins = EXCLUDED.wins, losses = EXCLUDED.losses,
-				last_played_at = EXCLUDED.last_played_at, class = EXCLUDED.class, updated_at = now()`,
-			id, rt.state.Rating, rt.state.RD, rt.peak, rt.games, rt.wins, rt.losses, lastPlayed, classVal); err != nil {
+				last_played_at = EXCLUDED.last_played_at, updated_at = now()`,
+			id, rt.state.Rating, rt.state.RD, rt.peak, rt.games, rt.wins, rt.losses, lastPlayed); err != nil {
 			return nil, err
 		}
 	}
@@ -547,6 +539,6 @@ type playerRuntime struct {
 	wins         int
 	losses       int
 	lastPlayedAt string
-	class        string // kelas 12 sub-tier (assigned)
+	tier         string // assigned tier (players.tier — single source)
 	exists       bool
 }

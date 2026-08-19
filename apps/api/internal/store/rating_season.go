@@ -46,7 +46,7 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 			INSERT INTO `+s.schema+`.season_player_snapshots
 				(season_id, player_id, player_name, rating, rd, peak, class, games, wins, losses)
 			SELECT $1::uuid, rp.player_id, p.canonical_name, rp.rating, rp.rd, rp.peak_rating,
-			       rp.class, rp.games_played, rp.wins, rp.losses
+			       p.tier, rp.games_played, rp.wins, rp.losses
 			FROM `+s.schema+`.rating_players rp
 			JOIN `+s.schema+`.players p ON p.id = rp.player_id`,
 			seasonID); err != nil {
@@ -146,15 +146,15 @@ func (s *SessionStore) ListSeasons(ctx context.Context) ([]SeasonRow, error) {
 
 // SeasonStandingRow — baris standings beku.
 type SeasonStandingRow struct {
-	Name         string  `json:"name"`
-	Rating       float64 `json:"rating"`
-	RD           float64 `json:"rd"`
-	Peak         float64 `json:"peak"`
-	Class        string  `json:"class"`
-	ClassDisplay string  `json:"class_display"`
-	Games        int     `json:"games"`
-	Wins         int     `json:"wins"`
-	Losses       int     `json:"losses"`
+	Name        string  `json:"name"`
+	Rating      float64 `json:"rating"`
+	RD          float64 `json:"rd"`
+	Peak        float64 `json:"peak"`
+	Tier        string  `json:"tier"` // tier saat arsip (sudah 8-tier)
+	TierDisplay string  `json:"tier_display"`
+	Games       int     `json:"games"`
+	Wins        int     `json:"wins"`
+	Losses      int     `json:"losses"`
 }
 
 // SeasonStandings — standings beku sebuah musim (urut rating desc).
@@ -175,10 +175,10 @@ func (s *SessionStore) SeasonStandings(ctx context.Context, seasonID string) ([]
 	out := []SeasonStandingRow{}
 	for rows.Next() {
 		var r SeasonStandingRow
-		if err := rows.Scan(&r.Name, &r.Rating, &r.RD, &r.Peak, &r.Class, &r.Games, &r.Wins, &r.Losses); err != nil {
+		if err := rows.Scan(&r.Name, &r.Rating, &r.RD, &r.Peak, &r.Tier, &r.Games, &r.Wins, &r.Losses); err != nil {
 			return nil, err
 		}
-		r.ClassDisplay = cfg.DisplayClass(r.Rating, r.Class)
+		r.TierDisplay = cfg.DisplayTier(r.Rating, r.Tier)
 		out = append(out, r)
 	}
 	return out, rows.Err()
