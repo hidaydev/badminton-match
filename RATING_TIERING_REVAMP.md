@@ -1,7 +1,7 @@
 # RATING_TIERING_REVAMP.md
 
 **Status:** PLAN — belum diimplementasikan
-**Rev:** 3.2 (band 100 + mid bersih + floor {kelas}- + cap 25-30 + prasyarat TIER INDUK terpusat)
+**Rev:** 3.3 (tier induk STICKY + registered_at = awal journey rating)
 **Tanggal:** 2026-08-18
 **Lokasi:** root badminton-match
 **Terkait:** `RATING_ENGINE_DESIGN.md` (engine rating) · `RATINGS_FRONTEND_PLAN.md` (UI ratings) · `ADMIN_MENU_PLAN.md` (menu admin)
@@ -47,23 +47,25 @@ SESSION (4 tier, per-session)
 ### 2.5.1 Migration `000009` (gabung dengan class) — tambah kolom
 
 ```sql
-ALTER TABLE bm.players ADD COLUMN tier text;                 -- 'A'|'B'|'C'|'D'|NULL
-ALTER TABLE bm.players ADD COLUMN tier_updated_at date;      -- tanggal sesi penentu
+ALTER TABLE bm.players ADD COLUMN tier text;          -- 'A'|'B'|'C'|'D'|NULL — STICKY
+ALTER TABLE bm.players ADD COLUMN registered_at date; -- awal journey rating (Rev 3.3)
 -- (rating_players.class + class_source tetap seperti §4.1)
 ```
 
-### 2.5.2 Sinkronisasi dari session (write path)
+### 2.5.2 Sinkronisasi dari session — TIER INDUK STICKY (Rev 3.3)
 
-- Pada **session Save**: untuk tiap pemain dalam snapshot, upsert `players.tier` dari tier
-  session — **dengan guard `session_date >= tier_updated_at`** (sesi lebih baru berhak
-  menimpa; edit sesi LAMA tidak boleh memundurkan tier induk).
-- Idempotent & murah (satu statement upsert per sesi).
+- **STICKY**: `players.tier` ditetapkan SATU KALI saat pemain pertama kali diregistrasi
+  (dari tier sesi pertama tempat dia masuk). **TIDAK pernah diubah otomatis** oleh sesi
+  berikutnya — pemain yang pindah tier di sesi lain TETAP dengan tier induknya.
+- `players.registered_at` = tanggal registrasi pertama (awal journey) — sticky.
+- Perubahan tier induk HANYA via admin (`PATCH /players/{id}/tier`).
+- Implementasi: pada session Save, hanya isi kalau `players.tier IS NULL` (first-set).
 
 ### 2.5.3 Backfill (satu kali)
 
-- `players.tier` diisi dari **sesi TERAKHIR** per pemain (MAX(session_date), lalu
-  MAX(updated_at) tie-break) — materialisasi nilai "tier saat ini" yang selama ini hanya
-  diturunkan di query list.
+- `players.tier` = tier **sesi PERTAMA** per pemain (MIN(session_date), MIN(updated_at)
+  tie-break) — konsisten dengan rule sticky (nilai saat "registrasi").
+- `players.registered_at` = tanggal sesi pertama tersebut.
 
 ### 2.5.4 Dikonsumsi oleh
 
@@ -73,11 +75,28 @@ ALTER TABLE bm.players ADD COLUMN tier_updated_at date;      -- tanggal sesi pen
 - **Admin** ("ubah tier (session)" = edit `players.tier` — lihat ADMIN_MENU_PLAN.md).
 - M-DEF/sinkronisasi lain di masa depan.
 
+### 2.5.6 Rule Journey Rating — dimulai SETELAH registrasi (Rev 3.3)
+
+```
+perjalanan rating pemain X dimulai dari match pertama dengan date >= X.registered_at
+match dengan date <  registered_at  → TIDAK menghitung rating pemain itu
+contoh: X diregis 19, match 20 → journey mulai match tgl 20
+        X diregis 19, match 19 → journey mulai match tgl 19 (sama hari, ikut)
+```
+
+- **Per-match, per-player**: pada ingest, pemain yang `match.date < registered_at`
+  tidak ikut dihitung. Jika AKIBATNYA match tidak punya pemain ter-registrasi di kedua
+  sisi → match di-skip (mirip void).
+- **Forming** (kelas + rating awal) terjadi pada **match pertama yang ter-rated** pemain
+  itu (≥ registered_at), memakai tier induk STICKY.
+- Ini menjaga kejujuran: riwayat rating = perjalanan sejak didaftarkan, bukan data hantu
+  dari match historis sebelum registrasi.
+
 ### 2.5.5 Keputusan yang perlu dikonfirmasi
 
 | Pertanyaan | Usulan |
 |---|---|
-| Sinkron: sesi terbaru menang? | Ya, dengan guard tanggal (2.5.2) |
+| Sinkron: sesi terbaru menang? | **TIDAK — STICKY** (set sekali di registrasi; admin-only setelahnya) |
 | Player tanpa sesi → tier NULL | Ya — ratings fallback ke initial_rating (tanpa kelas khusus) |
 | Edit tier induk via admin → apa efeknya ke ratings? | Hanya memengaruhi forming PEMAIN BARU (class di-lock sekali); untuk pemain existing, admin ubah class rating langsung (menu admin) |
 
@@ -169,7 +188,7 @@ Satu kali proses (P2): untuk tiap player aktif di rating_players, ambil tier ses
 | `internal/domain/rating_config.go` | Tambah `ClassBands map[string][2]*float64` + `SessionTierInit` |
 | `internal/store/rating.go` (ingest) | Inisialisasi player BARU: `class` + `initial rating` dari **`players.tier` terpusat** (Rev 3.2) — pengganti flat `initial_rating` |
 | `internal/store/session.go` (write path) | Sync `players.tier` dari tier session (guard tanggal) |
-| Migration `000009` | `players.tier` + `tier_updated_at` + backfill dari sesi terakhir |
+| Migration `000009` | `players.tier` (sticky) + `registered_at` + backfill dari sesi PERTAMA + gate match ≥ registered_at |
 | `internal/store/rating_revert.go` (rebuild) | Reset-to-default: **class & class_source dipertahankan** (assigned attribute, bukan computed); hanya rating/rd/peak/games yang direset |
 | `internal/store/rating_read.go` | Leaderboard/detail: tambah `class` (assigned) + `class_derived` (dari rating) + `class_display` (max) |
 | Frontend ratings | `RatingTierBadge` → tampilkan `class_display`; provisional tetap rd>200 |
@@ -230,7 +249,7 @@ Player yang `players.tier`-nya **NULL** (belum pernah di sesi — mis. pertama k
 ## 8. Task List
 
 ### P0 — Fondasi skema & math
-- [ ] 0. **Tier induk terpusat**: migration `players.tier`+`tier_updated_at`, sync di session Save (guard tanggal), backfill dari sesi terakhir + integration test (PRASYARAT forming)
+- [ ] 0. **Tier induk terpusat (STICKY) + registered_at**: migration `players.tier`+`registered_at`, first-set di session Save (sticky, admin-only), backfill dari sesi PERTAMA, gate match ≥ registered_at di ingest + integration test (PRASYARAT forming)
 - [ ] 1. Migration `000009_rating_class.sql` (class + class_source + config seed)
 - [ ] 2. `domain`: `ClassForRating` 12-band (config-driven) + `floorOf(class)` + `initForSessionTier(tier)` + unit test (semua 12 band, floor, init mapping)
 - [ ] 3. `rating_config`: `ClassBands` + `SessionTierInit` (typed + validasi)
