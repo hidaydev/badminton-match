@@ -92,9 +92,9 @@ export default function AdminPage() {
     }
   }
 
-  const { data: sessions } = useListSessions()
+  const { data: sessions, refetch: refetchSessions } = useListSessions()
   const { data: players } = useListPlayers()
-  const { data: sources } = useRatingSources()
+  const { data: sources, refetch: refetchSources } = useRatingSources()
   const { data: seasons } = useRatingSeasons()
 
   // Season aktif → default tanggal = tanggal mulai season aktif
@@ -166,6 +166,20 @@ export default function AdminPage() {
                   Unlock
                 </ActionButton>
               )}
+              <ActionButton
+                tone="red"
+                onClick={() => {
+                  if (window.confirm(`Hapus sesi "${s.title || 'Untitled'}" (${s.date})?\n\nRating source ikut terhapus & semua rating di-rebuild.`)) {
+                    run(
+                      () => adminRequest('POST', `/sessions/${s.id}/delete`),
+                      'Session dihapus + rating di-rebuild',
+                      () => { refetchSessions(); refetchSources() },
+                    )
+                  }
+                }}
+              >
+                Delete
+              </ActionButton>
             </div>
           ))}
         </div>
