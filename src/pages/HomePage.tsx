@@ -4,53 +4,18 @@ import { usePwaInstall } from '../hooks/usePwaInstall'
 import { useLastSession } from '../hooks/useLastSession'
 import { useAdmin } from '../context/AdminContext'
 import InstallModal from '../components/InstallModal'
+import Icon, { type IconName } from '../components/Icon'
+import AdminMenuGrid from '../components/admin/AdminMenuGrid'
+import { t } from '../i18n'
 
-const secondary = [
+const secondary: { icon: IconName; label: string; description: string; to: string; admin?: boolean }[] = [
   { icon: 'sessions', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
-  { icon: 'history', label: 'Player History', description: 'Stats & records', to: '/player-history' },
   { icon: 'ratings', label: 'Ratings', description: 'Skill ratings', to: '/ratings' },
   { icon: 'scoreboard', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
   { icon: 'tournament', label: 'Tournament', description: 'Leaderboard & cup', to: '/tournaments' },
   { icon: 'post', label: 'Instagram Post', description: 'Create a post', to: '/instagram-post' },
   { icon: 'admin', label: 'Admin Area', description: 'Admin & operations', to: '/admin', admin: true },
 ] as const
-
-function Icon({ name, size = 20 }: { name: string; size?: number }) {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.8,
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-  }
-  switch (name) {
-    case 'plus':
-      return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>
-    case 'sessions':
-      return <svg {...common}><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></svg>
-    case 'history':
-      return <svg {...common}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>
-    case 'ratings':
-      return <svg {...common}><path d="M4 19v-8M10 19V9M16 19V5" /><path d="M2 19h20" /></svg>
-    case 'scoreboard':
-      return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="1" /><path d="M8 3v4M16 3v4M3 12h18" /><path d="M7 15l2-2 2 2 2-2 2 2" /></svg>
-    case 'tournament':
-      return <svg {...common}><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z" /><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8" /></svg>
-    case 'admin':
-      return <svg {...common}><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" /><path d="M9.5 12l2 2 3-3.5" /></svg>
-    case 'post':
-      return <svg {...common}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
-    case 'download':
-      return <svg {...common}><path d="M12 3v12M7 10l5 5 5-5" /><path d="M4 21h16" /></svg>
-    case 'play':
-      return <svg {...common}><path d="M6 4l14 8-14 8V4z" /></svg>
-    default:
-      return null
-  }
-}
 
 async function openScoreboard(navigate: (path: string) => void) {
   try { await document.documentElement.requestFullscreen() } catch (_error) { void _error }
@@ -60,7 +25,7 @@ async function openScoreboard(navigate: (path: string) => void) {
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { isAdmin, login } = useAdmin()
+  const { isAdmin, login, logout } = useAdmin()
   const [adminLoginOpen, setAdminLoginOpen] = useState(false)
   const [adminTokenInput, setAdminTokenInput] = useState('')
   const { isInstallable, isIos, prompt } = usePwaInstall()
@@ -84,6 +49,20 @@ export default function HomePage() {
     } catch (err) {
       console.error('PWA install prompt failed', err)
     }
+  }
+
+  const handleAdminCard = () => {
+    if (!isAdmin) {
+      setAdminLoginOpen(true)
+      return
+    }
+    // Sudah login → tombol Logout (dengan konfirmasi).
+    if (window.confirm(t('admin.logoutConfirm'))) logout()
+  }
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (login(adminTokenInput)) setAdminLoginOpen(false)
   }
 
   return (
@@ -117,7 +96,7 @@ export default function HomePage() {
         </button>
       )}
 
-      {/* Grid sekunder */}
+      {/* Grid sekunder — menu utama */}
       <div className="flex flex-col gap-2.5">
         <p className="text-[10px] font-mono text-fg-dim uppercase" style={{ letterSpacing: '0.12em' }}>
           App
@@ -128,17 +107,32 @@ export default function HomePage() {
               key={item.to}
               onClick={() =>
                 'admin' in item
-                  ? (isAdmin ? navigate('/admin') : setAdminLoginOpen(true))
+                  ? handleAdminCard()
                   : item.to === '/scoreboard'
                     ? openScoreboard(navigate)
                     : navigate(item.to)
               }
-              className="flex items-start gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
+              className={`flex items-start gap-3 p-4 rounded-lg border transition-all text-left ${
+                'admin' in item && isAdmin
+                  ? 'bg-amber-950/30 border-amber-700/70 hover:border-amber-500'
+                  : 'bg-surface border-border-subtle hover:border-border'
+              } active:scale-[0.98]`}
             >
               <Icon name={item.icon} size={20} />
               <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-sm font-semibold text-fg leading-tight">{item.label}</span>
-                <span className="text-[11px] text-fg-dim">{item.description}</span>
+                <span className="text-sm font-semibold leading-tight flex items-center gap-1.5">
+                  <span className={isAdmin && 'admin' in item ? 'text-amber-200' : 'text-fg'}>
+                    {isAdmin && 'admin' in item ? 'Admin' : item.label}
+                  </span>
+                  {isAdmin && 'admin' in item && (
+                    <span className="text-[8px] font-mono uppercase tracking-wider text-amber-300 border border-amber-700/60 rounded px-1 py-px">
+                      logout
+                    </span>
+                  )}
+                </span>
+                <span className={`text-[11px] ${isAdmin && 'admin' in item ? 'text-amber-200/60' : 'text-fg-dim'}`}>
+                  {isAdmin && 'admin' in item ? 'Log out of admin' : item.description}
+                </span>
               </div>
             </button>
           ))}
@@ -158,15 +152,22 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* Section ADMIN — muncul permanen kalau isAdmin (tanpa collapse) */}
+      {isAdmin && (
+        <div className="flex flex-col gap-2.5">
+          <p className="text-[10px] font-mono text-amber-500/80 uppercase" style={{ letterSpacing: '0.12em' }}>
+            Admin
+          </p>
+          <AdminMenuGrid />
+        </div>
+      )}
+
       {/* Login popup admin */}
       {adminLoginOpen && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4" onClick={() => setAdminLoginOpen(false)}>
           <form
             onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (login(adminTokenInput)) navigate('/admin')
-            }}
+            onSubmit={handleLogin}
             className="w-full max-w-sm bg-surface border border-border rounded-xl p-4 flex flex-col gap-3"
           >
             <p className="text-sm font-bold text-fg">Admin login</p>
