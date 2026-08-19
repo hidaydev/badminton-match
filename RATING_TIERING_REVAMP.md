@@ -1,7 +1,7 @@
 # RATING_TIERING_REVAMP.md
 
 **Status:** PLAN — belum diimplementasikan
-**Rev:** 2 (hasil review: distribusi riil + interplay initial_rating + tournament-first + rebaseline + API contract)
+**Rev:** 3 (band 100 tetap + mid bersih + floor {kelas}- + cap 60 + 3 konsekuensi)
 **Tanggal:** 2026-08-18
 **Lokasi:** root badminton-match
 **Terkait:** `RATING_ENGINE_DESIGN.md` (engine rating) · `RATINGS_FRONTEND_PLAN.md` (UI ratings) · `ADMIN_MENU_PLAN.md` (menu admin)
@@ -33,34 +33,27 @@
 
 ## 3. Skema Baru — 12 Sub-Tier (hanya Ratings)
 
-### 3.1 Band boundaries (proposal — 50 poin per band)
+### 3.1 Band boundaries (100 poin per sub-band — tetap & bersih)
 
 ```
-A+  ≥1550
-A   1500–1549
-A-  1450–1499
-B+  1400–1449
-B   1350–1399
-B-  1300–1349
-C+  1250–1299
-C   1200–1249
-C-  1150–1199
-D+  1100–1149
-D   1050–1099
-D-  <1050
+A+  ≥2100    A   2000–2099   A-  1900–1999
+B+  1800–1899 B   1700–1799  B-  1600–1699
+C+  1500–1599 C   1400–1499  C-  1300–1399
+D+  1200–1299 D   1100–1199  D-  1000–1099
 ```
 
-- Lebar 50 poin per sub-band — konsisten, cukup lebar vs max_delta 100 + RD provisional.
-- **Mid rating** (dipakai inisialisasi): D=1075 · C=1225 · B=1375 · A=1525.
+- 12 band × 100 = rentang 1000–2200 (muat dalam clamp [1000,2500]).
+- **Mid rating (kelas tengah huruf, angka bulat):** D=**1150** · C=**1450** · B=**1750** · A=**2050**.
+- Hubungan poin/match vs band: **typical win (pemain mapan) ≈ 1/3 band** · **max_delta cap 60 = 0.6 band** → 1 match TIDAK PERNAH naik 1 band penuh; menang terus ≈ 3 match/sub-band.
 
 ### 3.2 Mapping session tier → kelas awal + rating awal
 
 | Session tier | Kelas awal | Rating awal (mid band) |
 |---|---|---|
-| 1 (A) | A | 1525 |
-| 2 (B) | B | 1375 |
-| 3 (C) | C | 1225 |
-| 4 (D) | D | 1075 |
+| 1 (A) | A | 2050 |
+| 2 (B) | B | 1750 |
+| 3 (C) | C | 1450 |
+| 4 (D) | D | 1150 |
 
 - RD awal tetap 350 (provisional) — tidak berubah.
 - Konfigurabel: `class_bands` + `session_tier_init` di `rating_config` (bukan hardcode).
@@ -68,16 +61,25 @@ D-  <1050
 ### 3.3 "Tidak pernah turun kelas" (floor mechanism)
 
 ```
-floor(kelas) = sub-tier TERENDAH huruf itu   → floor(C) = C-
+floor(kelas) = sub-tier minus huruf itu:  floor(B) = B- · floor(C) = C- · floor(D) = D- · floor(A) = A-
 tampil kelas = max( derived_class(rating), floor(kelas) )
 
-contoh: player kelas C, rating turun ke 1080 (band D) → TAMPIL C- (bukan D)
-        rating naik ke 1310 (band C+) → tampil C+
+contoh: player assigned B, rating turun ke 1200 (band D+) → TAMPIL B- (bukan D)
+        player assigned A, rating naik ke 2100 → tampil A+
+        player assigned D, rating turun ke 1000 → tampil D-
 ```
 
 - **Rating ANGKA tidak di-clamp** — hanya display kelas yang di-floor. Glicko tetap bergerak bebas.
 - Floor hanya bergerak kalau **admin mengubah kelas** (naik/turun) — "kecuali diubah manual oleh admin".
 - A+ tidak punya floor effect (paling atas).
+
+---
+
+### 3.4 Konsekuensi yang disadari (by design)
+
+1. **Awal-by-tier = start tinggi**: player baru tier A masuk di 2050 — di atas pemain terbaik saat ini (data bm_dev max 1896 = B+). Aspirasional: mereka harus "membela" kelas; kalau main jelek rating turun (display tetap di-floor).
+2. **Data sekarang 1000–1900** → mayoritas di band D/C; B+ ke atas ~10 pemain; A/A+ zona sepi (khusus pemain exceptional).
+3. **Gap display vs rating**: player kelas A yang rating-nya turun ke 1200 tetap tampil A- (floor) — itulah maksud "tidak pernah turun kelas"; rating angka tetap ditampilkan di sampingnya.
 
 ---
 
