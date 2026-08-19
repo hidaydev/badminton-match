@@ -1,18 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { RATING_TIER_LABELS, RATING_TIER_BADGE_COLORS } from '../../src/config/ratingTiers.ts'
+import { RATING_TIER_BADGE_COLORS, type RatingClass } from '../../src/config/ratingTiers.ts'
 
-// Tier rating 1-10 (D..S+) — harus lengkap label + warna untuk semua band.
-test('ratingTiers: label lengkap untuk band 1-10', () => {
-  const labels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((t) => RATING_TIER_LABELS[t])
-  assert.deepEqual(labels, ['D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+', 'S', 'S+'])
+// Kelas rating 12 sub-tier (D-..A+) — warna lengkap untuk semua band.
+const CLASSES: RatingClass[] = ['D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']
+
+test('ratingTiers: 12 kelas lengkap dengan warna', () => {
+  assert.equal(CLASSES.length, 12)
+  for (const c of CLASSES) {
+    assert.ok(RATING_TIER_BADGE_COLORS[c], `kelas ${c} tidak punya warna`)
+    assert.ok(RATING_TIER_BADGE_COLORS[c].includes('border'), `kelas ${c} tanpa border color`)
+  }
 })
 
-test('ratingTiers: badge color ada untuk semua band', () => {
-  for (let t = 1; t <= 10; t++) {
-    assert.ok(RATING_TIER_BADGE_COLORS[t], `band ${t} tidak punya warna`)
-    assert.ok(RATING_TIER_BADGE_COLORS[t].includes('border'), `band ${t} tanpa border color`)
-  }
-  // band di luar 1-10 → fallback aman ke D
-  assert.equal(RATING_TIER_BADGE_COLORS[0] ?? RATING_TIER_BADGE_COLORS[1], RATING_TIER_BADGE_COLORS[1])
+test('ratingTiers: fallback aman untuk kelas tak dikenal', () => {
+  assert.equal(
+    RATING_TIER_BADGE_COLORS['ZZ' as RatingClass] ?? RATING_TIER_BADGE_COLORS['D-'],
+    RATING_TIER_BADGE_COLORS['D-'],
+  )
 })

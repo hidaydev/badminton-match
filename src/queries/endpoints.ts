@@ -324,7 +324,9 @@ export interface RatingLeaderboardRow {
   name: string
   rating: number
   rd: number
-  tier: number
+  class: string
+  class_derived: string
+  class_display: string
   peak: number
   games: number
   trend: number
@@ -348,7 +350,9 @@ export interface RatingPlayer {
   name: string
   rating: number
   rd: number
-  tier: number
+  class: string
+  class_derived: string
+  class_display: string
   peak: number
   games: number
   wins: number
