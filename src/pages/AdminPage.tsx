@@ -6,7 +6,8 @@ import { useListSessions, useListPlayers, useListTournaments } from '../queries'
 import { useRatingSources, useRatingSeasons } from '../queries/ratings'
 import { adminRequest } from '../queries/admin'
 
-const TIERS = ['A', 'B', 'C', 'D']
+// 8-tier (TIER_8_UNIFICATION): D, D+, C, C+, B, B+, A, A+
+const TIERS = ['D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+']
 const PAGE = 10
 
 // Tombol aksi kecil — gaya seragam.
@@ -347,7 +348,7 @@ export default function AdminPage() {
                 <span className="text-[10px] font-mono text-amber-300/80 border border-amber-800/50 rounded px-1.5 py-0.5">tier {pl.tierInduk}</span>
               )}
               <ActionButton onClick={() => {
-                const newTier2 = window.prompt(`Tier induk (A/B/C/D) untuk ${pl.name}:`, pl.tierInduk ?? 'C')
+                const newTier2 = window.prompt(`Tier induk (D..A+) untuk ${pl.name}:`, pl.tierInduk ?? 'C')
                 if (newTier2 && TIERS.includes(newTier2.toUpperCase())) {
                   run(() => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: newTier2.toUpperCase() }), 'Tier diubah + recalculate')
                 }

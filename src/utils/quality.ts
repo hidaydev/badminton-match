@@ -32,8 +32,8 @@ export function computeQuality(
 
   let unevenGames = 0
   for (const g of result.schedule) {
-    const tierA = (playerMap.get(g.teamA[0])?.tier ?? 2) + (playerMap.get(g.teamA[1])?.tier ?? 2)
-    const tierB = (playerMap.get(g.teamB[0])?.tier ?? 2) + (playerMap.get(g.teamB[1])?.tier ?? 2)
+    const tierA = (playerMap.get(g.teamA[0])?.tier ?? 5) + (playerMap.get(g.teamA[1])?.tier ?? 5)
+    const tierB = (playerMap.get(g.teamB[0])?.tier ?? 5) + (playerMap.get(g.teamB[1])?.tier ?? 5)
     if (Math.abs(tierA - tierB) >= 2) unevenGames++
   }
 

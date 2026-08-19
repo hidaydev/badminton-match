@@ -85,7 +85,7 @@ export default function RatingsPage() {
           {(frozen ?? []).map((r, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-2.5">
               <span className={`w-6 text-sm font-mono shrink-0 ${i === 0 ? 'text-accent' : i < 3 ? 'text-slate-200' : 'text-fg-dim'}`}>{i + 1}</span>
-              <RatingTierBadge class={r.class_display} />
+              <RatingTierBadge tier={r.tier_display} />
               <span className="flex-1 min-w-0 truncate text-sm font-medium text-fg">{r.name}</span>
               <span className="shrink-0 text-right font-mono">
                 <span className="block text-sm font-bold text-fg">{r.rating.toFixed(0)}</span>
@@ -115,7 +115,7 @@ export default function RatingsPage() {
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
               >
                 <span className={`w-6 text-sm font-mono shrink-0 ${medal}`}>{rank}</span>
-                <RatingTierBadge class={r.class_display} />
+                <RatingTierBadge tier={r.tier_display} />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-medium text-fg truncate">{r.name}</span>
                   <span className="block text-[10px] font-mono text-fg-dim">
