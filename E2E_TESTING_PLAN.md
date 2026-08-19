@@ -7,8 +7,8 @@ frontend & backend — menemukan bug (bukan sekadar "jalan"). Laporan per area,
 bug → fix → re-test (loop).
 **Lingkungan target:** `dev` (backend `api.qouver.com/majadu-dev` · frontend Vercel
 `dev` · DB `bm_dev`). Prod tidak disentuh.
-**Terkait:** `TIER_8_UNIFICATION.md` (8-tier baru — prioritas tes) ·
-`ADMIN_MENU_PLAN.md` · `RATING_ENGINE_DESIGN.md`
+**Terkait:** `DESIGN_ARCHIVE.md` (keputusan desain terarsip — 8-tier prioritas tes) ·
+`BACKLOG.md`
 
 ---
 
@@ -113,28 +113,31 @@ bug → fix → re-test (loop).
 - `npm run build` — compile produksi bersih
 
 ### 4.2 Browser E2E (Playwright — kalau tersedia)
-Matrix rute & aksi utama:
+Matrix rute & aksi utama (update 2026-08-19: Player History diserap ke Ratings,
+admin pindah ke home + /admin?section=X, bahasa English + i18n skeleton):
 
 | Rute | Aksi yang dites |
 |---|---|
-| `/` | Grid menu 8 card (termasuk Ratings & Admin) navigasi benar |
+| `/` | Grid menu 6 card (Sessions, Ratings, Scoreboard, Tournament, IG Post, Admin) + section **ADMIN** (5 card, muncul saat login) · card Admin = login popup / logout (konfirmasi) |
 | `/session/new` → players → constraints → generate | Wizard 4 langkah: guard route, picker tier **8 opsi**, bulk import, generate + QualityBanner + retry, publish |
 | `/sessions` | List + filter tanggal |
 | `/s/:sessionId` | SummaryModal: toggle played, set score, swap, absent (void confirm), change player, lock; **tidak ada tombol delete** |
 | `/ratings` | Leaderboard: badge 8-tier, podium, provisional, trend, season picker (live/frozen), load more |
-| `/ratings/:playerId` | Stat cards, sparkline, recent matches, cross-link ke player history |
+| `/ratings/:playerId` | Stat cards, sparkline, recent matches, **Career** (sessions, top partners/opponents, tournament) — tanpa cross-link nested |
 | `/tournaments` | List + format badge + navigasi detail |
 | `/tournaments/new` + wizard | Classic (16 pairs) & Team (6×6): setup → draw → confirm |
-| `/tournaments/:id` | Tab groups/bracket/standings (classic) · klasemen/jadwal/final (team) |
-| `/admin` | **Login** (token benar/salah/401) → unlock/delete session · ingest/revert/finalize/rebuild-all (feedback inline + disable saat running) · **delete tournament** · season close&start · player (add/rename/tier 8/rebaseline/hapus) |
-| `/player-history` & `/player-history/:name` | List, detail stats, cross-link ke ratings |
+| `/tournaments/:id` | Tab groups/bracket/standings (classic) · standings/schedule/final (team) |
+| `/admin` + `/admin?section=X` | Hanya bisa login dari **home** (popup password) · section diurut Session→Player→Rating→Tournament→Season · **autofocus `?section`** (dari card menu home) · unlock/delete session · player (add/rename/tier 8/rebaseline/hapus, **pagination + search**) · ingest/revert/finalize/rebuild (feedback inline) · delete tournament · season close&start (meta 2 baris) |
 | `/scoreboard` | Fullscreen overlay increment |
 | `/instagram-post` | Load editor + template |
 
-Catatan: login admin di browser → token di localStorage; **reload halaman → request admin tetap bawa Bearer** (regresi fix token).
+Catatan: login admin di home → token di localStorage; **reload halaman → request admin tetap bawa Bearer** (regresi fix token). Semua string UI = English (i18n skeleton `src/i18n/`).
 
 ### 4.3 Data uji frontend
 Sesi/tournament test `it-e2e-*` dibuat via API dulu (cepat), lalu diverifikasi di UI.
+**PENTING (update 2026-08-19):** cleanup rating_sources `it-*` wajib setelah tes
+(backfill/auto-ingest mengabaikan sumber `it-*`, tapi `rating_sources` menyimpan
+barisnya — hapus `WHERE source_id LIKE 'it-%'`).
 
 ---
 
