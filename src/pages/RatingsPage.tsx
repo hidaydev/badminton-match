@@ -119,7 +119,7 @@ export default function RatingsPage() {
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-medium text-fg truncate">{r.name}</span>
                   <span className="block text-[10px] font-mono text-fg-dim">
-                    peak {r.peak} · {r.games} game{r.games !== 1 ? 's' : ''}
+                    {r.games} game{r.games !== 1 ? 's' : ''}
                   </span>
                 </span>
                 <span className="shrink-0 text-right">

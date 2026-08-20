@@ -1,6 +1,7 @@
 // src/pages/RatingPlayerPage.tsx — detail rating + career pemain.
 // Player History diserap ke sini (UI_UX_POLISH_PLAN §4) — satu halaman,
 // tanpa cross-link nested.
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useRatingPlayer } from '../queries/ratings'
 import { useGetPlayerStats } from '../queries'
@@ -8,10 +9,13 @@ import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import RatingSparkline from '../components/ratings/RatingSparkline'
 import CareerStats from '../components/ratings/CareerStats'
 
+const MATCHES_PER_PAGE = 5
+
 export default function RatingPlayerPage() {
   const { playerId } = useParams<{ playerId: string }>()
   const { data, isLoading, isError } = useRatingPlayer(playerId)
   const { data: stats } = useGetPlayerStats(data?.name ?? '')
+  const [matchesPage, setMatchesPage] = useState(0)
 
   if (isLoading) return <p className="text-fg-dim text-sm">Loading rating…</p>
   if (isError) return <p className="text-error text-sm">Failed to load rating.</p>
@@ -68,7 +72,7 @@ export default function RatingPlayerPage() {
       <div className="flex flex-col gap-1.5">
         <p className="text-[10px] font-mono text-fg-dim uppercase tracking-wider px-1">Recent matches</p>
         {history.length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-6">No matches yet.</p>}
-        {history.map((h, i) => {
+        {history.slice(matchesPage * MATCHES_PER_PAGE, (matchesPage + 1) * MATCHES_PER_PAGE).map((h, i) => {
           const won = h.outcome === 'W'
           return (
             <div key={i} className="bg-surface border border-border-subtle rounded-lg px-3 py-2 flex items-center gap-3">
@@ -85,6 +89,27 @@ export default function RatingPlayerPage() {
             </div>
           )
         })}
+        {history.length > MATCHES_PER_PAGE && (
+          <div className="flex items-center justify-between px-1 pt-1">
+            <button
+              onClick={() => setMatchesPage((p) => Math.max(0, p - 1))}
+              disabled={matchesPage === 0}
+              className="text-xs text-fg-dim hover:text-fg disabled:opacity-30 transition-colors"
+            >
+              ← Prev
+            </button>
+            <span className="text-[10px] font-mono text-fg-dim">
+              {matchesPage + 1}/{Math.ceil(history.length / MATCHES_PER_PAGE)}
+            </span>
+            <button
+              onClick={() => setMatchesPage((p) => Math.min(Math.ceil(history.length / MATCHES_PER_PAGE) - 1, p + 1))}
+              disabled={matchesPage >= Math.ceil(history.length / MATCHES_PER_PAGE) - 1}
+              className="text-xs text-fg-dim hover:text-fg disabled:opacity-30 transition-colors"
+            >
+              Next →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Career (bekas Player History) */}
