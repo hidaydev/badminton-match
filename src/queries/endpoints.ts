@@ -229,7 +229,7 @@ export async function listPlayers(): Promise<PlayerSummary[]> {
     playerId?: string
     name: string
     gender: 'M' | 'F'
-    tier: 1 | 2 | 3 | 4
+    tier: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
     tierInduk?: string
   }>>('GET', '/players')
   return rows
@@ -248,10 +248,11 @@ export async function getPlayerStats(name: string): Promise<PlayerStats> {
   return data
 }
 
-export async function registerPlayer(name: string, canonicalName?: string): Promise<{ playerId: string }> {
+export async function registerPlayer(name: string, canonicalName?: string, gender?: 'M' | 'F'): Promise<{ playerId: string }> {
   return await request<{ playerId: string }>('POST', '/players', {
     name,
     canonicalName: canonicalName ?? undefined,
+    gender: gender ?? undefined,
   })
 }
 
