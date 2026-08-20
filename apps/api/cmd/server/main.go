@@ -90,14 +90,16 @@ func main() {
 				if n > 0 {
 					logger.Info("auto-lock", "sessions_locked", n)
 				}
-				// Auto-ingest sesi yang baru final (rating mengalir otomatis —
-				// plan frontend §4.3).
-				if n > 0 {
-					ni, err := locker.AutoIngestLockedSessions(runCtx)
-					if err != nil {
-						logger.Error("auto-ingest gagal", "error", err)
-						return
-					}
+				// Auto-ingest sesi yang sudah final (locked) tapi belum diingest.
+				// Dijalankan unconditionally — tidak hanya saat ticker mengunci
+				// session baru, karena save-path auto-lock juga bisa mengunci
+				// session tanpa melalui ticker (audit H2 fix).
+				ni, err := locker.AutoIngestLockedSessions(runCtx)
+				if err != nil {
+					logger.Error("auto-ingest gagal", "error", err)
+					return
+				}
+				if ni > 0 {
 					logger.Info("auto-ingest", "sessions_ingested", ni)
 				}
 			}

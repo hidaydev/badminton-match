@@ -57,9 +57,23 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 		return nil, ErrNotFound
 	}
 
+	// Read-only transaction untuk snapshot isolation — mencegah inconsistent
+	// reads saat concurrent Save() menghapus + insert ulang child tables (L6 fix).
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Set read-only after begin (pgx doesn't support ReadOnly in TxOptions directly)
+	if _, err := tx.Exec(ctx, `SET TRANSACTION READ ONLY`); err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, err
+	}
+
 	// Resolve lookup (share_code atau uuid) — mirror resolve_session_lookup.
 	var sessionID string
-	err := s.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT s.id::text FROM sessions s
 		WHERE s.share_code = $1 OR s.id::text = $1
 		ORDER BY (s.share_code = $1) DESC
@@ -81,7 +95,7 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 		version       int
 		includeAbsent bool
 	)
-	if err := s.pool.QueryRow(ctx, `
+	if err := tx.QueryRow(ctx, `
 		SELECT title, session_date, session_start, slot_minutes, status, version, include_absent_players
 		FROM sessions WHERE id = $1::uuid`, sessionID).
 		Scan(&title, &dateStr, &startTime, &slotMinutes, &status, &version, &includeAbsent); err != nil {
@@ -97,7 +111,7 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 		gameCount int
 	}
 	courts := []courtRow{}
-	rows, err := s.pool.Query(ctx, `
+	rows, err := tx.Query(ctx, `
 		SELECT sc.court_index, sc.court_name, sc.start_time, sc.end_time, coalesce(gc.game_count, 0)
 		FROM session_courts sc
 		LEFT JOIN (
@@ -134,7 +148,7 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 	}
 	players := []playerRow{}
 	internalToRef := map[string]string{}
-	rows, err = s.pool.Query(ctx, `
+	rows, err = tx.Query(ctx, `
 		SELECT sp.internal_id::text, sp.player_ref, sp.source_name, sp.gender, sp.tier, sp.is_absent, sp.absent_order
 		FROM session_players sp
 		WHERE sp.session_id = $1::uuid
@@ -162,7 +176,7 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 		slots     [4]*string
 	}
 	fixRows := []fixRow{}
-	rows, err = s.pool.Query(ctx, `
+	rows, err = tx.Query(ctx, `
 		SELECT fm.legacy_ref, fm.slot_0, fm.slot_1, fm.slot_2, fm.slot_3
 		FROM fix_matches fm
 		WHERE fm.session_id = $1::uuid
@@ -198,7 +212,7 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 	}
 	games := []gameRow{}
 	gameIdx := map[string]int{} // internal_id → index di games
-	rows, err = s.pool.Query(ctx, `
+	rows, err = tx.Query(ctx, `
 		SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
 		       sg.is_played, sg.played_order, sg.score_a, sg.score_b
 		FROM scheduled_games sg
@@ -222,7 +236,7 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 	}
 
 	// team members (ref, team, position) — mirror jsonb_agg ... order by position
-	rows, err = s.pool.Query(ctx, `
+	rows, err = tx.Query(ctx, `
 		SELECT sgp.scheduled_game_internal_id::text, sgp.team, sgp.position, sp.player_ref
 		FROM scheduled_game_players sgp
 		JOIN session_players sp ON sp.internal_id = sgp.session_player_internal_id
@@ -502,8 +516,11 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 	if currentStatus == "draft" && status == "draft" {
 		allScored := len(snap.Schedule) > 0 && countScoredGames(snap) == len(snap.Schedule)
 		pastDate := false
-		if d, err := time.Parse("2006-01-02", snap.Session.Date); err == nil {
-			pastDate = d.Before(time.Now().Truncate(24 * time.Hour))
+		// Compare against DB's current_date (not Go's time.Now) to avoid
+		// timezone mismatches between Go container (UTC) and DB session timezone.
+		var today string
+		if err := tx.QueryRow(ctx, `SELECT current_date::text`).Scan(&today); err == nil {
+			pastDate = snap.Session.Date < today
 		}
 		if allScored || pastDate {
 			nextVersion++
@@ -544,11 +561,15 @@ func (s *SessionStore) Delete(ctx context.Context, lookup string) error {
 		FROM sessions s
 		WHERE s.share_code = $1 OR s.id::text = $1
 		ORDER BY (s.share_code = $1) DESC
-		LIMIT 1`, lookup).Scan(&rowID, &status)
+		LIMIT 1
+		FOR UPDATE NOWAIT`, lookup).Scan(&rowID, &status)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return fmt.Errorf("%w: session not found: %s", ErrNotFound, lookup)
 	case err != nil:
+		if isLockNotAvailable(err) {
+			return ErrContention
+		}
 		return err
 	}
 	if status != "draft" {
@@ -649,9 +670,10 @@ func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []do
 // AutoLockExpiredSessions — sesi draft yang tanggalnya sudah lewat otomatis
 // di-lock (ABSENT_TBD_PLAYERS_DESIGN.md §4.6). Dipanggil berkala oleh ticker
 // di main.go. Idempotent; hanya menyentuh status='draft' AND session_date < today.
+// Version di-bump agar konsisten dengan save-path auto-lock (audit M2 fix).
 func (s *SessionStore) AutoLockExpiredSessions(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `
-		UPDATE sessions SET status = 'locked', updated_at = now()
+		UPDATE sessions SET status = 'locked', version = version + 1, updated_at = now()
 		WHERE status = 'draft' AND session_date < current_date`)
 	if err != nil {
 		return 0, err
