@@ -498,6 +498,24 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 		return nil, err
 	}
 
+	// 8. Auto-lock: semua skor terisi ATAU tanggal lewat → lock otomatis.
+	if currentStatus == "draft" && status == "draft" {
+		allScored := len(snap.Schedule) > 0 && countScoredGames(snap) == len(snap.Schedule)
+		pastDate := false
+		if d, err := time.Parse("2006-01-02", snap.Session.Date); err == nil {
+			pastDate = d.Before(time.Now().Truncate(24 * time.Hour))
+		}
+		if allScored || pastDate {
+			nextVersion++
+			if _, err := tx.Exec(ctx, `
+				UPDATE sessions SET status = 'locked', version = $2, updated_at = now()
+				WHERE id = $1::uuid`, rowID, nextVersion); err != nil {
+				return nil, err
+			}
+			status = "locked"
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -978,4 +996,16 @@ func splitGameKey(key string) (int, int, bool) {
 func isLockNotAvailable(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "55P03"
+}
+
+// countScoredGames — hitung jumlah game yang sudah punya skor di snapshot.
+func countScoredGames(snap *domain.CloudSnapshot) int {
+	count := 0
+	for _, g := range snap.Schedule {
+		key := domain.GameKey(g.Slot, g.Court)
+		if _, ok := snap.GameScores[key]; ok {
+			count++
+		}
+	}
+	return count
 }
