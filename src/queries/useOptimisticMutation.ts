@@ -6,7 +6,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, getTournament, publishTournament } from './endpoints'
 import type { CloudSnapshot, TournamentSnapshot } from './types'
-import { isVersionMismatch } from './errors'
+import { isVersionMismatch, isLockedError } from './errors'
 
 /** Snapshot yang di-publish — session atau tournament. */
 type Snapshot = CloudSnapshot | TournamentSnapshot
@@ -76,7 +76,9 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
       if (context?.previous !== undefined) {
         queryClient.setQueryData(queryKey, context.previous)
       }
-      if (isVersionMismatch(_err)) {
+      // Refetch on version mismatch OR lock conflict — both mean the cached
+      // snapshot is stale and the user needs the latest server state.
+      if (isVersionMismatch(_err) || isLockedError(_err)) {
         try {
           await queryClient.fetchQuery<TData | null>({
             queryKey,

@@ -1,10 +1,17 @@
 import { ApiError } from './endpoints'
 
-/** Check if an error is a version mismatch (optimistic concurrency failure). */
+/** Check if error is a version mismatch (optimistic concurrency failure). */
 export function isVersionMismatch(error: unknown): boolean {
   return (
     (error instanceof ApiError && error.code === '40001') ||
     (error instanceof Error && error.message.toLowerCase().includes('version mismatch'))
+  )
+}
+
+/** Check if error is a lock conflict (session already locked). */
+export function isLockedError(error: unknown): boolean {
+  return (
+    error instanceof Error && error.message.toLowerCase().includes('locked')
   )
 }
 
@@ -37,6 +44,10 @@ export function getSaveErrorMessage(error: unknown): string {
 
   if (message.includes('duplicate canonical resolution')) {
     return 'Two different names resolved to the same player. Check for duplicates.'
+  }
+
+  if (message.includes('locked')) {
+    return 'Session is locked — no further edits allowed.'
   }
 
   return fallback

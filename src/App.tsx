@@ -97,6 +97,7 @@ export default function App() {
             <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><TournamentPage /></Suspense>} />
             <Route path="instagram-post" element={<Suspense fallback={<Loading />}><InstagramPostPage /></Suspense>} />
             <Route path="admin">
+              <Route index element={<Navigate to="/admin/sessions" replace />} />
               <Route path="sessions" element={<Suspense fallback={<Loading />}><AdminSessionsPage /></Suspense>} />
               <Route path="players" element={<Suspense fallback={<Loading />}><AdminPlayersPage /></Suspense>} />
               <Route path="ratings" element={<Suspense fallback={<Loading />}><AdminRatingsPage /></Suspense>} />
