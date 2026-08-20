@@ -53,8 +53,6 @@ interface SummaryModalEditProps {
   isRefetching?: boolean
   onDelete?: () => void
   deleteLoading?: boolean
-  onLock?: () => void
-  lockLoading?: boolean
   onClose?: () => void
   saving?: boolean
 }
@@ -90,8 +88,6 @@ export default function SummaryModal({
   onDelete,
   deleteLoading = false,
   locked = false,
-  onLock,
-  lockLoading = false,
 }: SummaryModalProps) {
   const courts = slotsPerCourt.length
   const played = new Set(playedArr)
@@ -130,7 +126,6 @@ export default function SummaryModal({
 
   const [actionsOpen, setActionsOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
-  const [lockConfirm, setLockConfirm] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -419,7 +414,7 @@ export default function SummaryModal({
               🔒<span className="hidden sm:inline"> Locked</span>
             </span>
           )}
-          {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams || onLock) && (
+          {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams) && (
             mode !== 'idle' ? (
               <button
                 onClick={() => { exitCurrentMode(); setActionsOpen(false) }}
@@ -438,14 +433,12 @@ export default function SummaryModal({
                 onEnterChangeMode={() => { setActionsOpen(false); enterChangeMode() }}
                 onEnterSlotSwapMode={() => { setActionsOpen(false); enterSlotSwapMode() }}
                 onEnterAbsentMode={() => { setActionsOpen(false); enterAbsentMode() }}
-                onLockSession={() => { setActionsOpen(false); setLockConfirm(true) }}
                 hasSwapPlayers={!!onSwapPlayers}
                 hasSwapTeams={!!onSwapTeams}
                 hasReplacePlayer={!!onReplacePlayer}
                 hasChangePlayer={!!onChangePlayer}
                 hasSwapSlots={!!onSwapSlots}
                 hasSetAbsent={!!onSetAbsent}
-                hasLock={!!onLock && !locked}
               />
             )
           )}
@@ -479,27 +472,8 @@ export default function SummaryModal({
               ✕
             </button>
           )}
-          {/* Lock confirmation */}
-          {onLock && lockConfirm && !locked && (
-            <>
-              <button
-                onClick={() => { onLock(); setLockConfirm(false) }}
-                disabled={lockLoading}
-                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {lockLoading && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                {lockLoading ? 'Locking…' : 'Confirm lock'}
-              </button>
-              <button
-                onClick={() => setLockConfirm(false)}
-                className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
-              >
-                ✕
-              </button>
-            </>
-          )}
           {/* Close button — only when onClose is provided */}
-          {onClose && !deleteConfirm && !lockConfirm && (
+          {onClose && !deleteConfirm && (
             <button
               onClick={onClose}
               className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"

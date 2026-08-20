@@ -10,7 +10,6 @@ import {
   useReplacePlayer,
   useSwapSlots,
   useSwapTeams,
-  useLockSession,
   useChangePlayer,
   type CloudSnapshot,
 } from '../queries'
@@ -44,7 +43,6 @@ export default function SharedSessionPage() {
   const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
   const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
-  const { mutate: lockSession, isPending: lockPending } = useLockSession(sessionId!)
   const { mutate: changePlayer, isPending: changePlayerPending } = useChangePlayer(sessionId!)
 
   const { save } = useLastSession()
@@ -203,11 +201,6 @@ export default function SharedSessionPage() {
         onRefetch={() => refetch()}
         isRefetching={isFetching}
         locked={!!snapshot?.session?.locked}
-        onLock={() => lockSession(undefined, {
-          onSuccess: () => setSaveError(null),
-          onError: (err) => setSaveError(getSaveErrorMessage(err)),
-        })}
-        lockLoading={lockPending}
       />
     </main>
   )

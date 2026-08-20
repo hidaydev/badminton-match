@@ -8,14 +8,12 @@ interface ActionsMenuProps {
   onEnterChangeMode: () => void
   onEnterSlotSwapMode: () => void
   onEnterAbsentMode: () => void
-  onLockSession: () => void
   hasSwapPlayers?: boolean
   hasSwapTeams?: boolean
   hasReplacePlayer?: boolean
   hasChangePlayer?: boolean
   hasSwapSlots?: boolean
   hasSetAbsent?: boolean
-  hasLock?: boolean
 }
 
 export default function ActionsMenu({
@@ -28,14 +26,12 @@ export default function ActionsMenu({
   onEnterChangeMode,
   onEnterSlotSwapMode,
   onEnterAbsentMode,
-  onLockSession,
   hasSwapPlayers,
   hasSwapTeams,
   hasReplacePlayer,
   hasChangePlayer,
   hasSwapSlots,
   hasSetAbsent,
-  hasLock,
 }: ActionsMenuProps) {
   return (
     <div className="relative">
@@ -110,15 +106,6 @@ export default function ActionsMenu({
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="inline mr-1.5 -mt-0.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
                 Mark absent
-              </button>
-            )}
-            {hasLock && (
-              <button
-                onClick={onLockSession}
-                className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
-                role="menuitem"
-              >
-                🔒 Lock session
               </button>
             )}
           </div>
