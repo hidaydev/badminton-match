@@ -23,6 +23,12 @@ function parsePlayerList(raw: string): string[] {
 
 import { TIER_LABELS, TIER_BADGE_COLORS, TIER_ACTIVE, TIER_NAMES } from '../config/tiers'
 
+// Convert canonical tier string (D..A+) to numeric (1..8)
+function tierStringToNumber(tier: string): Tier {
+  const map: Record<string, Tier> = { 'D': 1, 'D+': 2, 'C': 3, 'C+': 4, 'B': 5, 'B+': 6, 'A': 7, 'A+': 8 }
+  return map[tier.toUpperCase()] ?? 2
+}
+
 function TierBadge({ tier }: { tier: Tier }) {
   return (
     <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md border text-xs font-bold ${TIER_BADGE_COLORS[tier] ?? TIER_BADGE_COLORS[3]}`}>
@@ -310,9 +316,11 @@ export default function PlayersPage() {
     listPlayers().then((rows) => {
       const map = new Map<string, { gender: Gender; tier: Tier }>()
       for (const row of rows) {
+        // Use tierInduk (canonical tier) if available, fallback to tier (display)
+        const canonicalTier = row.tierInduk ? tierStringToNumber(row.tierInduk) : (row.tier || 2)
         map.set(row.name.toLowerCase(), { 
           gender: row.gender as Gender, 
-          tier: (row.tier || 2) as Tier 
+          tier: canonicalTier as Tier
         })
       }
       setCanonicalPlayers(map)
