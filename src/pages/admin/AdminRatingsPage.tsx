@@ -17,15 +17,12 @@ export default function AdminRatingsPage() {
 
   const slice = (sources ?? []).slice(page * PAGE, page * PAGE + PAGE)
 
-  const runRebuild = async (run: (fn: () => Promise<unknown>, okLabel: string) => Promise<void>) => {
+  const runRebuild = async () => {
     if (rebuilding) return
     setRebuilding(true)
     setRebuildMsg(null)
     try {
-      await run(
-        () => adminRequest('POST', '/ratings/rebuild-all'),
-        t('admin.rebuildDone'),
-      )
+      await adminRequest('POST', '/ratings/rebuild-all')
       setRebuildMsg({ kind: 'ok', text: t('admin.rebuildDone') })
     } catch (e) {
       setRebuildMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Rebuild failed' })
@@ -40,7 +37,7 @@ export default function AdminRatingsPage() {
       {({ run }) => (
         <>
           <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">Rating · ingest / revert</p>
+            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionRating')}</p>
             <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
               {slice.length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">{t('admin.noSources')}</p>}
               {slice.map((src) => (
@@ -67,7 +64,7 @@ export default function AdminRatingsPage() {
             <Pager page={page} total={(sources ?? []).length} onPage={setPage} />
             <div className="flex flex-col gap-1">
               <button
-                onClick={() => runRebuild(run)}
+                onClick={() => runRebuild()}
                 disabled={rebuilding}
                 className="py-2 rounded-lg border border-border-subtle text-sm text-fg-dim hover:text-fg disabled:opacity-40"
               >

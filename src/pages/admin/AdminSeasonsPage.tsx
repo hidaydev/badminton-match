@@ -24,7 +24,7 @@ export default function AdminSeasonsPage() {
       {({ run }) => (
         <>
           <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">Season</p>
+            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionSeason')}</p>
             <div className="flex flex-wrap gap-2 items-end">
               <label className="flex flex-col gap-1 flex-1 min-w-40">
                 <span className="text-[10px] font-mono text-fg-dim">{t('admin.seasonDateLabel')}</span>

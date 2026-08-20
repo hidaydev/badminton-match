@@ -35,7 +35,7 @@ export default function SharedSessionPage() {
     return () => clearTimeout(timer)
   }, [saveError])
 
-  const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId)
+  const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId, { refetchInterval: 30_000 })
   const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
   const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
   const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)

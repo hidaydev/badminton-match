@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useListPlayers } from '../../queries'
 import { adminRequest } from '../../queries/admin'
-import { en } from '../../i18n'
+import { t, en } from '../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
 import Pager from '../../components/admin/Pager'
@@ -27,31 +27,31 @@ export default function AdminPlayersPage() {
       {({ run }) => (
         <>
           <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">Player</p>
+            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionPlayer')}</p>
 
             {/* Add player standalone */}
             <div className="flex flex-wrap gap-2 items-center bg-surface border border-border-subtle rounded-lg px-3 py-2">
               <input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Player name"
+                placeholder={t('admin.newPlayerName')}
                 className="flex-1 min-w-0 bg-transparent text-sm text-fg placeholder:text-fg-dim/60 focus:outline-none"
               />
               <select
                 value={newTier}
                 onChange={(e) => setNewTier(e.target.value)}
                 className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-fg focus:outline-none"
-                aria-label="Tier"
+                aria-label={t('admin.tierInduk')}
               >
                 {TIERS.map((tier) => <option key={tier} value={tier}>Tier {tier}</option>)}
               </select>
               <button
                 onClick={() => run(
                   async () => {
-                    if (!newName.trim()) throw new Error('Name is required')
+                    if (!newName.trim()) throw new Error(t('admin.nameRequired'))
                     await adminRequest('POST', '/players', { name: newName.trim(), tier: newTier })
                   },
-                  'Player added',
+                  t('admin.playerAdded'),
                 )}
                 className="px-3 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold"
               >
@@ -78,7 +78,7 @@ export default function AdminPlayersPage() {
                   <ActionButton onClick={() => {
                     const t2 = window.prompt(en.admin.tierPrompt(pl.name), pl.tierInduk ?? 'C')
                     if (t2 && TIERS.includes(t2.toUpperCase())) {
-                      run(() => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: t2.toUpperCase() }), 'Tier changed + recalculated')
+                      run(() => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: t2.toUpperCase() }), t('admin.tierChanged'))
                     }
                   }}>Tier</ActionButton>
                   <ActionButton onClick={() => {
@@ -86,19 +86,19 @@ export default function AdminPlayersPage() {
                     if (n2 && n2.trim() && n2.trim() !== pl.name) {
                       run(
                         () => adminRequest('PATCH', `/players/${pl.playerId}/name`, { name: n2.trim() }),
-                        'Name changed (old name kept as alias)',
+                        t('admin.nameChanged'),
                         () => refetch(),
                       )
                     }
                   }}>Rename</ActionButton>
                   <ActionButton tone="amber" onClick={() => {
                     if (window.confirm(en.admin.rebaselineConfirm(pl.name))) {
-                      run(() => adminRequest('POST', `/ratings/players/${pl.playerId}/rebaseline`), 'Rebaselined — rating set to mid tier')
+                      run(() => adminRequest('POST', `/ratings/players/${pl.playerId}/rebaseline`), t('admin.rebaselined'))
                     }
                   }}>Rebaseline</ActionButton>
                   <ActionButton tone="red" onClick={() => {
                     if (window.confirm(en.admin.playerDeleteConfirm(pl.name))) {
-                      run(() => adminRequest('DELETE', `/players/${pl.playerId}`), 'Player deleted')
+                      run(() => adminRequest('DELETE', `/players/${pl.playerId}`), t('admin.playerDeleted'))
                     }
                   }}>Delete</ActionButton>
                 </div>

@@ -38,11 +38,12 @@ export function useListSessions(options?: { enabled?: boolean }) {
   })
 }
 
-export function useGetSession(sessionId: string | undefined) {
+export function useGetSession(sessionId: string | undefined, options?: { refetchInterval?: number }) {
   return useQuery<CloudSnapshot | null>({
     queryKey: ['session', sessionId],
     queryFn: () => getSession(sessionId!),
     enabled: !!sessionId,
+    refetchInterval: options?.refetchInterval,
   })
 }
 
@@ -210,14 +211,5 @@ export function useChangePlayer(sessionId: string) {
       }
     },
     () => invalidateAllQueries(queryClient),
-  )
-}
-
-export function useLockSession(sessionId: string) {
-  const queryClient = useQueryClient()
-  return useOptimisticSessionMutation(
-    sessionId,
-    (old) => ({ ...old, session: { ...old.session, locked: true } }),
-    () => invalidateSessionQueries(queryClient),
   )
 }
