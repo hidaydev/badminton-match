@@ -21,7 +21,11 @@ const InstagramPostPage = lazy(() => import('./pages/InstagramPostPage'))
 const TournamentPage = lazy(() => import('./pages/TournamentRouter'))
 const TournamentListPage = lazy(() => import('./pages/TournamentListPage'))
 const RatingsPage = lazy(() => import('./pages/RatingsPage'))
-const AdminPage = lazy(() => import('./pages/AdminPage'))
+const AdminSessionsPage = lazy(() => import('./pages/admin/AdminSessionsPage'))
+const AdminPlayersPage = lazy(() => import('./pages/admin/AdminPlayersPage'))
+const AdminRatingsPage = lazy(() => import('./pages/admin/AdminRatingsPage'))
+const AdminTournamentsPage = lazy(() => import('./pages/admin/AdminTournamentsPage'))
+const AdminSeasonsPage = lazy(() => import('./pages/admin/AdminSeasonsPage'))
 const RatingPlayerPage = lazy(() => import('./pages/RatingPlayerPage'))
 const NewTournamentPage = lazy(() => import('./pages/NewTournamentPage'))
 const NewTournamentWizard = lazy(() => import('./pages/NewTournamentWizard'))
@@ -92,7 +96,13 @@ export default function App() {
             <Route path="tournaments/new/:format" element={<Suspense fallback={<Loading />}><NewTournamentWizard /></Suspense>} />
             <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><TournamentPage /></Suspense>} />
             <Route path="instagram-post" element={<Suspense fallback={<Loading />}><InstagramPostPage /></Suspense>} />
-            <Route path="admin" element={<Suspense fallback={<Loading />}><AdminPage /></Suspense>} />
+            <Route path="admin">
+              <Route path="sessions" element={<Suspense fallback={<Loading />}><AdminSessionsPage /></Suspense>} />
+              <Route path="players" element={<Suspense fallback={<Loading />}><AdminPlayersPage /></Suspense>} />
+              <Route path="ratings" element={<Suspense fallback={<Loading />}><AdminRatingsPage /></Suspense>} />
+              <Route path="tournaments" element={<Suspense fallback={<Loading />}><AdminTournamentsPage /></Suspense>} />
+              <Route path="seasons" element={<Suspense fallback={<Loading />}><AdminSeasonsPage /></Suspense>} />
+            </Route>
           </Route>
           <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ScoreboardPage /></Suspense>} />
           <Route element={<SessionLayout />}>
