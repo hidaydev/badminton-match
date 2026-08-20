@@ -3,6 +3,7 @@ import type { Gender, Tier, Player } from '../types'
 import { useStore } from '../store'
 import { useNavigate } from 'react-router-dom'
 import { isPlaceholderName } from '../utils/placeholders'
+import { listPlayers } from '../queries/endpoints'
 
 function parsePlayerList(raw: string): string[] {
   return raw
@@ -32,7 +33,11 @@ function TierBadge({ tier }: { tier: Tier }) {
 
 
 // ── Inline editable row ───────────────────────────────────────────────────────
-function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void }) {
+function PlayerRow({ player, onRemove, isRegistered }: { 
+  player: Player; 
+  onRemove: () => void;
+  isRegistered: boolean;
+}) {
   const updatePlayer = useStore((s) => s.updatePlayer)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(player.name)
@@ -97,20 +102,26 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
         ))}
       </div>
 
-      {/* Tier picker */}
-      <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => updatePlayer(player.id, { tier: t })}
-            className={`min-w-8 h-8 text-xs font-bold transition-colors ${
-              player.tier === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {TIER_LABELS[t]}
-          </button>
-        ))}
-      </div>
+      {/* Tier — read-only badge untuk registered player, picker untuk new player */}
+      {isRegistered ? (
+        <span className={`inline-flex items-center justify-center min-w-8 h-8 text-xs font-bold rounded-lg ${TIER_ACTIVE[player.tier]}`}>
+          {TIER_LABELS[player.tier]}
+        </span>
+      ) : (
+        <div className="flex rounded-lg overflow-hidden border border-slate-700">
+          {([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => updatePlayer(player.id, { tier: t })}
+              className={`min-w-8 h-8 text-xs font-bold transition-colors ${
+                player.tier === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {TIER_LABELS[t]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Delete */}
       <button
@@ -125,10 +136,25 @@ function PlayerRow({ player, onRemove }: { player: Player; onRemove: () => void 
 }
 
 // ── Add player row ────────────────────────────────────────────────────────────
-function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gender, tier: Tier) => void; onCancel: () => void }) {
+function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: { 
+  onAdd: (name: string, gender: Gender, tier: Tier) => void; 
+  onCancel: () => void;
+  canonicalPlayers: Map<string, { gender: Gender; tier: Tier }>;
+}) {
   const [name, setName] = useState('')
   const [gender, setGender] = useState<Gender>('M')
   const [tier, setTier] = useState<Tier>(2)
+
+  // Auto-fill gender & tier when name matches a canonical player
+  function handleNameChange(value: string) {
+    setName(value)
+    const normalized = value.trim().toLowerCase()
+    const match = canonicalPlayers.get(normalized)
+    if (match) {
+      setGender(match.gender)
+      setTier(match.tier)
+    }
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -145,7 +171,7 @@ function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gende
       <input
         autoFocus
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => handleNameChange(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
         placeholder="Player name"
         className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
@@ -197,7 +223,12 @@ function AddPlayerRow({ onAdd, onCancel }: { onAdd: (name: string, gender: Gende
 }
 
 // ── Bulk import ───────────────────────────────────────────────────────────────
-function BulkImport({ onClose, existingCount, max }: { onClose: () => void; existingCount: number; max: number }) {
+function BulkImport({ onClose, existingCount, max, canonicalPlayers }: { 
+  onClose: () => void; 
+  existingCount: number; 
+  max: number;
+  canonicalPlayers: Map<string, { gender: Gender; tier: Tier }>;
+}) {
   const addPlayers = useStore((s) => s.addPlayers)
   const [text, setText] = useState('')
 
@@ -208,7 +239,14 @@ function BulkImport({ onClose, existingCount, max }: { onClose: () => void; exis
 
   function handleImport() {
     if (preview.length === 0) return
-    addPlayers(preview.map((name) => ({ name, gender: 'M', tier: 2 })))
+    addPlayers(preview.map((name) => {
+      const match = canonicalPlayers.get(name.toLowerCase())
+      return { 
+        name, 
+        gender: match?.gender ?? 'M', 
+        tier: match?.tier ?? 2 
+      }
+    }))
     onClose()
   }
 
@@ -265,6 +303,21 @@ export default function PlayersPage() {
   const [showForm, setShowForm] = useState(false)
   const [showBulk, setShowBulk] = useState(false)
   const navigate = useNavigate()
+  const [canonicalPlayers, setCanonicalPlayers] = useState<Map<string, { gender: Gender; tier: Tier }>>(new Map())
+
+  // Fetch canonical players for auto-fill
+  useEffect(() => {
+    listPlayers().then((rows) => {
+      const map = new Map<string, { gender: Gender; tier: Tier }>()
+      for (const row of rows) {
+        map.set(row.name.toLowerCase(), { 
+          gender: row.gender as Gender, 
+          tier: (row.tier || 2) as Tier 
+        })
+      }
+      setCanonicalPlayers(map)
+    }).catch(() => {})
+  }, [])
 
   const required = session.playerCount
   const isComplete = players.length === required
@@ -299,7 +352,7 @@ export default function PlayersPage() {
 
       {/* Bulk import panel */}
       {showBulk && (
-        <BulkImport onClose={() => setShowBulk(false)} existingCount={players.length} max={required} />
+        <BulkImport onClose={() => setShowBulk(false)} existingCount={players.length} max={required} canonicalPlayers={canonicalPlayers} />
       )}
 
       {/* Player list grouped by tier */}
@@ -314,7 +367,12 @@ export default function PlayersPage() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   {group.map((player) => (
-                    <PlayerRow key={player.id} player={player} onRemove={() => removePlayer(player.id)} />
+                    <PlayerRow 
+                      key={player.id} 
+                      player={player} 
+                      onRemove={() => removePlayer(player.id)}
+                      isRegistered={canonicalPlayers.has(player.name.toLowerCase())}
+                    />
                   ))}
                 </div>
               </div>
@@ -325,7 +383,7 @@ export default function PlayersPage() {
 
       {/* Add row */}
       {showForm ? (
-        <AddPlayerRow onAdd={handleAdd} onCancel={() => setShowForm(false)} />
+        <AddPlayerRow onAdd={handleAdd} onCancel={() => setShowForm(false)} canonicalPlayers={canonicalPlayers} />
       ) : (
         <div className="flex gap-2">
           <button
