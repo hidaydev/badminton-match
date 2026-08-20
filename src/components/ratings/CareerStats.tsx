@@ -1,6 +1,9 @@
 // src/components/ratings/CareerStats.tsx — career stats pemain (bekas
 // PlayerDetailPage, diserap ke /ratings/:playerId — UI_UX_POLISH_PLAN §4).
+import { useState } from 'react'
 import type { PlayerStats } from '../../queries/types'
+
+const SESSIONS_PER_PAGE = 5
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -29,6 +32,8 @@ export default function CareerStats({ stats }: { stats: PlayerStats }) {
   const tWinRate = stats.tournamentStats.gamesPlayed > 0
     ? Math.round((stats.tournamentStats.wins / stats.tournamentStats.gamesPlayed) * 100)
     : 0
+  const [sessionsPage, setSessionsPage] = useState(0)
+  const sessionsTotal = Math.ceil(stats.sessions.length / SESSIONS_PER_PAGE)
 
   return (
     <div className="flex flex-col gap-4">
@@ -44,7 +49,7 @@ export default function CareerStats({ stats }: { stats: PlayerStats }) {
       {stats.sessions.length > 0 && (
         <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
           <p className="text-[10px] font-mono text-fg-dim uppercase tracking-wider">Sessions ({stats.sessions.length})</p>
-          {stats.sessions.map((s) => (
+          {stats.sessions.slice(sessionsPage * SESSIONS_PER_PAGE, (sessionsPage + 1) * SESSIONS_PER_PAGE).map((s) => (
             <div key={s.id} className="flex justify-between items-center text-sm gap-2">
               <span className={s.absent ? 'text-fg-dim line-through truncate min-w-0' : 'text-fg truncate min-w-0'}>
                 {s.title || 'Untitled'}
@@ -55,6 +60,27 @@ export default function CareerStats({ stats }: { stats: PlayerStats }) {
               </div>
             </div>
           ))}
+          {sessionsTotal > 1 && (
+            <div className="flex items-center justify-between pt-1">
+              <button
+                onClick={() => setSessionsPage((p) => Math.max(0, p - 1))}
+                disabled={sessionsPage === 0}
+                className="text-xs text-fg-dim hover:text-fg disabled:opacity-30 transition-colors"
+              >
+                ← Prev
+              </button>
+              <span className="text-[10px] font-mono text-fg-dim">
+                {sessionsPage + 1}/{sessionsTotal}
+              </span>
+              <button
+                onClick={() => setSessionsPage((p) => Math.min(sessionsTotal - 1, p + 1))}
+                disabled={sessionsPage >= sessionsTotal - 1}
+                className="text-xs text-fg-dim hover:text-fg disabled:opacity-30 transition-colors"
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
