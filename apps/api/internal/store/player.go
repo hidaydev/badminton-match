@@ -31,23 +31,12 @@ type PlayerSummary struct {
 	TierInduk string `json:"tierInduk"` // tier induk STICKY (players.tier) — admin
 }
 
-// List — daftar pemain terdaftar (port bm.list_players): gender diambil dari
-// players table (canonical), tier dari penampilan TERAKHIR, urut by lower(name).
+// List — daftar pemain terdaftar (port bm.list_players): gender dan tier
+// diambil dari players table (canonical), urut by lower(name).
 func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT p.id::text, p.canonical_name, p.gender, coalesce(sp.tier, 0), coalesce(p2.tier, '')
+		SELECT p.id::text, p.canonical_name, p.gender, p.tier
 		FROM players p
-		LEFT JOIN (
-			SELECT sp.player_id, sp.tier,
-			       row_number() OVER (
-				       PARTITION BY sp.player_id
-				       ORDER BY s.session_date DESC, sp.updated_at DESC, sp.internal_id DESC
-			       ) AS rn
-			FROM session_players sp
-			JOIN sessions s ON s.id = sp.session_id
-			WHERE sp.player_id IS NOT NULL
-		) sp ON sp.player_id = p.id AND sp.rn = 1
-		LEFT JOIN players p2 ON p2.id = p.id
 		ORDER BY lower(p.canonical_name)`)
 	if err != nil {
 		return nil, err
@@ -57,7 +46,7 @@ func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 	out := make([]PlayerSummary, 0)
 	for rows.Next() {
 		var p PlayerSummary
-		if err := rows.Scan(&p.PlayerID, &p.Name, &p.Gender, &p.Tier, &p.TierInduk); err != nil {
+		if err := rows.Scan(&p.PlayerID, &p.Name, &p.Gender, &p.TierInduk); err != nil {
 			return nil, err
 		}
 		// Read-time filter placeholder (ABSENT_TBD_PLAYERS_DESIGN.md §5.5) —
@@ -65,9 +54,35 @@ func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 		if domain.IsPlaceholderName(p.Name) {
 			continue
 		}
+		// Map canonical tier text (D..A+) → numeric (1..8)
+		p.Tier = tierTextToNum(p.TierInduk)
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// tierTextToNum — konversi tier text (D..A+) ke numeric (1..8).
+func tierTextToNum(t string) int {
+	switch strings.ToUpper(t) {
+	case "D":
+		return 1
+	case "D+":
+		return 2
+	case "C":
+		return 3
+	case "C+":
+		return 4
+	case "B":
+		return 5
+	case "B+":
+		return 6
+	case "A":
+		return 7
+	case "A+":
+		return 8
+	default:
+		return 2 // default D+
+	}
 }
 
 // Register — registry pemain (port bm.register_player): idempotent dan
