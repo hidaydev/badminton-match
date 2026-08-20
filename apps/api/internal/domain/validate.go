@@ -52,7 +52,7 @@ func ValidateSnapshot(snap *CloudSnapshot) error {
 		if p.Gender != "M" && p.Gender != "F" {
 			return fmt.Errorf("session players must contain non-blank id/name and valid gender/tier values")
 		}
-		if p.Tier < 1 || p.Tier > 4 {
+		if p.Tier < 1 || p.Tier > 8 {
 			return fmt.Errorf("session players must contain non-blank id/name and valid gender/tier values")
 		}
 	}

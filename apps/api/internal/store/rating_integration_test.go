@@ -418,8 +418,8 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 		if err != nil || dt == nil {
 			t.Fatalf("detail %s: %v", nm, err)
 		}
-		// Reset-to-default = mid KELAS (Rev 3.2): tier 1(A)→2050, tier 2(B)→1750
-		wantMid := map[string]float64{"ITT One": 2050, "ITT Two": 1750}[nm]
+		// Reset-to-default = mid tier (8-tier): D→1150, D+→1250
+		wantMid := map[string]float64{"ITT One": 1150, "ITT Two": 1250}[nm]
 		if dt.Games != 0 || dt.Rating != wantMid {
 			t.Fatalf("%s setelah revert A: games=%d rating=%.2f, want 0/%.0f (mid kelas)", nm, dt.Games, dt.Rating, wantMid)
 		}

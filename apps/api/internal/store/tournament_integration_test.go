@@ -180,11 +180,11 @@ func TestIntegrationRegisterIdempotent(t *testing.T) {
 
 	ps := NewPlayerStore(pool)
 	name := fmt.Sprintf("Reg Test %d", time.Now().UnixNano()%100000)
-	id1, err := ps.Register(ctx, name, name)
+	id1, err := ps.Register(ctx, name, name, "M")
 	if err != nil {
 		t.Fatalf("register 1: %v", err)
 	}
-	id2, err := ps.Register(ctx, name, name)
+	id2, err := ps.Register(ctx, name, name, "M")
 	if err != nil {
 		t.Fatalf("register 2: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestIntegrationRegisterIdempotent(t *testing.T) {
 	}
 
 	// register via alias berbeda (case/whitespace) → id sama
-	id3, err := ps.Register(ctx, "  "+name+"  ", name)
+	id3, err := ps.Register(ctx, "  "+name+"  ", name, "M")
 	if err != nil {
 		t.Fatalf("register 3: %v", err)
 	}

@@ -62,7 +62,7 @@ func TestValidateSnapshotRejects(t *testing.T) {
 		{"player blank id", func(s *CloudSnapshot) *CloudSnapshot { s.Players[0].ID = "  "; return s }, "non-blank id/name"},
 		{"player blank name", func(s *CloudSnapshot) *CloudSnapshot { s.Players[0].Name = ""; return s }, "non-blank id/name"},
 		{"player bad gender", func(s *CloudSnapshot) *CloudSnapshot { s.Players[0].Gender = "X"; return s }, "non-blank id/name"},
-		{"player tier out of range", func(s *CloudSnapshot) *CloudSnapshot { s.Players[0].Tier = 5; return s }, "non-blank id/name"},
+		{"player tier out of range", func(s *CloudSnapshot) *CloudSnapshot { s.Players[0].Tier = 9; return s }, "non-blank id/name"},
 		{"duplicate player id", func(s *CloudSnapshot) *CloudSnapshot { s.Players[1].ID = "p1"; return s }, "ids must be unique"},
 		{"playerCount mismatch", func(s *CloudSnapshot) *CloudSnapshot { s.Session.PlayerCount = 3; return s }, "playerCount must match"},
 		{"negative courts", func(s *CloudSnapshot) *CloudSnapshot { s.Session.Courts = -1; return s }, "courts must be non-negative"},

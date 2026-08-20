@@ -468,7 +468,7 @@ func resolveTournamentPlayer(ctx context.Context, tx pgx.Tx, name string) (strin
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return "", false, err
 	}
-	pid, err = registerPlayerInTx(ctx, tx, v, v)
+	pid, err = registerPlayerInTx(ctx, tx, v, v, "")
 	if err != nil {
 		return "", false, err
 	}
@@ -477,10 +477,14 @@ func resolveTournamentPlayer(ctx context.Context, tx pgx.Tx, name string) (strin
 
 // registerPlayerInTx — port bm.register_player: idempotent + TOCTOU-safe
 // (re-query alias setelah INSERT ON CONFLICT DO NOTHING).
-func registerPlayerInTx(ctx context.Context, tx pgx.Tx, name, canonical string) (string, error) {
+func registerPlayerInTx(ctx context.Context, tx pgx.Tx, name, canonical, gender string) (string, error) {
 	aliasNorm := domain.NormalizePlayerName(name)
 	if aliasNorm == "" {
 		return "", fmt.Errorf("%w: player name must not be blank", ErrValidation)
+	}
+	// Default gender ke 'M' jika kosong
+	if gender == "" {
+		gender = "M"
 	}
 	var pid string
 	err := tx.QueryRow(ctx, `SELECT player_id::text FROM player_aliases WHERE alias_name = $1`, aliasNorm).Scan(&pid)
@@ -502,10 +506,17 @@ func registerPlayerInTx(ctx context.Context, tx pgx.Tx, name, canonical string) 
 	if pid == "" {
 		// ensure_player: insert players, ON CONFLICT → return existing id
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO players (canonical_name) VALUES ($1)
+			INSERT INTO players (canonical_name, gender) VALUES ($1, $2)
 			ON CONFLICT (canonical_name) DO UPDATE
 				SET canonical_name = EXCLUDED.canonical_name, updated_at = now()
-			RETURNING id::text`, strings.TrimSpace(canonical)).Scan(&pid); err != nil {
+			RETURNING id::text`, strings.TrimSpace(canonical), gender).Scan(&pid); err != nil {
+			return "", err
+		}
+	} else {
+		// Update gender jika player sudah ada dan gender berbeda
+		if _, err := tx.Exec(ctx, `
+			UPDATE players SET gender = $2, updated_at = now()
+			WHERE id = $1::uuid AND (gender IS NULL OR gender != $2)`, pid, gender); err != nil {
 			return "", err
 		}
 	}

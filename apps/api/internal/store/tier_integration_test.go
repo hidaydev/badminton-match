@@ -17,9 +17,9 @@ func TestIntegrationTierFirstSetSticky(t *testing.T) {
 
 	players := []domain.Player{
 		{ID: "itfs1", Name: "ITFS One", Gender: "M", Tier: 3},   // C
-		{ID: "itfs2", Name: "ITFS Two", Gender: "M", Tier: 1},   // A
-		{ID: "itfs3", Name: "ITFS Three", Gender: "M", Tier: 4}, // D
-		{ID: "itfs4", Name: "ITFS Four", Gender: "M", Tier: 2},  // B
+		{ID: "itfs2", Name: "ITFS Two", Gender: "M", Tier: 1},   // D
+		{ID: "itfs3", Name: "ITFS Three", Gender: "M", Tier: 4}, // C+
+		{ID: "itfs4", Name: "ITFS Four", Gender: "M", Tier: 2},  // D+
 	}
 	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
 		t.Fatalf("register: %v", err)
@@ -79,19 +79,19 @@ func TestIntegrationTierFirstSetSticky(t *testing.T) {
 	if tier != "C" || ra != date {
 		t.Fatalf("ITFS One first-set: tier=%q registered=%q, want C/%s", tier, ra, date)
 	}
-	if tier2, _ := getTier("ITFS Two"); tier2 != "A" {
-		t.Fatalf("ITFS Two tier=%q, want A", tier2)
+	if tier2, _ := getTier("ITFS Two"); tier2 != "D" {
+		t.Fatalf("ITFS Two tier=%q, want D", tier2)
 	}
 
 	// Save kedua dengan tier BERBEDA → STICKY (tidak menimpa)
 	created, _ := st.Load(ctx, id)
-	created.Players[0].Tier = 1 // ITFS One → A
+	created.Players[0].Tier = 1 // ITFS One → D
 	_, _ = st.Unlock(ctx, id)
 	if _, err := st.Save(ctx, id, created); err != nil {
 		t.Fatalf("save 2: %v", err)
 	}
 	if tier2, _ := getTier("ITFS One"); tier2 != "C" {
-		t.Fatalf("tier induk harus STICKY: got %q, want C (diubah ke A di sesi kedua)", tier2)
+		t.Fatalf("tier induk harus STICKY: got %q, want C (diubah ke D di sesi kedua)", tier2)
 	}
 }
 

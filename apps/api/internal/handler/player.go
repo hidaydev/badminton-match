@@ -23,7 +23,8 @@ type PlayerHandler struct {
 type registerPlayerRequest struct {
 	Name          string `json:"name"`
 	CanonicalName string `json:"canonicalName,omitempty"`
-	Tier          string `json:"tier,omitempty"` // opsional — tier induk (first-set)
+	Tier          string `json:"tier,omitempty"`   // opsional — tier induk (first-set)
+	Gender        string `json:"gender,omitempty"` // opsional — default 'M'
 }
 
 // SetTier — PATCH /players/{playerId}/tier (admin): ubah tier induk → class
@@ -32,7 +33,7 @@ func (h *PlayerHandler) SetTier(w http.ResponseWriter, r *http.Request) {
 	playerID := r.PathValue("playerId")
 	var body registerPlayerRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Tier == "" {
-		httperr.WriteError(w, h.Logger, httperr.Validation("tier is required (A/B/C/D)"))
+		httperr.WriteError(w, h.Logger, httperr.Validation("tier is required (D/D+/C/C+/B/B+/A/A+)"))
 		return
 	}
 	if err := h.AdminStore.SetPlayerTier(r.Context(), playerID, body.Tier); err != nil {
@@ -101,7 +102,12 @@ func (h *PlayerHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if canonical == "" {
 		canonical = req.Name
 	}
-	id, err := h.Store.Register(r.Context(), req.Name, canonical)
+	// Default gender ke 'M'
+	gender := req.Gender
+	if gender == "" {
+		gender = "M"
+	}
+	id, err := h.Store.Register(r.Context(), req.Name, canonical, gender)
 	if err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to register player", err))
 		return

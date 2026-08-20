@@ -31,24 +31,24 @@ type PlayerSummary struct {
 	TierInduk string `json:"tierInduk"` // tier induk STICKY (players.tier) — admin
 }
 
-// List — daftar pemain terdaftar (port bm.list_players): gender/tier diambil
-// dari penampilan TERAKHIR (session_date desc, updated_at desc), urut by lower(name).
+// List — daftar pemain terdaftar (port bm.list_players): gender diambil dari
+// players table (canonical), tier dari penampilan TERAKHIR, urut by lower(name).
 func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT ra.id::text, ra.canonical_name, ra.gender, ra.tier, coalesce(p2.tier, '')
-		FROM (
-			SELECT p.id, p.canonical_name, sp.gender, sp.tier,
+		SELECT p.id::text, p.canonical_name, p.gender, coalesce(sp.tier, 0), coalesce(p2.tier, '')
+		FROM players p
+		LEFT JOIN (
+			SELECT sp.player_id, sp.tier,
 			       row_number() OVER (
-				       PARTITION BY p.id
+				       PARTITION BY sp.player_id
 				       ORDER BY s.session_date DESC, sp.updated_at DESC, sp.internal_id DESC
 			       ) AS rn
-			FROM players p
-			JOIN session_players sp ON sp.player_id = p.id
+			FROM session_players sp
 			JOIN sessions s ON s.id = sp.session_id
-		) ra
-		JOIN players p2 ON p2.id = ra.id
-		WHERE ra.rn = 1
-		ORDER BY lower(ra.canonical_name)`)
+			WHERE sp.player_id IS NOT NULL
+		) sp ON sp.player_id = p.id AND sp.rn = 1
+		LEFT JOIN players p2 ON p2.id = p.id
+		ORDER BY lower(p.canonical_name)`)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 
 // Register — registry pemain (port bm.register_player): idempotent dan
 // TOCTOU-safe (re-query alias setelah INSERT ON CONFLICT DO NOTHING).
-func (s *PlayerStore) Register(ctx context.Context, name, canonicalName string) (string, error) {
+func (s *PlayerStore) Register(ctx context.Context, name, canonicalName, gender string) (string, error) {
 	if canonicalName == "" {
 		canonicalName = name
 	}
@@ -82,7 +82,7 @@ func (s *PlayerStore) Register(ctx context.Context, name, canonicalName string) 
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	pid, err := registerPlayerInTx(ctx, tx, name, canonicalName)
+	pid, err := registerPlayerInTx(ctx, tx, name, canonicalName, gender)
 	if err != nil {
 		return "", err
 	}

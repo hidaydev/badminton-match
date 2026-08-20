@@ -660,7 +660,7 @@ func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []do
 		if domain.IsPlaceholderName(p.Name) {
 			continue
 		}
-		if _, err := registerPlayerInTx(ctx, tx, p.Name, p.Name); err != nil {
+		if _, err := registerPlayerInTx(ctx, tx, p.Name, p.Name, p.Gender); err != nil {
 			return fmt.Errorf("register %q: %w", p.Name, err)
 		}
 	}

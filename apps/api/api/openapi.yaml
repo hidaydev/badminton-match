@@ -435,7 +435,7 @@ components:
         id: { type: string }
         name: { type: string }
         gender: { type: string, enum: [M, F] }
-        tier: { type: integer, minimum: 1, maximum: 4 }
+        tier: { type: integer, minimum: 1, maximum: 8 }
       required: [id, name]
 
     FixMatch:
@@ -520,6 +520,8 @@ components:
       properties:
         name: { type: string }
         canonicalName: { type: string }
+        gender: { type: string, enum: [M, F], default: M }
+        tier: { type: string, description: "Tier induk (D/D+/C/C+/B/B+/A/A+)" }
 
     PlayerId:
       type: object
