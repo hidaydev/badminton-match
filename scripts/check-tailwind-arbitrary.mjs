@@ -8,7 +8,14 @@ const patterns = [
   'z-\\[[^]]+\\]',
 ]
 
-const command = `rg -n "${patterns.join('|')}" src`
+// Use rg if available, fallback to grep -rn
+let command
+try {
+  execSync('rg --version', { stdio: 'ignore' })
+  command = `rg -n "${patterns.join('|')}" src`
+} catch {
+  command = `grep -rnE "${patterns.join('|')}" src`
+}
 
 try {
   const output = execSync(command, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim()
