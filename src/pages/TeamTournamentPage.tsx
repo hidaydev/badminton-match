@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGetTournament } from '../queries'
 import { publishTournament } from '../queries/endpoints'
@@ -11,15 +11,13 @@ import {
   type TeamMatch,
   type TeamTournamentSnapshot,
 } from '../utils/teamTournament'
-import { generateTeamStandingsPost } from '../utils/tournamentPost'
-import { loadImage } from '../utils/canvasPost'
-import { shareOrDownload } from '../utils/share'
 
 type Tab = 'klasemen' | 'jadwal' | 'final'
 
 /** Halaman tournament format TIM: klasemen, undian, jadwal skor partai, final. */
 export default function TeamTournamentPage() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data, isFetching } = useGetTournament(id)
   const snap = data && data.format === 'team' ? data : null
@@ -30,10 +28,6 @@ export default function TeamTournamentPage() {
   const [publishError, setPublishError] = useState<string | null>(null)
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [editingTeamName, setEditingTeamName] = useState('')
-  const [showPhotoModal, setShowPhotoModal] = useState(false)
-  const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Sinkronkan editor dengan snapshot server saat refetch (pola "adjust state
   // during render" — rekomendasi React, bukan setState di effect).
@@ -263,7 +257,7 @@ export default function TeamTournamentPage() {
             {/* Instagram post button */}
             {standings.length > 0 && (
               <button
-                onClick={() => setShowPhotoModal(true)}
+                onClick={() => navigate(`/tournaments/${id}/share`)}
                 className="w-full py-3 rounded-lg border border-border-subtle text-fg-dim font-bold text-sm hover:text-fg hover:border-border transition-colors"
               >
                 📸 Share Standings
@@ -329,78 +323,6 @@ export default function TeamTournamentPage() {
           </>
         )}
       </div>
-
-      {/* Photo Upload Modal */}
-      {showPhotoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowPhotoModal(false)}>
-          <div className="bg-surface border border-border rounded-xl p-5 w-[90vw] max-w-md flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-fg">Share Standings</h3>
-            <p className="text-xs text-fg-dim">Pilih foto untuk frame, atau langsung share tanpa foto.</p>
-
-            {/* Photo preview */}
-            {photoPreview && (
-              <div className="relative">
-                <img src={photoPreview} alt="Preview" className="w-full h-40 object-cover rounded-lg" />
-                <button
-                  onClick={() => { setUserPhoto(null); setPhotoPreview(null) }}
-                  className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded"
-                >
-                  ✕ Remove
-                </button>
-              </div>
-            )}
-
-            {/* File input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0]
-                if (!file) return
-                const url = URL.createObjectURL(file)
-                try {
-                  const img = await loadImage(url)
-                  setUserPhoto(img)
-                  setPhotoPreview(url)
-                } catch {
-                  console.error('Failed to load image')
-                }
-              }}
-            />
-
-            {/* Actions */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex-1 py-2.5 rounded-lg border border-border-subtle text-fg-dim text-sm font-semibold hover:text-fg hover:border-border transition-colors"
-              >
-                📷 Pilih Foto
-              </button>
-              <button
-                onClick={async () => {
-                  const blob = await generateTeamStandingsPost(snap, standings, userPhoto ?? undefined)
-                  if (blob) {
-                    const file = new File([blob], `${snap.name.replace(/\s+/g, '_')}_standings.jpg`, { type: 'image/jpeg' })
-                    await shareOrDownload([file], `${snap.name} Standings`)
-                  }
-                  setShowPhotoModal(false)
-                }}
-                className="flex-1 py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm"
-              >
-                Share
-              </button>
-            </div>
-            <button
-              onClick={() => setShowPhotoModal(false)}
-              className="text-xs text-fg-dim hover:text-fg text-center"
-            >
-              Batal
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
