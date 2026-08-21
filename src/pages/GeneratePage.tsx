@@ -46,6 +46,12 @@ export default function GeneratePage() {
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
 
+  // Sync local result with store when store changes (e.g., after swapSlotsWithScores)
+  // Handled by reading from store directly in the render, not via useEffect
+  if (!isSharedView && storeResult && storeResult !== result) {
+    setResult(storeResult)
+  }
+
   // Auto-dismiss error toast after 5 seconds
   useEffect(() => {
     if (!saveError) return

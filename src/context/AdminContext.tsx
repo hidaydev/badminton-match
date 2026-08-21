@@ -30,8 +30,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     const trimmed = t.trim()
     if (!trimmed) return false
     localStorage.setItem(STORAGE_KEY, trimmed)
-    setAdminToken(trimmed)
-    setToken(trimmed)
+    setToken(trimmed)  // useEffect will call setAdminToken
     return true
   }, [])
 

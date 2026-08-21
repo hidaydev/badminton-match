@@ -49,7 +49,8 @@ function RequirePlayers({ children }: { children: React.ReactNode }) {
   const players = useStore((s) => s.players)
   const required = useStore((s) => s.session.playerCount)
   if (!locked) return <Navigate to="/session/new" replace />
-  if (players.length !== required) return <Navigate to="/session/players" replace />
+  // Guard against playerCount=0 (edge case) — treat as incomplete
+  if (required <= 0 || players.length !== required) return <Navigate to="/session/players" replace />
   return <>{children}</>
 }
 

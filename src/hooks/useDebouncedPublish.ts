@@ -33,7 +33,7 @@ export function useDebouncedPublish(
 
     publishTimerRef.current = setTimeout(() => {
       publishTimerRef.current = null
-      publishStartRef.current = null
+      publishStartRef.current = null  // Reset so next change starts fresh debounce
       const state = useStore.getState()
       const snap = buildPublishableSessionSnapshot({
         session: state.session,
@@ -65,7 +65,9 @@ export function useDebouncedPublish(
           // Include version from query cache for optimistic concurrency
           const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
           if (cached?.version) snap.version = cached.version
-          publishSession(cloudSessionId, snap).catch((err) => {
+          publishSession(cloudSessionId, snap).then(() => {
+            queryClient.invalidateQueries({ queryKey: ['session', cloudSessionId] })
+          }).catch((err) => {
             console.warn('Unmount flush failed:', err)
             onError?.(getSaveErrorMessage(err))
           })

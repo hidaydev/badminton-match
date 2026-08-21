@@ -22,6 +22,9 @@ export default function RatingsPage() {
   const loading = isLoading
   const error = isError
 
+  // Show empty state when offset exceeds total (data changed while paginated)
+  const showEmpty = !loading && !error && rows.length === 0 && total > 0
+
   return (
     <div className="flex flex-col gap-3">
       {/* Header */}
@@ -137,6 +140,12 @@ export default function RatingsPage() {
             )
           })}
         </div>
+      )}
+
+      {showEmpty && (
+        <p className="text-fg-dim text-xs text-center py-8">
+          No results. Try changing filters or go back to first page.
+        </p>
       )}
 
       {!error && !loading && offset + rows.length < total && (

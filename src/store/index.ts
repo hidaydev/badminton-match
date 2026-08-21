@@ -43,6 +43,8 @@ export const useStore = create<AppState>()(
       // Intentional: version bumps reset local state to prevent stale data
       // from causing issues with new schema. Users can re-create sessions.
       // Cloud-persisted sessions are unaffected by local store resets.
+      // NOTE: This wipes ALL local data on version bump. If this causes issues,
+      // implement a proper migration function that reads old state and transforms it.
       migrate: () => createInitialState(noopSet),
     }
   )
