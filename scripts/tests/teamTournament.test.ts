@@ -31,6 +31,7 @@ function mkMatch(id: string, a: string, b: string, scores: (number | null)[][], 
     teamA: a,
     teamB: b,
     partai: scores.map(([sa, sb]) => partai(sa, sb)),
+    courts: ['Court 1', 'Court 2', 'Court 3'],
   }
 }
 
