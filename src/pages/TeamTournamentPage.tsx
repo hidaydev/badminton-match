@@ -27,6 +27,8 @@ export default function TeamTournamentPage() {
   const [localMatches, setLocalMatches] = useState<TeamMatch[] | null>(null)
   const [prevSnap, setPrevSnap] = useState<TeamTournamentSnapshot | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [editingTeamName, setEditingTeamName] = useState('')
 
   // Sinkronkan editor dengan snapshot server saat refetch (pola "adjust state
   // during render" — rekomendasi React, bukan setState di effect).
@@ -66,10 +68,6 @@ export default function TeamTournamentPage() {
   const finalMatch = (localMatches ?? snap.matches).find((m) => m.phase === 'final')
   const groupComplete = groupMatches.length === 9 && groupMatches.every((m) => teamMatchOutcome(m).complete)
   const hasFinal = !!finalMatch
-
-  // Team name editing
-  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
-  const [editingTeamName, setEditingTeamName] = useState('')
 
   const startEditTeamName = (teamId: string, currentName: string) => {
     setEditingTeamId(teamId)
