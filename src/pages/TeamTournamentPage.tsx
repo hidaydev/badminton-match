@@ -301,7 +301,7 @@ export default function TeamTournamentPage() {
               <>
                 {/* Champion banner */}
                 {finalOutcome?.complete && championName && (
-                  <div className="bg-gradient-to-r from-accent/20 via-accent/10 to-accent/20 border border-accent/30 rounded-lg px-4 py-3 text-center">
+                  <div className="bg-linear-to-r from-accent/20 via-accent/10 to-accent/20 border border-accent/30 rounded-lg px-4 py-3 text-center">
                     <p className="text-[10px] font-mono text-accent uppercase tracking-widest mb-1">Champion</p>
                     <p className="text-lg font-bold text-fg">🏆 {championName}</p>
                     <p className="text-xs text-fg-dim mt-0.5">
