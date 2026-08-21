@@ -169,9 +169,9 @@ export default function TeamTournamentPage() {
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
           <h2 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h2>
-          {publish.isPending && <span className="text-xs text-fg-dim font-mono">saving…</span>}
+          {publish.isPending && <span className="text-xs text-fg-dim">saving…</span>}
         </div>
-        <p className="text-xs text-fg-dim mt-0.5 mb-3 font-mono">
+        <p className="text-xs text-fg-dim mt-0.5 mb-3">
           {snap.date} · 6 teams · 3 doubles · rally {teamTarget('group')}/{teamTarget('final')}
         </p>
         <div className="flex">
@@ -193,7 +193,7 @@ export default function TeamTournamentPage() {
         {tab === 'klasemen' && (
           <>
             <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
-              <div className="px-4 py-2 border-b border-border-subtle text-xs font-mono text-fg-dim uppercase tracking-wider">
+              <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim uppercase tracking-wider">
                 Standings
               </div>
               {standings.map((r, i) => {
@@ -235,7 +235,7 @@ export default function TeamTournamentPage() {
                     {team && team.players.length > 0 && (
                       <div className="px-4 pb-2.5 pt-0 flex flex-wrap gap-x-3 gap-y-0.5">
                         {team.players.map((p) => (
-                          <span key={p.name} className="text-[10px] font-mono text-fg-dim">
+                          <span key={p.name} className="text-[10px] text-fg-dim">
                             <span className="text-accent">{p.cls}</span> {p.name}
                           </span>
                         ))}
@@ -302,7 +302,7 @@ export default function TeamTournamentPage() {
                 {/* Champion banner */}
                 {finalOutcome?.complete && championName && (
                   <div className="bg-linear-to-r from-accent/20 via-accent/10 to-accent/20 border border-accent/30 rounded-lg px-4 py-3 text-center">
-                    <p className="text-[10px] font-mono text-accent uppercase tracking-widest mb-1">Champion</p>
+                    <p className="text-[10px] text-accent uppercase tracking-widest mb-1">Champion</p>
                     <p className="text-lg font-bold text-fg">🏆 {championName}</p>
                     <p className="text-xs text-fg-dim mt-0.5">
                       {finalOutcome.aWins} - {finalOutcome.bWins}
@@ -369,9 +369,9 @@ function MatchCard({
   return (
     <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-border-subtle">
-        <span className="text-xs font-mono text-fg-dim uppercase tracking-wider">{label}</span>
+        <span className="text-xs text-fg-dim uppercase tracking-wider">{label}</span>
         {dirty && (
-          <span className="text-[10px] font-mono text-fg-dim">
+          <span className="text-[11px] text-fg-dim">
             {out.complete ? `${out.aWins}-${out.bWins}` : 'incomplete'}
           </span>
         )}
@@ -382,8 +382,8 @@ function MatchCard({
           return (
             <div key={pi} className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <span className="w-12 text-[10px] font-mono text-fg-dim uppercase shrink-0">{cls} {pair}</span>
-                <span className="flex-1 text-[10px] font-mono text-fg-dim truncate">
+                <span className="w-12 text-[11px] text-fg-dim uppercase shrink-0">{cls} {pair}</span>
+                <span className="flex-1 text-[11px] text-fg-dim truncate">
                   {getTeamPlayer(match.teamA, cls)}/{getTeamPlayer(match.teamA, pair)}
                 </span>
                 <input
@@ -405,18 +405,18 @@ function MatchCard({
                   className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-mono text-fg text-center focus:border-accent focus:outline-none"
                   aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
                 />
-                <span className="flex-1 text-[10px] font-mono text-fg-dim truncate text-right">
+                <span className="flex-1 text-[11px] text-fg-dim truncate text-right">
                   {getTeamPlayer(match.teamB, cls)}/{getTeamPlayer(match.teamB, pair)}
                 </span>
               </div>
               {/* Court assignment */}
-              <div className="flex items-center gap-2 pl-12">
-                <span className="text-[9px] font-mono text-fg-dim">📍</span>
+              <div className="flex items-center gap-2 pl-14">
+                <span className="text-[11px] text-fg-dim">Court</span>
                 <input
                   type="text"
                   value={courts[pi]}
                   onChange={(e) => onUpdateCourt(matchIdx, pi, e.target.value)}
-                  className="flex-1 bg-transparent text-[10px] font-mono text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none"
+                  className="flex-1 bg-transparent text-xs text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none"
                   placeholder={`Court ${pi + 1}`}
                 />
               </div>
