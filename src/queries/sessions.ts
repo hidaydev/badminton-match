@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, listSessions, deleteSession, RpcError } from './endpoints'
+import { getSession, publishSession, listSessions, deleteSession } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
 import { applyChange } from '../utils/swap'
