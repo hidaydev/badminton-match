@@ -20,7 +20,7 @@ export default function SessionListPage() {
           type="date"
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value)}
-          className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2 text-xs font-mono text-fg scheme-dark"
+          className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2 text-xs font-sans text-fg scheme-dark"
         />
         {dateFilter && (
           <button
@@ -32,12 +32,12 @@ export default function SessionListPage() {
         )}
       </div>
 
-      <p className="text-xs font-mono text-fg-dim">
+      <p className="text-xs font-sans text-fg-dim">
         <span className="text-accent">{filtered.length}</span> session{filtered.length !== 1 ? 's' : ''}
       </p>
 
       {filtered.length === 0 && (
-        <p className="text-fg-dim text-xs font-mono text-center py-8">No sessions on this date.</p>
+        <p className="text-fg-dim text-xs font-sans text-center py-8">No sessions on this date.</p>
       )}
 
       {filtered.length > 0 && (
@@ -50,11 +50,11 @@ export default function SessionListPage() {
             >
               <div className="flex flex-col min-w-0 flex-1">
                 <p className="text-sm font-semibold text-fg truncate">{s.title || 'Untitled Session'}</p>
-                <p className="text-xs text-fg-dim mt-0.5 font-mono">{s.date.split('-').reverse().join('-')}</p>
+                <p className="text-xs text-fg-dim mt-0.5 font-sans">{s.date.split('-').reverse().join('-')}</p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-xs text-fg-dim font-mono">{s.playerCount} players</p>
-                <p className="text-xs text-fg-dim font-mono">{s.totalGames} games</p>
+                <p className="text-xs text-fg-dim font-sans">{s.playerCount} players</p>
+                <p className="text-xs text-fg-dim font-sans">{s.totalGames} games</p>
               </div>
             </a>
           ))}

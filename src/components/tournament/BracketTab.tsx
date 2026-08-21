@@ -381,7 +381,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
           <div className="mt-5 bg-slate-800 rounded-lg p-4 flex justify-around items-end">
               {positions.map(({ pos, rank, rankCls, label, positionLabel, name, mt, champion: isChamp }) => (
                 <div key={pos} className={`text-center ${mt}`}>
-                  <div className={`${isChamp ? 'text-3xl' : 'text-2xl'} font-bold font-mono ${rankCls}`}>{rank}</div>
+                  <div className={`${isChamp ? 'text-3xl' : 'text-2xl'} font-bold font-sans ${rankCls}`}>{rank}</div>
                   <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-accent' : 'text-slate-400'}`}>{label}</div>
                   <div className={`text-xs mt-1 font-medium ${isChamp ? 'text-slate-200 text-sm' : 'text-slate-300'}`}>{name}</div>
                   <div className="mt-2 flex items-center justify-center gap-1.5">

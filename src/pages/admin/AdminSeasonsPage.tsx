@@ -24,15 +24,15 @@ export default function AdminSeasonsPage() {
       {({ run }) => (
         <>
           <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionSeason')}</p>
+            <p className="text-[10px] font-sans text-amber-500/80 uppercase tracking-wider">{t('admin.sectionSeason')}</p>
             <div className="flex flex-wrap gap-2 items-end">
               <label className="flex flex-col gap-1 flex-1 min-w-40">
-                <span className="text-[10px] font-mono text-fg-dim">{t('admin.seasonDateLabel')}</span>
+                <span className="text-[10px] font-sans text-fg-dim">{t('admin.seasonDateLabel')}</span>
                 <input
                   type="date"
                   value={effectiveSeasonDate}
                   onChange={(e) => setSeasonDate(e.target.value)}
-                  className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-mono text-fg scheme-dark focus:border-accent focus:outline-none"
+                  className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-sans text-fg scheme-dark focus:border-accent focus:outline-none"
                 />
               </label>
               <button
@@ -54,11 +54,11 @@ export default function AdminSeasonsPage() {
                 return (
                   <div key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2">
                     <span className={`text-sm font-semibold ${s.open ? 'text-accent' : 'text-fg'}`}>{s.name}</span>
-                    <span className={`text-[10px] font-mono ${s.open ? 'text-emerald-400' : 'text-fg-dim'}`}>{s.open ? `● ${t('admin.active')}` : 'closed'}</span>
-                    <span className="flex-1 min-w-36 text-[10px] font-mono text-fg-dim">
+                    <span className={`text-[10px] font-sans ${s.open ? 'text-emerald-400' : 'text-fg-dim'}`}>{s.open ? `● ${t('admin.active')}` : 'closed'}</span>
+                    <span className="flex-1 min-w-36 text-[10px] font-sans text-fg-dim">
                       {s.start_date} → {endLabel} · {daySpan(s.start_date, s.end_date, nowMs)} {t('admin.days')}
                     </span>
-                    <a href="/ratings" className="text-[10px] font-mono text-accent shrink-0">{t('admin.standings')} →</a>
+                    <a href="/ratings" className="text-[10px] font-sans text-accent shrink-0">{t('admin.standings')} →</a>
                   </div>
                 )
               })}

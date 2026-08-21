@@ -59,9 +59,9 @@ export default function AdminPageShell({ children }: AdminPageShellProps) {
       <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-amber-950/30 border border-amber-800/60">
         <div className="flex flex-col">
           <p className="text-sm font-bold text-amber-200">{t('admin.title')}</p>
-          <p className="text-[10px] font-mono text-amber-300/60 uppercase tracking-wider">{t('admin.subtitle')}</p>
+          <p className="text-[10px] font-sans text-amber-300/60 uppercase tracking-wider">{t('admin.subtitle')}</p>
         </div>
-        <button onClick={logout} className="text-xs font-mono text-fg-dim hover:text-red-400 transition-colors">{t('admin.logout')}</button>
+        <button onClick={logout} className="text-xs font-sans text-fg-dim hover:text-red-400 transition-colors">{t('admin.logout')}</button>
       </div>
 
       {error && <p className="text-red-400 text-xs bg-red-950/30 border border-red-800/60 rounded-lg px-3 py-2">{error}</p>}

@@ -37,13 +37,13 @@ export default function AdminRatingsPage() {
       {({ run }) => (
         <>
           <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionRating')}</p>
+            <p className="text-[10px] font-sans text-amber-500/80 uppercase tracking-wider">{t('admin.sectionRating')}</p>
             <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-              {slice.length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">{t('admin.noSources')}</p>}
+              {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-4">{t('admin.noSources')}</p>}
               {slice.map((src) => (
                 <div key={src.source_id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <span className="flex-1 min-w-0 text-fg truncate font-mono text-xs">{src.source_id}</span>
-                  <span className="text-[10px] font-mono text-fg-dim">{src.event_count} ev</span>
+                  <span className="flex-1 min-w-0 text-fg truncate font-sans text-xs">{src.source_id}</span>
+                  <span className="text-[10px] font-sans text-fg-dim">{src.event_count} ev</span>
                   {src.source_kind.startsWith('tournament') && (
                     <ActionButton
                       tone={src.finalized ? 'green' : 'neutral'}
@@ -71,7 +71,7 @@ export default function AdminRatingsPage() {
                 {rebuilding ? t('admin.rebuilding') : t('admin.rebuild')}
               </button>
               {rebuildMsg && (
-                <p className={`text-[10px] font-mono ${rebuildMsg.kind === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
+                <p className={`text-[10px] font-sans ${rebuildMsg.kind === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
                   {rebuildMsg.text}
                 </p>
               )}

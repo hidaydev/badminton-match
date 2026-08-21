@@ -27,7 +27,7 @@ export default function AdminPlayersPage() {
       {({ run }) => (
         <>
           <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionPlayer')}</p>
+            <p className="text-[10px] font-sans text-amber-500/80 uppercase tracking-wider">{t('admin.sectionPlayer')}</p>
 
             {/* Add player standalone */}
             <div className="flex flex-wrap gap-2 items-center bg-surface border border-border-subtle rounded-lg px-3 py-2">
@@ -40,7 +40,7 @@ export default function AdminPlayersPage() {
               <select
                 value={newTier}
                 onChange={(e) => setNewTier(e.target.value)}
-                className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs font-mono text-fg focus:outline-none"
+                className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs font-sans text-fg focus:outline-none"
                 aria-label={t('admin.tierInduk')}
               >
                 {TIERS.map((tier) => <option key={tier} value={tier}>Tier {tier}</option>)}
@@ -68,12 +68,12 @@ export default function AdminPlayersPage() {
             />
 
             <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-              {slice.length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">No players match.</p>}
+              {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-4">No players match.</p>}
               {slice.map((pl) => (
                 <div key={pl.playerId ?? pl.name} className="px-3 py-2 flex flex-wrap items-center gap-2">
                   <span className="flex-1 min-w-0 text-sm text-fg truncate">{pl.name}</span>
                   {pl.tierInduk && (
-                    <span className="text-[10px] font-mono text-amber-300/80 border border-amber-800/50 rounded px-1.5 py-0.5">tier {pl.tierInduk}</span>
+                    <span className="text-[10px] font-sans text-amber-300/80 border border-amber-800/50 rounded px-1.5 py-0.5">tier {pl.tierInduk}</span>
                   )}
                   <ActionButton onClick={() => {
                     const t2 = window.prompt(en.admin.tierPrompt(pl.name), pl.tierInduk ?? 'C')

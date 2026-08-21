@@ -14,7 +14,7 @@ export default function RatingSparkline({
 }) {
   const path = ratingSparklinePath(points, width, height)
   if (!path) {
-    return <div className="h-14 flex items-center justify-center text-[10px] text-fg-dim font-mono">no history</div>
+    return <div className="h-14 flex items-center justify-center text-[10px] text-fg-dim font-sans">no history</div>
   }
 
   return (

@@ -117,7 +117,7 @@ function TeamWizard() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-fg">Team Tournament</h2>
-        <span className="text-xs font-mono text-fg-dim">{step} · {['Setup', 'Players', 'Teams'][step - 1]}</span>
+        <span className="text-xs font-sans text-fg-dim">{step} · {['Setup', 'Players', 'Teams'][step - 1]}</span>
       </div>
 
       {step === 1 && (
@@ -137,7 +137,7 @@ function TeamWizard() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-fg focus:border-accent focus:outline-none scheme-dark"
+              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none scheme-dark"
             />
           </label>
           <button
@@ -161,7 +161,7 @@ function TeamWizard() {
           <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
             {players.map((p, i) => (
               <div key={i} className="flex items-center gap-1.5 px-3 py-2">
-                <span className="w-6 text-xs font-mono text-fg-dim shrink-0">{i + 1}</span>
+                <span className="w-6 text-xs font-sans text-fg-dim shrink-0">{i + 1}</span>
                 <input
                   value={p.name}
                   onChange={(e) => updatePlayer(i, { name: e.target.value })}
@@ -171,7 +171,7 @@ function TeamWizard() {
                 <select
                   value={p.cls}
                   onChange={(e) => updatePlayer(i, { cls: e.target.value as TeamClass })}
-                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none shrink-0 w-14"
+                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none shrink-0 w-14"
                 >
                   {TEAM_CLASSES.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -180,7 +180,7 @@ function TeamWizard() {
                 <select
                   value={p.team}
                   onChange={(e) => updatePlayer(i, { team: e.target.value as TeamId })}
-                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none shrink-0 w-16"
+                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none shrink-0 w-16"
                 >
                   {TEAM_IDS.map((t, idx) => (
                     <option key={t} value={t}>{teamNames[idx] || `T${idx + 1}`}</option>
@@ -226,13 +226,13 @@ function TeamWizard() {
                     }
                     className="flex-1 bg-transparent text-sm font-semibold text-fg focus:outline-none"
                   />
-                  <span className="text-[10px] font-mono text-fg-dim uppercase tracking-wider">
+                  <span className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">
                     {t.players.length}/{TEAM_COUNT}
                   </span>
                 </div>
                 <div className="px-3 py-2 flex flex-wrap gap-x-3 gap-y-1">
                   {t.players.map((p) => (
-                    <span key={p.cls} className="text-xs text-fg-dim font-mono">
+                    <span key={p.cls} className="text-xs text-fg-dim font-sans">
                       <span className="text-accent">{p.cls}</span> {p.name}
                     </span>
                   ))}
@@ -322,7 +322,7 @@ function ClassicWizard() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-fg">Classic Tournament</h2>
-        <span className="text-xs font-mono text-fg-dim">{step} · {['Setup', 'Pairs', 'Draw'][step - 1]}</span>
+        <span className="text-xs font-sans text-fg-dim">{step} · {['Setup', 'Pairs', 'Draw'][step - 1]}</span>
       </div>
 
       {step === 1 && (
@@ -342,7 +342,7 @@ function ClassicWizard() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-mono text-fg focus:border-accent focus:outline-none scheme-dark"
+              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none scheme-dark"
             />
           </label>
           <button
@@ -371,7 +371,7 @@ function ClassicWizard() {
           <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
             {pairs.map((p, i) => (
               <div key={i} className="flex items-center gap-2 px-3 py-2">
-                <span className="w-6 text-xs font-mono text-fg-dim shrink-0">{i + 1}</span>
+                <span className="w-6 text-xs font-sans text-fg-dim shrink-0">{i + 1}</span>
                 <input
                   value={p.a}
                   onChange={(e) => updatePair(i, 'a', e.target.value)}
@@ -417,7 +417,7 @@ function ClassicWizard() {
           <div className="flex flex-col gap-2.5">
             {GROUP_IDS.map((g) => (
               <div key={g} className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
-                <div className="px-3 py-1.5 border-b border-border-subtle text-xs font-mono text-fg-dim uppercase tracking-wider">
+                <div className="px-3 py-1.5 border-b border-border-subtle text-xs font-sans text-fg-dim uppercase tracking-wider">
                   Group {g}
                 </div>
                 {groupNames[g].map((n, i) => (

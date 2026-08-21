@@ -13,14 +13,14 @@ export default function AdminTournamentsPage() {
       {({ run }) => (
         <>
           <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-mono text-amber-500/80 uppercase tracking-wider">{t('admin.sectionTournament')}</p>
+            <p className="text-[10px] font-sans text-amber-500/80 uppercase tracking-wider">{t('admin.sectionTournament')}</p>
             <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-              {(tournaments ?? []).length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-4">{t('admin.noTournaments')}</p>}
+              {(tournaments ?? []).length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-4">{t('admin.noTournaments')}</p>}
               {(tournaments ?? []).map((t2) => (
                 <div key={t2.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
                   <span className="flex-1 min-w-0 text-sm text-fg truncate">{t2.name || 'Untitled Tournament'}</span>
-                  <span className="text-[10px] font-mono text-fg-dim">{t2.date}</span>
-                  <span className={`text-[10px] font-mono ${t2.format === 'team' ? 'text-accent' : 'text-fg-dim'}`}>{t2.format}</span>
+                  <span className="text-[10px] font-sans text-fg-dim">{t2.date}</span>
+                  <span className={`text-[10px] font-sans ${t2.format === 'team' ? 'text-accent' : 'text-fg-dim'}`}>{t2.format}</span>
                   <ActionButton
                     tone="red"
                     onClick={() => {

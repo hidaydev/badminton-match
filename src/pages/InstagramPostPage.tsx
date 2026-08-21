@@ -360,7 +360,7 @@ export default function InstagramPostPage() {
       <div className="flex items-center gap-3 px-1 pt-4 pb-3">
         <div>
           <p
-            className="text-[10px] font-mono text-slate-400 uppercase"
+            className="text-[10px] font-sans text-slate-400 uppercase"
             style={{ letterSpacing: '0.2em' }}
           >
             Create
@@ -457,7 +457,7 @@ export default function InstagramPostPage() {
 
             {sheetScreen === 'formats' && (
               <>
-                <p className="text-xs font-mono text-slate-400 tracking-widest uppercase mb-4">Download as</p>
+                <p className="text-xs font-sans text-slate-400 tracking-widest uppercase mb-4">Download as</p>
                 <div className="grid grid-cols-2 gap-3">
                   {/* Photo Post */}
                   <button
@@ -525,7 +525,7 @@ export default function InstagramPostPage() {
                   >
                     ←
                   </button>
-                  <p className="text-xs font-mono text-slate-400 tracking-widest uppercase">Pick a session</p>
+                  <p className="text-xs font-sans text-slate-400 tracking-widest uppercase">Pick a session</p>
                 </div>
 
                 {isGenerating && (

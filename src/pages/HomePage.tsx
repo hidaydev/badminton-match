@@ -65,13 +65,13 @@ export default function HomePage() {
         >
           <Icon name="play" size={20} />
           <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-            <span className="text-[10px] font-mono text-fg-dim uppercase" style={{ letterSpacing: '0.12em' }}>
+            <span className="text-[10px] font-sans text-fg-dim uppercase" style={{ letterSpacing: '0.12em' }}>
               Continue Session
             </span>
             <span className="text-[1rem] font-bold text-fg leading-tight truncate">
               {lastSession.title || 'Untitled Session'}
             </span>
-            <span className="text-xs text-fg-dim font-mono">
+            <span className="text-xs text-fg-dim font-sans">
               {lastSession.date.split('-').reverse().join('-')} · {lastSession.playerCount} players · {lastSession.totalGames} games
             </span>
           </div>
@@ -80,7 +80,7 @@ export default function HomePage() {
 
       {/* Grid sekunder — menu utama */}
       <div className="flex flex-col gap-2.5">
-        <p className="text-[10px] font-mono text-fg-dim uppercase" style={{ letterSpacing: '0.12em' }}>
+        <p className="text-[10px] font-sans text-fg-dim uppercase" style={{ letterSpacing: '0.12em' }}>
           App
         </p>
         <div className="grid grid-cols-2 gap-2.5">
@@ -120,7 +120,7 @@ export default function HomePage() {
       {/* Section ADMIN — muncul permanen kalau isAdmin */}
       {isAdmin && (
         <div className="flex flex-col gap-2.5">
-          <p className="text-[10px] font-mono text-amber-500/80 uppercase" style={{ letterSpacing: '0.12em' }}>
+          <p className="text-[10px] font-sans text-amber-500/80 uppercase" style={{ letterSpacing: '0.12em' }}>
             Admin
           </p>
           <AdminMenuGrid />
