@@ -178,18 +178,23 @@ func (s *SessionStore) RatingPlayerHistory(ctx context.Context, playerID string,
 // RatingSource — baris rating_sources.
 type RatingSource struct {
 	SourceID   string    `json:"source_id"`
+	SourceName string    `json:"source_name"` // resolved name (session title or tournament name)
 	SourceKind string    `json:"source_kind"`
 	Finalized  bool      `json:"finalized"`
 	IngestedAt time.Time `json:"ingested_at"`
 	EventCount int       `json:"event_count"`
 }
 
-// ListRatingSources — daftar source + jumlah events.
+// ListRatingSources — daftar source + jumlah events + resolved name.
 func (s *SessionStore) ListRatingSources(ctx context.Context) ([]RatingSource, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT rs.source_id, rs.source_kind, rs.finalized, rs.ingested_at,
+		SELECT rs.source_id,
+		       COALESCE(ses.title, t.name, rs.source_id) AS source_name,
+		       rs.source_kind, rs.finalized, rs.ingested_at,
 		       (SELECT count(*) FROM `+s.schema+`.rating_events re WHERE re.source_id = rs.source_id)
 		FROM `+s.schema+`.rating_sources rs
+		LEFT JOIN `+s.schema+`.sessions ses ON ses.share_code = rs.source_id
+		LEFT JOIN `+s.schema+`.tournaments t ON t.share_code = rs.source_id
 		ORDER BY rs.ingested_at DESC`)
 	if err != nil {
 		return nil, err
@@ -199,7 +204,7 @@ func (s *SessionStore) ListRatingSources(ctx context.Context) ([]RatingSource, e
 	out := []RatingSource{}
 	for rows.Next() {
 		var s2 RatingSource
-		if err := rows.Scan(&s2.SourceID, &s2.SourceKind, &s2.Finalized, &s2.IngestedAt, &s2.EventCount); err != nil {
+		if err := rows.Scan(&s2.SourceID, &s2.SourceName, &s2.SourceKind, &s2.Finalized, &s2.IngestedAt, &s2.EventCount); err != nil {
 			return nil, err
 		}
 		out = append(out, s2)
