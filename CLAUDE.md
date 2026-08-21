@@ -18,23 +18,23 @@ npm run check              # Types + lint + tailwind + regression tests
 npm run check:regression   # Regression tests only (node:test)
 ```
 
-Backend tests live in the `majadu-api` repo (`make check` — unit + handler + middleware; integration test env-guarded via `MAJADU_TEST_DATABASE_URL`).
+Backend tests live in the `majadu-api` repo (`go test ./...` — unit + handler + integration test env-guarded via `MAJADU_TEST_DATABASE_URL`).
 
 ## Architecture
 
-This is a single-page React app (React 19, Vite, Tailwind v4, TypeScript) that generates optimised badminton match schedules for recreational sessions. It has grown to also include tournament management, session history, and player career tracking.
+This is a single-page React app (React 19, Vite, Tailwind v4, TypeScript) that generates optimised badminton match schedules for recreational sessions. It has grown to also include tournament management, session history, ratings/leaderboard, and admin tools.
 
 ### Core Session Flow
 
 **User flow (4 steps, enforced by route guards in [App.tsx](src/App.tsx)):**
-1. **Setup** (`/session/new`) — configure courts, slot duration, court times, player count, tier count. Locks the session.
-2. **Players** (`/session/players`) — add/edit players with name, gender, and tier (1–4).
+1. **Setup** (`/session/new`) — configure courts, slot duration, court times, player count, tier count (8-tier: D, D+, C, C+, B, B+, A, A+). Locks the session.
+2. **Players** (`/session/players`) — add/edit players with name, gender, and tier (1–8). Tier picker is read-only for registered players (canonical tier from backend).
 3. **Constraints** (`/session/constraints`) — define "fix matches": pre-assigned pairings (fully or partially specified) that must appear in the schedule.
 4. **Generate** (`/session/generate`) — run the scheduler, view the schedule, retry until quality is good.
 
 **Routing:** `RequireSession` redirects to `/session/new` if the session isn't locked; `RequirePlayers` additionally checks that the exact `playerCount` players have been entered before allowing access to `/session/constraints` or `/session/generate`.
 
-**Home page** shows 5 menu items: Create Session, Sessions, Player History, Tournament, Instagram Post.
+**Home page** shows 6 cards: Sessions, Ratings, Scoreboard, Tournament, IG Post, Admin. Admin section (5 cards: Sessions, Players, Ratings, Tournaments, Seasons) appears after login.
 
 ### State Management
 
@@ -55,34 +55,59 @@ Migration resets to defaults on any version mismatch. The tournament store was r
 
 ### Pages
 
-- **GeneratePage** ([src/pages/GeneratePage.tsx](src/pages/GeneratePage.tsx)) — 739 lines. `QualityBanner` grades the schedule; "Retry until good" runs up to 30 generations (yields to browser via `requestAnimationFrame` between iterations); `SummaryModal` is a full-screen overlay with a checklist view (tap to mark games as played, support for absent players). Back-to-back games flagged with `*` on player chips. Debounces cloud publishes (300 ms trailing, 1s max delay) and flushes on unmount.
-- **TournamentPage** ([src/pages/TournamentPage.tsx](src/pages/TournamentPage.tsx)) — tabbed UI with three tabs: **Groups** (assign 16 pairs to numbered slots #1–#16 across 4 groups via tap-slot-then-pick-pair; switches to GroupMatches when locked), **Bracket** (horizontal scrolling QF→SF→Final knockout bracket with connector lines), **Standings** (per-group W/L, point diff, head-to-head table). Local draft group state is `Record<GroupId, (string | null)[]>` — always 4 elements, null for empty slots.
+- **GeneratePage** ([src/pages/GeneratePage.tsx](src/pages/GeneratePage.tsx)) — `QualityBanner` grades the schedule; "Retry until good" runs up to 30 generations; `SummaryModal` is a full-screen overlay with a checklist view (tap to mark games as played, support for absent players). Debounces cloud publishes (300 ms trailing, 1s max delay) and flushes on unmount.
+- **RatingsPage** ([src/pages/RatingsPage.tsx](src/pages/RatingsPage.tsx)) — leaderboard with server-side pagination (100 per page), "Load more" button. Shows tier badge, rating, trend, games count. Peak rating removed from list (shown in player detail).
+- **RatingPlayerPage** ([src/pages/RatingPlayerPage.tsx](src/pages/RatingPlayerPage.tsx)) — per-player rating detail: stat cards (peak, games, W-L, tier), sparkline trend, recent matches (paginated, 5/page), career stats from `CareerStats.tsx`.
+- **TournamentPage** ([src/pages/TournamentPage.tsx](src/pages/TournamentPage.tsx)) — tabbed UI for classic tournament: **Groups**, **Bracket**, **Standings**.
+- **TeamTournamentPage** ([src/pages/TeamTournamentPage.tsx](src/pages/TeamTournamentPage.tsx)) — tabbed UI for team tournament: **Standings** (editable team names, member list, crown for champion), **Schedule** (score entry per partai), **Final** (champion banner). Includes Instagram post export.
 - **SessionListPage** ([src/pages/SessionListPage.tsx](src/pages/SessionListPage.tsx)) — browse past cloud-synced sessions with date filter.
-- **PlayerHistoryPage** ([src/pages/PlayerHistoryPage.tsx](src/pages/PlayerHistoryPage.tsx)) — list all players from cloud history.
-- **PlayerDetailPage** ([src/pages/PlayerDetailPage.tsx](src/pages/PlayerDetailPage.tsx)) — per-player career stats (top partners, opponents).
 - **SharedSessionPage** ([src/pages/SharedSessionPage.tsx](src/pages/SharedSessionPage.tsx)) — view/manage a cloud-synced shared session (`/s/:sessionId`).
-- **InstagramPostPage** ([src/pages/InstagramPostPage.tsx](src/pages/InstagramPostPage.tsx)) — HTML5 Canvas editor for creating branded Instagram posts (1080×1350) and stories (1080×1920). User uploads a photo, drags to reposition, pinch-to-zoom, picks a session date, then exports via bottom sheet. Canvas layers: user photo (cover-fill) → date graphic → chevrons ornament → header band → footer PNG. Template assets and dimensions are defined in [src/config/instagramTemplates.ts](src/config/instagramTemplates.ts).
+- **InstagramPostPage** ([src/pages/InstagramPostPage.tsx](src/pages/InstagramPostPage.tsx)) — HTML5 Canvas editor for creating branded Instagram posts (1080×1350) and stories (1080×1920).
+- **NewTournamentWizard** ([src/pages/NewTournamentWizard.tsx](src/pages/NewTournamentWizard.tsx)) — 3-step wizard for creating tournaments. Classic: 16 pairs → 4 groups. Team: 36 players (6 classes × 6 teams) with manual team assignment.
+
+### Admin Pages (`src/pages/admin/`)
+
+5 separate admin pages, each with `AdminPageShell` layout:
+- **AdminSessionsPage** — list/lock/delete sessions
+- **AdminPlayersPage** — list/rename/delete players, set tier
+- **AdminRatingsPage** — ingest/revert/rebuild ratings
+- **AdminTournamentsPage** — list/delete tournaments
+- **AdminSeasonsPage** — manage rating seasons
+
+### Ratings System
+
+Backend (Go, `majadu-api` repo):
+- **Glicko-1-lite** rating engine with 8-tier ClassBands (D: 1000–1199, ..., A+: 2100+)
+- `rating_events` → `rating_deltas` → `rating_players` pipeline
+- Season system with `rating_config` (season_start, decay parameters)
+- Auto-ingest on session lock (ticker every 30 min)
+
+Frontend:
+- `src/queries/ratings.ts` — React Query hooks for leaderboard, player detail, history
+- `src/components/ratings/` — `RatingTierBadge`, `RatingSparkline`, `CareerStats`
+- `src/config/ratingTiers.ts` — 8-band rating tier colors
 
 ### Tournament Components
 
 `src/components/tournament/`:
-- `GroupAssignment.tsx` — numbered-slot UI (slots #1–#16) for assigning pairs to groups. Interaction: tap an empty slot to select it (highlights amber), then tap a pair chip from the unassigned pool to place it. Slots are globally numbered: A=#1–4, B=#5–8, C=#9–12, D=#13–16. Local draft state in `TournamentPage` uses `(string | null)[]` of fixed length 4 per group; nulls are filtered before cloud confirm.
-- `GroupMatches.tsx` — enter scores for group stage round-robin matches.
+- `GroupAssignment.tsx` — numbered-slot UI for assigning pairs to groups.
+- `GroupMatches.tsx` — enter scores for group stage matches.
 - `BracketTab.tsx` — knockout bracket visualization.
 - `StandingsTab.tsx` — standings table per group.
 - `ScoreModal.tsx` — modal for score entry.
-- `ScoreboardOverlay.tsx` — fullscreen scoreboard overlay for tournament matches (wraps ScoreboardPage).
+- `ScoreboardOverlay.tsx` — fullscreen scoreboard overlay.
 
 ### Queries Layer
 
 `src/queries/` is the single access point for all server state. No page or component imports fetch functions directly.
 
-- `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `registerPlayer`, `deleteSession`, `unlockSession`, `getTournament`, `publishTournament`) + `TOURNAMENT_ID` constant and `RpcError` class. Internal to the layer — not re-exported from `index.ts`.
+- `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `registerPlayer`, `deleteSession`, `unlockSession`, `getTournament`, `publishTournament`) + `RpcError` class. Internal to the layer — not re-exported from `index.ts`.
 - `types.ts` — shared types: `CloudSnapshot`, `SessionMeta`, `PlayerSummary`, `PlayerStats`, re-exports `TournamentSnapshot`.
-- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSwapTeams`, `useSwapSlots`, `useSetAbsent`, `useReplacePlayer`, `useChangePlayer`, `useLockSession`, `useDeleteSession`, `useFetchSession`. Mutations own all cache logic (optimistic update, rollback-first error handling, smart invalidation). `onSuccess` uses `fetchQuery` (not `setQueryData`) to prevent race conditions; `onError` rolls back before refetch. UI callbacks are passed by components via `mutate(vars, { onSuccess, onError })`.
+- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSwapTeams`, `useSwapSlots`, `useSetAbsent`, `useReplacePlayer`, `useChangePlayer`, `useLockSession`, `useDeleteSession`, `useFetchSession`. Mutations own all cache logic (optimistic update, rollback-first error handling, smart invalidation).
 - `players.ts` — `useListPlayers`, `useGetPlayerStats`.
 - `tournament.ts` — `useGetTournament`, `useConfirmGroups`, `useSetTournamentScore`, `useResetTournament`, `useRegeneratePics`.
-- `index.ts` — barrel export of all hooks and types. Also re-exports `TOURNAMENT_ID` for components that need to invalidate the tournament query manually.
+- `ratings.ts` — `useRatingLeaderboard`, `useRatingPlayer`, `useRatingHistory`.
+- `index.ts` — barrel export of all hooks and types.
 
 **Mutation call-site pattern** — destructure `{ mutate, isPending }` rather than storing the full mutation object:
 ```typescript
@@ -92,23 +117,35 @@ togglePlayed(vars, { onSuccess: () => ..., onError: () => ... })
 
 ### Utilities
 
-- `src/utils/tournament.ts` — pure TS: `generateGroupMatches()` (6 round-robin games per group), `initKnockoutMatches()`, `propagateBracket()`, `computeGroupStandings()`, `assignGroupPics()`.
+- `src/utils/tournament.ts` — pure TS: `generateGroupMatches()`, `initKnockoutMatches()`, `propagateBracket()`, `computeGroupStandings()`, `assignGroupPics()`.
+- `src/utils/teamTournament.ts` — team tournament logic: `computeTeamStandings()`, `generateTeamDraw()`, `teamMatchOutcome()`, `teamMatchPoints()`.
+- `src/utils/teamTournamentPost.ts` — canvas post generator for team tournament standings (dark gradient frame).
 - `src/utils/standings.ts` — computes per-player W/L and point diff for a session.
 - `src/utils/shareUrl.ts` — encode/decode session state into URL hash (uses `lz-string` for compression).
-- `src/utils/swap.ts` — swap players between games, swap teams, change player logic, conflict detection.
+- `src/utils/share.ts` — canvas-to-blob and shareOrDownload utility (iOS Web Share API fallback).
+- `src/utils/swap.ts` — swap players between games, swap teams, change player logic.
 - `src/utils/slotSwap.ts` — swap game slots and detect cross-slot conflicts.
-- `src/utils/sessionSnapshot.ts` — snapshot mutation helpers (toggle played, set score, swap players/teams/slots, set absent, replace player name, change player).
-- `src/utils/playerStats.ts` — `computePlayerStats()` for play/sit/partner/opponent counts (shared by GeneratePage and SummaryModal).
+- `src/utils/sessionSnapshot.ts` — snapshot mutation helpers.
+- `src/utils/playerStats.ts` — `computePlayerStats()` for play/sit/partner/opponent counts.
+- `src/utils/quality.ts` — schedule quality scoring.
+- `src/utils/placeholders.ts` — `isPlaceholderName()` regex for Free/TBD detection.
+- `src/utils/reconcilePlayers.ts` — player resolution during publish.
+- `src/utils/counter.ts` — play count tracking.
+- `src/utils/array.ts` — `shuffle()` (Fisher-Yates).
+- `src/utils/tally.ts` — shared tally row logic (wins, losses, pointsFor, pointsAgainst).
 - `src/utils/ordinal.ts` — `ordinal()` helper (1st, 2nd, 3rd).
-- `src/utils/resolvePlayers.ts` — player resolution helpers (`findUnresolvedPlayers`, `buildResolveResult`) for publish-time identity reconciliation.
-- `src/config/tiers.ts` — tier labels, colors, badge colors shared across GeneratePage, PlayersPage, ConstraintsPage.
+- `src/utils/resolvePlayers.ts` — player resolution helpers for publish-time identity reconciliation.
+- `src/utils/overlays.ts` — overlay utilities.
+- `src/config/tiers.ts` — 8-tier labels, colors, badge colors, active states.
+- `src/config/ratingTiers.ts` — 8-band rating tier colors and badge styles.
+- `src/config/instagramTemplates.ts` — Instagram post template assets and dimensions.
 
 ### Instagram Post Scripts
 
 `scripts/` contains Node.js automation (not part of the web app build):
 
-- `generate-posts.mjs` — batch canvas rendering using `@napi-rs/canvas`. Scans `~/Downloads/Majadu/Best/{YYYY-MM-DD}/1.jpg`, outputs `post.jpg` (1080×1350) and `story.jpg` (1080×1920) per folder. Handles landscape (contain + blur BG) and portrait (cover) photos.
-- `post-instagram.mjs` — Playwright automation to upload generated posts to Instagram. Saves browser session to `scripts/.instagram-session.json` and tracks posted dates in `scripts/.instagram-posted.json` to avoid duplicates.
+- `generate-posts.mjs` — batch canvas rendering using `@napi-rs/canvas`.
+- `post-instagram.mjs` — Playwright automation to upload generated posts to Instagram.
 
 ### Key Dependencies
 

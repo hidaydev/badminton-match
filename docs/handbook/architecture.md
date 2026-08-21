@@ -179,11 +179,9 @@ These support:
 
 Used for:
 
-- landing/home
-- sessions
-- player history
+- landing/home (6 cards: Sessions, Ratings, Scoreboard, Tournament, IG Post, Admin)
+- admin section (5 cards: Sessions, Players, Ratings, Tournaments, Seasons)
 - tournament
-- Instagram tools
 
 ### Session shell
 

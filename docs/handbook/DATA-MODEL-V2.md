@@ -1,8 +1,14 @@
 # DATA-MODEL-V2 — Desain arsitektur data normalized (draft)
 
-> Status: **DRAFT untuk review** — belum dieksekusi.
+> Status: **PARTIALLY IMPLEMENTED** — beberapa bagian sudah dieksekusi.
+> - Tournament normalization (5 tables) ✅ implemented
+> - Session identity (UUID PK, share_code) ✅ implemented
+> - Game state merging — not yet implemented
+> - Fix match slots consolidation — not yet implemented
+> 
 > Tujuan: fix fundamental schema `bm`/`bm_dev` (identity, 1:1 tables, tournaments).
 > Scope: sessions + tournaments + players, satu desain koheren.
+> Referensi: current-status.md untuk status terkini.
 
 ---
 
