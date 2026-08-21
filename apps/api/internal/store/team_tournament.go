@@ -369,10 +369,45 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 		}
 	}
 
+	// Auto-create rating_sources when all matches completed
+	allComplete := len(snap.Matches) > 0
+	for _, m := range snap.Matches {
+		for _, p := range m.Partai {
+			if p.ScoreA == nil || p.ScoreB == nil {
+				allComplete = false
+				break
+			}
+		}
+		if !allComplete {
+			break
+		}
+	}
+	if err := s.autoCreateRatingSource(ctx, tx, id, "team", allComplete); err != nil {
+		return nil, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return s.TeamLoad(ctx, id)
+}
+
+// autoCreateRatingSource — auto-create rating_sources entry when all matches completed.
+// INSERT ON CONFLICT DO NOTHING (idempotent, race-safe).
+func (s *TournamentStore) autoCreateRatingSource(ctx context.Context, tx pgx.Tx, shareCode string, format string, allMatchesComplete bool) error {
+	if !allMatchesComplete {
+		return nil
+	}
+
+	sourceKind := "tournament_classic"
+	if format == "team" {
+		sourceKind = "tournament_team"
+	}
+	_, err := tx.Exec(ctx, `
+		INSERT INTO rating_sources (source_id, source_kind, finalized)
+		VALUES ($1, $2, false)
+		ON CONFLICT (source_id) DO NOTHING`, shareCode, sourceKind)
+	return err
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────

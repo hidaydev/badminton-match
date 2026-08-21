@@ -405,6 +405,18 @@ func (s *TournamentStore) Save(ctx context.Context, id string, snap *domain.Tour
 		}
 	}
 
+	// Auto-create rating_sources when all matches completed
+	allComplete := len(snap.Matches) > 0
+	for _, m := range snap.Matches {
+		if m.ScoreA == nil || m.ScoreB == nil {
+			allComplete = false
+			break
+		}
+	}
+	if err := s.autoCreateRatingSource(ctx, tx, id, "classic", allComplete); err != nil {
+		return nil, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
