@@ -28,6 +28,7 @@ const AdminTournamentsPage = lazy(() => import('./pages/admin/AdminTournamentsPa
 const AdminSeasonsPage = lazy(() => import('./pages/admin/AdminSeasonsPage'))
 const RatingPlayerPage = lazy(() => import('./pages/RatingPlayerPage'))
 const NewTournamentPage = lazy(() => import('./pages/NewTournamentPage'))
+const TeamTournamentSharePage = lazy(() => import('./pages/TeamTournamentSharePage'))
 const NewTournamentWizard = lazy(() => import('./pages/NewTournamentWizard'))
 const SharedSessionPage = lazy(() => import('./pages/SharedSessionPage'))
 
@@ -95,6 +96,7 @@ export default function App() {
             <Route path="tournaments/new" element={<Suspense fallback={<Loading />}><NewTournamentPage /></Suspense>} />
             <Route path="tournaments/new/:format" element={<Suspense fallback={<Loading />}><NewTournamentWizard /></Suspense>} />
             <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><TournamentPage /></Suspense>} />
+            <Route path="tournaments/:id/share" element={<Suspense fallback={<Loading />}><TeamTournamentSharePage /></Suspense>} />
             <Route path="instagram-post" element={<Suspense fallback={<Loading />}><InstagramPostPage /></Suspense>} />
             <Route path="admin">
               <Route index element={<Navigate to="/admin/sessions" replace />} />
