@@ -58,6 +58,7 @@ bug → fix → re-test (loop).
 | `POST /sessions/{id}/unlock` | admin: 200; tanpa token → 401 | id fiktif → 404 |
 | `POST /sessions/{id}/delete` | admin: 200 + rating source terhapus + rebuild | tanpa token 401; id fiktif 404 |
 | `DELETE /sessions/{id}` (anon) | draft → 204 | locked → 409 |
+| **Auto-lock** | session auto-locks when all scores entered OR date passed | ticker runs every 30 min |
 
 ### 3.3 Players
 | Endpoint | Positif | Negatif |
@@ -122,11 +123,11 @@ admin pindah ke home + /admin?section=X, bahasa English + i18n skeleton):
 | `/session/new` → players → constraints → generate | Wizard 4 langkah: guard route, picker tier **8 opsi**, bulk import, generate + QualityBanner + retry, publish |
 | `/sessions` | List + filter tanggal |
 | `/s/:sessionId` | SummaryModal: toggle played, set score, swap, absent (void confirm), change player, lock; **tidak ada tombol delete** |
-| `/ratings` | Leaderboard: badge 8-tier, podium, provisional, trend, season picker (live/frozen), load more |
-| `/ratings/:playerId` | Stat cards, sparkline, recent matches, **Career** (sessions, top partners/opponents, tournament) — tanpa cross-link nested |
+| `/ratings` | Leaderboard: badge 8-tier, podium, provisional, trend, season picker (live/frozen), load more (100/page) |
+| `/ratings/:playerId` | Stat cards (peak, games, W-L, tier), sparkline, recent matches (5/page), **Career** (sessions 5/page, top partners/opponents, tournament) — tanpa cross-link nested |
 | `/tournaments` | List + format badge + navigasi detail |
-| `/tournaments/new` + wizard | Classic (16 pairs) & Team (6×6): setup → draw → confirm |
-| `/tournaments/:id` | Tab groups/bracket/standings (classic) · standings/schedule/final (team) |
+| `/tournaments/new` + wizard | Classic (16 pairs) & Team (36 players, 6 classes × 6 teams, manual team assignment): setup → players → teams/draw → confirm |
+| `/tournaments/:id` | Tab groups/bracket/standings (classic) · standings (editable names, member list, crown)/schedule/final (champion banner) (team) |
 | `/admin` + `/admin?section=X` | Hanya bisa login dari **home** (popup password) · section diurut Session→Player→Rating→Tournament→Season · **autofocus `?section`** (dari card menu home) · unlock/delete session · player (add/rename/tier 8/rebaseline/hapus, **pagination + search**) · ingest/revert/finalize/rebuild (feedback inline) · delete tournament · season close&start (meta 2 baris) |
 | `/scoreboard` | Fullscreen overlay increment |
 | `/instagram-post` | Load editor + template |

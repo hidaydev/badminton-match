@@ -47,7 +47,8 @@ Publish and share via URL. Full operations console:
 ### Tournament Manager
 
 - **Classic**: 16 pairs → 4 groups → round-robin → knockout bracket (QF → SF → 3rd → Final)
-- **Team**: 6 teams × 6 players, 3 doubles per team-match, rally scoring, match-day draw
+- **Team**: 36 players (6 classes × 6 teams), manual team assignment, 9 group matches + 1 final
+- Editable team names, member display, champion banner with trophy decoration
 - PIC (person-in-charge) assignment · standings with head-to-head tiebreakers
 
 ### Admin Area

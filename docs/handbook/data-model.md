@@ -12,13 +12,14 @@ Fields:
 
 - `id`
 - `name`
-- `gender`
-- `tier`
+- `gender` ('M' | 'F')
+- `tier` (1–8: D=1, D+=2, C=3, C+=4, B=5, B+=6, A=7, A+=8)
 
 Notes:
 
-- player ids are session-app local ids
-- they are not the same as `MDEF` canonical player ids
+- player ids are session-app local ids (not backend UUIDs)
+- tier is "first-set sticky" — canonical tier stored in backend `players` table
+- gender is stored canonically in backend `players` table
 
 ### FixMatch
 
@@ -104,9 +105,6 @@ Notes:
 
 This is the operational persisted payload for published sessions.
 
-It is also the safest short-term handoff format for external consumers like
-`MDEF`.
-
 ## Shared-view snapshot model
 
 Main source:
@@ -128,18 +126,20 @@ It is separate from the cloud session model.
 
 ## Tournament model
 
+### Classic Tournament
+
 Main source:
 
 - `src/utils/tournament.ts`
 
-### TournamentPair
+#### TournamentPair
 
 Fields:
 
 - `id`
 - `name`
 
-### TournamentMatch
+#### TournamentMatch
 
 Fields:
 
@@ -152,7 +152,7 @@ Fields:
 - `scoreB`
 - optional `picName`
 
-### TournamentSnapshot
+#### TournamentSnapshot
 
 Fields:
 
@@ -162,39 +162,86 @@ Fields:
 - `groups`
 - `matches`
 
-## Supabase persistence model
+### Team Tournament
 
-> 2026-08-15: Supabase sudah pensiun. Persistensi sekarang = Postgres VPS
-> (schema `bm` prod / `bm_dev` dev) yang diakses **langsung oleh backend Go
-> (`majadu-api`)** — tidak ada PostgREST/RPC. Definisi schema & migrasi
-> (000001–000005) disimpan di VPS: `/srv/qouver/majadu/migrations/` (sengaja
-> tidak di repo public). Referensi era Supabase: git history.
+Main source:
 
-Current runtime schema:
+- `src/utils/teamTournament.ts`
 
-1. `bm` (prod) / `bm_dev` (dev)
+#### TeamInfo
 
-Current approach is aggregate-root plus normalized relational support:
+Fields:
 
-- sessions and tournaments still preserve snapshot-style contracts for app compatibility
-- relational child tables support indexing, stats, integrity, and future evolution
+- `id` (t1–t6)
+- `name`
+- `players: TeamPlayer[]`
+
+#### TeamPlayer
+
+Fields:
+
+- `name`
+- `cls: TeamClass` ('A+' | 'A' | 'B+' | 'B' | 'C+' | 'C')
+
+#### TeamMatch
+
+Fields:
+
+- `id` ("g-1"–"g-9" or "final")
+- `phase: 'group' | 'final'`
+- `teamA` (team id)
+- `teamB` (team id)
+- `partai: TeamPartai[]` (3 doubles matches per team-match)
+
+#### TeamTournamentSnapshot
+
+Fields:
+
+- `format: 'team'`
+- `name`
+- `date`
+- `teams: TeamInfo[]`
+- `matches: TeamMatch[]`
+
+## Backend persistence model (PostgreSQL on VPS)
+
+> Backend: Go (`majadu-api` repo) — langsung akses Postgres, tanpa PostgREST/RPC.
+> Migrasi: 000001–000011 (disimpan di VPS: `/srv/qouver/majadu/migrations/`).
+
+Schema: `bm` (prod) / `bm_dev` (dev)
+
+Current approach: aggregate-root plus normalized relational support
 
 ### Main aggregate roots
 
 - `sessions` — session metadata with `version` (optimistic concurrency), `status` (draft/locked/published), `id` (UUID), `share_code`
 - `tournaments` — tournament snapshots with `version`
-- `players` — canonical player records (UUID PK, canonical_name)
+- `players` — canonical player records (UUID PK, canonical_name, gender, tier, registered_at)
 - `player_aliases` — normalized name → player_id mapping for fuzzy resolution
+
+### Rating tables
+
+- `rating_config` — JSONB key-value store (season_start, decay parameters, class_bands, session_tier_init)
+- `rating_players` — per-player rating state (rating, rd, peak_rating, games_played, wins, losses)
+- `rating_events` — match-level events (source_id, date, score_a, score_b, team compositions)
+- `rating_deltas` — per-player rating changes per event (old/new rating, rd, delta)
+- `rating_sources` — session/tournament source tracking (session_id, fingerprint, processed_at)
+- `season_player_snapshots` — end-of-season player snapshots
 
 ### Main child entities
 
 - `session_players` — player roster per session (with gender, tier, sort order, absent status)
 - `session_courts` — per-court time ranges and names
 - `fix_matches` — pre-assigned match constraints per session
+- `fix_match_slots` — individual slot assignments per fix match
 - `scheduled_games` — generated/scheduled games (slot, court, status, source)
 - `scheduled_game_players` — team/position assignments per scheduled game
-- `tournament_pairs` / `tournament_pair_players` / `tournament_groups` / `tournament_matches` — tournament structure
+- `tournament_pairs` / `tournament_pair_players` / `tournament_groups` / `tournament_matches` — classic tournament structure
+- `tournament_team_players` — team tournament player assignments
 
-Semua logika bisnis (validasi, version concurrency, lock, resolve alias) dijalankan
-di Go (`majadu-api/internal/`), bukan fungsi SQL. Sisa fungsi SQL di DB hanya
-`normalize_player_name` (CHECK constraint `player_aliases`) + utilitas.
+### Key constraints
+
+- `players.tier` CHECK: 8-tier (D, D+, C, C+, B, B+, A, A+)
+- `players.gender` CHECK: (M, F), NOT NULL, DEFAULT 'M'
+- `player_aliases.alias_name` UNIQUE
+- `session_players` UNIQUE: (session_id, player_id)

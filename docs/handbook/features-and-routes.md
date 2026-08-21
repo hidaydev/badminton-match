@@ -178,6 +178,8 @@ Capabilities:
 
 ## Tournament flow
 
+### Classic Tournament
+
 Files:
 
 - `src/pages/TournamentPage.tsx`
@@ -192,15 +194,36 @@ Capabilities:
 - propagate quarterfinal/semifinal/final bracket
 - export group summaries and bracket media
 
+### Team Tournament
+
+Files:
+
+- `src/pages/TeamTournamentPage.tsx`
+- `src/pages/NewTournamentWizard.tsx` (TeamWizard)
+- `src/utils/teamTournament.ts`
+- `src/utils/teamTournamentPost.ts`
+
+Capabilities:
+
+- 36 players (6 classes × 6 teams) with manual team assignment in wizard
+- 9 group matches (round-robin) + 1 final
+- Editable team names in standings
+- Team member display under each team name
+- Champion banner with trophy decoration in final tab
+- Crown icon for rank 1 in standings
+- Instagram post export with dark gradient frame
+
 ## Social export flow
 
 Files:
 
 - `src/pages/InstagramPostPage.tsx`
 - `src/utils/canvasPost.ts`
+- `src/utils/teamTournamentPost.ts`
 
 Capabilities:
 
 - compose branded images with uploaded or selected photos
 - render standings and tournament outputs to canvas
 - export share-ready assets
+- team tournament standings post (dark gradient frame)
