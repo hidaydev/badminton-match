@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGetTournament } from '../queries'
@@ -11,7 +11,8 @@ import {
   type TeamMatch,
   type TeamTournamentSnapshot,
 } from '../utils/teamTournament'
-import { generateTeamStandingsPost } from '../utils/teamTournamentPost'
+import { generateTeamStandingsPost } from '../utils/tournamentPost'
+import { loadImage } from '../utils/canvasPost'
 import { shareOrDownload } from '../utils/share'
 
 type Tab = 'klasemen' | 'jadwal' | 'final'
@@ -29,6 +30,10 @@ export default function TeamTournamentPage() {
   const [publishError, setPublishError] = useState<string | null>(null)
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [editingTeamName, setEditingTeamName] = useState('')
+  const [showPhotoModal, setShowPhotoModal] = useState(false)
+  const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Sinkronkan editor dengan snapshot server saat refetch (pola "adjust state
   // during render" — rekomendasi React, bukan setState di effect).
@@ -207,10 +212,13 @@ export default function TeamTournamentPage() {
                         />
                       ) : (
                         <span
-                          className="flex-1 text-sm text-fg truncate cursor-pointer hover:text-accent transition-colors"
+                          className="flex-1 text-sm text-fg truncate cursor-pointer hover:text-accent transition-colors group"
                           onClick={() => startEditTeamName(r.teamId, r.teamName)}
                         >
                           {r.teamName}
+                          <span className="inline-block ml-1.5 text-fg-dim group-hover:text-accent opacity-0 group-hover:opacity-100 transition-opacity">
+                            ✎
+                          </span>
                         </span>
                       )}
                       <span className="text-xs text-fg-dim font-mono shrink-0">
@@ -255,13 +263,7 @@ export default function TeamTournamentPage() {
             {/* Instagram post button */}
             {standings.length > 0 && (
               <button
-                onClick={async () => {
-                  const blob = await generateTeamStandingsPost(snap, standings)
-                  if (blob) {
-                    const file = new File([blob], `${snap.name.replace(/\s+/g, '_')}_standings.jpg`, { type: 'image/jpeg' })
-                    await shareOrDownload([file], `${snap.name} Standings`)
-                  }
-                }}
+                onClick={() => setShowPhotoModal(true)}
                 className="w-full py-3 rounded-lg border border-border-subtle text-fg-dim font-bold text-sm hover:text-fg hover:border-border transition-colors"
               >
                 📸 Share Standings
@@ -327,6 +329,78 @@ export default function TeamTournamentPage() {
           </>
         )}
       </div>
+
+      {/* Photo Upload Modal */}
+      {showPhotoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowPhotoModal(false)}>
+          <div className="bg-surface border border-border rounded-xl p-5 w-[90vw] max-w-md flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-fg">Share Standings</h3>
+            <p className="text-xs text-fg-dim">Pilih foto untuk frame, atau langsung share tanpa foto.</p>
+
+            {/* Photo preview */}
+            {photoPreview && (
+              <div className="relative">
+                <img src={photoPreview} alt="Preview" className="w-full h-40 object-cover rounded-lg" />
+                <button
+                  onClick={() => { setUserPhoto(null); setPhotoPreview(null) }}
+                  className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded"
+                >
+                  ✕ Remove
+                </button>
+              </div>
+            )}
+
+            {/* File input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                const url = URL.createObjectURL(file)
+                try {
+                  const img = await loadImage(url)
+                  setUserPhoto(img)
+                  setPhotoPreview(url)
+                } catch {
+                  console.error('Failed to load image')
+                }
+              }}
+            />
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 py-2.5 rounded-lg border border-border-subtle text-fg-dim text-sm font-semibold hover:text-fg hover:border-border transition-colors"
+              >
+                📷 Pilih Foto
+              </button>
+              <button
+                onClick={async () => {
+                  const blob = await generateTeamStandingsPost(snap, standings, userPhoto ?? undefined)
+                  if (blob) {
+                    const file = new File([blob], `${snap.name.replace(/\s+/g, '_')}_standings.jpg`, { type: 'image/jpeg' })
+                    await shareOrDownload([file], `${snap.name} Standings`)
+                  }
+                  setShowPhotoModal(false)
+                }}
+                className="flex-1 py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm"
+              >
+                Share
+              </button>
+            </div>
+            <button
+              onClick={() => setShowPhotoModal(false)}
+              className="text-xs text-fg-dim hover:text-fg text-center"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -344,7 +418,7 @@ function MatchCard({
   onSave,
 }: {
   match: TeamMatch
-  teams: { id: string; name: string }[]
+  teams: { id: string; name: string; players: { name: string; cls: string }[] }[]
   saving: boolean
   matchIdx: number
   onChange: (matchIdx: number, partaiIdx: number, patch: Partial<{ scoreA: number | null; scoreB: number | null }>) => void
@@ -354,6 +428,13 @@ function MatchCard({
   const target = teamTarget(match.phase)
   const dirty = match.partai.some((p) => p.scoreA !== null || p.scoreB !== null)
   const label = match.phase === 'final' ? 'FINAL' : `Group · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
+
+  const getTeamPlayer = (teamId: string, cls: string) => {
+    const team = teams.find((t) => t.id === teamId)
+    return team?.players.find((p) => p.cls === cls)?.name ?? '—'
+  }
+
+  const partaiClasses = ['C+', 'A+', 'B+']
 
   return (
     <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
@@ -365,33 +446,42 @@ function MatchCard({
           </span>
         )}
       </div>
-      <div className="px-4 py-3 flex flex-col gap-2">
-        {['C+ C', 'A+ A', 'B+ B'].map((partaiLabel, pi) => (
-          <div key={pi} className="flex items-center gap-2">
-            <span className="w-12 text-[10px] font-mono text-fg-dim uppercase shrink-0">{partaiLabel}</span>
-            <span className="flex-1 text-xs text-fg truncate">{teamName(teams, match.teamA)}</span>
-            <input
-              type="number"
-              min={0}
-              max={target}
-              value={match.partai[pi].scoreA ?? ''}
-              onChange={(e) => onChange(matchIdx, pi, { scoreA: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
-              className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-mono text-fg text-center focus:border-accent focus:outline-none"
-              aria-label={`Score ${teamName(teams, match.teamA)} partai ${pi + 1}`}
-            />
-            <span className="text-fg-dim text-xs shrink-0">:</span>
-            <input
-              type="number"
-              min={0}
-              max={target}
-              value={match.partai[pi].scoreB ?? ''}
-              onChange={(e) => onChange(matchIdx, pi, { scoreB: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
-              className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-mono text-fg text-center focus:border-accent focus:outline-none"
-              aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
-            />
-            <span className="flex-1 text-xs text-fg truncate text-right">{teamName(teams, match.teamB)}</span>
-          </div>
-        ))}
+      <div className="px-4 py-3 flex flex-col gap-3">
+        {partaiClasses.map((cls, pi) => {
+          const pair = cls === 'C+' ? 'C' : cls === 'A+' ? 'A' : 'B'
+          return (
+            <div key={pi} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="w-12 text-[10px] font-mono text-fg-dim uppercase shrink-0">{cls} {pair}</span>
+                <span className="flex-1 text-[10px] font-mono text-fg-dim truncate">
+                  {getTeamPlayer(match.teamA, cls)}/{getTeamPlayer(match.teamA, pair)}
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  max={target}
+                  value={match.partai[pi].scoreA ?? ''}
+                  onChange={(e) => onChange(matchIdx, pi, { scoreA: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
+                  className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-mono text-fg text-center focus:border-accent focus:outline-none"
+                  aria-label={`Score ${teamName(teams, match.teamA)} partai ${pi + 1}`}
+                />
+                <span className="text-fg-dim text-xs shrink-0">:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={target}
+                  value={match.partai[pi].scoreB ?? ''}
+                  onChange={(e) => onChange(matchIdx, pi, { scoreB: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
+                  className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-mono text-fg text-center focus:border-accent focus:outline-none"
+                  aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
+                />
+                <span className="flex-1 text-[10px] font-mono text-fg-dim truncate text-right">
+                  {getTeamPlayer(match.teamB, cls)}/{getTeamPlayer(match.teamB, pair)}
+                </span>
+              </div>
+            </div>
+          )
+        })}
       </div>
       <div className="px-4 pb-3">
         <button
