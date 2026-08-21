@@ -11,6 +11,8 @@ import {
   type TeamMatch,
   type TeamTournamentSnapshot,
 } from '../utils/teamTournament'
+import { generateTeamStandingsPost } from '../utils/teamTournamentPost'
+import { shareOrDownload } from '../utils/share'
 
 type Tab = 'klasemen' | 'jadwal' | 'final'
 
@@ -64,6 +66,39 @@ export default function TeamTournamentPage() {
   const finalMatch = (localMatches ?? snap.matches).find((m) => m.phase === 'final')
   const groupComplete = groupMatches.length === 9 && groupMatches.every((m) => teamMatchOutcome(m).complete)
   const hasFinal = !!finalMatch
+
+  // Team name editing
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [editingTeamName, setEditingTeamName] = useState('')
+
+  const startEditTeamName = (teamId: string, currentName: string) => {
+    setEditingTeamId(teamId)
+    setEditingTeamName(currentName)
+  }
+
+  const saveTeamName = () => {
+    if (editingTeamId && editingTeamName.trim()) {
+      // Update team name in snapshot
+      const updatedTeams = teams.map((t) =>
+        t.id === editingTeamId ? { ...t, name: editingTeamName.trim() } : t
+      )
+      const next: TeamTournamentSnapshot = { ...snap, teams: updatedTeams }
+      publishTournament(id, next).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['tournament', id] })
+      })
+    }
+    setEditingTeamId(null)
+    setEditingTeamName('')
+  }
+
+  // Final match result
+  const finalOutcome = finalMatch ? teamMatchOutcome(finalMatch) : null
+  const championId = finalOutcome?.complete
+    ? finalOutcome.aWins > finalOutcome.bWins
+      ? finalMatch!.teamA
+      : finalMatch!.teamB
+    : null
+  const championName = championId ? teamName(teams, championId) : null
 
   const saveMatches = (matches: TeamMatch[]) => {
     setLocalMatches(matches)
@@ -154,13 +189,46 @@ export default function TeamTournamentPage() {
               </div>
               {standings.map((r, i) => {
                 const isTop = i < 2 && groupComplete
+                const isChampion = championId === r.teamId
+                const team = teams.find((t) => t.id === r.teamId)
+                const isEditing = editingTeamId === r.teamId
                 return (
-                  <div key={r.teamId} className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5 border-b border-border-subtle last:border-0 ${isTop ? 'bg-accent/5' : ''}`}>
-                    <span className={`w-5 text-sm font-mono shrink-0 ${i === 0 ? 'text-accent' : i === 1 ? 'text-slate-200' : 'text-fg-dim'}`}>{i + 1}</span>
-                    <span className="flex-1 text-sm text-fg truncate">{r.teamName}</span>
-                    <span className="text-xs text-fg-dim font-mono shrink-0">
-                      {r.points}pt · {r.teamWins}-{r.teamLosses} · {r.pointsFor}-{r.pointsAgainst}
-                    </span>
+                  <div key={r.teamId} className={`border-b border-border-subtle last:border-0 ${isTop ? 'bg-accent/5' : ''}`}>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5">
+                      <span className={`w-5 text-sm font-mono shrink-0 ${i === 0 ? 'text-accent' : i === 1 ? 'text-slate-200' : 'text-fg-dim'}`}>
+                        {i === 0 && isChampion ? '👑' : i + 1}
+                      </span>
+                      {isEditing ? (
+                        <input
+                          autoFocus
+                          value={editingTeamName}
+                          onChange={(e) => setEditingTeamName(e.target.value)}
+                          onBlur={saveTeamName}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveTeamName(); if (e.key === 'Escape') setEditingTeamId(null) }}
+                          className="flex-1 bg-elevated border border-accent rounded px-2 py-0.5 text-sm text-fg focus:outline-none min-w-0"
+                        />
+                      ) : (
+                        <span
+                          className="flex-1 text-sm text-fg truncate cursor-pointer hover:text-accent transition-colors"
+                          onClick={() => startEditTeamName(r.teamId, r.teamName)}
+                        >
+                          {r.teamName}
+                        </span>
+                      )}
+                      <span className="text-xs text-fg-dim font-mono shrink-0">
+                        {r.points}pt · {r.teamWins}-{r.teamLosses} · {r.pointsFor}-{r.pointsAgainst}
+                      </span>
+                    </div>
+                    {/* Team members */}
+                    {team && team.players.length > 0 && (
+                      <div className="px-4 pb-2.5 pt-0 flex flex-wrap gap-x-3 gap-y-0.5">
+                        {team.players.map((p) => (
+                          <span key={p.name} className="text-[10px] font-mono text-fg-dim">
+                            <span className="text-accent">{p.cls}</span> {p.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -185,6 +253,21 @@ export default function TeamTournamentPage() {
             )}
             {!groupComplete && groupMatches.length > 0 && (
               <p className="text-xs text-fg-dim text-center">Finish all 9 group matches to determine the final.</p>
+            )}
+            {/* Instagram post button */}
+            {standings.length > 0 && (
+              <button
+                onClick={async () => {
+                  const blob = await generateTeamStandingsPost(snap, standings)
+                  if (blob) {
+                    const file = new File([blob], `${snap.name.replace(/\s+/g, '_')}_standings.jpg`, { type: 'image/jpeg' })
+                    await shareOrDownload([file], `${snap.name} Standings`)
+                  }
+                }}
+                className="w-full py-3 rounded-lg border border-border-subtle text-fg-dim font-bold text-sm hover:text-fg hover:border-border transition-colors"
+              >
+                📸 Share Standings
+              </button>
             )}
           </>
         )}
@@ -217,15 +300,27 @@ export default function TeamTournamentPage() {
         {tab === 'final' && (
           <>
             {finalMatch ? (
-              <MatchCard
-                key={finalMatch.id}
-                match={finalMatch}
-                teams={teams}
-                saving={publish.isPending}
-                onChange={(_, pi, patch) => updatePartai((localMatches ?? snap.matches).findIndex((x) => x.id === finalMatch.id), pi, patch)}
-                matchIdx={(localMatches ?? snap.matches).findIndex((x) => x.id === finalMatch.id)}
-                onSave={() => localMatches && saveMatches(localMatches)}
-              />
+              <>
+                {/* Champion banner */}
+                {finalOutcome?.complete && championName && (
+                  <div className="bg-gradient-to-r from-accent/20 via-accent/10 to-accent/20 border border-accent/30 rounded-lg px-4 py-3 text-center">
+                    <p className="text-[10px] font-mono text-accent uppercase tracking-widest mb-1">Champion</p>
+                    <p className="text-lg font-bold text-fg">🏆 {championName}</p>
+                    <p className="text-xs text-fg-dim mt-0.5">
+                      {finalOutcome.aWins} - {finalOutcome.bWins}
+                    </p>
+                  </div>
+                )}
+                <MatchCard
+                  key={finalMatch.id}
+                  match={finalMatch}
+                  teams={teams}
+                  saving={publish.isPending}
+                  onChange={(_, pi, patch) => updatePartai((localMatches ?? snap.matches).findIndex((x) => x.id === finalMatch.id), pi, patch)}
+                  matchIdx={(localMatches ?? snap.matches).findIndex((x) => x.id === finalMatch.id)}
+                  onSave={() => localMatches && saveMatches(localMatches)}
+                />
+              </>
             ) : (
               <p className="text-fg-dim text-xs text-center py-8">
                 {groupComplete ? 'Click "Create Final" in the Standings tab.' : 'Finish the group phase first.'}

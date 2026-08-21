@@ -29,13 +29,19 @@ export default function NewTournamentWizard() {
   return <ClassicWizard />
 }
 
-// ── Team wizard: identity → 36 pemain + kelas → 6 tim → create ─────────────
+// ── Team wizard: identity → 36 pemain + kelas + tim → 6 tim → create ─────────
 
 const TEAM_CLASSES = ['A+', 'A', 'B+', 'B', 'C+', 'C'] as const
 type TeamClass = (typeof TEAM_CLASSES)[number]
+const TEAM_IDS = ['t1', 't2', 't3', 't4', 't5', 't6'] as const
+const TEAM_COUNT = 6
 
 const initialPlayers = () =>
-  Array.from({ length: 36 }, (_, i) => ({ name: '', cls: TEAM_CLASSES[i % 6] }))
+  Array.from({ length: 36 }, (_, i) => ({
+    name: '',
+    cls: TEAM_CLASSES[i % 6],
+    team: TEAM_IDS[i % TEAM_COUNT], // default: rotasi 1 per tim per kelas
+  }))
 
 function TeamWizard() {
   const navigate = useNavigate()
@@ -45,39 +51,47 @@ function TeamWizard() {
   const [name, setName] = useState('')
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [players, setPlayers] = useState(initialPlayers)
-  const [teamNames, setTeamNames] = useState(() => Array.from({ length: 6 }, (_, i) => `Tim ${i + 1}`)) // dipakai drawTeams
+  const [teamNames, setTeamNames] = useState(() => Array.from({ length: TEAM_COUNT }, (_, i) => `Tim ${i + 1}`))
   const [teams, setTeams] = useState<{ id: string; name: string; players: { name: string; cls: TeamClass }[] }[]>([])
 
-  // enforce: semua nama terisi & 6 per kelas
+  // enforce: semua nama terisi & 6 per kelas & 1 per tim per kelas
   const namesComplete = players.every((p) => p.name.trim() !== '')
   const classCount = TEAM_CLASSES.map((c) => players.filter((p) => p.cls === c).length)
-  const classesBalanced = classCount.every((n) => n === 6)
+  const classesBalanced = classCount.every((n) => n === TEAM_COUNT)
+  // cek setiap kombinasi tim×kelas = tepat 1 pemain
+  const teamClassMatrix = TEAM_IDS.map((t) =>
+    TEAM_CLASSES.map((c) => players.filter((p) => p.team === t && p.cls === c).length)
+  )
+  const matrixBalanced = teamClassMatrix.every((row) => row.every((n) => n === 1))
 
-  const updatePlayer = (i: number, patch: Partial<{ name: string; cls: TeamClass }>) => {
+  const updatePlayer = (i: number, patch: Partial<{ name: string; cls: TeamClass; team: string }>) => {
     setPlayers((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
   }
 
-  const drawTeams = () => {
-    // 36 pemain diacak, lalu 1 per kelas masuk ke tiap tim (6 tim × 6 kelas)
-    const shuffled = shuffle(players.map((p, i) => ({ ...p, idx: i })))
-    const next = Array.from({ length: 6 }, (_, i) => ({
-      id: `t${i + 1}`,
+  const formTeams = () => {
+    //Susun tim dari data manual (bukan random)
+    const next = Array.from({ length: TEAM_COUNT }, (_, i) => ({
+      id: TEAM_IDS[i],
       name: teamNames[i].trim() || `Tim ${i + 1}`,
       players: [] as { name: string; cls: TeamClass }[],
     }))
-    for (const cls of TEAM_CLASSES) {
-      const withClass = shuffled.filter((p) => p.cls === cls)
-      withClass.forEach((p, i) => {
-        next[i % 6].players.push({ name: p.name.trim(), cls: p.cls })
-      })
+    for (const p of players) {
+      const teamIdx = TEAM_IDS.indexOf(p.team as typeof TEAM_IDS[number])
+      if (teamIdx >= 0 && p.name.trim()) {
+        next[teamIdx].players.push({ name: p.name.trim(), cls: p.cls })
+      }
+    }
+    // sort players within each team by class order
+    const classOrder = Object.fromEntries(TEAM_CLASSES.map((c, i) => [c, i]))
+    for (const t of next) {
+      t.players.sort((a, b) => (classOrder[a.cls] ?? 0) - (classOrder[b.cls] ?? 0))
     }
     setTeams(next)
-    // sinkronkan nama default ke state teamNames (biar rename konsisten)
     setTeamNames((prev) => next.map((_, i) => prev[i].trim() || `Tim ${i + 1}`))
   }
 
   const handleCreate = () => {
-    if (!name.trim() || teams.length !== 6 || teams.some((t) => t.players.length !== 6)) return
+    if (!name.trim() || teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT)) return
     create(
       {
         format: 'team',
@@ -137,35 +151,44 @@ function TeamWizard() {
         <div className="flex flex-col gap-2.5">
           <p className="text-xs text-fg-dim">
             36 participants · kelas: {TEAM_CLASSES.map((c, i) => `${c}=${classCount[i]}`).join(' · ')}
-            <span className={classesBalanced ? ' text-success' : ' text-warning'}>
-              {classesBalanced ? ' ✓' : ' (must be 6 per class)'}
+            <span className={classesBalanced && matrixBalanced ? ' text-success' : ' text-warning'}>
+              {classesBalanced && matrixBalanced ? ' ✓' : ' (need 6 per class, 1 per team×class)'}
             </span>
           </p>
           <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
             {players.map((p, i) => (
-              <div key={i} className="flex items-center gap-2 px-3 py-2">
+              <div key={i} className="flex items-center gap-1.5 px-3 py-2">
                 <span className="w-6 text-xs font-mono text-fg-dim shrink-0">{i + 1}</span>
                 <input
                   value={p.name}
                   onChange={(e) => updatePlayer(i, { name: e.target.value })}
                   placeholder={`Participant ${i + 1}`}
-                  className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none min-w-0"
+                  className="flex-1 bg-elevated border border-border rounded-md px-2 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none min-w-0"
                 />
                 <select
                   value={p.cls}
                   onChange={(e) => updatePlayer(i, { cls: e.target.value as TeamClass })}
-                  className="bg-elevated border border-border rounded-md px-2 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none shrink-0"
+                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none shrink-0 w-14"
                 >
                   {TEAM_CLASSES.map((c) => (
                     <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <select
+                  value={p.team}
+                  onChange={(e) => updatePlayer(i, { team: e.target.value })}
+                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none shrink-0 w-16"
+                >
+                  {TEAM_IDS.map((t, idx) => (
+                    <option key={t} value={t}>{teamNames[idx] || `T${idx + 1}`}</option>
                   ))}
                 </select>
               </div>
             ))}
           </div>
           <button
-            onClick={() => setStep(3)}
-            disabled={!namesComplete || !classesBalanced}
+            onClick={() => { formTeams(); setStep(3) }}
+            disabled={!namesComplete || !classesBalanced || !matrixBalanced}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Next
@@ -176,17 +199,17 @@ function TeamWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-fg-dim">Team names (1 player per class)</p>
+            <p className="text-xs text-fg-dim">Team rosters (1 player per class)</p>
             <button
-              onClick={drawTeams}
+              onClick={formTeams}
               className="text-xs px-3 py-1.5 rounded-md border border-border-subtle text-fg-dim hover:text-fg"
             >
-              {teams.length === 6 ? 'Re-draw' : 'Form Teams'}
+              Refresh
             </button>
           </div>
           {teams.length === 0 && (
             <p className="text-xs text-fg-dim">
-              Click <span className="text-accent">Form Teams</span> to split the 36 participants into teams.
+              Data tim akan muncul setelah Anda mengisi pemain di Step 2.
             </p>
           )}
           <div className="flex flex-col gap-2.5">
@@ -201,7 +224,7 @@ function TeamWizard() {
                     className="flex-1 bg-transparent text-sm font-semibold text-fg focus:outline-none"
                   />
                   <span className="text-[10px] font-mono text-fg-dim uppercase tracking-wider">
-                    {t.players.length}/6
+                    {t.players.length}/{TEAM_COUNT}
                   </span>
                 </div>
                 <div className="px-3 py-2 flex flex-wrap gap-x-3 gap-y-1">
@@ -216,7 +239,7 @@ function TeamWizard() {
           </div>
           <button
             onClick={handleCreate}
-            disabled={teams.length !== 6 || teams.some((t) => t.players.length !== 6) || isPending}
+            disabled={teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT) || isPending}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isPending ? 'Creating…' : 'Create Tournament'}
