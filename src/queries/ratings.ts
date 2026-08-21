@@ -39,6 +39,7 @@ export function useSeasonStandings(seasonId: string | null) {
 // RatingSourceRow — dari GET /ratings/sources
 export interface RatingSourceRow {
   source_id: string
+  source_name: string // resolved name (session title or tournament name)
   source_kind: string
   finalized: boolean
   ingested_at: string
