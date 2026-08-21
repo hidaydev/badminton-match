@@ -20,6 +20,11 @@ function backoffDelayMs(attempt: number): number {
   return Math.min(RETRY_BASE_DELAY_MS * 2 ** attempt, RETRY_MAX_DELAY_MS)
 }
 
+// Module-level mutable state — shared across all imports in the same tab.
+// Risk: If setAdminToken is called while a request is in flight, the token
+// on the in-flight request is already set (captured in headers object).
+// However, Authorization header is constructed fresh on each request call,
+// so this is safe in practice. Logout clears the token.
 let adminToken = ''
 
 /** Set admin token (Bearer) untuk semua request — dipanggil AdminContext. */
@@ -300,34 +305,44 @@ export async function publishTournament(id: string, data: AnyTournamentSnapshot)
 
 /** Create tournament (classic atau team — format di body). Kembalikan id baru
  * (dari header Location) + snapshot hasil create. Fetch langsung (bukan request)
- * karena mutasi tidak di-retry — dan butuh akses header. */
+ * karena butuh akses header. Includes retry for network failures. */
 export async function createTournament(data: AnyTournamentSnapshot): Promise<{ id: string; snapshot: AnyTournamentSnapshot }> {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
-  try {
-    const res = await fetch(`${BASE_URL}/tournaments`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-      signal: controller.signal,
-    })
-    if (!res.ok) {
-      let message = `${res.status} ${res.statusText}`
-      let code: string | null = null
-      try {
-        const json = await res.json() as { error?: { message?: string; code?: string } }
-        message = json.error?.message ?? message
-        code = json.error?.code ?? null
-      } catch { /* keep status text */ }
-      throw new ApiError(message, code, res.status)
+  const maxRetries = 2
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+    try {
+      const res = await fetch(`${BASE_URL}/tournaments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+        signal: controller.signal,
+      })
+      if (!res.ok) {
+        let message = `${res.status} ${res.statusText}`
+        let code: string | null = null
+        try {
+          const json = await res.json() as { error?: { message?: string; code?: string } }
+          message = json.error?.message ?? message
+          code = json.error?.code ?? null
+        } catch { /* keep status text */ }
+        throw new ApiError(message, code, res.status)
+      }
+      const snapshot = await res.json() as AnyTournamentSnapshot
+      const loc = res.headers.get('Location') ?? ''
+      const id = loc.split('/').pop() ?? ''
+      return { id, snapshot }
+    } catch (err) {
+      clearTimeout(timeoutId)
+      // Retry on network errors (AbortError, TypeError), not on API errors
+      if (attempt < maxRetries && (err instanceof DOMException || err instanceof TypeError)) {
+        await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
+        continue
+      }
+      throw err
     }
-    const snapshot = await res.json() as AnyTournamentSnapshot
-    const loc = res.headers.get('Location') ?? ''
-    const id = loc.split('/').pop() ?? ''
-    return { id, snapshot }
-  } finally {
-    clearTimeout(timeoutId)
   }
+  throw new Error('unreachable')
 }
 
 // ── Rating (plan RATINGS_FRONTEND_PLAN.md §6.3) ───────────────────────────

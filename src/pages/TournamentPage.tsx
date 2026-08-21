@@ -94,14 +94,20 @@ export default function TournamentPage() {
   // Halaman ini khusus format classic — narrow dari union snapshot.
   const classic = snapshot && snapshot.format !== 'team' ? snapshot : null
 
-  const handleOpenModal = () => {
-    queryClient.invalidateQueries({ queryKey: ['tournament', id] })
+  const handleOpenModal = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['tournament', id] })
   }
 
   const pairs = classic?.pairs ?? INITIAL_PAIRS
   const committedGroups = classic?.groups ?? EMPTY_GROUPS
   const matches = classic?.matches ?? []
   const name = classic?.name ?? 'MAJADU Internal Tournament 2026'
+
+  // Sync localGroups with server when committedGroups changes (e.g., after refetch)
+  // Handled by reading from committedGroups directly in the render, not via useEffect
+  if (classic && committedGroups !== localGroups) {
+    setLocalGroups(committedGroups)
+  }
   const date = classic?.date ?? '2026-05-23'
 
   const groupsFull = GROUP_IDS.every((g) => committedGroups[g].length === 4)

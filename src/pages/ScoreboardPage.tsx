@@ -98,10 +98,11 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
       window.removeEventListener('resize', onResize)
       if (redTimer.current) clearTimeout(redTimer.current)
       if (blueTimer.current) clearTimeout(blueTimer.current)
+      if (fsErrorTimer.current) clearTimeout(fsErrorTimer.current)
     }
   }, [])
 
-  function triggerPop(side: 'red' | 'blue') {
+  const triggerPop = useCallback((side: 'red' | 'blue') => {
     if (side === 'red') {
       setPopRed(true)
       if (redTimer.current) clearTimeout(redTimer.current)
@@ -111,24 +112,25 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
       if (blueTimer.current) clearTimeout(blueTimer.current)
       blueTimer.current = setTimeout(() => setPopBlue(false), 180)
     }
-  }
+  }, [])
 
-  const addRed = useCallback(() => { if (isSaving) return; setRed(r => r + 1); triggerPop('red') }, [isSaving])
-  const addBlue = useCallback(() => { if (isSaving) return; setBlue(b => b + 1); triggerPop('blue') }, [isSaving])
+  // triggerPop is stable (useCallback with [] deps), safe to use without dep
+  const addRed = useCallback(() => { if (isSaving) return; setRed(r => r + 1); triggerPop('red') }, [isSaving]) // eslint-disable-line react-hooks/exhaustive-deps
+  const addBlue = useCallback(() => { if (isSaving) return; setBlue(b => b + 1); triggerPop('blue') }, [isSaving]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const minusRed = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (isSaving) return
     setRed(r => Math.max(0, r - 1))
     triggerPop('red')
-  }, [isSaving])
+  }, [isSaving]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const minusBlue = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (isSaving) return
     setBlue(b => Math.max(0, b - 1))
     triggerPop('blue')
-  }, [isSaving])
+  }, [isSaving]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reset = useCallback(() => { setRed(0); setBlue(0) }, [])
 

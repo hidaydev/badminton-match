@@ -41,8 +41,9 @@ export default function TeamTournamentPage() {
 
   const publish = useMutation({
     mutationFn: async (matches: TeamMatch[]) => {
-      if (!snap) throw new Error('no data')
-      const next: TeamTournamentSnapshot = { ...snap, version: snap.version, matches }
+      const currentSnap = queryClient.getQueryData<TeamTournamentSnapshot>(['tournament', id])
+      if (!currentSnap || currentSnap.format !== 'team') throw new Error('no data')
+      const next: TeamTournamentSnapshot = { ...currentSnap, version: currentSnap.version, matches }
       return await publishTournament(id, next)
     },
     onSuccess: async () => {
@@ -82,9 +83,14 @@ export default function TeamTournamentPage() {
       const updatedTeams = teams.map((t) =>
         t.id === editingTeamId ? { ...t, name: editingTeamName.trim() } : t
       )
-      const next: TeamTournamentSnapshot = { ...snap, teams: updatedTeams }
+      const currentSnap = queryClient.getQueryData<TeamTournamentSnapshot>(['tournament', id])
+      if (!currentSnap || currentSnap.format !== 'team') return
+      const next: TeamTournamentSnapshot = { ...currentSnap, teams: updatedTeams }
       publishTournament(id, next).then(() => {
         queryClient.invalidateQueries({ queryKey: ['tournament', id] })
+        setPublishError(null)
+      }).catch((err) => {
+        setPublishError(err instanceof Error ? err.message : 'Failed to save team name.')
       })
     }
     setEditingTeamId(null)
@@ -152,7 +158,9 @@ export default function TeamTournamentPage() {
       if (i !== matchIdx) return m
       const courts = [...(m.courts ?? ['Court 1', 'Court 2', 'Court 3'])]
       courts[courtIdx] = name
-      return { ...m, courts: courts as [string, string, string] }
+      // Ensure exactly 3 courts (pad if needed)
+      while (courts.length < 3) courts.push(`Court ${courts.length + 1}`)
+      return { ...m, courts: courts.slice(0, 3) as [string, string, string] }
     })
     setLocalMatches(matches)
   }

@@ -60,6 +60,10 @@ export function setScoreInSnapshot(
   // Reject invalid scores (equal or negative)
   if (validateScore(a, b) !== null) return snapshot
 
+  // Validate that the key corresponds to an actual schedule slot
+  const validKeys = new Set(snapshot.schedule.map(s => `${s.slot}-${s.court}`))
+  if (!validKeys.has(key)) return snapshot
+
   const playedGames = snapshot.playedGames.includes(key)
     ? snapshot.playedGames
     : [...snapshot.playedGames, key]
@@ -106,6 +110,12 @@ export function setAbsentPlayersInSnapshot(
   }
 }
 
+/**
+ * Replace player name in snapshot — ONLY updates the players array name field.
+ * Does NOT update schedule slot references (teamA/teamB).
+ * Use within useChangePlayer which applies schedule changes separately.
+ * Do NOT use standalone — will create mismatched state.
+ */
 export function replacePlayerNameInSnapshot(
   snapshot: CloudSnapshot,
   playerId: string,
