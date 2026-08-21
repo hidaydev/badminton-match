@@ -55,3 +55,26 @@ jobs:
             VERSION=${{ github.ref_name }}
             COMMIT=${{ github.sha }}
             DATE=${{ github.event.head_commit.timestamp }}
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            # Pull image baru
+            podman pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            # Restart container yang sesuai branch
+            if [ "${{ github.ref_name }}" = "main" ]; then
+              systemctl --user restart majadu-api
+              echo "Restarted majadu-api (prod)"
+            else
+              systemctl --user restart majadu-api-dev
+              echo "Restarted majadu-api-dev (dev)"
+            fi
