@@ -32,7 +32,11 @@ export default function TeamTournamentPage() {
   // during render" — rekomendasi React, bukan setState di effect).
   if (snap && snap !== prevSnap) {
     setPrevSnap(snap)
-    setLocalMatches(snap.matches.map((m) => ({ ...m, partai: m.partai.map((p) => ({ ...p })) })))
+    setLocalMatches(snap.matches.map((m) => ({
+      ...m,
+      courts: m.courts ?? ['Court 1', 'Court 2', 'Court 3'],
+      partai: m.partai.map((p) => ({ ...p })),
+    })))
   }
 
   const publish = useMutation({
