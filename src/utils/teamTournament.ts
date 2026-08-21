@@ -31,6 +31,7 @@ export interface TeamMatch {
   teamA: string
   teamB: string
   partai: TeamPartai[]
+  courts: [string, string, string] // 3 court names, one per partai
 }
 
 export interface TeamTournamentSnapshot {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGetTournament } from '../queries'
 import { publishTournament } from '../queries/endpoints'
@@ -17,7 +17,6 @@ type Tab = 'klasemen' | 'jadwal' | 'final'
 /** Halaman tournament format TIM: klasemen, undian, jadwal skor partai, final. */
 export default function TeamTournamentPage() {
   const { id = '' } = useParams()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data, isFetching } = useGetTournament(id)
   const snap = data && data.format === 'team' ? data : null
@@ -111,6 +110,7 @@ export default function TeamTournamentPage() {
       teamA: a,
       teamB: b,
       partai: [{ scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }],
+      courts: ['Court 1', 'Court 2', 'Court 3'],
     }))
     saveMatches(matches)
     setTab('jadwal')
@@ -126,6 +126,7 @@ export default function TeamTournamentPage() {
       teamA: first.teamId,
       teamB: second.teamId,
       partai: [{ scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }],
+      courts: ['Court 1', 'Court 2', 'Court 3'],
     }
     saveMatches([...(localMatches ?? snap.matches), final])
     setTab('final')
@@ -138,6 +139,17 @@ export default function TeamTournamentPage() {
         ? { ...m, partai: m.partai.map((p, j) => (j === partaiIdx ? { ...p, ...patch } : p)) }
         : m
     )
+    setLocalMatches(matches)
+  }
+
+  const updateCourt = (matchIdx: number, courtIdx: number, name: string) => {
+    if (!localMatches) return
+    const matches = localMatches.map((m, i) => {
+      if (i !== matchIdx) return m
+      const courts = [...(m.courts ?? ['Court 1', 'Court 2', 'Court 3'])]
+      courts[courtIdx] = name
+      return { ...m, courts: courts as [string, string, string] }
+    })
     setLocalMatches(matches)
   }
 
@@ -254,15 +266,6 @@ export default function TeamTournamentPage() {
             {!groupComplete && groupMatches.length > 0 && (
               <p className="text-xs text-fg-dim text-center">Finish all 9 group matches to determine the final.</p>
             )}
-            {/* Instagram post button */}
-            {standings.length > 0 && (
-              <button
-                onClick={() => navigate(`/tournaments/${id}/share`)}
-                className="w-full py-3 rounded-lg border border-border-subtle text-fg-dim font-bold text-sm hover:text-fg hover:border-border transition-colors"
-              >
-                📸 Share Standings
-              </button>
-            )}
           </>
         )}
 
@@ -284,6 +287,7 @@ export default function TeamTournamentPage() {
                 teams={teams}
                 saving={publish.isPending}
                 onChange={(_, pi, patch) => updatePartai(mi, pi, patch)}
+                onUpdateCourt={(matchIdx, courtIdx, name) => updateCourt(matchIdx, courtIdx, name)}
                 matchIdx={mi}
                 onSave={() => localMatches && saveMatches(localMatches)}
               />
@@ -311,6 +315,7 @@ export default function TeamTournamentPage() {
                   teams={teams}
                   saving={publish.isPending}
                   onChange={(_, pi, patch) => updatePartai((localMatches ?? snap.matches).findIndex((x) => x.id === finalMatch.id), pi, patch)}
+                  onUpdateCourt={(matchIdx, courtIdx, name) => updateCourt(matchIdx, courtIdx, name)}
                   matchIdx={(localMatches ?? snap.matches).findIndex((x) => x.id === finalMatch.id)}
                   onSave={() => localMatches && saveMatches(localMatches)}
                 />
@@ -337,6 +342,7 @@ function MatchCard({
   saving,
   matchIdx,
   onChange,
+  onUpdateCourt,
   onSave,
 }: {
   match: TeamMatch
@@ -344,12 +350,13 @@ function MatchCard({
   saving: boolean
   matchIdx: number
   onChange: (matchIdx: number, partaiIdx: number, patch: Partial<{ scoreA: number | null; scoreB: number | null }>) => void
+  onUpdateCourt: (matchIdx: number, courtIdx: number, name: string) => void
   onSave: () => void
 }) {
   const out = teamMatchOutcome(match)
   const target = teamTarget(match.phase)
   const dirty = match.partai.some((p) => p.scoreA !== null || p.scoreB !== null)
-  const label = match.phase === 'final' ? 'FINAL' : `Group · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
+  const label = match.phase === 'final' ? `FINAL · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}` : `Group · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
 
   const getTeamPlayer = (teamId: string, cls: string) => {
     const team = teams.find((t) => t.id === teamId)
@@ -357,6 +364,7 @@ function MatchCard({
   }
 
   const partaiClasses = ['C+', 'A+', 'B+']
+  const courts = match.courts ?? ['Court 1', 'Court 2', 'Court 3']
 
   return (
     <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
@@ -364,7 +372,7 @@ function MatchCard({
         <span className="text-xs font-mono text-fg-dim uppercase tracking-wider">{label}</span>
         {dirty && (
           <span className="text-[10px] font-mono text-fg-dim">
-            {out.complete ? `${out.aWins}-${out.bWins}${match.phase === 'final' && out.aWins + out.bWins === 3 ? ' (rubber 3 still played)' : ''}` : 'incomplete'}
+            {out.complete ? `${out.aWins}-${out.bWins}` : 'incomplete'}
           </span>
         )}
       </div>
@@ -400,6 +408,17 @@ function MatchCard({
                 <span className="flex-1 text-[10px] font-mono text-fg-dim truncate text-right">
                   {getTeamPlayer(match.teamB, cls)}/{getTeamPlayer(match.teamB, pair)}
                 </span>
+              </div>
+              {/* Court assignment */}
+              <div className="flex items-center gap-2 pl-12">
+                <span className="text-[9px] font-mono text-fg-dim">📍</span>
+                <input
+                  type="text"
+                  value={courts[pi]}
+                  onChange={(e) => onUpdateCourt(matchIdx, pi, e.target.value)}
+                  className="flex-1 bg-transparent text-[10px] font-mono text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none"
+                  placeholder={`Court ${pi + 1}`}
+                />
               </div>
             </div>
           )
