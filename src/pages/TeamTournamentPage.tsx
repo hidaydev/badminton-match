@@ -359,7 +359,10 @@ function MatchCard({
 }) {
   const out = teamMatchOutcome(match)
   const target = teamTarget(match.phase)
-  const dirty = match.partai.some((p) => p.scoreA !== null || p.scoreB !== null)
+  const defaultCourts = ['Court 1', 'Court 2', 'Court 3']
+  const courts = match.courts ?? defaultCourts
+  const courtsChanged = courts.some((c, i) => c !== defaultCourts[i])
+  const dirty = match.partai.some((p) => p.scoreA !== null || p.scoreB !== null) || courtsChanged
   const label = match.phase === 'final' ? `FINAL · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}` : `Group · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
 
   const getTeamPlayer = (teamId: string, cls: string) => {
@@ -368,7 +371,6 @@ function MatchCard({
   }
 
   const partaiClasses = ['C+', 'A+', 'B+']
-  const courts = match.courts ?? ['Court 1', 'Court 2', 'Court 3']
 
   return (
     <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
