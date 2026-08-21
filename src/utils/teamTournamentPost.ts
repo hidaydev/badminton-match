@@ -2,7 +2,7 @@
 // Frame unik: dark gradient background dengan accent color border.
 
 import { canvasToBlob } from './share'
-import type { TeamTournamentSnapshot, StandingRow } from './teamTournament'
+import type { TeamTournamentSnapshot, TeamStandingRow } from './teamTournament'
 
 const WIDTH = 1080
 const HEIGHT = 1080
@@ -22,7 +22,7 @@ const BORDER = '#334155'    // slate-700
  */
 export async function generateTeamStandingsPost(
   snap: TeamTournamentSnapshot,
-  standings: StandingRow[],
+  standings: TeamStandingRow[],
 ): Promise<Blob | null> {
   const canvas = document.createElement('canvas')
   canvas.width = WIDTH

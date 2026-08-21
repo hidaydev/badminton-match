@@ -36,11 +36,14 @@ type TeamClass = (typeof TEAM_CLASSES)[number]
 const TEAM_IDS = ['t1', 't2', 't3', 't4', 't5', 't6'] as const
 const TEAM_COUNT = 6
 
-const initialPlayers = () =>
+type TeamId = typeof TEAM_IDS[number]
+type TeamPlayer = { name: string; cls: TeamClass; team: TeamId }
+
+const initialPlayers = (): TeamPlayer[] =>
   Array.from({ length: 36 }, (_, i) => ({
     name: '',
     cls: TEAM_CLASSES[i % 6],
-    team: TEAM_IDS[i % TEAM_COUNT], // default: rotasi 1 per tim per kelas
+    team: TEAM_IDS[i % TEAM_COUNT],
   }))
 
 function TeamWizard() {
@@ -64,7 +67,7 @@ function TeamWizard() {
   )
   const matrixBalanced = teamClassMatrix.every((row) => row.every((n) => n === 1))
 
-  const updatePlayer = (i: number, patch: Partial<{ name: string; cls: TeamClass; team: string }>) => {
+  const updatePlayer = (i: number, patch: Partial<{ name: string; cls: TeamClass; team: typeof TEAM_IDS[number] }>) => {
     setPlayers((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
   }
 
@@ -176,7 +179,7 @@ function TeamWizard() {
                 </select>
                 <select
                   value={p.team}
-                  onChange={(e) => updatePlayer(i, { team: e.target.value })}
+                  onChange={(e) => updatePlayer(i, { team: e.target.value as TeamId })}
                   className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-mono text-fg focus:border-accent focus:outline-none shrink-0 w-16"
                 >
                   {TEAM_IDS.map((t, idx) => (
