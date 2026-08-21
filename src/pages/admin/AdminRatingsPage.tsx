@@ -42,7 +42,7 @@ export default function AdminRatingsPage() {
               {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-4">{t('admin.noSources')}</p>}
               {slice.map((src) => (
                 <div key={src.source_id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <span className="flex-1 min-w-0 text-fg truncate font-sans text-xs">{src.source_id}</span>
+                  <span className="flex-1 min-w-0 text-fg truncate font-sans text-xs">{src.source_name}</span>
                   <span className="text-[10px] font-sans text-fg-dim">{src.event_count} ev</span>
                   {src.source_kind.startsWith('tournament') && (
                     <ActionButton
