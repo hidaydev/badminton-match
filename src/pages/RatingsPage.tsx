@@ -31,7 +31,7 @@ export default function RatingsPage() {
         <select
           value={seasonId ?? ''}
           onChange={(e) => { setSeasonId(e.target.value || null); setOffset(0) }}
-          className="bg-elevated border border-border-subtle rounded-lg px-2 py-1.5 text-xs font-mono text-fg focus:outline-none focus:border-accent"
+          className="bg-elevated border border-border-subtle rounded-lg px-2 py-1.5 text-xs font-sans text-fg focus:outline-none focus:border-accent"
           aria-label="Pilih musim"
         >
           <option value="">Current season</option>
@@ -55,7 +55,7 @@ export default function RatingsPage() {
         </div>
       </div>
 
-      <p className="text-xs font-mono text-fg-dim">
+      <p className="text-xs font-sans text-fg-dim">
         {loading ? 'Loading…' : <><span className="text-accent">{total}</span> player{total !== 1 ? 's' : ''} · updates automatically when sessions lock</>}
       </p>
 
@@ -74,7 +74,7 @@ export default function RatingsPage() {
       )}
 
       {!error && !loading && rows.length === 0 && (
-        <p className="text-fg-dim text-xs font-mono text-center py-8">
+        <p className="text-fg-dim text-xs font-sans text-center py-8">
           No ratings yet — ratings appear automatically once sessions are locked.
         </p>
       )}
@@ -84,10 +84,10 @@ export default function RatingsPage() {
         <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden divide-y divide-border-subtle">
           {(frozen ?? []).map((r, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-              <span className={`w-6 text-sm font-mono shrink-0 ${i === 0 ? 'text-accent' : i < 3 ? 'text-slate-200' : 'text-fg-dim'}`}>{i + 1}</span>
+              <span className={`w-6 text-sm font-sans shrink-0 ${i === 0 ? 'text-accent' : i < 3 ? 'text-slate-200' : 'text-fg-dim'}`}>{i + 1}</span>
               <RatingTierBadge tier={r.tier_display} />
               <span className="flex-1 min-w-0 truncate text-sm font-medium text-fg">{r.name}</span>
-              <span className="shrink-0 text-right font-mono">
+              <span className="shrink-0 text-right font-sans">
                 <span className="block text-sm font-bold text-fg">{r.rating.toFixed(0)}</span>
                 <span className="block text-[10px] text-fg-dim">{r.games} game{r.games !== 1 ? 's' : ''} · {r.wins}-{r.losses}</span>
               </span>
@@ -114,17 +114,17 @@ export default function RatingsPage() {
                 onClick={() => navigate(`/ratings/${r.player_id}`)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
               >
-                <span className={`w-6 text-sm font-mono shrink-0 ${medal}`}>{rank}</span>
+                <span className={`w-6 text-sm font-sans shrink-0 ${medal}`}>{rank}</span>
                 <RatingTierBadge tier={r.tier_display} />
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-medium text-fg truncate">{r.name}</span>
-                  <span className="block text-[10px] font-mono text-fg-dim">
+                  <span className="block text-[10px] font-sans text-fg-dim">
                     {r.games} game{r.games !== 1 ? 's' : ''}
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
-                  <span className="block text-sm font-bold font-mono text-fg">{r.rating.toFixed(0)}</span>
-                  <span className="block text-[10px] font-mono flex items-center gap-1 justify-end">
+                  <span className="block text-sm font-bold font-sans text-fg">{r.rating.toFixed(0)}</span>
+                  <span className="block text-[10px] font-sans flex items-center gap-1 justify-end">
                     <span className={trendColor}>{trendLabel}</span>
                     {r.provisional && (
                       <span className="text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 uppercase tracking-wider text-[8px]">

@@ -4,7 +4,6 @@
 @theme {
   /* Typography */
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 
   /* ── Neutral: graphite (warm-dark) — remap seluruh scale slate ────────── */
   --color-slate-50:  #eef0f3;

@@ -81,7 +81,7 @@ export default function SessionLayout() {
                 )
               })}
             </div>
-            <span className="text-[10px] font-mono text-fg-dim uppercase shrink-0" style={{ letterSpacing: '0.08em' }}>
+            <span className="text-[10px] font-sans text-fg-dim uppercase shrink-0" style={{ letterSpacing: '0.08em' }}>
               {currentIndex + 1} · {steps[currentIndex].label}
             </span>
           </div>

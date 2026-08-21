@@ -42,8 +42,8 @@ export default function RatingPlayerPage() {
           </div>
         </div>
         <span className="text-right">
-          <span className="block text-2xl font-bold font-mono text-accent leading-none">{rating.toFixed(0)}</span>
-          <span className="block text-[10px] font-mono text-fg-dim mt-1">RD {rd.toFixed(1)}</span>
+          <span className="block text-2xl font-bold font-sans text-accent leading-none">{rating.toFixed(0)}</span>
+          <span className="block text-[10px] font-sans text-fg-dim mt-1">RD {rd.toFixed(1)}</span>
         </span>
       </div>
 
@@ -56,22 +56,22 @@ export default function RatingPlayerPage() {
           { label: 'Tier', value: tier || '—' },
         ].map((s) => (
           <div key={s.label} className="bg-surface border border-border-subtle rounded-lg p-2.5 text-center">
-            <div className="text-base font-bold font-mono text-fg">{s.value}</div>
-            <div className="text-[10px] font-mono text-fg-dim uppercase tracking-wider mt-0.5">{s.label}</div>
+            <div className="text-base font-bold font-sans text-fg">{s.value}</div>
+            <div className="text-[10px] font-sans text-fg-dim uppercase tracking-wider mt-0.5">{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Sparkline */}
       <div className="bg-surface border border-border-subtle rounded-lg p-3">
-        <p className="text-[10px] font-mono text-fg-dim uppercase tracking-wider mb-2">Rating trend</p>
+        <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider mb-2">Rating trend</p>
         <RatingSparkline points={chrono} />
       </div>
 
       {/* Recent matches */}
       <div className="flex flex-col gap-1.5">
-        <p className="text-[10px] font-mono text-fg-dim uppercase tracking-wider px-1">Recent matches</p>
-        {history.length === 0 && <p className="text-fg-dim text-xs font-mono text-center py-6">No matches yet.</p>}
+        <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider px-1">Recent matches</p>
+        {history.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">No matches yet.</p>}
         {history.slice(matchesPage * MATCHES_PER_PAGE, (matchesPage + 1) * MATCHES_PER_PAGE).map((h, i) => {
           const won = h.outcome === 'W'
           return (
@@ -79,11 +79,11 @@ export default function RatingPlayerPage() {
               <span className={`text-xs font-bold ${won ? 'text-emerald-400' : 'text-red-400'}`}>{won ? 'W' : 'L'}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-fg truncate">{h.title}</p>
-                <p className="text-[10px] font-mono text-fg-dim">
+                <p className="text-[10px] font-sans text-fg-dim">
                   {h.date} · {h.score_a}-{h.score_b} · {h.game_ref}
                 </p>
               </div>
-              <span className={`text-xs font-mono font-bold shrink-0 ${h.delta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <span className={`text-xs font-sans font-bold shrink-0 ${h.delta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {h.delta > 0 ? '+' : ''}{h.delta.toFixed(1)}
               </span>
             </div>
@@ -98,7 +98,7 @@ export default function RatingPlayerPage() {
             >
               ← Prev
             </button>
-            <span className="text-[10px] font-mono text-fg-dim">
+            <span className="text-[10px] font-sans text-fg-dim">
               {matchesPage + 1}/{Math.ceil(history.length / MATCHES_PER_PAGE)}
             </span>
             <button
@@ -114,8 +114,8 @@ export default function RatingPlayerPage() {
 
       {/* Career (bekas Player History) */}
       <div className="flex flex-col gap-2">
-        <p className="text-[10px] font-mono text-fg-dim uppercase tracking-wider px-1">Career</p>
-        {stats ? <CareerStats stats={stats} /> : <p className="text-fg-dim text-xs font-mono text-center py-6">No career stats yet.</p>}
+        <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider px-1">Career</p>
+        {stats ? <CareerStats stats={stats} /> : <p className="text-fg-dim text-xs font-sans text-center py-6">No career stats yet.</p>}
       </div>
     </div>
   )

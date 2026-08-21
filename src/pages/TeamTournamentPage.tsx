@@ -204,7 +204,7 @@ export default function TeamTournamentPage() {
                 return (
                   <div key={r.teamId} className={`border-b border-border-subtle last:border-0 ${isTop ? 'bg-accent/5' : ''}`}>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5">
-                      <span className={`w-5 text-sm font-mono shrink-0 ${i === 0 ? 'text-accent' : i === 1 ? 'text-slate-200' : 'text-fg-dim'}`}>
+                      <span className={`w-5 text-sm font-sans shrink-0 ${i === 0 ? 'text-accent' : i === 1 ? 'text-slate-200' : 'text-fg-dim'}`}>
                         {i === 0 && isChampion ? '👑' : i + 1}
                       </span>
                       {isEditing ? (
@@ -227,7 +227,7 @@ export default function TeamTournamentPage() {
                           </span>
                         </span>
                       )}
-                      <span className="text-xs text-fg-dim font-mono shrink-0">
+                      <span className="text-xs text-fg-dim font-sans shrink-0">
                         {r.points}pt · {r.teamWins}-{r.teamLosses} · {r.pointsFor}-{r.pointsAgainst}
                       </span>
                     </div>
@@ -392,7 +392,7 @@ function MatchCard({
                   max={target}
                   value={match.partai[pi].scoreA ?? ''}
                   onChange={(e) => onChange(matchIdx, pi, { scoreA: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
-                  className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-mono text-fg text-center focus:border-accent focus:outline-none"
+                  className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-sans text-fg text-center focus:border-accent focus:outline-none"
                   aria-label={`Score ${teamName(teams, match.teamA)} partai ${pi + 1}`}
                 />
                 <span className="text-fg-dim text-xs shrink-0">:</span>
@@ -402,7 +402,7 @@ function MatchCard({
                   max={target}
                   value={match.partai[pi].scoreB ?? ''}
                   onChange={(e) => onChange(matchIdx, pi, { scoreB: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
-                  className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-mono text-fg text-center focus:border-accent focus:outline-none"
+                  className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-sans text-fg text-center focus:border-accent focus:outline-none"
                   aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
                 />
                 <span className="flex-1 text-[11px] text-fg-dim truncate text-right">

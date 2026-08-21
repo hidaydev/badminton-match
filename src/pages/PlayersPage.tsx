@@ -268,7 +268,7 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
         onChange={(e) => setText(e.target.value)}
         placeholder={"1. Rakha ✅\n2. Vina ✅\n3. Fakhri ✅"}
         rows={6}
-        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm font-mono focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 resize-none"
+        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm font-sans focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 resize-none"
       />
       {preview.length > 0 && (
         <div className="flex flex-col gap-1">

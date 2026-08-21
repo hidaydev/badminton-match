@@ -21,12 +21,12 @@ export default function TournamentListPage() {
         </button>
       </div>
 
-      <p className="text-xs font-mono text-fg-dim">
+      <p className="text-xs font-sans text-fg-dim">
         <span className="text-accent">{tournaments.length}</span> tournament{tournaments.length !== 1 ? 's' : ''}
       </p>
 
       {tournaments.length === 0 && (
-        <p className="text-fg-dim text-xs font-mono text-center py-8">
+        <p className="text-fg-dim text-xs font-sans text-center py-8">
           No tournaments yet.
         </p>
       )}
@@ -41,10 +41,10 @@ export default function TournamentListPage() {
             >
               <div className="flex flex-col min-w-0 flex-1">
                 <p className="text-sm font-semibold text-fg truncate">{t.name || 'Untitled Tournament'}</p>
-                <p className="text-xs text-fg-dim mt-0.5 font-mono">{t.date.split('-').reverse().join('-')}</p>
+                <p className="text-xs text-fg-dim mt-0.5 font-sans">{t.date.split('-').reverse().join('-')}</p>
               </div>
               <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                <span className={`text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                <span className={`text-[10px] font-sans uppercase tracking-wider px-1.5 py-0.5 rounded border ${
                   t.format === 'team' ? 'text-accent border-accent/40' : 'text-fg-dim border-border'
                 }`}>
                   {t.format === 'team' ? 'team' : 'classic'}

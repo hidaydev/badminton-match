@@ -20,7 +20,7 @@ export default function ActionButton({ onClick, children, tone = 'neutral', disa
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`text-[10px] font-mono px-2 py-1 rounded border transition-colors disabled:opacity-40 ${tones[tone]}`}
+      className={`text-[10px] font-sans px-2 py-1 rounded border transition-colors disabled:opacity-40 ${tones[tone]}`}
     >
       {children}
     </button>

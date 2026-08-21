@@ -91,7 +91,7 @@ export function ScoreboardSide({
 
       {/* Score */}
       <span
-        className="text-white font-black font-mono leading-none pointer-events-none"
+        className="text-white font-black font-sans leading-none pointer-events-none"
         style={{
           fontSize: 'clamp(6rem, 22vmax, 13rem)',
           transform: isPop ? 'scale(1.1)' : 'scale(1)',
