@@ -33,6 +33,7 @@ type TeamMatch struct {
 	TeamA  string       `json:"teamA"`
 	TeamB  string       `json:"teamB"`
 	Partai []TeamPartai `json:"partai"`
+	Courts [3]string    `json:"courts"` // 3 court names, one per partai
 }
 
 // TeamPartai — skor satu partai. Kedua skor null = belum dimainkan.

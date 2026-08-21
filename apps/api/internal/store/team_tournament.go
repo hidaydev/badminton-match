@@ -133,7 +133,7 @@ func (s *TournamentStore) TeamLoad(ctx context.Context, id string) (*domain.Team
 	// matches + games
 	rows, err = s.pool.Query(ctx, `
 		SELECT tm.match_key, tm.phase, tm.match_order,
-		       ta.seed, tb.seed, tm.id::text
+		       ta.seed, tb.seed, tm.id::text, tm.courts
 		FROM tournament_team_matches tm
 		LEFT JOIN tournament_teams ta ON ta.id = tm.team_a_id
 		LEFT JOIN tournament_teams tb ON tb.id = tm.team_b_id
@@ -148,8 +148,9 @@ func (s *TournamentStore) TeamLoad(ctx context.Context, id string) (*domain.Team
 			key, phase, internal string
 			order                int
 			seedA, seedB         *int
+			courts               []string
 		)
-		if err := rows.Scan(&key, &phase, &order, &seedA, &seedB, &internal); err != nil {
+		if err := rows.Scan(&key, &phase, &order, &seedA, &seedB, &internal, &courts); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -157,6 +158,10 @@ func (s *TournamentStore) TeamLoad(ctx context.Context, id string) (*domain.Team
 			ID:     key,
 			Phase:  phase,
 			Partai: []domain.TeamPartai{{}, {}, {}},
+			Courts: [3]string{"Court 1", "Court 2", "Court 3"},
+		}
+		if len(courts) == 3 {
+			m.Courts = [3]string{courts[0], courts[1], courts[2]}
 		}
 		if seedA != nil {
 			m.TeamA = fmt.Sprintf("t%d", *seedA)
@@ -347,10 +352,10 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 		var matchInternal string
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO tournament_team_matches
-				(tournament_id, phase, match_order, match_key, team_a_id, team_b_id)
-			VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6::uuid)
+				(tournament_id, phase, match_order, match_key, team_a_id, team_b_id, courts)
+			VALUES ($1::uuid, $2, $3, $4, $5::uuid, $6::uuid, $7::text[])
 			RETURNING id::text`,
-			rowID, m.Phase, i, matchKey, aID, bID).Scan(&matchInternal); err != nil {
+			rowID, m.Phase, i, matchKey, aID, bID, m.Courts[:]).Scan(&matchInternal); err != nil {
 			return nil, err
 		}
 		for pi := 0; pi < 3 && pi < len(m.Partai); pi++ {
