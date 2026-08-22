@@ -1,6 +1,6 @@
 # Roadmap
 
-Status per 2026-08-21. Fase era Supabase (1–6 di bawah) sudah selesai dan
+Status per 2026-08-22. Fase era Supabase (1–6 di bawah) sudah selesai dan
 ditutup; detail historisnya ada di git history.
 
 ## ✅ Selesai
@@ -17,20 +17,26 @@ ditutup; detail historisnya ada di git history.
 - **Admin restructure** — 5 separate pages (Sessions, Players, Ratings, Tournaments, Seasons)
 - **Auto-lock sessions** — lock when all scores entered or date passed
 - **Gender in players table** — canonical gender, auto-fill in session creation
-- **Team tournament improvements** — manual team assignment, standings editing, champion banner, Instagram post export
+- **Team tournament improvements** — manual team assignment, standings editing, champion banner, courts
 - **Pagination** — ratings leaderboard (100/page), recent matches (5/page), session list (5/page)
 - **Supabase data import** — 125 players migrated to VPS
+- **Prod migration** — bm_dev → bm (125 players, 27 sessions, 103 rated, 1 tournament)
+- **Auto-deploy** — GitHub Actions → SSH → podman pull + restart (push = deploy)
+- **Checklist/Absent fix** — games tetap jalan, absent player tidak dapat rating delta
+- **Version mismatch retry** — silent retry 1x sebelum error
 
 ## ⏳ Berikutnya (urut prioritas)
 
 | # | Item | Status |
 |---|------|--------|
-| 1 | **Migrasi prod**: backup data `bm` (Supabase) → restore VPS → deploy backend `main` → arahkan frontend `main` → pensiunkan Supabase sepenuhnya | Belum |
-| 2 | **Auth** (ditunda): JWT/session middleware di Go, alur host tanpa friction | Ditunda |
-| 3 | **Hardening lanjutan** kalau scope meluas: monitoring/alert API, staging env | Opsional |
+| 1 | **Team tournament share/export** — Instagram post untuk team tournament | Belum |
+| 2 | **Branch protection testing** — ruleset sudah dibuat, perlu di-test | Belum |
+| 3 | **Auth** (ditunda): JWT/session middleware di Go, alur host tanpa friction | Ditunda |
+| 4 | **Hardening lanjutan** kalau scope meluas: monitoring/alert API, staging env | Opsional |
 
 ## Catatan operasional
 
-- Deploy dev: push `dev` → CI → image GHCR → auto-update timer 05:00 (atau `./scripts/deploy.sh dev`)
+- Deploy: push ke main/dev → GitHub Actions → SSH ke VPS → podman pull + restart
 - Backup Postgres: timer harian 03:00 → `/srv/qouver/backups/postgres/`
-- Test: `make check` (backend) · `npm run check` (frontend)
+- Test: `go test ./...` (backend) · `npm run check` (frontend)
+- Log: `/srv/qouver/majadu/logs/{main,dev}/app-YYYY-MM-DD.log`
