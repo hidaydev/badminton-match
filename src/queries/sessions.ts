@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions, deleteSession } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
@@ -38,13 +38,46 @@ export function useListSessions(options?: { enabled?: boolean }) {
   })
 }
 
-export function useGetSession(sessionId: string | undefined, options?: { refetchInterval?: number | false }) {
+export function useGetSession(
+  sessionId: string | undefined,
+  options?: { refetchInterval?: number | false; refetchOnWindowFocus?: boolean },
+) {
   return useQuery<CloudSnapshot | null>({
     queryKey: ['session', sessionId],
     queryFn: () => getSession(sessionId!),
     enabled: !!sessionId,
     refetchInterval: options?.refetchInterval as unknown as number | false | undefined,
+    refetchOnWindowFocus: options?.refetchOnWindowFocus,
   })
+}
+
+export function useSessionRealtime(sessionId: string | undefined, enabled = true) {
+  const queryClient = useQueryClient()
+  const [connected, setConnected] = useState(false)
+  useEffect(() => {
+    if (!sessionId || !enabled) return
+    // __API_BASE_URL__ is injected at build time (vite.config.ts)
+    const url = `${__API_BASE_URL__}/sessions/${encodeURIComponent(sessionId)}/watch`
+    const es = new EventSource(url)
+    es.onopen = () => setConnected(true)
+    es.onmessage = (e) => {
+      try {
+        const snap = JSON.parse(e.data) as CloudSnapshot
+        queryClient.setQueryData(['session', sessionId], snap)
+      } catch {
+        // ignore malformed
+      }
+    }
+    es.onerror = () => {
+      setConnected(false)
+      es.close()
+    }
+    return () => {
+      es.close()
+      setConnected(false)
+    }
+  }, [sessionId, enabled, queryClient])
+  return connected
 }
 
 export function usePublishSession(sessionId: string | undefined) {
