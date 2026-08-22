@@ -49,3 +49,9 @@ dump/
 scripts/
 
 .commandcode
+
+# Local audit & action plan — concurrency/score/absent (2026-08-22)
+AUDIT_2026-08-22_CONCURRENCY.md
+TASK_PLAN_CONCURRENCY.md
+AUDIT_CONCURRENCY_*.md
+TASK_PLAN_*.md

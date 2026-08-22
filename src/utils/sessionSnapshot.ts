@@ -51,6 +51,19 @@ export function togglePlayedInSnapshot(snapshot: CloudSnapshot, key: string): Cl
   return { ...snapshot, playedGames, gameScores }
 }
 
+/** Idempotent set — retry-safe. `nextPlayed` is absolute intent, not toggle. */
+export function setPlayedInSnapshot(snapshot: CloudSnapshot, key: string, nextPlayed: boolean): CloudSnapshot {
+  const isPlayed = snapshot.playedGames.includes(key)
+  if (nextPlayed === isPlayed) return snapshot
+  if (nextPlayed) {
+    return { ...snapshot, playedGames: [...snapshot.playedGames, key] }
+  }
+  const playedGames = snapshot.playedGames.filter((k) => k !== key)
+  const gameScores = { ...snapshot.gameScores }
+  delete gameScores[key as GameKey]
+  return { ...snapshot, playedGames, gameScores }
+}
+
 export function setScoreInSnapshot(
   snapshot: CloudSnapshot,
   key: string,

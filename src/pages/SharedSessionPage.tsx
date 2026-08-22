@@ -28,14 +28,13 @@ export default function SharedSessionPage() {
   const queryClient = useQueryClient()
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  // Auto-dismiss error toast after 5 seconds
+  // Auto-dismiss error toast after 3 seconds (keputusan poin 4)
   useEffect(() => {
     if (!saveError) return
-    const timer = setTimeout(() => setSaveError(null), 5000)
+    const timer = setTimeout(() => setSaveError(null), 3000)
     return () => clearTimeout(timer)
   }, [saveError])
 
-  const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId, { refetchInterval: 30_000 })
   const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
   const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
   const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
@@ -44,6 +43,12 @@ export default function SharedSessionPage() {
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
   const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
   const { mutate: changePlayer, isPending: changePlayerPending } = useChangePlayer(sessionId!)
+
+  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
+
+  const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId, {
+    refetchInterval: isSaving ? false : 30_000,
+  })
 
   const { save } = useLastSession()
 
@@ -114,8 +119,6 @@ export default function SharedSessionPage() {
     unplacedFixMatches: [],
   } : null
 
-  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
-
   return (
     <main className="min-h-screen bg-ground text-fg flex flex-col">
       {header}
@@ -133,10 +136,8 @@ export default function SharedSessionPage() {
         gameScores={snapshot.gameScores}
         onTogglePlayedGame={(key) => {
           const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-          const nextPlayed = current?.playedGames.includes(key)
-            ? current.playedGames.filter((k) => k !== key)
-            : [...(current?.playedGames ?? []), key]
-          togglePlayed({ key, nextPlayed }, {
+          const willBePlayed = !current?.playedGames.includes(key)
+          togglePlayed({ key, nextPlayed: willBePlayed }, {
             onSuccess: () => setSaveError(null),
             onError: (err) => setSaveError(getSaveErrorMessage(err)),
           })

@@ -6,7 +6,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, getTournament, publishTournament } from './endpoints'
 import type { CloudSnapshot, TournamentSnapshot } from './types'
-import { isVersionMismatch, isLockedError } from './errors'
+import { isVersionMismatch, isLockedError, isContentionError } from './errors'
 
 /** Snapshot yang di-publish — session atau tournament. */
 type Snapshot = CloudSnapshot | TournamentSnapshot
@@ -75,19 +75,47 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
       return { previous, vars }
     },
     onError: async (_err, _vars, context) => {
-      // Version mismatch → fetch latest + apply user's change + retry once
-      if (isVersionMismatch(_err)) {
+      // Version mismatch or contention → fetch fresh version and retry with optimistic snapshot + fresh version (idempotent)
+      if (isVersionMismatch(_err) || isContentionError(_err)) {
         try {
           const fresh = await fetchSnapshot(id)
-          if (fresh && context?.vars !== undefined) {
+          // Optimistic snapshot is still in cache (before rollback)
+          const optimistic = queryClient.getQueryData<TData>(queryKey)
+          if (fresh && optimistic) {
+            // Merge fresh version into optimistic — keep user's intent, just update version for retry
+            const toPublish = { ...(optimistic as unknown as Record<string, unknown>), version: (fresh as unknown as Record<string, unknown>).version } as TData
+            queryClient.setQueryData(queryKey, toPublish)
+            try {
+              await publish(id, toPublish)
+              // Success — refetch server state to sync version/derived fields
+              try {
+                await queryClient.fetchQuery<TData | null>({
+                  queryKey,
+                  queryFn: () => fetchSnapshot(id),
+                })
+              } catch { /* ignore */ }
+              if (onSuccessCallback) await onSuccessCallback()
+              return // Success — no rollback
+            } catch {
+              // Retry failed — fall through to rollback
+            }
+          } else if (fresh && context?.vars !== undefined) {
+            // Fallback: recompute from fresh (for cases where optimistic is null)
             const retried = optimisticUpdate(fresh, context.vars)
             if (retried) {
               queryClient.setQueryData(queryKey, retried)
               try {
                 await publish(id, retried)
-                return // Success — no need to rollback
+                try {
+                  await queryClient.fetchQuery<TData | null>({
+                    queryKey,
+                    queryFn: () => fetchSnapshot(id),
+                  })
+                } catch { /* ignore */ }
+                if (onSuccessCallback) await onSuccessCallback()
+                return
               } catch {
-                // Retry failed — rollback
+                // Retry failed — fall through
               }
             }
           }
@@ -99,8 +127,8 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
       if (context?.previous !== undefined) {
         queryClient.setQueryData(queryKey, context.previous)
       }
-      // Refetch on version mismatch OR lock conflict
-      if (isVersionMismatch(_err) || isLockedError(_err)) {
+      // Refetch on version mismatch / contention / lock
+      if (isVersionMismatch(_err) || isContentionError(_err) || isLockedError(_err)) {
         try {
           await queryClient.fetchQuery<TData | null>({
             queryKey,

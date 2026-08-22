@@ -10,11 +10,11 @@ import type { SlotSwapTarget } from '../utils/slotSwap'
 import {
   replacePlayerNameInSnapshot,
   setAbsentPlayersInSnapshot,
+  setPlayedInSnapshot,
   setScoreInSnapshot,
   swapPlayersInSnapshot,
   swapSlotsInSnapshot,
   swapTeamsInSnapshot,
-  togglePlayedInSnapshot,
 } from '../utils/sessionSnapshot'
 import { useOptimisticSessionMutation } from './useOptimisticMutation'
 
@@ -38,12 +38,12 @@ export function useListSessions(options?: { enabled?: boolean }) {
   })
 }
 
-export function useGetSession(sessionId: string | undefined, options?: { refetchInterval?: number }) {
+export function useGetSession(sessionId: string | undefined, options?: { refetchInterval?: number | false }) {
   return useQuery<CloudSnapshot | null>({
     queryKey: ['session', sessionId],
     queryFn: () => getSession(sessionId!),
     enabled: !!sessionId,
-    refetchInterval: options?.refetchInterval,
+    refetchInterval: options?.refetchInterval as unknown as number | false | undefined,
   })
 }
 
@@ -99,7 +99,17 @@ export function useTogglePlayed(sessionId: string) {
   const queryClient = useQueryClient()
   return useOptimisticSessionMutation(
     sessionId,
-    (old, vars) => togglePlayedInSnapshot(old, (vars as { key: string }).key),
+    (old, vars) => {
+      const v = vars as { key: string; nextPlayed?: boolean | string[] }
+      const { key } = v
+      let nextPlayed: boolean | undefined
+      if (typeof v.nextPlayed === 'boolean') nextPlayed = v.nextPlayed
+      else if (Array.isArray(v.nextPlayed)) nextPlayed = (v.nextPlayed as string[]).includes(key)
+      if (typeof nextPlayed === 'boolean') return setPlayedInSnapshot(old, key, nextPlayed)
+      // Fallback toggle (legacy) — should not happen for new callers
+      const isPlayed = old.playedGames.includes(key)
+      return setPlayedInSnapshot(old, key, !isPlayed)
+    },
     () => invalidateSessionQueries(queryClient),
   )
 }
