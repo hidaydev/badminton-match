@@ -64,5 +64,9 @@ export function getSaveErrorMessage(error: unknown): string {
     return 'Session is locked — no further edits allowed.'
   }
 
+  if (message.includes('scores cannot') || message.includes('scores must') || message.includes('invalid game key')) {
+    return error.message
+  }
+
   return fallback
 }

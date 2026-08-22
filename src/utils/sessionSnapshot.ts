@@ -70,12 +70,12 @@ export function setScoreInSnapshot(
   a: number,
   b: number,
 ): CloudSnapshot {
-  // Reject invalid scores (equal or negative)
-  if (validateScore(a, b) !== null) return snapshot
+  const err = validateScore(a, b)
+  if (err !== null) throw new Error(err)
 
   // Validate that the key corresponds to an actual schedule slot
   const validKeys = new Set(snapshot.schedule.map(s => `${s.slot}-${s.court}`))
-  if (!validKeys.has(key)) return snapshot
+  if (!validKeys.has(key)) throw new Error(`Invalid game key: ${key}`)
 
   const playedGames = snapshot.playedGames.includes(key)
     ? snapshot.playedGames
