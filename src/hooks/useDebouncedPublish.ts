@@ -44,11 +44,14 @@ export function useDebouncedPublish(
         gameScores: state.gameScores,
         existingAbsentPlayers: state.absentPlayers,
       })
+      // T8: always include version from cache for If-Match header (M2)
+      const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
+      if (cached?.version != null) snap.version = cached.version
       publish.mutate(snap, {
         onError: (err) => onError?.(getSaveErrorMessage(err)),
       })
     }, delay)
-  }, [cloudSessionId, publish, onError])
+  }, [cloudSessionId, publish, onError, queryClient])
 
   // Flush pending publish on unmount
   useEffect(() => {
@@ -62,9 +65,9 @@ export function useDebouncedPublish(
             schedule: state.schedule, playedGames: state.playedGames, gameScores: state.gameScores,
             existingAbsentPlayers: state.absentPlayers,
           })
-          // Include version from query cache for optimistic concurrency
+          // Include version from query cache for If-Match (M2)
           const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
-          if (cached?.version) snap.version = cached.version
+          if (cached?.version != null) snap.version = cached.version
           publishSession(cloudSessionId, snap).then(() => {
             queryClient.invalidateQueries({ queryKey: ['session', cloudSessionId] })
           }).catch((err) => {
