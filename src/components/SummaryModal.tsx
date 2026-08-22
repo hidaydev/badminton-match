@@ -338,13 +338,7 @@ export default function SummaryModal({
     courtNames[i] || (courts <= 26 ? String.fromCharCode(65 + i) : String(i + 1))
 
   const totalGames = result.schedule.length
-  // Exclude voided games (games with absent players) from played count
-  const playedCount = result.schedule.filter((slot) => {
-    const key = `${slot.slot}-${slot.court}`
-    const isPlayed = played.has(key)
-    const isVoid = slot.teamA.some((id) => effectiveAbsent.has(id)) || slot.teamB.some((id) => effectiveAbsent.has(id))
-    return isPlayed && !isVoid
-  }).length
+  const playedCount = played.size
 
   function trySaveScore(key: string): boolean {
     const draft = draftScores[key]
@@ -374,8 +368,7 @@ export default function SummaryModal({
   function handleCancelChange() { setPendingChange(null) }
   function handleConfirmChange() { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitCurrentMode() } }
   function handleConfirmAbsent() {
-    // P2 — prompt sebelum void: hitung game yang memuat pemain yang baru
-    // di-mark absent (ABSENT_TBD_PLAYERS_DESIGN.md §4.4).
+    // Hitung game yang memuat pemain yang baru di-mark absent
     const ids = [...absentPending]
     const gameCount = result.schedule.filter(
       (slot) => slot.teamA.some((id) => ids.includes(id)) || slot.teamB.some((id) => ids.includes(id)),
@@ -393,21 +386,7 @@ export default function SummaryModal({
   function handleConfirmVoid() {
     if (!absentConfirm) return
     const ids = absentConfirm.ids
-
-    // AUTO-UNCHECK: uncheck all games involving absent players
-    const affectedKeys = new Set(
-      result.schedule
-        .filter((slot) => slot.teamA.some((id) => ids.includes(id)) || slot.teamB.some((id) => ids.includes(id)))
-        .map((slot) => `${slot.slot}-${slot.court}`)
-    )
-    if (affectedKeys.size > 0) {
-      // Remove affected games from playedGames and clear their scores
-      const newPlayed = result.playedGames.filter((k) => !affectedKeys.has(k))
-      const newScores = { ...result.gameScores }
-      affectedKeys.forEach((k) => delete newScores[k])
-      setResult({ ...result, playedGames: newPlayed, gameScores: newScores })
-    }
-
+    // Set absent — game tetap jalan, player absent tidak dapat rating delta
     onSetAbsent?.(ids)
     setAbsentConfirm(null)
   }
@@ -807,20 +786,20 @@ export default function SummaryModal({
               <span className="text-slate-300">
                 {absentConfirm.ids.map((id) => playerMap.get(id)?.name ?? id).join(', ')}
               </span>{' '}
-              will not count (void). Replace the player in those games first, or leave them as-is.
+              will still count. The absent player won't receive rating deltas.
             </p>
             <div className="flex flex-col gap-2">
-              <button
-                onClick={() => { setAbsentConfirm(null); enterChangeMode() }}
-                className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold"
-              >
-                Replace in games
-              </button>
               <button
                 onClick={handleConfirmVoid}
                 className="w-full py-2.5 rounded-lg bg-red-900/50 border border-red-700 text-red-200 text-sm font-bold"
               >
-                Continue — void those games
+                Confirm absent
+              </button>
+              <button
+                onClick={() => setAbsentConfirm(null)}
+                className="w-full py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm font-bold"
+              >
+                Cancel
               </button>
             </div>
           </div>
