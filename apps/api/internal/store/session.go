@@ -516,10 +516,10 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 	if currentStatus == "draft" && status == "draft" {
 		allScored := len(snap.Schedule) > 0 && countScoredGames(snap) == len(snap.Schedule)
 		pastDate := false
-		// Compare against DB's current_date (not Go's time.Now) to avoid
-		// timezone mismatches between Go container (UTC) and DB session timezone.
+		// Compare against WIB date (Asia/Jakarta) — venue selalu WIB.
+		// DB current_date pakai UTC (container UTC) → sesi hari-H ke-lock prematur jam 07:00 WIB.
 		var today string
-		if err := tx.QueryRow(ctx, `SELECT current_date::text`).Scan(&today); err == nil {
+		if err := tx.QueryRow(ctx, `SELECT (now() AT TIME ZONE 'Asia/Jakarta')::date::text`).Scan(&today); err == nil {
 			pastDate = snap.Session.Date < today
 		}
 		if allScored || pastDate {
@@ -669,12 +669,12 @@ func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []do
 
 // AutoLockExpiredSessions — sesi draft yang tanggalnya sudah lewat otomatis
 // di-lock (ABSENT_TBD_PLAYERS_DESIGN.md §4.6). Dipanggil berkala oleh ticker
-// di main.go. Idempotent; hanya menyentuh status='draft' AND session_date < today.
+// di main.go. Idempotent; hanya menyentuh status='draft' AND session_date < today WIB.
 // Version di-bump agar konsisten dengan save-path auto-lock (audit M2 fix).
 func (s *SessionStore) AutoLockExpiredSessions(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE sessions SET status = 'locked', version = version + 1, updated_at = now()
-		WHERE status = 'draft' AND session_date < current_date`)
+		WHERE status = 'draft' AND session_date < (now() AT TIME ZONE 'Asia/Jakarta')::date`)
 	if err != nil {
 		return 0, err
 	}

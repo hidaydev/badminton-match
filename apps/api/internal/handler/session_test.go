@@ -109,9 +109,9 @@ func TestMapPublishErrorTable(t *testing.T) {
 			wantMsgPart: "unresolved player",
 		},
 		{
-			name:        "store ErrContention maps to validation_error with retry hint",
+			name:        "store ErrContention maps to too_many_requests with retry hint",
 			err:         store.ErrContention,
-			wantCode:    "validation_error",
+			wantCode:    "too_many_requests",
 			wantMsgPart: "being updated by another request",
 		},
 	}

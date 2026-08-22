@@ -29,6 +29,8 @@ const (
 	CodeUnauthorized Code = "unauthorized"
 	// CodeSourceChanged — fingerprint sumber berubah sejak ingest (wajib revert).
 	CodeSourceChanged Code = "source_changed"
+	// CodeTooManyRequests — rate limit / contention (retry after).
+	CodeTooManyRequests Code = "too_many_requests"
 )
 
 // Error — error ter-struktur yang bisa di-map ke HTTP response.
@@ -79,16 +81,20 @@ func Unauthorized(msg string) *Error { return New(CodeUnauthorized, msg) }
 // SourceChanged — error 409 (fingerprint sumber berubah — wajib revert dulu).
 func SourceChanged(msg string) *Error { return New(CodeSourceChanged, msg) }
 
+// TooManyRequests — error 429 (contention / rate limit, retry after).
+func TooManyRequests(msg string) *Error { return New(CodeTooManyRequests, msg) }
+
 var statusByCode = map[Code]int{
-	CodeNotFound:      http.StatusNotFound,
-	CodeConflict:      http.StatusConflict,
-	CodeSourceChanged: http.StatusConflict,
-	CodeValidation:    http.StatusBadRequest,
-	CodeUnauthorized:  http.StatusUnauthorized,
-	CodeUnavailable:   http.StatusServiceUnavailable,
-	CodeInternal:      http.StatusInternalServerError,
-	CodeDatabase:      http.StatusInternalServerError,
-	CodePrecondition:  http.StatusPreconditionRequired,
+	CodeNotFound:        http.StatusNotFound,
+	CodeConflict:        http.StatusConflict,
+	CodeSourceChanged:   http.StatusConflict,
+	CodeValidation:      http.StatusBadRequest,
+	CodeUnauthorized:    http.StatusUnauthorized,
+	CodeUnavailable:     http.StatusServiceUnavailable,
+	CodeInternal:        http.StatusInternalServerError,
+	CodeDatabase:        http.StatusInternalServerError,
+	CodePrecondition:    http.StatusPreconditionRequired,
+	CodeTooManyRequests: http.StatusTooManyRequests,
 }
 
 // WriteError menulis error envelope JSON. Error non-httperr → 500.
@@ -109,6 +115,11 @@ func WriteError(w http.ResponseWriter, logger *slog.Logger, err error) {
 	status := statusByCode[he.Code]
 	if status == 0 {
 		status = http.StatusInternalServerError
+	}
+
+	// Contention / rate limit → inform client to retry after 1s
+	if he.Code == CodeTooManyRequests {
+		w.Header().Set("Retry-After", "1")
 	}
 
 	body := map[string]any{

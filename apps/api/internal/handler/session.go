@@ -39,7 +39,7 @@ func mapPublishError(err error) *httperr.Error {
 	case errors.Is(err, store.ErrVersionMismatch):
 		return httperr.Conflict("version mismatch — reload the latest state and retry")
 	case errors.Is(err, store.ErrContention):
-		return httperr.Validation("invalid session state: " + err.Error())
+		return httperr.TooManyRequests("session is being updated by another request; retry after 1s")
 	case errors.Is(err, store.ErrValidation):
 		return httperr.Validation("invalid session state: " + err.Error())
 	}
@@ -201,12 +201,18 @@ func (h *SessionHandler) Put(w http.ResponseWriter, r *http.Request) {
 
 	// Version: If-Match lebih disukai; fallback ke version di body
 	// (kontrak frontend lama mengirim version dalam snapshot).
+	// Setelah M2 FE sudah kirim If-Match header, body fallback dipertahankan 1 rilis untuk compat.
 	version, versionErr := versionRequired(r)
 	if versionErr == nil {
 		snap.Version = &version
 	} else if !errors.Is(versionErr, errIfMatchMissing) {
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid If-Match header"))
 		return
+	} else if snap.Version != nil {
+		// Header missing tapi body bawa version — compat, log warn untuk observability
+		if h.Logger != nil {
+			h.Logger.Warn("PUT without If-Match, using body version", "session", r.PathValue("id"), "version", *snap.Version)
+		}
 	}
 
 	id := r.PathValue("id")
@@ -302,7 +308,7 @@ func (h *SessionHandler) Unlock(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, store.ErrNotFound):
 			httperr.WriteError(w, h.Logger, httperr.NotFound("session not found"))
 		case errors.Is(err, store.ErrContention):
-			httperr.WriteError(w, h.Logger, httperr.Validation("invalid session state: "+err.Error()))
+			httperr.WriteError(w, h.Logger, httperr.TooManyRequests("session is being updated by another request; retry after 1s"))
 		default:
 			h.Logger.Warn("unlock session failed", "session", r.PathValue("id"), "error", err)
 			httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to unlock session", err))
