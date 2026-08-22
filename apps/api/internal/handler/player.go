@@ -54,6 +54,42 @@ func (h *PlayerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// Merge — POST /players/merge (admin): gabungkan source player ke target.
+// Semua referensi (aliases, sesi, rating deltas, tournament) dipindah ke
+// target, pemain source dihapus, lalu rating di-rebuild penuh supaya
+// rating_players konsisten dengan delta yang baru.
+func (h *PlayerHandler) Merge(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		TargetPlayerID string `json:"targetPlayerId"`
+		SourcePlayerID string `json:"sourcePlayerId"`
+	}
+	if err := decodeJSON(r, &body); err != nil || body.TargetPlayerID == "" || body.SourcePlayerID == "" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("targetPlayerId and sourcePlayerId are required"))
+		return
+	}
+	res, err := h.AdminStore.MergePlayers(r.Context(), body.TargetPlayerID, body.SourcePlayerID)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			httperr.WriteError(w, h.Logger, httperr.NotFound(err.Error()))
+		case errors.Is(err, store.ErrValidation):
+			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
+		default:
+			h.Logger.Warn("merge players failed", "target", body.TargetPlayerID, "source", body.SourcePlayerID, "error", err)
+			httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to merge players", err))
+		}
+		return
+	}
+	// Full rebuild rating — deltas sudah dipindah, rating_players harus
+	// dihitung ulang (transitivity via lawan berubah).
+	if _, err := h.AdminStore.RebuildAll(r.Context()); err != nil {
+		h.Logger.Warn("merge: rating rebuild failed", "error", err)
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "players merged, but rating rebuild failed — run rebuild-all manually", err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, res)
+}
+
 // Rename — PATCH /players/{playerId}/name (admin): rename canonical player.
 // Alias nama lama disimpan (referensi historis tetap resolve); nama baru
 // yang sudah dipakai player lain ditolak (anti-collision).

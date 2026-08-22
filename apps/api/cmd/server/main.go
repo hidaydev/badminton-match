@@ -171,6 +171,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("PATCH /players/{playerId}/tier", handler.AdminGuard(cfg.AdminToken, players.SetTier))
 	mux.Handle("PATCH /players/{playerId}/name", handler.AdminGuard(cfg.AdminToken, players.Rename))
 	mux.Handle("DELETE /players/{playerId}", handler.AdminGuard(cfg.AdminToken, players.Delete))
+	mux.Handle("POST /players/merge", handler.AdminGuard(cfg.AdminToken, players.Merge))
 	mux.Handle("GET /players", http.HandlerFunc(players.List))
 	mux.Handle("POST /players", http.HandlerFunc(players.Register))
 	mux.Handle("GET /players/{name}/stats", http.HandlerFunc(players.Stats))

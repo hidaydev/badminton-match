@@ -217,6 +217,40 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PlayerId" }
+  /players/merge:
+    post:
+      tags: [Players]
+      summary: Gabungkan dua pemain (source → target, admin)
+      description: >
+        Semua referensi (aliases, session_players, rating_deltas, season
+        snapshots, tournament pairs/team) source dipindah ke target; pemain
+        source dihapus; rating di-rebuild penuh. Target yang sudah punya
+        referensi di entitas yang sama menang.
+      operationId: mergePlayers
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetPlayerId, sourcePlayerId]
+              properties:
+                targetPlayerId:
+                  type: string
+                  format: uuid
+                  description: Pemain yang dipertahankan
+                sourcePlayerId:
+                  type: string
+                  format: uuid
+                  description: Pemain yang digabung ke target (dihapus)
+      responses:
+        "200":
+          description: Hasil merge
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MergeResult" }
   /players/{name}/stats:
     get:
       tags: [Players]
@@ -527,6 +561,18 @@ components:
       type: object
       properties:
         playerId: { type: string, format: uuid }
+
+    MergeResult:
+      type: object
+      properties:
+        target_player_id: { type: string, format: uuid }
+        source_player_id: { type: string, format: uuid }
+        aliases_moved: { type: integer }
+        sessions_moved: { type: integer }
+        deltas_moved: { type: integer }
+        snapshots_moved: { type: integer }
+        pairs_moved: { type: integer }
+        team_moves: { type: integer }
 
     PlayerStats:
       type: object

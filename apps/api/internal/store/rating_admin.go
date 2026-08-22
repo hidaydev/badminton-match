@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -161,6 +162,51 @@ func (s *SessionStore) DeletePlayer(ctx context.Context, playerID string, force 
 	// Transitivitas: pemain lain yang rating-nya terpengaruh harus dihitung ulang.
 	_, err = s.RebuildAll(ctx)
 	return err
+}
+
+// MergeResult — ringkasan merge player.
+type MergeResult struct {
+	TargetPlayerID string `json:"target_player_id"`
+	SourcePlayerID string `json:"source_player_id"`
+	AliasesMoved   int    `json:"aliases_moved"`
+	SessionsMoved  int    `json:"sessions_moved"`
+	DeltasMoved    int    `json:"deltas_moved"`
+	SnapshotsMoved int    `json:"snapshots_moved"`
+	PairsMoved     int    `json:"pairs_moved"`
+	TeamMoves      int    `json:"team_moves"`
+}
+
+// MergePlayers — gabungkan `sourceID` ke `targetID` (admin). Semua referensi
+// (aliases, session_players, rating_deltas, season snapshots, tournament
+// pairs/team) dipindah source → target; baris target yang sudah ada menang.
+// Pemain source dihapus. Rating TIDAK di-rebuild di sini — caller (handler)
+// harus memanggil RebuildAll supaya rating_players konsisten dengan deltas.
+//
+// Eksekusi via SQL function SECURITY DEFINER (`schema`.merge_players) — pola
+// sama dengan delete_player: majadu_app hanya punya DML grant di sebagian
+// tabel, jadi operasi DELETE/INSERT lintas tabel dijalankan sebagai owner
+// (qouver). Migration: 000012_merge_players.sql (VPS).
+func (s *SessionStore) MergePlayers(ctx context.Context, targetID, sourceID string) (*MergeResult, error) {
+	if targetID == sourceID {
+		return nil, fmt.Errorf("%w: source and target must be different players", ErrValidation)
+	}
+	var raw []byte
+	err := s.pool.QueryRow(ctx,
+		`SELECT `+s.schema+`.merge_players($1::uuid, $2::uuid)`, targetID, sourceID).Scan(&raw)
+	if err != nil {
+		if strings.Contains(err.Error(), "target player not found") {
+			return nil, fmt.Errorf("%w: target player not found", ErrNotFound)
+		}
+		if strings.Contains(err.Error(), "source player not found") {
+			return nil, fmt.Errorf("%w: source player not found", ErrNotFound)
+		}
+		return nil, err
+	}
+	var res MergeResult
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 // AdminDeleteTournament — hapus tournament oleh ADMIN (classic | team):
