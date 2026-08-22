@@ -374,8 +374,8 @@ export default function SummaryModal({
       (slot) => slot.teamA.some((id) => ids.includes(id)) || slot.teamB.some((id) => ids.includes(id)),
     ).length
     if (gameCount > 0 && !locked) {
-      setAbsentConfirm({ ids, gameCount })
       exitCurrentMode()
+      setAbsentConfirm({ ids, gameCount })
       return
     }
     // No games affected — just set absent directly
