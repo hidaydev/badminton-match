@@ -106,8 +106,6 @@ export default function SummaryModal({
   const [pendingSwap, setPendingSwap] = useState<{ t1: SwapTarget; t2: SwapTarget } | null>(null)
 
   const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
-  // P2 — konfirmasi void saat mark absent (game memuat pemain absent).
-  const [absentConfirm, setAbsentConfirm] = useState<{ ids: string[]; gameCount: number } | null>(null)
 
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceName, setReplaceName] = useState('')
@@ -186,7 +184,6 @@ export default function SummaryModal({
     setExpandedScore(null)
     setDraftScores({})
     setScoreError(null)
-    setAbsentConfirm(null)
   }
 
   function enterSwapMode() {
@@ -368,27 +365,9 @@ export default function SummaryModal({
   function handleCancelChange() { setPendingChange(null) }
   function handleConfirmChange() { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitCurrentMode() } }
   function handleConfirmAbsent() {
-    // Hitung game yang memuat pemain yang baru di-mark absent
     const ids = [...absentPending]
-    const gameCount = result.schedule.filter(
-      (slot) => slot.teamA.some((id) => ids.includes(id)) || slot.teamB.some((id) => ids.includes(id)),
-    ).length
-    if (gameCount > 0 && !locked) {
-      exitCurrentMode()
-      setAbsentConfirm({ ids, gameCount })
-      return
-    }
-    // No games affected — just set absent directly
     onSetAbsent?.(ids)
     exitCurrentMode()
-  }
-
-  function handleConfirmVoid() {
-    if (!absentConfirm) return
-    const ids = absentConfirm.ids
-    // Set absent — game tetap jalan, player absent tidak dapat rating delta
-    onSetAbsent?.(ids)
-    setAbsentConfirm(null)
   }
 
   return (
@@ -769,42 +748,6 @@ export default function SummaryModal({
         saving={saving}
         courtLabel={courtLabel}
       />
-
-      {/* P2 — konfirmasi VOID saat mark absent */}
-      {absentConfirm && (
-        <div className="fixed inset-0 z-60 flex items-end justify-center bg-black/50" onClick={() => setAbsentConfirm(null)}>
-          <div
-            className="bg-slate-900 border border-slate-700 rounded-t-2xl w-full max-w-lg p-4 pb-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-sm font-bold text-slate-100 mb-1">
-              {absentConfirm.ids.length} player{absentConfirm.ids.length === 1 ? '' : 's'} marked absent
-            </h3>
-            <p className="text-xs text-slate-400 mb-3">
-              <span className="text-slate-300">{absentConfirm.gameCount} game{absentConfirm.gameCount === 1 ? '' : 's'}</span>{' '}
-              involving{' '}
-              <span className="text-slate-300">
-                {absentConfirm.ids.map((id) => playerMap.get(id)?.name ?? id).join(', ')}
-              </span>{' '}
-              will still count. The absent player won't receive rating deltas.
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={handleConfirmVoid}
-                className="w-full py-2.5 rounded-lg bg-red-900/50 border border-red-700 text-red-200 text-sm font-bold"
-              >
-                Confirm absent
-              </button>
-              <button
-                onClick={() => setAbsentConfirm(null)}
-                className="w-full py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm font-bold"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
