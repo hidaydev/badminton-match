@@ -379,8 +379,31 @@ export default function SummaryModal({
       exitCurrentMode()
       return
     }
+    // No games affected — just set absent directly
     onSetAbsent?.(ids)
     exitCurrentMode()
+  }
+
+  function handleConfirmVoid() {
+    if (!absentConfirm) return
+    const ids = absentConfirm.ids
+
+    // AUTO-UNCHECK: uncheck all games involving absent players
+    const affectedKeys = new Set(
+      result.schedule
+        .filter((slot) => slot.teamA.some((id) => ids.includes(id)) || slot.teamB.some((id) => ids.includes(id)))
+        .map((slot) => `${slot.slot}-${slot.court}`)
+    )
+    if (affectedKeys.size > 0) {
+      // Remove affected games from playedGames and clear their scores
+      const newPlayed = result.playedGames.filter((k) => !affectedKeys.has(k))
+      const newScores = { ...result.gameScores }
+      affectedKeys.forEach((k) => delete newScores[k])
+      setResult({ ...result, playedGames: newPlayed, gameScores: newScores })
+    }
+
+    onSetAbsent?.(ids)
+    setAbsentConfirm(null)
   }
 
   return (
@@ -788,10 +811,7 @@ export default function SummaryModal({
                 Replace in games
               </button>
               <button
-                onClick={() => {
-                  onSetAbsent?.(absentConfirm.ids)
-                  setAbsentConfirm(null)
-                }}
+                onClick={handleConfirmVoid}
                 className="w-full py-2.5 rounded-lg bg-red-900/50 border border-red-700 text-red-200 text-sm font-bold"
               >
                 Continue — void those games
