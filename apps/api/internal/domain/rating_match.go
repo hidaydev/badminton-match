@@ -86,6 +86,18 @@ func (m *RawMatch) PlayersByTeam(team string) []RawPlayer {
 	return out
 }
 
+// PlayersByTeamInclAbsent — pemain tim A/B termasuk yang absent (bukan
+// placeholder). Dipakai policy absent_policy=count — absent dihitung normal.
+func (m *RawMatch) PlayersByTeamInclAbsent(team string) []RawPlayer {
+	out := []RawPlayer{}
+	for _, p := range m.Players {
+		if p.Team == team && !p.Placeholder {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // PlaceholdersByTeam — placeholder tim A/B (rate_as_unknown → sintetik 1250/350).
 func (m *RawMatch) PlaceholdersByTeam(team string) []RawPlayer {
 	out := []RawPlayer{}

@@ -52,6 +52,8 @@ type TierInit struct {
 }
 
 // DefaultRatingConfig — fallback bila config tidak ada/invalid.
+// AbsentPolicy default = skip_player (kontrak produk: game tetap jalan,
+// absent player tidak dapat delta — 3 player lain tetap dapat delta).
 var DefaultRatingConfig = RatingConfig{
 	Params: DefaultRatingParams,
 	PhaseWeights: map[string]float64{
@@ -59,7 +61,7 @@ var DefaultRatingConfig = RatingConfig{
 	},
 	IngestLockedOnly:   true,
 	AutoReconcile:      false,
-	AbsentPolicy:       AbsentSkipGame,
+	AbsentPolicy:       AbsentSkipPlayer,
 	PlaceholderPolicy:  PlaceholderRateAsUnknown,
 	DecayEnabled:       false,
 	DecayThresholdDays: 60,

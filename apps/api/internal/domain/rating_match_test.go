@@ -106,3 +106,23 @@ func TestPlayersByTeamExcludesPlaceholder(t *testing.T) {
 		t.Fatalf("placeholder tim A harus 1, got %d", len(got))
 	}
 }
+
+func TestPlayersByTeamExcludesAbsent(t *testing.T) {
+	m := matchFixture()
+	m.Players[2].Absent = true
+	if got := m.PlayersByTeam("B"); len(got) != 1 {
+		t.Fatalf("tim B harus 1 pemain real (absent disaring), got %d", len(got))
+	}
+}
+
+func TestPlayersByTeamInclAbsent(t *testing.T) {
+	m := matchFixture()
+	m.Players[0].Placeholder = true
+	m.Players[2].Absent = true
+	if got := m.PlayersByTeamInclAbsent("B"); len(got) != 2 {
+		t.Fatalf("tim B harus 2 pemain (absent TETAP dihitung), got %d", len(got))
+	}
+	if got := m.PlayersByTeamInclAbsent("A"); len(got) != 1 {
+		t.Fatalf("tim A harus 1 pemain (placeholder tetap disaring), got %d", len(got))
+	}
+}
