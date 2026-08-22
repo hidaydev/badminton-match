@@ -193,6 +193,12 @@ export async function getSession(id: string): Promise<CloudSnapshot | null> {
 export async function publishSession(id: string, data: CloudSnapshot): Promise<CloudSnapshot> {
   const headers: Record<string, string> = {}
   if (data.version != null) headers['If-Match'] = `"v${data.version}"`
+  // Idempotency-Key untuk network retry (timeout) — BE cache 24h, key = sessionId + uuid
+  try {
+    headers['Idempotency-Key'] = crypto.randomUUID()
+  } catch {
+    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
   const out = await request<CloudSnapshot>('PUT', `/sessions/${enc(id)}`, data, undefined, headers)
   if (!isValidSnapshot(out)) {
     console.warn('[publishSession] response failed validation:', out)
