@@ -15,6 +15,20 @@ export function isLockedError(error: unknown): boolean {
   )
 }
 
+/** Check if error is a contention (advisory lock / FOR UPDATE NOWAIT / 429). */
+export function isContentionError(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    if (error.status === 429) return true
+    if (error.code === '55P03') return true
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase()
+    if (msg.includes('being updated by another request')) return true
+    if (msg.includes('55p03')) return true
+  }
+  return false
+}
+
 export function getSaveErrorMessage(error: unknown): string {
   const fallback = 'Failed to save, please try again.'
 
