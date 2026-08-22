@@ -61,8 +61,14 @@ func main() {
 	defer pool.Close()
 	logger.Info("database connected")
 
+	// Satu instance SessionStore dipakai handler + ticker — watchers SSE
+	// (Subscribe/Broadcast) per-instance; kalau ticker pakai instance terpisah,
+	// broadcast auto-lock tidak sampai ke client yang sedang membuka sesi
+	// (bug #2 RC-B — harus manual refresh).
+	sessionStore := store.NewSessionStore(pool, cfg.DatabaseSchema)
+
 	mux := http.NewServeMux()
-	h := registerRoutes(mux, logger, cfg, pool, ctx)
+	h := registerRoutes(mux, logger, cfg, pool, ctx, sessionStore)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -75,7 +81,7 @@ func main() {
 	// Ticker auto-lock: sesi draft yang tanggalnya lewat → locked (gate data
 	// final untuk rating ingest; ABSENT_TBD_PLAYERS_DESIGN.md §4.6).
 	{
-		locker := store.NewSessionStore(pool, cfg.DatabaseSchema)
+		locker := sessionStore
 		autoLockCtx, cancelAutoLock := context.WithCancel(ctx)
 		defer cancelAutoLock()
 		go func() {
@@ -136,13 +142,13 @@ func main() {
 	}
 }
 
-func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, pool *pgxpool.Pool, ctx context.Context) http.Handler {
+func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, pool *pgxpool.Pool, ctx context.Context, sessionStore *store.SessionStore) http.Handler {
 	health := &handler.HealthHandler{Pool: pool}
 	mux.Handle("GET /healthz", http.HandlerFunc(health.Healthz))
 	mux.Handle("GET /readyz", http.HandlerFunc(health.Ready))
 	mux.Handle("GET /version", http.HandlerFunc(health.Version))
 
-	sessions := &handler.SessionHandler{Store: store.NewSessionStore(pool, cfg.DatabaseSchema), Logger: logger, BaseURL: cfg.BaseURL, AdminToken: cfg.AdminToken}
+	sessions := &handler.SessionHandler{Store: sessionStore, Logger: logger, BaseURL: cfg.BaseURL, AdminToken: cfg.AdminToken}
 	mux.Handle("GET /sessions", http.HandlerFunc(sessions.List))
 	mux.Handle("POST /sessions", http.HandlerFunc(sessions.Create))
 	mux.Handle("GET /sessions/{id}", http.HandlerFunc(sessions.Get))

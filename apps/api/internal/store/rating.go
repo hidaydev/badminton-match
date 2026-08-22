@@ -150,12 +150,24 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 	}
 
-	// Filter void games (absent_policy=skip_game). Fingerprint TETAP dari
-	// semua match (termasuk void) — §4.4a.
+	// Filter void games sesuai absent_policy:
+	//   skip_game → game yang memuat ≥1 pemain absent di-void SELURUHNYA
+	//               (semua pemain tidak dapat delta — perilaku lama).
+	//   skip_player → game TETAP jalan, hanya pemain absent yang tidak dapat
+	//               delta (kontrak produk: "3 player lain dapat delta").
+	//   count → pemain absent dihitung seperti pemain normal.
+	// Fingerprint TETAP dari semua match (termasuk void) — §4.4a.
+	teamPlayers := func(m domain.RawMatch, team string) []domain.RawPlayer {
+		if cfg.AbsentPolicy == domain.AbsentCount {
+			return m.PlayersByTeamInclAbsent(team)
+		}
+		return m.PlayersByTeam(team) // skip_player & skip_game: exclude absent
+	}
+
 	playable := make([]domain.RawMatch, 0, len(matches))
 	skipped := []SkippedGame{}
 	for _, m := range matches {
-		if m.Void() {
+		if cfg.AbsentPolicy == domain.AbsentSkipGame && m.Void() {
 			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "void (absent)"})
 			continue
 		}
@@ -302,9 +314,11 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		// GATE journey per-player (RATING_TIERING_REVAMP §2.5.6): match sebelum
 		// registered_at pemain → pemain tidak ikut.
 		// Jika salah satu sisi kosong → skip match.
+		// Pemain absent di-exclude sesuai absent_policy (skip_player: tidak
+		// dapat delta; count: tetap dihitung; skip_game: sudah di-filter di atas).
 		eligibleA := []domain.RawPlayer{}
 		eligibleB := []domain.RawPlayer{}
-		for _, p := range m.PlayersByTeam("A") {
+		for _, p := range teamPlayers(m, "A") {
 			if pid, ok := playerIDs[p.Name]; ok {
 				ra, ok := registeredAt[pid]
 				// registered_at NULL (belum pernah sesi) → tidak ada gate per-player
@@ -313,7 +327,7 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 				}
 			}
 		}
-		for _, p := range m.PlayersByTeam("B") {
+		for _, p := range teamPlayers(m, "B") {
 			if pid, ok := playerIDs[p.Name]; ok {
 				ra, ok := registeredAt[pid]
 				if !ok || ra == "" || m.Date >= ra {
@@ -355,7 +369,7 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 				oppTeam = "A"
 			}
 			opps := []domain.RatingOpponent{}
-			for _, op := range m.PlayersByTeam(oppTeam) {
+			for _, op := range teamPlayers(m, oppTeam) {
 				if ort := runtime[playerIDs[op.Name]]; ort != nil {
 					opps = append(opps, domain.RatingOpponent{Rating: ort.state.Rating, RD: ort.state.RD})
 				}

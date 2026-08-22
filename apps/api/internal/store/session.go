@@ -575,6 +575,9 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 	}
 
 	// 8. Auto-lock: semua skor terisi ATAU tanggal lewat → lock otomatis.
+	// Version tetap nextVersion (SATU bump per save) — sebelumnya di-increment
+	// lagi (double bump n+1→n+2) bikin FE cache (n) kena 40001 di mutasi
+	// berikutnya padahal lock yang menolak (audit RC2).
 	if currentStatus == "draft" && status == "draft" {
 		allScored := len(snap.Schedule) > 0 && countScoredGames(snap) == len(snap.Schedule)
 		pastDate := false
@@ -585,7 +588,6 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 			pastDate = snap.Session.Date < today
 		}
 		if allScored || pastDate {
-			nextVersion++
 			if _, err := tx.Exec(ctx, `
 				UPDATE sessions SET status = 'locked', version = $2, updated_at = now()
 				WHERE id = $1::uuid`, rowID, nextVersion); err != nil {
@@ -703,7 +705,13 @@ func (s *SessionStore) Unlock(ctx context.Context, id string) (*domain.CloudSnap
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return s.Load(ctx, id)
+	out, err := s.Load(ctx, id)
+	// Broadcast ke SSE watcher — tanpa ini client yang sedang membuka sesi
+	// tidak dapat update status unlocked dan harus manual refresh (bug #2 RC-B).
+	if err == nil && out != nil {
+		s.Broadcast(id, out)
+	}
+	return out, err
 }
 
 // EnsurePlayersRegistered — daftarkan semua pemain (idempotent, TOCTOU-safe)
@@ -737,14 +745,38 @@ func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []do
 // di-lock (ABSENT_TBD_PLAYERS_DESIGN.md §4.6). Dipanggil berkala oleh ticker
 // di main.go. Idempotent; hanya menyentuh status='draft' AND session_date < today WIB.
 // Version di-bump agar konsisten dengan save-path auto-lock (audit M2 fix).
+// Setiap sesi yang di-lock di-broadcast ke SSE watcher (bug #2 RC-B) supaya
+// client yang sedang membuka sesi langsung melihat status locked.
 func (s *SessionStore) AutoLockExpiredSessions(ctx context.Context) (int64, error) {
-	tag, err := s.pool.Exec(ctx, `
+	rows, err := s.pool.Query(ctx, `
 		UPDATE sessions SET status = 'locked', version = version + 1, updated_at = now()
-		WHERE status = 'draft' AND session_date < (now() AT TIME ZONE 'Asia/Jakarta')::date`)
+		WHERE status = 'draft' AND session_date < (now() AT TIME ZONE 'Asia/Jakarta')::date
+		RETURNING share_code`)
 	if err != nil {
 		return 0, err
 	}
-	return tag.RowsAffected(), nil
+	defer rows.Close()
+
+	var locked []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return 0, err
+		}
+		locked = append(locked, id)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(locked) > 0 {
+		// Broadcast di luar transaksi — Load() bikin tx read-only sendiri.
+		for _, id := range locked {
+			if snap, err := s.Load(ctx, id); err == nil && snap != nil {
+				s.Broadcast(id, snap)
+			}
+		}
+	}
+	return int64(len(locked)), nil
 }
 
 // SessionMeta — baris dari list_sessions() (key JSON sama dengan kontrak RPC).
