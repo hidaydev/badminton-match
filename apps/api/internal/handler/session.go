@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"majadu-api/internal/domain"
 	"majadu-api/internal/httperr"
@@ -25,6 +27,47 @@ var (
 	errIfMatchMissing   = errors.New("If-Match missing")
 	errIfMatchMalformed = errors.New("If-Match malformed")
 )
+
+// ── Idempotency (M5 T10) — in-memory, TTL 24h, key = sessionId + Idempotency-Key header ──
+
+var (
+	idempotencyMu    sync.Mutex
+	idempotencyStore = make(map[string]idempotencyEntry)
+)
+
+type idempotencyEntry struct {
+	snap   *domain.CloudSnapshot
+	expiry time.Time
+}
+
+func getIdempotentResponse(key string) (*domain.CloudSnapshot, bool) {
+	idempotencyMu.Lock()
+	defer idempotencyMu.Unlock()
+	e, ok := idempotencyStore[key]
+	if !ok {
+		return nil, false
+	}
+	if time.Now().After(e.expiry) {
+		delete(idempotencyStore, key)
+		return nil, false
+	}
+	return e.snap, true
+}
+
+func setIdempotentResponse(key string, snap *domain.CloudSnapshot) {
+	idempotencyMu.Lock()
+	defer idempotencyMu.Unlock()
+	// Clean expired (lazy, cap 1000)
+	if len(idempotencyStore) > 1000 {
+		now := time.Now()
+		for k, v := range idempotencyStore {
+			if now.After(v.expiry) {
+				delete(idempotencyStore, k)
+			}
+		}
+	}
+	idempotencyStore[key] = idempotencyEntry{snap: snap, expiry: time.Now().Add(24 * time.Hour)}
+}
 
 // mapPublishError — mapping error dari publish/delete (sentinels store atau
 // pgconn.PgError) ke respons yang bersih — jangan bocorkan SQLSTATE / detail
@@ -264,6 +307,16 @@ func (h *SessionHandler) Put(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := r.PathValue("id")
+	// Idempotency: jika header ada dan sudah pernah sukses, kembalikan cache tanpa re-execute (network retry)
+	idempotencyKey := r.Header.Get("Idempotency-Key")
+	cacheKey := ""
+	if idempotencyKey != "" {
+		cacheKey = id + ":" + idempotencyKey
+		if cached, ok := getIdempotentResponse(cacheKey); ok {
+			h.writeSession(w, http.StatusOK, cached)
+			return
+		}
+	}
 	// Update (sesi sudah ada) tanpa version = berbahaya → tolak.
 	if _, err := h.Store.Load(r.Context(), id); err == nil {
 		if snap.Version == nil {
@@ -288,6 +341,9 @@ func (h *SessionHandler) Put(w http.ResponseWriter, r *http.Request) {
 		h.Logger.Warn("publish session rejected", "session", id, "error", err)
 		httperr.WriteError(w, h.Logger, mapPublishError(err))
 		return
+	}
+	if cacheKey != "" {
+		setIdempotentResponse(cacheKey, out)
 	}
 	h.writeSession(w, http.StatusOK, out)
 }
