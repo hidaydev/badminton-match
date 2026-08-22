@@ -13,9 +13,10 @@ export function computeStandings(
   voidPlayerIds?: Iterable<string>,
 ): PlayerStanding[] {
   const map = new Map<string, PlayerStanding>()
-  // Game VOID: memuat ≥1 pemain yang tidak benar-benar bermain (absent /
-  // placeholder) → tidak ditallikan untuk SIAPA PUN. Semantik
-  // ABSENT_TBD_PLAYERS_DESIGN.md §4 — konsisten dengan store/stats.go.
+  // Semantik skip_player (konsisten dengan rating engine, rating.go):
+  // game dengan pemain absent TETAP dihitung untuk pemain yang benar-benar
+  // main — hanya pemain void (absent/placeholder) yang di-exclude dari tally.
+  // Game di-skip hanya jika salah satu tim tidak punya pemain aktif sama sekali.
   const voidSet = voidPlayerIds ? new Set(voidPlayerIds) : null
 
   for (const p of players) {
@@ -26,18 +27,20 @@ export function computeStandings(
     const key = toGameKey(slot.slot, slot.court)
     const score = gameScores[key]
     if (!score) continue
-    if (voidSet && (slot.teamA.some((id) => voidSet.has(id)) || slot.teamB.some((id) => voidSet.has(id)))) {
-      continue
-    }
+
+    const teamA = voidSet ? slot.teamA.filter((id) => !voidSet.has(id)) : slot.teamA
+    const teamB = voidSet ? slot.teamB.filter((id) => !voidSet.has(id)) : slot.teamB
+    // Tim tanpa pemain aktif → game tidak valid untuk siapa pun
+    if (teamA.length === 0 || teamB.length === 0) continue
 
     const { a, b } = score
 
-    for (const id of slot.teamA) {
+    for (const id of teamA) {
       const standing = map.get(id)
       if (standing) tallyMatch(standing, a, b)
     }
 
-    for (const id of slot.teamB) {
+    for (const id of teamB) {
       const standing = map.get(id)
       if (standing) tallyMatch(standing, b, a)
     }

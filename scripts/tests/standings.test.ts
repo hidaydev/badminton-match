@@ -34,7 +34,10 @@ test('standardStandingSort: wins → diff → pointsFor', () => {
   assert.deepEqual(sorted.slice(0, 2).map((r) => r.diff), [5, 3])
 })
 
-// ── VOID game (absent player) — semantik ABSENT_TBD_PLAYERS_DESIGN.md §4 ──
+// ── Game dengan absent player — semantik skip_player (konsisten rating engine) ──
+// Game yang memuat pemain absent TETAP dihitung untuk pemain yang main;
+// hanya pemain absent yang di-exclude dari tally. Game di-skip hanya jika
+// salah satu tim tidak punya pemain aktif sama sekali.
 
 function makePlayer(id: string): Player {
   return { id: toPlayerId(id), name: id, gender: 'M', tier: 2 }
@@ -49,9 +52,9 @@ function makeStandingsFixture() {
   const schedule: ScheduleSlot[] = [
     // game valid: p1+p2 vs p3+p4
     { slot: 1, court: 1, teamA: [toPlayerId('p1'), toPlayerId('p2')], teamB: [toPlayerId('p3'), toPlayerId('p4')] },
-    // game VOID: melibatkan pAbsent (di tim A)
+    // game dengan pAbsent di tim A: TETAP dihitung untuk p2, p3, p4
     { slot: 2, court: 1, teamA: [toPlayerId('pAbsent'), toPlayerId('p2')], teamB: [toPlayerId('p3'), toPlayerId('p4')] },
-    // game VOID: melibatkan pAbsent (di tim B)
+    // game dengan pAbsent di tim B: TETAP dihitung untuk p1, p2, p3
     { slot: 3, court: 1, teamA: [toPlayerId('p1'), toPlayerId('p2')], teamB: [toPlayerId('p3'), toPlayerId('pAbsent')] },
   ]
   const gameScores: Record<string, GameScore> = {
@@ -62,7 +65,7 @@ function makeStandingsFixture() {
   return { players: [p1, p2, p3, p4, pAbsent], schedule, gameScores }
 }
 
-test('computeStandings: game yang memuat pemain absent TIDAK ditallikan untuk siapa pun', () => {
+test('computeStandings: game dengan absent tetap dihitung untuk pemain yang main (skip_player)', () => {
   const { players, schedule, gameScores } = makeStandingsFixture()
   const voidIds: PlayerId[] = [toPlayerId('pAbsent')]
   const rows = computeStandings(
@@ -74,15 +77,19 @@ test('computeStandings: game yang memuat pemain absent TIDAK ditallikan untuk si
   const byId = new Map(rows.map((r) => [r.player.id, r]))
 
   // Game 1 valid: p1+p2 menang 21-15
+  // Game 2 (pAbsent di A): p2 menang 21-10, p3+p4 kalah
+  // Game 3 (pAbsent di B): p1+p2 kalah 12-21, p3 menang
   assert.equal(byId.get(toPlayerId('p1'))!.wins, 1)
-  assert.equal(byId.get(toPlayerId('p1'))!.pointsFor, 21)
-  // Game 2 & 3 VOID → p2 (yang ikut di kedua game) tidak dapat apa pun
-  assert.equal(byId.get(toPlayerId('p2'))!.wins, 1)
-  assert.equal(byId.get(toPlayerId('p2'))!.losses, 0)
-  assert.equal(byId.get(toPlayerId('p2'))!.pointsFor, 21)
-  // p3+p4 kalah sekali (game 1), tidak dapat win dari game void
-  assert.equal(byId.get(toPlayerId('p3'))!.losses, 1)
-  assert.equal(byId.get(toPlayerId('p4'))!.losses, 1)
+  assert.equal(byId.get(toPlayerId('p1'))!.losses, 1)
+  assert.equal(byId.get(toPlayerId('p1'))!.pointsFor, 21 + 12)
+  // p2 main di 3 game → 2 menang 1 kalah (game dengan absent TETAP dihitung)
+  assert.equal(byId.get(toPlayerId('p2'))!.wins, 2)
+  assert.equal(byId.get(toPlayerId('p2'))!.losses, 1)
+  assert.equal(byId.get(toPlayerId('p2'))!.pointsFor, 21 + 21 + 12)
+  // p3: kalah game 1 & 2, menang game 3
+  assert.equal(byId.get(toPlayerId('p3'))!.wins, 1)
+  assert.equal(byId.get(toPlayerId('p3'))!.losses, 2)
+  assert.equal(byId.get(toPlayerId('p4'))!.losses, 2)
 })
 
 test('computeStandings: tanpa voidPlayerIds tetap menghitung semua game (backward compat)', () => {
@@ -96,4 +103,30 @@ test('computeStandings: tanpa voidPlayerIds tetap menghitung semua game (backwar
   // p2 ikut di 3 game → 2 menang 1 kalah
   assert.equal(byId.get(toPlayerId('p2'))!.wins, 2)
   assert.equal(byId.get(toPlayerId('p2'))!.losses, 1)
+})
+
+test('computeStandings: tim tanpa pemain aktif sama sekali → game di-skip', () => {
+  const p1 = makePlayer('p1')
+  const p2 = makePlayer('p2')
+  const p3 = makePlayer('p3')
+  const schedule: ScheduleSlot[] = [
+    // tim A = 2 pemain absent semua → game tidak valid
+    { slot: 1, court: 1, teamA: [toPlayerId('pAbsent1'), toPlayerId('pAbsent2')], teamB: [toPlayerId('p1'), toPlayerId('p2')] },
+    { slot: 2, court: 1, teamA: [toPlayerId('p1'), toPlayerId('p2')], teamB: [toPlayerId('p3'), toPlayerId('pAbsent1')] },
+  ]
+  const gameScores: Record<string, GameScore> = {
+    [toGameKey(1, 1)]: { a: 21, b: 10 },
+    [toGameKey(2, 1)]: { a: 12, b: 21 },
+  }
+  const rows = computeStandings(
+    [p1, p2, p3],
+    schedule,
+    gameScores,
+    [toPlayerId('pAbsent1'), toPlayerId('pAbsent2')],
+  )
+  const byId = new Map(rows.map((r) => [r.player.id, r]))
+  // Game 1 skip (tim A kosong); game 2: p3 menang 21-12
+  assert.equal(byId.get(toPlayerId('p1'))!.wins, 0)
+  assert.equal(byId.get(toPlayerId('p1'))!.losses, 1)
+  assert.equal(byId.get(toPlayerId('p3'))!.wins, 1)
 })

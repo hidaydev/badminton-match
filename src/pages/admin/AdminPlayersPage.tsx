@@ -15,6 +15,8 @@ export default function AdminPlayersPage() {
   const [query, setQuery] = useState('')
   const [newName, setNewName] = useState('')
   const [newTier, setNewTier] = useState('C')
+  // Mode merge: { source } → pilih target dari daftar player lain
+  const [mergeSource, setMergeSource] = useState<string | null>(null)
   const { data: players, refetch } = useListPlayers()
 
   const filtered = (players ?? []).filter(
@@ -67,6 +69,20 @@ export default function AdminPlayersPage() {
               className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none"
             />
 
+            {mergeSource && (
+              <div className="flex flex-col gap-1.5 rounded-lg border border-amber-700/50 bg-amber-900/20 px-3 py-2">
+                <p className="text-xs text-amber-300">
+                  Merge mode: pilih <b>target</b> — semua data dari <b>{players?.find(p => p.playerId === mergeSource)?.name ?? 'source'}</b> akan digabung ke target, lalu source dihapus.
+                </p>
+                <button
+                  onClick={() => setMergeSource(null)}
+                  className="self-start text-[10px] text-fg-dim hover:text-fg underline underline-offset-2"
+                >
+                  Cancel merge
+                </button>
+              </div>
+            )}
+
             <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
               {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-4">No players match.</p>}
               {slice.map((pl) => (
@@ -74,6 +90,38 @@ export default function AdminPlayersPage() {
                   <span className="flex-1 min-w-0 text-sm text-fg truncate">{pl.name}</span>
                   {pl.tierInduk && (
                     <span className="text-[10px] font-sans text-amber-300/80 border border-amber-800/50 rounded px-1.5 py-0.5">tier {pl.tierInduk}</span>
+                  )}
+                  {mergeSource === pl.playerId ? (
+                    <span className="text-[10px] font-sans text-amber-300 border border-amber-700/60 rounded px-1.5 py-0.5">source</span>
+                  ) : mergeSource ? (
+                    <ActionButton
+                      tone="amber"
+                      onClick={() => {
+                        const sourceName = players?.find(p => p.playerId === mergeSource)?.name ?? 'source'
+                        const targetName = pl.name
+                        if (window.confirm(`Merge "${sourceName}" into "${targetName}"?\n\nSemua data source dipindah ke target, source dihapus, rating di-rebuild.`)) {
+                          run(
+                            async () => {
+                              await adminRequest('POST', '/players/merge', {
+                                targetPlayerId: pl.playerId,
+                                sourcePlayerId: mergeSource,
+                              })
+                            },
+                            `Merged "${sourceName}" → "${targetName}"`,
+                            () => { setMergeSource(null); refetch() },
+                          )
+                        }
+                      }}
+                    >
+                      Merge →
+                    </ActionButton>
+                  ) : (
+                    <ActionButton
+                      tone="amber"
+                      onClick={() => { if (pl.playerId) setMergeSource(pl.playerId) }}
+                    >
+                      Merge
+                    </ActionButton>
                   )}
                   <ActionButton onClick={() => {
                     const t2 = window.prompt(en.admin.tierPrompt(pl.name), pl.tierInduk ?? 'C')

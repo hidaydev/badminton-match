@@ -36,9 +36,16 @@ function buildGameRows(
 
   return schedule
     .filter(slot => slot.teamA.includes(pid) || slot.teamB.includes(pid))
-    // Game VOID (memuat pemain absent/placeholder) tidak ditampilkan —
-    // konsisten dengan computeStandings (ABSENT_TBD_PLAYERS_DESIGN.md §4)
-    .filter(slot => !(voidSet && (slot.teamA.some(id => voidSet.has(id)) || slot.teamB.some(id => voidSet.has(id)))))
+    // Semantik skip_player (konsisten dengan computeStandings): game dengan
+    // pemain absent tetap dihitung untuk pemain yang main — hanya di-skip
+    // jika tim si pemain (atau tim lawan) tidak punya pemain aktif sama sekali.
+    .filter(slot => {
+      if (!voidSet) return true
+      const inA = slot.teamA.includes(pid)
+      const myTeam = inA ? slot.teamA : slot.teamB
+      const oppTeam = inA ? slot.teamB : slot.teamA
+      return myTeam.some(id => !voidSet.has(id)) && oppTeam.some(id => !voidSet.has(id))
+    })
     .sort((a, b) => a.slot - b.slot || a.court - b.court)
     .map(slot => {
       const inTeamA = slot.teamA.includes(pid)
