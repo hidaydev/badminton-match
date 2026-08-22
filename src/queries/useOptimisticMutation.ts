@@ -58,11 +58,11 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
   const { queryKey, fetchSnapshot, publish, optimisticUpdate, applyOptimistic = true, onSuccessCallback } = options
 
   return useMutation({
-    mutationFn: async (vars: TVars) => {
+    mutationFn: async () => {
+      // Read dari cache (sudah di-update oleh onMutate) — JANGAN apply optimistic lagi!
       const current = queryClient.getQueryData<TData>(queryKey)
-      const next = optimisticUpdate(current ?? null, vars)
-      if (!next) throw new Error('no data')
-      return await publish(id, next)
+      if (!current) throw new Error('no data')
+      return await publish(id, current)
     },
     onMutate: async (vars) => {
       await queryClient.cancelQueries({ queryKey })
