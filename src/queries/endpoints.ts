@@ -37,6 +37,7 @@ export async function request<T>(
   path: string,
   body?: unknown,
   signal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
 ): Promise<T> {
   let lastError: unknown
   let retryDelayMs = 0
@@ -57,6 +58,7 @@ export async function request<T>(
         headers: {
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+          ...(extraHeaders ?? {}),
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
@@ -189,7 +191,9 @@ export async function getSession(id: string): Promise<CloudSnapshot | null> {
 }
 
 export async function publishSession(id: string, data: CloudSnapshot): Promise<CloudSnapshot> {
-  const out = await request<CloudSnapshot>('PUT', `/sessions/${enc(id)}`, data)
+  const headers: Record<string, string> = {}
+  if (data.version != null) headers['If-Match'] = `"v${data.version}"`
+  const out = await request<CloudSnapshot>('PUT', `/sessions/${enc(id)}`, data, undefined, headers)
   if (!isValidSnapshot(out)) {
     console.warn('[publishSession] response failed validation:', out)
     throw new ApiError('Invalid session snapshot received from server')
