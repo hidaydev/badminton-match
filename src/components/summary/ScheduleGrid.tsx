@@ -127,6 +127,9 @@ export default function ScheduleGrid({
                 const teamANames = g.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
                 const teamBNames = g.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
 
+                // GUARD: check if game has absent players
+                const hasAbsent = g.teamA.some((id) => effectiveAbsent.has(id)) || g.teamB.some((id) => effectiveAbsent.has(id))
+
                 const gameRow = (
                   <div className="flex flex-col gap-1">
                     {/* Game row header */}
@@ -135,8 +138,8 @@ export default function ScheduleGrid({
                     >
                       {/* Played checkbox */}
                       <div
-                        className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${locked || mode !== 'idle' ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
-                        onClick={() => { if (!locked && !saving && mode === 'idle') onTogglePlayedGame?.(key) }}
+                        className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${locked || mode !== 'idle' || hasAbsent ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                        onClick={() => { if (!locked && !saving && mode === 'idle' && !hasAbsent) onTogglePlayedGame?.(key) }}
                       >
                         {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                       </div>
