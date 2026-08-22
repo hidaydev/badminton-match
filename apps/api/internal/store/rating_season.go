@@ -150,8 +150,8 @@ type SeasonStandingRow struct {
 	Rating      float64 `json:"rating"`
 	RD          float64 `json:"rd"`
 	Peak        float64 `json:"peak"`
-	Tier        string  `json:"tier"` // tier saat arsip (sudah 8-tier)
-	TierDisplay string  `json:"tier_display"`
+	Tier        string  `json:"tier"` // tier saat arsip (players.tier sticky)
+	TierDisplay string  `json:"tier_display"` // = derived dari rating arsip (badge murni)
 	Games       int     `json:"games"`
 	Wins        int     `json:"wins"`
 	Losses      int     `json:"losses"`
@@ -178,7 +178,7 @@ func (s *SessionStore) SeasonStandings(ctx context.Context, seasonID string) ([]
 		if err := rows.Scan(&r.Name, &r.Rating, &r.RD, &r.Peak, &r.Tier, &r.Games, &r.Wins, &r.Losses); err != nil {
 			return nil, err
 		}
-		r.TierDisplay = cfg.DisplayTier(r.Rating, r.Tier)
+		r.TierDisplay = cfg.TierForRating(r.Rating)
 		out = append(out, r)
 	}
 	return out, rows.Err()

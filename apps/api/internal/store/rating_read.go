@@ -21,7 +21,7 @@ type LeaderboardRow struct {
 	RD          float64 `json:"rd"`
 	Tier        string  `json:"tier"`
 	TierDerived string  `json:"tier_derived"` // dari rating (8 band)
-	TierDisplay string  `json:"tier_display"` // max(derived, floor(tier))
+	TierDisplay string  `json:"tier_display"` // = tier_derived (keputusan 2026-08-23: badge murni dari rating season, tanpa floor sticky)
 	Peak        float64 `json:"peak"`
 	Games       int     `json:"games"`
 	Trend       float64 `json:"trend"`
@@ -80,7 +80,7 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 			return 0, nil, err
 		}
 		r.TierDerived = cfg.TierForRating(r.Rating)
-		r.TierDisplay = cfg.DisplayTier(r.Rating, r.Tier)
+		r.TierDisplay = r.TierDerived
 		r.Provisional = domain.Provisional(r.RD)
 		out = append(out, r)
 	}
@@ -108,7 +108,7 @@ type RatingPlayerDetail struct {
 	RD          float64            `json:"rd"`
 	Tier        string             `json:"tier"`
 	TierDerived string             `json:"tier_derived"`
-	TierDisplay string             `json:"tier_display"`
+	TierDisplay string             `json:"tier_display"` // = tier_derived (badge murni dari rating)
 	Peak        float64            `json:"peak"`
 	Games       int                `json:"games"`
 	Wins        int                `json:"wins"`
@@ -137,7 +137,7 @@ func (s *SessionStore) RatingPlayer(ctx context.Context, playerID string) (*Rati
 		return nil, err
 	}
 	d.TierDerived = cfg.TierForRating(d.Rating)
-	d.TierDisplay = cfg.DisplayTier(d.Rating, d.Tier)
+	d.TierDisplay = d.TierDerived
 	d.History, err = s.RatingPlayerHistory(ctx, playerID, 200)
 	if err != nil {
 		return nil, err
