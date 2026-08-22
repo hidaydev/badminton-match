@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetSession,
+  useSessionRealtime,
   useTogglePlayed,
   useSetScore,
   useSwapPlayers,
@@ -46,8 +47,11 @@ export default function SharedSessionPage() {
 
   const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
 
+  const realtimeConnected = useSessionRealtime(sessionId, !isSaving)
+
   const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId, {
-    refetchInterval: isSaving ? false : 30_000,
+    refetchInterval: realtimeConnected ? false : isSaving ? false : 5_000,
+    refetchOnWindowFocus: true,
   })
 
   const { save } = useLastSession()
