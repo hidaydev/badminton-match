@@ -368,8 +368,7 @@ export default function SummaryModal({
   function handleCancelChange() { setPendingChange(null) }
   function handleConfirmChange() { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitCurrentMode() } }
   function handleConfirmAbsent() {
-    // P2 — prompt sebelum void: hitung game yang memuat pemain yang baru
-    // di-mark absent (ABSENT_TBD_PLAYERS_DESIGN.md §4.4).
+    // Hitung game yang memuat pemain yang baru di-mark absent
     const ids = [...absentPending]
     const gameCount = result.schedule.filter(
       (slot) => slot.teamA.some((id) => ids.includes(id)) || slot.teamB.some((id) => ids.includes(id)),
@@ -379,8 +378,17 @@ export default function SummaryModal({
       exitCurrentMode()
       return
     }
+    // No games affected — just set absent directly
     onSetAbsent?.(ids)
     exitCurrentMode()
+  }
+
+  function handleConfirmVoid() {
+    if (!absentConfirm) return
+    const ids = absentConfirm.ids
+    // Set absent — game tetap jalan, player absent tidak dapat rating delta
+    onSetAbsent?.(ids)
+    setAbsentConfirm(null)
   }
 
   return (
@@ -778,23 +786,20 @@ export default function SummaryModal({
               <span className="text-slate-300">
                 {absentConfirm.ids.map((id) => playerMap.get(id)?.name ?? id).join(', ')}
               </span>{' '}
-              will not count (void). Replace the player in those games first, or leave them as-is.
+              will still count. The absent player won't receive rating deltas.
             </p>
             <div className="flex flex-col gap-2">
               <button
-                onClick={() => { setAbsentConfirm(null); enterChangeMode() }}
-                className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold"
-              >
-                Replace in games
-              </button>
-              <button
-                onClick={() => {
-                  onSetAbsent?.(absentConfirm.ids)
-                  setAbsentConfirm(null)
-                }}
+                onClick={handleConfirmVoid}
                 className="w-full py-2.5 rounded-lg bg-red-900/50 border border-red-700 text-red-200 text-sm font-bold"
               >
-                Continue — void those games
+                Confirm absent
+              </button>
+              <button
+                onClick={() => setAbsentConfirm(null)}
+                className="w-full py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm font-bold"
+              >
+                Cancel
               </button>
             </div>
           </div>

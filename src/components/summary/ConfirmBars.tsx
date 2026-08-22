@@ -293,7 +293,7 @@ export default function ConfirmBars({
               ? 'Remove all absent tags'
               : [...playerMap.values()].filter(p => absentPending.has(p.id)).map(p => p.name).join(', ')
           }
-          warning="Excluded from leaderboard"
+          warning="Won't receive rating deltas"
           onCancel={onCancelAbsent}
           onConfirm={onConfirmAbsent}
           saving={saving}
