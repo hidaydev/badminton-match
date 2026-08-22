@@ -70,14 +70,34 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
       if (applyOptimistic) {
         queryClient.setQueryData<TData | null>(queryKey, (old) => optimisticUpdate(old ?? null, vars))
       }
-      return { previous }
+      return { previous, vars }
     },
     onError: async (_err, _vars, context) => {
+      // Version mismatch → fetch latest + apply user's change + retry once
+      if (isVersionMismatch(_err)) {
+        try {
+          const fresh = await fetchSnapshot(id)
+          if (fresh && context?.vars !== undefined) {
+            const retried = optimisticUpdate(fresh, context.vars)
+            if (retried) {
+              queryClient.setQueryData(queryKey, retried)
+              try {
+                await publish(id, retried)
+                return // Success — no need to rollback
+              } catch {
+                // Retry failed — rollback
+              }
+            }
+          }
+        } catch {
+          // ignore fetch errors
+        }
+      }
+      // Rollback on failure
       if (context?.previous !== undefined) {
         queryClient.setQueryData(queryKey, context.previous)
       }
-      // Refetch on version mismatch OR lock conflict — both mean the cached
-      // snapshot is stale and the user needs the latest server state.
+      // Refetch on version mismatch OR lock conflict
       if (isVersionMismatch(_err) || isLockedError(_err)) {
         try {
           await queryClient.fetchQuery<TData | null>({
