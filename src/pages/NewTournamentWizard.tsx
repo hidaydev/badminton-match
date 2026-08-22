@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useCreateTournament } from '../queries'
 import { shuffle } from '../utils/array'
+import { todayWIB } from '../utils/time'
 import {
   generateGroupMatches,
   initKnockoutMatches,
@@ -52,7 +53,7 @@ function TeamWizard() {
 
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => todayWIB())
   const [players, setPlayers] = useState(initialPlayers)
   const [teamNames, setTeamNames] = useState(() => Array.from({ length: TEAM_COUNT }, (_, i) => `Tim ${i + 1}`))
   const [teams, setTeams] = useState<{ id: string; name: string; players: { name: string; cls: TeamClass }[] }[]>([])
@@ -259,7 +260,7 @@ function ClassicWizard() {
 
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => todayWIB())
   const [pairs, setPairs] = useState(() => Array.from({ length: PAIR_COUNT }, emptyPair))
   const [groups, setGroups] = useState<Record<GroupId, string[]>>(() => ({ A: [], B: [], C: [], D: [] }))
 
