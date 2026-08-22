@@ -52,10 +52,10 @@ export default function GeneratePage() {
     setResult(storeResult)
   }
 
-  // Auto-dismiss error toast after 5 seconds
+  // Auto-dismiss error toast after 3 seconds (keputusan poin 4)
   useEffect(() => {
     if (!saveError) return
-    const timer = setTimeout(() => setSaveError(null), 5000)
+    const timer = setTimeout(() => setSaveError(null), 3000)
     return () => clearTimeout(timer)
   }, [saveError])
 
@@ -291,7 +291,7 @@ export default function GeneratePage() {
           onSwapTeams={handleSwapTeams}
           onSwapSlots={handleSwapSlots}
           onReplacePlayer={handleReplacePlayer}
-          onSetAbsent={handleSetAbsent}
+          onSetAbsent={cloudSessionId ? handleSetAbsent : undefined}
           absentPlayers={absentPlayers}
         />
       )}

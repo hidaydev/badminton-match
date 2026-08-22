@@ -71,8 +71,9 @@ test('setScoreInSnapshot: auto-tambah ke playedGames saat game belum played', ()
 
 test('setScoreInSnapshot: menolak skor tidak valid (sama/negatif)', () => {
   const snap = makeSnapshot()
-  assert.equal(setScoreInSnapshot(snap, '0-0', 21, 21), snap)
-  assert.equal(setScoreInSnapshot(snap, '0-0', -1, 5), snap)
+  assert.throws(() => setScoreInSnapshot(snap, '0-0', 21, 21), /Scores cannot be equal/)
+  assert.throws(() => setScoreInSnapshot(snap, '0-0', -1, 5), /Scores cannot be negative/)
+  assert.throws(() => setScoreInSnapshot(snap, '9-9', 21, 18), /Invalid game key/)
 })
 
 test('swapSlotsInSnapshot: memigrasikan schedule, played keys, dan scores bersama', () => {
