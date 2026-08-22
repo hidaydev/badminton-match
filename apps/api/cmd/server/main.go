@@ -146,6 +146,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("GET /sessions", http.HandlerFunc(sessions.List))
 	mux.Handle("POST /sessions", http.HandlerFunc(sessions.Create))
 	mux.Handle("GET /sessions/{id}", http.HandlerFunc(sessions.Get))
+	mux.Handle("GET /sessions/{id}/watch", http.HandlerFunc(sessions.Watch))
 	mux.Handle("PUT /sessions/{id}", http.HandlerFunc(sessions.Put))
 	mux.Handle("PATCH /sessions/{id}", http.HandlerFunc(sessions.Patch))
 	mux.Handle("DELETE /sessions/{id}", http.HandlerFunc(sessions.Delete))

@@ -186,6 +186,54 @@ func (h *SessionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	h.writeSession(w, http.StatusOK, snap)
 }
 
+// Watch — GET /sessions/{id}/watch SSE full snapshot (realtime-ness, M5-C).
+// Tanpa AdminGuard (read anon, sama seperti Get). Kirim snapshot awal lalu tiap Broadcast.
+func (h *SessionHandler) Watch(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	snap, err := h.Store.Load(r.Context(), id)
+	if errors.Is(err, store.ErrNotFound) {
+		httperr.WriteError(w, h.Logger, httperr.NotFound("session not found"))
+		return
+	}
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to load session", err))
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	// CORS untuk EventSource (Browser kirim Accept: text/event-stream)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httperr.WriteError(w, h.Logger, httperr.Internal("streaming not supported"))
+		return
+	}
+	ch, cancel := h.Store.Subscribe(id)
+	defer cancel()
+	// Kirim snapshot awal segera (realtime-ness, 0 GET)
+	data, _ := json.Marshal(snap)
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+		return
+	}
+	flusher.Flush()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case s, ok := <-ch:
+			if !ok {
+				return
+			}
+			data, _ := json.Marshal(s)
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
+
 // Put — PUT /sessions/{id}: full snapshot replace (create-or-update).
 // Kontrak frontend: body = CloudSnapshot lengkap, version dibawa di body
 // (atau header If-Match). Aturan:

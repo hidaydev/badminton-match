@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"majadu-api/internal/domain"
@@ -39,14 +40,75 @@ type SessionStore struct {
 	pool *pgxpool.Pool
 	// schema — nama schema aktif (MAJADU_DB_SCHEMA: bm / bm_dev). Dipakai
 	// sebagai namespace kunci advisory lock mengikuti konvensi per-env.
-	schema string
+	schema   string
+	mu       sync.RWMutex
+	watchers map[string]map[chan *domain.CloudSnapshot]struct{}
 }
 
 // NewSessionStore — buat SessionStore dengan pool koneksi + schema aktif.
 // Schema (bukan hardcode) menentukan namespace kunci advisory lock:
 // dev → "bm_dev.publish_session:...", prod → "bm.publish_session:...".
 func NewSessionStore(pool *pgxpool.Pool, schema string) *SessionStore {
-	return &SessionStore{pool: pool, schema: schema}
+	return &SessionStore{
+		pool:     pool,
+		schema:   schema,
+		watchers: make(map[string]map[chan *domain.CloudSnapshot]struct{}),
+	}
+}
+
+// Subscribe — daftar untuk SSE watch pada session id. Kembalikan channel dan cancel func.
+func (s *SessionStore) Subscribe(id string) (chan *domain.CloudSnapshot, func()) {
+	ch := make(chan *domain.CloudSnapshot, 4)
+	s.mu.Lock()
+	if s.watchers[id] == nil {
+		s.watchers[id] = make(map[chan *domain.CloudSnapshot]struct{})
+	}
+	s.watchers[id][ch] = struct{}{}
+	s.mu.Unlock()
+	cancel := func() { s.Unsubscribe(id, ch) }
+	return ch, cancel
+}
+
+// Unsubscribe — hapus subscriber dan tutup channel.
+func (s *SessionStore) Unsubscribe(id string, ch chan *domain.CloudSnapshot) {
+	s.mu.Lock()
+	if m, ok := s.watchers[id]; ok {
+		delete(m, ch)
+		if len(m) == 0 {
+			delete(s.watchers, id)
+		}
+	}
+	s.mu.Unlock()
+	// Close di luar lock biar tidak deadlock jika ada Broadcast yang hold RLock
+	// dan coba kirim ke chan yang baru dihapus (select default sudah non-blocking).
+	// Close hanya sekali — Unsubscribe dipanggil sekali per Subscribe via defer.
+	func() {
+		defer func() { _ = recover() }() // jika sudah close
+		close(ch)
+	}()
+}
+
+// Broadcast — kirim snapshot baru ke semua subscriber session id. Non-blocking (slow client drop).
+func (s *SessionStore) Broadcast(id string, snap *domain.CloudSnapshot) {
+	s.mu.RLock()
+	m, ok := s.watchers[id]
+	if !ok {
+		s.mu.RUnlock()
+		return
+	}
+	// Copy chans biar tidak hold lock saat send (hindari deadlock close)
+	chans := make([]chan *domain.CloudSnapshot, 0, len(m))
+	for ch := range m {
+		chans = append(chans, ch)
+	}
+	s.mu.RUnlock()
+	for _, ch := range chans {
+		select {
+		case ch <- snap:
+		default:
+			// buffer penuh → drop (client akan dapat snapshot terbaru di next broadcast)
+		}
+	}
 }
 
 // Load — read-path (port bm.get_session + get_session_snapshot_compat):
@@ -537,7 +599,11 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 		return nil, err
 	}
 	// Snapshot hasil publish dibaca dari read-path (get_session) — satu sumber.
-	return s.Load(ctx, id)
+	snapOut, err := s.Load(ctx, id)
+	if err == nil && snapOut != nil {
+		s.Broadcast(id, snapOut)
+	}
+	return snapOut, err
 }
 
 // Delete — delete write-path (port bm.delete_session): tolak non-draft, lalu
