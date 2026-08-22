@@ -3,6 +3,24 @@
 
 import type { CourtTime, SessionConfig } from '../types'
 
+/**
+ * Tanggal hari ini dalam zona WIB (Asia/Jakarta) format yyyy-mm-dd.
+ * Backend membandingkan session_date terhadap tanggal WIB
+ * (`now() AT TIME ZONE 'Asia/Jakarta'`) untuk auto-lock — default tanggal
+ * harus pakai zona yang sama, bukan UTC (toISOString bisa mundur 1 hari di
+ * jam 00:00–06:59 WIB dan bikin sesi langsung ke-lock).
+ */
+export function todayWIB(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ''
+  return `${get('year')}-${get('month')}-${get('day')}`
+}
+
 export function timeToMinutes(t: string): number {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + (m || 0)
