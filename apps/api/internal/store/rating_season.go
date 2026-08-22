@@ -150,7 +150,7 @@ type SeasonStandingRow struct {
 	Rating      float64 `json:"rating"`
 	RD          float64 `json:"rd"`
 	Peak        float64 `json:"peak"`
-	Tier        string  `json:"tier"` // tier saat arsip (players.tier sticky)
+	Tier        string  `json:"tier"`         // tier saat arsip (players.tier sticky)
 	TierDisplay string  `json:"tier_display"` // = derived dari rating arsip (badge murni)
 	Games       int     `json:"games"`
 	Wins        int     `json:"wins"`
