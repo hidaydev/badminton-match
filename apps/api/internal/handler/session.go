@@ -247,11 +247,7 @@ func (h *SessionHandler) Watch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	// CORS untuk EventSource (Browser kirim Accept: text/event-stream)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		httperr.WriteError(w, h.Logger, httperr.Internal("streaming not supported"))
-		return
-	}
+	rc := http.NewResponseController(w)
 	ch, cancel := h.Store.Subscribe(id)
 	defer cancel()
 	// Kirim snapshot awal segera (realtime-ness, 0 GET)
@@ -259,7 +255,7 @@ func (h *SessionHandler) Watch(w http.ResponseWriter, r *http.Request) {
 	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
 		return
 	}
-	flusher.Flush()
+	_ = rc.Flush()
 	for {
 		select {
 		case <-r.Context().Done():
@@ -272,7 +268,7 @@ func (h *SessionHandler) Watch(w http.ResponseWriter, r *http.Request) {
 			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
 				return
 			}
-			flusher.Flush()
+			_ = rc.Flush()
 		}
 	}
 }
