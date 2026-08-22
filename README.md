@@ -33,9 +33,10 @@ Publish and share via URL. Full operations console:
 - 📊 Toggle played status & enter scores
 - 🔄 Swap players, teams, or game slots
 - 👤 Change individual players with cross-slot conflict detection
-- 🚫 Mark absences (with void-game confirmation)
+- 🚫 Mark absences (game still counts — absent player doesn't get rating delta)
 - 📈 Per-player stats (play count, sit count, partners, opponents)
 - 🔒 Lock session to prevent edits (server-enforced; auto-lock when the date passes)
+- 💾 Auto-save with debounced cloud sync and version-mismatch retry
 
 ### Ratings & Leaderboard
 
@@ -47,8 +48,9 @@ Publish and share via URL. Full operations console:
 ### Tournament Manager
 
 - **Classic**: 16 pairs → 4 groups → round-robin → knockout bracket (QF → SF → 3rd → Final)
-- **Team**: 36 players (6 classes × 6 teams), manual team assignment, 9 group matches + 1 final
-- Editable team names, member display, champion banner with trophy decoration
+- **Team**: 36 players (6 classes × 6 teams), manual team assignment in wizard
+- 9 group matches + 1 final, 3 courts per match (editable court names)
+- Editable team names in standings, member display, champion banner with trophy
 - PIC (person-in-charge) assignment · standings with head-to-head tiebreakers
 
 ### Admin Area
@@ -79,7 +81,7 @@ Publish and share via URL. Full operations console:
 | **Framework** | React 19 + TypeScript 6 | Latest React with full type safety |
 | **Build** | Vite 8 | Instant HMR, optimized builds |
 | **Styling** | Tailwind CSS v4 | Semantic design tokens via `@theme` |
-| **Typography** | IBM Plex Sans + IBM Plex Mono | Clean, accessible, professional |
+| **Typography** | IBM Plex Sans | Clean, accessible, professional |
 | **Local State** | Zustand 5 (sliced) | Minimal boilerplate, persist middleware |
 | **Server State** | TanStack React Query 5 | Optimistic updates, smart caching |
 | **Routing** | React Router v7 | File-based route guards |
