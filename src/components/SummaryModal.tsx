@@ -338,7 +338,13 @@ export default function SummaryModal({
     courtNames[i] || (courts <= 26 ? String.fromCharCode(65 + i) : String(i + 1))
 
   const totalGames = result.schedule.length
-  const playedCount = played.size
+  // Exclude voided games (games with absent players) from played count
+  const playedCount = result.schedule.filter((slot) => {
+    const key = `${slot.slot}-${slot.court}`
+    const isPlayed = played.has(key)
+    const isVoid = slot.teamA.some((id) => effectiveAbsent.has(id)) || slot.teamB.some((id) => effectiveAbsent.has(id))
+    return isPlayed && !isVoid
+  }).length
 
   function trySaveScore(key: string): boolean {
     const draft = draftScores[key]
