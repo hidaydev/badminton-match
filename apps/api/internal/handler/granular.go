@@ -84,6 +84,19 @@ func (h *SessionHandler) PatchGame(w http.ResponseWriter, r *http.Request) {
 	h.writeSessionAny(w, http.StatusOK, out)
 }
 
+// GetGame — GET /sessions/{id}/games/{gameKey} (granular read: version + score untuk OCC)
+func (h *SessionHandler) GetGame(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	gameKey := r.PathValue("gameKey")
+	g, err := h.Store.GetGame(r.Context(), id, gameKey)
+	if err != nil {
+		h.Logger.Warn("get game rejected", "session", id, "gameKey", gameKey, "error", err)
+		httperr.WriteError(w, h.Logger, mapPublishError(err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, g)
+}
+
 // patchAbsentRequest — body untuk PATCH /sessions/{id}/absent
 type patchAbsentRequest struct {
 	PlayerIDs []string `json:"playerIds"`

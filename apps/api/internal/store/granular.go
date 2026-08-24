@@ -15,18 +15,41 @@ import (
 // Semua method di sini adalah clean break dari snapshot PUT.
 // Mereka hanya menyentuh 1-2 baris, tidak DELETE+INSERT, dan tidak validasi full snapshot.
 
-// GameVersion — ambil version per game (scheduled_games.version)
-func (s *SessionStore) GetGameVersion(ctx context.Context, sessionID string, slot, court int) (int, error) {
-	var v int
+// GameRow — satu game dari scheduled_games (granular read).
+type GameRow struct {
+	Slot     int  `json:"slot"`
+	Court    int  `json:"court"`
+	ScoreA   *int `json:"scoreA"`
+	ScoreB   *int `json:"scoreB"`
+	IsPlayed bool `json:"isPlayed"`
+	Version  int  `json:"version"`
+}
+
+// GetGame — ambil satu game + version-nya (untuk If-Match granular).
+func (s *SessionStore) GetGame(ctx context.Context, sessionID, gameKey string) (*GameRow, error) {
+	slot, court, ok := splitGameKey(gameKey)
+	if !ok {
+		return nil, fmt.Errorf("%w: invalid gameKey %q", ErrValidation, gameKey)
+	}
+	var g GameRow
+	var scoreA, scoreB *int
 	err := s.pool.QueryRow(ctx, `
-		SELECT sg.version FROM scheduled_games sg
+		SELECT sg.slot_index, sg.court_index, sg.score_a, sg.score_b, sg.is_played, sg.version
+		FROM scheduled_games sg
 		JOIN sessions s ON s.id = sg.session_id
 		WHERE (s.share_code = $1 OR s.id::text = $1) AND sg.slot_index = $2 AND sg.court_index = $3
-		ORDER BY (s.share_code = $1) DESC LIMIT 1`, sessionID, slot, court).Scan(&v)
+		ORDER BY (s.share_code = $1) DESC LIMIT 1`, sessionID, slot, court).Scan(&g.Slot, &g.Court, &scoreA, &scoreB, &g.IsPlayed, &g.Version)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrNotFound
+		return nil, ErrNotFound
 	}
-	return v, err
+	if err != nil {
+		return nil, err
+	}
+	if scoreA != nil {
+		g.ScoreA = scoreA
+		g.ScoreB = scoreB
+	}
+	return &g, nil
 }
 
 // SetGameScore — granular score: row-level FOR UPDATE, OCC per game, idempotency persistent.
