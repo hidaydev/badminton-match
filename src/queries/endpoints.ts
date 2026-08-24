@@ -282,6 +282,36 @@ export async function patchAbsentPlayers(id: string, playerIds: string[], expect
   return out
 }
 
+/** SwapTarget granular (mirror store.SwapTarget). */
+export interface GranularSwapTarget {
+  slot: number
+  court: number
+  team?: 'A' | 'B'
+  position?: 0 | 1
+}
+
+/** POST /sessions/{id}/swap — granular swap (player | team | slot), session-level OCC. */
+export async function swapMembers(
+  id: string,
+  type: 'player' | 'team' | 'slot',
+  a: GranularSwapTarget,
+  b: GranularSwapTarget,
+  expectedVersion: number,
+): Promise<CloudSnapshot> {
+  const headers: Record<string, string> = { 'If-Match': `"v${expectedVersion}"` }
+  try {
+    headers['Idempotency-Key'] = crypto.randomUUID()
+  } catch {
+    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
+  const out = await request<CloudSnapshot>('POST', `/sessions/${enc(id)}/swap`, { type, a, b }, undefined, headers)
+  if (!isValidSnapshot(out)) {
+    console.warn('[swapMembers] response failed validation:', out)
+    throw new ApiError('Invalid session snapshot received from server')
+  }
+  return out
+}
+
 export async function listSessions(): Promise<SessionMeta[]> {
   const rows = await request<Array<{
     id: string

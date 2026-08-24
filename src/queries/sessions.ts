@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, listSessions, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers } from './endpoints'
+import { getSession, publishSession, listSessions, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers, swapMembers } from './endpoints'
+import type { GranularSwapTarget } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import { isVersionMismatch, isLockedError, isContentionError } from './errors'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
@@ -239,26 +240,38 @@ export function useSetScore(sessionId: string) {
 }
 
 export function useSwapPlayers(sessionId: string) {
-  const queryClient = useQueryClient()
-  return useOptimisticSessionMutation(
+  return useGranularSwap(
     sessionId,
+    'player',
     (old, vars) => {
       const { t1, t2 } = vars as { t1: SwapTarget; t2: SwapTarget }
       return swapPlayersInSnapshot(old, t1, t2)
     },
-    () => invalidateSessionQueries(queryClient),
+    (vars) => {
+      const { t1, t2 } = vars as { t1: SwapTarget; t2: SwapTarget }
+      return {
+        a: { slot: t1.slot, court: t1.court, team: t1.team, position: t1.index },
+        b: { slot: t2.slot, court: t2.court, team: t2.team, position: t2.index },
+      }
+    },
   )
 }
 
 export function useSwapTeams(sessionId: string) {
-  const queryClient = useQueryClient()
-  return useOptimisticSessionMutation(
+  return useGranularSwap(
     sessionId,
+    'team',
     (old, vars) => {
       const { t1, t2 } = vars as { t1: TeamSwapTarget; t2: TeamSwapTarget }
       return swapTeamsInSnapshot(old, t1, t2)
     },
-    () => invalidateSessionQueries(queryClient),
+    (vars) => {
+      const { t1, t2 } = vars as { t1: TeamSwapTarget; t2: TeamSwapTarget }
+      return {
+        a: { slot: t1.slot, court: t1.court, team: t1.team },
+        b: { slot: t2.slot, court: t2.court, team: t2.team },
+      }
+    },
   )
 }
 
@@ -328,15 +341,79 @@ export function useReplacePlayer(sessionId: string) {
 }
 
 export function useSwapSlots(sessionId: string) {
-  const queryClient = useQueryClient()
-  return useOptimisticSessionMutation(
+  return useGranularSwap(
     sessionId,
+    'slot',
     (old, vars) => {
       const { g1, g2 } = vars as { g1: SlotSwapTarget; g2: SlotSwapTarget }
       return swapSlotsInSnapshot(old, g1, g2)
     },
-    () => invalidateSessionQueries(queryClient),
+    (vars) => {
+      const { g1, g2 } = vars as { g1: SlotSwapTarget; g2: SlotSwapTarget }
+      return { a: { slot: g1.slot, court: g1.court }, b: { slot: g2.slot, court: g2.court } }
+    },
   )
+}
+
+// ── Factory granular swap ────────────────────────────────────────────────────
+// Pakai POST /sessions/{id}/swap (session-level OCC). Optimistic pada snapshot
+// cache (helper swap*InSnapshot), onSuccess setQueryData dari server (authoritative).
+// Retry 1x on 409: refetch fresh → re-apply swap ke state server (bukan optimistic).
+function useGranularSwap<TVars = Record<string, unknown>>(
+  sessionId: string,
+  kind: 'player' | 'team' | 'slot',
+  optimisticUpdate: (old: CloudSnapshot, vars: TVars) => CloudSnapshot,
+  mapVars: (vars: TVars) => { a: GranularSwapTarget; b: GranularSwapTarget },
+) {
+  const queryClient = useQueryClient()
+  return useMutation<CloudSnapshot, unknown, TVars, { previous?: CloudSnapshot }>({
+    mutationFn: async (vars: TVars) => {
+      const { a, b } = mapVars(vars)
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+        const ver = current?.version
+        if (ver == null) throw new Error('session version not loaded')
+        try {
+          return await swapMembers(sessionId, kind, a, b, ver)
+        } catch (err) {
+          if (attempt === 0 && isVersionMismatch(err)) {
+            try {
+              await queryClient.fetchQuery<CloudSnapshot | null>({
+                queryKey: ['session', sessionId],
+                queryFn: () => getSession(sessionId),
+              })
+              continue
+            } catch { /* ignore */ }
+          }
+          throw err
+        }
+      }
+      throw new Error('unreachable')
+    },
+    onMutate: async (vars: TVars) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (previous) {
+        queryClient.setQueryData(['session', sessionId], optimisticUpdate(previous, vars))
+      }
+      return { previous }
+    },
+    onError: async (error, _vars, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(['session', sessionId], ctx.previous)
+      if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
+        try {
+          await queryClient.fetchQuery<CloudSnapshot | null>({
+            queryKey: ['session', sessionId],
+            queryFn: () => getSession(sessionId),
+          })
+        } catch { /* ignore */ }
+      }
+    },
+    onSuccess: (snap) => {
+      queryClient.setQueryData(['session', sessionId], snap)
+      void invalidateSessionQueries(queryClient)
+    },
+  })
 }
 
 export function useFetchSession() {
