@@ -280,6 +280,16 @@ func (h *SessionHandler) Watch(w http.ResponseWriter, r *http.Request) {
 //   - sesi SUDAH ada  → WAJIB version (If-Match atau body.version),
 //     tolak update tanpa version (cegah silent-overwrite).
 func (h *SessionHandler) Put(w http.ResponseWriter, r *http.Request) {
+	// Clean break (grand-revamp): PUT snapshot adalah kontrak legacy — live ops
+	// wajib granular (PATCH /games/{key}, PATCH /absent). PUT tetap berfungsi
+	// hanya untuk fase setup/generate + operasi swap yang belum granular.
+	// Client baru diarahkan ke granular; deprecation header untuk observability.
+	w.Header().Set("X-Snapshot-Deprecated", "true")
+	if h.Logger != nil {
+		h.Logger.Warn("PUT /sessions/{id} deprecated for live ops — use PATCH granular",
+			"session", r.PathValue("id"), "remote", r.RemoteAddr)
+	}
+
 	var snap domain.CloudSnapshot
 	if err := decodeJSON(r, &snap); err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid JSON body: "+err.Error()))

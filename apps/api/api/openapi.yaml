@@ -119,6 +119,38 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+    put:
+      tags: [Sessions]
+      summary: "DEPRECATED — replace full snapshot (setup/generate saja)"
+      description: >
+        Clean break (grand-revamp): PUT full CloudSnapshot hanya untuk fase
+        setup/generate (bulk replace konfigurasi). Live ops WAJIB granular:
+        PATCH /sessions/{id}/games/{gameKey} (score/played) dan
+        PATCH /sessions/{id}/absent. Header respons `X-Snapshot-Deprecated: true`
+        menandai pemakaian legacy. Akan dihapus setelah semua live op granular.
+      deprecated: true
+      operationId: putSession
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SessionDraft" }
+      responses:
+        "200":
+          description: Session diupdate
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "409":
+          description: Version mismatch / session terkunci
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
     patch:
       tags: [Sessions]
       summary: Update sebagian field session
@@ -174,6 +206,103 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
+
+  # ── Granular live v2 (clean break dari snapshot PUT) ─────────────────────
+  /sessions/{id}/games/{gameKey}:
+    get:
+      tags: [Sessions]
+      summary: Ambil satu game + version (untuk OCC granular)
+      description: >
+        Return GameRow {slot, court, scoreA, scoreB, isPlayed, version}.
+        `version` dipakai sebagai If-Match pada PATCH.
+      operationId: getGame
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - name: gameKey
+          in: path
+          required: true
+          schema: { type: string }
+          description: 'Format "{slot}-{court}", contoh "0-0"'
+      responses:
+        "200":
+          description: Game + version
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GameRow" }
+        "404":
+          description: Game / session tidak ditemukan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    patch:
+      tags: [Sessions]
+      summary: Set skor atau status played per game (row-level OCC)
+      description: >
+        Granular live. Body hanya berisi scoreA/scoreB ATAU isPlayed.
+        Wajib If-Match: W/"v{n}" (version game). Idempotency-Key opsional.
+        Response: CloudSnapshot penuh (projection) untuk reconcile cache.
+      operationId: patchGame
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - name: gameKey
+          in: path
+          required: true
+          schema: { type: string }
+          description: 'Format "{slot}-{court}", contoh "0-0"'
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PatchGame" }
+      responses:
+        "200":
+          description: Session ter-update
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "409":
+          description: Version mismatch / game terkunci
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /sessions/{id}/absent:
+    patch:
+      tags: [Sessions]
+      summary: Set daftar absent player (session-level OCC)
+      description: >
+        Granular absent. Body: {playerIds: string[]}. Wajib If-Match session version.
+        Response: CloudSnapshot penuh.
+      operationId: patchAbsent
+      parameters:
+        - $ref: "#/components/parameters/SessionId"
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [playerIds]
+              properties:
+                playerIds:
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: Session ter-update
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "409":
+          description: Version mismatch / session terkunci
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /sessions/{id}/unlock:
     post:
       tags: [Sessions]
@@ -505,6 +634,26 @@ components:
         title: { type: string }
         date: { type: string }
         courtNames: { type: array, items: { type: string } }
+
+    PatchGame:
+      type: object
+      description: Body untuk PATCH /sessions/{id}/games/{gameKey}
+      properties:
+        scoreA: { type: integer, minimum: 0, maximum: 99 }
+        scoreB: { type: integer, minimum: 0, maximum: 99 }
+        isPlayed: { type: boolean }
+
+    GameRow:
+      type: object
+      description: Satu game + version (untuk OCC granular)
+      properties:
+        slot: { type: integer }
+        court: { type: integer }
+        scoreA: { type: [integer, "null"] }
+        scoreB: { type: [integer, "null"] }
+        isPlayed: { type: boolean }
+        version: { type: integer }
+      required: [slot, court, isPlayed, version]
 
     Score:
       type: object
