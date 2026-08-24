@@ -162,6 +162,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("GET /sessions/{id}/games/{gameKey}", http.HandlerFunc(sessions.GetGame))
 	mux.Handle("PATCH /sessions/{id}/games/{gameKey}", http.HandlerFunc(sessions.PatchGame))
 	mux.Handle("PATCH /sessions/{id}/absent", http.HandlerFunc(sessions.PatchAbsent))
+	mux.Handle("POST /sessions/{id}/swap", http.HandlerFunc(sessions.SwapMembers))
 	mux.Handle("GET /sessions/{id}/events", http.HandlerFunc(sessions.ListEvents))
 	// Unlock = operasi admin (ADMIN_MENU_PLAN.md §3.1) — di-gate.
 	mux.Handle("POST /sessions/{id}/unlock", handler.AdminGuard(cfg.AdminToken, sessions.Unlock))

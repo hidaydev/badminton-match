@@ -244,3 +244,147 @@ func TestIntegrationGranularAbsent(t *testing.T) {
 		t.Fatalf("reload absent mismatch: %+v", loaded.AbsentPlayers)
 	}
 }
+
+// helper: cari pemain di (slot, court, team, position)
+func gamePlayer(t *testing.T, snap *domain.CloudSnapshot, slot, court int, team string, pos int) string {
+	t.Helper()
+	for _, g := range snap.Schedule {
+		if g.Slot != slot || g.Court != court {
+			continue
+		}
+		arr := g.TeamA
+		if team == "B" {
+			arr = g.TeamB
+		}
+		return arr[pos]
+	}
+	t.Fatalf("game %d-%d not found", slot, court)
+	return ""
+}
+
+// TestIntegrationGranularSwapPlayer — tukar 1 pemain antar game.
+func TestIntegrationGranularSwapPlayer(t *testing.T) {
+	st := newGranularTestStore(t)
+	ctx := context.Background()
+	id := seedGranularSession(t, st, ctx, "swapp")
+
+	snap, _ := st.Load(ctx, id)
+	v := *snap.Version
+	beforeA := gamePlayer(t, snap, 0, 0, "A", 0) // g1
+	beforeB := gamePlayer(t, snap, 0, 1, "A", 0) // g5
+	if beforeA == beforeB {
+		t.Fatal("setup: same player")
+	}
+	out, err := st.SwapMembers(ctx, id, "player",
+		SwapTarget{Slot: 0, Court: 0, Team: "A", Position: 0},
+		SwapTarget{Slot: 0, Court: 1, Team: "A", Position: 0},
+		&v, "")
+	if err != nil {
+		t.Fatalf("swap player: %v", err)
+	}
+	if got := gamePlayer(t, out, 0, 0, "A", 0); got != beforeB {
+		t.Fatalf("expected %s at 0-0/A/0, got %s", beforeB, got)
+	}
+	if got := gamePlayer(t, out, 0, 1, "A", 0); got != beforeA {
+		t.Fatalf("expected %s at 0-1/A/0, got %s", beforeA, got)
+	}
+	// Session version naik
+	if out.Version == nil || *out.Version != v+1 {
+		t.Fatalf("expected version %d, got %v", v+1, out.Version)
+	}
+}
+
+// TestIntegrationGranularSwapTeam — tukar 1 tim (2 pemain) antar game.
+func TestIntegrationGranularSwapTeam(t *testing.T) {
+	st := newGranularTestStore(t)
+	ctx := context.Background()
+	id := seedGranularSession(t, st, ctx, "swapt")
+
+	snap, _ := st.Load(ctx, id)
+	v := *snap.Version
+	beforeA0 := gamePlayer(t, snap, 0, 0, "A", 0)
+	beforeA1 := gamePlayer(t, snap, 0, 0, "A", 1)
+	beforeB0 := gamePlayer(t, snap, 0, 1, "A", 0)
+	beforeB1 := gamePlayer(t, snap, 0, 1, "A", 1)
+	out, err := st.SwapMembers(ctx, id, "team",
+		SwapTarget{Slot: 0, Court: 0, Team: "A"},
+		SwapTarget{Slot: 0, Court: 1, Team: "A"},
+		&v, "")
+	if err != nil {
+		t.Fatalf("swap team: %v", err)
+	}
+	if gamePlayer(t, out, 0, 0, "A", 0) != beforeB0 || gamePlayer(t, out, 0, 0, "A", 1) != beforeB1 {
+		t.Fatalf("team A of 0-0 not swapped: %s,%s want %s,%s",
+			gamePlayer(t, out, 0, 0, "A", 0), gamePlayer(t, out, 0, 0, "A", 1), beforeB0, beforeB1)
+	}
+	if gamePlayer(t, out, 0, 1, "A", 0) != beforeA0 || gamePlayer(t, out, 0, 1, "A", 1) != beforeA1 {
+		t.Fatal("team A of 0-1 not swapped")
+	}
+}
+
+// TestIntegrationGranularSwapSlot — tukar slot/court antar game (key berubah).
+func TestIntegrationGranularSwapSlot(t *testing.T) {
+	st := newGranularTestStore(t)
+	ctx := context.Background()
+	id := seedGranularSession(t, st, ctx, "swaps")
+
+	snap, _ := st.Load(ctx, id)
+	v := *snap.Version
+	g00 := gamePlayer(t, snap, 0, 0, "A", 0) // g1
+	g01 := gamePlayer(t, snap, 0, 1, "A", 0) // g5
+	out, err := st.SwapMembers(ctx, id, "slot",
+		SwapTarget{Slot: 0, Court: 0},
+		SwapTarget{Slot: 0, Court: 1},
+		&v, "")
+	if err != nil {
+		t.Fatalf("swap slot: %v", err)
+	}
+	// Pemain g1 sekarang di 0-1, g5 di 0-0
+	if gamePlayer(t, out, 0, 0, "A", 0) != g01 {
+		t.Fatalf("expected %s at new 0-0, got %s", g01, gamePlayer(t, out, 0, 0, "A", 0))
+	}
+	if gamePlayer(t, out, 0, 1, "A", 0) != g00 {
+		t.Fatalf("expected %s at new 0-1, got %s", g00, gamePlayer(t, out, 0, 1, "A", 0))
+	}
+}
+
+// TestIntegrationGranularSwapSameGameRejected — swap target game sama → ditolak.
+func TestIntegrationGranularSwapSameGameRejected(t *testing.T) {
+	st := newGranularTestStore(t)
+	ctx := context.Background()
+	id := seedGranularSession(t, st, ctx, "swapi")
+
+	snap, _ := st.Load(ctx, id)
+	v := *snap.Version
+	_, err := st.SwapMembers(ctx, id, "player",
+		SwapTarget{Slot: 0, Court: 0, Team: "A", Position: 0},
+		SwapTarget{Slot: 0, Court: 0, Team: "A", Position: 1},
+		&v, "")
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation for same-game swap, got %v", err)
+	}
+}
+
+// TestIntegrationGranularSwapStaleVersion — version lama → ErrVersionMismatch.
+func TestIntegrationGranularSwapStaleVersion(t *testing.T) {
+	st := newGranularTestStore(t)
+	ctx := context.Background()
+	id := seedGranularSession(t, st, ctx, "swapsv")
+
+	snap, _ := st.Load(ctx, id)
+	v := *snap.Version
+	if _, err := st.SwapMembers(ctx, id, "player",
+		SwapTarget{Slot: 0, Court: 0, Team: "A", Position: 0},
+		SwapTarget{Slot: 0, Court: 1, Team: "A", Position: 0},
+		&v, ""); err != nil {
+		t.Fatalf("first swap: %v", err)
+	}
+	// Replay dengan version lama
+	_, err := st.SwapMembers(ctx, id, "player",
+		SwapTarget{Slot: 0, Court: 0, Team: "A", Position: 0},
+		SwapTarget{Slot: 0, Court: 1, Team: "A", Position: 0},
+		&v, "")
+	if !errors.Is(err, ErrVersionMismatch) {
+		t.Fatalf("expected ErrVersionMismatch, got %v", err)
+	}
+}
