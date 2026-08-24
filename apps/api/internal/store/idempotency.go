@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"majadu-api/internal/domain"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // IdempotencyStore — persistent idempotency (Fase 0 additive).
@@ -53,22 +55,16 @@ func (s *SessionStore) SaveIdempotency(ctx context.Context, sessionID, key strin
 	_ = err
 }
 
-// isUndefinedTable — cek pgcode 42P01 (undefined_table)
+// isUndefinedTable — cek pgcode 42P01 (undefined_table) atau invalid input (22P02) untuk fallback share_code
 func isUndefinedTable(err error) bool {
 	if err == nil {
 		return false
 	}
-	// pgx wraps pgconn.PgError — cek via string fallback agar tidak import pgconn di domain
-	return contains(err.Error(), "42P01") || contains(err.Error(), "does not exist")
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (func() bool {
-		for i := 0; i <= len(s)-len(substr); i++ {
-			if s[i:i+len(substr)] == substr {
-				return true
-			}
-		}
-		return false
-	})()
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "42P01" || pgErr.Code == "42P07"
+	}
+	// Fallback string (untuk error wrap yang tidak preserve pgconn)
+	msg := err.Error()
+	return strings.Contains(msg, "42P01") || strings.Contains(msg, "does not exist") || strings.Contains(msg, "42P07")
 }

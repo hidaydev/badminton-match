@@ -157,6 +157,9 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("PATCH /sessions/{id}", http.HandlerFunc(sessions.Patch))
 	mux.Handle("DELETE /sessions/{id}", http.HandlerFunc(sessions.Delete))
 	mux.Handle("POST /sessions/{id}/lock", http.HandlerFunc(sessions.Lock))
+	// Granular live v2 (clean break) — row-level OCC, tanpa snapshot full
+	mux.Handle("PATCH /sessions/{id}/games/{gameKey}", http.HandlerFunc(sessions.PatchGame))
+	mux.Handle("PATCH /sessions/{id}/absent", http.HandlerFunc(sessions.PatchAbsent))
 	// Unlock = operasi admin (ADMIN_MENU_PLAN.md §3.1) — di-gate.
 	mux.Handle("POST /sessions/{id}/unlock", handler.AdminGuard(cfg.AdminToken, sessions.Unlock))
 	// Delete admin: sesi status apa pun (locked termasuk) + bersihkan rating source.
