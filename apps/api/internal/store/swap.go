@@ -83,15 +83,16 @@ func (s *SessionStore) SwapMembers(ctx context.Context, sessionID string, kind s
 		}
 		return nil, err
 	}
-	if status != "draft" {
-		return nil, ErrLocked
-	}
+	// Idempotency SEBELUM status/version check (replay sukses bypass lock/version)
 	if idempotencyKey != "" {
 		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
 			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil
 		}
+	}
+	if status != "draft" {
+		return nil, ErrLocked
 	}
 	if expectedSessionVersion != nil && *expectedSessionVersion != currentVer {
 		s.metrics.GranularConflicts.Add(1)

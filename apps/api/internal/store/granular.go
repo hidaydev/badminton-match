@@ -82,17 +82,19 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 	if err != nil {
 		return nil, err
 	}
-	if status != "draft" {
-		return nil, ErrLocked
-	}
 
-	// Idempotency check setelah resolve sessID (pakai UUID, bukan share_code)
+	// Idempotency check SEBELUM status/version check — replay request yang
+	// sudah sukses harus return response cached walau session sudah ter-lock
+	// atau version naik (dedup, bukan write baru).
 	if idempotencyKey != "" {
 		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
 			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil
 		}
+	}
+	if status != "draft" {
+		return nil, ErrLocked
 	}
 
 	// Row-level lock game spesifik — ini yang bikin 2 game beda tidak saling blokir
@@ -213,17 +215,16 @@ func (s *SessionStore) SetGamePlayed(ctx context.Context, sessionID, gameKey str
 	if err != nil {
 		return nil, err
 	}
-	if status != "draft" {
-		return nil, ErrLocked
-	}
-
-	// Idempotency check setelah resolve sessID (pakai UUID, bukan share_code)
+	// Idempotency SEBELUM status check (replay sukses harus bypass lock/version)
 	if idempotencyKey != "" {
 		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
 			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil
 		}
+	}
+	if status != "draft" {
+		return nil, ErrLocked
 	}
 	var currentVer int
 	var curPlayed bool
