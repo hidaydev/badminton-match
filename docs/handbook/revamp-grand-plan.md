@@ -215,11 +215,12 @@ GET /sessions/{id}/watch -> SSE: event: patch {op, path, value, version} | event
 - [x] **Fase 5 — Hardening**: auto-lock saat skor terakhir via granular (fix regression rating ingest), `GET /sessions/{id}/events` (outbox replay), `GET /metrics` (counter in-memory), `isUndefinedTable` via `pgconn` (robust).
 
 **Belum dikerjakan (next session):**
-- [ ] Apply migration `000012` di VPS (`bm_dev` → `bm`) — wajib sebelum granular diaktifkan penuh di prod.
-- [ ] Swap granular (`POST /sessions/{id}/games/swap`) — butuh review skema `scheduled_game_players` di VPS (constraint team/position) sebelum DML swap.
+- [x] ~~Apply migration `000012` di VPS~~ → **DONE 2026-08-24**: migration jadi `000013_granular_live.sql` (nomor `000012` sudah dipakai `merge_players`). Applied di `bm_dev` + `bm` (prod) via `qouver` superuser. Kolom `scheduled_games.version`, `idempotency_keys`, `outbox_events` terverifikasi. Container masih kode lama — backward-compat aman.
+- [x] ~~Swap granular~~ → **DONE**: `POST /sessions/{id}/swap` (player|team|slot). Review skema VPS `scheduled_game_players` (UNIQUE(sg,player) + UNIQUE(sg,team,position) + CHECK) → player/team swap 2-step aman; slot swap 3-step temp + advisory lock. 10 integration test PASS terhadap `bm_dev` asli.
+- [ ] **Deploy kode baru ke VPS** (dev → main): container masih `2a29031` (sebelum granular). Push + CI deploy wajib sebelum granular dipakai di venue.
 - [ ] SSE durable via `pg_notify`/outbox poll di `Watch` (sekarang masih in-memory `map[chan]`).
 - [ ] Hard `410` PUT setelah semua live op granular + FE tidak lagi kirim PUT live.
-- [ ] Deploy `dev` → smoke 60p 2 HP score beda game → expect 200 both.
+- [ ] Smoke 60p 2 HP score beda game di `dev` → expect 200 both.
 - [ ] Merge `dev` → `main` fast-forward, `rev-list 0 0`.
 
 ---
