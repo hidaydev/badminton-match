@@ -207,11 +207,20 @@ GET /sessions/{id}/watch -> SSE: event: patch {op, path, value, version} | event
 
 ## 5. Checklist Rollout
 
-- [ ] Migration `000012` apply di `bm_dev` (tunnel `ssh -L 15432`) → test → apply `bm`
-- [ ] BE `make check` (vet+fmt+unit) + integration `go test ./internal/store -run TestGranular`
-- [ ] FE `npm run check` (types+lint+tailwind+regression 61 pass)
-- [ ] Deploy `dev` → smoke 60p 2 HP score beda game → expect 200 both, SSE patch <200ms
-- [ ] Merge `dev` → `main` fast-forward, `rev-list 0 0`
+- [x] **Fase 0 — DB migration `000012`** (docs/migration-000012-granular-live.md): `scheduled_games.version/updated_at` + trigger, `idempotency_keys`, `outbox_events`. Additive `IF NOT EXISTS`, backward-compat. **Belum di-apply di VPS** — jalankan di `bm_dev` lalu `bm`.
+- [x] **Fase 1 — BE granular** (`majadu-api`): `PATCH /sessions/{id}/games/{gameKey}` (score/played, row-level `FOR UPDATE NOWAIT` + OCC per game), `PATCH /sessions/{id}/absent` (session-level, tanpa full rewrite), `GET .../games/{gameKey}` (version untuk OCC). Idempotency persistent. PUT snapshot tetap jalan.
+- [x] **Fase 2 — FE granular** (`badminton-match`): `useSetScore`/`useTogglePlayed`/`useSetAbsent` → PATCH granular (fetch game version → PATCH, retry 1x on conflict). API hook dipertahankan (zero UI change). Fix edge case toggle-intent.
+- [x] **Fase 3 — Tests**: unit strict `splitGameKey` (tolak malformed/negatif/spasi — bug lama), `isUndefinedTable`, metrics; integration DB-guarded: different-games no contention, same-game conflict, idempotency no double-bump, played toggle clears score, absent granular.
+- [x] **Fase 4 — Deprecate PUT**: header `X-Snapshot-Deprecated` + Warn log; openapi mark `put` deprecated + kontrak granular. Hard `410` ditunda (PUT masih dipakai GeneratePage setup + swap hooks).
+- [x] **Fase 5 — Hardening**: auto-lock saat skor terakhir via granular (fix regression rating ingest), `GET /sessions/{id}/events` (outbox replay), `GET /metrics` (counter in-memory), `isUndefinedTable` via `pgconn` (robust).
+
+**Belum dikerjakan (next session):**
+- [ ] Apply migration `000012` di VPS (`bm_dev` → `bm`) — wajib sebelum granular diaktifkan penuh di prod.
+- [ ] Swap granular (`POST /sessions/{id}/games/swap`) — butuh review skema `scheduled_game_players` di VPS (constraint team/position) sebelum DML swap.
+- [ ] SSE durable via `pg_notify`/outbox poll di `Watch` (sekarang masih in-memory `map[chan]`).
+- [ ] Hard `410` PUT setelah semua live op granular + FE tidak lagi kirim PUT live.
+- [ ] Deploy `dev` → smoke 60p 2 HP score beda game → expect 200 both.
+- [ ] Merge `dev` → `main` fast-forward, `rev-list 0 0`.
 
 ---
 
