@@ -217,10 +217,10 @@ GET /sessions/{id}/watch -> SSE: event: patch {op, path, value, version} | event
 **Belum dikerjakan (next session):**
 - [x] ~~Apply migration `000012` di VPS~~ → **DONE 2026-08-24**: migration jadi `000013_granular_live.sql` (nomor `000012` sudah dipakai `merge_players`). Applied di `bm_dev` + `bm` (prod) via `qouver` superuser. Kolom `scheduled_games.version`, `idempotency_keys`, `outbox_events` terverifikasi. Container masih kode lama — backward-compat aman.
 - [x] ~~Swap granular~~ → **DONE**: `POST /sessions/{id}/swap` (player|team|slot). Review skema VPS `scheduled_game_players` (UNIQUE(sg,player) + UNIQUE(sg,team,position) + CHECK) → player/team swap 2-step aman; slot swap 3-step temp + advisory lock. 10 integration test PASS terhadap `bm_dev` asli.
-- [ ] **Deploy kode baru ke VPS** (dev → main): container masih `2a29031` (sebelum granular). Push + CI deploy wajib sebelum granular dipakai di venue.
+- [x] ~~Deploy kode baru ke VPS dev~~ → **DONE 2026-08-24**: push `dev` → CI (gofmt fix `4ebdb39` dulu — `gofmt -l .` gagal CI) → container dev live `b56a8cf`. **Smoke test**: create/PATCH score/swap semua 200; **fix idempotency ordering** ditemukan via smoke (auto-lock mem-block replay → check idempotency dipindah sebelum status/version di SetGameScore/SetGamePlayed/SwapMembers).
 - [ ] SSE durable via `pg_notify`/outbox poll di `Watch` (sekarang masih in-memory `map[chan]`).
 - [ ] Hard `410` PUT setelah semua live op granular + FE tidak lagi kirim PUT live.
-- [ ] Smoke 60p 2 HP score beda game di `dev` → expect 200 both.
+- [ ] Smoke 60p 2 HP score beda game di `dev` → expect 200 both (manual venue test).
 - [ ] Merge `dev` → `main` fast-forward, `rev-list 0 0`.
 
 ---
