@@ -56,6 +56,9 @@ func ValidateSnapshot(snap *CloudSnapshot) error {
 			return fmt.Errorf("session players must contain non-blank id/name and valid gender/tier values")
 		}
 	}
+	if len(snap.Players) < 4 || len(snap.Players) > 60 {
+		return fmt.Errorf("session players must contain between 4 and 60 players")
+	}
 	seen := map[string]bool{}
 	for _, p := range snap.Players {
 		if seen[p.ID] {
@@ -65,6 +68,9 @@ func ValidateSnapshot(snap *CloudSnapshot) error {
 	}
 	if snap.Session.PlayerCount != 0 && snap.Session.PlayerCount != len(snap.Players) {
 		return fmt.Errorf("session snapshot.session.playerCount must match players length")
+	}
+	if snap.Session.PlayerCount < 4 || snap.Session.PlayerCount > 60 {
+		return fmt.Errorf("session snapshot.session.playerCount must be between 4 and 60")
 	}
 	if snap.Session.Courts < 0 {
 		return fmt.Errorf("session snapshot.session.courts must be non-negative")

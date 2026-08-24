@@ -426,7 +426,7 @@ components:
         players:
           type: array
           minItems: 4
-          maxItems: 40
+          maxItems: 60
           items: { $ref: "#/components/schemas/Player" }
         fixMatches:
           type: array
