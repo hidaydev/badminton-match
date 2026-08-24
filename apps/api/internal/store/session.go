@@ -1096,20 +1096,39 @@ func playedOrder(legacyOrder int, isPlayed bool) int {
 	return legacyOrder + 1
 }
 
-// splitGameKey — pecah "slot-court". Mengembalikan slot, court, dan ok.
+// splitGameKey — pecah "slot-court". STRICT: kedua bagian harus digit murni
+// (tanpa spasi, tanpa tanda negatif) — Sscanf terlalu lenient (menerima
+// " 0-0" dan "0--1" → court negatif). Dipakai granular path, jadi malformed
+// key harus ditolak, bukan di-normalisasi.
 func splitGameKey(key string) (int, int, bool) {
 	parts := strings.SplitN(key, "-", 2)
 	if len(parts) != 2 {
 		return 0, 0, false
 	}
-	var slot, court int
-	if _, err := fmt.Sscanf(parts[0], "%d", &slot); err != nil {
-		return 0, 0, false
-	}
-	if _, err := fmt.Sscanf(parts[1], "%d", &court); err != nil {
+	slot, ok1 := parseUintStrict(parts[0])
+	court, ok2 := parseUintStrict(parts[1])
+	if !ok1 || !ok2 {
 		return 0, 0, false
 	}
 	return slot, court, true
+}
+
+// parseUintStrict — parse non-negative integer dari string digit murni.
+func parseUintStrict(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0, false
+		}
+		n = n*10 + int(c-'0')
+		if n > 1<<30 { // guard overflow
+			return 0, false
+		}
+	}
+	return n, true
 }
 
 // isLockNotAvailable — deteksi SQLSTATE 55P03 (lock_not_available).
