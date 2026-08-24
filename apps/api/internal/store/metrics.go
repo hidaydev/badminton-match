@@ -9,13 +9,13 @@ import (
 // atomic, aman untuk concurent. Bukan prometheus — cukup untuk observability
 // venue skala kecil (grand-revamp Fase 5 hardening).
 type Metrics struct {
-	GranularOps        atomic.Int64 // total operasi granular sukses (score/played/absent)
-	GranularConflicts  atomic.Int64 // 409 version mismatch di granular
-	Contentions        atomic.Int64 // 429 advisory/row lock contention
-	AutoLocks          atomic.Int64 // auto-lock saat skor terakhir masuk
-	SnapshotPuts       atomic.Int64 // PUT snapshot (deprecated path) — observability
-	OutboxEvents       atomic.Int64 // event outbox tertulis
-	IdempotencyHits    atomic.Int64 // dedup hit (key sama → cached)
+	GranularOps       atomic.Int64 // total operasi granular sukses (score/played/absent)
+	GranularConflicts atomic.Int64 // 409 version mismatch di granular
+	Contentions       atomic.Int64 // 429 advisory/row lock contention
+	AutoLocks         atomic.Int64 // auto-lock saat skor terakhir masuk
+	SnapshotPuts      atomic.Int64 // PUT snapshot (deprecated path) — observability
+	OutboxEvents      atomic.Int64 // event outbox tertulis
+	IdempotencyHits   atomic.Int64 // dedup hit (key sama → cached)
 }
 
 // RenderMetrics — teks format Prometheus sederhana (0 dependency).

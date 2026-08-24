@@ -59,7 +59,7 @@ func seedGranularSession(t *testing.T, st *SessionStore, ctx context.Context, ta
 		Session: domain.SessionConfig{
 			Title: "Granular IT", Date: "2026-08-24", Courts: 2,
 			SessionStart: "09:00", SlotMinutes: 20,
-			CourtTimes: []domain.CourtTime{{Start: "09:00", End: "10:00"}, {Start: "09:00", End: "10:00"}},
+			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}, {Start: "09:00", End: "10:00"}},
 			PlayerCount: 8,
 			CourtNames:  []string{"C1", "C2"},
 		},

@@ -12,7 +12,7 @@ import (
 // swapRequest — body POST /sessions/{id}/swap (granular).
 // a/b adalah SwapTarget (mirror FE). Type: player | team | slot.
 type swapRequest struct {
-	Type string        `json:"type"`
+	Type string           `json:"type"`
 	A    store.SwapTarget `json:"a"`
 	B    store.SwapTarget `json:"b"`
 }

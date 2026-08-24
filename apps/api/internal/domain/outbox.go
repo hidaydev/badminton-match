@@ -17,10 +17,10 @@ type OutboxEvent struct {
 
 // GameScorePayload — payload untuk event score_set
 type GameScorePayload struct {
-	Slot     int `json:"slot"`
-	Court    int `json:"court"`
-	ScoreA   int `json:"scoreA"`
-	ScoreB   int `json:"scoreB"`
+	Slot     int  `json:"slot"`
+	Court    int  `json:"court"`
+	ScoreA   int  `json:"scoreA"`
+	ScoreB   int  `json:"scoreB"`
 	IsPlayed bool `json:"isPlayed"`
 }
 

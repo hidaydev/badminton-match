@@ -13,10 +13,10 @@ import (
 
 func TestSplitGameKey(t *testing.T) {
 	tests := []struct {
-		key      string
-		wantSlot int
+		key       string
+		wantSlot  int
 		wantCourt int
-		wantOK   bool
+		wantOK    bool
 	}{
 		{"0-0", 0, 0, true},
 		{"12-3", 12, 3, true},
