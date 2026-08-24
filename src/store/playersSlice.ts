@@ -18,13 +18,22 @@ export const createPlayersSlice = (
   players: [],
 
   addPlayer: (p) =>
-    set((s) => ({ players: [...s.players, { ...p, id: toPlayerId(generateId()) }], schedule: [], lastResult: null })),
+    set((s) => {
+      if (s.players.length >= s.session.playerCount || s.players.length >= 60) return s
+      return { players: [...s.players, { ...p, id: toPlayerId(generateId()) }], schedule: [], lastResult: null }
+    }),
 
   addPlayers: (newPlayers) =>
-    set((s) => ({
-      players: [...s.players, ...newPlayers.map((p) => ({ ...p, id: toPlayerId(generateId()) }))],
-      schedule: [], lastResult: null,
-    })),
+    set((s) => {
+      const cap = Math.min(s.session.playerCount, 60)
+      const available = Math.max(0, cap - s.players.length)
+      const toAdd = newPlayers.slice(0, available)
+      if (toAdd.length === 0) return s
+      return {
+        players: [...s.players, ...toAdd.map((p) => ({ ...p, id: toPlayerId(generateId()) }))],
+        schedule: [], lastResult: null,
+      }
+    }),
 
   updatePlayer: (id, patch) =>
     set((s) => ({

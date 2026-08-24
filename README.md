@@ -21,7 +21,7 @@ Majadu is a **mobile-first PWA** for running badminton sessions end-to-end. Conf
 
 | Step | What happens |
 |------|-------------|
-| **Setup** | Configure title, date, courts (1–6), players (4–40), game duration, per-court time windows with visual timeline |
+| **Setup** | Configure title, date, courts (1–6), players (4–60), game duration, per-court time windows with visual timeline |
 | **Players** | Add individually or bulk-import from text. Gender (M/F), skill tier (**8-tier: D..A+**, sticky), inline rename, TBD slots |
 | **Constraints** | Define forced pairings — **flexible** (generator picks slot) or **pinned** (locked to time + court) |
 | **Generate** | 5-phase scheduling engine with quality analysis, retry logic, and 8-level tier balancing |

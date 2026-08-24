@@ -110,7 +110,7 @@ export const createSessionSlice = (
     }),
 
   setPlayerCount: (n) =>
-    set((s) => ({ session: { ...s.session, playerCount: n } })),
+    set((s) => ({ session: { ...s.session, playerCount: Math.max(4, Math.min(60, n)) } })),
 
   setCourtName: (index, name) =>
     set((s) => {
