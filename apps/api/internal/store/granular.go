@@ -89,6 +89,7 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 	// Idempotency check setelah resolve sessID (pakai UUID, bukan share_code)
 	if idempotencyKey != "" {
 		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
+			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil
 		}
@@ -116,6 +117,7 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 		return nil, fmt.Errorf("%w: game %s not found", ErrValidation, gameKey)
 	}
 	if expectedVersion != nil && *expectedVersion != currentVer {
+		s.metrics.GranularConflicts.Add(1)
 		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedVersion, currentVer)
 	}
 
@@ -142,6 +144,26 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 		Payload:     domain.GameScorePayload{Slot: slot, Court: court, ScoreA: scoreA, ScoreB: scoreB, IsPlayed: true},
 		Version:     int64(currentVer + 1),
 	})
+	s.metrics.OutboxEvents.Add(1)
+
+	// Auto-lock saat SEMUA game sudah ber-skor (mirror Save() allScored) —
+	// tanpanya sesi yang skornya masuk via granular tidak pernah ter-lock
+	// sampai tanggal lewat → rating ingest tertunda (regression vs PUT path).
+	allScored, err := allGamesScored(ctx, tx, sessID)
+	if err != nil {
+		return nil, err
+	}
+	if allScored {
+		// status='draft' guard → hanya satu writer yang menang; yang kedua
+		// tidak menaikkan version lagi (idempotent lock).
+		_, err = tx.Exec(ctx, `
+			UPDATE sessions SET status = 'locked', version = version + 1, updated_at = now()
+			WHERE id = $1::uuid AND status = 'draft'`, sessID)
+		if err != nil {
+			return nil, err
+		}
+		s.metrics.AutoLocks.Add(1)
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
@@ -151,11 +173,24 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 	snap, err := s.Load(ctx, sessionID)
 	if err == nil && snap != nil {
 		s.Broadcast(sessionID, snap)
+		s.metrics.GranularOps.Add(1)
 		if idempotencyKey != "" {
 			s.SaveIdempotency(ctx, sessID, idempotencyKey, snap)
 		}
 	}
 	return snap, err
+}
+
+// allGamesScored — true jika semua game di session sudah punya score (score_a IS NOT NULL).
+func allGamesScored(ctx context.Context, tx pgx.Tx, sessionID string) (bool, error) {
+	var remaining int
+	err := tx.QueryRow(ctx, `
+		SELECT count(*) FROM scheduled_games
+		WHERE session_id = $1::uuid AND score_a IS NULL`, sessionID).Scan(&remaining)
+	if err != nil {
+		return false, err
+	}
+	return remaining == 0, nil
 }
 
 // SetGamePlayed — granular played toggle (idempotent set, bukan toggle)
@@ -181,8 +216,11 @@ func (s *SessionStore) SetGamePlayed(ctx context.Context, sessionID, gameKey str
 	if status != "draft" {
 		return nil, ErrLocked
 	}
+
+	// Idempotency check setelah resolve sessID (pakai UUID, bukan share_code)
 	if idempotencyKey != "" {
 		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
+			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil
 		}
@@ -200,6 +238,7 @@ func (s *SessionStore) SetGamePlayed(ctx context.Context, sessionID, gameKey str
 		return nil, err
 	}
 	if expectedVersion != nil && *expectedVersion != currentVer {
+		s.metrics.GranularConflicts.Add(1)
 		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedVersion, currentVer)
 	}
 	// Idempotent: jika sudah sesuai, no-op tapi tetap return snapshot
@@ -227,12 +266,14 @@ func (s *SessionStore) SetGamePlayed(ctx context.Context, sessionID, gameKey str
 		Aggregate: "game", AggregateID: gameKey, EventType: "played_toggled",
 		Payload: domain.PlayedPayload{Slot: slot, Court: court, IsPlayed: isPlayed}, Version: int64(currentVer + 1),
 	})
+	s.metrics.OutboxEvents.Add(1)
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	snap, err := s.Load(ctx, sessionID)
 	if err == nil && snap != nil {
 		s.Broadcast(sessionID, snap)
+		s.metrics.GranularOps.Add(1)
 		if idempotencyKey != "" {
 			s.SaveIdempotency(ctx, sessID, idempotencyKey, snap)
 		}
@@ -269,6 +310,7 @@ func (s *SessionStore) SetAbsentPlayers(ctx context.Context, sessionID string, p
 	err = tx.QueryRow(ctx, `SELECT s.id::text, s.version, s.status FROM sessions s WHERE s.share_code=$1 OR s.id::text=$1 ORDER BY (s.share_code=$1) DESC LIMIT 1 FOR UPDATE NOWAIT`, sessionID).Scan(&sessID, &currentVer, &status)
 	if err == nil && idempotencyKey != "" {
 		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
+			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil
 		}
@@ -286,6 +328,7 @@ func (s *SessionStore) SetAbsentPlayers(ctx context.Context, sessionID string, p
 		return nil, ErrLocked
 	}
 	if expectedSessionVersion != nil && *expectedSessionVersion != currentVer {
+		s.metrics.GranularConflicts.Add(1)
 		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedSessionVersion, currentVer)
 	}
 	// Validasi refs harus ada di session_players
@@ -318,12 +361,14 @@ func (s *SessionStore) SetAbsentPlayers(ctx context.Context, sessionID string, p
 		Aggregate: "player", AggregateID: "absent", EventType: "absent_set",
 		Payload: domain.AbsentPayload{PlayerIDs: clean}, Version: int64(currentVer + 1),
 	})
+	s.metrics.OutboxEvents.Add(1)
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	snap, err := s.Load(ctx, sessionID)
 	if err == nil && snap != nil {
 		s.Broadcast(sessionID, snap)
+		s.metrics.GranularOps.Add(1)
 		if idempotencyKey != "" {
 			s.SaveIdempotency(ctx, sessID, idempotencyKey, snap)
 		}

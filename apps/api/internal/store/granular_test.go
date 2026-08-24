@@ -98,3 +98,22 @@ func marshalJSON(t *testing.T, v any) string {
 	}
 	return string(raw)
 }
+
+func TestMetricsRender(t *testing.T) {
+	m := &Metrics{}
+	m.GranularOps.Add(3)
+	m.GranularConflicts.Add(1)
+	out := m.RenderMetrics()
+	for _, want := range []string{
+		"majadu_granular_ops_total 3",
+		"majadu_granular_conflicts_total 1",
+		"majadu_contentions_total 0",
+		"majadu_snapshot_puts_total 0",
+		"majadu_outbox_events_total 0",
+		"majadu_idempotency_hits_total 0",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("metrics missing %q in:\n%s", want, out)
+		}
+	}
+}

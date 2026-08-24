@@ -43,6 +43,8 @@ type SessionStore struct {
 	schema   string
 	mu       sync.RWMutex
 	watchers map[string]map[chan *domain.CloudSnapshot]struct{}
+	// metrics — counter in-memory (grand-revamp Fase 5)
+	metrics *Metrics
 }
 
 // NewSessionStore — buat SessionStore dengan pool koneksi + schema aktif.
@@ -53,8 +55,12 @@ func NewSessionStore(pool *pgxpool.Pool, schema string) *SessionStore {
 		pool:     pool,
 		schema:   schema,
 		watchers: make(map[string]map[chan *domain.CloudSnapshot]struct{}),
+		metrics:  &Metrics{},
 	}
 }
+
+// Metrics — akses counter (untuk handler GET /metrics).
+func (s *SessionStore) Metrics() *Metrics { return s.metrics }
 
 // Subscribe — daftar untuk SSE watch pada session id. Kembalikan channel dan cancel func.
 func (s *SessionStore) Subscribe(id string) (chan *domain.CloudSnapshot, func()) {

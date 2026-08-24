@@ -4,9 +4,57 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"majadu-api/internal/httperr"
 )
+
+// MetricsHandler — GET /metrics: counter in-memory granular/contention/deprecated.
+func (h *SessionHandler) MetricsHandler(w http.ResponseWriter, r *http.Request) {
+	if h.Store == nil || h.Store.Metrics() == nil {
+		httperr.WriteJSON(w, http.StatusOK, "# majadu metrics unavailable")
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	w.Write([]byte(h.Store.Metrics().RenderMetrics()))
+}
+
+// ListEvents — GET /sessions/{id}/events?since={id}&limit={n}
+// Replay outbox (durable SSE recovery). Return []OutboxEvent + nextSince.
+func (h *SessionHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	since := int64(0)
+	if v := r.URL.Query().Get("since"); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n < 0 {
+			httperr.WriteError(w, h.Logger, httperr.Validation("since must be a non-negative integer"))
+			return
+		}
+		since = n
+	}
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 500 {
+			httperr.WriteError(w, h.Logger, httperr.Validation("limit must be 1..500"))
+			return
+		}
+		limit = n
+	}
+	events, err := h.Store.ListOutboxSince(r.Context(), id, since, limit)
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to list events", err))
+		return
+	}
+	nextSince := since
+	if len(events) > 0 {
+		nextSince = events[len(events)-1].ID
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]any{
+		"events":    events,
+		"nextSince": nextSince,
+	})
+}
 
 // patchGameRequest — body untuk PATCH /sessions/{id}/games/{key}
 type patchGameRequest struct {

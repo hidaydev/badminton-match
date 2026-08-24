@@ -285,6 +285,9 @@ func (h *SessionHandler) Put(w http.ResponseWriter, r *http.Request) {
 	// hanya untuk fase setup/generate + operasi swap yang belum granular.
 	// Client baru diarahkan ke granular; deprecation header untuk observability.
 	w.Header().Set("X-Snapshot-Deprecated", "true")
+	if h.Store != nil && h.Store.Metrics() != nil {
+		h.Store.Metrics().SnapshotPuts.Add(1)
+	}
 	if h.Logger != nil {
 		h.Logger.Warn("PUT /sessions/{id} deprecated for live ops — use PATCH granular",
 			"session", r.PathValue("id"), "remote", r.RemoteAddr)
