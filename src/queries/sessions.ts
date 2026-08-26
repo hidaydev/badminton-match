@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, listSessions, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers, swapMembers } from './endpoints'
+import { getSession, publishSession, listSessions, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers, patchGameSkipped, swapMembers } from './endpoints'
 import type { GranularSwapTarget } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import { isVersionMismatch, isLockedError, isContentionError } from './errors'
@@ -13,6 +13,7 @@ import {
   setAbsentPlayersInSnapshot,
   setPlayedInSnapshot,
   setScoreInSnapshot,
+  setSkippedInSnapshot,
   swapPlayersInSnapshot,
   swapSlotsInSnapshot,
   swapTeamsInSnapshot,
@@ -324,6 +325,49 @@ export function useSetAbsent(sessionId: string) {
     onSuccess: (snap) => {
       queryClient.setQueryData(['session', sessionId], snap)
       void invalidateAllQueries(queryClient)
+    },
+  })
+}
+
+export function useSetGameSkipped(sessionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (vars: { key: string; playerIds: string[] }) => {
+      const { key, playerIds } = vars
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const game = await getGame(sessionId, key)
+        if (!game) throw new Error(`Game ${key} not found`)
+        try {
+          return await patchGameSkipped(sessionId, key, playerIds, game.version)
+        } catch (err) {
+          if (attempt === 0 && isVersionMismatch(err)) continue
+          throw err
+        }
+      }
+      throw new Error('unreachable')
+    },
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (previous) {
+        queryClient.setQueryData(['session', sessionId], setSkippedInSnapshot(previous, vars.key, vars.playerIds))
+      }
+      return { previous }
+    },
+    onError: async (error, _vars, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(['session', sessionId], ctx.previous)
+      if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
+        try {
+          await queryClient.fetchQuery<CloudSnapshot | null>({
+            queryKey: ['session', sessionId],
+            queryFn: () => getSession(sessionId),
+          })
+        } catch { /* ignore */ }
+      }
+    },
+    onSuccess: (snap) => {
+      queryClient.setQueryData(['session', sessionId], snap)
+      void invalidateSessionQueries(queryClient)
     },
   })
 }

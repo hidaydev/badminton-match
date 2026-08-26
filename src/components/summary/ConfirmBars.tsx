@@ -2,7 +2,7 @@ import type { Player, ScheduleSlot } from '../../types'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../../utils/swap'
 import type { SlotSwapTarget } from '../../utils/slotSwap'
 
-type BarColor = 'indigo' | 'red' | 'orange' | 'violet' | 'sky'
+type BarColor = 'indigo' | 'red' | 'orange' | 'violet' | 'sky' | 'amber'
 
 const COLOR_MAP: Record<BarColor, { border: string; bg: string; btn: string; btnHover: string; btnText: string; accent: string }> = {
   indigo: { border: 'border-indigo-900/40', bg: 'bg-indigo-950/50 border-indigo-800/50', btn: 'bg-indigo-400', btnHover: 'hover:bg-indigo-300', btnText: 'text-slate-950', accent: 'text-indigo-200' },
@@ -10,6 +10,7 @@ const COLOR_MAP: Record<BarColor, { border: string; bg: string; btn: string; btn
   orange: { border: 'border-orange-900/40', bg: 'bg-orange-950/40 border-orange-800/40', btn: 'bg-orange-600', btnHover: 'hover:bg-orange-500', btnText: 'text-white', accent: 'text-orange-300' },
   violet: { border: 'border-violet-900/40', bg: 'bg-violet-950/50 border-violet-800/50', btn: 'bg-violet-600', btnHover: 'hover:bg-violet-500', btnText: 'text-white', accent: 'text-violet-200' },
   sky:    { border: 'border-sky-900/40',    bg: 'bg-sky-950/40 border-sky-800/40',     btn: 'bg-sky-600',    btnHover: 'hover:bg-sky-500',    btnText: 'text-white', accent: 'text-sky-300' },
+  amber:  { border: 'border-amber-900/40',  bg: 'bg-amber-950/40 border-amber-800/40',   btn: 'bg-amber-600',  btnHover: 'hover:bg-amber-500',  btnText: 'text-white', accent: 'text-amber-200' },
 }
 
 const SPINNER = <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -218,6 +219,12 @@ interface ConfirmBarsProps {
   onCancelAbsent: () => void
   onConfirmAbsent: () => void
 
+  // Skip per-game
+  skipChanged?: boolean
+  skipPending?: Map<string, Set<string>>
+  onCancelSkip?: () => void
+  onConfirmSkip?: () => void
+
   // Slot swap
   pendingSlotSwap: { g1: SlotSwapTarget; g2: SlotSwapTarget } | null
   onCancelSlotSwap: () => void
@@ -248,6 +255,10 @@ export default function ConfirmBars({
   absentPending,
   onCancelAbsent,
   onConfirmAbsent,
+  skipChanged = false,
+  skipPending,
+  onCancelSkip,
+  onConfirmSkip,
   pendingSlotSwap,
   onCancelSlotSwap,
   onConfirmSlotSwap,
@@ -262,7 +273,7 @@ export default function ConfirmBars({
   saving,
   courtLabel,
 }: ConfirmBarsProps) {
-  if (!pendingSwap && !absentChanged && !pendingSlotSwap && !pendingTeamSwap && !pendingChange) {
+  if (!pendingSwap && !absentChanged && !skipChanged && !pendingSlotSwap && !pendingTeamSwap && !pendingChange) {
     return null
   }
 
@@ -296,6 +307,21 @@ export default function ConfirmBars({
           warning="Won't receive rating deltas"
           onCancel={onCancelAbsent}
           onConfirm={onConfirmAbsent}
+          saving={saving}
+        />
+      )}
+
+      {skipChanged && skipPending && onCancelSkip && onConfirmSkip && (
+        <ConfirmActionBar
+          color="amber"
+          description={
+            [...skipPending.entries()].length === 0
+              ? 'Clear all skips'
+              : [...skipPending.entries()].map(([k, s]) => `${k}: ${[...s].map(id => playerMap.get(id)?.name ?? id).join(', ')}`).join(' · ')
+          }
+          warning="Score in those games will be cleared"
+          onCancel={onCancelSkip}
+          onConfirm={onConfirmSkip}
           saving={saving}
         />
       )}

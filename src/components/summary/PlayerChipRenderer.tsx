@@ -1,6 +1,6 @@
 import type { SwapTarget, ChangeTarget } from '../../utils/swap'
 
-export type PlayerChipMode = 'idle' | 'swap' | 'absent' | 'replace' | 'slotSwap' | 'teamSwap' | 'change'
+export type PlayerChipMode = 'idle' | 'swap' | 'absent' | 'skip' | 'replace' | 'slotSwap' | 'teamSwap' | 'change'
 
 interface PlayerChipRendererProps {
   /** Display name of the player */
@@ -51,17 +51,39 @@ export default function PlayerChipRenderer({
   pendingSwap,
   isSelected,
   isAbsent,
+  isSkipped,
   hasScore,
   replaceTarget,
   changeTarget,
   onChipClick,
   onReplaceToggle,
   onChangeSelect,
+  onSkipToggle,
   slot,
   court,
   playerId,
-}: PlayerChipRendererProps) {
+}: PlayerChipRendererProps & { isSkipped?: boolean; onSkipToggle?: (gameKey: string, playerId: string) => void }) {
   const target: SwapTarget = { slot, court, playerId, team, index: position }
+  const gameKey = `${slot}-${court}`
+
+  // Skip mode — amber clickable button per-game
+  if (mode === 'skip') {
+    return (
+      <button
+        onClick={() => onSkipToggle?.(gameKey, playerId)}
+        className={`text-xs font-medium px-1.5 py-0.5 rounded-md border transition-colors ${
+          isSkipped
+            ? 'bg-amber-900/50 border-amber-500 text-amber-200 ring-1 ring-amber-500/60 line-through decoration-amber-400'
+            : isAbsent
+              ? 'bg-slate-800/40 border-slate-600 text-slate-400 line-through opacity-60'
+              : 'bg-slate-800/60 border-slate-600 text-white hover:border-amber-400 hover:text-amber-200'
+        }`}
+        title={isSkipped ? 'Skipped in this game — tap to un-skip' : 'Tap to skip in this game (clears score)'}
+      >
+        {playerName}{isSkipped ? ' ⊘' : ''}
+      </button>
+    )
+  }
 
   // Replace mode — emerald clickable button
   if (mode === 'replace') {
@@ -138,18 +160,22 @@ export default function PlayerChipRenderer({
     )
   }
 
-  // Idle / default — absent line-through / done line-through / plain white
+  // Idle / default — absent / skipped / done line-through / plain white
+  const showSkippedIdle = !!isSkipped
   return (
     <span
       className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
         isAbsent
           ? 'border-transparent text-slate-400 line-through'
-          : done
-            ? 'border-transparent text-slate-400 line-through'
-            : 'border-transparent text-white'
+          : showSkippedIdle
+            ? 'border-transparent text-amber-300/80 line-through decoration-amber-400/60'
+            : done
+              ? 'border-transparent text-slate-400 line-through'
+              : 'border-transparent text-white'
       }`}
+      title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
-      {playerName}
+      {playerName}{showSkippedIdle ? ' ⊘' : ''}
     </span>
   )
 }

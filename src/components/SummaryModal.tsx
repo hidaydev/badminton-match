@@ -37,6 +37,7 @@ interface SummaryModalBaseProps {
   standalone?: boolean
   locked?: boolean
   absentPlayers?: string[]
+  skippedPlayers?: Record<string, string[]>
 }
 
 /** Edit callback props for SummaryModal (all optional for read-only views) */
@@ -45,6 +46,7 @@ interface SummaryModalEditProps {
   onSetGameScore?: (key: string, a: number, b: number) => void
   onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
   onSetAbsent?: (nextAbsent: string[]) => void
+  onSetGameSkipped?: (key: string, playerIds: string[]) => void
   onReplacePlayer?: (playerId: string, newName: string) => void
   onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
   onSwapTeams?: (t1: TeamSwapTarget, t2: TeamSwapTarget) => void
@@ -78,7 +80,9 @@ export default function SummaryModal({
   standalone = false,
   onSwapPlayers,
   absentPlayers = [],
+  skippedPlayers = {},
   onSetAbsent,
+  onSetGameSkipped,
   onReplacePlayer,
   onSwapSlots,
   onSwapTeams,
@@ -98,7 +102,7 @@ export default function SummaryModal({
   const [draftScores, setDraftScores] = useState<Record<string, { a: string; b: string }>>({})
 
   // Discriminated union for modal modes - replaces 6 separate boolean states
-  type ModalMode = 'idle' | 'swap' | 'absent' | 'replace' | 'slotSwap' | 'teamSwap' | 'change'
+  type ModalMode = 'idle' | 'swap' | 'absent' | 'skip' | 'replace' | 'slotSwap' | 'teamSwap' | 'change'
   const [mode, setMode] = useState<ModalMode>('idle')
 
   const [swapSelected, setSwapSelected] = useState<SwapTarget | null>(null)
@@ -106,6 +110,7 @@ export default function SummaryModal({
   const [pendingSwap, setPendingSwap] = useState<{ t1: SwapTarget; t2: SwapTarget } | null>(null)
 
   const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
+  const [skipPending, setSkipPending] = useState<Map<string, Set<string>>>(new Map())
 
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
   const [replaceName, setReplaceName] = useState('')
@@ -159,6 +164,9 @@ export default function SummaryModal({
       case 'absent':
         setAbsentPending(new Set())
         break
+      case 'skip':
+        setSkipPending(new Map())
+        break
       case 'replace':
         setReplaceTarget(null)
         setReplaceName('')
@@ -195,6 +203,26 @@ export default function SummaryModal({
     exitCurrentMode()
     setAbsentPending(new Set(absentPlayers))
     setMode('absent')
+  }
+
+  function enterSkipMode() {
+    exitCurrentMode()
+    const m = new Map<string, Set<string>>()
+    for (const [k, v] of Object.entries(skippedPlayers)) m.set(k, new Set(v))
+    setSkipPending(m)
+    setMode('skip')
+  }
+
+  function toggleSkipForGame(gameKey: string, playerId: string) {
+    setSkipPending(prev => {
+      const next = new Map(prev)
+      const cur = new Set(next.get(gameKey) ?? [])
+      if (cur.has(playerId)) cur.delete(playerId)
+      else cur.add(playerId)
+      if (cur.size === 0) next.delete(gameKey)
+      else next.set(gameKey, cur)
+      return next
+    })
   }
 
   function enterReplaceMode() {
@@ -258,6 +286,31 @@ export default function SummaryModal({
     for (const id of absentPending) if (!saved.has(id)) return true
     return false
   })()
+
+  // Skip: effective per-game map + changed detection
+  const effectiveSkipped: Record<string, Set<string>> = (() => {
+    if (mode === 'skip') {
+      const out: Record<string, Set<string>> = {}
+      for (const [k, v] of skipPending) out[k] = new Set(v)
+      return out
+    }
+    const out: Record<string, Set<string>> = {}
+    for (const [k, v] of Object.entries(skippedPlayers)) out[k] = new Set(v)
+    return out
+  })()
+
+  const skipChanged = mode === 'skip' && (() => {
+    const allKeys = new Set([...Object.keys(skippedPlayers), ...skipPending.keys()])
+    for (const k of allKeys) {
+      const a = new Set(skippedPlayers[k] ?? [])
+      const b = skipPending.get(k) ?? new Set()
+      if (a.size !== b.size) return true
+      for (const id of a) if (!b.has(id)) return true
+    }
+    return false
+  })()
+
+  const flatSkippedCount = Object.values(effectiveSkipped).reduce((n, s) => n + s.size, 0)
 
   function handleChipClick(target: SwapTarget) {
     if (mode !== 'swap') return
@@ -370,6 +423,18 @@ export default function SummaryModal({
     exitCurrentMode()
   }
 
+  function handleConfirmSkip() {
+    // Send per-game PATCH sequentially (row-level OCC, low contention)
+    for (const [key, set] of skipPending) {
+      onSetGameSkipped?.(key, [...set])
+    }
+    // Also clear games that were skipped before but now empty
+    for (const k of Object.keys(skippedPlayers)) {
+      if (!skipPending.has(k)) onSetGameSkipped?.(k, [])
+    }
+    exitCurrentMode()
+  }
+
   return (
     <div className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-50 bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label="Session summary">
       {/* Toolbar */}
@@ -401,7 +466,7 @@ export default function SummaryModal({
               🔒<span className="hidden sm:inline"> Locked</span>
             </span>
           )}
-          {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onReplacePlayer || onSwapSlots || onSwapTeams) && (
+          {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onSetGameSkipped || onReplacePlayer || onSwapSlots || onSwapTeams) && (
             mode !== 'idle' ? (
               <button
                 onClick={() => { exitCurrentMode(); setActionsOpen(false) }}
@@ -420,12 +485,14 @@ export default function SummaryModal({
                 onEnterChangeMode={() => { setActionsOpen(false); enterChangeMode() }}
                 onEnterSlotSwapMode={() => { setActionsOpen(false); enterSlotSwapMode() }}
                 onEnterAbsentMode={() => { setActionsOpen(false); enterAbsentMode() }}
+                onEnterSkipMode={() => { setActionsOpen(false); enterSkipMode() }}
                 hasSwapPlayers={!!onSwapPlayers}
                 hasSwapTeams={!!onSwapTeams}
                 hasReplacePlayer={!!onReplacePlayer}
                 hasChangePlayer={!!onChangePlayer}
                 hasSwapSlots={!!onSwapSlots}
                 hasSetAbsent={!!onSetAbsent}
+                hasSetSkipped={!!onSetGameSkipped}
               />
             )
           )}
@@ -518,7 +585,7 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
+      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || skipChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
         {mode === 'swap' && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
@@ -538,6 +605,7 @@ export default function SummaryModal({
                 ? `${absentPending.size} player${absentPending.size === 1 ? '' : 's'} marked absent — tap to toggle`
                 : 'Tap players to mark absent'}
             </span>
+            <span className="text-[11px] text-red-400/70">whole session — 36 games</span>
             <div className="flex flex-wrap gap-1.5">
               {[...playerMap.values()].map((p) => {
                 const isSelected = absentPending.has(p.id)
@@ -563,6 +631,21 @@ export default function SummaryModal({
                 )
               })}
             </div>
+          </div>
+        )}
+        {mode === 'skip' && (
+          <div className="mb-3 rounded-lg bg-amber-950/30 border border-amber-900/40 px-3 py-2 flex flex-col gap-1">
+            <span className="text-xs text-amber-300 font-medium">
+              {flatSkippedCount > 0
+                ? `${flatSkippedCount} skipped — tap chip in a game to toggle (clears score)`
+                : 'Tap a player chip inside a game to skip them for THAT game only'}
+            </span>
+            <span className="text-[11px] text-amber-400/70">one game only — score will be cleared</span>
+            {skipChanged && (
+              <span className="text-[10px] text-amber-300">
+                {[...skipPending.entries()].map(([k, s]) => `${k}: ${[...s].map(id => playerMap.get(id)?.name ?? id).join(', ')}`).join(' · ')}
+              </span>
+            )}
           </div>
         )}
         {mode === 'replace' && (
@@ -677,6 +760,11 @@ export default function SummaryModal({
             schedule={result.schedule}
             gameScores={gameScores}
             absentPlayerIds={[...effectiveAbsent]}
+            skippedPlayers={(() => {
+              const out: Record<string, string[]> = {}
+              for (const [k, s] of Object.entries(effectiveSkipped)) out[k] = [...s]
+              return out
+            })()}
           />
         ) : (
           <ScheduleGrid
@@ -692,6 +780,7 @@ export default function SummaryModal({
             playedGames={playedArr}
             gameScores={gameScores}
             effectiveAbsent={effectiveAbsent}
+            effectiveSkipped={effectiveSkipped}
             expandedScore={expandedScore}
             draftScores={draftScores}
             scoreError={scoreError}
@@ -709,6 +798,7 @@ export default function SummaryModal({
             handleDragEnd={handleDragEnd}
             handleScoreSave={handleScoreSave}
             onTogglePlayedGame={onTogglePlayedGame}
+            onSkipToggle={toggleSkipForGame}
             setExpandedScore={setExpandedScore}
             setScoreError={setScoreError}
             setDraftScores={setDraftScores}
@@ -734,6 +824,10 @@ export default function SummaryModal({
         absentPending={absentPending}
         onCancelAbsent={exitCurrentMode}
         onConfirmAbsent={handleConfirmAbsent}
+        skipChanged={skipChanged}
+        skipPending={skipPending}
+        onCancelSkip={exitCurrentMode}
+        onConfirmSkip={handleConfirmSkip}
         pendingSlotSwap={pendingSlotSwap}
         onCancelSlotSwap={handleCancelSlotSwap}
         onConfirmSlotSwap={handleConfirmSlotSwap}

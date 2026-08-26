@@ -8,12 +8,14 @@ interface ActionsMenuProps {
   onEnterChangeMode: () => void
   onEnterSlotSwapMode: () => void
   onEnterAbsentMode: () => void
+  onEnterSkipMode: () => void
   hasSwapPlayers?: boolean
   hasSwapTeams?: boolean
   hasReplacePlayer?: boolean
   hasChangePlayer?: boolean
   hasSwapSlots?: boolean
   hasSetAbsent?: boolean
+  hasSetSkipped?: boolean
 }
 
 export default function ActionsMenu({
@@ -26,12 +28,14 @@ export default function ActionsMenu({
   onEnterChangeMode,
   onEnterSlotSwapMode,
   onEnterAbsentMode,
+  onEnterSkipMode,
   hasSwapPlayers,
   hasSwapTeams,
   hasReplacePlayer,
   hasChangePlayer,
   hasSwapSlots,
   hasSetAbsent,
+  hasSetSkipped,
 }: ActionsMenuProps) {
   return (
     <div className="relative">
@@ -106,6 +110,17 @@ export default function ActionsMenu({
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="inline mr-1.5 -mt-0.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
                 Mark absent
+                <span className="block text-[10px] text-slate-500 font-normal">whole session</span>
+              </button>
+            )}
+            {hasSetSkipped && (
+              <button
+                onClick={onEnterSkipMode}
+                className="w-full text-left px-4 py-2.5 text-xs font-medium text-amber-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
+                role="menuitem"
+              >
+                ⊘ Skip in game
+                <span className="block text-[10px] text-slate-500 font-normal">one game only — clears score</span>
               </button>
             )}
           </div>

@@ -123,6 +123,28 @@ export function setAbsentPlayersInSnapshot(
   }
 }
 
+export function setSkippedInSnapshot(
+  snapshot: CloudSnapshot,
+  key: string,
+  nextSkipped: string[],
+): CloudSnapshot {
+  const cur = snapshot.skippedPlayers ?? {}
+  const next: Record<string, string[]> = { ...cur }
+  if (nextSkipped.length === 0) {
+    delete next[key]
+  } else {
+    next[key] = [...nextSkipped]
+  }
+  // Also clear score/played for skipped non-empty (mirror BE clear)
+  if (nextSkipped.length > 0) {
+    const playedGames = snapshot.playedGames.filter((k) => k !== key)
+    const gameScores = { ...snapshot.gameScores }
+    delete gameScores[key as GameKey]
+    return { ...snapshot, skippedPlayers: next, playedGames, gameScores }
+  }
+  return { ...snapshot, skippedPlayers: next }
+}
+
 /**
  * Replace player name in snapshot — ONLY updates the players array name field.
  * Does NOT update schedule slot references (teamA/teamB).

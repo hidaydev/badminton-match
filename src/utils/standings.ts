@@ -11,11 +11,13 @@ export function computeStandings(
   schedule: ScheduleSlot[],
   gameScores: Record<GameKey, GameScore>,
   voidPlayerIds?: Iterable<string>,
+  skippedPlayers?: Record<string, string[]>,
 ): PlayerStanding[] {
   const map = new Map<string, PlayerStanding>()
   // Semantik skip_player (konsisten dengan rating engine, rating.go):
   // game dengan pemain absent TETAP dihitung untuk pemain yang benar-benar
   // main — hanya pemain void (absent/placeholder) yang di-exclude dari tally.
+  // Skip per-game ditambah sebagai void per game (union dengan global void).
   // Game di-skip hanya jika salah satu tim tidak punya pemain aktif sama sekali.
   const voidSet = voidPlayerIds ? new Set(voidPlayerIds) : null
 
@@ -28,8 +30,20 @@ export function computeStandings(
     const score = gameScores[key]
     if (!score) continue
 
-    const teamA = voidSet ? slot.teamA.filter((id) => !voidSet.has(id)) : slot.teamA
-    const teamB = voidSet ? slot.teamB.filter((id) => !voidSet.has(id)) : slot.teamB
+    // Per-game skipped union
+    let skipSet: Set<string> | null = null
+    if (skippedPlayers?.[key]?.length) skipSet = new Set(skippedPlayers[key])
+
+    const teamA = (() => {
+      let a = voidSet ? slot.teamA.filter((id) => !voidSet.has(id)) : [...slot.teamA]
+      if (skipSet) a = a.filter((id) => !skipSet!.has(id))
+      return a
+    })()
+    const teamB = (() => {
+      let b = voidSet ? slot.teamB.filter((id) => !voidSet.has(id)) : [...slot.teamB]
+      if (skipSet) b = b.filter((id) => !skipSet!.has(id))
+      return b
+    })()
     // Tim tanpa pemain aktif → game tidak valid untuk siapa pun
     if (teamA.length === 0 || teamB.length === 0) continue
 

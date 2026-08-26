@@ -217,6 +217,7 @@ export interface GameRow {
   scoreB: number | null
   isPlayed: boolean
   version: number
+  skippedRefs?: string[]
 }
 
 /** GET /sessions/{id}/games/{key} — ambil version game untuk If-Match granular. */
@@ -277,6 +278,22 @@ export async function patchAbsentPlayers(id: string, playerIds: string[], expect
   const out = await request<CloudSnapshot>('PATCH', `/sessions/${enc(id)}/absent`, { playerIds }, undefined, headers)
   if (!isValidSnapshot(out)) {
     console.warn('[patchAbsentPlayers] response failed validation:', out)
+    throw new ApiError('Invalid session snapshot received from server')
+  }
+  return out
+}
+
+/** PATCH /sessions/{id}/games/{key}/skip — set skipped players per-game (row-level OCC). */
+export async function patchGameSkipped(id: string, key: string, playerIds: string[], expectedVersion: number): Promise<CloudSnapshot> {
+  const headers: Record<string, string> = { 'If-Match': `"v${expectedVersion}"` }
+  try {
+    headers['Idempotency-Key'] = crypto.randomUUID()
+  } catch {
+    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
+  const out = await request<CloudSnapshot>('PATCH', `/sessions/${enc(id)}/games/${enc(key)}/skip`, { playerIds }, undefined, headers)
+  if (!isValidSnapshot(out)) {
+    console.warn('[patchGameSkipped] response failed validation:', out)
     throw new ApiError('Invalid session snapshot received from server')
   }
   return out

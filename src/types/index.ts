@@ -98,6 +98,7 @@ export interface CloudSnapshot {
   playedGames: string[]
   gameScores: Record<GameKey, GameScore>
   absentPlayers?: string[]
+  skippedPlayers?: Record<string, string[]>
 }
 
 export interface PlayerSummary {

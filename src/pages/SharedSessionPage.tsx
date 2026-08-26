@@ -8,6 +8,7 @@ import {
   useSetScore,
   useSwapPlayers,
   useSetAbsent,
+  useSetGameSkipped,
   useReplacePlayer,
   useSwapSlots,
   useSwapTeams,
@@ -40,12 +41,13 @@ export default function SharedSessionPage() {
   const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
   const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
   const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
+  const { mutate: setSkipped, isPending: setSkippedPending } = useSetGameSkipped(sessionId!)
   const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
   const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
   const { mutate: changePlayer, isPending: changePlayerPending } = useChangePlayer(sessionId!)
 
-  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
+  const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || setSkippedPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
 
   const realtimeConnected = useSessionRealtime(sessionId, !isSaving)
 
@@ -161,7 +163,12 @@ export default function SharedSessionPage() {
           onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}
         absentPlayers={snapshot.absentPlayers ?? []}
+        skippedPlayers={snapshot.skippedPlayers ?? {}}
         onSetAbsent={(nextAbsent) => setAbsent({ nextAbsent }, {
+          onSuccess: () => setSaveError(null),
+          onError: (err) => setSaveError(getSaveErrorMessage(err)),
+        })}
+        onSetGameSkipped={(key, playerIds) => setSkipped({ key, playerIds }, {
           onSuccess: () => setSaveError(null),
           onError: (err) => setSaveError(getSaveErrorMessage(err)),
         })}

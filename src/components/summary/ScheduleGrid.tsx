@@ -21,6 +21,7 @@ interface ScheduleGridProps {
   playedGames: string[]
   gameScores: Record<string, GameScore>
   effectiveAbsent: Set<string>
+  effectiveSkipped?: Record<string, Set<string>>
   expandedScore: string | null
   draftScores: Record<string, { a: string; b: string }>
   scoreError: string | null
@@ -44,6 +45,7 @@ interface ScheduleGridProps {
   handleDragEnd: (event: DragEndEvent) => void
   handleScoreSave: (key: string) => void
   onTogglePlayedGame?: (key: string) => void
+  onSkipToggle?: (gameKey: string, playerId: string) => void
   setExpandedScore: (key: string | null) => void
   setScoreError: (error: string | null) => void
   setDraftScores: (fn: (prev: Record<string, { a: string; b: string }>) => Record<string, { a: string; b: string }>) => void
@@ -62,6 +64,7 @@ export default function ScheduleGrid({
   playedGames,
   gameScores,
   effectiveAbsent,
+  effectiveSkipped = {},
   expandedScore,
   draftScores,
   scoreError,
@@ -79,6 +82,7 @@ export default function ScheduleGrid({
   handleDragEnd,
   handleScoreSave,
   onTogglePlayedGame,
+  onSkipToggle,
   setExpandedScore,
   setScoreError,
   setDraftScores,
@@ -197,12 +201,14 @@ export default function ScheduleGrid({
                                     pendingSwap={pendingSwap}
                                     isSelected={isSelected}
                                     isAbsent={effectiveAbsent.has(id)}
+                                    isSkipped={!!effectiveSkipped[toGameKey(s, g.court)]?.has(id)}
                                     hasScore={!!gameScores[toGameKey(s, g.court)]}
                                     replaceTarget={replaceTarget}
                                     changeTarget={changeTarget}
                                     onChipClick={handleChipClick}
                                     onReplaceToggle={handleReplaceToggle}
                                     onChangeSelect={handleChangeSelect}
+                                    onSkipToggle={onSkipToggle}
                                     slot={s}
                                     court={g.court}
                                     playerId={id}
@@ -265,12 +271,14 @@ export default function ScheduleGrid({
                                     pendingSwap={pendingSwap}
                                     isSelected={isSelected}
                                     isAbsent={effectiveAbsent.has(id)}
+                                    isSkipped={!!effectiveSkipped[toGameKey(s, g.court)]?.has(id)}
                                     hasScore={!!gameScores[toGameKey(s, g.court)]}
                                     replaceTarget={replaceTarget}
                                     changeTarget={changeTarget}
                                     onChipClick={handleChipClick}
                                     onReplaceToggle={handleReplaceToggle}
                                     onChangeSelect={handleChangeSelect}
+                                    onSkipToggle={onSkipToggle}
                                     slot={s}
                                     court={g.court}
                                     playerId={id}
