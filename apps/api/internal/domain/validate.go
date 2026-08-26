@@ -199,6 +199,33 @@ func ValidateSnapshot(snap *CloudSnapshot) error {
 		}
 	}
 
+	// ── skippedPlayers (per-game) ────────────────────────────────────────
+	for key, refs := range snap.SkippedPlayers {
+		if _, ok := gameKeys[key]; !ok {
+			return fmt.Errorf("session skippedPlayers must only reference scheduled games")
+		}
+		seenSkip := map[string]struct{}{}
+		for _, id := range refs {
+			ref := trimPlayerRef(id)
+			if ref == "" {
+				return fmt.Errorf("session skippedPlayers must only reference known non-blank player ids")
+			}
+			if _, ok := playerRefs[ref]; !ok {
+				return fmt.Errorf("session skippedPlayers must only reference known non-blank player ids")
+			}
+			if _, dup := seenSkip[ref]; dup {
+				return fmt.Errorf("session skippedPlayers must not contain duplicates per game")
+			}
+			seenSkip[ref] = struct{}{}
+		}
+		if _, hasScore := snap.GameScores[key]; hasScore && len(refs) > 0 {
+			return fmt.Errorf("session skippedPlayers game must not have a score (score must be cleared when skipped)")
+		}
+		if _, isPlayed := seenPlayed[key]; isPlayed && len(refs) > 0 {
+			return fmt.Errorf("session skippedPlayers game must not be marked played when skipped")
+		}
+	}
+
 	return nil
 }
 
