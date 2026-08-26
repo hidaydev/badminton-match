@@ -20,6 +20,7 @@ interface PlayerMatchDetailSheetProps {
   gameScores: Record<string, GameScore>
   players: Player[]
   voidPlayerIds?: Iterable<string>
+  skippedPlayers?: Record<string, string[]>
   onClose: () => void
 }
 
@@ -29,6 +30,7 @@ function buildGameRows(
   gameScores: Record<string, GameScore>,
   players: Player[],
   voidPlayerIds?: Iterable<string>,
+  skippedPlayers?: Record<string, string[]>,
 ): GameRow[] {
   const pid = toPlayerId(playerId)
   const voidSet = voidPlayerIds ? new Set(voidPlayerIds) : null
@@ -39,12 +41,17 @@ function buildGameRows(
     // Semantik skip_player (konsisten dengan computeStandings): game dengan
     // pemain absent tetap dihitung untuk pemain yang main — hanya di-skip
     // jika tim si pemain (atau tim lawan) tidak punya pemain aktif sama sekali.
+    // Skip per-game ditambah sebagai void per game.
     .filter(slot => {
-      if (!voidSet) return true
+      const key = toGameKey(slot.slot, slot.court)
+      const skipSet = skippedPlayers?.[key] ? new Set(skippedPlayers[key]) : null
+      const isVoid = (id: string) => (voidSet?.has(id) ?? false) || (skipSet?.has(id) ?? false)
       const inA = slot.teamA.includes(pid)
       const myTeam = inA ? slot.teamA : slot.teamB
       const oppTeam = inA ? slot.teamB : slot.teamA
-      return myTeam.some(id => !voidSet.has(id)) && oppTeam.some(id => !voidSet.has(id))
+      // Jika si pemain sendiri di-skip di game itu, jangan tampilkan (dia gak main)
+      if (skipSet?.has(playerId)) return false
+      return myTeam.some(id => !isVoid(id)) && oppTeam.some(id => !isVoid(id))
     })
     .sort((a, b) => a.slot - b.slot || a.court - b.court)
     .map(slot => {
@@ -74,11 +81,12 @@ export default function PlayerMatchDetailSheet({
   gameScores,
   players,
   voidPlayerIds,
+  skippedPlayers,
   onClose,
 }: PlayerMatchDetailSheetProps) {
   if (!player) return null
 
-  const games = buildGameRows(player.player.id, schedule, gameScores, players, voidPlayerIds)
+  const games = buildGameRows(player.player.id, schedule, gameScores, players, voidPlayerIds, skippedPlayers)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" onClick={onClose}>

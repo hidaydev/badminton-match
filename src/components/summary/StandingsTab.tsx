@@ -147,6 +147,7 @@ export default function StandingsTab({
         gameScores={gameScores}
         players={players}
         voidPlayerIds={voidPlayerIds}
+        skippedPlayers={skippedPlayers}
         onClose={() => setSelectedPlayer(null)}
       />
     </div>
