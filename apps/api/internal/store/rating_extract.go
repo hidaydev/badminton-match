@@ -35,6 +35,7 @@ type sessionGame struct {
 	court      int
 	scoreA     int
 	scoreB     bool // scored
+	skipped    []string
 }
 
 func (s *SessionStore) extractSessionMatches(ctx context.Context, tx pgx.Tx, lookup string) ([]domain.RawMatch, *sourceMeta, error) {
@@ -59,7 +60,8 @@ func (s *SessionStore) extractSessionMatches(ctx context.Context, tx pgx.Tx, loo
 
 	rows, err := tx.Query(ctx, `
 		SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
-		       coalesce(sg.score_a, 0), (sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL)
+		       coalesce(sg.score_a, 0), (sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL),
+		       COALESCE(sg.skipped_player_refs, '{}')
 		FROM `+s.schema+`.scheduled_games sg
 		WHERE sg.session_id = $1::uuid
 		ORDER BY sg.legacy_order ASC`, id)
@@ -70,13 +72,18 @@ func (s *SessionStore) extractSessionMatches(ctx context.Context, tx pgx.Tx, loo
 	for rows.Next() {
 		var g sessionGame
 		var scored bool
-		if err := rows.Scan(&g.internalID, &g.legacy, &g.slot, &g.court, &g.scoreA, &scored); err != nil {
+		var skipped []string
+		if err := rows.Scan(&g.internalID, &g.legacy, &g.slot, &g.court, &g.scoreA, &scored, &skipped); err != nil {
 			rows.Close()
 			return nil, nil, err
 		}
+		if skipped == nil {
+			skipped = []string{}
+		}
+		g.skipped = skipped
 		g.scoreB = scored
 		if !scored {
-			continue // belum dimainkan
+			continue // belum dimainkan (skipped games are already unscored via clear)
 		}
 		games = append(games, g)
 	}
@@ -94,8 +101,13 @@ func (s *SessionStore) extractSessionMatches(ctx context.Context, tx pgx.Tx, loo
 			return nil, nil, err
 		}
 
+		// Build skipped set for this game (player_ref based, bebas any player)
+		skippedSet := make(map[string]struct{}, len(g.skipped))
+		for _, ref := range g.skipped {
+			skippedSet[ref] = struct{}{}
+		}
 		prows, err := tx.Query(ctx, `
-			SELECT sp.source_name, sp.is_absent, sgp.team, sgp.position
+			SELECT sp.source_name, sp.is_absent, sp.player_ref, sgp.team, sgp.position
 			FROM `+s.schema+`.scheduled_game_players sgp
 			JOIN `+s.schema+`.session_players sp ON sp.internal_id = sgp.session_player_internal_id
 			WHERE sgp.scheduled_game_internal_id = $1::uuid
@@ -105,12 +117,16 @@ func (s *SessionStore) extractSessionMatches(ctx context.Context, tx pgx.Tx, loo
 		}
 		players := []domain.RawPlayer{}
 		for prows.Next() {
-			var name, team string
+			var name, team, playerRef string
 			var absent bool
 			var position int
-			if err := prows.Scan(&name, &absent, &team, &position); err != nil {
+			if err := prows.Scan(&name, &absent, &playerRef, &team, &position); err != nil {
 				prows.Close()
 				return nil, nil, err
+			}
+			// Per-game skipped overrides is_absent — skipped in this game = absent for rating
+			if _, isSkipped := skippedSet[playerRef]; isSkipped {
+				absent = true
 			}
 			players = append(players, domain.RawPlayer{
 				Name:        name,
