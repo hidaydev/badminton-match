@@ -150,6 +150,56 @@ type patchAbsentRequest struct {
 	PlayerIDs []string `json:"playerIds"`
 }
 
+// patchSkipRequest — body untuk PATCH /sessions/{id}/games/{gameKey}/skip
+type patchSkipRequest struct {
+	PlayerIDs []string `json:"playerIds"`
+}
+
+// PatchGameSkipped — PATCH /sessions/{id}/games/{gameKey}/skip (granular per-game skip)
+func (h *SessionHandler) PatchGameSkipped(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	gameKey := r.PathValue("gameKey")
+	if gameKey == "" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("gameKey is required (format slot-court)"))
+		return
+	}
+	var req patchSkipRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Validation("invalid JSON body"))
+		return
+	}
+	var expected *int
+	if v, err := versionRequired(r); err == nil {
+		expected = &v
+	} else if errors.Is(err, errIfMatchMissing) {
+		httperr.WriteError(w, h.Logger, httperr.Precondition("If-Match header is required for granular game mutations"))
+		return
+	} else {
+		httperr.WriteError(w, h.Logger, httperr.Validation("invalid If-Match header"))
+		return
+	}
+	idemKey := r.Header.Get("Idempotency-Key")
+	cacheKey := ""
+	if idemKey != "" {
+		cacheKey = id + ":" + idemKey
+		if cached, ok := getIdempotentResponse(cacheKey); ok {
+			h.writeSession(w, http.StatusOK, cached)
+			return
+		}
+	}
+	// Normalize nil to empty slice (clear skip)
+	if req.PlayerIDs == nil {
+		req.PlayerIDs = []string{}
+	}
+	out, err := h.Store.SetGameSkipped(r.Context(), id, gameKey, req.PlayerIDs, expected, idemKey)
+	if err != nil {
+		h.Logger.Warn("granular skip rejected", "session", id, "gameKey", gameKey, "error", err)
+		httperr.WriteError(w, h.Logger, mapPublishError(err))
+		return
+	}
+	h.writeSession(w, http.StatusOK, out)
+}
+
 // PatchAbsent — PATCH /sessions/{id}/absent (granular)
 func (h *SessionHandler) PatchAbsent(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")

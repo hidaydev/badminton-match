@@ -6,14 +6,15 @@ import "strconv"
 
 // CloudSnapshot — representasi lengkap satu session (kontrak frontend).
 type CloudSnapshot struct {
-	Version       *int                 `json:"version,omitempty"`
-	Session       SessionConfig        `json:"session"`
-	Players       []Player             `json:"players"`
-	FixMatches    []FixMatch           `json:"fixMatches"`
-	Schedule      []ScheduleSlot       `json:"schedule"`
-	PlayedGames   []string             `json:"playedGames"`
-	GameScores    map[string]GameScore `json:"gameScores"`
-	AbsentPlayers []string             `json:"absentPlayers,omitempty"`
+	Version        *int                 `json:"version,omitempty"`
+	Session        SessionConfig        `json:"session"`
+	Players        []Player             `json:"players"`
+	FixMatches     []FixMatch           `json:"fixMatches"`
+	Schedule       []ScheduleSlot       `json:"schedule"`
+	PlayedGames    []string             `json:"playedGames"`
+	GameScores     map[string]GameScore `json:"gameScores"`
+	AbsentPlayers  []string             `json:"absentPlayers,omitempty"`
+	SkippedPlayers map[string][]string  `json:"skippedPlayers,omitempty"`
 }
 
 // SessionConfig — konfigurasi sesi (judul, tanggal, court, slot, dst).

@@ -9,6 +9,7 @@ import (
 	"majadu-api/internal/domain"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ── Granular live ops (Fase 1) — row-level OCC, tanpa session-level lock ───
@@ -17,12 +18,13 @@ import (
 
 // GameRow — satu game dari scheduled_games (granular read).
 type GameRow struct {
-	Slot     int  `json:"slot"`
-	Court    int  `json:"court"`
-	ScoreA   *int `json:"scoreA"`
-	ScoreB   *int `json:"scoreB"`
-	IsPlayed bool `json:"isPlayed"`
-	Version  int  `json:"version"`
+	Slot        int      `json:"slot"`
+	Court       int      `json:"court"`
+	ScoreA      *int     `json:"scoreA"`
+	ScoreB      *int     `json:"scoreB"`
+	IsPlayed    bool     `json:"isPlayed"`
+	Version     int      `json:"version"`
+	SkippedRefs []string `json:"skippedRefs"`
 }
 
 // GetGame — ambil satu game + version-nya (untuk If-Match granular).
@@ -33,22 +35,46 @@ func (s *SessionStore) GetGame(ctx context.Context, sessionID, gameKey string) (
 	}
 	var g GameRow
 	var scoreA, scoreB *int
+	var skipped []string
 	err := s.pool.QueryRow(ctx, `
-		SELECT sg.slot_index, sg.court_index, sg.score_a, sg.score_b, sg.is_played, sg.version
+		SELECT sg.slot_index, sg.court_index, sg.score_a, sg.score_b, sg.is_played, sg.version,
+		       COALESCE(sg.skipped_player_refs, '{}')
 		FROM scheduled_games sg
 		JOIN sessions s ON s.id = sg.session_id
 		WHERE (s.share_code = $1 OR s.id::text = $1) AND sg.slot_index = $2 AND sg.court_index = $3
-		ORDER BY (s.share_code = $1) DESC LIMIT 1`, sessionID, slot, court).Scan(&g.Slot, &g.Court, &scoreA, &scoreB, &g.IsPlayed, &g.Version)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
+		ORDER BY (s.share_code = $1) DESC LIMIT 1`, sessionID, slot, court).Scan(&g.Slot, &g.Court, &scoreA, &scoreB, &g.IsPlayed, &g.Version, &skipped)
 	if err != nil {
-		return nil, err
+		if isUndefinedColumn(err) {
+			// Fallback jika migration 000014 belum applied (rare, backward-compat)
+			err2 := s.pool.QueryRow(ctx, `
+				SELECT sg.slot_index, sg.court_index, sg.score_a, sg.score_b, sg.is_played, sg.version
+				FROM scheduled_games sg
+				JOIN sessions s ON s.id = sg.session_id
+				WHERE (s.share_code = $1 OR s.id::text = $1) AND sg.slot_index = $2 AND sg.court_index = $3
+				ORDER BY (s.share_code = $1) DESC LIMIT 1`, sessionID, slot, court).Scan(&g.Slot, &g.Court, &scoreA, &scoreB, &g.IsPlayed, &g.Version)
+			if errors.Is(err2, pgx.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+			if err2 != nil {
+				return nil, err2
+			}
+			skipped = []string{}
+		} else {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+			return nil, err
+		}
+	} else {
+		if skipped == nil {
+			skipped = []string{}
+		}
 	}
 	if scoreA != nil {
 		g.ScoreA = scoreA
 		g.ScoreB = scoreB
 	}
+	g.SkippedRefs = skipped
 	return &g, nil
 }
 
@@ -375,4 +401,149 @@ func (s *SessionStore) SetAbsentPlayers(ctx context.Context, sessionID string, p
 		}
 	}
 	return snap, err
+}
+
+// SetGameSkipped — granular skip per-game: row-level OCC, clear score if skipped.
+func (s *SessionStore) SetGameSkipped(ctx context.Context, sessionID, gameKey string, playerRefs []string, expectedVersion *int, idempotencyKey string) (*domain.CloudSnapshot, error) {
+	slot, court, ok := splitGameKey(gameKey)
+	if !ok {
+		return nil, fmt.Errorf("%w: invalid gameKey %q", ErrValidation, gameKey)
+	}
+	clean := []string{}
+	seen := map[string]struct{}{}
+	for _, r := range playerRefs {
+		rr := strings.TrimSpace(r)
+		if rr == "" {
+			continue
+		}
+		if _, dup := seen[rr]; dup {
+			return nil, fmt.Errorf("%w: skipped playerRefs must not contain duplicates", ErrValidation)
+		}
+		seen[rr] = struct{}{}
+		clean = append(clean, rr)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var sessID, status string
+	err = tx.QueryRow(ctx, `SELECT s.id::text, s.status FROM sessions s WHERE s.share_code=$1 OR s.id::text=$1 ORDER BY (s.share_code=$1) DESC LIMIT 1`, sessionID).Scan(&sessID, &status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if idempotencyKey != "" {
+		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
+			s.metrics.IdempotencyHits.Add(1)
+			_ = tx.Rollback(ctx)
+			return cached, nil
+		}
+	}
+	if status != "draft" {
+		return nil, ErrLocked
+	}
+	if len(clean) > 0 {
+		for _, ref := range clean {
+			var cnt int
+			_ = tx.QueryRow(ctx, `SELECT count(*) FROM session_players WHERE session_id=$1::uuid AND player_ref=$2`, sessID, ref).Scan(&cnt)
+			if cnt == 0 {
+				return nil, fmt.Errorf("%w: skipped playerRefs must only reference known player ids", ErrValidation)
+			}
+		}
+	}
+	var currentVer int
+	var curSkipped []string
+	err = tx.QueryRow(ctx, `SELECT version, COALESCE(skipped_player_refs, '{}') FROM scheduled_games WHERE session_id=$1::uuid AND slot_index=$2 AND court_index=$3 FOR UPDATE NOWAIT`, sessID, slot, court).Scan(&currentVer, &curSkipped)
+	if err != nil {
+		if isUndefinedColumn(err) {
+			err2 := tx.QueryRow(ctx, `SELECT version FROM scheduled_games WHERE session_id=$1::uuid AND slot_index=$2 AND court_index=$3 FOR UPDATE NOWAIT`, sessID, slot, court).Scan(&currentVer)
+			if errors.Is(err2, pgx.ErrNoRows) {
+				return nil, fmt.Errorf("%w: game %s not found", ErrValidation, gameKey)
+			}
+			if err2 != nil {
+				if isLockNotAvailable(err2) {
+					return nil, ErrContention
+				}
+				return nil, err2
+			}
+			curSkipped = []string{}
+		} else {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, fmt.Errorf("%w: game %s not found", ErrValidation, gameKey)
+			}
+			if isLockNotAvailable(err) {
+				return nil, ErrContention
+			}
+			return nil, err
+		}
+	}
+	if expectedVersion != nil && *expectedVersion != currentVer {
+		s.metrics.GranularConflicts.Add(1)
+		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedVersion, currentVer)
+	}
+	if curSkipped == nil {
+		curSkipped = []string{}
+	}
+	if equalStringSets(curSkipped, clean) {
+		_ = tx.Rollback(ctx)
+		return s.Load(ctx, sessionID)
+	}
+	if len(clean) > 0 {
+		_, err = tx.Exec(ctx, `UPDATE scheduled_games SET skipped_player_refs=$2, score_a=NULL, score_b=NULL, is_played=false, status='scheduled', played_order=NULL, version=version+1, updated_at=now() WHERE session_id=$1::uuid AND slot_index=$3 AND court_index=$4`, sessID, clean, slot, court)
+	} else {
+		_, err = tx.Exec(ctx, `UPDATE scheduled_games SET skipped_player_refs='{}', version=version+1, updated_at=now() WHERE session_id=$1::uuid AND slot_index=$2 AND court_index=$3`, sessID, slot, court)
+	}
+	if err != nil {
+		if isUndefinedColumn(err) {
+			return nil, fmt.Errorf("%w: skipped_player_refs column not yet migrated (apply 000014)", ErrValidation)
+		}
+		return nil, err
+	}
+	_ = InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
+		Aggregate: "game", AggregateID: gameKey, EventType: "skipped_set",
+		Payload: domain.SkippedPayload{Slot: slot, Court: court, PlayerIDs: clean}, Version: int64(currentVer + 1),
+	})
+	s.metrics.OutboxEvents.Add(1)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	snap, err := s.Load(ctx, sessionID)
+	if err == nil && snap != nil {
+		s.Broadcast(sessionID, snap)
+		s.metrics.GranularOps.Add(1)
+		if idempotencyKey != "" {
+			s.SaveIdempotency(ctx, sessID, idempotencyKey, snap)
+		}
+	}
+	return snap, err
+}
+func equalStringSets(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	m := make(map[string]int, len(a))
+	for _, s := range a {
+		m[s]++
+	}
+	for _, s := range b {
+		if c, ok := m[s]; !ok || c == 0 {
+			return false
+		}
+		m[s]--
+	}
+	return true
+}
+func isUndefinedColumn(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "42703"
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "42703") || strings.Contains(msg, "skipped_player_refs") && strings.Contains(msg, "does not exist")
 }

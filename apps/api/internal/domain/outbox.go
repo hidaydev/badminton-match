@@ -35,3 +35,10 @@ type PlayedPayload struct {
 type AbsentPayload struct {
 	PlayerIDs []string `json:"playerIds"`
 }
+
+// SkippedPayload — payload untuk skipped_set (per-game skip)
+type SkippedPayload struct {
+	Slot      int      `json:"slot"`
+	Court     int      `json:"court"`
+	PlayerIDs []string `json:"playerIds"`
+}

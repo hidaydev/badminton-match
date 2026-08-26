@@ -277,23 +277,82 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 		scoreB     *int
 		teamA      [2]string
 		teamB      [2]string
+		skipped    []string
 	}
 	games := []gameRow{}
 	gameIdx := map[string]int{} // internal_id → index di games
 	rows, err = tx.Query(ctx, `
 		SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
-		       sg.is_played, sg.played_order, sg.score_a, sg.score_b
+		       sg.is_played, sg.played_order, sg.score_a, sg.score_b,
+		       COALESCE(sg.skipped_player_refs, '{}')
 		FROM scheduled_games sg
 		WHERE sg.session_id = $1::uuid
 		ORDER BY sg.legacy_order`, sessionID)
 	if err != nil {
-		return nil, err
+		// Fallback if migration 000014 not yet applied (42703 undefined_column)
+		if isSkippedColumnMissing(err) {
+			rows, err = tx.Query(ctx, `
+				SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
+				       sg.is_played, sg.played_order, sg.score_a, sg.score_b
+				FROM scheduled_games sg
+				WHERE sg.session_id = $1::uuid
+				ORDER BY sg.legacy_order`, sessionID)
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
+	// scan with fallback (skipped col may be missing)
+	hadSkippedCol := true
 	for rows.Next() {
 		var g gameRow
-		if err := rows.Scan(&g.internalID, &g.legacyOrd, &g.slot, &g.court, &g.isPlayed, &g.playedOrd, &g.scoreA, &g.scoreB); err != nil {
+		var skipped []string
+		var scanErr error
+		if hadSkippedCol {
+			scanErr = rows.Scan(&g.internalID, &g.legacyOrd, &g.slot, &g.court, &g.isPlayed, &g.playedOrd, &g.scoreA, &g.scoreB, &skipped)
+			if scanErr != nil && isSkippedColumnMissing(scanErr) {
+				hadSkippedCol = false
+				// re-query without skipped column — should not happen mid-rows, but handle
+				rows.Close()
+				rows, err = tx.Query(ctx, `
+					SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
+					       sg.is_played, sg.played_order, sg.score_a, sg.score_b
+					FROM scheduled_games sg
+					WHERE sg.session_id = $1::uuid
+					ORDER BY sg.legacy_order`, sessionID)
+				if err != nil {
+					return nil, err
+				}
+				// restart scan from new rows
+				games = []gameRow{}
+				gameIdx = map[string]int{}
+				for rows.Next() {
+					var g2 gameRow
+					if err := rows.Scan(&g2.internalID, &g2.legacyOrd, &g2.slot, &g2.court, &g2.isPlayed, &g2.playedOrd, &g2.scoreA, &g2.scoreB); err != nil {
+						rows.Close()
+						return nil, err
+					}
+					gameIdx[g2.internalID] = len(games)
+					games = append(games, g2)
+				}
+				rows.Close()
+				if err := rows.Err(); err != nil {
+					return nil, err
+				}
+				break
+			}
+		} else {
+			scanErr = rows.Scan(&g.internalID, &g.legacyOrd, &g.slot, &g.court, &g.isPlayed, &g.playedOrd, &g.scoreA, &g.scoreB)
+		}
+		if scanErr != nil {
 			rows.Close()
-			return nil, err
+			return nil, scanErr
+		}
+		if hadSkippedCol {
+			g.skipped = skipped
+			if g.skipped == nil {
+				g.skipped = []string{}
+			}
 		}
 		gameIdx[g.internalID] = len(games)
 		games = append(games, g)
@@ -433,8 +492,29 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 		if g.scoreA != nil && g.scoreB != nil {
 			snap.GameScores[key] = domain.GameScore{A: *g.scoreA, B: *g.scoreB}
 		}
+		if len(g.skipped) > 0 {
+			if snap.SkippedPlayers == nil {
+				snap.SkippedPlayers = map[string][]string{}
+			}
+			cp := make([]string, len(g.skipped))
+			copy(cp, g.skipped)
+			snap.SkippedPlayers[key] = cp
+		}
 	}
 	return snap, nil
+}
+
+// isSkippedColumnMissing — detect 42703 undefined_column for skipped_player_refs
+func isSkippedColumnMissing(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "42703"
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "42703") || strings.Contains(msg, "skipped_player_refs")
 }
 
 // Save — publish write-path (port bm.publish_session): satu transaksi berisi
