@@ -62,6 +62,27 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Version" }
+  /admin/verify:
+    get:
+      tags: [System]
+      summary: Verifikasi token admin
+      operationId: verifyAdmin
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Token valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+        "401":
+          description: Token tidak valid / tidak ada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   # ── Sessions ──────────────────────────────────────────────────────────
   /sessions:

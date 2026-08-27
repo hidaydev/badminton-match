@@ -147,6 +147,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("GET /healthz", http.HandlerFunc(health.Healthz))
 	mux.Handle("GET /readyz", http.HandlerFunc(health.Ready))
 	mux.Handle("GET /version", http.HandlerFunc(health.Version))
+	mux.Handle("GET /admin/verify", handler.AdminGuard(cfg.AdminToken, handler.VerifyAdmin))
 
 	sessions := &handler.SessionHandler{Store: sessionStore, Logger: logger, BaseURL: cfg.BaseURL, AdminToken: cfg.AdminToken}
 	mux.Handle("GET /metrics", http.HandlerFunc(sessions.MetricsHandler))

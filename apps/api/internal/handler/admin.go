@@ -7,6 +7,11 @@ import (
 	"majadu-api/internal/httperr"
 )
 
+// VerifyAdmin — GET /admin/verify (AdminGuard): cek token valid → 200 {ok:true}
+func VerifyAdmin(w http.ResponseWriter, r *http.Request) {
+	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // AdminGuard — middleware admin (Authorization: Bearer MAJADU_ADMIN_TOKEN).
 // Dipakai endpoint admin di semua handler.
 func AdminGuard(token string, next http.HandlerFunc) http.HandlerFunc {
