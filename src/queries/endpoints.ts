@@ -8,7 +8,26 @@ export { ApiError } from './retry'
 // ── REST client terhadap majadu-api (Go backend) ─────────────────────────
 // Base URL di-inject saat build oleh vite.config.ts (__API_BASE_URL__) —
 // ditentukan dari branch (VERCEL_GIT_COMMIT_REF) atau override VITE_API_URL.
-const BASE_URL: string = __API_BASE_URL__
+export const BASE_URL: string = __API_BASE_URL__
+
+/** Verify admin token via GET /admin/verify — true if 200, false if 401 */
+export async function verifyAdminToken(token: string): Promise<boolean> {
+  const t = token.trim()
+  if (!t) return false
+  try {
+    const controller = new AbortController()
+    const id = setTimeout(() => controller.abort(), 5000)
+    const res = await fetch(`${BASE_URL}/admin/verify`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${t}` },
+      signal: controller.signal,
+    })
+    clearTimeout(id)
+    return res.ok
+  } catch {
+    return false
+  }
+}
 
 const API_TIMEOUT_MS = 30_000
 const MAX_RETRIES = 3

@@ -1,18 +1,18 @@
 // src/context/AdminContext.tsx — state admin (token di localStorage — persist sampai logout).
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
-import { setAdminToken } from '../queries/endpoints'
+import { setAdminToken, verifyAdminToken } from '../queries/endpoints'
 
 const STORAGE_KEY = 'majadu_admin_token'
 
 interface AdminContextValue {
   isAdmin: boolean
-  login: (token: string) => boolean
+  login: (token: string) => Promise<boolean>
   logout: () => void
 }
 
 const AdminContext = createContext<AdminContextValue>({
   isAdmin: false,
-  login: () => false,
+  login: async () => false,
   logout: () => {},
 })
 
@@ -26,11 +26,29 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setAdminToken(token)
   }, [token])
 
-  const login = useCallback((t: string) => {
+  // Verify token di localStorage saat mount — kalau token ngasal / expired → auto logout
+  useEffect(() => {
+    if (!token) return
+    let cancelled = false
+    verifyAdminToken(token).then((ok) => {
+      if (!ok && !cancelled) {
+        localStorage.removeItem(STORAGE_KEY)
+        setAdminToken('')
+        setToken('')
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, []) // run once on mount
+
+  const login = useCallback(async (t: string) => {
     const trimmed = t.trim()
     if (!trimmed) return false
+    const ok = await verifyAdminToken(trimmed)
+    if (!ok) return false
     localStorage.setItem(STORAGE_KEY, trimmed)
-    setToken(trimmed)  // useEffect will call setAdminToken
+    setToken(trimmed) // useEffect will call setAdminToken
     return true
   }, [])
 
