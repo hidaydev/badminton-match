@@ -98,8 +98,9 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 	out.PlayerID = playerID
 
 	// ── session stats (mirror base_stats) ────────────────────────────────
-	// Game VOID (memuat ≥1 pemain is_absent) tidak dihitung — lihat
-	// ABSENT_TBD_PLAYERS_DESIGN.md §4. Predikat sama untuk semua query stats.
+	// SkipPlayer: cuma game dimana si pemain sendiri absent/skipped/placeholder yang di-exclude,
+	// bukan void seluruh game kalo ada orang lain absent (samain dengan rating AbsentSkipPlayer).
+	// Lihat rating_extract.go per-game skipped.
 	if err := pool.QueryRow(ctx, `
 		SELECT
 			count(*)::integer,
@@ -116,17 +117,11 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 		FROM session_players sp
 		JOIN scheduled_game_players sgp ON sgp.session_player_internal_id = sp.internal_id
 		JOIN scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id AND sg.session_id = sp.session_id
+		LEFT JOIN players p ON p.id = sp.player_id
 		WHERE sp.player_id = $1::uuid
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM scheduled_game_players sgpv
-			JOIN session_players spv ON spv.internal_id = sgpv.session_player_internal_id
-				AND spv.session_id = sg.session_id
-			LEFT JOIN players pv ON pv.id = spv.player_id
-			WHERE sgpv.scheduled_game_internal_id = sg.internal_id
-			  AND (spv.is_absent = true OR spv.player_id IS NULL
-			       OR pv.canonical_name ~* '^(free|tbd|default|xxx|unknown|kosong|belum ada)( [0-9]+)?$|^\?+$')
-		  )`,
+		  AND sp.is_absent = false
+		  AND NOT (sp.player_ref = ANY(COALESCE(sg.skipped_player_refs,'{}')))
+		  AND (p.canonical_name IS NULL OR p.canonical_name !~* '^(free|tbd|default|xxx|unknown|kosong|belum ada)( [0-9]+)?$|^\?+$')`,
 		playerID).
 		Scan(&out.GamesPlayed, &out.Wins, &out.Losses, &out.PointsFor, &out.PointsAgainst); err != nil {
 		return nil, err
@@ -196,17 +191,11 @@ func loadStatEntries(ctx context.Context, pool *pgxpool.Pool, playerID string, o
 		JOIN scheduled_game_players tl ON tl.scheduled_game_internal_id = sg.internal_id AND ` + joinCond + `
 		JOIN session_players tsp ON tsp.internal_id = tl.session_player_internal_id AND tsp.session_id = sg.session_id
 		JOIN players partner ON partner.id = tsp.player_id
+		LEFT JOIN players pself ON pself.id = sp.player_id
 		WHERE sp.player_id = $1::uuid
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM scheduled_game_players sgpv
-			JOIN session_players spv ON spv.internal_id = sgpv.session_player_internal_id
-				AND spv.session_id = sg.session_id
-			LEFT JOIN players pv ON pv.id = spv.player_id
-			WHERE sgpv.scheduled_game_internal_id = sg.internal_id
-			  AND (spv.is_absent = true OR spv.player_id IS NULL
-			       OR pv.canonical_name ~* '^(free|tbd|default|xxx|unknown|kosong|belum ada)( [0-9]+)?$|^\?+$')
-		  )
+		  AND sp.is_absent = false
+		  AND NOT (sp.player_ref = ANY(COALESCE(sg.skipped_player_refs,'{}')))
+		  AND (pself.canonical_name IS NULL OR pself.canonical_name !~* '^(free|tbd|default|xxx|unknown|kosong|belum ada)( [0-9]+)?$|^\?+$')
 		GROUP BY partner.canonical_name
 		ORDER BY count(*) DESC, lower(partner.canonical_name)
 		LIMIT 5`
