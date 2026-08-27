@@ -10,6 +10,7 @@ export default function RatingsPage() {
   const navigate = useNavigate()
   const [active, setActive] = useState(true)
   const [offset, setOffset] = useState(0)
+  const [query, setQuery] = useState('')
   // Season picker (Rev 3.7): null = musim berjalan (live); id = arsip beku
   const [seasonId, setSeasonId] = useState<string | null>(null)
   const { data: seasons } = useRatingSeasons()
@@ -21,6 +22,9 @@ export default function RatingsPage() {
   const total = data?.total ?? 0
   const loading = isLoading
   const error = isError
+
+  // Client-side filter (kaya AdminPlayersPage) — filter rows yang udah ke-load (PAGE 100)
+  const filtered = query ? rows.filter((r) => r.name.toLowerCase().includes(query.toLowerCase())) : rows
 
   // Show empty state when offset exceeds total (data changed while paginated)
   const showEmpty = !loading && !error && rows.length === 0 && total > 0
@@ -58,8 +62,16 @@ export default function RatingsPage() {
         </div>
       </div>
 
+      {/* Search — client-side, kaya AdminPlayersPage */}
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search player…"
+        className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none"
+      />
+
       <p className="text-xs font-sans text-fg-dim">
-        {loading ? 'Loading…' : <><span className="text-accent">{total}</span> player{total !== 1 ? 's' : ''} · updates automatically when sessions lock</>}
+        {loading ? 'Loading…' : query ? <><span className="text-accent">{filtered.length}</span> / {total} players · filtered by &ldquo;{query}&rdquo;</> : <><span className="text-accent">{total}</span> player{total !== 1 ? 's' : ''} · updates automatically when sessions lock</>}
       </p>
 
       {error && <p className="text-error text-sm">Failed to load ratings.</p>}
@@ -99,10 +111,11 @@ export default function RatingsPage() {
         </div>
       )}
 
-      {!error && !loading && rows.length > 0 && (
+      {!error && !loading && filtered.length > 0 && (
         <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden divide-y divide-border-subtle">
-          {rows.map((r, i) => {
-            const rank = offset + i + 1
+          {filtered.map((r) => {
+            const originalIdx = rows.findIndex((x) => x.player_id === r.player_id)
+            const rank = offset + originalIdx + 1
             const isFirst = rank === 1
             const isSecond = rank === 2
             const isThird = rank === 3
@@ -140,6 +153,12 @@ export default function RatingsPage() {
             )
           })}
         </div>
+      )}
+
+      {!error && !loading && filtered.length === 0 && query && rows.length > 0 && (
+        <p className="text-fg-dim text-xs font-sans text-center py-8">
+          No players match &ldquo;{query}&rdquo; — try different spelling{offset + rows.length < total ? ' or load more' : ''}.
+        </p>
       )}
 
       {showEmpty && (
