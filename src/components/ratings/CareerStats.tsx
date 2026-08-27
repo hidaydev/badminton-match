@@ -37,9 +37,9 @@ export default function CareerStats({ stats }: { stats: PlayerStats }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Overview */}
+      {/* Overview — session games (excl. void/absent/skipped, incl. only where player actually played) */}
       <div className="grid grid-cols-4 gap-2">
-        <StatCard label="Games" value={String(stats.gamesPlayed)} />
+        <StatCard label="Session Games" value={String(stats.gamesPlayed)} />
         <StatCard label="Win Rate" value={`${winRate}%`} />
         <StatCard label="Wins" value={String(stats.wins)} />
         <StatCard label="Losses" value={String(stats.losses)} />

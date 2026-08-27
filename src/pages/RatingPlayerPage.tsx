@@ -47,11 +47,11 @@ export default function RatingPlayerPage() {
         </span>
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards — rated games (Glicko) */}
       <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'Peak', value: peak.toFixed(0) },
-          { label: 'Games', value: String(games) },
+          { label: 'Rated Games', value: String(games) },
           { label: 'W-L', value: `${wins}-${losses}` },
           { label: 'Tier', value: tier || '—' },
         ].map((s) => (
