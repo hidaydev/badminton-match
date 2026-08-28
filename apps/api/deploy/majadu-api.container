@@ -1,23 +1,23 @@
-# Quadlet unit untuk majadu-api (PROD instance) — dipakai setelah migrasi prod.
-# Pasang di VPS: ~/.config/containers/systemd/majadu-api.container
-
+# Quadlet unit untuk majadu-api (PROD instance) — rootless podman + systemd user.
+# Pola identik majadu-api-dev.container:
+#   - Network=qouver · PublishPort=127.0.0.1:8080:8080 → Caddy /majadu/*
+#   - EnvironmentFile = env secret (mode 600)
+# Image ghcr.io/nferdazel/majadu-api:main (public package — tanpa auth).
 [Unit]
 Description=Majadu API (prod, schema bm)
 After=network-online.target
 Wants=network-online.target
-
 [Container]
 Image=ghcr.io/nferdazel/majadu-api:main
 ContainerName=majadu-api
 Network=qouver
 PublishPort=127.0.0.1:8080:8080
-Pull=always
 EnvironmentFile=/srv/qouver/majadu/env/majadu-prod.env
+Volume=/srv/qouver/majadu/logs/main:/logs:Z
 AutoUpdate=registry
-
+UserNS=keep-id:uid=10001
 [Service]
 Restart=always
 RestartSec=3
-
 [Install]
 WantedBy=default.target
