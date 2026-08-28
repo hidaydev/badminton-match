@@ -43,7 +43,14 @@ func (s *SessionStore) SwapMembers(ctx context.Context, sessionID string, kind s
 		return nil, fmt.Errorf("%w: swap targets must be non-negative", ErrValidation)
 	}
 	if a.Slot == b.Slot && a.Court == b.Court {
-		return nil, fmt.Errorf("%w: swap targets must be different games", ErrValidation)
+		if kind == "slot" {
+			return nil, fmt.Errorf("%w: swap targets must be different games", ErrValidation)
+		}
+		// player/team swap within same game is allowed (e.g., swap partners)
+		// must be different positions
+		if a.Team == b.Team && a.Position == b.Position {
+			return nil, fmt.Errorf("%w: swap targets must be different positions", ErrValidation)
+		}
 	}
 	if kind != "slot" {
 		if a.Team != "A" && a.Team != "B" {
@@ -99,13 +106,26 @@ func (s *SessionStore) SwapMembers(ctx context.Context, sessionID string, kind s
 		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedSessionVersion, currentVer)
 	}
 
-	switch kind {
-	case "slot":
-		err = s.swapSlots(ctx, tx, sessID, a, b)
-	case "player":
-		err = s.swapPlayer(ctx, tx, sessID, a, b)
-	case "team":
-		err = s.swapTeam(ctx, tx, sessID, a, b)
+	// Same-game swap (player/team within same slot/court) — use single-game handler
+	if a.Slot == b.Slot && a.Court == b.Court {
+		switch kind {
+		case "player":
+			err = s.swapPlayerSameGame(ctx, tx, sessID, a, b)
+		case "team":
+			err = s.swapTeamSameGame(ctx, tx, sessID, a, b)
+		case "slot":
+			// already rejected above, but keep for safety
+			return nil, fmt.Errorf("%w: swap targets must be different games", ErrValidation)
+		}
+	} else {
+		switch kind {
+		case "slot":
+			err = s.swapSlots(ctx, tx, sessID, a, b)
+		case "player":
+			err = s.swapPlayer(ctx, tx, sessID, a, b)
+		case "team":
+			err = s.swapTeam(ctx, tx, sessID, a, b)
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -304,6 +324,107 @@ func (s *SessionStore) swapTeam(ctx context.Context, tx pgx.Tx, sessID string, a
 	}
 	if _, err := tx.Exec(ctx, `UPDATE scheduled_games SET version = version + 1, updated_at = now()
 		WHERE internal_id IN ($1::uuid, $2::uuid)`, aID, bID); err != nil {
+		return err
+	}
+	return nil
+}
+
+// swapPlayerSameGame — tukar 2 pemain dalam 1 game yang sama (single UPDATE CASE, tanpa temp).
+func (s *SessionStore) swapPlayerSameGame(ctx context.Context, tx pgx.Tx, sessID string, a, b SwapTarget) error {
+	var gameID string
+	if err := tx.QueryRow(ctx, `
+		SELECT internal_id::text FROM scheduled_games
+		WHERE session_id = $1::uuid AND slot_index = $2 AND court_index = $3
+		FOR UPDATE NOWAIT`, sessID, a.Slot, a.Court).Scan(&gameID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: game not found", ErrValidation)
+		}
+		if isLockNotAvailable(err) {
+			return ErrContention
+		}
+		return err
+	}
+	var playerA, playerB string
+	if err := tx.QueryRow(ctx, `
+		SELECT session_player_internal_id::text FROM scheduled_game_players
+		WHERE scheduled_game_internal_id = $1::uuid AND team = $2 AND position = $3`,
+		gameID, a.Team, a.Position).Scan(&playerA); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: player slot A not found", ErrValidation)
+		}
+		return err
+	}
+	if err := tx.QueryRow(ctx, `
+		SELECT session_player_internal_id::text FROM scheduled_game_players
+		WHERE scheduled_game_internal_id = $1::uuid AND team = $2 AND position = $3`,
+		gameID, b.Team, b.Position).Scan(&playerB); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: player slot B not found", ErrValidation)
+		}
+		return err
+	}
+	if playerA == playerB {
+		return fmt.Errorf("%w: cannot swap same player", ErrValidation)
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE scheduled_game_players SET session_player_internal_id = CASE
+			WHEN team = $2 AND position = $3 THEN $4::uuid
+			WHEN team = $5 AND position = $6 THEN $7::uuid
+		END
+		WHERE scheduled_game_internal_id = $1::uuid
+		  AND ((team = $2 AND position = $3) OR (team = $5 AND position = $6))`,
+		gameID, a.Team, a.Position, playerB, b.Team, b.Position, playerA); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE scheduled_games SET version = version + 1, updated_at = now() WHERE internal_id = $1::uuid`, gameID); err != nil {
+		return err
+	}
+	return nil
+}
+
+// swapTeamSameGame — tukar 2 tim dalam 1 game yang sama (swap A<->B dalam game yang sama).
+func (s *SessionStore) swapTeamSameGame(ctx context.Context, tx pgx.Tx, sessID string, a, b SwapTarget) error {
+	if a.Team == b.Team {
+		return fmt.Errorf("%w: team swap within same game requires different teams (A vs B)", ErrValidation)
+	}
+	var gameID string
+	if err := tx.QueryRow(ctx, `
+		SELECT internal_id::text FROM scheduled_games
+		WHERE session_id = $1::uuid AND slot_index = $2 AND court_index = $3
+		FOR UPDATE NOWAIT`, sessID, a.Slot, a.Court).Scan(&gameID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: game not found", ErrValidation)
+		}
+		if isLockNotAvailable(err) {
+			return ErrContention
+		}
+		return err
+	}
+	var a0, a1, b0, b1 string
+	if err := tx.QueryRow(ctx, `SELECT session_player_internal_id::text FROM scheduled_game_players WHERE scheduled_game_internal_id = $1::uuid AND team = 'A' AND position = 0`, gameID).Scan(&a0); err != nil {
+		return err
+	}
+	if err := tx.QueryRow(ctx, `SELECT session_player_internal_id::text FROM scheduled_game_players WHERE scheduled_game_internal_id = $1::uuid AND team = 'A' AND position = 1`, gameID).Scan(&a1); err != nil {
+		return err
+	}
+	if err := tx.QueryRow(ctx, `SELECT session_player_internal_id::text FROM scheduled_game_players WHERE scheduled_game_internal_id = $1::uuid AND team = 'B' AND position = 0`, gameID).Scan(&b0); err != nil {
+		return err
+	}
+	if err := tx.QueryRow(ctx, `SELECT session_player_internal_id::text FROM scheduled_game_players WHERE scheduled_game_internal_id = $1::uuid AND team = 'B' AND position = 1`, gameID).Scan(&b1); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE scheduled_game_players SET session_player_internal_id = CASE
+			WHEN team = 'A' AND position = 0 THEN $2::uuid
+			WHEN team = 'A' AND position = 1 THEN $3::uuid
+			WHEN team = 'B' AND position = 0 THEN $4::uuid
+			WHEN team = 'B' AND position = 1 THEN $5::uuid
+		END
+		WHERE scheduled_game_internal_id = $1::uuid AND team IN ('A','B')`,
+		gameID, b0, b1, a0, a1); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE scheduled_games SET version = version + 1, updated_at = now() WHERE internal_id = $1::uuid`, gameID); err != nil {
 		return err
 	}
 	return nil
