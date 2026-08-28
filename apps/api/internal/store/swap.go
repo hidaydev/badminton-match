@@ -329,7 +329,7 @@ func (s *SessionStore) swapTeam(ctx context.Context, tx pgx.Tx, sessID string, a
 	return nil
 }
 
-// swapPlayerSameGame — tukar 2 pemain dalam 1 game yang sama (single UPDATE CASE, tanpa temp).
+// swapPlayerSameGame — tukar 2 pemain dalam 1 game yang sama (DELETE+INSERT, hindari UNIQUE violation).
 func (s *SessionStore) swapPlayerSameGame(ctx context.Context, tx pgx.Tx, sessID string, a, b SwapTarget) error {
 	var gameID string
 	if err := tx.QueryRow(ctx, `
@@ -366,13 +366,17 @@ func (s *SessionStore) swapPlayerSameGame(ctx context.Context, tx pgx.Tx, sessID
 	if playerA == playerB {
 		return fmt.Errorf("%w: cannot swap same player", ErrValidation)
 	}
+	// DELETE both rows dulu, baru INSERT dengan player tertukar — hindari UNIQUE(sg, player) violation
 	if _, err := tx.Exec(ctx, `
-		UPDATE scheduled_game_players SET session_player_internal_id = CASE
-			WHEN team = $2 AND position = $3 THEN $4::uuid
-			WHEN team = $5 AND position = $6 THEN $7::uuid
-		END
+		DELETE FROM scheduled_game_players
 		WHERE scheduled_game_internal_id = $1::uuid
-		  AND ((team = $2 AND position = $3) OR (team = $5 AND position = $6))`,
+		  AND ((team = $2 AND position = $3) OR (team = $4 AND position = $5))`,
+		gameID, a.Team, a.Position, b.Team, b.Position); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO scheduled_game_players (scheduled_game_internal_id, team, position, session_player_internal_id)
+		VALUES ($1::uuid, $2, $3, $4::uuid), ($1::uuid, $5, $6, $7::uuid)`,
 		gameID, a.Team, a.Position, playerB, b.Team, b.Position, playerA); err != nil {
 		return err
 	}
@@ -413,14 +417,13 @@ func (s *SessionStore) swapTeamSameGame(ctx context.Context, tx pgx.Tx, sessID s
 	if err := tx.QueryRow(ctx, `SELECT session_player_internal_id::text FROM scheduled_game_players WHERE scheduled_game_internal_id = $1::uuid AND team = 'B' AND position = 1`, gameID).Scan(&b1); err != nil {
 		return err
 	}
+	// DELETE 4 rows dulu, baru INSERT dengan team tertukar — hindari UNIQUE violation
+	if _, err := tx.Exec(ctx, `DELETE FROM scheduled_game_players WHERE scheduled_game_internal_id = $1::uuid`, gameID); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE scheduled_game_players SET session_player_internal_id = CASE
-			WHEN team = 'A' AND position = 0 THEN $2::uuid
-			WHEN team = 'A' AND position = 1 THEN $3::uuid
-			WHEN team = 'B' AND position = 0 THEN $4::uuid
-			WHEN team = 'B' AND position = 1 THEN $5::uuid
-		END
-		WHERE scheduled_game_internal_id = $1::uuid AND team IN ('A','B')`,
+		INSERT INTO scheduled_game_players (scheduled_game_internal_id, team, position, session_player_internal_id)
+		VALUES ($1::uuid, 'A', 0, $2::uuid), ($1::uuid, 'A', 1, $3::uuid), ($1::uuid, 'B', 0, $4::uuid), ($1::uuid, 'B', 1, $5::uuid)`,
 		gameID, b0, b1, a0, a1); err != nil {
 		return err
 	}
