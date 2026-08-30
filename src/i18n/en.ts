@@ -34,7 +34,6 @@ export const en = {
     playerDeleted: 'Player deleted',
     nameChanged: 'Name changed (old name kept as alias)',
     tierChanged: 'Tier changed + recalculated',
-    rebaselined: 'Rebaselined — rating set to mid tier',
     seasonStarted: 'Season closed & new season started',
     sessionDeleteConfirm: (title: string, date: string) =>
       `Delete session "${title}" (${date})?\n\nRating source will be removed & all ratings rebuilt.`,
@@ -42,8 +41,6 @@ export const en = {
       `Delete tournament "${name}"?\n\nRating source will be removed & all ratings rebuilt.`,
     playerDeleteConfirm: (name: string) =>
       `Delete player "${name}"? (session history stays, rating data removed)`,
-    rebaselineConfirm: (name: string) =>
-      `Rebaseline rating for "${name}" to mid tier?\n\nRating is set to the middle of its tier band (effective until next rebuild).`,
     nameRequired: 'Name is required',
     newPlayerName: 'Player name',
     tierInduk: 'Tier',

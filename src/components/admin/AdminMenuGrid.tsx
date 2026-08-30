@@ -5,7 +5,7 @@ import Icon, { type IconName } from '../Icon'
 
 const ITEMS: { icon: IconName; label: string; desc: string; to: string }[] = [
   { icon: 'unlock', label: 'Unlock Session', desc: 'Unlock & delete sessions', to: '/admin/sessions' },
-  { icon: 'players', label: 'Players', desc: 'Add, rename, tier, rebaseline', to: '/admin/players' },
+  { icon: 'players', label: 'Players', desc: 'Add, rename, tier', to: '/admin/players' },
   { icon: 'ratings', label: 'Ratings', desc: 'Ingest, revert, rebuild', to: '/admin/ratings' },
   { icon: 'tournament', label: 'Tournament', desc: 'Delete tournaments', to: '/admin/tournaments' },
   { icon: 'season', label: 'Season', desc: 'Close & start new season', to: '/admin/seasons' },

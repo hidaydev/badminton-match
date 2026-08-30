@@ -1,4 +1,4 @@
-// src/pages/admin/AdminPlayersPage.tsx — Admin: add, rename, tier, rebaseline, delete players.
+// src/pages/admin/AdminPlayersPage.tsx — Admin: add, rename, tier, delete players.
 import { useState } from 'react'
 import { useListPlayers } from '../../queries'
 import { adminRequest } from '../../queries/admin'
@@ -139,11 +139,6 @@ export default function AdminPlayersPage() {
                       )
                     }
                   }}>Rename</ActionButton>
-                  <ActionButton tone="amber" onClick={() => {
-                    if (window.confirm(en.admin.rebaselineConfirm(pl.name))) {
-                      run(() => adminRequest('POST', `/ratings/players/${pl.playerId}/rebaseline`), t('admin.rebaselined'))
-                    }
-                  }}>Rebaseline</ActionButton>
                   <ActionButton tone="red" onClick={() => {
                     if (window.confirm(en.admin.playerDeleteConfirm(pl.name))) {
                       run(() => adminRequest('DELETE', `/players/${pl.playerId}`), t('admin.playerDeleted'))
