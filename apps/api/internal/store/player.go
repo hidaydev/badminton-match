@@ -35,7 +35,7 @@ type PlayerSummary struct {
 // diambil dari players table (canonical), urut by lower(name).
 func (s *PlayerStore) List(ctx context.Context) ([]PlayerSummary, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT p.id::text, p.canonical_name, p.gender, p.tier
+		SELECT p.id::text, p.canonical_name, COALESCE(p.gender, ''), COALESCE(p.tier, '')
 		FROM players p
 		ORDER BY lower(p.canonical_name)`)
 	if err != nil {
