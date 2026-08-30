@@ -827,44 +827,6 @@ func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []do
 	return tx.Commit(ctx)
 }
 
-// AutoLockExpiredSessions — sesi draft yang tanggalnya sudah lewat otomatis
-// di-lock (ABSENT_TBD_PLAYERS_DESIGN.md §4.6). Dipanggil berkala oleh ticker
-// di main.go. Idempotent; hanya menyentuh status='draft' AND session_date < today WIB.
-// Version di-bump agar konsisten dengan save-path auto-lock (audit M2 fix).
-// Setiap sesi yang di-lock di-broadcast ke SSE watcher (bug #2 RC-B) supaya
-// client yang sedang membuka sesi langsung melihat status locked.
-func (s *SessionStore) AutoLockExpiredSessions(ctx context.Context) (int64, error) {
-	rows, err := s.pool.Query(ctx, `
-		UPDATE sessions SET status = 'locked', version = version + 1, updated_at = now()
-		WHERE status = 'draft' AND session_date < (now() AT TIME ZONE 'Asia/Jakarta')::date
-		RETURNING share_code`)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-
-	var locked []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return 0, err
-		}
-		locked = append(locked, id)
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	if len(locked) > 0 {
-		// Broadcast di luar transaksi — Load() bikin tx read-only sendiri.
-		for _, id := range locked {
-			if snap, err := s.Load(ctx, id); err == nil && snap != nil {
-				s.Broadcast(id, snap)
-			}
-		}
-	}
-	return int64(len(locked)), nil
-}
-
 // SessionMeta — baris dari list_sessions() (key JSON sama dengan kontrak RPC).
 type SessionMeta struct {
 	ID          string `json:"id"`

@@ -31,7 +31,7 @@ var (
 // != draft) tapi belum pernah diingest (tidak ada rating_sources dengan
 // fingerprint terisi). Urut kronologis. Idempotent; sesi yang diedit setelah
 // ingest (fingerprint berubah) TIDAK disentuh — butuh revert manual.
-// Dipanggil ticker setelah AutoLockExpiredSessions (plan frontend §4.3).
+// Dipanggil ticker setiap 30 menit.
 func (s *SessionStore) AutoIngestLockedSessions(ctx context.Context) (int, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT share_code

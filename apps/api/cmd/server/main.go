@@ -78,28 +78,15 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Ticker auto-lock: sesi draft yang tanggalnya lewat → locked (gate data
-	// final untuk rating ingest; ABSENT_TBD_PLAYERS_DESIGN.md §4.6).
+	// Ticker auto-ingest: sesi locked yang belum diingest → ingest otomatis.
 	{
 		locker := sessionStore
-		autoLockCtx, cancelAutoLock := context.WithCancel(ctx)
-		defer cancelAutoLock()
+		autoIngestCtx, cancelAutoIngest := context.WithCancel(ctx)
+		defer cancelAutoIngest()
 		go func() {
 			run := func() {
-				runCtx, cancel := context.WithTimeout(autoLockCtx, 2*time.Minute)
+				runCtx, cancel := context.WithTimeout(autoIngestCtx, 2*time.Minute)
 				defer cancel()
-				n, err := locker.AutoLockExpiredSessions(runCtx)
-				if err != nil {
-					logger.Error("auto-lock gagal", "error", err)
-					return
-				}
-				if n > 0 {
-					logger.Info("auto-lock", "sessions_locked", n)
-				}
-				// Auto-ingest sesi yang sudah final (locked) tapi belum diingest.
-				// Dijalankan unconditionally — tidak hanya saat ticker mengunci
-				// session baru, karena save-path auto-lock juga bisa mengunci
-				// session tanpa melalui ticker (audit H2 fix).
 				ni, err := locker.AutoIngestLockedSessions(runCtx)
 				if err != nil {
 					logger.Error("auto-ingest gagal", "error", err)
@@ -116,7 +103,7 @@ func main() {
 				select {
 				case <-ticker.C:
 					run()
-				case <-autoLockCtx.Done():
+				case <-autoIngestCtx.Done():
 					return
 				}
 			}

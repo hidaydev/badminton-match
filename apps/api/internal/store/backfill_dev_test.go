@@ -39,14 +39,7 @@ func TestBackfillDev(t *testing.T) {
 	st := NewSessionStore(pool, schema)
 	ctx := context.Background()
 
-	// 1. Auto-lock sesi expired (gate final)
-	n, err := st.AutoLockExpiredSessions(ctx)
-	if err != nil {
-		t.Fatalf("auto-lock: %v", err)
-	}
-	t.Logf("auto-lock: %d sesi expired di-lock", n)
-
-	// 2. Daftar SEMUA source (sesi + tournament) urut kronologis — seq
+	// 1. Daftar SEMUA source (sesi + tournament) urut kronologis — seq
 	// invariant mengharuskan urutan tanggal (tournament lama harus duluan).
 	rows, err := pool.Query(ctx, `
 		SELECT 'session', share_code, session_date::text, status
