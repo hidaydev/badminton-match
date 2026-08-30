@@ -50,7 +50,7 @@ Go backend melihat path bersih tanpa prefix).
 | `POST` | `/tournaments/{id}/delete` | **admin** — hapus + rating cleanup + rebuild |
 | `POST` | `/ratings/ingest-{session,tournament}` | **admin** — hitung & catat rating dari sumber |
 | `POST` | `/ratings/revert-{session,tournament}` | **admin** — cabut source + full rebuild |
-| `POST` | `/ratings/rebuild-all` · `/season` · `/players/{id}/rebaseline` | **admin** — recompute semua / close & start season / set rating ke mid tier |
+| `POST` | `/ratings/rebuild-all` · `/season` | **admin** — recompute semua / close & start season |
 | `POST` | `/ratings/sources/{id}/finalize` | **admin** — gate ingest tournament |
 | `GET` | `/ratings/leaderboard` · `/players/{id}` · `/sources` · `/seasons` · `/seasons/{id}/standings` | publik — read path 8-tier |
 
