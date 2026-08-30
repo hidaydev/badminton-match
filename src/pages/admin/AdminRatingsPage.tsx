@@ -52,10 +52,18 @@ export default function AdminRatingsPage() {
                       {src.finalized ? 'Finalized' : 'Finalize'}
                     </ActionButton>
                   )}
-                  <ActionButton onClick={() => run(() => adminRequest('POST', '/ratings/ingest-session', { sessionId: src.source_id }), 'Ingested')}>
+                  <ActionButton onClick={() => run(() => {
+                    const isT = src.source_kind.startsWith('tournament')
+                    return adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
+                      isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
+                  }, 'Ingested')}>
                     Ingest
                   </ActionButton>
-                  <ActionButton tone="red" onClick={() => run(() => adminRequest('POST', '/ratings/revert-session', { sessionId: src.source_id }), 'Reverted')}>
+                  <ActionButton tone="red" onClick={() => run(() => {
+                    const isT = src.source_kind.startsWith('tournament')
+                    return adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
+                      isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
+                  }, 'Reverted')}>
                     Revert
                   </ActionButton>
                 </div>
