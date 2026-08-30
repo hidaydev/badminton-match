@@ -89,16 +89,18 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 
 // RatingHistoryRow — satu baris history pemain.
 type RatingHistoryRow struct {
-	Date      string  `json:"date"`
-	Title     string  `json:"title"`
-	GameRef   string  `json:"game_ref"`
-	Outcome   string  `json:"outcome"`
-	Delta     float64 `json:"delta"`
-	Expected  float64 `json:"expected"`
-	Movm      float64 `json:"movm"`
-	ScoreA    int     `json:"score_a"`
-	ScoreB    int     `json:"score_b"`
-	NewRating float64 `json:"new_rating"`
+	Date      string   `json:"date"`
+	Title     string   `json:"title"`
+	GameRef   string   `json:"game_ref"`
+	Outcome   string   `json:"outcome"`
+	Delta     float64  `json:"delta"`
+	Expected  float64  `json:"expected"`
+	Movm      float64  `json:"movm"`
+	ScoreA    int      `json:"score_a"`
+	ScoreB    int      `json:"score_b"`
+	NewRating float64  `json:"new_rating"`
+	Teammates []string `json:"teammates"`
+	Opponents []string `json:"opponents"`
 }
 
 // RatingPlayerDetail — detail pemain + history.
@@ -152,7 +154,15 @@ func (s *SessionStore) RatingPlayerHistory(ctx context.Context, playerID string,
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT re.date::text, re.title, re.stable_game_id, rd.outcome,
-		       rd.delta, rd.expected, rd.movm, re.score_a, re.score_b, rd.new_rating
+		       rd.delta, rd.expected, rd.movm, re.score_a, re.score_b, rd.new_rating,
+		       (SELECT array_agg(p.canonical_name ORDER BY p.canonical_name)
+		        FROM `+s.schema+`.rating_deltas rd2
+		        JOIN `+s.schema+`.players p ON p.id = rd2.player_id
+		        WHERE rd2.event_id = re.id AND rd2.team = rd.team AND rd2.player_id != $1::uuid),
+		       (SELECT array_agg(p.canonical_name ORDER BY p.canonical_name)
+		        FROM `+s.schema+`.rating_deltas rd3
+		        JOIN `+s.schema+`.players p ON p.id = rd3.player_id
+		        WHERE rd3.event_id = re.id AND rd3.team != rd.team)
 		FROM `+s.schema+`.rating_deltas rd
 		JOIN `+s.schema+`.rating_events re ON re.id = rd.event_id
 		WHERE rd.player_id = $1::uuid
@@ -167,7 +177,8 @@ func (s *SessionStore) RatingPlayerHistory(ctx context.Context, playerID string,
 	for rows.Next() {
 		var h RatingHistoryRow
 		if err := rows.Scan(&h.Date, &h.Title, &h.GameRef, &h.Outcome,
-			&h.Delta, &h.Expected, &h.Movm, &h.ScoreA, &h.ScoreB, &h.NewRating); err != nil {
+			&h.Delta, &h.Expected, &h.Movm, &h.ScoreA, &h.ScoreB, &h.NewRating,
+			&h.Teammates, &h.Opponents); err != nil {
 			return nil, err
 		}
 		out = append(out, h)
