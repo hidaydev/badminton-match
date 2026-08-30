@@ -637,10 +637,10 @@ export default function SummaryModal({
           <div className="mb-3 rounded-lg bg-amber-950/30 border border-amber-900/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-amber-300 font-medium">
               {flatSkippedCount > 0
-                ? `${flatSkippedCount} skipped — tap chip in a game to toggle (clears score)`
+                ? `${flatSkippedCount} skipped — tap chip in a game to toggle (excludes from rating)`
                 : 'Tap a player chip inside a game to skip them for THAT game only'}
             </span>
-            <span className="text-[11px] text-amber-400/70">one game only — score will be cleared</span>
+            <span className="text-[11px] text-amber-400/70">one game only — player excluded from rating</span>
             {skipChanged && (
               <span className="text-[10px] text-amber-300">
                 {[...skipPending.entries()].map(([k, s]) => `${k}: ${[...s].map(id => playerMap.get(id)?.name ?? id).join(', ')}`).join(' · ')}

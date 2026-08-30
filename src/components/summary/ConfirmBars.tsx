@@ -319,7 +319,7 @@ export default function ConfirmBars({
               ? 'Clear all skips'
               : [...skipPending.entries()].map(([k, s]) => `${k}: ${[...s].map(id => playerMap.get(id)?.name ?? id).join(', ')}`).join(' · ')
           }
-          warning="Score in those games will be cleared"
+          warning="Skipped players won't receive rating deltas"
           onCancel={onCancelSkip}
           onConfirm={onConfirmSkip}
           saving={saving}

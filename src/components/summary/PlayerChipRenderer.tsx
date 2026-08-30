@@ -78,7 +78,7 @@ export default function PlayerChipRenderer({
               ? 'bg-slate-800/40 border-slate-600 text-slate-400 line-through opacity-60'
               : 'bg-slate-800/60 border-slate-600 text-white hover:border-amber-400 hover:text-amber-200'
         }`}
-        title={isSkipped ? 'Skipped in this game — tap to un-skip' : 'Tap to skip in this game (clears score)'}
+        title={isSkipped ? 'Skipped in this game — tap to un-skip' : 'Tap to skip in this game (excludes from rating)'}
       >
         {playerName}{isSkipped ? ' ⊘' : ''}
       </button>

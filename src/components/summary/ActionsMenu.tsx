@@ -120,7 +120,7 @@ export default function ActionsMenu({
                 role="menuitem"
               >
                 ⊘ Skip in game
-                <span className="block text-[10px] text-slate-500 font-normal">one game only — clears score</span>
+                <span className="block text-[10px] text-slate-500 font-normal">one game only — excludes from rating</span>
               </button>
             )}
           </div>
