@@ -492,7 +492,7 @@ func (s *SessionStore) SetGameSkipped(ctx context.Context, sessionID, gameKey st
 		return s.Load(ctx, sessionID)
 	}
 	if len(clean) > 0 {
-		_, err = tx.Exec(ctx, `UPDATE scheduled_games SET skipped_player_refs=$2, score_a=NULL, score_b=NULL, is_played=false, status='scheduled', played_order=NULL, version=version+1, updated_at=now() WHERE session_id=$1::uuid AND slot_index=$3 AND court_index=$4`, sessID, clean, slot, court)
+		_, err = tx.Exec(ctx, `UPDATE scheduled_games SET skipped_player_refs=$2, version=version+1, updated_at=now() WHERE session_id=$1::uuid AND slot_index=$3 AND court_index=$4`, sessID, clean, slot, court)
 	} else {
 		_, err = tx.Exec(ctx, `UPDATE scheduled_games SET skipped_player_refs='{}', version=version+1, updated_at=now() WHERE session_id=$1::uuid AND slot_index=$2 AND court_index=$3`, sessID, slot, court)
 	}

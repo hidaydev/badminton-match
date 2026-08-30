@@ -218,12 +218,6 @@ func ValidateSnapshot(snap *CloudSnapshot) error {
 			}
 			seenSkip[ref] = struct{}{}
 		}
-		if _, hasScore := snap.GameScores[key]; hasScore && len(refs) > 0 {
-			return fmt.Errorf("session skippedPlayers game must not have a score (score must be cleared when skipped)")
-		}
-		if _, isPlayed := seenPlayed[key]; isPlayed && len(refs) > 0 {
-			return fmt.Errorf("session skippedPlayers game must not be marked played when skipped")
-		}
 	}
 
 	return nil
