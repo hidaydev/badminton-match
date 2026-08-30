@@ -39,43 +39,6 @@ func TestTierForRatingBands(t *testing.T) {
 	}
 }
 
-func TestFloorOf(t *testing.T) {
-	// Keputusan user (2026-08-19): floor = basis huruf — B+ floor di B,
-	// tidak boleh turun ke C; boleh naik ke A/A+.
-	cases := []struct{ tier, want string }{
-		{"A+", "A"}, {"A", "A"},
-		{"B+", "B"}, {"B", "B"},
-		{"C+", "C"}, {"C", "C"},
-		{"D+", "D"}, {"D", "D"},
-		{"", ""},
-	}
-	for _, tc := range cases {
-		if got := FloorOf(tc.tier); got != tc.want {
-			t.Fatalf("FloorOf(%q) = %q, want %q", tc.tier, got, tc.want)
-		}
-	}
-}
-
-func TestDisplayTier(t *testing.T) {
-	c := DefaultRatingConfig
-	// assigned B+ → floor B. Rating turun ke zona C (1450) → tetap tampil B.
-	if got := c.DisplayTier(1450, "B+"); got != "B" {
-		t.Fatalf("DisplayTier(1450, B+) = %q, want B (floor)", got)
-	}
-	// B+ naik ke zona A (1950) → tampil A (boleh naik ke A/A+).
-	if got := c.DisplayTier(1950, "B+"); got != "A" {
-		t.Fatalf("DisplayTier(1950, B+) = %q, want A", got)
-	}
-	// assigned C, derived D+ (1250) → floor C menang.
-	if got := c.DisplayTier(1250, "C"); got != "C" {
-		t.Fatalf("DisplayTier(1250, C) = %q, want C (floor)", got)
-	}
-	// tanpa assigned → derived murni.
-	if got := c.DisplayTier(1450, ""); got != "C" {
-		t.Fatalf("DisplayTier(1450, '') = %q, want C", got)
-	}
-}
-
 func TestMidRatingForTier(t *testing.T) {
 	c := DefaultRatingConfig
 	// Baseline = nilai forming (session_tier_init) — konsisten ingest/rebuild.

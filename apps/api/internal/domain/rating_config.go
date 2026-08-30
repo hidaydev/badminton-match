@@ -186,46 +186,6 @@ func (c *RatingConfig) TierForRating(r float64) string {
 	return best
 }
 
-// FloorOf — floor tier: basis huruf (TIER_8_UNIFICATION.md §3.3).
-// B+ → B (tidak boleh tampil di bawah B, boleh naik ke A/A+); A+/A → A; dst.
-func FloorOf(tier string) string {
-	switch tier {
-	case "A+", "A":
-		return "A"
-	case "B+", "B":
-		return "B"
-	case "C+", "C":
-		return "C"
-	case "D+", "D":
-		return "D"
-	}
-	return tier
-}
-
-// DisplayTier — max(derived, floor) — tier yang ditampilkan.
-func (c *RatingConfig) DisplayTier(rating float64, assigned string) string {
-	derived := c.TierForRating(rating)
-	if assigned == "" {
-		return derived
-	}
-	floor := FloorOf(assigned)
-	if tierOrder(derived) < tierOrder(floor) {
-		return floor
-	}
-	return derived
-}
-
-// tierOrder — urutan 8 tier untuk perbandingan (D = 1 .. A+ = 8).
-func tierOrder(tier string) int {
-	order := []string{"D", "D+", "C", "C+", "B", "B+", "A", "A+"}
-	for i, c := range order {
-		if c == tier {
-			return i + 1
-		}
-	}
-	return 0
-}
-
 // MidRatingForTier — baseline rating sebuah tier: nilai forming dari
 // session_tier_init (konsisten di ingest/rebuild/rebaseline/reset), fallback
 // mid band. Basis "reset ke mid tier".
