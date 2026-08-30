@@ -78,9 +78,12 @@ export default function RatingPlayerPage() {
             <div key={i} className="bg-surface border border-border-subtle rounded-lg px-3 py-2 flex items-center gap-3">
               <span className={`text-xs font-bold ${won ? 'text-emerald-400' : 'text-red-400'}`}>{won ? 'W' : 'L'}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-fg truncate">{h.title}</p>
+                <p className="text-sm text-fg truncate">
+                  {h.teammates.length > 0 && <span className="text-fg-dim">with {h.teammates.join(', ')} · </span>}
+                  vs {h.opponents.join(', ')}
+                </p>
                 <p className="text-[10px] font-sans text-fg-dim">
-                  {h.date} · {h.score_a}-{h.score_b} · {h.game_ref}
+                  {h.date} · {h.score_a}-{h.score_b} · {h.title}
                 </p>
               </div>
               <span className={`text-xs font-sans font-bold shrink-0 ${h.delta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>

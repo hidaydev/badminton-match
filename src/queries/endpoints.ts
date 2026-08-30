@@ -523,6 +523,8 @@ export interface RatingHistoryRow {
   score_a: number
   score_b: number
   new_rating: number
+  teammates: string[]
+  opponents: string[]
 }
 
 export interface RatingPlayer {
