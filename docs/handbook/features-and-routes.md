@@ -136,6 +136,7 @@ When a session is locked:
 - delete session is also blocked for locked sessions
 - unlock is admin-only via `bm.unlock_session` RPC (not in UI)
 - unlock bumps the session version
+- auto-lock triggers on save when all scores are entered (save-path, no ticker)
 
 ### Player stats in shared view
 
@@ -172,6 +173,7 @@ Files:
 
 Capabilities:
 
+- recent matches show "with teammate · vs opponent" format (BE fetches teammates/opponents via correlated subqueries on rating_deltas)
 - career stats (W/L, points, sessions, top partners/opponents, tournament)
   dirender di `/ratings/:playerId` — satu halaman, tanpa cross-link nested.
 - Route `/player-history*` dan halaman terpisah DIHAPUS (keputusan 2026-08-19).

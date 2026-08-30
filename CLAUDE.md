@@ -57,7 +57,7 @@ Migration resets to defaults on any version mismatch. The tournament store was r
 
 - **GeneratePage** ([src/pages/GeneratePage.tsx](src/pages/GeneratePage.tsx)) — `QualityBanner` grades the schedule; "Retry until good" runs up to 30 generations; `SummaryModal` is a full-screen overlay with a checklist view (tap to mark games as played, support for absent players). Debounces cloud publishes (300 ms trailing, 1s max delay) and flushes on unmount.
 - **RatingsPage** ([src/pages/RatingsPage.tsx](src/pages/RatingsPage.tsx)) — leaderboard with server-side pagination (100 per page), "Load more" button. Shows tier badge, rating, trend, games count. Peak rating removed from list (shown in player detail).
-- **RatingPlayerPage** ([src/pages/RatingPlayerPage.tsx](src/pages/RatingPlayerPage.tsx)) — per-player rating detail: stat cards (peak, games, W-L, tier), sparkline trend, recent matches (paginated, 5/page), career stats from `CareerStats.tsx`.
+- **RatingPlayerPage** ([src/pages/RatingPlayerPage.tsx](src/pages/RatingPlayerPage.tsx)) — per-player rating detail: stat cards (peak, games, W-L, tier), sparkline trend, recent matches (paginated, 5/page, shows "with teammate · vs opponent" format), career stats from `CareerStats.tsx`.
 - **TournamentPage** ([src/pages/TournamentPage.tsx](src/pages/TournamentPage.tsx)) — tabbed UI for classic tournament: **Groups**, **Bracket**, **Standings**.
 - **TeamTournamentPage** ([src/pages/TeamTournamentPage.tsx](src/pages/TeamTournamentPage.tsx)) — tabbed UI for team tournament: **Standings** (editable team names, member list, crown for champion), **Schedule** (score entry per partai), **Final** (champion banner). Includes Instagram post export.
 - **SessionListPage** ([src/pages/SessionListPage.tsx](src/pages/SessionListPage.tsx)) — browse past cloud-synced sessions with date filter.
@@ -79,8 +79,9 @@ Migration resets to defaults on any version mismatch. The tournament store was r
 Backend (Go, `majadu-api` repo):
 - **Glicko-1-lite** rating engine with 8-tier ClassBands (D: 1000–1199, ..., A+: 2100+)
 - `rating_events` → `rating_deltas` → `rating_players` pipeline
-- Season system with `rating_config` (season_start, decay parameters)
-- Auto-ingest on session lock (ticker every 30 min)
+- Season system with `rating_config` (season_start, decay parameters, absent_policy)
+- `absent_policy`: `skip_player` (default) — absent/skipped player excluded, game counts for others
+- Auto-ingest locked sessions (ticker every 30 min)
 
 Frontend:
 - `src/queries/ratings.ts` — React Query hooks for leaderboard, player detail, history

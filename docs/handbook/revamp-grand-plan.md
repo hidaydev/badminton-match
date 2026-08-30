@@ -33,7 +33,7 @@
 - `src/utils/sessionSnapshot.ts` — helpers `setScoreInSnapshot`, `swapPlayersInSnapshot`, dll. Semua pure tapi dipakai untuk membangun full snapshot tiap mutation.
 - `src/queries/` — `endpoints.ts` `request()` retry method-aware (`retry.ts` hanya `429` untuk mutation), `sessions.ts` 7 hooks semua via `useOptimisticSessionMutation` factory (`useOptimisticMutation.ts`). `usePublishSession` masih fallback `snap.version ?? current?.version` (dual contract). `SharedSessionPage` polling? sudah ganti `useSessionRealtime` SSE `EventSource` `/watch`.
 - `src/generator/index.ts` — 5-phase engine (pinned → merge pairable → spread → flexible → greedy fill). Pure, zero store deps. Sudah handle 60p (`totalGames 36 → avg 2.4`) tapi `GROUPING_TRIES=40`, `FILL_CANDIDATES=8` masih OK. `quality.ts` `backToBackFloor = 4*(Ci+Cj)-P` untuk 60p = 0 (no forced overlap).
-- `src/utils/time.ts` — `computeSlotAllocation`, `todayWIB()` (sinkron dengan BE `Asia/Jakarta` auto-lock), `formatMergedCourtTimes`.
+- `src/utils/time.ts` — `computeSlotAllocation`, `todayWIB()`, `formatMergedCourtTimes`.
 
 **Kekurangan FE ideal view:**
 - God hook `useOptimisticSessionMutation` → semua live mutation bawa full snapshot. `onError` merge `fresh.version` + `optimistic` body (`useOptimisticMutation.ts:86`) = last-write-wins field lain.
@@ -48,7 +48,7 @@
 
 **Read path:** `Store.Load` (`RepeatableRead` `SET TRANSACTION READ ONLY`) rebuild `CloudSnapshot` dari `sessions + session_courts + session_players + fix_matches + scheduled_games + scheduled_game_players` — identik dengan kontrak lama.
 
-**Rating:** `internal/domain/rating.go` Glicko-1-lite pure, `store/rating*` ingest/revert/rebuild idempotent, `rating_sources` fingerprint. Auto-lock ticker `30m` + auto-ingest di `main.go:88`.
+**Rating:** `internal/domain/rating.go` Glicko-1-lite pure, `store/rating*` ingest/revert/rebuild idempotent, `rating_sources` fingerprint. Auto-ingest locked sessions (ticker `30m`) di `main.go`.
 
 **Kekurangan BE ideal view:**
 - Session-level lock → false contention. `syncSessionTables` O(N) write amplification. `ValidateSnapshot` O(N) tiap score. `idempotencyStore` hilang saat restart → double-apply risk. `Subscribe/Broadcast` `map[chan]` loss on restart + buffer 4 drop.

@@ -71,7 +71,7 @@ Once a session is published:
 - player stats (play count, sit count, partners, opponents) are visible
 - session can be locked to prevent further changes
 - locked sessions reject all mutations at the server level
-- auto-lock: sessions lock automatically when all scores entered or date passed
+- auto-lock: sessions lock automatically when all scores are entered (save-path)
 
 ### 6. Ratings & Leaderboard
 
@@ -79,9 +79,10 @@ The app tracks player ratings using a **Glicko-1-lite** engine:
 
 - 8-tier ClassBands (D: 1000–1199, ..., A+: 2100+)
 - Season system with configurable start date and decay
+- `absent_policy`: `skip_player` — absent/skipped player excluded from rating, game counts for others
 - Leaderboard with server-side pagination
-- Player detail: stat cards, sparkline trend, recent matches (paginated), career stats
-- Auto-ingest on session lock (backend ticker every 30 min)
+- Player detail: stat cards, sparkline trend, recent matches (paginated, "with teammate · vs opponent" format), career stats
+- Auto-ingest locked sessions (backend ticker every 30 min)
 
 ### 7. Tournament
 

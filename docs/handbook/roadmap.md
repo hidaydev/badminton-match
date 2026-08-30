@@ -1,6 +1,6 @@
 # Roadmap
 
-Status per 2026-08-22. Fase era Supabase (1–6 di bawah) sudah selesai dan
+Status per 2026-08-30. Fase era Supabase (1–6 di bawah) sudah selesai dan
 ditutup; detail historisnya ada di git history.
 
 ## ✅ Selesai
@@ -15,7 +15,7 @@ ditutup; detail historisnya ada di git history.
 - **8-tier system** — D, D+, C, C+, B, B+, A, A+ (unified frontend + backend)
 - **Ratings & Leaderboard** — Glicko-1-lite engine, 8-tier ClassBands, season system
 - **Admin restructure** — 5 separate pages (Sessions, Players, Ratings, Tournaments, Seasons)
-- **Auto-lock sessions** — lock when all scores entered or date passed
+- **Auto-lock on save** — lock when all scores entered (save-path; ticker auto-lock removed)
 - **Gender in players table** — canonical gender, auto-fill in session creation
 - **Team tournament improvements** — manual team assignment, standings editing, champion banner, courts
 - **Pagination** — ratings leaderboard (100/page), recent matches (5/page), session list (5/page)
@@ -24,6 +24,11 @@ ditutup; detail historisnya ada di git history.
 - **Auto-deploy** — GitHub Actions → SSH → podman pull + restart (push = deploy)
 - **Checklist/Absent fix** — games tetap jalan, absent player tidak dapat rating delta
 - **Version mismatch retry** — silent retry 1x sebelum error
+- **Skip preserves scores** — per-game skip excludes player from rating, game counts for others (2026-08-30)
+- **Rebaseline removed** — feature deleted (BE + FE) (2026-08-30)
+- **Recent matches format** — "with teammate · vs opponent" instead of session title (2026-08-30)
+- **absent_policy fix** — changed from `skip_game` → `skip_player`, all sessions re-ingested (2026-08-30)
+- **NULL tier fix** — COALESCE in players list query prevents scan error (2026-08-30)
 
 ## ⏳ Berikutnya (urut prioritas)
 

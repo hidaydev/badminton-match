@@ -35,7 +35,7 @@ Publish and share via URL. Full operations console:
 - 👤 Change individual players with cross-slot conflict detection
 - 🚫 Mark absences (game still counts — absent player doesn't get rating delta)
 - 📈 Per-player stats (play count, sit count, partners, opponents)
-- 🔒 Lock session to prevent edits (server-enforced; auto-lock when the date passes)
+- 🔒 Lock session to prevent edits (server-enforced; auto-locks on save when all scores entered)
 - 💾 Auto-save with debounced cloud sync and version-mismatch retry
 
 ### Ratings & Leaderboard
@@ -57,7 +57,7 @@ Publish and share via URL. Full operations console:
 
 - Login once (password) — admin menus appear right on the home page
 - Unlock/delete sessions · ingest/revert/rebuild ratings · close & start season
-- Player management: add, rename, change tier, rebaseline, delete · delete tournaments
+- Player management: add, rename, change tier, delete · delete tournaments
 
 ### Social Export
 
@@ -229,7 +229,7 @@ Full reference: [docs/design-system.md](docs/design-system.md)
 | `POST /tournaments/{id}/delete` | **admin** | Delete + rating cleanup + rebuild |
 | `POST /players` | anon | Register (TOCTOU-safe; optional 8-tier) |
 | `PATCH /players/{id}/tier` · `/name` · `DELETE /players/{id}` | **admin** | Tier change (+rebuild) · rename · delete |
-| `POST /ratings/*` (ingest/revert/finalize/rebuild/season/rebaseline) | **admin** | Bearer token |
+| `POST /ratings/*` (ingest/revert/finalize/rebuild/season) | **admin** | Bearer token |
 | `GET /ratings/*` | anon | Public read (leaderboard, player, sources, seasons) |
 
 Concurrency: advisory locks (`pg_try_advisory_xact_lock` / `pg_advisory_xact_lock`) +

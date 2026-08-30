@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-08-22 (migrasi prod, checklist/absent fix, auto-deploy — semua DEPLOYED)
+Last updated: 2026-08-30 (skip behavior, ticker cleanup, rebaseline removal, absent_policy fix, recent matches format)
 
 This is the fastest handover file. Start here, lalu baca dokumen terkait di bawah.
 
@@ -66,6 +66,19 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http
 - Pagination: ratings leaderboard, recent matches, session list
 - Peak rating removed from leaderboard list
 
+### 6. SKIP / ABSENT / RATING CLEANUP (2026-08-30)
+
+| Change | Detail |
+|--------|--------|
+| Ticker auto-lock removed | Redundant — save-path auto-lock already handles it. Auto-ingest ticker kept. |
+| Skip preserves scores | Per-game skip no longer clears scores. Skipped player excluded from rating, game counts for other 3. |
+| Dead code removed | `DisplayTier`, `FloorOf`, `tierOrder` deleted from BE. |
+| AdminRatingsPage fix | Ingest/revert now dispatches by `source_kind` (session vs tournament). |
+| Rebaseline removed | Feature deleted (BE handler + route, FE button, i18n strings). |
+| Recent matches format | Changed from session title to "with P1 · vs P3, P4" (teammates + opponents). |
+| absent_policy fix | Changed from `skip_game` → `skip_player`. All 21 sessions re-ingested. |
+| NULL tier fix | `COALESCE(p.tier, '')` in players list query — prevents scan error on NULL tier. |
+
 ## Infrastruktur
 
 - VPS `user@198.51.100.10`
@@ -78,10 +91,10 @@ badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http
 
 | Database | Tables | Status |
 |----------|--------|--------|
-| `bm_dev` | 24 | 125 players, 27 sessions, 103 rated, 1 tournament |
-| `bm` (prod) | 24 | 125 players, 27 sessions, 103 rated, 1 tournament |
+| `bm_dev` | 24 | 133 players, 29 sessions, 479 rating events, 21 sources |
+| `bm` (prod) | 24 | 133 players, 29 sessions, 479 rating events, 21 sources |
 
-Rating config: 22 rows (season_start 2026-05-23, 8-tier ClassBands, session_tier_init)
+Rating config: 22 rows (season_start 2026-05-23, 8-tier ClassBands, absent_policy=skip_player)
 
 ## Cara Lanjut
 
