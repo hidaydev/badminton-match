@@ -58,11 +58,25 @@ func setIdempotentResponse(key string, snap *domain.CloudSnapshot) {
 	idempotencyMu.Lock()
 	defer idempotencyMu.Unlock()
 	// Clean expired (lazy, cap 1000)
-	if len(idempotencyStore) > 1000 {
+	if len(idempotencyStore) >= 1000 {
 		now := time.Now()
 		for k, v := range idempotencyStore {
 			if now.After(v.expiry) {
 				delete(idempotencyStore, k)
+			}
+		}
+		// Hard cap eviction: evict oldest if still >= 1000
+		if len(idempotencyStore) >= 1000 {
+			var oldestKey string
+			var oldestExp time.Time
+			for k, v := range idempotencyStore {
+				if oldestKey == "" || v.expiry.Before(oldestExp) {
+					oldestKey = k
+					oldestExp = v.expiry
+				}
+			}
+			if oldestKey != "" {
+				delete(idempotencyStore, oldestKey)
 			}
 		}
 	}
