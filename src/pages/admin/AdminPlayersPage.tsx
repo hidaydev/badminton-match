@@ -54,6 +54,7 @@ export default function AdminPlayersPage() {
                     await adminRequest('POST', '/players', { name: newName.trim(), tier: newTier })
                   },
                   t('admin.playerAdded'),
+                  () => { setNewName(''); refetch() },
                 )}
                 className="px-3 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold"
               >
@@ -126,7 +127,11 @@ export default function AdminPlayersPage() {
                   <ActionButton onClick={() => {
                     const t2 = window.prompt(en.admin.tierPrompt(pl.name), pl.tierInduk ?? 'C')
                     if (t2 && TIERS.includes(t2.toUpperCase())) {
-                      run(() => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: t2.toUpperCase() }), t('admin.tierChanged'))
+                      run(
+                        () => adminRequest('PATCH', `/players/${pl.playerId}/tier`, { tier: t2.toUpperCase() }),
+                        t('admin.tierChanged'),
+                        () => refetch(),
+                      )
                     }
                   }}>Tier</ActionButton>
                   <ActionButton onClick={() => {
@@ -141,7 +146,11 @@ export default function AdminPlayersPage() {
                   }}>Rename</ActionButton>
                   <ActionButton tone="red" onClick={() => {
                     if (window.confirm(en.admin.playerDeleteConfirm(pl.name))) {
-                      run(() => adminRequest('DELETE', `/players/${pl.playerId}`), t('admin.playerDeleted'))
+                      run(
+                        () => adminRequest('DELETE', `/players/${pl.playerId}`),
+                        t('admin.playerDeleted'),
+                        () => refetch(),
+                      )
                     }
                   }}>Delete</ActionButton>
                 </div>

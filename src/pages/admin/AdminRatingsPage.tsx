@@ -1,5 +1,6 @@
 // src/pages/admin/AdminRatingsPage.tsx — Admin: ingest, revert, rebuild ratings.
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRatingSources } from '../../queries/ratings'
 import { adminRequest } from '../../queries/admin'
 import { t } from '../../i18n'
@@ -10,10 +11,16 @@ import Pager from '../../components/admin/Pager'
 const PAGE = 10
 
 export default function AdminRatingsPage() {
+  const queryClient = useQueryClient()
   const [page, setPage] = useState(0)
-  const { data: sources } = useRatingSources()
+  const { data: sources, refetch } = useRatingSources()
   const [rebuildMsg, setRebuildMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [rebuilding, setRebuilding] = useState(false)
+
+  const refreshRatingData = () => {
+    void refetch()
+    void queryClient.invalidateQueries({ queryKey: ['ratings'] })
+  }
 
   const slice = (sources ?? []).slice(page * PAGE, page * PAGE + PAGE)
 
@@ -24,6 +31,7 @@ export default function AdminRatingsPage() {
     try {
       await adminRequest('POST', '/ratings/rebuild-all')
       setRebuildMsg({ kind: 'ok', text: t('admin.rebuildDone') })
+      refreshRatingData()
     } catch (e) {
       setRebuildMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Rebuild failed' })
     } finally {
@@ -47,23 +55,35 @@ export default function AdminRatingsPage() {
                   {src.source_kind.startsWith('tournament') && (
                     <ActionButton
                       tone={src.finalized ? 'green' : 'neutral'}
-                      onClick={() => run(() => adminRequest('POST', `/ratings/sources/${src.source_id}/finalize`, { finalized: !src.finalized }), src.finalized ? 'Un-finalized' : 'Finalized')}
+                      onClick={() => run(
+                        () => adminRequest('POST', `/ratings/sources/${src.source_id}/finalize`, { finalized: !src.finalized }),
+                        src.finalized ? 'Un-finalized' : 'Finalized',
+                        refreshRatingData,
+                      )}
                     >
                       {src.finalized ? 'Finalized' : 'Finalize'}
                     </ActionButton>
                   )}
-                  <ActionButton onClick={() => run(() => {
-                    const isT = src.source_kind.startsWith('tournament')
-                    return adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
-                      isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
-                  }, 'Ingested')}>
+                  <ActionButton onClick={() => run(
+                    () => {
+                      const isT = src.source_kind.startsWith('tournament')
+                      return adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
+                        isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
+                    },
+                    'Ingested',
+                    refreshRatingData,
+                  )}>
                     Ingest
                   </ActionButton>
-                  <ActionButton tone="red" onClick={() => run(() => {
-                    const isT = src.source_kind.startsWith('tournament')
-                    return adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
-                      isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
-                  }, 'Reverted')}>
+                  <ActionButton tone="red" onClick={() => run(
+                    () => {
+                      const isT = src.source_kind.startsWith('tournament')
+                      return adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
+                        isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
+                    },
+                    'Reverted',
+                    refreshRatingData,
+                  )}>
                     Revert
                   </ActionButton>
                 </div>
