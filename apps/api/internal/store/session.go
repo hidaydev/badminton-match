@@ -97,18 +97,12 @@ func (s *SessionStore) Unsubscribe(id string, ch chan *domain.CloudSnapshot) {
 // Broadcast — kirim snapshot baru ke semua subscriber session id. Non-blocking (slow client drop).
 func (s *SessionStore) Broadcast(id string, snap *domain.CloudSnapshot) {
 	s.mu.RLock()
+	defer s.mu.RUnlock()
 	m, ok := s.watchers[id]
 	if !ok {
-		s.mu.RUnlock()
 		return
 	}
-	// Copy chans biar tidak hold lock saat send (hindari deadlock close)
-	chans := make([]chan *domain.CloudSnapshot, 0, len(m))
 	for ch := range m {
-		chans = append(chans, ch)
-	}
-	s.mu.RUnlock()
-	for _, ch := range chans {
 		select {
 		case ch <- snap:
 		default:
