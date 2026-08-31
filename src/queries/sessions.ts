@@ -74,7 +74,6 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
     }
     es.onerror = () => {
       setConnected(false)
-      es.close()
     }
     return () => {
       es.close()

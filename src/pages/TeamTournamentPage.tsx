@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGetTournament } from '../queries'
@@ -61,14 +61,15 @@ export default function TeamTournamentPage() {
     return () => clearTimeout(t)
   }, [publishError])
 
+  const teams = snap?.teams ?? []
+  const currentMatches = localMatches ?? snap?.matches ?? []
+  const standings = useMemo(() => computeTeamStandings(teams, currentMatches), [teams, currentMatches])
+  const groupMatches = useMemo(() => currentMatches.filter((m) => m.phase === 'group'), [currentMatches])
+  const finalMatch = useMemo(() => currentMatches.find((m) => m.phase === 'final'), [currentMatches])
+
   if (!snap) {
     return <p className="text-fg-dim text-sm">{isFetching ? 'Loading team tournament…' : 'Tournament not found.'}</p>
   }
-
-  const teams = snap.teams
-  const standings = computeTeamStandings(teams, localMatches ?? snap.matches)
-  const groupMatches = (localMatches ?? snap.matches).filter((m) => m.phase === 'group')
-  const finalMatch = (localMatches ?? snap.matches).find((m) => m.phase === 'final')
   const groupComplete = groupMatches.length === 9 && groupMatches.every((m) => teamMatchOutcome(m).complete)
   const hasFinal = !!finalMatch
 
