@@ -668,9 +668,11 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 			pastDate = snap.Session.Date < today
 		}
 		if allScored || pastDate {
+			// Gunakan sessionID (bukan rowID) — untuk sesi baru, rowID="", sessionID berisi UUID
+			// dari INSERT RETURNING. Untuk sesi lama, sessionID = rowID (keduanya sama).
 			if _, err := tx.Exec(ctx, `
 				UPDATE sessions SET status = 'locked', version = $2, updated_at = now()
-				WHERE id = $1::uuid`, rowID, nextVersion); err != nil {
+				WHERE id = $1::uuid`, sessionID, nextVersion); err != nil {
 				return nil, err
 			}
 			status = "locked"

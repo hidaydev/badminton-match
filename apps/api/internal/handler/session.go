@@ -247,6 +247,11 @@ func (h *SessionHandler) Get(w http.ResponseWriter, r *http.Request) {
 // Tanpa AdminGuard (read anon, sama seperti Get). Kirim snapshot awal lalu tiap Broadcast.
 func (h *SessionHandler) Watch(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	// Subscribe DULU sebelum Load — eliminasi TOCTOU race: Broadcast yang terjadi
+	// antara Load dan Subscribe sekarang masuk ke buffered channel dan dikirim di
+	// iterasi pertama loop (tidak ada update yang hilang).
+	ch, cancel := h.Store.Subscribe(id)
+	defer cancel()
 	snap, err := h.Store.Load(r.Context(), id)
 	if errors.Is(err, store.ErrNotFound) {
 		httperr.WriteError(w, h.Logger, httperr.NotFound("session not found"))
@@ -262,8 +267,6 @@ func (h *SessionHandler) Watch(w http.ResponseWriter, r *http.Request) {
 	// CORS untuk EventSource (Browser kirim Accept: text/event-stream)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	rc := http.NewResponseController(w)
-	ch, cancel := h.Store.Subscribe(id)
-	defer cancel()
 	// Kirim snapshot awal segera (realtime-ness, 0 GET)
 	data, _ := json.Marshal(snap)
 	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
