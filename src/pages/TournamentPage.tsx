@@ -103,10 +103,24 @@ export default function TournamentPage() {
   const matches = classic?.matches ?? []
   const name = classic?.name ?? 'MAJADU Internal Tournament 2026'
 
-  // Sync localGroups with server when committedGroups changes (e.g., after refetch)
-  // Handled by reading from committedGroups directly in the render, not via useEffect
-  if (classic && committedGroups !== localGroups) {
-    setLocalGroups(committedGroups)
+  // Sync localGroups HANYA saat committedGroups benar-benar berubah dari server.
+  // Pola "prevCommitted" mencegah localGroups di-revert setiap render saat user
+  // sedang edit (bug lama: if committedGroups !== localGroups → setLocalGroups tiap render).
+  const [prevCommitted, setPrevCommitted] = useState<Record<GroupId, string[]> | null>(null)
+  if (committedGroups !== prevCommitted) {
+    setPrevCommitted(committedGroups)
+    // Normalisasi: server kirim string[], UI butuh (string | null)[] dengan 4 slot per grup.
+    const toSlots = (arr: string[] | undefined): (string | null)[] => {
+      const result: (string | null)[] = (arr ?? []).slice(0, 4)
+      while (result.length < 4) result.push(null)
+      return result
+    }
+    setLocalGroups({
+      A: toSlots(committedGroups.A),
+      B: toSlots(committedGroups.B),
+      C: toSlots(committedGroups.C),
+      D: toSlots(committedGroups.D),
+    })
   }
   const date = classic?.date ?? '2026-05-23'
 

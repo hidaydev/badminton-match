@@ -43,7 +43,7 @@ type TeamPlayer = { name: string; cls: TeamClass; team: TeamId }
 const initialPlayers = (): TeamPlayer[] =>
   Array.from({ length: 36 }, (_, i) => ({
     name: '',
-    cls: TEAM_CLASSES[i % 6],
+    cls: TEAM_CLASSES[Math.floor(i / TEAM_COUNT)],
     team: TEAM_IDS[i % TEAM_COUNT],
   }))
 
