@@ -61,15 +61,15 @@ export default function TeamTournamentPage() {
     return () => clearTimeout(t)
   }, [publishError])
 
-  if (!snap) {
-    return <p className="text-fg-dim text-sm">{isFetching ? 'Loading team tournament…' : 'Tournament not found.'}</p>
-  }
-
-  const teams = snap.teams
-  const matches = localMatches ?? snap.matches
+  const teams = snap?.teams ?? []
+  const matches = useMemo(() => localMatches ?? snap?.matches ?? [], [localMatches, snap?.matches])
   const standings = useMemo(() => computeTeamStandings(teams, matches), [teams, matches])
   const groupMatches = useMemo(() => matches.filter((m) => m.phase === 'group'), [matches])
   const finalMatch = useMemo(() => matches.find((m) => m.phase === 'final'), [matches])
+
+  if (!snap) {
+    return <p className="text-fg-dim text-sm">{isFetching ? 'Loading team tournament…' : 'Tournament not found.'}</p>
+  }
   const groupComplete = groupMatches.length === 9 && groupMatches.every((m) => teamMatchOutcome(m).complete)
   const hasFinal = !!finalMatch
 
