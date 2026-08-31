@@ -29,7 +29,11 @@ export default function AdminSessionsPage() {
                   <span className="text-[10px] font-sans text-fg-dim">{s.date}</span>
                   <span className={`text-[10px] font-sans ${s.locked ? 'text-amber-300/70' : 'text-fg-dim'}`}>{s.locked ? t('admin.locked') : t('admin.draft')}</span>
                   {s.locked && (
-                    <ActionButton tone="amber" onClick={() => run(() => adminRequest('POST', `/sessions/${s.id}/unlock`), t('admin.unlocked'))}>
+                    <ActionButton tone="amber" onClick={() => run(
+                      () => adminRequest('POST', `/sessions/${s.id}/unlock`),
+                      t('admin.unlocked'),
+                      () => refetch(),
+                    )}>
                       Unlock
                     </ActionButton>
                   )}

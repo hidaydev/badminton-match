@@ -6,7 +6,7 @@ import { t } from '../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 
 export default function AdminSeasonsPage() {
-  const { data: seasons } = useRatingSeasons()
+  const { data: seasons, refetch } = useRatingSeasons()
   const [seasonDate, setSeasonDate] = useState<string | null>(null)
   const [nowMs] = useState(() => Date.now())
 
@@ -39,7 +39,7 @@ export default function AdminSeasonsPage() {
                 onClick={() => run(
                   async () => { await adminRequest('POST', '/ratings/season', { startDate: effectiveSeasonDate }) },
                   t('admin.seasonStarted'),
-                  () => { setSeasonDate(null) },
+                  () => { setSeasonDate(null); void refetch() },
                 )}
                 className="px-3 py-2 rounded-lg bg-amber-700/60 text-amber-100 text-sm font-bold"
               >

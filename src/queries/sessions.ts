@@ -29,6 +29,8 @@ async function invalidateAllQueries(queryClient: ReturnType<typeof useQueryClien
     queryClient.invalidateQueries({ queryKey: ['sessions'] }),
     queryClient.invalidateQueries({ queryKey: ['players'] }),
     queryClient.invalidateQueries({ queryKey: ['player'] }),
+    queryClient.invalidateQueries({ queryKey: ['ratings'] }),
+    queryClient.invalidateQueries({ queryKey: ['ratings-sources'] }),
   ])
 }
 
@@ -456,6 +458,8 @@ function useGranularSwap<TVars = Record<string, unknown>>(
     onSuccess: (snap) => {
       queryClient.setQueryData(['session', sessionId], snap)
       void invalidateSessionQueries(queryClient)
+      void queryClient.invalidateQueries({ queryKey: ['ratings'] })
+      void queryClient.invalidateQueries({ queryKey: ['ratings-sources'] })
     },
   })
 }

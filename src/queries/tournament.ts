@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getTournament, listTournaments, createTournament, type TournamentMeta } from './endpoints'
 import type { AnyTournamentSnapshot } from '../utils/teamTournament'
 import type { GroupId, TournamentPair } from '../utils/tournament'
@@ -32,8 +32,12 @@ export function useGetTournament(id: string) {
 
 /** Create tournament (classic/team) → kembalikan { id, snapshot } (id dari Location). */
 export function useCreateTournament() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (snap: AnyTournamentSnapshot) => createTournament(snap),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
+    },
   })
 }
 
