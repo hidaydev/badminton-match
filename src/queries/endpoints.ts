@@ -456,19 +456,30 @@ export async function publishTournament(id: string, data: AnyTournamentSnapshot)
 
 /** Create tournament (classic atau team — format di body). Kembalikan id baru
  * (dari header Location) + snapshot hasil create. Fetch langsung (bukan request)
- * karena butuh akses header. Includes retry for network failures. */
+ * karena butuh akses header. Includes retry for network failures.
+ * Idempotency-Key di-generate sekali sebelum loop — retry aman (server idempoten). */
 export async function createTournament(data: AnyTournamentSnapshot): Promise<{ id: string; snapshot: AnyTournamentSnapshot }> {
   const maxRetries = 2
+  let idempotencyKey: string
+  try {
+    idempotencyKey = crypto.randomUUID()
+  } catch {
+    idempotencyKey = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
     try {
       const res = await fetch(`${BASE_URL}/tournaments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
         body: JSON.stringify(data),
         signal: controller.signal,
       })
+      clearTimeout(timeoutId)
       if (!res.ok) {
         let message = `${res.status} ${res.statusText}`
         let code: string | null = null

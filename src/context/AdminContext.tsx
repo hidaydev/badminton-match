@@ -1,5 +1,5 @@
 // src/context/AdminContext.tsx — state admin (token di localStorage — persist sampai logout).
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
 import { setAdminToken, verifyAdminToken } from '../queries/endpoints'
 
 const STORAGE_KEY = 'majadu_admin_token'
@@ -17,20 +17,32 @@ const AdminContext = createContext<AdminContextValue>({
 })
 
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string>(() => localStorage.getItem(STORAGE_KEY) ?? '')
+  const [token, setToken] = useState<string>(() => {
+    const t = localStorage.getItem(STORAGE_KEY) ?? ''
+    // Set synchronously sebelum render pertama — mengeliminasi timing window di mana
+    // child component useEffect jalan sebelum parent useEffect (React lifecycle guarantee).
+    // Tanpa ini: hard reload → child admin queries terkirim tanpa Bearer header → 401 sesaat.
+    setAdminToken(t)
+    return t
+  })
 
-  // Sinkronkan token (termasuk hasil restorasi localStorage saat reload halaman)
-  // ke module endpoints. Tanpa ini: reload → isAdmin=true (dari localStorage)
-  // tapi request admin TIDAK membawa Bearer → backend 401 "missing Bearer token".
+  // Sync token ke module endpoints setiap perubahan (login / logout).
+  // Mount awal sudah ditangani oleh useState initializer di atas.
   useEffect(() => {
     setAdminToken(token)
   }, [token])
 
-  // Verify token di localStorage saat mount — kalau token ngasal / expired → auto logout
+  // Capture initial token in a ref so the verify-on-mount effect has no external deps
+  // (token sudah valid di initializer — tidak perlu re-read dari state di closure).
+  const initialTokenRef = useRef(token)
+
+  // Verify token di localStorage saat mount — kalau token ngasal / expired → auto logout.
+  // Intentionally run once: pakai ref agar tidak re-verify setiap login/logout.
   useEffect(() => {
-    if (!token) return
+    const t = initialTokenRef.current
+    if (!t) return
     let cancelled = false
-    verifyAdminToken(token).then((ok) => {
+    verifyAdminToken(t).then((ok) => {
       if (!ok && !cancelled) {
         localStorage.removeItem(STORAGE_KEY)
         setAdminToken('')
@@ -40,7 +52,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, []) // run once on mount
+  }, []) // intentionally run once on mount
 
   const login = useCallback(async (t: string) => {
     const trimmed = t.trim()

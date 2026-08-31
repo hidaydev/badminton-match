@@ -61,7 +61,7 @@ export default function TeamTournamentPage() {
     return () => clearTimeout(t)
   }, [publishError])
 
-  const teams = snap?.teams ?? []
+  const teams = useMemo(() => snap?.teams ?? [], [snap?.teams])
   const matches = useMemo(() => localMatches ?? snap?.matches ?? [], [localMatches, snap?.matches])
   const standings = useMemo(() => computeTeamStandings(teams, matches), [teams, matches])
   const groupMatches = useMemo(() => matches.filter((m) => m.phase === 'group'), [matches])
