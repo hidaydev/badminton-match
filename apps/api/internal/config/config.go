@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -51,6 +52,11 @@ type Config struct {
 	// ratings (ingest/revert/finalize). Wajib di prod (fail-fast). Kosong di
 	// dev = endpoint admin ditolak 401 (bukan open).
 	AdminToken string
+
+	// TrustedProxyCIDRs — daftar CIDR (net.IPNet) yang dipercaya untuk
+	// header X-Forwarded-For. Default: loopback saja (127.0.0.0/8, ::1/128).
+	// Set MAJADU_TRUSTED_PROXY_CIDR=<cidr1>,<cidr2> untuk proxy di host lain.
+	TrustedProxyCIDRs []*net.IPNet
 }
 
 // Load membaca env, me-load .env jika ada, lalu validasi.
@@ -83,6 +89,8 @@ func Load() (Config, error) {
 	for _, origin := range splitList(os.Getenv("CORS_ALLOWED_ORIGINS")) {
 		cfg.AllowedOrigins = append(cfg.AllowedOrigins, origin)
 	}
+
+	cfg.TrustedProxyCIDRs = parseTrustedProxyCIDRs(os.Getenv("MAJADU_TRUSTED_PROXY_CIDR"))
 
 	if err := cfg.validate(); err != nil {
 		return cfg, err
@@ -135,4 +143,26 @@ func atoiDefault(s string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// parseTrustedProxyCIDRs — parse MAJADU_TRUSTED_PROXY_CIDR (comma-separated CIDRs).
+// Default: loopback IPv4 + IPv6 (127.0.0.0/8 dan ::1/128).
+// CIDR yang tidak valid di-skip dengan warning ke stderr.
+func parseTrustedProxyCIDRs(raw string) []*net.IPNet {
+	defaults := []string{"127.0.0.0/8", "::1/128"}
+	sources := defaults
+	if raw != "" {
+		sources = splitList(raw)
+	}
+	var out []*net.IPNet
+	for _, cidr := range sources {
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			// Jangan fail-fast — skip CIDR tidak valid, log ke stderr.
+			fmt.Fprintf(os.Stderr, "config: invalid trusted proxy CIDR %q (skipped)\n", cidr)
+			continue
+		}
+		out = append(out, ipnet)
+	}
+	return out
 }

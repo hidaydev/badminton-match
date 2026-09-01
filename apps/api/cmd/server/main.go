@@ -202,7 +202,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 
 	// Middleware chain: recover (luar) → request-id → logging → CORS → rate limit → mux.
 	var h http.Handler = mux
-	h = middleware.RateLimit(ctx, cfg.RateLimitPerMin, logger)(h)
+	h = middleware.RateLimit(ctx, cfg.RateLimitPerMin, logger, cfg.TrustedProxyCIDRs)(h)
 	h = middleware.CORS(cfg.AllowedOrigins)(h)
 	h = middleware.Logging(logger)(h)
 	h = middleware.RequestID(h)

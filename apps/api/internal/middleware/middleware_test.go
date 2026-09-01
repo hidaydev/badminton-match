@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -47,13 +48,13 @@ func TestRateLimitAllowsThenRejects(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	h := RateLimit(ctx, 2, logger)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	// Tanpa trusted proxy CIDRs — rate limit berdasarkan RemoteAddr langsung.
+	h := RateLimit(ctx, 2, logger, nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "1.2.3.4:1234"
-	req.Header.Set("X-Forwarded-For", "1.2.3.4")
 
 	// burst 2: dua request pertama OK
 	for i := 0; i < 2; i++ {
@@ -149,10 +150,22 @@ func TestRateLimitMapCapEvictsOldestIdle(t *testing.T) {
 }
 
 func TestClientIPFromXFF(t *testing.T) {
+	_, loopback, _ := net.ParseCIDR("127.0.0.0/8")
+	trustedCIDRs := []*net.IPNet{loopback}
+
 	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "127.0.0.1:12345" // loopback = trusted proxy
 	req.Header.Set("X-Forwarded-For", "203.0.113.5, 10.0.0.1")
-	if got := clientIP(req); got != "203.0.113.5" {
-		t.Fatalf("clientIP = %q, want first XFF entry", got)
+	if got := clientIP(req, trustedCIDRs); got != "203.0.113.5" {
+		t.Fatalf("clientIP = %q, want first XFF entry when from trusted proxy", got)
+	}
+
+	// Dari IP non-trusted: XFF harus diabaikan, pakai RemoteAddr
+	req2 := httptest.NewRequest("GET", "/", nil)
+	req2.RemoteAddr = "5.5.5.5:1234"
+	req2.Header.Set("X-Forwarded-For", "203.0.113.5")
+	if got := clientIP(req2, trustedCIDRs); got != "5.5.5.5" {
+		t.Fatalf("clientIP = %q, want RemoteAddr when not from trusted proxy", got)
 	}
 }
 

@@ -23,7 +23,9 @@ const (
 // RateLimit — token bucket per-IP, in-memory (cukup untuk single container;
 // perlu shared store hanya jika scale-out). perMinute = 0 → disabled.
 // Janitor pembersih bucket idle berjalan sampai ctx dibatalkan.
-func RateLimit(ctx context.Context, perMinute int, logger *slog.Logger) func(http.Handler) http.Handler {
+// trustedProxyCIDRs — daftar CIDR yang boleh di-trust X-Forwarded-For-nya;
+// biasanya dari config.Config.TrustedProxyCIDRs (default: loopback saja).
+func RateLimit(ctx context.Context, perMinute int, logger *slog.Logger, trustedProxyCIDRs []*net.IPNet) func(http.Handler) http.Handler {
 	if perMinute <= 0 {
 		return func(next http.Handler) http.Handler { return next }
 	}
@@ -31,7 +33,7 @@ func RateLimit(ctx context.Context, perMinute int, logger *slog.Logger) func(htt
 	lm.start(ctx)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := clientIP(r)
+			ip := clientIP(r, trustedProxyCIDRs)
 			if !lm.allow(ip) {
 				logger.Warn("rate limited", "ip", ip, "path", r.URL.Path)
 				w.Header().Set("Content-Type", "application/json")
@@ -156,17 +158,33 @@ func (l *limiter) allow(ip string) bool {
 	return false
 }
 
-func clientIP(r *http.Request) string {
-	// Caddy reverse_proxy menambah X-Forwarded-For: "client, proxy1, ..."
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		first := strings.TrimSpace(strings.Split(xff, ",")[0])
-		if ip := net.ParseIP(first); ip != nil {
-			return ip.String()
+func clientIP(r *http.Request, trustedCIDRs []*net.IPNet) string {
+	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remoteHost = r.RemoteAddr
+	}
+	remoteIP := net.ParseIP(remoteHost)
+	// Trust X-Forwarded-For hanya jika RemoteAddr berasal dari trusted proxy CIDR.
+	// Tanpa ini: client bisa spoof header dan bypass rate limiter sepenuhnya.
+	if remoteIP != nil && isTrustedProxy(remoteIP, trustedCIDRs) {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			first := strings.TrimSpace(strings.Split(xff, ",")[0])
+			if ip := net.ParseIP(first); ip != nil {
+				return ip.String()
+			}
 		}
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
+	if remoteHost != "" {
+		return remoteHost
 	}
-	return host
+	return r.RemoteAddr
+}
+
+func isTrustedProxy(ip net.IP, cidrs []*net.IPNet) bool {
+	for _, cidr := range cidrs {
+		if cidr.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }

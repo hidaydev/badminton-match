@@ -4,6 +4,7 @@ package middleware
 import (
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -12,6 +13,16 @@ import (
 
 // slowRequestThresholdMs — request lebih lambat dari ini dicatat level WARN.
 const slowRequestThresholdMs = 1000
+
+// remoteHost — ekstrak host dari RemoteAddr untuk logging (bukan rate-limit).
+// Berbeda dari clientIP di ratelimit.go yang juga mempertimbangkan trusted proxy.
+func remoteHost(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
 
 // Logging mencatat method, path, status, bytes, client IP, durasi, request id.
 // Request lambat (> slowRequestThresholdMs) di-log level WARN.
@@ -27,7 +38,7 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 				"path", r.URL.Path,
 				"status", rec.status,
 				"bytes", rec.bytes,
-				"client_ip", clientIP(r),
+				"client_ip", remoteHost(r),
 				"request_id", RequestIDFromContext(r.Context()),
 				"duration_ms", durMs,
 			}
@@ -68,7 +79,7 @@ func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 						"panic", rec,
 						"stack", string(debug.Stack()),
 						"path", r.URL.Path,
-						"client_ip", clientIP(r),
+						"client_ip", remoteHost(r),
 						"request_id", RequestIDFromContext(r.Context()),
 					)
 					w.Header().Set("Content-Type", "application/json")
