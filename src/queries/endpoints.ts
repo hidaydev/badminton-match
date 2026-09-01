@@ -195,9 +195,9 @@ const enc = encodeURIComponent
 
 // ── Sessions ──────────────────────────────────────────────────────────────
 
-export async function getSession(id: string): Promise<CloudSnapshot | null> {
+export async function getSession(id: string, signal?: AbortSignal): Promise<CloudSnapshot | null> {
   try {
-    const data = await request<CloudSnapshot>('GET', `/sessions/${enc(id)}`)
+    const data = await request<CloudSnapshot>('GET', `/sessions/${enc(id)}`, undefined, signal)
     if (!isValidSnapshot(data)) {
       console.warn('[getSession] response failed validation:', data)
       throw new ApiError('Invalid session snapshot received from server')
@@ -348,7 +348,7 @@ export async function swapMembers(
   return out
 }
 
-export async function listSessions(): Promise<SessionMeta[]> {
+export async function listSessions(options?: { signal?: AbortSignal }): Promise<SessionMeta[]> {
   const rows = await request<Array<{
     id: string
     title: string
@@ -356,7 +356,7 @@ export async function listSessions(): Promise<SessionMeta[]> {
     player_count: number
     total_games: number
     locked: boolean
-  }>>('GET', '/sessions')
+  }>>('GET', '/sessions', undefined, options?.signal)
 
   if (!Array.isArray(rows)) {
     console.warn('[listSessions] response is not an array:', rows)
@@ -380,19 +380,19 @@ export async function deleteSession(lookup: string): Promise<{ deleted: boolean;
 
 // ── Players ───────────────────────────────────────────────────────────────
 
-export async function listPlayers(): Promise<PlayerSummary[]> {
+export async function listPlayers(signal?: AbortSignal): Promise<PlayerSummary[]> {
   const rows = await request<Array<{
     playerId?: string
     name: string
     gender: 'M' | 'F'
     tier: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
     tierInduk?: string
-  }>>('GET', '/players')
+  }>>('GET', '/players', undefined, signal)
   return rows
 }
 
-export async function getPlayerStats(name: string): Promise<PlayerStats> {
-  const data = await request<PlayerStats | null>('GET', `/players/${enc(name)}/stats`)
+export async function getPlayerStats(name: string, signal?: AbortSignal): Promise<PlayerStats> {
+  const data = await request<PlayerStats | null>('GET', `/players/${enc(name)}/stats`, undefined, signal)
   if (!data) throw new Error('no data')
   if (!isValidPlayerStats(data)) {
     console.warn('[getPlayerStats] response failed validation:', data)
@@ -422,8 +422,8 @@ export interface TournamentMeta {
   format: 'classic' | 'team'
 }
 
-export async function listTournaments(): Promise<TournamentMeta[]> {
-  const rows = await request<Array<{ id: string; name: string; date: string; format?: string }>>('GET', '/tournaments')
+export async function listTournaments(signal?: AbortSignal): Promise<TournamentMeta[]> {
+  const rows = await request<Array<{ id: string; name: string; date: string; format?: string }>>('GET', '/tournaments', undefined, signal)
   if (!Array.isArray(rows)) {
     console.warn('[listTournaments] response is not an array:', rows)
     throw new ApiError('Invalid tournament list received from server')
@@ -436,9 +436,9 @@ export async function listTournaments(): Promise<TournamentMeta[]> {
   }))
 }
 
-export async function getTournament(id: string): Promise<AnyTournamentSnapshot | null> {
+export async function getTournament(id: string, signal?: AbortSignal): Promise<AnyTournamentSnapshot | null> {
   try {
-    const data = await request<AnyTournamentSnapshot>('GET', `/tournaments/${enc(id)}`)
+    const data = await request<AnyTournamentSnapshot>('GET', `/tournaments/${enc(id)}`, undefined, signal)
     if (data.format === 'team' ? !isValidTeamTournamentSnapshot(data) : !isValidTournamentSnapshot(data)) {
       console.warn('[getTournament] response failed validation:', data)
       throw new ApiError('Invalid tournament snapshot received from server')
@@ -556,14 +556,15 @@ export async function getRatingLeaderboard(
   active: boolean,
   limit: number,
   offset: number,
+  signal?: AbortSignal,
 ): Promise<{ total: number; rows: RatingLeaderboardRow[] }> {
   const q = `?active=${active}&limit=${limit}&offset=${offset}`
-  const data = await request<{ total: number; rows: RatingLeaderboardRow[] }>('GET', `/ratings/leaderboard${q}`)
+  const data = await request<{ total: number; rows: RatingLeaderboardRow[] }>('GET', `/ratings/leaderboard${q}`, undefined, signal)
   return data ?? { total: 0, rows: [] }
 }
 
-export async function getRatingPlayer(playerId: string): Promise<RatingPlayer> {
-  const data = await request<RatingPlayer | null>('GET', `/ratings/players/${enc(playerId)}`)
+export async function getRatingPlayer(playerId: string, signal?: AbortSignal): Promise<RatingPlayer> {
+  const data = await request<RatingPlayer | null>('GET', `/ratings/players/${enc(playerId)}`, undefined, signal)
   if (!data) throw new Error('no data')
   return data
 }
@@ -591,12 +592,12 @@ export interface SeasonStandingRow {
   losses: number
 }
 
-export async function getRatingSeasons(): Promise<RatingSeason[]> {
-  const data = await request<{ seasons: RatingSeason[] }>('GET', `/ratings/seasons`)
+export async function getRatingSeasons(signal?: AbortSignal): Promise<RatingSeason[]> {
+  const data = await request<{ seasons: RatingSeason[] }>('GET', `/ratings/seasons`, undefined, signal)
   return data?.seasons ?? []
 }
 
-export async function getSeasonStandings(seasonId: string): Promise<SeasonStandingRow[]> {
-  const data = await request<{ rows: SeasonStandingRow[] }>('GET', `/ratings/seasons/${enc(seasonId)}/standings`)
+export async function getSeasonStandings(seasonId: string, signal?: AbortSignal): Promise<SeasonStandingRow[]> {
+  const data = await request<{ rows: SeasonStandingRow[] }>('GET', `/ratings/seasons/${enc(seasonId)}/standings`, undefined, signal)
   return data?.rows ?? []
 }

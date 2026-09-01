@@ -16,14 +16,14 @@ const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 export function useListTournaments() {
   return useQuery<TournamentMeta[]>({
     queryKey: ['tournaments'],
-    queryFn: listTournaments,
+    queryFn: ({ signal }) => listTournaments(signal),
   })
 }
 
 export function useGetTournament(id: string) {
   return useQuery<AnyTournamentSnapshot | null>({
     queryKey: ['tournament', id],
-    queryFn: () => getTournament(id),
+    queryFn: ({ signal }) => getTournament(id, signal),
     enabled: !!id,
     staleTime: 1000 * 60,
     refetchOnWindowFocus: true,

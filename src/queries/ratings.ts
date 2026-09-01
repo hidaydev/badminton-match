@@ -6,7 +6,7 @@ import type { RatingPlayer, RatingLeaderboardRow, RatingSeason, SeasonStandingRo
 export function useRatingLeaderboard(active: boolean, limit: number, offset: number) {
   return useQuery<{ total: number; rows: RatingLeaderboardRow[] }>({
     queryKey: ['ratings', active, limit, offset],
-    queryFn: () => getRatingLeaderboard(active, limit, offset),
+    queryFn: ({ signal }) => getRatingLeaderboard(active, limit, offset, signal),
     staleTime: 1000 * 60,
   })
 }
@@ -14,7 +14,7 @@ export function useRatingLeaderboard(active: boolean, limit: number, offset: num
 export function useRatingPlayer(playerId: string | undefined) {
   return useQuery<RatingPlayer>({
     queryKey: ['ratings-player', playerId],
-    queryFn: () => getRatingPlayer(playerId!),
+    queryFn: ({ signal }) => getRatingPlayer(playerId!, signal),
     enabled: !!playerId,
     staleTime: 1000 * 60,
   })
@@ -23,7 +23,7 @@ export function useRatingPlayer(playerId: string | undefined) {
 export function useRatingSeasons() {
   return useQuery<RatingSeason[]>({
     queryKey: ['ratings-seasons'],
-    queryFn: getRatingSeasons,
+    queryFn: ({ signal }) => getRatingSeasons(signal),
     staleTime: 1000 * 60 * 5,
   })
 }
@@ -31,7 +31,7 @@ export function useRatingSeasons() {
 export function useSeasonStandings(seasonId: string | null) {
   return useQuery<SeasonStandingRow[]>({
     queryKey: ['ratings-season-standings', seasonId],
-    queryFn: () => getSeasonStandings(seasonId!),
+    queryFn: ({ signal }) => getSeasonStandings(seasonId!, signal),
     enabled: !!seasonId,
   })
 }
@@ -49,8 +49,8 @@ export interface RatingSourceRow {
 export function useRatingSources() {
   return useQuery<RatingSourceRow[]>({
     queryKey: ['ratings-sources'],
-    queryFn: async () => {
-      const data = await request<{ sources: RatingSourceRow[] }>('GET', '/ratings/sources')
+    queryFn: async ({ signal }) => {
+      const data = await request<{ sources: RatingSourceRow[] }>('GET', '/ratings/sources', undefined, signal)
       return data?.sources ?? []
     },
   })

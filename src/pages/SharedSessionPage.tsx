@@ -49,7 +49,7 @@ export default function SharedSessionPage() {
 
   const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || setSkippedPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
 
-  const realtimeConnected = useSessionRealtime(sessionId, !isSaving)
+  const { connected: realtimeConnected, reconnecting: realtimeReconnecting } = useSessionRealtime(sessionId, !isSaving)
 
   const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId, {
     refetchInterval: realtimeConnected ? false : isSaving ? false : 5_000,
@@ -82,6 +82,9 @@ export default function SharedSessionPage() {
           <img src="/logo-192.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
           <h1 className="text-sm font-bold text-fg tracking-tight">MAJADU</h1>
         </Link>
+        {realtimeReconnecting && (
+          <span className="ml-auto text-xs text-amber-400 animate-pulse">⟳ Reconnecting…</span>
+        )}
       </div>
     </header>
   )

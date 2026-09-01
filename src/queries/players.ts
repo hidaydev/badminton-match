@@ -5,14 +5,14 @@ import type { PlayerSummary, PlayerStats } from './types'
 export function useListPlayers() {
   return useQuery<PlayerSummary[]>({
     queryKey: ['players'],
-    queryFn: listPlayers,
+    queryFn: ({ signal }) => listPlayers(signal),
   })
 }
 
 export function useGetPlayerStats(name: string | undefined) {
   return useQuery<PlayerStats>({
     queryKey: ['player', name],
-    queryFn: () => getPlayerStats(decodeURIComponent(name!)),
+    queryFn: ({ signal }) => getPlayerStats(decodeURIComponent(name!), signal),
     enabled: !!name,
   })
 }

@@ -3,6 +3,7 @@ import { AdminProvider } from './context/AdminContext'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import UpdateBanner from './components/UpdateBanner'
+import ErrorBoundary from './components/ErrorBoundary'
 import HomeLayout from './components/HomeLayout'
 import SessionLayout from './components/SessionLayout'
 import HomePage from './pages/HomePage'
@@ -77,6 +78,7 @@ export default function App() {
   }), [sharedSnapshot, exitSharedView])
 
   return (
+    <ErrorBoundary routeName="app">
     <SharedViewContext.Provider value={sharedViewValue}>
       {needRefresh && (
         <UpdateBanner
@@ -89,24 +91,24 @@ export default function App() {
           <Route element={<HomeLayout />}>
             <Route index element={<HomePage />} />
             <Route path="sessions" element={<SessionListPage />} />
-            <Route path="ratings" element={<Suspense fallback={<Loading />}><RatingsPage /></Suspense>} />
-            <Route path="ratings/:playerId" element={<Suspense fallback={<Loading />}><RatingPlayerPage /></Suspense>} />
+            <Route path="ratings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="ratings"><RatingsPage /></ErrorBoundary></Suspense>} />
+            <Route path="ratings/:playerId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rating-player"><RatingPlayerPage /></ErrorBoundary></Suspense>} />
             <Route path="tournament" element={<Navigate to="/tournaments" replace />} />
-            <Route path="tournaments" element={<Suspense fallback={<Loading />}><TournamentListPage /></Suspense>} />
-            <Route path="tournaments/new" element={<Suspense fallback={<Loading />}><NewTournamentPage /></Suspense>} />
-            <Route path="tournaments/new/:format" element={<Suspense fallback={<Loading />}><NewTournamentWizard /></Suspense>} />
-            <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><TournamentPage /></Suspense>} />
-            <Route path="instagram-post" element={<Suspense fallback={<Loading />}><InstagramPostPage /></Suspense>} />
+            <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-list"><TournamentListPage /></ErrorBoundary></Suspense>} />
+            <Route path="tournaments/new" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-new"><NewTournamentPage /></ErrorBoundary></Suspense>} />
+            <Route path="tournaments/new/:format" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-wizard"><NewTournamentWizard /></ErrorBoundary></Suspense>} />
+            <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament"><TournamentPage /></ErrorBoundary></Suspense>} />
+            <Route path="instagram-post" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="instagram-post"><InstagramPostPage /></ErrorBoundary></Suspense>} />
             <Route path="admin">
               <Route index element={<Navigate to="/admin/sessions" replace />} />
-              <Route path="sessions" element={<Suspense fallback={<Loading />}><AdminSessionsPage /></Suspense>} />
-              <Route path="players" element={<Suspense fallback={<Loading />}><AdminPlayersPage /></Suspense>} />
-              <Route path="ratings" element={<Suspense fallback={<Loading />}><AdminRatingsPage /></Suspense>} />
-              <Route path="tournaments" element={<Suspense fallback={<Loading />}><AdminTournamentsPage /></Suspense>} />
-              <Route path="seasons" element={<Suspense fallback={<Loading />}><AdminSeasonsPage /></Suspense>} />
+              <Route path="sessions" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-sessions"><AdminSessionsPage /></ErrorBoundary></Suspense>} />
+              <Route path="players" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-players"><AdminPlayersPage /></ErrorBoundary></Suspense>} />
+              <Route path="ratings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-ratings"><AdminRatingsPage /></ErrorBoundary></Suspense>} />
+              <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-tournaments"><AdminTournamentsPage /></ErrorBoundary></Suspense>} />
+              <Route path="seasons" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-seasons"><AdminSeasonsPage /></ErrorBoundary></Suspense>} />
             </Route>
           </Route>
-          <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ScoreboardPage /></Suspense>} />
+          <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="scoreboard"><ScoreboardPage /></ErrorBoundary></Suspense>} />
           <Route element={<SessionLayout />}>
             <Route path="session/new" element={<SetupPage />} />
             <Route path="session/players" element={<RequireSession><PlayersPage /></RequireSession>} />
@@ -114,9 +116,10 @@ export default function App() {
             <Route path="session/generate" element={<RequirePlayers><GeneratePage /></RequirePlayers>} />
             <Route path="view" element={<SharedViewPage />} />
           </Route>
-          <Route path="s/:sessionId" element={<Suspense fallback={<Loading />}><SharedSessionPage /></Suspense>} />
+          <Route path="s/:sessionId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="shared-session"><SharedSessionPage /></ErrorBoundary></Suspense>} />
         </Routes>
       </BrowserRouter></AdminProvider>
     </SharedViewContext.Provider>
+    </ErrorBoundary>
   )
 }

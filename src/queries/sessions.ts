@@ -37,7 +37,7 @@ async function invalidateAllQueries(queryClient: ReturnType<typeof useQueryClien
 export function useListSessions(options?: { enabled?: boolean }) {
   return useQuery<SessionMeta[]>({
     queryKey: ['sessions'],
-    queryFn: listSessions,
+    queryFn: ({ signal }) => listSessions({ signal }),
     enabled: options?.enabled ?? true,
   })
 }
@@ -48,7 +48,7 @@ export function useGetSession(
 ) {
   return useQuery<CloudSnapshot | null>({
     queryKey: ['session', sessionId],
-    queryFn: () => getSession(sessionId!),
+    queryFn: ({ signal }) => getSession(sessionId!, signal),
     enabled: !!sessionId,
     refetchInterval: options?.refetchInterval as unknown as number | false | undefined,
     refetchOnWindowFocus: options?.refetchOnWindowFocus,
@@ -58,12 +58,16 @@ export function useGetSession(
 export function useSessionRealtime(sessionId: string | undefined, enabled = true) {
   const queryClient = useQueryClient()
   const [connected, setConnected] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
   useEffect(() => {
     if (!sessionId || !enabled) return
     // __API_BASE_URL__ is injected at build time (vite.config.ts)
     const url = `${__API_BASE_URL__}/sessions/${encodeURIComponent(sessionId)}/watch`
     const es = new EventSource(url)
-    es.onopen = () => setConnected(true)
+    es.onopen = () => {
+      setConnected(true)
+      setReconnecting(false)
+    }
     es.onmessage = (e) => {
       try {
         const snap = JSON.parse(e.data) as CloudSnapshot
@@ -74,13 +78,17 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
     }
     es.onerror = () => {
       setConnected(false)
+      // Browser akan auto-reconnect EventSource — tandai sebagai reconnecting
+      // agar UI bisa menampilkan indicator sementara, bukan "offline" permanen.
+      setReconnecting(true)
     }
     return () => {
       es.close()
       setConnected(false)
+      setReconnecting(false)
     }
   }, [sessionId, enabled, queryClient])
-  return connected
+  return { connected, reconnecting }
 }
 
 export function usePublishSession(sessionId: string | undefined) {
