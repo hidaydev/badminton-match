@@ -39,6 +39,6 @@ if [ "$MODE" = "setup" ]; then
   echo "==> setup selesai. Env file harus ada di VPS:"
   echo "    /srv/qouver/majadu/env/majadu-${INSTANCE}.env (chmod 600)"
 else
-  echo "==> [update] restart (Pull=always mengambil image terbaru)"
+  echo "==> [update] restart unit (AutoUpdate=registry menarik image terbaru saat start)"
   ssh "$VPS" "systemctl --user restart $UNIT; sleep 2; systemctl --user --no-pager status $UNIT | head -8"
 fi
