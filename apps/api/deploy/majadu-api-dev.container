@@ -17,8 +17,8 @@ Image=ghcr.io/nferdazel/majadu-api:dev
 ContainerName=majadu-api-dev
 Network=qouver
 PublishPort=127.0.0.1:8081:8081
-EnvironmentFile=/srv/qouver/majadu/env/majadu-dev.env
-Volume=/srv/qouver/majadu/logs/dev:/logs:Z
+EnvironmentFile=/srv/qouver/apps/majadu/env/majadu-dev.env
+Volume=/srv/qouver/apps/majadu/logs/dev:/logs:Z
 # AutoUpdate=registry — aktifkan update via: podman auto-update
 AutoUpdate=registry
 UserNS=keep-id:uid=10001

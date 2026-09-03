@@ -1,6 +1,6 @@
 # Migration 000012 — Granular Live (Clean Break)
 
-> **Lokasi VPS:** `/srv/qouver/majadu/migrations/000012_granular_live.sql`
+> **Lokasi VPS:** `/srv/qouver/apps/majadu/migrations/000012_granular_live.sql`
 > **Repo:** file ini adalah mirror dokumentasi — repo public tidak menyimpan SQL lengkap,
 > tapi payload 000012 aman (tidak ada secret) sehingga didokumentasikan di sini.
 > Apply di VPS via `psql` dengan role `majadu_app` (GRANTS sudah ada dari 000003).
@@ -70,9 +70,9 @@ CREATE INDEX IF NOT EXISTS idx_outbox_events_session_id ON outbox_events(session
 
 ```bash
 ssh user@198.51.100.10
-psql "postgres://majadu_app:***@127.0.0.1:5432/qouver?search_path=bm_dev" -f /srv/qouver/majadu/migrations/000012_granular_live.sql
+psql "postgres://majadu_app:***@127.0.0.1:5432/qouver?search_path=bm_dev" -f /srv/qouver/apps/majadu/migrations/000012_granular_live.sql
 # ulangi untuk bm (prod) saat ready
-psql "postgres://majadu_app:***@127.0.0.1:5432/qouver?search_path=bm" -f /srv/qouver/majadu/migrations/000012_granular_live.sql
+psql "postgres://majadu_app:***@127.0.0.1:5432/qouver?search_path=bm" -f /srv/qouver/apps/majadu/migrations/000012_granular_live.sql
 ```
 
 ## Verifikasi

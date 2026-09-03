@@ -4,7 +4,7 @@
 # Prasyarat sekali (belum otomatis di script ini):
 #   - DNS api.qouver.com → A → <vps-ip>
 #   - Caddy site (deploy/Caddyfile.api.qouver.com) sudah di-apply (butuh sudo)
-#   - Env file ada di VPS: /srv/qouver/majadu/env/majadu-{dev,prod}.env (chmod 600)
+#   - Env file ada di VPS: /srv/qouver/apps/majadu/env/majadu-{dev,prod}.env (chmod 600)
 #
 # Usage:
 #   ./scripts/deploy.sh setup dev   # sekali: install quadlet unit + enable service
@@ -37,7 +37,7 @@ if [ "$MODE" = "setup" ]; then
   scp -q "$DEPLOY_DIR/$UNIT.container" "$VPS:~/.config/containers/systemd/"
   ssh "$VPS" "loginctl enable-linger \$(whoami) 2>/dev/null || true; systemctl --user daemon-reload; systemctl --user enable --now $UNIT"
   echo "==> setup selesai. Env file harus ada di VPS:"
-  echo "    /srv/qouver/majadu/env/majadu-${INSTANCE}.env (chmod 600)"
+  echo "    /srv/qouver/apps/majadu/env/majadu-${INSTANCE}.env (chmod 600)"
 else
   echo "==> [update] restart unit (AutoUpdate=registry menarik image terbaru saat start)"
   ssh "$VPS" "systemctl --user restart $UNIT; sleep 2; systemctl --user --no-pager status $UNIT | head -8"

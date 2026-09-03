@@ -12,8 +12,8 @@ Image=ghcr.io/nferdazel/majadu-api:main
 ContainerName=majadu-api
 Network=qouver
 PublishPort=127.0.0.1:8080:8080
-EnvironmentFile=/srv/qouver/majadu/env/majadu-prod.env
-Volume=/srv/qouver/majadu/logs/main:/logs:Z
+EnvironmentFile=/srv/qouver/apps/majadu/env/majadu-prod.env
+Volume=/srv/qouver/apps/majadu/logs/main:/logs:Z
 AutoUpdate=registry
 UserNS=keep-id:uid=10001
 [Service]

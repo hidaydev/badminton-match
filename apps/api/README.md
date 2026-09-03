@@ -27,7 +27,7 @@ api/openapi.yaml         # kontrak REST resmi
 ```
 
 > **SQL migrations TIDAK di repo GitHub** (sengaja — kode repo public).
-> Tersimpan di VPS: `/srv/qouver/majadu/migrations/` (000001–000011).
+> Tersimpan di VPS: `/srv/qouver/apps/majadu/migrations/` (000001–000011).
 
 ## Endpoint (ringkas)
 
@@ -90,7 +90,7 @@ Akses DB memakai role khusus **`majadu_app`** (bukan superuser):
 dalam satu transaksi (port `publish_session`/`delete_session` era SQL) — butuh
 privilege tabel, bukan lagi EXECUTE fungsi. GRANT disediakan di file migration
 `000003` (aplikasikan sekali bersama drop fungsi write-path lama; anon tetap
-tanpa akses apa pun). Migration ada di VPS: `/srv/qouver/majadu/migrations/`.
+tanpa akses apa pun). Migration ada di VPS: `/srv/qouver/apps/majadu/migrations/`.
 
 **Read-path session/player juga Go** (rebuild snapshot, list sessions/players,
 player stats — diverifikasi identik via `TestIntegrationReadPathParity`):
@@ -133,7 +133,7 @@ dev       → https://api.qouver.com/majadu-dev  → 127.0.0.1:8081 (dev, bm_dev
 **Langkah (sekali):**
 1. DNS: `api.qouver.com` → A → VPS IP (Cloudflare)
 2. Apply Caddy snippet → `systemctl reload caddy`
-3. VPS: buat `~/.config/containers/systemd/` + env file (`/srv/qouver/majadu/env/majadu-{dev,prod}.env`, chmod 600 — template di `deploy/env/*.env.example`)
+3. VPS: buat `~/.config/containers/systemd/` + env file (`/srv/qouver/apps/majadu/env/majadu-{dev,prod}.env`, chmod 600 — template di `deploy/env/*.env.example`)
 4. `./scripts/deploy.sh setup dev`
 
 **Update:**
