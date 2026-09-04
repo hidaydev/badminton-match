@@ -172,7 +172,7 @@ function TeamWizard() {
                 <select
                   value={p.cls}
                   onChange={(e) => updatePlayer(i, { cls: e.target.value as TeamClass })}
-                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none shrink-0 w-14"
+                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none shrink-0 w-14 sm:w-16 cursor-pointer"
                 >
                   {TEAM_CLASSES.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -181,7 +181,7 @@ function TeamWizard() {
                 <select
                   value={p.team}
                   onChange={(e) => updatePlayer(i, { team: e.target.value as TeamId })}
-                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none shrink-0 w-16"
+                  className="bg-elevated border border-border rounded-md px-2 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none shrink-0 w-24 sm:w-28 md:w-32 truncate cursor-pointer"
                 >
                   {TEAM_IDS.map((t, idx) => (
                     <option key={t} value={t}>{teamNames[idx] || `T${idx + 1}`}</option>
