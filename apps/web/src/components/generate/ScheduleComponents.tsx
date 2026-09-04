@@ -26,7 +26,7 @@ function PlayerChip({ player, backToBackCount }: { player: Player; backToBackCou
   return (
     <span className="inline-flex items-center gap-1 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white min-w-0 overflow-hidden">
       <span className="overflow-hidden">{player.name}</span>
-      {backToBackCount ? <span className="text-[10px] font-bold text-amber-400 shrink-0">*{backToBackCount}</span> : null}
+      {backToBackCount ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackCount}</sup> : null}
       <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-pink-400'}`}>
         {player.gender}
       </span>

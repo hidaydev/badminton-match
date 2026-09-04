@@ -179,7 +179,7 @@ export default function PlayerChipRenderer({
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
       {playerName}{showSkippedIdle ? ' ⊘' : ''}
-      {backToBackCount > 0 && <span className="text-[10px] font-bold text-amber-400 shrink-0">*{backToBackCount}</span>}
+      {backToBackCount > 0 && <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackCount}</sup>}
     </span>
   )
 }
