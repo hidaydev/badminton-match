@@ -85,7 +85,7 @@ Publish and share via URL. Full operations console:
 | **Local State** | Zustand 5 (sliced) | Minimal boilerplate, persist middleware |
 | **Server State** | TanStack React Query 5 | Optimistic updates, smart caching |
 | **Routing** | React Router v7 | File-based route guards |
-| **Backend** | Go (`majadu-api`, sister repo) | REST + Postgres, optimistic concurrency |
+| **Backend** | Go (`apps/api` — monorepo) | REST + Postgres, optimistic concurrency |
 | **PWA** | vite-plugin-pwa | Installable, offline-capable |
 | **DnD** | @dnd-kit/core | Accessible drag-and-drop |
 | **Testing** | node:test (regression) + Go tests | `npm run check` · `make check` (majadu-api) |
@@ -104,8 +104,8 @@ cp .env.local.example .env.local
 # .env.local.example untuk override VITE_API_URL (mis. local dev).
 
 # 3. Backend
-# Frontend memanggil majadu-api (Go backend) — setup & jalankan di repo
-# majadu-api (migrations SQL + `make run`). Skema DB: bm (prod) / bm_dev (dev).
+# Frontend memanggil apps/api (Go backend) — setup & jalankan di repo monorepo
+# (apps/api, migrations SQL di VPS + `make run`). Skema DB: bm (prod).
 
 # 4. Start development
 npm run dev
@@ -155,7 +155,7 @@ src/
 └── index.css           # Tailwind v4 @theme tokens + global styles
 
 scripts/                # Build & dev tooling (canvas export, tailwind check, regression tests)
-docs/                   # Handbook + design system + spec archive
+../docs/                # Handbook + design system + spec archive (monorepo-level)
 ```
 
 Schema & migrasi DB disimpan di VPS (repo public tanpa SQL): `/srv/qouver/majadu/migrations/`.
@@ -176,7 +176,7 @@ Schema & migrasi DB disimpan di VPS (repo public tanpa SQL): `/srv/qouver/majadu
    Route guards            Injected config         Version concurrency
 ```
 
-Backend: repo `majadu-api` (Go, `net/http` + pgx). Kontrak di `majadu-api/api/openapi.yaml`.
+Backend: `apps/api` (Go, `net/http` + pgx). Kontrak di `apps/api/api/openapi.yaml`.
 
 **Dependency rules:**
 
@@ -242,17 +242,17 @@ single shared admin token; see `docs/handbook/backend-go-decision.md`.
 
 | Document | Description |
 |----------|-------------|
-| [Handbook](docs/handbook/README.md) | Start here for project context |
-| [Current Status](docs/handbook/current-status.md) | Latest state + handover doc |
-| [Architecture](docs/handbook/architecture.md) | System design + clean architecture |
-| [Data Model](docs/handbook/data-model.md) | Schema & TypeScript types |
-| [Design System](docs/design-system.md) | Colors, typography, tokens, patterns |
-| [Features & Routes](docs/handbook/features-and-routes.md) | Feature map + route structure |
-| [Roadmap](docs/handbook/roadmap.md) | Phase plan and status |
-| [Design Archive](DESIGN_ARCHIVE.md) | Keputusan desain terarsip (rating engine, 8-tier, admin, UI/UX) |
-| [Backlog](BACKLOG.md) | Inventaris backlog & status |
+| [Handbook](../docs/handbook/README.md) | Start here for project context |
+| [Current Status](../docs/handbook/current-status.md) | Latest state + handover doc |
+| [Architecture](../docs/handbook/architecture.md) | System design + clean architecture |
+| [Data Model](../docs/handbook/data-model.md) | Schema & TypeScript types |
+| [Design System](../docs/design-system.md) | Colors, typography, tokens, patterns |
+| [Features & Routes](../docs/handbook/features-and-routes.md) | Feature map + route structure |
+| [Roadmap](../docs/handbook/roadmap.md) | Phase plan and status |
+| [Design Archive](../DESIGN_ARCHIVE.md) | Keputusan desain terarsip (rating engine, 8-tier, admin, UI/UX) |
+| [Backlog](../BACKLOG.md) | Inventaris backlog & status |
 | [E2E Testing Plan](E2E_TESTING_PLAN.md) | Rencana sweep end-to-end |
-| [Backend](docs/handbook/backend-go-decision.md) | Keputusan arsitektur & fase migrasi Go |
+| [Backend](../docs/handbook/backend-go-decision.md) | Keputusan arsitektur & fase migrasi Go |
 
 ---
 

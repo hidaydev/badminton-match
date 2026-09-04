@@ -1,0 +1,13 @@
+{
+  "name": "majadu-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build",
+    "check:web": "npm --prefix apps/web run check",
+    "dev:api": "cd apps/api && go run ./cmd/server",
+    "build:api": "cd apps/api && go build -o bin/majadu-api ./cmd/server",
+    "check:api": "cd apps/api && make check"
+  }
+}

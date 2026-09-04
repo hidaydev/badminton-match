@@ -1,0 +1,18 @@
+[
+  {
+    "id": "majadu-monorepo",
+    "execute-command": "/srv/qouver/apps/majadu/scripts/deploy-vps.sh",
+    "command-working-directory": "/srv/qouver/apps/majadu",
+    "pass-arguments-to-command": [
+      { "source": "payload", "name": "repository.name" },
+      { "source": "payload", "name": "ref" }
+    ],
+    "trigger-rule": {
+      "match": {
+        "type": "payload-hmac-sha1",
+        "secret": "YOUR_WEBHOOK_HMAC_SECRET",
+        "parameter": { "source": "header", "name": "X-Hub-Signature" }
+      }
+    }
+  }
+]

@@ -1,0 +1,25 @@
+name: API Checks
+
+on:
+  push:
+    paths: ["apps/api/**", ".github/workflows/**"]
+  pull_request:
+    paths: ["apps/api/**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Vet
+        working-directory: apps/api
+        run: go vet ./...
+      - name: Test
+        working-directory: apps/api
+        run: go test ./...
+      - name: Go fmt check
+        working-directory: apps/api
+        run: test -z "$(gofmt -l .)"

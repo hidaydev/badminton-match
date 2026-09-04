@@ -58,3 +58,6 @@ TASK_PLAN_*.md
 AUDIT_REACTIVITY_OPTIMIZATION.md
 AUDIT_FULLSTACK_9_9.md
 AUDIT_FULLSTACK_9_9_ROUND2.md
+
+# Local DB dumps (jangan di-commit)
+dump/

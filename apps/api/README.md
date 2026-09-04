@@ -1,8 +1,8 @@
 # majadu-api
 
 Backend Go untuk Majadu — menggantikan PostgREST RPC (Supabase) sebagai satu-satunya
-backend. Lihat keputusan arsitektur & keputusan desain di repo `badminton-match`:
-`docs/handbook/backend-go-decision.md` · `DESIGN_ARCHIVE.md`.
+backend. Lihat keputusan arsitektur & keputusan desain di monorepo (root):
+`docs/handbook/backend-go-decision.md`.
 
 ## Stack
 
