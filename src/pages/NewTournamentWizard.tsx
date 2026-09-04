@@ -43,8 +43,8 @@ type TeamPlayer = { name: string; cls: TeamClass; team: TeamId }
 const initialPlayers = (): TeamPlayer[] =>
   Array.from({ length: 36 }, (_, i) => ({
     name: '',
-    cls: TEAM_CLASSES[Math.floor(i / TEAM_COUNT)],
-    team: TEAM_IDS[i % TEAM_COUNT],
+    team: TEAM_IDS[Math.floor(i / TEAM_COUNT)],
+    cls: TEAM_CLASSES[i % TEAM_COUNT],
   }))
 
 function TeamWizard() {
@@ -166,7 +166,7 @@ function TeamWizard() {
                 <input
                   value={p.name}
                   onChange={(e) => updatePlayer(i, { name: e.target.value })}
-                  placeholder={`Participant ${i + 1}`}
+                  placeholder={`${teamNames[TEAM_IDS.indexOf(p.team)] || `Tim ${TEAM_IDS.indexOf(p.team) + 1}`} (${p.cls})`}
                   className="flex-1 bg-elevated border border-border rounded-md px-2 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none min-w-0"
                 />
                 <select
