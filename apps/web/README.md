@@ -88,7 +88,7 @@ Publish and share via URL. Full operations console:
 | **Backend** | Go (`apps/api` — monorepo) | REST + Postgres, optimistic concurrency |
 | **PWA** | vite-plugin-pwa | Installable, offline-capable |
 | **DnD** | @dnd-kit/core | Accessible drag-and-drop |
-| **Testing** | node:test (regression) + Go tests | `npm run check` · `make check` (majadu-api) |
+| **Testing** | node:test (regression) + Go tests | `npm run check` · `make check-api` (apps/api) |
 
 ---
 
@@ -98,14 +98,13 @@ Publish and share via URL. Full operations console:
 # 1. Install dependencies
 npm ci
 
-# 2. Configure environment
+# 2. Configure environment (opsional — override API base URL)
 cp .env.local.example .env.local
-# Base URL API di-inject dari branch saat build (vite.config.ts) — lihat
-# .env.local.example untuk override VITE_API_URL (mis. local dev).
+# Default: prod https://api.qouver.com/majadu (lihat vite.config.ts).
+# Override VITE_API_URL untuk local dev, mis. http://localhost:8080.
 
-# 3. Backend
-# Frontend memanggil apps/api (Go backend) — setup & jalankan di repo monorepo
-# (apps/api, migrations SQL di VPS + `make run`). Skema DB: bm (prod).
+# 3. Backend (opsional untuk full-stack local)
+# Jalankan apps/api dari root monorepo: make dev-api (butuh DATABASE_URL, schema bm).
 
 # 4. Start development
 npm run dev
@@ -158,7 +157,9 @@ scripts/                # Build & dev tooling (canvas export, tailwind check, re
 ../docs/                # Handbook + design system + spec archive (monorepo-level)
 ```
 
-Schema & migrasi DB disimpan di VPS (repo public tanpa SQL): `/srv/qouver/majadu/migrations/`.
+Migrasi SQL `000001`–`000011` disimpan di VPS (repo public tanpa SQL):
+`/srv/qouver/apps/majadu/migrations/`. Migrasi terbaru (`000012`+ catatan,
+`000013`/`000014` SQL) di [`docs/backend/`](../../docs/backend/).
 
 ---
 
@@ -213,7 +214,7 @@ Semantic design tokens defined in Tailwind v4 `@theme`:
 | `--color-success` | `#43a57d` | Positive states |
 | `--color-error` | `#d65a5a` | Errors, destructive |
 
-Full reference: [docs/design-system.md](docs/design-system.md)
+Full reference: [docs/design-system.md](../../docs/design-system.md)
 
 ---
 
@@ -242,16 +243,14 @@ single shared admin token; see `docs/handbook/backend-go-decision.md`.
 
 | Document | Description |
 |----------|-------------|
-| [Handbook](../docs/handbook/README.md) | Start here for project context |
-| [Current Status](../docs/handbook/current-status.md) | Latest state + handover doc |
-| [Architecture](../docs/handbook/architecture.md) | System design + clean architecture |
-| [Data Model](../docs/handbook/data-model.md) | Schema & TypeScript types |
-| [Design System](../docs/design-system.md) | Colors, typography, tokens, patterns |
-| [Features & Routes](../docs/handbook/features-and-routes.md) | Feature map + route structure |
-| [Roadmap](../docs/handbook/roadmap.md) | Phase plan and status |
-| [Design Archive](../DESIGN_ARCHIVE.md) | Keputusan desain terarsip (rating engine, 8-tier, admin, UI/UX) |
-| [Backlog](../BACKLOG.md) | Inventaris backlog & status |
-| [Backend](../docs/handbook/backend-go-decision.md) | Keputusan arsitektur & fase migrasi Go |
+| [Handbook](../../docs/handbook/README.md) | Start here for project context |
+| [Current Status](../../docs/handbook/current-status.md) | Latest state + handover doc |
+| [Architecture](../../docs/handbook/architecture.md) | System design + clean architecture |
+| [Data Model](../../docs/handbook/data-model.md) | Schema & TypeScript types |
+| [Design System](../../docs/design-system.md) | Colors, typography, tokens, patterns |
+| [Features & Routes](../../docs/handbook/features-and-routes.md) | Feature map + route structure |
+| [Roadmap](../../docs/handbook/roadmap.md) | Phase plan and status |
+| [Backend](../../docs/handbook/backend-go-decision.md) | Keputusan arsitektur & fase migrasi Go |
 
 ---
 
@@ -272,12 +271,13 @@ Majadu is installable as a Progressive Web App:
 # Type checking + linting + tailwind validation + regression tests
 npm run check
 
-# Backend verification lives in the majadu-api repo (make check + env-guarded
-# integration tests) — see majadu-api/README.md.
+# Backend checks live in apps/api — from repo root: make check-api
+# (go vet + fmt + unit test). Env-guarded integration tests butuh SSH tunnel
+# ke Postgres VPS (lihat apps/api/README.md).
 ```
 
 ---
 
 ## 📄 License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](../../LICENSE).

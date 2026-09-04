@@ -1,9 +1,14 @@
 # Grand Plan Revamp — Clean Break dari Snapshot Monolith
 
-> **Status:** DRAFT — 2026-08-24  
+> **Status: IMPLEMENTED** (2026-08) — lihat kontrak aktual di [`apps/api/README.md`](../../apps/api/README.md).  
+> Dokumen ini rencana awal (DRAFT 2026-08-24); implementasi menghasilkan granular
+> live ops sebagai kontrak utama, sementara `PUT /sessions/{id}` (snapshot)
+> dipertahankan sebagai **legacy/deprecated** untuk fase setup/generate.
 > **Author:** Muse Spark (assessment FE+BE+DB VPS)  
-> **Keputusan:** Snapshot (`PUT /sessions/{id}` full `CloudSnapshot`) dihilangkan total — clean break. Semua write pindah ke granular REST + row-level OCC. Snapshot tetap sebagai *read projection* saja (GET), bukan kontrak write.
-> **Prinsip:** Ideal + best practice, tanpa kompromi solo-dev. Mengejar correctness, concurrency, dan scalability untuk 60p + multi-admin live.
+> **Keputusan:** Semua write live pindah ke granular REST + row-level OCC. Snapshot
+> tetap sebagai *read projection* (GET); kontrak write live = granular.
+> **Prinsip:** Ideal + best practice, tanpa kompromi solo-dev. Mengejar correctness,
+> concurrency, dan scalability untuk 60p + multi-admin live.
 
 ---
 

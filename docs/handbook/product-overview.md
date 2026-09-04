@@ -122,7 +122,8 @@ The app can render session and tournament visuals for sharing:
 
 ## Architecture
 
-- **Frontend**: React 19, Vite, Tailwind v4, TypeScript (deployed on Vercel)
-- **Backend**: Go (`majadu-api` repo, deployed on VPS via podman)
-- **Database**: PostgreSQL on VPS (`bm_dev` schema)
+- **Frontend**: React 19, Vite, Tailwind v4, TypeScript — [`apps/web`](../../apps/web/) (deployed on Vercel)
+- **Backend**: Go — [`apps/api`](../../apps/api/) (deployed on VPS via webhook → podman build lokal)
+- **Database**: PostgreSQL on VPS (schema `bm` — prod; instance dev `bm_dev` di-sunset)
 - **Rating engine**: Glicko-1-lite with 8-tier ClassBands
+- Monorepo: `badminton-match` (lihat [`README.md`](../../README.md))
