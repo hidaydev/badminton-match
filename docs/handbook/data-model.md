@@ -206,7 +206,8 @@ Fields:
 ## Backend persistence model (PostgreSQL on VPS)
 
 > Backend: Go (`majadu-api` repo) — langsung akses Postgres, tanpa PostgREST/RPC.
-> Migrasi: 000001–000011 (disimpan di VPS: `/srv/qouver/majadu/migrations/`).
+> Migrasi: `000001`–`000011` disimpan di VPS (`/srv/qouver/apps/majadu/migrations/`),
+> `000012`+ di [`docs/backend/`](../backend/).
 
 Schema: `bm` (prod) / `bm_dev` (dev)
 

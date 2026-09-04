@@ -1,7 +1,8 @@
-# majadu-api
+# apps/api — Majadu Backend (Go)
 
-Backend Go untuk Majadu — menggantikan PostgREST RPC (Supabase) sebagai satu-satunya
-backend. Lihat keputusan arsitektur & keputusan desain di monorepo (root):
+Backend Go untuk Majadu — bagian dari monorepo `badminton-match` (lihat
+[`README.md`](../../README.md)). Menggantikan PostgREST RPC (Supabase) sebagai
+satu-satunya backend; keputusan arsitektur di
 `docs/handbook/backend-go-decision.md`.
 
 ## Stack
@@ -26,8 +27,10 @@ internal/build/          # versi binary (ldflags)
 api/openapi.yaml         # kontrak REST resmi
 ```
 
-> **SQL migrations TIDAK di repo GitHub** (sengaja — kode repo public).
-> Tersimpan di VPS: `/srv/qouver/apps/majadu/migrations/` (000001–000011).
+> **SQL migrations** — `000001`–`000011` TIDAK di repo GitHub (sengaja — kode repo
+> public). Tersimpan di VPS: `/srv/qouver/apps/majadu/migrations/`.
+> Migrasi terbaru (`000012`+ catatan, `000013`/`000014` SQL) didokumentasikan di
+> [`docs/backend/`](../../docs/backend/).
 
 ## Endpoint (ringkas)
 
@@ -54,12 +57,22 @@ Go backend melihat path bersih tanpa prefix).
 | `POST` | `/ratings/sources/{id}/finalize` | **admin** — gate ingest tournament |
 | `GET` | `/ratings/leaderboard` · `/players/{id}` · `/sources` · `/seasons` · `/seasons/{id}/standings` | publik — read path 8-tier |
 
+**Live ops granular** (grand-revamp, kontrak utama untuk mutasi session):
+
+| Method | Path | Fungsi |
+|---|---|---|
+| `GET` / `PATCH` | `/sessions/{id}/games/{gameKey}` | read / ubah skor 1 game (row-level OCC + `If-Match` per game) |
+| `PATCH` | `/sessions/{id}/games/{gameKey}/skip` | skip per game (skor dipertahankan; pemain tidak dapat rating) |
+| `PATCH` | `/sessions/{id}/absent` | tandai pemain absent |
+| `POST` | `/sessions/{id}/swap` | swap pemain/tim/game slot |
+| `GET` | `/sessions/{id}/events` | replay event (outbox/SSE) |
+
 Semua endpoint **admin** memakai `Authorization: Bearer MAJADU_ADMIN_TOKEN`
 (middleware `AdminGuard`). Rating read path publik.
 
-> Catatan: endpoint granular mutation session (games/absent/swaps/rename) **dihapus**
-> 2026-08-15 — app mengirim full snapshot via `PUT /sessions/{id}` (bridge
-> contract); logika mutasi dihitung client-side dan divalidasi server.
+> `PUT /sessions/{id}` (full snapshot) adalah kontrak **legacy/deprecated** untuk
+> live ops (`X-Snapshot-Deprecated: true`) — tetap dipakai fase setup/generate.
+> Logika mutasi live memakai granular di atas; server memvalidasi row-level.
 
 Concurrency: optimistic via header `If-Match: "v{n}"` / response `ETag`;
 advisory locks (`pg_advisory_xact_lock`) + `SELECT ... FOR UPDATE NOWAIT`.
@@ -87,11 +100,8 @@ MAJADU_TEST_DATABASE_URL="postgres://majadu_app:...@localhost:15432/bm_test" go 
 Akses DB memakai role khusus **`majadu_app`** (bukan superuser):
 - kredensial disimpan di VPS saja (file env mode 600, TIDAK pernah di repo ini)
 
-**Write-path session (publish/delete/unlock) dijalankan Go langsung ke tabel**
-dalam satu transaksi (port `publish_session`/`delete_session` era SQL) — butuh
-privilege tabel, bukan lagi EXECUTE fungsi. GRANT disediakan di file migration
-`000003` (aplikasikan sekali bersama drop fungsi write-path lama; anon tetap
-tanpa akses apa pun). Migration ada di VPS: `/srv/qouver/apps/majadu/migrations/`.
+**Write-path session** dijalankan Go langsung ke tabel dalam satu transaksi
+(row-level OCC, granular) — butuh privilege tabel; GRANT di migration `000003`.
 
 **Read-path session/player juga Go** (rebuild snapshot, list sessions/players,
 player stats — diverifikasi identik via `TestIntegrationReadPathParity`):

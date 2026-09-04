@@ -4,28 +4,17 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // ── API base URL per deployment ───────────────────────────────────────────
-// Frontend memanggil majadu-api (Go backend) via REST:
-//   - prod (branch main) → https://api.qouver.com/majadu        (skema bm)
-//   - dev  (branch dev)  → https://api.qouver.com/majadu-dev    (skema bm_dev)
-//
-// VERCEL_GIT_COMMIT_REF di-inject otomatis oleh Vercel saat build (nama
-// branch) — TANPA perlu akses dashboard Vercel. Mapping identik di semua
-// branch, jadi merge tidak pernah konflik; URL ditentukan saat build.
+// Frontend memanggil apps/api (Go backend) via REST. Instance dev sudah
+// di-sunset (2026-09-04), jadi prod (https://api.qouver.com/majadu) adalah
+// satu-satunya target — untuk semua deployment (main maupun preview).
 //
 // Override eksplisit via env VITE_API_URL (mis. local dev → http://localhost:8080).
-const BRANCH_API_URLS: Record<string, string> = {
-  main: 'https://api.qouver.com/majadu',
-  dev: 'https://api.qouver.com/majadu-dev',
-}
-
-const DEV_API_URL = 'https://api.qouver.com/majadu-dev'
+const PROD_API_URL = 'https://api.qouver.com/majadu'
 
 function resolveApiBaseUrl(env: Record<string, string>): string {
   const explicit = env.VITE_API_URL
   if (explicit) return explicit
-  const branch = process.env.VERCEL_GIT_COMMIT_REF ?? ''
-  // Fail-closed: branch tak dikenal (mis. PR preview) JANGAN nembak prod.
-  return BRANCH_API_URLS[branch] ?? DEV_API_URL
+  return PROD_API_URL
 }
 
 export default defineConfig(({ mode }) => {

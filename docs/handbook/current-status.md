@@ -1,105 +1,79 @@
 # Current Status
 
-Last updated: 2026-08-30 (skip behavior, ticker cleanup, rebaseline removal, absent_policy fix, recent matches format)
+Last updated: 2026-09-05 (monorepo consolidation, dev sunset, webhook deploy, public repo)
 
-This is the fastest handover file. Start here, lalu baca dokumen terkait di bawah.
+File handover tercepat. Mulai dari sini, lalu baca dokumen terkait di bawah.
 
 ## REPO & BRANCH
 
 ```
-badminton-match (React 19 PWA) ──REST──▶ majadu-api (Go 1.26, net/http+pgx) ──▶ Postgres VPS
-  dev  (aktif) · DEPLOYED Vercel        dev  (aktif) · DEPLOYED podman   DB bm_dev (data live)
-  main = dev (synced)                   main = dev (synced)                DB bm (prod, data live)
+badminton-match (monorepo)
+├── apps/web (React 19 PWA) ──REST──▶ apps/api (Go 1.26, net/http+pgx) ──▶ Postgres VPS
+└── main (satu-satunya branch aktif)
 ```
 
-- Frontend `main` → Vercel (auto-deploy dari push)
-- Backend `main` → GitHub Actions → SSH ke VPS → podman pull + restart
-- Auto-deploy: push ke main/dev = deploy otomatis
-- API dev: `https://api.qouver.com/majadu-dev` (port 8081)
-- API prod: `https://api.qouver.com/majadu` (port 8080)
+- **Monorepo**: FE (`apps/web`) + BE (`apps/api`) dalam satu repo `hidaydev/badminton-match` (public).
+- **`main`** — satu-satunya branch aktif (production). Branch `dev` & instance dev di-sunset
+  (2026-09-04): `bm_dev` di-drop di VPS, `/majadu-dev` tidak lagi di-deploy.
+- **Web**: Vercel — Root Directory `apps/web`, auto-deploy dari push `main`.
+- **API**: GitHub webhook → build lokal di VPS (`podman build` image `localhost/majadu-api:local`)
+  → restart quadlet `majadu-api`. Bukan GHCR.
+- API prod: `https://api.qouver.com/majadu` (port 8080, schema `bm`)
 
-## ✅ Yang SELESAI (2026-08-22)
+## ✅ Baru selesai (2026-08-22 → 2026-09-05)
 
-### 1. PROD MIGRATION (Supabase → VPS)
+### Monorepo & deploy (2026-09-04/05)
 
-| Step | Status |
+| Item | Detail |
 |------|--------|
-| Clean bm_dev | ✅ |
-| Apply migrated.sql (125 players, 27 sessions) | ✅ |
-| 93 tier overrides | ✅ |
-| Cleanup Free players (player_id = NULL) | ✅ |
-| Set gender + registered_at | ✅ |
-| Tournament import (1 classic, 16 pairs, 32 matches) | ✅ |
-| Rating config (22 rows dari bm) | ✅ |
-| Rating ingest (18 sessions, 384 events, 103 players) | ✅ |
-| Migrate bm_dev → bm (schema + data 1:1) | ✅ |
+| Monorepo consolidation | FE pindah ke `apps/web`; history BE di-import ke `apps/api`; root dirapikan (Makefile, package.json, deploy/, docs/, CI test-only) |
+| Sunset dev | `bm_dev` dropped di VPS, instance `majadu-api-dev` berhenti, `dev` branch tidak dipakai |
+| Webhook deploy | Gantikan GHCR: push `main` → webhook (HMAC) → `deploy-vps.sh` → build lokal + restart |
+| Vercel | Root Directory `apps/web` + Ignored Build Step (pathspec `.`, lihat §deploy) |
+| Repo public | Info infra & doc internal di-scrub dari seluruh history |
 
-### 2. CHECKLIST / ABSENT FIX
+### Back-to-back marker (`*N` di chip pemain, 2026-09-05)
 
-| Fix | Detail |
-|-----|--------|
-| Checklist persist | mutationFn double-toggle bug fixed |
-| Mark absent no void | Games tetap jalan, absent player tidak dapat rating delta |
-| Checklist guard removed | Checkbox tetap bisa dicentang untuk game dengan absent player |
-| Played count | Semua checked games dihitung (termasuk yang ada absent) |
-| Version mismatch retry | Silent retry 1x sebelum error |
+| Item | Detail |
+|------|--------|
+| Per-game run marker | Chip hanya bertanda jika game-nya bagian dari run; nilai = panjang run (mis. main 1-2 & 6-7 → `*2` di tiap slot run) |
+| Generate + published view | Konsisten di halaman generate (`ScheduleComponents`) dan published summary (`ScheduleGrid`/`PlayerChipRenderer`) |
+| Superscript | `*N` kecil terangkat (8px, amber), bukan `*` boolean |
 
-### 3. AUTO-DEPLOY
+### SEBELUMNYA (2026-08-22 → 08-30)
 
-- GitHub Actions: test → build → push ke GHCR → SSH ke VPS → podman pull + restart
-- Push ke main/dev = deploy otomatis
-- Log separation: main di `/srv/qouver/majadu/logs/main/`, dev di `/srv/qouver/majadu/logs/dev/`
-
-### 4. TEAM TOURNAMENT IMPROVEMENTS
-
-- Manual team assignment di wizard (Step 2)
-- Editable team names di standings
-- Team member display di standings
-- Court assignment per match (3 courts)
-- Champion banner di final tab
-- Final tab: nama tim di samping "FINAL"
-
-### 5. OTHER FIXES
-
-- 19 bug fixes (stale closure, race conditions, etc.)
-- Font: IBM Plex Mono → IBM Plex Sans (1 font)
-- Pagination: ratings leaderboard, recent matches, session list
-- Peak rating removed from leaderboard list
-
-### 6. SKIP / ABSENT / RATING CLEANUP (2026-08-30)
-
-| Change | Detail |
-|--------|--------|
-| Ticker auto-lock removed | Redundant — save-path auto-lock already handles it. Auto-ingest ticker kept. |
-| Skip preserves scores | Per-game skip no longer clears scores. Skipped player excluded from rating, game counts for other 3. |
-| Dead code removed | `DisplayTier`, `FloorOf`, `tierOrder` deleted from BE. |
-| AdminRatingsPage fix | Ingest/revert now dispatches by `source_kind` (session vs tournament). |
-| Rebaseline removed | Feature deleted (BE handler + route, FE button, i18n strings). |
-| Recent matches format | Changed from session title to "with P1 · vs P3, P4" (teammates + opponents). |
-| absent_policy fix | Changed from `skip_game` → `skip_player`. All 21 sessions re-ingested. |
-| NULL tier fix | `COALESCE(p.tier, '')` in players list query — prevents scan error on NULL tier. |
+1. **PROD MIGRATION (Supabase → VPS)** — bm_dev dibersihkan, migrated.sql (125 players,
+   27 sessions), tier overrides, tournament import, rating ingest — semua ✅.
+2. **Grand revamp (granular write-path)** — snapshot `PUT` deprecated untuk live ops;
+   kontrak live memakai granular (`PATCH /games/{key}`, `PATCH /absent`, swap).
+   Lihat `apps/api/README.md` §endpoint & `revamp-grand-plan.md`.
+3. **Skip / absent / rating cleanup** — ticker auto-lock dihapus, skip preserves scores,
+   `absent_policy` → `skip_player`, rebaseline dihapus, recent matches format
+   "with P1 · vs P3, P4", COALESCE NULL tier.
+4. **Fitur lain** — 8-tier unified, Glicko-1-lite, team tournament improvements,
+   pagination, auto-lock on save, 19 bug fixes, font IBM Plex Sans.
 
 ## Infrastruktur
 
-- VPS `user@198.51.100.10`
-- Containers: `majadu-api` (main:8080), `majadu-api-dev` (dev:8081), `qouver-postgres` (5432)
-- Quadlet configs: `~/.config/containers/systemd/majadu-api*.container`
-- Auto-deploy: GitHub Actions → SSH → podman pull + restart
-- Log: `/srv/qouver/majadu/logs/{main,dev}/app-YYYY-MM-DD.log`
+- VPS `user@198.51.100.10` (IP didokumentasikan sebagai placeholder)
+- Containers: `majadu-api` (prod:8080), `qouver-postgres` (5432)
+- Quadlet configs: `~/.config/containers/systemd/majadu-api.container`
+- Deploy: webhook → `deploy/deploy-vps.sh` (bukan GitHub Actions/GHCR)
+- Log: `/srv/qouver/apps/majadu/logs/main/app-YYYY-MM-DD.log`
+- Migrasi SQL: `000001`–`000011` di VPS (`/srv/qouver/apps/majadu/migrations/`),
+  `000012`+ didokumentasikan di [`docs/backend/`](../backend/)
 
 ## Database
 
-| Database | Tables | Status |
-|----------|--------|--------|
-| `bm_dev` | 24 | 133 players, 29 sessions, 479 rating events, 21 sources |
-| `bm` (prod) | 24 | 133 players, 29 sessions, 479 rating events, 21 sources |
+| Database | Status |
+|----------|--------|
+| `bm` (prod) | Live — satu-satunya instance (dev `bm_dev` di-drop 2026-09-04) |
 
 Rating config: 22 rows (season_start 2026-05-23, 8-tier ClassBands, absent_policy=skip_player)
 
 ## Cara Lanjut
 
 1. Visual pass browser (user)
-2. Branch protection testing
-3. Team tournament share/export
-4. E2E testing
-5. Ganti password `qouver`
+2. Team tournament share/export
+3. E2E testing (opsional — plan lama dihapus dari repo publik; jalankan manual)
+4. Rotasi password `qouver` & secret kalau belum

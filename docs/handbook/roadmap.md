@@ -21,7 +21,7 @@ ditutup; detail historisnya ada di git history.
 - **Pagination** — ratings leaderboard (100/page), recent matches (5/page), session list (5/page)
 - **Supabase data import** — 125 players migrated to VPS
 - **Prod migration** — bm_dev → bm (125 players, 27 sessions, 103 rated, 1 tournament)
-- **Auto-deploy** — GitHub Actions → SSH → podman pull + restart (push = deploy)
+- **Auto-deploy** — webhook → build lokal + restart di VPS (push `main` = deploy)
 - **Checklist/Absent fix** — games tetap jalan, absent player tidak dapat rating delta
 - **Version mismatch retry** — silent retry 1x sebelum error
 - **Skip preserves scores** — per-game skip excludes player from rating, game counts for others (2026-08-30)
@@ -41,7 +41,7 @@ ditutup; detail historisnya ada di git history.
 
 ## Catatan operasional
 
-- Deploy: push ke main/dev → GitHub Actions → SSH ke VPS → podman pull + restart
+- Deploy: push `main` → GitHub webhook → `deploy/deploy-vps.sh` (build lokal + restart)
 - Backup Postgres: timer harian 03:00 → `/srv/qouver/backups/postgres/`
-- Test: `go test ./...` (backend) · `npm run check` (frontend)
-- Log: `/srv/qouver/majadu/logs/{main,dev}/app-YYYY-MM-DD.log`
+- Test: `go test ./...` di `apps/api` · `npm run check` di `apps/web`
+- Log: `/srv/qouver/apps/majadu/logs/main/app-YYYY-MM-DD.log`

@@ -3,12 +3,7 @@
 # Setelah ditambah: systemctl reload caddy
 
 api.qouver.com {
-	# dev instance (bm_dev) — frontend branch ui-revamp
-	handle /majadu-dev/* {
-		uri strip_prefix /majadu-dev
-		reverse_proxy 127.0.0.1:8081
-	}
-	# prod instance (bm) — frontend branch main
+	# prod instance (bm) — frontend branch main (dev /majadu-dev di-sunset 2026-09-04)
 	handle /majadu/* {
 		uri strip_prefix /majadu
 		reverse_proxy 127.0.0.1:8080
