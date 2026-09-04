@@ -47,25 +47,31 @@ test('teamMatchPoints: 3-0=3 · 2-1=2 · 1-2=1 · 0-3=0', () => {
   assert.equal(teamMatchPoints(0, 3), 0)
 })
 
-test('generateTeamDraw: 9 match, tiap tim tepat 3×, tanpa ulangan lawan', () => {
+test('generateTeamDraw: 9 match fixed (3 sesi × Court 12, 13, 14), tiap tim tepat 3×, tanpa ulangan lawan', () => {
   const ids = ['t1', 't2', 't3', 't4', 't5', 't6']
-  for (let run = 0; run < 20; run++) {
-    const draw = generateTeamDraw(ids)
-    assert.equal(draw.length, 9)
-    const appear: Record<string, number> = {}
-    const seen = new Set<string>()
-    for (const [a, b] of draw) {
-      appear[a] = (appear[a] ?? 0) + 1
-      appear[b] = (appear[b] ?? 0) + 1
-      assert.notEqual(a, b, 'tidak boleh melawan diri sendiri')
-      const key = [a, b].sort().join('|')
-      assert.ok(!seen.has(key), 'tidak boleh ada duplikat lawan')
-      seen.add(key)
-    }
-    for (const id of ids) {
-      assert.equal(appear[id], 3, `${id} harus main 3×`)
-    }
+  const draw = generateTeamDraw(ids)
+  assert.equal(draw.length, 9)
+  const appear: Record<string, number> = {}
+  const seen = new Set<string>()
+  const courts = new Set<string>()
+  for (const [a, b, court] of draw) {
+    appear[a] = (appear[a] ?? 0) + 1
+    appear[b] = (appear[b] ?? 0) + 1
+    courts.add(court)
+    assert.notEqual(a, b, 'tidak boleh melawan diri sendiri')
+    const key = [a, b].sort().join('|')
+    assert.ok(!seen.has(key), 'tidak boleh ada duplikat lawan')
+    seen.add(key)
   }
+  for (const id of ids) {
+    assert.equal(appear[id], 3, `${id} harus main 3×`)
+  }
+  assert.deepEqual(Array.from(courts).sort(), ['Court 12', 'Court 13', 'Court 14'])
+
+  // Cek spesifik Sesi 1
+  assert.deepEqual(draw[0], ['t1', 't2', 'Court 12'])
+  assert.deepEqual(draw[1], ['t3', 't4', 'Court 13'])
+  assert.deepEqual(draw[2], ['t5', 't6', 'Court 14'])
 })
 
 test('computeTeamStandings: urut poin → selisih W-L → selisih poin', () => {

@@ -3,7 +3,6 @@
 // team-match, rally 30 (grup) / 42 (final), top-2 → final.
 // Mirror kontrak backend (majadu-api/internal/domain/team_tournament.go).
 
-import { shuffle } from './array'
 import type { TournamentSnapshot } from './tournament'
 
 export type TeamClass = 'A+' | 'A' | 'B+' | 'B' | 'C+' | 'C'
@@ -161,19 +160,30 @@ export function computeTeamStandings(teams: TeamInfo[], matches: TeamMatch[]): T
   })
 }
 
-// ── undian grup ─────────────────────────────────────────────────────────────
+// ── undian/jadwal grup ───────────────────────────────────────────────────────
+
+export type TeamDrawItem = [string, string, string] // [teamA, teamB, courtName]
 
 /**
- * Jadwal 9 team-match seimbang: tiap tim tepat 3×, tanpa ulangan lawan.
- * Urutan tim diacak ("undian" hari-H). Ids = [t1..t6].
+ * Jadwal 9 team-match fixed: 3 sesi × 3 lapangan (Court 12, 13, 14).
+ * Tiap tim bertanding tepat 3× tanpa ulangan lawan.
+ * Ids = [t1..t6] (Tim 1 s/d Tim 6).
  */
-export function generateTeamDraw(teamIds: string[]): [string, string][] {
+export function generateTeamDraw(teamIds: string[]): TeamDrawItem[] {
   if (teamIds.length !== 6) throw new Error('generateTeamDraw membutuhkan tepat 6 tim')
-  const shuffled = shuffle(teamIds)
-  const schedule: [number, number][] = [
-    [0, 1], [2, 3], [4, 5],
-    [0, 2], [1, 4], [3, 5],
-    [0, 3], [1, 5], [2, 4],
+  const schedule: [number, number, string][] = [
+    // Sesi 1
+    [0, 1, 'Court 12'], // Tim 1 vs Tim 2
+    [2, 3, 'Court 13'], // Tim 3 vs Tim 4
+    [4, 5, 'Court 14'], // Tim 5 vs Tim 6
+    // Sesi 2
+    [3, 5, 'Court 12'], // Tim 4 vs Tim 6
+    [0, 2, 'Court 13'], // Tim 1 vs Tim 3
+    [1, 4, 'Court 14'], // Tim 2 vs Tim 5
+    // Sesi 3
+    [2, 4, 'Court 12'], // Tim 3 vs Tim 5
+    [1, 5, 'Court 13'], // Tim 2 vs Tim 6
+    [0, 3, 'Court 14'], // Tim 1 vs Tim 4
   ]
-  return schedule.map(([a, b]) => [shuffled[a], shuffled[b]])
+  return schedule.map(([a, b, court]) => [teamIds[a], teamIds[b], court])
 }

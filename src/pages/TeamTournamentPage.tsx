@@ -34,7 +34,7 @@ export default function TeamTournamentPage() {
     setPrevSnap(snap)
     setLocalMatches(snap.matches.map((m) => ({
       ...m,
-      courts: m.courts ?? ['Court 1', 'Court 2', 'Court 3'],
+      courts: m.courts ?? ['Court 12', 'Court 13', 'Court 14'],
       partai: m.partai.map((p) => ({ ...p })),
     })))
   }
@@ -115,13 +115,13 @@ export default function TeamTournamentPage() {
   const handleUndian = () => {
     const ids = teams.map((t) => t.id)
     const draw = generateTeamDraw(ids)
-    const matches: TeamMatch[] = draw.map(([a, b], i) => ({
+    const matches: TeamMatch[] = draw.map(([a, b, court], i) => ({
       id: `g-${i + 1}`,
       phase: 'group',
       teamA: a,
       teamB: b,
       partai: [{ scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }],
-      courts: ['Court 1', 'Court 2', 'Court 3'],
+      courts: [court, court, court],
     }))
     saveMatches(matches)
     setTab('jadwal')
@@ -137,7 +137,7 @@ export default function TeamTournamentPage() {
       teamA: first.teamId,
       teamB: second.teamId,
       partai: [{ scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }],
-      courts: ['Court 1', 'Court 2', 'Court 3'],
+      courts: ['Court 12', 'Court 12', 'Court 12'],
     }
     saveMatches([...(localMatches ?? snap.matches), final])
     setTab('final')
@@ -368,7 +368,7 @@ function MatchCard({
 }) {
   const out = teamMatchOutcome(match)
   const target = teamTarget(match.phase)
-  const defaultCourts = ['Court 1', 'Court 2', 'Court 3']
+  const defaultCourts = ['Court 12', 'Court 13', 'Court 14']
   const courts = match.courts ?? defaultCourts
   const courtsChanged = courts.some((c, i) => c !== defaultCourts[i])
   const dirty = match.partai.some((p) => p.scoreA !== null || p.scoreB !== null) || courtsChanged
