@@ -47,6 +47,8 @@ TOURNAMENT_BACKLOG.md
 
 dump/
 scripts/
+# apps/web/scripts berisi regression tests yang ke-track (check:regression)
+!apps/web/scripts/
 
 .commandcode
 

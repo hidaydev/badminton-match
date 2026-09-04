@@ -50,10 +50,13 @@ export function computePlayerStats(
 }
 
 /**
- * Count how many times each player plays in consecutive (adjacent) slots.
- * Each boundary between two consecutive slots where the player appears in
- * both counts as 1 — same semantics as `backToBackCount` in quality.ts.
- * Example: playing slots 1-2-3 → count 2.
+ * Count how many back-to-back games each player plays: every maximal run of
+ * k consecutive slots the player appears in contributes k. So playing slots
+ * 1-2-3 → 3, while a single isolated slot → 0.
+ *
+ * This is the chip-display semantics ("games played without rest") and
+ * intentionally differs from `backToBackCount` in quality.ts, which counts
+ * slot boundaries (1-2-3 → 2) for the aggregate QualityBanner metric.
  */
 export function computeBackToBackCounts(
   schedule: ScheduleSlot[],
@@ -61,21 +64,24 @@ export function computeBackToBackCounts(
 ): Record<PlayerId, number> {
   const counts = Object.fromEntries(playerIds.map((id) => [toPlayerId(id), 0])) as Record<PlayerId, number>
 
-  const slotPlayerSet = new Map<number, Set<string>>()
+  const playerSlots = new Map<string, Set<number>>()
   for (const g of schedule) {
-    const set = slotPlayerSet.get(g.slot) ?? new Set<string>()
-    g.teamA.forEach((id) => set.add(id))
-    g.teamB.forEach((id) => set.add(id))
-    slotPlayerSet.set(g.slot, set)
+    for (const id of [...g.teamA, ...g.teamB]) {
+      const set = playerSlots.get(id) ?? new Set<number>()
+      set.add(g.slot)
+      playerSlots.set(id, set)
+    }
   }
 
-  const slots = [...slotPlayerSet.keys()].sort((a, b) => a - b)
-  for (let i = 0; i < slots.length - 1; i++) {
-    if (slots[i + 1] !== slots[i] + 1) continue
-    const cur = slotPlayerSet.get(slots[i])!
-    const nxt = slotPlayerSet.get(slots[i + 1])!
-    for (const id of cur) {
-      if (nxt.has(id)) counts[toPlayerId(id)]++
+  for (const id of playerIds) {
+    const slots = [...(playerSlots.get(id) ?? [])].sort((a, b) => a - b)
+    let i = 0
+    while (i < slots.length) {
+      let j = i
+      while (j + 1 < slots.length && slots[j + 1] === slots[j] + 1) j++
+      const run = j - i + 1
+      if (run >= 2) counts[toPlayerId(id)] += run
+      i = j + 1
     }
   }
 
