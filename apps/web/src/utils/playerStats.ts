@@ -48,3 +48,36 @@ export function computePlayerStats(
 
   return { playCount, sitCount, partnerWith, facedBy }
 }
+
+/**
+ * Count how many times each player plays in consecutive (adjacent) slots.
+ * Each boundary between two consecutive slots where the player appears in
+ * both counts as 1 — same semantics as `backToBackCount` in quality.ts.
+ * Example: playing slots 1-2-3 → count 2.
+ */
+export function computeBackToBackCounts(
+  schedule: ScheduleSlot[],
+  playerIds: string[],
+): Record<PlayerId, number> {
+  const counts = Object.fromEntries(playerIds.map((id) => [toPlayerId(id), 0])) as Record<PlayerId, number>
+
+  const slotPlayerSet = new Map<number, Set<string>>()
+  for (const g of schedule) {
+    const set = slotPlayerSet.get(g.slot) ?? new Set<string>()
+    g.teamA.forEach((id) => set.add(id))
+    g.teamB.forEach((id) => set.add(id))
+    slotPlayerSet.set(g.slot, set)
+  }
+
+  const slots = [...slotPlayerSet.keys()].sort((a, b) => a - b)
+  for (let i = 0; i < slots.length - 1; i++) {
+    if (slots[i + 1] !== slots[i] + 1) continue
+    const cur = slotPlayerSet.get(slots[i])!
+    const nxt = slotPlayerSet.get(slots[i + 1])!
+    for (const id of cur) {
+      if (nxt.has(id)) counts[toPlayerId(id)]++
+    }
+  }
+
+  return counts
+}

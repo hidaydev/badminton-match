@@ -34,6 +34,8 @@ interface PlayerChipRendererProps {
   court: number
   /** Player ID */
   playerId: string
+  /** Back-to-back count (0/undefined = none) — shown in idle mode only */
+  backToBackCount?: number
 }
 
 /**
@@ -62,6 +64,7 @@ export default function PlayerChipRenderer({
   slot,
   court,
   playerId,
+  backToBackCount = 0,
 }: PlayerChipRendererProps & { isSkipped?: boolean; onSkipToggle?: (gameKey: string, playerId: string) => void }) {
   const target: SwapTarget = { slot, court, playerId, team, index: position }
   const gameKey = `${slot}-${court}`
@@ -176,6 +179,7 @@ export default function PlayerChipRenderer({
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
       {playerName}{showSkippedIdle ? ' ⊘' : ''}
+      {backToBackCount > 0 && <span className="text-[10px] font-bold text-amber-400 shrink-0">*{backToBackCount}</span>}
     </span>
   )
 }

@@ -2,6 +2,7 @@ import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
 import type { Player, GameScore } from '../../types'
 import { toGameKey } from '../../types'
+import { computeBackToBackCounts } from '../../utils/playerStats'
 import { timeToMinutes, minutesToTime } from '../../utils/time'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../../utils/swap'
 import type { PlayerChipMode } from './PlayerChipRenderer'
@@ -88,6 +89,8 @@ export default function ScheduleGrid({
   setDraftScores,
 }: ScheduleGridProps) {
   const played = new Set(playedGames)
+
+  const backToBackCounts = new Map(Object.entries(computeBackToBackCounts(result.schedule, [...playerMap.keys()])))
 
   const bySlot = new Map<number, typeof result.schedule>()
   for (const game of result.schedule) {
@@ -212,6 +215,7 @@ export default function ScheduleGrid({
                                     slot={s}
                                     court={g.court}
                                     playerId={id}
+                                    backToBackCount={backToBackCounts.get(id) ?? 0}
                                   />
                                 </span>
                               )
@@ -282,6 +286,7 @@ export default function ScheduleGrid({
                                     slot={s}
                                     court={g.court}
                                     playerId={id}
+                                    backToBackCount={backToBackCounts.get(id) ?? 0}
                                   />
                                 </span>
                               )

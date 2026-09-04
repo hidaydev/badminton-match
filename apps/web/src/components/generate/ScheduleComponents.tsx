@@ -4,7 +4,7 @@
 import type { Player, MatchConstraint, ScheduleSlot } from '../../types'
 import type { GeneratorResult } from '../../generator'
 import { TIER_LABELS, TIER_COLORS } from '../../config/tiers'
-import { computePlayerStats } from '../../utils/playerStats'
+import { computePlayerStats, computeBackToBackCounts } from '../../utils/playerStats'
 import { computeQuality } from '../../utils/quality'
 
 // ── Tier letters ─────────────────────────────────────────────────────────────
@@ -22,11 +22,11 @@ function renderTierLetters(tiers: number[]) {
 
 // ── Player chip ──────────────────────────────────────────────────────────────
 
-function PlayerChip({ player, backToBack }: { player: Player; backToBack?: boolean }) {
+function PlayerChip({ player, backToBackCount }: { player: Player; backToBackCount?: number }) {
   return (
     <span className="inline-flex items-center gap-1 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white min-w-0 overflow-hidden">
       <span className="overflow-hidden">{player.name}</span>
-      {backToBack && <span className="text-[10px] font-bold text-amber-400 shrink-0">*</span>}
+      {backToBackCount ? <span className="text-[10px] font-bold text-amber-400 shrink-0">*{backToBackCount}</span> : null}
       <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-pink-400'}`}>
         {player.gender}
       </span>
@@ -64,14 +64,14 @@ function GameCard({
   teamA,
   teamB,
   playerMap,
-  backToBackIds,
+  backToBackCounts,
   courtName,
 }: {
   court: number
   teamA: [string, string]
   teamB: [string, string]
   playerMap: Map<string, Player>
-  backToBackIds?: Set<string>
+  backToBackCounts?: Map<string, number>
   courtName?: string
 }) {
   const getPlayer = (id: string) => playerMap.get(id)
@@ -88,14 +88,14 @@ function GameCard({
         <div className="flex gap-1 flex-1 min-w-0 overflow-hidden">
           {teamA.map((id) => {
             const p = getPlayer(id)
-            return p ? <PlayerChip key={id} player={p} backToBack={backToBackIds?.has(id)} /> : null
+            return p ? <PlayerChip key={id} player={p} backToBackCount={backToBackCounts?.get(id)} /> : null
           })}
         </div>
         <span className="text-slate-400 text-xs font-bold shrink-0">vs</span>
         <div className="flex gap-1 flex-1 min-w-0 overflow-hidden">
           {teamB.map((id) => {
             const p = getPlayer(id)
-            return p ? <PlayerChip key={id} player={p} backToBack={backToBackIds?.has(id)} /> : null
+            return p ? <PlayerChip key={id} player={p} backToBackCount={backToBackCounts?.get(id)} /> : null
           })}
         </div>
       </div>
@@ -126,26 +126,7 @@ export function ScheduleView({
     bySlot.set(game.slot, list)
   }
 
-  const slotPlayerSet = new Map<number, Set<string>>()
-  for (const [t, games] of bySlot) {
-    const set = new Set<string>()
-    for (const g of games) {
-      g.teamA.forEach((id) => set.add(id))
-      g.teamB.forEach((id) => set.add(id))
-    }
-    slotPlayerSet.set(t, set)
-  }
-  const backToBackAt = (t: number): Set<string> => {
-    const cur = slotPlayerSet.get(t)
-    if (!cur) return new Set()
-    const out = new Set<string>()
-    const prev = slotPlayerSet.get(t - 1)
-    const next = slotPlayerSet.get(t + 1)
-    for (const id of cur) {
-      if (prev?.has(id) || next?.has(id)) out.add(id)
-    }
-    return out
-  }
+  const backToBackCounts = new Map(Object.entries(computeBackToBackCounts(result.schedule, players.map((p) => p.id))))
 
   const sittingOut = (t: number) => {
     const playing = new Set<string>()
@@ -178,7 +159,7 @@ export function ScheduleView({
                     teamA={g.teamA}
                     teamB={g.teamB}
                     playerMap={playerMap}
-                    backToBackIds={backToBackAt(t)}
+                    backToBackCounts={backToBackCounts}
                     courtName={courtNames[g.court]}
                   />
                 ))}
