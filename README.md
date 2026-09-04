@@ -31,7 +31,7 @@ make check      # validasi penuh (web: types+lint+tailwind+regression · api: ve
 
 ## Deploy
 
-- **Web**: Vercel — push ke `main` → build dari Root Directory `apps/web` (Ignored Build Step: skip bila `apps/web/` tidak berubah).
+- **Web**: Vercel — push ke `main` → build dari Root Directory `apps/web` (Ignored Build Step: skip bila `apps/web/` tidak berubah; command jalan dari dalam Root Directory, pathspec `.`).
 - **API**: GitHub webhook → `webhook.service` di VPS → `deploy/deploy-vps.sh` → `podman build` lokal → restart quadlet `majadu-api`. Detail: `deploy/README`-nya di `deploy/webhook.json` + `MONOREPO_GITHUB_SETUP.md`.
 
 ## Branch Plan
