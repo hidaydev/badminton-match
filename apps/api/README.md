@@ -7,7 +7,7 @@ backend. Lihat keputusan arsitektur & keputusan desain di monorepo (root):
 ## Stack
 
 - Go 1.26, stdlib `net/http` (Go 1.22+ routing) — tanpa framework HTTP
-- `pgx/v5` untuk Postgres (schema `bm_dev` / `bm`)
+- `pgx/v5` untuk Postgres (schema `bm`)
 - Rating engine **Glicko-1-lite** (server-authoritative, idempotent, auditable)
 - Kontrak RESTful didokumentasikan di [`api/openapi.yaml`](api/openapi.yaml)
 
@@ -78,7 +78,8 @@ Prod: env dari systemd/podman `EnvironmentFile` (mode 600), bukan `.env`.
 ```bash
 make check                 # vet + fmt + unit test
 # integration test (butuh tunnel ke Postgres VPS):
-MAJADU_TEST_DATABASE_URL="postgres://majadu_app:...@localhost:15432/bm_dev" go test ./internal/store/
+MAJADU_TEST_DATABASE_URL="postgres://majadu_app:...@localhost:15432/bm_test" go test ./internal/store/
+# (buat DB scratch sendiri, mis. bm_test — jangan pakai bm prod)
 ```
 
 ## DB role & schema
@@ -110,42 +111,36 @@ dari migration `000008`–`000011`; unifikasi **8-tier** di `000011`
 recomputs rating_players dari events (transitivity) — deterministik.
 
 **Schema via `MAJADU_DB_SCHEMA` (env), BUKAN hardcode di SQL.** Store memakai
-kueri tanpa prefix schema; `search_path` diarahkan per-koneksi. Ini penting
-untuk alur branch: `dev` → `MAJADU_DB_SCHEMA=bm_dev`, `main` → `bm` — merge
-dev→main tidak membawa schema dev ke prod.
+kueri tanpa prefix schema; `search_path` diarahkan per-koneksi. Hanya ada satu
+branch aktif (`main`) → `MAJADU_DB_SCHEMA=bm`.
 
 ## Deploy
 
-**Arsitektur:** image di-build GitHub Actions → push `ghcr.io/nferdazel/majadu-api:{dev,main}` →
-VPS (rootless podman + systemd user/quadlet) pull & run → Caddy TLS.
+**Arsitektur (webhook, pola sds-monorepo):** push ke `main` → GitHub webhook
+(`https://api.qouver.com/hooks/majadu-monorepo`) → `webhook.service` di VPS →
+`/srv/qouver/apps/majadu/scripts/deploy-vps.sh` → `podman build` image **lokal**
+(`localhost/majadu-api:local`) → restart quadlet `majadu-api` → Caddy TLS.
 
 ```
-Vercel (frontend)                          VPS api.qouver.com (Caddy)
-main      → https://api.qouver.com/majadu      → 127.0.0.1:8080 (prod, bm)
-dev       → https://api.qouver.com/majadu-dev  → 127.0.0.1:8081 (dev, bm_dev)
+Vercel (frontend)                       VPS api.qouver.com (Caddy)
+main → apps/web (Root Directory)        main → https://api.qouver.com/majadu → 127.0.0.1:8080 (bm)
 ```
 
-**Artefak di `deploy/`:**
-- `majadu-api-dev.container` / `majadu-api.container` — quadlet systemd units
-- `env/*.env.example` — template env (secret diisi hanya di VPS, chmod 600)
-- `Caddyfile.api.qouver.com` — snippet Caddy (strip prefix `/majadu[-dev]`)
-
-**Langkah (sekali):**
-1. DNS: `api.qouver.com` → A → VPS IP (Cloudflare)
-2. Apply Caddy snippet → `systemctl reload caddy`
-3. VPS: buat `~/.config/containers/systemd/` + env file (`/srv/qouver/apps/majadu/env/majadu-{dev,prod}.env`, chmod 600 — template di `deploy/env/*.env.example`)
-4. `./scripts/deploy.sh setup dev`
+**Artefak di `deploy/` (root monorepo):**
+- `majadu-api.container` — quadlet systemd unit (Image=localhost/majadu-api:local, Pull=never)
+- `deploy-vps.sh` — script deploy webhook (source of truth; server copy di `/srv/qouver/apps/majadu/scripts/`)
+- `webhook.json` — placeholder rule webhook (secret asli hanya di VPS, chmod 600)
+- `env/prod.env.example` — template env (secret diisi hanya di VPS)
+- `Caddyfile.api.qouver.com` — snippet Caddy (strip prefix `/majadu`)
 
 **Update:**
-- Push ke GitHub → CI build & push image → `./scripts/deploy.sh dev` (pull + restart)
-- Atau otomatis: `podman auto-update` (quadlet `AutoUpdate=registry`)
-
-**Catatan:** image ghcr.io public (tanpa auth untuk pull). Secret hanya di env file VPS — tidak pernah di repo/image.
+- Push `main` → webhook trigger (HMAC-SHA1) → build lokal + restart. Deploy hanya
+  jika `apps/api/` berubah (guard `ref=refs/heads/main` di script).
+- Rollback: image lokal sebelumnya masih ter-cache sampai `podman image prune` (01:30).
 
 ## Branch plan
 
-- `dev` — aktif untuk development (skema `bm_dev`)
-- `main` — prod (skema `bm`), dibuat saat migrasi prod
+- `main` — satu-satunya branch aktif (prod, schema `bm`). Branch `dev` di-sunset.
 
 ## License
 
