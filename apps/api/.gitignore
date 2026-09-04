@@ -1,0 +1,19 @@
+# Binaries
+/majadu-api
+/bin/
+*.exe
+
+# Environment
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# Test artifacts
+*.out
+*.test
+server
+
+# Graphify output (analisis lokal, bukan source)
+graphify-out/

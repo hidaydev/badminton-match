@@ -1,0 +1,173 @@
+package handler
+
+import (
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"strings"
+
+	"majadu-api/internal/httperr"
+	"majadu-api/internal/store"
+)
+
+// PlayerHandler — REST endpoints registry pemain.
+type PlayerHandler struct {
+	Store      *store.PlayerStore
+	Logger     *slog.Logger
+	AdminToken string
+	// AdminStore — SessionStore untuk operasi admin (tier induk, delete).
+	AdminStore *store.SessionStore
+}
+
+type registerPlayerRequest struct {
+	Name          string `json:"name"`
+	CanonicalName string `json:"canonicalName,omitempty"`
+	Tier          string `json:"tier,omitempty"`   // opsional — tier induk (first-set)
+	Gender        string `json:"gender,omitempty"` // opsional — default 'M'
+}
+
+// SetTier — PATCH /players/{playerId}/tier (admin): ubah tier induk → class
+// rating ikut + recalculate (Q3).
+func (h *PlayerHandler) SetTier(w http.ResponseWriter, r *http.Request) {
+	playerID := r.PathValue("playerId")
+	var body registerPlayerRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Tier == "" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("tier is required (D/D+/C/C+/B/B+/A/A+)"))
+		return
+	}
+	if err := h.AdminStore.SetPlayerTier(r.Context(), playerID, body.Tier); err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Internal(err.Error()))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// Delete — DELETE /players/{playerId}?force=true (admin).
+func (h *PlayerHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	playerID := r.PathValue("playerId")
+	force := r.URL.Query().Get("force") == "true"
+	if err := h.AdminStore.DeletePlayer(r.Context(), playerID, force); err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Conflict(err.Error()))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// Merge — POST /players/merge (admin): gabungkan source player ke target.
+// Semua referensi (aliases, sesi, rating deltas, tournament) dipindah ke
+// target, pemain source dihapus, lalu rating di-rebuild penuh supaya
+// rating_players konsisten dengan delta yang baru.
+func (h *PlayerHandler) Merge(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		TargetPlayerID string `json:"targetPlayerId"`
+		SourcePlayerID string `json:"sourcePlayerId"`
+	}
+	if err := decodeJSON(r, &body); err != nil || body.TargetPlayerID == "" || body.SourcePlayerID == "" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("targetPlayerId and sourcePlayerId are required"))
+		return
+	}
+	res, err := h.AdminStore.MergePlayers(r.Context(), body.TargetPlayerID, body.SourcePlayerID)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			httperr.WriteError(w, h.Logger, httperr.NotFound(err.Error()))
+		case errors.Is(err, store.ErrValidation):
+			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
+		default:
+			h.Logger.Warn("merge players failed", "target", body.TargetPlayerID, "source", body.SourcePlayerID, "error", err)
+			httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to merge players", err))
+		}
+		return
+	}
+	// Full rebuild rating — deltas sudah dipindah, rating_players harus
+	// dihitung ulang (transitivity via lawan berubah).
+	if _, err := h.AdminStore.RebuildAll(r.Context()); err != nil {
+		h.Logger.Warn("merge: rating rebuild failed", "error", err)
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "players merged, but rating rebuild failed — run rebuild-all manually", err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, res)
+}
+
+// Rename — PATCH /players/{playerId}/name (admin): rename canonical player.
+// Alias nama lama disimpan (referensi historis tetap resolve); nama baru
+// yang sudah dipakai player lain ditolak (anti-collision).
+func (h *PlayerHandler) Rename(w http.ResponseWriter, r *http.Request) {
+	playerID := r.PathValue("playerId")
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("name is required"))
+		return
+	}
+	if err := h.Store.RenamePlayer(r.Context(), playerID, body.Name); err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			httperr.WriteError(w, h.Logger, httperr.NotFound("player not found"))
+		case errors.Is(err, store.ErrValidation):
+			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
+		default:
+			h.Logger.Warn("rename player failed", "player", playerID, "error", err)
+			httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to rename player", err))
+		}
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// List — GET /api/players.
+func (h *PlayerHandler) List(w http.ResponseWriter, r *http.Request) {
+	players, err := h.Store.List(r.Context())
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to list players", err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, players)
+}
+
+// Register — POST /api/players.
+func (h *PlayerHandler) Register(w http.ResponseWriter, r *http.Request) {
+	var req registerPlayerRequest
+	if err := decodeJSON(r, &req); err != nil || req.Name == "" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("name is required"))
+		return
+	}
+	canonical := req.CanonicalName
+	if canonical == "" {
+		canonical = req.Name
+	}
+	// Default gender ke 'M'
+	gender := req.Gender
+	if gender == "" {
+		gender = "M"
+	}
+	id, err := h.Store.Register(r.Context(), req.Name, canonical, gender)
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to register player", err))
+		return
+	}
+	if req.Tier != "" && h.AdminStore != nil {
+		if err := h.AdminStore.SetPlayerTierOnRegister(r.Context(), id, req.Tier); err != nil {
+			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
+			return
+		}
+	}
+	httperr.WriteJSON(w, http.StatusCreated, map[string]string{"playerId": id})
+}
+
+// Stats — GET /api/players/{name}/stats.
+func (h *PlayerHandler) Stats(w http.ResponseWriter, r *http.Request) {
+	raw, err := h.Store.Stats(r.Context(), r.PathValue("name"))
+	if errors.Is(err, store.ErrNotFound) {
+		httperr.WriteError(w, h.Logger, httperr.NotFound("player not found"))
+		return
+	}
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to load player stats", err))
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(raw)
+}
