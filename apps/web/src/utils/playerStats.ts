@@ -50,19 +50,21 @@ export function computePlayerStats(
 }
 
 /**
- * Count how many back-to-back games each player plays: every maximal run of
- * k consecutive slots the player appears in contributes k. So playing slots
- * 1-2-3 → 3, while a single isolated slot → 0.
+ * Compute back-to-back runs for each player: every maximal run of k
+ * consecutive slots the player appears in yields one entry of k. So playing
+ * slots 1-2-3 → [3], playing 1-2 and 4-5 → [2, 2], and a single isolated
+ * slot → []. Runs are reported per-run so the UI can render "*2 *2" instead
+ * of summing them into "*4".
  *
  * This is the chip-display semantics ("games played without rest") and
  * intentionally differs from `backToBackCount` in quality.ts, which counts
  * slot boundaries (1-2-3 → 2) for the aggregate QualityBanner metric.
  */
-export function computeBackToBackCounts(
+export function computeBackToBackRuns(
   schedule: ScheduleSlot[],
   playerIds: string[],
-): Record<PlayerId, number> {
-  const counts = Object.fromEntries(playerIds.map((id) => [toPlayerId(id), 0])) as Record<PlayerId, number>
+): Record<PlayerId, number[]> {
+  const runs = Object.fromEntries(playerIds.map((id) => [toPlayerId(id), []])) as Record<PlayerId, number[]>
 
   const playerSlots = new Map<string, Set<number>>()
   for (const g of schedule) {
@@ -80,10 +82,10 @@ export function computeBackToBackCounts(
       let j = i
       while (j + 1 < slots.length && slots[j + 1] === slots[j] + 1) j++
       const run = j - i + 1
-      if (run >= 2) counts[toPlayerId(id)] += run
+      if (run >= 2) runs[toPlayerId(id)].push(run)
       i = j + 1
     }
   }
 
-  return counts
+  return runs
 }

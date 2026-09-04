@@ -4,7 +4,7 @@
 import type { Player, MatchConstraint, ScheduleSlot } from '../../types'
 import type { GeneratorResult } from '../../generator'
 import { TIER_LABELS, TIER_COLORS } from '../../config/tiers'
-import { computePlayerStats, computeBackToBackCounts } from '../../utils/playerStats'
+import { computePlayerStats, computeBackToBackRuns } from '../../utils/playerStats'
 import { computeQuality } from '../../utils/quality'
 
 // ── Tier letters ─────────────────────────────────────────────────────────────
@@ -22,11 +22,11 @@ function renderTierLetters(tiers: number[]) {
 
 // ── Player chip ──────────────────────────────────────────────────────────────
 
-function PlayerChip({ player, backToBackCount }: { player: Player; backToBackCount?: number }) {
+function PlayerChip({ player, backToBackRuns }: { player: Player; backToBackRuns?: number[] }) {
   return (
     <span className="inline-flex items-center gap-1 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white min-w-0 overflow-hidden">
       <span className="overflow-hidden">{player.name}</span>
-      {backToBackCount ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackCount}</sup> : null}
+      {backToBackRuns && backToBackRuns.length > 0 ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackRuns.join(' *')}</sup> : null}
       <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-pink-400'}`}>
         {player.gender}
       </span>
@@ -64,14 +64,14 @@ function GameCard({
   teamA,
   teamB,
   playerMap,
-  backToBackCounts,
+  backToBackRuns,
   courtName,
 }: {
   court: number
   teamA: [string, string]
   teamB: [string, string]
   playerMap: Map<string, Player>
-  backToBackCounts?: Map<string, number>
+  backToBackRuns?: Map<string, number[]>
   courtName?: string
 }) {
   const getPlayer = (id: string) => playerMap.get(id)
@@ -88,14 +88,14 @@ function GameCard({
         <div className="flex gap-1 flex-1 min-w-0 overflow-hidden">
           {teamA.map((id) => {
             const p = getPlayer(id)
-            return p ? <PlayerChip key={id} player={p} backToBackCount={backToBackCounts?.get(id)} /> : null
+            return p ? <PlayerChip key={id} player={p} backToBackRuns={backToBackRuns?.get(id)} /> : null
           })}
         </div>
         <span className="text-slate-400 text-xs font-bold shrink-0">vs</span>
         <div className="flex gap-1 flex-1 min-w-0 overflow-hidden">
           {teamB.map((id) => {
             const p = getPlayer(id)
-            return p ? <PlayerChip key={id} player={p} backToBackCount={backToBackCounts?.get(id)} /> : null
+            return p ? <PlayerChip key={id} player={p} backToBackRuns={backToBackRuns?.get(id)} /> : null
           })}
         </div>
       </div>
@@ -126,7 +126,7 @@ export function ScheduleView({
     bySlot.set(game.slot, list)
   }
 
-  const backToBackCounts = new Map(Object.entries(computeBackToBackCounts(result.schedule, players.map((p) => p.id))))
+  const backToBackRuns = new Map(Object.entries(computeBackToBackRuns(result.schedule, players.map((p) => p.id))))
 
   const sittingOut = (t: number) => {
     const playing = new Set<string>()
@@ -159,7 +159,7 @@ export function ScheduleView({
                     teamA={g.teamA}
                     teamB={g.teamB}
                     playerMap={playerMap}
-                    backToBackCounts={backToBackCounts}
+                    backToBackRuns={backToBackRuns}
                     courtName={courtNames[g.court]}
                   />
                 ))}

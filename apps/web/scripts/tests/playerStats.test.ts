@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { computeBackToBackCounts } from '../../src/utils/playerStats.ts'
+import { computeBackToBackRuns } from '../../src/utils/playerStats.ts'
 import type { ScheduleSlot } from '../../src/types/index.ts'
 import { toPlayerId } from '../../src/types/index.ts'
 
@@ -18,28 +18,28 @@ function schedule(perSlot: string[][]): ScheduleSlot[] {
   return out
 }
 
-test('3 consecutive slots → 3 (games played without rest)', () => {
+test('3 consecutive slots → [3] (games played without rest)', () => {
   // A plays slots 1-2-3, B plays 1-2, C plays 2-3, D plays 1 and 3 (rest at 2).
   const s = schedule([
     ['A', 'B', 'D', 'E'],
     ['A', 'B', 'C', 'F'],
     ['A', 'C', 'D', 'G'],
   ])
-  const counts = computeBackToBackCounts(s, ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])
-  assert.equal(counts[toPlayerId('A')], 3)
-  assert.equal(counts[toPlayerId('B')], 2)
-  assert.equal(counts[toPlayerId('C')], 2)
+  const runs = computeBackToBackRuns(s, ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])
+  assert.deepEqual(runs[toPlayerId('A')], [3])
+  assert.deepEqual(runs[toPlayerId('B')], [2])
+  assert.deepEqual(runs[toPlayerId('C')], [2])
   // D plays slot 1 and 3 with a rest at 2 → gap breaks the run, not back-to-back.
-  assert.equal(counts[toPlayerId('D')], 0)
-  // E/F/G/H play a single slot → 0.
-  assert.equal(counts[toPlayerId('E')], 0)
-  assert.equal(counts[toPlayerId('F')], 0)
-  assert.equal(counts[toPlayerId('G')], 0)
-  assert.equal(counts[toPlayerId('H')], 0)
+  assert.deepEqual(runs[toPlayerId('D')], [])
+  // E/F/G/H play a single slot → [].
+  assert.deepEqual(runs[toPlayerId('E')], [])
+  assert.deepEqual(runs[toPlayerId('F')], [])
+  assert.deepEqual(runs[toPlayerId('G')], [])
+  assert.deepEqual(runs[toPlayerId('H')], [])
 })
 
-test('two separate runs sum up', () => {
-  // A plays 1-2 and 4-5-6 → 2 + 3 = 5.
+test('two separate runs are reported separately, not summed', () => {
+  // A plays 1-2 and 4-5-6 → [2, 3], rendered as "*2 *3".
   const s = schedule([
     ['A', 'B', 'C', 'D'],
     ['A', 'E', 'F', 'G'],
@@ -48,8 +48,8 @@ test('two separate runs sum up', () => {
     ['A', 'O', 'P', 'Q'],
     ['A', 'R', 'S', 'T'],
   ])
-  const counts = computeBackToBackCounts(s, ['A'])
-  assert.equal(counts[toPlayerId('A')], 5)
+  const runs = computeBackToBackRuns(s, ['A'])
+  assert.deepEqual(runs[toPlayerId('A')], [2, 3])
 })
 
 test('non-zero slot numbering: slots 2-3-4 are still a consecutive run', () => {
@@ -59,14 +59,14 @@ test('non-zero slot numbering: slots 2-3-4 are still a consecutive run', () => {
     ['A', 'E', 'F', 'G'],
     ['A', 'H', 'I', 'J'],
   ]).map((g) => ({ ...g, slot: g.slot + 2 }))
-  const counts = computeBackToBackCounts(s, ['A', 'B'])
-  assert.equal(counts[toPlayerId('A')], 3)
-  assert.equal(counts[toPlayerId('B')], 0)
+  const runs = computeBackToBackRuns(s, ['A', 'B'])
+  assert.deepEqual(runs[toPlayerId('A')], [3])
+  assert.deepEqual(runs[toPlayerId('B')], [])
 })
 
-test('players with no games get 0', () => {
+test('players with no games get []', () => {
   const s = schedule([['A', 'B', 'C', 'D']])
-  const counts = computeBackToBackCounts(s, ['A', 'Zed'])
-  assert.equal(counts[toPlayerId('A')], 0)
-  assert.equal(counts[toPlayerId('Zed')], 0)
+  const runs = computeBackToBackRuns(s, ['A', 'Zed'])
+  assert.deepEqual(runs[toPlayerId('A')], [])
+  assert.deepEqual(runs[toPlayerId('Zed')], [])
 })
