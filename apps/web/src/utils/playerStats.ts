@@ -50,21 +50,22 @@ export function computePlayerStats(
 }
 
 /**
- * Compute back-to-back runs for each player: every maximal run of k
- * consecutive slots the player appears in yields one entry of k. So playing
- * slots 1-2-3 → [3], playing 1-2 and 4-5 → [2, 2], and a single isolated
- * slot → []. Runs are reported per-run so the UI can render "*2 *2" instead
- * of summing them into "*4".
+ * Compute back-to-back run length for every game slot of each player: a chip
+ * whose slot is inside a maximal run of k consecutive slots gets k. So a player
+ * playing 1-2-3 has {1:3, 2:3, 3:3} (each of the three games is part of the
+ * run), while playing 1-2 and 6-7 yields {1:2, 2:2, 6:2, 7:2} and a lone game
+ * at 4 (or 4 alone) is absent — only games that are genuinely part of a
+ * back-to-back run get marked.
  *
  * This is the chip-display semantics ("games played without rest") and
  * intentionally differs from `backToBackCount` in quality.ts, which counts
  * slot boundaries (1-2-3 → 2) for the aggregate QualityBanner metric.
  */
-export function computeBackToBackRuns(
+export function computeBackToBackRunBySlot(
   schedule: ScheduleSlot[],
   playerIds: string[],
-): Record<PlayerId, number[]> {
-  const runs = Object.fromEntries(playerIds.map((id) => [toPlayerId(id), []])) as Record<PlayerId, number[]>
+): Record<PlayerId, Map<number, number>> {
+  const byPlayer = Object.fromEntries(playerIds.map((id) => [toPlayerId(id), new Map<number, number>()])) as Record<PlayerId, Map<number, number>>
 
   const playerSlots = new Map<string, Set<number>>()
   for (const g of schedule) {
@@ -76,16 +77,20 @@ export function computeBackToBackRuns(
   }
 
   for (const id of playerIds) {
+    const pid = toPlayerId(id)
     const slots = [...(playerSlots.get(id) ?? [])].sort((a, b) => a - b)
     let i = 0
     while (i < slots.length) {
       let j = i
       while (j + 1 < slots.length && slots[j + 1] === slots[j] + 1) j++
       const run = j - i + 1
-      if (run >= 2) runs[toPlayerId(id)].push(run)
+      if (run >= 2) {
+        const map = byPlayer[pid]
+        for (let k = i; k <= j; k++) map.set(slots[k], run)
+      }
       i = j + 1
     }
   }
 
-  return runs
+  return byPlayer
 }

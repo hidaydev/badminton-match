@@ -34,8 +34,8 @@ interface PlayerChipRendererProps {
   court: number
   /** Player ID */
   playerId: string
-  /** Back-to-back runs ([3] = one run of 3, [2,2] = two runs of 2) — shown in idle mode only */
-  backToBackRuns?: number[]
+  /** Back-to-back run length for this chip's game slot (e.g. 2 when this game is part of a 2-in-a-row) — shown in idle mode only */
+  backToBackRun?: number
 }
 
 /**
@@ -64,7 +64,7 @@ export default function PlayerChipRenderer({
   slot,
   court,
   playerId,
-  backToBackRuns,
+  backToBackRun,
 }: PlayerChipRendererProps & { isSkipped?: boolean; onSkipToggle?: (gameKey: string, playerId: string) => void }) {
   const target: SwapTarget = { slot, court, playerId, team, index: position }
   const gameKey = `${slot}-${court}`
@@ -179,7 +179,7 @@ export default function PlayerChipRenderer({
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
       {playerName}{showSkippedIdle ? ' ⊘' : ''}
-      {backToBackRuns && backToBackRuns.length > 0 && <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackRuns.join(' *')}</sup>}
+      {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackRun}</sup> : null}
     </span>
   )
 }

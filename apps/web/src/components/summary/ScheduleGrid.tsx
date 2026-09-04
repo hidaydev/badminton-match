@@ -2,7 +2,7 @@ import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
 import type { Player, GameScore } from '../../types'
 import { toGameKey } from '../../types'
-import { computeBackToBackRuns } from '../../utils/playerStats'
+import { computeBackToBackRunBySlot } from '../../utils/playerStats'
 import { timeToMinutes, minutesToTime } from '../../utils/time'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../../utils/swap'
 import type { PlayerChipMode } from './PlayerChipRenderer'
@@ -90,7 +90,7 @@ export default function ScheduleGrid({
 }: ScheduleGridProps) {
   const played = new Set(playedGames)
 
-  const backToBackRuns = new Map(Object.entries(computeBackToBackRuns(result.schedule, [...playerMap.keys()])))
+  const backToBackRunBySlot = computeBackToBackRunBySlot(result.schedule, [...playerMap.keys()])
 
   const bySlot = new Map<number, typeof result.schedule>()
   for (const game of result.schedule) {
@@ -215,7 +215,7 @@ export default function ScheduleGrid({
                                     slot={s}
                                     court={g.court}
                                     playerId={id}
-                                    backToBackRuns={backToBackRuns.get(id)}
+                                    backToBackRun={backToBackRunBySlot[id]?.get(s)}
                                   />
                                 </span>
                               )
@@ -286,7 +286,7 @@ export default function ScheduleGrid({
                                     slot={s}
                                     court={g.court}
                                     playerId={id}
-                                    backToBackRuns={backToBackRuns.get(id)}
+                                    backToBackRun={backToBackRunBySlot[id]?.get(s)}
                                   />
                                 </span>
                               )

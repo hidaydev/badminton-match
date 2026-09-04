@@ -4,7 +4,7 @@
 import type { Player, MatchConstraint, ScheduleSlot } from '../../types'
 import type { GeneratorResult } from '../../generator'
 import { TIER_LABELS, TIER_COLORS } from '../../config/tiers'
-import { computePlayerStats, computeBackToBackRuns } from '../../utils/playerStats'
+import { computePlayerStats, computeBackToBackRunBySlot } from '../../utils/playerStats'
 import { computeQuality } from '../../utils/quality'
 
 // ── Tier letters ─────────────────────────────────────────────────────────────
@@ -22,11 +22,11 @@ function renderTierLetters(tiers: number[]) {
 
 // ── Player chip ──────────────────────────────────────────────────────────────
 
-function PlayerChip({ player, backToBackRuns }: { player: Player; backToBackRuns?: number[] }) {
+function PlayerChip({ player, backToBackRun }: { player: Player; backToBackRun?: number }) {
   return (
     <span className="inline-flex items-center gap-1 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white min-w-0 overflow-hidden">
       <span className="overflow-hidden">{player.name}</span>
-      {backToBackRuns && backToBackRuns.length > 0 ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackRuns.join(' *')}</sup> : null}
+      {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackRun}</sup> : null}
       <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-pink-400'}`}>
         {player.gender}
       </span>
@@ -61,22 +61,25 @@ function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: number[] })
 
 function GameCard({
   court,
+  slot,
   teamA,
   teamB,
   playerMap,
-  backToBackRuns,
+  backToBackRunBySlot,
   courtName,
 }: {
   court: number
+  slot: number
   teamA: [string, string]
   teamB: [string, string]
   playerMap: Map<string, Player>
-  backToBackRuns?: Map<string, number[]>
+  backToBackRunBySlot?: Record<string, Map<number, number>>
   courtName?: string
 }) {
   const getPlayer = (id: string) => playerMap.get(id)
   const tiersA = teamA.map((id) => playerMap.get(id)?.tier ?? 2)
   const tiersB = teamB.map((id) => playerMap.get(id)?.tier ?? 2)
+  const runFor = (id: string) => backToBackRunBySlot?.[id]?.get(slot)
 
   return (
     <div className="bg-elevated border border-border rounded-xl px-3 py-2 flex flex-col gap-1.5">
@@ -88,14 +91,14 @@ function GameCard({
         <div className="flex gap-1 flex-1 min-w-0 overflow-hidden">
           {teamA.map((id) => {
             const p = getPlayer(id)
-            return p ? <PlayerChip key={id} player={p} backToBackRuns={backToBackRuns?.get(id)} /> : null
+            return p ? <PlayerChip key={id} player={p} backToBackRun={runFor(id)} /> : null
           })}
         </div>
         <span className="text-slate-400 text-xs font-bold shrink-0">vs</span>
         <div className="flex gap-1 flex-1 min-w-0 overflow-hidden">
           {teamB.map((id) => {
             const p = getPlayer(id)
-            return p ? <PlayerChip key={id} player={p} backToBackRuns={backToBackRuns?.get(id)} /> : null
+            return p ? <PlayerChip key={id} player={p} backToBackRun={runFor(id)} /> : null
           })}
         </div>
       </div>
@@ -126,7 +129,7 @@ export function ScheduleView({
     bySlot.set(game.slot, list)
   }
 
-  const backToBackRuns = new Map(Object.entries(computeBackToBackRuns(result.schedule, players.map((p) => p.id))))
+  const backToBackRunBySlot = computeBackToBackRunBySlot(result.schedule, players.map((p) => p.id))
 
   const sittingOut = (t: number) => {
     const playing = new Set<string>()
@@ -156,10 +159,11 @@ export function ScheduleView({
                   <GameCard
                     key={`${g.court}-${g.slot}`}
                     court={g.court}
+                    slot={g.slot}
                     teamA={g.teamA}
                     teamB={g.teamB}
                     playerMap={playerMap}
-                    backToBackRuns={backToBackRuns}
+                    backToBackRunBySlot={backToBackRunBySlot}
                     courtName={courtNames[g.court]}
                   />
                 ))}
