@@ -251,7 +251,6 @@ single shared admin token; see `docs/handbook/backend-go-decision.md`.
 | [Roadmap](../docs/handbook/roadmap.md) | Phase plan and status |
 | [Design Archive](../DESIGN_ARCHIVE.md) | Keputusan desain terarsip (rating engine, 8-tier, admin, UI/UX) |
 | [Backlog](../BACKLOG.md) | Inventaris backlog & status |
-| [E2E Testing Plan](E2E_TESTING_PLAN.md) | Rencana sweep end-to-end |
 | [Backend](../docs/handbook/backend-go-decision.md) | Keputusan arsitektur & fase migrasi Go |
 
 ---
