@@ -1,6 +1,6 @@
 # Roadmap
 
-Status per 2026-08-30. Fase era Supabase (1–6 di bawah) sudah selesai dan
+Status per 2026-09-07. Fase era Supabase (1–6 di bawah) sudah selesai dan
 ditutup; detail historisnya ada di git history.
 
 ## ✅ Selesai
@@ -29,6 +29,8 @@ ditutup; detail historisnya ada di git history.
 - **Recent matches format** — "with teammate · vs opponent" instead of session title (2026-08-30)
 - **absent_policy fix** — changed from `skip_game` → `skip_player`, all sessions re-ingested (2026-08-30)
 - **NULL tier fix** — COALESCE in players list query prevents scan error (2026-08-30)
+- **Auto-lock game sengaja tidak dimainkan** — game beres = ber-skor ATAU semua pemain di-skip; skip trigger auto-lock; past-date sweep di ticker (`LockPastDateDrafts`); career stats eksklusi game tanpa skor (2026-09-07)
+- **Rating history null fix** — `COALESCE(array_agg, '{}')` untuk teammates/opponents + guard `?? []` di FE (2026-09-07)
 
 ## ⏳ Berikutnya (urut prioritas)
 
