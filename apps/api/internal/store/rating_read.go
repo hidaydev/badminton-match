@@ -155,11 +155,11 @@ func (s *SessionStore) RatingPlayerHistory(ctx context.Context, playerID string,
 	rows, err := s.pool.Query(ctx, `
 		SELECT re.date::text, re.title, re.stable_game_id, rd.outcome,
 		       rd.delta, rd.expected, rd.movm, re.score_a, re.score_b, rd.new_rating,
-		       (SELECT array_agg(p.canonical_name ORDER BY p.canonical_name)
+		       (SELECT COALESCE(array_agg(p.canonical_name ORDER BY p.canonical_name), '{}')
 		        FROM `+s.schema+`.rating_deltas rd2
 		        JOIN `+s.schema+`.players p ON p.id = rd2.player_id
 		        WHERE rd2.event_id = re.id AND rd2.team = rd.team AND rd2.player_id != $1::uuid),
-		       (SELECT array_agg(p.canonical_name ORDER BY p.canonical_name)
+		       (SELECT COALESCE(array_agg(p.canonical_name ORDER BY p.canonical_name), '{}')
 		        FROM `+s.schema+`.rating_deltas rd3
 		        JOIN `+s.schema+`.players p ON p.id = rd3.player_id
 		        WHERE rd3.event_id = re.id AND rd3.team != rd.team)
