@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-09-05 (monorepo consolidation, dev sunset, webhook deploy, public repo)
+Last updated: 2026-09-07 (auto-lock void games, rating history null fix)
 
 File handover tercepat. Mulai dari sini, lalu baca dokumen terkait di bawah.
 
@@ -48,6 +48,15 @@ badminton-match (monorepo)
 | Granular skip path | `SetGameSkipped` ikut trigger auto-lock (mirror `SetScore`) — game terakhir diputuskan lewat skip → sesi langsung locked |
 | Past-date sweep | Ticker 30 mnt sekarang lock draft yang `session_date`-nya sudah lewat (WIB) sebelum auto-ingest (`LockPastDateDrafts`) — sesi granular-only tidak lagi nongkrong di draft tanpa rating |
 | Career stats | Game tanpa skor tidak dihitung di `GamesPlayed` / top partners-opponents (`stats.go`) — konsisten dengan rating engine |
+
+### Rating history: teammates/opponents null (2026-09-07)
+
+| Item | Detail |
+|------|--------|
+| Bug | Halaman rating player crash `TypeError: can't access property "length", e.teammates is null` — `array_agg` di SQL mengembalikan `NULL` saat teammate/opponent di sebuah game tidak punya baris `rating_deltas` (karena absent/skipped), lalu FE memanggil `.length`/`.join` di atasnya |
+| Pre-existing | Terjadi sejak Juli (Bowo, Tari, Fahmi, dll.), baru terlihat setelah session 2026-09-06 ter-ingest |
+| Backend | `rating_read.go`: kedua subquery `array_agg` dibungkus `COALESCE(..., '{}')` → selalu emit array, tidak pernah `null` |
+| Frontend | `RatingPlayerPage.tsx`: guard defensif `h.teammates ?? []` / `h.opponents ?? []` sebelum `.length`/`.join` |
 
 ### SEBELUMNYA (2026-08-22 → 08-30)
 

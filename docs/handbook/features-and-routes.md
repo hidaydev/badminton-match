@@ -173,7 +173,7 @@ Files:
 
 Capabilities:
 
-- recent matches show "with teammate · vs opponent" format (BE fetches teammates/opponents via correlated subqueries on rating_deltas)
+- recent matches show "with teammate · vs opponent" format (BE fetches teammates/opponents via correlated subqueries on rating_deltas; `COALESCE(array_agg, '{}')` sehingga selalu array, tidak `null` saat partner absent/skipped — fix 2026-09-07)
 - career stats (W/L, points, sessions, top partners/opponents, tournament)
   dirender di `/ratings/:playerId` — satu halaman, tanpa cross-link nested.
 - Route `/player-history*` dan halaman terpisah DIHAPUS (keputusan 2026-08-19).
