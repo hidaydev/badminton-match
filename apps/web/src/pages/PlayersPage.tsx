@@ -39,10 +39,11 @@ function TierBadge({ tier }: { tier: Tier }) {
 
 
 // ── Inline editable row ───────────────────────────────────────────────────────
-function PlayerRow({ player, onRemove, isRegistered }: { 
+function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: { 
   player: Player; 
   onRemove: () => void;
   isRegistered: boolean;
+  ambiguousMatches?: Array<{ name: string; gender: Gender; tier: Tier }>;
 }) {
   const updatePlayer = useStore((s) => s.updatePlayer)
   const [editing, setEditing] = useState(false)
@@ -61,82 +62,108 @@ function PlayerRow({ player, onRemove, isRegistered }: {
   }
 
   return (
-    <div className="flex items-center gap-1.5 sm:gap-2 bg-surface border border-border-subtle hover:border-slate-700 rounded-xl px-2.5 py-2 group transition-colors">
-      {/* Avatar */}
-      <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
-        {player.name[0].toUpperCase()}
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5 sm:gap-2 bg-surface border border-border-subtle hover:border-slate-700 rounded-xl px-2.5 py-2 group transition-colors">
+        {/* Avatar */}
+        <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+          {player.name[0].toUpperCase()}
+        </div>
 
-      {/* Name — click to edit */}
-      {editing ? (
-        <input
-          ref={inputRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={save}
-          onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setName(player.name); setEditing(false) } }}
-          className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
-        />
-      ) : (
-        <span
-          onClick={() => setEditing(true)}
-          className="flex-1 text-white font-medium text-sm cursor-text hover:text-indigo-300 transition-colors"
-        >
-          {player.name}
-          {isPlaceholderName(player.name) && (
-            <span className="ml-2 text-[9px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 py-0.5 uppercase tracking-wider">
-              tbd
-            </span>
-          )}
-        </span>
-      )}
-
-      {/* Gender picker */}
-      <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {(['M', 'F'] as Gender[]).map((g) => (
-          <button
-            key={g}
-            onClick={() => updatePlayer(player.id, { gender: g })}
-            className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
-              player.gender === g
-                ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+        {/* Name — click to edit */}
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={save}
+            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setName(player.name); setEditing(false) } }}
+            className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+          />
+        ) : (
+          <span
+            onClick={() => setEditing(true)}
+            className="flex-1 text-white font-medium text-sm cursor-text hover:text-indigo-300 transition-colors"
           >
-            {g}
-          </button>
-        ))}
-      </div>
+            {player.name}
+            {isPlaceholderName(player.name) && (
+              <span className="ml-2 text-[9px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 py-0.5 uppercase tracking-wider">
+                tbd
+              </span>
+            )}
+          </span>
+        )}
 
-      {/* Tier — read-only badge untuk registered player, picker untuk new player */}
-      {isRegistered ? (
-        <span className={`inline-flex items-center justify-center min-w-8 h-8 text-xs font-bold rounded-lg ${TIER_ACTIVE[player.tier]}`}>
-          {TIER_LABELS[player.tier]}
-        </span>
-      ) : (
+        {/* Gender picker */}
         <div className="flex rounded-lg overflow-hidden border border-slate-700">
-          {([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => (
+          {(['M', 'F'] as Gender[]).map((g) => (
             <button
-              key={t}
-              onClick={() => updatePlayer(player.id, { tier: t })}
-              className={`min-w-8 h-8 text-xs font-bold transition-colors ${
-                player.tier === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
+              key={g}
+              onClick={() => updatePlayer(player.id, { gender: g })}
+              className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
+                player.gender === g
+                  ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              {TIER_LABELS[t]}
+              {g}
             </button>
           ))}
         </div>
-      )}
 
-      {/* Delete */}
-      <button
-        onClick={onRemove}
-        className="text-slate-400 hover:text-red-400 active:text-red-400 text-sm transition-colors shrink-0 p-2"
-        aria-label="Remove player"
-      >
-        ✕
-      </button>
+        {/* Tier — read-only badge untuk registered player, picker untuk new player */}
+        {isRegistered ? (
+          <span className={`inline-flex items-center justify-center min-w-8 h-8 text-xs font-bold rounded-lg ${TIER_ACTIVE[player.tier]}`}>
+            {TIER_LABELS[player.tier]}
+          </span>
+        ) : (
+          <div className="flex rounded-lg overflow-hidden border border-slate-700">
+            {([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => updatePlayer(player.id, { tier: t })}
+                className={`min-w-8 h-8 text-xs font-bold transition-colors ${
+                  player.tier === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {TIER_LABELS[t]}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Delete */}
+        <button
+          onClick={onRemove}
+          className="text-slate-400 hover:text-red-400 active:text-red-400 text-sm transition-colors shrink-0 p-2"
+          aria-label="Remove player"
+        >
+          ✕
+        </button>
+      </div>
+
+      {ambiguousMatches && ambiguousMatches.length > 0 && (
+        <div className="bg-amber-950/70 border border-amber-600/70 rounded-xl p-2.5 flex flex-col gap-1.5 text-xs ml-1 mr-1">
+          <span className="text-amber-300 font-semibold flex items-center gap-1">
+            ⚠️ Nama &ldquo;{player.name}&rdquo; ambigu (ada {ambiguousMatches.length} pemain terdaftar):
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {ambiguousMatches.map((m) => (
+              <button
+                key={m.name}
+                type="button"
+                onClick={() => {
+                  updatePlayer(player.id, { name: m.name, gender: m.gender, tier: m.tier })
+                  setName(m.name)
+                }}
+                className="bg-amber-900/90 hover:bg-amber-800 text-amber-100 border border-amber-500/60 font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                <span>{m.name}</span>
+                <span className="text-[10px] opacity-80">({TIER_LABELS[m.tier]} · {m.gender})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -310,25 +337,39 @@ export default function PlayersPage() {
   const [showBulk, setShowBulk] = useState(false)
   const navigate = useNavigate()
   const [canonicalPlayers, setCanonicalPlayers] = useState<Map<string, { gender: Gender; tier: Tier }>>(new Map())
+  const [canonicalList, setCanonicalList] = useState<Array<{ name: string; gender: Gender; tier: Tier }>>([])
 
   // Fetch canonical players for auto-fill
   useEffect(() => {
     listPlayers().then((rows) => {
       const map = new Map<string, { gender: Gender; tier: Tier }>()
+      const list: Array<{ name: string; gender: Gender; tier: Tier }> = []
       for (const row of rows) {
         // Use tierInduk (canonical tier) if available, fallback to tier (display)
         const canonicalTier = row.tierInduk ? tierStringToNumber(row.tierInduk) : (row.tier || 2)
-        map.set(row.name.toLowerCase(), { 
-          gender: row.gender as Gender, 
-          tier: canonicalTier as Tier
-        })
+        const entry = { gender: row.gender as Gender, tier: canonicalTier as Tier }
+        map.set(row.name.toLowerCase(), entry)
+        list.push({ name: row.name, ...entry })
       }
       setCanonicalPlayers(map)
+      setCanonicalList(list)
     }).catch(() => {})
   }, [])
 
   const required = session.playerCount
   const isComplete = players.length === required
+
+  function findAmbiguousMatches(name: string, isRegistered: boolean) {
+    if (isRegistered) return []
+    const norm = name.trim().toLowerCase()
+    if (!norm || isPlaceholderName(norm)) return []
+    return canonicalList.filter((c) => {
+      const cNorm = c.name.toLowerCase()
+      return cNorm.startsWith(norm + ' ') || cNorm.startsWith(norm + '(')
+    })
+  }
+
+  const hasAmbiguous = players.some((p) => findAmbiguousMatches(p.name, canonicalPlayers.has(p.name.toLowerCase())).length > 0)
 
   function handleAdd(name: string, gender: Gender, tier: Tier) {
     addPlayer({ name, gender, tier })
@@ -374,14 +415,19 @@ export default function PlayersPage() {
                   <span className="text-xs text-slate-400">{TIER_NAMES[tier]}</span>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  {group.map((player) => (
-                    <PlayerRow 
-                      key={player.id} 
-                      player={player} 
-                      onRemove={() => removePlayer(player.id)}
-                      isRegistered={canonicalPlayers.has(player.name.toLowerCase())}
-                    />
-                  ))}
+                  {group.map((player) => {
+                    const isReg = canonicalPlayers.has(player.name.toLowerCase())
+                    const amb = findAmbiguousMatches(player.name, isReg)
+                    return (
+                      <PlayerRow 
+                        key={player.id} 
+                        player={player} 
+                        onRemove={() => removePlayer(player.id)}
+                        isRegistered={isReg}
+                        ambiguousMatches={amb}
+                      />
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -437,12 +483,14 @@ export default function PlayersPage() {
       )}
 
       <button
-        disabled={!isComplete || !session.locked}
+        disabled={!isComplete || !session.locked || hasAmbiguous}
         onClick={() => navigate('/session/constraints')}
         className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors mt-2"
       >
         {!session.locked
           ? 'Go to Setup to start session'
+          : hasAmbiguous
+          ? 'Pilih pemain resmi untuk nama yang ambigu ⚠️'
           : isComplete
           ? 'Next: Constraints →'
           : `Add players (${players.length}/${required})`}
