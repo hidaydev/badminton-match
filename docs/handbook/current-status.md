@@ -40,6 +40,15 @@ badminton-match (monorepo)
 | Generate + published view | Konsisten di halaman generate (`ScheduleComponents`) dan published summary (`ScheduleGrid`/`PlayerChipRenderer`) |
 | Superscript | `*N` kecil terangkat (8px, amber), bukan `*` boolean |
 
+### Auto-lock & ingest: game sengaja tidak dimainkan (2026-09-07)
+
+| Item | Detail |
+|------|--------|
+| Game "beres" | Game dianggap selesai jika ber-skor ATAU seluruh pemainnya di-skip (⊘ semua) → auto-lock tidak lagi menunggu semua skor terisi (`countDecidedGames` / `allGamesDecided`) |
+| Granular skip path | `SetGameSkipped` ikut trigger auto-lock (mirror `SetScore`) — game terakhir diputuskan lewat skip → sesi langsung locked |
+| Past-date sweep | Ticker 30 mnt sekarang lock draft yang `session_date`-nya sudah lewat (WIB) sebelum auto-ingest (`LockPastDateDrafts`) — sesi granular-only tidak lagi nongkrong di draft tanpa rating |
+| Career stats | Game tanpa skor tidak dihitung di `GamesPlayed` / top partners-opponents (`stats.go`) — konsisten dengan rating engine |
+
 ### SEBELUMNYA (2026-08-22 → 08-30)
 
 1. **PROD MIGRATION (Supabase → VPS)** — bm_dev dibersihkan, migrated.sql (125 players,

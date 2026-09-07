@@ -87,6 +87,18 @@ func main() {
 			run := func() {
 				runCtx, cancel := context.WithTimeout(autoIngestCtx, 2*time.Minute)
 				defer cancel()
+				// 1) Lock draft yang tanggalnya sudah lewat — sesi yang skornya
+				//    masuk via granular tidak pernah dapat pastDate lock dari
+				//    Save/PUT, jadi ditutup di sini supaya final & bisa di-ingest.
+				nl, err := locker.LockPastDateDrafts(runCtx)
+				if err != nil {
+					logger.Error("auto-lock past-date gagal", "error", err)
+					return
+				}
+				if nl > 0 {
+					logger.Info("auto-lock past-date", "sessions_locked", nl)
+				}
+				// 2) Ingest sesi locked yang belum diingest.
 				ni, err := locker.AutoIngestLockedSessions(runCtx)
 				if err != nil {
 					logger.Error("auto-ingest gagal", "error", err)

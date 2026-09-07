@@ -654,12 +654,13 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 		return nil, err
 	}
 
-	// 8. Auto-lock: semua skor terisi ATAU tanggal lewat → lock otomatis.
+	// 8. Auto-lock: semua game sudah "beres" (skor terisi ATAU sengaja tidak
+	// dimainkan — seluruh pemain di-skip) ATAU tanggal lewat → lock otomatis.
 	// Version tetap nextVersion (SATU bump per save) — sebelumnya di-increment
 	// lagi (double bump n+1→n+2) bikin FE cache (n) kena 40001 di mutasi
 	// berikutnya padahal lock yang menolak (audit RC2).
 	if currentStatus == "draft" && status == "draft" {
-		allScored := len(snap.Schedule) > 0 && countScoredGames(snap) == len(snap.Schedule)
+		allDecided := len(snap.Schedule) > 0 && countDecidedGames(snap) == len(snap.Schedule)
 		pastDate := false
 		// Compare against WIB date (Asia/Jakarta) — venue selalu WIB.
 		// DB current_date pakai UTC (container UTC) → sesi hari-H ke-lock prematur jam 07:00 WIB.
@@ -667,7 +668,7 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 		if err := tx.QueryRow(ctx, `SELECT (now() AT TIME ZONE 'Asia/Jakarta')::date::text`).Scan(&today); err == nil {
 			pastDate = snap.Session.Date < today
 		}
-		if allScored || pastDate {
+		if allDecided || pastDate {
 			// Gunakan sessionID (bukan rowID) — untuk sesi baru, rowID="", sessionID berisi UUID
 			// dari INSERT RETURNING. Untuk sesi lama, sessionID = rowID (keduanya sama).
 			if _, err := tx.Exec(ctx, `
@@ -688,6 +689,25 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 		s.Broadcast(id, snapOut)
 	}
 	return snapOut, err
+}
+
+// LockPastDateDrafts — auto-lock draft sessions yang session_date-nya sudah
+// lewat (WIB) — mirror aturan pastDate di Save(), tapi tanpa butuh PUT
+// lanjutan. Dipanggil ticker sebelum AutoIngestLockedSessions supaya sesi yang
+// skornya masuk via granular (tanpa publish PUT setelah tanggal lewat) tetap
+// ter-lock dan rating-nya bisa di-ingest. Version +1 (satu bump, sama seperti
+// granular auto-lock) — mutasi berikutnya ditolak oleh status locked sebelum
+// version check, jadi FE tidak kena 40001.
+func (s *SessionStore) LockPastDateDrafts(ctx context.Context) (int, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE sessions
+		SET status = 'locked', version = version + 1, updated_at = now()
+		WHERE status = 'draft'
+		  AND session_date < (SELECT (now() AT TIME ZONE 'Asia/Jakarta')::date)`)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 // Delete — delete write-path (port bm.delete_session): tolak non-draft, lalu
@@ -1181,14 +1201,51 @@ func isLockNotAvailable(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "55P03"
 }
 
-// countScoredGames — hitung jumlah game yang sudah punya skor di snapshot.
-func countScoredGames(snap *domain.CloudSnapshot) int {
+// countDecidedGames — hitung jumlah game yang sudah "beres" di snapshot:
+// sudah punya skor ATAU sengaja tidak dimainkan (seluruh pemainnya di-skip —
+// skippedPlayers per-game memuat semua pemain game tsb). Game yang dibiarkan
+// kosong (belum skor, belum di-skip) tetap dihitung belum beres.
+func countDecidedGames(snap *domain.CloudSnapshot) int {
 	count := 0
 	for _, g := range snap.Schedule {
 		key := domain.GameKey(g.Slot, g.Court)
 		if _, ok := snap.GameScores[key]; ok {
 			count++
+			continue
+		}
+		if gameFullySkipped(g, snap.SkippedPlayers[key]) {
+			count++
 		}
 	}
 	return count
+}
+
+// gameFullySkipped — true jika seluruh pemain game di-skip (sengaja tidak
+// dimainkan). Butuh minimal satu pemain non-blank — game tanpa pemain tidak
+// dianggap beres.
+func gameFullySkipped(g domain.ScheduleSlot, skipped []string) bool {
+	skipSet := make(map[string]struct{}, len(skipped))
+	for _, id := range skipped {
+		skipSet[id] = struct{}{}
+	}
+	players := 0
+	for _, id := range g.TeamA {
+		if id == "" {
+			continue
+		}
+		players++
+		if _, ok := skipSet[id]; !ok {
+			return false
+		}
+	}
+	for _, id := range g.TeamB {
+		if id == "" {
+			continue
+		}
+		players++
+		if _, ok := skipSet[id]; !ok {
+			return false
+		}
+	}
+	return players > 0
 }
