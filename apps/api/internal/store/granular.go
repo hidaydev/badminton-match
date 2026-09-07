@@ -174,14 +174,15 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 	})
 	s.metrics.OutboxEvents.Add(1)
 
-	// Auto-lock saat SEMUA game sudah ber-skor (mirror Save() allScored) —
+	// Auto-lock saat SEMUA game sudah "beres" (mirror Save() allDecided):
+	// ber-skor ATAU sengaja tidak dimainkan (seluruh pemain di-skip) —
 	// tanpanya sesi yang skornya masuk via granular tidak pernah ter-lock
 	// sampai tanggal lewat → rating ingest tertunda (regression vs PUT path).
-	allScored, err := allGamesScored(ctx, tx, sessID)
+	allDecided, err := allGamesDecided(ctx, tx, sessID)
 	if err != nil {
 		return nil, err
 	}
-	if allScored {
+	if allDecided {
 		// status='draft' guard → hanya satu writer yang menang; yang kedua
 		// tidak menaikkan version lagi (idempotent lock).
 		_, err = tx.Exec(ctx, `
@@ -209,12 +210,22 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 	return snap, err
 }
 
-// allGamesScored — true jika semua game di session sudah punya score (score_a IS NOT NULL).
-func allGamesScored(ctx context.Context, tx pgx.Tx, sessionID string) (bool, error) {
+// allGamesDecided — true jika semua game di session sudah "beres": punya
+// score (score_a IS NOT NULL) ATAU sengaja tidak dimainkan (seluruh pemainnya
+// di-skip via skipped_player_refs). Game kosong yang belum di-skip tetap
+// dihitung belum beres → sesi belum ter-lock.
+func allGamesDecided(ctx context.Context, tx pgx.Tx, sessionID string) (bool, error) {
 	var remaining int
 	err := tx.QueryRow(ctx, `
-		SELECT count(*) FROM scheduled_games
-		WHERE session_id = $1::uuid AND score_a IS NULL`, sessionID).Scan(&remaining)
+		SELECT count(*) FROM scheduled_games sg
+		WHERE sg.session_id = $1::uuid
+		  AND sg.score_a IS NULL
+		  AND EXISTS (
+			SELECT 1 FROM scheduled_game_players sgp
+			JOIN session_players sp ON sp.internal_id = sgp.session_player_internal_id
+			WHERE sgp.scheduled_game_internal_id = sg.internal_id
+			  AND NOT (sp.player_ref = ANY(COALESCE(sg.skipped_player_refs, '{}')))
+		  )`, sessionID).Scan(&remaining)
 	if err != nil {
 		return false, err
 	}
@@ -507,6 +518,26 @@ func (s *SessionStore) SetGameSkipped(ctx context.Context, sessionID, gameKey st
 		Payload: domain.SkippedPayload{Slot: slot, Court: court, PlayerIDs: clean}, Version: int64(currentVer + 1),
 	})
 	s.metrics.OutboxEvents.Add(1)
+
+	// Auto-lock saat semua game sudah "beres" (mirror SetScore) — skip seluruh
+	// pemain satu game = game sengaja tidak dimainkan; begitu game terakhir
+	// diputuskan lewat skip, sesi ikut ter-lock (bukan menunggu tanggal lewat).
+	allDecided, err := allGamesDecided(ctx, tx, sessID)
+	if err != nil {
+		return nil, err
+	}
+	if allDecided {
+		// status='draft' guard → hanya satu writer yang menang; yang kedua
+		// tidak menaikkan version lagi (idempotent lock).
+		_, err = tx.Exec(ctx, `
+			UPDATE sessions SET status = 'locked', version = version + 1, updated_at = now()
+			WHERE id = $1::uuid AND status = 'draft'`, sessID)
+		if err != nil {
+			return nil, err
+		}
+		s.metrics.AutoLocks.Add(1)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}

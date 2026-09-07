@@ -101,6 +101,8 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 	// SkipPlayer: cuma game dimana si pemain sendiri absent/skipped/placeholder yang di-exclude,
 	// bukan void seluruh game kalo ada orang lain absent (samain dengan rating AbsentSkipPlayer).
 	// Lihat rating_extract.go per-game skipped.
+	// Game tanpa skor (belum dimainkan / sengaja di-skip semua pemainnya) TIDAK
+	// dihitung — konsisten dengan rating engine yang mengabaikan game tak ber-skor.
 	if err := pool.QueryRow(ctx, `
 		SELECT
 			count(*)::integer,
@@ -121,6 +123,7 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 		WHERE sp.player_id = $1::uuid
 		  AND sp.is_absent = false
 		  AND NOT (sp.player_ref = ANY(COALESCE(sg.skipped_player_refs,'{}')))
+		  AND sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL
 		  AND (p.canonical_name IS NULL OR p.canonical_name !~* '^(free|tbd|default|xxx|unknown|kosong|belum ada)( [0-9]+)?$|^\?+$')`,
 		playerID).
 		Scan(&out.GamesPlayed, &out.Wins, &out.Losses, &out.PointsFor, &out.PointsAgainst); err != nil {
@@ -195,6 +198,7 @@ func loadStatEntries(ctx context.Context, pool *pgxpool.Pool, playerID string, o
 		WHERE sp.player_id = $1::uuid
 		  AND sp.is_absent = false
 		  AND NOT (sp.player_ref = ANY(COALESCE(sg.skipped_player_refs,'{}')))
+		  AND sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL
 		  AND (pself.canonical_name IS NULL OR pself.canonical_name !~* '^(free|tbd|default|xxx|unknown|kosong|belum ada)( [0-9]+)?$|^\?+$')
 		GROUP BY partner.canonical_name
 		ORDER BY count(*) DESC, lower(partner.canonical_name)
