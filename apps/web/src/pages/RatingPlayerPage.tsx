@@ -74,13 +74,15 @@ export default function RatingPlayerPage() {
         {history.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">No matches yet.</p>}
         {history.slice(matchesPage * MATCHES_PER_PAGE, (matchesPage + 1) * MATCHES_PER_PAGE).map((h, i) => {
           const won = h.outcome === 'W'
+          const teammates = h.teammates ?? []
+          const opponents = h.opponents ?? []
           return (
             <div key={i} className="bg-surface border border-border-subtle rounded-lg px-3 py-2 flex items-center gap-3">
               <span className={`text-xs font-bold ${won ? 'text-emerald-400' : 'text-red-400'}`}>{won ? 'W' : 'L'}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-fg truncate">
-                  {h.teammates.length > 0 && <span className="text-fg-dim">with {h.teammates.join(', ')} · </span>}
-                  vs {h.opponents.join(', ')}
+                  {teammates.length > 0 && <span className="text-fg-dim">with {teammates.join(', ')} · </span>}
+                  vs {opponents.join(', ')}
                 </p>
                 <p className="text-[10px] font-sans text-fg-dim">
                   {h.date} · {h.score_a}-{h.score_b} · {h.title}
