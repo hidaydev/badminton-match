@@ -88,3 +88,31 @@ func TestRatingConfigValidateWithSeason(t *testing.T) {
 		t.Fatal("session_tier_init kurang dari 8 harus gagal")
 	}
 }
+
+func TestRatingConfigValidateNewParams(t *testing.T) {
+	// gap_cap_slope = 0 dengan threshold aktif → harus gagal (division by zero)
+	bad := DefaultRatingConfig
+	bad.Params.GapCapThreshold = 500
+	bad.Params.GapCapSlope = 0
+	if err := bad.Validate(); err == nil {
+		t.Fatal("gap_cap_slope=0 dengan threshold aktif harus gagal")
+	}
+	// team_size_weight_factor di luar (0,1] → harus gagal
+	bad2 := DefaultRatingConfig
+	bad2.Params.TeamSizeNormalization = true
+	bad2.Params.TeamSizeWeightFactor = 1.5
+	if err := bad2.Validate(); err == nil {
+		t.Fatal("team_size_weight_factor > 1 harus gagal")
+	}
+	// volatility_factor di luar (0,1] → harus gagal
+	bad3 := DefaultRatingConfig
+	bad3.Params.VolatilityDampening = true
+	bad3.Params.VolatilityFactor = 1.2
+	if err := bad3.Validate(); err == nil {
+		t.Fatal("volatility_factor > 1 harus gagal")
+	}
+	// default config tetap valid
+	if err := DefaultRatingConfig.Validate(); err != nil {
+		t.Fatalf("default config harus valid: %v", err)
+	}
+}

@@ -319,19 +319,22 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		}
 
 		type u struct {
-			rt   *playerRuntime
-			team string
-			out  float64
-			opps []domain.RatingOpponent
+			rt       *playerRuntime
+			team     string
+			out      float64
+			opps     []domain.RatingOpponent
+			teamSize int
 		}
 		updates := []u{}
+		teamASize := len(playersA)
+		teamBSize := len(playersB)
 		for _, id := range playersA {
 			rt := getRT(id)
-			updates = append(updates, u{rt: rt, team: "A", out: outcomeA, opps: oppsFor("A")})
+			updates = append(updates, u{rt: rt, team: "A", out: outcomeA, opps: oppsFor("A"), teamSize: teamASize})
 		}
 		for _, id := range playersB {
 			rt := getRT(id)
-			updates = append(updates, u{rt: rt, team: "B", out: outcomeB, opps: oppsFor("B")})
+			updates = append(updates, u{rt: rt, team: "B", out: outcomeB, opps: oppsFor("B"), teamSize: teamBSize})
 		}
 
 		for _, x := range updates {
@@ -351,6 +354,29 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 				exp /= float64(len(x.opps))
 			}
 			newSt, delta := domain.GlickoUpdate(st, x.opps, x.out, movm, phaseWeight, cfg.Params)
+
+			// Modifier post-Glicko (semua opsional, disabled by default):
+			//   - teamWeight: kompensasi tim dengan jumlah pemain berbeda
+			//   - volFactor:  dampening untuk win rate ekstrem
+			// Hitung SEMUA modifier dulu, lalu apply sekaligus + round2
+			// agar invariant determinism (semua nilai round2) tetap terjaga.
+			mod := 1.0
+			if w := domain.TeamSizeWeight(x.teamSize, cfg.Params); w < 1.0 {
+				mod *= w
+			}
+			if v := domain.VolatilityFactor(x.rt.wins, x.rt.losses, cfg.Params); v < 1.0 {
+				mod *= v
+			}
+			if mod < 1.0 {
+				delta = domain.Round2(delta * mod)
+				newSt.Rating = domain.Round2(st.Rating + delta)
+			}
+
+			// Active floor: floor dinamis berdasarkan jumlah game
+			activeFloor := domain.ActiveFloor(x.rt.games, cfg.Params)
+			if newSt.Rating < activeFloor {
+				newSt.Rating = activeFloor
+			}
 
 			x.rt.state = newSt
 			x.rt.games++
@@ -378,8 +404,27 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		}
 	}
 
-	// Flush rating_players
+	// Flush rating_players — dengan decay applied
 	for id, rt := range runtime {
+		// Apply decay: rating turun berdasarkan idle sejak game terakhir
+		if cfg.DecayEnabled && rt.lastPlayedAt != "" {
+			lastPlayed, err := time.Parse("2006-01-02", rt.lastPlayedAt)
+			if err == nil {
+				idleDays := int(time.Since(lastPlayed).Hours() / 24)
+				if idleDays > cfg.DecayThresholdDays {
+					rt.state.Rating = domain.DecayFactor(
+						rt.state.Rating, idleDays, cfg.Params,
+						cfg.DecayEnabled, cfg.DecayThresholdDays,
+						cfg.DecayPerWeek, cfg.DecayFloor,
+					)
+					// Peak juga di-adjust (tidak bisa lebih tinggi dari rating setelah decay)
+					if rt.state.Rating < rt.peak {
+						rt.peak = rt.state.Rating
+					}
+				}
+			}
+		}
+
 		var lastPlayed any
 		if rt.lastPlayedAt != "" {
 			lastPlayed = rt.lastPlayedAt

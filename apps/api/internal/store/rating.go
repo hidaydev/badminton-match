@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -146,6 +147,44 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 			reconcile = true
 			if err := s.deleteSourceEvents(ctx, tx, meta.SourceID); err != nil {
 				return nil, err
+			}
+		}
+	}
+
+	// Placeholder promotion guard: cek apakah ada placeholder yang sudah
+	// melebihi threshold → tandai untuk review admin.
+	if cfg.PlaceholderPromoteGames > 0 {
+		placeholderNames := map[string]bool{}
+		for _, m := range matches {
+			for _, p := range m.Players {
+				if p.Placeholder && !p.Absent {
+					placeholderNames[p.Name] = true
+				}
+			}
+		}
+		for name := range placeholderNames {
+			var gamesPlayed int
+			_ = s.pool.QueryRow(ctx, `
+				SELECT count(*) FROM `+s.schema+`.rating_deltas rd
+				JOIN `+s.schema+`.rating_events re ON re.id = rd.event_id
+				WHERE re.stable_game_id LIKE 'legacy-%'
+				AND rd.player_id IN (
+					SELECT id FROM `+s.schema+`.players
+					WHERE canonical_name = $1 OR id IN (
+						SELECT player_id FROM `+s.schema+`.player_aliases
+						WHERE alias_name = $1
+					)
+				)`, domain.NormalizePlayerName(name)).Scan(&gamesPlayed)
+			if gamesPlayed >= cfg.PlaceholderPromoteGames {
+				// Warning: placeholder sudah terlalu banyak game
+				// Idealnya admin register pemain ini sebagai real player
+				// Untuk sekarang, kita log warning tapi tidak block ingest
+				slog.Warn("placeholder Promotion threshold exceeded",
+					"placeholder", name,
+					"games_played", gamesPlayed,
+					"threshold", cfg.PlaceholderPromoteGames,
+					"source", meta.SourceID,
+				)
 			}
 		}
 	}
@@ -396,20 +435,23 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 
 		type updateEntry struct {
-			rt   *playerRuntime
-			team string
-			out  float64
-			opps []domain.RatingOpponent
+			rt       *playerRuntime
+			team     string
+			out      float64
+			opps     []domain.RatingOpponent
+			teamSize int // jumlah pemain di tim yang sama
 		}
 		updates := []updateEntry{}
+		teamASize := len(eligibleA)
+		teamBSize := len(eligibleB)
 		for _, p := range eligibleA {
 			if rt := runtime[playerIDs[p.Name]]; rt != nil {
-				updates = append(updates, updateEntry{rt: rt, team: "A", out: outcomeA, opps: opponentsFor("A")})
+				updates = append(updates, updateEntry{rt: rt, team: "A", out: outcomeA, opps: opponentsFor("A"), teamSize: teamASize})
 			}
 		}
 		for _, p := range eligibleB {
 			if rt := runtime[playerIDs[p.Name]]; rt != nil {
-				updates = append(updates, updateEntry{rt: rt, team: "B", out: outcomeB, opps: opponentsFor("B")})
+				updates = append(updates, updateEntry{rt: rt, team: "B", out: outcomeB, opps: opponentsFor("B"), teamSize: teamBSize})
 			}
 		}
 
@@ -433,6 +475,29 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 			}
 
 			newSt, delta := domain.GlickoUpdate(st, u.opps, u.out, movm, phaseWeight, cfg.Params)
+
+			// Modifier post-Glicko (semua opsional, disabled by default):
+			//   - teamWeight: kompensasi tim dengan jumlah pemain berbeda
+			//   - volFactor:  dampening untuk win rate ekstrem
+			// Hitung SEMUA modifier dulu, lalu apply sekaligus + round2
+			// agar invariant determinism (semua nilai round2) tetap terjaga.
+			mod := 1.0
+			if w := domain.TeamSizeWeight(u.teamSize, cfg.Params); w < 1.0 {
+				mod *= w
+			}
+			if v := domain.VolatilityFactor(u.rt.wins, u.rt.losses, cfg.Params); v < 1.0 {
+				mod *= v
+			}
+			if mod < 1.0 {
+				delta = domain.Round2(delta * mod)
+				newSt.Rating = domain.Round2(st.Rating + delta)
+			}
+
+			// Active floor: floor dinamis berdasarkan jumlah game
+			activeFloor := domain.ActiveFloor(u.rt.games, cfg.Params)
+			if newSt.Rating < activeFloor {
+				newSt.Rating = activeFloor
+			}
 
 			u.rt.state = newSt
 			u.rt.games++
