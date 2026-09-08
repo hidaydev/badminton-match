@@ -51,10 +51,10 @@ type RatingParams struct {
 	// Consistency dampening (Glicko-2 lite): kurangi delta untuk pemain
 	// dengan win rate ekstrem (> threshold atau < 1-threshold).
 	// Pemain yang sangat menang/kalah mendapat update lebih kecil.
-	VolatilityDampening bool    // aktifkan dampening
-	VolatilityThreshold float64 // win rate threshold (misal: 0.6 → >0.6 atau <0.4 kena dampening)
-	VolatilityFactor    float64 // faktor penurunan (misal: 0.9 → delta × 0.9)
-	MinGamesForDampening int    // minimal game sebelum dampening aktif (misal: 5)
+	VolatilityDampening  bool    // aktifkan dampening
+	VolatilityThreshold  float64 // win rate threshold (misal: 0.6 → >0.6 atau <0.4 kena dampening)
+	VolatilityFactor     float64 // faktor penurunan (misal: 0.9 → delta × 0.9)
+	MinGamesForDampening int     // minimal game sebelum dampening aktif (misal: 5)
 }
 
 // DefaultRatingParams — fallback bila config tidak ada/invalid.
@@ -94,15 +94,15 @@ var DefaultRatingParams = RatingParams{
 	// Team size normalization: kompensasi untuk tim dengan jumlah pemain
 	// berbeda (absent skip_player). Disabled by default.
 	// Jika diaktifkan: 2 pemain → delta × 0.85, 3 pemain → delta × 0.72
-	TeamSizeNormalization: false,    // disabled by default
+	TeamSizeNormalization: false, // disabled by default
 	TeamSizeWeightFactor:  0.85,
 
 	// Consistency dampening (Glicko-2 lite): disabled by default.
 	// Jika diaktifkan: win rate > 0.6 atau < 0.4 → delta × 0.9
-	VolatilityDampening:    false, // disabled by default
-	VolatilityThreshold:    0.6,
-	VolatilityFactor:       0.9,
-	MinGamesForDampening:   5,
+	VolatilityDampening:  false, // disabled by default
+	VolatilityThreshold:  0.6,
+	VolatilityFactor:     0.9,
+	MinGamesForDampening: 5,
 }
 
 // RatingState — rating + deviation seorang pemain.
