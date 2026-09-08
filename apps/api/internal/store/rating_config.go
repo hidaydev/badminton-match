@@ -153,10 +153,14 @@ func (s *SessionStore) LoadRatingConfig(ctx context.Context, failFast bool) (dom
 	if err := apply("active_floor_min", func(v json.RawMessage) error { return f("active_floor_min")(v, &cfg.Params.ActiveFloorMin) }); err != nil {
 		return domain.RatingConfig{}, err
 	}
-	if err := apply("team_size_normalization", func(v json.RawMessage) error { return asBool("team_size_normalization", &cfg.Params.TeamSizeNormalization) }); err != nil {
+	if err := apply("team_size_normalization", func(v json.RawMessage) error {
+		return asBool("team_size_normalization", &cfg.Params.TeamSizeNormalization)
+	}); err != nil {
 		return domain.RatingConfig{}, err
 	}
-	if err := apply("team_size_weight_factor", func(v json.RawMessage) error { return f("team_size_weight_factor")(v, &cfg.Params.TeamSizeWeightFactor) }); err != nil {
+	if err := apply("team_size_weight_factor", func(v json.RawMessage) error {
+		return f("team_size_weight_factor")(v, &cfg.Params.TeamSizeWeightFactor)
+	}); err != nil {
 		return domain.RatingConfig{}, err
 	}
 	if err := apply("volatility_dampening", func(v json.RawMessage) error { return asBool("volatility_dampening", &cfg.Params.VolatilityDampening) }); err != nil {
@@ -168,7 +172,9 @@ func (s *SessionStore) LoadRatingConfig(ctx context.Context, failFast bool) (dom
 	if err := apply("volatility_factor", func(v json.RawMessage) error { return f("volatility_factor")(v, &cfg.Params.VolatilityFactor) }); err != nil {
 		return domain.RatingConfig{}, err
 	}
-	if err := apply("min_games_for_dampening", func(v json.RawMessage) error { return asInt("min_games_for_dampening", &cfg.Params.MinGamesForDampening) }); err != nil {
+	if err := apply("min_games_for_dampening", func(v json.RawMessage) error {
+		return asInt("min_games_for_dampening", &cfg.Params.MinGamesForDampening)
+	}); err != nil {
 		return domain.RatingConfig{}, err
 	}
 	if err := apply("phase_weights", func(v json.RawMessage) error {
