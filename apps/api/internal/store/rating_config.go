@@ -126,6 +126,51 @@ func (s *SessionStore) LoadRatingConfig(ctx context.Context, failFast bool) (dom
 	if err := apply("movm_cap", func(v json.RawMessage) error { return f("movm_cap")(v, &cfg.Params.MovmCap) }); err != nil {
 		return domain.RatingConfig{}, err
 	}
+	if err := apply("gap_cap_threshold", func(v json.RawMessage) error { return f("gap_cap_threshold")(v, &cfg.Params.GapCapThreshold) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("gap_cap_slope", func(v json.RawMessage) error { return f("gap_cap_slope")(v, &cfg.Params.GapCapSlope) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("provisional_cap_mult", func(v json.RawMessage) error { return f("provisional_cap_mult")(v, &cfg.Params.ProvisionalCapMult) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("established_cap_mult", func(v json.RawMessage) error { return f("established_cap_mult")(v, &cfg.Params.EstablishedCapMult) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("rd_provisional", func(v json.RawMessage) error { return f("rd_provisional")(v, &cfg.Params.RDProvisional) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("rd_established", func(v json.RawMessage) error { return f("rd_established")(v, &cfg.Params.RDEstablished) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("active_floor_base", func(v json.RawMessage) error { return f("active_floor_base")(v, &cfg.Params.ActiveFloorBase) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("active_floor_per_game", func(v json.RawMessage) error { return f("active_floor_per_game")(v, &cfg.Params.ActiveFloorPerGame) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("active_floor_min", func(v json.RawMessage) error { return f("active_floor_min")(v, &cfg.Params.ActiveFloorMin) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("team_size_normalization", func(v json.RawMessage) error { return asBool("team_size_normalization", &cfg.Params.TeamSizeNormalization) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("team_size_weight_factor", func(v json.RawMessage) error { return f("team_size_weight_factor")(v, &cfg.Params.TeamSizeWeightFactor) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("volatility_dampening", func(v json.RawMessage) error { return asBool("volatility_dampening", &cfg.Params.VolatilityDampening) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("volatility_threshold", func(v json.RawMessage) error { return f("volatility_threshold")(v, &cfg.Params.VolatilityThreshold) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("volatility_factor", func(v json.RawMessage) error { return f("volatility_factor")(v, &cfg.Params.VolatilityFactor) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("min_games_for_dampening", func(v json.RawMessage) error { return asInt("min_games_for_dampening", &cfg.Params.MinGamesForDampening) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
 	if err := apply("phase_weights", func(v json.RawMessage) error {
 		var m map[string]float64
 		if err := json.Unmarshal(v, &m); err != nil {
@@ -160,6 +205,9 @@ func (s *SessionStore) LoadRatingConfig(ctx context.Context, failFast bool) (dom
 		return domain.RatingConfig{}, err
 	}
 	if err := apply("decay_floor", func(v json.RawMessage) error { return f("decay_floor")(v, &cfg.DecayFloor) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("placeholder_promote_games", func(v json.RawMessage) error { return asInt("placeholder_promote_games", &cfg.PlaceholderPromoteGames) }); err != nil {
 		return domain.RatingConfig{}, err
 	}
 	if err := apply("season_start", func(v json.RawMessage) error {

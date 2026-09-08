@@ -81,19 +81,19 @@ func TestGrowRD(t *testing.T) {
 }
 
 func TestGlickoUpdateGolden(t *testing.T) {
-	p := DefaultRatingParams // initial_rd 220, cap 30 (T2)
+	p := DefaultRatingParams // initial_rd 220, cap 45 (provisional, T2+T4)
 	// Pemain baru 1250/220 menang lawan 1250/220, movm=1, w=1:
-	// raw ≈ 90 → CAP 30; newRD ≈ 195.3
+	// raw ≈ 90 → CAP 45 (provisional); newRD ≈ 195.3
 	st, delta := GlickoUpdate(
 		RatingState{Rating: 1250, RD: 220},
 		[]RatingOpponent{{Rating: 1250, RD: 220}},
 		OutcomeWin, 1.0, 1.0, p,
 	)
-	if delta != 30 {
-		t.Fatalf("delta = %v, want 30 (cap)", delta)
+	if delta != 45 {
+		t.Fatalf("delta = %v, want 45 (provisional cap)", delta)
 	}
-	if st.Rating != 1280 {
-		t.Fatalf("rating = %v, want 1280", st.Rating)
+	if st.Rating != 1295 {
+		t.Fatalf("rating = %v, want 1295", st.Rating)
 	}
 	if math.Abs(st.RD-195.3) > 0.5 {
 		t.Fatalf("rd = %v, want ≈195.3", st.RD)
@@ -126,14 +126,14 @@ func TestGlickoUpdateZeroSumEqualStates(t *testing.T) {
 
 func TestGlickoUpdateCapWhitewashFinal(t *testing.T) {
 	p := DefaultRatingParams
-	// provisional rd=220, whitewash (movm 1.5) + final (w=1.25) → raw besar → cap 30
+	// provisional rd=220, whitewash (movm 1.5) + final (w=1.25) → raw besar → cap 45 (provisional)
 	_, delta := GlickoUpdate(
 		RatingState{Rating: 1250, RD: 220},
 		[]RatingOpponent{{Rating: 1250, RD: 220}},
 		OutcomeWin, 1.5, 1.25, p,
 	)
-	if delta != 30 {
-		t.Fatalf("delta = %v, want 30 (cap melindungi swing provisional)", delta)
+	if delta != 45 {
+		t.Fatalf("delta = %v, want 45 (provisional cap melindungi swing)", delta)
 	}
 }
 
@@ -201,5 +201,378 @@ func TestGlickoUpdateDeterministic(t *testing.T) {
 		if v != round2(v) {
 			t.Fatalf("output tidak round2: %v", v)
 		}
+	}
+}
+
+// ── Anti-sandbagging tests ────────────────────────────────────────────────
+
+func TestAntiSandbaggingNoActivation(t *testing.T) {
+	p := DefaultRatingParams // GapCapThreshold=500, GapCapSlope=1000
+	// Gap 400 (1500 vs 1100) — di bawah threshold → cap normal 30
+	// Bandingkan dengan gap 700 yang kena reduced cap
+	st := RatingState{Rating: 1500, RD: 80}
+	opps := []RatingOpponent{{Rating: 1100, RD: 80}}
+	_, deltaSmall := GlickoUpdate(st, opps, OutcomeWin, 1.0, 1.0, p)
+
+	// Gap 700 — di atas threshold → reduced cap 24
+	st2 := RatingState{Rating: 1800, RD: 80}
+	opps2 := []RatingOpponent{{Rating: 1100, RD: 80}}
+	_, deltaLarge := GlickoUpdate(st2, opps2, OutcomeWin, 1.0, 1.0, p)
+
+	// Keduanya harus di bawah cap masing-masing
+	if deltaSmall > 30.01 {
+		t.Fatalf("gap kecil: delta %v melebihi cap normal 30", deltaSmall)
+	}
+	if deltaLarge > 24.01 {
+		t.Fatalf("gap besar: delta %v melebihi reduced cap 24", deltaLarge)
+	}
+	// Delta untuk gap besar harus lebih kecil karena cap lebih ketat
+	if deltaLarge >= deltaSmall {
+		t.Fatalf("gap besar delta (%v) harus lebih kecil dari gap kecil (%v)", deltaLarge, deltaSmall)
+	}
+}
+
+func TestAntiSandbaggingActivation(t *testing.T) {
+	p := DefaultRatingParams // GapCapThreshold=500, GapCapSlope=1000
+	// Gap 700 (1800 vs 1100) — di atas threshold
+	// effectiveCap = 30 × (1 - (700-500)/1000) = 30 × 0.8 = 24
+	st := RatingState{Rating: 1800, RD: 80}
+	opps := []RatingOpponent{{Rating: 1100, RD: 80}}
+	_, delta := GlickoUpdate(st, opps, OutcomeWin, 1.0, 1.0, p)
+	if delta > 24.01 { // toleransi rounding
+		t.Fatalf("delta %v harus ≤ 24 (gap 700, cap dikurangi)", delta)
+	}
+}
+
+func TestAntiSandbaggingLargeGap(t *testing.T) {
+	p := DefaultRatingParams // GapCapThreshold=500, GapCapSlope=1000
+	// Gap 1000 (2000 vs 1000)
+	// effectiveCap = 30 × (1 - (1000-500)/1000) = 30 × 0.5 = 15
+	st := RatingState{Rating: 2000, RD: 80}
+	opps := []RatingOpponent{{Rating: 1000, RD: 80}}
+	_, delta := GlickoUpdate(st, opps, OutcomeWin, 1.0, 1.0, p)
+	if delta > 15.01 {
+		t.Fatalf("delta %v harus ≤ 15 (gap 1000, cap setengah)", delta)
+	}
+}
+
+func TestAntiSandbaggingMinimumCap(t *testing.T) {
+	p := DefaultRatingParams // GapCapThreshold=500, GapCapSlope=1000
+	// Gap 1500 (2500 vs 1000)
+	// effectiveCap = 30 × (1 - (1500-500)/1000) = 30 × 0 = 0 → min 5
+	// Tapi karena rating 2500 (max), delta dari formula ≈ 0
+	// Test: jika rating lebih rendah, delta harus ≥ min cap
+	st := RatingState{Rating: 1800, RD: 80}
+	opps := []RatingOpponent{{Rating: 300, RD: 80}} // gap 1500
+	_, delta := GlickoUpdate(st, opps, OutcomeWin, 1.0, 1.0, p)
+	// Cap minimum 5 — tapi formula mungkin menghasilkan delta < 5
+	// Karena cap adalah UPPER bound, delta bisa lebih kecil dari 5
+	// Yang penting: delta tidak boleh NEGATIF untuk kemenangan
+	if delta < 0 {
+		t.Fatalf("delta %v tidak boleh negatif untuk kemenangan", delta)
+	}
+	// Bandingkan dengan gap 600 yang cap-nya lebih longgar
+	st2 := RatingState{Rating: 1600, RD: 80}
+	opps2 := []RatingOpponent{{Rating: 1000, RD: 80}} // gap 600
+	_, delta2 := GlickoUpdate(st2, opps2, OutcomeWin, 1.0, 1.0, p)
+	// Gap 1500 harus menghasilkan delta lebih kecil dari gap 600
+	if delta >= delta2 {
+		t.Fatalf("gap 1500 delta (%v) harus lebih kecil dari gap 600 (%v)", delta, delta2)
+	}
+}
+
+func TestAntiSandbaggingDisabledWhenThresholdZero(t *testing.T) {
+	p := DefaultRatingParams
+	p.GapCapThreshold = 0 // disabled
+	// Gap 1000 — tapi threshold 0 → cap normal 30
+	st := RatingState{Rating: 2000, RD: 80}
+	opps := []RatingOpponent{{Rating: 1000, RD: 80}}
+	_, delta := GlickoUpdate(st, opps, OutcomeWin, 1.0, 1.0, p)
+	// Delta harus dibatasi 30 (bukan dikurangi)
+	if delta > 30.01 {
+		t.Fatalf("delta %v melebihi cap normal 30 (threshold disabled)", delta)
+	}
+}
+
+func TestAntiSandbaggingZeroSumWithGapCap(t *testing.T) {
+	p := DefaultRatingParams
+	// Gap 700 — kedua pemain kena gap cap yang sama
+	// Karena gap dihitung dari rata-rata lawan, kedua pemain
+	// seharusnya mendapat delta yang sama besar tapi berlawanan arah
+	stA := RatingState{Rating: 1800, RD: 80}
+	stB := RatingState{Rating: 1100, RD: 80}
+	oppsA := []RatingOpponent{{Rating: 1100, RD: 80}}
+	oppsB := []RatingOpponent{{Rating: 1800, RD: 80}}
+
+	_, dA := GlickoUpdate(stA, oppsA, OutcomeWin, 1.0, 1.0, p)
+	_, dB := GlickoUpdate(stB, oppsB, OutcomeLoss, 1.0, 1.0, p)
+
+	// Untuk state identik tapi berlawanan arah, delta harus simetris
+	if math.Abs(dA+dB) > 0.01 {
+		t.Fatalf("bukan zero-sum dengan gap cap: A=%v, B=%v, sum=%v", dA, dB, dA+dB)
+	}
+}
+
+// ── Decay tests ──────────────────────────────────────────────────────────
+
+func TestDecayFactorDisabled(t *testing.T) {
+	p := DefaultRatingParams
+	// Decay disabled → rating tidak berubah
+	got := DecayFactor(1500, 90, p, false, 60, 5.0, 1000)
+	if got != 1500 {
+		t.Fatalf("DecayFactor(disabled) = %v, want 1500", got)
+	}
+}
+
+func TestDecayFactorBelowThreshold(t *testing.T) {
+	p := DefaultRatingParams
+	// Idle 50 hari (< threshold 60) → tidak decay
+	got := DecayFactor(1500, 50, p, true, 60, 5.0, 1000)
+	if got != 1500 {
+		t.Fatalf("DecayFactor(50 hari) = %v, want 1500", got)
+	}
+}
+
+func TestDecayFactorActive(t *testing.T) {
+	p := DefaultRatingParams
+	// Idle 70 hari (> threshold 60)
+	// weeks = 70/7 = 10, decay = 10 × 5 = 50
+	// newRating = 1500 - 50 = 1450
+	got := DecayFactor(1500, 70, p, true, 60, 5.0, 1000)
+	if got != 1450 {
+		t.Fatalf("DecayFactor(70 hari) = %v, want 1450", got)
+	}
+}
+
+func TestDecayFactorFloor(t *testing.T) {
+	p := DefaultRatingParams
+	// Idle 200 hari
+	// weeks = 200/7 = 28.57, decay = 28.57 × 5 = 142.86
+	// newRating = 1100 - 142.86 = 957.14 → floor 1000
+	got := DecayFactor(1100, 200, p, true, 60, 5.0, 1000)
+	if got != 1000 {
+		t.Fatalf("DecayFactor(200 hari, floor) = %v, want 1000", got)
+	}
+}
+
+func TestDecayFactorLargeIdle(t *testing.T) {
+	p := DefaultRatingParams
+	// Idle 365 hari
+	// weeks = 365/7 = 52.14, decay = 52.14 × 5 = 260.71
+	// newRating = 1800 - 260.71 = 1539.29
+	got := DecayFactor(1800, 365, p, true, 60, 5.0, 1000)
+	if math.Abs(got-1539.29) > 0.01 {
+		t.Fatalf("DecayFactor(365 hari) = %v, want ≈1539.29", got)
+	}
+}
+
+// ── Dynamic cap tests ────────────────────────────────────────────────────
+
+func TestDynamicCapProvisional(t *testing.T) {
+	p := DefaultRatingParams
+	// RD 220 > 200 → provisional → cap = 30 × 1.5 = 45
+	st := RatingState{Rating: 1250, RD: 220}
+	opps := []RatingOpponent{{Rating: 1250, RD: 220}}
+	_, delta := GlickoUpdate(st, opps, OutcomeWin, 1.0, 1.0, p)
+	// Raw delta tanpa cap ≈ 90, cap 45
+	if delta > 45.01 {
+		t.Fatalf("provisional: delta %v harus ≤ 45", delta)
+	}
+}
+
+func TestDynamicCapEstablished(t *testing.T) {
+	p := DefaultRatingParams
+	// RD 40 < 50 → established → cap = 30 × 0.8 = 24
+	st := RatingState{Rating: 1500, RD: 40}
+	opps := []RatingOpponent{{Rating: 1500, RD: 40}}
+	_, delta := GlickoUpdate(st, opps, OutcomeWin, 1.0, 1.0, p)
+	// Raw delta tanpa cap ≈ 8, cap 24 → delta tetap 8
+	if delta > 24.01 {
+		t.Fatalf("established: delta %v harus ≤ 24", delta)
+	}
+}
+
+func TestDynamicCapNormal(t *testing.T) {
+	p := DefaultRatingParams
+	// RD 80 → normal (tidak provisional, tidak established) → cap = 30
+	st := RatingState{Rating: 1500, RD: 80}
+	opps := []RatingOpponent{{Rating: 1500, RD: 80}}
+	_, delta := GlickoUpdate(st, opps, OutcomeWin, 1.0, 1.0, p)
+	// Raw delta tanpa cap ≈ 8, cap 30 → delta tetap 8
+	if delta > 30.01 {
+		t.Fatalf("normal: delta %v harus ≤ 30", delta)
+	}
+}
+
+func TestDynamicCapProvisionalBiggerThanNormal(t *testing.T) {
+	p := DefaultRatingParams
+	// Bandingkan provisional vs normal untuk kasus yang sama
+	st := RatingState{Rating: 1250, RD: 220} // provisional
+	opps := []RatingOpponent{{Rating: 1250, RD: 220}}
+	_, deltaProv := GlickoUpdate(st, opps, OutcomeWin, 1.0, 1.0, p)
+
+	st2 := RatingState{Rating: 1250, RD: 80} // normal
+	opps2 := []RatingOpponent{{Rating: 1250, RD: 80}}
+	_, deltaNorm := GlickoUpdate(st2, opps2, OutcomeWin, 1.0, 1.0, p)
+
+	// Provisional harus bisa dapat delta lebih besar dari normal
+	if deltaProv <= deltaNorm {
+		t.Fatalf("provisional delta (%v) harus > normal delta (%v)", deltaProv, deltaNorm)
+	}
+}
+
+// ── Active floor tests ──────────────────────────────────────────────────
+
+func TestActiveFloorZeroGames(t *testing.T) {
+	p := DefaultRatingParams
+	// 0 game → floor = base = 1100
+	got := ActiveFloor(0, p)
+	if got != 1100 {
+		t.Fatalf("ActiveFloor(0) = %v, want 1100", got)
+	}
+}
+
+func TestActiveFloor10Games(t *testing.T) {
+	p := DefaultRatingParams
+	// 10 game → floor = 1100 + 10×(-5) = 1050
+	got := ActiveFloor(10, p)
+	if got != 1050 {
+		t.Fatalf("ActiveFloor(10) = %v, want 1050", got)
+	}
+}
+
+func TestActiveFloor20Games(t *testing.T) {
+	p := DefaultRatingParams
+	// 20 game → floor = 1100 + 20×(-5) = 1000 (min)
+	got := ActiveFloor(20, p)
+	if got != 1000 {
+		t.Fatalf("ActiveFloor(20) = %v, want 1000", got)
+	}
+}
+
+func TestActiveFloor30Games(t *testing.T) {
+	p := DefaultRatingParams
+	// 30 game → floor = 1100 + 30×(-5) = 950 → min 1000
+	got := ActiveFloor(30, p)
+	if got != 1000 {
+		t.Fatalf("ActiveFloor(30) = %v, want 1000", got)
+	}
+}
+
+func TestActiveFloorDecreasing(t *testing.T) {
+	p := DefaultRatingParams
+	// Floor harus menurun seiring bertambahnya game
+	floor0 := ActiveFloor(0, p)
+	floor5 := ActiveFloor(5, p)
+	floor10 := ActiveFloor(10, p)
+	floor15 := ActiveFloor(15, p)
+
+	if floor0 <= floor5 || floor5 <= floor10 || floor10 <= floor15 {
+		t.Fatalf("floor harus menurun: 0=%v, 5=%v, 10=%v, 15=%v", floor0, floor5, floor10, floor15)
+	}
+}
+
+// ── Team size weight tests ──────────────────────────────────────────────
+
+func TestTeamSizeWeightDisabled(t *testing.T) {
+	p := DefaultRatingParams
+	// TeamSizeNormalization = false (disabled)
+	got := TeamSizeWeight(2, p)
+	if got != 1.0 {
+		t.Fatalf("TeamSizeWeight(disabled, 2) = %v, want 1.0", got)
+	}
+}
+
+func TestTeamSizeWeightSinglePlayer(t *testing.T) {
+	p := DefaultRatingParams
+	p.TeamSizeNormalization = true // enabled
+	// 1 pemain → weight = 1.0 (tidak ada perubahan)
+	got := TeamSizeWeight(1, p)
+	if got != 1.0 {
+		t.Fatalf("TeamSizeWeight(1) = %v, want 1.0", got)
+	}
+}
+
+func TestTeamSizeWeightTwoPlayers(t *testing.T) {
+	p := DefaultRatingParams
+	p.TeamSizeNormalization = true // enabled
+	// 2 pemain → weight = 0.85
+	got := TeamSizeWeight(2, p)
+	if math.Abs(got-0.85) > 0.001 {
+		t.Fatalf("TeamSizeWeight(2) = %v, want 0.85", got)
+	}
+}
+
+func TestTeamSizeWeightThreePlayers(t *testing.T) {
+	p := DefaultRatingParams
+	p.TeamSizeNormalization = true // enabled
+	// 3 pemain → weight = 0.85² = 0.7225
+	got := TeamSizeWeight(3, p)
+	if math.Abs(got-0.7225) > 0.001 {
+		t.Fatalf("TeamSizeWeight(3) = %v, want 0.7225", got)
+	}
+}
+
+func TestTeamSizeWeightDecreasing(t *testing.T) {
+	p := DefaultRatingParams
+	p.TeamSizeNormalization = true // enabled
+	// Weight harus menurun seiring bertambahnya pemain
+	w1 := TeamSizeWeight(1, p)
+	w2 := TeamSizeWeight(2, p)
+	w3 := TeamSizeWeight(3, p)
+
+	if w1 <= w2 || w2 <= w3 {
+		t.Fatalf("weight harus menurun: 1=%v, 2=%v, 3=%v", w1, w2, w3)
+	}
+}
+
+// ── Volatility dampening tests ──────────────────────────────────────────
+
+func TestVolatilityFactorDisabled(t *testing.T) {
+	p := DefaultRatingParams
+	// VolatilityDampening = false (disabled)
+	got := VolatilityFactor(8, 2, p)
+	if got != 1.0 {
+		t.Fatalf("VolatilityFactor(disabled) = %v, want 1.0", got)
+	}
+}
+
+func TestVolatilityFactorNotEnoughGames(t *testing.T) {
+	p := DefaultRatingParams
+	p.VolatilityDampening = true
+	// Belum cukup game (4 < 5) → factor = 1.0
+	got := VolatilityFactor(4, 0, p)
+	if got != 1.0 {
+		t.Fatalf("VolatilityFactor(4 game) = %v, want 1.0", got)
+	}
+}
+
+func TestVolatilityFactorNormalWinRate(t *testing.T) {
+	p := DefaultRatingParams
+	p.VolatilityDampening = true
+	// Win rate 50% (5W-5L) → normal → factor = 1.0
+	got := VolatilityFactor(5, 5, p)
+	if got != 1.0 {
+		t.Fatalf("VolatilityFactor(50 pct) = %v, want 1.0", got)
+	}
+}
+
+func TestVolatilityFactorHighWinRate(t *testing.T) {
+	p := DefaultRatingParams
+	p.VolatilityDampening = true
+	// Win rate 80% (8W-2L) > 0.6 → factor = 0.9
+	got := VolatilityFactor(8, 2, p)
+	if math.Abs(got-0.9) > 0.001 {
+		t.Fatalf("VolatilityFactor(80 pct) = %v, want 0.9", got)
+	}
+}
+
+func TestVolatilityFactorLowWinRate(t *testing.T) {
+	p := DefaultRatingParams
+	p.VolatilityDampening = true
+	// Win rate 20% (2W-8L) < 0.4 → factor = 0.9
+	got := VolatilityFactor(2, 8, p)
+	if math.Abs(got-0.9) > 0.001 {
+		t.Fatalf("VolatilityFactor(20 pct) = %v, want 0.9", got)
 	}
 }
