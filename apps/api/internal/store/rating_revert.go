@@ -406,7 +406,9 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 
 	// Flush rating_players — dengan decay applied
 	for id, rt := range runtime {
-		// Apply decay: rating turun berdasarkan idle sejak game terakhir
+		// Apply decay: rating turun berdasarkan idle sejak game terakhir.
+		// NOTE: peak_rating TIDAK ikut turun — peak adalah rekor tertinggi
+		// yang pernah dicapai, bukan state saat ini.
 		if cfg.DecayEnabled && rt.lastPlayedAt != "" {
 			lastPlayed, err := time.Parse("2006-01-02", rt.lastPlayedAt)
 			if err == nil {
@@ -417,10 +419,6 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 						cfg.DecayEnabled, cfg.DecayThresholdDays,
 						cfg.DecayPerWeek, cfg.DecayFloor,
 					)
-					// Peak juga di-adjust (tidak bisa lebih tinggi dari rating setelah decay)
-					if rt.state.Rating < rt.peak {
-						rt.peak = rt.state.Rating
-					}
 				}
 			}
 		}

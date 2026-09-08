@@ -153,6 +153,9 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 
 	// Placeholder promotion guard: cek apakah ada placeholder yang sudah
 	// melebihi threshold → tandai untuk review admin.
+	// Placeholder disimpan di session_players dengan player_id = NULL dan
+	// source_name = nama placeholder. Mereka TIDAK pernah dapat rating_deltas
+	// (hanya jadi opponent sintetik), jadi hitung dari session_players.
 	if cfg.PlaceholderPromoteGames > 0 {
 		placeholderNames := map[string]bool{}
 		for _, m := range matches {
@@ -165,16 +168,12 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		for name := range placeholderNames {
 			var gamesPlayed int
 			_ = s.pool.QueryRow(ctx, `
-				SELECT count(*) FROM `+s.schema+`.rating_deltas rd
-				JOIN `+s.schema+`.rating_events re ON re.id = rd.event_id
-				WHERE re.stable_game_id LIKE 'legacy-%'
-				AND rd.player_id IN (
-					SELECT id FROM `+s.schema+`.players
-					WHERE canonical_name = $1 OR id IN (
-						SELECT player_id FROM `+s.schema+`.player_aliases
-						WHERE alias_name = $1
-					)
-				)`, domain.NormalizePlayerName(name)).Scan(&gamesPlayed)
+				SELECT count(DISTINCT sgp.scheduled_game_internal_id)
+				FROM `+s.schema+`.scheduled_game_players sgp
+				JOIN `+s.schema+`.session_players sp
+				  ON sp.internal_id = sgp.session_player_internal_id
+				WHERE sp.player_id IS NULL
+				  AND sp.source_name = $1`, name).Scan(&gamesPlayed)
 			if gamesPlayed >= cfg.PlaceholderPromoteGames {
 				// Warning: placeholder sudah terlalu banyak game
 				// Idealnya admin register pemain ini sebagai real player
