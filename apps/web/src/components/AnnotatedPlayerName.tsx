@@ -27,7 +27,7 @@ export default function AnnotatedPlayerName({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 min-w-0 max-w-full relative group cursor-pointer ${className}`}
+      className={`inline-flex items-center min-w-0 max-w-full relative group cursor-pointer ${className}`}
       onClick={(e) => {
         e.stopPropagation()
         setShowTooltip((v) => !v)

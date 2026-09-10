@@ -180,7 +180,7 @@ export default function PlayerChipRenderer({
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
       <AnnotatedPlayerName name={playerName} />{showSkippedIdle ? ' ⊘' : ''}
-      {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0 ml-1 leading-none">*{backToBackRun}</sup> : null}
+      {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0 leading-none">*{backToBackRun}</sup> : null}
     </span>
   )
 }
