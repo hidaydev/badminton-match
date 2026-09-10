@@ -196,6 +196,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	// ── Rating engine (design §6): write = admin token, read = publik.
 	ratings := &handler.RatingsHandler{
 		Store:      sessionStore,
+		Logger:     logger,
 		AdminToken: cfg.AdminToken,
 	}
 	mux.Handle("POST /ratings/ingest-session", http.HandlerFunc(ratings.RequireAdmin(ratings.IngestSession)))

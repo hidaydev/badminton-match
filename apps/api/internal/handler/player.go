@@ -36,7 +36,15 @@ func (h *PlayerHandler) SetTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.AdminStore.SetPlayerTier(r.Context(), playerID, body.Tier); err != nil {
-		httperr.WriteError(w, h.Logger, httperr.Internal(err.Error()))
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			httperr.WriteError(w, h.Logger, httperr.NotFound("player not found"))
+		case errors.Is(err, store.ErrValidation):
+			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
+		default:
+			h.Logger.Warn("set player tier failed", "player", playerID, "tier", body.Tier, "error", err)
+			httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to set player tier", err))
+		}
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -47,7 +55,15 @@ func (h *PlayerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	playerID := r.PathValue("playerId")
 	force := r.URL.Query().Get("force") == "true"
 	if err := h.AdminStore.DeletePlayer(r.Context(), playerID, force); err != nil {
-		httperr.WriteError(w, h.Logger, httperr.Conflict(err.Error()))
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			httperr.WriteError(w, h.Logger, httperr.NotFound("player not found"))
+		case errors.Is(err, store.ErrValidation):
+			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
+		default:
+			h.Logger.Warn("delete player failed", "player", playerID, "error", err)
+			httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to delete player", err))
+		}
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
