@@ -262,7 +262,7 @@ Majadu is installable as a Progressive Web App:
 - **Android/Desktop**: Browser shows install prompt automatically
 - **iOS**: Share → "Add to Home Screen"
 - **Updates**: Prompt-based update banner when new version is available
-- **Offline**: Local session creation works offline; cloud features require connectivity
+- **Offline**: Workbox precaching + `navigateFallback` allows 100% offline session creation; automatic SSE catch-up refetch when network reconnects.
 
 ---
 

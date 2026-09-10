@@ -1,6 +1,6 @@
 # Current Status
 
-Last updated: 2026-09-07 (auto-lock void games, rating history null fix)
+Last updated: 2026-09-10 (fullstack audit fixes, DB performance indexes, SSE catch-up, PWA Workbox offline strategy)
 
 File handover tercepat. Mulai dari sini, lalu baca dokumen terkait di bawah.
 
@@ -8,78 +8,62 @@ File handover tercepat. Mulai dari sini, lalu baca dokumen terkait di bawah.
 
 ```
 badminton-match (monorepo)
-├── apps/web (React 19 PWA) ──REST──▶ apps/api (Go 1.26, net/http+pgx) ──▶ Postgres VPS
+├── apps/web (React 19 PWA, Vite 8, Tailwind v4) ──REST──▶ apps/api (Go 1.26, net/http+pgx) ──▶ Postgres VPS
 └── main (satu-satunya branch aktif)
 ```
 
 - **Monorepo**: FE (`apps/web`) + BE (`apps/api`) dalam satu repo `hidaydev/badminton-match` (public).
-- **`main`** — satu-satunya branch aktif (production). Branch `dev` & instance dev di-sunset
-  (2026-09-04): `bm_dev` di-drop di VPS, `/majadu-dev` tidak lagi di-deploy.
-- **Web**: Vercel — Root Directory `apps/web`, auto-deploy dari push `main`.
-- **API**: GitHub webhook → build lokal di VPS (`podman build` image `localhost/majadu-api:local`)
-  → restart quadlet `majadu-api`. Bukan GHCR.
-- API prod: `https://api.qouver.com/majadu` (port 8080, schema `bm`)
+- **`main`** — satu-satunya branch aktif (production). Branch `dev` & instance dev di-sunset (2026-09-04).
+- **Web**: Vercel — Root Directory `apps/web`, auto-deploy dari push `main` dengan perbandingan git diff `VERCEL_GIT_PREVIOUS_SHA` safe script.
+- **API**: GitHub webhook → build lokal di VPS (`podman build` image `localhost/majadu-api:local`) → restart quadlet `majadu-api`.
+- **API prod**: `https://api.qouver.com/majadu` (port 8080, schema `bm`).
 
-## ✅ Baru selesai (2026-08-22 → 2026-09-05)
+---
 
-### Monorepo & deploy (2026-09-04/05)
+## ✅ Baru selesai (2026-09-10 Audit & Enhancements)
 
-| Item | Detail |
-|------|--------|
-| Monorepo consolidation | FE pindah ke `apps/web`; history BE di-import ke `apps/api`; root dirapikan (Makefile, package.json, deploy/, docs/, CI test-only) |
-| Sunset dev | `bm_dev` dropped di VPS, instance `majadu-api-dev` berhenti, `dev` branch tidak dipakai |
-| Webhook deploy | Gantikan GHCR: push `main` → webhook (HMAC) → `deploy-vps.sh` → build lokal + restart |
-| Vercel | Root Directory `apps/web` + Ignored Build Step (pathspec `.`, lihat §deploy) |
-| Repo public | Info infra & doc internal di-scrub dari seluruh history |
+### 1. Fullstack Audit & Security Hardening (10 September 2026)
 
-### Back-to-back marker (`*N` di chip pemain, 2026-09-05)
+| Item | Status | Detail |
+|------|--------|--------|
+| **SSE Single SessionStore Instance** | ✅ `2cd1bd8` | Mengonsolidasikan `SessionStore` di `main.go` agar di-share ke `PlayerHandler`, `TournamentHandler`, dan `RatingsHandler`. Memastikan broadcast event SSE real-time konsisten. |
+| **JSON Body Reader Bounded (10MB Limit)** | ✅ `7162255` | Membatasi `json.Decoder` pada semua endpoint mutation backend (`granular.go`, `swap.go`, `player.go`, `ratings.go`) dengan batas maksimum 10MB untuk mencegah DoS/OOM. |
+| **DB Error Masking** | ✅ `34126ce` | Melakukan masking error internal database PostgreSQL pada HTTP response di `ratings.go` & `player.go` (`httperr.Wrap`). Detail error mentah tetap aman dicatat di server log via `slog.Error`. |
+| **Debounced Publish Queueing** | ✅ `526c905` | Mengurutkan/antrekan mutasi publish di `useDebouncedPublish.ts` jika ada request yang sedang *in-flight* untuk mencegah HTTP 412 *If-Match version conflict* saat input cepat. |
+| **Player Deletion Route Guard Fix** | ✅ `ecac032` | Menyinkronkan `session.playerCount` saat menghapus pemain di `playersSlice.ts` agar admin tidak terjebak redirect guard `/session/generate` -> `/session/players`. |
+| **Sparkline Flat Line Offset** | ✅ `cb7c8d2` | Memperbaiki kalkulasi Y pada sparkline rating datar (`span === 0`) di `sparkline.ts` agar berada tepat di titik tengah ($y = h / 2$) tanpa nilai `NaN`. |
+| **Rate Limiter Eviction & Error Code** | ✅ `21c9a29` | Mengoptimalkan *eviction* rate limiter (`ratelimit.go`) dengan *reservoir/sample eviction* untuk $N \ge 100$ (mencegah stall Mutex), serta menyelaraskan error code ke `"too_many_requests"`. |
+| **PGX Pool Lifetime & Read-Only Tx** | ✅ `079b892` | Memasang parameter pool connection DB (`MaxConnLifetime = 30m`, `MaxConnIdleTime = 5m`) di `db.go` serta `AccessMode: ReadOnly` pada read session untuk menghemat 1 network roundtrip. |
+| **Rejection Sampling Token Generator** | ✅ `4600907` | Menerapkan *rejection sampling* untuk byte $\ge 248$ di generator `randomAlnum` (`session.go`) untuk menghilangkan bias modulo pada pembuatan session token. |
 
-| Item | Detail |
-|------|--------|
-| Per-game run marker | Chip hanya bertanda jika game-nya bagian dari run; nilai = panjang run (mis. main 1-2 & 6-7 → `*2` di tiap slot run) |
-| Generate + published view | Konsisten di halaman generate (`ScheduleComponents`) dan published summary (`ScheduleGrid`/`PlayerChipRenderer`) |
-| Superscript | `*N` kecil terangkat (8px, amber), bukan `*` boolean |
+### 2. High Performance & Resiliency Upgrade (10 September 2026)
 
-### Auto-lock & ingest: game sengaja tidak dimainkan (2026-09-07)
+| Item | Status | Detail |
+|------|--------|--------|
+| **PostgreSQL Composite Indexes** | ✅ `8bf753a` | Membuat migrasi `000015_performance_indexes.sql` & langsung di-apply di DB VPS (`bm`): partial index active rating players 90 hari, composite index `LATERAL JOIN`, index sort event, serta foreign key lookup. |
+| **SSE Reconnect Catch-Up Refetch** | ✅ `15aeb92` | Memperbarui `useSessionRealtime` pada `sessions.ts` untuk memicu `queryClient.invalidateQueries` otomatis saat SSE reconnect & saat browser menerima event `online`. |
+| **PWA Workbox Offline Caching Strategy** | ✅ `3e7ca9d` | Konfigurasi `navigateFallback: '/index.html'`, `globPatterns`, dan `runtimeCaching` di `vite.config.ts` agar aplikasi 100% dapat dibuka & digunakan membuat sesi secara offline. |
 
-| Item | Detail |
-|------|--------|
-| Game "beres" | Game dianggap selesai jika ber-skor ATAU seluruh pemainnya di-skip (⊘ semua) → auto-lock tidak lagi menunggu semua skor terisi (`countDecidedGames` / `allGamesDecided`) |
-| Granular skip path | `SetGameSkipped` ikut trigger auto-lock (mirror `SetScore`) — game terakhir diputuskan lewat skip → sesi langsung locked |
-| Past-date sweep | Ticker 30 mnt sekarang lock draft yang `session_date`-nya sudah lewat (WIB) sebelum auto-ingest (`LockPastDateDrafts`) — sesi granular-only tidak lagi nongkrong di draft tanpa rating |
-| Career stats | Game tanpa skor tidak dihitung di `GamesPlayed` / top partners-opponents (`stats.go`) — konsisten dengan rating engine |
+---
 
-### Rating history: teammates/opponents null (2026-09-07)
+## 🧪 Status Pengujian Penuh (Test Suite)
 
-| Item | Detail |
-|------|--------|
-| Bug | Halaman rating player crash `TypeError: can't access property "length", e.teammates is null` — `array_agg` di SQL mengembalikan `NULL` saat teammate/opponent di sebuah game tidak punya baris `rating_deltas` (karena absent/skipped), lalu FE memanggil `.length`/`.join` di atasnya |
-| Pre-existing | Terjadi sejak Juli (Bowo, Tari, Fahmi, dll.), baru terlihat setelah session 2026-09-06 ter-ingest |
-| Backend | `rating_read.go`: kedua subquery `array_agg` dibungkus `COALESCE(..., '{}')` → selalu emit array, tidak pernah `null` |
-| Frontend | `RatingPlayerPage.tsx`: guard defensif `h.teammates ?? []` / `h.opponents ?? []` sebelum `.length`/`.join` |
+- **Frontend Unit Tests**: 71/71 tests PASS (`npm run check:web`)
+- **Frontend Production Build**: PASS (`npm run build:web`, PWA Service Worker `dist/sw.js` precache 46 entries)
+- **Backend Go Unit Tests**: 183/183 tests PASS (`go test ./...` di `apps/api`)
 
-### SEBELUMNYA (2026-08-22 → 08-30)
-
-1. **PROD MIGRATION (Supabase → VPS)** — bm_dev dibersihkan, migrated.sql (125 players,
-   27 sessions), tier overrides, tournament import, rating ingest — semua ✅.
-2. **Grand revamp (granular write-path)** — snapshot `PUT` deprecated untuk live ops;
-   kontrak live memakai granular (`PATCH /games/{key}`, `PATCH /absent`, swap).
-   Lihat `apps/api/README.md` §endpoint & `revamp-grand-plan.md`.
-3. **Skip / absent / rating cleanup** — ticker auto-lock dihapus, skip preserves scores,
-   `absent_policy` → `skip_player`, rebaseline dihapus, recent matches format
-   "with P1 · vs P3, P4", COALESCE NULL tier.
-4. **Fitur lain** — 8-tier unified, Glicko-1-lite, team tournament improvements,
-   pagination, auto-lock on save, 19 bug fixes, font IBM Plex Sans.
+---
 
 ## Infrastruktur
 
-- VPS `user@198.51.100.10` (IP didokumentasikan sebagai placeholder)
-- Containers: `majadu-api` (prod:8080), `qouver-postgres` (5432)
-- Quadlet configs: `~/.config/containers/systemd/majadu-api.container`
-- Deploy: webhook → `deploy/deploy-vps.sh` (bukan GitHub Actions/GHCR)
-- Log: `/srv/qouver/apps/majadu/logs/main/app-YYYY-MM-DD.log`
-- Migrasi SQL: `000001`–`000011` di VPS (`/srv/qouver/apps/majadu/migrations/`),
-  `000012`+ didokumentasikan di [`docs/backend/`](../backend/)
+- **VPS Host**: `sachiel@43.133.148.191`
+- **Containers**: `majadu-api` (prod:8080), `qouver-postgres` (5432)
+- **Quadlet Config**: `~/.config/containers/systemd/majadu-api.container`
+- **Deploy**: GitHub Webhook → `/srv/qouver/apps/majadu/scripts/deploy-vps.sh`
+- **Log**: `/srv/qouver/apps/majadu/logs/main/app-YYYY-MM-DD.log`
+- **Migrasi SQL**: `000001`–`000011` di VPS, `000012`–`000015` didokumentasikan di [`docs/backend/`](../backend/)
+
+---
 
 ## Database
 
@@ -87,11 +71,5 @@ badminton-match (monorepo)
 |----------|--------|
 | `bm` (prod) | Live — satu-satunya instance (dev `bm_dev` di-drop 2026-09-04) |
 
-Rating config: 22 rows (season_start 2026-05-23, 8-tier ClassBands, absent_policy=skip_player)
-
-## Cara Lanjut
-
-1. Visual pass browser (user)
-2. Team tournament share/export
-3. E2E testing (opsional — plan lama dihapus dari repo publik; jalankan manual)
-4. Rotasi password `qouver` & secret kalau belum
+- Index Tambahan: `idx_rating_players_active`, `idx_rating_deltas_player_event`, `idx_rating_events_sort_lookup`, `idx_session_players_session_player`, `idx_scheduled_games_session`.
+- Rating Config: 22 rows (season_start 2026-05-23, 8-tier ClassBands, absent_policy=skip_player).
