@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import { useState, useCallback, useMemo, Suspense } from 'react'
+import { safeLazy } from './utils/safeLazy'
 import { AdminProvider } from './context/AdminContext'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
@@ -16,21 +17,21 @@ import { useStore } from './store'
 import { decodeSnapshot, type SharedSnapshot } from './utils/shareUrl'
 import { SharedViewContext, useSharedView } from './sharedView'
 
-// Lazy-loaded heavy pages (code-split)
-const ScoreboardPage = lazy(() => import('./pages/ScoreboardPage'))
-const InstagramPostPage = lazy(() => import('./pages/InstagramPostPage'))
-const TournamentPage = lazy(() => import('./pages/TournamentRouter'))
-const TournamentListPage = lazy(() => import('./pages/TournamentListPage'))
-const RatingsPage = lazy(() => import('./pages/RatingsPage'))
-const AdminSessionsPage = lazy(() => import('./pages/admin/AdminSessionsPage'))
-const AdminPlayersPage = lazy(() => import('./pages/admin/AdminPlayersPage'))
-const AdminRatingsPage = lazy(() => import('./pages/admin/AdminRatingsPage'))
-const AdminTournamentsPage = lazy(() => import('./pages/admin/AdminTournamentsPage'))
-const AdminSeasonsPage = lazy(() => import('./pages/admin/AdminSeasonsPage'))
-const RatingPlayerPage = lazy(() => import('./pages/RatingPlayerPage'))
-const NewTournamentPage = lazy(() => import('./pages/NewTournamentPage'))
-const NewTournamentWizard = lazy(() => import('./pages/NewTournamentWizard'))
-const SharedSessionPage = lazy(() => import('./pages/SharedSessionPage'))
+// Lazy-loaded heavy pages (code-split, wrapped with safeLazy for automatic reload on stale chunk)
+const ScoreboardPage = safeLazy(() => import('./pages/ScoreboardPage'))
+const InstagramPostPage = safeLazy(() => import('./pages/InstagramPostPage'))
+const TournamentPage = safeLazy(() => import('./pages/TournamentRouter'))
+const TournamentListPage = safeLazy(() => import('./pages/TournamentListPage'))
+const RatingsPage = safeLazy(() => import('./pages/RatingsPage'))
+const AdminSessionsPage = safeLazy(() => import('./pages/admin/AdminSessionsPage'))
+const AdminPlayersPage = safeLazy(() => import('./pages/admin/AdminPlayersPage'))
+const AdminRatingsPage = safeLazy(() => import('./pages/admin/AdminRatingsPage'))
+const AdminTournamentsPage = safeLazy(() => import('./pages/admin/AdminTournamentsPage'))
+const AdminSeasonsPage = safeLazy(() => import('./pages/admin/AdminSeasonsPage'))
+const RatingPlayerPage = safeLazy(() => import('./pages/RatingPlayerPage'))
+const NewTournamentPage = safeLazy(() => import('./pages/NewTournamentPage'))
+const NewTournamentWizard = safeLazy(() => import('./pages/NewTournamentWizard'))
+const SharedSessionPage = safeLazy(() => import('./pages/SharedSessionPage'))
 
 function Loading() {
   return (
