@@ -150,8 +150,8 @@ export default function ScheduleGrid({
                       </div>
                       {/* Teams — 4-column precision grid: Court label (compact fixed), Team A, vs (centered lurus), Team B */}
                       <div
-                        className="grid items-center gap-0.5 flex-1 min-w-0"
-                        style={{ gridTemplateColumns: 'minmax(20px, 28px) 1fr 16px 1fr' }}
+                        className="grid items-center gap-1 flex-1 min-w-0"
+                        style={{ gridTemplateColumns: 'minmax(32px, 40px) 1fr 20px 1fr' }}
                       >
                         <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
                           {courtLabel(g.court)}
@@ -183,7 +183,7 @@ export default function ScheduleGrid({
                             )
                           })()
                         ) : (
-                          <div className="flex items-center gap-0.5 min-w-0">
+                          <div className="flex items-center gap-1 min-w-0">
                             {([0, 1] as const).map((i) => {
                               const id = g.teamA[i]
                               const n = name(id)
@@ -195,7 +195,7 @@ export default function ScheduleGrid({
                                 ))
                               const isDimmed = !!pendingSwap && !isSelected
                               return (
-                                <span key={i} className={`flex items-center gap-0.5 min-w-0 ${isDimmed ? 'opacity-30' : ''}`}>
+                                <span key={i} className={`flex items-center gap-1 min-w-0 ${isDimmed ? 'opacity-30' : ''}`}>
                                   {i > 0 && <span className="text-[10px] text-slate-400 shrink-0">&</span>}
                                   <PlayerChipRenderer
                                     playerName={n}
@@ -252,7 +252,7 @@ export default function ScheduleGrid({
                             )
                           })()
                         ) : (
-                          <div className="flex items-center gap-0.5 min-w-0">
+                          <div className="flex items-center gap-1 min-w-0">
                             {([0, 1] as const).map((i) => {
                               const id = g.teamB[i]
                               const n = name(id)
@@ -264,7 +264,7 @@ export default function ScheduleGrid({
                                 ))
                               const isDimmed = !!pendingSwap && !isSelected
                               return (
-                                <span key={i} className={`flex items-center gap-0.5 min-w-0 ${isDimmed ? 'opacity-30' : ''}`}>
+                                <span key={i} className={`flex items-center gap-1 min-w-0 ${isDimmed ? 'opacity-30' : ''}`}>
                                   {i > 0 && <span className="text-[10px] text-slate-400 shrink-0">&</span>}
                                   <PlayerChipRenderer
                                     playerName={n}
