@@ -1,3 +1,4 @@
+import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, ScheduleSlot, GameScore, PlayerId } from '../../types'
 import { toPlayerId, toGameKey } from '../../types'
 import type { PlayerStanding } from '../../utils/standings'
@@ -97,7 +98,7 @@ export default function PlayerMatchDetailSheet({
       >
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-100">{player.player.name}</h2>
+            <h2 className="text-lg font-semibold text-slate-100"><AnnotatedPlayerName name={player.player.name} /></h2>
             <p className="text-sm text-slate-400">#{rank} {ordinal(rank)}</p>
           </div>
           <button
@@ -143,11 +144,13 @@ export default function PlayerMatchDetailSheet({
                 </div>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span className="text-sm text-slate-200 truncate min-w-0">
-                    {game.partner?.name ?? '?'}
+                    {game.partner?.name ? <AnnotatedPlayerName name={game.partner.name} /> : '?'}
                   </span>
                   <span className="text-xs text-slate-400">vs</span>
-                  <span className="text-sm text-slate-200 truncate min-w-0">
-                    {game.opponents[0]?.name ?? '?'} & {game.opponents[1]?.name ?? '?'}
+                  <span className="text-sm text-slate-200 truncate min-w-0 flex items-center gap-1">
+                    {game.opponents[0]?.name ? <AnnotatedPlayerName name={game.opponents[0].name} /> : '?'}
+                    &
+                    {game.opponents[1]?.name ? <AnnotatedPlayerName name={game.opponents[1].name} /> : '?'}
                   </span>
                 </div>
                 {game.scoreFor !== null && (
