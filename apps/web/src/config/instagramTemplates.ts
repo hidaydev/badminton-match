@@ -20,7 +20,7 @@ export const instagramTemplates: PostTemplate[] = [
     height: 1350,
     logo: '/instagram-logo.png',
     footer: '/instagram-footer.png',
-    brushStroke: '/brush-stroke.png',
+    brushStroke: '/brush-stroke.webp',
     chevrons: '/chevrons.png',
     storyBg: '/story-bg.png',
   },
