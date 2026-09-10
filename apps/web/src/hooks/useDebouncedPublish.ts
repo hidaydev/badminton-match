@@ -1,7 +1,8 @@
 // src/hooks/useDebouncedPublish.ts
 // Debounced cloud publish hook — batches rapid local changes into a single
 // publish request (PUT /sessions/{id}). Handles in-flight mutation serialization
-// to prevent 412 If-Match version conflict on rapid edits.
+// to prevent HTTP 412 If-Match version conflict on rapid edits, ensuring optimistic
+// snapshot updates are queued and processed sequentially.
 
 import { useRef, useEffect, useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
