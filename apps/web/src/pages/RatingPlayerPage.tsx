@@ -9,6 +9,8 @@ import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import RatingSparkline from '../components/ratings/RatingSparkline'
 import CareerStats from '../components/ratings/CareerStats'
 
+import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
+
 const MATCHES_PER_PAGE = 5
 
 export default function RatingPlayerPage() {
@@ -32,7 +34,7 @@ export default function RatingPlayerPage() {
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-fg">{name}</h2>
+            <h2 className="text-lg font-bold text-fg"><AnnotatedPlayerName name={name} /></h2>
             <RatingTierBadge tier={tier_display} size="md" />
             {provisional && (
               <span className="text-[9px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1.5 py-0.5 uppercase tracking-wider">
@@ -80,9 +82,25 @@ export default function RatingPlayerPage() {
             <div key={i} className="bg-surface border border-border-subtle rounded-lg px-3 py-2 flex items-center gap-3">
               <span className={`text-xs font-bold ${won ? 'text-emerald-400' : 'text-red-400'}`}>{won ? 'W' : 'L'}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-fg truncate">
-                  {teammates.length > 0 && <span className="text-fg-dim">with {teammates.join(', ')} · </span>}
-                  vs {opponents.join(', ')}
+                <p className="text-sm text-fg truncate flex items-center flex-wrap gap-x-1">
+                  {teammates.length > 0 && (
+                    <span className="text-fg-dim flex items-center gap-1">
+                      with {teammates.map((t, tidx) => (
+                        <span key={tidx} className="inline-flex items-center">
+                          <AnnotatedPlayerName name={t} />
+                          {tidx < teammates.length - 1 ? ',' : ''}
+                        </span>
+                      ))} ·
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1">
+                    vs {opponents.map((o, oidx) => (
+                      <span key={oidx} className="inline-flex items-center">
+                        <AnnotatedPlayerName name={o} />
+                        {oidx < opponents.length - 1 ? ',' : ''}
+                      </span>
+                    ))}
+                  </span>
                 </p>
                 <p className="text-[10px] font-sans text-fg-dim">
                   {h.date} · {h.score_a}-{h.score_b} · {h.title}

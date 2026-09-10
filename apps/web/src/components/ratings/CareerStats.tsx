@@ -1,6 +1,7 @@
 // src/components/ratings/CareerStats.tsx — career stats pemain (bekas
 // PlayerDetailPage, diserap ke /ratings/:playerId — UI_UX_POLISH_PLAN §4).
 import { useState } from 'react'
+import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { PlayerStats } from '../../queries/types'
 
 const SESSIONS_PER_PAGE = 5
@@ -17,7 +18,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
 function PairRow({ name, wins, losses, count }: { name: string; wins: number; losses: number; count: number }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <span className="text-sm text-fg truncate min-w-0">{name}</span>
+      <span className="text-sm text-fg truncate min-w-0"><AnnotatedPlayerName name={name} /></span>
       <div className="flex items-center gap-1.5 font-sans text-[10px] shrink-0">
         <span className="text-emerald-400 font-semibold">{wins}W</span>
         {losses > 0 && <span className="text-red-400 font-semibold">{losses}L</span>}

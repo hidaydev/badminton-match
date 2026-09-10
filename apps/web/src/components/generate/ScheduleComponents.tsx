@@ -1,6 +1,7 @@
 // src/components/generate/ScheduleComponents.tsx
 // Extracted inline components from GeneratePage.
 
+import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, MatchConstraint, ScheduleSlot } from '../../types'
 import type { GeneratorResult } from '../../generator'
 import { TIER_LABELS, TIER_COLORS } from '../../config/tiers'
@@ -25,7 +26,7 @@ function renderTierLetters(tiers: number[]) {
 function PlayerChip({ player, backToBackRun }: { player: Player; backToBackRun?: number }) {
   return (
     <span className="inline-flex items-center gap-1 bg-slate-700 rounded-lg px-2 py-1 text-xs text-white min-w-0 overflow-hidden">
-      <span className="overflow-hidden">{player.name}</span>
+      <span className="overflow-hidden"><AnnotatedPlayerName name={player.name} /></span>
       {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackRun}</sup> : null}
       <span className={`hidden sm:inline text-[10px] font-bold shrink-0 ${player.gender === 'M' ? 'text-blue-400' : 'text-pink-400'}`}>
         {player.gender}
@@ -172,7 +173,7 @@ export function ScheduleView({
                     <span className="text-[10px] text-slate-400">sits out:</span>
                     {out.map((p) => (
                       <span key={p.id} className="text-[10px] text-slate-400 bg-slate-800/50 px-1.5 py-0.5 rounded">
-                        {p.name}
+                        <AnnotatedPlayerName name={p.name} />
                       </span>
                     ))}
                   </div>
@@ -203,7 +204,7 @@ export function ScheduleView({
                 const under = plays < Math.floor(idealPlays)
                 return (
                   <div key={p.id} className="flex items-center gap-2">
-                    <span className="text-xs text-slate-300 w-20 truncate">{p.name}</span>
+                    <span className="text-xs text-slate-300 w-20 truncate"><AnnotatedPlayerName name={p.name} /></span>
                     <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
                       {plays}×
                     </span>

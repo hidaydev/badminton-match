@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRatingLeaderboard, useRatingSeasons, useSeasonStandings } from '../queries/ratings'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
+import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
 
 const PAGE = 100
 
@@ -133,7 +134,9 @@ export default function RatingsPage() {
                 <span className={`w-6 text-sm font-sans shrink-0 ${medal}`}>{rank}</span>
                 <RatingTierBadge tier={r.tier_display} />
                 <span className="flex-1 min-w-0">
-                  <span className="block text-sm font-medium text-fg truncate">{r.name}</span>
+                  <span className="block text-sm font-medium text-fg truncate">
+                    <AnnotatedPlayerName name={r.name} />
+                  </span>
                   <span className="block text-[10px] font-sans text-fg-dim">
                     {r.games} game{r.games !== 1 ? 's' : ''}
                   </span>
