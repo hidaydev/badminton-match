@@ -1,16 +1,11 @@
 # Roadmap
 
-Status per 2026-09-07. Fase era Supabase (1–6 di bawah) sudah selesai dan
-ditutup; detail historisnya ada di git history.
+Status per 2026-09-10. Fase era Supabase (1–6 di bawah) sudah selesai dan ditutup; detail historisnya ada di git history.
 
 ## ✅ Selesai
 
-- **Fase 1–6 (era Supabase/PostgREST)** — migrasi Apps Script → Supabase,
-  parity, tournament verification, security hardening, regression, export
-  boundary. Ditutup saat Supabase dipensiunkan (2026-08-15).
-- **Fase 7 → migrasi backend Go** — `backend-go-decision.md`; write-path,
-  read-path, dan tournament sudah 100% di Go (2026-08-13 s/d 15), diverifikasi
-  parity test live. Supabase di-drop; Postgres VPS jadi satu-satunya backend.
+- **Fase 1–6 (era Supabase/PostgREST)** — migrasi Apps Script → Supabase, parity, tournament verification, security hardening, regression, export boundary. Ditutup saat Supabase dipensiunkan (2026-08-15).
+- **Fase 7 → migrasi backend Go** — `backend-go-decision.md`; write-path, read-path, dan tournament sudah 100% di Go (2026-08-13 s/d 15), diverifikasi parity test live. Supabase di-drop; Postgres VPS jadi satu-satunya backend.
 - **Menu tournament list** — `TournamentListPage` + routes `/tournaments`, `/tournaments/new` (classic/team wizard)
 - **8-tier system** — D, D+, C, C+, B, B+, A, A+ (unified frontend + backend)
 - **Ratings & Leaderboard** — Glicko-1-lite engine, 8-tier ClassBands, season system
@@ -19,18 +14,16 @@ ditutup; detail historisnya ada di git history.
 - **Gender in players table** — canonical gender, auto-fill in session creation
 - **Team tournament improvements** — manual team assignment, standings editing, champion banner, courts
 - **Pagination** — ratings leaderboard (100/page), recent matches (5/page), session list (5/page)
-- **Supabase data import** — 125 players migrated to VPS
 - **Prod migration** — bm_dev → bm (125 players, 27 sessions, 103 rated, 1 tournament)
 - **Auto-deploy** — webhook → build lokal + restart di VPS (push `main` = deploy)
 - **Checklist/Absent fix** — games tetap jalan, absent player tidak dapat rating delta
-- **Version mismatch retry** — silent retry 1x sebelum error
-- **Skip preserves scores** — per-game skip excludes player from rating, game counts for others (2026-08-30)
-- **Rebaseline removed** — feature deleted (BE + FE) (2026-08-30)
-- **Recent matches format** — "with teammate · vs opponent" instead of session title (2026-08-30)
-- **absent_policy fix** — changed from `skip_game` → `skip_player`, all sessions re-ingested (2026-08-30)
-- **NULL tier fix** — COALESCE in players list query prevents scan error (2026-08-30)
-- **Auto-lock game sengaja tidak dimainkan** — game beres = ber-skor ATAU semua pemain di-skip; skip trigger auto-lock; past-date sweep di ticker (`LockPastDateDrafts`); career stats eksklusi game tanpa skor (2026-09-07)
-- **Rating history null fix** — `COALESCE(array_agg, '{}')` untuk teammates/opponents + guard `?? []` di FE (2026-09-07)
+- **Skip preserves scores** — per-game skip excludes player from rating, game counts for others
+- **Auto-lock game sengaja tidak dimainkan** — game beres = ber-skor ATAU semua pemain di-skip; past-date sweep di ticker (`LockPastDateDrafts`)
+- **Rating history null fix** — `COALESCE(array_agg, '{}')` untuk teammates/opponents + guard `?? []` di FE
+- **Fullstack Audit 10 September** — 9 security & performance issues resolved (SSE single store, 10MB JSON body limit, DB error masking, debounced publish queueing, sparkline center fix, rate limiter eviction sampling, DB pool settings, rejection sampling) (2026-09-10)
+- **PostgreSQL Composite Indexes** — migration `000015_performance_indexes.sql` applied on production DB (`bm`) (2026-09-10)
+- **SSE Auto-Reconnect Catch-Up** — automatic refetch on SSE reconnection & browser online event (2026-09-10)
+- **PWA Workbox Offline Caching** — Workbox fallback & runtime caching strategy for 100% offline session creation (2026-09-10)
 
 ## ⏳ Berikutnya (urut prioritas)
 
@@ -44,6 +37,6 @@ ditutup; detail historisnya ada di git history.
 ## Catatan operasional
 
 - Deploy: push `main` → GitHub webhook → `deploy/deploy-vps.sh` (build lokal + restart)
-- Backup Postgres: timer harian 03:00 → `/srv/qouver/backups/postgres/`
-- Test: `go test ./...` di `apps/api` · `npm run check` di `apps/web`
+- Backup Postgres: timer harian 02:00 WIB → `/srv/qouver/backups/postgres/`
+- Test: `go test ./...` di `apps/api` (183 tests) · `npm run check:web` di `apps/web` (71 tests)
 - Log: `/srv/qouver/apps/majadu/logs/main/app-YYYY-MM-DD.log`

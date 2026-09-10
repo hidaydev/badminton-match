@@ -29,7 +29,7 @@ api/openapi.yaml         # kontrak REST resmi
 
 > **SQL migrations** — `000001`–`000011` TIDAK di repo GitHub (sengaja — kode repo
 > public). Tersimpan di VPS: `/srv/qouver/apps/majadu/migrations/`.
-> Migrasi terbaru (`000012`+ catatan, `000013`/`000014` SQL) didokumentasikan di
+> Migrasi terbaru (`000012`+ catatan, `000013`/`000014`/`000015` SQL) didokumentasikan di
 > [`docs/backend/`](../../docs/backend/).
 
 ## Endpoint (ringkas)

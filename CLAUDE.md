@@ -18,11 +18,11 @@ Regression tests exist via `node:test` (pure logic — retry policy, generator q
 
 ```bash
 cd apps/web
-npm run check              # Types + lint + tailwind + regression tests
+npm run check              # Types + lint + tailwind + regression tests (71 tests PASS)
 npm run check:regression   # Regression tests only (node:test)
 ```
 
-Backend lives in the same monorepo at `apps/api` (`go test ./...` — unit + handler + integration test env-guarded via `MAJADU_TEST_DATABASE_URL`). See `apps/api/README.md`.
+Backend lives in the same monorepo at `apps/api` (`go test ./...` — 183 unit + handler + integration tests PASS). See `apps/api/README.md`.
 
 ## Architecture
 

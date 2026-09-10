@@ -52,8 +52,7 @@ Perintah setara via npm: `npm run dev` · `npm run check:web` · `npm run check:
 ## 🚢 Deploy
 
 - **Web** — Vercel: push ke `main` → build dari Root Directory `apps/web`.
-  Ignored Build Step: `git diff --quiet HEAD^ HEAD -- . && exit 0 || exit 1`
-  (jalan *dari dalam* Root Directory, jadi pathspec-nya `.`, bukan `apps/web/`).
+  Ignored Build Step: `git fetch origin $VERCEL_GIT_PREVIOUS_SHA --depth=1 2>/dev/null; if git cat-file -e $VERCEL_GIT_PREVIOUS_SHA 2>/dev/null; then git diff --quiet $VERCEL_GIT_PREVIOUS_SHA $VERCEL_GIT_COMMIT_SHA .; else exit 1; fi` (aman terhadap *shallow clone* & multi-commit batch push).
 - **API** — GitHub webhook (HMAC-SHA1) → `webhook.service` di VPS →
   [`deploy/deploy-vps.sh`](deploy/deploy-vps.sh) → `podman build` image lokal →
   restart quadlet `majadu-api`. Deploy hanya jika `apps/api/` berubah.

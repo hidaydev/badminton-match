@@ -1,248 +1,113 @@
-# Data Model
+# Data Model — Single Source of Truth
 
-## Core session model
+Dokumen ini adalah **sumber kebenaran tunggal (*Single Source of Truth*)** untuk seluruh desain data model aplikasi Majadu, mencakup TypeScript domain types (Frontend) dan PostgreSQL relational schema (Backend `apps/api`).
 
-Main source:
+---
 
-- `src/types/index.ts`
+## 📱 1. Core Session Model (Frontend TS Types)
+
+Main source: `apps/web/src/types/index.ts`
 
 ### Player
-
 Fields:
+- `id`: Local session-app player ID (mis. `"p1"`, `"p2"`)
+- `name`: Display name
+- `gender`: `'M'` | `'F'` (canonical)
+- `tier`: `1`–`8` (D=1, D+=2, C=3, C+=4, B=5, B+=6, A=7, A+=8 — 8-tier unified)
 
-- `id`
-- `name`
-- `gender` ('M' | 'F')
-- `tier` (1–8: D=1, D+=2, C=3, C+=4, B=5, B+=6, A=7, A+=8)
-
-Notes:
-
-- player ids are session-app local ids (not backend UUIDs)
-- tier is "first-set sticky" — canonical tier stored in backend `players` table
-- gender is stored canonically in backend `players` table
+*Catatan:* `tier` bersifat "first-set sticky", disimpan secara kanonikal di tabel backend `players`.
 
 ### FixMatch
-
 Fields:
+- `id`: Constraint ID
+- `slots`: `[string, string, string, string]`
+- `mode`: `'flexible'` | `'pinned'`
+- `pinnedTime`?: String `HH:MM`
+- `pinnedCourt`?: Index lapangan (0-based)
 
-- `id`
-- `slots: [string, string, string, string]`
-- `mode: 'flexible' | 'pinned'`
-- optional `pinnedTime` (HH:MM format)
-- optional `pinnedCourt` (0-based court index)
-
-Semantics:
-
-- empty string means open slot
-- can represent exact pairing or partially specified match
-- `pinned` mode: match is locked to specific time and court
-- `flexible` mode: generator decides placement
-
-### ScheduleSlot
-
-Fields:
-
-- `slot`
-- `court`
-- `teamA`
-- `teamB`
-
-This is the atomic scheduled game unit.
-
-### GameScore
-
-Fields:
-
-- `a`
-- `b`
-
-Scores are keyed externally by:
-
-- `${slot}-${court}`
+### ScheduleSlot & GameScore
+- `ScheduleSlot`: Atomic scheduled game unit (`slot`, `court`, `teamA: [p1, p2]`, `teamB: [p3, p4]`).
+- `GameScore`: Score object (`a: number`, `b: number`) di-key secara eksternal via `${slot}-${court}`.
 
 ### SessionConfig
-
 Fields:
+- `title`, `date`, `courts`, `sessionStart`, `slotMinutes`, `courtTimes`, `playerCount`, `courtNames`, `locked`
 
-- `title`
-- `date`
-- `courts`
-- `sessionStart`
-- `slotMinutes`
-- `courtTimes`
-- `playerCount`
-- `courtNames`
-- `locked`
+---
 
-This is the main configuration model for session generation.
+## ☁️ 2. Cloud & Shared Snapshot Models
 
-## Cloud snapshot model
-
-Main source:
-
-- `src/queries/types.ts`
+Main sources: `apps/web/src/queries/types.ts` & `apps/web/src/utils/shareUrl.ts`
 
 ### CloudSnapshot
+Payload operasional untuk publikasi & sinkronisasi sesi ke cloud:
+- `version`?: Optimistic concurrency version
+- `session`: `SessionConfig`
+- `players`: Array of `Player`
+- `fixMatches`: Array of `FixMatch`
+- `schedule`: Array of `ScheduleSlot`
+- `playedGames`: Record of `${slot}-${court}` -> boolean
+- `gameScores`: Record of `${slot}-${court}` -> `GameScore`
+- `absentPlayers`?: Array of player IDs (absent players)
 
-Fields:
+---
 
-- optional `version`
-- `session`
-- `players`
-- `fixMatches`
-- `schedule`
-- `playedGames`
-- `gameScores`
-- optional `absentPlayers`
+## 🏆 3. Tournament Models
 
-Notes:
-
-- `version` enables optimistic concurrency on publish
-- `locked` is a field on the nested `session` (SessionConfig), not on CloudSnapshot directly
-- saat `session.locked` true, write-path Go set status session ke `'locked'`
-- unlock: `POST /sessions/{id}/unlock` (Go) — status → `draft`, version +1
-- `DELETE /sessions/{id}` juga menolak hapus session non-draft (locked)
-
-This is the operational persisted payload for published sessions.
-
-## Shared-view snapshot model
-
-Main source:
-
-- `src/utils/shareUrl.ts`
-
-### SharedSnapshot
-
-Fields:
-
-- `sessionId`
-- `session`
-- `players`
-- `schedule`
-- `lastResult`
-
-This is a compressed, hash-based view payload used for local share/view mode.
-It is separate from the cloud session model.
-
-## Tournament model
+Main sources: `apps/web/src/utils/tournament.ts` & `apps/web/src/utils/teamTournament.ts`
 
 ### Classic Tournament
-
-Main source:
-
-- `src/utils/tournament.ts`
-
-#### TournamentPair
-
-Fields:
-
-- `id`
-- `name`
-
-#### TournamentMatch
-
-Fields:
-
-- `id`
-- `phase`
-- optional `groupId`
-- `pairAId`
-- `pairBId`
-- `scoreA`
-- `scoreB`
-- optional `picName`
-
-#### TournamentSnapshot
-
-Fields:
-
-- `name`
-- `date`
-- `pairs`
-- `groups`
-- `matches`
+- `TournamentPair`: `id`, `name`
+- `TournamentMatch`: `id`, `phase`, `groupId`?, `pairAId`, `pairBId`, `scoreA`, `scoreB`, `picName`?
+- `TournamentSnapshot`: `name`, `date`, `pairs`, `groups`, `matches`
 
 ### Team Tournament
+- `TeamInfo`: `id` (`t1`–`t6`), `name`, `players: TeamPlayer[]`
+- `TeamPlayer`: `name`, `cls: TeamClass` (`'A+'` | `'A'` | `'B+'` | `'B'` | `'C+'` | `'C'`)
+- `TeamMatch`: `id` (`"g-1"`–`"g-9"`, `"final"`), `phase`, `teamA`, `teamB`, `partai: TeamPartai[]` (3 doubles)
+- `TeamTournamentSnapshot`: `format: 'team'`, `name`, `date`, `teams`, `matches`
 
-Main source:
+---
 
-- `src/utils/teamTournament.ts`
+## 🗄️ 4. Backend Persistence Model (PostgreSQL `bm`)
 
-#### TeamInfo
+Backend: Go (`majadu-api`) terhubung langsung ke PostgreSQL VPS pada schema `bm` (production).
 
-Fields:
+### Main Tables & Identity
 
-- `id` (t1–t6)
-- `name`
-- `players: TeamPlayer[]`
+- `sessions`: Session aggregate metadata dengan `id` (UUID PK), `share_code` (`s+10alnum` UNIQUE), `version` (int), `status` (`'draft'` | `'locked'`), `session_date`.
+- `tournaments`: Tournament aggregate metadata dengan `id` (UUID PK), `share_code`, `name`, `event_date`, `format` (`'classic'` | `'team'`), `version`.
+- `players`: Canonical player records (UUID PK, `canonical_name` UNIQUE, `gender`, `tier` 1–8, `registered_at`).
+- `player_aliases`: Normalized `alias_name` (lowercase PK) -> `player_id` UUID FK untuk pencocokan nama fuzzy & TOCTOU-safe registration.
 
-#### TeamPlayer
+### Granular & Concurrency Tables (Migration `000013`)
 
-Fields:
+- `scheduled_games`: Game unit per slot/court dengan `version` (BIGINT per-row OCC), `is_played`, `score_a`, `score_b`, `skipped_player_refs`.
+- `idempotency_keys`: `(session_id, key)` PK dengan `response` JSONB & `expires_at` TTL persistent.
+- `outbox_events`: Durable event log untuk SSE stream & event catch-up.
 
-- `name`
-- `cls: TeamClass` ('A+' | 'A' | 'B+' | 'B' | 'C+' | 'C')
+### Performance Indexes (Migration `000015`)
 
-#### TeamMatch
+1. `idx_rating_players_active`: Partial index `rating_players(games_played, last_played_at) WHERE games_played > 0`
+2. `idx_rating_deltas_player_event`: Composite index `rating_deltas(player_id, event_id)`
+3. `idx_rating_events_sort_lookup`: Sort index `rating_events(id, date DESC, created_at DESC, source_id DESC, game_order DESC)`
+4. `idx_session_players_session_player`: Composite index `session_players(session_id, player_id)`
+5. `idx_scheduled_games_session`: Foreign key index `scheduled_games(session_id)`
 
-Fields:
+### Rating Engine Tables
 
-- `id` ("g-1"–"g-9" or "final")
-- `phase: 'group' | 'final'`
-- `teamA` (team id)
-- `teamB` (team id)
-- `partai: TeamPartai[]` (3 doubles matches per team-match)
+- `rating_config`: JSONB key-value configuration (`season_start`, `session_tier_init`, `class_bands`)
+- `rating_players`: State rating pemain (`rating`, `rd`, `peak_rating`, `games_played`, `wins`, `losses`, `last_played_at`)
+- `rating_events`: Match-level Glicko event log (`source_id`, `date`, `score_a`, `score_b`, `teams`)
+- `rating_deltas`: Per-player rating change (`old_rating`, `new_rating`, `rd`, `delta`)
+- `rating_sources`: Tracking fingerprint sesi/turnamen yang sudah ter-ingest (`source_id`, `processed_at`)
+- `season_player_snapshots`: Snapshot rating akhir musim saat season close.
 
-#### TeamTournamentSnapshot
+---
 
-Fields:
+## 🔒 5. Key Constraints & Rules
 
-- `format: 'team'`
-- `name`
-- `date`
-- `teams: TeamInfo[]`
-- `matches: TeamMatch[]`
-
-## Backend persistence model (PostgreSQL on VPS)
-
-> Backend: Go (`majadu-api` repo) — langsung akses Postgres, tanpa PostgREST/RPC.
-> Migrasi: `000001`–`000011` disimpan di VPS (`/srv/qouver/apps/majadu/migrations/`),
-> `000012`+ di [`docs/backend/`](../backend/).
-
-Schema: `bm` (prod) / `bm_dev` (dev)
-
-Current approach: aggregate-root plus normalized relational support
-
-### Main aggregate roots
-
-- `sessions` — session metadata with `version` (optimistic concurrency), `status` (draft/locked/published), `id` (UUID), `share_code`
-- `tournaments` — tournament snapshots with `version`
-- `players` — canonical player records (UUID PK, canonical_name, gender, tier, registered_at)
-- `player_aliases` — normalized name → player_id mapping for fuzzy resolution
-
-### Rating tables
-
-- `rating_config` — JSONB key-value store (season_start, decay parameters, class_bands, session_tier_init)
-- `rating_players` — per-player rating state (rating, rd, peak_rating, games_played, wins, losses)
-- `rating_events` — match-level events (source_id, date, score_a, score_b, team compositions)
-- `rating_deltas` — per-player rating changes per event (old/new rating, rd, delta)
-- `rating_sources` — session/tournament source tracking (session_id, fingerprint, processed_at)
-- `season_player_snapshots` — end-of-season player snapshots
-
-### Main child entities
-
-- `session_players` — player roster per session (with gender, tier, sort order, absent status)
-- `session_courts` — per-court time ranges and names
-- `fix_matches` — pre-assigned match constraints per session
-- `fix_match_slots` — individual slot assignments per fix match
-- `scheduled_games` — generated/scheduled games (slot, court, status, source)
-- `scheduled_game_players` — team/position assignments per scheduled game
-- `tournament_pairs` / `tournament_pair_players` / `tournament_groups` / `tournament_matches` — classic tournament structure
-- `tournament_team_players` — team tournament player assignments
-
-### Key constraints
-
-- `players.tier` CHECK: 8-tier (D, D+, C, C+, B, B+, A, A+)
-- `players.gender` CHECK: (M, F), NOT NULL, DEFAULT 'M'
-- `player_aliases.alias_name` UNIQUE
-- `session_players` UNIQUE: (session_id, player_id)
+- `players.tier`: CHECK (tier BETWEEN 1 AND 8) — 8-tier unified (D..A+).
+- `players.gender`: CHECK (gender IN ('M', 'F')), NOT NULL, DEFAULT 'M'.
+- `player_aliases.alias_name`: LOWERCASE UNIQUE PK.
+- `session_players`: UNIQUE (session_id, player_id).
