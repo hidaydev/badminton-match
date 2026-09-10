@@ -3,7 +3,9 @@ package handler
 import (
 	"crypto/subtle"
 	"errors"
+	"log/slog"
 	"net/http"
+	"strconv"
 
 	"majadu-api/internal/httperr"
 	"majadu-api/internal/store"
@@ -14,7 +16,8 @@ import (
 
 // RatingsHandler — HTTP handlers untuk rating engine.
 type RatingsHandler struct {
-	Store *store.SessionStore
+	Store  *store.SessionStore
+	Logger *slog.Logger
 	// AdminToken — token admin (Authorization: Bearer). Kosong = semua
 	// endpoint admin ditolak 401.
 	AdminToken string
@@ -29,18 +32,18 @@ func (h *RatingsHandler) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 func (h *RatingsHandler) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if h.AdminToken == "" {
-			httperr.WriteError(w, nil, httperr.Unauthorized("admin token not configured"))
+			httperr.WriteError(w, h.Logger, httperr.Unauthorized("admin token not configured"))
 			return
 		}
 		auth := r.Header.Get("Authorization")
 		const prefix = "Bearer "
 		if len(auth) < len(prefix) || auth[:len(prefix)] != prefix {
-			httperr.WriteError(w, nil, httperr.Unauthorized("missing Bearer token"))
+			httperr.WriteError(w, h.Logger, httperr.Unauthorized("missing Bearer token"))
 			return
 		}
 		token := auth[len(prefix):]
 		if subtle.ConstantTimeCompare([]byte(token), []byte(h.AdminToken)) != 1 {
-			httperr.WriteError(w, nil, httperr.Unauthorized("invalid admin token"))
+			httperr.WriteError(w, h.Logger, httperr.Unauthorized("invalid admin token"))
 			return
 		}
 		next(w, r)
@@ -60,15 +63,15 @@ type ratingBody struct {
 func mapRatingError(err error) *httperr.Error {
 	switch {
 	case errors.Is(err, store.ErrSourceNotFound):
-		return httperr.NotFound(err.Error())
+		return httperr.NotFound("rating source not found")
 	case errors.Is(err, store.ErrSourceChanged):
-		return httperr.SourceChanged(err.Error())
+		return httperr.SourceChanged("rating source changed since ingest — revert required")
 	case errors.Is(err, store.ErrOutOfOrder):
-		return httperr.Conflict(err.Error())
+		return httperr.Conflict("operation out of order")
 	case errors.Is(err, store.ErrSourceNotFinal):
-		return httperr.Conflict(err.Error())
+		return httperr.Conflict("rating source not final")
 	default:
-		return httperr.Internal(err.Error())
+		return httperr.Wrap(httperr.CodeDatabase, "rating operation failed", err)
 	}
 }
 
@@ -76,12 +79,12 @@ func mapRatingError(err error) *httperr.Error {
 func (h *RatingsHandler) IngestSession(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
 	if err := decodeJSON(r, &body); err != nil || body.SessionID == "" {
-		httperr.WriteError(w, nil, httperr.Validation("sessionId is required"))
+		httperr.WriteError(w, h.Logger, httperr.Validation("sessionId is required"))
 		return
 	}
 	res, err := h.Store.IngestSession(r.Context(), body.SessionID)
 	if err != nil {
-		httperr.WriteError(w, nil, mapRatingError(err))
+		httperr.WriteError(w, h.Logger, mapRatingError(err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, res)
@@ -91,12 +94,12 @@ func (h *RatingsHandler) IngestSession(w http.ResponseWriter, r *http.Request) {
 func (h *RatingsHandler) IngestTournament(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
 	if err := decodeJSON(r, &body); err != nil || body.TournamentID == "" {
-		httperr.WriteError(w, nil, httperr.Validation("tournamentId is required"))
+		httperr.WriteError(w, h.Logger, httperr.Validation("tournamentId is required"))
 		return
 	}
 	res, err := h.Store.IngestTournament(r.Context(), body.TournamentID)
 	if err != nil {
-		httperr.WriteError(w, nil, mapRatingError(err))
+		httperr.WriteError(w, h.Logger, mapRatingError(err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, res)
@@ -106,12 +109,12 @@ func (h *RatingsHandler) IngestTournament(w http.ResponseWriter, r *http.Request
 func (h *RatingsHandler) RevertSession(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
 	if err := decodeJSON(r, &body); err != nil || body.SessionID == "" {
-		httperr.WriteError(w, nil, httperr.Validation("sessionId is required"))
+		httperr.WriteError(w, h.Logger, httperr.Validation("sessionId is required"))
 		return
 	}
 	res, err := h.Store.RevertSource(r.Context(), body.SessionID, "session")
 	if err != nil {
-		httperr.WriteError(w, nil, mapRatingError(err))
+		httperr.WriteError(w, h.Logger, mapRatingError(err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, res)
@@ -121,12 +124,12 @@ func (h *RatingsHandler) RevertSession(w http.ResponseWriter, r *http.Request) {
 func (h *RatingsHandler) RevertTournament(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
 	if err := decodeJSON(r, &body); err != nil || body.TournamentID == "" {
-		httperr.WriteError(w, nil, httperr.Validation("tournamentId is required"))
+		httperr.WriteError(w, h.Logger, httperr.Validation("tournamentId is required"))
 		return
 	}
 	res, err := h.Store.RevertSource(r.Context(), body.TournamentID, "tournament")
 	if err != nil {
-		httperr.WriteError(w, nil, mapRatingError(err))
+		httperr.WriteError(w, h.Logger, mapRatingError(err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, res)
@@ -137,16 +140,16 @@ func (h *RatingsHandler) FinalizeSource(w http.ResponseWriter, r *http.Request) 
 	sourceID := r.PathValue("sourceId")
 	var body ratingBody
 	if err := decodeJSON(r, &body); err != nil {
-		httperr.WriteError(w, nil, httperr.Validation("finalized is required"))
+		httperr.WriteError(w, h.Logger, httperr.Validation("finalized is required"))
 		return
 	}
 	if body.Finalized == nil {
-		httperr.WriteError(w, nil, httperr.Validation("finalized is required"))
+		httperr.WriteError(w, h.Logger, httperr.Validation("finalized is required"))
 		return
 	}
 	err := h.Store.SetSourceFinalized(r.Context(), sourceID, *body.Finalized)
 	if err != nil {
-		httperr.WriteError(w, nil, mapRatingError(err))
+		httperr.WriteError(w, h.Logger, mapRatingError(err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -157,7 +160,7 @@ func (h *RatingsHandler) FinalizeSource(w http.ResponseWriter, r *http.Request) 
 func (h *RatingsHandler) RebuildAll(w http.ResponseWriter, r *http.Request) {
 	n, err := h.Store.RebuildAll(r.Context())
 	if err != nil {
-		httperr.WriteError(w, nil, mapRatingError(err))
+		httperr.WriteError(w, h.Logger, mapRatingError(err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]int{"rebuilt": n})
@@ -171,7 +174,7 @@ func (h *RatingsHandler) Leaderboard(w http.ResponseWriter, r *http.Request) {
 	offset := atoiSafe(q.Get("offset"), 0)
 	total, rows, err := h.Store.RatingLeaderboard(r.Context(), active, limit, offset)
 	if err != nil {
-		httperr.WriteError(w, nil, httperr.Internal(err.Error()))
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch leaderboard", err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]any{
@@ -185,11 +188,11 @@ func (h *RatingsHandler) Player(w http.ResponseWriter, r *http.Request) {
 	pid := r.PathValue("playerId")
 	d, err := h.Store.RatingPlayer(r.Context(), pid)
 	if err != nil {
-		httperr.WriteError(w, nil, httperr.Internal(err.Error()))
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch player rating", err))
 		return
 	}
 	if d == nil {
-		httperr.WriteError(w, nil, httperr.NotFound("player not rated"))
+		httperr.WriteError(w, h.Logger, httperr.NotFound("player not rated"))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, d)
@@ -199,7 +202,7 @@ func (h *RatingsHandler) Player(w http.ResponseWriter, r *http.Request) {
 func (h *RatingsHandler) Sources(w http.ResponseWriter, r *http.Request) {
 	srcs, err := h.Store.ListRatingSources(r.Context())
 	if err != nil {
-		httperr.WriteError(w, nil, httperr.Internal(err.Error()))
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to list rating sources", err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]any{"sources": srcs})
@@ -209,12 +212,12 @@ func (h *RatingsHandler) Sources(w http.ResponseWriter, r *http.Request) {
 func (h *RatingsHandler) Season(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
 	if err := decodeJSON(r, &body); err != nil || body.StartDate == "" {
-		httperr.WriteError(w, nil, httperr.Validation("startDate is required"))
+		httperr.WriteError(w, h.Logger, httperr.Validation("startDate is required"))
 		return
 	}
 	id, err := h.Store.CloseAndStartSeason(r.Context(), body.StartDate)
 	if err != nil {
-		httperr.WriteError(w, nil, mapRatingError(err))
+		httperr.WriteError(w, h.Logger, mapRatingError(err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]string{"season_id": id})
@@ -224,7 +227,7 @@ func (h *RatingsHandler) Season(w http.ResponseWriter, r *http.Request) {
 func (h *RatingsHandler) Seasons(w http.ResponseWriter, r *http.Request) {
 	seasons, err := h.Store.ListSeasons(r.Context())
 	if err != nil {
-		httperr.WriteError(w, nil, httperr.Internal(err.Error()))
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to list seasons", err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]any{"seasons": seasons})
@@ -235,25 +238,19 @@ func (h *RatingsHandler) SeasonStandings(w http.ResponseWriter, r *http.Request)
 	id := r.PathValue("seasonId")
 	rows, err := h.Store.SeasonStandings(r.Context(), id)
 	if err != nil {
-		httperr.WriteError(w, nil, httperr.Internal(err.Error()))
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch season standings", err))
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]any{"rows": rows})
 }
 
-// atoiSafe — parse int query param dengan fallback.
+// atoiSafe — parse int query param dengan fallback yang aman dari integer overflow.
 func atoiSafe(s string, fallback int) int {
 	if s == "" {
 		return fallback
 	}
-	n := 0
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return fallback
-		}
-		n = n*10 + int(c-'0')
-	}
-	if n < 0 {
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
 		return fallback
 	}
 	return n
