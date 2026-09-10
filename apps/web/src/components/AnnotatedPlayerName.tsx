@@ -27,7 +27,7 @@ export default function AnnotatedPlayerName({
 
   return (
     <span
-      className={`inline-flex items-center gap-0.5 relative group cursor-pointer ${className}`}
+      className={`inline-flex items-center gap-0.5 min-w-0 max-w-full truncate relative group cursor-pointer ${className}`}
       onClick={(e) => {
         e.stopPropagation()
         setShowTooltip((v) => !v)
@@ -36,7 +36,7 @@ export default function AnnotatedPlayerName({
       onMouseLeave={() => setShowTooltip(false)}
       title={`${name}`}
     >
-      <span className="truncate">{baseName}</span>
+      <span className="truncate min-w-0 flex-1">{baseName}</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 20 20"

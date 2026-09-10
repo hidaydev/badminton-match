@@ -151,7 +151,7 @@ export default function ScheduleGrid({
                       {/* Teams — 8-column precision grid for pixel-perfect vertical alignment */}
                       <div
                         className="grid items-center gap-1 flex-1 min-w-0"
-                        style={{ gridTemplateColumns: '52px 1fr 12px 1fr 24px 1fr 12px 1fr' }}
+                        style={{ gridTemplateColumns: 'minmax(36px, 48px) 1fr 10px 1fr 20px 1fr 10px 1fr' }}
                       >
                         <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
                           {courtLabel(g.court)}

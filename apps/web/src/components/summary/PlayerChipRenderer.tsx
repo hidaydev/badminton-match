@@ -168,7 +168,7 @@ export default function PlayerChipRenderer({
   const showSkippedIdle = !!isSkipped
   return (
     <span
-      className={`text-xs font-medium px-0.5 py-0.5 rounded-md border ${
+      className={`inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-md border ${
         isAbsent
           ? 'border-transparent text-slate-400 line-through'
           : showSkippedIdle
@@ -180,7 +180,7 @@ export default function PlayerChipRenderer({
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
       <AnnotatedPlayerName name={playerName} />{showSkippedIdle ? ' ⊘' : ''}
-      {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackRun}</sup> : null}
+      {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0 ml-0.5 leading-none">*{backToBackRun}</sup> : null}
     </span>
   )
 }
