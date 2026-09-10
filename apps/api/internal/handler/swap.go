@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -21,7 +20,7 @@ type swapRequest struct {
 func (h *SessionHandler) SwapMembers(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var req swapRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid JSON body"))
 		return
 	}

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"crypto/subtle"
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -76,7 +75,7 @@ func mapRatingError(err error) *httperr.Error {
 // IngestSession — POST /ratings/ingest-session {sessionId} → 200 IngestResult.
 func (h *RatingsHandler) IngestSession(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.SessionID == "" {
+	if err := decodeJSON(r, &body); err != nil || body.SessionID == "" {
 		httperr.WriteError(w, nil, httperr.Validation("sessionId is required"))
 		return
 	}
@@ -91,7 +90,7 @@ func (h *RatingsHandler) IngestSession(w http.ResponseWriter, r *http.Request) {
 // IngestTournament — POST /ratings/ingest-tournament {tournamentId} → 200.
 func (h *RatingsHandler) IngestTournament(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TournamentID == "" {
+	if err := decodeJSON(r, &body); err != nil || body.TournamentID == "" {
 		httperr.WriteError(w, nil, httperr.Validation("tournamentId is required"))
 		return
 	}
@@ -106,7 +105,7 @@ func (h *RatingsHandler) IngestTournament(w http.ResponseWriter, r *http.Request
 // RevertSession — POST /ratings/revert-session {sessionId} → full rebuild.
 func (h *RatingsHandler) RevertSession(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.SessionID == "" {
+	if err := decodeJSON(r, &body); err != nil || body.SessionID == "" {
 		httperr.WriteError(w, nil, httperr.Validation("sessionId is required"))
 		return
 	}
@@ -121,7 +120,7 @@ func (h *RatingsHandler) RevertSession(w http.ResponseWriter, r *http.Request) {
 // RevertTournament — POST /ratings/revert-tournament {tournamentId}.
 func (h *RatingsHandler) RevertTournament(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TournamentID == "" {
+	if err := decodeJSON(r, &body); err != nil || body.TournamentID == "" {
 		httperr.WriteError(w, nil, httperr.Validation("tournamentId is required"))
 		return
 	}
@@ -137,7 +136,7 @@ func (h *RatingsHandler) RevertTournament(w http.ResponseWriter, r *http.Request
 func (h *RatingsHandler) FinalizeSource(w http.ResponseWriter, r *http.Request) {
 	sourceID := r.PathValue("sourceId")
 	var body ratingBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := decodeJSON(r, &body); err != nil {
 		httperr.WriteError(w, nil, httperr.Validation("finalized is required"))
 		return
 	}
@@ -209,7 +208,7 @@ func (h *RatingsHandler) Sources(w http.ResponseWriter, r *http.Request) {
 // Season — POST /ratings/season {startDate} (admin) — close & start new season.
 func (h *RatingsHandler) Season(w http.ResponseWriter, r *http.Request) {
 	var body ratingBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.StartDate == "" {
+	if err := decodeJSON(r, &body); err != nil || body.StartDate == "" {
 		httperr.WriteError(w, nil, httperr.Validation("startDate is required"))
 		return
 	}

@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -32,7 +31,7 @@ type registerPlayerRequest struct {
 func (h *PlayerHandler) SetTier(w http.ResponseWriter, r *http.Request) {
 	playerID := r.PathValue("playerId")
 	var body registerPlayerRequest
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Tier == "" {
+	if err := decodeJSON(r, &body); err != nil || body.Tier == "" {
 		httperr.WriteError(w, h.Logger, httperr.Validation("tier is required (D/D+/C/C+/B/B+/A/A+)"))
 		return
 	}
@@ -98,7 +97,7 @@ func (h *PlayerHandler) Rename(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
+	if err := decodeJSON(r, &body); err != nil || strings.TrimSpace(body.Name) == "" {
 		httperr.WriteError(w, h.Logger, httperr.Validation("name is required"))
 		return
 	}
