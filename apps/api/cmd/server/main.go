@@ -174,7 +174,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 		Store:      store.NewPlayerStore(pool),
 		Logger:     logger,
 		AdminToken: cfg.AdminToken,
-		AdminStore: store.NewSessionStore(pool, cfg.DatabaseSchema),
+		AdminStore: sessionStore,
 	}
 	mux.Handle("PATCH /players/{playerId}/tier", handler.AdminGuard(cfg.AdminToken, players.SetTier))
 	mux.Handle("PATCH /players/{playerId}/name", handler.AdminGuard(cfg.AdminToken, players.Rename))
@@ -184,7 +184,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /players", http.HandlerFunc(players.Register))
 	mux.Handle("GET /players/{name}/stats", http.HandlerFunc(players.Stats))
 
-	tournaments := &handler.TournamentHandler{Store: store.NewTournamentStore(pool, cfg.DatabaseSchema), Logger: logger, BaseURL: cfg.BaseURL, AdminStore: store.NewSessionStore(pool, cfg.DatabaseSchema)}
+	tournaments := &handler.TournamentHandler{Store: store.NewTournamentStore(pool, cfg.DatabaseSchema), Logger: logger, BaseURL: cfg.BaseURL, AdminStore: sessionStore}
 	mux.Handle("GET /tournaments", http.HandlerFunc(tournaments.List))
 	mux.Handle("POST /tournaments", http.HandlerFunc(tournaments.Create))
 	mux.Handle("GET /tournaments/{id}", http.HandlerFunc(tournaments.Get))
@@ -195,7 +195,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 
 	// ── Rating engine (design §6): write = admin token, read = publik.
 	ratings := &handler.RatingsHandler{
-		Store:      store.NewSessionStore(pool, cfg.DatabaseSchema),
+		Store:      sessionStore,
 		AdminToken: cfg.AdminToken,
 	}
 	mux.Handle("POST /ratings/ingest-session", http.HandlerFunc(ratings.RequireAdmin(ratings.IngestSession)))
