@@ -18,7 +18,7 @@ Regression tests exist via `node:test` (pure logic — retry policy, generator q
 
 ```bash
 cd apps/web
-npm run check              # Types + lint + tailwind + regression tests (71 tests PASS)
+npm run check              # Types + lint + tailwind + regression tests (74 tests PASS)
 npm run check:regression   # Regression tests only (node:test)
 ```
 

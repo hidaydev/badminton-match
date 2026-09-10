@@ -48,15 +48,15 @@ badminton-match (monorepo)
 
 ## 🧪 Status Pengujian Penuh (Test Suite)
 
-- **Frontend Unit Tests**: 71/71 tests PASS (`npm run check:web`)
-- **Frontend Production Build**: PASS (`npm run build:web`, PWA Service Worker `dist/sw.js` precache 46 entries)
+- **Frontend Unit Tests**: 74/74 tests PASS (`npm run check:web`)
+- **Frontend Production Build**: PASS (`npm run build:web`, PWA Service Worker `dist/sw.js` precache)
 - **Backend Go Unit Tests**: 183/183 tests PASS (`go test ./...` di `apps/api`)
 
 ---
 
 ## Infrastruktur
 
-- **VPS Host**: `sachiel@43.133.148.191`
+- **VPS Host**: `user@<VPS_IP>`
 - **Containers**: `majadu-api` (prod:8080), `qouver-postgres` (5432)
 - **Quadlet Config**: `~/.config/containers/systemd/majadu-api.container`
 - **Deploy**: GitHub Webhook → `/srv/qouver/apps/majadu/scripts/deploy-vps.sh`
