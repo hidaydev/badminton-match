@@ -36,13 +36,23 @@ badminton-match (monorepo)
 | **PGX Pool Lifetime & Read-Only Tx** | ✅ `079b892` | Memasang parameter pool connection DB (`MaxConnLifetime = 30m`, `MaxConnIdleTime = 5m`) di `db.go` serta `AccessMode: ReadOnly` pada read session untuk menghemat 1 network roundtrip. |
 | **Rejection Sampling Token Generator** | ✅ `4600907` | Menerapkan *rejection sampling* untuk byte $\ge 248$ di generator `randomAlnum` (`session.go`) untuk menghilangkan bias modulo pada pembuatan session token. |
 
-### 2. High Performance & Resiliency Upgrade (10 September 2026)
+### 3. Fullstack 13-Bug Systematic Audit & Fixes (10 September 2026 — Commit `e41f274`)
 
 | Item | Status | Detail |
 |------|--------|--------|
-| **PostgreSQL Composite Indexes** | ✅ `8bf753a` | Membuat migrasi `000015_performance_indexes.sql` & langsung di-apply di DB VPS (`bm`): partial index active rating players 90 hari, composite index `LATERAL JOIN`, index sort event, serta foreign key lookup. |
-| **SSE Reconnect Catch-Up Refetch** | ✅ `15aeb92` | Memperbarui `useSessionRealtime` pada `sessions.ts` untuk memicu `queryClient.invalidateQueries` otomatis saat SSE reconnect & saat browser menerima event `online`. |
-| **PWA Workbox Offline Caching Strategy** | ✅ `3e7ca9d` | Konfigurasi `navigateFallback: '/index.html'`, `globPatterns`, dan `runtimeCaching` di `vite.config.ts` agar aplikasi 100% dapat dibuka & digunakan membuat sesi secara offline. |
+| **Zustand `migrate` Closure Binding** | ✅ | `createInitialState` mengikat mutator ke live store `(fn) => useStore.setState(fn)` mencegah action terputus saat migration schema LocalStorage. |
+| **React Query OCC Version Sync** | ✅ | Instant `setQueryData` pada `onSuccess` `usePublishSession` & `fetchQuery` error recovery untuk mengeliminasi window stale 412 version conflict. |
+| **Rating Player History Null Safety** | ✅ | Safe fallback `safeHistory = history ?? []` di `RatingPlayerPage.tsx` mencegah crash saat data history null. |
+| **Tournament Bracket Winner Null Check** | ✅ | Validasi `scoreA != null && scoreB != null` di `BracketTab.tsx` mencegah penentuan pemenang prematur pada match unplayed. |
+| **Ghost Empty Slots Cleanup** | ✅ | Filter `.filter((m) => m.slots.some((st) => st !== ''))` di `playersSlice.ts` menghapus constraint match yang seluruh slotnya kosong akibat hapus player. |
+| **SQL Schema Qualification & Rollback Context** | ✅ | Menambahkan `s.schema` prefix dan `tx.Rollback(context.WithoutCancel(ctx))` di `tournament.go`, `team_tournament.go`, `player.go`, `session.go`, `rating.go`. |
+| **Granular Idempotency Fast-Path Cache** | ✅ | Memanggil `setIdempotentResponse` pada `PatchGame`, `PatchGameSkipped`, dan `PatchAbsent` di `granular.go`. |
+| **Stale Score & Played Game Reset** | ✅ | Reset `playedGames: []` dan `gameScores: {}` pada mutasi pemain (`playersSlice.ts`), fixed match (`fixMatchesSlice.ts`), dan court config (`sessionSlice.ts`). |
+| **Scoreboard Bounds & Parity Validation** | ✅ | Capping skor max 99 dan pengecekan `validateScore(red, blue)` di `ScoreboardPage.tsx` sebelum save. |
+| **Team Tournament Optimistic Rollback** | ✅ | Rollback `localMatches` ke snapshot server dan refetch query jika `publishTournament` mutation gagal di `TeamTournamentPage.tsx`. |
+| **Cross-Session Cloud Overwrite Guard** | ✅ | `state.cloudSessionId === cloudSessionId` guard di `useDebouncedPublish.ts` mencegah overwrite antar sesi saat perpindahan halaman cepat. |
+| **Inconsistent Court Config Cleaning** | ✅ | Reset `schedule: []`, `playedGames: []`, `gameScores: {}` saat `setCourts`, `setSessionStart`, `setSlotMinutes`, `setCourtTime` di `sessionSlice.ts`. |
+| **Idempotency Data Race Elimination** | ✅ | Menyimpan serialized JSON `[]byte` dalam `idempotencyStore` di `session.go` mengeliminasi race condition pointer sharing antar-goroutine. |
 
 ---
 
