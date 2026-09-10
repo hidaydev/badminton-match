@@ -59,15 +59,25 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
   const queryClient = useQueryClient()
   const [connected, setConnected] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
+
   useEffect(() => {
     if (!sessionId || !enabled) return
+    let isReconnection = false
+
     // __API_BASE_URL__ is injected at build time (vite.config.ts)
     const url = `${__API_BASE_URL__}/sessions/${encodeURIComponent(sessionId)}/watch`
     const es = new EventSource(url)
+
     es.onopen = () => {
       setConnected(true)
+      // Jika tadinya terputus/reconnecting, picu catch-up refetch dari server
+      if (isReconnection) {
+        queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+      }
       setReconnecting(false)
+      isReconnection = false
     }
+
     es.onmessage = (e) => {
       try {
         const snap = JSON.parse(e.data) as CloudSnapshot
@@ -76,18 +86,28 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
         // ignore malformed
       }
     }
+
     es.onerror = () => {
       setConnected(false)
       // Browser akan auto-reconnect EventSource — tandai sebagai reconnecting
-      // agar UI bisa menampilkan indicator sementara, bukan "offline" permanen.
       setReconnecting(true)
+      isReconnection = true
     }
+
+    // Picu catch-up refetch saat browser terhubung kembali ke internet
+    const handleOnline = () => {
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+    }
+    window.addEventListener('online', handleOnline)
+
     return () => {
       es.close()
+      window.removeEventListener('online', handleOnline)
       setConnected(false)
       setReconnecting(false)
     }
   }, [sessionId, enabled, queryClient])
+
   return { connected, reconnecting }
 }
 
