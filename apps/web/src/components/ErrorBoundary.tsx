@@ -1,4 +1,5 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react'
+import { isChunkLoadError } from '../utils/safeLazy'
 
 interface Props {
   children: ReactNode
@@ -45,22 +46,30 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       if (this.props.fallback) return this.props.fallback
 
+      const isChunkErr = isChunkLoadError(this.state.error)
+
       return (
         <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center gap-4">
-          <div className="text-3xl">⚠️</div>
+          <div className="text-3xl">{isChunkErr ? '🔄' : '⚠️'}</div>
           <div>
-            <p className="text-fg font-semibold text-sm mb-1">Terjadi kesalahan</p>
+            <p className="text-fg font-semibold text-sm mb-1">
+              {isChunkErr ? 'Versi Aplikasi Diperbarui' : 'Terjadi kesalahan'}
+            </p>
             <p className="text-fg-dim text-xs max-w-xs">
-              {this.state.error.message || 'Unexpected error — coba reload halaman.'}
+              {isChunkErr
+                ? 'Ada pembaruan versi baru di server. Silakan reload halaman untuk memuat versi terbaru.'
+                : this.state.error.message || 'Unexpected error — coba reload halaman.'}
             </p>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={this.handleReset}
-              className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-fg transition-colors"
-            >
-              Coba lagi
-            </button>
+            {!isChunkErr && (
+              <button
+                onClick={this.handleReset}
+                className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-fg transition-colors"
+              >
+                Coba lagi
+              </button>
+            )}
             <button
               onClick={() => window.location.reload()}
               className="text-xs px-3 py-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 transition-colors"
