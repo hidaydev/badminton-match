@@ -1,3 +1,4 @@
+import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { SwapTarget, ChangeTarget } from '../../utils/swap'
 
 export type PlayerChipMode = 'idle' | 'swap' | 'absent' | 'skip' | 'replace' | 'slotSwap' | 'teamSwap' | 'change'
@@ -83,7 +84,7 @@ export default function PlayerChipRenderer({
         }`}
         title={isSkipped ? 'Skipped in this game — tap to un-skip' : 'Tap to skip in this game (excludes from rating)'}
       >
-        {playerName}{isSkipped ? ' ⊘' : ''}
+        <AnnotatedPlayerName name={playerName} />{isSkipped ? ' ⊘' : ''}
       </button>
     )
   }
@@ -100,7 +101,7 @@ export default function PlayerChipRenderer({
             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-emerald-400 hover:text-emerald-200'
         }`}
       >
-        {playerName}
+        <AnnotatedPlayerName name={playerName} />
       </button>
     )
   }
@@ -125,7 +126,7 @@ export default function PlayerChipRenderer({
             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-sky-400 hover:text-sky-200'
         }`}
       >
-        {playerName}
+        <AnnotatedPlayerName name={playerName} />
       </button>
     )
   }
@@ -141,7 +142,7 @@ export default function PlayerChipRenderer({
             : 'bg-slate-800/60 border-slate-600 text-slate-200 hover:border-indigo-400 hover:text-indigo-200'
         }`}
       >
-        {playerName}
+        <AnnotatedPlayerName name={playerName} />
       </button>
     )
   }
@@ -158,7 +159,7 @@ export default function PlayerChipRenderer({
               : 'border-transparent text-white'
         }`}
       >
-        {playerName}
+        <AnnotatedPlayerName name={playerName} />
       </span>
     )
   }
@@ -178,7 +179,7 @@ export default function PlayerChipRenderer({
       }`}
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
     >
-      {playerName}{showSkippedIdle ? ' ⊘' : ''}
+      <AnnotatedPlayerName name={playerName} />{showSkippedIdle ? ' ⊘' : ''}
       {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0">*{backToBackRun}</sup> : null}
     </span>
   )

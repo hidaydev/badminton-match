@@ -1,3 +1,4 @@
+import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, ScheduleSlot } from '../../types'
 import { computePlayerStats } from '../../utils/playerStats'
 
@@ -49,7 +50,7 @@ export default function PlayerStatsPanel({
             const isAbsent = absentSet.has(id)
             return (
               <div key={id} className={`flex items-center justify-between gap-1 min-w-0 ${isAbsent ? 'opacity-40' : ''}`}>
-                <span className={`text-xs truncate ${isAbsent ? 'text-slate-400 line-through' : 'text-slate-300'}`}>{name}</span>
+                <span className={`text-xs truncate ${isAbsent ? 'text-slate-400 line-through' : 'text-slate-300'}`}><AnnotatedPlayerName name={name} /></span>
                 {isAbsent && <span className="text-[10px] text-slate-300 bg-slate-800 rounded px-1 py-0.5 shrink-0">absent</span>}
                 <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-400' : 'text-white'}`}>
                   {plays}×
@@ -88,7 +89,7 @@ export default function PlayerStatsPanel({
             const under = plays < Math.floor(idealPlays)
             return (
               <div key={p.id} className="flex items-center gap-2">
-                <span className="text-xs text-slate-300 w-20 truncate">{p.name}</span>
+                <span className="text-xs text-slate-300 w-20 truncate"><AnnotatedPlayerName name={p.name} /></span>
                 <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
                   {plays}×
                 </span>
