@@ -121,17 +121,11 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 
 	// Read-only transaction untuk snapshot isolation — mencegah inconsistent
 	// reads saat concurrent Save() menghapus + insert ulang child tables (L6 fix).
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-
-	// Set read-only after begin (pgx doesn't support ReadOnly in TxOptions directly)
-	if _, err := tx.Exec(ctx, `SET TRANSACTION READ ONLY`); err != nil {
-		_ = tx.Rollback(ctx)
-		return nil, err
-	}
 
 	// Resolve lookup (share_code atau uuid) — mirror resolve_session_lookup.
 	var sessionID string
