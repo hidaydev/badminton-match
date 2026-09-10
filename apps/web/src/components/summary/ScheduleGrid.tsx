@@ -148,8 +148,11 @@ export default function ScheduleGrid({
                       >
                         {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                       </div>
-                      {/* Teams */}
-                      <div className="grid items-center gap-2 flex-1 min-w-0" style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
+                      {/* Teams — 8-column precision grid for pixel-perfect vertical alignment */}
+                      <div
+                        className="grid items-center gap-1 flex-1 min-w-0"
+                        style={{ gridTemplateColumns: '52px 1fr 12px 1fr 24px 1fr 12px 1fr' }}
+                      >
                         <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
                           {courtLabel(g.court)}
                         </span>
@@ -166,7 +169,7 @@ export default function ScheduleGrid({
                               <button
                                 onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
                                 disabled={!!pendingTeamSwap}
-                                className={`flex items-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md border transition-colors ${
+                                className={`col-span-3 flex items-center justify-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md border transition-colors ${
                                   isSelected || isPending
                                     ? 'bg-violet-900/50 border-violet-500 ring-1 ring-violet-500/60'
                                     : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
@@ -182,9 +185,9 @@ export default function ScheduleGrid({
                             )
                           })()
                         ) : (
-                          <div className="flex items-center gap-0.5 min-w-0">
-                            {([0, 1] as const).map((i) => {
-                              const id = g.teamA[i]
+                          <>
+                            {(() => {
+                              const id = g.teamA[0]
                               const n = name(id)
                               const isSelected =
                                 (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
@@ -194,12 +197,11 @@ export default function ScheduleGrid({
                                 ))
                               const isDimmed = !!pendingSwap && !isSelected
                               return (
-                                <span key={i} className={`flex items-center gap-0.5 ${isDimmed ? 'opacity-30' : ''}`}>
-                                  {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
+                                <div className={`min-w-0 flex justify-end ${isDimmed ? 'opacity-30' : ''}`}>
                                   <PlayerChipRenderer
                                     playerName={n}
                                     team="A"
-                                    position={i}
+                                    position={0}
                                     mode={mode}
                                     done={done}
                                     pendingSwap={pendingSwap}
@@ -218,12 +220,50 @@ export default function ScheduleGrid({
                                     playerId={id}
                                     backToBackRun={backToBackRunBySlot[id]?.get(s)}
                                   />
-                                </span>
+                                </div>
                               )
-                            })}
-                          </div>
+                            })()}
+                            <span className="text-[10px] text-slate-400 text-center select-none">&</span>
+                            {(() => {
+                              const id = g.teamA[1]
+                              const n = name(id)
+                              const isSelected =
+                                (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
+                                !!(pendingSwap && (
+                                  (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
+                                  (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
+                                ))
+                              const isDimmed = !!pendingSwap && !isSelected
+                              return (
+                                <div className={`min-w-0 flex justify-start ${isDimmed ? 'opacity-30' : ''}`}>
+                                  <PlayerChipRenderer
+                                    playerName={n}
+                                    team="A"
+                                    position={1}
+                                    mode={mode}
+                                    done={done}
+                                    pendingSwap={pendingSwap}
+                                    isSelected={isSelected}
+                                    isAbsent={effectiveAbsent.has(id)}
+                                    isSkipped={!!effectiveSkipped[toGameKey(s, g.court)]?.has(id)}
+                                    hasScore={!!gameScores[toGameKey(s, g.court)]}
+                                    replaceTarget={replaceTarget}
+                                    changeTarget={changeTarget}
+                                    onChipClick={handleChipClick}
+                                    onReplaceToggle={handleReplaceToggle}
+                                    onChangeSelect={handleChangeSelect}
+                                    onSkipToggle={onSkipToggle}
+                                    slot={s}
+                                    court={g.court}
+                                    playerId={id}
+                                    backToBackRun={backToBackRunBySlot[id]?.get(s)}
+                                  />
+                                </div>
+                              )
+                            })()}
+                          </>
                         )}
-                        <span className="text-slate-400 text-xs text-center">vs</span>
+                        <span className="text-slate-400 text-xs font-bold text-center select-none">vs</span>
                         {mode === 'teamSwap' ? (
                           (() => {
                             const tgt: TeamSwapTarget = { slot: s, court: g.court, team: 'B' }
@@ -237,7 +277,7 @@ export default function ScheduleGrid({
                               <button
                                 onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
                                 disabled={!!pendingTeamSwap}
-                                className={`flex items-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md border transition-colors ${
+                                className={`col-span-3 flex items-center justify-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md border transition-colors ${
                                   isSelected || isPending
                                     ? 'bg-violet-900/50 border-violet-500 ring-1 ring-violet-500/60'
                                     : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
@@ -253,9 +293,9 @@ export default function ScheduleGrid({
                             )
                           })()
                         ) : (
-                          <div className="flex items-center gap-0.5 min-w-0">
-                            {([0, 1] as const).map((i) => {
-                              const id = g.teamB[i]
+                          <>
+                            {(() => {
+                              const id = g.teamB[0]
                               const n = name(id)
                               const isSelected =
                                 (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
@@ -265,12 +305,11 @@ export default function ScheduleGrid({
                                 ))
                               const isDimmed = !!pendingSwap && !isSelected
                               return (
-                                <span key={i} className={`flex items-center gap-0.5 ${isDimmed ? 'opacity-30' : ''}`}>
-                                  {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
+                                <div className={`min-w-0 flex justify-end ${isDimmed ? 'opacity-30' : ''}`}>
                                   <PlayerChipRenderer
                                     playerName={n}
                                     team="B"
-                                    position={i}
+                                    position={0}
                                     mode={mode}
                                     done={done}
                                     pendingSwap={pendingSwap}
@@ -289,10 +328,48 @@ export default function ScheduleGrid({
                                     playerId={id}
                                     backToBackRun={backToBackRunBySlot[id]?.get(s)}
                                   />
-                                </span>
+                                </div>
                               )
-                            })}
-                          </div>
+                            })()}
+                            <span className="text-[10px] text-slate-400 text-center select-none">&</span>
+                            {(() => {
+                              const id = g.teamB[1]
+                              const n = name(id)
+                              const isSelected =
+                                (swapSelected?.slot === s && swapSelected?.court === g.court && swapSelected?.playerId === id) ||
+                                !!(pendingSwap && (
+                                  (pendingSwap.t1.slot === s && pendingSwap.t1.court === g.court && pendingSwap.t1.playerId === id) ||
+                                  (pendingSwap.t2.slot === s && pendingSwap.t2.court === g.court && pendingSwap.t2.playerId === id)
+                                ))
+                              const isDimmed = !!pendingSwap && !isSelected
+                              return (
+                                <div className={`min-w-0 flex justify-start ${isDimmed ? 'opacity-30' : ''}`}>
+                                  <PlayerChipRenderer
+                                    playerName={n}
+                                    team="B"
+                                    position={1}
+                                    mode={mode}
+                                    done={done}
+                                    pendingSwap={pendingSwap}
+                                    isSelected={isSelected}
+                                    isAbsent={effectiveAbsent.has(id)}
+                                    isSkipped={!!effectiveSkipped[toGameKey(s, g.court)]?.has(id)}
+                                    hasScore={!!gameScores[toGameKey(s, g.court)]}
+                                    replaceTarget={replaceTarget}
+                                    changeTarget={changeTarget}
+                                    onChipClick={handleChipClick}
+                                    onReplaceToggle={handleReplaceToggle}
+                                    onChangeSelect={handleChangeSelect}
+                                    onSkipToggle={onSkipToggle}
+                                    slot={s}
+                                    court={g.court}
+                                    playerId={id}
+                                    backToBackRun={backToBackRunBySlot[id]?.get(s)}
+                                  />
+                                </div>
+                              )
+                            })()}
+                          </>
                         )}
                       </div>
                       {/* Score toggle / saved score */}
