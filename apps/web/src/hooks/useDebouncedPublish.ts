@@ -8,7 +8,7 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store'
 import { usePublishSession } from '../queries'
-import { publishSession } from '../queries/endpoints'
+import { publishSession, getSession } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
 import { buildPublishableSessionSnapshot } from '../utils/sessionSnapshot'
 import type { CloudSnapshot } from '../queries/types'
@@ -43,6 +43,7 @@ export function useDebouncedPublish(
     }
 
     const state = useStore.getState()
+    if (state.cloudSessionId !== cloudSessionId) return
     const snap = buildPublishableSessionSnapshot({
       session: state.session,
       players: state.players,
@@ -61,7 +62,19 @@ export function useDebouncedPublish(
     setIsPendingQueue(false)
 
     publishRef.current.mutate(snap, {
-      onError: (err) => onError?.(getSaveErrorMessage(err)),
+      onError: async (err) => {
+        onError?.(getSaveErrorMessage(err))
+        if (cloudSessionId) {
+          try {
+            await queryClient.fetchQuery({
+              queryKey: ['session', cloudSessionId],
+              queryFn: () => getSession(cloudSessionId),
+            })
+          } catch {
+            // Ignore network fail
+          }
+        }
+      },
       onSettled: () => {
         inFlightRef.current = false
         if (pendingDirtyRef.current) {
@@ -112,19 +125,21 @@ export function useDebouncedPublish(
         clearTimeout(publishTimerRef.current)
         if (cloudSessionId) {
           const state = useStore.getState()
-          const snap = buildPublishableSessionSnapshot({
-            session: state.session, players: state.players, fixMatches: state.fixMatches,
-            schedule: state.schedule, playedGames: state.playedGames, gameScores: state.gameScores,
-            existingAbsentPlayers: state.absentPlayers,
-          })
-          const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
-          if (cached?.version != null) snap.version = cached.version
-          publishSession(cloudSessionId, snap).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['session', cloudSessionId] })
-          }).catch((err) => {
-            console.warn('Unmount flush failed:', err)
-            onError?.(getSaveErrorMessage(err))
-          })
+          if (state.cloudSessionId === cloudSessionId) {
+            const snap = buildPublishableSessionSnapshot({
+              session: state.session, players: state.players, fixMatches: state.fixMatches,
+              schedule: state.schedule, playedGames: state.playedGames, gameScores: state.gameScores,
+              existingAbsentPlayers: state.absentPlayers,
+            })
+            const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
+            if (cached?.version != null) snap.version = cached.version
+            publishSession(cloudSessionId, snap).then(() => {
+              queryClient.invalidateQueries({ queryKey: ['session', cloudSessionId] })
+            }).catch((err) => {
+              console.warn('Unmount flush failed:', err)
+              onError?.(getSaveErrorMessage(err))
+            })
+          }
         }
       }
       publishStartRef.current = null

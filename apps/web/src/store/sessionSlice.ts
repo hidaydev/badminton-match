@@ -61,6 +61,7 @@ export const createSessionSlice = (
           courts: n,
           courtTimes,
         },
+        schedule: [], lastResult: null, playedGames: [], gameScores: {},
       }
     }),
 
@@ -78,6 +79,7 @@ export const createSessionSlice = (
           sessionStart: toTimeString(time),
           courtTimes,
         },
+        schedule: [], lastResult: null, playedGames: [], gameScores: {},
       }
     }),
 
@@ -87,6 +89,7 @@ export const createSessionSlice = (
         ...s.session,
         slotMinutes: min,
       },
+      schedule: [], lastResult: null, playedGames: [], gameScores: {},
     })),
 
   setCourtTime: (index, start, end) =>
@@ -100,6 +103,7 @@ export const createSessionSlice = (
             ...s.session,
             courtTimes,
           },
+          schedule: [], lastResult: null, playedGames: [], gameScores: {},
         }
       } catch (e) {
         // If validation fails, don't update - return current state

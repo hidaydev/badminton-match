@@ -140,12 +140,12 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
   }
 
   const winner = (m?: TournamentMatch) =>
-    m?.scoreA !== null && m?.scoreA !== undefined
-      ? getPairName(m.scoreA > m.scoreB! ? m.pairAId : m.pairBId)
+    m?.scoreA != null && m?.scoreB != null
+      ? getPairName(m.scoreA > m.scoreB ? m.pairAId : m.pairBId)
       : null
   const loser = (m?: TournamentMatch) =>
-    m?.scoreA !== null && m?.scoreA !== undefined
-      ? getPairName(m.scoreA < m.scoreB! ? m.pairAId : m.pairBId)
+    m?.scoreA != null && m?.scoreB != null
+      ? getPairName(m.scoreA < m.scoreB ? m.pairAId : m.pairBId)
       : null
 
   const bracketSubtitle = (matchId: string): string => {

@@ -822,7 +822,7 @@ func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []do
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 
 	for _, p := range players {
 		// Placeholder (free/tbd/dst — ABSENT_TBD_PLAYERS_DESIGN.md §5) tidak
@@ -830,7 +830,7 @@ func (s *SessionStore) EnsurePlayersRegistered(ctx context.Context, players []do
 		if domain.IsPlaceholderName(p.Name) {
 			continue
 		}
-		if _, err := registerPlayerInTx(ctx, tx, p.Name, p.Name, p.Gender); err != nil {
+		if _, err := registerPlayerInTx(ctx, tx, s.schema, p.Name, p.Name, p.Gender); err != nil {
 			return fmt.Errorf("register %q: %w", p.Name, err)
 		}
 	}
@@ -897,7 +897,7 @@ func (s *SessionStore) firstSetPlayerTier(ctx context.Context, tx pgx.Tx, player
 			continue
 		}
 		// Resolve nama → player_id (alias). Placeholder di-skip.
-		pid, ok, err := resolveTournamentPlayer(ctx, tx, p.Name)
+		pid, ok, err := resolveTournamentPlayer(ctx, tx, s.schema, p.Name)
 		if err != nil {
 			return err
 		}

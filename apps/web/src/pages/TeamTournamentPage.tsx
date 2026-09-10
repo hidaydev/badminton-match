@@ -52,6 +52,14 @@ export default function TeamTournamentPage() {
     },
     onError: (err) => {
       setPublishError(err instanceof Error ? err.message : 'Failed to save.')
+      if (snap?.matches) {
+        setLocalMatches(snap.matches.map((m) => ({
+          ...m,
+          courts: m.courts ?? ['Court 12', 'Court 13', 'Court 14'],
+          partai: m.partai.map((p) => ({ ...p })),
+        })))
+      }
+      queryClient.invalidateQueries({ queryKey: ['tournament', id] })
     },
   })
 

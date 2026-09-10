@@ -129,8 +129,11 @@ export function usePublishSession(sessionId: string | undefined) {
       const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
       return { previous }
     },
-    onSuccess: async () => {
+    onSuccess: async (snap) => {
       if (!sessionId) return
+      if (snap) {
+        queryClient.setQueryData(['session', sessionId], snap)
+      }
       await queryClient.fetchQuery<CloudSnapshot | null>({
         queryKey: ['session', sessionId],
         queryFn: () => getSession(sessionId),

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"majadu-api/internal/domain"
 	"majadu-api/internal/httperr"
 )
 
@@ -122,10 +123,8 @@ func (h *SessionHandler) PatchGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if cacheKey != "" && out != nil {
-		// Persisted idempotency already saved in store (after commit); also populate in-memory for next identical request fast path.
-		// Use type switch to safely cache only *domain.CloudSnapshot
-		if snap, ok := out.(interface{ GetVersion() *int }); ok {
-			_ = snap
+		if snap, ok := out.(*domain.CloudSnapshot); ok {
+			setIdempotentResponse(cacheKey, snap)
 		}
 	}
 	h.writeSessionAny(w, http.StatusOK, out)
@@ -196,6 +195,9 @@ func (h *SessionHandler) PatchGameSkipped(w http.ResponseWriter, r *http.Request
 		httperr.WriteError(w, h.Logger, mapPublishError(err))
 		return
 	}
+	if cacheKey != "" && out != nil {
+		setIdempotentResponse(cacheKey, out)
+	}
 	h.writeSession(w, http.StatusOK, out)
 }
 
@@ -231,6 +233,9 @@ func (h *SessionHandler) PatchAbsent(w http.ResponseWriter, r *http.Request) {
 		h.Logger.Warn("granular absent rejected", "session", id, "error", err)
 		httperr.WriteError(w, h.Logger, mapPublishError(err))
 		return
+	}
+	if cacheKey != "" && out != nil {
+		setIdempotentResponse(cacheKey, out)
 	}
 	h.writeSession(w, http.StatusOK, out)
 }

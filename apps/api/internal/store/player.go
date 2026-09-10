@@ -14,12 +14,17 @@ import (
 
 // PlayerStore — registry pemain + statistik (read-path di Go).
 type PlayerStore struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	schema string
 }
 
-// NewPlayerStore — buat PlayerStore dengan pool koneksi.
-func NewPlayerStore(pool *pgxpool.Pool) *PlayerStore {
-	return &PlayerStore{pool: pool}
+// NewPlayerStore — buat PlayerStore dengan pool koneksi + optional schema.
+func NewPlayerStore(pool *pgxpool.Pool, schema ...string) *PlayerStore {
+	sch := "bm"
+	if len(schema) > 0 && schema[0] != "" {
+		sch = schema[0]
+	}
+	return &PlayerStore{pool: pool, schema: sch}
 }
 
 // PlayerSummary — baris dari list_players (read-path port bm.list_players).
@@ -95,9 +100,9 @@ func (s *PlayerStore) Register(ctx context.Context, name, canonicalName, gender 
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 
-	pid, err := registerPlayerInTx(ctx, tx, name, canonicalName, gender)
+	pid, err := registerPlayerInTx(ctx, tx, s.schema, name, canonicalName, gender)
 	if err != nil {
 		return "", err
 	}

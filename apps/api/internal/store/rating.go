@@ -590,7 +590,7 @@ func (s *SessionStore) resolveRatingPlayers(ctx context.Context, tx pgx.Tx, matc
 				continue
 			}
 			seen[p.Name] = true
-			pid, ok, err := resolveTournamentPlayer(ctx, tx, p.Name)
+			pid, ok, err := resolveTournamentPlayer(ctx, tx, s.schema, p.Name)
 			if err != nil {
 				return nil, err
 			}

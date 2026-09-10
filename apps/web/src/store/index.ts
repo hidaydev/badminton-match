@@ -18,11 +18,6 @@ type AppState = SessionSlice & PlayersSlice & ScheduleSlice & FixMatchesSlice & 
 // Type for Zustand set function
 export type SetState = (fn: (state: AppState) => Partial<AppState>) => void
 
-// No-op setter — hanya dipakai untuk membangun initial state (migrate/reset).
-// AMAN karena semua slice creators hanya memanggil `set` di dalam action
-// functions (tidak saat konstruksi). Kalau suatu slice mulai memanggil `set`
-// saat init, ini akan menghasilkan fungsi updater sebagai state — jangan.
-const noopSet: SetState = () => undefined
 
 function createInitialState(set: SetState): AppState {
   return {
@@ -45,7 +40,7 @@ export const useStore = create<AppState>()(
       // Cloud-persisted sessions are unaffected by local store resets.
       // NOTE: This wipes ALL local data on version bump. If this causes issues,
       // implement a proper migration function that reads old state and transforms it.
-      migrate: () => createInitialState(noopSet),
+      migrate: () => createInitialState((fn) => useStore.setState(fn)),
     }
   )
 )
