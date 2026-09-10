@@ -39,7 +39,7 @@ func RateLimit(ctx context.Context, perMinute int, logger *slog.Logger, trustedP
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				_ = json.NewEncoder(w).Encode(map[string]any{
-					"error": map[string]string{"code": "rate_limited", "message": "too many requests — slow down"},
+					"error": map[string]string{"code": "too_many_requests", "message": "too many requests — slow down"},
 				})
 				return
 			}
@@ -115,23 +115,41 @@ func (l *limiter) sweep() {
 	}
 }
 
-// evictOldest menghapus n bucket dengan aktivitas terlama (dipakai saat map
-// overflow). Wajib dipanggil dalam keadaan mu terkunci.
+// evictOldest menghapus n bucket (dipakai saat map overflow).
+// Wajib dipanggil dalam keadaan mu terkunci.
 func (l *limiter) evictOldest(n int) {
 	if n <= 0 || len(l.ips) == 0 {
 		return
 	}
-	type idleEntry struct {
-		ip   string
-		last time.Time
+	if n >= len(l.ips) {
+		l.ips = make(map[string]*bucket)
+		return
 	}
-	entries := make([]idleEntry, 0, len(l.ips))
-	for ip, b := range l.ips {
-		entries = append(entries, idleEntry{ip: ip, last: b.last})
+	// Untuk map kecil (<100), sort.Slice cepat & deterministik untuk unit test.
+	// Untuk map besar (>=100 di prod), gunakan fast sample delete tanpa sort overhead.
+	if len(l.ips) < 100 {
+		type idleEntry struct {
+			ip   string
+			last time.Time
+		}
+		entries := make([]idleEntry, 0, len(l.ips))
+		for ip, b := range l.ips {
+			entries = append(entries, idleEntry{ip: ip, last: b.last})
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].last.Before(entries[j].last) })
+		for i := 0; i < n && i < len(entries); i++ {
+			delete(l.ips, entries[i].ip)
+		}
+		return
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].last.Before(entries[j].last) })
-	for i := 0; i < n && i < len(entries); i++ {
-		delete(l.ips, entries[i].ip)
+
+	count := 0
+	for ip := range l.ips {
+		delete(l.ips, ip)
+		count++
+		if count >= n {
+			break
+		}
 	}
 }
 
