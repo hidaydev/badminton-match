@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -164,7 +163,7 @@ func (h *SessionHandler) PatchGameSkipped(w http.ResponseWriter, r *http.Request
 		return
 	}
 	var req patchSkipRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid JSON body"))
 		return
 	}
@@ -204,7 +203,7 @@ func (h *SessionHandler) PatchGameSkipped(w http.ResponseWriter, r *http.Request
 func (h *SessionHandler) PatchAbsent(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var req patchAbsentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid JSON body"))
 		return
 	}
