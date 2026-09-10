@@ -535,13 +535,28 @@ func newShareCode() (string, error) {
 const alnum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 func randomAlnum(n int) (string, error) {
-	rb := make([]byte, n)
+	b := make([]byte, n)
+	const maxValid = 248 // 62 * 4 (values >= 248 trigger modulo bias)
+	rb := make([]byte, n*2)
 	if _, err := rand.Read(rb); err != nil {
 		return "", fmt.Errorf("crypto/rand: %w", err)
 	}
-	b := make([]byte, n)
-	for i, rv := range rb {
-		b[i] = alnum[int(rv)%len(alnum)]
+	idx := 0
+	for i := 0; i < n; i++ {
+		for {
+			if idx >= len(rb) {
+				if _, err := rand.Read(rb); err != nil {
+					return "", fmt.Errorf("crypto/rand: %w", err)
+				}
+				idx = 0
+			}
+			val := int(rb[idx])
+			idx++
+			if val < maxValid {
+				b[i] = alnum[val%len(alnum)]
+				break
+			}
+		}
 	}
 	return string(b), nil
 }
