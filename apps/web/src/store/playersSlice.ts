@@ -42,13 +42,18 @@ export const createPlayersSlice = (
     })),
 
   removePlayer: (id) =>
-    set((s) => ({
-      players: s.players.filter((p) => p.id !== id),
-      fixMatches: s.fixMatches.map((m) => ({
-        ...m,
-        slots: m.slots.map((s) => (s === id ? '' : s)) as MatchConstraint['slots'],
-      })),
-      absentPlayers: s.absentPlayers.filter((pid) => pid !== id),
-      schedule: [], lastResult: null,
-    })),
+    set((s) => {
+      const nextPlayers = s.players.filter((p) => p.id !== id)
+      const nextPlayerCount = Math.max(4, Math.min(s.session.playerCount, nextPlayers.length))
+      return {
+        players: nextPlayers,
+        session: { ...s.session, playerCount: nextPlayerCount },
+        fixMatches: s.fixMatches.map((m) => ({
+          ...m,
+          slots: m.slots.map((st) => (st === id ? '' : st)) as MatchConstraint['slots'],
+        })),
+        absentPlayers: s.absentPlayers.filter((pid) => pid !== id),
+        schedule: [], lastResult: null,
+      }
+    }),
 })
