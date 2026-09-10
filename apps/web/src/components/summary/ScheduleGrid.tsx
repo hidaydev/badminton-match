@@ -182,7 +182,7 @@ export default function ScheduleGrid({
                             )
                           })()
                         ) : (
-                          <div className="flex items-center gap-1 min-w-0">
+                          <div className="flex items-center gap-0.5 min-w-0">
                             {([0, 1] as const).map((i) => {
                               const id = g.teamA[i]
                               const n = name(id)
@@ -194,7 +194,7 @@ export default function ScheduleGrid({
                                 ))
                               const isDimmed = !!pendingSwap && !isSelected
                               return (
-                                <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
+                                <span key={i} className={`flex items-center gap-0.5 ${isDimmed ? 'opacity-30' : ''}`}>
                                   {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
                                   <PlayerChipRenderer
                                     playerName={n}
@@ -253,7 +253,7 @@ export default function ScheduleGrid({
                             )
                           })()
                         ) : (
-                          <div className="flex items-center gap-1 min-w-0">
+                          <div className="flex items-center gap-0.5 min-w-0">
                             {([0, 1] as const).map((i) => {
                               const id = g.teamB[i]
                               const n = name(id)
@@ -265,7 +265,7 @@ export default function ScheduleGrid({
                                 ))
                               const isDimmed = !!pendingSwap && !isSelected
                               return (
-                                <span key={i} className={`flex items-center gap-1 ${isDimmed ? 'opacity-30' : ''}`}>
+                                <span key={i} className={`flex items-center gap-0.5 ${isDimmed ? 'opacity-30' : ''}`}>
                                   {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
                                   <PlayerChipRenderer
                                     playerName={n}

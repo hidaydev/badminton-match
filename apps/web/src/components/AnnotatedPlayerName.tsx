@@ -27,7 +27,7 @@ export default function AnnotatedPlayerName({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 relative group cursor-pointer ${className}`}
+      className={`inline-flex items-center gap-0.5 relative group cursor-pointer ${className}`}
       onClick={(e) => {
         e.stopPropagation()
         setShowTooltip((v) => !v)
@@ -41,7 +41,7 @@ export default function AnnotatedPlayerName({
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 20 20"
         fill="currentColor"
-        className={`w-3.5 h-3.5 shrink-0 ${annotationClassName}`}
+        className={`w-3 h-3 shrink-0 ${annotationClassName}`}
         aria-hidden="true"
       >
         <path

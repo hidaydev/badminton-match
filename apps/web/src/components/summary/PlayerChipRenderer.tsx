@@ -168,7 +168,7 @@ export default function PlayerChipRenderer({
   const showSkippedIdle = !!isSkipped
   return (
     <span
-      className={`text-xs font-medium px-1.5 py-0.5 rounded-md border ${
+      className={`text-xs font-medium px-0.5 py-0.5 rounded-md border ${
         isAbsent
           ? 'border-transparent text-slate-400 line-through'
           : showSkippedIdle
