@@ -1,3 +1,4 @@
+import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
 import type { Player, GameScore } from '../../types'
@@ -174,7 +175,7 @@ export default function ScheduleGrid({
                                 {g.teamA.map((id, i) => (
                                   <span key={i} className="flex items-center gap-1">
                                     {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
-                                    <span className="text-xs font-medium text-slate-200">{name(id)}</span>
+                                    <span className="text-xs font-medium text-slate-200"><AnnotatedPlayerName name={name(id)} /></span>
                                   </span>
                                 ))}
                               </button>
@@ -245,7 +246,7 @@ export default function ScheduleGrid({
                                 {g.teamB.map((id, i) => (
                                   <span key={i} className="flex items-center gap-1">
                                     {i > 0 && <span className="text-[10px] text-slate-400">&</span>}
-                                    <span className="text-xs font-medium text-slate-200">{name(id)}</span>
+                                    <span className="text-xs font-medium text-slate-200"><AnnotatedPlayerName name={name(id)} /></span>
                                   </span>
                                 ))}
                               </button>
