@@ -29,7 +29,7 @@ export function ratingSparklinePath(
     if (p.rating < min) min = p.rating
     if (p.rating > max) max = p.rating
   }
-  const span = max - min || 1 // span 0 → garis rata
+  const span = max - min
 
   const innerW = w - 2 * padding
   const innerH = h - 2 * padding
@@ -38,7 +38,7 @@ export function ratingSparklinePath(
   return history
     .map((p, i) => {
       const x = padding + i * step
-      const y = padding + innerH - ((p.rating - min) / span) * innerH
+      const y = span === 0 ? h / 2 : padding + innerH - ((p.rating - min) / span) * innerH
       return `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`
     })
     .join(' ')

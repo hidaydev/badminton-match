@@ -34,4 +34,5 @@ test('sparkline: span nol (rating konstan) → garis rata, tidak NaN', () => {
   assert.ok(!p.includes('NaN'), `path: ${p}`)
   const ys = p.match(/\d+\.?\d* \d+\.?\d*/g)!.map((m) => Number(m.split(' ')[1]))
   assert.ok(ys.every((y) => y === ys[0]), 'semua y sama untuk rating konstan')
+  assert.equal(ys[0], 25, 'y rating konstan harus di tengah (h/2 = 25)')
 })
