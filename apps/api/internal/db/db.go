@@ -20,15 +20,18 @@ func NewPool(ctx context.Context, databaseURL, schema string, logger *slog.Logge
 	if err != nil {
 		return nil, err
 	}
-	// Ukuran pool kecil — cukup untuk tool skala kecil.
+	// Ukuran pool & lifetime koneksi — cegah broken pipe dari connection idle/dropped.
 	cfg.MaxConns = 10
 	cfg.MinConns = 1
+	cfg.MaxConnLifetime = 30 * time.Minute
+	cfg.MaxConnIdleTime = 5 * time.Minute
+	cfg.HealthCheckPeriod = 1 * time.Minute
 	// search_path per koneksi: schema target dulu, lalu public.
 	cfg.ConnConfig.RuntimeParams["search_path"] = fmt.Sprintf("%s, public", schema)
 	// Log query lambat (> 200ms) dan error query.
 	cfg.ConnConfig.Tracer = &slowQueryTracer{logger: logger, threshold: slowQueryThreshold}
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
