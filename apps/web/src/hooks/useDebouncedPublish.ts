@@ -1,8 +1,9 @@
 // src/hooks/useDebouncedPublish.ts
 // Debounced cloud publish hook — batches rapid local changes into a single
-// publish request (PUT /sessions/{id}).
+// publish request (PUT /sessions/{id}). Handles in-flight mutation serialization
+// to prevent 412 If-Match version conflict on rapid edits.
 
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store'
 import { usePublishSession } from '../queries'
@@ -17,13 +18,78 @@ export function useDebouncedPublish(
 ) {
   const publishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const publishStartRef = useRef<number | null>(null)
+  const inFlightRef = useRef<boolean>(false)
+  const pendingDirtyRef = useRef<boolean>(false)
+  const [isPendingQueue, setIsPendingQueue] = useState<boolean>(false)
+
   const queryClient = useQueryClient()
   const publish = usePublishSession(cloudSessionId ?? undefined)
+
+  const publishRef = useRef(publish)
+  useEffect(() => {
+    publishRef.current = publish
+  }, [publish])
+
+  const doPublishRef = useRef<() => void>(() => {})
+
+  const doPublish = useCallback(() => {
+    if (!cloudSessionId || inFlightRef.current) {
+      if (inFlightRef.current) {
+        pendingDirtyRef.current = true
+        setIsPendingQueue(true)
+      }
+      return
+    }
+
+    const state = useStore.getState()
+    const snap = buildPublishableSessionSnapshot({
+      session: state.session,
+      players: state.players,
+      fixMatches: state.fixMatches,
+      schedule: state.schedule,
+      playedGames: state.playedGames,
+      gameScores: state.gameScores,
+      existingAbsentPlayers: state.absentPlayers,
+    })
+
+    const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
+    if (cached?.version != null) snap.version = cached.version
+
+    inFlightRef.current = true
+    pendingDirtyRef.current = false
+    setIsPendingQueue(false)
+
+    publishRef.current.mutate(snap, {
+      onError: (err) => onError?.(getSaveErrorMessage(err)),
+      onSettled: () => {
+        inFlightRef.current = false
+        if (pendingDirtyRef.current) {
+          pendingDirtyRef.current = false
+          setIsPendingQueue(true)
+          publishTimerRef.current = setTimeout(() => {
+            doPublishRef.current()
+          }, 300)
+        } else {
+          setIsPendingQueue(false)
+        }
+      },
+    })
+  }, [cloudSessionId, onError, queryClient])
+
+  useEffect(() => {
+    doPublishRef.current = doPublish
+  }, [doPublish])
 
   const publishToCloud = useCallback(() => {
     if (!cloudSessionId) return
 
     if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
+
+    if (inFlightRef.current) {
+      pendingDirtyRef.current = true
+      setIsPendingQueue(true)
+      return
+    }
 
     const now = Date.now()
     if (!publishStartRef.current) publishStartRef.current = now
@@ -33,25 +99,10 @@ export function useDebouncedPublish(
 
     publishTimerRef.current = setTimeout(() => {
       publishTimerRef.current = null
-      publishStartRef.current = null  // Reset so next change starts fresh debounce
-      const state = useStore.getState()
-      const snap = buildPublishableSessionSnapshot({
-        session: state.session,
-        players: state.players,
-        fixMatches: state.fixMatches,
-        schedule: state.schedule,
-        playedGames: state.playedGames,
-        gameScores: state.gameScores,
-        existingAbsentPlayers: state.absentPlayers,
-      })
-      // T8: always include version from cache for If-Match header (M2)
-      const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
-      if (cached?.version != null) snap.version = cached.version
-      publish.mutate(snap, {
-        onError: (err) => onError?.(getSaveErrorMessage(err)),
-      })
+      publishStartRef.current = null
+      doPublish()
     }, delay)
-  }, [cloudSessionId, publish, onError, queryClient])
+  }, [cloudSessionId, doPublish])
 
   // Flush pending publish on unmount
   useEffect(() => {
@@ -65,7 +116,6 @@ export function useDebouncedPublish(
             schedule: state.schedule, playedGames: state.playedGames, gameScores: state.gameScores,
             existingAbsentPlayers: state.absentPlayers,
           })
-          // Include version from query cache for If-Match (M2)
           const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
           if (cached?.version != null) snap.version = cached.version
           publishSession(cloudSessionId, snap).then(() => {
@@ -77,8 +127,10 @@ export function useDebouncedPublish(
         }
       }
       publishStartRef.current = null
+      inFlightRef.current = false
+      pendingDirtyRef.current = false
     }
   }, [cloudSessionId, queryClient, onError])
 
-  return { publishToCloud, isSaving: publish.isPending }
+  return { publishToCloud, isSaving: publish.isPending || isPendingQueue }
 }
