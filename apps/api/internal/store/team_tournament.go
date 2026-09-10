@@ -296,7 +296,7 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 			if _, ok := playerIDs[norm]; ok {
 				continue
 			}
-			pid, ok, err := resolveTournamentPlayer(ctx, tx, p.Name)
+			pid, ok, err := resolveTournamentPlayer(ctx, tx, s.schema, p.Name)
 			if err != nil {
 				return nil, err
 			}
@@ -404,7 +404,7 @@ func (s *TournamentStore) autoCreateRatingSource(ctx context.Context, tx pgx.Tx,
 		sourceKind = "tournament_team"
 	}
 	_, err := tx.Exec(ctx, `
-		INSERT INTO rating_sources (source_id, source_kind, finalized)
+		INSERT INTO `+s.schema+`.rating_sources (source_id, source_kind, finalized)
 		VALUES ($1, $2, false)
 		ON CONFLICT (source_id) DO NOTHING`, shareCode, sourceKind)
 	return err

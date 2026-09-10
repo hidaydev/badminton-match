@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../components/scoreboard'
+import { validateScore } from '../utils/scoreValidation'
 
 const LS_RED = 'score-red'
 const LS_BLUE = 'score-blue'
@@ -115,8 +116,8 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
   }, [])
 
   // triggerPop is stable (useCallback with [] deps), safe to use without dep
-  const addRed = useCallback(() => { if (isSaving) return; setRed(r => r + 1); triggerPop('red') }, [isSaving]) // eslint-disable-line react-hooks/exhaustive-deps
-  const addBlue = useCallback(() => { if (isSaving) return; setBlue(b => b + 1); triggerPop('blue') }, [isSaving]) // eslint-disable-line react-hooks/exhaustive-deps
+  const addRed = useCallback(() => { if (isSaving) return; setRed(r => Math.min(99, r + 1)); triggerPop('red') }, [isSaving]) // eslint-disable-line react-hooks/exhaustive-deps
+  const addBlue = useCallback(() => { if (isSaving) return; setBlue(b => Math.min(99, b + 1)); triggerPop('blue') }, [isSaving]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const minusRed = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -159,6 +160,11 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const handleSave = useCallback(async () => {
     if (!overlay) return
+    const validationErr = validateScore(red, blue)
+    if (validationErr) {
+      setSaveError(validationErr)
+      return
+    }
     setIsSaving(true)
     setSaveError(null)
     try {

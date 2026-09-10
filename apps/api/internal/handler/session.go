@@ -36,7 +36,7 @@ var (
 )
 
 type idempotencyEntry struct {
-	snap   *domain.CloudSnapshot
+	body   []byte
 	expiry time.Time
 }
 
@@ -51,10 +51,22 @@ func getIdempotentResponse(key string) (*domain.CloudSnapshot, bool) {
 		delete(idempotencyStore, key)
 		return nil, false
 	}
-	return e.snap, true
+	var snap domain.CloudSnapshot
+	if err := json.Unmarshal(e.body, &snap); err != nil {
+		delete(idempotencyStore, key)
+		return nil, false
+	}
+	return &snap, true
 }
 
 func setIdempotentResponse(key string, snap *domain.CloudSnapshot) {
+	if snap == nil {
+		return
+	}
+	b, err := json.Marshal(snap)
+	if err != nil {
+		return
+	}
 	idempotencyMu.Lock()
 	defer idempotencyMu.Unlock()
 	// Clean expired (lazy, cap 1000)
@@ -80,7 +92,7 @@ func setIdempotentResponse(key string, snap *domain.CloudSnapshot) {
 			}
 		}
 	}
-	idempotencyStore[key] = idempotencyEntry{snap: snap, expiry: time.Now().Add(24 * time.Hour)}
+	idempotencyStore[key] = idempotencyEntry{body: b, expiry: time.Now().Add(24 * time.Hour)}
 }
 
 // mapPublishError — mapping error dari publish/delete (sentinels store atau

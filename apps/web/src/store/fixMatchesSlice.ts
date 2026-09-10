@@ -23,7 +23,7 @@ export const createFixMatchesSlice = (
       const fm: MatchConstraint = m.mode === 'pinned'
         ? { id, slots: m.slots as [PlayerId, PlayerId, PlayerId, PlayerId], mode: 'pinned', pinnedTime: toTimeString((m as { pinnedTime?: string }).pinnedTime ?? ''), pinnedCourt: (m as { pinnedCourt?: number }).pinnedCourt ?? 0 }
         : { id, slots: m.slots as [PlayerId, PlayerId, PlayerId, PlayerId], mode: 'flexible' }
-      return { fixMatches: [...s.fixMatches, fm], schedule: [], lastResult: null }
+      return { fixMatches: [...s.fixMatches, fm], schedule: [], lastResult: null, playedGames: [], gameScores: {} }
     }),
 
   updateFixMatch: (id, patch) =>
@@ -44,7 +44,7 @@ export const createFixMatchesSlice = (
           pinnedCourt: merged.pinnedCourt ?? 0,
         } as MatchConstraint
       }),
-      schedule: [], lastResult: null,
+      schedule: [], lastResult: null, playedGames: [], gameScores: {},
     })),
 
   duplicateFixMatch: (id) =>
@@ -54,9 +54,9 @@ export const createFixMatchesSlice = (
       const copy = { ...s.fixMatches[idx], id: generateId() }
       const next = [...s.fixMatches]
       next.splice(idx + 1, 0, copy)
-      return { fixMatches: next, schedule: [], lastResult: null }
+      return { fixMatches: next, schedule: [], lastResult: null, playedGames: [], gameScores: {} }
     }),
 
   removeFixMatch: (id) =>
-    set((s) => ({ fixMatches: s.fixMatches.filter((m) => m.id !== id), schedule: [], lastResult: null })),
+    set((s) => ({ fixMatches: s.fixMatches.filter((m) => m.id !== id), schedule: [], lastResult: null, playedGames: [], gameScores: {} })),
 })

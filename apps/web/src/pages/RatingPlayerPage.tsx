@@ -24,9 +24,10 @@ export default function RatingPlayerPage() {
   if (!data) return null
 
   const { name, rating, rd, tier, tier_display, peak, games, wins, losses, history } = data
+  const safeHistory = history ?? []
   const provisional = rd > 200
   // API DESC → balik untuk sparkline (kronologis); sparkline pakai new_rating
-  const chrono = [...history].reverse().map((h) => ({ rating: h.new_rating }))
+  const chrono = [...safeHistory].reverse().map((h) => ({ rating: h.new_rating }))
 
   return (
     <div className="flex flex-col gap-4">
@@ -73,8 +74,8 @@ export default function RatingPlayerPage() {
       {/* Recent matches */}
       <div className="flex flex-col gap-1.5">
         <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider px-1">Recent matches</p>
-        {history.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">No matches yet.</p>}
-        {history.slice(matchesPage * MATCHES_PER_PAGE, (matchesPage + 1) * MATCHES_PER_PAGE).map((h, i) => {
+        {safeHistory.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">No matches yet.</p>}
+        {safeHistory.slice(matchesPage * MATCHES_PER_PAGE, (matchesPage + 1) * MATCHES_PER_PAGE).map((h, i) => {
           const won = h.outcome === 'W'
           const teammates = h.teammates ?? []
           const opponents = h.opponents ?? []
@@ -112,7 +113,7 @@ export default function RatingPlayerPage() {
             </div>
           )
         })}
-        {history.length > MATCHES_PER_PAGE && (
+        {safeHistory.length > MATCHES_PER_PAGE && (
           <div className="flex items-center justify-between px-1 pt-1">
             <button
               onClick={() => setMatchesPage((p) => Math.max(0, p - 1))}
@@ -122,11 +123,11 @@ export default function RatingPlayerPage() {
               ← Prev
             </button>
             <span className="text-[10px] font-sans text-fg-dim">
-              {matchesPage + 1}/{Math.ceil(history.length / MATCHES_PER_PAGE)}
+              {matchesPage + 1}/{Math.ceil(safeHistory.length / MATCHES_PER_PAGE)}
             </span>
             <button
-              onClick={() => setMatchesPage((p) => Math.min(Math.ceil(history.length / MATCHES_PER_PAGE) - 1, p + 1))}
-              disabled={matchesPage >= Math.ceil(history.length / MATCHES_PER_PAGE) - 1}
+              onClick={() => setMatchesPage((p) => Math.min(Math.ceil(safeHistory.length / MATCHES_PER_PAGE) - 1, p + 1))}
+              disabled={matchesPage >= Math.ceil(safeHistory.length / MATCHES_PER_PAGE) - 1}
               className="text-xs text-fg-dim hover:text-fg disabled:opacity-30 transition-colors"
             >
               Next →
