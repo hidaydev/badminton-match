@@ -27,7 +27,7 @@ export default function AnnotatedPlayerName({
 
   return (
     <span
-      className={`inline-flex items-center gap-0.5 relative group cursor-pointer ${className}`}
+      className={`inline-flex items-center gap-1 relative group cursor-pointer ${className}`}
       onClick={(e) => {
         e.stopPropagation()
         setShowTooltip((v) => !v)
@@ -37,9 +37,19 @@ export default function AnnotatedPlayerName({
       title={`${name}`}
     >
       <span className="truncate">{baseName}</span>
-      <span className={`text-[0.65em] font-sans font-bold leading-none select-none px-0.5 rounded transition-opacity ${annotationClassName}`}>
-        ⁽ⁱ⁾
-      </span>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        className={`w-3.5 h-3.5 shrink-0 ${annotationClassName}`}
+        aria-hidden="true"
+      >
+        <path
+          fillRule="evenodd"
+          d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.25v3.25a.75.75 0 001.5 0v-4A.75.75 0 0010 9H9z"
+          clipRule="evenodd"
+        />
+      </svg>
 
       {/* Floating Tooltip / Popover saat hover & tap */}
       {showTooltip && (
