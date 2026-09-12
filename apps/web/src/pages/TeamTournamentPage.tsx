@@ -252,10 +252,10 @@ export default function TeamTournamentPage() {
     if (!localMatches) return
     const matches = localMatches.map((m, i) => {
       if (i !== matchIdx) return m
-      const courts = [...(m.courts ?? ['Court 1', 'Court 2', 'Court 3'])]
+      // Default selaras UI (Court 12/13/14); pad dari default, bukan `Court ${idx+1}`.
+      const fallback = ['Court 12', 'Court 13', 'Court 14']
+      const courts = [0, 1, 2].map((k) => m.courts?.[k] ?? fallback[k])
       courts[courtIdx] = name
-      // Ensure exactly 3 courts (pad if needed)
-      while (courts.length < 3) courts.push(`Court ${courts.length + 1}`)
       return { ...m, courts: courts.slice(0, 3) as [string, string, string] }
     })
     setLocalMatches(matches)

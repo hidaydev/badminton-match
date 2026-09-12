@@ -18,8 +18,9 @@ const PAIR_COUNT = 16
 const emptyPair = () => ({ a: '', b: '' })
 
 /**
- * Wizard tournament — format classic (16 pairs → 4 grup → create).
- * Format team menyusul (Fase 5).
+ * Wizard tournament — bercabang per format:
+ * - classic (default): 16 pairs → 4 grup → create
+ * - team: 6 tim × 6 kelas → create (undian menyusul hari-H)
  */
 export default function NewTournamentWizard() {
   const { format = '' } = useParams()

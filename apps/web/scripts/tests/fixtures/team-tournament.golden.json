@@ -1,0 +1,15 @@
+{
+  "partaiClasses": [["C+", "C"], ["A+", "A"], ["B+", "B"]],
+  "targets": { "group": 30, "final": 42 },
+  "draw": [
+    { "teamA": 0, "teamB": 1, "court": "Court 12" },
+    { "teamA": 2, "teamB": 3, "court": "Court 13" },
+    { "teamA": 4, "teamB": 5, "court": "Court 14" },
+    { "teamA": 3, "teamB": 5, "court": "Court 12" },
+    { "teamA": 0, "teamB": 2, "court": "Court 13" },
+    { "teamA": 1, "teamB": 4, "court": "Court 14" },
+    { "teamA": 2, "teamB": 4, "court": "Court 12" },
+    { "teamA": 1, "teamB": 5, "court": "Court 13" },
+    { "teamA": 0, "teamB": 3, "court": "Court 14" }
+  ]
+}
