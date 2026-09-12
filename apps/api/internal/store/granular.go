@@ -152,7 +152,9 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 	// Update score + is_played + version + updated_at (trigger) + played_order
 	// played_order = legacy_order+1 jika belum played (mirror syncSessionTables)
 	var legacyOrder int
-	_ = tx.QueryRow(ctx, `SELECT legacy_order FROM scheduled_games WHERE session_id=$1::uuid AND slot_index=$2 AND court_index=$3`, sessID, slot, court).Scan(&legacyOrder)
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(legacy_order, 0) FROM scheduled_games WHERE session_id=$1::uuid AND slot_index=$2 AND court_index=$3`, sessID, slot, court).Scan(&legacyOrder); err != nil {
+		return nil, err
+	}
 	playedOrder := legacyOrder + 1
 	_, err = tx.Exec(ctx, `
 		UPDATE scheduled_games
@@ -165,13 +167,15 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 	}
 
 	// Outbox event (durable SSE)
-	_ = InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
+	if err := InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
 		Aggregate:   "game",
 		AggregateID: gameKey,
 		EventType:   "score_set",
 		Payload:     domain.GameScorePayload{Slot: slot, Court: court, ScoreA: scoreA, ScoreB: scoreB, IsPlayed: true},
 		Version:     int64(currentVer + 1),
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.metrics.OutboxEvents.Add(1)
 
 	// Auto-lock saat SEMUA game sudah "beres" (mirror Save() allDecided):
@@ -287,7 +291,9 @@ func (s *SessionStore) SetGamePlayed(ctx context.Context, sessionID, gameKey str
 	var playedOrder *int
 	if isPlayed {
 		var legacy int
-		_ = tx.QueryRow(ctx, `SELECT legacy_order FROM scheduled_games WHERE session_id=$1::uuid AND slot_index=$2 AND court_index=$3`, sessID, slot, court).Scan(&legacy)
+		if err := tx.QueryRow(ctx, `SELECT COALESCE(legacy_order, 0) FROM scheduled_games WHERE session_id=$1::uuid AND slot_index=$2 AND court_index=$3`, sessID, slot, court).Scan(&legacy); err != nil {
+			return nil, err
+		}
 		po := legacy + 1
 		playedOrder = &po
 	}
@@ -300,10 +306,12 @@ func (s *SessionStore) SetGamePlayed(ctx context.Context, sessionID, gameKey str
 	if err != nil {
 		return nil, err
 	}
-	_ = InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
+	if err := InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
 		Aggregate: "game", AggregateID: gameKey, EventType: "played_toggled",
 		Payload: domain.PlayedPayload{Slot: slot, Court: court, IsPlayed: isPlayed}, Version: int64(currentVer + 1),
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.metrics.OutboxEvents.Add(1)
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
@@ -395,10 +403,12 @@ func (s *SessionStore) SetAbsentPlayers(ctx context.Context, sessionID string, p
 	if err != nil {
 		return nil, err
 	}
-	_ = InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
+	if err := InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
 		Aggregate: "player", AggregateID: "absent", EventType: "absent_set",
 		Payload: domain.AbsentPayload{PlayerIDs: clean}, Version: int64(currentVer + 1),
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.metrics.OutboxEvents.Add(1)
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
@@ -513,10 +523,12 @@ func (s *SessionStore) SetGameSkipped(ctx context.Context, sessionID, gameKey st
 		}
 		return nil, err
 	}
-	_ = InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
+	if err := InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
 		Aggregate: "game", AggregateID: gameKey, EventType: "skipped_set",
 		Payload: domain.SkippedPayload{Slot: slot, Court: court, PlayerIDs: clean}, Version: int64(currentVer + 1),
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.metrics.OutboxEvents.Add(1)
 
 	// Auto-lock saat semua game sudah "beres" (mirror SetScore) — skip seluruh

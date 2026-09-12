@@ -66,6 +66,7 @@ func main() {
 	// broadcast auto-lock tidak sampai ke client yang sedang membuka sesi
 	// (bug #2 RC-B — harus manual refresh).
 	sessionStore := store.NewSessionStore(pool, cfg.DatabaseSchema)
+	sessionStore.SetLogger(logger)
 
 	mux := http.NewServeMux()
 	h := registerRoutes(mux, logger, cfg, pool, ctx, sessionStore)

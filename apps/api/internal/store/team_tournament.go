@@ -222,7 +222,7 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 
 	var locked bool
 	if err := tx.QueryRow(ctx,
@@ -236,15 +236,16 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 
 	var (
 		rowID      string
+		shareCode  string
 		currentVer int
 		found      bool
 	)
 	err = tx.QueryRow(ctx, `
-		SELECT t.id::text, t.version FROM tournaments t
+		SELECT t.id::text, t.share_code, t.version FROM tournaments t
 		WHERE t.share_code = $1 OR t.id::text = $1
 		ORDER BY (t.share_code = $1) DESC
 		LIMIT 1
-		FOR UPDATE NOWAIT`, id).Scan(&rowID, &currentVer)
+		FOR UPDATE NOWAIT`, id).Scan(&rowID, &shareCode, &currentVer)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		found = false
@@ -382,7 +383,13 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 			break
 		}
 	}
-	if err := s.autoCreateRatingSource(ctx, tx, id, "team", allComplete); err != nil {
+	// Pakai share_code tersimpan (bukan id lookup mentah) supaya source_id
+	// konsisten dengan jalur ingest/finalize (audit 2026-09-12).
+	sourceID := id
+	if found {
+		sourceID = shareCode
+	}
+	if err := s.autoCreateRatingSource(ctx, tx, sourceID, "team", allComplete); err != nil {
 		return nil, err
 	}
 

@@ -135,10 +135,12 @@ func (s *SessionStore) SwapMembers(ctx context.Context, sessionID string, kind s
 	if _, err := tx.Exec(ctx, `UPDATE sessions SET version = version + 1, updated_at = now() WHERE id = $1::uuid`, sessID); err != nil {
 		return nil, err
 	}
-	_ = InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
+	if err := InsertOutbox(ctx, tx, sessID, domain.OutboxEvent{
 		Aggregate: "session", AggregateID: sessID, EventType: "swap",
 		Payload: map[string]any{"type": kind, "a": a, "b": b}, Version: int64(currentVer + 1),
-	})
+	}); err != nil {
+		return nil, err
+	}
 	s.metrics.OutboxEvents.Add(1)
 
 	if err := tx.Commit(ctx); err != nil {

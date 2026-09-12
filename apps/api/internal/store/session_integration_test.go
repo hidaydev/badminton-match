@@ -226,3 +226,82 @@ func TestIntegrationSessionWritePathSemantics(t *testing.T) {
 }
 
 func ptrInt(n int) *int { return &n }
+
+// TestIntegrationSessionPublishPreservesSkipped — regression: full publish
+// (compat path) tidak boleh menghapus skipped_player_refs. Snapshot dari
+// klien tidak membawa skip per-game, jadi write-path harus mempertahankan
+// nilai server. Audit 2026-09-12.
+func TestIntegrationSessionPublishPreservesSkipped(t *testing.T) {
+	url := os.Getenv("MAJADU_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("MAJADU_TEST_DATABASE_URL not set — skipping integration test")
+	}
+	schema := os.Getenv("MAJADU_TEST_DB_SCHEMA")
+	if schema == "" {
+		schema = "bm_dev"
+	}
+	pool, err := db.NewPool(context.Background(), url, schema, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("db connect: %v", err)
+	}
+	defer pool.Close()
+	st := NewSessionStore(pool, schema)
+	ctx := context.Background()
+
+	players := []domain.Player{
+		{ID: "isk1", Name: "IT Skip One", Gender: "M", Tier: 1},
+		{ID: "isk2", Name: "IT Skip Two", Gender: "M", Tier: 2},
+		{ID: "isk3", Name: "IT Skip Three", Gender: "M", Tier: 3},
+		{ID: "isk4", Name: "IT Skip Four", Gender: "M", Tier: 4},
+	}
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	id := "it-skip-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	snap := &domain.CloudSnapshot{
+		Session: domain.SessionConfig{
+			Title: "IT Skip", Date: "2026-08-13", Courts: 1,
+			SessionStart: "09:00", SlotMinutes: 20,
+			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
+			PlayerCount: len(players),
+			CourtNames:  []string{"C1"},
+		},
+		Players:     players,
+		FixMatches:  []domain.FixMatch{},
+		Schedule:    []domain.ScheduleSlot{{Slot: 0, Court: 0, TeamA: [2]string{"isk1", "isk2"}, TeamB: [2]string{"isk3", "isk4"}}},
+		PlayedGames: []string{},
+		GameScores:  map[string]domain.GameScore{},
+	}
+	created, err := st.Save(ctx, id, snap)
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	defer func() { _ = st.Delete(ctx, id) }()
+
+	// Simulasi skip via jalur granular (langsung ke kolom).
+	if _, err := pool.Exec(ctx, `
+		UPDATE `+schema+`.scheduled_games sg SET skipped_player_refs = $2
+		WHERE sg.session_id = (SELECT id FROM `+schema+`.sessions WHERE share_code = $1)
+		  AND sg.slot_index = 0 AND sg.court_index = 0`, id, []string{"isk3"}); err != nil {
+		t.Fatalf("set skip: %v", err)
+	}
+
+	// Full publish tanpa skippedPlayers (mirror buildPublishableSessionSnapshot).
+	next := *created
+	next.SkippedPlayers = nil
+	next.PlayedGames = []string{"0-0"}
+	next.GameScores = map[string]domain.GameScore{"0-0": {A: 21, B: 19}}
+	if _, err := st.Save(ctx, id, &next); err != nil {
+		t.Fatalf("save (full publish): %v", err)
+	}
+
+	loaded, err := st.Load(ctx, id)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	got := loaded.SkippedPlayers["0-0"]
+	if len(got) != 1 || got[0] != "isk3" {
+		t.Fatalf("skipped_player_refs hilang setelah full publish: %v", loaded.SkippedPlayers)
+	}
+}
