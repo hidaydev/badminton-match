@@ -912,6 +912,7 @@ export function drawTeamMatchPost(
   summaryBg: HTMLImageElement | undefined,
   logo: HTMLImageElement | undefined,
   sponsor: HTMLImageElement | undefined,
+  cardLogo: HTMLImageElement | undefined,
 ) {
   const W = POST_WIDTH
   const H = POST_HEIGHT
@@ -949,10 +950,11 @@ export function drawTeamMatchPost(
   ctx.fill()
   ctx.restore()
 
-  if (sponsor) {
+  const cardLogoImg = cardLogo ?? sponsor
+  if (cardLogoImg) {
     const sH = 64
-    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    ctx.drawImage(sponsor, (W - sW) / 2, CARD_Y + 16, sW, sH)
+    const sW = sH * (cardLogoImg.naturalWidth / cardLogoImg.naturalHeight)
+    ctx.drawImage(cardLogoImg, (W - sW) / 2, CARD_Y + 16, sW, sH)
   }
 
   const INNER_X = CARD_X + 60
