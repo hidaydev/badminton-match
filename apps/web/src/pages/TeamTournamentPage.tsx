@@ -50,6 +50,7 @@ export default function TeamTournamentPage() {
       chevrons: '/chevrons.png',
       sponsor: '/sponsor-logo.png',
       summaryBg: '/summary-bg.png',
+      cardLogo: '/anniversary-card-logo.png',
     }).then(setOverlays)
   }, [])
 
@@ -213,7 +214,7 @@ export default function TeamTournamentPage() {
       scoreB: finalMatch.partai[pi].scoreB,
     }))
     const summaryCanvas = document.createElement('canvas')
-    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', overlays.summaryBg, overlays.logo, overlays.sponsor)
+    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', overlays.summaryBg, overlays.logo, overlays.sponsor, overlays.cardLogo)
     const summaryBlob = await canvasToBlob(summaryCanvas)
     if (summaryBlob) files.push(new File([summaryBlob], 'final-summary.jpg', { type: 'image/jpeg' }))
 
