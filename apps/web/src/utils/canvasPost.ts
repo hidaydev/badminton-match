@@ -935,7 +935,7 @@ export function drawTeamMatchPost(
   const CARD_W = W - CARD_X * 2
   const CARD_PAD_TOP = 90
   const TITLE_H = 150
-  const SCORE_H = 120  // names row (52px) + score row (58px) + gap
+  const SCORE_H = 90
   const DIV_H = 36
   const PARTAI_ROW_H = 68
   const CARD_PAD_BOT = 56
@@ -975,32 +975,32 @@ export function drawTeamMatchPost(
   ctx.fillText('MATCH RESULT', INNER_X, CARD_Y + CARD_PAD_TOP + 120)
   ctx.restore()
 
-  // Row 1: team names on their own full-width line (no competition with score)
-  const nameRowY = CARD_Y + CARD_PAD_TOP + TITLE_H + 52
-  const maxTeamW = (RIGHT_X - INNER_X) / 2 - 20
+  // Single row: teamA | score | teamB — measure score first to get accurate side widths
+  const scoreY = CARD_Y + CARD_PAD_TOP + TITLE_H + 58
+  ctx.font = 'bold 48px monospace'
+  const scoreText = `${teamAWins} – ${teamBWins}`
+  const scoreHalfW = ctx.measureText(scoreText).width / 2 + 20
+  const maxTeamW = W / 2 - INNER_X - scoreHalfW
 
   ctx.save()
-  ctx.font = 'bold 28px Arial, sans-serif'
+  ctx.font = 'bold 24px Arial, sans-serif'
   ctx.fillStyle = C.white
   ctx.textAlign = 'left'
-  ctx.fillText(truncateToWidth(ctx, teamAName, maxTeamW), INNER_X, nameRowY)
+  ctx.fillText(truncateToWidth(ctx, teamAName, maxTeamW), INNER_X, scoreY)
   ctx.restore()
-
-  ctx.save()
-  ctx.font = 'bold 28px Arial, sans-serif'
-  ctx.fillStyle = C.muted
-  ctx.textAlign = 'right'
-  ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), RIGHT_X, nameRowY)
-  ctx.restore()
-
-  // Row 2: score centered below team names
-  const scoreY = nameRowY + 58
 
   ctx.save()
   ctx.font = 'bold 48px monospace'
   ctx.fillStyle = C.accent
   ctx.textAlign = 'center'
-  ctx.fillText(`${teamAWins} – ${teamBWins}`, W / 2, scoreY)
+  ctx.fillText(scoreText, W / 2, scoreY)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = 'bold 24px Arial, sans-serif'
+  ctx.fillStyle = C.muted
+  ctx.textAlign = 'right'
+  ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), RIGHT_X, scoreY)
   ctx.restore()
 
   // Divider
