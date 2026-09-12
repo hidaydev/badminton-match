@@ -921,9 +921,9 @@ export function drawTeamMatchPost(
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, W, H)
 
-  // Background — same as drawGroupSummary
+  // Background — cover fill (crop to fill, no letterboxing)
   if (summaryBg) {
-    ctx.drawImage(summaryBg, 0, 0, W, H)
+    drawCoverFill(ctx, summaryBg, W, H, 0, 0)
   } else {
     ctx.fillStyle = '#f59e0b'
     ctx.fillRect(0, 0, W, H)
