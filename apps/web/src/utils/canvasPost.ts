@@ -934,7 +934,7 @@ export function drawTeamMatchPost(
   // Dark card
   const CARD_X = 80
   const CARD_W = W - CARD_X * 2
-  const CARD_PAD_TOP = 210
+  const CARD_PAD_TOP = 250
   const TITLE_H = 150
   const SCORE_H = 90
   const DIV_H = 36
@@ -955,7 +955,7 @@ export function drawTeamMatchPost(
   if (cardLogoImg) {
     const sH = 182
     const sW = sH * (cardLogoImg.naturalWidth / cardLogoImg.naturalHeight)
-    ctx.drawImage(cardLogoImg, (W - sW) / 2, CARD_Y + 16, sW, sH)
+    ctx.drawImage(cardLogoImg, (W - sW) / 2, CARD_Y + 40, sW, sH)
   }
 
   const INNER_X = CARD_X + 60
