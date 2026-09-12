@@ -462,13 +462,13 @@ export function drawPositionPost(
     centerLogoBottom = cLogoY + cLogoH + 20
   }
 
-  // Name — smaller since logo is the focus
+  // Name
   ctx.save()
-  ctx.font = 'bold 42px Arial, sans-serif'
-  ctx.fillStyle = C.textDim
+  ctx.font = 'bold 86px Arial, sans-serif'
+  ctx.fillStyle = C.white
   ctx.textAlign = 'center'
   const maxW = W - 100
-  ctx.fillText(truncateToWidth(ctx, name, maxW), W / 2, centerLogoBottom + 36)
+  ctx.fillText(truncateToWidth(ctx, name, maxW), W / 2, centerLogoBottom + 70)
   ctx.restore()
 }
 
