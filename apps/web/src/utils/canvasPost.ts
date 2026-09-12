@@ -137,6 +137,9 @@ export function drawMatchPost(
   badge: HTMLImageElement | undefined,
   chevrons: HTMLImageElement | undefined,
   sponsor: HTMLImageElement | undefined,
+  cardLogo: HTMLImageElement | undefined,
+  teamALogo: HTMLImageElement | undefined,
+  teamBLogo: HTMLImageElement | undefined,
 ) {
   const W = POST_WIDTH
   const H = POST_HEIGHT
@@ -171,11 +174,24 @@ export function drawMatchPost(
   ctx.fillRect(0, footerY, W, footerH)
   ctx.restore()
 
-  // Sponsor logo inside footer
-  if (sponsor) {
-    const sH = 60
-    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    ctx.drawImage(sponsor, (W - sW) / 2, footerY + 15, sW, sH)
+  // Anniversary card logo centered in footer
+  const cardLogoImg = cardLogo ?? sponsor
+  if (cardLogoImg) {
+    const sH = 72
+    const sW = sH * (cardLogoImg.naturalWidth / cardLogoImg.naturalHeight)
+    ctx.drawImage(cardLogoImg, (W - sW) / 2, footerY + 12, sW, sH)
+  }
+
+  // Team logos: left team on the left, right team on the right
+  const teamLogoH = 72
+  const teamLogoPad = 40
+  if (teamALogo) {
+    const lW = teamLogoH * (teamALogo.naturalWidth / teamALogo.naturalHeight)
+    ctx.drawImage(teamALogo, teamLogoPad, footerY + 12, lW, teamLogoH)
+  }
+  if (teamBLogo) {
+    const lW = teamLogoH * (teamBLogo.naturalWidth / teamBLogo.naturalHeight)
+    ctx.drawImage(teamBLogo, W - teamLogoPad - lW, footerY + 12, lW, teamLogoH)
   }
 
   // Names + score row
