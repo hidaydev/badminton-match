@@ -1020,6 +1020,8 @@ export function drawTeamMatchPost(
 
   partaiRows.forEach((row, i) => {
     const y = partaiStartY + i * PARTAI_ROW_H
+    const aWon = row.scoreA !== null && row.scoreB !== null && row.scoreA > row.scoreB
+    const bWon = row.scoreA !== null && row.scoreB !== null && row.scoreB > row.scoreA
 
     ctx.save()
     ctx.font = 'bold 20px monospace'
@@ -1030,7 +1032,7 @@ export function drawTeamMatchPost(
 
     ctx.save()
     ctx.font = '22px Arial, sans-serif'
-    ctx.fillStyle = C.white
+    ctx.fillStyle = aWon ? C.white : C.muted
     ctx.textAlign = 'left'
     ctx.fillText(truncateToWidth(ctx, row.nameA, maxPartaiNameW), INNER_X + 90, y)
     ctx.restore()
@@ -1045,7 +1047,7 @@ export function drawTeamMatchPost(
 
     ctx.save()
     ctx.font = '22px Arial, sans-serif'
-    ctx.fillStyle = C.muted
+    ctx.fillStyle = bWon ? C.white : C.muted
     ctx.textAlign = 'right'
     ctx.fillText(truncateToWidth(ctx, row.nameB, maxPartaiNameW), RIGHT_X, y)
     ctx.restore()
