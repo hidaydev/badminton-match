@@ -51,7 +51,7 @@ export default function TeamTournamentPage() {
       chevrons: '/chevrons.png',
       sponsor: '/sponsor-logo.png',
       summaryBg: '/summary-bg.jpg',
-      cardLogo: '/majadu-logo.png',
+      cardLogo: '/anniversary-card-logo.png',
     }).then(setOverlays)
   }, [])
 
@@ -192,6 +192,11 @@ export default function TeamTournamentPage() {
     const tNameB = teamName(teams, finalMatch.teamB)
     const files: File[] = []
 
+    const [teamALogoImg, teamBLogoImg] = await Promise.all([
+      teamLogoPath(tNameA) ? loadImage(teamLogoPath(tNameA)!).catch(() => undefined) : Promise.resolve(undefined),
+      teamLogoPath(tNameB) ? loadImage(teamLogoPath(tNameB)!).catch(() => undefined) : Promise.resolve(undefined),
+    ])
+
     for (let pi = 0; pi < PARTAI_CLASSES.length; pi++) {
       const key = `partai-${pi}`
       const photo = finalPhotos[key]
@@ -201,7 +206,7 @@ export default function TeamTournamentPage() {
       const nameA = getFinalPairName(finalMatch.teamA, clsA, clsB)
       const nameB = getFinalPairName(finalMatch.teamB, clsA, clsB)
       const c = document.createElement('canvas')
-      drawMatchPost(c, photo, nameA, nameB, p.scoreA, p.scoreB, `FINAL · ${clsA}${clsB}`, overlays.logo, overlays.badge, overlays.chevrons, overlays.sponsor)
+      drawMatchPost(c, photo, nameA, nameB, p.scoreA, p.scoreB, `FINAL · ${clsA}${clsB}`, overlays.logo, overlays.badge, overlays.chevrons, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg)
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], `final-${clsA}${clsB}.jpg`, { type: 'image/jpeg' }))
     }
@@ -214,10 +219,6 @@ export default function TeamTournamentPage() {
       scoreA: finalMatch.partai[pi].scoreA,
       scoreB: finalMatch.partai[pi].scoreB,
     }))
-    const [teamALogoImg, teamBLogoImg] = await Promise.all([
-      teamLogoPath(tNameA) ? loadImage(teamLogoPath(tNameA)!).catch(() => undefined) : Promise.resolve(undefined),
-      teamLogoPath(tNameB) ? loadImage(teamLogoPath(tNameB)!).catch(() => undefined) : Promise.resolve(undefined),
-    ])
     const summaryCanvas = document.createElement('canvas')
     drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', overlays.summaryBg, overlays.logo, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg)
     const summaryBlob = await canvasToBlob(summaryCanvas)

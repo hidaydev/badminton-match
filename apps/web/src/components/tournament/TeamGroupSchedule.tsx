@@ -68,6 +68,11 @@ export default function TeamGroupSchedule({
     const slug = `${tNameA.toLowerCase().replace(/\s+/g, '-')}-vs-${tNameB.toLowerCase().replace(/\s+/g, '-')}`
     const files: File[] = []
 
+    const [teamALogoImg, teamBLogoImg] = await Promise.all([
+      teamLogoPath(tNameA) ? loadImage(teamLogoPath(tNameA)!).catch(() => undefined) : Promise.resolve(undefined),
+      teamLogoPath(tNameB) ? loadImage(teamLogoPath(tNameB)!).catch(() => undefined) : Promise.resolve(undefined),
+    ])
+
     for (let pi = 0; pi < PARTAI_CLASSES.length; pi++) {
       const key = `${m.id}-${pi}`
       const photo = partaiPhotos[key]
@@ -77,7 +82,7 @@ export default function TeamGroupSchedule({
       const nameA = getPairName(teams, m.teamA, clsA, clsB)
       const nameB = getPairName(teams, m.teamB, clsA, clsB)
       const c = document.createElement('canvas')
-      drawMatchPost(c, photo, nameA, nameB, p.scoreA, p.scoreB, `GROUP MATCH · ${clsA}${clsB}`, overlays.logo, overlays.badge, overlays.chevrons, overlays.sponsor)
+      drawMatchPost(c, photo, nameA, nameB, p.scoreA, p.scoreB, `GROUP MATCH · ${clsA}${clsB}`, overlays.logo, overlays.badge, overlays.chevrons, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg)
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], `${slug}-${clsA}${clsB}.jpg`, { type: 'image/jpeg' }))
     }
@@ -90,10 +95,6 @@ export default function TeamGroupSchedule({
       scoreA: m.partai[pi].scoreA,
       scoreB: m.partai[pi].scoreB,
     }))
-    const [teamALogoImg, teamBLogoImg] = await Promise.all([
-      teamLogoPath(tNameA) ? loadImage(teamLogoPath(tNameA)!).catch(() => undefined) : Promise.resolve(undefined),
-      teamLogoPath(tNameB) ? loadImage(teamLogoPath(tNameB)!).catch(() => undefined) : Promise.resolve(undefined),
-    ])
     const summaryCanvas = document.createElement('canvas')
     drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'GROUP STAGE', overlays.summaryBg, overlays.logo, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg)
     const summaryBlob = await canvasToBlob(summaryCanvas)
