@@ -45,7 +45,7 @@ export default function TeamTournamentPage() {
 
   useEffect(() => {
     loadOverlayImages({
-      logo: '/instagram-logo.png',
+      logo: '/anniversary-logo.png',
       badge: '/tournament-badge.png',
       chevrons: '/chevrons.png',
       sponsor: '/sponsor-logo.png',
