@@ -943,6 +943,17 @@ export function drawTeamMatchPost(
   const CARD_H = CARD_PAD_TOP + TITLE_H + SCORE_H + DIV_H + partaiRows.length * PARTAI_ROW_H + CARD_PAD_BOT
   const CARD_Y = (H - CARD_H) / 2 + 40
 
+  // Backdrop blur inside card
+  ctx.save()
+  ctx.beginPath()
+  ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
+  ctx.clip()
+  ctx.filter = 'blur(14px)'
+  if (summaryBg) drawCoverFill(ctx, summaryBg, W, H, 0, 0)
+  ctx.filter = 'none'
+  ctx.restore()
+
+  // Semi-transparent overlay on top of blur
   ctx.save()
   ctx.fillStyle = 'rgba(18,18,22,0.75)'
   ctx.beginPath()
