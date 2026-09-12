@@ -190,7 +190,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     const photo = podiumPhotos[pos]
     if (!photo) return
     const c = document.createElement('canvas')
-    drawPositionPost(c, photo, positionLabel, name, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge)
+    drawPositionPost(c, photo, positionLabel, name, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge, undefined, undefined)
     const blob = await canvasToBlob(c)
     if (!blob) return
     const file = new File([blob], `bracket-${pos}.jpg`, { type: 'image/jpeg' })
