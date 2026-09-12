@@ -938,7 +938,7 @@ export function drawTeamMatchPost(
   const CARD_W = W - CARD_X * 2
   const CARD_PAD_TOP = 295
   const TITLE_H = 130
-  const SCORE_H = 220
+  const SCORE_H = 250
   const DIV_H = 36
   const PARTAI_ROW_H = 68
   const CARD_PAD_BOT = 56
@@ -1043,7 +1043,7 @@ export function drawTeamMatchPost(
   ctx.save()
   ctx.strokeStyle = 'rgba(250,204,21,0.25)'
   ctx.lineWidth = 1
-  const divY = nameBaseline + 20
+  const divY = nameBaseline + 50
   ctx.beginPath()
   ctx.moveTo(INNER_X, divY)
   ctx.lineTo(RIGHT_X, divY)
