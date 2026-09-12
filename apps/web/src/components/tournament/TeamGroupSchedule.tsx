@@ -121,103 +121,28 @@ export default function TeamGroupSchedule({
       {groupMatches.map((m) => {
         const matchIdx = matches.indexOf(m)
         const isPostMode = postModeMatches[m.id] ?? false
-        const tNameA = teamName(teams, m.teamA)
-        const tNameB = teamName(teams, m.teamB)
 
         return (
-          <div key={m.id} className="flex flex-col">
-            <TeamMatchCard
-              match={m}
-              teams={teams}
-              saving={saving}
-              matchIdx={matchIdx}
-              onChange={onChangePartai}
-              onUpdateCourt={onUpdateCourt}
-              onSave={onSave}
-            />
-
-            <div className="flex justify-end px-1 pt-1">
-              <button
-                onClick={() => onSetPostMode(m.id, !isPostMode)}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                  isPostMode ? 'bg-accent active:bg-yellow-300' : 'bg-surface border border-border-subtle active:bg-elevated'
-                }`}
-                aria-label="Toggle post mode"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={isPostMode ? 'black' : 'currentColor'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                  <circle cx="12" cy="13" r="4"/>
-                </svg>
-              </button>
-            </div>
-
-            {isPostMode && (
-              <div className="bg-surface border border-border-subtle rounded-lg mt-1 px-4 py-3 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-fg-dim">Team photo ({tNameA} vs {tNameB})</span>
-                  <div className="relative">
-                    <button
-                      onClick={() => { activeUploadKey.current = m.id; fileInputRef.current?.click() }}
-                      className="w-7 h-7 rounded-full bg-elevated border border-border-subtle flex items-center justify-center active:bg-border"
-                      aria-label="Upload team photo"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                        <circle cx="12" cy="13" r="4"/>
-                      </svg>
-                    </button>
-                    {teamPhotos[m.id] && (
-                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />
-                    )}
-                  </div>
-                </div>
-
-                {PARTAI_CLASSES.map(([clsA, clsB], pi) => {
-                  const key = `${m.id}-${pi}`
-                  const nameA = getPairName(teams, m.teamA, clsA, clsB)
-                  const nameB = getPairName(teams, m.teamB, clsA, clsB)
-                  return (
-                    <div key={pi} className="flex items-center justify-between">
-                      <span className="text-xs text-fg-dim truncate flex-1 mr-3">
-                        {clsA}{clsB} · {nameA} vs {nameB}
-                      </span>
-                      <div className="relative shrink-0">
-                        <button
-                          onClick={() => { activeUploadKey.current = key; fileInputRef.current?.click() }}
-                          className="w-7 h-7 rounded-full bg-elevated border border-border-subtle flex items-center justify-center active:bg-border"
-                          aria-label={`Upload photo for ${clsA}${clsB}`}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                            <circle cx="12" cy="13" r="4"/>
-                          </svg>
-                        </button>
-                        {partaiPhotos[key] && (
-                          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-
-                <div className="flex items-center justify-between pt-1 border-t border-border-subtle mt-1">
-                  <span className="text-xs text-fg-dim">{uploadedCount(m.id)} of 4 photos</span>
-                  <button
-                    onClick={() => handleDownload(m)}
-                    disabled={uploadedCount(m.id) === 0}
-                    className="w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-yellow-300 disabled:opacity-40"
-                    aria-label="Download posts"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <TeamMatchCard
+            key={m.id}
+            match={m}
+            teams={teams}
+            saving={saving}
+            matchIdx={matchIdx}
+            onChange={onChangePartai}
+            onUpdateCourt={onUpdateCourt}
+            onSave={onSave}
+            postProps={{
+              isPostMode,
+              onTogglePostMode: () => onSetPostMode(m.id, !isPostMode),
+              partaiPhotos: PARTAI_CLASSES.map((_, pi) => partaiPhotos[`${m.id}-${pi}`]),
+              teamPhoto: teamPhotos[m.id],
+              onUploadPartai: (pi) => { activeUploadKey.current = `${m.id}-${pi}`; fileInputRef.current?.click() },
+              onUploadTeam: () => { activeUploadKey.current = m.id; fileInputRef.current?.click() },
+              onDownload: () => handleDownload(m),
+              uploadedCount: uploadedCount(m.id),
+            }}
+          />
         )
       })}
 
