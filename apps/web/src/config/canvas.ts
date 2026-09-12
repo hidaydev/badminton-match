@@ -11,7 +11,7 @@ export const POST_HEIGHT = 1350
 export const HEADER_H = 90
 
 /** Logo display height */
-export const LOGO_H = 52
+export const LOGO_H = 28
 
 /** Canvas color palette — single source of truth for canvas drawing */
 export const CANVAS_COLORS = {
