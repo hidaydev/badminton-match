@@ -174,24 +174,28 @@ export function drawMatchPost(
   ctx.fillRect(0, footerY, W, footerH)
   ctx.restore()
 
+  // Team logos as large semi-transparent bg watermarks in footer
+  const teamLogoH = 210
+  ctx.save()
+  ctx.globalAlpha = 0.25
+  if (teamALogo) {
+    const lW = teamLogoH * (teamALogo.naturalWidth / teamALogo.naturalHeight)
+    const lY = footerY + (footerH - teamLogoH) / 2
+    ctx.drawImage(teamALogo, 30, lY, lW, teamLogoH)
+  }
+  if (teamBLogo) {
+    const lW = teamLogoH * (teamBLogo.naturalWidth / teamBLogo.naturalHeight)
+    const lY = footerY + (footerH - teamLogoH) / 2
+    ctx.drawImage(teamBLogo, W - 30 - lW, lY, lW, teamLogoH)
+  }
+  ctx.restore()
+
   // Anniversary card logo centered in footer
   const cardLogoImg = cardLogo ?? sponsor
   if (cardLogoImg) {
     const sH = 72
     const sW = sH * (cardLogoImg.naturalWidth / cardLogoImg.naturalHeight)
     ctx.drawImage(cardLogoImg, (W - sW) / 2, footerY + 12, sW, sH)
-  }
-
-  // Team logos: left team on the left, right team on the right
-  const teamLogoH = 72
-  const teamLogoPad = 40
-  if (teamALogo) {
-    const lW = teamLogoH * (teamALogo.naturalWidth / teamALogo.naturalHeight)
-    ctx.drawImage(teamALogo, teamLogoPad, footerY + 12, lW, teamLogoH)
-  }
-  if (teamBLogo) {
-    const lW = teamLogoH * (teamBLogo.naturalWidth / teamBLogo.naturalHeight)
-    ctx.drawImage(teamBLogo, W - teamLogoPad - lW, footerY + 12, lW, teamLogoH)
   }
 
   // Names + score row
