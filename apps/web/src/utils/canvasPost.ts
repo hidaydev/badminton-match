@@ -978,10 +978,14 @@ export function drawTeamMatchPost(
   // Score row — each team name has (W/2 - INNER_X - score_half_width) available
   // Score "X – Y" at 40px monospace ≈ 160px → each side has ~(540 - 140 - 90) = 310px
   const scoreY = CARD_Y + CARD_PAD_TOP + TITLE_H + 58
-  const maxTeamW = 310
+  // Measure score width first so team names get all remaining space
+  ctx.font = 'bold 42px monospace'
+  const scoreText = `${teamAWins} – ${teamBWins}`
+  const scoreHalfW = ctx.measureText(scoreText).width / 2 + 24
+  const maxTeamW = W / 2 - INNER_X - scoreHalfW
 
   ctx.save()
-  ctx.font = 'bold 30px Arial, sans-serif'
+  ctx.font = 'bold 26px Arial, sans-serif'
   ctx.fillStyle = C.white
   ctx.textAlign = 'left'
   ctx.fillText(truncateToWidth(ctx, teamAName, maxTeamW), INNER_X, scoreY)
@@ -991,11 +995,11 @@ export function drawTeamMatchPost(
   ctx.font = 'bold 42px monospace'
   ctx.fillStyle = C.accent
   ctx.textAlign = 'center'
-  ctx.fillText(`${teamAWins} – ${teamBWins}`, W / 2, scoreY)
+  ctx.fillText(scoreText, W / 2, scoreY)
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 30px Arial, sans-serif'
+  ctx.font = 'bold 26px Arial, sans-serif'
   ctx.fillStyle = C.muted
   ctx.textAlign = 'right'
   ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), RIGHT_X, scoreY)
