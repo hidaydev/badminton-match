@@ -393,6 +393,8 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 }
 
 // autoCreateRatingSource — auto-create rating_sources entry when all matches completed.
+// Row dibuat sebagai placeholder belum di-ingest: fingerprint kosong dan
+// last_ingested_seq = 0 (keduanya NOT NULL tanpa default di schema).
 // INSERT ON CONFLICT DO NOTHING (idempotent, race-safe).
 func (s *TournamentStore) autoCreateRatingSource(ctx context.Context, tx pgx.Tx, shareCode string, format string, allMatchesComplete bool) error {
 	if !allMatchesComplete {
@@ -404,8 +406,9 @@ func (s *TournamentStore) autoCreateRatingSource(ctx context.Context, tx pgx.Tx,
 		sourceKind = "tournament_team"
 	}
 	_, err := tx.Exec(ctx, `
-		INSERT INTO `+s.schema+`.rating_sources (source_id, source_kind, finalized)
-		VALUES ($1, $2, false)
+		INSERT INTO `+s.schema+`.rating_sources
+			(source_id, source_kind, fingerprint, finalized, last_ingested_seq, ingested_at)
+		VALUES ($1, $2, '', false, 0, now())
 		ON CONFLICT (source_id) DO NOTHING`, shareCode, sourceKind)
 	return err
 }
