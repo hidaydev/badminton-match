@@ -190,12 +190,12 @@ export function drawMatchPost(
   }
   ctx.restore()
 
-  // Anniversary card logo centered in footer
+  // Anniversary card logo centered, floating above footer edge
   const cardLogoImg = cardLogo ?? sponsor
   if (cardLogoImg) {
-    const sH = 72
+    const sH = 90
     const sW = sH * (cardLogoImg.naturalWidth / cardLogoImg.naturalHeight)
-    ctx.drawImage(cardLogoImg, (W - sW) / 2, footerY + 12, sW, sH)
+    ctx.drawImage(cardLogoImg, (W - sW) / 2, footerY - sH * 0.55, sW, sH)
   }
 
   // Names + score row
