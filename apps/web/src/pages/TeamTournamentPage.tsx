@@ -51,7 +51,7 @@ export default function TeamTournamentPage() {
       chevrons: '/chevrons.png',
       sponsor: '/sponsor-logo.png',
       summaryBg: '/summary-bg.jpg',
-      cardLogo: '/anniversary-card-logo.png',
+      cardLogo: '/majadu-logo.png',
     }).then(setOverlays)
   }, [])
 
