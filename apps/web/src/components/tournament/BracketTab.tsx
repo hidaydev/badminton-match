@@ -235,6 +235,9 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
         overlays.badge,
         overlays.chevrons,
         overlays.sponsor,
+        undefined,
+        undefined,
+        undefined,
       )
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], `bracket-${id}.jpg`, { type: 'image/jpeg' }))
