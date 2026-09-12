@@ -377,6 +377,8 @@ export function drawPositionPost(
   chevrons: HTMLImageElement | undefined,
   sponsor: HTMLImageElement | undefined,
   badge: HTMLImageElement | undefined,
+  cardLogo: HTMLImageElement | undefined,
+  teamLogo: HTMLImageElement | undefined,
 ) {
   const W = POST_WIDTH
   const H = POST_HEIGHT
@@ -411,8 +413,18 @@ export function drawPositionPost(
   ctx.fillStyle = grad
   ctx.fillRect(0, gradStart, W, H - gradStart)
 
-  // Big badge watermark — bottom-right, 60% visible, low opacity
-  if (badge) {
+  // Team logo watermarks left + right (replaces badge)
+  if (teamLogo) {
+    const tLogoH = 680
+    const tLogoW = tLogoH * (teamLogo.naturalWidth / teamLogo.naturalHeight)
+    ctx.save()
+    ctx.globalAlpha = 0.13
+    // Left side
+    ctx.drawImage(teamLogo, -tLogoW * 0.36, H - tLogoH * 0.64, tLogoW, tLogoH)
+    // Right side
+    ctx.drawImage(teamLogo, W - tLogoW * 0.64, H - tLogoH * 0.64, tLogoW, tLogoH)
+    ctx.restore()
+  } else if (badge) {
     const badgeH = 680
     const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
     ctx.save()
@@ -423,10 +435,12 @@ export function drawPositionPost(
 
   const footerY = H - 320
 
-  if (sponsor) {
+  // Anniversary card logo floats above footer; fallback to sponsor
+  const footerLogoImg = cardLogo ?? sponsor
+  if (footerLogoImg) {
     const sH = 60
-    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    ctx.drawImage(sponsor, (W - sW) / 2, footerY + 10, sW, sH)
+    const sW = sH * (footerLogoImg.naturalWidth / footerLogoImg.naturalHeight)
+    ctx.drawImage(footerLogoImg, (W - sW) / 2, footerY + 10, sW, sH)
   }
 
   // Position label — bigger, tighter icon gap
