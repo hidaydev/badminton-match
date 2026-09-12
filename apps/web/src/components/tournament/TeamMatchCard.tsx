@@ -5,9 +5,7 @@ interface PostProps {
   isPostMode: boolean
   onTogglePostMode: () => void
   partaiPhotos: (HTMLImageElement | undefined)[]
-  teamPhoto: HTMLImageElement | undefined
   onUploadPartai: (pi: number) => void
-  onUploadTeam: () => void
   onDownload: () => void
   uploadedCount: number
 }
@@ -150,32 +148,18 @@ export default function TeamMatchCard({
         </button>
 
         {postProps?.isPostMode && (
-          <>
-            <div className="relative shrink-0">
-              <button
-                onClick={postProps.onUploadTeam}
-                className="w-9 h-9 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center active:bg-border"
-                aria-label="Upload team photo"
-              >
-                <CameraIcon />
-              </button>
-              {postProps.teamPhoto && (
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />
-              )}
-            </div>
-            <button
-              onClick={postProps.onDownload}
-              disabled={postProps.uploadedCount === 0}
-              className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center active:bg-yellow-300 disabled:opacity-40 shrink-0"
-              aria-label="Download posts"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-            </button>
-          </>
+          <button
+            onClick={postProps.onDownload}
+            disabled={postProps.uploadedCount === 0}
+            className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center active:bg-yellow-300 disabled:opacity-40 shrink-0"
+            aria-label="Download posts"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
         )}
       </div>
     </div>
