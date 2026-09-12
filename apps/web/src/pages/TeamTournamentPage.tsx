@@ -8,10 +8,11 @@ import {
   generateTeamDraw,
   teamMatchOutcome,
   teamTarget,
+  teamName,
   type TeamMatch,
   type TeamTournamentSnapshot,
 } from '../utils/teamTournament'
-import TeamMatchCard, { teamName } from '../components/tournament/TeamMatchCard'
+import TeamMatchCard from '../components/tournament/TeamMatchCard'
 
 type Tab = 'klasemen' | 'jadwal' | 'final'
 

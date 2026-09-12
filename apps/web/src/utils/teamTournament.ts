@@ -187,3 +187,7 @@ export function generateTeamDraw(teamIds: string[]): TeamDrawItem[] {
   ]
   return schedule.map(([a, b, court]) => [teamIds[a], teamIds[b], court])
 }
+
+export function teamName(teams: { id: string; name: string }[], id: string | undefined): string {
+  return teams.find((t) => t.id === id)?.name ?? (id ?? '—')
+}
