@@ -218,16 +218,6 @@ export function drawMatchPost(
   ctx.fillText(scoreA !== null && scoreB !== null ? `${scoreA} – ${scoreB}` : '— vs —', W / 2, rowY)
   ctx.restore()
 
-  // Badge low opacity
-  if (badge) {
-    const badgeH = 200
-    const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
-    ctx.save()
-    ctx.globalAlpha = 0.18
-    ctx.drawImage(badge, W - badgeW + 20, footerY + (footerH - badgeH) / 2, badgeW, badgeH)
-    ctx.restore()
-  }
-
   // Subtitle
   ctx.save()
   ctx.font = '20px monospace'
