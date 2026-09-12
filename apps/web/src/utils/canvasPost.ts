@@ -116,7 +116,6 @@ function drawHeader(
   }
 }
 
-/** @deprecated Use `drawHeader(ctx, canvasW, logo, 'MAJADU INTERNAL TOURNAMENT 2026')` instead. */
 function drawTournamentHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
@@ -124,6 +123,8 @@ function drawTournamentHeader(
 ) {
   drawHeader(ctx, canvasW, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
 }
+
+const ANNIVERSARY_LABEL = 'MAJADU 1\u02E2\u1D57 ANNIVERSARY  \u2022  MAJADU 1\u02E2\u1D57 ANNIVERSARY'
 
 export function drawMatchPost(
   canvas: HTMLCanvasElement,
@@ -137,6 +138,10 @@ export function drawMatchPost(
   badge: HTMLImageElement | undefined,
   chevrons: HTMLImageElement | undefined,
   sponsor: HTMLImageElement | undefined,
+  cardLogo: HTMLImageElement | undefined,
+  teamALogo: HTMLImageElement | undefined,
+  teamBLogo: HTMLImageElement | undefined,
+  headerLabel?: string,
 ) {
   const W = POST_WIDTH
   const H = POST_HEIGHT
@@ -161,7 +166,8 @@ export function drawMatchPost(
   }
 
   // Header band
-  drawTournamentHeader(ctx, W, logo)
+  if (headerLabel) drawHeader(ctx, W, logo, headerLabel)
+  else drawTournamentHeader(ctx, W, logo)
 
   // Footer
   const footerH = 230
@@ -171,8 +177,29 @@ export function drawMatchPost(
   ctx.fillRect(0, footerY, W, footerH)
   ctx.restore()
 
-  // Sponsor logo inside footer
-  if (sponsor) {
+  // Team logos as large semi-transparent bg watermarks in footer
+  const teamLogoH = 210
+  ctx.save()
+  ctx.globalAlpha = 0.25
+  if (teamALogo) {
+    const lW = teamLogoH * (teamALogo.naturalWidth / teamALogo.naturalHeight)
+    const lY = footerY + (footerH - teamLogoH) / 2
+    ctx.drawImage(teamALogo, 30, lY, lW, teamLogoH)
+  }
+  if (teamBLogo) {
+    const lW = teamLogoH * (teamBLogo.naturalWidth / teamBLogo.naturalHeight)
+    const lY = footerY + (footerH - teamLogoH) / 2
+    ctx.drawImage(teamBLogo, W - 30 - lW, lY, lW, teamLogoH)
+  }
+  ctx.restore()
+
+  // Anniversary card logo — team tournament only, floats above footer edge
+  if (cardLogo) {
+    const sH = 90
+    const sW = sH * (cardLogo.naturalWidth / cardLogo.naturalHeight)
+    ctx.drawImage(cardLogo, (W - sW) / 2, footerY - sH * 0.55, sW, sH)
+  } else if (sponsor) {
+    // Classic tournament: sponsor logo inside footer (original position)
     const sH = 60
     const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
     ctx.drawImage(sponsor, (W - sW) / 2, footerY + 15, sW, sH)
@@ -202,8 +229,8 @@ export function drawMatchPost(
   ctx.fillText(scoreA !== null && scoreB !== null ? `${scoreA} – ${scoreB}` : '— vs —', W / 2, rowY)
   ctx.restore()
 
-  // Badge low opacity
-  if (badge) {
+  // Badge watermark — only for classic tournament (no team logos)
+  if (badge && !teamALogo && !teamBLogo) {
     const badgeH = 200
     const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
     ctx.save()
@@ -371,7 +398,7 @@ export function drawPositionPost(
     ctx.restore()
   }
 
-  drawTournamentHeader(ctx, W, logo)
+  drawHeader(ctx, W, logo, ANNIVERSARY_LABEL)
 
   // Gradient starts at 35% height, fades gently — less solid at bottom
   const gradStart = H * 0.35
@@ -888,5 +915,204 @@ export function drawGroupSummary(
       ctx.fill()
       ctx.restore()
     }
+  })
+}
+
+// ── Team match summary post ──────────────────────────────────────────────────
+
+export interface TeamMatchPartaiRow {
+  tier: string
+  nameA: string
+  nameB: string
+  scoreA: number | null
+  scoreB: number | null
+}
+
+export function drawTeamMatchPost(
+  canvas: HTMLCanvasElement,
+  teamAName: string,
+  teamBName: string,
+  teamAWins: number,
+  teamBWins: number,
+  partaiRows: TeamMatchPartaiRow[],
+  subtitle: string,
+  summaryBg: HTMLImageElement | undefined,
+  logo: HTMLImageElement | undefined,
+  sponsor: HTMLImageElement | undefined,
+  cardLogo: HTMLImageElement | undefined,
+  teamALogo: HTMLImageElement | undefined,
+  teamBLogo: HTMLImageElement | undefined,
+) {
+  const W = POST_WIDTH
+  const H = POST_HEIGHT
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, W, H)
+
+  // Background — cover fill (crop to fill, no letterboxing)
+  if (summaryBg) {
+    drawCoverFill(ctx, summaryBg, W, H, 0, 0)
+  } else {
+    ctx.fillStyle = '#f59e0b'
+    ctx.fillRect(0, 0, W, H)
+  }
+
+  drawHeader(ctx, W, logo, ANNIVERSARY_LABEL)
+
+  // Dark card
+  const CARD_X = 80
+  const CARD_W = W - CARD_X * 2
+  const CARD_PAD_TOP = 295
+  const TITLE_H = 130
+  const SCORE_H = 250
+  const DIV_H = 36
+  const PARTAI_ROW_H = 68
+  const CARD_PAD_BOT = 56
+  const CARD_H = CARD_PAD_TOP + TITLE_H + SCORE_H + DIV_H + partaiRows.length * PARTAI_ROW_H + CARD_PAD_BOT
+  const CARD_Y = (H - CARD_H) / 2 + 40
+
+  // Backdrop blur inside card
+  ctx.save()
+  ctx.beginPath()
+  ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
+  ctx.clip()
+  ctx.filter = 'blur(0.5px)'
+  if (summaryBg) drawCoverFill(ctx, summaryBg, W, H, 0, 0)
+  ctx.filter = 'none'
+  ctx.restore()
+
+  // Semi-transparent overlay on top of blur
+  ctx.save()
+  ctx.fillStyle = 'rgba(18,18,22,0.82)'
+  ctx.beginPath()
+  ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
+  ctx.fill()
+  ctx.restore()
+
+  // Card logo inside the card, centered near top
+  const cardLogoImg = cardLogo ?? sponsor
+  if (cardLogoImg) {
+    const sH = 155
+    const sW = sH * (cardLogoImg.naturalWidth / cardLogoImg.naturalHeight)
+    ctx.drawImage(cardLogoImg, (W - sW) / 2, CARD_Y + 40, sW, sH)
+  }
+
+  const INNER_X = CARD_X + 60
+  const RIGHT_X = CARD_X + CARD_W - 60
+
+  // Subtitle label (e.g. "GROUP STAGE")
+  ctx.save()
+  ctx.font = '26px monospace'
+  ctx.fillStyle = C.textDim
+  ctx.letterSpacing = '4px'
+  ctx.textAlign = 'left'
+  ctx.fillText(subtitle, INNER_X, CARD_Y + CARD_PAD_TOP + 30)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = 'bold 48px Arial, sans-serif'
+  ctx.fillStyle = C.accent
+  ctx.letterSpacing = '2px'
+  ctx.textAlign = 'left'
+  ctx.fillText('MATCH RESULT', INNER_X, CARD_Y + CARD_PAD_TOP + 100)
+  ctx.restore()
+
+  // Score row: logo above name on each side, score centered
+  const TEAM_LOGO_H = 148
+  const NAME_FONT = 18
+  const scoreBlockTop = CARD_Y + CARD_PAD_TOP + TITLE_H + 10
+  const scoreBaseline = scoreBlockTop + TEAM_LOGO_H / 2 + 18
+  const nameBaseline = scoreBlockTop + TEAM_LOGO_H + 10 + NAME_FONT
+
+  ctx.font = 'bold 80px monospace'
+  const scoreText = `${teamAWins} – ${teamBWins}`
+  const scoreHalfW = ctx.measureText(scoreText).width / 2 + 20
+  const maxTeamW = W / 2 - INNER_X - scoreHalfW
+
+  // Team A logo
+  if (teamALogo) {
+    const lW = TEAM_LOGO_H * (teamALogo.naturalWidth / teamALogo.naturalHeight)
+    ctx.drawImage(teamALogo, INNER_X, scoreBlockTop, lW, TEAM_LOGO_H)
+  }
+
+  // Team A name
+  ctx.save()
+  ctx.font = `bold ${NAME_FONT}px Arial, sans-serif`
+  ctx.fillStyle = C.white
+  ctx.textAlign = 'left'
+  ctx.fillText(truncateToWidth(ctx, teamAName, maxTeamW), INNER_X, nameBaseline)
+  ctx.restore()
+
+  // Score centered
+  ctx.save()
+  ctx.font = 'bold 80px monospace'
+  ctx.fillStyle = C.accent
+  ctx.textAlign = 'center'
+  ctx.fillText(scoreText, W / 2, scoreBaseline)
+  ctx.restore()
+
+  // Team B logo (right-aligned)
+  if (teamBLogo) {
+    const lW = TEAM_LOGO_H * (teamBLogo.naturalWidth / teamBLogo.naturalHeight)
+    ctx.drawImage(teamBLogo, RIGHT_X - lW, scoreBlockTop, lW, TEAM_LOGO_H)
+  }
+
+  // Team B name
+  ctx.save()
+  ctx.font = `bold ${NAME_FONT}px Arial, sans-serif`
+  ctx.fillStyle = C.textDim
+  ctx.textAlign = 'right'
+  ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), RIGHT_X, nameBaseline)
+  ctx.restore()
+
+  // Divider
+  ctx.save()
+  ctx.strokeStyle = 'rgba(250,204,21,0.25)'
+  ctx.lineWidth = 1
+  const divY = nameBaseline + 50
+  ctx.beginPath()
+  ctx.moveTo(INNER_X, divY)
+  ctx.lineTo(RIGHT_X, divY)
+  ctx.stroke()
+  ctx.restore()
+
+  // Partai rows
+  const partaiStartY = divY + 50
+  const maxPartaiNameW = 220
+
+  partaiRows.forEach((row, i) => {
+    const y = partaiStartY + i * PARTAI_ROW_H
+    const aWon = row.scoreA !== null && row.scoreB !== null && row.scoreA > row.scoreB
+    const bWon = row.scoreA !== null && row.scoreB !== null && row.scoreB > row.scoreA
+
+    ctx.save()
+    ctx.font = 'bold 20px monospace'
+    ctx.fillStyle = C.accent
+    ctx.textAlign = 'left'
+    ctx.fillText(row.tier, INNER_X, y)
+    ctx.restore()
+
+    ctx.save()
+    ctx.font = '22px Arial, sans-serif'
+    ctx.fillStyle = aWon ? C.white : C.textDim
+    ctx.textAlign = 'left'
+    ctx.fillText(truncateToWidth(ctx, row.nameA, maxPartaiNameW), INNER_X + 90, y)
+    ctx.restore()
+
+    ctx.save()
+    ctx.font = 'bold 22px monospace'
+    ctx.fillStyle = C.accent
+    ctx.textAlign = 'center'
+    const score = row.scoreA !== null && row.scoreB !== null ? `${row.scoreA}–${row.scoreB}` : 'vs'
+    ctx.fillText(score, W / 2, y)
+    ctx.restore()
+
+    ctx.save()
+    ctx.font = '22px Arial, sans-serif'
+    ctx.fillStyle = bWon ? C.white : C.textDim
+    ctx.textAlign = 'right'
+    ctx.fillText(truncateToWidth(ctx, row.nameB, maxPartaiNameW), RIGHT_X, y)
+    ctx.restore()
   })
 }

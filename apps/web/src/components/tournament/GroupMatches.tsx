@@ -74,6 +74,9 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         overlays.badge,
         overlays.chevrons,
         overlays.sponsor,
+        undefined,
+        undefined,
+        undefined,
       )
       const matchBlob = await canvasToBlob(matchCanvas)
       if (matchBlob) files.push(new File([matchBlob], `${groupSlug}-match-${matchIndex}.jpg`, { type: 'image/jpeg' }))
