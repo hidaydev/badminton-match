@@ -952,7 +952,7 @@ export function drawTeamMatchPost(
   }
 
   ctx.save()
-  ctx.fillStyle = 'rgba(4,7,14,0.80)'
+  ctx.fillStyle = 'rgba(4,7,14,0.90)'
   ctx.beginPath()
   ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
   ctx.fill()
