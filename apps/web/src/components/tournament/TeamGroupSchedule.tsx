@@ -1,5 +1,5 @@
 // apps/web/src/components/tournament/TeamGroupSchedule.tsx
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import {
   teamMatchOutcome,
   teamName,
@@ -10,16 +10,22 @@ import {
 import TeamMatchCard from './TeamMatchCard'
 import { drawMatchPost, drawTeamMatchPost, type TeamMatchPartaiRow } from '../../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../../utils/share'
-import { loadOverlayImages } from '../../utils/overlays'
 
 interface TeamGroupScheduleProps {
   teams: TeamInfo[]
   matches: TeamMatch[]
   saving: boolean
+  overlays: Record<string, HTMLImageElement | undefined>
+  teamPhotos: Record<string, HTMLImageElement>
+  partaiPhotos: Record<string, HTMLImageElement>
+  postModeMatches: Record<string, boolean>
   onChangePartai: (matchIdx: number, partaiIdx: number, patch: Partial<{ scoreA: number | null; scoreB: number | null }>) => void
   onUpdateCourt: (matchIdx: number, courtIdx: number, name: string) => void
   onSave: () => void
   onDraw: () => void
+  onSetTeamPhoto: (key: string, img: HTMLImageElement) => void
+  onSetPartaiPhoto: (key: string, img: HTMLImageElement) => void
+  onSetPostMode: (matchId: string, on: boolean) => void
 }
 
 function getPairName(teams: TeamInfo[], teamId: string, clsA: string, clsB: string): string {
@@ -33,28 +39,22 @@ export default function TeamGroupSchedule({
   teams,
   matches,
   saving,
+  overlays,
+  teamPhotos,
+  partaiPhotos,
+  postModeMatches,
   onChangePartai,
   onUpdateCourt,
   onSave,
   onDraw,
+  onSetTeamPhoto,
+  onSetPartaiPhoto,
+  onSetPostMode,
 }: TeamGroupScheduleProps) {
   const groupMatches = matches.filter((m) => m.phase === 'group')
 
-  const [postModeMatches, setPostModeMatches] = useState<Record<string, boolean>>({})
-  const [teamPhotos, setTeamPhotos] = useState<Record<string, HTMLImageElement>>({})
-  const [partaiPhotos, setPartaiPhotos] = useState<Record<string, HTMLImageElement>>({})
-  const [overlays, setOverlays] = useState<Record<string, HTMLImageElement | undefined>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
   const activeUploadKey = useRef<string | null>(null)
-
-  useEffect(() => {
-    loadOverlayImages({
-      logo: '/instagram-logo.png',
-      badge: '/tournament-badge.png',
-      chevrons: '/chevrons.png',
-      sponsor: '/sponsor-logo.png',
-    }).then((imgs) => setOverlays(imgs as Record<string, HTMLImageElement | undefined>))
-  }, [])
 
   const uploadedCount = (matchId: string): number => {
     let count = teamPhotos[matchId] ? 1 : 0
@@ -138,7 +138,7 @@ export default function TeamGroupSchedule({
 
             <div className="flex justify-end px-1 pt-1">
               <button
-                onClick={() => setPostModeMatches((prev) => ({ ...prev, [m.id]: !prev[m.id] }))}
+                onClick={() => onSetPostMode(m.id, !isPostMode)}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                   isPostMode ? 'bg-accent active:bg-yellow-300' : 'bg-surface border border-border-subtle active:bg-elevated'
                 }`}
@@ -238,9 +238,9 @@ export default function TeamGroupSchedule({
             // Team photo keys are bare match IDs (e.g. "g-1") — one dash.
             const isPartai = (key.match(/-/g) ?? []).length >= 2
             if (isPartai) {
-              setPartaiPhotos((prev) => ({ ...prev, [key]: img }))
+              onSetPartaiPhoto(key, img)
             } else {
-              setTeamPhotos((prev) => ({ ...prev, [key]: img }))
+              onSetTeamPhoto(key, img)
             }
           }
           img.onerror = () => URL.revokeObjectURL(url)
