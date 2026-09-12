@@ -955,7 +955,7 @@ export function drawTeamMatchPost(
 
   // Semi-transparent overlay on top of blur
   ctx.save()
-  ctx.fillStyle = 'rgba(18,18,22,0.75)'
+  ctx.fillStyle = 'rgba(18,18,22,0.82)'
   ctx.beginPath()
   ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
   ctx.fill()
@@ -975,7 +975,7 @@ export function drawTeamMatchPost(
   // Subtitle label (e.g. "GROUP STAGE")
   ctx.save()
   ctx.font = '26px monospace'
-  ctx.fillStyle = C.muted
+  ctx.fillStyle = C.textDim
   ctx.letterSpacing = '4px'
   ctx.textAlign = 'left'
   ctx.fillText(subtitle, INNER_X, CARD_Y + CARD_PAD_TOP + 30)
@@ -1012,7 +1012,7 @@ export function drawTeamMatchPost(
 
   ctx.save()
   ctx.font = 'bold 24px Arial, sans-serif'
-  ctx.fillStyle = C.muted
+  ctx.fillStyle = C.textDim
   ctx.textAlign = 'right'
   ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), RIGHT_X, scoreY)
   ctx.restore()
@@ -1046,7 +1046,7 @@ export function drawTeamMatchPost(
 
     ctx.save()
     ctx.font = '22px Arial, sans-serif'
-    ctx.fillStyle = aWon ? C.white : C.muted
+    ctx.fillStyle = aWon ? C.white : C.textDim
     ctx.textAlign = 'left'
     ctx.fillText(truncateToWidth(ctx, row.nameA, maxPartaiNameW), INNER_X + 90, y)
     ctx.restore()
@@ -1061,7 +1061,7 @@ export function drawTeamMatchPost(
 
     ctx.save()
     ctx.font = '22px Arial, sans-serif'
-    ctx.fillStyle = bWon ? C.white : C.muted
+    ctx.fillStyle = bWon ? C.white : C.textDim
     ctx.textAlign = 'right'
     ctx.fillText(truncateToWidth(ctx, row.nameB, maxPartaiNameW), RIGHT_X, y)
     ctx.restore()
