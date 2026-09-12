@@ -934,7 +934,7 @@ export function drawTeamMatchPost(
   // Dark card
   const CARD_X = 80
   const CARD_W = W - CARD_X * 2
-  const CARD_PAD_TOP = 290
+  const CARD_PAD_TOP = 210
   const TITLE_H = 150
   const SCORE_H = 90
   const DIV_H = 36
@@ -944,7 +944,7 @@ export function drawTeamMatchPost(
   const CARD_Y = (H - CARD_H) / 2 + 40
 
   ctx.save()
-  ctx.fillStyle = 'rgba(30,30,35,0.70)'
+  ctx.fillStyle = 'rgba(0,0,0,0.70)'
   ctx.beginPath()
   ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
   ctx.fill()
@@ -953,7 +953,7 @@ export function drawTeamMatchPost(
   // Card logo inside the card, centered near top
   const cardLogoImg = cardLogo ?? sponsor
   if (cardLogoImg) {
-    const sH = 260
+    const sH = 182
     const sW = sH * (cardLogoImg.naturalWidth / cardLogoImg.naturalHeight)
     ctx.drawImage(cardLogoImg, (W - sW) / 2, CARD_Y + 16, sW, sH)
   }
