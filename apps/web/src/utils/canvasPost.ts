@@ -975,26 +975,27 @@ export function drawTeamMatchPost(
   ctx.fillText('MATCH RESULT', INNER_X, CARD_Y + CARD_PAD_TOP + 120)
   ctx.restore()
 
-  // Score row
+  // Score row — each team name has (W/2 - INNER_X - score_half_width) available
+  // Score "X – Y" at 40px monospace ≈ 160px → each side has ~(540 - 140 - 90) = 310px
   const scoreY = CARD_Y + CARD_PAD_TOP + TITLE_H + 58
-  const maxTeamW = 280
+  const maxTeamW = 310
 
   ctx.save()
-  ctx.font = 'bold 34px Arial, sans-serif'
+  ctx.font = 'bold 30px Arial, sans-serif'
   ctx.fillStyle = C.white
   ctx.textAlign = 'left'
   ctx.fillText(truncateToWidth(ctx, teamAName, maxTeamW), INNER_X, scoreY)
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 44px monospace'
+  ctx.font = 'bold 42px monospace'
   ctx.fillStyle = C.accent
   ctx.textAlign = 'center'
   ctx.fillText(`${teamAWins} – ${teamBWins}`, W / 2, scoreY)
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 34px Arial, sans-serif'
+  ctx.font = 'bold 30px Arial, sans-serif'
   ctx.fillStyle = C.muted
   ctx.textAlign = 'right'
   ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), RIGHT_X, scoreY)
