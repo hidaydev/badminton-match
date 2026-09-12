@@ -166,6 +166,55 @@ func TestIntegrationTeamTournamentRoundTrip(t *testing.T) {
 	}
 }
 
+// TestIntegrationTeamTournamentCompleteCreatesRatingSource — regression:
+// saat semua partai terisi, autoCreateRatingSource membuat row placeholder di
+// rating_sources. Sebelumnya INSERT tidak mengisi kolom NOT NULL fingerprint /
+// last_ingested_seq sehingga publish partai terakhir gagal (tidak bisa lanjut final).
+func TestIntegrationTeamTournamentCompleteCreatesRatingSource(t *testing.T) {
+	url := os.Getenv("MAJADU_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("MAJADU_TEST_DATABASE_URL not set — skipping integration test")
+	}
+	schema := os.Getenv("MAJADU_TEST_DB_SCHEMA")
+	if schema == "" {
+		schema = "bm_dev"
+	}
+	pool, err := db.NewPool(context.Background(), url, schema, discardLogger())
+	if err != nil {
+		t.Fatalf("db connect: %v", err)
+	}
+	defer pool.Close()
+	ctx := context.Background()
+	ts := NewTournamentStore(pool, schema)
+
+	id := "it-team-done-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	snap := buildTeamSnapIT()
+	for i := range snap.Matches {
+		snap.Matches[i].Partai = []domain.TeamPartai{
+			{ScoreA: ptrInt(30), ScoreB: ptrInt(28)},
+			{ScoreA: ptrInt(30), ScoreB: ptrInt(28)},
+			{ScoreA: ptrInt(30), ScoreB: ptrInt(28)},
+		}
+	}
+	defer pool.Exec(ctx, `DELETE FROM `+schema+`.tournaments WHERE share_code = $1`, id)
+	defer pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id = $1`, id)
+
+	if _, err := ts.TeamSave(ctx, id, snap); err != nil {
+		t.Fatalf("save complete tournament: %v", err)
+	}
+
+	var fingerprint string
+	var seq int64
+	if err := pool.QueryRow(ctx, `
+		SELECT fingerprint, last_ingested_seq FROM `+schema+`.rating_sources
+		WHERE source_id = $1`, id).Scan(&fingerprint, &seq); err != nil {
+		t.Fatalf("rating_sources placeholder row missing: %v", err)
+	}
+	if fingerprint != "" || seq != 0 {
+		t.Fatalf("placeholder row must be empty fingerprint/seq, got %q/%d", fingerprint, seq)
+	}
+}
+
 func TestIntegrationTeamTournamentRegisterPlayers(t *testing.T) {
 	url := os.Getenv("MAJADU_TEST_DATABASE_URL")
 	if url == "" {
