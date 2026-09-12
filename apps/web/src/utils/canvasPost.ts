@@ -938,7 +938,7 @@ export function drawTeamMatchPost(
   const CARD_W = W - CARD_X * 2
   const CARD_PAD_TOP = 295
   const TITLE_H = 130
-  const SCORE_H = 160
+  const SCORE_H = 220
   const DIV_H = 36
   const PARTAI_ROW_H = 68
   const CARD_PAD_BOT = 56
@@ -992,8 +992,8 @@ export function drawTeamMatchPost(
   ctx.restore()
 
   // Score row: logo above name on each side, score centered
-  const TEAM_LOGO_H = 60
-  const NAME_FONT = 24
+  const TEAM_LOGO_H = 120
+  const NAME_FONT = 18
   const scoreBlockTop = CARD_Y + CARD_PAD_TOP + TITLE_H + 10
   const scoreBaseline = scoreBlockTop + TEAM_LOGO_H / 2 + 18
   const nameBaseline = scoreBlockTop + TEAM_LOGO_H + 10 + NAME_FONT
