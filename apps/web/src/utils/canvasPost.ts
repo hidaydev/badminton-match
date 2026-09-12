@@ -941,18 +941,18 @@ export function drawTeamMatchPost(
   const PARTAI_ROW_H = 68
   const CARD_PAD_BOT = 56
   const CARD_H = CARD_PAD_TOP + TITLE_H + SCORE_H + DIV_H + partaiRows.length * PARTAI_ROW_H + CARD_PAD_BOT
-  const CARD_Y = (H - CARD_H) / 2 + 80
+  const CARD_Y = (H - CARD_H) / 2 + 120
 
   // Card logo above the card (outside), 3× size
   const cardLogoImg = cardLogo ?? sponsor
   if (cardLogoImg) {
-    const sH = 192
+    const sH = 240
     const sW = sH * (cardLogoImg.naturalWidth / cardLogoImg.naturalHeight)
     ctx.drawImage(cardLogoImg, (W - sW) / 2, CARD_Y - sH - 16, sW, sH)
   }
 
   ctx.save()
-  ctx.fillStyle = 'rgba(4,7,14,0.50)'
+  ctx.fillStyle = 'rgba(4,7,14,0.80)'
   ctx.beginPath()
   ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
   ctx.fill()
