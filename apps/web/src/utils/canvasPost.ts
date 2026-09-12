@@ -85,14 +85,14 @@ function drawHeader(
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, canvasW, HEADER_H)
 
-  const fontSize = 14
+  const fontSize = 15
   const logoW = logo ? LOGO_H * (logo.naturalWidth / logo.naturalHeight) : 160
-  const centerPad = 24
+  const centerPad = 30
   const logoTop = (HEADER_H - LOGO_H) / 2
   const textY = HEADER_H / 2 + fontSize * 0.38
 
   ctx.font = `bold ${fontSize}px Arial, sans-serif`
-  ctx.letterSpacing = '0.8px'
+  ctx.letterSpacing = '1.5px'
 
   if (label) {
     // Tournament mode: single label on both sides
