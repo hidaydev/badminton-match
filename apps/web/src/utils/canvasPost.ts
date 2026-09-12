@@ -413,15 +413,15 @@ export function drawPositionPost(
   ctx.fillStyle = grad
   ctx.fillRect(0, gradStart, W, H - gradStart)
 
-  // Team logo watermarks left + right (replaces badge)
+  // Team logo watermarks: top-left and bottom-right (replaces badge)
   if (teamLogo) {
     const tLogoH = 680
     const tLogoW = tLogoH * (teamLogo.naturalWidth / teamLogo.naturalHeight)
     ctx.save()
     ctx.globalAlpha = 0.13
-    // Left side
-    ctx.drawImage(teamLogo, -tLogoW * 0.36, H - tLogoH * 0.64, tLogoW, tLogoH)
-    // Right side
+    // Top-left: partially off-screen
+    ctx.drawImage(teamLogo, -tLogoW * 0.36, -tLogoH * 0.36, tLogoW, tLogoH)
+    // Bottom-right: partially off-screen
     ctx.drawImage(teamLogo, W - tLogoW * 0.64, H - tLogoH * 0.64, tLogoW, tLogoH)
     ctx.restore()
   } else if (badge) {
