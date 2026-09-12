@@ -122,7 +122,7 @@ function drawTournamentHeader(
   canvasW: number,
   logo: HTMLImageElement | undefined,
 ) {
-  drawHeader(ctx, canvasW, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
+  drawHeader(ctx, canvasW, logo, 'MAJADU 1st ANNIVERSARY')
 }
 
 export function drawMatchPost(
