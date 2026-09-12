@@ -941,7 +941,7 @@ export function drawTeamMatchPost(
   const PARTAI_ROW_H = 68
   const CARD_PAD_BOT = 56
   const CARD_H = CARD_PAD_TOP + TITLE_H + SCORE_H + DIV_H + partaiRows.length * PARTAI_ROW_H + CARD_PAD_BOT
-  const CARD_Y = (H - CARD_H) / 2 + 120
+  const CARD_Y = (H - CARD_H) / 2 + 40
 
   ctx.save()
   ctx.fillStyle = 'rgba(10,20,60,0.88)'
