@@ -242,15 +242,16 @@ func (s *TournamentStore) Save(ctx context.Context, id string, snap *domain.Tour
 
 	var (
 		rowID      string
+		shareCode  string
 		currentVer int
 		found      bool
 	)
 	err = tx.QueryRow(ctx, `
-		SELECT t.id::text, t.version FROM `+s.schema+`.tournaments t
+		SELECT t.id::text, t.share_code, t.version FROM `+s.schema+`.tournaments t
 		WHERE t.share_code = $1 OR t.id::text = $1
 		ORDER BY (t.share_code = $1) DESC
 		LIMIT 1
-		FOR UPDATE NOWAIT`, id).Scan(&rowID, &currentVer)
+		FOR UPDATE NOWAIT`, id).Scan(&rowID, &shareCode, &currentVer)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		found = false
@@ -405,7 +406,7 @@ func (s *TournamentStore) Save(ctx context.Context, id string, snap *domain.Tour
 		}
 	}
 
-	// Auto-create rating_sources when all matches completed
+	// Hitung apakah semua match selesai (auto-create rating_sources).
 	allComplete := len(snap.Matches) > 0
 	for _, m := range snap.Matches {
 		if m.ScoreA == nil || m.ScoreB == nil {
@@ -413,7 +414,13 @@ func (s *TournamentStore) Save(ctx context.Context, id string, snap *domain.Tour
 			break
 		}
 	}
-	if err := s.autoCreateRatingSource(ctx, tx, id, "classic", allComplete); err != nil {
+	// Pakai share_code yang tersimpan (bukan id lookup mentah) supaya source_id
+	// konsisten dengan jalur ingest/finalize (audit 2026-09-12).
+	sourceID := id
+	if found {
+		sourceID = shareCode
+	}
+	if err := s.autoCreateRatingSource(ctx, tx, sourceID, "classic", allComplete); err != nil {
 		return nil, err
 	}
 

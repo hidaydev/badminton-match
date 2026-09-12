@@ -15,6 +15,16 @@ import (
 // ── Admin: tier induk, delete player (ADMIN_MENU_PLAN.md §3.3-3.4) ──
 
 // SetPlayerTier — ubah tier induk (STICKY, admin-only). TIER_8_UNIFICATION:
+// logRebuildError — RebuildAll setelah commit gagal: perubahan destruktif
+// sudah persisten, rating tinggal tidak konsisten. Log supaya tidak senyap;
+// operator bisa jalankan rebuild manual.
+func (s *SessionStore) logRebuildError(op, ref string, err error) {
+	if s.logger != nil && err != nil {
+		s.logger.Error("rating rebuild gagal setelah commit", "op", op, "ref", ref, "error", err)
+	}
+}
+
+// SetPlayerTier — set tier (8-tier) pemain oleh admin.
 // players.tier = single source; mengubah tier → RebuildAll supaya baseline
 // forming berubah (tier baru dipakai forming ulang).
 func (s *SessionStore) SetPlayerTier(ctx context.Context, playerID, tier string) error {
@@ -41,8 +51,11 @@ func (s *SessionStore) SetPlayerTier(ctx context.Context, playerID, tier string)
 		return err
 	}
 	// Recalculate: baseline pemain itu berubah → full rebuild.
-	_, err = s.RebuildAll(ctx)
-	return err
+	if _, err = s.RebuildAll(ctx); err != nil {
+		s.logRebuildError("set_player_tier", playerID, err)
+		return err
+	}
+	return nil
 }
 
 // AdminDeleteSession — hapus sesi oleh ADMIN: boleh status apa pun (locked
@@ -87,6 +100,7 @@ func (s *SessionStore) AdminDeleteSession(ctx context.Context, lookup string) (s
 	}
 	// Transitivitas: pemain yang rating-nya terpengaruh harus dihitung ulang.
 	if _, err := s.RebuildAll(ctx); err != nil {
+		s.logRebuildError("admin_delete_session", shareCode, err)
 		return "", err
 	}
 	return shareCode, nil
@@ -119,8 +133,11 @@ func (s *SessionStore) DeletePlayer(ctx context.Context, playerID string, force 
 		return err
 	}
 	// Transitivitas: pemain lain yang rating-nya terpengaruh harus dihitung ulang.
-	_, err = s.RebuildAll(ctx)
-	return err
+	if _, err = s.RebuildAll(ctx); err != nil {
+		s.logRebuildError("delete_player", playerID, err)
+		return err
+	}
+	return nil
 }
 
 // MergeResult — ringkasan merge player.
@@ -209,6 +226,7 @@ func (s *SessionStore) AdminDeleteTournament(ctx context.Context, lookup string)
 	}
 	// Transitivitas: pemain yang rating-nya terpengaruh harus dihitung ulang.
 	if _, err := s.RebuildAll(ctx); err != nil {
+		s.logRebuildError("admin_delete_tournament", shareCode, err)
 		return "", err
 	}
 	return shareCode, nil

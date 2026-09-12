@@ -40,7 +40,9 @@ type idempotencyEntry struct {
 	expiry time.Time
 }
 
-func getIdempotentResponse(key string) (*domain.CloudSnapshot, bool) {
+// getIdempotentRaw — ambil body response mentah (salinan) untuk key.
+// Return (nil, false) bila miss / expired.
+func getIdempotentRaw(key string) ([]byte, bool) {
 	idempotencyMu.Lock()
 	defer idempotencyMu.Unlock()
 	e, ok := idempotencyStore[key]
@@ -51,20 +53,12 @@ func getIdempotentResponse(key string) (*domain.CloudSnapshot, bool) {
 		delete(idempotencyStore, key)
 		return nil, false
 	}
-	var snap domain.CloudSnapshot
-	if err := json.Unmarshal(e.body, &snap); err != nil {
-		delete(idempotencyStore, key)
-		return nil, false
-	}
-	return &snap, true
+	return append([]byte(nil), e.body...), true
 }
 
-func setIdempotentResponse(key string, snap *domain.CloudSnapshot) {
-	if snap == nil {
-		return
-	}
-	b, err := json.Marshal(snap)
-	if err != nil {
+// setIdempotentRaw — simpan body response mentah (TTL 24h, cap 1000 + eviction).
+func setIdempotentRaw(key string, body []byte) {
+	if len(body) == 0 {
 		return
 	}
 	idempotencyMu.Lock()
@@ -92,7 +86,30 @@ func setIdempotentResponse(key string, snap *domain.CloudSnapshot) {
 			}
 		}
 	}
-	idempotencyStore[key] = idempotencyEntry{body: b, expiry: time.Now().Add(24 * time.Hour)}
+	idempotencyStore[key] = idempotencyEntry{body: append([]byte(nil), body...), expiry: time.Now().Add(24 * time.Hour)}
+}
+
+func getIdempotentResponse(key string) (*domain.CloudSnapshot, bool) {
+	b, ok := getIdempotentRaw(key)
+	if !ok {
+		return nil, false
+	}
+	var snap domain.CloudSnapshot
+	if err := json.Unmarshal(b, &snap); err != nil {
+		return nil, false
+	}
+	return &snap, true
+}
+
+func setIdempotentResponse(key string, snap *domain.CloudSnapshot) {
+	if snap == nil {
+		return
+	}
+	b, err := json.Marshal(snap)
+	if err != nil {
+		return
+	}
+	setIdempotentRaw(key, b)
 }
 
 // mapPublishError — mapping error dari publish/delete (sentinels store atau

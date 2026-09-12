@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -45,6 +46,9 @@ type SessionStore struct {
 	watchers map[string]map[chan *domain.CloudSnapshot]struct{}
 	// metrics — counter in-memory (grand-revamp Fase 5)
 	metrics *Metrics
+	// logger — opsional; dipakai untuk peringatan non-fatal (mis. auto-ingest
+	// melewati satu sesi). Nil = tanpa log.
+	logger *slog.Logger
 }
 
 // NewSessionStore — buat SessionStore dengan pool koneksi + schema aktif.
@@ -61,6 +65,10 @@ func NewSessionStore(pool *pgxpool.Pool, schema string) *SessionStore {
 
 // Metrics — akses counter (untuk handler GET /metrics).
 func (s *SessionStore) Metrics() *Metrics { return s.metrics }
+
+// SetLogger — set logger opsional untuk peringatan non-fatal. Aman dipanggil
+// sekali saat startup; nil diperbolehkan.
+func (s *SessionStore) SetLogger(l *slog.Logger) { s.logger = l }
 
 // Subscribe — daftar untuk SSE watch pada session id. Kembalikan channel dan cancel func.
 func (s *SessionStore) Subscribe(id string) (chan *domain.CloudSnapshot, func()) {
@@ -956,6 +964,38 @@ func resolvePlayerAliases(ctx context.Context, tx pgx.Tx, players []domain.Playe
 // syncSessionTables — delete + re-insert child tables (mirror baris 1162–1390 SQL).
 // resolved: player_ref → player_id (hasil resolve alias).
 func syncSessionTables(ctx context.Context, tx pgx.Tx, sessionID string, snap *domain.CloudSnapshot, resolved map[string]string, startStr string, slotMinutes int) error {
+	// Snapshot skipped_player_refs SEBELUM delete. Snapshot publishable dari
+	// klien (compat path) tidak membawa skip per-game, jadi tanpa ini DELETE +
+	// re-insert akan menimpanya jadi '{}' (data loss senyap — audit 2026-09-12).
+	// Kolom boleh belum ada (migration 000014 belum apply) → fallback ke INSERT lama.
+	hasSkippedCol := true
+	existingSkipped := map[string][]string{}
+	srows, serr := tx.Query(ctx, `
+		SELECT slot_index, court_index, COALESCE(skipped_player_refs, '{}')
+		FROM scheduled_games WHERE session_id = $1::uuid`, sessionID)
+	if serr != nil {
+		if isSkippedColumnMissing(serr) {
+			hasSkippedCol = false
+		} else {
+			return serr
+		}
+	} else {
+		for srows.Next() {
+			var slot, court int
+			var refs []string
+			if err := srows.Scan(&slot, &court, &refs); err != nil {
+				srows.Close()
+				return err
+			}
+			existingSkipped[domain.GameKey(slot, court)] = refs
+		}
+		if err := srows.Err(); err != nil {
+			srows.Close()
+			return err
+		}
+		srows.Close()
+	}
+
 	// Hapus child tables — urutan mirror SQL (FK aman: scheduled_game_players
 	// cascade dari scheduled_games, fix_matches.slot_* SET NULL dari session_players).
 	if _, err := tx.Exec(ctx, `DELETE FROM scheduled_games WHERE session_id = $1::uuid`, sessionID); err != nil {
@@ -1082,13 +1122,46 @@ func syncSessionTables(ctx context.Context, tx pgx.Tx, sessionID string, snap *d
 		if isPlayed {
 			status = "played"
 		}
+		// Preserve skip per-game: pakai nilai dari snapshot bila dikirim
+		// (non-nil), selain itu pertahankan nilai server sebelum delete.
+		cols := `(session_id, legacy_order, slot_index, court_index, status, source, is_played, played_order`
+		vals := `VALUES ($1::uuid, $2, $3, $4, $5, 'compat_publish', $6, $7`
+		args := []any{sessionID, i, g.Slot, g.Court, status, isPlayed, nilableInt(playedOrder(i, isPlayed))}
+		if hasSkippedCol {
+			skipped := existingSkipped[key]
+			if snap.SkippedPlayers != nil {
+				skipped = snap.SkippedPlayers[key]
+			}
+			// Filter sadar-partisipan: hanya pertahankan ref yang benar-benar
+			// bermain di game ini. Kalau schedule di-regenerate, skip lama tidak
+			// boleh menempel ke pemain baru (temuan review 2026-09-12).
+			parts := map[string]struct{}{}
+			for _, r := range []string{g.TeamA[0], g.TeamA[1], g.TeamB[0], g.TeamB[1]} {
+				parts[playerRef(r)] = struct{}{}
+			}
+			clean := make([]string, 0, len(skipped))
+			seenRef := map[string]struct{}{}
+			for _, r := range skipped {
+				rr := playerRef(r)
+				if _, ok := parts[rr]; !ok {
+					continue
+				}
+				if _, dup := seenRef[rr]; dup {
+					continue
+				}
+				seenRef[rr] = struct{}{}
+				clean = append(clean, rr)
+			}
+			cols += `, skipped_player_refs`
+			vals += `, $8::text[]`
+			args = append(args, clean)
+		}
+		cols += `)`
+		vals += `)`
 		var internalID string
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO scheduled_games
-				(session_id, legacy_order, slot_index, court_index, status, source, is_played, played_order)
-			VALUES ($1::uuid, $2, $3, $4, $5, 'compat_publish', $6, $7)
-			RETURNING internal_id::text`,
-			sessionID, i, g.Slot, g.Court, status, isPlayed, nilableInt(playedOrder(i, isPlayed))).Scan(&internalID); err != nil {
+			INSERT INTO scheduled_games `+cols+` `+vals+`
+			RETURNING internal_id::text`, args...).Scan(&internalID); err != nil {
 			return err
 		}
 		gameInternal[key] = internalID

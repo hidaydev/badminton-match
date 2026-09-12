@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -166,7 +167,10 @@ func SourceFingerprint(matches []RawMatch) (string, error) {
 			TeamB:        m.teamNames("B"),
 		})
 	}
-	// sort: game_order adalah identitas urutan deterministik dalam sumber
+	// sort: game_order adalah identitas urutan deterministik dalam sumber.
+	// SENGAJA string sort (legacy) — bukan numerik — supaya fingerprint sumber
+	// lama tidak berubah saat comparator ingest diperbaiki. Hanya butuh
+	// deterministik, bukan urutan kronologis. (review 2026-09-12)
 	sort.Slice(list, func(i, j int) bool { return list[i].GameOrder < list[j].GameOrder })
 	raw, err := json.Marshal(list)
 	if err != nil {
@@ -179,5 +183,33 @@ func SourceFingerprint(matches []RawMatch) (string, error) {
 // SortMatchesByOrder — urut deterministik sesuai (game_order) untuk sumber
 // tunggal; pipeline memakai urutan global (date, created_at, source_id, game_order).
 func SortMatchesByOrder(matches []RawMatch) {
-	sort.Slice(matches, func(i, j int) bool { return matches[i].GameOrder < matches[j].GameOrder })
+	sort.Slice(matches, func(i, j int) bool { return gameOrderLess(matches[i].GameOrder, matches[j].GameOrder) })
+}
+
+// gameOrderLess — bandingkan game_order numerik bila berbentuk "N-M" (slot-court).
+// String sort salah untuk slot >= 10 ("0-10" < "0-2" secara leksikografis) —
+// audit 2026-09-12. Format lain (match_key turnamen) fallback ke string.
+func gameOrderLess(a, b string) bool {
+	ai, aok := parseGameOrderPair(a)
+	bi, bok := parseGameOrderPair(b)
+	if aok && bok {
+		if ai[0] != bi[0] {
+			return ai[0] < bi[0]
+		}
+		return ai[1] < bi[1]
+	}
+	return a < b
+}
+
+func parseGameOrderPair(s string) ([2]int, bool) {
+	i := strings.IndexByte(s, '-')
+	if i <= 0 || i == len(s)-1 {
+		return [2]int{}, false
+	}
+	a, err1 := strconv.Atoi(s[:i])
+	b, err2 := strconv.Atoi(s[i+1:])
+	if err1 != nil || err2 != nil {
+		return [2]int{}, false
+	}
+	return [2]int{a, b}, true
 }

@@ -75,32 +75,15 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
       return { previous, vars }
     },
     onError: async (_err, _vars, context) => {
-      // Version mismatch or contention → fetch fresh version and retry with optimistic snapshot + fresh version (idempotent)
+      // Version mismatch / contention → rebase intent user ke snapshot server
+      // TERBARU lalu retry (versi benar, perubahan penulis lain tetap utuh).
+      // JANGAN retry dari cache optimis: cache itu dibangun dari state stale,
+      // jadi retry akan menimpa tulisan penulis lain (lost update, audit 2026-09-12).
       if (isVersionMismatch(_err) || isContentionError(_err)) {
         try {
           const fresh = await fetchSnapshot(id)
-          // Optimistic snapshot is still in cache (before rollback)
-          const optimistic = queryClient.getQueryData<TData>(queryKey)
-          if (fresh && optimistic) {
-            // Merge fresh version into optimistic — keep user's intent, just update version for retry
-            const toPublish = { ...(optimistic as unknown as Record<string, unknown>), version: (fresh as unknown as Record<string, unknown>).version } as TData
-            queryClient.setQueryData(queryKey, toPublish)
-            try {
-              await publish(id, toPublish)
-              // Success — refetch server state to sync version/derived fields
-              try {
-                await queryClient.fetchQuery<TData | null>({
-                  queryKey,
-                  queryFn: () => fetchSnapshot(id),
-                })
-              } catch { /* ignore */ }
-              if (onSuccessCallback) await onSuccessCallback()
-              return // Success — no rollback
-            } catch {
-              // Retry failed — fall through to rollback
-            }
-          } else if (fresh && context?.vars !== undefined) {
-            // Fallback: recompute from fresh (for cases where optimistic is null)
+          if (fresh && context?.vars !== undefined) {
+            // Recompute dari fresh — sumber kebenaran terbaru, bukan cache.
             const retried = optimisticUpdate(fresh, context.vars)
             if (retried) {
               queryClient.setQueryData(queryKey, retried)
@@ -113,9 +96,9 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
                   })
                 } catch { /* ignore */ }
                 if (onSuccessCallback) await onSuccessCallback()
-                return
+                return // Success — no rollback
               } catch {
-                // Retry failed — fall through
+                // Retry failed — fall through to rollback
               }
             }
           }

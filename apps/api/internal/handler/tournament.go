@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,7 +38,53 @@ func (h *TournamentHandler) List(w http.ResponseWriter, r *http.Request) {
 	httperr.WriteJSON(w, http.StatusOK, metas)
 }
 
+// tournamentCreateCache — response create tersimpan untuk replay idempotent.
+type tournamentCreateCache struct {
+	ID       string          `json:"id"`
+	BodyHash string          `json:"bodyHash"`
+	Snapshot json.RawMessage `json:"snapshot"`
+}
+
+// replayCachedTournament — tulis ulang response create dari cache. Return
+// (replayed, mismatch): mismatch=true bila Idempotency-Key dipakai ulang untuk
+// body berbeda (caller balas 409, jangan buat tournament baru).
+func (h *TournamentHandler) replayCachedTournament(w http.ResponseWriter, format, bodyHash string, body []byte) (bool, bool) {
+	var c tournamentCreateCache
+	if err := json.Unmarshal(body, &c); err != nil || c.ID == "" {
+		return false, false
+	}
+	if c.BodyHash != "" && c.BodyHash != bodyHash {
+		return false, true
+	}
+	if format == "team" {
+		var snap domain.TeamTournamentSnapshot
+		if json.Unmarshal(c.Snapshot, &snap) != nil {
+			return false, false
+		}
+		w.Header().Set("Location", h.tournamentLocation(c.ID))
+		h.writeTeamTournament(w, http.StatusCreated, &snap)
+		return true, false
+	}
+	var snap domain.TournamentSnapshot
+	if json.Unmarshal(c.Snapshot, &snap) != nil {
+		return false, false
+	}
+	w.Header().Set("Location", h.tournamentLocation(c.ID))
+	h.writeTournament(w, http.StatusCreated, &snap)
+	return true, false
+}
+
+func (h *TournamentHandler) tournamentLocation(id string) string {
+	loc := "/tournaments/" + id
+	if h.BaseURL != "" {
+		loc = h.BaseURL + loc
+	}
+	return loc
+}
+
 // Create — POST /tournaments. Format dari body ('classic' default | 'team').
+// Idempotency-Key (bila ada) di-replay dari cache 24h supaya retry network
+// tidak membuat tournament duplikat (audit 2026-09-12).
 func (h *TournamentHandler) Create(w http.ResponseWriter, r *http.Request) {
 	body, bodyErr := readBody(r)
 	if bodyErr != nil {
@@ -44,6 +92,24 @@ func (h *TournamentHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	format := probeFormat(body)
+
+	cacheKey := ""
+	bodyHash := ""
+	if idemKey := r.Header.Get("Idempotency-Key"); idemKey != "" {
+		sum := sha256.Sum256(body)
+		bodyHash = hex.EncodeToString(sum[:])
+		cacheKey = "tournament-create:" + idemKey
+		if cached, ok := getIdempotentRaw(cacheKey); ok {
+			replayed, mismatch := h.replayCachedTournament(w, format, bodyHash, cached)
+			if mismatch {
+				httperr.WriteError(w, h.Logger, httperr.Conflict("Idempotency-Key was reused with a different request body"))
+				return
+			}
+			if replayed {
+				return
+			}
+		}
+	}
 
 	// allocErr dipisah dari `err` (interface error) — hindari typed-nil gotcha:
 	// allocateTournamentID return (*httperr.Error)(nil) saat sukses; kalau di-boxing
@@ -68,11 +134,10 @@ func (h *TournamentHandler) Create(w http.ResponseWriter, r *http.Request) {
 			httperr.WriteError(w, h.Logger, mapPublishError(saveErr))
 			return
 		}
-		loc := "/tournaments/" + id
-		if h.BaseURL != "" {
-			loc = h.BaseURL + loc
+		if cacheKey != "" {
+			h.cacheTournamentCreate(cacheKey, id, bodyHash, out)
 		}
-		w.Header().Set("Location", loc)
+		w.Header().Set("Location", h.tournamentLocation(id))
 		h.writeTeamTournament(w, http.StatusCreated, out)
 	default:
 		var req domain.TournamentSnapshot
@@ -87,13 +152,25 @@ func (h *TournamentHandler) Create(w http.ResponseWriter, r *http.Request) {
 			httperr.WriteError(w, h.Logger, mapPublishError(saveErr))
 			return
 		}
-		loc := "/tournaments/" + id
-		if h.BaseURL != "" {
-			loc = h.BaseURL + loc
+		if cacheKey != "" {
+			h.cacheTournamentCreate(cacheKey, id, bodyHash, out)
 		}
-		w.Header().Set("Location", loc)
+		w.Header().Set("Location", h.tournamentLocation(id))
 		h.writeTournament(w, http.StatusCreated, out)
 	}
+}
+
+// cacheTournamentCreate — simpan response create untuk replay idempotent.
+func (h *TournamentHandler) cacheTournamentCreate(cacheKey, id, bodyHash string, out any) {
+	b, err := json.Marshal(out)
+	if err != nil {
+		return
+	}
+	env, err := json.Marshal(tournamentCreateCache{ID: id, BodyHash: bodyHash, Snapshot: b})
+	if err != nil {
+		return
+	}
+	setIdempotentRaw(cacheKey, env)
 }
 
 // Put — PUT /tournaments/{id}: full snapshot replace (create-or-update).

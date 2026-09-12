@@ -56,7 +56,11 @@ func (s *SessionStore) AutoIngestLockedSessions(ctx context.Context) (int, error
 			return ingested, err
 		}
 		if _, err := s.IngestSession(ctx, id); err != nil {
-			// Jangan block sesi lain — log via return (caller log).
+			// Jangan block sesi lain. Log supaya kegagalan permanen (mis.
+			// out-of-order / resolve gagal) tidak hilang tanpa jejak.
+			if s.logger != nil {
+				s.logger.Warn("auto-ingest: sesi dilewati", "session", id, "error", err)
+			}
 			continue
 		}
 		ingested++

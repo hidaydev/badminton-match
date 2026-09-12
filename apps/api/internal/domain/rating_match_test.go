@@ -126,3 +126,31 @@ func TestPlayersByTeamInclAbsent(t *testing.T) {
 		t.Fatalf("tim A harus 1 pemain (placeholder tetap disaring), got %d", len(got))
 	}
 }
+
+// TestSortMatchesByOrderNumeric — game_order "slot-court" harus diurut numerik,
+// bukan leksikografis ("0-10" keliru berada sebelum "0-2"). Audit 2026-09-12.
+func TestSortMatchesByOrderNumeric(t *testing.T) {
+	orders := []string{"10-0", "0-10", "1-0", "0-2", "0-0"}
+	matches := make([]RawMatch, 0, len(orders))
+	for _, o := range orders {
+		matches = append(matches, RawMatch{GameOrder: o})
+	}
+	SortMatchesByOrder(matches)
+	got := make([]string, len(matches))
+	for i, m := range matches {
+		got[i] = m.GameOrder
+	}
+	want := []string{"0-0", "0-2", "0-10", "1-0", "10-0"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("urutan = %v, want %v", got, want)
+		}
+	}
+
+	// Format non-numerik (match_key turnamen) tetap fallback string.
+	ms := []RawMatch{{GameOrder: "m-2"}, {GameOrder: "final"}, {GameOrder: "m-10"}}
+	SortMatchesByOrder(ms)
+	if ms[0].GameOrder != "final" {
+		t.Fatalf("fallback string salah: %v", []string{ms[0].GameOrder, ms[1].GameOrder, ms[2].GameOrder})
+	}
+}

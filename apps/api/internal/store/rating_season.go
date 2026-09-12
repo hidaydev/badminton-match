@@ -38,9 +38,23 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 
 	// 1-2. Arsip musim terbuka (jika ada)
 	var seasonID string
+	var openStart string
 	err = tx.QueryRow(ctx, `
-		SELECT id::text FROM `+s.schema+`.rating_seasons
-		WHERE end_date IS NULL ORDER BY start_date DESC LIMIT 1`).Scan(&seasonID)
+		SELECT id::text, start_date::text FROM `+s.schema+`.rating_seasons
+		WHERE end_date IS NULL ORDER BY start_date DESC LIMIT 1`).Scan(&seasonID, &openStart)
+	if err == nil && openStart == startDate {
+		// Musim dengan start_date sama sudah terbuka → ini RETRY setelah commit
+		// sebelumnya sukses tapi RebuildAll gagal. Jangan arsip + buat musim baru
+		// (akan menduplikasi musim). Cukup repair dengan rebuild.
+		_ = tx.Rollback(ctx)
+		if s.logger != nil {
+			s.logger.Warn("close season: retry terdeteksi, rebuild ulang", "season", seasonID, "start_date", startDate)
+		}
+		if _, rErr := s.RebuildAll(ctx); rErr != nil {
+			return "", rErr
+		}
+		return seasonID, nil
+	}
 	if err == nil {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO `+s.schema+`.season_player_snapshots
@@ -74,10 +88,16 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 	}
 
 	// 4. season_start config
-	if _, err := tx.Exec(ctx, `
+	tag, err := tx.Exec(ctx, `
 		UPDATE `+s.schema+`.rating_config SET value = to_jsonb($1::text) WHERE key = 'season_start'`,
-		startDate); err != nil {
+		startDate)
+	if err != nil {
 		return "", err
+	}
+	if tag.RowsAffected() == 0 {
+		// Jangan lanjut delete events kalau config row hilang — gating musim
+		// (subquery AutoIngestLockedSessions) jadi tidak konsisten.
+		return "", fmt.Errorf("rating: season_start config row missing")
 	}
 
 	// 5. Hapus events musim lama (deltas cascade)
