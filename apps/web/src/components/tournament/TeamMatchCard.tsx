@@ -1,9 +1,5 @@
 // apps/web/src/components/tournament/TeamMatchCard.tsx
-import { teamMatchOutcome, teamTarget, PARTAI_CLASSES, type TeamMatch, type TeamInfo } from '../../utils/teamTournament'
-
-export function teamName(teams: { id: string; name: string }[], id: string | undefined): string {
-  return teams.find((t) => t.id === id)?.name ?? (id ?? '—')
-}
+import { teamMatchOutcome, teamTarget, PARTAI_CLASSES, teamName, type TeamMatch, type TeamInfo } from '../../utils/teamTournament'
 
 export default function TeamMatchCard({
   match,
