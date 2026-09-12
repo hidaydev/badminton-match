@@ -890,3 +890,146 @@ export function drawGroupSummary(
     }
   })
 }
+
+// ── Team match summary post ──────────────────────────────────────────────────
+
+export interface TeamMatchPartaiRow {
+  tier: string
+  nameA: string
+  nameB: string
+  scoreA: number | null
+  scoreB: number | null
+}
+
+export function drawTeamMatchPost(
+  canvas: HTMLCanvasElement,
+  photo: HTMLImageElement,
+  teamAName: string,
+  teamBName: string,
+  teamAWins: number,
+  teamBWins: number,
+  partaiRows: TeamMatchPartaiRow[],
+  subtitle: string,
+  logo: HTMLImageElement | undefined,
+  chevrons: HTMLImageElement | undefined,
+  sponsor: HTMLImageElement | undefined,
+) {
+  const W = POST_WIDTH
+  const H = POST_HEIGHT
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')!
+  ctx.clearRect(0, 0, W, H)
+
+  // Layer 1: full-bleed photo
+  drawCoverFill(ctx, photo, W, H, 0, 0)
+
+  // Chevrons — same positions as drawMatchPost
+  if (chevrons) {
+    const chevH = 115
+    const chevW = chevH * (chevrons.naturalWidth / chevrons.naturalHeight)
+    ctx.drawImage(chevrons, W - chevW - 30, H * 0.18, chevW, chevH)
+    ctx.save()
+    ctx.translate(30 + chevW / 2, H * 0.10 + chevH / 2)
+    ctx.rotate(Math.PI)
+    ctx.drawImage(chevrons, -chevW / 2, -chevH / 2, chevW, chevH)
+    ctx.restore()
+  }
+
+  // Header band
+  drawTournamentHeader(ctx, W, logo)
+
+  // Dark footer — taller than drawMatchPost to fit partai rows
+  const footerH = 340
+  const footerY = H - footerH
+  ctx.fillStyle = 'rgba(0,0,0,0.85)'
+  ctx.fillRect(0, footerY, W, footerH)
+
+  // Sponsor logo
+  if (sponsor) {
+    const sH = 50
+    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
+    ctx.drawImage(sponsor, (W - sW) / 2, footerY + 14, sW, sH)
+  }
+
+  // Team names + overall score
+  const scoreRowY = footerY + 130
+  const maxTeamW = 340
+
+  ctx.save()
+  ctx.font = 'bold 36px Arial, sans-serif'
+  ctx.fillStyle = C.white
+  ctx.textAlign = 'left'
+  ctx.fillText(truncateToWidth(ctx, teamAName, maxTeamW), 60, scoreRowY)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = 'bold 36px Arial, sans-serif'
+  ctx.fillStyle = C.muted
+  ctx.textAlign = 'right'
+  ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), W - 60, scoreRowY)
+  ctx.restore()
+
+  ctx.save()
+  ctx.font = 'bold 44px monospace'
+  ctx.fillStyle = C.accent
+  ctx.textAlign = 'center'
+  ctx.fillText(`${teamAWins} – ${teamBWins}`, W / 2, scoreRowY)
+  ctx.restore()
+
+  // Divider
+  ctx.save()
+  ctx.strokeStyle = 'rgba(250,204,21,0.25)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(60, scoreRowY + 22)
+  ctx.lineTo(W - 60, scoreRowY + 22)
+  ctx.stroke()
+  ctx.restore()
+
+  // Partai rows
+  const partaiStartY = scoreRowY + 52
+  const rowH = 48
+  const maxPartaiNameW = 200
+
+  partaiRows.forEach((row, i) => {
+    const y = partaiStartY + i * rowH
+
+    ctx.save()
+    ctx.font = 'bold 20px monospace'
+    ctx.fillStyle = C.accent
+    ctx.textAlign = 'left'
+    ctx.fillText(row.tier, 60, y)
+    ctx.restore()
+
+    ctx.save()
+    ctx.font = 'bold 22px Arial, sans-serif'
+    ctx.fillStyle = C.white
+    ctx.textAlign = 'left'
+    ctx.fillText(truncateToWidth(ctx, row.nameA, maxPartaiNameW), 160, y)
+    ctx.restore()
+
+    ctx.save()
+    ctx.font = 'bold 22px monospace'
+    ctx.fillStyle = C.accent
+    ctx.textAlign = 'center'
+    const score = row.scoreA !== null && row.scoreB !== null ? `${row.scoreA}–${row.scoreB}` : 'vs'
+    ctx.fillText(score, W / 2, y)
+    ctx.restore()
+
+    ctx.save()
+    ctx.font = 'bold 22px Arial, sans-serif'
+    ctx.fillStyle = C.muted
+    ctx.textAlign = 'right'
+    ctx.fillText(truncateToWidth(ctx, row.nameB, maxPartaiNameW), W - 60, y)
+    ctx.restore()
+  })
+
+  // Subtitle
+  ctx.save()
+  ctx.font = '18px monospace'
+  ctx.fillStyle = C.muted
+  ctx.textAlign = 'center'
+  ctx.fillText(subtitle, W / 2, footerY + footerH - 18)
+  ctx.restore()
+}
