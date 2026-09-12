@@ -226,8 +226,11 @@ export default function TeamTournamentPage() {
 
     const champPhoto = finalPhotos['champion']
     if (champPhoto && championName) {
+      const champLogoImg = teamLogoPath(championName)
+        ? await loadImage(teamLogoPath(championName)!).catch(() => undefined)
+        : undefined
       const c = document.createElement('canvas')
-      drawPositionPost(c, champPhoto, '🏆 CHAMPION', championName, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge)
+      drawPositionPost(c, champPhoto, '🏆 CHAMPION', championName, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge, overlays.cardLogo, champLogoImg)
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], 'champion.jpg', { type: 'image/jpeg' }))
     }
