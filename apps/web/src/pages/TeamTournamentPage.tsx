@@ -35,9 +35,14 @@ export default function TeamTournamentPage() {
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
   const [editingTeamName, setEditingTeamName] = useState('')
   const [finalPhotos, setFinalPhotos] = useState<Record<string, HTMLImageElement>>({})
-  const [finalOverlays, setFinalOverlays] = useState<Record<string, HTMLImageElement | undefined>>({})
+  const [overlays, setOverlays] = useState<Record<string, HTMLImageElement | undefined>>({})
   const finalFileInputRef = useRef<HTMLInputElement>(null)
   const activeFinalKey = useRef<string | null>(null)
+
+  // Schedule-tab photo state — lifted here so photos survive tab switches
+  const [scheduleTeamPhotos, setScheduleTeamPhotos] = useState<Record<string, HTMLImageElement>>({})
+  const [schedulePartaiPhotos, setSchedulePartaiPhotos] = useState<Record<string, HTMLImageElement>>({})
+  const [schedulePostModeMatches, setSchedulePostModeMatches] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     loadOverlayImages({
@@ -45,7 +50,7 @@ export default function TeamTournamentPage() {
       badge: '/tournament-badge.png',
       chevrons: '/chevrons.png',
       sponsor: '/sponsor-logo.png',
-    }).then(setFinalOverlays)
+    }).then(setOverlays)
   }, [])
 
   // Sinkronkan editor dengan snapshot server saat refetch (pola "adjust state
@@ -179,7 +184,7 @@ export default function TeamTournamentPage() {
   }
 
   const handleFinalDownload = async () => {
-    if (!finalMatch || !championName) return
+    if (!finalMatch) return
     const out = teamMatchOutcome(finalMatch)
     const tNameA = teamName(teams, finalMatch.teamA)
     const tNameB = teamName(teams, finalMatch.teamB)
@@ -194,7 +199,7 @@ export default function TeamTournamentPage() {
       const nameA = getFinalPairName(finalMatch.teamA, clsA, clsB)
       const nameB = getFinalPairName(finalMatch.teamB, clsA, clsB)
       const c = document.createElement('canvas')
-      drawMatchPost(c, photo, nameA, nameB, p.scoreA, p.scoreB, `FINAL · ${clsA}${clsB}`, finalOverlays.logo, finalOverlays.badge, finalOverlays.chevrons, finalOverlays.sponsor)
+      drawMatchPost(c, photo, nameA, nameB, p.scoreA, p.scoreB, `FINAL · ${clsA}${clsB}`, overlays.logo, overlays.badge, overlays.chevrons, overlays.sponsor)
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], `final-${clsA}${clsB}.jpg`, { type: 'image/jpeg' }))
     }
@@ -209,7 +214,7 @@ export default function TeamTournamentPage() {
         scoreB: finalMatch.partai[pi].scoreB,
       }))
       const c = document.createElement('canvas')
-      drawTeamMatchPost(c, teamPhoto, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', finalOverlays.logo, finalOverlays.chevrons, finalOverlays.sponsor)
+      drawTeamMatchPost(c, teamPhoto, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', overlays.logo, overlays.chevrons, overlays.sponsor)
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], 'final-summary.jpg', { type: 'image/jpeg' }))
     }
@@ -217,12 +222,12 @@ export default function TeamTournamentPage() {
     const champPhoto = finalPhotos['champion']
     if (champPhoto && championName) {
       const c = document.createElement('canvas')
-      drawPositionPost(c, champPhoto, '🏆 CHAMPION', championName, finalOverlays.logo, finalOverlays.chevrons, finalOverlays.sponsor, finalOverlays.badge)
+      drawPositionPost(c, champPhoto, '🏆 CHAMPION', championName, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge)
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], 'champion.jpg', { type: 'image/jpeg' }))
     }
 
-    if (files.length > 0) await shareOrDownload(files, `Final · ${championName}`)
+    if (files.length > 0) await shareOrDownload(files, championName ? `Final · ${championName}` : 'Final')
   }
 
   const updatePartai = (matchIdx: number, partaiIdx: number, patch: Partial<{ scoreA: number | null; scoreB: number | null }>) => {
@@ -369,10 +374,17 @@ export default function TeamTournamentPage() {
             teams={teams}
             matches={matches}
             saving={publish.isPending}
+            overlays={overlays}
+            teamPhotos={scheduleTeamPhotos}
+            partaiPhotos={schedulePartaiPhotos}
+            postModeMatches={schedulePostModeMatches}
             onChangePartai={(matchIdx, pi, patch) => updatePartai(matchIdx, pi, patch)}
             onUpdateCourt={updateCourt}
             onSave={() => localMatches && saveMatches(localMatches)}
             onDraw={handleUndian}
+            onSetTeamPhoto={(key, img) => setScheduleTeamPhotos((prev) => ({ ...prev, [key]: img }))}
+            onSetPartaiPhoto={(key, img) => setSchedulePartaiPhotos((prev) => ({ ...prev, [key]: img }))}
+            onSetPostMode={(matchId, on) => setSchedulePostModeMatches((prev) => ({ ...prev, [matchId]: on }))}
           />
         )}
 
