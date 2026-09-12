@@ -40,7 +40,6 @@ export default function TeamTournamentPage() {
   const activeFinalKey = useRef<string | null>(null)
 
   // Schedule-tab photo state — lifted here so photos survive tab switches
-  const [scheduleTeamPhotos, setScheduleTeamPhotos] = useState<Record<string, HTMLImageElement>>({})
   const [schedulePartaiPhotos, setSchedulePartaiPhotos] = useState<Record<string, HTMLImageElement>>({})
   const [schedulePostModeMatches, setSchedulePostModeMatches] = useState<Record<string, boolean>>({})
 
@@ -50,6 +49,7 @@ export default function TeamTournamentPage() {
       badge: '/tournament-badge.png',
       chevrons: '/chevrons.png',
       sponsor: '/sponsor-logo.png',
+      summaryBg: '/summary-bg.png',
     }).then(setOverlays)
   }, [])
 
@@ -204,20 +204,18 @@ export default function TeamTournamentPage() {
       if (blob) files.push(new File([blob], `final-${clsA}${clsB}.jpg`, { type: 'image/jpeg' }))
     }
 
-    const teamPhoto = finalPhotos['team']
-    if (teamPhoto) {
-      const partaiRows: TeamMatchPartaiRow[] = PARTAI_CLASSES.map(([clsA, clsB], pi) => ({
-        tier: `${clsA}${clsB}`,
-        nameA: getFinalPairName(finalMatch.teamA, clsA, clsB),
-        nameB: getFinalPairName(finalMatch.teamB, clsA, clsB),
-        scoreA: finalMatch.partai[pi].scoreA,
-        scoreB: finalMatch.partai[pi].scoreB,
-      }))
-      const c = document.createElement('canvas')
-      drawTeamMatchPost(c, teamPhoto, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', overlays.logo, overlays.chevrons, overlays.sponsor)
-      const blob = await canvasToBlob(c)
-      if (blob) files.push(new File([blob], 'final-summary.jpg', { type: 'image/jpeg' }))
-    }
+    // Summary post — no photo needed, always generated
+    const partaiRows: TeamMatchPartaiRow[] = PARTAI_CLASSES.map(([clsA, clsB], pi) => ({
+      tier: `${clsA}${clsB}`,
+      nameA: getFinalPairName(finalMatch.teamA, clsA, clsB),
+      nameB: getFinalPairName(finalMatch.teamB, clsA, clsB),
+      scoreA: finalMatch.partai[pi].scoreA,
+      scoreB: finalMatch.partai[pi].scoreB,
+    }))
+    const summaryCanvas = document.createElement('canvas')
+    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', overlays.summaryBg, overlays.logo, overlays.sponsor)
+    const summaryBlob = await canvasToBlob(summaryCanvas)
+    if (summaryBlob) files.push(new File([summaryBlob], 'final-summary.jpg', { type: 'image/jpeg' }))
 
     const champPhoto = finalPhotos['champion']
     if (champPhoto && championName) {
@@ -375,14 +373,12 @@ export default function TeamTournamentPage() {
             matches={matches}
             saving={publish.isPending}
             overlays={overlays}
-            teamPhotos={scheduleTeamPhotos}
             partaiPhotos={schedulePartaiPhotos}
             postModeMatches={schedulePostModeMatches}
             onChangePartai={(matchIdx, pi, patch) => updatePartai(matchIdx, pi, patch)}
             onUpdateCourt={updateCourt}
             onSave={() => localMatches && saveMatches(localMatches)}
             onDraw={handleUndian}
-            onSetTeamPhoto={(key, img) => setScheduleTeamPhotos((prev) => ({ ...prev, [key]: img }))}
             onSetPartaiPhoto={(key, img) => setSchedulePartaiPhotos((prev) => ({ ...prev, [key]: img }))}
             onSetPostMode={(matchId, on) => setSchedulePostModeMatches((prev) => ({ ...prev, [matchId]: on }))}
           />
@@ -416,23 +412,6 @@ export default function TeamTournamentPage() {
                 {/* Export Posts section */}
                 <div className="bg-surface border border-border-subtle rounded-lg px-4 py-3 flex flex-col gap-2">
                   <p className="text-xs text-fg-dim uppercase tracking-wider">Export Posts</p>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-fg-dim">Team summary photo</span>
-                    <div className="relative">
-                      <button
-                        onClick={() => { activeFinalKey.current = 'team'; finalFileInputRef.current?.click() }}
-                        className="w-7 h-7 rounded-full bg-elevated border border-border-subtle flex items-center justify-center"
-                        aria-label="Upload team summary photo"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                          <circle cx="12" cy="13" r="4"/>
-                        </svg>
-                      </button>
-                      {finalPhotos['team'] && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />}
-                    </div>
-                  </div>
 
                   {PARTAI_CLASSES.map(([clsA, clsB], pi) => (
                     <div key={pi} className="flex items-center justify-between">
@@ -473,7 +452,7 @@ export default function TeamTournamentPage() {
                   )}
 
                   <div className="flex items-center justify-between pt-1 border-t border-border-subtle mt-1">
-                    <span className="text-xs text-fg-dim">{Object.keys(finalPhotos).length} of {championName ? 5 : 4} photos</span>
+                    <span className="text-xs text-fg-dim">{Object.keys(finalPhotos).length} of {championName ? 4 : 3} photos</span>
                     <button
                       onClick={handleFinalDownload}
                       disabled={Object.keys(finalPhotos).length === 0}

@@ -16,14 +16,12 @@ interface TeamGroupScheduleProps {
   matches: TeamMatch[]
   saving: boolean
   overlays: Record<string, HTMLImageElement | undefined>
-  teamPhotos: Record<string, HTMLImageElement>
   partaiPhotos: Record<string, HTMLImageElement>
   postModeMatches: Record<string, boolean>
   onChangePartai: (matchIdx: number, partaiIdx: number, patch: Partial<{ scoreA: number | null; scoreB: number | null }>) => void
   onUpdateCourt: (matchIdx: number, courtIdx: number, name: string) => void
   onSave: () => void
   onDraw: () => void
-  onSetTeamPhoto: (key: string, img: HTMLImageElement) => void
   onSetPartaiPhoto: (key: string, img: HTMLImageElement) => void
   onSetPostMode: (matchId: string, on: boolean) => void
 }
@@ -40,14 +38,12 @@ export default function TeamGroupSchedule({
   matches,
   saving,
   overlays,
-  teamPhotos,
   partaiPhotos,
   postModeMatches,
   onChangePartai,
   onUpdateCourt,
   onSave,
   onDraw,
-  onSetTeamPhoto,
   onSetPartaiPhoto,
   onSetPostMode,
 }: TeamGroupScheduleProps) {
@@ -57,7 +53,7 @@ export default function TeamGroupSchedule({
   const activeUploadKey = useRef<string | null>(null)
 
   const uploadedCount = (matchId: string): number => {
-    let count = teamPhotos[matchId] ? 1 : 0
+    let count = 0
     for (let i = 0; i < PARTAI_CLASSES.length; i++) {
       if (partaiPhotos[`${matchId}-${i}`]) count++
     }
@@ -65,8 +61,6 @@ export default function TeamGroupSchedule({
   }
 
   const handleDownload = async (m: TeamMatch) => {
-    const matchIdx = matches.indexOf(m)
-    if (matchIdx === -1) return
     const out = teamMatchOutcome(m)
     const tNameA = teamName(teams, m.teamA)
     const tNameB = teamName(teams, m.teamB)
@@ -87,20 +81,18 @@ export default function TeamGroupSchedule({
       if (blob) files.push(new File([blob], `${slug}-${clsA}${clsB}.jpg`, { type: 'image/jpeg' }))
     }
 
-    const teamPhoto = teamPhotos[m.id]
-    if (teamPhoto) {
-      const partaiRows: TeamMatchPartaiRow[] = PARTAI_CLASSES.map(([clsA, clsB], pi) => ({
-        tier: `${clsA}${clsB}`,
-        nameA: getPairName(teams, m.teamA, clsA, clsB),
-        nameB: getPairName(teams, m.teamB, clsA, clsB),
-        scoreA: m.partai[pi].scoreA,
-        scoreB: m.partai[pi].scoreB,
-      }))
-      const c = document.createElement('canvas')
-      drawTeamMatchPost(c, teamPhoto, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'GROUP STAGE', overlays.logo, overlays.chevrons, overlays.sponsor)
-      const blob = await canvasToBlob(c)
-      if (blob) files.push(new File([blob], `${slug}-summary.jpg`, { type: 'image/jpeg' }))
-    }
+    // Summary post — no photo needed, always generated
+    const partaiRows: TeamMatchPartaiRow[] = PARTAI_CLASSES.map(([clsA, clsB], pi) => ({
+      tier: `${clsA}${clsB}`,
+      nameA: getPairName(teams, m.teamA, clsA, clsB),
+      nameB: getPairName(teams, m.teamB, clsA, clsB),
+      scoreA: m.partai[pi].scoreA,
+      scoreB: m.partai[pi].scoreB,
+    }))
+    const summaryCanvas = document.createElement('canvas')
+    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'GROUP STAGE', overlays.summaryBg, overlays.logo, overlays.sponsor)
+    const summaryBlob = await canvasToBlob(summaryCanvas)
+    if (summaryBlob) files.push(new File([summaryBlob], `${slug}-summary.jpg`, { type: 'image/jpeg' }))
 
     if (files.length === 0) return
     await shareOrDownload(files, `${tNameA} vs ${tNameB}`)
@@ -136,9 +128,7 @@ export default function TeamGroupSchedule({
               isPostMode,
               onTogglePostMode: () => onSetPostMode(m.id, !isPostMode),
               partaiPhotos: PARTAI_CLASSES.map((_, pi) => partaiPhotos[`${m.id}-${pi}`]),
-              teamPhoto: teamPhotos[m.id],
               onUploadPartai: (pi) => { activeUploadKey.current = `${m.id}-${pi}`; fileInputRef.current?.click() },
-              onUploadTeam: () => { activeUploadKey.current = m.id; fileInputRef.current?.click() },
               onDownload: () => handleDownload(m),
               uploadedCount: uploadedCount(m.id),
             }}
@@ -159,14 +149,7 @@ export default function TeamGroupSchedule({
           const img = new Image()
           img.onload = () => {
             URL.revokeObjectURL(url)
-            // Partai keys are `${matchId}-${pi}` (e.g. "g-1-0") — two or more dashes.
-            // Team photo keys are bare match IDs (e.g. "g-1") — one dash.
-            const isPartai = (key.match(/-/g) ?? []).length >= 2
-            if (isPartai) {
-              onSetPartaiPhoto(key, img)
-            } else {
-              onSetTeamPhoto(key, img)
-            }
+            onSetPartaiPhoto(key, img)
           }
           img.onerror = () => URL.revokeObjectURL(url)
           img.src = url
