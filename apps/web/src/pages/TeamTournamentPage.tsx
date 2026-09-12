@@ -45,7 +45,7 @@ export default function TeamTournamentPage() {
 
   useEffect(() => {
     loadOverlayImages({
-      logo: '/anniversary-logo.png',
+      logo: '/majadu-logo.png',
       badge: '/tournament-badge.png',
       chevrons: '/chevrons.png',
       sponsor: '/sponsor-logo.png',
