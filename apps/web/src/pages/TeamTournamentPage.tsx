@@ -49,7 +49,7 @@ export default function TeamTournamentPage() {
       badge: '/tournament-badge.png',
       chevrons: '/chevrons.png',
       sponsor: '/sponsor-logo.png',
-      summaryBg: '/summary-bg.png',
+      summaryBg: '/summary-bg.jpg',
       cardLogo: '/anniversary-card-logo.png',
     }).then(setOverlays)
   }, [])
