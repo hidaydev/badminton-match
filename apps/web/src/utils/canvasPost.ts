@@ -116,14 +116,15 @@ function drawHeader(
   }
 }
 
-/** @deprecated Use `drawHeader(ctx, canvasW, logo, 'MAJADU INTERNAL TOURNAMENT 2026')` instead. */
 function drawTournamentHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   logo: HTMLImageElement | undefined,
 ) {
-  drawHeader(ctx, canvasW, logo, 'MAJADU 1\u02E2\u1D57 ANNIVERSARY  \u2022  MAJADU 1\u02E2\u1D57 ANNIVERSARY')
+  drawHeader(ctx, canvasW, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
 }
+
+const ANNIVERSARY_LABEL = 'MAJADU 1\u02E2\u1D57 ANNIVERSARY  \u2022  MAJADU 1\u02E2\u1D57 ANNIVERSARY'
 
 export function drawMatchPost(
   canvas: HTMLCanvasElement,
@@ -140,6 +141,7 @@ export function drawMatchPost(
   cardLogo: HTMLImageElement | undefined,
   teamALogo: HTMLImageElement | undefined,
   teamBLogo: HTMLImageElement | undefined,
+  headerLabel?: string,
 ) {
   const W = POST_WIDTH
   const H = POST_HEIGHT
@@ -164,7 +166,8 @@ export function drawMatchPost(
   }
 
   // Header band
-  drawTournamentHeader(ctx, W, logo)
+  if (headerLabel) drawHeader(ctx, W, logo, headerLabel)
+  else drawTournamentHeader(ctx, W, logo)
 
   // Footer
   const footerH = 230
@@ -221,6 +224,16 @@ export function drawMatchPost(
   ctx.textAlign = 'center'
   ctx.fillText(scoreA !== null && scoreB !== null ? `${scoreA} – ${scoreB}` : '— vs —', W / 2, rowY)
   ctx.restore()
+
+  // Badge watermark — only for classic tournament (no team logos)
+  if (badge && !teamALogo && !teamBLogo) {
+    const badgeH = 200
+    const badgeW = badgeH * (badge.naturalWidth / badge.naturalHeight)
+    ctx.save()
+    ctx.globalAlpha = 0.18
+    ctx.drawImage(badge, W - badgeW + 20, footerY + (footerH - badgeH) / 2, badgeW, badgeH)
+    ctx.restore()
+  }
 
   // Subtitle
   ctx.save()
@@ -381,7 +394,7 @@ export function drawPositionPost(
     ctx.restore()
   }
 
-  drawTournamentHeader(ctx, W, logo)
+  drawHeader(ctx, W, logo, ANNIVERSARY_LABEL)
 
   // Gradient starts at 35% height, fades gently — less solid at bottom
   const gradStart = H * 0.35
@@ -941,7 +954,7 @@ export function drawTeamMatchPost(
     ctx.fillRect(0, 0, W, H)
   }
 
-  drawTournamentHeader(ctx, W, logo)
+  drawHeader(ctx, W, logo, ANNIVERSARY_LABEL)
 
   // Dark card
   const CARD_X = 80
