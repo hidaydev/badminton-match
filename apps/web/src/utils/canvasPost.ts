@@ -433,9 +433,9 @@ export function drawPositionPost(
     ctx.restore()
   }
 
-  const footerY = H - 320
+  const footerY = H - 380
 
-  // Anniversary card logo floats above footer; fallback to sponsor
+  // Anniversary card logo
   const footerLogoImg = cardLogo ?? sponsor
   if (footerLogoImg) {
     const sH = 60
@@ -443,22 +443,32 @@ export function drawPositionPost(
     ctx.drawImage(footerLogoImg, (W - sW) / 2, footerY + 10, sW, sH)
   }
 
-  // Position label — bigger, tighter icon gap
+  // Position label
   ctx.save()
   ctx.font = 'bold 56px monospace'
   ctx.fillStyle = C.accent
   ctx.textAlign = 'center'
   ctx.letterSpacing = '6px'
-  ctx.fillText(positionLabel, W / 2, footerY + 140)
+  ctx.fillText(positionLabel, W / 2, footerY + 130)
   ctx.restore()
 
-  // Name — big, generous space below label
+  // Centered team logo above name
+  let centerLogoBottom = footerY + 160
+  if (teamLogo) {
+    const cLogoH = 220
+    const cLogoW = cLogoH * (teamLogo.naturalWidth / teamLogo.naturalHeight)
+    const cLogoY = footerY + 155
+    ctx.drawImage(teamLogo, (W - cLogoW) / 2, cLogoY, cLogoW, cLogoH)
+    centerLogoBottom = cLogoY + cLogoH + 20
+  }
+
+  // Name — smaller since logo is the focus
   ctx.save()
-  ctx.font = 'bold 86px Arial, sans-serif'
-  ctx.fillStyle = C.white
+  ctx.font = 'bold 42px Arial, sans-serif'
+  ctx.fillStyle = C.textDim
   ctx.textAlign = 'center'
   const maxW = W - 100
-  ctx.fillText(truncateToWidth(ctx, name, maxW), W / 2, footerY + 240)
+  ctx.fillText(truncateToWidth(ctx, name, maxW), W / 2, centerLogoBottom + 36)
   ctx.restore()
 }
 
