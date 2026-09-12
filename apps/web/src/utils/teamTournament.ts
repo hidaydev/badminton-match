@@ -191,3 +191,16 @@ export function generateTeamDraw(teamIds: string[]): TeamDrawItem[] {
 export function teamName(teams: { id: string; name: string }[], id: string | undefined): string {
   return teams.find((t) => t.id === id)?.name ?? (id ?? '—')
 }
+
+const TEAM_LOGO_MAP: Record<string, string> = {
+  'RED RAPTORS': '/team-logos/Red_Raptors_-removebg-preview.png',
+  'WHITE FURY': '/team-logos/White_Fury-removebg-preview.png',
+  'BLUE WAVES': '/team-logos/Blue_Waves-removebg-preview.png',
+  'PURPLE PHANTOMS': '/team-logos/Purple_Phantoms_-removebg-preview.png',
+  'GREEN GROVE': '/team-logos/Green_Grove-removebg-preview.png',
+  'PINK SPECTRE': '/team-logos/Pink_Spectre-removebg-preview.png',
+}
+
+export function teamLogoPath(name: string): string | undefined {
+  return TEAM_LOGO_MAP[name.trim().toUpperCase()]
+}

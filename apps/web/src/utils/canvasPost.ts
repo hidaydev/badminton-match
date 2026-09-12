@@ -913,6 +913,8 @@ export function drawTeamMatchPost(
   logo: HTMLImageElement | undefined,
   sponsor: HTMLImageElement | undefined,
   cardLogo: HTMLImageElement | undefined,
+  teamALogo: HTMLImageElement | undefined,
+  teamBLogo: HTMLImageElement | undefined,
 ) {
   const W = POST_WIDTH
   const H = POST_HEIGHT
@@ -935,8 +937,8 @@ export function drawTeamMatchPost(
   const CARD_X = 80
   const CARD_W = W - CARD_X * 2
   const CARD_PAD_TOP = 295
-  const TITLE_H = 150
-  const SCORE_H = 90
+  const TITLE_H = 130
+  const SCORE_H = 160
   const DIV_H = 36
   const PARTAI_ROW_H = 68
   const CARD_PAD_BOT = 56
@@ -982,46 +984,66 @@ export function drawTeamMatchPost(
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 68px Arial, sans-serif'
+  ctx.font = 'bold 48px Arial, sans-serif'
   ctx.fillStyle = C.accent
   ctx.letterSpacing = '2px'
   ctx.textAlign = 'left'
-  ctx.fillText('MATCH RESULT', INNER_X, CARD_Y + CARD_PAD_TOP + 120)
+  ctx.fillText('MATCH RESULT', INNER_X, CARD_Y + CARD_PAD_TOP + 100)
   ctx.restore()
 
-  // Single row: teamA | score | teamB — measure score first to get accurate side widths
-  const scoreY = CARD_Y + CARD_PAD_TOP + TITLE_H + 58
+  // Score row: logo above name on each side, score centered
+  const TEAM_LOGO_H = 60
+  const NAME_FONT = 24
+  const scoreBlockTop = CARD_Y + CARD_PAD_TOP + TITLE_H + 10
+  const scoreBaseline = scoreBlockTop + TEAM_LOGO_H / 2 + 18
+  const nameBaseline = scoreBlockTop + TEAM_LOGO_H + 10 + NAME_FONT
+
   ctx.font = 'bold 48px monospace'
   const scoreText = `${teamAWins} – ${teamBWins}`
   const scoreHalfW = ctx.measureText(scoreText).width / 2 + 20
   const maxTeamW = W / 2 - INNER_X - scoreHalfW
 
+  // Team A logo
+  if (teamALogo) {
+    const lW = TEAM_LOGO_H * (teamALogo.naturalWidth / teamALogo.naturalHeight)
+    ctx.drawImage(teamALogo, INNER_X, scoreBlockTop, lW, TEAM_LOGO_H)
+  }
+
+  // Team A name
   ctx.save()
-  ctx.font = 'bold 24px Arial, sans-serif'
+  ctx.font = `bold ${NAME_FONT}px Arial, sans-serif`
   ctx.fillStyle = C.white
   ctx.textAlign = 'left'
-  ctx.fillText(truncateToWidth(ctx, teamAName, maxTeamW), INNER_X, scoreY)
+  ctx.fillText(truncateToWidth(ctx, teamAName, maxTeamW), INNER_X, nameBaseline)
   ctx.restore()
 
+  // Score centered
   ctx.save()
   ctx.font = 'bold 48px monospace'
   ctx.fillStyle = C.accent
   ctx.textAlign = 'center'
-  ctx.fillText(scoreText, W / 2, scoreY)
+  ctx.fillText(scoreText, W / 2, scoreBaseline)
   ctx.restore()
 
+  // Team B logo (right-aligned)
+  if (teamBLogo) {
+    const lW = TEAM_LOGO_H * (teamBLogo.naturalWidth / teamBLogo.naturalHeight)
+    ctx.drawImage(teamBLogo, RIGHT_X - lW, scoreBlockTop, lW, TEAM_LOGO_H)
+  }
+
+  // Team B name
   ctx.save()
-  ctx.font = 'bold 24px Arial, sans-serif'
+  ctx.font = `bold ${NAME_FONT}px Arial, sans-serif`
   ctx.fillStyle = C.textDim
   ctx.textAlign = 'right'
-  ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), RIGHT_X, scoreY)
+  ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), RIGHT_X, nameBaseline)
   ctx.restore()
 
   // Divider
   ctx.save()
   ctx.strokeStyle = 'rgba(250,204,21,0.25)'
   ctx.lineWidth = 1
-  const divY = scoreY + 28
+  const divY = nameBaseline + 20
   ctx.beginPath()
   ctx.moveTo(INNER_X, divY)
   ctx.lineTo(RIGHT_X, divY)

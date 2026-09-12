@@ -9,13 +9,14 @@ import {
   teamMatchOutcome,
   teamTarget,
   teamName,
+  teamLogoPath,
   PARTAI_CLASSES,
   type TeamMatch,
   type TeamTournamentSnapshot,
 } from '../utils/teamTournament'
 import TeamMatchCard from '../components/tournament/TeamMatchCard'
 import TeamGroupSchedule from '../components/tournament/TeamGroupSchedule'
-import { drawMatchPost, drawTeamMatchPost, drawPositionPost, type TeamMatchPartaiRow } from '../utils/canvasPost'
+import { drawMatchPost, drawTeamMatchPost, drawPositionPost, loadImage, type TeamMatchPartaiRow } from '../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../utils/share'
 import { loadOverlayImages } from '../utils/overlays'
 
@@ -213,8 +214,12 @@ export default function TeamTournamentPage() {
       scoreA: finalMatch.partai[pi].scoreA,
       scoreB: finalMatch.partai[pi].scoreB,
     }))
+    const [teamALogoImg, teamBLogoImg] = await Promise.all([
+      teamLogoPath(tNameA) ? loadImage(teamLogoPath(tNameA)!).catch(() => undefined) : Promise.resolve(undefined),
+      teamLogoPath(tNameB) ? loadImage(teamLogoPath(tNameB)!).catch(() => undefined) : Promise.resolve(undefined),
+    ])
     const summaryCanvas = document.createElement('canvas')
-    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', overlays.summaryBg, overlays.logo, overlays.sponsor, overlays.cardLogo)
+    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', overlays.summaryBg, overlays.logo, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg)
     const summaryBlob = await canvasToBlob(summaryCanvas)
     if (summaryBlob) files.push(new File([summaryBlob], 'final-summary.jpg', { type: 'image/jpeg' }))
 
