@@ -928,12 +928,7 @@ export function drawTeamMatchPost(
     ctx.fillRect(0, 0, W, H)
   }
 
-  // Logo centered at top — no header band
-  if (logo) {
-    const logoH = 160
-    const logoW = logoH * (logo.naturalWidth / logo.naturalHeight)
-    ctx.drawImage(logo, (W - logoW) / 2, 48, logoW, logoH)
-  }
+  drawTournamentHeader(ctx, W, logo)
 
   // Dark card
   const CARD_X = 80
