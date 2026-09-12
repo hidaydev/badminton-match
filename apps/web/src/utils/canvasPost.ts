@@ -992,13 +992,13 @@ export function drawTeamMatchPost(
   ctx.restore()
 
   // Score row: logo above name on each side, score centered
-  const TEAM_LOGO_H = 120
+  const TEAM_LOGO_H = 148
   const NAME_FONT = 18
   const scoreBlockTop = CARD_Y + CARD_PAD_TOP + TITLE_H + 10
   const scoreBaseline = scoreBlockTop + TEAM_LOGO_H / 2 + 18
   const nameBaseline = scoreBlockTop + TEAM_LOGO_H + 10 + NAME_FONT
 
-  ctx.font = 'bold 48px monospace'
+  ctx.font = 'bold 58px monospace'
   const scoreText = `${teamAWins} – ${teamBWins}`
   const scoreHalfW = ctx.measureText(scoreText).width / 2 + 20
   const maxTeamW = W / 2 - INNER_X - scoreHalfW
@@ -1019,7 +1019,7 @@ export function drawTeamMatchPost(
 
   // Score centered
   ctx.save()
-  ctx.font = 'bold 48px monospace'
+  ctx.font = 'bold 58px monospace'
   ctx.fillStyle = C.accent
   ctx.textAlign = 'center'
   ctx.fillText(scoreText, W / 2, scoreBaseline)
