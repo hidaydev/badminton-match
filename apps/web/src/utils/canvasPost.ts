@@ -948,7 +948,7 @@ export function drawTeamMatchPost(
   ctx.beginPath()
   ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
   ctx.clip()
-  ctx.filter = 'blur(1px)'
+  ctx.filter = 'blur(0.5px)'
   if (summaryBg) drawCoverFill(ctx, summaryBg, W, H, 0, 0)
   ctx.filter = 'none'
   ctx.restore()
