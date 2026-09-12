@@ -85,9 +85,9 @@ function drawHeader(
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, canvasW, HEADER_H)
 
-  const fontSize = 15
+  const fontSize = 16
   const logoW = logo ? LOGO_H * (logo.naturalWidth / logo.naturalHeight) : 160
-  const centerPad = 30
+  const centerPad = 50
   const logoTop = (HEADER_H - LOGO_H) / 2
   const textY = HEADER_H / 2 + fontSize * 0.38
 
