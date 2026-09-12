@@ -329,9 +329,7 @@ func (s *SessionStore) extractClassicMatches(ctx context.Context, tx pgx.Tx, tou
 //   partai 0: C+&C vs C+&C (position 0 = C+, position 1 = C)
 //   partai 1: A+&A vs A+&A
 //   partai 2: B+&B vs B+&B
-// Target: 30 (group) / 42 (final).
-
-var partaiClasses = [3][2]string{{"C+", "C"}, {"A+", "A"}, {"B+", "B"}}
+// Target: 30 (group) / 42 (final) — via domain.TeamTarget.
 
 type teamMatchRow struct {
 	matchKey string
@@ -421,7 +419,7 @@ func (s *SessionStore) extractTeamMatches(ctx context.Context, tx pgx.Tx, tourna
 						prows.Close()
 						return nil, err
 					}
-					if !classInPartai(g.idx, cls) {
+					if !domain.ClassInPartai(g.idx, cls) {
 						continue
 					}
 					pos := 1
@@ -441,10 +439,7 @@ func (s *SessionStore) extractTeamMatches(ctx context.Context, tx pgx.Tx, tourna
 				}
 			}
 
-			target := 30
-			if tm.phase == "final" {
-				target = 42
-			}
+			target := domain.TeamTarget(tm.phase)
 			out = append(out, domain.RawMatch{
 				StableGameID: fmt.Sprintf("%s-%d", tm.matchKey, g.idx),
 				Date:         dateStr,
@@ -461,18 +456,4 @@ func (s *SessionStore) extractTeamMatches(ctx context.Context, tx pgx.Tx, tourna
 		}
 	}
 	return out, nil
-}
-
-// classInPartai — apakah kelas pemain termasuk partai ini (partai 0: C+/C,
-// partai 1: A+/A, partai 2: B+/B).
-func classInPartai(partaiIdx int, cls string) bool {
-	if partaiIdx < 0 || partaiIdx >= len(partaiClasses) {
-		return false
-	}
-	for _, c := range partaiClasses[partaiIdx] {
-		if cls == c {
-			return true
-		}
-	}
-	return false
 }

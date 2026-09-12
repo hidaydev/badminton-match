@@ -158,7 +158,8 @@ func (s *TournamentStore) TeamLoad(ctx context.Context, id string) (*domain.Team
 			ID:     key,
 			Phase:  phase,
 			Partai: []domain.TeamPartai{{}, {}, {}},
-			Courts: [3]string{"Court 1", "Court 2", "Court 3"},
+			// Fallback selaras dengan default UI (Court 12/13/14).
+			Courts: [3]string{"Court 12", "Court 13", "Court 14"},
 		}
 		if len(courts) == 3 {
 			m.Courts = [3]string{courts[0], courts[1], courts[2]}

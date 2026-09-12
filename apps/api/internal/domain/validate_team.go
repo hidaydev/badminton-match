@@ -7,13 +7,18 @@ import (
 
 // ── Validasi tournament format TIM ─────────────────────────────────────────
 // Aturan (spesifikasi):
-//   - 6 tim × 6 pemain, tiap tim tepat 6 kelas unik (A+/A/B+/B+/C+/C)
+//   - 6 tim × 6 pemain, tiap tim tepat 6 kelas unik (A+/A/B+/B/C+/C)
 //   - Nama pemain non-blank & unik antar-tim (registrasi global)
 //   - Fase grup: 0 (belum undian) atau 9 team-match; tiap tim muncul tepat 3×,
 //     tanpa melawan diri sendiri, tanpa duplikat lawan
 //   - Skor partai: keduanya null (belum main) atau keduanya ada;
 //     grup → pemenang tepat 30 (loser ≤29); final → pemenang tepat 42 (loser ≤41)
-//   - Final: 0 atau 1 team-match; team refs valid
+//   - Final: 0 atau 1 team-match; team refs valid.
+//
+// Catatan: seeding top-2 final (dan poin/tiebreak klasemen) TIDAK divalidasi di
+// sini — itu otoritas klien (apps/web/src/utils/teamTournament.ts). Backend
+// hanya menjaga guard struktural agar state tetap masuk akal. Urutan kelas &
+// target dipin golden fixture bersama (domain/team_tournament_test.go).
 
 // ValidateTeamTournament — periksa invariant snapshot team. Error pertama
 // ditemui dikembalikan (urutan cek deterministik).
@@ -146,10 +151,7 @@ func validateTeamPartai(pt TeamPartai, phase string) error {
 	if a == b {
 		return errors.New("team match partai scores must not be equal (no deuce)")
 	}
-	target := 30
-	if phase == "final" {
-		target = 42
-	}
+	target := TeamTarget(phase)
 	winner, loser := a, b
 	if b > a {
 		winner, loser = b, a

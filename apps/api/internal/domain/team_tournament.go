@@ -2,7 +2,7 @@ package domain
 
 // TeamTournamentSnapshot — kontrak tournament format TIM (6 tim × 6 pemain,
 // 3 partai ganda per team-match, rally 30/42). Mirror dari
-// frontend TeamTournamentSnapshot (src/queries/types.ts).
+// frontend TeamTournamentSnapshot (apps/web/src/utils/teamTournament.ts).
 type TeamTournamentSnapshot struct {
 	Version *int        `json:"version,omitempty"`
 	Format  string      `json:"format"` // "team"
@@ -33,7 +33,7 @@ type TeamMatch struct {
 	TeamA  string       `json:"teamA"`
 	TeamB  string       `json:"teamB"`
 	Partai []TeamPartai `json:"partai"`
-	Courts [3]string    `json:"courts"` // 3 court names, one per partai
+	Courts [3]string    `json:"courts"` // 3 nama court, satu entry per partai (boleh sama; default UI 12/13/14)
 }
 
 // TeamPartai — skor satu partai. Kedua skor null = belum dimainkan.
@@ -49,3 +49,25 @@ var TeamClasses = []string{"A+", "A", "B+", "B", "C+", "C"}
 // TeamPartaiClasses — kelas pair per partai (index 0..2), sesuai spesifikasi:
 // partai 1 = C+ C, partai 2 = A+ A, partai 3 = B+ B.
 var TeamPartaiClasses = [][2]string{{"C+", "C"}, {"A+", "A"}, {"B+", "B"}}
+
+// TeamTarget — target skor per fase: grup 30, final 42. Satu-satunya sumber
+// di backend (dipakai validasi & rating extraction).
+func TeamTarget(phase string) int {
+	if phase == "final" {
+		return 42
+	}
+	return 30
+}
+
+// ClassInPartai — apakah kelas pemain ikut main di partai ke-idx.
+func ClassInPartai(partaiIdx int, cls string) bool {
+	if partaiIdx < 0 || partaiIdx >= len(TeamPartaiClasses) {
+		return false
+	}
+	for _, c := range TeamPartaiClasses[partaiIdx] {
+		if cls == c {
+			return true
+		}
+	}
+	return false
+}

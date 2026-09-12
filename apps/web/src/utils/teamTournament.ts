@@ -1,7 +1,7 @@
 // src/utils/teamTournament.ts
 // Format tournament TIM: 6 tim × 6 pemain (6 kelas), 3 partai ganda per
 // team-match, rally 30 (grup) / 42 (final), top-2 → final.
-// Mirror kontrak backend (majadu-api/internal/domain/team_tournament.go).
+// Mirror kontrak backend (apps/api/internal/domain/team_tournament.go).
 
 import type { TournamentSnapshot } from './tournament'
 
@@ -30,7 +30,7 @@ export interface TeamMatch {
   teamA: string
   teamB: string
   partai: TeamPartai[]
-  courts: [string, string, string] // 3 court names, one per partai
+  courts: [string, string, string] // satu entry per partai (boleh sama; default UI 12/13/14)
 }
 
 export interface TeamTournamentSnapshot {
@@ -119,6 +119,11 @@ export function teamMatchPoints(wins: number, losses: number): number {
  * 1. poin tertinggi
  * 2. selisih menang-kalah (teamWins - teamLosses) tertinggi
  * 3. selisih poin agregat (pointsFor - pointsAgainst) tertinggi
+ *
+ * Otoritas klien (by design): backend hanya menyimpan skor mentah + guard
+ * struktural; poin/tiebreak & seeding final top-2 dihitung di sini. Jangan
+ * diasumsikan divalidasi server. Aturan kelas/target dipin oleh golden fixture
+ * (scripts/tests/fixtures/team-tournament.golden.json, dicek juga oleh test Go).
  */
 export function computeTeamStandings(teams: TeamInfo[], matches: TeamMatch[]): TeamStandingRow[] {
   const rows: Record<string, TeamStandingRow> = {}
