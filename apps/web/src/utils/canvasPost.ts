@@ -934,7 +934,7 @@ export function drawTeamMatchPost(
   // Dark card
   const CARD_X = 80
   const CARD_W = W - CARD_X * 2
-  const CARD_PAD_TOP = 250
+  const CARD_PAD_TOP = 320
   const TITLE_H = 150
   const SCORE_H = 90
   const DIV_H = 36
