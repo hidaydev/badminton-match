@@ -15,16 +15,3 @@ export const RATING_TIER_BADGE_COLORS: Record<RatingTier, string> = {
   'A': 'bg-accent/20 text-accent border-accent/50',
   'A+': 'bg-accent/30 text-accent border-accent',
 }
-
-// Urutan tier 8-band untuk badge achievement: pips dan warna tepi menguat
-// seiring tingkat (bronze → gold). Dipakai AchievementBadge.
-export const TIER_RANK: Record<RatingTier, number> = {
-  'D': 1, 'D+': 2, 'C': 3, 'C+': 4, 'B': 5, 'B+': 6, 'A': 7, 'A+': 8,
-}
-
-export const ACHIEVEMENT_TIER_EDGE: Record<RatingTier, string> = {
-  'D': '#7f858c', 'D+': '#9a9284',
-  'C': '#b07f2a', 'C+': '#c4912c',
-  'B': '#d5a52f', 'B+': '#e0b03a',
-  'A': '#e9c04d', 'A+': '#f5d76e',
-}
