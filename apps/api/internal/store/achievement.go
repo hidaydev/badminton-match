@@ -12,9 +12,13 @@ import (
 )
 
 // ── Player achievements (000016) ──────────────────────────────────────────
-// Slice A: achievement Kelas A yang bisa di-backfill dari tabel yang masih
-// ada (sesi, turnamen, snapshot season). Kelas B (per-match musim berjalan)
-// ditangani di hook terpisah supaya tidak tercampur.
+// Model medal bertingkat (konsep Ingress): satu medal = satu statistik dengan
+// tangga 5 tingkat. Yang disimpan hanya nilai statistiknya; tingkat dihitung
+// dari katalog domain saat dibaca.
+//
+// Dua kelompok tulis:
+//   - medal  → upsert `value` (naik), earned_at tetap tanggal pertama.
+//   - collectible → sekali dapat (ON CONFLICT DO NOTHING).
 
 type achievementRow struct {
 	PlayerID string
@@ -28,24 +32,28 @@ type achievementRow struct {
 
 // AchievementView — kontrak JSON untuk frontend.
 type AchievementView struct {
-	Key      string            `json:"key"`
-	Kind     string            `json:"kind"`
-	Title    string            `json:"title"`
-	Detail   string            `json:"detail"`
-	Value    *int64            `json:"value,omitempty"`
-	SeasonID string            `json:"seasonId,omitempty"`
-	Season   string            `json:"season,omitempty"`
-	EarnedAt string            `json:"earnedAt"`
-	Meta     map[string]string `json:"meta,omitempty"`
+	Key        string            `json:"key"`
+	Kind       string            `json:"kind"`
+	Title      string            `json:"title"`
+	Detail     string            `json:"detail"`
+	Value      *int64            `json:"value,omitempty"`
+	TierLevel  int               `json:"tierLevel,omitempty"`  // 1..5 untuk medal, 0 untuk collectible
+	TierName   string            `json:"tierName,omitempty"`   // Bronze..Onyx
+	NextTarget *int64            `json:"nextTarget,omitempty"` // ambang tingkat berikutnya
+	SeasonID   string            `json:"seasonId,omitempty"`
+	Season     string            `json:"season,omitempty"`
+	EarnedAt   string            `json:"earnedAt"`
+	Meta       map[string]string `json:"meta,omitempty"`
 }
 
 // BackfillResult — ringkasan hasil backfill.
 type BackfillResult struct {
-	Unlocked int `json:"unlocked"`
-	Records  int `json:"records"`
+	Medals       int `json:"medals"`
+	Collectibles int `json:"collectibles"`
 }
 
-// PlayerAchievements — daftar achievement pemain, terbaru dulu.
+// PlayerAchievements — daftar achievement pemain. Medal duluan (biar rak
+// konsisten), lalu collectible, masing-masing terbaru dulu.
 func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) ([]AchievementView, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT pa.achievement_key, pa.kind, pa.value, pa.earned_at::text,
@@ -73,15 +81,30 @@ func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) 
 		v.Value = value
 		v.Meta = map[string]string{}
 		_ = json.Unmarshal([]byte(metaRaw), &v.Meta)
-		v.Title, v.Detail = domain.DescribeAchievement(v.Kind, v.Key, value, v.Meta)
+		if title, unit, _, def, ok := domain.TitleForMedal(v.Key); ok {
+			level := int64(0)
+			if value != nil {
+				level = int64(domain.TierForValue(def, *value))
+			}
+			v.Title = title
+			v.TierLevel = int(level)
+			v.TierName = domain.TierName(int(level))
+			if next, has := domain.NextTarget(def, int(level)); has {
+				v.NextTarget = &next
+			}
+			if value != nil {
+				v.Detail = fmt.Sprintf("%d %s", *value, unit)
+			}
+		} else {
+			v.Title, v.Detail = domain.DescribeCollectible(v.Kind, v.Key, v.Meta)
+		}
 		out = append(out, v)
 	}
 	return out, rows.Err()
 }
 
-// insertAchievements — batch insert. record=false → ON CONFLICT DO NOTHING
-// (unlock permanen); record=true → update bila value lebih besar (earned_at
-// tetap tanggal pertama).
+// insertAchievements — batch insert. record=false → DO NOTHING (collectible);
+// record=true → update bila value lebih besar (medal; earned_at tetap).
 func (s *SessionStore) insertAchievements(ctx context.Context, rows []achievementRow, record bool) (int, error) {
 	if len(rows) == 0 {
 		return 0, nil
@@ -148,25 +171,34 @@ type seasonEntry struct {
 	peak, rd          float64
 }
 
-// BackfillAchievements — isi achievement Kelas A dari data historis.
-// Idempoten: boleh dipanggil berulang.
+type checkpoint struct {
+	value int64
+	date  string
+}
+
+// BackfillAchievements — bangun ulang medal + collectible dari data historis.
+// Idempoten.
 func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult, error) {
 	cfg, err := s.LoadRatingConfig(ctx, false)
 	if err != nil {
 		return BackfillResult{}, err
 	}
-
 	seasons, seasonByID, openSeasonID, err := s.loadSeasons(ctx)
 	if err != nil {
 		return BackfillResult{}, err
 	}
-	_ = seasons
-
 	sessions, sessionIdx, err := s.loadSessions(ctx)
 	if err != nil {
 		return BackfillResult{}, err
 	}
-
+	seasonOfSession := map[string]string{}
+	seasonSessions := map[string][]sessionInfo{}
+	for _, sess := range sessions {
+		if sid, ok := seasonForDate(seasons, sess.Date); ok {
+			seasonOfSession[sess.ID] = sid
+			seasonSessions[sid] = append(seasonSessions[sid], sess)
+		}
+	}
 	snaps, err := s.loadSeasonSnapshots(ctx)
 	if err != nil {
 		return BackfillResult{}, err
@@ -180,8 +212,7 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 		return BackfillResult{}, err
 	}
 
-	// orderedPlayerSeasons: per pemain, urut kronologis (snapshot season lama
-	// lalu season berjalan).
+	today := todayDate()
 	ordered := map[string][]seasonEntry{}
 	for _, sn := range snaps {
 		ordered[sn.playerID] = append(ordered[sn.playerID], seasonEntry{
@@ -189,7 +220,6 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 			games: sn.games, wins: sn.wins, peak: sn.peak, rd: sn.rd,
 		})
 	}
-	today := todayDate()
 	for pid, c := range current {
 		ordered[pid] = append(ordered[pid], seasonEntry{
 			seasonID: openSeasonID, endDate: today,
@@ -197,139 +227,158 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 		})
 	}
 
-	var unlocks, records []achievementRow
-	seen := map[string]bool{}
-	addUnlock := func(r achievementRow) {
+	var medals, collectibles []achievementRow
+	seenCollectible := map[string]bool{}
+	addCollectible := func(r achievementRow) {
 		k := r.PlayerID + "\x00" + r.Key
-		if seen[k] {
+		if seenCollectible[k] {
 			return
 		}
-		seen[k] = true
-		unlocks = append(unlocks, r)
+		seenCollectible[k] = true
+		collectibles = append(collectibles, r)
 	}
-	recIdx := map[string]int{}
-	addRecord := func(r achievementRow) {
-		k := r.PlayerID + "\x00" + r.Key
-		if i, ok := recIdx[k]; ok {
-			if r.Value != nil && (records[i].Value == nil || *r.Value > *records[i].Value) {
-				records[i] = r
-			}
+	addMedal := func(pid string, def domain.MedalDef, value int64, seasonID, earnedAt string, meta map[string]string) {
+		if value < def.Thresholds[0] {
 			return
 		}
-		recIdx[k] = len(records)
-		records = append(records, r)
+		var seasonPtr *string
+		if seasonID != "" {
+			seasonPtr = &seasonID
+		}
+		v := value
+		medals = append(medals, achievementRow{
+			PlayerID: pid, Key: domain.MedalKey(def.ID), Kind: string(def.Kind),
+			SeasonID: seasonPtr, EarnedAt: earnedAt, Value: &v, Meta: meta,
+		})
+	}
+	addSeasonMedal := func(pid, seasonID, seasonName string, def domain.MedalDef, value int64, earnedAt string) {
+		if value < def.Thresholds[0] {
+			return
+		}
+		v := value
+		sid := seasonID
+		medals = append(medals, achievementRow{
+			PlayerID: pid, Key: domain.SeasonMedalKey(seasonID, def.ID), Kind: string(def.Kind),
+			SeasonID: &sid, EarnedAt: earnedAt, Value: &v, Meta: map[string]string{"season": seasonName},
+		})
 	}
 
-	// ── Keluarga 5 & Tier: milestone rating + breakthrough, per season ────
+	// ── Medali career yang sifatnya kumulatif / max dari data season ──────
 	for pid, entries := range ordered {
+		if len(entries) == 0 {
+			continue
+		}
 		sticky := playerTiers[pid]
 		stickyRank := domain.RankTier(sticky)
 		var (
-			cumGames, cumWins int64
-			reachedRating     = map[int64]bool{}
-			reachedTier       = map[int]bool{}
-			established       bool
+			gamesCk, winsCk, ratingCk []checkpoint
+			games, wins               int64
+			peakMax                   float64
+			rdMin                     float64
+			reachedTier               = map[int]bool{}
 		)
 		for _, e := range entries {
-			cumGames += e.games
-			cumWins += e.wins
-			sid := e.seasonID
-			var seasonPtr *string
-			if sid != "" {
-				seasonPtr = &sid
+			games += e.games
+			wins += e.wins
+			if e.peak > peakMax {
+				peakMax = e.peak
 			}
-			// volume: game & menang
-			for _, th := range domain.GamesThresholds {
-				if cumGames >= th {
-					addUnlock(achievementRow{PlayerID: pid, Key: domain.GamesKey(th), Kind: string(domain.AchVolume),
-						SeasonID: seasonPtr, EarnedAt: e.endDate, Meta: map[string]string{"count": fmt.Sprint(th)}})
-				}
+			if e.rd > 0 && (rdMin == 0 || e.rd < rdMin) {
+				rdMin = e.rd
 			}
-			for _, th := range domain.WinsThresholds {
-				if cumWins >= th {
-					addUnlock(achievementRow{PlayerID: pid, Key: domain.WinsKey(th), Kind: string(domain.AchVolume),
-						SeasonID: seasonPtr, EarnedAt: e.endDate, Meta: map[string]string{"count": fmt.Sprint(th)}})
-				}
+			if e.games > 0 || e.wins > 0 || e.peak > 0 {
+				gamesCk = append(gamesCk, checkpoint{value: games, date: e.endDate})
+				winsCk = append(winsCk, checkpoint{value: wins, date: e.endDate})
+				ratingCk = append(ratingCk, checkpoint{value: int64(peakMax), date: e.endDate})
 			}
-			// rating milestone (basis peak)
-			for _, th := range domain.RatingThresholds {
-				if e.peak >= float64(th) && !reachedRating[th] {
-					reachedRating[th] = true
-					addUnlock(achievementRow{PlayerID: pid, Key: domain.RatingKey(th), Kind: string(domain.AchRating),
-						SeasonID: seasonPtr, EarnedAt: e.endDate, Meta: map[string]string{"rating": fmt.Sprint(th)}})
-				}
-			}
-			// established (RD < 50)
-			if !established && e.rd > 0 && e.rd < domain.EstablishedRD {
-				established = true
-				addUnlock(achievementRow{PlayerID: pid, Key: domain.EstablishedKey, Kind: string(domain.AchRank),
-					SeasonID: seasonPtr, EarnedAt: e.endDate})
-			}
-			// breakthrough tier: setiap ambang di atas sticky
 			if stickyRank >= 0 {
 				peakRank := domain.RankTier(cfg.TierForRating(e.peak))
 				for t := stickyRank + 1; t < len(domain.TierOrder); t++ {
 					if peakRank >= t && !reachedTier[t] {
 						reachedTier[t] = true
 						tier := domain.TierOrder[t]
-						addUnlock(achievementRow{PlayerID: pid, Key: domain.TierKey(tier), Kind: string(domain.AchTier),
+						var seasonPtr *string
+						if e.seasonID != "" {
+							seasonPtr = &e.seasonID
+						}
+						addCollectible(achievementRow{PlayerID: pid, Key: domain.TierKey(tier), Kind: string(domain.AchTier),
 							SeasonID: seasonPtr, EarnedAt: e.endDate, Meta: map[string]string{"tier": tier}})
 					}
 				}
 			}
-			// season member
-			if e.games > 0 && sid != "" {
-				addUnlock(achievementRow{PlayerID: pid, Key: domain.SeasonMemberKey(sid), Kind: string(domain.AchSeason),
-					SeasonID: seasonPtr, EarnedAt: e.endDate, Meta: map[string]string{"season": seasonByID[sid].Name}})
+			if e.games > 0 && e.seasonID != "" {
+				sid := e.seasonID
+				addCollectible(achievementRow{PlayerID: pid, Key: domain.SeasonMemberKey(sid), Kind: string(domain.AchSeason),
+					SeasonID: &sid, EarnedAt: e.endDate, Meta: map[string]string{"season": seasonByID[sid].Name}})
 			}
 		}
-		// win rate karier
-		if len(entries) > 0 && cumGames >= domain.WinRateMinGames && cumWins*100 >= domain.WinRatePct*cumGames {
-			last := entries[len(entries)-1]
-			var seasonPtr *string
-			if last.seasonID != "" {
-				seasonPtr = &last.seasonID
-			}
-			addUnlock(achievementRow{PlayerID: pid, Key: domain.WinRateKey, Kind: string(domain.AchVolume),
-				SeasonID: seasonPtr, EarnedAt: last.endDate,
-				Meta: map[string]string{"pct": fmt.Sprint(domain.WinRatePct), "min": fmt.Sprint(domain.WinRateMinGames)}})
+		addMedal(pid, mustMedal("games"), games, lastSeasonID(entries), firstDateAt(gamesCk, mustMedal("games").Thresholds[0], today), nil)
+		addMedal(pid, mustMedal("wins"), wins, lastSeasonID(entries), firstDateAt(winsCk, mustMedal("wins").Thresholds[0], today), nil)
+		addMedal(pid, mustMedal("rating"), int64(peakMax), "", firstDateAt(ratingCk, mustMedal("rating").Thresholds[0], today), nil)
+		if rdMin > 0 && rdMin < domain.EstablishedRD {
+			addCollectible(achievementRow{PlayerID: pid, Key: domain.EstablishedKey, Kind: string(domain.AchRank), EarnedAt: today})
+		}
+		if games >= domain.EfficientMin && wins*100 >= int64(domain.EfficientPct)*games {
+			addCollectible(achievementRow{PlayerID: pid, Key: domain.EfficientKey, Kind: string(domain.AchVolume),
+				EarnedAt: today, Meta: map[string]string{"pct": fmt.Sprint(domain.EfficientPct), "min": fmt.Sprint(domain.EfficientMin)}})
 		}
 	}
 
-	// ── Keluarga 1: kehadiran (first, count, streak, full attendance) ──────
-	if err := s.backfillAttendance(ctx, sessions, sessionIdx, seasons, addUnlock, addRecord); err != nil {
+	// ── Kehadiran: sessions + streak (career & per season) ────────────────
+	if err := s.backfillAttendance(ctx, sessions, sessionIdx, seasonSessions, seasonByID, addMedal, addSeasonMedal, addCollectible); err != nil {
 		return BackfillResult{}, err
 	}
 
-	// ── Keluarga 4: turnamen (partisipasi, count, juara, podium) ───────────
-	if err := s.backfillTournaments(ctx, addUnlock); err != nil {
+	// ── Sosial + rekor (partner, lawan, margin, partner terbaik) ──────────
+	if err := s.backfillSocialRecords(ctx, addMedal, addCollectible); err != nil {
 		return BackfillResult{}, err
 	}
 
-	// ── Keluarga 6: sosial (partner & lawan berbeda) ───────────────────────
-	if err := s.backfillSocial(ctx, addUnlock); err != nil {
+	// ── Turnamen (partisipasi, juara, podium, medal count) ────────────────
+	if err := s.backfillTournaments(ctx, addMedal, addCollectible); err != nil {
 		return BackfillResult{}, err
 	}
 
-	// ── Rekor: margin, partner terbaik, streak sesi ─────────────────────────
-	if err := s.backfillRecords(ctx, addRecord); err != nil {
+	// ── Rank akhir season (juara/podium collectible) ──────────────────────
+	if err := s.backfillSeasonRank(ctx, addCollectible); err != nil {
 		return BackfillResult{}, err
 	}
 
-	// ── Keluarga 5 lanjutan: juara/podium season (rank dari snapshot) ──────
-	if err := s.backfillSeasonRank(ctx, addUnlock); err != nil {
-		return BackfillResult{}, err
-	}
-
-	unlocked, err := s.insertAchievements(ctx, unlocks, false)
+	medCount, err := s.insertAchievements(ctx, medals, true)
 	if err != nil {
 		return BackfillResult{}, err
 	}
-	recs, err := s.insertAchievements(ctx, records, true)
+	colCount, err := s.insertAchievements(ctx, collectibles, false)
 	if err != nil {
 		return BackfillResult{}, err
 	}
-	return BackfillResult{Unlocked: unlocked, Records: recs}, nil
+	return BackfillResult{Medals: medCount, Collectibles: colCount}, nil
+}
+
+func firstDateAt(cks []checkpoint, threshold int64, fallback string) string {
+	for _, c := range cks {
+		if c.value >= threshold {
+			return c.date
+		}
+	}
+	return fallback
+}
+
+func lastSeasonID(entries []seasonEntry) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	return entries[len(entries)-1].seasonID
+}
+
+func mustMedal(id string) domain.MedalDef {
+	d, _ := domain.MedalByID(id)
+	return d
+}
+
+func mustSeasonMedal(id string) domain.MedalDef {
+	d, _ := domain.SeasonMedalByID(id)
+	return d
 }
 
 // ── Loader helpers ────────────────────────────────────────────────────────
@@ -439,15 +488,34 @@ func (s *SessionStore) loadCurrentRatings(ctx context.Context) (map[string]curre
 	return out, rows.Err()
 }
 
-// ── Keluarga 1: kehadiran ─────────────────────────────────────────────────
+func (s *SessionStore) loadPlayerTiers(ctx context.Context) (map[string]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id::text, COALESCE(tier, '') FROM `+s.schema+`.players`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var pid, tier string
+		if err := rows.Scan(&pid, &tier); err != nil {
+			return nil, err
+		}
+		out[pid] = tier
+	}
+	return out, rows.Err()
+}
+
+// ── Kehadiran ─────────────────────────────────────────────────────────────
 
 func (s *SessionStore) backfillAttendance(
 	ctx context.Context,
 	sessions []sessionInfo,
 	sessionIdx map[string]int,
-	seasons []seasonInfo,
-	add func(achievementRow),
-	addRecord func(achievementRow),
+	seasonSessions map[string][]sessionInfo,
+	seasonByID map[string]seasonInfo,
+	addMedal func(string, domain.MedalDef, int64, string, string, map[string]string),
+	addSeasonMedal func(string, string, string, domain.MedalDef, int64, string),
+	addCollectible func(achievementRow),
 ) error {
 	rows, err := s.pool.Query(ctx, `
 		SELECT sp.player_id::text, s.id::text, s.session_date::text, sp.is_absent
@@ -479,114 +547,204 @@ func (s *SessionStore) backfillAttendance(
 		return err
 	}
 
-	// Sesi per season (untuk hadir penuh).
-	seasonSessions := map[string][]sessionInfo{}
-	for _, sess := range sessions {
-		if sid, ok := seasonForDate(seasons, sess.Date); ok {
-			seasonSessions[sid] = append(seasonSessions[sid], sess)
-		}
-	}
-
+	today := todayDate()
 	for pid, list := range byPlayer {
 		attended := map[string]bool{}
-		seenList := map[string]bool{}
-		ordered := make([]att, 0, len(list))
+		seen := map[string]bool{}
 		for _, a := range list {
-			if seenList[a.sessionID] {
+			if seen[a.sessionID] {
 				continue
 			}
-			seenList[a.sessionID] = true
-			ordered = append(ordered, a)
+			seen[a.sessionID] = true
 			if !a.absent {
 				attended[a.sessionID] = true
 			}
 		}
-		sort.Slice(ordered, func(i, j int) bool { return sessionIdx[ordered[i].sessionID] < sessionIdx[ordered[j].sessionID] })
 
-		// first + count
-		var attendedOrdered []att
-		for _, a := range ordered {
-			if a.absent {
-				continue
-			}
-			attendedOrdered = append(attendedOrdered, a)
-		}
-		if len(attendedOrdered) > 0 {
-			add(achievementRow{PlayerID: pid, Key: domain.FirstSessionKey, Kind: string(domain.AchAttendance),
-				EarnedAt: attendedOrdered[0].date})
-		}
-		for i, a := range attendedOrdered {
-			n := int64(i + 1)
-			for _, th := range domain.SessionCountThresholds {
-				if n == th {
-					add(achievementRow{PlayerID: pid, Key: domain.SessionCountKey(th), Kind: string(domain.AchAttendance),
-						EarnedAt: a.date, Meta: map[string]string{"count": fmt.Sprint(th)}})
-				}
-			}
-		}
-
-		// streak atas sesi global (bolong = putus)
-		run, maxRun := 0, 0
-		var maxRunDate string
-		hit := map[int64]bool{}
+		// career sessions + streak
+		var sessionCk, streakCk []checkpoint
+		count := int64(0)
+		run, runMax := int64(0), int64(0)
 		for _, sess := range sessions {
 			if attended[sess.ID] {
+				count++
 				run++
+				sessionCk = append(sessionCk, checkpoint{value: count, date: sess.Date})
 			} else {
 				run = 0
 			}
-			if run > maxRun {
-				maxRun = run
-				maxRunDate = sess.Date
+			if run > runMax {
+				runMax = run
 			}
-			for _, th := range domain.StreakThresholds {
-				if int64(run) >= th && !hit[th] {
-					hit[th] = true
-					add(achievementRow{PlayerID: pid, Key: domain.StreakKey(th), Kind: string(domain.AchAttendance),
-						EarnedAt: sess.Date, Meta: map[string]string{"count": fmt.Sprint(th)}})
-				}
-			}
+			streakCk = append(streakCk, checkpoint{value: run, date: sess.Date})
 		}
-		if maxRun > 0 {
-			addRecord(achievementRow{PlayerID: pid, Key: domain.RecordStreak, Kind: string(domain.AchAttendance),
-				EarnedAt: maxRunDate, Value: i64(maxRun), Meta: map[string]string{"count": fmt.Sprint(maxRun)}})
-		}
+		sessionDef := mustMedal("sessions")
+		addMedal(pid, sessionDef, count, "", firstDateAt(sessionCk, sessionDef.Thresholds[0], today), nil)
+		streakDef := mustMedal("streak")
+		addMedal(pid, streakDef, runMax, "", firstDateAt(streakCk, streakDef.Thresholds[0], today), nil)
 
-		// hadir penuh per season
+		// season sessions + streak
 		for sid, sSessions := range seasonSessions {
 			if len(sSessions) == 0 {
 				continue
 			}
-			all := true
-			anyAttended := false
-			lastDate := sSessions[len(sSessions)-1].Date
+			var sCount, sRun, sRunMax int64
+			var sCk, sStreakCk []checkpoint
 			for _, sess := range sSessions {
-				if !attended[sess.ID] {
-					all = false
-					break
+				if attended[sess.ID] {
+					sCount++
+					sRun++
+					sCk = append(sCk, checkpoint{value: sCount, date: sess.Date})
+				} else {
+					sRun = 0
 				}
-				anyAttended = true
-			}
-			if all && anyAttended {
-				seasonID := sid
-				name := ""
-				for _, si := range seasons {
-					if si.ID == sid {
-						name = si.Name
-					}
+				if sRun > sRunMax {
+					sRunMax = sRun
 				}
-				add(achievementRow{PlayerID: pid, Key: "full_attendance:" + sid, Kind: string(domain.AchAttendance),
-					SeasonID: &seasonID, EarnedAt: lastDate, Meta: map[string]string{"season": name}})
+				sStreakCk = append(sStreakCk, checkpoint{value: sRun, date: sess.Date})
 			}
+			name := seasonByID[sid].Name
+			end := sSessions[len(sSessions)-1].Date
+			sessDef := mustSeasonMedal("sessions")
+			addSeasonMedal(pid, sid, name, sessDef, sCount, firstDateAt(sCk, sessDef.Thresholds[0], end))
+			skDef := mustSeasonMedal("streak")
+			addSeasonMedal(pid, sid, name, skDef, sRunMax, firstDateAt(sStreakCk, skDef.Thresholds[0], end))
 		}
 	}
 	return nil
 }
 
-// ── Keluarga 4: turnamen ──────────────────────────────────────────────────
+// ── Sosial + rekor ────────────────────────────────────────────────────────
 
-func (s *SessionStore) backfillTournaments(ctx context.Context, add func(achievementRow)) error {
-	// partisipasi
+func (s *SessionStore) backfillSocialRecords(
+	ctx context.Context,
+	addMedal func(string, domain.MedalDef, int64, string, string, map[string]string),
+	addCollectible func(achievementRow),
+) error {
+	today := todayDate()
+	// partner & lawan berbeda
+	for _, spec := range []struct {
+		joinCond string
+		medalID  string
+	}{{
+		joinCond: "tl.team = sgp.team AND tl.session_player_internal_id <> sp.internal_id",
+		medalID:  "partners",
+	}, {
+		joinCond: "tl.team <> sgp.team",
+		medalID:  "opponents",
+	}} {
+		rows, err := s.pool.Query(ctx, `
+			SELECT sp.player_id::text, count(DISTINCT tsp.player_id)::int
+			FROM `+s.schema+`.session_players sp
+			JOIN `+s.schema+`.scheduled_game_players sgp ON sgp.session_player_internal_id = sp.internal_id
+			JOIN `+s.schema+`.scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id AND sg.session_id = sp.session_id
+			JOIN `+s.schema+`.scheduled_game_players tl ON tl.scheduled_game_internal_id = sg.internal_id AND `+spec.joinCond+`
+			JOIN `+s.schema+`.session_players tsp ON tsp.internal_id = tl.session_player_internal_id
+			WHERE sp.player_id IS NOT NULL AND tsp.player_id IS NOT NULL AND sp.is_absent = false
+			  AND sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL
+			GROUP BY 1`)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var pid string
+			var n int64
+			if err := rows.Scan(&pid, &n); err != nil {
+				rows.Close()
+				return err
+			}
+			addMedal(pid, mustMedal(spec.medalID), n, "", today, nil)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	}
+
+	// margin + skor sempurna
+	rows, err := s.pool.Query(ctx, `
+		SELECT sp.player_id::text,
+		       max(CASE WHEN ((sgp.team = 'A' AND sg.score_a > sg.score_b) OR (sgp.team = 'B' AND sg.score_b > sg.score_a))
+		                THEN abs(sg.score_a - sg.score_b) ELSE 0 END)::int,
+		       COALESCE(bool_or((sgp.team = 'A' AND sg.score_a = 30 AND sg.score_b = 0)
+		                     OR (sgp.team = 'B' AND sg.score_b = 30 AND sg.score_a = 0)), false)
+		FROM `+s.schema+`.session_players sp
+		JOIN `+s.schema+`.scheduled_game_players sgp ON sgp.session_player_internal_id = sp.internal_id
+		JOIN `+s.schema+`.scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id AND sg.session_id = sp.session_id
+		WHERE sp.player_id IS NOT NULL AND sp.is_absent = false
+		  AND sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL
+		GROUP BY 1`)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var (
+			pid     string
+			margin  int64
+			perfect bool
+		)
+		if err := rows.Scan(&pid, &margin, &perfect); err != nil {
+			rows.Close()
+			return err
+		}
+		if margin > 0 {
+			addMedal(pid, mustMedal("margin"), margin, "", today, nil)
+		}
+		if perfect {
+			addCollectible(achievementRow{PlayerID: pid, Key: domain.PerfectKey, Kind: string(domain.AchVolume), EarnedAt: today, Value: i64(1)})
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	// partner terbaik
+	pRows, err := s.pool.Query(ctx, `
+		SELECT sp.player_id::text, count(*)::int
+		FROM `+s.schema+`.session_players sp
+		JOIN `+s.schema+`.scheduled_game_players sgp ON sgp.session_player_internal_id = sp.internal_id
+		JOIN `+s.schema+`.scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id AND sg.session_id = sp.session_id
+		JOIN `+s.schema+`.scheduled_game_players tl ON tl.scheduled_game_internal_id = sg.internal_id
+			AND tl.team = sgp.team AND tl.session_player_internal_id <> sp.internal_id
+		JOIN `+s.schema+`.session_players tsp ON tsp.internal_id = tl.session_player_internal_id
+		WHERE sp.player_id IS NOT NULL AND tsp.player_id IS NOT NULL AND sp.is_absent = false
+		  AND sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL
+		GROUP BY 1,2`)
+	if err != nil {
+		return err
+	}
+	best := map[string]int64{}
+	for pRows.Next() {
+		var (
+			pid, partner string
+			n            int64
+		)
+		if err := pRows.Scan(&pid, &partner, &n); err != nil {
+			pRows.Close()
+			return err
+		}
+		if n > best[pid] {
+			best[pid] = n
+		}
+	}
+	pRows.Close()
+	if err := pRows.Err(); err != nil {
+		return err
+	}
+	for pid, n := range best {
+		addMedal(pid, mustMedal("top_partner"), n, "", today, nil)
+	}
+	return nil
+}
+
+// ── Turnamen ──────────────────────────────────────────────────────────────
+
+func (s *SessionStore) backfillTournaments(
+	ctx context.Context,
+	addMedal func(string, domain.MedalDef, int64, string, string, map[string]string),
+	addCollectible func(achievementRow),
+) error {
 	rows, err := s.pool.Query(ctx, `
 		SELECT tpp.player_id::text, t.id::text, t.name, t.event_date::text
 		FROM `+s.schema+`.tournament_pair_players tpp
@@ -621,6 +779,7 @@ func (s *SessionStore) backfillTournaments(ctx context.Context, add func(achieve
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	medalDef := mustMedal("tournaments")
 	for pid, list := range byPlayer {
 		uniq := map[string]part{}
 		for _, p := range list {
@@ -631,23 +790,35 @@ func (s *SessionStore) backfillTournaments(ctx context.Context, add func(achieve
 			ordered = append(ordered, p)
 		}
 		sort.Slice(ordered, func(i, j int) bool { return ordered[i].date < ordered[j].date })
-		for _, p := range ordered {
-			add(achievementRow{PlayerID: pid, Key: domain.TournamentKey(p.tid), Kind: string(domain.AchTournament),
-				EarnedAt: p.date, Meta: map[string]string{"name": p.name}})
-		}
 		for i, p := range ordered {
-			n := int64(i + 1)
-			for _, th := range domain.TournamentThresholds {
-				if n == th {
-					add(achievementRow{PlayerID: pid, Key: domain.TournamentCountKey(th), Kind: string(domain.AchTournament),
-						EarnedAt: p.date, Meta: map[string]string{"count": fmt.Sprint(th)}})
-				}
+			addCollectible(achievementRow{PlayerID: pid, Key: domain.TournamentKey(p.tid), Kind: string(domain.AchTournament),
+				EarnedAt: p.date, Meta: map[string]string{"name": p.name}})
+			if int64(i+1) == medalDef.Thresholds[0] {
+				addMedal(pid, medalDef, int64(len(ordered)), "", p.date, nil)
 			}
+		}
+		if int64(len(ordered)) >= medalDef.Thresholds[0] {
+			addMedal(pid, medalDef, int64(len(ordered)), "", ordered[0].date, nil)
 		}
 	}
 
-	// juara/podium classic
-	cRows, err := s.pool.Query(ctx, `
+	// juara/podium classic + team
+	pairPlayers, err := s.loadPairPlayers(ctx)
+	if err != nil {
+		return err
+	}
+	teamPlayers, err := s.loadTeamPlayers(ctx)
+	if err != nil {
+		return err
+	}
+	if err := s.appendClassicFinals(ctx, addCollectible, pairPlayers); err != nil {
+		return err
+	}
+	return s.appendTeamFinals(ctx, addCollectible, teamPlayers)
+}
+
+func (s *SessionStore) appendClassicFinals(ctx context.Context, add func(achievementRow), pairPlayers map[string][]string) error {
+	rows, err := s.pool.Query(ctx, `
 		SELECT tm.tournament_id::text, t.name, t.event_date::text, tm.phase,
 		       tm.pair_a_id::text, tm.pair_b_id::text, tm.score_a, tm.score_b
 		FROM `+s.schema+`.tournament_matches tm
@@ -657,55 +828,39 @@ func (s *SessionStore) backfillTournaments(ctx context.Context, add func(achieve
 	if err != nil {
 		return err
 	}
-	type finalInfo struct {
-		tid, name, date string
-		winPair         string
-		kind            string // champion | podium
-	}
-	finals := []finalInfo{}
-	for cRows.Next() {
+	defer rows.Close()
+	for rows.Next() {
 		var (
 			tid, name, date, phase, pa, pb string
 			sa, sb                         int
 		)
-		if err := cRows.Scan(&tid, &name, &date, &phase, &pa, &pb, &sa, &sb); err != nil {
-			cRows.Close()
+		if err := rows.Scan(&tid, &name, &date, &phase, &pa, &pb, &sa, &sb); err != nil {
 			return err
 		}
 		winner, loser := pa, pb
 		if sb > sa {
 			winner, loser = pb, pa
 		}
-		if phase == "final" {
-			finals = append(finals,
-				finalInfo{tid: tid, name: name, date: date, winPair: winner, kind: "champion"},
-				finalInfo{tid: tid, name: name, date: date, winPair: loser, kind: "podium"})
-		} else {
-			finals = append(finals, finalInfo{tid: tid, name: name, date: date, winPair: winner, kind: "podium"})
+		winnerKey, loserKey := domain.ChampionKey(tid), domain.PodiumKey(tid)
+		if phase == "3rd" {
+			winnerKey = domain.PodiumKey(tid)
 		}
-	}
-	cRows.Close()
-	if err := cRows.Err(); err != nil {
-		return err
-	}
-	pairPlayers, err := s.loadPairPlayers(ctx)
-	if err != nil {
-		return err
-	}
-	for _, f := range finals {
-		for _, pid := range pairPlayers[f.winPair] {
-			if f.kind == "champion" {
-				add(achievementRow{PlayerID: pid, Key: domain.ChampionKey(f.tid), Kind: string(domain.AchTournament),
-					EarnedAt: f.date, Meta: map[string]string{"name": f.name}})
-			} else {
-				add(achievementRow{PlayerID: pid, Key: domain.PodiumKey(f.tid), Kind: string(domain.AchTournament),
-					EarnedAt: f.date, Meta: map[string]string{"name": f.name}})
+		for _, pid := range pairPlayers[winner] {
+			add(achievementRow{PlayerID: pid, Key: winnerKey, Kind: string(domain.AchTournament),
+				EarnedAt: date, Meta: map[string]string{"name": name}})
+		}
+		if phase == "final" {
+			for _, pid := range pairPlayers[loser] {
+				add(achievementRow{PlayerID: pid, Key: loserKey, Kind: string(domain.AchTournament),
+					EarnedAt: date, Meta: map[string]string{"name": name}})
 			}
 		}
 	}
+	return rows.Err()
+}
 
-	// juara/podium team
-	tRows, err := s.pool.Query(ctx, `
+func (s *SessionStore) appendTeamFinals(ctx context.Context, add func(achievementRow), teamPlayers map[string][]string) error {
+	rows, err := s.pool.Query(ctx, `
 		SELECT tm.tournament_id::text, t.name, t.event_date::text,
 		       tm.team_a_id::text, tm.team_b_id::text,
 		       COALESCE(sum(CASE WHEN g.score_a > g.score_b THEN 1 ELSE 0 END), 0)::int,
@@ -718,18 +873,13 @@ func (s *SessionStore) backfillTournaments(ctx context.Context, add func(achieve
 	if err != nil {
 		return err
 	}
-	teamPlayers, err := s.loadTeamPlayers(ctx)
-	if err != nil {
-		tRows.Close()
-		return err
-	}
-	for tRows.Next() {
+	defer rows.Close()
+	for rows.Next() {
 		var (
 			tid, name, date, ta, tb string
 			wa, wb                  int
 		)
-		if err := tRows.Scan(&tid, &name, &date, &ta, &tb, &wa, &wb); err != nil {
-			tRows.Close()
+		if err := rows.Scan(&tid, &name, &date, &ta, &tb, &wa, &wb); err != nil {
 			return err
 		}
 		if wb > wa {
@@ -744,8 +894,7 @@ func (s *SessionStore) backfillTournaments(ctx context.Context, add func(achieve
 				EarnedAt: date, Meta: map[string]string{"name": name}})
 		}
 	}
-	tRows.Close()
-	return tRows.Err()
+	return rows.Err()
 }
 
 func (s *SessionStore) loadPairPlayers(ctx context.Context) (map[string][]string, error) {
@@ -786,157 +935,7 @@ func (s *SessionStore) loadTeamPlayers(ctx context.Context) (map[string][]string
 	return out, rows.Err()
 }
 
-// ── Keluarga 6: sosial ────────────────────────────────────────────────────
-
-func (s *SessionStore) backfillSocial(ctx context.Context, add func(achievementRow)) error {
-	today := todayDate()
-	for _, spec := range []struct {
-		table      string
-		joinCond   string
-		thresholds []int64
-		keyFn      func(int64) string
-	}{{
-		table: "a", joinCond: "tl.team = sgp.team AND tl.session_player_internal_id <> sp.internal_id",
-		thresholds: domain.PartnerThresholds, keyFn: domain.PartnersKey,
-	}, {
-		table: "b", joinCond: "tl.team <> sgp.team",
-		thresholds: domain.OpponentThresholds, keyFn: domain.OpponentsKey,
-	}} {
-		rows, err := s.pool.Query(ctx, `
-			SELECT sp.player_id::text, count(DISTINCT tsp.player_id)::int
-			FROM `+s.schema+`.session_players sp
-			JOIN `+s.schema+`.scheduled_game_players sgp ON sgp.session_player_internal_id = sp.internal_id
-			JOIN `+s.schema+`.scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id AND sg.session_id = sp.session_id
-			JOIN `+s.schema+`.scheduled_game_players tl ON tl.scheduled_game_internal_id = sg.internal_id AND `+spec.joinCond+`
-			JOIN `+s.schema+`.session_players tsp ON tsp.internal_id = tl.session_player_internal_id
-			WHERE sp.player_id IS NOT NULL AND tsp.player_id IS NOT NULL AND sp.is_absent = false
-			  AND sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL
-			GROUP BY 1`)
-		if err != nil {
-			return err
-		}
-		for rows.Next() {
-			var pid string
-			var n int64
-			if err := rows.Scan(&pid, &n); err != nil {
-				rows.Close()
-				return err
-			}
-			kind := string(domain.AchSocial)
-			if spec.table == "b" {
-				kind = string(domain.AchOpponent)
-			}
-			for _, th := range spec.thresholds {
-				if n >= th {
-					add(achievementRow{PlayerID: pid, Key: spec.keyFn(th), Kind: kind,
-						EarnedAt: today, Meta: map[string]string{"count": fmt.Sprint(th)}})
-				}
-			}
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ── Rekor ─────────────────────────────────────────────────────────────────
-
-func (s *SessionStore) backfillRecords(ctx context.Context, addRecord func(achievementRow)) error {
-	// margin + skor sempurna
-	rows, err := s.pool.Query(ctx, `
-		SELECT sp.player_id::text,
-		       max(CASE WHEN ((sgp.team = 'A' AND sg.score_a > sg.score_b) OR (sgp.team = 'B' AND sg.score_b > sg.score_a))
-		                THEN abs(sg.score_a - sg.score_b) ELSE 0 END)::int,
-		       COALESCE(bool_or((sgp.team = 'A' AND sg.score_a = 30 AND sg.score_b = 0)
-		                     OR (sgp.team = 'B' AND sg.score_b = 30 AND sg.score_a = 0)), false)
-		FROM `+s.schema+`.session_players sp
-		JOIN `+s.schema+`.scheduled_game_players sgp ON sgp.session_player_internal_id = sp.internal_id
-		JOIN `+s.schema+`.scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id AND sg.session_id = sp.session_id
-		WHERE sp.player_id IS NOT NULL AND sp.is_absent = false
-		  AND sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL
-		GROUP BY 1`)
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var (
-			pid     string
-			margin  int64
-			perfect bool
-		)
-		if err := rows.Scan(&pid, &margin, &perfect); err != nil {
-			rows.Close()
-			return err
-		}
-		if margin > 0 {
-			addRecord(achievementRow{PlayerID: pid, Key: domain.RecordMargin, Kind: string(domain.AchVolume),
-				EarnedAt: todayDate(), Value: i64(int(margin)), Meta: map[string]string{"margin": fmt.Sprint(margin)}})
-		}
-		if perfect {
-			addRecord(achievementRow{PlayerID: pid, Key: domain.PerfectKey, Kind: string(domain.AchVolume),
-				EarnedAt: todayDate(), Value: i64(1)})
-		}
-		if margin >= domain.MarginThreshold {
-			addRecord(achievementRow{PlayerID: pid, Key: domain.MarginKey, Kind: string(domain.AchVolume),
-				EarnedAt: todayDate(), Value: i64(int(margin)), Meta: map[string]string{"margin": fmt.Sprint(margin)}})
-		}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-
-	// partner terbaik
-	pRows, err := s.pool.Query(ctx, `
-		SELECT sp.player_id::text, partner.canonical_name, count(*)::int
-		FROM `+s.schema+`.session_players sp
-		JOIN `+s.schema+`.scheduled_game_players sgp ON sgp.session_player_internal_id = sp.internal_id
-		JOIN `+s.schema+`.scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id AND sg.session_id = sp.session_id
-		JOIN `+s.schema+`.scheduled_game_players tl ON tl.scheduled_game_internal_id = sg.internal_id
-			AND tl.team = sgp.team AND tl.session_player_internal_id <> sp.internal_id
-		JOIN `+s.schema+`.session_players tsp ON tsp.internal_id = tl.session_player_internal_id
-		JOIN `+s.schema+`.players partner ON partner.id = tsp.player_id
-		WHERE sp.player_id IS NOT NULL AND tsp.player_id IS NOT NULL AND sp.is_absent = false
-		  AND sg.score_a IS NOT NULL AND sg.score_b IS NOT NULL
-		GROUP BY 1,2`)
-	if err != nil {
-		return err
-	}
-	best := map[string]struct {
-		name  string
-		count int64
-	}{}
-	for pRows.Next() {
-		var (
-			pid, partner string
-			n            int64
-		)
-		if err := pRows.Scan(&pid, &partner, &n); err != nil {
-			pRows.Close()
-			return err
-		}
-		if cur, ok := best[pid]; !ok || n > cur.count {
-			best[pid] = struct {
-				name  string
-				count int64
-			}{name: partner, count: n}
-		}
-	}
-	pRows.Close()
-	if err := pRows.Err(); err != nil {
-		return err
-	}
-	for pid, b := range best {
-		addRecord(achievementRow{PlayerID: pid, Key: domain.RecordTopPartner, Kind: string(domain.AchSocial),
-			EarnedAt: todayDate(), Value: i64(int(b.count)),
-			Meta: map[string]string{"partner": b.name, "games": fmt.Sprint(b.count)}})
-	}
-	return nil
-}
-
-// ── Keluarga 5 lanjutan: juara/podium season ──────────────────────────────
+// ── Rank akhir season ─────────────────────────────────────────────────────
 
 func (s *SessionStore) backfillSeasonRank(ctx context.Context, add func(achievementRow)) error {
 	rows, err := s.pool.Query(ctx, `
@@ -949,10 +948,7 @@ func (s *SessionStore) backfillSeasonRank(ctx context.Context, add func(achievem
 	}
 	defer rows.Close()
 	type sr struct {
-		pid    string
-		season string
-		name   string
-		end    string
+		pid, name, end string
 	}
 	bySeason := map[string][]sr{}
 	meta := map[string]seasonInfo{}
@@ -1002,25 +998,6 @@ func seasonForDate(seasons []seasonInfo, date string) (string, bool) {
 
 func todayDate() string {
 	return time.Now().Format("2006-01-02")
-}
-
-// loadPlayerTiers — sticky tier semua pemain (players.tier), termasuk yang
-// tidak punya baris rating_players musim berjalan.
-func (s *SessionStore) loadPlayerTiers(ctx context.Context) (map[string]string, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id::text, COALESCE(tier, '') FROM `+s.schema+`.players`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := map[string]string{}
-	for rows.Next() {
-		var pid, tier string
-		if err := rows.Scan(&pid, &tier); err != nil {
-			return nil, err
-		}
-		out[pid] = tier
-	}
-	return out, rows.Err()
 }
 
 func i64(n int) *int64 {

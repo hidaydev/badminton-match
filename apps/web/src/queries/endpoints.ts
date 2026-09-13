@@ -576,6 +576,9 @@ export interface AchievementRow {
   title: string
   detail: string
   value?: number
+  tierLevel?: number
+  tierName?: string
+  nextTarget?: number
   seasonId?: string
   season?: string
   earnedAt: string

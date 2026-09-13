@@ -2,18 +2,22 @@ package domain
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
-// Katalog achievement (slice A: achievement Kelas A yang bisa di-backfill dari
-// data yang masih ada). Definisi judul/ambang tinggal di kode; tabel hanya
-// menyimpan fakta unlock supaya ganti copy tidak perlu migration.
+// Katalog achievement dengan model medal bertingkat (adopsi konsep Ingress):
+// satu medal punya tangga 5 tingkat Bronze..Onyx, dan yang disimpan hanya
+// statistiknya (`value`). Tingkat dihitung dari katalog saat dibaca, jadi tidak
+// perlu baris terpisah per ambang.
 //
-// Aturan key:
-//   - ambang/per-event/per-season → achievement_key unik + ON CONFLICT DO NOTHING
-//   - rekor (value bisa naik) → ON CONFLICT DO UPDATE bila value lebih besar
-//     (earned_at tetap tanggal pertama)
+// Dua bentuk achievement:
+//   - medal  → key `medal:<id>` / `season_medal:<seasonID>:<id>`, punya value,
+//     tingkat diturunkan; nilai naik (upsert), earned_at tetap.
+//   - collectible → key spesifik (turnamen, season, breakthrough, one-off),
+//     tidak bertingkat, sekali dapat.
+//
+// Catatan istilah: "tier" di app ini berarti kelas skill (D..A+). Tingkat medal
+// disebut "Bronze..Onyx" dan di UI memakai kata "medal"/"pangkat".
 
 type AchievementKind string
 
@@ -29,60 +33,71 @@ const (
 	AchSeason     AchievementKind = "season"
 )
 
-// TierOrder — urutan 8-band dari terendah ke tertinggi (dipakai ordinal tier).
-var TierOrder = []string{"D", "D+", "C", "C+", "B", "B+", "A", "A+"}
+// MedalTiers — nama tingkat dari terendah ke tertinggi (level 1..5).
+var MedalTiers = []string{"Bronze", "Silver", "Gold", "Platinum", "Onyx"}
 
-// RankTier — indeks 0..7 sebuah tier; -1 kalau tidak dikenal.
-func RankTier(tier string) int {
-	for i, t := range TierOrder {
-		if t == tier {
-			return i
-		}
-	}
-	return -1
+// MedalDef — definisi satu medal bertingkat.
+type MedalDef struct {
+	ID         string // 'sessions', 'games', ...
+	Kind       AchievementKind
+	Title      string
+	Unit       string // satuan tampilan: 'sesi', 'game', 'menang', ...
+	Thresholds [5]int64
 }
 
-// Ambang achievement (diurut naik).
-var (
-	SessionCountThresholds = []int64{10, 25, 50, 100}
-	StreakThresholds       = []int64{5, 10, 25}
-	GamesThresholds        = []int64{10, 50, 100, 250}
-	WinsThresholds         = []int64{10, 50, 100, 250}
-	RatingThresholds       = []int64{2000, 2100, 2200, 2400}
-	TournamentThresholds   = []int64{1, 5, 10}
-	PartnerThresholds      = []int64{10, 25, 50}
-	OpponentThresholds     = []int64{25, 50}
+// CareerMedals — medal seumur hidup.
+var CareerMedals = []MedalDef{
+	{ID: "sessions", Kind: AchAttendance, Title: "Attendance", Unit: "sessions", Thresholds: [5]int64{1, 10, 25, 50, 100}},
+	{ID: "streak", Kind: AchAttendance, Title: "Streak", Unit: "sessions", Thresholds: [5]int64{5, 10, 25, 50, 100}},
+	{ID: "games", Kind: AchVolume, Title: "Games", Unit: "games", Thresholds: [5]int64{10, 30, 75, 150, 300}},
+	{ID: "wins", Kind: AchVolume, Title: "Wins", Unit: "wins", Thresholds: [5]int64{5, 25, 60, 120, 250}},
+	{ID: "partners", Kind: AchSocial, Title: "Partners", Unit: "partners", Thresholds: [5]int64{5, 15, 30, 60, 100}},
+	{ID: "opponents", Kind: AchOpponent, Title: "Opponents", Unit: "opponents", Thresholds: [5]int64{10, 25, 50, 100, 200}},
+	{ID: "rating", Kind: AchRating, Title: "Peak Rating", Unit: "rating", Thresholds: [5]int64{2000, 2100, 2200, 2300, 2400}},
+	{ID: "tournaments", Kind: AchTournament, Title: "Tournaments", Unit: "tournaments", Thresholds: [5]int64{1, 3, 8, 15, 30}},
+	{ID: "margin", Kind: AchVolume, Title: "Margin", Unit: "points", Thresholds: [5]int64{5, 10, 15, 20, 25}},
+	{ID: "top_partner", Kind: AchSocial, Title: "Top Partner", Unit: "games", Thresholds: [5]int64{5, 10, 20, 30, 50}},
+}
+
+// SeasonMedals — medal yang dihitung per season (key memuat season id).
+var SeasonMedals = []MedalDef{
+	{ID: "sessions", Kind: AchSeason, Title: "Season Attendance", Unit: "sessions", Thresholds: [5]int64{1, 5, 10, 15, 20}},
+	{ID: "games", Kind: AchSeason, Title: "Season Games", Unit: "games", Thresholds: [5]int64{5, 15, 30, 50, 70}},
+	{ID: "wins", Kind: AchSeason, Title: "Season Wins", Unit: "wins", Thresholds: [5]int64{2, 5, 10, 20, 30}},
+	{ID: "streak", Kind: AchSeason, Title: "Season Streak", Unit: "sessions", Thresholds: [5]int64{3, 5, 8, 12, 16}},
+}
+
+// StatID — penghubung ke perhitungan di store (stat yang dibaca).
+const (
+	StatSessions   = "sessions"
+	StatStreak     = "streak"
+	StatGames      = "games"
+	StatWins       = "wins"
+	StatPartners   = "partners"
+	StatOpponents  = "opponents"
+	StatRating     = "rating"
+	StatTournament = "tournaments"
+	StatMargin     = "margin"
+	StatTopPartner = "top_partner"
 )
 
+// Collectible key + ambang one-off.
 const (
-	WinRatePct        = 60 // ambang win rate (persen)
-	WinRateMinGames   = 20 // minimum game agar win rate dianggap valid
-	MarginThreshold   = 20 // selisih poin untuk achievement "Dominan"
-	EstablishedRD     = 50 // RD di bawah ini dianggap mapan
-	PerfectScoreSelf  = 30 // skor menang sempurna
-	PerfectScoreOther = 0
-	FirstSessionKey   = "session:first"
-	WinRateKey        = "winrate:60:20"
-	EstablishedKey    = "established"
-	PerfectKey        = "perfect:30-0"
-	MarginKey         = "margin:20"
-	RecordMargin      = "record:margin"
-	RecordTopPartner  = "record:top_partner"
-	RecordStreak      = "record:session_streak"
+	EfficientKey   = "efficient"
+	EfficientPct   = 60
+	EfficientMin   = 20
+	PerfectKey     = "perfect:30-0"
+	EstablishedKey = "established"
+	EstablishedRD  = 50
 )
 
 // ── Key builders ──────────────────────────────────────────────────────────
 
-func SessionCountKey(n int64) string { return "session_count:" + strconv.FormatInt(n, 10) }
-func StreakKey(n int64) string       { return "streak:" + strconv.FormatInt(n, 10) }
-func GamesKey(n int64) string        { return "games:" + strconv.FormatInt(n, 10) }
-func WinsKey(n int64) string         { return "wins:" + strconv.FormatInt(n, 10) }
-func RatingKey(n int64) string       { return "rating:" + strconv.FormatInt(n, 10) }
-func TournamentCountKey(n int64) string {
-	return "tournament_count:" + strconv.FormatInt(n, 10)
+func MedalKey(id string) string { return "medal:" + id }
+
+func SeasonMedalKey(seasonID, id string) string {
+	return "season_medal:" + seasonID + ":" + id
 }
-func PartnersKey(n int64) string  { return "partners:" + strconv.FormatInt(n, 10) }
-func OpponentsKey(n int64) string { return "opponents:" + strconv.FormatInt(n, 10) }
 
 func TierKey(tier string) string       { return "tier:" + tier }
 func TournamentKey(id string) string   { return "tournament:" + id }
@@ -94,121 +109,135 @@ func SeasonChampionKey(id string) string {
 }
 func SeasonPodiumKey(id string) string { return "season_podium:" + id }
 
-// ── Judul tampilan ────────────────────────────────────────────────────────
+// ── Tier helpers ──────────────────────────────────────────────────────────
 
-var sessionCountTitles = map[int64]string{10: "Rajin", 25: "Setia", 50: "Veteran", 100: "Legenda"}
-var streakTitles = map[int64]string{5: "Konsisten", 10: "Tanpa Putus", 25: "Tak Terhentikan"}
-var gamesTitles = map[int64]string{10: "Pemanasan", 50: "Rutin Main", 100: "Seratus Game", 250: "Mesin Lapangan"}
-var winsTitles = map[int64]string{10: "Sepuluh Menang", 50: "Kolektor Menang", 100: "Sultan Menang", 250: "Tak Terbendung"}
-var tournamentCountTitles = map[int64]string{1: "Kompetitor", 5: "Langganan Turnamen", 10: "Veteran Turnamen"}
-var partnerTitles = map[int64]string{10: "Konektor", 25: "Jaringan Luas", 50: "Sosialita"}
-var opponentTitles = map[int64]string{25: "Teruji", 50: "Veteran Laga"}
-
-func atoiMeta(meta map[string]string, key string) int64 {
-	n, _ := strconv.ParseInt(meta[key], 10, 64)
-	return n
+// TierForValue — level 1..5 untuk sebuah medal; 0 kalau belum mencapai Bronze.
+func TierForValue(def MedalDef, v int64) int {
+	level := 0
+	for i, th := range def.Thresholds {
+		if v >= th {
+			level = i + 1
+		}
+	}
+	return level
 }
 
-// DescribeAchievement — judul + detail untuk ditampilkan. `value` dipakai
-// achievement rekor (angka terbaru), `meta` menyimpan label snapshot
-// (nama turnamen, season, tier, dst).
-func DescribeAchievement(kind string, key string, value *int64, meta map[string]string) (title, detail string) {
+// TierName — "Bronze".."Onyx"; string kosong kalau level 0.
+func TierName(level int) string {
+	if level < 1 || level > len(MedalTiers) {
+		return ""
+	}
+	return MedalTiers[level-1]
+}
+
+// NextTarget — ambang tingkat berikutnya; ok=false kalau sudah Onyx.
+func NextTarget(def MedalDef, level int) (int64, bool) {
+	if level >= len(def.Thresholds) {
+		return 0, false
+	}
+	return def.Thresholds[level], true
+}
+
+// MedalByID — cari definisi medal career.
+func MedalByID(id string) (MedalDef, bool) {
+	for _, d := range CareerMedals {
+		if d.ID == id {
+			return d, true
+		}
+	}
+	return MedalDef{}, false
+}
+
+// SeasonMedalByID — cari definisi medal season.
+func SeasonMedalByID(id string) (MedalDef, bool) {
+	for _, d := range SeasonMedals {
+		if d.ID == id {
+			return d, true
+		}
+	}
+	return MedalDef{}, false
+}
+
+// ── Ambang collectible ────────────────────────────────────────────────────
+
+// TierOrder — urutan 8 band skill (dipakai breakthrough tier).
+var TierOrder = []string{"D", "D+", "C", "C+", "B", "B+", "A", "A+"}
+
+// RankTier — indeks 0..7 sebuah skill tier; -1 kalau tidak dikenal.
+func RankTier(tier string) int {
+	for i, t := range TierOrder {
+		if t == tier {
+			return i
+		}
+	}
+	return -1
+}
+
+// ── Judul collectible ─────────────────────────────────────────────────────
+
+// DescribeCollectible — judul + detail untuk achievement non-medal.
+func DescribeCollectible(kind, key string, meta map[string]string) (title, detail string) {
 	if meta == nil {
 		meta = map[string]string{}
 	}
 	switch AchievementKind(kind) {
-	case AchAttendance:
-		switch {
-		case key == FirstSessionKey:
-			return "Debut", "Sesi pertama"
-		case strings.HasPrefix(key, "session_count:"):
-			n := atoiMeta(meta, "count")
-			return lookup(sessionCountTitles, n), fmt.Sprintf("%d sesi diikuti", n)
-		case strings.HasPrefix(key, "streak:"):
-			n := atoiMeta(meta, "count")
-			return lookup(streakTitles, n), fmt.Sprintf("%d sesi berturut", n)
-		case strings.HasPrefix(key, "full_attendance:"):
-			return "Hadir Penuh", meta["season"]
-		}
-	case AchVolume:
-		switch {
-		case strings.HasPrefix(key, "games:"):
-			n := atoiMeta(meta, "count")
-			return lookup(gamesTitles, n), fmt.Sprintf("%d game", n)
-		case strings.HasPrefix(key, "wins:"):
-			n := atoiMeta(meta, "count")
-			return lookup(winsTitles, n), fmt.Sprintf("%d kemenangan", n)
-		case key == WinRateKey:
-			return "Efisien", fmt.Sprintf("Win rate %s%% dari %s game", meta["pct"], meta["min"])
-		case key == PerfectKey:
-			return "Sempurna", "Menang 30-0"
-		case key == MarginKey:
-			return "Dominan", "Menang selisih 20+ poin"
-		}
 	case AchTier:
-		return "Naik ke " + meta["tier"], "Breakthrough dari tier sticky"
-	case AchRating:
-		return "Klub " + meta["rating"], "Peak rating"
+		return "Reached " + meta["tier"], "Broke through the sticky tier"
 	case AchTournament:
 		switch {
 		case strings.HasPrefix(key, "tournament_count:"):
-			n := atoiMeta(meta, "count")
-			return lookup(tournamentCountTitles, n), fmt.Sprintf("%d turnamen", n)
+			return "Tournament Collector", meta["count"] + " tournaments"
 		case strings.HasPrefix(key, "champion:"):
-			return "Juara " + meta["name"], "Juara turnamen"
+			return "Champion · " + meta["name"], "Won the tournament"
 		case strings.HasPrefix(key, "podium:"):
-			return "Podium " + meta["name"], "Runner-up / juara 3"
+			return "Podium · " + meta["name"], "Runner-up / third place"
 		case strings.HasPrefix(key, "tournament:"):
-			return meta["name"], "Ikut turnamen"
-		}
-	case AchSocial:
-		switch {
-		case strings.HasPrefix(key, "partners:"):
-			n := atoiMeta(meta, "count")
-			return lookup(partnerTitles, n), fmt.Sprintf("%d partner berbeda", n)
-		case strings.HasPrefix(key, "opponents:"):
-			n := atoiMeta(meta, "count")
-			return lookup(opponentTitles, n), fmt.Sprintf("%d lawan berbeda", n)
-		}
-	case AchOpponent:
-		if strings.HasPrefix(key, "opponents:") {
-			n := atoiMeta(meta, "count")
-			return lookup(opponentTitles, n), fmt.Sprintf("%d lawan berbeda", n)
+			return meta["name"], "Played in the tournament"
 		}
 	case AchSeason:
 		switch {
 		case strings.HasPrefix(key, "season_champion:"):
-			return "Juara " + meta["season"], "Peringkat 1 akhir season"
+			return "Season Champion · " + meta["season"], "Finished 1st"
 		case strings.HasPrefix(key, "season_podium:"):
-			return "Podium " + meta["season"], "Peringkat 1-3 akhir season"
+			return "Season Podium · " + meta["season"], "Finished in the top 3"
 		case strings.HasPrefix(key, "season_member:"):
-			return "Anak " + meta["season"], "Main di season ini"
+			return "Member · " + meta["season"], "Played this season"
 		}
 	case AchRank:
 		if key == EstablishedKey {
-			return "Mapan", "RD di bawah 50"
+			return "Established", "RD under 50"
 		}
-	}
-	if value != nil && (key == RecordMargin || key == RecordTopPartner || key == RecordStreak) {
+	case AchVolume:
 		switch key {
-		case RecordMargin:
-			if meta["opponent"] == "" {
-				return "Margin Terbesar", fmt.Sprintf("%s poin", meta["margin"])
-			}
-			return "Margin Terbesar", fmt.Sprintf("%s poin vs %s", meta["margin"], meta["opponent"])
-		case RecordTopPartner:
-			return "Partner Terbaik", fmt.Sprintf("%s game dengan %s", meta["games"], meta["partner"])
-		case RecordStreak:
-			return "Streak Terpanjang", fmt.Sprintf("%s sesi berturut", meta["count"])
+		case EfficientKey:
+			return "Efficient", fmt.Sprintf("Win rate %s%% over %s games", meta["pct"], meta["min"])
+		case PerfectKey:
+			return "Perfect", "Won 30-0"
 		}
 	}
 	return key, ""
 }
 
-// titles — ambil nilai peta; fallback ke angka supaya tidak kosong.
-func lookup(m map[int64]string, n int64) string {
-	if v, ok := m[n]; ok {
-		return v
+// TitleForMedal — judul sebuah medal (dipakai read path).
+func TitleForMedal(key string) (title, unit, seasonID string, levelDef MedalDef, ok bool) {
+	if strings.HasPrefix(key, "medal:") {
+		def, found := MedalByID(strings.TrimPrefix(key, "medal:"))
+		if !found {
+			return "", "", "", MedalDef{}, false
+		}
+		return def.Title, def.Unit, "", def, true
 	}
-	return fmt.Sprintf("%d", n)
+	if strings.HasPrefix(key, "season_medal:") {
+		rest := strings.TrimPrefix(key, "season_medal:")
+		parts := strings.SplitN(rest, ":", 2)
+		if len(parts) != 2 {
+			return "", "", "", MedalDef{}, false
+		}
+		def, found := SeasonMedalByID(parts[1])
+		if !found {
+			return "", "", "", MedalDef{}, false
+		}
+		return def.Title, def.Unit, parts[0], def, true
+	}
+	return "", "", "", MedalDef{}, false
 }
