@@ -7,63 +7,88 @@ import AchievementBadge from '../components/ratings/AchievementBadge'
 import type { RatingTier } from '../config/ratingTiers'
 
 const TIERS: RatingTier[] = ['D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+']
+const MEDAL_TIERS = [1, 2, 3, 4, 5]
+const MEDAL_NAMES = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Onyx']
+const EVENT_SEEDS = ['majadu-open', 'internal-cup', 'season-2026-1', 'city-league', 'club-night', 'ramadan-cup']
 
 export default function AchievementBadgesPreviewPage() {
   return (
     <div className="flex flex-col gap-5">
       <div className="bg-surface border border-border-subtle rounded-lg px-4 py-3">
-        <h2 className="text-sm font-bold text-fg">Preview template badge</h2>
+        <h2 className="text-sm font-bold text-fg">Achievement badge preview</h2>
         <p className="text-[11px] text-fg-dim mt-1 leading-relaxed">
-          Isi di halaman ini contoh, bukan data asli. Dua jenis achievement: keikutsertaan turnamen
-          (glyph shuttlecock) dan breakthrough tier. Badge tier memakai pips dan warna tepi yang
-          menguat dari bronze ke gold sesuai tingkat.
+          Everything here is sample content, not real data. Medals ramp Bronze..Onyx with five pips.
+          Event and season badges get a unique silhouette, tone, and monogram derived from their id.
+          Skill-tier breakthroughs keep the eight-step ramp.
         </p>
       </div>
 
       <section className="flex flex-col gap-3">
-        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Ikut turnamen</p>
-        <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-6 flex-wrap">
-          <AchievementBadge kind="tournament" title="Turnamen Contoh" detail="Contoh, 2026" />
-          <AchievementBadge kind="tournament" title="Turnamen Contoh 2" detail="Belum terbuka" state="locked" />
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Breakthrough tier, semua tingkat</p>
+        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Medal tiers</p>
         <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-4 flex-wrap">
-          {TIERS.map((t) => (
-            <AchievementBadge key={t} kind="tier" tier={t} title={`Naik ke ${t}`} detail="Contoh" />
+          {MEDAL_TIERS.map((level, i) => (
+            <AchievementBadge
+              key={level}
+              kind="volume"
+              tierLevel={level}
+              title={`${MEDAL_NAMES[i]} Games`}
+              showDetail
+              detail={`${level * 30} games`}
+            />
           ))}
         </div>
       </section>
 
       <section className="flex flex-col gap-3">
-        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Terkunci</p>
-        <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-6 flex-wrap">
-          <AchievementBadge kind="tier" tier="A+" title="Naik ke A+" detail="Belum terbuka" state="locked" />
-          <AchievementBadge kind="tournament" title="Turnamen Contoh 3" detail="Belum terbuka" state="locked" />
+        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Unique event / season badges</p>
+        <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-4 flex-wrap">
+          {EVENT_SEEDS.map((seed) => (
+            <AchievementBadge
+              key={seed}
+              kind="season"
+              seed={seed}
+              monogram={seed.slice(0, 2).toUpperCase()}
+              title={seed}
+              showDetail
+              detail="collectible"
+            />
+          ))}
         </div>
       </section>
 
       <section className="flex flex-col gap-3">
-        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Semua jenis achievement</p>
+        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Skill-tier breakthrough</p>
+        <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-4 flex-wrap">
+          {TIERS.map((t) => (
+            <AchievementBadge key={t} kind="tier" tier={t} title={`Reached ${t}`} showDetail detail="sample" />
+          ))}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">All kinds & locked state</p>
         <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-5 flex-wrap">
-          <AchievementBadge kind="tournament" title="Turnamen" detail="shuttlecock" />
-          <AchievementBadge kind="attendance" title="Kehadiran" detail="check" />
-          <AchievementBadge kind="volume" title="Volume" detail="bar naik" />
-          <AchievementBadge kind="social" title="Partner" detail="dua orang" />
-          <AchievementBadge kind="opponent" title="Lawan" detail="chevron hadap" />
-          <AchievementBadge kind="season" title="Season" detail="kalender" />
-          <AchievementBadge kind="tier" tier="B+" title="Naik ke B+" detail="chevron + pips" />
+          <AchievementBadge kind="tournament" title="Tournaments" showDetail detail="shuttlecock" />
+          <AchievementBadge kind="attendance" title="Attendance" showDetail detail="check" />
+          <AchievementBadge kind="volume" title="Games" showDetail detail="bars" />
+          <AchievementBadge kind="social" title="Partners" showDetail detail="two people" />
+          <AchievementBadge kind="opponent" title="Opponents" showDetail detail="chevrons" />
+          <AchievementBadge kind="season" title="Season" showDetail detail="calendar" />
+          <AchievementBadge kind="tier" tier="B+" title="Reached B+" showDetail detail="chevron + pips" />
+          <AchievementBadge kind="tier" tier="A+" title="Reached A+" showDetail detail="locked" state="locked" />
+          <AchievementBadge kind="volume" tierLevel={3} title="Gold Wins" showDetail detail="locked" state="locked" />
         </div>
       </section>
 
       <section className="flex flex-col gap-3">
-        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Ukuran kecil (rak koleksi)</p>
+        <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Small size (collection shelf)</p>
         <div className="bg-surface border border-border-subtle rounded-lg px-4 py-4 flex items-start gap-5 flex-wrap">
-          <AchievementBadge kind="tournament" title="Turnamen Contoh" size="sm" />
-          {TIERS.slice(2).map((t) => (
-            <AchievementBadge key={t} kind="tier" tier={t} title={`Naik ke ${t}`} size="sm" />
+          <AchievementBadge kind="tournament" title="Tournaments" size="sm" />
+          {EVENT_SEEDS.slice(0, 3).map((seed) => (
+            <AchievementBadge key={seed} kind="season" seed={seed} monogram={seed.slice(0, 2).toUpperCase()} title={seed} size="sm" />
+          ))}
+          {MEDAL_TIERS.map((level, i) => (
+            <AchievementBadge key={level} kind="volume" tierLevel={level} title={MEDAL_NAMES[i]} size="sm" />
           ))}
         </div>
       </section>

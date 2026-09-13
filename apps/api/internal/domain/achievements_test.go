@@ -11,51 +11,86 @@ func TestRankTier(t *testing.T) {
 	}
 }
 
-func TestAchievementKeys(t *testing.T) {
-	if got := SessionCountKey(25); got != "session_count:25" {
-		t.Fatalf("SessionCountKey = %q", got)
+func TestMedalKeys(t *testing.T) {
+	if got := MedalKey("games"); got != "medal:games" {
+		t.Fatalf("MedalKey = %q", got)
+	}
+	if got := SeasonMedalKey("s1", "wins"); got != "season_medal:s1:wins" {
+		t.Fatalf("SeasonMedalKey = %q", got)
 	}
 	if got := TierKey("B+"); got != "tier:B+" {
 		t.Fatalf("TierKey = %q", got)
 	}
-	if got := TournamentKey("abc"); got != "tournament:abc" {
-		t.Fatalf("TournamentKey = %q", got)
+}
+
+func TestMedalTier(t *testing.T) {
+	def, ok := MedalByID("games")
+	if !ok {
+		t.Fatal("medal games tidak ada")
 	}
-	if got := SeasonMemberKey("s1"); got != "season_member:s1" {
-		t.Fatalf("SeasonMemberKey = %q", got)
+	// Thresholds: 10/30/75/150/300
+	cases := []struct {
+		value int64
+		level int
+		name  string
+	}{
+		{0, 0, ""},
+		{9, 0, ""},
+		{10, 1, "Bronze"},
+		{29, 1, "Bronze"},
+		{30, 2, "Silver"},
+		{75, 3, "Gold"},
+		{150, 4, "Platinum"},
+		{300, 5, "Onyx"},
+		{9999, 5, "Onyx"},
+	}
+	for _, tc := range cases {
+		if got := TierForValue(def, tc.value); got != tc.level {
+			t.Fatalf("TierForValue(games, %d) = %d, want %d", tc.value, got, tc.level)
+		}
+		if got := TierName(tc.level); got != tc.name {
+			t.Fatalf("TierName(%d) = %q, want %q", tc.level, got, tc.name)
+		}
+	}
+	if next, ok := NextTarget(def, 1); !ok || next != 30 {
+		t.Fatalf("NextTarget(level 1) = %d,%v want 30,true", next, ok)
+	}
+	if _, ok := NextTarget(def, 5); ok {
+		t.Fatal("NextTarget(level 5) harus false (sudah Onyx)")
 	}
 }
 
-func TestDescribeAchievement(t *testing.T) {
+func TestTitleForMedal(t *testing.T) {
+	title, unit, season, def, ok := TitleForMedal("medal:top_partner")
+	if !ok || title != "Top Partner" || unit != "games" || season != "" || def.ID != "top_partner" {
+		t.Fatalf("TitleForMedal(medal) = %q %q %q %q %v", title, unit, season, def.ID, ok)
+	}
+	title, _, season, def, ok = TitleForMedal("season_medal:abc:wins")
+	if !ok || title != "Season Wins" || season != "abc" || def.ID != "wins" {
+		t.Fatalf("TitleForMedal(season) = %q %q %q %v", title, season, def.ID, ok)
+	}
+	if _, _, _, _, ok := TitleForMedal("champion:t1"); ok {
+		t.Fatal("collectible tidak boleh dianggap medal")
+	}
+}
+
+func TestDescribeCollectible(t *testing.T) {
 	cases := []struct {
 		kind, key string
-		value     *int64
 		meta      map[string]string
 		title     string
 	}{
-		{"attendance", FirstSessionKey, nil, nil, "Debut"},
-		{"attendance", SessionCountKey(25), nil, map[string]string{"count": "25"}, "Setia"},
-		{"attendance", StreakKey(5), nil, map[string]string{"count": "5"}, "Konsisten"},
-		{"volume", GamesKey(100), nil, map[string]string{"count": "100"}, "Seratus Game"},
-		{"volume", WinRateKey, nil, map[string]string{"pct": "60", "min": "20"}, "Efisien"},
-		{"tier", TierKey("B+"), nil, map[string]string{"tier": "B+"}, "Naik ke B+"},
-		{"rating", RatingKey(2100), nil, map[string]string{"rating": "2100"}, "Klub 2100"},
-		{"tournament", TournamentKey("t1"), nil, map[string]string{"name": "Majadu Open"}, "Majadu Open"},
-		{"tournament", ChampionKey("t1"), nil, map[string]string{"name": "Majadu Open"}, "Juara Majadu Open"},
-		{"opponent", OpponentsKey(25), nil, map[string]string{"count": "25"}, "Teruji"},
-		{"season", SeasonChampionKey("s1"), nil, map[string]string{"season": "Season 2026-1"}, "Juara Season 2026-1"},
-		{"rank", EstablishedKey, nil, nil, "Mapan"},
+		{"tier", TierKey("B+"), map[string]string{"tier": "B+"}, "Reached B+"},
+		{"tournament", TournamentKey("t1"), map[string]string{"name": "Majadu Open"}, "Majadu Open"},
+		{"tournament", ChampionKey("t1"), map[string]string{"name": "Majadu Open"}, "Champion · Majadu Open"},
+		{"season", SeasonChampionKey("s1"), map[string]string{"season": "Season 2026-1"}, "Season Champion · Season 2026-1"},
+		{"rank", EstablishedKey, nil, "Established"},
+		{"volume", EfficientKey, map[string]string{"pct": "60", "min": "20"}, "Efficient"},
 	}
 	for _, tc := range cases {
-		got, _ := DescribeAchievement(tc.kind, tc.key, tc.value, tc.meta)
+		got, _ := DescribeCollectible(tc.kind, tc.key, tc.meta)
 		if got != tc.title {
-			t.Fatalf("DescribeAchievement(%s, %s) title = %q, want %q", tc.kind, tc.key, got, tc.title)
+			t.Fatalf("DescribeCollectible(%s, %s) = %q, want %q", tc.kind, tc.key, got, tc.title)
 		}
-	}
-	// Rekor: meta tanpa lawan tidak boleh menyisakan "vs ".
-	v := int64(22)
-	_, detail := DescribeAchievement("volume", RecordMargin, &v, map[string]string{"margin": "22"})
-	if detail != "22 poin" {
-		t.Fatalf("record margin detail = %q, want %q", detail, "22 poin")
 	}
 }

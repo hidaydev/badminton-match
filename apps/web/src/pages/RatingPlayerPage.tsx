@@ -8,36 +8,14 @@ import { useGetPlayerStats } from '../queries'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import RatingSparkline from '../components/ratings/RatingSparkline'
 import CareerStats from '../components/ratings/CareerStats'
-import AchievementBadge, { type AchievementKind } from '../components/ratings/AchievementBadge'
-import { TIER_RANK, type RatingTier } from '../config/ratingTiers'
+import AchievementBadge from '../components/ratings/AchievementBadge'
+import AchievementDetailModal from '../components/ratings/AchievementDetailModal'
+import { asTier, badgeKind, monogram, seedFromKey } from '../utils/achievementBadge'
+import type { AchievementRow } from '../queries/endpoints'
 
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
 
 const MATCHES_PER_PAGE = 5
-
-// badgeKind — petakan `kind` dari API ke glyph badge.
-function badgeKind(kind: string): AchievementKind {
-  switch (kind) {
-    case 'tournament':
-      return 'tournament'
-    case 'season':
-      return 'season'
-    case 'attendance':
-      return 'attendance'
-    case 'volume':
-      return 'volume'
-    case 'social':
-      return 'social'
-    case 'opponent':
-      return 'opponent'
-    default:
-      return 'tier' // tier, rating, rank
-  }
-}
-
-function asTier(v: string | undefined): RatingTier | undefined {
-  return v && v in TIER_RANK ? (v as RatingTier) : undefined
-}
 
 export default function RatingPlayerPage() {
   const { playerId } = useParams<{ playerId: string }>()
@@ -45,6 +23,7 @@ export default function RatingPlayerPage() {
   const { data: stats } = useGetPlayerStats(data?.name ?? '')
   const { data: achievements, isLoading: achLoading, isError: achError } = useRatingPlayerAchievements(playerId)
   const [matchesPage, setMatchesPage] = useState(0)
+  const [selectedAchievement, setSelectedAchievement] = useState<AchievementRow | null>(null)
 
   if (isLoading) return <p className="text-fg-dim text-sm">Loading rating…</p>
   if (isError) return <p className="text-error text-sm">Failed to load rating.</p>
@@ -175,7 +154,7 @@ export default function RatingPlayerPage() {
         {achLoading && <p className="text-fg-dim text-xs font-sans text-center py-6">Loading achievements…</p>}
         {achError && <p className="text-error text-xs font-sans text-center py-6">Failed to load achievements.</p>}
         {!achLoading && !achError && (achievements?.length ?? 0) === 0 && (
-          <p className="text-fg-dim text-xs font-sans text-center py-6">Belum ada achievement. Main dulu, raknya nanti terisi.</p>
+          <p className="text-fg-dim text-xs font-sans text-center py-6">No achievements yet. Play a session and the shelf fills up.</p>
         )}
         {!achLoading && !achError && (achievements?.length ?? 0) > 0 && (
           <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-4 flex-wrap">
@@ -184,13 +163,18 @@ export default function RatingPlayerPage() {
                 key={a.key}
                 kind={badgeKind(a.kind)}
                 tier={a.kind === 'tier' ? asTier(a.meta?.tier) : undefined}
+                tierLevel={a.tierLevel}
+                seed={seedFromKey(a.key)}
+                monogram={monogram(a.meta?.name ?? a.title)}
                 title={a.title}
-                detail={a.detail || a.season || undefined}
+                onSelect={() => setSelectedAchievement(a)}
               />
             ))}
           </div>
         )}
       </div>
+
+      <AchievementDetailModal achievement={selectedAchievement} onClose={() => setSelectedAchievement(null)} />
     </div>
   )
 }
