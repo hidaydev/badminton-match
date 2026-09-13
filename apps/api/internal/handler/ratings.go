@@ -198,6 +198,28 @@ func (h *RatingsHandler) Player(w http.ResponseWriter, r *http.Request) {
 	httperr.WriteJSON(w, http.StatusOK, d)
 }
 
+// PlayerAchievements — GET /ratings/players/{playerId}/achievements → publik.
+func (h *RatingsHandler) PlayerAchievements(w http.ResponseWriter, r *http.Request) {
+	pid := r.PathValue("playerId")
+	rows, err := h.Store.PlayerAchievements(r.Context(), pid)
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch achievements", err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]any{"achievements": rows})
+}
+
+// BackfillAchievements — POST /ratings/achievements/backfill (admin) —
+// isi achievement Kelas A dari data historis. Idempoten.
+func (h *RatingsHandler) BackfillAchievements(w http.ResponseWriter, r *http.Request) {
+	res, err := h.Store.BackfillAchievements(r.Context())
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "achievement backfill failed", err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, res)
+}
+
 // Sources — GET /ratings/sources → publik.
 func (h *RatingsHandler) Sources(w http.ResponseWriter, r *http.Request) {
 	srcs, err := h.Store.ListRatingSources(r.Context())
