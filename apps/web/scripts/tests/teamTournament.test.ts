@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildTeamsByDraw,
   computeTeamStandings,
   generateTeamDraw,
   teamMatchOutcome,
@@ -127,4 +128,20 @@ test('teamMatchOutcome: complete & hasil 2-1', () => {
 test('teamMatchOutcome: belum lengkap (ada partai kosong)', () => {
   const m = mkMatch('y', 't1', 't2', [[30, 28], [], []])
   assert.equal(teamMatchOutcome(m).complete, false)
+})
+
+test('buildTeamsByDraw: roster ikut nama saat slot diundi', () => {
+  const names = ['RED RAPTORS', 'WHITE FURY', 'BLUE WAVES', 'PURPLE PHANTOMS', 'GREEN GROVE', 'PINK SPECTRE']
+  const teams: TeamInfo[] = names.map((name, i) => ({
+    id: `t${i + 1}`,
+    name,
+    players: [{ name: `p-${name}`, cls: 'A+' }],
+  }))
+  // Tukar named 0 (RED RAPTORS) dgn named 2 (BLUE WAVES): slot0=BLUE WAVES, slot2=RED RAPTORS.
+  const out = buildTeamsByDraw(teams, [2, 1, 0, 3, 4, 5])
+  assert.deepEqual(out.map((t) => t.id), ['t1', 't2', 't3', 't4', 't5', 't6'])
+  assert.equal(out[0].name, 'BLUE WAVES')
+  assert.equal(out[0].players[0].name, 'p-BLUE WAVES', 'roster harus ikut nama')
+  assert.equal(out[2].name, 'RED RAPTORS')
+  assert.equal(out[2].players[0].name, 'p-RED RAPTORS', 'roster harus ikut nama')
 })

@@ -32,11 +32,13 @@ export default function NewTournamentWizard() {
   return <ClassicWizard />
 }
 
-// ── Team wizard: identity → 36 pemain + kelas + tim → 6 tim → create ─────────
+// ── Team wizard: identity → roster (nama + tier + named-team) → create ───────
 
 const TEAM_CLASSES = ['A+', 'A', 'B+', 'B', 'C+', 'C'] as const
 type TeamClass = (typeof TEAM_CLASSES)[number]
 const TEAM_IDS = ['t1', 't2', 't3', 't4', 't5', 't6'] as const
+// Di wizard, index t1..t6 = index NAMED TEAM (urutan TEAM_NAMES). Slot final
+// (Tim 1..6) ditentukan manual saat undian hari-H di halaman turnamen.
 const TEAM_COUNT = 6
 
 type TeamId = typeof TEAM_IDS[number]
@@ -168,7 +170,7 @@ function TeamWizard() {
                 <input
                   value={p.name}
                   onChange={(e) => updatePlayer(i, { name: e.target.value })}
-                  placeholder={`Pemain Tim ${TEAM_IDS.indexOf(p.team) + 1} (${p.cls})`}
+                  placeholder={`${TEAM_NAMES[TEAM_IDS.indexOf(p.team)]} (${p.cls})`}
                   className="flex-1 bg-elevated border border-border rounded-md px-2 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none min-w-0"
                 />
                 <select
@@ -186,7 +188,7 @@ function TeamWizard() {
                   className="bg-elevated border border-border rounded-md px-2 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none shrink-0 w-24 sm:w-28 md:w-32 truncate cursor-pointer"
                 >
                   {TEAM_IDS.map((t, idx) => (
-                    <option key={t} value={t}>Tim {idx + 1}</option>
+                    <option key={t} value={t}>{TEAM_NAMES[idx]}</option>
                   ))}
                 </select>
               </div>
@@ -205,7 +207,7 @@ function TeamWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-fg-dim">Team rosters (1 player per class) · nama tim diundi hari-H</p>
+            <p className="text-xs text-fg-dim">Roster per tim (1 pemain per kelas) · slot (Tim 1..6) diundi hari-H</p>
             <button
               onClick={formTeams}
               className="text-xs px-3 py-1.5 rounded-md border border-border-subtle text-fg-dim hover:text-fg"
@@ -222,7 +224,7 @@ function TeamWizard() {
             {teams.map((t, i) => (
               <div key={t.id} className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-subtle">
-                  <span className="flex-1 text-sm font-semibold text-fg">Tim {i + 1}</span>
+                  <span className="flex-1 text-sm font-semibold text-fg">{TEAM_NAMES[i]}</span>
                   <span className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">
                     {t.players.length}/{TEAM_COUNT}
                   </span>

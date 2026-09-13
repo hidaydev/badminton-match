@@ -215,6 +215,22 @@ export function teamName(teams: { id: string; name: string }[], id: string | und
   return teams.find((t) => t.id === id)?.name ?? (id ?? '—')
 }
 
+/**
+ * Susun entri tim sesuai undian hari-H. `slotToNamed[slot] = index named team`
+ * (0..5 di TEAM_NAMES). Entri penuh dipindah (id slot + nama + roster), jadi
+ * roster selalu ikut nama ke mana pun tim ditempatkan.
+ */
+export function buildTeamsByDraw(teams: TeamInfo[], slotToNamed: number[]): TeamInfo[] {
+  const rosterByName = new Map(teams.map((t) => [t.name, t.players]))
+  const out: TeamInfo[] = []
+  for (let slot = 0; slot < slotToNamed.length; slot++) {
+    const name = TEAM_NAMES[slotToNamed[slot]]
+    if (name === undefined) continue
+    out.push({ id: `t${slot + 1}`, name, players: rosterByName.get(name) ?? [] })
+  }
+  return out
+}
+
 /** 6 nama tim kanonik (fixed) — kunci mapping logo. Wajib tepat sekali per turnamen. */
 export const TEAM_NAMES = [
   'RED RAPTORS',

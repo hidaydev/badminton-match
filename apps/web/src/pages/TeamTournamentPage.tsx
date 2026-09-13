@@ -11,6 +11,7 @@ import {
   teamTarget,
   teamName,
   teamLogoPath,
+  buildTeamsByDraw,
   DEFAULT_TEAM_COURTS,
   TEAM_NAMES,
   PARTAI_CLASSES,
@@ -26,6 +27,12 @@ import { loadOverlayImages } from '../utils/overlays'
 
 type Tab = 'klasemen' | 'jadwal' | 'final'
 
+/** Index named team (0..5) dari nama kanonik; fallback ke index slot. */
+const namedIdx = (name: string, fallback: number): number => {
+  const k = (TEAM_NAMES as readonly string[]).indexOf(name)
+  return k === -1 ? fallback : k
+}
+
 /** Halaman tournament format TIM: klasemen, undian, jadwal skor partai, final. */
 export default function TeamTournamentPage() {
   const { id = '' } = useParams()
@@ -37,8 +44,8 @@ export default function TeamTournamentPage() {
   const [localMatches, setLocalMatches] = useState<TeamMatch[] | null>(null)
   const [prevSnap, setPrevSnap] = useState<TeamTournamentSnapshot | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
-  // Nama tim per slot (t1..t6) untuk undian manual hari-H; null = belum diedit.
-  const [drawNames, setDrawNames] = useState<string[] | null>(null)
+  // Undian hari-H: index = slot, value = index named team (0..5). null = belum diedit.
+  const [slotToNamed, setSlotToNamed] = useState<number[] | null>(null)
   const [finalPhotos, setFinalPhotos] = useState<Record<string, HTMLImageElement>>({})
   const [overlays, setOverlays] = useState<Record<string, HTMLImageElement | undefined>>({})
   const finalFileInputRef = useRef<HTMLInputElement>(null)
@@ -68,7 +75,7 @@ export default function TeamTournamentPage() {
       courts: m.courts ?? [...DEFAULT_TEAM_COURTS],
       partai: m.partai.map((p) => ({ ...p })),
     })))
-    setDrawNames(snap.teams.map((t) => t.name))
+    setSlotToNamed(snap.teams.map((t, i) => namedIdx(t.name, i)))
   }
 
   const publish = useMutation({
@@ -119,8 +126,6 @@ export default function TeamTournamentPage() {
   }
   const groupComplete = groupMatches.length === 9 && groupMatches.every((m) => teamMatchOutcome(m).complete)
   const hasFinal = !!finalMatch
-  // Nama tim per slot (index = slot 0..5). Sumber untuk undian hari-H.
-  const slotNames = drawNames ?? teams.map((t) => t.name)
 
   // Final match result
   const finalOutcome = finalMatch ? teamMatchOutcome(finalMatch) : null
@@ -136,16 +141,16 @@ export default function TeamTournamentPage() {
     publish.mutate({ matches })
   }
 
-  // Undian manual: nama tim → dapat slot berapa (Tim 1..6). Karena keenam nama
-  // selalu terpakai, memilih slot yang sudah dipakai akan menukar (bijection).
-  const assignDrawSlot = (name: string, slotIdx: number) => {
-    setDrawNames((prev) => {
+  // Undian manual hari-H: named team → dapat slot berapa. Memilih slot yang
+  // sudah terpakai akan menukar (bijection 6 named team ↔ 6 slot).
+  const assignDrawSlot = (namedK: number, slotIdx: number) => {
+    setSlotToNamed((prev) => {
       if (!prev) return prev
-      const cur = prev.indexOf(name)
+      const cur = prev.indexOf(namedK)
       if (cur === -1 || cur === slotIdx) return prev
       const next = [...prev]
       next[cur] = next[slotIdx]
-      next[slotIdx] = name
+      next[slotIdx] = namedK
       return next
     })
   }
@@ -161,8 +166,10 @@ export default function TeamTournamentPage() {
       partai: [{ scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }],
       courts: [court, court, court],
     }))
-    // Simpan nama tim (hasil undian manual) sekaligus jadwalnya.
-    const namedTeams = teams.map((t, i) => ({ ...t, name: drawNames?.[i] ?? t.name }))
+    // Pindahkan ENTRI tim (id slot + nama + roster) sesuai undian, bukan cuma
+    // label — supaya roster ikut nama ke mana pun tim ditempatkan.
+    const perm = slotToNamed ?? teams.map((_, i) => i)
+    const namedTeams = buildTeamsByDraw(teams, perm)
     setLocalMatches(matches)
     publish.mutate({ matches, teams: namedTeams })
     setTab('jadwal')
@@ -339,14 +346,14 @@ export default function TeamTournamentPage() {
                 <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim uppercase tracking-wider">
                   Team Draw (match day)
                 </div>
-                {TEAM_NAMES.map((name) => {
-                  const slot = slotNames.indexOf(name)
+                {TEAM_NAMES.map((name, k) => {
+                  const slot = (slotToNamed ?? teams.map((_, i) => i)).indexOf(k)
                   return (
                     <div key={name} className="flex items-center gap-3 px-4 py-2 border-b border-border-subtle last:border-0">
                       <span className="flex-1 text-sm text-fg truncate">{name}</span>
                       <select
                         value={String(slot)}
-                        onChange={(e) => assignDrawSlot(name, Number(e.target.value))}
+                        onChange={(e) => assignDrawSlot(k, Number(e.target.value))}
                         className="w-28 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none cursor-pointer"
                         aria-label={`Slot untuk ${name}`}
                       >
