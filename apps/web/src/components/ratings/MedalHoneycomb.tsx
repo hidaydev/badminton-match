@@ -40,26 +40,32 @@ export default function MedalHoneycomb({ items, width = 64 }: MedalHoneycombProp
   }
 
   const height = Math.round(width * HEX_RATIO)
-  const staggered = perRow >= 2
+  // Semua baris dipaksa selebar perRow*width dan rata kiri, lalu baris ganjil
+  // diberi padding setengah lebar. Ini penting: kalau baris dipusatkan
+  // (items-center) baris terakhir yang tidak penuh akan tergeser sendiri dan
+  // bertabrakan dengan baris di atasnya — itu yang bikin overlap di mobile.
+  const gridWidth = perRow * width
 
   return (
     <div ref={ref} className="flex w-full flex-col items-center py-1">
-      {rows.map((row, ri) => (
-        <div
-          key={ri}
-          className="flex"
-          style={{
-            marginTop: ri === 0 ? 0 : -Math.round(height * 0.25),
-            transform: staggered && ri % 2 ? `translateX(${Math.round(width / 2)}px)` : undefined,
-          }}
-        >
-          {row.map((node, ci) => (
-            <div key={ci} style={{ width, height }}>
-              {node}
-            </div>
-          ))}
-        </div>
-      ))}
+      <div className="flex flex-col" style={{ width: gridWidth }}>
+        {rows.map((row, ri) => (
+          <div
+            key={ri}
+            className="flex"
+            style={{
+              marginTop: ri === 0 ? 0 : -Math.round(height * 0.25),
+              paddingLeft: ri % 2 && perRow >= 2 ? Math.round(width / 2) : 0,
+            }}
+          >
+            {row.map((node, ci) => (
+              <div key={ci} style={{ width, height, flex: 'none' }}>
+                {node}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
