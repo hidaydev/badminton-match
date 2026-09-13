@@ -80,10 +80,7 @@ export default function AchievementDetailModal({ achievement, onClose }: Achieve
                       state={achieved ? 'earned' : 'locked'}
                       width={40}
                     />
-                    <span className={`text-[9px] leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}>
-                      {MEDAL_TIER_NAMES[i]}
-                    </span>
-                    <span className={`text-[9px] leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}>{target}</span>
+                    <span className={`text-[10px] leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}>{target}</span>
                   </div>
                 )
               })}
