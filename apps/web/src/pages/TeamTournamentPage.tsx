@@ -119,6 +119,8 @@ export default function TeamTournamentPage() {
   }
   const groupComplete = groupMatches.length === 9 && groupMatches.every((m) => teamMatchOutcome(m).complete)
   const hasFinal = !!finalMatch
+  // Nama tim per slot (index = slot 0..5). Sumber untuk undian hari-H.
+  const slotNames = drawNames ?? teams.map((t) => t.name)
 
   // Final match result
   const finalOutcome = finalMatch ? teamMatchOutcome(finalMatch) : null
@@ -134,12 +136,17 @@ export default function TeamTournamentPage() {
     publish.mutate({ matches })
   }
 
-  // Tukar nama antar slot (keenam nama selalu terpakai, jadi tidak ada slot kosong).
-  const assignDrawName = (i: number, name: string) => {
+  // Undian manual: nama tim → dapat slot berapa (Tim 1..6). Karena keenam nama
+  // selalu terpakai, memilih slot yang sudah dipakai akan menukar (bijection).
+  const assignDrawSlot = (name: string, slotIdx: number) => {
     setDrawNames((prev) => {
       if (!prev) return prev
-      const cur = prev[i]
-      return prev.map((x, xi) => (xi === i ? name : x === name ? cur : x))
+      const cur = prev.indexOf(name)
+      if (cur === -1 || cur === slotIdx) return prev
+      const next = [...prev]
+      next[cur] = next[slotIdx]
+      next[slotIdx] = name
+      return next
     })
   }
 
@@ -332,21 +339,24 @@ export default function TeamTournamentPage() {
                 <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim uppercase tracking-wider">
                   Team Draw (match day)
                 </div>
-                {(drawNames ?? teams.map((t) => t.name)).map((name, i) => (
-                  <div key={teams[i]?.id ?? i} className="flex items-center gap-3 px-4 py-2 border-b border-border-subtle last:border-0">
-                    <span className="w-14 text-xs text-fg-dim shrink-0">Tim {i + 1}</span>
-                    <select
-                      value={name}
-                      onChange={(e) => assignDrawName(i, e.target.value)}
-                      className="flex-1 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none cursor-pointer"
-                      aria-label={`Nama tim untuk slot ${i + 1}`}
-                    >
-                      {TEAM_NAMES.map((n) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </select>
-                  </div>
-                ))}
+                {TEAM_NAMES.map((name) => {
+                  const slot = slotNames.indexOf(name)
+                  return (
+                    <div key={name} className="flex items-center gap-3 px-4 py-2 border-b border-border-subtle last:border-0">
+                      <span className="flex-1 text-sm text-fg truncate">{name}</span>
+                      <select
+                        value={String(slot)}
+                        onChange={(e) => assignDrawSlot(name, Number(e.target.value))}
+                        className="w-28 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none cursor-pointer"
+                        aria-label={`Slot untuk ${name}`}
+                      >
+                        {TEAM_NAMES.map((_, si) => (
+                          <option key={si} value={si}>Tim {si + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )
+                })}
                 <div className="p-3">
                   <button
                     onClick={handleUndian}
