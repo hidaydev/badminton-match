@@ -32,7 +32,7 @@ func buildTeamSnapIT() *domain.TeamTournamentSnapshot {
 		}
 		teams = append(teams, domain.TeamInfo{
 			ID:      fmt.Sprintf("t%d", i+1),
-			Name:    fmt.Sprintf("Tim %d", i+1),
+			Name:    domain.TeamNames[i],
 			Players: players,
 		})
 	}

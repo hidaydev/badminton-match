@@ -23,7 +23,7 @@ func buildTeamSnap() *TeamTournamentSnapshot {
 		for j, c := range classes {
 			players = append(players, tp(strings.ToUpper(string(rune('a'+i)))+string(rune('1'+j)), c))
 		}
-		teams = append(teams, ti("t"+string(rune('1'+i)), "Tim "+string(rune('1'+i)), players...))
+		teams = append(teams, ti("t"+string(rune('1'+i)), TeamNames[i], players...))
 	}
 	// jadwal 9 match: tiap tim 3×, tanpa ulangan
 	pairs := [][2]string{{"t1", "t2"}, {"t3", "t4"}, {"t5", "t6"}, {"t1", "t3"}, {"t2", "t5"}, {"t4", "t6"}, {"t1", "t4"}, {"t2", "t6"}, {"t3", "t5"}}
@@ -81,6 +81,8 @@ func TestValidateTeamRejects(t *testing.T) {
 		{"blank name", func(s *TeamTournamentSnapshot) { s.Name = "  " }, "name must not be blank"},
 		{"6 teams wajib", func(s *TeamTournamentSnapshot) { s.Teams = s.Teams[:5] }, "exactly 6 teams"},
 		{"team id unik", func(s *TeamTournamentSnapshot) { s.Teams[1].ID = s.Teams[0].ID }, "team ids must be unique"},
+		{"nama tim non-kanonik", func(s *TeamTournamentSnapshot) { s.Teams[0].Name = "Tim 1" }, "canonical"},
+		{"nama tim duplikat", func(s *TeamTournamentSnapshot) { s.Teams[1].Name = s.Teams[0].Name }, "team names must be unique"},
 		{"6 pemain per tim", func(s *TeamTournamentSnapshot) { s.Teams[0].Players = s.Teams[0].Players[:5] }, "exactly 6 players"},
 		{"kelas duplikat", func(s *TeamTournamentSnapshot) { s.Teams[0].Players[1].Cls = s.Teams[0].Players[0].Cls }, "each class exactly once"},
 		{"kelas invalid", func(s *TeamTournamentSnapshot) { s.Teams[0].Players[0].Cls = "X" }, "must be one of"},

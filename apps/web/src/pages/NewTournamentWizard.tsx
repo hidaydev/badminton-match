@@ -12,6 +12,7 @@ import {
   type TournamentPair,
   type GroupId,
 } from '../utils/tournament'
+import { TEAM_NAMES } from '../utils/teamTournament'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 const PAIR_COUNT = 16
@@ -56,7 +57,7 @@ function TeamWizard() {
   const [name, setName] = useState('')
   const [date, setDate] = useState(() => todayWIB())
   const [players, setPlayers] = useState(initialPlayers)
-  const [teamNames, setTeamNames] = useState(() => Array.from({ length: TEAM_COUNT }, (_, i) => `Tim ${i + 1}`))
+  const [teamNames, setTeamNames] = useState<string[]>(() => [...TEAM_NAMES])
   const [teams, setTeams] = useState<{ id: string; name: string; players: { name: string; cls: TeamClass }[] }[]>([])
 
   // enforce: semua nama terisi & 6 per kelas & 1 per tim per kelas
@@ -68,16 +69,41 @@ function TeamWizard() {
     TEAM_CLASSES.map((c) => players.filter((p) => p.team === t && p.cls === c).length)
   )
   const matrixBalanced = teamClassMatrix.every((row) => row.every((n) => n === 1))
+  // nama tim: tepat 6 nama kanonik, tanpa duplikat
+  const namesValid =
+    new Set(teams.map((t) => t.name)).size === TEAM_COUNT &&
+    teams.every((t) => (TEAM_NAMES as readonly string[]).includes(t.name))
 
   const updatePlayer = (i: number, patch: Partial<{ name: string; cls: TeamClass; team: typeof TEAM_IDS[number] }>) => {
     setPlayers((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
+  }
+
+  // Pilih nama tim untuk slot i. Bila nama sudah dipakai slot lain → tukar
+  // (tidak ada slot kosong karena keenam nama selalu terpakai).
+  const assignTeamName = (i: number, name: string) => {
+    setTeams((prev) => {
+      const cur = prev[i]?.name
+      return prev.map((x, xi) => {
+        if (xi === i) return { ...x, name }
+        if (x.name === name) return { ...x, name: cur }
+        return x
+      })
+    })
+    setTeamNames((prev) => {
+      const cur = prev[i]
+      return prev.map((x, xi) => {
+        if (xi === i) return name
+        if (x === name) return cur
+        return x
+      })
+    })
   }
 
   const formTeams = () => {
     //Susun tim dari data manual (bukan random)
     const next = Array.from({ length: TEAM_COUNT }, (_, i) => ({
       id: TEAM_IDS[i],
-      name: teamNames[i].trim() || `Tim ${i + 1}`,
+      name: teamNames[i] || TEAM_NAMES[i],
       players: [] as { name: string; cls: TeamClass }[],
     }))
     for (const p of players) {
@@ -92,11 +118,11 @@ function TeamWizard() {
       t.players.sort((a, b) => (classOrder[a.cls] ?? 0) - (classOrder[b.cls] ?? 0))
     }
     setTeams(next)
-    setTeamNames((prev) => next.map((_, i) => prev[i].trim() || `Tim ${i + 1}`))
+    setTeamNames((prev) => next.map((_, i) => prev[i] || TEAM_NAMES[i]))
   }
 
   const handleCreate = () => {
-    if (!name.trim() || teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT)) return
+    if (!name.trim() || teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT) || !namesValid) return
     create(
       {
         format: 'team',
@@ -221,13 +247,17 @@ function TeamWizard() {
             {teams.map((t, i) => (
               <div key={t.id} className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-subtle">
-                  <input
+                  <select
                     value={t.name}
-                    onChange={(e) =>
-                      setTeams((prev) => prev.map((x, xi) => (xi === i ? { ...x, name: e.target.value } : x)))
-                    }
-                    className="flex-1 bg-transparent text-sm font-semibold text-fg focus:outline-none"
-                  />
+                    onChange={(e) => assignTeamName(i, e.target.value)}
+                    className="flex-1 bg-transparent text-sm font-semibold text-fg focus:outline-none cursor-pointer"
+                  >
+                    {TEAM_NAMES.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
                   <span className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">
                     {t.players.length}/{TEAM_COUNT}
                   </span>
@@ -244,7 +274,7 @@ function TeamWizard() {
           </div>
           <button
             onClick={handleCreate}
-            disabled={teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT) || isPending}
+            disabled={teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT) || !namesValid || isPending}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isPending ? 'Creating…' : 'Create Tournament'}

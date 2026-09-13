@@ -7,9 +7,11 @@ import {
   computeTeamStandings,
   generateTeamDraw,
   teamMatchOutcome,
+  teamMatchDirty,
   teamTarget,
   teamName,
   teamLogoPath,
+  DEFAULT_TEAM_COURTS,
   PARTAI_CLASSES,
   type TeamMatch,
   type TeamTournamentSnapshot,
@@ -33,8 +35,6 @@ export default function TeamTournamentPage() {
   const [localMatches, setLocalMatches] = useState<TeamMatch[] | null>(null)
   const [prevSnap, setPrevSnap] = useState<TeamTournamentSnapshot | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
-  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
-  const [editingTeamName, setEditingTeamName] = useState('')
   const [finalPhotos, setFinalPhotos] = useState<Record<string, HTMLImageElement>>({})
   const [overlays, setOverlays] = useState<Record<string, HTMLImageElement | undefined>>({})
   const finalFileInputRef = useRef<HTMLInputElement>(null)
@@ -61,7 +61,7 @@ export default function TeamTournamentPage() {
     setPrevSnap(snap)
     setLocalMatches(snap.matches.map((m) => ({
       ...m,
-      courts: m.courts ?? ['Court 12', 'Court 13', 'Court 14'],
+      courts: m.courts ?? [...DEFAULT_TEAM_COURTS],
       partai: m.partai.map((p) => ({ ...p })),
     })))
   }
@@ -82,7 +82,7 @@ export default function TeamTournamentPage() {
       if (snap?.matches) {
         setLocalMatches(snap.matches.map((m) => ({
           ...m,
-          courts: m.courts ?? ['Court 12', 'Court 13', 'Court 14'],
+          courts: m.courts ?? [...DEFAULT_TEAM_COURTS],
           partai: m.partai.map((p) => ({ ...p })),
         })))
       }
@@ -101,37 +101,19 @@ export default function TeamTournamentPage() {
   const standings = useMemo(() => computeTeamStandings(teams, matches), [teams, matches])
   const groupMatches = useMemo(() => matches.filter((m) => m.phase === 'group'), [matches])
   const finalMatch = useMemo(() => matches.find((m) => m.phase === 'final'), [matches])
+  // dirty = match lokal beda dari snapshot server (skor atau court).
+  const dirtyByMatchId = useMemo(() => {
+    const serverById = new Map((snap?.matches ?? []).map((m) => [m.id, m]))
+    const out: Record<string, boolean> = {}
+    for (const m of matches) out[m.id] = teamMatchDirty(m, serverById.get(m.id))
+    return out
+  }, [matches, snap?.matches])
 
   if (!snap) {
     return <p className="text-fg-dim text-sm">{isFetching ? 'Loading team tournament…' : 'Tournament not found.'}</p>
   }
   const groupComplete = groupMatches.length === 9 && groupMatches.every((m) => teamMatchOutcome(m).complete)
   const hasFinal = !!finalMatch
-
-  const startEditTeamName = (teamId: string, currentName: string) => {
-    setEditingTeamId(teamId)
-    setEditingTeamName(currentName)
-  }
-
-  const saveTeamName = () => {
-    if (editingTeamId && editingTeamName.trim()) {
-      // Update team name in snapshot
-      const updatedTeams = teams.map((t) =>
-        t.id === editingTeamId ? { ...t, name: editingTeamName.trim() } : t
-      )
-      const currentSnap = queryClient.getQueryData<TeamTournamentSnapshot>(['tournament', id])
-      if (!currentSnap || currentSnap.format !== 'team') return
-      const next: TeamTournamentSnapshot = { ...currentSnap, teams: updatedTeams }
-      publishTournament(id, next).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['tournament', id] })
-        setPublishError(null)
-      }).catch((err) => {
-        setPublishError(err instanceof Error ? err.message : 'Failed to save team name.')
-      })
-    }
-    setEditingTeamId(null)
-    setEditingTeamName('')
-  }
 
   // Final match result
   const finalOutcome = finalMatch ? teamMatchOutcome(finalMatch) : null
@@ -248,17 +230,11 @@ export default function TeamTournamentPage() {
     setLocalMatches(matches)
   }
 
-  const updateCourt = (matchIdx: number, courtIdx: number, name: string) => {
+  const updateCourt = (matchIdx: number, name: string) => {
     if (!localMatches) return
-    const matches = localMatches.map((m, i) => {
-      if (i !== matchIdx) return m
-      // Default selaras UI (Court 12/13/14); pad dari default, bukan `Court ${idx+1}`.
-      const fallback = ['Court 12', 'Court 13', 'Court 14']
-      const courts = [0, 1, 2].map((k) => m.courts?.[k] ?? fallback[k])
-      courts[courtIdx] = name
-      return { ...m, courts: courts.slice(0, 3) as [string, string, string] }
-    })
-    setLocalMatches(matches)
+    // Satu court per team-match → semua partai memakai court yang sama.
+    setLocalMatches(localMatches.map((m, i) =>
+      i === matchIdx ? { ...m, courts: [name, name, name] as [string, string, string] } : m))
   }
 
   const tabs: { id: Tab; label: string }[] = [
@@ -308,33 +284,14 @@ export default function TeamTournamentPage() {
                 const isTop = i < 2 && groupComplete
                 const isChampion = championId === r.teamId
                 const team = teams.find((t) => t.id === r.teamId)
-                const isEditing = editingTeamId === r.teamId
                 return (
                   <div key={r.teamId} className={`border-b border-border-subtle last:border-0 ${isTop ? 'bg-accent/5' : ''}`}>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5">
                       <span className={`w-5 text-sm font-sans shrink-0 ${i === 0 ? 'text-accent' : i === 1 ? 'text-slate-200' : 'text-fg-dim'}`}>
                         {i === 0 && isChampion ? '👑' : i + 1}
                       </span>
-                      {isEditing ? (
-                        <input
-                          autoFocus
-                          value={editingTeamName}
-                          onChange={(e) => setEditingTeamName(e.target.value)}
-                          onBlur={saveTeamName}
-                          onKeyDown={(e) => { if (e.key === 'Enter') saveTeamName(); if (e.key === 'Escape') setEditingTeamId(null) }}
-                          className="flex-1 bg-elevated border border-accent rounded px-2 py-0.5 text-sm text-fg focus:outline-none min-w-0"
-                        />
-                      ) : (
-                        <span
-                          className="flex-1 text-sm text-fg truncate cursor-pointer hover:text-accent transition-colors group"
-                          onClick={() => startEditTeamName(r.teamId, r.teamName)}
-                        >
-                          {r.teamName}
-                          <span className="inline-block ml-1.5 text-fg-dim group-hover:text-accent opacity-0 group-hover:opacity-100 transition-opacity">
-                            ✎
-                          </span>
-                        </span>
-                      )}
+                      {/* Nama tim fixed & terkunci (dipilih saat registrasi) — tidak bisa diedit di sini. */}
+                      <span className="flex-1 text-sm text-fg truncate">{r.teamName}</span>
                       <span className="text-xs text-fg-dim font-sans shrink-0">
                         {r.points}pt · {r.teamWins}-{r.teamLosses} · {r.pointsFor}-{r.pointsAgainst}
                       </span>
@@ -387,6 +344,7 @@ export default function TeamTournamentPage() {
             postModeMatches={schedulePostModeMatches}
             onChangePartai={(matchIdx, pi, patch) => updatePartai(matchIdx, pi, patch)}
             onUpdateCourt={updateCourt}
+            dirtyByMatchId={dirtyByMatchId}
             onSave={() => localMatches && saveMatches(localMatches)}
             onDraw={handleUndian}
             onSetPartaiPhoto={(key, img) => setSchedulePartaiPhotos((prev) => ({ ...prev, [key]: img }))}
@@ -413,8 +371,9 @@ export default function TeamTournamentPage() {
                   match={finalMatch}
                   teams={teams}
                   saving={publish.isPending}
+                  dirty={dirtyByMatchId[finalMatch.id] ?? false}
                   onChange={(_, pi, patch) => updatePartai((localMatches ?? snap.matches).findIndex((x) => x.id === finalMatch.id), pi, patch)}
-                  onUpdateCourt={(matchIdx, courtIdx, name) => updateCourt(matchIdx, courtIdx, name)}
+                  onUpdateCourt={updateCourt}
                   matchIdx={(localMatches ?? snap.matches).findIndex((x) => x.id === finalMatch.id)}
                   onSave={() => localMatches && saveMatches(localMatches)}
                 />

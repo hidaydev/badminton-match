@@ -1,4 +1,5 @@
 {
+  "teamNames": ["RED RAPTORS", "WHITE FURY", "BLUE WAVES", "PURPLE PHANTOMS", "GREEN GROVE", "PINK SPECTRE"],
   "partaiClasses": [["C+", "C"], ["A+", "A"], ["B+", "B"]],
   "targets": { "group": 30, "final": 42 },
   "draw": [

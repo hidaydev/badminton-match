@@ -14,6 +14,7 @@ import (
 const teamGoldenPath = "../../../../apps/web/scripts/tests/fixtures/team-tournament.golden.json"
 
 type goldenTeamTournament struct {
+	TeamNames     []string       `json:"teamNames"`
 	PartaiClasses [][2]string    `json:"partaiClasses"`
 	Targets       map[string]int `json:"targets"`
 	Draw          []struct {
@@ -38,6 +39,14 @@ func loadTeamGolden(t *testing.T) goldenTeamTournament {
 
 func TestTeamGoldenClassesAndTargets(t *testing.T) {
 	g := loadTeamGolden(t)
+	if len(g.TeamNames) != len(TeamNames) {
+		t.Fatalf("jumlah nama tim FE %d != BE %d", len(g.TeamNames), len(TeamNames))
+	}
+	for i := range TeamNames {
+		if TeamNames[i] != g.TeamNames[i] {
+			t.Fatalf("nama tim %d: BE %q != FE %q", i, TeamNames[i], g.TeamNames[i])
+		}
+	}
 	if len(g.PartaiClasses) != len(TeamPartaiClasses) {
 		t.Fatalf("jumlah partai classes FE %d != BE %d", len(g.PartaiClasses), len(TeamPartaiClasses))
 	}

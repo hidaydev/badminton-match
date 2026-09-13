@@ -2,12 +2,13 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { generateTeamDraw, teamTarget, PARTAI_CLASSES } from '../../src/utils/teamTournament.ts'
+import { generateTeamDraw, teamTarget, teamLogoPath, TEAM_NAMES, PARTAI_CLASSES } from '../../src/utils/teamTournament.ts'
 
 // Golden fixture lintas-bahasa — dipakai juga oleh test Go
 // (apps/api/internal/domain/team_tournament_test.go). Mencegah aturan
-// urutan kelas / target / jadwal menyimpang antara frontend dan backend.
+// nama tim / urutan kelas / target / jadwal menyimpang antara FE dan BE.
 interface Golden {
+  teamNames: string[]
   partaiClasses: [string, string][]
   targets: { group: number; final: number }
   draw: { teamA: number; teamB: number; court: string }[]
@@ -16,6 +17,13 @@ interface Golden {
 const golden: Golden = JSON.parse(
   readFileSync(fileURLToPath(new URL('./fixtures/team-tournament.golden.json', import.meta.url)), 'utf8'),
 )
+
+test('golden: TEAM_NAMES selaras fixture & semua punya logo', () => {
+  assert.deepEqual([...TEAM_NAMES], golden.teamNames)
+  for (const n of golden.teamNames) {
+    assert.ok(teamLogoPath(n), `logo untuk ${n} tidak ditemukan`)
+  }
+})
 
 test('golden: PARTAI_CLASSES & teamTarget selaras fixture bersama', () => {
   assert.deepEqual(PARTAI_CLASSES, golden.partaiClasses)
