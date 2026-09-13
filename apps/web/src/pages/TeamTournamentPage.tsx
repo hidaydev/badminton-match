@@ -12,8 +12,10 @@ import {
   teamName,
   teamLogoPath,
   DEFAULT_TEAM_COURTS,
+  TEAM_NAMES,
   PARTAI_CLASSES,
   type TeamMatch,
+  type TeamInfo,
   type TeamTournamentSnapshot,
 } from '../utils/teamTournament'
 import TeamMatchCard from '../components/tournament/TeamMatchCard'
@@ -35,6 +37,8 @@ export default function TeamTournamentPage() {
   const [localMatches, setLocalMatches] = useState<TeamMatch[] | null>(null)
   const [prevSnap, setPrevSnap] = useState<TeamTournamentSnapshot | null>(null)
   const [publishError, setPublishError] = useState<string | null>(null)
+  // Nama tim per slot (t1..t6) untuk undian manual hari-H; null = belum diedit.
+  const [drawNames, setDrawNames] = useState<string[] | null>(null)
   const [finalPhotos, setFinalPhotos] = useState<Record<string, HTMLImageElement>>({})
   const [overlays, setOverlays] = useState<Record<string, HTMLImageElement | undefined>>({})
   const finalFileInputRef = useRef<HTMLInputElement>(null)
@@ -64,13 +68,14 @@ export default function TeamTournamentPage() {
       courts: m.courts ?? [...DEFAULT_TEAM_COURTS],
       partai: m.partai.map((p) => ({ ...p })),
     })))
+    setDrawNames(snap.teams.map((t) => t.name))
   }
 
   const publish = useMutation({
-    mutationFn: async (matches: TeamMatch[]) => {
+    mutationFn: async (patch: { matches?: TeamMatch[]; teams?: TeamInfo[] }) => {
       const currentSnap = queryClient.getQueryData<TeamTournamentSnapshot>(['tournament', id])
       if (!currentSnap || currentSnap.format !== 'team') throw new Error('no data')
-      const next: TeamTournamentSnapshot = { ...currentSnap, version: currentSnap.version, matches }
+      const next: TeamTournamentSnapshot = { ...currentSnap, version: currentSnap.version, ...patch }
       return await publishTournament(id, next)
     },
     onSuccess: async () => {
@@ -126,7 +131,16 @@ export default function TeamTournamentPage() {
 
   const saveMatches = (matches: TeamMatch[]) => {
     setLocalMatches(matches)
-    publish.mutate(matches)
+    publish.mutate({ matches })
+  }
+
+  // Tukar nama antar slot (keenam nama selalu terpakai, jadi tidak ada slot kosong).
+  const assignDrawName = (i: number, name: string) => {
+    setDrawNames((prev) => {
+      if (!prev) return prev
+      const cur = prev[i]
+      return prev.map((x, xi) => (xi === i ? name : x === name ? cur : x))
+    })
   }
 
   const handleUndian = () => {
@@ -140,7 +154,10 @@ export default function TeamTournamentPage() {
       partai: [{ scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }, { scoreA: null, scoreB: null }],
       courts: [court, court, court],
     }))
-    saveMatches(matches)
+    // Simpan nama tim (hasil undian manual) sekaligus jadwalnya.
+    const namedTeams = teams.map((t, i) => ({ ...t, name: drawNames?.[i] ?? t.name }))
+    setLocalMatches(matches)
+    publish.mutate({ matches, teams: namedTeams })
     setTab('jadwal')
   }
 
@@ -311,13 +328,35 @@ export default function TeamTournamentPage() {
               })}
             </div>
             {groupMatches.length === 0 && (
-              <button
-                onClick={handleUndian}
-                disabled={publish.isPending}
-                className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
-              >
-                Group Draw (match day)
-              </button>
+              <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
+                <div className="px-4 py-2 border-b border-border-subtle text-xs text-fg-dim uppercase tracking-wider">
+                  Team Draw (match day)
+                </div>
+                {(drawNames ?? teams.map((t) => t.name)).map((name, i) => (
+                  <div key={teams[i]?.id ?? i} className="flex items-center gap-3 px-4 py-2 border-b border-border-subtle last:border-0">
+                    <span className="w-14 text-xs text-fg-dim shrink-0">Tim {i + 1}</span>
+                    <select
+                      value={name}
+                      onChange={(e) => assignDrawName(i, e.target.value)}
+                      className="flex-1 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none cursor-pointer"
+                      aria-label={`Nama tim untuk slot ${i + 1}`}
+                    >
+                      {TEAM_NAMES.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+                <div className="p-3">
+                  <button
+                    onClick={handleUndian}
+                    disabled={publish.isPending}
+                    className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
+                  >
+                    Group Draw (match day)
+                  </button>
+                </div>
+              </div>
             )}
             {groupComplete && !hasFinal && (
               <button
