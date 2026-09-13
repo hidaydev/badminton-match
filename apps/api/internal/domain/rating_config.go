@@ -199,18 +199,27 @@ func ValidTier(tier string) bool {
 }
 
 // TierForRating — tier derived dari rating (8 band, config-driven).
+// Band diperlakukan half-open: pilih band dengan batas bawah terbesar yang
+// <= r. Ini menutup sela antar boundary integer (mis. B+ 1800-1899 vs
+// A 1900-2099 untuk r=1899.23) yang dulu jatuh ke default "D".
 func (c *RatingConfig) TierForRating(r float64) string {
 	best := "D"
+	bestLo := math.Inf(-1)
 	for tier, band := range c.ClassBands {
-		lo, hi := band[0], band[1]
-		if lo != nil && r < *lo {
+		lo := band[0]
+		if lo == nil {
+			// Band tanpa batas bawah → kandidat terendah; dipakai hanya
+			// kalau r di bawah semua batas bawah band lain.
+			if math.IsInf(bestLo, -1) {
+				best = tier
+			}
 			continue
 		}
-		if hi != nil && r > *hi {
+		if r < *lo || *lo <= bestLo {
 			continue
 		}
+		bestLo = *lo
 		best = tier
-		break
 	}
 	return best
 }
