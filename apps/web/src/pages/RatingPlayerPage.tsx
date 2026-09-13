@@ -11,7 +11,7 @@ import CareerStats from '../components/ratings/CareerStats'
 import AchievementBadge from '../components/ratings/AchievementBadge'
 import AchievementDetailModal from '../components/ratings/AchievementDetailModal'
 import MedalHoneycomb from '../components/ratings/MedalHoneycomb'
-import { isEventKey, medalIcon, monogram, seedFromKey } from '../utils/achievementBadge'
+import { isEventKey, medalIcon, seedFromKey } from '../utils/achievementBadge'
 import type { AchievementRow } from '../queries/endpoints'
 
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
@@ -177,7 +177,6 @@ export default function RatingPlayerPage() {
                         title={a.title}
                         tierLevel={a.tierLevel}
                         seed={seedFromKey(a.key)}
-                        monogram={monogram(a.meta?.name ?? a.title)}
                         onSelect={() => setSelectedAchievement(a)}
                       />
                     ))}

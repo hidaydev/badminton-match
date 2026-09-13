@@ -8,7 +8,7 @@
 // bertingkat, jadi yang tampil hanya keterangan event-nya.
 import { useEffect } from 'react'
 import AchievementBadge from './AchievementBadge'
-import { medalIcon, monogram, seedFromKey } from '../../utils/achievementBadge'
+import { medalIcon, seedFromKey } from '../../utils/achievementBadge'
 import { MEDAL_TIER_NAMES } from '../../config/achievements'
 import type { AchievementRow } from '../../queries/endpoints'
 
@@ -53,7 +53,6 @@ export default function AchievementDetailModal({ achievement, onClose }: Achieve
             icon={medalIcon(a.key)}
             tierLevel={tierLevel || undefined}
             seed={seedFromKey(a.key)}
-            monogram={monogram(a.meta?.name ?? a.title)}
             title={a.title}
             width={84}
           />
