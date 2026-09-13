@@ -42,6 +42,7 @@ func TestDescribeAchievement(t *testing.T) {
 		{"rating", RatingKey(2100), nil, map[string]string{"rating": "2100"}, "Klub 2100"},
 		{"tournament", TournamentKey("t1"), nil, map[string]string{"name": "Majadu Open"}, "Majadu Open"},
 		{"tournament", ChampionKey("t1"), nil, map[string]string{"name": "Majadu Open"}, "Juara Majadu Open"},
+		{"opponent", OpponentsKey(25), nil, map[string]string{"count": "25"}, "Teruji"},
 		{"season", SeasonChampionKey("s1"), nil, map[string]string{"season": "Season 2026-1"}, "Juara Season 2026-1"},
 		{"rank", EstablishedKey, nil, nil, "Mapan"},
 	}

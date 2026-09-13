@@ -170,6 +170,11 @@ func DescribeAchievement(kind string, key string, value *int64, meta map[string]
 			n := atoiMeta(meta, "count")
 			return lookup(opponentTitles, n), fmt.Sprintf("%d lawan berbeda", n)
 		}
+	case AchOpponent:
+		if strings.HasPrefix(key, "opponents:") {
+			n := atoiMeta(meta, "count")
+			return lookup(opponentTitles, n), fmt.Sprintf("%d lawan berbeda", n)
+		}
 	case AchSeason:
 		switch {
 		case strings.HasPrefix(key, "season_champion:"):
