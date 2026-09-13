@@ -57,7 +57,6 @@ function TeamWizard() {
   const [name, setName] = useState('')
   const [date, setDate] = useState(() => todayWIB())
   const [players, setPlayers] = useState(initialPlayers)
-  const [teamNames, setTeamNames] = useState<string[]>(() => [...TEAM_NAMES])
   const [teams, setTeams] = useState<{ id: string; name: string; players: { name: string; cls: TeamClass }[] }[]>([])
 
   // enforce: semua nama terisi & 6 per kelas & 1 per tim per kelas
@@ -69,41 +68,18 @@ function TeamWizard() {
     TEAM_CLASSES.map((c) => players.filter((p) => p.team === t && p.cls === c).length)
   )
   const matrixBalanced = teamClassMatrix.every((row) => row.every((n) => n === 1))
-  // nama tim: tepat 6 nama kanonik, tanpa duplikat
-  const namesValid =
-    new Set(teams.map((t) => t.name)).size === TEAM_COUNT &&
-    teams.every((t) => (TEAM_NAMES as readonly string[]).includes(t.name))
 
   const updatePlayer = (i: number, patch: Partial<{ name: string; cls: TeamClass; team: typeof TEAM_IDS[number] }>) => {
     setPlayers((prev) => prev.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
-  }
-
-  // Pilih nama tim untuk slot i. Bila nama sudah dipakai slot lain → tukar
-  // (tidak ada slot kosong karena keenam nama selalu terpakai).
-  const assignTeamName = (i: number, name: string) => {
-    setTeams((prev) => {
-      const cur = prev[i]?.name
-      return prev.map((x, xi) => {
-        if (xi === i) return { ...x, name }
-        if (x.name === name) return { ...x, name: cur }
-        return x
-      })
-    })
-    setTeamNames((prev) => {
-      const cur = prev[i]
-      return prev.map((x, xi) => {
-        if (xi === i) return name
-        if (x === name) return cur
-        return x
-      })
-    })
   }
 
   const formTeams = () => {
     //Susun tim dari data manual (bukan random)
     const next = Array.from({ length: TEAM_COUNT }, (_, i) => ({
       id: TEAM_IDS[i],
-      name: teamNames[i] || TEAM_NAMES[i],
+      // Nama tim default (kanonik, urut slot). Penentuan nama→slot final
+      // dilakukan manual di hari-H pada halaman turnamen (bukan di wizard).
+      name: TEAM_NAMES[i],
       players: [] as { name: string; cls: TeamClass }[],
     }))
     for (const p of players) {
@@ -118,11 +94,10 @@ function TeamWizard() {
       t.players.sort((a, b) => (classOrder[a.cls] ?? 0) - (classOrder[b.cls] ?? 0))
     }
     setTeams(next)
-    setTeamNames((prev) => next.map((_, i) => prev[i] || TEAM_NAMES[i]))
   }
 
   const handleCreate = () => {
-    if (!name.trim() || teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT) || !namesValid) return
+    if (!name.trim() || teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT)) return
     create(
       {
         format: 'team',
@@ -193,7 +168,7 @@ function TeamWizard() {
                 <input
                   value={p.name}
                   onChange={(e) => updatePlayer(i, { name: e.target.value })}
-                  placeholder={`${teamNames[TEAM_IDS.indexOf(p.team)] || `Tim ${TEAM_IDS.indexOf(p.team) + 1}`} (${p.cls})`}
+                  placeholder={`Pemain Tim ${TEAM_IDS.indexOf(p.team) + 1} (${p.cls})`}
                   className="flex-1 bg-elevated border border-border rounded-md px-2 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none min-w-0"
                 />
                 <select
@@ -211,7 +186,7 @@ function TeamWizard() {
                   className="bg-elevated border border-border rounded-md px-2 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none shrink-0 w-24 sm:w-28 md:w-32 truncate cursor-pointer"
                 >
                   {TEAM_IDS.map((t, idx) => (
-                    <option key={t} value={t}>{teamNames[idx] || `T${idx + 1}`}</option>
+                    <option key={t} value={t}>Tim {idx + 1}</option>
                   ))}
                 </select>
               </div>
@@ -230,7 +205,7 @@ function TeamWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-fg-dim">Team rosters (1 player per class)</p>
+            <p className="text-xs text-fg-dim">Team rosters (1 player per class) · nama tim diundi hari-H</p>
             <button
               onClick={formTeams}
               className="text-xs px-3 py-1.5 rounded-md border border-border-subtle text-fg-dim hover:text-fg"
@@ -247,17 +222,7 @@ function TeamWizard() {
             {teams.map((t, i) => (
               <div key={t.id} className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border-subtle">
-                  <select
-                    value={t.name}
-                    onChange={(e) => assignTeamName(i, e.target.value)}
-                    className="flex-1 bg-transparent text-sm font-semibold text-fg focus:outline-none cursor-pointer"
-                  >
-                    {TEAM_NAMES.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="flex-1 text-sm font-semibold text-fg">Tim {i + 1}</span>
                   <span className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">
                     {t.players.length}/{TEAM_COUNT}
                   </span>
@@ -274,7 +239,7 @@ function TeamWizard() {
           </div>
           <button
             onClick={handleCreate}
-            disabled={teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT) || !namesValid || isPending}
+            disabled={teams.length !== TEAM_COUNT || teams.some((t) => t.players.length !== TEAM_COUNT) || isPending}
             className="mt-1 w-full py-2.5 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {isPending ? 'Creating…' : 'Create Tournament'}
