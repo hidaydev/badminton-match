@@ -701,7 +701,7 @@ func (s *SessionStore) backfillSocialRecords(
 
 	// partner terbaik
 	pRows, err := s.pool.Query(ctx, `
-		SELECT sp.player_id::text, count(*)::int
+		SELECT sp.player_id::text, tsp.player_id::text, count(*)::int
 		FROM `+s.schema+`.session_players sp
 		JOIN `+s.schema+`.scheduled_game_players sgp ON sgp.session_player_internal_id = sp.internal_id
 		JOIN `+s.schema+`.scheduled_games sg ON sg.internal_id = sgp.scheduled_game_internal_id AND sg.session_id = sp.session_id
