@@ -31,6 +31,10 @@ func TestTierForRatingBands(t *testing.T) {
 		// B 1600-1799 · B+ 1800-1899 · A 1900-2099 · A+ ≥2100
 		{1600, "B"}, {1799, "B"}, {1800, "B+"}, {1899, "B+"},
 		{1900, "A"}, {2099, "A"}, {2100, "A+"}, {2500, "A+"},
+		// Rating pecahan di sela boundary integer → tier bawahnya,
+		// bukan default "D" (regresi Rudi 1899.23 → D).
+		{1899.23, "B+"}, {1199.5, "D"}, {1299.23, "D+"},
+		{1799.9, "B"}, {2099.5, "A"}, {2100.1, "A+"},
 	}
 	for _, tc := range cases {
 		if got := c.TierForRating(tc.rating); got != tc.want {
