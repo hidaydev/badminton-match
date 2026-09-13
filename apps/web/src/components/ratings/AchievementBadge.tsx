@@ -1,31 +1,28 @@
-// src/components/ratings/AchievementBadge.tsx, badge koleksi achievement
-// berbentuk shield/patch. Presentasional murni: seluruh isi datang dari props,
-// tidak ada data contoh di dalam komponen.
+// src/components/ratings/AchievementBadge.tsx, badge koleksi medal berbentuk
+// segi enam. Presentasional murni: seluruh isi datang dari props, tidak ada data
+// contoh di dalam komponen.
 //
 // Alasan tiap keputusan (R-31):
-// - Shield/patch: menandai "pencapaian terkumpul", beda dari chip tier yang
-//   sudah ada (RatingTierBadge). Bentuknya badge, bukan label status.
-// - Yang tampil hanya NAMA achievement; deskripsi pindah ke popup (permintaan
-//   user) supaya rak tetap rapi. `showDetail` hanya untuk halaman pratinjau.
-// - Tiga mode visual, dipilih dari props:
-//     1. medal (tierLevel 1..5): warna pangkat Bronze..Onyx + 5 pips tingkat.
-//     2. event unik (seed): siluet dipilih deterministik dari id + tone dari
-//        palet event, emblem monogram nama event. Tiap event jadi khas.
-//     3. skill tier (tier): 8 pips + ramp tepi seperti sebelumnya.
+// - Segi enam seragam untuk semua badge (mengikuti medal event Ingress). Yang
+//   membedakan hanya warna dan isi emblem, bukan siluet.
+// - Dua mode visual, dipilih dari props:
+//     1. milestone (tierLevel 1..5): tone pangkat Bronze..Onyx + 5 pips tingkat.
+//     2. event (seed): tone unik deterministik dari id + emblem monogram nama
+//        event (mis. "MO"). Tanpa pips, karena event tidak bertingkat.
+// - Yang tampil hanya NAMA medal; deskripsi pindah ke popup (permintaan user)
+//   supaya rak tetap rapi. `showDetail` hanya untuk halaman pratinjau.
 // - Warna dari token app; satu accent, tanpa gradient/glow/shadow (R-01, R-13).
-// - Glyph relevan ke makna (R-04): shuttlecock = ikut turnamen, chevron naik =
-//   breakthrough tier, dst. Bukan ikon generik.
+// - Glyph relevan ke makna (R-04): shuttlecock = turnamen, check = kehadiran,
+//   dua orang = partner, dst. Bukan ikon generik.
 // - Kalau `onSelect` diberi, root jadi button (keyboard: Tab + Enter/Space,
 //   focus ring global). Tanpa `onSelect` root cuma div (non-interaktif).
 // - State terkunci dibedakan lewat garis putus + opacity, bukan warna baru
 //   (R-29). Tanpa animasi (MOTION 1).
 
-import { ACHIEVEMENT_TIER_EDGE, TIER_RANK, type RatingTier } from '../../config/ratingTiers'
-import { eventShape, eventTone, medalTone } from '../../utils/achievementBadge'
+import { eventTone, medalTone } from '../../utils/achievementBadge'
 
 export type AchievementKind =
   | 'tournament'
-  | 'tier'
   | 'attendance'
   | 'volume'
   | 'social'
@@ -39,13 +36,11 @@ export interface AchievementBadgeProps {
   title: string
   /** Hanya dirender kalau showDetail=true (halaman pratinjau). */
   detail?: string
-  /** Wajib untuk kind="tier": menentukan pips dan warna tepi. */
-  tier?: RatingTier
-  /** Medal: tingkat 1..5 (Bronze..Onyx). */
+  /** Milestone: tingkat 1..5 (Bronze..Onyx). */
   tierLevel?: number
-  /** Event/season unik: id untuk memilih siluet + tone deterministik. */
+  /** Event: id untuk memilih tone deterministik. */
   seed?: string
-  /** Event/season unik: monogram pengganti glyph (mis. "MO"). */
+  /** Event: monogram pengganti glyph (mis. "MO"). */
   monogram?: string
   state?: AchievementState
   size?: 'sm' | 'md' | 'lg'
@@ -53,17 +48,8 @@ export interface AchievementBadgeProps {
   onSelect?: () => void
 }
 
-// Siluet berbeda supaya tiap event punya bentuk khas. viewBox 0 0 48 60.
-const SHAPES = [
-  'M24 3 L43 10 V29 C43 42 34.5 50.5 24 55 C13.5 50.5 5 42 5 29 V10 Z', // escutcheon
-  'M11 4 H37 Q43 4 43 10 V29 C43 42 34.5 50.5 24 55 C13.5 50.5 5 42 5 29 V10 Q5 4 11 4 Z', // rounded
-  'M6 5 H42 V43 L24 56 L6 43 Z', // banner
-  'M24 3 L43 12 V34 L24 56 L5 34 V12 Z', // hex
-  'M24 3 L42 22 L24 56 L6 22 Z', // kite
-  'M44 30 A20 20 0 1 1 4 30 A20 20 0 1 1 44 30 Z', // medallion
-] as const
-
-const TIER_SLOTS = 8
+// Segi enam, viewBox 0 0 48 60.
+const SHAPE = 'M24 3 L44 14 V38 L24 57 L4 38 V14 Z'
 const MEDAL_SLOTS = 5
 
 function Glyph({ kind, stroke, fill }: { kind: AchievementKind; stroke: string; fill: string }) {
@@ -110,13 +96,6 @@ function Glyph({ kind, stroke, fill }: { kind: AchievementKind; stroke: string; 
           <path d="M19 14 V20 M29 14 V20" />
         </g>
       )
-    default:
-      return (
-        <g fill="none" stroke={stroke} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M16 32 L24 24 L32 32" />
-          <path d="M16 41 L24 33 L32 41" />
-        </g>
-      )
   }
 }
 
@@ -124,7 +103,6 @@ export default function AchievementBadge({
   kind,
   title,
   detail,
-  tier,
   tierLevel,
   seed,
   monogram,
@@ -135,29 +113,24 @@ export default function AchievementBadge({
 }: AchievementBadgeProps) {
   const locked = state === 'locked'
   const isMedal = !!tierLevel && tierLevel > 0
-  const isUnique = !!seed && !isMedal
+  const isEvent = !!seed && !isMedal
 
   const edge = locked
     ? 'var(--color-border)'
     : isMedal
       ? (medalTone(tierLevel) ?? 'var(--color-accent)')
-      : isUnique
+      : isEvent
         ? eventTone(seed)
-        : tier
-          ? ACHIEVEMENT_TIER_EDGE[tier]
-          : 'var(--color-accent)'
+        : 'var(--color-accent)'
   const glyph = locked ? 'var(--color-fg-dim)' : edge
-  const shape = isUnique ? SHAPES[eventShape(seed)] : SHAPES[0]
   const shieldW = size === 'lg' ? 72 : size === 'md' ? 52 : 38
-  const rank = tier ? TIER_RANK[tier] : 0
-  const slots = isMedal ? MEDAL_SLOTS : tier ? TIER_SLOTS : 0
-  const filled = isMedal ? tierLevel : rank
+  const slots = isMedal ? MEDAL_SLOTS : 0
   const pip = size === 'lg' ? { w: 6, h: 4, gap: 2.5 } : size === 'md' ? { w: 5, h: 3.5, gap: 2 } : { w: 3.5, h: 2.5, gap: 1.5 }
   const widthClass = size === 'lg' ? 'w-28' : size === 'md' ? 'w-24' : 'w-16'
   const titleClass = size === 'lg' ? 'text-sm' : size === 'md' ? 'text-xs' : 'text-[10px]'
   const monogramSize = size === 'lg' ? 18 : size === 'md' ? 14 : 11
 
-  const emblem = isUnique && monogram ? (
+  const emblem = isEvent && monogram ? (
     <text
       x="24"
       y="31"
@@ -187,7 +160,7 @@ export default function AchievementBadge({
         aria-label={locked ? `${title} (locked)` : title}
       >
         <path
-          d={shape}
+          d={SHAPE}
           fill="var(--color-elevated)"
           stroke={edge}
           strokeWidth="2"
@@ -207,7 +180,7 @@ export default function AchievementBadge({
                 width: pip.w,
                 height: pip.h,
                 borderRadius: 1,
-                background: i < (filled ?? 0) ? glyph : 'var(--color-border)',
+                background: i < (tierLevel ?? 0) ? glyph : 'var(--color-border)',
                 opacity: locked ? 0.5 : 1,
               }}
             />

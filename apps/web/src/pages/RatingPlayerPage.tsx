@@ -10,7 +10,7 @@ import RatingSparkline from '../components/ratings/RatingSparkline'
 import CareerStats from '../components/ratings/CareerStats'
 import AchievementBadge from '../components/ratings/AchievementBadge'
 import AchievementDetailModal from '../components/ratings/AchievementDetailModal'
-import { asTier, badgeKind, monogram, seedFromKey } from '../utils/achievementBadge'
+import { badgeKind, monogram, seedFromKey } from '../utils/achievementBadge'
 import type { AchievementRow } from '../queries/endpoints'
 
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
@@ -150,11 +150,11 @@ export default function RatingPlayerPage() {
 
       {/* Achievements */}
       <div className="flex flex-col gap-2">
-        <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider px-1">Achievements</p>
-        {achLoading && <p className="text-fg-dim text-xs font-sans text-center py-6">Loading achievements…</p>}
-        {achError && <p className="text-error text-xs font-sans text-center py-6">Failed to load achievements.</p>}
+        <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider px-1">Medals</p>
+        {achLoading && <p className="text-fg-dim text-xs font-sans text-center py-6">Loading medals…</p>}
+        {achError && <p className="text-error text-xs font-sans text-center py-6">Failed to load medals.</p>}
         {!achLoading && !achError && (achievements?.length ?? 0) === 0 && (
-          <p className="text-fg-dim text-xs font-sans text-center py-6">No achievements yet. Play a session and the shelf fills up.</p>
+          <p className="text-fg-dim text-xs font-sans text-center py-6">No medals yet. Play a session and the shelf fills up.</p>
         )}
         {!achLoading && !achError && (achievements?.length ?? 0) > 0 && (
           <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-4 flex-wrap">
@@ -162,7 +162,6 @@ export default function RatingPlayerPage() {
               <AchievementBadge
                 key={a.key}
                 kind={badgeKind(a.kind)}
-                tier={a.kind === 'tier' ? asTier(a.meta?.tier) : undefined}
                 tierLevel={a.tierLevel}
                 seed={seedFromKey(a.key)}
                 monogram={monogram(a.meta?.name ?? a.title)}

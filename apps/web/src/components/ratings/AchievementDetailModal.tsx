@@ -4,7 +4,7 @@
 // Close. Menggantikan deskripsi inline supaya rak badge tetap rapi.
 import { useEffect } from 'react'
 import AchievementBadge from './AchievementBadge'
-import { asTier, badgeKind, medalTone, monogram, seedFromKey } from '../../utils/achievementBadge'
+import { badgeKind, medalTone, monogram, seedFromKey } from '../../utils/achievementBadge'
 import type { AchievementRow } from '../../queries/endpoints'
 
 interface AchievementDetailModalProps {
@@ -54,7 +54,6 @@ export default function AchievementDetailModal({ achievement, onClose }: Achieve
       >
         <AchievementBadge
           kind={badgeKind(a.kind)}
-          tier={a.kind === 'tier' ? asTier(meta.tier) : undefined}
           tierLevel={tierLevel || undefined}
           seed={seedFromKey(a.key)}
           monogram={monogram(meta.name ?? a.title)}

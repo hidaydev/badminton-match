@@ -1,6 +1,5 @@
-// src/utils/achievementBadge.ts, pemetaan data achievement ke visual badge.
+// src/utils/achievementBadge.ts, pemetaan data medal ke visual badge.
 import type { AchievementKind } from '../components/ratings/AchievementBadge'
-import { TIER_RANK, type RatingTier } from '../config/ratingTiers'
 import { EVENT_TONES, MEDAL_TONES } from '../config/achievements'
 
 // badgeKind — kind dari API → glyph badge.
@@ -12,20 +11,14 @@ export function badgeKind(kind: string): AchievementKind {
       return 'season'
     case 'attendance':
       return 'attendance'
-    case 'volume':
-      return 'volume'
     case 'social':
       return 'social'
     case 'opponent':
       return 'opponent'
     default:
-      return 'tier' // tier, rating, rank
+      // volume, rating
+      return 'volume'
   }
-}
-
-// asTier — validasi string tier skill dari meta sebelum dipakai sebagai RatingTier.
-export function asTier(v: string | undefined): RatingTier | undefined {
-  return v && v in TIER_RANK ? (v as RatingTier) : undefined
 }
 
 // medalTone — warna pangkat untuk level 1..5 (Bronze..Onyx).
@@ -49,14 +42,9 @@ export function eventTone(seed: string): string {
   return EVENT_TONES[hashSeed(seed) % EVENT_TONES.length]
 }
 
-// eventShape — indeks varian siluet (0..5) deterministik dari id.
-export function eventShape(seed: string): number {
-  return hashSeed(seed) % 6
-}
-
-// seedFromKey — ambil id event/season dari achievement_key, kalau collectible.
+// seedFromKey — ambil id event/season dari achievement_key, kalau badge event.
 export function seedFromKey(key: string): string | undefined {
-  for (const prefix of ['tournament:', 'champion:', 'podium:', 'season_member:', 'season_champion:', 'season_podium:']) {
+  for (const prefix of ['tournament:', 'season_member:']) {
     if (key.startsWith(prefix)) return key.slice(prefix.length)
   }
   return undefined
