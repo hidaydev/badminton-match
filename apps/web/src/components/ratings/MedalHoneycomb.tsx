@@ -30,11 +30,17 @@ export default function MedalHoneycomb({ items, width = 64 }: MedalHoneycombProp
   }, [width])
 
   const rows: ReactNode[][] = []
-  for (let i = 0; i < items.length; i += perRow) {
-    rows.push(items.slice(i, i + perRow))
+  // Baris ganjil digeser setengah lebar, jadi kapasitasnya dikurangi satu supaya
+  // total lebarnya tetap di dalam kontainer (kalau tidak, badge terakhir
+  // terpotong/keluar layar di mobile).
+  for (let i = 0, ri = 0; i < items.length; ri++) {
+    const cap = ri % 2 === 0 || perRow < 2 ? perRow : perRow - 1
+    rows.push(items.slice(i, i + cap))
+    i += cap
   }
 
   const height = Math.round(width * HEX_RATIO)
+  const staggered = perRow >= 2
 
   return (
     <div ref={ref} className="flex w-full flex-col items-center py-1">
@@ -44,7 +50,7 @@ export default function MedalHoneycomb({ items, width = 64 }: MedalHoneycombProp
           className="flex"
           style={{
             marginTop: ri === 0 ? 0 : -Math.round(height * 0.25),
-            transform: ri % 2 ? `translateX(${Math.round(width / 2)}px)` : undefined,
+            transform: staggered && ri % 2 ? `translateX(${Math.round(width / 2)}px)` : undefined,
           }}
         >
           {row.map((node, ci) => (

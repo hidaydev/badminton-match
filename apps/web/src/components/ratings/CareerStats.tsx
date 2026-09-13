@@ -85,22 +85,32 @@ export default function CareerStats({ stats }: { stats: PlayerStats }) {
         </div>
       )}
 
-      {/* Top partners & opponents */}
-      {stats.topPartners.length > 0 && (
-        <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-          <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Top Partners</p>
-          {stats.topPartners.map((p) => (
-            <PairRow key={p.name} name={p.name} wins={p.wins} losses={p.losses} count={p.count} />
-          ))}
-        </div>
-      )}
+      {/* Top partners & opponents — dua kolom biar hemat tinggi */}
+      {(stats.topPartners.length > 0 || stats.topOpponents.length > 0) && (
+        <div
+          className={
+            stats.topPartners.length > 0 && stats.topOpponents.length > 0
+              ? 'grid grid-cols-2 gap-2'
+              : 'flex flex-col gap-2'
+          }
+        >
+          {stats.topPartners.length > 0 && (
+            <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
+              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Top Partners</p>
+              {stats.topPartners.map((p) => (
+                <PairRow key={p.name} name={p.name} wins={p.wins} losses={p.losses} count={p.count} />
+              ))}
+            </div>
+          )}
 
-      {stats.topOpponents.length > 0 && (
-        <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-          <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Top Opponents</p>
-          {stats.topOpponents.map((p) => (
-            <PairRow key={p.name} name={p.name} wins={p.wins} losses={p.losses} count={p.count} />
-          ))}
+          {stats.topOpponents.length > 0 && (
+            <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
+              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Top Opponents</p>
+              {stats.topOpponents.map((p) => (
+                <PairRow key={p.name} name={p.name} wins={p.wins} losses={p.losses} count={p.count} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -133,21 +143,31 @@ export default function CareerStats({ stats }: { stats: PlayerStats }) {
             </div>
           )}
 
-          {stats.tournamentStats.topPartners.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Tournament Partners</p>
-              {stats.tournamentStats.topPartners.map((p) => (
-                <PairRow key={p.name} name={p.name} wins={p.wins} losses={0} count={p.count} />
-              ))}
-            </div>
-          )}
+          {(stats.tournamentStats.topPartners.length > 0 || stats.tournamentStats.topOpponents.length > 0) && (
+            <div
+              className={
+                stats.tournamentStats.topPartners.length > 0 && stats.tournamentStats.topOpponents.length > 0
+                  ? 'grid grid-cols-2 gap-2'
+                  : 'flex flex-col gap-2'
+              }
+            >
+              {stats.tournamentStats.topPartners.length > 0 && (
+                <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
+                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Tournament Partners</p>
+                  {stats.tournamentStats.topPartners.map((p) => (
+                    <PairRow key={p.name} name={p.name} wins={p.wins} losses={0} count={p.count} />
+                  ))}
+                </div>
+              )}
 
-          {stats.tournamentStats.topOpponents.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Tournament Opponents</p>
-              {stats.tournamentStats.topOpponents.map((p) => (
-                <PairRow key={p.name} name={p.name} wins={p.wins} losses={0} count={p.count} />
-              ))}
+              {stats.tournamentStats.topOpponents.length > 0 && (
+                <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
+                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Tournament Opponents</p>
+                  {stats.tournamentStats.topOpponents.map((p) => (
+                    <PairRow key={p.name} name={p.name} wins={p.wins} losses={0} count={p.count} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </>
