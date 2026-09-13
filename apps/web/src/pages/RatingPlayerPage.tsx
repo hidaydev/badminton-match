@@ -43,7 +43,7 @@ export default function RatingPlayerPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pb-10">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1.5">
