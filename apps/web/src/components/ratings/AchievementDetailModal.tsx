@@ -8,7 +8,7 @@
 // bertingkat, jadi yang tampil hanya keterangan event-nya.
 import { useEffect } from 'react'
 import AchievementBadge from './AchievementBadge'
-import { medalIcon, medalTone, monogram, seedFromKey } from '../../utils/achievementBadge'
+import { medalIcon, monogram, seedFromKey } from '../../utils/achievementBadge'
 import { MEDAL_TIER_NAMES } from '../../config/achievements'
 import type { AchievementRow } from '../../queries/endpoints'
 
@@ -65,24 +65,30 @@ export default function AchievementDetailModal({ achievement, onClose }: Achieve
         </div>
 
         {isMilestone ? (
-          <ul className="mt-1 flex w-full flex-col gap-1 border-t border-border-subtle pt-3">
-            {thresholds.map((target, i) => {
-              const level = i + 1
-              const achieved = level <= tierLevel
-              return (
-                <li key={level} className="flex items-center justify-between text-[11px]">
-                  <span className="flex items-center gap-1.5">
-                    <span
-                      className="block h-2 w-2 rounded-full"
-                      style={{ background: achieved ? medalTone(level) : 'var(--color-border)' }}
+          <div className="mt-1 w-full border-t border-border-subtle pt-3">
+            <p className="mb-2 text-[10px] uppercase tracking-wider text-fg-dim">Tiers</p>
+            <div className="grid grid-cols-5 gap-1">
+              {thresholds.map((target, i) => {
+                const level = i + 1
+                const achieved = level <= tierLevel
+                return (
+                  <div key={level} className="flex flex-col items-center gap-1" aria-label={`${MEDAL_TIER_NAMES[i]} ${target}`}>
+                    <AchievementBadge
+                      icon={medalIcon(a.key)}
+                      tierLevel={level}
+                      title={`${MEDAL_TIER_NAMES[i]} ${target}`}
+                      state={achieved ? 'earned' : 'locked'}
+                      width={40}
                     />
-                    <span className={achieved ? 'text-fg' : 'text-fg-dim'}>{MEDAL_TIER_NAMES[i]}</span>
-                  </span>
-                  <span className={achieved ? 'text-fg' : 'text-fg-dim'}>{target}</span>
-                </li>
-              )
-            })}
-          </ul>
+                    <span className={`text-[9px] leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}>
+                      {MEDAL_TIER_NAMES[i]}
+                    </span>
+                    <span className={`text-[9px] leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}>{target}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         ) : (
           <dl className="flex w-full flex-col gap-1 border-t border-border-subtle pt-3">
             {rows.map(([k, v]) => (
