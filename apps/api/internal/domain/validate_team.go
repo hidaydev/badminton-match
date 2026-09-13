@@ -8,6 +8,7 @@ import (
 // ── Validasi tournament format TIM ─────────────────────────────────────────
 // Aturan (spesifikasi):
 //   - 6 tim × 6 pemain, tiap tim tepat 6 kelas unik (A+/A/B+/B/C+/C)
+//   - Nama tim kanonik (salah satu dari TeamNames) & unik — dipakai mapping logo
 //   - Nama pemain non-blank & unik antar-tim (registrasi global)
 //   - Fase grup: 0 (belum undian) atau 9 team-match; tiap tim muncul tepat 3×,
 //     tanpa melawan diri sendiri, tanpa duplikat lawan
@@ -38,6 +39,7 @@ func ValidateTeamTournament(snap *TeamTournamentSnapshot) error {
 		return errors.New("team tournament must contain exactly 6 teams")
 	}
 	teamSet := make(map[string]struct{}, 6)
+	teamNameSet := make(map[string]struct{}, 6)
 	nameSet := make(map[string]struct{}) // player names unik antar-tim
 	for _, t := range snap.Teams {
 		if strings.TrimSpace(t.ID) == "" {
@@ -50,6 +52,14 @@ func ValidateTeamTournament(snap *TeamTournamentSnapshot) error {
 		if strings.TrimSpace(t.Name) == "" {
 			return errors.New("team name must not be blank")
 		}
+		teamName := strings.TrimSpace(t.Name)
+		if !IsTeamName(teamName) {
+			return errors.New("team name must be one of the 6 canonical team names")
+		}
+		if _, dup := teamNameSet[teamName]; dup {
+			return errors.New("team names must be unique")
+		}
+		teamNameSet[teamName] = struct{}{}
 		if len(t.Players) != 6 {
 			return errors.New("each team must contain exactly 6 players")
 		}

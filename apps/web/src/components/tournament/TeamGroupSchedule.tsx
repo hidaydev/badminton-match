@@ -20,7 +20,8 @@ interface TeamGroupScheduleProps {
   partaiPhotos: Record<string, HTMLImageElement>
   postModeMatches: Record<string, boolean>
   onChangePartai: (matchIdx: number, partaiIdx: number, patch: Partial<{ scoreA: number | null; scoreB: number | null }>) => void
-  onUpdateCourt: (matchIdx: number, courtIdx: number, name: string) => void
+  onUpdateCourt: (matchIdx: number, name: string) => void
+  dirtyByMatchId: Record<string, boolean>
   onSave: () => void
   onDraw: () => void
   onSetPartaiPhoto: (key: string, img: HTMLImageElement) => void
@@ -43,6 +44,7 @@ export default function TeamGroupSchedule({
   postModeMatches,
   onChangePartai,
   onUpdateCourt,
+  dirtyByMatchId,
   onSave,
   onDraw,
   onSetPartaiPhoto,
@@ -127,6 +129,7 @@ export default function TeamGroupSchedule({
             teams={teams}
             saving={saving}
             matchIdx={matchIdx}
+            dirty={dirtyByMatchId[m.id] ?? false}
             onChange={onChangePartai}
             onUpdateCourt={onUpdateCourt}
             onSave={onSave}

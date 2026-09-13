@@ -71,3 +71,25 @@ func ClassInPartai(partaiIdx int, cls string) bool {
 	}
 	return false
 }
+
+// TeamNames — 6 nama tim kanonik (fixed). Tiap turnamen wajib memakai keenamnya
+// tepat sekali (6 tim, unik). Nama ini juga kunci mapping logo di frontend
+// (apps/web/src/utils/teamTournament.ts TEAM_NAMES) — dipin golden fixture.
+var TeamNames = []string{
+	"RED RAPTORS",
+	"WHITE FURY",
+	"BLUE WAVES",
+	"PURPLE PHANTOMS",
+	"GREEN GROVE",
+	"PINK SPECTRE",
+}
+
+// IsTeamName — true bila name (sudah trim) salah satu nama kanonik.
+func IsTeamName(name string) bool {
+	for _, n := range TeamNames {
+		if name == n {
+			return true
+		}
+	}
+	return false
+}

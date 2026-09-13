@@ -1,5 +1,5 @@
 // apps/web/src/components/tournament/TeamMatchCard.tsx
-import { teamMatchOutcome, teamTarget, PARTAI_CLASSES, teamName, type TeamMatch, type TeamInfo } from '../../utils/teamTournament'
+import { teamMatchOutcome, teamTarget, PARTAI_CLASSES, teamName, DEFAULT_TEAM_COURTS, type TeamMatch, type TeamInfo } from '../../utils/teamTournament'
 
 interface PostProps {
   isPostMode: boolean
@@ -22,6 +22,7 @@ export default function TeamMatchCard({
   teams,
   saving,
   matchIdx,
+  dirty,
   onChange,
   onUpdateCourt,
   onSave,
@@ -31,17 +32,15 @@ export default function TeamMatchCard({
   teams: TeamInfo[]
   saving: boolean
   matchIdx: number
+  dirty: boolean
   onChange: (matchIdx: number, partaiIdx: number, patch: Partial<{ scoreA: number | null; scoreB: number | null }>) => void
-  onUpdateCourt: (matchIdx: number, courtIdx: number, name: string) => void
+  onUpdateCourt: (matchIdx: number, name: string) => void
   onSave: () => void
   postProps?: PostProps
 }) {
   const out = teamMatchOutcome(match)
   const target = teamTarget(match.phase)
-  const defaultCourts = ['Court 12', 'Court 13', 'Court 14']
-  const courts = match.courts ?? defaultCourts
-  const courtsChanged = courts.some((c, i) => c !== defaultCourts[i])
-  const dirty = match.partai.some((p) => p.scoreA !== null || p.scoreB !== null) || courtsChanged
+  const courts = match.courts ?? DEFAULT_TEAM_COURTS
   const label = match.phase === 'final'
     ? `FINAL · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
     : `Group · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
@@ -54,9 +53,22 @@ export default function TeamMatchCard({
   return (
     <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border-subtle">
-        <span className="text-xs text-fg-dim uppercase tracking-wider">{label}</span>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border-subtle">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs text-fg-dim uppercase tracking-wider truncate">{label}</span>
+          <label className="flex items-center gap-1 shrink-0">
+            <span className="text-[11px] text-fg-dim">Court</span>
+            <input
+              type="text"
+              value={courts[0]}
+              onChange={(e) => onUpdateCourt(matchIdx, e.target.value)}
+              className="w-20 bg-transparent text-xs text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none"
+              placeholder="Court"
+              aria-label={`Court ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`}
+            />
+          </label>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           {dirty && (
             <span className="text-[11px] text-fg-dim">
               {out.complete ? `${out.aWins}-${out.bWins}` : 'incomplete'}
@@ -122,16 +134,6 @@ export default function TeamMatchCard({
                   )}
                 </div>
               )}
-            </div>
-            <div className="flex items-center gap-2 pl-14">
-              <span className="text-[11px] text-fg-dim">Court</span>
-              <input
-                type="text"
-                value={courts[pi]}
-                onChange={(e) => onUpdateCourt(matchIdx, pi, e.target.value)}
-                className="flex-1 bg-transparent text-xs text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none"
-                placeholder={`Court ${pi + 1}`}
-              />
             </div>
           </div>
         ))}

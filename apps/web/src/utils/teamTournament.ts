@@ -70,6 +70,24 @@ export function teamTarget(phase: TeamPhase): number {
   return phase === 'final' ? 42 : 30
 }
 
+/** Fallback array court (3 slot per team-match) selaras UI. 1 input = 3 slot sama. */
+export const DEFAULT_TEAM_COURTS: [string, string, string] = ['Court 12', 'Court 13', 'Court 14']
+
+/** true bila match lokal berbeda dari snapshot server (skor atau court). */
+export function teamMatchDirty(local: TeamMatch, server: TeamMatch | undefined): boolean {
+  if (!server) return true
+  const lc = local.courts ?? DEFAULT_TEAM_COURTS
+  const sc = server.courts ?? DEFAULT_TEAM_COURTS
+  if (lc[0] !== sc[0] || lc[1] !== sc[1] || lc[2] !== sc[2]) return true
+  if (local.partai.length !== server.partai.length) return true
+  for (let i = 0; i < local.partai.length; i++) {
+    if (local.partai[i].scoreA !== server.partai[i].scoreA || local.partai[i].scoreB !== server.partai[i].scoreB) {
+      return true
+    }
+  }
+  return false
+}
+
 // ── outcome & standings ────────────────────────────────────────────────────
 
 export interface TeamOutcome {
@@ -197,7 +215,19 @@ export function teamName(teams: { id: string; name: string }[], id: string | und
   return teams.find((t) => t.id === id)?.name ?? (id ?? '—')
 }
 
-const TEAM_LOGO_MAP: Record<string, string> = {
+/** 6 nama tim kanonik (fixed) — kunci mapping logo. Wajib tepat sekali per turnamen. */
+export const TEAM_NAMES = [
+  'RED RAPTORS',
+  'WHITE FURY',
+  'BLUE WAVES',
+  'PURPLE PHANTOMS',
+  'GREEN GROVE',
+  'PINK SPECTRE',
+] as const
+
+export type TeamName = (typeof TEAM_NAMES)[number]
+
+const TEAM_LOGO_MAP: Record<TeamName, string> = {
   'RED RAPTORS': '/team-logos/Red_Raptors_-removebg-preview.png',
   'WHITE FURY': '/team-logos/White_Fury-removebg-preview.png',
   'BLUE WAVES': '/team-logos/Blue_Waves-removebg-preview.png',
@@ -207,5 +237,5 @@ const TEAM_LOGO_MAP: Record<string, string> = {
 }
 
 export function teamLogoPath(name: string): string | undefined {
-  return TEAM_LOGO_MAP[name.trim().toUpperCase()]
+  return TEAM_LOGO_MAP[name.trim().toUpperCase() as TeamName]
 }
