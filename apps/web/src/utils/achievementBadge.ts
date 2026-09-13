@@ -70,15 +70,3 @@ export function seedFromKey(key: string): string | undefined {
   }
   return undefined
 }
-
-// monogram — sampai 3 huruf dari nama event, dipakai sebagai emblem unik.
-export function monogram(name: string | undefined): string | undefined {
-  if (!name) return undefined
-  const skip = new Set(['majadu', 'the', 'of', 'and', 'a', 'an', 'internal', 'tournament', 'cup', 'open', 'season'])
-  const tokens = name.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w))
-  const significant = tokens.filter((w) => !skip.has(w.toLowerCase()))
-  const source = significant.length > 0 ? significant : tokens
-  if (source.length === 0) return undefined
-  const letters = source.length === 1 ? source[0].replace(/[^A-Za-z0-9]/g, '').slice(0, 3) : source.slice(0, 3).map((w) => w.replace(/[^A-Za-z0-9]/g, '')[0] ?? '').join('')
-  return letters.toUpperCase() || undefined
-}

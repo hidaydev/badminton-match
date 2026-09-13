@@ -19,7 +19,7 @@ export default function AchievementBadgesPreviewPage() {
         <p className="text-[11px] text-fg-dim mt-1 leading-relaxed">
           Everything here is sample content, not real data. All medals share a regular hexagon
           silhouette and carry no text; the icon and colour are the only markers. Milestones ramp
-          Bronze..Onyx, event medals use a unique tone plus a monogram.
+          Bronze..Onyx, event medals get a generated emblem that is unique to their id.
         </p>
       </div>
 
@@ -45,7 +45,7 @@ export default function AchievementBadgesPreviewPage() {
         <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Event medals</p>
         <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-3 flex-wrap">
           {EVENT_SEEDS.map((seed) => (
-            <AchievementBadge key={seed} icon="flag" seed={seed} monogram={seed.slice(0, 2).toUpperCase()} title={seed} width={56} />
+            <AchievementBadge key={seed} icon="flag" seed={seed} title={seed} width={56} />
           ))}
         </div>
       </section>
@@ -54,7 +54,7 @@ export default function AchievementBadgesPreviewPage() {
         <p className="text-[10px] text-fg-dim uppercase tracking-wider px-1">Terkunci</p>
         <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-3 flex-wrap">
           <AchievementBadge icon="trophy" tierLevel={2} title="Locked milestone" state="locked" width={56} />
-          <AchievementBadge icon="flag" seed="locked-event" monogram="LE" title="Locked event" state="locked" width={56} />
+          <AchievementBadge icon="flag" seed="locked-event" title="Locked event" state="locked" width={56} />
         </div>
       </section>
 
@@ -81,7 +81,6 @@ export default function AchievementBadgesPreviewPage() {
                 icon={icon as MedalIcon}
                 tierLevel={i < 7 ? (i % 5) + 1 : undefined}
                 seed={i >= 7 ? `ev-${i}` : undefined}
-                monogram={i >= 7 ? `E${i}` : undefined}
                 title={icon}
                 width={56}
               />
