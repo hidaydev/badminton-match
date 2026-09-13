@@ -1,10 +1,15 @@
-// src/components/ratings/AchievementDetailModal.tsx — popup detail achievement.
-// Dipicu dari badge di halaman rating pemain. Pola mengikuti AdminLoginModal:
-// backdrop click + Escape untuk menutup, role="dialog", fokus pindah ke tombol
-// Close. Menggantikan deskripsi inline supaya rak badge tetap rapi.
+// src/components/ratings/AchievementDetailModal.tsx — popup detail medal.
+// Dipicu dari badge di rak (badge sendiri tanpa teks). Pola mengikuti
+// AdminLoginModal: backdrop click + Escape untuk menutup, role="dialog", fokus
+// pindah ke tombol Close.
+//
+// Isi popup: ikon + nama medal + deskripsi singkat + angka pencapaian sekarang,
+// lalu tangga tingkat (Bronze..Onyx) dengan ambangnya. Event medal tidak
+// bertingkat, jadi yang tampil hanya keterangan event-nya.
 import { useEffect } from 'react'
 import AchievementBadge from './AchievementBadge'
-import { badgeKind, medalTone, monogram, seedFromKey } from '../../utils/achievementBadge'
+import { medalIcon, medalTone, monogram, seedFromKey } from '../../utils/achievementBadge'
+import { MEDAL_TIER_NAMES } from '../../config/achievements'
 import type { AchievementRow } from '../../queries/endpoints'
 
 interface AchievementDetailModalProps {
@@ -24,21 +29,12 @@ export default function AchievementDetailModal({ achievement, onClose }: Achieve
 
   if (!achievement) return null
   const a = achievement
-  const meta = a.meta ?? {}
   const tierLevel = a.tierLevel ?? 0
-  const tone = medalTone(tierLevel)
+  const thresholds = a.thresholds ?? []
+  const isMilestone = thresholds.length > 0 && tierLevel > 0
 
-  const rows: [string, string][] = []
-  if (meta.name && !seedFromKey(a.key)) rows.push(['Tournament', meta.name])
-  if (meta.margin) rows.push(['Margin', `${meta.margin} pts`])
-  if (meta.partner) rows.push(['Partner', meta.partner])
-  if (meta.games) rows.push(['Games together', meta.games])
-  if (meta.rating) rows.push(['Rating threshold', meta.rating])
-  if (meta.count) rows.push(['Count', meta.count])
-  rows.push(['Earned', a.earnedAt])
-  if (a.season) rows.push(['Season', a.season])
-
-  const pct = a.nextTarget && a.value != null ? Math.min(100, (a.value / a.nextTarget) * 100) : 100
+  const rows: [string, string][] = [['Earned', a.earnedAt]]
+  if (a.season) rows.unshift(['Season', a.season])
 
   return (
     <div
@@ -49,39 +45,55 @@ export default function AchievementDetailModal({ achievement, onClose }: Achieve
       aria-label={`${a.title} details`}
     >
       <div
-        className="w-full max-w-xs bg-surface border border-border rounded-xl p-5 flex flex-col items-center gap-3"
+        className="flex w-full max-w-xs flex-col gap-3 rounded-xl border border-border bg-surface p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <AchievementBadge
-          kind={badgeKind(a.kind)}
-          tierLevel={tierLevel || undefined}
-          seed={seedFromKey(a.key)}
-          monogram={monogram(meta.name ?? a.title)}
-          title={a.title}
-          size="lg"
-        />
-        {a.detail && <p className="text-xs text-fg-dim text-center">{a.detail}</p>}
-
-        {tierLevel > 0 && a.value != null && (
-          <div className="w-full">
-            <div className="mb-1 flex justify-between text-[11px] text-fg-dim">
-              <span>{a.tierName}</span>
-              <span>{a.nextTarget ? `${a.value} / ${a.nextTarget}` : `${a.value} · Max`}</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-elevated">
-              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: tone }} />
-            </div>
+        <div className="flex items-center gap-4">
+          <AchievementBadge
+            icon={medalIcon(a.key)}
+            tierLevel={tierLevel || undefined}
+            seed={seedFromKey(a.key)}
+            monogram={monogram(a.meta?.name ?? a.title)}
+            title={a.title}
+            width={84}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-fg">{a.title}</p>
+            {a.note && <p className="mt-0.5 text-xs text-fg-dim">{a.note}</p>}
+            {a.value != null && <p className="mt-1 text-xs text-fg">{a.detail}</p>}
           </div>
+        </div>
+
+        {isMilestone ? (
+          <ul className="mt-1 flex w-full flex-col gap-1 border-t border-border-subtle pt-3">
+            {thresholds.map((target, i) => {
+              const level = i + 1
+              const achieved = level <= tierLevel
+              return (
+                <li key={level} className="flex items-center justify-between text-[11px]">
+                  <span className="flex items-center gap-1.5">
+                    <span
+                      className="block h-2 w-2 rounded-full"
+                      style={{ background: achieved ? medalTone(level) : 'var(--color-border)' }}
+                    />
+                    <span className={achieved ? 'text-fg' : 'text-fg-dim'}>{MEDAL_TIER_NAMES[i]}</span>
+                  </span>
+                  <span className={achieved ? 'text-fg' : 'text-fg-dim'}>{target}</span>
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <dl className="flex w-full flex-col gap-1 border-t border-border-subtle pt-3">
+            {rows.map(([k, v]) => (
+              <div key={k} className="flex justify-between gap-3 text-[11px]">
+                <dt className="text-fg-dim">{k}</dt>
+                <dd className="text-right text-fg">{v}</dd>
+              </div>
+            ))}
+          </dl>
         )}
 
-        <dl className="mt-1 flex w-full flex-col gap-1">
-          {rows.map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-3 text-[11px]">
-              <dt className="text-fg-dim">{k}</dt>
-              <dd className="text-right text-fg">{v}</dd>
-            </div>
-          ))}
-        </dl>
         <button
           type="button"
           autoFocus

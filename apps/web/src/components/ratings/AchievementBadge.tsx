@@ -1,114 +1,124 @@
-// src/components/ratings/AchievementBadge.tsx, badge koleksi medal berbentuk
-// segi enam. Presentasional murni: seluruh isi datang dari props, tidak ada data
-// contoh di dalam komponen.
+// src/components/ratings/AchievementBadge.tsx, badge medal berbentuk segi enam
+// beraturan. Presentasional murni: seluruh isi datang dari props.
 //
 // Alasan tiap keputusan (R-31):
-// - Segi enam seragam untuk semua badge (mengikuti medal event Ingress). Yang
-//   membedakan hanya warna dan isi emblem, bukan siluet.
-// - Dua mode visual, dipilih dari props:
-//     1. milestone (tierLevel 1..5): tone pangkat Bronze..Onyx + 5 pips tingkat.
-//     2. event (seed): tone unik deterministik dari id + emblem monogram nama
-//        event (mis. "MO"). Tanpa pips, karena event tidak bertingkat.
-// - Yang tampil hanya NAMA medal; deskripsi pindah ke popup (permintaan user)
-//   supaya rak tetap rapi. `showDetail` hanya untuk halaman pratinjau.
+// - Segi enam beraturan (pointy-top) supaya bisa disusun honeycomb tanpa celah:
+//   viewBox-nya persis kotak pembatas heksagon (46.8 x 54 = √3 : 2), sehingga
+//   baris ganjil cukup digeser setengah lebar. Satu bentuk untuk semua medal.
+// - Tanpa teks (permintaan user): nama + angka muncul di popup detail. Ikon dan
+//   warna jadi penanda tunggal. Tiap medal punya glyph sendiri (lihat
+//   utils/achievementBadge.medalIcon) supaya tidak ada yang kembar.
+// - Milestone dibedakan warna pangkat Bronze..Onyx; event dibedakan tone unik
+//   deterministik dari id + monogram nama event.
 // - Warna dari token app; satu accent, tanpa gradient/glow/shadow (R-01, R-13).
-// - Glyph relevan ke makna (R-04): shuttlecock = turnamen, check = kehadiran,
-//   dua orang = partner, dst. Bukan ikon generik.
-// - Kalau `onSelect` diberi, root jadi button (keyboard: Tab + Enter/Space,
-//   focus ring global). Tanpa `onSelect` root cuma div (non-interaktif).
+// - Kalau `onSelect` diberi, root jadi button (keyboard: Tab + Enter/Space).
 // - State terkunci dibedakan lewat garis putus + opacity, bukan warna baru
 //   (R-29). Tanpa animasi (MOTION 1).
 
+import type { MedalIcon } from '../../utils/achievementBadge'
 import { eventTone, medalTone } from '../../utils/achievementBadge'
-
-export type AchievementKind =
-  | 'tournament'
-  | 'attendance'
-  | 'volume'
-  | 'social'
-  | 'opponent'
-  | 'season'
 
 export type AchievementState = 'earned' | 'locked'
 
 export interface AchievementBadgeProps {
-  kind: AchievementKind
+  icon: MedalIcon
+  /** Dipakai untuk aria-label, bukan dirender. */
   title: string
-  /** Hanya dirender kalau showDetail=true (halaman pratinjau). */
-  detail?: string
-  /** Milestone: tingkat 1..5 (Bronze..Onyx). */
+  /** Milestone: tingkat 1..5 (Bronze..Onyx) → warna pangkat. */
   tierLevel?: number
   /** Event: id untuk memilih tone deterministik. */
   seed?: string
   /** Event: monogram pengganti glyph (mis. "MO"). */
   monogram?: string
   state?: AchievementState
-  size?: 'sm' | 'md' | 'lg'
-  showDetail?: boolean
+  /** Lebar heksagon dalam px; tinggi dihitung dari rasio √3:2. */
+  width?: number
   onSelect?: () => void
 }
 
-// Segi enam, viewBox 0 0 48 60.
-const SHAPE = 'M24 3 L44 14 V38 L24 57 L4 38 V14 Z'
-const MEDAL_SLOTS = 5
+// Heksagon beraturan pointy-top, viewBox 0 0 46.8 54.
+const SHAPE = 'M23.4 0 L46.8 13.5 V40.5 L23.4 54 L0 40.5 V13.5 Z'
+const HEX_RATIO = 54 / 46.8
 
-function Glyph({ kind, stroke, fill }: { kind: AchievementKind; stroke: string; fill: string }) {
-  switch (kind) {
-    case 'tournament':
+function Glyph({ icon, stroke, fill }: { icon: MedalIcon; stroke: string; fill: string }) {
+  switch (icon) {
+    case 'check':
+      return <path d="M13 27 L20 34 L34 18" fill="none" stroke={stroke} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+    case 'shuttlecock':
       return (
         <g fill="none" stroke={stroke} strokeLinejoin="round">
-          <path d="M15 13 H33 L27.5 34 H20.5 Z" strokeWidth="2" />
-          <path d="M20.2 13 L22.6 34 M27.8 13 L25.4 34" strokeWidth="1.2" />
-          <circle cx="24" cy="38" r="4" fill={fill} stroke="none" />
+          <path d="M14.4 15 H32.4 L26.8 33 H20 Z" strokeWidth="2" />
+          <path d="M19.8 15 L22.4 33 M27 15 L24.4 33" strokeWidth="1.2" />
+          <circle cx="23.4" cy="37.5" r="3.8" fill={fill} stroke="none" />
         </g>
       )
-    case 'attendance':
-      return <path d="M14 26 L21 34 L34 17" fill="none" stroke={stroke} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-    case 'volume':
-      return (
-        <g fill={fill} stroke="none">
-          <rect x="14" y="30" width="4.5" height="9" rx="1" />
-          <rect x="21.5" y="23" width="4.5" height="16" rx="1" />
-          <rect x="29" y="15" width="4.5" height="24" rx="1" />
-        </g>
-      )
-    case 'social':
+    case 'trophy':
       return (
         <g fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="19" cy="22" r="4" />
-          <circle cx="30.5" cy="24.5" r="3.2" />
-          <path d="M12.5 39c0-3.6 2.9-5.8 6.5-5.8s6.5 2.2 6.5 5.8" />
-          <path d="M26.5 39c0-2.7 1.8-4.5 4-4.5s4 1.8 4 4.5" />
+          <path d="M15.5 14 H31.3 V23.5 C31.3 29.5 27.8 33.5 23.4 33.5 C19 33.5 15.5 29.5 15.5 23.5 Z" />
+          <path d="M15.5 16.5 H12.4 C12.4 21 14.2 23.6 16.8 24.4" />
+          <path d="M31.3 16.5 H34.4 C34.4 21 32.6 23.6 30 24.4" />
+          <path d="M23.4 33.5 V38" />
+          <path d="M18 40.5 H28.8" />
         </g>
       )
-    case 'opponent':
+    case 'arrow-up':
       return (
-        <g fill="none" stroke={stroke} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 18 L14 27 L21 36" />
-          <path d="M27 18 L34 27 L27 36" />
+        <g fill="none" stroke={stroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M23.4 14 V38" />
+          <path d="M15.5 22.5 L23.4 14 L31.3 22.5" />
         </g>
       )
-    case 'season':
+    case 'flame':
+      return (
+        <path
+          d="M23.4 12 C27.5 18 31.5 22.5 31.5 28.5 C31.5 34 28.1 38.5 23.4 38.5 C18.7 38.5 15.3 34 15.3 28.5 C15.3 24.6 17.2 21.6 19.6 18.8 C19.9 22.4 21.3 24.4 23.4 25.8 C22.7 20.6 22.8 16 23.4 12 Z"
+          fill={fill}
+          stroke="none"
+        />
+      )
+    case 'team':
       return (
         <g fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="14" y="18" width="20" height="19" rx="2" />
-          <path d="M14 25 H34" />
-          <path d="M19 14 V20 M29 14 V20" />
+          <circle cx="20.6" cy="23" r="4.2" />
+          <circle cx="29.6" cy="25.5" r="3.4" />
+          <path d="M13.5 39.5c0-3.8 3-6 7.1-6s7.1 2.2 7.1 6" />
+          <path d="M27 39.5c0-2.8 1.9-4.6 4.2-4.6s4.2 1.8 4.2 4.6" />
+        </g>
+      )
+    case 'versus':
+      return (
+        <g fill="none" stroke={stroke} strokeWidth="3.2" strokeLinecap="round">
+          <path d="M15 16 L32 37" />
+          <path d="M32 16 L15 37" />
+        </g>
+      )
+    case 'flag':
+      return (
+        <g fill="none" stroke={stroke} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16.5 12 V41" />
+          <path d="M16.5 14 H33.5 L29.5 20.5 L33.5 27 H16.5 Z" fill={fill} />
+        </g>
+      )
+    case 'calendar':
+      return (
+        <g fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="14.5" y="18" width="18" height="19" rx="2" />
+          <path d="M14.5 25 H32.5" />
+          <path d="M19 14 V20 M28 14 V20" />
         </g>
       )
   }
 }
 
 export default function AchievementBadge({
-  kind,
+  icon,
   title,
-  detail,
   tierLevel,
   seed,
   monogram,
   state = 'earned',
-  size = 'md',
-  showDetail = false,
+  width = 60,
   onSelect,
 }: AchievementBadgeProps) {
   const locked = state === 'locked'
@@ -123,74 +133,46 @@ export default function AchievementBadge({
         ? eventTone(seed)
         : 'var(--color-accent)'
   const glyph = locked ? 'var(--color-fg-dim)' : edge
-  const shieldW = size === 'lg' ? 72 : size === 'md' ? 52 : 38
-  const slots = isMedal ? MEDAL_SLOTS : 0
-  const pip = size === 'lg' ? { w: 6, h: 4, gap: 2.5 } : size === 'md' ? { w: 5, h: 3.5, gap: 2 } : { w: 3.5, h: 2.5, gap: 1.5 }
-  const widthClass = size === 'lg' ? 'w-28' : size === 'md' ? 'w-24' : 'w-16'
-  const titleClass = size === 'lg' ? 'text-sm' : size === 'md' ? 'text-xs' : 'text-[10px]'
-  const monogramSize = size === 'lg' ? 18 : size === 'md' ? 14 : 11
-
-  const emblem = isEvent && monogram ? (
-    <text
-      x="24"
-      y="31"
-      textAnchor="middle"
-      dominantBaseline="middle"
-      fontSize={monogramSize}
-      fontWeight="700"
-      letterSpacing="0.5"
-      fill={glyph}
-      opacity={locked ? 0.45 : 1}
-    >
-      {monogram}
-    </text>
-  ) : (
-    <g opacity={locked ? 0.45 : 1}>
-      <Glyph kind={kind} stroke={glyph} fill={glyph} />
-    </g>
-  )
+  const height = Math.round(width * HEX_RATIO)
+  const monogramSize = Math.round(width * 0.3)
 
   const inner = (
-    <>
-      <svg
-        viewBox="0 0 48 60"
-        width={shieldW}
-        height={Math.round((shieldW * 60) / 48)}
-        role="img"
-        aria-label={locked ? `${title} (locked)` : title}
-      >
-        <path
-          d={SHAPE}
-          fill="var(--color-elevated)"
-          stroke={edge}
-          strokeWidth="2"
-          strokeLinejoin="round"
-          strokeDasharray={locked ? '4 3' : undefined}
-        />
-        {emblem}
-      </svg>
-
-      {slots > 0 && (
-        <span className="flex items-center justify-center" style={{ gap: pip.gap }} aria-hidden="true">
-          {Array.from({ length: slots }, (_, i) => (
-            <span
-              key={i}
-              style={{
-                display: 'block',
-                width: pip.w,
-                height: pip.h,
-                borderRadius: 1,
-                background: i < (tierLevel ?? 0) ? glyph : 'var(--color-border)',
-                opacity: locked ? 0.5 : 1,
-              }}
-            />
-          ))}
-        </span>
+    <svg
+      viewBox="0 0 46.8 54"
+      width={width}
+      height={height}
+      role="img"
+      aria-label={locked ? `${title} (locked)` : title}
+      style={{ display: 'block' }}
+    >
+      <path
+        d={SHAPE}
+        fill="var(--color-elevated)"
+        stroke={edge}
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeDasharray={locked ? '4 3' : undefined}
+      />
+      {isEvent && monogram ? (
+        <text
+          x="23.4"
+          y="30"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={monogramSize}
+          fontWeight="700"
+          letterSpacing="0.5"
+          fill={glyph}
+          opacity={locked ? 0.45 : 1}
+        >
+          {monogram}
+        </text>
+      ) : (
+        <g opacity={locked ? 0.45 : 1}>
+          <Glyph icon={icon} stroke={glyph} fill={glyph} />
+        </g>
       )}
-
-      <span className={`block leading-tight ${titleClass} ${locked ? 'text-fg-dim' : 'text-fg'}`}>{title}</span>
-      {showDetail && detail && <span className="block text-[10px] text-fg-dim leading-tight">{detail}</span>}
-    </>
+    </svg>
   )
 
   if (onSelect) {
@@ -199,11 +181,12 @@ export default function AchievementBadge({
         type="button"
         onClick={onSelect}
         aria-label={`View ${title} details`}
-        className={`flex flex-col items-center gap-1.5 text-center rounded-lg p-1 -m-1 transition-colors hover:bg-elevated/70 active:bg-elevated ${widthClass}`}
+        className="rounded transition-transform hover:scale-105 active:scale-95 focus-visible:outline-none"
+        style={{ width, height }}
       >
         {inner}
       </button>
     )
   }
-  return <div className={`flex flex-col items-center gap-1.5 text-center ${widthClass}`}>{inner}</div>
+  return inner
 }

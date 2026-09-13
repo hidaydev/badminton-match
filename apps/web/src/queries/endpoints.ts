@@ -575,10 +575,12 @@ export interface AchievementRow {
   kind: string
   title: string
   detail: string
+  note?: string
   value?: number
   tierLevel?: number
   tierName?: string
   nextTarget?: number
+  thresholds?: number[]
   seasonId?: string
   season?: string
   earnedAt: string

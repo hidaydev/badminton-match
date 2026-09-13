@@ -10,7 +10,8 @@ import RatingSparkline from '../components/ratings/RatingSparkline'
 import CareerStats from '../components/ratings/CareerStats'
 import AchievementBadge from '../components/ratings/AchievementBadge'
 import AchievementDetailModal from '../components/ratings/AchievementDetailModal'
-import { badgeKind, monogram, seedFromKey } from '../utils/achievementBadge'
+import MedalHoneycomb from '../components/ratings/MedalHoneycomb'
+import { isEventKey, medalIcon, monogram, seedFromKey } from '../utils/achievementBadge'
 import type { AchievementRow } from '../queries/endpoints'
 
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
@@ -34,6 +35,12 @@ export default function RatingPlayerPage() {
   const provisional = rd > 200
   // API DESC → balik untuk sparkline (kronologis); sparkline pakai new_rating
   const chrono = [...safeHistory].reverse().map((h) => ({ rating: h.new_rating }))
+
+  const medalList = achievements ?? []
+  const medalSections = [
+    { label: 'Event', rows: medalList.filter((a) => isEventKey(a.key)) },
+    { label: 'Standard', rows: medalList.filter((a) => !isEventKey(a.key)) },
+  ]
 
   return (
     <div className="flex flex-col gap-4">
@@ -148,7 +155,7 @@ export default function RatingPlayerPage() {
         {stats ? <CareerStats stats={stats} /> : <p className="text-fg-dim text-xs font-sans text-center py-6">No career stats yet.</p>}
       </div>
 
-      {/* Achievements */}
+      {/* Medals: event di atas, standard (milestone) di bawah */}
       <div className="flex flex-col gap-2">
         <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider px-1">Medals</p>
         {achLoading && <p className="text-fg-dim text-xs font-sans text-center py-6">Loading medals…</p>}
@@ -157,18 +164,27 @@ export default function RatingPlayerPage() {
           <p className="text-fg-dim text-xs font-sans text-center py-6">No medals yet. Play a session and the shelf fills up.</p>
         )}
         {!achLoading && !achError && (achievements?.length ?? 0) > 0 && (
-          <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-4 flex-wrap">
-            {achievements!.map((a) => (
-              <AchievementBadge
-                key={a.key}
-                kind={badgeKind(a.kind)}
-                tierLevel={a.tierLevel}
-                seed={seedFromKey(a.key)}
-                monogram={monogram(a.meta?.name ?? a.title)}
-                title={a.title}
-                onSelect={() => setSelectedAchievement(a)}
-              />
-            ))}
+          <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex flex-col gap-4">
+            {medalSections.map(({ label, rows }) =>
+              rows.length === 0 ? null : (
+                <div key={label} className="flex flex-col gap-2 border-t border-border-subtle pt-3 first:border-t-0 first:pt-0">
+                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">{label}</p>
+                  <MedalHoneycomb
+                    items={rows.map((a) => (
+                      <AchievementBadge
+                        key={a.key}
+                        icon={medalIcon(a.key)}
+                        title={a.title}
+                        tierLevel={a.tierLevel}
+                        seed={seedFromKey(a.key)}
+                        monogram={monogram(a.meta?.name ?? a.title)}
+                        onSelect={() => setSelectedAchievement(a)}
+                      />
+                    ))}
+                  />
+                </div>
+              ),
+            )}
           </div>
         )}
       </div>
