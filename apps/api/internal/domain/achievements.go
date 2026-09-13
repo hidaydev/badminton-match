@@ -35,19 +35,20 @@ type MedalDef struct {
 	Kind       AchievementKind
 	Title      string
 	Unit       string // satuan tampilan: 'sessions', 'games', ...
+	Note       string // deskripsi singkat untuk popup detail
 	Thresholds [5]int64
 }
 
 // CareerMedals — tujuh milestone yang dipertahankan. Ambang sengaja renggang
 // supaya badge terasa eksklusif (lihat distribusi pemilik saat kurasi).
 var CareerMedals = []MedalDef{
-	{ID: "sessions", Kind: AchAttendance, Title: "Attendance", Unit: "sessions", Thresholds: [5]int64{5, 10, 15, 20, 25}},
-	{ID: "games", Kind: AchVolume, Title: "Games", Unit: "games", Thresholds: [5]int64{10, 25, 50, 100, 200}},
-	{ID: "wins", Kind: AchVolume, Title: "Wins", Unit: "wins", Thresholds: [5]int64{5, 20, 50, 100, 200}},
-	{ID: "rating", Kind: AchRating, Title: "Peak Rating", Unit: "rating", Thresholds: [5]int64{2000, 2100, 2200, 2300, 2400}},
-	{ID: "streak", Kind: AchAttendance, Title: "Streak", Unit: "sessions", Thresholds: [5]int64{3, 5, 8, 12, 16}},
-	{ID: "partners", Kind: AchSocial, Title: "Partners", Unit: "partners", Thresholds: [5]int64{5, 15, 30, 60, 100}},
-	{ID: "opponents", Kind: AchOpponent, Title: "Opponents", Unit: "opponents", Thresholds: [5]int64{10, 25, 50, 100, 200}},
+	{ID: "sessions", Kind: AchAttendance, Title: "Attendance", Unit: "sessions", Note: "Sessions attended", Thresholds: [5]int64{5, 10, 15, 20, 25}},
+	{ID: "games", Kind: AchVolume, Title: "Games", Unit: "games", Note: "Games played", Thresholds: [5]int64{10, 25, 50, 100, 200}},
+	{ID: "wins", Kind: AchVolume, Title: "Wins", Unit: "wins", Note: "Games won", Thresholds: [5]int64{5, 20, 50, 100, 200}},
+	{ID: "rating", Kind: AchRating, Title: "Peak Rating", Unit: "rating", Note: "Highest rating reached", Thresholds: [5]int64{2000, 2100, 2200, 2300, 2400}},
+	{ID: "streak", Kind: AchAttendance, Title: "Streak", Unit: "sessions", Note: "Best run of consecutive sessions", Thresholds: [5]int64{3, 5, 8, 12, 16}},
+	{ID: "partners", Kind: AchSocial, Title: "Partners", Unit: "partners", Note: "Distinct partners played with", Thresholds: [5]int64{5, 15, 30, 60, 100}},
+	{ID: "opponents", Kind: AchOpponent, Title: "Opponents", Unit: "opponents", Note: "Distinct opponents faced", Thresholds: [5]int64{10, 25, 50, 100, 200}},
 }
 
 // ── Key builders ──────────────────────────────────────────────────────────

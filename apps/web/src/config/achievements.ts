@@ -11,6 +11,9 @@
 // Bronze, Silver, Gold, Platinum, Onyx.
 export const MEDAL_TONES = ['#c08552', '#c7ccd1', '#e3b341', '#a5d8e0', '#9aa4b2']
 
+// Nama tingkat 1..5, dipakai untuk tangga di popup detail.
+export const MEDAL_TIER_NAMES = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Onyx']
+
 export const EVENT_TONES = [
   '#e3b341', // gold
   '#d08a4f', // copper

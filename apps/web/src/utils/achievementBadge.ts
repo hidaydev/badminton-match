@@ -1,24 +1,45 @@
 // src/utils/achievementBadge.ts, pemetaan data medal ke visual badge.
-import type { AchievementKind } from '../components/ratings/AchievementBadge'
 import { EVENT_TONES, MEDAL_TONES } from '../config/achievements'
 
-// badgeKind — kind dari API → glyph badge.
-export function badgeKind(kind: string): AchievementKind {
-  switch (kind) {
-    case 'tournament':
-      return 'tournament'
-    case 'season':
-      return 'season'
-    case 'attendance':
-      return 'attendance'
-    case 'social':
-      return 'social'
-    case 'opponent':
-      return 'opponent'
-    default:
-      // volume, rating
-      return 'volume'
+// MedalIcon — nama glyph. Tiap medal punya ikon sendiri supaya tidak ada yang
+// kembar; badge memang tanpa teks, jadi ikon + warna adalah satu-satunya penanda.
+export type MedalIcon =
+  | 'check'
+  | 'shuttlecock'
+  | 'trophy'
+  | 'arrow-up'
+  | 'flame'
+  | 'team'
+  | 'versus'
+  | 'flag'
+  | 'calendar'
+
+// medalIcon — achievement_key → ikon.
+export function medalIcon(key: string): MedalIcon {
+  switch (key) {
+    case 'medal:sessions':
+      return 'check'
+    case 'medal:games':
+      return 'shuttlecock'
+    case 'medal:wins':
+      return 'trophy'
+    case 'medal:rating':
+      return 'arrow-up'
+    case 'medal:streak':
+      return 'flame'
+    case 'medal:partners':
+      return 'team'
+    case 'medal:opponents':
+      return 'versus'
   }
+  if (key.startsWith('tournament:')) return 'flag'
+  if (key.startsWith('season_member:')) return 'calendar'
+  return 'trophy'
+}
+
+// isEventKey — badge event (satu per event) vs milestone bertingkat.
+export function isEventKey(key: string): boolean {
+  return key.startsWith('tournament:') || key.startsWith('season_member:')
 }
 
 // medalTone — warna pangkat untuk level 1..5 (Bronze..Onyx).
@@ -50,13 +71,14 @@ export function seedFromKey(key: string): string | undefined {
   return undefined
 }
 
-// monogram — 2 huruf dari nama event, dipakai sebagai emblem unik.
+// monogram — sampai 3 huruf dari nama event, dipakai sebagai emblem unik.
 export function monogram(name: string | undefined): string | undefined {
   if (!name) return undefined
-  const skip = new Set(['majadu', 'the', 'of', 'and', 'a', 'an', 'internal', 'tournament', 'cup', 'open'])
-  const words = name.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w))
-  const significant = words.filter((w) => !skip.has(w.toLowerCase()))
-  const source = (significant.length > 0 ? significant : words).slice(0, 2)
-  const letters = source.map((w) => w[0]?.toUpperCase() ?? '').join('')
-  return letters || undefined
+  const skip = new Set(['majadu', 'the', 'of', 'and', 'a', 'an', 'internal', 'tournament', 'cup', 'open', 'season'])
+  const tokens = name.split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w))
+  const significant = tokens.filter((w) => !skip.has(w.toLowerCase()))
+  const source = significant.length > 0 ? significant : tokens
+  if (source.length === 0) return undefined
+  const letters = source.length === 1 ? source[0].replace(/[^A-Za-z0-9]/g, '').slice(0, 3) : source.slice(0, 3).map((w) => w.replace(/[^A-Za-z0-9]/g, '')[0] ?? '').join('')
+  return letters.toUpperCase() || undefined
 }

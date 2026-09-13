@@ -36,10 +36,12 @@ type AchievementView struct {
 	Kind       string            `json:"kind"`
 	Title      string            `json:"title"`
 	Detail     string            `json:"detail"`
+	Note       string            `json:"note,omitempty"` // deskripsi singkat (milestone)
 	Value      *int64            `json:"value,omitempty"`
-	TierLevel  int               `json:"tierLevel,omitempty"`  // 1..5 untuk medal, 0 untuk collectible
+	TierLevel  int               `json:"tierLevel,omitempty"`  // 1..5 untuk medal, 0 untuk event
 	TierName   string            `json:"tierName,omitempty"`   // Bronze..Onyx
 	NextTarget *int64            `json:"nextTarget,omitempty"` // ambang tingkat berikutnya
+	Thresholds []int64           `json:"thresholds,omitempty"` // tangga ambang 1..5
 	SeasonID   string            `json:"seasonId,omitempty"`
 	Season     string            `json:"season,omitempty"`
 	EarnedAt   string            `json:"earnedAt"`
@@ -87,6 +89,8 @@ func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) 
 				level = int64(domain.TierForValue(def, *value))
 			}
 			v.Title = title
+			v.Note = def.Note
+			v.Thresholds = def.Thresholds[:]
 			v.TierLevel = int(level)
 			v.TierName = domain.TierName(int(level))
 			if next, has := domain.NextTarget(def, int(level)); has {
