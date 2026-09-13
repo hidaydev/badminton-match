@@ -790,12 +790,9 @@ func (s *SessionStore) backfillTournaments(
 			ordered = append(ordered, p)
 		}
 		sort.Slice(ordered, func(i, j int) bool { return ordered[i].date < ordered[j].date })
-		for i, p := range ordered {
+		for _, p := range ordered {
 			addCollectible(achievementRow{PlayerID: pid, Key: domain.TournamentKey(p.tid), Kind: string(domain.AchTournament),
 				EarnedAt: p.date, Meta: map[string]string{"name": p.name}})
-			if int64(i+1) == medalDef.Thresholds[0] {
-				addMedal(pid, medalDef, int64(len(ordered)), "", p.date, nil)
-			}
 		}
 		if int64(len(ordered)) >= medalDef.Thresholds[0] {
 			addMedal(pid, medalDef, int64(len(ordered)), "", ordered[0].date, nil)
