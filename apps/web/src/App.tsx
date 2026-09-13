@@ -29,6 +29,7 @@ const AdminRatingsPage = safeLazy(() => import('./pages/admin/AdminRatingsPage')
 const AdminTournamentsPage = safeLazy(() => import('./pages/admin/AdminTournamentsPage'))
 const AdminSeasonsPage = safeLazy(() => import('./pages/admin/AdminSeasonsPage'))
 const RatingPlayerPage = safeLazy(() => import('./pages/RatingPlayerPage'))
+const AchievementBadgesPreviewPage = safeLazy(() => import('./pages/AchievementBadgesPreviewPage'))
 const NewTournamentPage = safeLazy(() => import('./pages/NewTournamentPage'))
 const NewTournamentWizard = safeLazy(() => import('./pages/NewTournamentWizard'))
 const SharedSessionPage = safeLazy(() => import('./pages/SharedSessionPage'))
@@ -94,6 +95,7 @@ export default function App() {
             <Route path="sessions" element={<SessionListPage />} />
             <Route path="ratings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="ratings"><RatingsPage /></ErrorBoundary></Suspense>} />
             <Route path="ratings/:playerId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rating-player"><RatingPlayerPage /></ErrorBoundary></Suspense>} />
+            <Route path="dev/achievement-badges" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="achievement-badges-preview"><AchievementBadgesPreviewPage /></ErrorBoundary></Suspense>} />
             <Route path="tournament" element={<Navigate to="/tournaments" replace />} />
             <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-list"><TournamentListPage /></ErrorBoundary></Suspense>} />
             <Route path="tournaments/new" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-new"><NewTournamentPage /></ErrorBoundary></Suspense>} />

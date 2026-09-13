@@ -3,20 +3,47 @@
 // tanpa cross-link nested.
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useRatingPlayer } from '../queries/ratings'
+import { useRatingPlayer, useRatingPlayerAchievements } from '../queries/ratings'
 import { useGetPlayerStats } from '../queries'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import RatingSparkline from '../components/ratings/RatingSparkline'
 import CareerStats from '../components/ratings/CareerStats'
+import AchievementBadge, { type AchievementKind } from '../components/ratings/AchievementBadge'
+import { TIER_RANK, type RatingTier } from '../config/ratingTiers'
 
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
 
 const MATCHES_PER_PAGE = 5
 
+// badgeKind — petakan `kind` dari API ke glyph badge.
+function badgeKind(kind: string): AchievementKind {
+  switch (kind) {
+    case 'tournament':
+      return 'tournament'
+    case 'season':
+      return 'season'
+    case 'attendance':
+      return 'attendance'
+    case 'volume':
+      return 'volume'
+    case 'social':
+      return 'social'
+    case 'opponent':
+      return 'opponent'
+    default:
+      return 'tier' // tier, rating, rank
+  }
+}
+
+function asTier(v: string | undefined): RatingTier | undefined {
+  return v && v in TIER_RANK ? (v as RatingTier) : undefined
+}
+
 export default function RatingPlayerPage() {
   const { playerId } = useParams<{ playerId: string }>()
   const { data, isLoading, isError } = useRatingPlayer(playerId)
   const { data: stats } = useGetPlayerStats(data?.name ?? '')
+  const { data: achievements, isLoading: achLoading, isError: achError } = useRatingPlayerAchievements(playerId)
   const [matchesPage, setMatchesPage] = useState(0)
 
   if (isLoading) return <p className="text-fg-dim text-sm">Loading rating…</p>
@@ -140,6 +167,29 @@ export default function RatingPlayerPage() {
       <div className="flex flex-col gap-2">
         <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider px-1">Career</p>
         {stats ? <CareerStats stats={stats} /> : <p className="text-fg-dim text-xs font-sans text-center py-6">No career stats yet.</p>}
+      </div>
+
+      {/* Achievements */}
+      <div className="flex flex-col gap-2">
+        <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider px-1">Achievements</p>
+        {achLoading && <p className="text-fg-dim text-xs font-sans text-center py-6">Loading achievements…</p>}
+        {achError && <p className="text-error text-xs font-sans text-center py-6">Failed to load achievements.</p>}
+        {!achLoading && !achError && (achievements?.length ?? 0) === 0 && (
+          <p className="text-fg-dim text-xs font-sans text-center py-6">Belum ada achievement. Main dulu, raknya nanti terisi.</p>
+        )}
+        {!achLoading && !achError && (achievements?.length ?? 0) > 0 && (
+          <div className="bg-surface border border-border-subtle rounded-lg px-4 py-5 flex items-start gap-4 flex-wrap">
+            {achievements!.map((a) => (
+              <AchievementBadge
+                key={a.key}
+                kind={badgeKind(a.kind)}
+                tier={a.kind === 'tier' ? asTier(a.meta?.tier) : undefined}
+                title={a.title}
+                detail={a.detail || a.season || undefined}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

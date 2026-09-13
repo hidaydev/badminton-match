@@ -1,7 +1,7 @@
 // src/queries/ratings.ts — hooks rating (plan RATINGS_FRONTEND_PLAN.md §6.3)
 import { useQuery } from '@tanstack/react-query'
-import { getRatingLeaderboard, getRatingPlayer, getRatingSeasons, getSeasonStandings, request } from './endpoints'
-import type { RatingPlayer, RatingLeaderboardRow, RatingSeason, SeasonStandingRow } from './endpoints'
+import { getRatingLeaderboard, getRatingPlayer, getRatingSeasons, getSeasonStandings, getPlayerAchievements, request } from './endpoints'
+import type { RatingPlayer, RatingLeaderboardRow, RatingSeason, SeasonStandingRow, AchievementRow } from './endpoints'
 
 export function useRatingLeaderboard(active: boolean, limit: number, offset: number) {
   return useQuery<{ total: number; rows: RatingLeaderboardRow[] }>({
@@ -15,6 +15,15 @@ export function useRatingPlayer(playerId: string | undefined) {
   return useQuery<RatingPlayer>({
     queryKey: ['ratings-player', playerId],
     queryFn: ({ signal }) => getRatingPlayer(playerId!, signal),
+    enabled: !!playerId,
+    staleTime: 1000 * 60,
+  })
+}
+
+export function useRatingPlayerAchievements(playerId: string | undefined) {
+  return useQuery<AchievementRow[]>({
+    queryKey: ['ratings-player-achievements', playerId],
+    queryFn: ({ signal }) => getPlayerAchievements(playerId!, signal),
     enabled: !!playerId,
     staleTime: 1000 * 60,
   })

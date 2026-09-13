@@ -569,6 +569,29 @@ export async function getRatingPlayer(playerId: string, signal?: AbortSignal): P
   return data
 }
 
+// AchievementRow — dari GET /ratings/players/{id}/achievements
+export interface AchievementRow {
+  key: string
+  kind: string
+  title: string
+  detail: string
+  value?: number
+  seasonId?: string
+  season?: string
+  earnedAt: string
+  meta?: Record<string, string>
+}
+
+export async function getPlayerAchievements(playerId: string, signal?: AbortSignal): Promise<AchievementRow[]> {
+  const data = await request<{ achievements: AchievementRow[] } | null>(
+    'GET',
+    `/ratings/players/${enc(playerId)}/achievements`,
+    undefined,
+    signal,
+  )
+  return data?.achievements ?? []
+}
+
 
 // ── Season (plan RATINGS_FRONTEND_PLAN Rev 3.7) ──────────────────────────
 
