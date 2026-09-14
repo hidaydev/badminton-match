@@ -394,13 +394,26 @@ export function drawPositionPost(
     const chevW = chevH * (chevrons.naturalWidth / chevrons.naturalHeight)
     ctx.drawImage(chevrons, W - chevW - 30, H * 0.18, chevW, chevH)
     ctx.save()
-    ctx.translate(30 + chevW / 2, H * 0.10 + chevH / 2)
+    ctx.translate(30 + chevW / 2, H - chevH * 0.5)
     ctx.rotate(Math.PI)
     ctx.drawImage(chevrons, -chevW / 2, -chevH / 2, chevW, chevH)
     ctx.restore()
   }
 
   drawHeader(ctx, W, logo, ANNIVERSARY_LABEL)
+
+  // Team logo centered below header, with drop shadow
+  if (teamLogo) {
+    const cLogoH = 220
+    const cLogoW = cLogoH * (teamLogo.naturalWidth / teamLogo.naturalHeight)
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'
+    ctx.shadowBlur = 24
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 8
+    ctx.drawImage(teamLogo, (W - cLogoW) / 2, HEADER_H + 30, cLogoW, cLogoH)
+    ctx.restore()
+  }
 
   // Gradient starts at 35% height, fades gently — less solid at bottom
   const gradStart = H * 0.35
@@ -413,15 +426,13 @@ export function drawPositionPost(
   ctx.fillStyle = grad
   ctx.fillRect(0, gradStart, W, H - gradStart)
 
-  // Team logo watermarks: top-left and bottom-right (replaces badge)
+  // Team logo watermarks: top-left and bottom-right
   if (teamLogo) {
     const tLogoH = 680
     const tLogoW = tLogoH * (teamLogo.naturalWidth / teamLogo.naturalHeight)
     ctx.save()
     ctx.globalAlpha = 0.13
-    // Top-left: partially off-screen
     ctx.drawImage(teamLogo, -tLogoW * 0.36, -tLogoH * 0.36, tLogoW, tLogoH)
-    // Bottom-right: partially off-screen
     ctx.drawImage(teamLogo, W - tLogoW * 0.64, H - tLogoH * 0.64, tLogoW, tLogoH)
     ctx.restore()
   } else if (badge) {
@@ -433,7 +444,7 @@ export function drawPositionPost(
     ctx.restore()
   }
 
-  const footerY = H - 380
+  const footerY = H - 320
 
   // Anniversary card logo
   const footerLogoImg = cardLogo ?? sponsor
@@ -449,18 +460,8 @@ export function drawPositionPost(
   ctx.fillStyle = C.accent
   ctx.textAlign = 'center'
   ctx.letterSpacing = '6px'
-  ctx.fillText(positionLabel, W / 2, footerY + 130)
+  ctx.fillText(positionLabel, W / 2, footerY + 160)
   ctx.restore()
-
-  // Centered team logo above name
-  let centerLogoBottom = footerY + 160
-  if (teamLogo) {
-    const cLogoH = 220
-    const cLogoW = cLogoH * (teamLogo.naturalWidth / teamLogo.naturalHeight)
-    const cLogoY = footerY + 155
-    ctx.drawImage(teamLogo, (W - cLogoW) / 2, cLogoY, cLogoW, cLogoH)
-    centerLogoBottom = cLogoY + cLogoH + 20
-  }
 
   // Name
   ctx.save()
@@ -468,7 +469,7 @@ export function drawPositionPost(
   ctx.fillStyle = C.white
   ctx.textAlign = 'center'
   const maxW = W - 100
-  ctx.fillText(truncateToWidth(ctx, name, maxW), W / 2, centerLogoBottom + 70)
+  ctx.fillText(truncateToWidth(ctx, name, maxW), W / 2, footerY + 270)
   ctx.restore()
 }
 
