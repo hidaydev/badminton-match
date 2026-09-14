@@ -138,6 +138,15 @@ func mapPublishError(err error) *httperr.Error {
 			return httperr.Conflict("version mismatch — reload the latest state and retry")
 		case strings.Contains(msg, "not found"):
 			return httperr.NotFound("session not found")
+		case pgErr.Code == "23505":
+			// unique_violation — konflik state, bukan kesalahan input klien.
+			return httperr.Conflict("conflict: resource already exists")
+		case pgErr.Code == "40001" || pgErr.Code == "40P01":
+			// serialization_failure / deadlock_detected — transien, klien boleh retry.
+			return httperr.TooManyRequests("database conflict — retry the request")
+		case isInfraPgCode(pgErr.Code):
+			// Kegagalan koneksi/sumber daya → error server, jangan tampak 400.
+			return httperr.Wrap(httperr.CodeDatabase, "database operation failed", pgErr)
 		default:
 			// Jangan kirim detail Postgres ke klien (bocor nama tabel/constraint).
 			// Cause tetap dibawa untuk diagnostics via Unwrap.
@@ -145,6 +154,21 @@ func mapPublishError(err error) *httperr.Error {
 		}
 	}
 	return httperr.Wrap(httperr.CodeDatabase, "operation failed", err)
+}
+
+// isInfraPgCode — SQLSTATE kelas koneksi/sumber daya/sistem: kegagalan server,
+// bukan input klien yang salah (jadi jangan dipetakan ke 400).
+func isInfraPgCode(code string) bool {
+	switch {
+	case strings.HasPrefix(code, "08"), // connection_exception
+		strings.HasPrefix(code, "53"), // insufficient_resources
+		strings.HasPrefix(code, "57"), // operator_intervention (shutdown, cancel)
+		strings.HasPrefix(code, "58"): // system_error
+		return true
+	case code == "XX000": // internal_error
+		return true
+	}
+	return false
 }
 
 // SessionHandler — REST endpoints session.
@@ -273,6 +297,14 @@ func (h *SessionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	h.writeSession(w, http.StatusOK, snap)
 }
 
+const (
+	// sseHeartbeatInterval — ping SSE; harus < WriteTimeout server agar koneksi
+	// tidak diputus saat idle.
+	sseHeartbeatInterval = 20 * time.Second
+	// sseWriteTimeout — batas tiap write SSE (client lambat/mati tidak menggantung).
+	sseWriteTimeout = 30 * time.Second
+)
+
 // Watch — GET /sessions/{id}/watch SSE full snapshot (realtime-ness, M5-C).
 // Tanpa AdminGuard (read anon, sama seperti Get). Kirim snapshot awal lalu tiap Broadcast.
 func (h *SessionHandler) Watch(w http.ResponseWriter, r *http.Request) {
@@ -297,25 +329,46 @@ func (h *SessionHandler) Watch(w http.ResponseWriter, r *http.Request) {
 	// CORS untuk EventSource (Browser kirim Accept: text/event-stream)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	rc := http.NewResponseController(w)
+
+	// writeSSE — tulis satu baris SSE lalu flush. SetWriteDeadline per-write
+	// menimpa WriteTimeout server (30s) supaya stream bisa hidup lama, tapi tiap
+	// write tetap dibatasi agar client mati tidak menggantung selamanya.
+	writeSSE := func(line string) bool {
+		// Best-effort: writer tanpa dukungan deadline (mis. ResponseRecorder di
+		// test) tetap boleh lanjut; di produksi net/http mendukungnya.
+		_ = rc.SetWriteDeadline(time.Now().Add(sseWriteTimeout))
+		if _, err := fmt.Fprintf(w, "%s\n\n", line); err != nil {
+			return false
+		}
+		return rc.Flush() == nil
+	}
+
 	// Kirim snapshot awal segera (realtime-ness, 0 GET)
 	data, _ := json.Marshal(snap)
-	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+	if !writeSSE("data: " + string(data)) {
 		return
 	}
-	_ = rc.Flush()
+
+	// Heartbeat — jaga koneksi tetap hidup lewat proxy dan deteksi client mati.
+	heartbeat := time.NewTicker(sseHeartbeatInterval)
+	defer heartbeat.Stop()
+
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-heartbeat.C:
+			if !writeSSE(": ping") {
+				return
+			}
 		case s, ok := <-ch:
 			if !ok {
 				return
 			}
 			data, _ := json.Marshal(s)
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+			if !writeSSE("data: " + string(data)) {
 				return
 			}
-			_ = rc.Flush()
 		}
 	}
 }

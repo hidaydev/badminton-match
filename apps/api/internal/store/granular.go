@@ -113,7 +113,7 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 	// sudah sukses harus return response cached walau session sudah ter-lock
 	// atau version naik (dedup, bukan write baru).
 	if idempotencyKey != "" {
-		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
+		if cached, hit := s.CheckIdempotency(ctx, tx, sessID, idempotencyKey); hit && cached != nil {
 			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil
@@ -258,7 +258,7 @@ func (s *SessionStore) SetGamePlayed(ctx context.Context, sessionID, gameKey str
 	}
 	// Idempotency SEBELUM status check (replay sukses harus bypass lock/version)
 	if idempotencyKey != "" {
-		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
+		if cached, hit := s.CheckIdempotency(ctx, tx, sessID, idempotencyKey); hit && cached != nil {
 			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil
@@ -355,7 +355,7 @@ func (s *SessionStore) SetAbsentPlayers(ctx context.Context, sessionID string, p
 	var status string
 	err = tx.QueryRow(ctx, `SELECT s.id::text, s.version, s.status FROM sessions s WHERE s.share_code=$1 OR s.id::text=$1 ORDER BY (s.share_code=$1) DESC LIMIT 1 FOR UPDATE NOWAIT`, sessionID).Scan(&sessID, &currentVer, &status)
 	if err == nil && idempotencyKey != "" {
-		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
+		if cached, hit := s.CheckIdempotency(ctx, tx, sessID, idempotencyKey); hit && cached != nil {
 			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil
@@ -457,7 +457,7 @@ func (s *SessionStore) SetGameSkipped(ctx context.Context, sessionID, gameKey st
 		return nil, err
 	}
 	if idempotencyKey != "" {
-		if cached, hit := s.CheckIdempotency(ctx, sessID, idempotencyKey); hit && cached != nil {
+		if cached, hit := s.CheckIdempotency(ctx, tx, sessID, idempotencyKey); hit && cached != nil {
 			s.metrics.IdempotencyHits.Add(1)
 			_ = tx.Rollback(ctx)
 			return cached, nil

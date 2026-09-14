@@ -128,8 +128,11 @@ export function useDebouncedPublish(
   // Flush pending publish on unmount
   useEffect(() => {
     return () => {
-      if (publishTimerRef.current) {
-        clearTimeout(publishTimerRef.current)
+      // Flush juga saat ada perubahan tertunda yang belum terjadwal (edit terakhir
+      // terjadi ketika request lain in-flight → hanya pendingDirtyRef yang set,
+      // publishTimerRef kosong). Tanpa ini, edit terakhir hilang saat unmount.
+      if (publishTimerRef.current || pendingDirtyRef.current) {
+        if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
         publishTimerRef.current = null
         if (cloudSessionId) {
           const state = useStore.getState()

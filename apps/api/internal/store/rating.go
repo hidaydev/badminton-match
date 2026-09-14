@@ -171,13 +171,17 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 		for name := range placeholderNames {
 			var gamesPlayed int
-			_ = s.pool.QueryRow(ctx, `
-				SELECT count(DISTINCT sgp.scheduled_game_internal_id)
-				FROM `+s.schema+`.scheduled_game_players sgp
-				JOIN `+s.schema+`.session_players sp
-				  ON sp.internal_id = sgp.session_player_internal_id
-				WHERE sp.player_id IS NULL
-				  AND sp.source_name = $1`, name).Scan(&gamesPlayed)
+			// Pakai tx (bukan s.pool) — query ini jalan DI DALAM transaksi; memakai
+			// koneksi pool kedua saat tx terbuka berisiko pool exhaustion/deadlock.
+			if err := tx.QueryRow(ctx, `
+			SELECT count(DISTINCT sgp.scheduled_game_internal_id)
+			FROM `+s.schema+`.scheduled_game_players sgp
+			JOIN `+s.schema+`.session_players sp
+			  ON sp.internal_id = sgp.session_player_internal_id
+			WHERE sp.player_id IS NULL
+			  AND sp.source_name = $1`, name).Scan(&gamesPlayed); err != nil {
+				slog.Warn("placeholder games count failed", "placeholder", name, "error", err)
+			}
 			if gamesPlayed >= cfg.PlaceholderPromoteGames {
 				// Warning: placeholder sudah terlalu banyak game
 				// Idealnya admin register pemain ini sebagai real player

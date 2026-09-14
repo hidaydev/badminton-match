@@ -16,21 +16,33 @@ import (
 // IdempotencyStore — persistent idempotency (Fase 0 additive).
 // Tabel idempotency_keys (000012). Fallback ke no-op jika tabel belum ada (backward compat).
 
+// rowQuerier — dipenuhi oleh pgx.Tx dan *pgxpool.Pool. Dipakai supaya
+// CheckIdempotency bisa query DI DALAM transaksi yang sedang terbuka: memakai
+// s.pool saat tx hidup berarti tiap request memegang 2 koneksi → risiko pool
+// exhaustion/deadlock di bawah concurrency.
+type rowQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
 // CheckIdempotency — cek apakah key sudah ada dan belum expired.
 // Return (cached snapshot, true) jika hit, (nil, false) jika miss atau tabel belum ada.
-func (s *SessionStore) CheckIdempotency(ctx context.Context, sessionID, key string) (*domain.CloudSnapshot, bool) {
+func (s *SessionStore) CheckIdempotency(ctx context.Context, q rowQuerier, sessionID, key string) (*domain.CloudSnapshot, bool) {
 	var raw []byte
 	var expires time.Time
-	err := s.pool.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		SELECT response, expires_at FROM idempotency_keys
 		WHERE session_id = $1::uuid AND key = $2 AND expires_at > now()`, sessionID, key).Scan(&raw, &expires)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, false
 		}
-		// Tabel belum ada (migration belum apply) → miss, jangan error
+		// Tabel belum ada (migration belum apply) → miss, jangan error.
 		if isUndefinedTable(err) {
 			return nil, false
+		}
+		// Error lain: fail-open (idempotency best-effort) tapi jangan telan diam-diam.
+		if s.logger != nil {
+			s.logger.Warn("idempotency check failed; treating as miss", "session_id", sessionID, "error", err)
 		}
 		return nil, false
 	}

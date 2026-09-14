@@ -121,6 +121,22 @@ func TestMapPublishErrorTable(t *testing.T) {
 			wantMsgPart: "invalid session state",
 			wantNoPart:  "sessions_status_check",
 		},
+		{
+			name:     "unique violation maps to conflict",
+			err:      &pgconn.PgError{Code: "23505", Message: `duplicate key value violates unique constraint "sessions_pkey"`},
+			wantCode: "conflict",
+		},
+		{
+			name:     "serialization failure maps to retryable too_many_requests",
+			err:      &pgconn.PgError{Code: "40001", Message: "could not serialize access due to concurrent update"},
+			wantCode: "too_many_requests",
+		},
+		{
+			name:       "connection failure maps to database_error",
+			err:        &pgconn.PgError{Code: "08006", Message: "connection failure"},
+			wantCode:   "database_error",
+			wantNoPart: "connection failure",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

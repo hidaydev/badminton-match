@@ -106,7 +106,8 @@ export default function ScheduleGrid({
   )
 
   function courtLabel(courtIndex: number): string {
-    return courtNames[courtIndex] ?? `C${courtIndex + 1}`
+    // `||` (bukan `??`) supaya nama kosong "" ikut fallback — samakan dengan SummaryModal.
+    return courtNames[courtIndex] || `C${courtIndex + 1}`
   }
 
   function name(id: string): string {

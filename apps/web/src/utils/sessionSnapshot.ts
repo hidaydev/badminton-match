@@ -167,5 +167,10 @@ export function swapSlotsInSnapshot(
     schedule: applySlotSwap(snapshot.schedule, g1, g2),
     playedGames: swapKeyInList(snapshot.playedGames, g1, g2),
     gameScores: swapKeys(snapshot.gameScores, g1, g2),
+    // Key = "slot-court" → ikut berpindah bareng jadwal, kalau tidak skip-ref
+    // tetap menempel di slot lama sampai refetch.
+    ...(snapshot.skippedPlayers
+      ? { skippedPlayers: swapKeys(snapshot.skippedPlayers, g1, g2) }
+      : {}),
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   PointerSensor,
   TouchSensor,
@@ -171,6 +171,16 @@ export default function SummaryModal({
     skipChanged,
     flatSkippedCount,
   } = modes
+
+  // Prop stabil untuk StandingsTab — tanpa ini, useMemo di dalamnya recompute
+  // computeStandings tiap render karena array/objek selalu identitas baru.
+  const standingsPlayers = useMemo(() => [...playerMap.values()], [playerMap])
+  const standingsAbsentIds = useMemo(() => [...effectiveAbsent], [effectiveAbsent])
+  const standingsSkipped = useMemo(() => {
+    const out: Record<string, string[]> = {}
+    for (const [k, s] of Object.entries(effectiveSkipped)) out[k] = [...s]
+    return out
+  }, [effectiveSkipped])
 
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
@@ -506,15 +516,11 @@ export default function SummaryModal({
         )}
         {activeTab === 'standings' ? (
           <StandingsTab
-            players={[...playerMap.values()]}
+            players={standingsPlayers}
             schedule={result.schedule}
             gameScores={gameScores}
-            absentPlayerIds={[...effectiveAbsent]}
-            skippedPlayers={(() => {
-              const out: Record<string, string[]> = {}
-              for (const [k, s] of Object.entries(effectiveSkipped)) out[k] = [...s]
-              return out
-            })()}
+            absentPlayerIds={standingsAbsentIds}
+            skippedPlayers={standingsSkipped}
           />
         ) : (
           <ScheduleGrid

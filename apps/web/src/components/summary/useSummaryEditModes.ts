@@ -1,7 +1,7 @@
 // useSummaryEditModes — state machine untuk mode edit SummaryModal (swap/absent/
 // skip/replace/slotSwap/teamSwap/change) + handler konfirmasi & validasi.
 // Dipisah dari komponen agar render tetap tipis.
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { Player, ScheduleSlot } from '../../types'
 import { toPlayerId } from '../../types'
@@ -265,8 +265,12 @@ export function useSummaryEditModes({
     setChangeError(null)
   }
 
-  // In absent mode, preview pending selections; otherwise use saved state
-  const effectiveAbsent = mode === 'absent' ? absentPending : new Set(absentPlayers)
+  // In absent mode, preview pending selections; otherwise use saved state.
+  // useMemo → identitas stabil supaya memo di StandingsTab tidak invalid tiap render.
+  const effectiveAbsent = useMemo(
+    () => (mode === 'absent' ? absentPending : new Set(absentPlayers)),
+    [mode, absentPending, absentPlayers],
+  )
 
   // True when pending state differs from saved state
   const absentChanged = mode === 'absent' && (() => {
@@ -276,8 +280,8 @@ export function useSummaryEditModes({
     return false
   })()
 
-  // Skip: effective per-game map + changed detection
-  const effectiveSkipped: Record<string, Set<string>> = (() => {
+  // Skip: effective per-game map + changed detection (identitas stabil via useMemo).
+  const effectiveSkipped: Record<string, Set<string>> = useMemo(() => {
     if (mode === 'skip') {
       const out: Record<string, Set<string>> = {}
       for (const [k, v] of skipPending) out[k] = new Set(v)
@@ -286,7 +290,7 @@ export function useSummaryEditModes({
     const out: Record<string, Set<string>> = {}
     for (const [k, v] of Object.entries(skippedPlayers)) out[k] = new Set(v)
     return out
-  })()
+  }, [mode, skipPending, skippedPlayers])
 
   const skipChanged = mode === 'skip' && (() => {
     const allKeys = new Set([...Object.keys(skippedPlayers), ...skipPending.keys()])

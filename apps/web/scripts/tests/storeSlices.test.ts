@@ -45,6 +45,56 @@ test('updatePlayer: hanya ubah record pemain, schedule & skor tetap utuh', () =>
   assert.deepEqual(s.gameScores, scores)
 })
 
+test('updatePlayer: ubah gender → reset schedule & skor (input generator)', () => {
+  const h = harness({
+    players: [p('a'), p('b'), p('c'), p('d')],
+    schedule,
+    playedGames: [key],
+    gameScores: scores as Record<GameKey, GameScore>,
+  })
+  const slice = createPlayersSlice(h.set)
+
+  slice.updatePlayer(toPlayerId('a'), { gender: 'F' })
+
+  const s = h.get()
+  assert.equal(s.players[0].gender, 'F')
+  assert.deepEqual(s.schedule, [], 'gender berubah → schedule reset')
+  assert.deepEqual(s.playedGames, [])
+  assert.deepEqual(s.gameScores, {})
+})
+
+test('updatePlayer: ubah tier → reset schedule & skor (input generator)', () => {
+  const h = harness({
+    players: [p('a'), p('b'), p('c'), p('d')],
+    schedule,
+    playedGames: [key],
+    gameScores: scores as Record<GameKey, GameScore>,
+  })
+  const slice = createPlayersSlice(h.set)
+
+  slice.updatePlayer(toPlayerId('a'), { tier: 5 })
+
+  const s = h.get()
+  assert.equal(s.players[0].tier, 5)
+  assert.deepEqual(s.schedule, [], 'tier berubah → schedule reset')
+})
+
+test('updatePlayer: gender/tier sama (no-op) tidak reset', () => {
+  const h = harness({
+    players: [p('a'), p('b'), p('c'), p('d')],
+    schedule,
+    playedGames: [key],
+    gameScores: scores as Record<GameKey, GameScore>,
+  })
+  const slice = createPlayersSlice(h.set)
+
+  slice.updatePlayer(toPlayerId('a'), { gender: 'M', tier: 3 })
+
+  const s = h.get()
+  assert.deepEqual(s.schedule, schedule)
+  assert.deepEqual(s.gameScores, scores)
+})
+
 test('setCourtTime: nilai sama → tidak reset; nilai beda → reset (perilaku lama)', () => {
   const h = harness({})
   const slice = createSessionSlice(h.set)
@@ -69,4 +119,18 @@ test('setSlotMinutes: nilai sama tidak reset, nilai beda reset', () => {
 
   slice.setSlotMinutes(min + 5)
   assert.deepEqual(h.get().schedule, [])
+})
+
+test('setCourts: court baru tidak punya end < start saat sessionStart malam', () => {
+  const h = harness({})
+  const slice = createSessionSlice(h.set)
+  h.set(() => ({ ...slice }))
+  slice.setSessionStart('13:00')
+  slice.setCourts(3)
+
+  const newCourt = h.get().session.courtTimes[2]
+  assert.ok(
+    newCourt.end >= newCourt.start,
+    `end (${newCourt.end}) harus >= start (${newCourt.start})`,
+  )
 })

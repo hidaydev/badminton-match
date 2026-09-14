@@ -69,6 +69,20 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 	return n, err
 }
 
+// Flush — teruskan ke writer asli bila mendukung. Tanpa ini, handler SSE yang
+// memakai http.ResponseController akan gagal ("feature not supported") karena
+// Flush bukan bagian dari interface http.ResponseWriter sehingga tidak
+// ter-promote lewat embedding.
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Unwrap — biar http.ResponseController bisa menemukan Flusher/SetWriteDeadline
+// di writer asli (SSE butuh keduanya).
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
+
 // Recover menangkap panic → 500 JSON + log lengkap (stack trace, IP, request id).
 func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

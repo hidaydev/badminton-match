@@ -211,6 +211,38 @@ func TestLoggingIncludesIPAndBytes(t *testing.T) {
 	}
 }
 
+func TestStatusRecorderSupportsFlush(t *testing.T) {
+	rec := httptest.NewRecorder()
+	sr := &statusRecorder{ResponseWriter: rec, status: http.StatusOK}
+	if err := http.NewResponseController(sr).Flush(); err != nil {
+		t.Fatalf("Flush via statusRecorder = %v, want nil", err)
+	}
+	if !rec.Flushed {
+		t.Fatal("Flush tidak diteruskan ke writer asli")
+	}
+	if sr.Unwrap() != http.ResponseWriter(rec) {
+		t.Fatal("Unwrap harus mengembalikan writer asli")
+	}
+}
+
+// TestLoggingPreservesFlush — regresi SSE: rantai Logging tidak boleh mematikan
+// http.ResponseController.Flush (kalau mati, frame SSE tertahan di buffer).
+func TestLoggingPreservesFlush(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	var flushErr error
+	h := Logging(logger)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		flushErr = http.NewResponseController(w).Flush()
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/sessions/x/watch", nil))
+	if flushErr != nil {
+		t.Fatalf("Flush lewat middleware Logging = %v, want nil", flushErr)
+	}
+	if !rec.Flushed {
+		t.Fatal("Flush tidak sampai ke writer asli lewat Logging")
+	}
+}
+
 // captureWriter — io.Writer yang meneruskan tiap baris ke callback.
 type captureWriter struct{ fn func(string) }
 
