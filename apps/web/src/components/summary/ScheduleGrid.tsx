@@ -211,7 +211,7 @@ export default function ScheduleGrid({
                   )
                 }
 
-                const allPlayers = [...g.teamA, ...g.teamB]
+                const allPlayers = [...g.teamA, ...g.teamB] as string[]
                 const isHighlighted = highlightedPlayerId ? allPlayers.includes(highlightedPlayerId) : false
                 const isDimmed = highlightedPlayerId ? !isHighlighted : false
 
