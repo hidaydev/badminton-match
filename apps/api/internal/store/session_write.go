@@ -162,7 +162,9 @@ func (s *SessionStore) Save(ctx context.Context, id string, snap *domain.CloudSn
 	// Version tetap nextVersion (SATU bump per save) — sebelumnya di-increment
 	// lagi (double bump n+1→n+2) bikin FE cache (n) kena 40001 di mutasi
 	// berikutnya padahal lock yang menolak (audit RC2).
-	if currentStatus == "draft" && status == "draft" {
+	// currentStatus == "" berarti sesi BARU (row belum ada / Scan gagal) — tetap
+	// ikut auto-lock, kalau tidak sesi baru bertanggal lampau tidak pernah lock.
+	if (currentStatus == "" || currentStatus == "draft") && status == "draft" {
 		allDecided := len(snap.Schedule) > 0 && countDecidedGames(snap) == len(snap.Schedule)
 		pastDate := false
 		// Compare against WIB date (Asia/Jakarta) — venue selalu WIB.

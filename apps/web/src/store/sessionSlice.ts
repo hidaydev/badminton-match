@@ -55,7 +55,12 @@ export const createSessionSlice = (
     set((s) => {
       if (n === s.session.courts) return s
       const prev = s.session.courtTimes
-      const courtTimes = Array.from({ length: n }, (_, i) => prev[i] ?? { start: s.session.sessionStart, end: toTimeString('11:00') })
+      // Court baru default-nya mengikuti sessionStart; end jangan sampai < start
+      // (mis. sessionStart 13:00 sementara default lama hardcode 11:00).
+      const defaultEnd = timeToMinutes(s.session.sessionStart) >= timeToMinutes('11:00')
+        ? toTimeString(minutesToTime(timeToMinutes(s.session.sessionStart) + s.session.slotMinutes))
+        : toTimeString('11:00')
+      const courtTimes = Array.from({ length: n }, (_, i) => prev[i] ?? { start: s.session.sessionStart, end: defaultEnd })
       return {
         session: {
           ...s.session,

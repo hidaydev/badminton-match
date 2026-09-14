@@ -25,10 +25,15 @@ func InsertOutbox(ctx context.Context, tx pgx.Tx, sessionID string, ev domain.Ou
 }
 
 // ListOutboxSince — untuk GET /sessions/{id}/events?since=
+// Menerima share_code ATAU uuid (JOIN ke sessions) — tanpa ini, id berupa
+// share_code akan gagal cast ke uuid (SQLSTATE 22P02 → 500).
 func (s *SessionStore) ListOutboxSince(ctx context.Context, sessionID string, sinceID int64, limit int) ([]domain.OutboxEvent, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, session_id::text, aggregate, aggregate_id, event_type, payload, version, created_at
-		FROM outbox_events WHERE session_id = $1::uuid AND id > $2 ORDER BY id ASC LIMIT $3`, sessionID, sinceID, limit)
+		SELECT e.id, e.session_id::text, e.aggregate, e.aggregate_id, e.event_type, e.payload, e.version, e.created_at
+		FROM outbox_events e
+		JOIN sessions s ON s.id = e.session_id
+		WHERE (s.share_code = $1 OR s.id::text = $1) AND e.id > $2
+		ORDER BY e.id ASC LIMIT $3`, sessionID, sinceID, limit)
 	if err != nil {
 		if isUndefinedTable(err) {
 			return []domain.OutboxEvent{}, nil

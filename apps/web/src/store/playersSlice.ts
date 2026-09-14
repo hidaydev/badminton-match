@@ -36,12 +36,19 @@ export const createPlayersSlice = (
     }),
 
   updatePlayer: (id, patch) =>
-    set((s) => ({
-      // Hanya update record pemain. id pemain tidak berubah, jadi schedule dan
-      // skor yang sudah dimainkan tetap valid — jangan ikut di-reset (data loss,
-      // mis. saat rename pemain di tengah sesi yang sudah berjalan).
-      players: s.players.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-    })),
+    set((s) => {
+      const players = s.players.map((p) => (p.id === id ? { ...p, ...patch } : p))
+      const current = s.players.find((p) => p.id === id)
+      // Rename tidak mengubah hasil generate → jangan reset (hindari data loss di
+      // tengah sesi). Tapi gender/tier ADALAH input generator: jadwal lama bisa
+      // tidak lagi valid, jadi turunan generator di-reset hanya saat keduanya berubah.
+      const changesGeneratorInput =
+        current != null &&
+        ((patch.gender !== undefined && patch.gender !== current.gender) ||
+          (patch.tier !== undefined && patch.tier !== current.tier))
+      if (!changesGeneratorInput) return { players }
+      return { players, schedule: [], lastResult: null, playedGames: [], gameScores: {} }
+    }),
 
   removePlayer: (id) =>
     set((s) => {
