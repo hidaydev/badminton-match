@@ -47,8 +47,12 @@ Full check akhir: `npm run check` → **81 test pass**, types/lint/tailwind hija
 ## Out of scope (dicatat, tidak dikerjakan sekarang)
 
 - Refactor `SessionStore` god-package (terlalu luas/berisiko).
-- Integration test Go di CI: butuh Postgres + migrasi `000001`–`000011` yang sengaja tidak ada di
-  repo → tetap di-skip. Limitasi didokumentasikan, bukan bug.
+- Integration test Go di CI: runner tidak punya DB ber-schema; migrasi `000001`–`000012`
+  privat (ada di VPS: `/srv/qouver/backups/archive/2026-09-03/majadu-migrations/`), repo
+  publik jadi tidak boleh di-commit. **Keputusan:** jangan paksakan CI integration test
+  sekarang; sebaliknya (a) CI menampilkan warning eksplisit saat di-skip, (b) target
+  `make test-integration` untuk jalan lokal via tunnel, (c) CI auto-jalan kalau secret
+  `MAJADU_TEST_DATABASE_URL` di-set. Upgrade ke private-migrations-repo bisa menyusul.
 - `eslint-plugin-jsx-a11y`, vitest/RTL, Prettier (dependency baru — butuh persetujuan).
 - Perbaikan fokus ring/WCAG menyeluruh (38 `focus:outline-none`) — backlog terpisah.
 - `store.migrate` hard-reset (keputusan desain, bukan regresi).
