@@ -182,6 +182,7 @@ export default function SummaryModal({
     return out
   }, [effectiveSkipped])
 
+  const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const sensors = useSensors(
@@ -558,6 +559,7 @@ export default function SummaryModal({
             setExpandedScore={setExpandedScore}
             setScoreError={setScoreError}
             setDraftScores={setDraftScores}
+            highlightedPlayerId={highlightedPlayerId}
           />
         )}
 
@@ -568,6 +570,8 @@ export default function SummaryModal({
             playerMap={playerMap}
             absentPlayers={absentPlayers}
             standalone={standalone}
+            highlightedPlayerId={highlightedPlayerId}
+            onSelectPlayer={(id) => setHighlightedPlayerId((prev) => prev === id ? null : id)}
           />
         )}
       </div>

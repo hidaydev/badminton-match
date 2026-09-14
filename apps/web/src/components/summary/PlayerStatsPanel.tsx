@@ -7,6 +7,8 @@ interface PlayerStatsPanelProps {
   playerMap: Map<string, Player>
   absentPlayers: string[]
   standalone: boolean
+  highlightedPlayerId?: string | null
+  onSelectPlayer?: (id: string) => void
 }
 
 export default function PlayerStatsPanel({
@@ -14,6 +16,8 @@ export default function PlayerStatsPanel({
   playerMap,
   absentPlayers,
   standalone,
+  highlightedPlayerId,
+  onSelectPlayer,
 }: PlayerStatsPanelProps) {
   const absentSet = new Set(absentPlayers)
 
@@ -41,21 +45,34 @@ export default function PlayerStatsPanel({
 
     return (
       <div className="mt-6 bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-        <span className="text-sm font-semibold text-white">Player Stats</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-white">Player Stats</span>
+          <span className="text-[10px] text-slate-500">tap a name to highlight matches</span>
+        </div>
         <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
           {sorted.map((id) => {
             const p = playerMap.get(id)
             const name = p?.name ?? id
             const plays = playCount[id] ?? 0
             const isAbsent = absentSet.has(id)
+            const isSelected = highlightedPlayerId === id
+            const isDimmed = highlightedPlayerId && !isSelected
             return (
-              <div key={id} className={`flex items-center justify-between gap-1 min-w-0 ${isAbsent ? 'opacity-40' : ''}`}>
-                <span className={`text-xs truncate ${isAbsent ? 'text-slate-400 line-through' : 'text-slate-300'}`}><AnnotatedPlayerName name={name} /></span>
+              <button
+                key={id}
+                onClick={() => onSelectPlayer?.(id)}
+                className={`flex items-center justify-between gap-1 min-w-0 rounded px-1 -mx-1 py-0.5 text-left transition-colors ${
+                  isSelected ? 'bg-yellow-400/15 ring-1 ring-yellow-400/40' : 'hover:bg-slate-700/50 active:bg-slate-700'
+                } ${isAbsent || isDimmed ? 'opacity-40' : ''}`}
+              >
+                <span className={`text-xs truncate ${isAbsent ? 'text-slate-400 line-through' : isSelected ? 'text-yellow-300' : 'text-slate-300'}`}>
+                  <AnnotatedPlayerName name={name} />
+                </span>
                 {isAbsent && <span className="text-[10px] text-slate-300 bg-slate-800 rounded px-1 py-0.5 shrink-0">absent</span>}
-                <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-400' : 'text-white'}`}>
+                <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-400' : isSelected ? 'text-yellow-400' : 'text-white'}`}>
                   {plays}×
                 </span>
-              </div>
+              </button>
             )
           })}
         </div>

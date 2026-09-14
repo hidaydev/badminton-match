@@ -51,6 +51,7 @@ interface ScheduleGridProps {
   setExpandedScore: (key: string | null) => void
   setScoreError: (error: string | null) => void
   setDraftScores: (fn: (prev: Record<string, { a: string; b: string }>) => Record<string, { a: string; b: string }>) => void
+  highlightedPlayerId?: string | null
 }
 
 export default function ScheduleGrid({
@@ -88,6 +89,7 @@ export default function ScheduleGrid({
   setExpandedScore,
   setScoreError,
   setDraftScores,
+  highlightedPlayerId,
 }: ScheduleGridProps) {
   const played = new Set(playedGames)
 
@@ -209,11 +211,17 @@ export default function ScheduleGrid({
                   )
                 }
 
+                const allPlayers = [...g.teamA, ...g.teamB] as string[]
+                const isHighlighted = highlightedPlayerId ? allPlayers.includes(highlightedPlayerId) : false
+                const isDimmed = highlightedPlayerId ? !isHighlighted : false
+
                 const gameRow = (
                   <div className="flex flex-col gap-1">
                     {/* Game row header */}
                     <div
-                      className={`flex items-center gap-2 select-none rounded-lg px-1 py-0.5 -mx-1 transition-colors ${done ? 'opacity-40' : 'hover:bg-slate-800/40'}`}
+                      className={`flex items-center gap-2 select-none rounded-lg px-1 py-0.5 -mx-1 transition-colors ${
+                        isHighlighted ? 'bg-yellow-400/10 ring-1 ring-yellow-400/40' : done ? 'opacity-40' : 'hover:bg-slate-800/40'
+                      } ${isDimmed ? 'opacity-25' : ''}`}
                     >
                       {/* Played checkbox */}
                       <div
