@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"crypto/subtle"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -25,29 +24,7 @@ type RatingsHandler struct {
 
 // RequireAdmin — middleware admin (Authorization: Bearer MAJADU_ADMIN_TOKEN).
 func (h *RatingsHandler) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return h.requireAdmin(next)
-}
-
-// requireAdmin — middleware sederhana untuk endpoint write ratings.
-func (h *RatingsHandler) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if h.AdminToken == "" {
-			httperr.WriteError(w, h.Logger, httperr.Unauthorized("admin token not configured"))
-			return
-		}
-		auth := r.Header.Get("Authorization")
-		const prefix = "Bearer "
-		if len(auth) < len(prefix) || auth[:len(prefix)] != prefix {
-			httperr.WriteError(w, h.Logger, httperr.Unauthorized("missing Bearer token"))
-			return
-		}
-		token := auth[len(prefix):]
-		if subtle.ConstantTimeCompare([]byte(token), []byte(h.AdminToken)) != 1 {
-			httperr.WriteError(w, h.Logger, httperr.Unauthorized("invalid admin token"))
-			return
-		}
-		next(w, r)
-	}
+	return adminGuard(h.AdminToken, h.Logger, next)
 }
 
 // body struct — request ingest/revert/finalize.
