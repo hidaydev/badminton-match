@@ -58,3 +58,22 @@ Full check akhir: `npm run check` → **81 test pass**, types/lint/tailwind hija
 - `store.migrate` hard-reset (keputusan desain, bukan regresi).
 - Sisa `eslint-disable` di `ScoreboardPage`/`SetupPage`/`AdminContext`/`safeLazy` (sengaja,
   di luar scope perubahan ini).
+
+## Refactor lanjutan (2026-09-14, batch 2)
+
+Permintaan: refactor kode (bukan infra). Status semua **[x]**:
+
+| # | Item | Hasil |
+|---|------|-------|
+| 1 | Pecah `store/session.go` | 1.318 → 6 file per tanggung jawab (murni pindah kode) |
+| 2 | Hapus duplikasi auth + decode | `adminGuard` tunggal; `decodeJSON` delegasi ke `readBody`+`decodeJSONBytes` |
+| 3 | Rapikan error handling | Pesan Postgres tidak bocor ke klien; error Exec/Commit rating dipropagasi (+test) |
+| 4 | Pecah `SummaryModal` + ekstrak hook | 847 → 593 baris; `useSummaryEditModes` (389) + `useScoreDraft` (48); dead code `bySlot`/`slotPlayerSet` dibuang |
+| 5 | Dedup + memoize | `ScheduleGrid` blok team A/B kembar → helper `teamCell` (−~130 baris); `GeneratePage` & 2 `StandingsTab` derivasi di-memo |
+| 6 | A11y | 38 `focus:outline-none` kini punya `focus-visible` ring (7 file); `useEscapeKey` dipasang ke 6 modal |
+
+Verifikasi batch 2: `tsc` strict, `eslint` 0 warning, `vite build` sukses, 81 regression test pass.
+
+**Sisa (belum dikerjakan):** focus-trap penuh di modal (Escape sudah; trap Tab belum);
+`PlayerStatsPanel` dua cabang (standalone vs generate) sengaja tidak digabung — logikanya
+memang berbeda, penggabungan menambah kondisional; `eslint-plugin-jsx-a11y`/vitest (dependency).

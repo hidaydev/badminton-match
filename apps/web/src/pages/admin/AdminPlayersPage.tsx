@@ -37,12 +37,12 @@ export default function AdminPlayersPage() {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder={t('admin.newPlayerName')}
-                className="flex-1 min-w-0 bg-transparent text-sm text-fg placeholder:text-fg-dim/60 focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-sm text-fg placeholder:text-fg-dim/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
               />
               <select
                 value={newTier}
                 onChange={(e) => setNewTier(e.target.value)}
-                className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs font-sans text-fg focus:outline-none"
+                className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs font-sans text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
                 aria-label={t('admin.tierInduk')}
               >
                 {TIERS.map((tier) => <option key={tier} value={tier}>Tier {tier}</option>)}
@@ -67,7 +67,7 @@ export default function AdminPlayersPage() {
               value={query}
               onChange={(e) => { setQuery(e.target.value); setPage(0) }}
               placeholder="Filter players by name…"
-              className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none"
+              className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
             />
 
             {mergeSource && (

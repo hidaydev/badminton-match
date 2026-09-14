@@ -3,6 +3,7 @@ import type { Player } from '../types'
 import type { PlayerSummary } from '../queries'
 import type { ResolveEntry, ResolveResult } from '../utils/resolvePlayers'
 import { buildResolveResult } from '../utils/resolvePlayers'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface ResolvePlayersModalProps {
   open: boolean
@@ -20,6 +21,8 @@ export default function ResolvePlayersModal({
   onCancel,
 }: ResolvePlayersModalProps) {
   const [entries, setEntries] = useState<Record<string, ResolveEntry>>({})
+
+  useEscapeKey(onCancel, open)
 
   if (!open) return null
 

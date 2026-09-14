@@ -4,22 +4,21 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from '@dnd-kit/core'
 import type { GeneratorResult } from '../generator'
 import type { Player, GameScore, CourtTime } from '../types'
-import { toPlayerId } from '../types'
 import { formatMergedCourtTimes } from '../utils/time'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
-import { detectTeamSwapConflict, validateChangeName } from '../utils/swap'
+import { validateChangeName } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
-import { detectSlotSwapConflict } from '../utils/slotSwap'
 import ConfirmBars from './summary/ConfirmBars'
 import ActionsMenu from './summary/ActionsMenu'
 import PlayerStatsPanel from './summary/PlayerStatsPanel'
 import ScheduleGrid from './summary/ScheduleGrid'
 import StandingsTab from './summary/StandingsTab'
-import { validateScore } from '../utils/scoreValidation'
+import { useScoreDraft } from './summary/useScoreDraft'
+import { useSummaryEditModes } from './summary/useSummaryEditModes'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 /** Read-only data props for SummaryModal */
 interface SummaryModalBaseProps {
@@ -97,37 +96,82 @@ export default function SummaryModal({
   const played = new Set(playedArr)
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings'>('schedule')
-  const [expandedScore, setExpandedScore] = useState<string | null>(null)
-  const [scoreError, setScoreError] = useState<string | null>(null)
-  const [draftScores, setDraftScores] = useState<Record<string, { a: string; b: string }>>({})
+  // Escape menutup modal (tidak saat standalone/full-page).
+  useEscapeKey(() => onClose?.(), !!onClose && !standalone)
 
-  // Discriminated union for modal modes - replaces 6 separate boolean states
-  type ModalMode = 'idle' | 'swap' | 'absent' | 'skip' | 'replace' | 'slotSwap' | 'teamSwap' | 'change'
-  const [mode, setMode] = useState<ModalMode>('idle')
+  const score = useScoreDraft(onSetGameScore)
+  const { expandedScore, setExpandedScore, scoreError, setScoreError, draftScores, setDraftScores, handleScoreSave } = score
 
-  const [swapSelected, setSwapSelected] = useState<SwapTarget | null>(null)
-  const [swapError, setSwapError] = useState<string | null>(null)
-  const [pendingSwap, setPendingSwap] = useState<{ t1: SwapTarget; t2: SwapTarget } | null>(null)
+  // Mode edit (swap/absent/skip/replace/slotSwap/teamSwap/change) — lihat hook.
+  const modes = useSummaryEditModes({
+    schedule: result.schedule,
+    playerMap,
+    absentPlayers,
+    skippedPlayers,
+    onExitExtra: score.reset,
+    onSwapPlayers,
+    onSetAbsent,
+    onSetGameSkipped,
+    onSwapSlots,
+    onSwapTeams,
+    onChangePlayer,
+  })
+  const {
+    mode,
+    actionsOpen,
+    setActionsOpen,
+    swapSelected,
+    swapError,
+    pendingSwap,
+    absentPending,
+    setAbsentPending,
+    skipPending,
+    replaceTarget,
+    replaceName,
+    setReplaceName,
+    pendingSlotSwap,
+    slotSwapError,
+    teamSwapSelected,
+    pendingTeamSwap,
+    teamSwapError,
+    changeTarget,
+    changeName,
+    setChangeName,
+    changeError,
+    setChangeError,
+    pendingChange,
+    setPendingChange,
+    exitCurrentMode,
+    enterSwapMode,
+    enterAbsentMode,
+    enterSkipMode,
+    enterReplaceMode,
+    enterSlotSwapMode,
+    enterTeamSwapMode,
+    enterChangeMode,
+    handleChipClick,
+    handleTeamClick,
+    handleReplaceToggle,
+    handleChangeSelect,
+    handleDragEnd,
+    toggleSkipForGame,
+    handleCancelSwap,
+    handleConfirmSwap,
+    handleCancelSlotSwap,
+    handleConfirmSlotSwap,
+    handleCancelTeamSwap,
+    handleConfirmTeamSwap,
+    handleCancelChange,
+    handleConfirmChange,
+    handleConfirmAbsent,
+    handleConfirmSkip,
+    effectiveAbsent,
+    absentChanged,
+    effectiveSkipped,
+    skipChanged,
+    flatSkippedCount,
+  } = modes
 
-  const [absentPending, setAbsentPending] = useState<Set<string>>(new Set())
-  const [skipPending, setSkipPending] = useState<Map<string, Set<string>>>(new Map())
-
-  const [replaceTarget, setReplaceTarget] = useState<string | null>(null)
-  const [replaceName, setReplaceName] = useState('')
-
-  const [pendingSlotSwap, setPendingSlotSwap] = useState<{ g1: SlotSwapTarget; g2: SlotSwapTarget } | null>(null)
-  const [slotSwapError, setSlotSwapError] = useState<string | null>(null)
-
-  const [teamSwapSelected, setTeamSwapSelected] = useState<TeamSwapTarget | null>(null)
-  const [pendingTeamSwap, setPendingTeamSwap] = useState<{ t1: TeamSwapTarget; t2: TeamSwapTarget } | null>(null)
-  const [teamSwapError, setTeamSwapError] = useState<string | null>(null)
-
-  const [changeTarget, setChangeTarget] = useState<ChangeTarget | null>(null)
-  const [changeName, setChangeName] = useState('')
-  const [changeError, setChangeError] = useState<string | null>(null)
-  const [pendingChange, setPendingChange] = useState<{ target: ChangeTarget; newName: string; b2b: boolean } | null>(null)
-
-  const [actionsOpen, setActionsOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const sensors = useSensors(
@@ -135,305 +179,11 @@ export default function SummaryModal({
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
   )
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const parseId = (id: string | number) => {
-      const [slot, court] = String(id).split('-').map(Number)
-      return { slot, court }
-    }
-    const g1 = parseId(active.id)
-    const g2 = parseId(over.id)
-    const conflictId = detectSlotSwapConflict(result.schedule, g1, g2)
-    if (conflictId) {
-      setSlotSwapError(`Can't switch — ${playerMap.get(conflictId)?.name ?? conflictId} already plays in that slot`)
-      return
-    }
-    setSlotSwapError(null)
-    setPendingSlotSwap({ g1, g2 })
-  }
-
-  // Exit current mode and reset associated state
-  function exitCurrentMode() {
-    switch (mode) {
-      case 'swap':
-        setSwapSelected(null)
-        setSwapError(null)
-        setPendingSwap(null)
-        break
-      case 'absent':
-        setAbsentPending(new Set())
-        break
-      case 'skip':
-        setSkipPending(new Map())
-        break
-      case 'replace':
-        setReplaceTarget(null)
-        setReplaceName('')
-        break
-      case 'slotSwap':
-        setPendingSlotSwap(null)
-        setSlotSwapError(null)
-        break
-      case 'teamSwap':
-        setTeamSwapSelected(null)
-        setPendingTeamSwap(null)
-        setTeamSwapError(null)
-        break
-      case 'change':
-        setChangeTarget(null)
-        setChangeName('')
-        setChangeError(null)
-        setPendingChange(null)
-        break
-    }
-    setMode('idle')
-    // Reset score-related state
-    setExpandedScore(null)
-    setDraftScores({})
-    setScoreError(null)
-  }
-
-  function enterSwapMode() {
-    exitCurrentMode()
-    setMode('swap')
-  }
-
-  function enterAbsentMode() {
-    exitCurrentMode()
-    setAbsentPending(new Set(absentPlayers))
-    setMode('absent')
-  }
-
-  function enterSkipMode() {
-    exitCurrentMode()
-    const m = new Map<string, Set<string>>()
-    for (const [k, v] of Object.entries(skippedPlayers)) m.set(k, new Set(v))
-    setSkipPending(m)
-    setMode('skip')
-  }
-
-  function toggleSkipForGame(gameKey: string, playerId: string) {
-    setSkipPending(prev => {
-      const next = new Map(prev)
-      const cur = new Set(next.get(gameKey) ?? [])
-      if (cur.has(playerId)) cur.delete(playerId)
-      else cur.add(playerId)
-      if (cur.size === 0) next.delete(gameKey)
-      else next.set(gameKey, cur)
-      return next
-    })
-  }
-
-  function enterReplaceMode() {
-    exitCurrentMode()
-    setMode('replace')
-  }
-
-  function enterSlotSwapMode() {
-    exitCurrentMode()
-    setActionsOpen(false)
-    setMode('slotSwap')
-  }
-
-  function enterTeamSwapMode() {
-    exitCurrentMode()
-    setActionsOpen(false)
-    setMode('teamSwap')
-  }
-
-  function enterChangeMode() {
-    exitCurrentMode()
-    setActionsOpen(false)
-    setMode('change')
-  }
-
-  function handleTeamClick(target: TeamSwapTarget) {
-    if (mode !== 'teamSwap') return
-    if (
-      teamSwapSelected &&
-      teamSwapSelected.slot === target.slot &&
-      teamSwapSelected.court === target.court &&
-      teamSwapSelected.team === target.team
-    ) {
-      setTeamSwapSelected(null)
-      setTeamSwapError(null)
-      return
-    }
-    if (!teamSwapSelected) {
-      setTeamSwapSelected(target)
-      setTeamSwapError(null)
-      return
-    }
-    const conflictId = detectTeamSwapConflict(result.schedule, teamSwapSelected, target)
-    if (conflictId) {
-      setTeamSwapError(`Can't swap — ${playerMap.get(conflictId)?.name ?? conflictId} already plays in that game`)
-      setTeamSwapSelected(null)
-      return
-    }
-    setTeamSwapError(null)
-    setPendingTeamSwap({ t1: teamSwapSelected, t2: target })
-    setTeamSwapSelected(null)
-  }
-
-  // In absent mode, preview pending selections; otherwise use saved state
-  const effectiveAbsent = mode === 'absent' ? absentPending : new Set(absentPlayers)
-
-  // True when pending state differs from saved state
-  const absentChanged = mode === 'absent' && (() => {
-    const saved = new Set(absentPlayers)
-    if (absentPending.size !== saved.size) return true
-    for (const id of absentPending) if (!saved.has(id)) return true
-    return false
-  })()
-
-  // Skip: effective per-game map + changed detection
-  const effectiveSkipped: Record<string, Set<string>> = (() => {
-    if (mode === 'skip') {
-      const out: Record<string, Set<string>> = {}
-      for (const [k, v] of skipPending) out[k] = new Set(v)
-      return out
-    }
-    const out: Record<string, Set<string>> = {}
-    for (const [k, v] of Object.entries(skippedPlayers)) out[k] = new Set(v)
-    return out
-  })()
-
-  const skipChanged = mode === 'skip' && (() => {
-    const allKeys = new Set([...Object.keys(skippedPlayers), ...skipPending.keys()])
-    for (const k of allKeys) {
-      const a = new Set(skippedPlayers[k] ?? [])
-      const b = skipPending.get(k) ?? new Set()
-      if (a.size !== b.size) return true
-      for (const id of a) if (!b.has(id)) return true
-    }
-    return false
-  })()
-
-  const flatSkippedCount = Object.values(effectiveSkipped).reduce((n, s) => n + s.size, 0)
-
-  function handleChipClick(target: SwapTarget) {
-    if (mode !== 'swap') return
-    if (!swapSelected) {
-      setSwapSelected(target)
-      setSwapError(null)
-      return
-    }
-    // Tap same chip again → deselect
-    if (
-      swapSelected.slot === target.slot &&
-      swapSelected.court === target.court &&
-      swapSelected.playerId === target.playerId
-    ) {
-      setSwapSelected(null)
-      setSwapError(null)
-      return
-    }
-    // Same player → error
-    if (swapSelected.playerId === target.playerId) {
-      setSwapError('Cannot swap a player with themselves')
-      setSwapSelected(null)
-      return
-    }
-    // Different games: check no player already plays in the other game
-    const isSameGame = swapSelected.slot === target.slot && swapSelected.court === target.court
-    if (!isSameGame) {
-      const targetGame = result.schedule.find(g => g.slot === target.slot && g.court === target.court)
-      const selectedGame = result.schedule.find(g => g.slot === swapSelected.slot && g.court === swapSelected.court)
-      const targetGamePlayers = targetGame ? [...targetGame.teamA, ...targetGame.teamB] : []
-      const selectedGamePlayers = selectedGame ? [...selectedGame.teamA, ...selectedGame.teamB] : []
-      if (targetGamePlayers.includes(toPlayerId(swapSelected.playerId)) || selectedGamePlayers.includes(toPlayerId(target.playerId))) {
-        setSwapError('One player already plays in the other\'s game')
-        setSwapSelected(null)
-        return
-      }
-    }
-    setSwapError(null)
-    setPendingSwap({ t1: swapSelected, t2: target })
-    setSwapSelected(null)
-  }
-
-  // Toggle replace target selection
-  function handleReplaceToggle(playerId: string) {
-    if (replaceTarget === playerId) {
-      setReplaceTarget(null)
-      setReplaceName('')
-    } else {
-      setReplaceTarget(playerId)
-      setReplaceName('')
-    }
-  }
-
-  // Select change target
-  function handleChangeSelect(target: ChangeTarget) {
-    setChangeTarget(target)
-    setChangeName('')
-    setChangeError(null)
-  }
-
-  const bySlot = new Map<number, (typeof result.schedule)>()
-  for (const game of result.schedule) {
-    const list = bySlot.get(game.slot) ?? []
-    list.push(game)
-    bySlot.set(game.slot, list)
-  }
-
-  const slotPlayerSet = new Map<number, Set<string>>()
-  for (const [t, games] of bySlot) {
-    const set = new Set<string>()
-    for (const g of games) { g.teamA.forEach((id) => set.add(id)); g.teamB.forEach((id) => set.add(id)) }
-    slotPlayerSet.set(t, set)
-  }
   const courtLabel = (i: number) =>
     courtNames[i] || (courts <= 26 ? String.fromCharCode(65 + i) : String(i + 1))
 
   const totalGames = result.schedule.length
   const playedCount = played.size
-
-  function trySaveScore(key: string): boolean {
-    const draft = draftScores[key]
-    if (!draft) return false
-    const a = parseInt(draft.a, 10)
-    const b = parseInt(draft.b, 10)
-    if (isNaN(a) || isNaN(b)) return false
-    if (a < 0 || a > 99 || b < 0 || b > 99) return false
-    const err = validateScore(a, b)
-    if (err) { setScoreError(err); return false }
-    setScoreError(null)
-    onSetGameScore?.(key, a, b)
-    return true
-  }
-
-  function handleScoreSave(key: string) {
-    if (trySaveScore(key)) setExpandedScore(null)
-  }
-
-  // ConfirmBars callbacks
-  function handleCancelSwap() { setPendingSwap(null) }
-  function handleConfirmSwap() { if (pendingSwap) { onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2); exitCurrentMode() } }
-  function handleCancelSlotSwap() { setPendingSlotSwap(null) }
-  function handleConfirmSlotSwap() { if (pendingSlotSwap) { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitCurrentMode() } }
-  function handleCancelTeamSwap() { exitCurrentMode() }
-  function handleConfirmTeamSwap() { if (pendingTeamSwap) { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitCurrentMode() } }
-  function handleCancelChange() { setPendingChange(null) }
-  function handleConfirmChange() { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitCurrentMode() } }
-  function handleConfirmAbsent() {
-    const ids = [...absentPending]
-    onSetAbsent?.(ids)
-    exitCurrentMode()
-  }
-
-  function handleConfirmSkip() {
-    // Send per-game PATCH sequentially (row-level OCC, low contention)
-    for (const [key, set] of skipPending) {
-      onSetGameSkipped?.(key, [...set])
-    }
-    // Also clear games that were skipped before but now empty
-    for (const k of Object.keys(skippedPlayers)) {
-      if (!skipPending.has(k)) onSetGameSkipped?.(k, [])
-    }
-    exitCurrentMode()
-  }
 
   return (
     <div className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-50 bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label="Session summary">

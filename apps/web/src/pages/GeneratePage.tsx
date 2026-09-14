@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useStore } from '../store'
 import { timeToMinutes, timeToSlotIndex } from '../utils/time'
 import { selectSlotsPerCourt, selectTotalGames } from '../store/selectors'
@@ -26,9 +26,18 @@ export default function GeneratePage() {
   const updateSchedule = useStore((s) => s.updateSchedule)
   const swapSlotsWithScores = useStore((s) => s.swapSlotsWithScores)
 
-  const players = isSharedView ? (snapshot?.players ?? []) : storePlayers
-  const fixMatches = isSharedView ? [] : storeFixMatches
-  const session = isSharedView ? (snapshot?.session ?? storeSession) : storeSession
+  const players = useMemo(
+    () => (isSharedView ? (snapshot?.players ?? []) : storePlayers),
+    [isSharedView, snapshot, storePlayers],
+  )
+  const fixMatches = useMemo(
+    () => (isSharedView ? [] : storeFixMatches),
+    [isSharedView, storeFixMatches],
+  )
+  const session = useMemo(
+    () => (isSharedView ? (snapshot?.session ?? storeSession) : storeSession),
+    [isSharedView, snapshot, storeSession],
+  )
 
   const [showSummary, setShowSummary] = useState(false)
   const playedArr = useStore((s) => s.playedGames)
@@ -59,7 +68,9 @@ export default function GeneratePage() {
     return () => clearTimeout(timer)
   }, [saveError])
 
-  const playerMap = new Map(players.map((p) => [p.id, p]))
+  // Derivasi stabil: map pemain & layout court dihitung ulang hanya saat input berubah.
+  const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players])
+  const slotsPerCourt = useMemo(() => selectSlotsPerCourt(session), [session])
 
   const { publishToCloud, isSaving } = useDebouncedPublish(cloudSessionId, (msg) => setSaveError(msg))
 
@@ -123,8 +134,8 @@ export default function GeneratePage() {
 
   function validatePlayers() {
     if (players.length < 4) return 'Need at least 4 players.'
-    if (players.length < selectSlotsPerCourt(session).length * 4)
-      return `Need at least ${selectSlotsPerCourt(session).length * 4} players for ${selectSlotsPerCourt(session).length} courts.`
+    if (players.length < slotsPerCourt.length * 4)
+      return `Need at least ${slotsPerCourt.length * 4} players for ${slotsPerCourt.length} courts.`
     return null
   }
 
@@ -146,7 +157,7 @@ export default function GeneratePage() {
       const offsets = buildOffsets()
       const ctx: GenerateContext = {
         players,
-        slotsPerCourt: selectSlotsPerCourt(session),
+        slotsPerCourt: slotsPerCourt,
         fixMatches,
         courtOffsets: offsets,
         timeToSlotIndex: (time) => timeToSlotIndex(session, time),
@@ -265,7 +276,7 @@ export default function GeneratePage() {
         <ScheduleView
           result={result}
           playerMap={playerMap}
-          slotsPerCourt={selectSlotsPerCourt(session)}
+          slotsPerCourt={slotsPerCourt}
           courtNames={session.courtNames ?? []}
         />
       )}
@@ -274,7 +285,7 @@ export default function GeneratePage() {
         <SummaryModal
           result={result}
           playerMap={playerMap}
-          slotsPerCourt={selectSlotsPerCourt(session)}
+          slotsPerCourt={slotsPerCourt}
           courtNames={session.courtNames ?? []}
           playedGames={playedArr}
           gameScores={gameScores}

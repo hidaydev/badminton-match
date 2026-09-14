@@ -32,7 +32,10 @@ interface StandingsTabProps {
 export default function StandingsTab({ pairs, groups, matches }: StandingsTabProps) {
   const getPairName = (id: string) => pairs.find((p) => p.id === id)?.name ?? id
 
-  const allStandings = GROUP_IDS.flatMap((g) => computeGroupStandings(g, groups[g], matches))
+  const allStandings = useMemo(
+    () => GROUP_IDS.flatMap((g) => computeGroupStandings(g, groups[g], matches)),
+    [groups, matches],
+  )
 
   const totalRecord = useMemo(() => {
     const rec: Record<string, { wins: number; losses: number }> = {}
@@ -56,7 +59,7 @@ export default function StandingsTab({ pairs, groups, matches }: StandingsTabPro
         const sb = allStandings.find((s) => s.pairId === b.id)
         return (sb?.diff ?? 0) - (sa?.diff ?? 0)
       }),
-    [pairs, matches, groups]
+    [pairs, matches, allStandings]
   )
 
   if (!matches.length) {
