@@ -231,13 +231,17 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		// tidak match ini, sehingga jika season_start digeser ke belakang nanti,
 		// re-ingest manual tetap bisa via IngestSession langsung.
 		if meta.Final {
-			_, _ = tx.Exec(ctx, `
+			if _, err := tx.Exec(ctx, `
 				INSERT INTO `+s.schema+`.rating_sources
 					(source_id, source_kind, fingerprint, finalized, last_ingested_seq, ingested_at)
 				VALUES ($1, $2, '', $3, 0, now())
 				ON CONFLICT (source_id) DO NOTHING`,
-				meta.SourceID, meta.Kind, meta.Final)
-			_ = tx.Commit(ctx)
+				meta.SourceID, meta.Kind, meta.Final); err != nil {
+				return nil, err
+			}
+			if err := tx.Commit(ctx); err != nil {
+				return nil, err
+			}
 		}
 		return &IngestResult{Processed: 0, Skipped: skipped, Players: 0, Reconcile: reconcile}, nil
 	}

@@ -139,7 +139,9 @@ func mapPublishError(err error) *httperr.Error {
 		case strings.Contains(msg, "not found"):
 			return httperr.NotFound("session not found")
 		default:
-			return httperr.Validation("invalid session state: " + pgErr.Message)
+			// Jangan kirim detail Postgres ke klien (bocor nama tabel/constraint).
+			// Cause tetap dibawa untuk diagnostics via Unwrap.
+			return httperr.Wrap(httperr.CodeValidation, "invalid session state", pgErr)
 		}
 	}
 	return httperr.Wrap(httperr.CodeDatabase, "operation failed", err)

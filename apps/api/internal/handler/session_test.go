@@ -114,6 +114,13 @@ func TestMapPublishErrorTable(t *testing.T) {
 			wantCode:    "too_many_requests",
 			wantMsgPart: "being updated by another request",
 		},
+		{
+			name:        "pg error detail tidak dibocorkan ke klien",
+			err:         &pgconn.PgError{Code: "23514", Message: `new row violates check constraint "sessions_status_check"`},
+			wantCode:    "validation_error",
+			wantMsgPart: "invalid session state",
+			wantNoPart:  "sessions_status_check",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
