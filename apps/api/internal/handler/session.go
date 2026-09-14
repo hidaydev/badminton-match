@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -544,11 +543,11 @@ func versionRequired(r *http.Request) (int, error) {
 }
 
 func decodeJSON(r *http.Request, dst any) error {
-	body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20)) // 10 MB guard
+	body, err := readBody(r)
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(body, dst)
+	return decodeJSONBytes(body, dst)
 }
 
 // newShareCode — id sesi pendek acak (share_code). Mengembalikan error kalau
