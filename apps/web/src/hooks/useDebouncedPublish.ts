@@ -31,6 +31,13 @@ export function useDebouncedPublish(
     publishRef.current = publish
   }, [publish])
 
+  // onError disimpan di ref supaya identitas inline dari caller (arrow baru tiap
+  // render) tidak membuat effect cleanup berjalan tiap render — bug write-storm.
+  const onErrorRef = useRef(onError)
+  useEffect(() => {
+    onErrorRef.current = onError
+  }, [onError])
+
   const doPublishRef = useRef<() => void>(() => {})
 
   const doPublish = useCallback(() => {
@@ -63,7 +70,7 @@ export function useDebouncedPublish(
 
     publishRef.current.mutate(snap, {
       onError: async (err) => {
-        onError?.(getSaveErrorMessage(err))
+        onErrorRef.current?.(getSaveErrorMessage(err))
         if (cloudSessionId) {
           try {
             await queryClient.fetchQuery({
@@ -88,7 +95,7 @@ export function useDebouncedPublish(
         }
       },
     })
-  }, [cloudSessionId, onError, queryClient])
+  }, [cloudSessionId, queryClient])
 
   useEffect(() => {
     doPublishRef.current = doPublish
@@ -123,6 +130,7 @@ export function useDebouncedPublish(
     return () => {
       if (publishTimerRef.current) {
         clearTimeout(publishTimerRef.current)
+        publishTimerRef.current = null
         if (cloudSessionId) {
           const state = useStore.getState()
           if (state.cloudSessionId === cloudSessionId) {
@@ -137,7 +145,7 @@ export function useDebouncedPublish(
               queryClient.invalidateQueries({ queryKey: ['session', cloudSessionId] })
             }).catch((err) => {
               console.warn('Unmount flush failed:', err)
-              onError?.(getSaveErrorMessage(err))
+              onErrorRef.current?.(getSaveErrorMessage(err))
             })
           }
         }
@@ -146,7 +154,7 @@ export function useDebouncedPublish(
       inFlightRef.current = false
       pendingDirtyRef.current = false
     }
-  }, [cloudSessionId, queryClient, onError])
+  }, [cloudSessionId, queryClient])
 
   return { publishToCloud, isSaving: publish.isPending || isPendingQueue }
 }

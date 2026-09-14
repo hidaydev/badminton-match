@@ -37,8 +37,10 @@ export const createPlayersSlice = (
 
   updatePlayer: (id, patch) =>
     set((s) => ({
+      // Hanya update record pemain. id pemain tidak berubah, jadi schedule dan
+      // skor yang sudah dimainkan tetap valid — jangan ikut di-reset (data loss,
+      // mis. saat rename pemain di tengah sesi yang sudah berjalan).
       players: s.players.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-      schedule: [], lastResult: null, playedGames: [], gameScores: {},
     })),
 
   removePlayer: (id) =>

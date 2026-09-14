@@ -53,6 +53,7 @@ export const createSessionSlice = (
 
   setCourts: (n) =>
     set((s) => {
+      if (n === s.session.courts) return s
       const prev = s.session.courtTimes
       const courtTimes = Array.from({ length: n }, (_, i) => prev[i] ?? { start: s.session.sessionStart, end: toTimeString('11:00') })
       return {
@@ -67,6 +68,7 @@ export const createSessionSlice = (
 
   setSessionStart: (time) =>
     set((s) => {
+      if (s.session.sessionStart === time) return s
       const courtTimes = s.session.courtTimes.map((ct) => ({
         start: timeToMinutes(ct.start) < timeToMinutes(time) ? toTimeString(time) : ct.start,
         end: timeToMinutes(ct.end) <= timeToMinutes(time)
@@ -84,18 +86,24 @@ export const createSessionSlice = (
     }),
 
   setSlotMinutes: (min) =>
-    set((s) => ({
-      session: {
-        ...s.session,
-        slotMinutes: min,
-      },
-      schedule: [], lastResult: null, playedGames: [], gameScores: {},
-    })),
+    set((s) => {
+      if (s.session.slotMinutes === min) return s
+      return {
+        session: {
+          ...s.session,
+          slotMinutes: min,
+        },
+        schedule: [], lastResult: null, playedGames: [], gameScores: {},
+      }
+    }),
 
   setCourtTime: (index, start, end) =>
     set((s) => {
       try {
         const ct = createCourtTime(start, end)
+        const prev = s.session.courtTimes[index]
+        // Nilai sama → jangan reset schedule/skor (mis. blur input tanpa perubahan).
+        if (prev && prev.start === ct.start && prev.end === ct.end) return s
         const courtTimes = [...s.session.courtTimes]
         courtTimes[index] = ct
         return {
