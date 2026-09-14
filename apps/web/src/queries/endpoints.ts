@@ -451,7 +451,22 @@ export async function getTournament(id: string, signal?: AbortSignal): Promise<A
 }
 
 export async function publishTournament(id: string, data: AnyTournamentSnapshot): Promise<AnyTournamentSnapshot> {
-  return await request<AnyTournamentSnapshot>('PUT', `/tournaments/${enc(id)}`, data)
+  // Samakan kontrak dengan publishSession: OCC via If-Match + Idempotency-Key
+  // (server juga fallback ke version di body) + validasi bentuk respons.
+  const headers: Record<string, string> = {}
+  if (data.version != null) headers['If-Match'] = `"v${data.version}"`
+  try {
+    headers['Idempotency-Key'] = crypto.randomUUID()
+  } catch {
+    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
+  const out = await request<AnyTournamentSnapshot>('PUT', `/tournaments/${enc(id)}`, data, undefined, headers)
+  const valid = out.format === 'team' ? isValidTeamTournamentSnapshot(out) : isValidTournamentSnapshot(out)
+  if (!valid) {
+    console.warn('[publishTournament] response failed validation:', out)
+    throw new ApiError('Invalid tournament snapshot received from server')
+  }
+  return out
 }
 
 /** Create tournament (classic atau team — format di body). Kembalikan id baru

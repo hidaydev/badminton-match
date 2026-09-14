@@ -9,7 +9,7 @@ function stageRank(pairId: string, matches: TournamentMatch[]): number {
   const final = matches.find((m) => m.id === 'final-1')
   const third = matches.find((m) => m.id === '3rd-1')
   const w = (m?: TournamentMatch) =>
-    m?.scoreA != null ? (m.scoreA > m.scoreB! ? m.pairAId : m.pairBId) : null
+    m && m.scoreA != null && m.scoreB != null ? (m.scoreA > m.scoreB ? m.pairAId : m.pairBId) : null
 
   if (w(final) === pairId) return 0
   if (final?.pairAId === pairId || final?.pairBId === pairId) return 1
@@ -56,8 +56,7 @@ export default function StandingsTab({ pairs, groups, matches }: StandingsTabPro
         const sb = allStandings.find((s) => s.pairId === b.id)
         return (sb?.diff ?? 0) - (sa?.diff ?? 0)
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pairs, matches]
+    [pairs, matches, groups]
   )
 
   if (!matches.length) {

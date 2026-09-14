@@ -5,7 +5,7 @@ import type { RatingPlayer, RatingLeaderboardRow, RatingSeason, SeasonStandingRo
 
 export function useRatingLeaderboard(active: boolean, limit: number, offset: number) {
   return useQuery<{ total: number; rows: RatingLeaderboardRow[] }>({
-    queryKey: ['ratings', active, limit, offset],
+    queryKey: ['ratings', 'leaderboard', active, limit, offset],
     queryFn: ({ signal }) => getRatingLeaderboard(active, limit, offset, signal),
     staleTime: 1000 * 60,
   })
@@ -13,7 +13,7 @@ export function useRatingLeaderboard(active: boolean, limit: number, offset: num
 
 export function useRatingPlayer(playerId: string | undefined) {
   return useQuery<RatingPlayer>({
-    queryKey: ['ratings-player', playerId],
+    queryKey: ['ratings', 'player', playerId],
     queryFn: ({ signal }) => getRatingPlayer(playerId!, signal),
     enabled: !!playerId,
     staleTime: 1000 * 60,
@@ -22,7 +22,7 @@ export function useRatingPlayer(playerId: string | undefined) {
 
 export function useRatingPlayerAchievements(playerId: string | undefined) {
   return useQuery<AchievementRow[]>({
-    queryKey: ['ratings-player-achievements', playerId],
+    queryKey: ['ratings', 'player', playerId, 'achievements'],
     queryFn: ({ signal }) => getPlayerAchievements(playerId!, signal),
     enabled: !!playerId,
     staleTime: 1000 * 60,
@@ -31,7 +31,7 @@ export function useRatingPlayerAchievements(playerId: string | undefined) {
 
 export function useRatingSeasons() {
   return useQuery<RatingSeason[]>({
-    queryKey: ['ratings-seasons'],
+    queryKey: ['ratings', 'seasons'],
     queryFn: ({ signal }) => getRatingSeasons(signal),
     staleTime: 1000 * 60 * 5,
   })
@@ -39,7 +39,7 @@ export function useRatingSeasons() {
 
 export function useSeasonStandings(seasonId: string | null) {
   return useQuery<SeasonStandingRow[]>({
-    queryKey: ['ratings-season-standings', seasonId],
+    queryKey: ['ratings', 'season', seasonId, 'standings'],
     queryFn: ({ signal }) => getSeasonStandings(seasonId!, signal),
     enabled: !!seasonId,
   })
@@ -57,7 +57,7 @@ export interface RatingSourceRow {
 
 export function useRatingSources() {
   return useQuery<RatingSourceRow[]>({
-    queryKey: ['ratings-sources'],
+    queryKey: ['ratings', 'sources'],
     queryFn: async ({ signal }) => {
       const data = await request<{ sources: RatingSourceRow[] }>('GET', '/ratings/sources', undefined, signal)
       return data?.sources ?? []
