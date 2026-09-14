@@ -62,7 +62,7 @@ export default function TeamMatchCard({
               type="text"
               value={courts[0]}
               onChange={(e) => onUpdateCourt(matchIdx, e.target.value)}
-              className="w-20 bg-transparent text-xs text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none"
+              className="w-20 bg-transparent text-xs text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
               placeholder="Court"
               aria-label={`Court ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`}
             />
@@ -103,7 +103,7 @@ export default function TeamMatchCard({
                 max={target}
                 value={match.partai[pi].scoreA ?? ''}
                 onChange={(e) => onChange(matchIdx, pi, { scoreA: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
-                className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-sans text-fg text-center focus:border-accent focus:outline-none"
+                className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
                 aria-label={`Score ${teamName(teams, match.teamA)} partai ${pi + 1}`}
               />
               <span className="text-fg-dim text-xs shrink-0">:</span>
@@ -113,7 +113,7 @@ export default function TeamMatchCard({
                 max={target}
                 value={match.partai[pi].scoreB ?? ''}
                 onChange={(e) => onChange(matchIdx, pi, { scoreB: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
-                className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-sans text-fg text-center focus:border-accent focus:outline-none"
+                className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
                 aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
               />
               <span className="flex-1 text-[11px] text-fg-dim truncate text-right">

@@ -68,7 +68,7 @@ export default function AdminLoginModal({ open, onClose }: AdminLoginModalProps)
           disabled={pending}
           onChange={(e) => { setTokenInput(e.target.value); setError(null) }}
           placeholder="Admin password"
-          className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none disabled:opacity-50"
+          className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-50"
         />
         {error && <p className="text-[11px] text-red-400">{error}</p>}
         <div className="flex gap-2">

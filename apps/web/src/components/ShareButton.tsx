@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../store'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 import { getSession, publishSession, listPlayers, registerPlayer } from '../queries/endpoints'
 import type { CloudSnapshot, PlayerSummary } from '../queries'
 import { getSaveErrorMessage } from '../queries/errors'
@@ -31,6 +32,8 @@ export default function ShareButton() {
   const [copied, setCopied] = useState(false)
   const [resolveOpen, setResolveOpen] = useState(false)
   const [knownPlayers, setKnownPlayers] = useState<PlayerSummary[]>([])
+
+  useEscapeKey(() => setConfirming(false), confirming)
 
   async function handleConfirm() {
     setConfirming(false)

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { TournamentMatch } from '../../utils/tournament'
 import ScoreboardOverlay from './ScoreboardOverlay'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 interface ScoreModalProps {
   match: TournamentMatch
@@ -16,6 +17,8 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? '')
   const [scoreB, setScoreB] = useState(match.scoreB?.toString() ?? '')
   const [showScoreboard, setShowScoreboard] = useState(false)
+
+  useEscapeKey(onClose, !showScoreboard)
 
   const a = parseInt(scoreA, 10)
   const b = parseInt(scoreB, 10)

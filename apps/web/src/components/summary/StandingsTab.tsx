@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, GameScore, ScheduleSlot } from '../../types'
 import { computeStandings } from '../../utils/standings'
 import { isPlaceholderName } from '../../utils/placeholders'
 import { ordinal } from '../../utils/ordinal'
 import PlayerMatchDetailSheet from './PlayerMatchDetailSheet'
+
+// Objek stabil agar useMemo di bawah tidak invalid tiap render saat prop kosong.
+const EMPTY_SKIPPED: Record<string, string[]> = {}
 
 interface StandingsTabProps {
   players: Player[]
@@ -19,20 +22,24 @@ export default function StandingsTab({
   schedule,
   gameScores,
   absentPlayerIds,
-  skippedPlayers = {},
+  skippedPlayers = EMPTY_SKIPPED,
 }: StandingsTabProps) {
-  const absentList = players.filter(p => absentPlayerIds.includes(p.id))
-  const placeholderList = players.filter(p => isPlaceholderName(p.name))
-  // VOID = absent + placeholder (game yang memuat keduanya tidak ditallikan)
-  const voidPlayerIds = [...absentPlayerIds, ...placeholderList.map(p => p.id)]
-  const standings = computeStandings(
-    players.filter(p => !absentPlayerIds.includes(p.id) && !isPlaceholderName(p.name)),
-    schedule,
-    gameScores,
-    voidPlayerIds,
-    skippedPlayers,
-  )
-  const [selectedPlayer, setSelectedPlayer] = useState<{ standing: typeof standings[number]; rank: number } | null>(null)
+  const { absentList, placeholderList, voidPlayerIds, standings } = useMemo(() => {
+    const absentList = players.filter(p => absentPlayerIds.includes(p.id))
+    const placeholderList = players.filter(p => isPlaceholderName(p.name))
+    // VOID = absent + placeholder (game yang memuat keduanya tidak ditallikan)
+    const voidPlayerIds = [...absentPlayerIds, ...placeholderList.map(p => p.id)]
+    const standings = computeStandings(
+      players.filter(p => !absentPlayerIds.includes(p.id) && !isPlaceholderName(p.name)),
+      schedule,
+      gameScores,
+      voidPlayerIds,
+      skippedPlayers,
+    )
+    return { absentList, placeholderList, voidPlayerIds, standings }
+  }, [players, absentPlayerIds, schedule, gameScores, skippedPlayers])
+
+  const [selectedPlayer, setSelectedPlayer] = useState<{ standing: (typeof standings)[number]; rank: number } | null>(null)
   const hasScores = Object.keys(gameScores).length > 0
 
   if (!hasScores) {

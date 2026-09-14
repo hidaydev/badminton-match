@@ -32,7 +32,7 @@ export default function AdminSeasonsPage() {
                   type="date"
                   value={effectiveSeasonDate}
                   onChange={(e) => setSeasonDate(e.target.value)}
-                  className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-sans text-fg scheme-dark focus:border-accent focus:outline-none"
+                  className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-sans text-fg scheme-dark focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
                 />
               </label>
               <button

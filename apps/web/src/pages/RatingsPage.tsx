@@ -39,7 +39,7 @@ export default function RatingsPage() {
         <select
           value={seasonId ?? ''}
           onChange={(e) => { setSeasonId(e.target.value || null); setOffset(0) }}
-          className="bg-elevated border border-border-subtle rounded-lg px-2 py-1.5 text-xs font-sans text-fg focus:outline-none focus:border-accent"
+          className="bg-elevated border border-border-subtle rounded-lg px-2 py-1.5 text-xs font-sans text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus:border-accent"
           aria-label="Pilih musim"
         >
           <option value="">Current season</option>
@@ -68,7 +68,7 @@ export default function RatingsPage() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search player…"
-        className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none"
+        className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
       />
 
       <p className="text-xs font-sans text-fg-dim">

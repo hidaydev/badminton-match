@@ -1,3 +1,5 @@
+import { useEscapeKey } from '../hooks/useEscapeKey'
+
 interface InstallModalProps {
   isIos: boolean
   onInstall(): void
@@ -5,6 +7,8 @@ interface InstallModalProps {
 }
 
 export default function InstallModal({ isIos, onInstall, onClose }: InstallModalProps) {
+  useEscapeKey(onClose)
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
