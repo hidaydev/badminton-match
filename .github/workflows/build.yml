@@ -19,7 +19,16 @@ jobs:
         run: go vet ./...
       - name: Test
         working-directory: apps/api
-        run: go test ./...
+        env:
+          # Sekali DB scratch (reachable dari runner) di-set sebagai secret,
+          # integration test ikut jalan otomatis. Tanpa itu di-skip + warning.
+          MAJADU_TEST_DATABASE_URL: ${{ secrets.MAJADU_TEST_DATABASE_URL }}
+          MAJADU_TEST_DB_SCHEMA: ${{ vars.MAJADU_TEST_DB_SCHEMA }}
+        run: |
+          if [ -z "$MAJADU_TEST_DATABASE_URL" ]; then
+            echo "::warning title=Integration tests skipped::MAJADU_TEST_DATABASE_URL tidak di-set — write-path/transaksi/lock/rating TIDAK diuji di CI. Lihat apps/api/README.md."
+          fi
+          go test ./...
       - name: Go fmt check
         working-directory: apps/api
         run: test -z "$(gofmt -l .)"

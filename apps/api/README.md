@@ -27,10 +27,9 @@ internal/build/          # versi binary (ldflags)
 api/openapi.yaml         # kontrak REST resmi
 ```
 
-> **SQL migrations** — `000001`–`000011` TIDAK di repo GitHub (sengaja — kode repo
-> public). Tersimpan di VPS: `/srv/qouver/apps/majadu/migrations/`.
-> Migrasi terbaru (`000012`+ catatan, `000013`/`000014`/`000015` SQL) didokumentasikan di
-> [`docs/backend/`](../../docs/backend/).
+> **SQL migrations** — `000001`–`000012` TIDAK di repo GitHub (sengaja — kode repo
+> public). Tersimpan di VPS: `/srv/qouver/backups/archive/2026-09-03/majadu-migrations/`.
+> `000013`+ didokumentasikan di [`docs/backend/`](../../docs/backend/).
 
 ## Endpoint (ringkas)
 
@@ -91,9 +90,16 @@ Prod: env dari systemd/podman `EnvironmentFile` (mode 600), bukan `.env`.
 ```bash
 make check                 # vet + fmt + unit test
 # integration test (butuh tunnel ke Postgres VPS):
-MAJADU_TEST_DATABASE_URL="postgres://majadu_app:...@localhost:15432/bm_test" go test ./internal/store/
+MAJADU_TEST_DATABASE_URL="postgres://majadu_app:...@localhost:15432/bm_test" \
+  MAJADU_TEST_DB_SCHEMA=bm_test make test-integration
 # (buat DB scratch sendiri, mis. bm_test — jangan pakai bm prod)
 ```
+
+> **CI:** `go test ./...` di GitHub Actions **tidak** menjalankan integration test
+> (runner tidak punya DB ber-schema; migrasi privat tidak di repo). Job akan menampilkan
+> warning eksplisit saat `MAJADU_TEST_DATABASE_URL` kosong supaya CI hijau tidak
+> disalahartikan. Kalau secret `MAJADU_TEST_DATABASE_URL` (+ var `MAJADU_TEST_DB_SCHEMA`)
+> di-set, integration test otomatis ikut jalan.
 
 ## DB role & schema
 
