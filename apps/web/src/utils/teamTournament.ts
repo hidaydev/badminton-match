@@ -255,3 +255,16 @@ const TEAM_LOGO_MAP: Record<TeamName, string> = {
 export function teamLogoPath(name: string): string | undefined {
   return TEAM_LOGO_MAP[name.trim().toUpperCase() as TeamName]
 }
+
+const TEAM_COLOR_MAP: Record<TeamName, string> = {
+  'RED RAPTORS':     '180,20,20',
+  'WHITE FURY':      '200,200,210',
+  'BLUE WAVES':      '29,78,216',
+  'PURPLE PHANTOMS': '70,20,140',
+  'GREEN GROVE':     '10,80,35',
+  'PINK SPECTRE':    '219,39,119',
+}
+
+export function teamColor(name: string): string {
+  return TEAM_COLOR_MAP[name.trim().toUpperCase() as TeamName] ?? '80,80,80'
+}
