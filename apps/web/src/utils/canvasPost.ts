@@ -963,7 +963,7 @@ export function drawTeamMatchPost(
   subtitle: string,
   summaryBg: HTMLImageElement | undefined,
   logo: HTMLImageElement | undefined,
-  sponsor: HTMLImageElement | undefined,
+  _sponsor: HTMLImageElement | undefined,
   cardLogo: HTMLImageElement | undefined,
   teamALogo: HTMLImageElement | undefined,
   teamBLogo: HTMLImageElement | undefined,
