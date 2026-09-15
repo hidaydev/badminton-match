@@ -10,7 +10,7 @@ const MOCK_PARTAI: TeamMatchPartaiRow[] = [
 
 const MATCHES = [
   { teamA: 'BLUE WAVES',      teamB: 'RED RAPTORS',     winsA: 3, winsB: 0 },
-  { teamA: 'GREEN GROVE',     teamB: 'PURPLE PHANTOMS', winsA: 0, winsB: 3 },
+  { teamA: 'PURPLE PHANTOMS', teamB: 'GREEN GROVE',     winsA: 0, winsB: 3 },
   { teamA: 'PINK SPECTRE',    teamB: 'WHITE FURY',      winsA: 3, winsB: 0 },
 ]
 
