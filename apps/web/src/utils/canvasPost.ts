@@ -126,6 +126,37 @@ function drawTournamentHeader(
 
 const ANNIVERSARY_LABEL = 'MAJADU 1\u02E2\u1D57 ANNIVERSARY  \u2022  MAJADU 1\u02E2\u1D57 ANNIVERSARY'
 
+function drawAnniversaryHeader(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  logo: HTMLImageElement | undefined,
+  cardLogo: HTMLImageElement | undefined,
+) {
+  const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H)
+  grad.addColorStop(0, 'rgba(10,10,20,0.92)')
+  grad.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, canvasW, HEADER_H)
+
+  const hLogoH = LOGO_H * 1.6
+  const hLogo = cardLogo ?? logo
+  const hLogoW = hLogo ? hLogoH * (hLogo.naturalWidth / hLogo.naturalHeight) : 0
+  const hLogoTop = (HEADER_H - hLogoH) / 2
+  if (hLogo) ctx.drawImage(hLogo, (canvasW - hLogoW) / 2, hLogoTop, hLogoW, hLogoH)
+
+  const fontSize = 14
+  const label = ANNIVERSARY_LABEL.split('  \u2022  ')[0]
+  const textY = HEADER_H / 2 + fontSize * 0.38
+  ctx.save()
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`
+  ctx.letterSpacing = '8px'
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'center'
+  ctx.fillText(label, (canvasW - hLogoW) / 4, textY)
+  ctx.fillText(label, canvasW - (canvasW - hLogoW) / 4, textY)
+  ctx.restore()
+}
+
 export function drawMatchPost(
   canvas: HTMLCanvasElement,
   photo: HTMLImageElement,
@@ -165,8 +196,9 @@ export function drawMatchPost(
     ctx.restore()
   }
 
-  // Header band
-  if (headerLabel) drawHeader(ctx, W, logo, headerLabel)
+  // Header band — team posts use anniversary header, classic posts use tournament header
+  if (cardLogo) drawAnniversaryHeader(ctx, W, logo, cardLogo)
+  else if (headerLabel) drawHeader(ctx, W, logo, headerLabel)
   else drawTournamentHeader(ctx, W, logo)
 
   // Footer
@@ -1183,30 +1215,6 @@ export function drawTeamMatchPost(
   })
 
 
-  // 13. Custom header — dark gradient band + anniversary logo + spaced label
-  {
-    const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H)
-    grad.addColorStop(0, 'rgba(10,10,20,0.92)')
-    grad.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = grad
-    ctx.fillRect(0, 0, W, HEADER_H)
-
-    const hLogoH = LOGO_H * 1.6
-    const hLogo = cardLogo ?? logo
-    const hLogoW = hLogo ? hLogoH * (hLogo.naturalWidth / hLogo.naturalHeight) : 0
-    const hLogoTop = (HEADER_H - hLogoH) / 2
-    if (hLogo) ctx.drawImage(hLogo, (W - hLogoW) / 2, hLogoTop, hLogoW, hLogoH)
-
-    const fontSize = 14
-    const label = ANNIVERSARY_LABEL.split('  \u2022  ')[0]
-    const textY = HEADER_H / 2 + fontSize * 0.38
-    ctx.save()
-    ctx.font = `bold ${fontSize}px Arial, sans-serif`
-    ctx.letterSpacing = '8px'
-    ctx.fillStyle = C.white
-    ctx.textAlign = 'center'
-    ctx.fillText(label, (W - hLogoW) / 4, textY)
-    ctx.fillText(label, W - (W - hLogoW) / 4, textY)
-    ctx.restore()
-  }
+  // 13. Header — drawn last so it sits above photos
+  drawAnniversaryHeader(ctx, W, logo, cardLogo)
 }
