@@ -963,10 +963,14 @@ export function drawTeamMatchPost(
   subtitle: string,
   summaryBg: HTMLImageElement | undefined,
   logo: HTMLImageElement | undefined,
-  sponsor: HTMLImageElement | undefined,
+  _sponsor: HTMLImageElement | undefined,
   cardLogo: HTMLImageElement | undefined,
   teamALogo: HTMLImageElement | undefined,
   teamBLogo: HTMLImageElement | undefined,
+  teamAPhoto?: HTMLImageElement,
+  teamBPhoto?: HTMLImageElement,
+  teamAColor?: string,
+  teamBColor?: string,
 ) {
   const W = POST_WIDTH
   const H = POST_HEIGHT
@@ -975,93 +979,145 @@ export function drawTeamMatchPost(
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, W, H)
 
-  // Background — cover fill (crop to fill, no letterboxing)
+  // Layout constants
+  const PHOTO_BOTTOM = 940
+  const INNER_X = 100
+  const RIGHT_X = W - 100
+  const PARTAI_ROW_H = 68
+
+  // 1. Dark base
+  ctx.fillStyle = '#03070f'
+  ctx.fillRect(0, 0, W, H)
+
+  // 2. Court background — darkened
   if (summaryBg) {
+    ctx.save()
+    ctx.globalAlpha = 0.9
     drawCoverFill(ctx, summaryBg, W, H, 0, 0)
-  } else {
-    ctx.fillStyle = '#f59e0b'
+    ctx.restore()
+    ctx.fillStyle = 'rgba(2,5,18,0.05)'
     ctx.fillRect(0, 0, W, H)
   }
 
-  drawHeader(ctx, W, logo, ANNIVERSARY_LABEL)
+  // 3. Color accent blobs — blue left, red/dark right
+  // Left 50%: team A color — fades right and toward bottom
+  const colorA = teamAColor ?? '29,78,216'
+  const gradA = ctx.createRadialGradient(0, 0, 0, 0, 0, PHOTO_BOTTOM * 0.85)
+  gradA.addColorStop(0, `rgba(${colorA},0.65)`)
+  gradA.addColorStop(0.7, `rgba(${colorA},0.2)`)
+  gradA.addColorStop(1, `rgba(${colorA},0)`)
+  ctx.fillStyle = gradA
+  ctx.fillRect(0, 0, W / 2, PHOTO_BOTTOM)
 
-  // Dark card
-  const CARD_X = 80
-  const CARD_W = W - CARD_X * 2
-  const CARD_PAD_TOP = 295
-  const TITLE_H = 130
-  const SCORE_H = 250
-  const DIV_H = 36
-  const PARTAI_ROW_H = 68
-  const CARD_PAD_BOT = 56
-  const CARD_H = CARD_PAD_TOP + TITLE_H + SCORE_H + DIV_H + partaiRows.length * PARTAI_ROW_H + CARD_PAD_BOT
-  const CARD_Y = (H - CARD_H) / 2 + 40
-
-  // Backdrop blur inside card
+  // Right 50%: team B color — fades left and toward bottom
+  const colorB = teamBColor ?? '153,27,27'
   ctx.save()
-  ctx.beginPath()
-  ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
-  ctx.clip()
-  ctx.filter = 'blur(0.5px)'
-  if (summaryBg) drawCoverFill(ctx, summaryBg, W, H, 0, 0)
-  ctx.filter = 'none'
+  ctx.translate(W, 0)
+  const gradB = ctx.createRadialGradient(0, 0, 0, 0, 0, PHOTO_BOTTOM * 0.85)
+  gradB.addColorStop(0, `rgba(${colorB},0.65)`)
+  gradB.addColorStop(0.7, `rgba(${colorB},0.2)`)
+  gradB.addColorStop(1, `rgba(${colorB},0)`)
+  ctx.fillStyle = gradB
+  ctx.fillRect(-W / 2, 0, W / 2, PHOTO_BOTTOM)
   ctx.restore()
 
-  // Semi-transparent overlay on top of blur
-  ctx.save()
-  ctx.fillStyle = 'rgba(18,18,22,0.82)'
-  ctx.beginPath()
-  ctx.roundRect(CARD_X, CARD_Y, CARD_W, CARD_H, 32)
-  ctx.fill()
-  ctx.restore()
+  // 4. Team photos — transparent-bg PNGs anchored to PHOTO_BOTTOM
+  const drawTeamPhoto = (img: HTMLImageElement, side: 'left' | 'right', grayscale: boolean) => {
+    const maxW = W * 0.5
+    const maxH = PHOTO_BOTTOM - 90
+    const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight)
+    const pW = img.naturalWidth * scale
+    const pH = img.naturalHeight * scale
+    const cx = side === 'left' ? W * 0.26 : W * 0.74
+    const px = cx - pW / 2
+    const py = PHOTO_BOTTOM - pH
 
-  // Card logo inside the card, centered near top
-  const cardLogoImg = cardLogo ?? sponsor
-  if (cardLogoImg) {
-    const sH = 155
-    const sW = sH * (cardLogoImg.naturalWidth / cardLogoImg.naturalHeight)
-    ctx.drawImage(cardLogoImg, (W - sW) / 2, CARD_Y + 40, sW, sH)
+    ctx.save()
+    if (grayscale) ctx.filter = 'grayscale(0.9) brightness(0.85)'
+    ctx.drawImage(img, px, py, pW, pH)
+    ctx.filter = 'none'
+    ctx.restore()
   }
 
-  const INNER_X = CARD_X + 60
-  const RIGHT_X = CARD_X + CARD_W - 60
+  const aWins = teamAWins > teamBWins
+  if (aWins) {
+    if (teamBPhoto) drawTeamPhoto(teamBPhoto, 'right', true)
+    if (teamAPhoto) drawTeamPhoto(teamAPhoto, 'left', false)
+  } else {
+    if (teamAPhoto) drawTeamPhoto(teamAPhoto, 'left', true)
+    if (teamBPhoto) drawTeamPhoto(teamBPhoto, 'right', false)
+  }
 
-  // Subtitle label (e.g. "GROUP STAGE")
+
+  // 6. Bottom fade — tight fade just below photos into solid bg
+  const bottomFade = ctx.createLinearGradient(0, PHOTO_BOTTOM - 120, 0, PHOTO_BOTTOM)
+  bottomFade.addColorStop(0, 'rgba(3,7,15,0)')
+  bottomFade.addColorStop(1, 'rgba(3,7,15,0.97)')
+  ctx.fillStyle = bottomFade
+  ctx.fillRect(0, PHOTO_BOTTOM - 120, W, 120)
+
+  // Solid fill for partai section
+  ctx.fillStyle = 'rgba(3,7,15,0.97)'
+  ctx.fillRect(0, PHOTO_BOTTOM, W, H - PHOTO_BOTTOM)
+
+  // 7. Title — GROUP STAGE + MATCH RESULT
   ctx.save()
-  ctx.font = '26px monospace'
+  ctx.font = '28px monospace'
   ctx.fillStyle = C.textDim
-  ctx.letterSpacing = '4px'
-  ctx.textAlign = 'left'
-  ctx.fillText(subtitle, INNER_X, CARD_Y + CARD_PAD_TOP + 30)
+  ctx.letterSpacing = '6px'
+  ctx.textAlign = 'center'
+  ctx.fillText(subtitle, W / 2, 200)
   ctx.restore()
 
   ctx.save()
-  ctx.font = 'bold 48px Arial, sans-serif'
+  ctx.font = 'bold italic 88px Arial, sans-serif'
   ctx.fillStyle = C.accent
-  ctx.letterSpacing = '2px'
-  ctx.textAlign = 'left'
-  ctx.fillText('MATCH RESULT', INNER_X, CARD_Y + CARD_PAD_TOP + 100)
+  ctx.letterSpacing = '1px'
+  ctx.textAlign = 'center'
+  ctx.shadowColor = 'rgba(250,204,21,0.35)'
+  ctx.shadowBlur = 24
+  ctx.fillText('MATCH RESULT', W / 2, 295)
+  ctx.shadowBlur = 0
   ctx.restore()
 
-  // Score row: logo above name on each side, score centered
-  const TEAM_LOGO_H = 148
-  const NAME_FONT = 18
-  const scoreBlockTop = CARD_Y + CARD_PAD_TOP + TITLE_H + 10
-  const scoreBaseline = scoreBlockTop + TEAM_LOGO_H / 2 + 18
-  const nameBaseline = scoreBlockTop + TEAM_LOGO_H + 10 + NAME_FONT
+  // 9. Score section — team logos + score + names (overlaps into photo area)
+  const SCORE_TOP = 810
+  const TEAM_LOGO_H = 175
+  const NAME_FONT = 22
 
-  ctx.font = 'bold 80px monospace'
-  const scoreText = `${teamAWins} – ${teamBWins}`
-  const scoreHalfW = ctx.measureText(scoreText).width / 2 + 20
-  const maxTeamW = W / 2 - INNER_X - scoreHalfW
-
-  // Team A logo
   if (teamALogo) {
     const lW = TEAM_LOGO_H * (teamALogo.naturalWidth / teamALogo.naturalHeight)
-    ctx.drawImage(teamALogo, INNER_X, scoreBlockTop, lW, TEAM_LOGO_H)
+    ctx.save()
+    ctx.shadowColor = `rgba(${teamAColor ?? '29,78,216'},0.9)`
+    ctx.shadowBlur = 12
+    ctx.drawImage(teamALogo, INNER_X, SCORE_TOP, lW, TEAM_LOGO_H)
+    ctx.restore()
+  }
+  if (teamBLogo) {
+    const lW = TEAM_LOGO_H * (teamBLogo.naturalWidth / teamBLogo.naturalHeight)
+    ctx.save()
+    ctx.shadowColor = `rgba(${teamBColor ?? '153,27,27'},0.9)`
+    ctx.shadowBlur = 12
+    ctx.drawImage(teamBLogo, RIGHT_X - lW, SCORE_TOP, lW, TEAM_LOGO_H)
+    ctx.restore()
   }
 
-  // Team A name
+  const scoreBaseline = SCORE_TOP + TEAM_LOGO_H / 2 + 36
+  const scoreText = `${teamAWins} \u2013 ${teamBWins}`
+  ctx.save()
+  ctx.font = 'bold 110px monospace'
+  ctx.fillStyle = C.accent
+  ctx.textAlign = 'center'
+  ctx.shadowColor = 'rgba(250,204,21,0.4)'
+  ctx.shadowBlur = 20
+  ctx.fillText(scoreText, W / 2, scoreBaseline)
+  ctx.shadowBlur = 0
+  ctx.restore()
+
+  const nameBaseline = SCORE_TOP + TEAM_LOGO_H + NAME_FONT + 14
+  ctx.font = 'bold 80px monospace'
+  const maxTeamW = W / 2 - INNER_X - ctx.measureText(scoreText).width / 2 - 20
+
   ctx.save()
   ctx.font = `bold ${NAME_FONT}px Arial, sans-serif`
   ctx.fillStyle = C.white
@@ -1069,21 +1125,6 @@ export function drawTeamMatchPost(
   ctx.fillText(truncateToWidth(ctx, teamAName, maxTeamW), INNER_X, nameBaseline)
   ctx.restore()
 
-  // Score centered
-  ctx.save()
-  ctx.font = 'bold 80px monospace'
-  ctx.fillStyle = C.accent
-  ctx.textAlign = 'center'
-  ctx.fillText(scoreText, W / 2, scoreBaseline)
-  ctx.restore()
-
-  // Team B logo (right-aligned)
-  if (teamBLogo) {
-    const lW = TEAM_LOGO_H * (teamBLogo.naturalWidth / teamBLogo.naturalHeight)
-    ctx.drawImage(teamBLogo, RIGHT_X - lW, scoreBlockTop, lW, TEAM_LOGO_H)
-  }
-
-  // Team B name
   ctx.save()
   ctx.font = `bold ${NAME_FONT}px Arial, sans-serif`
   ctx.fillStyle = C.textDim
@@ -1091,19 +1132,19 @@ export function drawTeamMatchPost(
   ctx.fillText(truncateToWidth(ctx, teamBName, maxTeamW), RIGHT_X, nameBaseline)
   ctx.restore()
 
-  // Divider
+  // 10. Divider
+  const divY = nameBaseline + 46
   ctx.save()
   ctx.strokeStyle = 'rgba(250,204,21,0.25)'
   ctx.lineWidth = 1
-  const divY = nameBaseline + 50
   ctx.beginPath()
   ctx.moveTo(INNER_X, divY)
   ctx.lineTo(RIGHT_X, divY)
   ctx.stroke()
   ctx.restore()
 
-  // Partai rows
-  const partaiStartY = divY + 50
+  // 11. Partai rows
+  const partaiStartY = divY + 55
   const maxPartaiNameW = 220
 
   partaiRows.forEach((row, i) => {
@@ -1129,7 +1170,7 @@ export function drawTeamMatchPost(
     ctx.font = 'bold 22px monospace'
     ctx.fillStyle = C.accent
     ctx.textAlign = 'center'
-    const score = row.scoreA !== null && row.scoreB !== null ? `${row.scoreA}–${row.scoreB}` : 'vs'
+    const score = row.scoreA !== null && row.scoreB !== null ? `${row.scoreA}\u2013${row.scoreB}` : 'vs'
     ctx.fillText(score, W / 2, y)
     ctx.restore()
 
@@ -1140,4 +1181,32 @@ export function drawTeamMatchPost(
     ctx.fillText(truncateToWidth(ctx, row.nameB, maxPartaiNameW), RIGHT_X, y)
     ctx.restore()
   })
+
+
+  // 13. Custom header — dark gradient band + anniversary logo + spaced label
+  {
+    const grad = ctx.createLinearGradient(0, 0, 0, HEADER_H)
+    grad.addColorStop(0, 'rgba(10,10,20,0.92)')
+    grad.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, W, HEADER_H)
+
+    const hLogoH = LOGO_H * 1.6
+    const hLogo = cardLogo ?? logo
+    const hLogoW = hLogo ? hLogoH * (hLogo.naturalWidth / hLogo.naturalHeight) : 0
+    const hLogoTop = (HEADER_H - hLogoH) / 2
+    if (hLogo) ctx.drawImage(hLogo, (W - hLogoW) / 2, hLogoTop, hLogoW, hLogoH)
+
+    const fontSize = 14
+    const label = ANNIVERSARY_LABEL.split('  \u2022  ')[0]
+    const textY = HEADER_H / 2 + fontSize * 0.38
+    ctx.save()
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`
+    ctx.letterSpacing = '8px'
+    ctx.fillStyle = C.white
+    ctx.textAlign = 'center'
+    ctx.fillText(label, (W - hLogoW) / 4, textY)
+    ctx.fillText(label, W - (W - hLogoW) / 4, textY)
+    ctx.restore()
+  }
 }
