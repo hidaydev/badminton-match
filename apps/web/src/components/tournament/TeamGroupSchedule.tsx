@@ -4,6 +4,7 @@ import {
   teamMatchOutcome,
   teamName,
   teamLogoPath,
+  teamColor,
   PARTAI_CLASSES,
   type TeamMatch,
   type TeamInfo,
@@ -70,9 +71,10 @@ export default function TeamGroupSchedule({
     const slug = `${tNameA.toLowerCase().replace(/\s+/g, '-')}-vs-${tNameB.toLowerCase().replace(/\s+/g, '-')}`
     const files: File[] = []
 
-    const [teamALogoImg, teamBLogoImg] = await Promise.all([
+    const [teamALogoImg, teamBLogoImg, teamPhotoPlaceholder] = await Promise.all([
       teamLogoPath(tNameA) ? loadImage(teamLogoPath(tNameA)!).catch(() => undefined) : Promise.resolve(undefined),
       teamLogoPath(tNameB) ? loadImage(teamLogoPath(tNameB)!).catch(() => undefined) : Promise.resolve(undefined),
+      loadImage('/team-photo-placeholder.png').catch(() => undefined),
     ])
 
     for (let pi = 0; pi < PARTAI_CLASSES.length; pi++) {
@@ -98,7 +100,7 @@ export default function TeamGroupSchedule({
       scoreB: m.partai[pi].scoreB,
     }))
     const summaryCanvas = document.createElement('canvas')
-    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'GROUP STAGE', overlays.summaryBg, overlays.logo, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg)
+    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'GROUP STAGE', overlays.summaryBg, overlays.logo, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg, teamPhotoPlaceholder, teamPhotoPlaceholder, teamColor(tNameA), teamColor(tNameB))
     const summaryBlob = await canvasToBlob(summaryCanvas)
     if (summaryBlob) files.push(new File([summaryBlob], `${slug}-summary.jpg`, { type: 'image/jpeg' }))
 
