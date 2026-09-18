@@ -9,7 +9,6 @@ import (
 	"majadu-api/internal/domain"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ── Granular live ops (Fase 1) — row-level OCC, tanpa session-level lock ───
@@ -206,7 +205,7 @@ func (s *SessionStore) SetGameScore(ctx context.Context, sessionID, gameKey stri
 	}
 	if expectedVersion != nil && *expectedVersion != currentVer {
 		s.metrics.GranularConflicts.Add(1)
-		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedVersion, currentVer)
+		return nil, versionMismatchErr("game", *expectedVersion, currentVer)
 	}
 
 	// Update score + is_played + version + updated_at (trigger) + played_order
@@ -303,7 +302,7 @@ func (s *SessionStore) SetGamePlayed(ctx context.Context, sessionID, gameKey str
 	}
 	if expectedVersion != nil && *expectedVersion != currentVer {
 		s.metrics.GranularConflicts.Add(1)
-		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedVersion, currentVer)
+		return nil, versionMismatchErr("game", *expectedVersion, currentVer)
 	}
 	// Idempotent: jika sudah sesuai, no-op tapi tetap return snapshot
 	if curPlayed == isPlayed {
@@ -369,7 +368,7 @@ func (s *SessionStore) SetAbsentPlayers(ctx context.Context, sessionID string, p
 
 	if expectedSessionVersion != nil && *expectedSessionVersion != currentVer {
 		s.metrics.GranularConflicts.Add(1)
-		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedSessionVersion, currentVer)
+		return nil, versionMismatchErr("session", *expectedSessionVersion, currentVer)
 	}
 	// Validasi refs harus ada di session_players
 	if len(clean) > 0 {
@@ -475,7 +474,7 @@ func (s *SessionStore) SetGameSkipped(ctx context.Context, sessionID, gameKey st
 	}
 	if expectedVersion != nil && *expectedVersion != currentVer {
 		s.metrics.GranularConflicts.Add(1)
-		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedVersion, currentVer)
+		return nil, versionMismatchErr("game", *expectedVersion, currentVer)
 	}
 	if curSkipped == nil {
 		curSkipped = []string{}
@@ -530,15 +529,4 @@ func equalStringSets(a, b []string) bool {
 		m[s]--
 	}
 	return true
-}
-func isUndefinedColumn(err error) bool {
-	if err == nil {
-		return false
-	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "42703"
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "42703") || strings.Contains(msg, "skipped_player_refs") && strings.Contains(msg, "does not exist")
 }

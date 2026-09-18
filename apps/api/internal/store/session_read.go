@@ -12,7 +12,6 @@ import (
 	"majadu-api/internal/domain"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Load — read-path (port bm.get_session + get_session_snapshot_compat):
@@ -396,15 +395,8 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 	return snap, nil
 }
 
-// isSkippedColumnMissing — detect 42703 undefined_column for skipped_player_refs
+// isSkippedColumnMissing — alias historis: kolom skipped_player_refs hilang
+// (SQLSTATE 42703). Delegasi ke isUndefinedColumn (satu sumber predikat).
 func isSkippedColumnMissing(err error) bool {
-	if err == nil {
-		return false
-	}
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "42703"
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "42703") || strings.Contains(msg, "skipped_player_refs")
+	return isUndefinedColumn(err)
 }
