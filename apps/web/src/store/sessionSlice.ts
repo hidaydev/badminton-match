@@ -5,9 +5,11 @@ import type { SetState } from './index'
 import { RESET_GENERATED } from './reset'
 
 const DEFAULT_SLOT_MINUTES = 20
+const DEFAULT_START = '09:00'
+const DEFAULT_END = '11:00'
 const DEFAULT_COURT_TIMES: CourtTime[] = [
-  { start: toTimeString('09:00'), end: toTimeString('11:00') },
-  { start: toTimeString('09:00'), end: toTimeString('11:00') },
+  { start: toTimeString(DEFAULT_START), end: toTimeString(DEFAULT_END) },
+  { start: toTimeString(DEFAULT_START), end: toTimeString(DEFAULT_END) },
 ]
 
 function makeDefaultSession(): SessionConfig {
@@ -17,7 +19,7 @@ function makeDefaultSession(): SessionConfig {
     // Asia/Jakarta; toISOString bisa mundur 1 hari jam 00:00–06:59 WIB.
     date: todayWIB(),
     courts: 2,
-    sessionStart: toTimeString('09:00'),
+    sessionStart: toTimeString(DEFAULT_START),
     slotMinutes: DEFAULT_SLOT_MINUTES,
     courtTimes: DEFAULT_COURT_TIMES,
     playerCount: 8,
@@ -58,9 +60,9 @@ export const createSessionSlice = (
       const prev = s.session.courtTimes
       // Court baru default-nya mengikuti sessionStart; end jangan sampai < start
       // (mis. sessionStart 13:00 sementara default lama hardcode 11:00).
-      const defaultEnd = timeToMinutes(s.session.sessionStart) >= timeToMinutes('11:00')
+      const defaultEnd = timeToMinutes(s.session.sessionStart) >= timeToMinutes(DEFAULT_END)
         ? toTimeString(minutesToTime(timeToMinutes(s.session.sessionStart) + s.session.slotMinutes))
-        : toTimeString('11:00')
+        : toTimeString(DEFAULT_END)
       const courtTimes = Array.from({ length: n }, (_, i) => prev[i] ?? { start: s.session.sessionStart, end: defaultEnd })
       return {
         session: {

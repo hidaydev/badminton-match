@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../components/scoreboard'
+import type { ScoreboardSideProps } from '../components/scoreboard'
 import { validateScore } from '../utils/scoreValidation'
 
 const LS_RED = 'score-red'
@@ -205,71 +206,48 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
     height: '100dvh',
   }
 
+  const redSide: ScoreboardSideProps = {
+    side: 'red',
+    score: red,
+    displayName: nameA,
+    editValue: redName,
+    isEditing: editingRed,
+    isPop: popRed,
+    isOverlay: !!overlay,
+    onScore: addRed,
+    onMinus: minusRed,
+    onNameChange: setRedName,
+    onStartEditing: () => setEditingRed(true),
+    onStopEditing: () => setEditingRed(false),
+  }
+
+  const blueSide: ScoreboardSideProps = {
+    side: 'blue',
+    score: blue,
+    displayName: nameB,
+    editValue: blueName,
+    isEditing: editingBlue,
+    isPop: popBlue,
+    isOverlay: !!overlay,
+    onScore: addBlue,
+    onMinus: minusBlue,
+    onNameChange: setBlueName,
+    onStartEditing: () => setEditingBlue(true),
+    onStopEditing: () => setEditingBlue(false),
+  }
+
+  const redEl = <ScoreboardSide {...redSide} />
+  const blueEl = <ScoreboardSide {...blueSide} />
+  const sides = isSwapped ? [blueEl, redEl] : [redEl, blueEl]
+
   const content = (
     <>
-      {isSwapped ? (
-        <ScoreboardSide
-          side="blue"
-          score={blue}
-          displayName={nameB}
-          editValue={blueName}
-          isEditing={editingBlue}
-          isPop={popBlue}
-          isOverlay={!!overlay}
-          onScore={addBlue}
-          onMinus={minusBlue}
-          onNameChange={setBlueName}
-          onStartEditing={() => setEditingBlue(true)}
-          onStopEditing={() => setEditingBlue(false)}
-        />
-      ) : (
-        <ScoreboardSide
-          side="red"
-          score={red}
-          displayName={nameA}
-          editValue={redName}
-          isEditing={editingRed}
-          isPop={popRed}
-          isOverlay={!!overlay}
-          onScore={addRed}
-          onMinus={minusRed}
-          onNameChange={setRedName}
-          onStartEditing={() => setEditingRed(true)}
-          onStopEditing={() => setEditingRed(false)}
-        />
-      )}
-      <ScoreboardDivider />
-      {isSwapped ? (
-        <ScoreboardSide
-          side="red"
-          score={red}
-          displayName={nameA}
-          editValue={redName}
-          isEditing={editingRed}
-          isPop={popRed}
-          isOverlay={!!overlay}
-          onScore={addRed}
-          onMinus={minusRed}
-          onNameChange={setRedName}
-          onStartEditing={() => setEditingRed(true)}
-          onStopEditing={() => setEditingRed(false)}
-        />
-      ) : (
-        <ScoreboardSide
-          side="blue"
-          score={blue}
-          displayName={nameB}
-          editValue={blueName}
-          isEditing={editingBlue}
-          isPop={popBlue}
-          isOverlay={!!overlay}
-          onScore={addBlue}
-          onMinus={minusBlue}
-          onNameChange={setBlueName}
-          onStartEditing={() => setEditingBlue(true)}
-          onStopEditing={() => setEditingBlue(false)}
-        />
-      )}
+      {sides.map((el, i) => (
+        <Fragment key={i}>
+          {i > 0 && <ScoreboardDivider />}
+          {el}
+        </Fragment>
+      ))}
       {fsError && (
         <div
           className="fixed bottom-14 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg text-xs text-white/80 text-center"

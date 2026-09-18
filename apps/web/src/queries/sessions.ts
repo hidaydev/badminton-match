@@ -138,7 +138,7 @@ export function useGetSession(
     queryKey: ['session', sessionId],
     queryFn: ({ signal }) => getSession(sessionId!, signal),
     enabled: !!sessionId,
-    refetchInterval: options?.refetchInterval as unknown as number | false | undefined,
+    refetchInterval: options?.refetchInterval,
     refetchOnWindowFocus: options?.refetchOnWindowFocus,
   })
 }
