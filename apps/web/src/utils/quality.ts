@@ -3,6 +3,7 @@
 
 import type { Player, MatchConstraint } from '../types'
 import type { GeneratorResult } from '../generator'
+import { DEFAULT_TIER } from '../config/generator'
 
 export interface QualityMetrics {
   playSpread: number
@@ -32,8 +33,8 @@ export function computeQuality(
 
   let unevenGames = 0
   for (const g of result.schedule) {
-    const tierA = (playerMap.get(g.teamA[0])?.tier ?? 5) + (playerMap.get(g.teamA[1])?.tier ?? 5)
-    const tierB = (playerMap.get(g.teamB[0])?.tier ?? 5) + (playerMap.get(g.teamB[1])?.tier ?? 5)
+    const tierA = (playerMap.get(g.teamA[0])?.tier ?? DEFAULT_TIER) + (playerMap.get(g.teamA[1])?.tier ?? DEFAULT_TIER)
+    const tierB = (playerMap.get(g.teamB[0])?.tier ?? DEFAULT_TIER) + (playerMap.get(g.teamB[1])?.tier ?? DEFAULT_TIER)
     // Threshold skala 8-tier (TIER_8_UNIFICATION): dulu >=2 untuk range 1-4
     // (≈ setengah tier per pemain), sekarang >=4 untuk range 1-8 (proporsi sama).
     if (Math.abs(tierA - tierB) >= 4) unevenGames++

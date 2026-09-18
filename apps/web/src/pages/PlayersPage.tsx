@@ -21,7 +21,7 @@ function parsePlayerList(raw: string): string[] {
     .filter((name) => name.length > 0)
 }
 
-import { TIER_LABELS, TIER_BADGE_COLORS, TIER_ACTIVE, TIER_NAMES } from '../config/tiers'
+import { TIER_LABELS, TIER_BADGE_COLORS, TIER_ACTIVE, TIER_NAMES, TIERS } from '../config/tiers'
 
 // Convert canonical tier string (D..A+) to numeric (1..8)
 function tierStringToNumber(tier: string): Tier {
@@ -37,6 +37,48 @@ function TierBadge({ tier }: { tier: Tier }) {
   )
 }
 
+// ── Shared pickers ────────────────────────────────────────────────────────────
+// `type` is forwarded so callers inside a <form> can opt into type="button"
+// without forcing the attribute on standalone usages.
+function GenderToggle({ value, onChange, type }: { value: Gender; onChange: (g: Gender) => void; type?: 'button' }) {
+  return (
+    <div className="flex rounded-lg overflow-hidden border border-slate-700">
+      {(['M', 'F'] as Gender[]).map((g) => (
+        <button
+          key={g}
+          type={type}
+          onClick={() => onChange(g)}
+          className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
+            value === g
+              ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          {g}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function TierToggle({ value, onChange, type }: { value: Tier; onChange: (t: Tier) => void; type?: 'button' }) {
+  return (
+    <div className="flex rounded-lg overflow-hidden border border-slate-700">
+      {TIERS.map((t) => (
+        <button
+          key={t}
+          type={type}
+          onClick={() => onChange(t)}
+          className={`min-w-8 h-8 text-xs font-bold transition-colors ${
+            value === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          {TIER_LABELS[t]}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 // ── Inline editable row ───────────────────────────────────────────────────────
 function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: { 
@@ -94,21 +136,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
         )}
 
         {/* Gender picker */}
-        <div className="flex rounded-lg overflow-hidden border border-slate-700">
-          {(['M', 'F'] as Gender[]).map((g) => (
-            <button
-              key={g}
-              onClick={() => updatePlayer(player.id, { gender: g })}
-              className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
-                player.gender === g
-                  ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {g}
-            </button>
-          ))}
-        </div>
+        <GenderToggle value={player.gender} onChange={(g) => updatePlayer(player.id, { gender: g })} />
 
         {/* Tier — read-only badge untuk registered player, picker untuk new player */}
         {isRegistered ? (
@@ -116,19 +144,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
             {TIER_LABELS[player.tier]}
           </span>
         ) : (
-          <div className="flex rounded-lg overflow-hidden border border-slate-700">
-            {([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => updatePlayer(player.id, { tier: t })}
-                className={`min-w-8 h-8 text-xs font-bold transition-colors ${
-                  player.tier === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {TIER_LABELS[t]}
-              </button>
-            ))}
-          </div>
+          <TierToggle value={player.tier} onChange={(t) => updatePlayer(player.id, { tier: t })} />
         )}
 
         {/* Delete */}
@@ -210,37 +226,9 @@ function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: {
         className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
       />
       {/* Gender picker */}
-      <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {(['M', 'F'] as Gender[]).map((g) => (
-          <button
-            key={g}
-            type="button"
-            onClick={() => setGender(g)}
-            className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
-              gender === g
-                ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {g}
-          </button>
-        ))}
-      </div>
+      <GenderToggle value={gender} onChange={setGender} type="button" />
       {/* Tier picker */}
-      <div className="flex rounded-lg overflow-hidden border border-slate-700">
-        {([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTier(t)}
-            className={`min-w-8 h-8 text-xs font-bold transition-colors ${
-              tier === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {TIER_LABELS[t]}
-          </button>
-        ))}
-      </div>
+      <TierToggle value={tier} onChange={setTier} type="button" />
       <button
         type="submit"
         disabled={!name.trim()}
@@ -371,7 +359,7 @@ export default function PlayersPage() {
     setShowForm(false)
   }
 
-  const tierGroups = ([1, 2, 3, 4, 5, 6, 7, 8] as Tier[]).map((t) => ({
+  const tierGroups = TIERS.map((t) => ({
     tier: t,
     players: players.filter((p) => p.tier === t),
   }))
