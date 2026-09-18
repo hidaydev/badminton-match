@@ -15,6 +15,8 @@ import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 import { ScheduleView, QualityBanner } from '../components/generate/ScheduleComponents'
 import { useDebouncedPublish } from '../hooks/useDebouncedPublish'
 import { useAutoDismiss } from '../hooks/useAutoDismiss'
+import { collectAmbiguousBaseNames } from '../utils/nameParser'
+import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
 
 export default function GeneratePage() {
   const { isSharedView, snapshot, exitSharedView } = useSharedView()
@@ -66,6 +68,11 @@ export default function GeneratePage() {
 
   // Derivasi stabil: map pemain & layout court dihitung ulang hanya saat input berubah.
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players])
+  // Base name yang ambigu (muncul >1x) → hanya mereka yang tampil badge (i).
+  const ambiguousNames = useMemo(
+    () => collectAmbiguousBaseNames(players.map((p) => p.name)),
+    [players],
+  )
   const slotsPerCourt = useMemo(() => selectSlotsPerCourt(session), [session])
 
   const { publishToCloud, isSaving } = useDebouncedPublish(cloudSessionId, (msg) => setSaveError(msg))
@@ -177,6 +184,7 @@ export default function GeneratePage() {
   }
 
   return (
+    <AmbiguousNamesProvider value={ambiguousNames}>
     <div className="flex flex-col gap-6">
       {isSharedView && (
         <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-indigo-900/30 border border-indigo-800 text-sm">
@@ -302,5 +310,6 @@ export default function GeneratePage() {
         />
       )}
     </div>
+    </AmbiguousNamesProvider>
   )
 }

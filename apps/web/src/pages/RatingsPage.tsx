@@ -1,9 +1,11 @@
 // src/pages/RatingsPage.tsx — leaderboard rating (plan RATINGS_FRONTEND_PLAN.md §6.4)
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useRatingLeaderboard, useRatingSeasons, useSeasonStandings } from '../queries/ratings'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
+import { collectAmbiguousBaseNames } from '../utils/nameParser'
+import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
 
 const PAGE = 100
 
@@ -21,6 +23,15 @@ export default function RatingsPage() {
 
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
+  // Badge (i) hanya untuk baseName ambigu. Set diambil dari semua nama yang
+  // tampil di halaman ini (leaderboard live + standings beku).
+  const ambiguousNames = useMemo(
+    () => collectAmbiguousBaseNames([
+      ...(data?.rows ?? []).map((r) => r.name),
+      ...(frozen ?? []).map((r) => r.name),
+    ]),
+    [data, frozen],
+  )
   const loading = isLoading
   const error = isError
 
@@ -31,6 +42,7 @@ export default function RatingsPage() {
   const showEmpty = !loading && !error && rows.length === 0 && total > 0
 
   return (
+    <AmbiguousNamesProvider value={ambiguousNames}>
     <div className="flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
@@ -180,5 +192,6 @@ export default function RatingsPage() {
         </button>
       )}
     </div>
+    </AmbiguousNamesProvider>
   )
 }
