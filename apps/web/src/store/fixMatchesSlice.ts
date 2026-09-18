@@ -2,6 +2,7 @@ import type { MatchConstraint, PlayerId } from '../types'
 import { toTimeString } from '../types'
 import { generateId } from './sessionSlice'
 import type { SetState } from './index'
+import { RESET_GENERATED } from './reset'
 
 export interface FixMatchesSlice {
   fixMatches: MatchConstraint[]
@@ -23,7 +24,7 @@ export const createFixMatchesSlice = (
       const fm: MatchConstraint = m.mode === 'pinned'
         ? { id, slots: m.slots as [PlayerId, PlayerId, PlayerId, PlayerId], mode: 'pinned', pinnedTime: toTimeString((m as { pinnedTime?: string }).pinnedTime ?? ''), pinnedCourt: (m as { pinnedCourt?: number }).pinnedCourt ?? 0 }
         : { id, slots: m.slots as [PlayerId, PlayerId, PlayerId, PlayerId], mode: 'flexible' }
-      return { fixMatches: [...s.fixMatches, fm], schedule: [], lastResult: null, playedGames: [], gameScores: {} }
+      return { fixMatches: [...s.fixMatches, fm], ...RESET_GENERATED }
     }),
 
   updateFixMatch: (id, patch) =>
@@ -44,7 +45,7 @@ export const createFixMatchesSlice = (
           pinnedCourt: merged.pinnedCourt ?? 0,
         } as MatchConstraint
       }),
-      schedule: [], lastResult: null, playedGames: [], gameScores: {},
+      ...RESET_GENERATED,
     })),
 
   duplicateFixMatch: (id) =>
@@ -54,9 +55,9 @@ export const createFixMatchesSlice = (
       const copy = { ...s.fixMatches[idx], id: generateId() }
       const next = [...s.fixMatches]
       next.splice(idx + 1, 0, copy)
-      return { fixMatches: next, schedule: [], lastResult: null, playedGames: [], gameScores: {} }
+      return { fixMatches: next, ...RESET_GENERATED }
     }),
 
   removeFixMatch: (id) =>
-    set((s) => ({ fixMatches: s.fixMatches.filter((m) => m.id !== id), schedule: [], lastResult: null, playedGames: [], gameScores: {} })),
+    set((s) => ({ fixMatches: s.fixMatches.filter((m) => m.id !== id), ...RESET_GENERATED })),
 })
