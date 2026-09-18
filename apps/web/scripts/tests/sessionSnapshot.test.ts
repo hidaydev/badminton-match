@@ -4,7 +4,6 @@ import {
   buildPublishableSessionSnapshot,
   setScoreInSnapshot,
   swapSlotsInSnapshot,
-  togglePlayedInSnapshot,
   setAbsentPlayersInSnapshot,
   replacePlayerNameInSnapshot,
 } from '../../src/utils/sessionSnapshot.ts'
@@ -47,20 +46,6 @@ test('buildPublishableSessionSnapshot: mempertahankan absent player existing', (
   assert.equal(snap.version, 7)
   assert.deepEqual(snap.absentPlayers, ['p4'])
   assert.deepEqual(snap.playedGames, ['0-0'])
-})
-
-test('togglePlayedInSnapshot: menandai played', () => {
-  const out = togglePlayedInSnapshot(makeSnapshot(), '0-0')
-  assert.ok(out.playedGames.includes('0-0'))
-})
-
-test('togglePlayedInSnapshot: unplay menghapus skor orphan', () => {
-  const snap = makeSnapshot()
-  snap.playedGames = ['0-0']
-  snap.gameScores = { [toGameKey(0, 0)]: { a: 21, b: 18 } }
-  const out = togglePlayedInSnapshot(snap, '0-0')
-  assert.ok(!out.playedGames.includes('0-0'))
-  assert.ok(!(toGameKey(0, 0) in out.gameScores))
 })
 
 test('setScoreInSnapshot: auto-tambah ke playedGames saat game belum played', () => {
@@ -108,7 +93,6 @@ test('semua helper snapshot bersifat immutable', () => {
   const snap = makeSnapshot()
   const before = JSON.stringify(snap)
   setScoreInSnapshot(snap, '0-0', 21, 18)
-  togglePlayedInSnapshot(snap, '0-0')
   setAbsentPlayersInSnapshot(snap, ['p4'])
   replacePlayerNameInSnapshot(snap, 'p1', 'X')
   assert.equal(JSON.stringify(snap), before)

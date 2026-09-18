@@ -9,7 +9,7 @@ import type { GeneratorResult } from '../generator'
 import type { Player, GameScore, CourtTime } from '../types'
 import { formatMergedCourtTimes } from '../utils/time'
 import { courtLabel } from '../utils/courtLabel'
-import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
+import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
 import { validateChangeName } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import ConfirmBars from './summary/ConfirmBars'
@@ -50,7 +50,7 @@ interface SummaryModalEditProps {
   onReplacePlayer?: (playerId: string, newName: string) => void
   onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
   onSwapTeams?: (t1: TeamSwapTarget, t2: TeamSwapTarget) => void
-  onChangePlayer?: (target: ChangeTarget, newName: string) => void
+  onChangePlayer?: (target: SwapTarget, newName: string) => void
   onRefetch?: () => void
   isRefetching?: boolean
   onDelete?: () => void

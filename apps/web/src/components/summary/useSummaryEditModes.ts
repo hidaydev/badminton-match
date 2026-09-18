@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from 'react'
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { Player, ScheduleSlot } from '../../types'
 import { toPlayerId } from '../../types'
-import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../../utils/swap'
+import type { SwapTarget, TeamSwapTarget } from '../../utils/swap'
 import { detectTeamSwapConflict } from '../../utils/swap'
 import type { SlotSwapTarget } from '../../utils/slotSwap'
 import { detectSlotSwapConflict } from '../../utils/slotSwap'
@@ -24,7 +24,7 @@ interface Params {
   onSetGameSkipped?: (key: string, playerIds: string[]) => void
   onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
   onSwapTeams?: (t1: TeamSwapTarget, t2: TeamSwapTarget) => void
-  onChangePlayer?: (target: ChangeTarget, newName: string) => void
+  onChangePlayer?: (target: SwapTarget, newName: string) => void
 }
 
 export function useSummaryEditModes({
@@ -60,10 +60,10 @@ export function useSummaryEditModes({
   const [pendingTeamSwap, setPendingTeamSwap] = useState<{ t1: TeamSwapTarget; t2: TeamSwapTarget } | null>(null)
   const [teamSwapError, setTeamSwapError] = useState<string | null>(null)
 
-  const [changeTarget, setChangeTarget] = useState<ChangeTarget | null>(null)
+  const [changeTarget, setSwapTarget] = useState<SwapTarget | null>(null)
   const [changeName, setChangeName] = useState('')
   const [changeError, setChangeError] = useState<string | null>(null)
-  const [pendingChange, setPendingChange] = useState<{ target: ChangeTarget; newName: string; b2b: boolean } | null>(null)
+  const [pendingChange, setPendingChange] = useState<{ target: SwapTarget; newName: string; b2b: boolean } | null>(null)
 
   const [actionsOpen, setActionsOpen] = useState(false)
 
@@ -95,7 +95,7 @@ export function useSummaryEditModes({
         setTeamSwapError(null)
         break
       case 'change':
-        setChangeTarget(null)
+        setSwapTarget(null)
         setChangeName('')
         setChangeError(null)
         setPendingChange(null)
@@ -259,8 +259,8 @@ export function useSummaryEditModes({
   }, [replaceTarget])
 
   // Select change target
-  const handleChangeSelect = useCallback((target: ChangeTarget) => {
-    setChangeTarget(target)
+  const handleChangeSelect = useCallback((target: SwapTarget) => {
+    setSwapTarget(target)
     setChangeName('')
     setChangeError(null)
   }, [])

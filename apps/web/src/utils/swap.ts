@@ -9,12 +9,9 @@ export interface SwapTarget {
   index: 0 | 1
 }
 
-/** @deprecated Use SwapTarget instead — identical fields. */
-export type ChangeTarget = SwapTarget
-
 export function applyChange(
   schedule: ScheduleSlot[],
-  target: ChangeTarget,
+  target: SwapTarget,
   newName: string,
 ): ScheduleSlot[] {
   // Only change the specific position in the target game, not all occurrences
@@ -136,7 +133,7 @@ export function detectTeamSwapConflict(
  * Checks for same-game conflict, cross-slot conflict, and back-to-back warning.
  */
 export function validateChangeName(
-  target: ChangeTarget,
+  target: SwapTarget,
   name: string,
   schedule: ScheduleSlot[],
   playerMap: Map<string, Player>,

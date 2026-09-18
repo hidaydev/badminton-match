@@ -1,5 +1,5 @@
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
-import type { SwapTarget, ChangeTarget } from '../../utils/swap'
+import type { SwapTarget } from '../../utils/swap'
 
 export type PlayerChipMode = 'idle' | 'swap' | 'absent' | 'skip' | 'replace' | 'slotSwap' | 'teamSwap' | 'change'
 
@@ -25,11 +25,11 @@ interface PlayerChipRendererProps {
   /** Current replace target (for highlighting) */
   replaceTarget: string | null
   /** Current change target (for highlighting) */
-  changeTarget: ChangeTarget | null
+  changeTarget: SwapTarget | null
   /** Callbacks */
   onChipClick: (target: SwapTarget) => void
   onReplaceToggle: (playerId: string) => void
-  onChangeSelect: (target: ChangeTarget) => void
+  onChangeSelect: (target: SwapTarget) => void
   /** Slot and court for constructing targets */
   slot: number
   court: number
@@ -108,7 +108,7 @@ export default function PlayerChipRenderer({
 
   // Change mode — sky-blue clickable button (disabled if game has score)
   if (mode === 'change') {
-    const changeTargetForChip: ChangeTarget = { slot, court, team, index: position, playerId }
+    const changeTargetForChip: SwapTarget = { slot, court, team, index: position, playerId }
     const isActive =
       changeTarget?.slot === slot &&
       changeTarget?.court === court &&
