@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useStore } from '../store'
 import { timeToMinutes, timeToSlotIndex } from '../utils/time'
 import { selectSlotsPerCourt, selectTotalGames } from '../store/selectors'
@@ -14,6 +14,7 @@ import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from '
 import { applySlotSwap, type SlotSwapTarget } from '../utils/slotSwap'
 import { ScheduleView, QualityBanner } from '../components/generate/ScheduleComponents'
 import { useDebouncedPublish } from '../hooks/useDebouncedPublish'
+import { useAutoDismiss } from '../hooks/useAutoDismiss'
 
 export default function GeneratePage() {
   const { isSharedView, snapshot, exitSharedView } = useSharedView()
@@ -61,11 +62,7 @@ export default function GeneratePage() {
   const [isGenerating, setIsGenerating] = useState(false)
 
   // Auto-dismiss error toast after 3 seconds (keputusan poin 4)
-  useEffect(() => {
-    if (!saveError) return
-    const timer = setTimeout(() => setSaveError(null), 3000)
-    return () => clearTimeout(timer)
-  }, [saveError])
+  useAutoDismiss(saveError, setSaveError, 3000)
 
   // Derivasi stabil: map pemain & layout court dihitung ulang hanya saat input berubah.
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players])

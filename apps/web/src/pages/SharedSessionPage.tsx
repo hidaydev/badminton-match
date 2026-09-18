@@ -19,9 +19,11 @@ import { registerPlayer } from '../queries/endpoints'
 import { selectSlotsPerCourt } from '../store/selectors'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
-import type { TeamSwapTarget, ChangeTarget } from '../utils/swap'
+import type { TeamSwapTarget, SwapTarget } from '../utils/swap'
 import SummaryModal from '../components/SummaryModal'
+import ErrorBanner from '../components/ErrorBanner'
 import { useLastSession } from '../hooks/useLastSession'
+import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
 import { getSaveErrorMessage } from '../queries/errors'
 
 export default function SharedSessionPage() {
@@ -31,11 +33,7 @@ export default function SharedSessionPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   // Auto-dismiss error toast after 3 seconds (keputusan poin 4)
-  useEffect(() => {
-    if (!saveError) return
-    const timer = setTimeout(() => setSaveError(null), 3000)
-    return () => clearTimeout(timer)
-  }, [saveError])
+  useAutoDismiss(saveError, setSaveError, 3000)
 
   const { mutate: togglePlayed, isPending: togglePlayedPending } = useTogglePlayed(sessionId!)
   const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
@@ -131,11 +129,7 @@ export default function SharedSessionPage() {
   return (
     <main className="min-h-screen bg-ground text-fg flex flex-col">
       {header}
-      {saveError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg" role="alert" aria-live="polite">
-          {saveError}
-        </div>
-      )}
+      {saveError && <ErrorBanner message={saveError} ariaLive="polite" />}
       <SummaryModal
         result={result!}
         playerMap={playerMap}
@@ -146,35 +140,20 @@ export default function SharedSessionPage() {
         onTogglePlayedGame={(key) => {
           const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
           const willBePlayed = !current?.playedGames.includes(key)
-          togglePlayed({ key, nextPlayed: willBePlayed }, {
-            onSuccess: () => setSaveError(null),
-            onError: (err) => setSaveError(getSaveErrorMessage(err)),
-          })
+          togglePlayed({ key, nextPlayed: willBePlayed }, mutationToastHandlers(setSaveError))
         }}
-        onSetGameScore={(key, a, b) => setScore({ key, a, b }, {
-          onSuccess: () => setSaveError(null),
-          onError: (err) => setSaveError(getSaveErrorMessage(err)),
-        })}
+        onSetGameScore={(key, a, b) => setScore({ key, a, b }, mutationToastHandlers(setSaveError))}
         title={snapshot.session.title ?? ''}
         date={snapshot.session.date ?? ''}
         sessionStart={snapshot.session.sessionStart}
         slotMinutes={snapshot.session.slotMinutes}
         courtTimes={snapshot.session.courtTimes}
         saving={isSaving}
-        onSwapPlayers={(t1, t2) => swapPlayers({ t1, t2 }, {
-          onSuccess: () => setSaveError(null),
-          onError: (err) => setSaveError(getSaveErrorMessage(err)),
-        })}
+        onSwapPlayers={(t1, t2) => swapPlayers({ t1, t2 }, mutationToastHandlers(setSaveError))}
         absentPlayers={snapshot.absentPlayers ?? []}
         skippedPlayers={snapshot.skippedPlayers ?? {}}
-        onSetAbsent={(nextAbsent) => setAbsent({ nextAbsent }, {
-          onSuccess: () => setSaveError(null),
-          onError: (err) => setSaveError(getSaveErrorMessage(err)),
-        })}
-        onSetGameSkipped={(key, playerIds) => setSkipped({ key, playerIds }, {
-          onSuccess: () => setSaveError(null),
-          onError: (err) => setSaveError(getSaveErrorMessage(err)),
-        })}
+        onSetAbsent={(nextAbsent) => setAbsent({ nextAbsent }, mutationToastHandlers(setSaveError))}
+        onSetGameSkipped={(key, playerIds) => setSkipped({ key, playerIds }, mutationToastHandlers(setSaveError))}
         onReplacePlayer={async (playerId, newName) => {
           try {
             await registerPlayer(newName)
@@ -182,20 +161,11 @@ export default function SharedSessionPage() {
             setSaveError(getSaveErrorMessage(err))
             return
           }
-          replacePlayer({ playerId, newName }, {
-            onSuccess: () => setSaveError(null),
-            onError: (err) => setSaveError(getSaveErrorMessage(err)),
-          })
+          replacePlayer({ playerId, newName }, mutationToastHandlers(setSaveError))
         }}
-        onSwapSlots={(g1: SlotSwapTarget, g2: SlotSwapTarget) => swapSlots({ g1, g2 }, {
-          onSuccess: () => setSaveError(null),
-          onError: (err) => setSaveError(getSaveErrorMessage(err)),
-        })}
-        onSwapTeams={(t1: TeamSwapTarget, t2: TeamSwapTarget) => swapTeams({ t1, t2 }, {
-          onSuccess: () => setSaveError(null),
-          onError: (err) => setSaveError(getSaveErrorMessage(err)),
-        })}
-        onChangePlayer={async (target: ChangeTarget, newName: string) => {
+        onSwapSlots={(g1: SlotSwapTarget, g2: SlotSwapTarget) => swapSlots({ g1, g2 }, mutationToastHandlers(setSaveError))}
+        onSwapTeams={(t1: TeamSwapTarget, t2: TeamSwapTarget) => swapTeams({ t1, t2 }, mutationToastHandlers(setSaveError))}
+        onChangePlayer={async (target: SwapTarget, newName: string) => {
           try {
             // Check if typed name matches an existing player in the snapshot
             const existingPlayer = snapshot?.players.find(
@@ -204,10 +174,7 @@ export default function SharedSessionPage() {
             const playerId = existingPlayer
               ? existingPlayer.id  // Use existing UUID — don't call registerPlayer
               : (await registerPlayer(newName)).playerId
-            changePlayer({ target, newName: playerId, playerName: newName }, {
-              onSuccess: () => setSaveError(null),
-              onError: (err) => setSaveError(getSaveErrorMessage(err)),
-            })
+            changePlayer({ target, newName: playerId, playerName: newName }, mutationToastHandlers(setSaveError))
           } catch (err) {
             setSaveError(getSaveErrorMessage(err))
           }
