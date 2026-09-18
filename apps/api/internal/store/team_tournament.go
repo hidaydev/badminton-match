@@ -95,9 +95,10 @@ func (s *TournamentStore) TeamLoad(ctx context.Context, id string) (*domain.Team
 
 	// players per team
 	rows, err = s.pool.Query(ctx, `
-		SELECT ttp.team_id::text, ttp.player_name, ttp.cls
+		SELECT ttp.team_id::text, COALESCE(p.canonical_name, ttp.player_name), ttp.cls
 		FROM tournament_team_players ttp
 		JOIN tournament_teams tt ON tt.id = ttp.team_id
+		LEFT JOIN players p ON p.id = ttp.player_id
 		WHERE tt.tournament_id = $1::uuid`, tournamentID)
 	if err != nil {
 		return nil, err
@@ -248,6 +249,34 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 		}
 	}
 
+	// Sama seperti sesi: player_name = catatan MENTAH. TeamLoad() mengembalikan
+	// canonical_name untuk pemain terdaftar, jadi snapshot yang di-save-balik
+	// jangan sampai menimpa player_name — kolom itu ikut SourceFingerprint
+	// (fingerprint team) sehingga perubahan bikin re-ingest gagal.
+	prevPlayerName := map[string]string{} // player_id → player_name
+	{
+		trows, err := tx.Query(ctx, `
+			SELECT ttp.player_id::text, ttp.player_name
+			FROM tournament_team_players ttp
+			JOIN tournament_teams tt ON tt.id = ttp.team_id
+			WHERE tt.tournament_id = $1::uuid AND ttp.player_id IS NOT NULL`, rowID)
+		if err != nil {
+			return nil, err
+		}
+		for trows.Next() {
+			var pid, name string
+			if err := trows.Scan(&pid, &name); err != nil {
+				trows.Close()
+				return nil, err
+			}
+			prevPlayerName[pid] = name
+		}
+		trows.Close()
+		if err := trows.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	// Delete-reinsert (matches dulu → teams)
 	if _, err := tx.Exec(ctx, `DELETE FROM tournament_team_matches WHERE tournament_id = $1::uuid`, rowID); err != nil {
 		return nil, err
@@ -270,10 +299,17 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 		for _, p := range t.Players {
 			norm := domain.NormalizePlayerName(p.Name)
 			pid := playerIDs[norm]
+			// Pemain terdaftar: pertahankan player_name mentah yang sudah ada.
+			playerName := p.Name
+			if pid != "" {
+				if prev, ok := prevPlayerName[pid]; ok && prev != "" {
+					playerName = prev
+				}
+			}
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO tournament_team_players (team_id, player_name, cls, player_id)
 				VALUES ($1::uuid, $2, $3, $4::uuid)`,
-				internal, p.Name, p.Cls, nilableString(pid)); err != nil {
+				internal, playerName, p.Cls, nilableString(pid)); err != nil {
 				return nil, err
 			}
 		}

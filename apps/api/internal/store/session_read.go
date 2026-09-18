@@ -108,8 +108,11 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 	players := []playerRow{}
 	internalToRef := map[string]string{}
 	rows, err = tx.Query(ctx, `
-		SELECT sp.internal_id::text, sp.player_ref, sp.source_name, sp.gender, sp.tier, sp.is_absent, sp.absent_order
+		SELECT sp.internal_id::text, sp.player_ref,
+		       COALESCE(p.canonical_name, sp.source_name),
+		       sp.gender, sp.tier, sp.is_absent, sp.absent_order
 		FROM session_players sp
+		LEFT JOIN players p ON p.id = sp.player_id
 		WHERE sp.session_id = $1::uuid
 		ORDER BY sp.sort_order`, sessionID)
 	if err != nil {
