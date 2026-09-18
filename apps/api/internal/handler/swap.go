@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 
 	"majadu-api/internal/httperr"
@@ -24,26 +23,14 @@ func (h *SessionHandler) SwapMembers(w http.ResponseWriter, r *http.Request) {
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid JSON body"))
 		return
 	}
-	var expected *int
-	if v, err := versionRequired(r); err == nil {
-		expected = &v
-	} else if errors.Is(err, errIfMatchMissing) {
-		httperr.WriteError(w, h.Logger, httperr.Precondition("If-Match header is required"))
-		return
-	} else {
-		httperr.WriteError(w, h.Logger, httperr.Validation("invalid If-Match header"))
+	expected, ok := h.requireIfMatch(w, r, "If-Match header is required")
+	if !ok {
 		return
 	}
-	idemKey := r.Header.Get("Idempotency-Key")
-	cacheKey := ""
-	if idemKey != "" {
-		cacheKey = id + ":" + idemKey
-		if cached, ok := getIdempotentResponse(cacheKey); ok {
-			h.writeSession(w, http.StatusOK, cached)
-			return
-		}
+	if _, hit := h.replayIdempotent(w, r, id); hit {
+		return
 	}
-	out, err := h.Store.SwapMembers(r.Context(), id, req.Type, req.A, req.B, expected, idemKey)
+	out, err := h.Store.SwapMembers(r.Context(), id, req.Type, req.A, req.B, expected, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.Logger.Warn("granular swap rejected", "session", id, "type", req.Type, "error", err)
 		httperr.WriteError(w, h.Logger, mapPublishError(err))
