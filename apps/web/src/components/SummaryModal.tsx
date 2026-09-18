@@ -61,6 +61,11 @@ interface SummaryModalEditProps {
 
 type SummaryModalProps = SummaryModalBaseProps & SummaryModalEditProps
 
+// Module-scope defaults: fresh literals would change identity every render and
+// defeat the downstream memo chain (effectiveAbsent/effectiveSkipped).
+const EMPTY_STRING_ARRAY: string[] = []
+const EMPTY_SKIPPED_RECORD: Record<string, string[]> = {}
+
 export default function SummaryModal({
   result,
   playerMap,
@@ -79,8 +84,8 @@ export default function SummaryModal({
   saving = false,
   standalone = false,
   onSwapPlayers,
-  absentPlayers = [],
-  skippedPlayers = {},
+  absentPlayers = EMPTY_STRING_ARRAY,
+  skippedPlayers = EMPTY_SKIPPED_RECORD,
   onSetAbsent,
   onSetGameSkipped,
   onReplacePlayer,

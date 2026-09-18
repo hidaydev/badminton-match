@@ -304,8 +304,8 @@ function mergePairableFixMatches(
       if (fm.slots[0] === other.slots[0] || fm.slots[0] === other.slots[1] ||
           fm.slots[1] === other.slots[0] || fm.slots[1] === other.slots[1]) continue
       const diff = Math.abs(
-        (tierMap[fm.slots[0]] ?? 2) + (tierMap[fm.slots[1]] ?? 2) -
-        (tierMap[other.slots[0]] ?? 2) - (tierMap[other.slots[1]] ?? 2)
+        (tierMap[fm.slots[0]] ?? DEFAULT_TIER) + (tierMap[fm.slots[1]] ?? DEFAULT_TIER) -
+        (tierMap[other.slots[0]] ?? DEFAULT_TIER) - (tierMap[other.slots[1]] ?? DEFAULT_TIER)
       )
       if (diff < bestTierDiff) { bestTierDiff = diff; bestPartner = other }
     }

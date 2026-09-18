@@ -1,4 +1,10 @@
+import type { Tier } from '../types'
+
 // 8-tier (TIER_8_UNIFICATION.md): 1=D, 2=D+, 3=C, 4=C+, 5=B, 6=B+, 7=A, 8=A+
+
+/** Semua tier numerik, urut dari terendah ke tertinggi. */
+export const TIERS: Tier[] = [1, 2, 3, 4, 5, 6, 7, 8]
+
 export const TIER_LABELS: Record<number, string> = {
   1: 'D', 2: 'D+', 3: 'C', 4: 'C+', 5: 'B', 6: 'B+', 7: 'A', 8: 'A+',
 }
