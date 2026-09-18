@@ -83,10 +83,13 @@ func TestIntegrationTierFirstSetSticky(t *testing.T) {
 		t.Fatalf("ITFS Two tier=%q, want D", tier2)
 	}
 
-	// Save kedua dengan tier BERBEDA → STICKY (tidak menimpa)
+	// Save kedua dengan tier BERBEDA → STICKY (tidak menimpa).
+	// Unlock menaikkan version, jadi snapshot harus di-load ULANG sesudahnya.
+	if _, err := st.Unlock(ctx, id); err != nil {
+		t.Fatalf("unlock: %v", err)
+	}
 	created, _ := st.Load(ctx, id)
 	created.Players[0].Tier = 1 // ITFS One → D
-	_, _ = st.Unlock(ctx, id)
 	if _, err := st.Save(ctx, id, created); err != nil {
 		t.Fatalf("save 2: %v", err)
 	}
@@ -126,11 +129,7 @@ func TestIntegrationRatingSeasonGate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	created, _ := st.Load(ctx, id)
-	created.Session.Locked = true
-	if _, err := st.Save(ctx, id, created); err != nil {
-		t.Fatalf("lock: %v", err)
-	}
+	saveLock(t, st, ctx, id)
 	t.Cleanup(func() {
 		_, _ = st.pool.Exec(ctx, `UPDATE `+schema+`.sessions SET status='draft' WHERE share_code LIKE 'it-season-gate%'`)
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE 'it-season-gate%'`)

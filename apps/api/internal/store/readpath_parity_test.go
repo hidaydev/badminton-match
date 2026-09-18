@@ -65,7 +65,7 @@ func TestIntegrationReadPathParity(t *testing.T) {
 	empty2 := "par2"
 	snap := &domain.CloudSnapshot{
 		Session: domain.SessionConfig{
-			Title: "Parity", Date: "2026-08-13", Courts: 1,
+			Title: "Parity", Date: testSessionDate(2), Courts: 1,
 			SessionStart: "09:00", SlotMinutes: 20,
 			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
 			PlayerCount: len(players),

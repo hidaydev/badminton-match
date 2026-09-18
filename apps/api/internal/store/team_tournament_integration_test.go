@@ -190,10 +190,14 @@ func TestIntegrationTeamTournamentCompleteCreatesRatingSource(t *testing.T) {
 	id := "it-team-done-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	snap := buildTeamSnapIT()
 	for i := range snap.Matches {
+		a, b := 30, 28
+		if snap.Matches[i].Phase == "final" {
+			a, b = 42, 40 // target final beda (42)
+		}
 		snap.Matches[i].Partai = []domain.TeamPartai{
-			{ScoreA: ptrInt(30), ScoreB: ptrInt(28)},
-			{ScoreA: ptrInt(30), ScoreB: ptrInt(28)},
-			{ScoreA: ptrInt(30), ScoreB: ptrInt(28)},
+			{ScoreA: ptrInt(a), ScoreB: ptrInt(b)},
+			{ScoreA: ptrInt(a), ScoreB: ptrInt(b)},
+			{ScoreA: ptrInt(a), ScoreB: ptrInt(b)},
 		}
 	}
 	defer pool.Exec(ctx, `DELETE FROM `+schema+`.tournaments WHERE share_code = $1`, id)
@@ -242,8 +246,8 @@ func TestIntegrationTeamTournamentRegisterPlayers(t *testing.T) {
 	// semua 36 nama pemain harus ter-register di players (via alias)
 	var count int
 	err = pool.QueryRow(ctx, `
-		SELECT count(*) FROM bm_dev.tournament_team_players ttp
-		JOIN bm_dev.players p ON p.id = ttp.player_id
+		SELECT count(*) FROM `+schema+`.tournament_team_players ttp
+		JOIN `+schema+`.players p ON p.id = ttp.player_id
 		WHERE ttp.player_id IS NOT NULL`).Scan(&count)
 	if err != nil {
 		t.Fatalf("count: %v", err)

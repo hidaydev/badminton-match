@@ -67,7 +67,7 @@ func TestIntegrationMergePlayers(t *testing.T) {
 		id := "it-merge-" + label + "-" + fmt.Sprintf("%d", time.Now().UnixNano())
 		snap := &domain.CloudSnapshot{
 			Session: domain.SessionConfig{
-				Title: "ITM " + label, Date: "2026-08-20", Courts: 1,
+				Title: "ITM " + label, Date: testSessionDate(2), Courts: 1,
 				SessionStart: "09:00", SlotMinutes: 20,
 				CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
 				PlayerCount: 4,
@@ -135,10 +135,6 @@ func TestIntegrationMergePlayers(t *testing.T) {
 	t.Logf("after: tgt aliases=%d sessions=%d | source hilang", aliasToTgt, postSessTgt)
 
 	// ── cleanup ─────────────────────────────────────────────────────────
-	if err := st.Delete(ctx, sessA); err != nil {
-		t.Logf("cleanup A: %v", err)
-	}
-	if err := st.Delete(ctx, sessB); err != nil {
-		t.Logf("cleanup B: %v", err)
-	}
+	cleanupSession(ctx, st, sessA)
+	cleanupSession(ctx, st, sessB)
 }

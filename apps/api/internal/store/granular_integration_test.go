@@ -57,7 +57,7 @@ func seedGranularSession(t *testing.T, st *SessionStore, ctx context.Context, ta
 	id := fmt.Sprintf("gran-%s-%d", tag, time.Now().UnixNano())
 	snap := &domain.CloudSnapshot{
 		Session: domain.SessionConfig{
-			Title: "Granular IT", Date: "2026-08-24", Courts: 2,
+			Title: "Granular IT", Date: testSessionDate(2), Courts: 2,
 			SessionStart: "09:00", SlotMinutes: 20,
 			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}, {Start: "09:00", End: "10:00"}},
 			PlayerCount: 8,
@@ -74,7 +74,7 @@ func seedGranularSession(t *testing.T, st *SessionStore, ctx context.Context, ta
 	if _, err := st.Save(ctx, id, snap); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	t.Cleanup(func() { _ = st.Delete(ctx, id) })
+	t.Cleanup(func() { cleanupSession(ctx, st, id) })
 	return id
 }
 
@@ -348,7 +348,11 @@ func TestIntegrationGranularSwapSlot(t *testing.T) {
 	}
 }
 
-// TestIntegrationGranularSwapSameGameRejected — swap target game sama → ditolak.
+// TestIntegrationGranularSwapSameGameRejected — swap TEAM dalam game yang sama
+// tapi masih tim yang sama → ditolak (harus A vs B).
+//
+// Catatan: swap PEMain dalam game yang sama kini DIDUKUNG (reorder posisi,
+// lihat swapPlayerSameGame) — ekspektasi lama "selalu ditolak" sudah basi.
 func TestIntegrationGranularSwapSameGameRejected(t *testing.T) {
 	st := newGranularTestStore(t)
 	ctx := context.Background()
@@ -356,12 +360,33 @@ func TestIntegrationGranularSwapSameGameRejected(t *testing.T) {
 
 	snap, _ := st.Load(ctx, id)
 	v := *snap.Version
-	_, err := st.SwapMembers(ctx, id, "player",
+	_, err := st.SwapMembers(ctx, id, "team",
 		SwapTarget{Slot: 0, Court: 0, Team: "A", Position: 0},
 		SwapTarget{Slot: 0, Court: 0, Team: "A", Position: 1},
 		&v, "")
 	if !errors.Is(err, ErrValidation) {
-		t.Fatalf("expected ErrValidation for same-game swap, got %v", err)
+		t.Fatalf("expected ErrValidation for same-team same-game swap, got %v", err)
+	}
+}
+
+// TestIntegrationGranularSwapSameGamePlayerAllowed — swap 2 pemain dalam game
+// yang sama (reorder posisi) DIDUKUNG → sukses dan version sesi naik.
+func TestIntegrationGranularSwapSameGamePlayerAllowed(t *testing.T) {
+	st := newGranularTestStore(t)
+	ctx := context.Background()
+	id := seedGranularSession(t, st, ctx, "swapok")
+
+	snap, _ := st.Load(ctx, id)
+	v := *snap.Version
+	out, err := st.SwapMembers(ctx, id, "player",
+		SwapTarget{Slot: 0, Court: 0, Team: "A", Position: 0},
+		SwapTarget{Slot: 0, Court: 0, Team: "A", Position: 1},
+		&v, "")
+	if err != nil {
+		t.Fatalf("same-game player swap harus sukses, got %v", err)
+	}
+	if out == nil || out.Version == nil || *out.Version != v+1 {
+		t.Fatalf("version setelah swap salah (mungkin nil): %+v, want %d", out, v+1)
 	}
 }
 
