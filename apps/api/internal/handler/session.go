@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"majadu-api/internal/domain"
@@ -27,89 +26,7 @@ var (
 	errIfMatchMalformed = errors.New("If-Match malformed")
 )
 
-// ── Idempotency (M5 T10) — in-memory, TTL 24h, key = sessionId + Idempotency-Key header ──
-
-var (
-	idempotencyMu    sync.Mutex
-	idempotencyStore = make(map[string]idempotencyEntry)
-)
-
-type idempotencyEntry struct {
-	body   []byte
-	expiry time.Time
-}
-
-// getIdempotentRaw — ambil body response mentah (salinan) untuk key.
-// Return (nil, false) bila miss / expired.
-func getIdempotentRaw(key string) ([]byte, bool) {
-	idempotencyMu.Lock()
-	defer idempotencyMu.Unlock()
-	e, ok := idempotencyStore[key]
-	if !ok {
-		return nil, false
-	}
-	if time.Now().After(e.expiry) {
-		delete(idempotencyStore, key)
-		return nil, false
-	}
-	return append([]byte(nil), e.body...), true
-}
-
-// setIdempotentRaw — simpan body response mentah (TTL 24h, cap 1000 + eviction).
-func setIdempotentRaw(key string, body []byte) {
-	if len(body) == 0 {
-		return
-	}
-	idempotencyMu.Lock()
-	defer idempotencyMu.Unlock()
-	// Clean expired (lazy, cap 1000)
-	if len(idempotencyStore) >= 1000 {
-		now := time.Now()
-		for k, v := range idempotencyStore {
-			if now.After(v.expiry) {
-				delete(idempotencyStore, k)
-			}
-		}
-		// Hard cap eviction: evict oldest if still >= 1000
-		if len(idempotencyStore) >= 1000 {
-			var oldestKey string
-			var oldestExp time.Time
-			for k, v := range idempotencyStore {
-				if oldestKey == "" || v.expiry.Before(oldestExp) {
-					oldestKey = k
-					oldestExp = v.expiry
-				}
-			}
-			if oldestKey != "" {
-				delete(idempotencyStore, oldestKey)
-			}
-		}
-	}
-	idempotencyStore[key] = idempotencyEntry{body: append([]byte(nil), body...), expiry: time.Now().Add(24 * time.Hour)}
-}
-
-func getIdempotentResponse(key string) (*domain.CloudSnapshot, bool) {
-	b, ok := getIdempotentRaw(key)
-	if !ok {
-		return nil, false
-	}
-	var snap domain.CloudSnapshot
-	if err := json.Unmarshal(b, &snap); err != nil {
-		return nil, false
-	}
-	return &snap, true
-}
-
-func setIdempotentResponse(key string, snap *domain.CloudSnapshot) {
-	if snap == nil {
-		return
-	}
-	b, err := json.Marshal(snap)
-	if err != nil {
-		return
-	}
-	setIdempotentRaw(key, b)
-}
+// ── Idempotency (M5 T10) — lihat idempotency.go ────────────────────────────
 
 // mapPublishError — mapping error dari publish/delete (sentinels store atau
 // pgconn.PgError) ke respons yang bersih — jangan bocorkan SQLSTATE / detail
@@ -178,6 +95,8 @@ type SessionHandler struct {
 	// BaseURL — URL publik API (untuk header Location), mis. https://api.qouver.com/majadu/v1.
 	BaseURL    string
 	AdminToken string
+	// Idem — cache idempotency in-memory. nil → pakai default package-level.
+	Idem *IdempotencyCache
 }
 
 // ── Types request ────────────────────────────────────────────────────────
@@ -421,7 +340,7 @@ func (h *SessionHandler) Put(w http.ResponseWriter, r *http.Request) {
 	cacheKey := ""
 	if idempotencyKey != "" {
 		cacheKey = id + ":" + idempotencyKey
-		if cached, ok := getIdempotentResponse(cacheKey); ok {
+		if cached, ok := h.idempotency().getResponse(cacheKey); ok {
 			h.writeSession(w, http.StatusOK, cached)
 			return
 		}
@@ -452,7 +371,7 @@ func (h *SessionHandler) Put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if cacheKey != "" {
-		setIdempotentResponse(cacheKey, out)
+		h.idempotency().setResponse(cacheKey, out)
 	}
 	h.writeSession(w, http.StatusOK, out)
 }

@@ -149,7 +149,11 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("GET /version", http.HandlerFunc(health.Version))
 	mux.Handle("GET /admin/verify", handler.AdminGuard(cfg.AdminToken, handler.VerifyAdmin))
 
-	sessions := &handler.SessionHandler{Store: sessionStore, Logger: logger, BaseURL: cfg.BaseURL, AdminToken: cfg.AdminToken}
+	// Satu cache idempotency dipakai bersama session + tournament (dulu package
+	// global). In-memory per-proses; lihat handler.IdempotencyCache.
+	idem := handler.NewIdempotencyCache()
+
+	sessions := &handler.SessionHandler{Store: sessionStore, Logger: logger, BaseURL: cfg.BaseURL, AdminToken: cfg.AdminToken, Idem: idem}
 	mux.Handle("GET /metrics", http.HandlerFunc(sessions.MetricsHandler))
 	mux.Handle("GET /sessions", http.HandlerFunc(sessions.List))
 	mux.Handle("POST /sessions", http.HandlerFunc(sessions.Create))
@@ -185,7 +189,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /players", http.HandlerFunc(players.Register))
 	mux.Handle("GET /players/{name}/stats", http.HandlerFunc(players.Stats))
 
-	tournaments := &handler.TournamentHandler{Store: store.NewTournamentStore(pool, cfg.DatabaseSchema), Logger: logger, BaseURL: cfg.BaseURL, AdminStore: sessionStore}
+	tournaments := &handler.TournamentHandler{Store: store.NewTournamentStore(pool, cfg.DatabaseSchema), Logger: logger, BaseURL: cfg.BaseURL, AdminStore: sessionStore, Idem: idem}
 	mux.Handle("GET /tournaments", http.HandlerFunc(tournaments.List))
 	mux.Handle("POST /tournaments", http.HandlerFunc(tournaments.Create))
 	mux.Handle("GET /tournaments/{id}", http.HandlerFunc(tournaments.Get))

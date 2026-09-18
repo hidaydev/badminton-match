@@ -87,7 +87,7 @@ func (h *SessionHandler) replayIdempotent(w http.ResponseWriter, r *http.Request
 	if idemKey == "" {
 		return nil, false
 	}
-	cached, ok := getIdempotentResponse(id + ":" + idemKey)
+	cached, ok := h.idempotency().getResponse(id + ":" + idemKey)
 	if !ok {
 		return nil, false
 	}
@@ -105,7 +105,7 @@ func (h *SessionHandler) storeIdempotentResponse(r *http.Request, id string, sna
 	if idemKey == "" {
 		return
 	}
-	setIdempotentResponse(id+":"+idemKey, snap)
+	h.idempotency().setResponse(id+":"+idemKey, snap)
 }
 
 // PatchGame — PATCH /sessions/{id}/games/{gameKey}

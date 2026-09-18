@@ -26,6 +26,8 @@ type TournamentHandler struct {
 	// AdminStore — SessionStore untuk operasi admin (delete tournament +
 	// cleanup rating source). Mirip pola PlayerHandler.
 	AdminStore *store.SessionStore
+	// Idem — cache idempotency in-memory. nil → pakai default package-level.
+	Idem *IdempotencyCache
 }
 
 // List — GET /tournaments: metadata semua tournament (terbaru dulu).
@@ -99,7 +101,7 @@ func (h *TournamentHandler) Create(w http.ResponseWriter, r *http.Request) {
 		sum := sha256.Sum256(body)
 		bodyHash = hex.EncodeToString(sum[:])
 		cacheKey = "tournament-create:" + idemKey
-		if cached, ok := getIdempotentRaw(cacheKey); ok {
+		if cached, ok := h.idempotency().getRaw(cacheKey); ok {
 			replayed, mismatch := h.replayCachedTournament(w, format, bodyHash, cached)
 			if mismatch {
 				httperr.WriteError(w, h.Logger, httperr.Conflict("Idempotency-Key was reused with a different request body"))
@@ -170,7 +172,7 @@ func (h *TournamentHandler) cacheTournamentCreate(cacheKey, id, bodyHash string,
 	if err != nil {
 		return
 	}
-	setIdempotentRaw(cacheKey, env)
+	h.idempotency().setRaw(cacheKey, env)
 }
 
 // Put — PUT /tournaments/{id}: full snapshot replace (create-or-update).
