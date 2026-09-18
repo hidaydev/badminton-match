@@ -1,5 +1,6 @@
 // apps/web/src/components/tournament/TeamMatchCard.tsx
 import { teamMatchOutcome, teamTarget, PARTAI_CLASSES, teamName, DEFAULT_TEAM_COURTS, type TeamMatch, type TeamInfo } from '../../utils/teamTournament'
+import Icon from '../Icon'
 
 interface PostProps {
   isPostMode: boolean
@@ -9,13 +10,6 @@ interface PostProps {
   onDownload: () => void
   uploadedCount: number
 }
-
-const CameraIcon = ({ size = 13, stroke = 'currentColor' }: { size?: number; stroke?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-    <circle cx="12" cy="13" r="4"/>
-  </svg>
-)
 
 export default function TeamMatchCard({
   match,
@@ -82,7 +76,7 @@ export default function TeamMatchCard({
               }`}
               aria-label="Toggle post mode"
             >
-              <CameraIcon stroke={postProps.isPostMode ? 'black' : 'currentColor'} />
+              <Icon name="camera" size={13} stroke={postProps.isPostMode ? 'black' : 'currentColor'} strokeWidth={2.2} />
             </button>
           )}
         </div>
@@ -127,7 +121,7 @@ export default function TeamMatchCard({
                     className="w-6 h-6 rounded-full bg-elevated border border-border-subtle flex items-center justify-center active:bg-border"
                     aria-label={`Upload photo for ${clsA}${clsB}`}
                   >
-                    <CameraIcon size={11} />
+                    <Icon name="camera" size={11} strokeWidth={2.2} />
                   </button>
                   {postProps.partaiPhotos[pi] && (
                     <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />

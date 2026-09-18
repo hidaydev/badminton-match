@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useGetTournament } from '../queries'
@@ -22,6 +22,8 @@ import {
 } from '../utils/teamTournament'
 import TeamMatchCard from '../components/tournament/TeamMatchCard'
 import TeamGroupSchedule from '../components/tournament/TeamGroupSchedule'
+import Icon from '../components/Icon'
+import { useImageUploadMap } from '../hooks/useImageUploadMap'
 import { drawPositionPost, loadImage } from '../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../utils/share'
 import { loadOverlayImages } from '../utils/overlays'
@@ -47,11 +49,9 @@ export default function TeamTournamentPage() {
   const [publishError, setPublishError] = useState<string | null>(null)
   // Undian hari-H: index = slot, value = index named team (0..5). null = belum diedit.
   const [slotToNamed, setSlotToNamed] = useState<number[] | null>(null)
-  const [finalPhotos, setFinalPhotos] = useState<Record<string, HTMLImageElement>>({})
+  const { images: finalPhotos, fileInputRef: finalFileInputRef, openUpload: openFinalUpload, onFileChange: onFinalFileChange } = useImageUploadMap()
   const [finalPostMode, setFinalPostMode] = useState(false)
   const [overlays, setOverlays] = useState<Record<string, HTMLImageElement | undefined>>({})
-  const finalFileInputRef = useRef<HTMLInputElement>(null)
-  const activeFinalKey = useRef<string | null>(null)
 
   // Schedule-tab photo state — lifted here so photos survive tab switches
   const [schedulePartaiPhotos, setSchedulePartaiPhotos] = useState<Record<string, HTMLImageElement>>({})
@@ -421,7 +421,7 @@ export default function TeamTournamentPage() {
                     isPostMode: finalPostMode,
                     onTogglePostMode: () => setFinalPostMode((v) => !v),
                     partaiPhotos: PARTAI_CLASSES.map((_, pi) => finalPhotos[`partai-${pi}`]),
-                    onUploadPartai: (pi) => { activeFinalKey.current = `partai-${pi}`; finalFileInputRef.current?.click() },
+                    onUploadPartai: (pi) => openFinalUpload(`partai-${pi}`),
                     onDownload: handleFinalDownload,
                     uploadedCount: Object.keys(finalPhotos).length,
                   }}
@@ -437,14 +437,11 @@ export default function TeamTournamentPage() {
                       <span className="text-xs text-fg-dim">🏆 Champion photo</span>
                       <div className="relative">
                         <button
-                          onClick={() => { activeFinalKey.current = 'champion'; finalFileInputRef.current?.click() }}
+                          onClick={() => openFinalUpload('champion')}
                           className="w-7 h-7 rounded-full bg-elevated border border-border-subtle flex items-center justify-center"
                           aria-label="Upload champion photo"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                            <circle cx="12" cy="13" r="4"/>
-                          </svg>
+                          <Icon name="camera" size={13} strokeWidth={2.2} />
                         </button>
                         {finalPhotos['champion'] && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />}
                       </div>
@@ -456,14 +453,11 @@ export default function TeamTournamentPage() {
                       <span className="text-xs text-fg-dim">🥈 Runner-up photo</span>
                       <div className="relative">
                         <button
-                          onClick={() => { activeFinalKey.current = 'runnerup'; finalFileInputRef.current?.click() }}
+                          onClick={() => openFinalUpload('runnerup')}
                           className="w-7 h-7 rounded-full bg-elevated border border-border-subtle flex items-center justify-center"
                           aria-label="Upload runner-up photo"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                            <circle cx="12" cy="13" r="4"/>
-                          </svg>
+                          <Icon name="camera" size={13} strokeWidth={2.2} />
                         </button>
                         {finalPhotos['runnerup'] && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />}
                       </div>
@@ -481,17 +475,7 @@ export default function TeamTournamentPage() {
                   accept="image/jpeg,image/png,image/webp"
                   className="hidden"
                   ref={finalFileInputRef}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    const key = activeFinalKey.current
-                    if (!file || !key) return
-                    const url = URL.createObjectURL(file)
-                    const img = new Image()
-                    img.onload = () => { URL.revokeObjectURL(url); setFinalPhotos((prev) => ({ ...prev, [key]: img })) }
-                    img.onerror = () => URL.revokeObjectURL(url)
-                    img.src = url
-                    e.target.value = ''
-                  }}
+                  onChange={onFinalFileChange}
                 />
               </>
             ) : (

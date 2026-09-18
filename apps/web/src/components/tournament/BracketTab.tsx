@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { drawMatchPost, drawBracketRoundCover, drawPositionPost } from '../../utils/canvasPost'
 import type { TournamentMatch, TournamentPair } from '../../utils/tournament'
 import { canvasToBlob, shareOrDownload } from '../../utils/share'
 import { loadOverlayImages } from '../../utils/overlays'
+import { useImageUploadMap } from '../../hooks/useImageUploadMap'
+import Icon from '../Icon'
 import ScoreModal from './ScoreModal'
 
 interface BracketTabProps {
@@ -49,10 +51,7 @@ function MatchCard({
               onClick={onUploadPhoto}
               className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
+              <Icon name="camera" size={13} stroke="white" strokeWidth={2.2} />
             </button>
             {hasPhoto && (
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-slate-800" />
@@ -90,7 +89,7 @@ function Connector() {
 export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: BracketTabProps) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const [postModeRounds, setPostModeRounds] = useState<Record<string, boolean>>({})
-  const [bracketPhotos, setBracketPhotos] = useState<Record<string, HTMLImageElement>>({})
+  const { images: bracketPhotos, fileInputRef: bracketFileInputRef, openUpload: openBracketUpload, onFileChange: onBracketFileChange } = useImageUploadMap()
   const [overlays, setOverlays] = useState<{
     logo?: HTMLImageElement
     badge?: HTMLImageElement
@@ -98,11 +97,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     sponsor?: HTMLImageElement
     summaryBg?: HTMLImageElement
   }>({})
-  const [podiumPhotos, setPodiumPhotos] = useState<Record<string, HTMLImageElement>>({})
-  const activeUploadMatchId = useRef<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const podiumFileInputRef = useRef<HTMLInputElement>(null)
-  const activePodiumPos = useRef<string | null>(null)
+  const { images: podiumPhotos, fileInputRef: podiumFileInputRef, openUpload: openPodiumUpload, onFileChange: onPodiumFileChange } = useImageUploadMap()
 
   useEffect(() => {
     loadOverlayImages({
@@ -160,30 +155,6 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
       '3rd-1': '3RD PLACE',
     }
     return map[matchId] ?? matchId.toUpperCase()
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    const matchId = activeUploadMatchId.current
-    if (!file || !matchId) return
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => { URL.revokeObjectURL(url); setBracketPhotos(prev => ({ ...prev, [matchId]: img })) }
-    img.onerror = () => URL.revokeObjectURL(url)
-    img.src = url
-    e.target.value = ''
-  }
-
-  const handlePodiumFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    const pos = activePodiumPos.current
-    if (!file || !pos) return
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => { URL.revokeObjectURL(url); setPodiumPhotos(prev => ({ ...prev, [pos]: img })) }
-    img.onerror = () => URL.revokeObjectURL(url)
-    img.src = url
-    e.target.value = ''
   }
 
   const handleDownloadPosition = async (pos: string, positionLabel: string, name: string) => {
@@ -258,10 +229,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
                 onClick={() => setPostModeRounds(prev => ({ ...prev, qf: !prev.qf }))}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds.qf ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={postModeRounds.qf ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                  <circle cx="12" cy="13" r="4"/>
-                </svg>
+                <Icon name="camera" size={15} stroke={postModeRounds.qf ? 'black' : 'white'} strokeWidth={2.2} />
               </button>
               {postModeRounds.qf && ['qf-1','qf-2','qf-3','qf-4'].some(id => bracketPhotos[id]) && (
                 <button
@@ -285,10 +253,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
                 onClick={() => setPostModeRounds(prev => ({ ...prev, sf: !prev.sf }))}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds.sf ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={postModeRounds.sf ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                  <circle cx="12" cy="13" r="4"/>
-                </svg>
+                <Icon name="camera" size={15} stroke={postModeRounds.sf ? 'black' : 'white'} strokeWidth={2.2} />
               </button>
               {postModeRounds.sf && ['sf-1','sf-2'].some(id => bracketPhotos[id]) && (
                 <button
@@ -312,10 +277,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
                 onClick={() => setPostModeRounds(prev => ({ ...prev, final: !prev.final }))}
                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds.final ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={postModeRounds.final ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                  <circle cx="12" cy="13" r="4"/>
-                </svg>
+                <Icon name="camera" size={15} stroke={postModeRounds.final ? 'black' : 'white'} strokeWidth={2.2} />
               </button>
               {postModeRounds.final && ['final-1','3rd-1'].some(id => bracketPhotos[id]) && (
                 <button
@@ -337,32 +299,32 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center mb-3">
             <div className="flex flex-col gap-3">
               <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
-                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-1']} onUploadPhoto={() => { activeUploadMatchId.current = 'qf-1'; fileInputRef.current?.click() }} />
+                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-1']} onUploadPhoto={() => openBracketUpload('qf-1')} />
               <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
-                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-2']} onUploadPhoto={() => { activeUploadMatchId.current = 'qf-2'; fileInputRef.current?.click() }} />
+                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-2']} onUploadPhoto={() => openBracketUpload('qf-2')} />
             </div>
             <Connector />
             <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
-              showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos['sf-1']} onUploadPhoto={() => { activeUploadMatchId.current = 'sf-1'; fileInputRef.current?.click() }} />
+              showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos['sf-1']} onUploadPhoto={() => openBracketUpload('sf-1')} />
             <Connector />
             <MatchCard match={final} label="FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} onSelect={handleSelect}
-              showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos['final-1']} onUploadPhoto={() => { activeUploadMatchId.current = 'final-1'; fileInputRef.current?.click() }} />
+              showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos['final-1']} onUploadPhoto={() => openBracketUpload('final-1')} />
           </div>
 
           {/* Lower half: QF3+QF4 → SF2 | 3RD PLACE (no connector) */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center">
             <div className="flex flex-col gap-3">
               <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
-                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-3']} onUploadPhoto={() => { activeUploadMatchId.current = 'qf-3'; fileInputRef.current?.click() }} />
+                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-3']} onUploadPhoto={() => openBracketUpload('qf-3')} />
               <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
-                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-4']} onUploadPhoto={() => { activeUploadMatchId.current = 'qf-4'; fileInputRef.current?.click() }} />
+                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-4']} onUploadPhoto={() => openBracketUpload('qf-4')} />
             </div>
             <Connector />
             <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
-              showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos['sf-2']} onUploadPhoto={() => { activeUploadMatchId.current = 'sf-2'; fileInputRef.current?.click() }} />
+              showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos['sf-2']} onUploadPhoto={() => openBracketUpload('sf-2')} />
             <span /> {/* no connector to 3rd place */}
             <MatchCard match={third} label="3RD" borderColor="border-slate-600" labelColor="text-slate-400" getPairName={getPairName} onSelect={handleSelect}
-              showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos['3rd-1']} onUploadPhoto={() => { activeUploadMatchId.current = '3rd-1'; fileInputRef.current?.click() }} />
+              showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos['3rd-1']} onUploadPhoto={() => openBracketUpload('3rd-1')} />
           </div>
         </div>
       </div>
@@ -386,13 +348,10 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
                   <div className={`text-xs mt-1 font-medium ${isChamp ? 'text-slate-200 text-sm' : 'text-slate-300'}`}>{name}</div>
                   <div className="mt-2 flex items-center justify-center gap-1.5">
                     <button
-                      onClick={() => { activePodiumPos.current = pos; podiumFileInputRef.current?.click() }}
+                      onClick={() => openPodiumUpload(pos)}
                       className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${podiumPhotos[pos] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={podiumPhotos[pos] ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                        <circle cx="12" cy="13" r="4"/>
-                      </svg>
+                      <Icon name="camera" size={15} stroke={podiumPhotos[pos] ? 'black' : 'white'} strokeWidth={2.2} />
                     </button>
                     {podiumPhotos[pos] && (
                       <button
@@ -425,8 +384,8 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
           refetch={refetch}
         />
       )}
-      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-      <input ref={podiumFileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePodiumFileChange} />
+      <input ref={bracketFileInputRef} type="file" accept="image/*" className="hidden" onChange={onBracketFileChange} />
+      <input ref={podiumFileInputRef} type="file" accept="image/*" className="hidden" onChange={onPodiumFileChange} />
     </div>
   )
 }
