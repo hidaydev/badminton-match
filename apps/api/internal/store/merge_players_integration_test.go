@@ -36,7 +36,7 @@ func TestIntegrationMergePlayers(t *testing.T) {
 	}
 	defer pool.Close()
 	st := NewSessionStore(pool, schema)
-	ps := NewPlayerStore(pool)
+	ps := NewPlayerStore(pool, schema)
 	ctx := context.Background()
 
 	mk := func(name string) domain.Player {
