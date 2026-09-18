@@ -103,7 +103,7 @@ func (s *SessionStore) SwapMembers(ctx context.Context, sessionID string, kind s
 	}
 	if expectedSessionVersion != nil && *expectedSessionVersion != currentVer {
 		s.metrics.GranularConflicts.Add(1)
-		return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expectedSessionVersion, currentVer)
+		return nil, versionMismatchErr("session", *expectedSessionVersion, currentVer)
 	}
 
 	// Same-game swap (player/team within same slot/court) — use single-game handler

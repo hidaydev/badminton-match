@@ -4,6 +4,7 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"majadu-api/internal/domain"
@@ -69,6 +70,30 @@ func parseUintStrict(s string) (int, bool) {
 func isLockNotAvailable(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "55P03"
+}
+
+// isUndefinedColumn — deteksi SQLSTATE 42703 (undefined_column). Dipakai untuk
+// shim migrasi kolom opsional (mis. skipped_player_refs sebelum 000014).
+// Satu-satunya predikat untuk konsep ini — jangan buat varian kedua.
+func isUndefinedColumn(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "42703"
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "42703") ||
+		(strings.Contains(msg, "skipped_player_refs") && strings.Contains(msg, "does not exist"))
+}
+
+// versionMismatchErr — error OCC yang konsisten, dengan scope eksplisit
+// ("game"/"session") supaya pemanggil/log tahu versi mana yang dicek.
+// Pesan tetap memuat substring "version mismatch" yang dibaca frontend
+// (src/queries/errors.ts).
+func versionMismatchErr(scope string, expected, actual int) error {
+	return fmt.Errorf("%w: %s version expected %d, actual %d", ErrVersionMismatch, scope, expected, actual)
 }
 
 // countDecidedGames — hitung jumlah game yang sudah "beres" di snapshot:
