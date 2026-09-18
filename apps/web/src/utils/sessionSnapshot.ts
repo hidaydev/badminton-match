@@ -36,21 +36,6 @@ export function buildPublishableSessionSnapshot({
   }
 }
 
-export function togglePlayedInSnapshot(snapshot: CloudSnapshot, key: string): CloudSnapshot {
-  const isPlayed = snapshot.playedGames.includes(key)
-  const playedGames = isPlayed
-    ? snapshot.playedGames.filter((gameKey) => gameKey !== key)
-    : [...snapshot.playedGames, key]
-
-  if (!isPlayed) {
-    return { ...snapshot, playedGames }
-  }
-
-  const gameScores = { ...snapshot.gameScores }
-  delete gameScores[key as GameKey]
-  return { ...snapshot, playedGames, gameScores }
-}
-
 /** Idempotent set — retry-safe. `nextPlayed` is absolute intent, not toggle. */
 export function setPlayedInSnapshot(snapshot: CloudSnapshot, key: string, nextPlayed: boolean): CloudSnapshot {
   const isPlayed = snapshot.playedGames.includes(key)

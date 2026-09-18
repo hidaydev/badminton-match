@@ -5,7 +5,7 @@ import { getSession, publishSession, listSessions, deleteSession, getGame, patch
 import type { GranularSwapTarget } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import { isVersionMismatch, isLockedError, isContentionError } from './errors'
-import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
+import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
 import { rebuildPlayersFromSchedule } from '../utils/reconcilePlayers'
 import { applyChange } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
@@ -466,7 +466,7 @@ export function useChangePlayer(sessionId: string) {
   return useOptimisticSessionMutation(
     sessionId,
     (old, vars) => {
-      const { target, newName, playerName } = vars as { target: ChangeTarget; newName: string; playerName: string }
+      const { target, newName, playerName } = vars as { target: SwapTarget; newName: string; playerName: string }
       const newSchedule = applyChange(old.schedule, target, newName)
       const newPlayers = rebuildPlayersFromSchedule(newSchedule, old.players, newName, playerName)
       return {

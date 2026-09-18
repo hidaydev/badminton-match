@@ -1,5 +1,5 @@
 import type { Player, ScheduleSlot } from '../../types'
-import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../../utils/swap'
+import type { SwapTarget, TeamSwapTarget } from '../../utils/swap'
 import type { SlotSwapTarget } from '../../utils/slotSwap'
 
 type BarColor = 'indigo' | 'red' | 'orange' | 'violet' | 'sky' | 'amber'
@@ -176,7 +176,7 @@ function ChangeConfirmBar({
   onConfirm,
   saving,
 }: {
-  pendingChange: { target: ChangeTarget; newName: string; b2b: boolean }
+  pendingChange: { target: SwapTarget; newName: string; b2b: boolean }
   playerMap: Map<string, Player>
   courtLabel: (i: number) => string
   onCancel: () => void
@@ -236,7 +236,7 @@ interface ConfirmBarsProps {
   onConfirmTeamSwap: () => void
 
   // Change player
-  pendingChange: { target: ChangeTarget; newName: string; b2b: boolean } | null
+  pendingChange: { target: SwapTarget; newName: string; b2b: boolean } | null
   onCancelChange: () => void
   onConfirmChange: () => void
 

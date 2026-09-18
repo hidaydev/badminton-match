@@ -7,7 +7,7 @@ import { toGameKey } from '../../types'
 import { computeBackToBackRunBySlot } from '../../utils/playerStats'
 import { courtLabel } from '../../utils/courtLabel'
 import { timeToMinutes, minutesToTime } from '../../utils/time'
-import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../../utils/swap'
+import type { SwapTarget, TeamSwapTarget } from '../../utils/swap'
 import type { PlayerChipMode } from './PlayerChipRenderer'
 import PlayerChipRenderer from './PlayerChipRenderer'
 import SlotGameCard from './SlotGameCard'
@@ -38,14 +38,14 @@ interface ScheduleGridProps {
   // Replace state
   replaceTarget: string | null
   // Change state
-  changeTarget: ChangeTarget | null
+  changeTarget: SwapTarget | null
   // DnD
   sensors: ReturnType<typeof import('@dnd-kit/core').useSensors>
   // Callbacks
   handleChipClick: (target: SwapTarget) => void
   handleTeamClick: (target: TeamSwapTarget) => void
   handleReplaceToggle: (playerId: string) => void
-  handleChangeSelect: (target: ChangeTarget) => void
+  handleChangeSelect: (target: SwapTarget) => void
   handleDragEnd: (event: DragEndEvent) => void
   handleScoreSave: (key: string) => void
   onTogglePlayedGame?: (key: string) => void
