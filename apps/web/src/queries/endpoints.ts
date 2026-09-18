@@ -51,13 +51,29 @@ export function setAdminToken(token: string) {
   adminToken = token
 }
 
+export function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
+): Promise<T>
+export function request<T>(
+  method: string,
+  path: string,
+  body: unknown,
+  signal: AbortSignal | undefined,
+  extraHeaders: Record<string, string> | undefined,
+  includeHeaders: true,
+): Promise<{ data: T; headers: Headers }>
 export async function request<T>(
   method: string,
   path: string,
   body?: unknown,
   signal?: AbortSignal,
   extraHeaders?: Record<string, string>,
-): Promise<T> {
+  includeHeaders?: boolean,
+): Promise<T | { data: T; headers: Headers }> {
   let lastError: unknown
   let retryDelayMs = 0
 
@@ -104,8 +120,11 @@ export async function request<T>(
         throw err
       }
 
-      if (res.status === 204) return undefined as T
-      return await res.json() as T
+      if (res.status === 204) {
+        return includeHeaders ? { data: undefined as T, headers: res.headers } : (undefined as T)
+      }
+      const data = await res.json() as T
+      return includeHeaders ? { data, headers: res.headers } : data
     } catch (error) {
       if (signal?.aborted) throw error
       if (shouldRetry(method, error, attempt, MAX_RETRIES)) {
@@ -485,56 +504,20 @@ export async function publishTournament(id: string, data: AnyTournamentSnapshot)
 }
 
 /** Create tournament (classic atau team — format di body). Kembalikan id baru
- * (dari header Location) + snapshot hasil create. Fetch langsung (bukan request)
- * karena butuh akses header. Includes retry for network failures.
- * Idempotency-Key di-generate sekali sebelum loop — retry aman (server idempoten). */
+ * (dari header Location) + snapshot hasil create. Pakai request() dengan opsi
+ * includeHeaders supaya baca Location tanpa menduplikasi retry/timeout/parsing. */
 export async function createTournament(data: AnyTournamentSnapshot): Promise<{ id: string; snapshot: AnyTournamentSnapshot }> {
-  const maxRetries = 2
-  let idempotencyKey: string
-  try {
-    idempotencyKey = crypto.randomUUID()
-  } catch {
-    idempotencyKey = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  }
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
-    try {
-      const res = await fetch(`${BASE_URL}/tournaments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify(data),
-        signal: controller.signal,
-      })
-      clearTimeout(timeoutId)
-      if (!res.ok) {
-        let message = `${res.status} ${res.statusText}`
-        let code: string | null = null
-        try {
-          const json = await res.json() as { error?: { message?: string; code?: string } }
-          message = json.error?.message ?? message
-          code = json.error?.code ?? null
-        } catch { /* keep status text */ }
-        throw new ApiError(message, code, res.status)
-      }
-      const snapshot = await res.json() as AnyTournamentSnapshot
-      const loc = res.headers.get('Location') ?? ''
-      const id = loc.split('/').pop() ?? ''
-      return { id, snapshot }
-    } catch (err) {
-      clearTimeout(timeoutId)
-      // Retry on network errors (AbortError, TypeError), not on API errors
-      if (attempt < maxRetries && (err instanceof DOMException || err instanceof TypeError)) {
-        await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
-        continue
-      }
-      throw err
-    }
-  }
-  throw new Error('unreachable')
+  const { data: snapshot, headers } = await request<AnyTournamentSnapshot>(
+    'POST',
+    '/tournaments',
+    data,
+    undefined,
+    { 'Idempotency-Key': makeIdempotencyKey() },
+    true,
+  )
+  const loc = headers.get('Location') ?? ''
+  const id = loc.split('/').pop() ?? ''
+  return { id, snapshot }
 }
 
 // ── Rating (plan RATINGS_FRONTEND_PLAN.md §6.3) ───────────────────────────

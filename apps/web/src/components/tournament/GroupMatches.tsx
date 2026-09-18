@@ -14,9 +14,6 @@ interface GroupMatchesProps {
   groups: Record<GroupId, string[]>
   matches: TournamentMatch[]
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
-  onResetGroups: () => void
-  onRegeneratePics: () => void
-  isRegeneratingPics: boolean
   onOpenModal: () => void
   isFetching: boolean
   refetch: () => Promise<unknown>
@@ -91,26 +88,6 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
 
   return (
     <div className="space-y-4">
-      {/* <div className="flex justify-end gap-3">
-        <button
-          onClick={() => {
-            if (confirm('Reassign scoring PICs? Current assignments will be replaced.')) onRegeneratePics()
-          }}
-          disabled={isRegeneratingPics}
-          className="text-xs text-slate-400 hover:text-slate-200 underline disabled:opacity-50"
-        >
-          {isRegeneratingPics ? 'Regenerating…' : 'Regenerate PICs'}
-        </button>
-        <button
-          onClick={() => {
-            if (confirm('Reset group assignment? All scores will be lost.')) onResetGroups()
-          }}
-          className="text-xs text-slate-400 hover:text-slate-200 underline"
-        >
-          Reset groups
-        </button>
-      </div> */}
-
       {GROUP_IDS.map((g) => {
         const groupMatches = matches.filter((m) => m.phase === 'group' && m.groupId === g)
         const standings = computeGroupStandings(g, groups[g], matches)
