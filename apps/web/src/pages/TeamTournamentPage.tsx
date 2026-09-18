@@ -11,7 +11,7 @@ import {
   teamTarget,
   teamName,
   teamLogoPath,
-  teamColor,
+  buildTeamMatchFiles,
   buildTeamsByDraw,
   DEFAULT_TEAM_COURTS,
   TEAM_NAMES,
@@ -22,7 +22,7 @@ import {
 } from '../utils/teamTournament'
 import TeamMatchCard from '../components/tournament/TeamMatchCard'
 import TeamGroupSchedule from '../components/tournament/TeamGroupSchedule'
-import { drawMatchPost, drawTeamMatchPost, drawPositionPost, loadImage, type TeamMatchPartaiRow } from '../utils/canvasPost'
+import { drawPositionPost, loadImage } from '../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../utils/share'
 import { loadOverlayImages } from '../utils/overlays'
 
@@ -197,52 +197,19 @@ export default function TeamTournamentPage() {
     setTab('final')
   }
 
-  const getFinalPairName = (teamId: string, clsA: string, clsB: string): string => {
-    const team = teams.find((t) => t.id === teamId)
-    const p1 = team?.players.find((p) => p.cls === clsA)?.name ?? '—'
-    const p2 = team?.players.find((p) => p.cls === clsB)?.name ?? '—'
-    return `${p1}/${p2}`
-  }
-
   const handleFinalDownload = async () => {
     if (!finalMatch) return
-    const out = teamMatchOutcome(finalMatch)
-    const tNameA = teamName(teams, finalMatch.teamA)
-    const tNameB = teamName(teams, finalMatch.teamB)
-    const files: File[] = []
 
-    const [teamALogoImg, teamBLogoImg, teamPhotoPlaceholder] = await Promise.all([
-      teamLogoPath(tNameA) ? loadImage(teamLogoPath(tNameA)!).catch(() => undefined) : Promise.resolve(undefined),
-      teamLogoPath(tNameB) ? loadImage(teamLogoPath(tNameB)!).catch(() => undefined) : Promise.resolve(undefined),
-      loadImage('/team-photo-placeholder.png').catch(() => undefined),
-    ])
-
-    for (let pi = 0; pi < PARTAI_CLASSES.length; pi++) {
-      const key = `partai-${pi}`
-      const photo = finalPhotos[key]
-      const p = finalMatch.partai[pi]
-      if (!photo || p.scoreA === null || p.scoreB === null) continue
-      const [clsA, clsB] = PARTAI_CLASSES[pi]
-      const nameA = getFinalPairName(finalMatch.teamA, clsA, clsB)
-      const nameB = getFinalPairName(finalMatch.teamB, clsA, clsB)
-      const c = document.createElement('canvas')
-      drawMatchPost(c, photo, nameA, nameB, p.scoreA, p.scoreB, `FINAL · ${clsA}${clsB}`, overlays.logo, overlays.badge, overlays.chevrons, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg, 'MAJADU 1\u02E2\u1D57 ANNIVERSARY  \u2022  MAJADU 1\u02E2\u1D57 ANNIVERSARY')
-      const blob = await canvasToBlob(c)
-      if (blob) files.push(new File([blob], `final-${clsA}${clsB}.jpg`, { type: 'image/jpeg' }))
-    }
-
-    // Summary post — no photo needed, always generated
-    const partaiRows: TeamMatchPartaiRow[] = PARTAI_CLASSES.map(([clsA, clsB], pi) => ({
-      tier: `${clsA}${clsB}`,
-      nameA: getFinalPairName(finalMatch.teamA, clsA, clsB),
-      nameB: getFinalPairName(finalMatch.teamB, clsA, clsB),
-      scoreA: finalMatch.partai[pi].scoreA,
-      scoreB: finalMatch.partai[pi].scoreB,
-    }))
-    const summaryCanvas = document.createElement('canvas')
-    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'FINAL', overlays.summaryBg, overlays.logo, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg, teamPhotoPlaceholder, teamPhotoPlaceholder, teamColor(tNameA), teamColor(tNameB))
-    const summaryBlob = await canvasToBlob(summaryCanvas)
-    if (summaryBlob) files.push(new File([summaryBlob], 'final-summary.jpg', { type: 'image/jpeg' }))
+    const { files } = await buildTeamMatchFiles({
+      teams,
+      match: finalMatch,
+      partaiPhotos: finalPhotos,
+      photoKey: (pi) => `partai-${pi}`,
+      overlays,
+      matchSubtitle: 'FINAL',
+      summarySubtitle: 'FINAL',
+      filePrefix: 'final',
+    })
 
     const champPhoto = finalPhotos['champion']
     if (champPhoto && championName) {
@@ -250,7 +217,7 @@ export default function TeamTournamentPage() {
         ? await loadImage(teamLogoPath(championName)!).catch(() => undefined)
         : undefined
       const c = document.createElement('canvas')
-      drawPositionPost(c, champPhoto, '🏆 CHAMPION', championName, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge, overlays.cardLogo, champLogoImg)
+      drawPositionPost({ canvas: c, photo: champPhoto, positionLabel: '🏆 CHAMPION', name: championName, logo: overlays.logo, chevrons: overlays.chevrons, sponsor: overlays.sponsor, badge: overlays.badge, cardLogo: overlays.cardLogo, teamLogo: champLogoImg })
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], 'champion.jpg', { type: 'image/jpeg' }))
     }
@@ -261,7 +228,7 @@ export default function TeamTournamentPage() {
         ? await loadImage(teamLogoPath(runnerUpName)!).catch(() => undefined)
         : undefined
       const c = document.createElement('canvas')
-      drawPositionPost(c, runnerUpPhoto, '🥈 RUNNER-UP', runnerUpName, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge, overlays.cardLogo, runnerUpLogoImg)
+      drawPositionPost({ canvas: c, photo: runnerUpPhoto, positionLabel: '🥈 RUNNER-UP', name: runnerUpName, logo: overlays.logo, chevrons: overlays.chevrons, sponsor: overlays.sponsor, badge: overlays.badge, cardLogo: overlays.cardLogo, teamLogo: runnerUpLogoImg })
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], 'runner-up.jpg', { type: 'image/jpeg' }))
     }

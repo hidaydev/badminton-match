@@ -124,7 +124,7 @@ function drawTournamentHeader(
   drawHeader(ctx, canvasW, logo, 'MAJADU INTERNAL TOURNAMENT 2026')
 }
 
-const ANNIVERSARY_LABEL = 'MAJADU 1\u02E2\u1D57 ANNIVERSARY  \u2022  MAJADU 1\u02E2\u1D57 ANNIVERSARY'
+export const ANNIVERSARY_LABEL = 'MAJADU 1\u02E2\u1D57 ANNIVERSARY  \u2022  MAJADU 1\u02E2\u1D57 ANNIVERSARY'
 
 function drawAnniversaryHeader(
   ctx: CanvasRenderingContext2D,
@@ -157,23 +157,29 @@ function drawAnniversaryHeader(
   ctx.restore()
 }
 
-export function drawMatchPost(
-  canvas: HTMLCanvasElement,
-  photo: HTMLImageElement,
-  pairAName: string,
-  pairBName: string,
-  scoreA: number | null,
-  scoreB: number | null,
-  subtitle: string,
-  logo: HTMLImageElement | undefined,
-  badge: HTMLImageElement | undefined,
-  chevrons: HTMLImageElement | undefined,
-  sponsor: HTMLImageElement | undefined,
-  cardLogo: HTMLImageElement | undefined,
-  teamALogo: HTMLImageElement | undefined,
-  teamBLogo: HTMLImageElement | undefined,
-  headerLabel?: string,
-) {
+export interface DrawMatchPostOptions {
+  canvas: HTMLCanvasElement
+  photo: HTMLImageElement
+  pairAName: string
+  pairBName: string
+  scoreA: number | null
+  scoreB: number | null
+  subtitle: string
+  logo?: HTMLImageElement
+  badge?: HTMLImageElement
+  chevrons?: HTMLImageElement
+  sponsor?: HTMLImageElement
+  cardLogo?: HTMLImageElement
+  teamALogo?: HTMLImageElement
+  teamBLogo?: HTMLImageElement
+  headerLabel?: string
+}
+
+export function drawMatchPost(options: DrawMatchPostOptions) {
+  const {
+    canvas, photo, pairAName, pairBName, scoreA, scoreB, subtitle,
+    logo, badge, chevrons, sponsor, cardLogo, teamALogo, teamBLogo, headerLabel,
+  } = options
   const W = POST_WIDTH
   const H = POST_HEIGHT
   canvas.width = W
@@ -280,14 +286,17 @@ export function drawMatchPost(
   ctx.restore()
 }
 
-export function drawBracketRoundCover(
-  canvas: HTMLCanvasElement,
-  roundTitle: string,
-  matchRows: { label: string; nameA: string; nameB: string; scoreA: number | null; scoreB: number | null }[],
-  summaryBg: HTMLImageElement | undefined,
-  logo: HTMLImageElement | undefined,
-  sponsor: HTMLImageElement | undefined,
-) {
+export interface DrawBracketRoundCoverOptions {
+  canvas: HTMLCanvasElement
+  roundTitle: string
+  matchRows: { label: string; nameA: string; nameB: string; scoreA: number | null; scoreB: number | null }[]
+  summaryBg?: HTMLImageElement
+  logo?: HTMLImageElement
+  sponsor?: HTMLImageElement
+}
+
+export function drawBracketRoundCover(options: DrawBracketRoundCoverOptions) {
+  const { canvas, roundTitle, matchRows, summaryBg, logo, sponsor } = options
   const W = POST_WIDTH
   const H = POST_HEIGHT
   canvas.width = W
@@ -400,18 +409,21 @@ export function drawBracketRoundCover(
   })
 }
 
-export function drawPositionPost(
-  canvas: HTMLCanvasElement,
-  photo: HTMLImageElement,
-  positionLabel: string,
-  name: string,
-  logo: HTMLImageElement | undefined,
-  chevrons: HTMLImageElement | undefined,
-  sponsor: HTMLImageElement | undefined,
-  badge: HTMLImageElement | undefined,
-  cardLogo: HTMLImageElement | undefined,
-  teamLogo: HTMLImageElement | undefined,
-) {
+export interface DrawPositionPostOptions {
+  canvas: HTMLCanvasElement
+  photo: HTMLImageElement
+  positionLabel: string
+  name: string
+  logo?: HTMLImageElement
+  chevrons?: HTMLImageElement
+  sponsor?: HTMLImageElement
+  badge?: HTMLImageElement
+  cardLogo?: HTMLImageElement
+  teamLogo?: HTMLImageElement
+}
+
+export function drawPositionPost(options: DrawPositionPostOptions) {
+  const { canvas, photo, positionLabel, name, logo, chevrons, sponsor, badge, cardLogo, teamLogo } = options
   const W = POST_WIDTH
   const H = POST_HEIGHT
   canvas.width = W
@@ -830,15 +842,18 @@ export function drawStandingsCanvas(options: StandingsCanvasOptions) {
 
 // ── Group standings canvas ───────────────────────────────────────────────────
 
-export function drawGroupSummary(
-  canvas: HTMLCanvasElement,
-  groupId: string,
-  standings: StandingRow[],
-  getPairName: (id: string | null) => string,
-  summaryBg: HTMLImageElement | undefined,
-  sponsor: HTMLImageElement | undefined,
-  logo: HTMLImageElement | undefined,
-) {
+export interface DrawGroupSummaryOptions {
+  canvas: HTMLCanvasElement
+  groupId: string
+  standings: StandingRow[]
+  getPairName: (id: string | null) => string
+  summaryBg?: HTMLImageElement
+  sponsor?: HTMLImageElement
+  logo?: HTMLImageElement
+}
+
+export function drawGroupSummary(options: DrawGroupSummaryOptions) {
+  const { canvas, groupId, standings, getPairName, summaryBg, sponsor, logo } = options
   const W = POST_WIDTH
   const H = POST_HEIGHT
   canvas.width = W
@@ -985,25 +1000,32 @@ export interface TeamMatchPartaiRow {
   scoreB: number | null
 }
 
-export function drawTeamMatchPost(
-  canvas: HTMLCanvasElement,
-  teamAName: string,
-  teamBName: string,
-  teamAWins: number,
-  teamBWins: number,
-  partaiRows: TeamMatchPartaiRow[],
-  subtitle: string,
-  summaryBg: HTMLImageElement | undefined,
-  logo: HTMLImageElement | undefined,
-  _sponsor: HTMLImageElement | undefined,
-  cardLogo: HTMLImageElement | undefined,
-  teamALogo: HTMLImageElement | undefined,
-  teamBLogo: HTMLImageElement | undefined,
-  teamAPhoto?: HTMLImageElement,
-  teamBPhoto?: HTMLImageElement,
-  teamAColor?: string,
-  teamBColor?: string,
-) {
+export interface DrawTeamMatchPostOptions {
+  canvas: HTMLCanvasElement
+  teamAName: string
+  teamBName: string
+  teamAWins: number
+  teamBWins: number
+  partaiRows: TeamMatchPartaiRow[]
+  subtitle: string
+  summaryBg?: HTMLImageElement
+  logo?: HTMLImageElement
+  sponsor?: HTMLImageElement
+  cardLogo?: HTMLImageElement
+  teamALogo?: HTMLImageElement
+  teamBLogo?: HTMLImageElement
+  teamAPhoto?: HTMLImageElement
+  teamBPhoto?: HTMLImageElement
+  teamAColor?: string
+  teamBColor?: string
+}
+
+export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
+  const {
+    canvas, teamAName, teamBName, teamAWins, teamBWins, partaiRows, subtitle,
+    summaryBg, logo, cardLogo, teamALogo, teamBLogo,
+    teamAPhoto, teamBPhoto, teamAColor, teamBColor,
+  } = options
   const W = POST_WIDTH
   const H = POST_HEIGHT
   canvas.width = W

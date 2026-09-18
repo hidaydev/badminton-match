@@ -62,22 +62,19 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
       const photo = matchPhotos[m.id]
       if (!photo || m.scoreA === null || m.scoreB === null) { matchIndex++; continue }
       const matchCanvas = document.createElement('canvas')
-      drawMatchPost(
-        matchCanvas,
+      drawMatchPost({
+        canvas: matchCanvas,
         photo,
-        getPairName(m.pairAId),
-        getPairName(m.pairBId),
-        m.scoreA,
-        m.scoreB,
-        `GROUP ${g} · MATCH ${matchIndex}`,
-        overlays.logo,
-        overlays.badge,
-        overlays.chevrons,
-        overlays.sponsor,
-        undefined,
-        undefined,
-        undefined,
-      )
+        pairAName: getPairName(m.pairAId),
+        pairBName: getPairName(m.pairBId),
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        subtitle: `GROUP ${g} · MATCH ${matchIndex}`,
+        logo: overlays.logo,
+        badge: overlays.badge,
+        chevrons: overlays.chevrons,
+        sponsor: overlays.sponsor,
+      })
       const matchBlob = await canvasToBlob(matchCanvas)
       if (matchBlob) files.push(new File([matchBlob], `${groupSlug}-match-${matchIndex}.jpg`, { type: 'image/jpeg' }))
       matchIndex++
@@ -86,7 +83,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
     // Generate group summary
     const standings = computeGroupStandings(g, pairIds, allMatches)
     const summaryCanvas = document.createElement('canvas')
-    drawGroupSummary(summaryCanvas, g, standings, getPairName, overlays.summaryBg, overlays.sponsor, overlays.logo)
+    drawGroupSummary({ canvas: summaryCanvas, groupId: g, standings, getPairName, summaryBg: overlays.summaryBg, sponsor: overlays.sponsor, logo: overlays.logo })
     const summaryBlob = await canvasToBlob(summaryCanvas)
     if (summaryBlob) files.push(new File([summaryBlob], `${groupSlug}-summary.jpg`, { type: 'image/jpeg' }))
 

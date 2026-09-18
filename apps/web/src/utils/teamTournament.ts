@@ -4,6 +4,8 @@
 // Mirror kontrak backend (apps/api/internal/domain/team_tournament.go).
 
 import type { TournamentSnapshot } from './tournament'
+import { drawMatchPost, drawTeamMatchPost, loadImage, ANNIVERSARY_LABEL, type TeamMatchPartaiRow } from './canvasPost'
+import { canvasToBlob } from './share'
 
 export type TeamClass = 'A+' | 'A' | 'B+' | 'B' | 'C+' | 'C'
 export type TeamPhase = 'group' | 'final'
@@ -267,4 +269,107 @@ const TEAM_COLOR_MAP: Record<TeamName, string> = {
 
 export function teamColor(name: string): string {
   return TEAM_COLOR_MAP[name.trim().toUpperCase() as TeamName] ?? '80,80,80'
+}
+
+// ── export pipeline ──────────────────────────────────────────────────────────
+
+/** Nama pasangan partai dari kelas dua pemain, mis. "Budi/Sari". */
+export function getPairName(teams: TeamInfo[], teamId: string, clsA: string, clsB: string): string {
+  const team = teams.find((t) => t.id === teamId)
+  const p1 = team?.players.find((p) => p.cls === clsA)?.name ?? '—'
+  const p2 = team?.players.find((p) => p.cls === clsB)?.name ?? '—'
+  return `${p1}/${p2}`
+}
+
+export interface BuildTeamMatchFilesOptions {
+  teams: TeamInfo[]
+  match: TeamMatch
+  partaiPhotos: Record<string, HTMLImageElement>
+  /** Key foto per index partai di `partaiPhotos`. */
+  photoKey: (partaiIdx: number) => string
+  overlays: Record<string, HTMLImageElement | undefined>
+  /** Subtitle post per partai; dilanjutkan ` · <kelas>`. */
+  matchSubtitle: string
+  summarySubtitle: string
+  /** Prefix nama file, mis. `tim-a-vs-tim-b` atau `final`. */
+  filePrefix: string
+}
+
+/**
+ * Rantai export team-match: logo tim + placeholder, post per partai (hanya
+ * yang punya foto & skor), lalu summary card. Caller menentukan prefix nama
+ * file dan menambahkan post posisi (champion/runner-up) bila perlu.
+ */
+export async function buildTeamMatchFiles({
+  teams, match, partaiPhotos, photoKey, overlays, matchSubtitle, summarySubtitle, filePrefix,
+}: BuildTeamMatchFilesOptions): Promise<{ files: File[]; teamAName: string; teamBName: string }> {
+  const out = teamMatchOutcome(match)
+  const teamAName = teamName(teams, match.teamA)
+  const teamBName = teamName(teams, match.teamB)
+  const files: File[] = []
+
+  const [teamALogoImg, teamBLogoImg, teamPhotoPlaceholder] = await Promise.all([
+    teamLogoPath(teamAName) ? loadImage(teamLogoPath(teamAName)!).catch(() => undefined) : Promise.resolve(undefined),
+    teamLogoPath(teamBName) ? loadImage(teamLogoPath(teamBName)!).catch(() => undefined) : Promise.resolve(undefined),
+    loadImage('/team-photo-placeholder.png').catch(() => undefined),
+  ])
+
+  for (let pi = 0; pi < PARTAI_CLASSES.length; pi++) {
+    const photo = partaiPhotos[photoKey(pi)]
+    const p = match.partai[pi]
+    if (!photo || p.scoreA === null || p.scoreB === null) continue
+    const [clsA, clsB] = PARTAI_CLASSES[pi]
+    const c = document.createElement('canvas')
+    drawMatchPost({
+      canvas: c,
+      photo,
+      pairAName: getPairName(teams, match.teamA, clsA, clsB),
+      pairBName: getPairName(teams, match.teamB, clsA, clsB),
+      scoreA: p.scoreA,
+      scoreB: p.scoreB,
+      subtitle: `${matchSubtitle} · ${clsA}${clsB}`,
+      logo: overlays.logo,
+      badge: overlays.badge,
+      chevrons: overlays.chevrons,
+      sponsor: overlays.sponsor,
+      cardLogo: overlays.cardLogo,
+      teamALogo: teamALogoImg,
+      teamBLogo: teamBLogoImg,
+      headerLabel: ANNIVERSARY_LABEL,
+    })
+    const blob = await canvasToBlob(c)
+    if (blob) files.push(new File([blob], `${filePrefix}-${clsA}${clsB}.jpg`, { type: 'image/jpeg' }))
+  }
+
+  const partaiRows: TeamMatchPartaiRow[] = PARTAI_CLASSES.map(([clsA, clsB], pi) => ({
+    tier: `${clsA}${clsB}`,
+    nameA: getPairName(teams, match.teamA, clsA, clsB),
+    nameB: getPairName(teams, match.teamB, clsA, clsB),
+    scoreA: match.partai[pi].scoreA,
+    scoreB: match.partai[pi].scoreB,
+  }))
+  const summaryCanvas = document.createElement('canvas')
+  drawTeamMatchPost({
+    canvas: summaryCanvas,
+    teamAName,
+    teamBName,
+    teamAWins: out.aWins,
+    teamBWins: out.bWins,
+    partaiRows,
+    subtitle: summarySubtitle,
+    summaryBg: overlays.summaryBg,
+    logo: overlays.logo,
+    sponsor: overlays.sponsor,
+    cardLogo: overlays.cardLogo,
+    teamALogo: teamALogoImg,
+    teamBLogo: teamBLogoImg,
+    teamAPhoto: teamPhotoPlaceholder,
+    teamBPhoto: teamPhotoPlaceholder,
+    teamAColor: teamColor(teamAName),
+    teamBColor: teamColor(teamBName),
+  })
+  const summaryBlob = await canvasToBlob(summaryCanvas)
+  if (summaryBlob) files.push(new File([summaryBlob], `${filePrefix}-summary.jpg`, { type: 'image/jpeg' }))
+
+  return { files, teamAName, teamBName }
 }
