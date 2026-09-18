@@ -1,17 +1,14 @@
 // apps/web/src/components/tournament/TeamGroupSchedule.tsx
 import { useRef } from 'react'
 import {
-  teamMatchOutcome,
+  buildTeamMatchFiles,
   teamName,
-  teamLogoPath,
-  teamColor,
   PARTAI_CLASSES,
   type TeamMatch,
   type TeamInfo,
 } from '../../utils/teamTournament'
 import TeamMatchCard from './TeamMatchCard'
-import { drawMatchPost, drawTeamMatchPost, loadImage, type TeamMatchPartaiRow } from '../../utils/canvasPost'
-import { canvasToBlob, shareOrDownload } from '../../utils/share'
+import { shareOrDownload } from '../../utils/share'
 
 interface TeamGroupScheduleProps {
   teams: TeamInfo[]
@@ -27,13 +24,6 @@ interface TeamGroupScheduleProps {
   onDraw: () => void
   onSetPartaiPhoto: (key: string, img: HTMLImageElement) => void
   onSetPostMode: (matchId: string, on: boolean) => void
-}
-
-function getPairName(teams: TeamInfo[], teamId: string, clsA: string, clsB: string): string {
-  const team = teams.find((t) => t.id === teamId)
-  const p1 = team?.players.find((p) => p.cls === clsA)?.name ?? '—'
-  const p2 = team?.players.find((p) => p.cls === clsB)?.name ?? '—'
-  return `${p1}/${p2}`
 }
 
 export default function TeamGroupSchedule({
@@ -65,44 +55,20 @@ export default function TeamGroupSchedule({
   }
 
   const handleDownload = async (m: TeamMatch) => {
-    const out = teamMatchOutcome(m)
     const tNameA = teamName(teams, m.teamA)
     const tNameB = teamName(teams, m.teamB)
     const slug = `${tNameA.toLowerCase().replace(/\s+/g, '-')}-vs-${tNameB.toLowerCase().replace(/\s+/g, '-')}`
-    const files: File[] = []
 
-    const [teamALogoImg, teamBLogoImg, teamPhotoPlaceholder] = await Promise.all([
-      teamLogoPath(tNameA) ? loadImage(teamLogoPath(tNameA)!).catch(() => undefined) : Promise.resolve(undefined),
-      teamLogoPath(tNameB) ? loadImage(teamLogoPath(tNameB)!).catch(() => undefined) : Promise.resolve(undefined),
-      loadImage('/team-photo-placeholder.png').catch(() => undefined),
-    ])
-
-    for (let pi = 0; pi < PARTAI_CLASSES.length; pi++) {
-      const key = `${m.id}-${pi}`
-      const photo = partaiPhotos[key]
-      const p = m.partai[pi]
-      if (!photo || p.scoreA === null || p.scoreB === null) continue
-      const [clsA, clsB] = PARTAI_CLASSES[pi]
-      const nameA = getPairName(teams, m.teamA, clsA, clsB)
-      const nameB = getPairName(teams, m.teamB, clsA, clsB)
-      const c = document.createElement('canvas')
-      drawMatchPost(c, photo, nameA, nameB, p.scoreA, p.scoreB, `GROUP MATCH · ${clsA}${clsB}`, overlays.logo, overlays.badge, overlays.chevrons, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg, 'MAJADU 1\u02E2\u1D57 ANNIVERSARY  \u2022  MAJADU 1\u02E2\u1D57 ANNIVERSARY')
-      const blob = await canvasToBlob(c)
-      if (blob) files.push(new File([blob], `${slug}-${clsA}${clsB}.jpg`, { type: 'image/jpeg' }))
-    }
-
-    // Summary post — no photo needed, always generated
-    const partaiRows: TeamMatchPartaiRow[] = PARTAI_CLASSES.map(([clsA, clsB], pi) => ({
-      tier: `${clsA}${clsB}`,
-      nameA: getPairName(teams, m.teamA, clsA, clsB),
-      nameB: getPairName(teams, m.teamB, clsA, clsB),
-      scoreA: m.partai[pi].scoreA,
-      scoreB: m.partai[pi].scoreB,
-    }))
-    const summaryCanvas = document.createElement('canvas')
-    drawTeamMatchPost(summaryCanvas, tNameA, tNameB, out.aWins, out.bWins, partaiRows, 'GROUP STAGE', overlays.summaryBg, overlays.logo, overlays.sponsor, overlays.cardLogo, teamALogoImg, teamBLogoImg, teamPhotoPlaceholder, teamPhotoPlaceholder, teamColor(tNameA), teamColor(tNameB))
-    const summaryBlob = await canvasToBlob(summaryCanvas)
-    if (summaryBlob) files.push(new File([summaryBlob], `${slug}-summary.jpg`, { type: 'image/jpeg' }))
+    const { files } = await buildTeamMatchFiles({
+      teams,
+      match: m,
+      partaiPhotos,
+      photoKey: (pi) => `${m.id}-${pi}`,
+      overlays,
+      matchSubtitle: 'GROUP MATCH',
+      summarySubtitle: 'GROUP STAGE',
+      filePrefix: slug,
+    })
 
     if (files.length === 0) return
     await shareOrDownload(files, `${tNameA} vs ${tNameB}`)

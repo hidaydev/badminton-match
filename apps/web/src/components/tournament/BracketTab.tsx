@@ -190,7 +190,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     const photo = podiumPhotos[pos]
     if (!photo) return
     const c = document.createElement('canvas')
-    drawPositionPost(c, photo, positionLabel, name, overlays.logo, overlays.chevrons, overlays.sponsor, overlays.badge, undefined, undefined)
+    drawPositionPost({ canvas: c, photo, positionLabel, name, logo: overlays.logo, chevrons: overlays.chevrons, sponsor: overlays.sponsor, badge: overlays.badge })
     const blob = await canvasToBlob(c)
     if (!blob) return
     const file = new File([blob], `bracket-${pos}.jpg`, { type: 'image/jpeg' })
@@ -213,7 +213,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
       }
     })
     const coverCanvas = document.createElement('canvas')
-    drawBracketRoundCover(coverCanvas, roundTitle, coverRows, overlays.summaryBg, overlays.logo, overlays.sponsor)
+    drawBracketRoundCover({ canvas: coverCanvas, roundTitle, matchRows: coverRows, summaryBg: overlays.summaryBg, logo: overlays.logo, sponsor: overlays.sponsor })
     const coverBlob = await canvasToBlob(coverCanvas)
     if (coverBlob) files.push(new File([coverBlob], `bracket-${roundSlug}-cover.jpg`, { type: 'image/jpeg' }))
 
@@ -223,22 +223,19 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
       const match = matches.find(m => m.id === id)
       if (!photo || !match) continue
       const c = document.createElement('canvas')
-      drawMatchPost(
-        c,
+      drawMatchPost({
+        canvas: c,
         photo,
-        getPairName(match.pairAId),
-        getPairName(match.pairBId),
-        match.scoreA,
-        match.scoreB,
-        bracketSubtitle(id),
-        overlays.logo,
-        overlays.badge,
-        overlays.chevrons,
-        overlays.sponsor,
-        undefined,
-        undefined,
-        undefined,
-      )
+        pairAName: getPairName(match.pairAId),
+        pairBName: getPairName(match.pairBId),
+        scoreA: match.scoreA,
+        scoreB: match.scoreB,
+        subtitle: bracketSubtitle(id),
+        logo: overlays.logo,
+        badge: overlays.badge,
+        chevrons: overlays.chevrons,
+        sponsor: overlays.sponsor,
+      })
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], `bracket-${id}.jpg`, { type: 'image/jpeg' }))
     }

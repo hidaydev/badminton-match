@@ -29,11 +29,24 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
         teamLogoPath(teamB) ? loadImage(teamLogoPath(teamB)!).catch(() => undefined) : Promise.resolve(undefined),
         loadImage('/team-photo-placeholder.png').catch(() => undefined),
       ])
-      drawTeamMatchPost(
-        canvas!, teamA, teamB, winsA, winsB, MOCK_PARTAI, 'GROUP STAGE',
-        summaryBg, logo, undefined, cardLogo, teamALogo, teamBLogo,
-        teamPhoto, teamPhoto, teamColor(teamA), teamColor(teamB),
-      )
+      drawTeamMatchPost({
+        canvas: canvas!,
+        teamAName: teamA,
+        teamBName: teamB,
+        teamAWins: winsA,
+        teamBWins: winsB,
+        partaiRows: MOCK_PARTAI,
+        subtitle: 'GROUP STAGE',
+        summaryBg,
+        logo,
+        cardLogo,
+        teamALogo,
+        teamBLogo,
+        teamAPhoto: teamPhoto,
+        teamBPhoto: teamPhoto,
+        teamAColor: teamColor(teamA),
+        teamBColor: teamColor(teamB),
+      })
     }
     render()
   }, [teamA, teamB, winsA, winsB])
