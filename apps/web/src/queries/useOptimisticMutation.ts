@@ -36,6 +36,13 @@ interface OptimisticMutationOptions<TData extends Snapshot, TVars> {
   applyOptimistic?: boolean
   /** Optional callback setelah publish sukses (mis. invalidasi extra). */
   onSuccessCallback?: () => Promise<void>
+  /**
+   * Refetch snapshot setelah error apa pun (bukan hanya OCC/lock). Dipakai
+   * pemanggil yang butuh editor selalu selaras server saat save gagal
+   * (perilaku lama TeamTournamentPage). Default false agar mutation lain
+   * tetap hanya refetch pada konflik versi/lock.
+   */
+  refetchOnAnyError?: boolean
 }
 
 /**
@@ -56,7 +63,7 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
   options: OptimisticMutationOptions<TData, TVars>,
 ) {
   const queryClient = useQueryClient()
-  const { queryKey, fetchSnapshot, publish, optimisticUpdate, applyOptimistic = true, onSuccessCallback } = options
+  const { queryKey, fetchSnapshot, publish, optimisticUpdate, applyOptimistic = true, onSuccessCallback, refetchOnAnyError = false } = options
 
   return useMutation({
     mutationFn: async (vars: TVars) => {
@@ -112,7 +119,7 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
         queryClient.setQueryData(queryKey, context.previous)
       }
       // Refetch on version mismatch / contention / lock
-      if (isVersionMismatch(_err) || isContentionError(_err) || isLockedError(_err)) {
+      if (refetchOnAnyError || isVersionMismatch(_err) || isContentionError(_err) || isLockedError(_err)) {
         try {
           await queryClient.fetchQuery<TData | null>({
             queryKey,
