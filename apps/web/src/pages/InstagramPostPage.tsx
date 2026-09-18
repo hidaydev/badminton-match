@@ -7,6 +7,7 @@ import { isPlaceholderName } from '../utils/placeholders'
 import type { SessionMeta } from '../queries'
 import { loadImage, drawPostCanvas, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
 import { loadOverlayImages } from '../utils/overlays'
+import { todayWIB } from '../utils/time'
 
 const TEMPLATE = instagramTemplates[0]
 
@@ -25,7 +26,7 @@ export default function InstagramPostPage() {
   const [overlays, setOverlays] = useState<OverlayImages>({})
   const [isDragging, setIsDragging] = useState(false)
   const [fontReady, setFontReady] = useState(false) // true once browser fonts are loaded
-  const [dateValue, setDateValue] = useState(() => new Date().toISOString().split('T')[0])
+  const [dateValue, setDateValue] = useState(() => todayWIB())
   const [exportError, setExportError] = useState<string | null>(null)
   const [overlayError, setOverlayError] = useState<string | null>(null)
   const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)

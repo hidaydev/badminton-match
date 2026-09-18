@@ -420,6 +420,8 @@ export async function deleteSession(lookup: string): Promise<{ deleted: boolean;
 // ── Players ───────────────────────────────────────────────────────────────
 
 export async function listPlayers(signal?: AbortSignal): Promise<PlayerSummary[]> {
+  // Backend store.PlayerSummary sudah mengirim camelCase (playerId/tierInduk),
+  // jadi tidak ada mapping snake→camel seperti listSessions — rows dipakai apa adanya.
   const rows = await request<Array<{
     playerId?: string
     name: string
