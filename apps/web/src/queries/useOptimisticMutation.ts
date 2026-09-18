@@ -6,10 +6,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, getTournament, publishTournament } from './endpoints'
 import type { CloudSnapshot, TournamentSnapshot } from './types'
+import type { TeamTournamentSnapshot } from '../utils/teamTournament'
 import { isVersionMismatch, isLockedError, isContentionError } from './errors'
 
-/** Snapshot yang di-publish — session atau tournament. */
-type Snapshot = CloudSnapshot | TournamentSnapshot
+/** Snapshot yang di-publish — session atau tournament (classic & team). */
+type Snapshot = CloudSnapshot | TournamentSnapshot | TeamTournamentSnapshot
 
 interface OptimisticMutationOptions<TData extends Snapshot, TVars> {
   /** Query key snapshot (['session', id] atau ['tournament', id]). */

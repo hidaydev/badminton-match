@@ -9,7 +9,7 @@ import {
   useRegeneratePics,
 } from '../queries'
 import { getSaveErrorMessage } from '../queries/errors'
-import type { GroupId } from '../utils/tournament'
+import { GROUP_IDS, EMPTY_GROUPS, type GroupId } from '../utils/tournament'
 import { todayWIB } from '../utils/time'
 import GroupAssignment from '../components/tournament/GroupAssignment'
 import GroupMatches from '../components/tournament/GroupMatches'
@@ -18,17 +18,13 @@ import StandingsTab from '../components/tournament/StandingsTab'
 
 type Tab = 'groups' | 'bracket' | 'standings'
 
-const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
-
-const EMPTY_GROUPS: Record<GroupId, string[]> = { A: [], B: [], C: [], D: [] }
-
 function GroupLoadingSkeleton() {
   return (
     <div className="space-y-4 animate-pulse">
       <div className="flex justify-end">
         <div className="h-4 w-20 bg-slate-700 rounded" />
       </div>
-      {['A', 'B', 'C', 'D'].map((g) => (
+      {GROUP_IDS.map((g) => (
         <div key={g} className="bg-slate-800 rounded-xl overflow-hidden">
           <div className="px-4 py-2 flex justify-between items-center border-b border-yellow-500/30">
             <div className="h-4 w-16 bg-slate-700 rounded" />

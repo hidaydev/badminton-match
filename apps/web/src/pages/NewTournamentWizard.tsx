@@ -4,6 +4,8 @@ import { useCreateTournament } from '../queries'
 import { shuffle } from '../utils/array'
 import { todayWIB } from '../utils/time'
 import {
+  GROUP_IDS,
+  EMPTY_GROUPS,
   generateGroupMatches,
   initKnockoutMatches,
   propagateBracket,
@@ -12,9 +14,8 @@ import {
   type TournamentPair,
   type GroupId,
 } from '../utils/tournament'
-import { TEAM_NAMES } from '../utils/teamTournament'
+import { TEAM_CLASSES, TEAM_NAMES, type TeamClass } from '../utils/teamTournament'
 
-const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 const PAIR_COUNT = 16
 const emptyPair = () => ({ a: '', b: '' })
 
@@ -34,8 +35,6 @@ export default function NewTournamentWizard() {
 
 // ── Team wizard: identity → roster (nama + tier + named-team) → create ───────
 
-const TEAM_CLASSES = ['A+', 'A', 'B+', 'B', 'C+', 'C'] as const
-type TeamClass = (typeof TEAM_CLASSES)[number]
 const TEAM_IDS = ['t1', 't2', 't3', 't4', 't5', 't6'] as const
 // Di wizard, index t1..t6 = index NAMED TEAM (urutan TEAM_NAMES). Slot final
 // (Tim 1..6) ditentukan manual saat undian hari-H di halaman turnamen.
@@ -260,14 +259,15 @@ function ClassicWizard() {
   const [name, setName] = useState('')
   const [date, setDate] = useState(() => todayWIB())
   const [pairs, setPairs] = useState(() => Array.from({ length: PAIR_COUNT }, emptyPair))
-  const [groups, setGroups] = useState<Record<GroupId, string[]>>(() => ({ A: [], B: [], C: [], D: [] }))
+  const [groups, setGroups] = useState<Record<GroupId, string[]>>(() => ({ ...EMPTY_GROUPS }))
 
   const pairsComplete = pairs.every((p) => p.a.trim() !== '' && p.b.trim() !== '')
   const groupsFull = GROUP_IDS.every((g) => groups[g].length === 4)
 
   const drawGroups = () => {
     const ids = shuffle(pairs.map((_, i) => `p${i + 1}`))
-    const next: Record<GroupId, string[]> = { A: [], B: [], C: [], D: [] }
+    const next: Record<GroupId, string[]> = { ...EMPTY_GROUPS }
+    for (const g of GROUP_IDS) next[g] = []
     ids.forEach((id, idx) => {
       next[GROUP_IDS[Math.floor(idx / 4)]].push(id)
     })
@@ -312,7 +312,7 @@ function ClassicWizard() {
       const idx = Number(id.slice(1)) - 1
       return pairs[idx] ? `${pairs[idx].a.trim()} & ${pairs[idx].b.trim()}` : id
     }
-    const out: Record<GroupId, string[]> = { A: [], B: [], C: [], D: [] }
+    const out: Record<GroupId, string[]> = { ...EMPTY_GROUPS }
     for (const g of GROUP_IDS) out[g] = groups[g].map(nameOf)
     return out
   }, [groups, pairs])
