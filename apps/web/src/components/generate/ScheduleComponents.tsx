@@ -5,9 +5,10 @@ import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, MatchConstraint, ScheduleSlot } from '../../types'
 import type { GeneratorResult } from '../../generator'
 import { TIER_LABELS, TIER_COLORS } from '../../config/tiers'
-import { computePlayerStats, computeBackToBackRunBySlot } from '../../utils/playerStats'
+import { computeBackToBackRunBySlot } from '../../utils/playerStats'
 import { courtLabel } from '../../utils/courtLabel'
 import { computeQuality } from '../../utils/quality'
+import { GeneratedPlayerStats } from '../summary/PlayerStatsPanel'
 
 // ── Tier letters ─────────────────────────────────────────────────────────────
 
@@ -140,8 +141,6 @@ export function ScheduleView({
     return players.filter((p) => !playing.has(p.id))
   }
 
-  const idealPlays = (result.schedule.length * 4) / players.length
-
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4">
@@ -182,40 +181,7 @@ export function ScheduleView({
         })}
       </div>
 
-      <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-white">Player Stats</span>
-          <span className="text-xs text-slate-400">target ~{idealPlays.toFixed(1)} plays</span>
-        </div>
-        <div className="grid grid-cols-1 gap-y-2">
-          {(() => {
-            const { playCount, sitCount, partnerWith, facedBy } = computePlayerStats(result.schedule, players.map(p => p.id))
-
-            return players
-              .sort((a, b) => (playCount[b.id] ?? 0) - (playCount[a.id] ?? 0))
-              .map((p) => {
-                const plays = playCount[p.id] ?? 0
-                const sits = sitCount[p.id] ?? 0
-                const partners = Object.keys(partnerWith[p.id] ?? {}).length
-                const opponents = Object.keys(facedBy[p.id] ?? {}).length
-                const over = plays > Math.ceil(idealPlays)
-                const under = plays < Math.floor(idealPlays)
-                return (
-                  <div key={p.id} className="flex items-center gap-2">
-                    <span className="text-xs text-slate-300 w-20 truncate"><AnnotatedPlayerName name={p.name} /></span>
-                    <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
-                      {plays}×
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      {sits} sit · {partners} P · {opponents} O
-                    </span>
-                  </div>
-                )
-              })
-          })()}
-        </div>
-        <p className="text-[10px] text-slate-400">P = unique partners · O = unique opponents faced</p>
-      </div>
+      <GeneratedPlayerStats schedule={result.schedule} playerMap={playerMap} />
     </div>
   )
 }

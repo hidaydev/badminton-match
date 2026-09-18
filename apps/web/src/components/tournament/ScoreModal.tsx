@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { TournamentMatch } from '../../utils/tournament'
+import { validateScore } from '../../utils/scoreValidation'
 import ScoreboardOverlay from './ScoreboardOverlay'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
 
@@ -22,7 +23,9 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
 
   const a = parseInt(scoreA, 10)
   const b = parseInt(scoreB, 10)
-  const valid = !isNaN(a) && !isNaN(b) && a >= 0 && b >= 0 && a !== b
+  const hasNumbers = !isNaN(a) && !isNaN(b)
+  const validationError = hasNumbers ? validateScore(a, b) : null
+  const valid = hasNumbers && validationError === null
 
   if (showScoreboard) {
     return (
@@ -105,8 +108,10 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
           </div>
         </div>
 
-        {!isNaN(a) && !isNaN(b) && a === b && (
-          <p className="text-xs text-red-400 text-center mb-3">Scores cannot be equal (no draws)</p>
+        {validationError && (
+          <p className="text-xs text-red-400 text-center mb-3">
+            {a === b ? 'Scores cannot be equal (no draws)' : validationError}
+          </p>
         )}
 
         <div className="flex gap-3 mb-3">

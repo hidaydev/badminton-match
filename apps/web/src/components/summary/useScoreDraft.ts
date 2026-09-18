@@ -26,7 +26,6 @@ export function useScoreDraft(
     const a = parseInt(draft.a, 10)
     const b = parseInt(draft.b, 10)
     if (isNaN(a) || isNaN(b)) return false
-    if (a < 0 || a > 99 || b < 0 || b > 99) return false
     const err = validateScore(a, b)
     if (err) { setScoreError(err); return false }
     setScoreError(null)
