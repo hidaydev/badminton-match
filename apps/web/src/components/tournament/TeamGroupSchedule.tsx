@@ -1,5 +1,4 @@
 // apps/web/src/components/tournament/TeamGroupSchedule.tsx
-import { useRef } from 'react'
 import {
   buildTeamMatchFiles,
   teamName,
@@ -7,6 +6,7 @@ import {
   type TeamMatch,
   type TeamInfo,
 } from '../../utils/teamTournament'
+import { useImageUploadMap } from '../../hooks/useImageUploadMap'
 import TeamMatchCard from './TeamMatchCard'
 import { shareOrDownload } from '../../utils/share'
 
@@ -43,8 +43,7 @@ export default function TeamGroupSchedule({
 }: TeamGroupScheduleProps) {
   const groupMatches = matches.filter((m) => m.phase === 'group')
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const activeUploadKey = useRef<string | null>(null)
+  const { fileInputRef, openUpload, onFileChange } = useImageUploadMap(onSetPartaiPhoto)
 
   const uploadedCount = (matchId: string): number => {
     let count = 0
@@ -105,7 +104,7 @@ export default function TeamGroupSchedule({
               isPostMode,
               onTogglePostMode: () => onSetPostMode(m.id, !isPostMode),
               partaiPhotos: PARTAI_CLASSES.map((_, pi) => partaiPhotos[`${m.id}-${pi}`]),
-              onUploadPartai: (pi) => { activeUploadKey.current = `${m.id}-${pi}`; fileInputRef.current?.click() },
+              onUploadPartai: (pi) => openUpload(`${m.id}-${pi}`),
               onDownload: () => handleDownload(m),
               uploadedCount: uploadedCount(m.id),
             }}
@@ -118,20 +117,7 @@ export default function TeamGroupSchedule({
         accept="image/jpeg,image/png,image/webp"
         className="hidden"
         ref={fileInputRef}
-        onChange={async (e) => {
-          const file = e.target.files?.[0]
-          const key = activeUploadKey.current
-          if (!file || !key) return
-          const url = URL.createObjectURL(file)
-          const img = new Image()
-          img.onload = () => {
-            URL.revokeObjectURL(url)
-            onSetPartaiPhoto(key, img)
-          }
-          img.onerror = () => URL.revokeObjectURL(url)
-          img.src = url
-          e.target.value = ''
-        }}
+        onChange={onFileChange}
       />
     </div>
   )

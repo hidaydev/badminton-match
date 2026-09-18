@@ -3,7 +3,7 @@ import type { SVGProps } from 'react'
 
 export type IconName =
   | 'plus' | 'sessions' | 'history' | 'ratings' | 'scoreboard' | 'tournament'
-  | 'admin' | 'post' | 'download' | 'play' | 'unlock' | 'players' | 'season'
+  | 'admin' | 'post' | 'download' | 'play' | 'unlock' | 'players' | 'season' | 'camera'
 
 export default function Icon({ name, size = 20, ...rest }: { name: IconName; size?: number } & SVGProps<SVGSVGElement>) {
   const common: SVGProps<SVGSVGElement> = {
@@ -44,6 +44,8 @@ export default function Icon({ name, size = 20, ...rest }: { name: IconName; siz
       return <svg {...common}><circle cx="9" cy="8" r="3.5" /><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 15.5c1.6.8 2.5 2 2.5 4.5" /></svg>
     case 'season':
       return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="1" /><path d="M8 3v4M16 3v4M3 10h18" /></svg>
+    case 'camera':
+      return <svg {...common}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
     default:
       return null
   }

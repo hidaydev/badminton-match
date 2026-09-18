@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { computeGroupStandings } from '../../utils/tournament'
 import { GROUP_COURTS } from '../../config/tournament'
 import type { GroupId, TournamentMatch, TournamentPair } from '../../utils/tournament'
+import { useImageUploadMap } from '../../hooks/useImageUploadMap'
+import Icon from '../Icon'
 import ScoreModal from './ScoreModal'
 import { drawMatchPost, drawGroupSummary } from '../../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../../utils/share'
@@ -26,9 +28,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
   const [postModeGroups, setPostModeGroups] = useState<Record<string, boolean>>({})
-  const [matchPhotos, setMatchPhotos] = useState<Record<string, HTMLImageElement>>({})
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const activeUploadMatchId = useRef<string | null>(null)
+  const { images: matchPhotos, fileInputRef: matchFileInputRef, openUpload: openMatchUpload, onFileChange: onMatchFileChange } = useImageUploadMap()
 
   const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; summaryBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement }>({})
 
@@ -130,10 +130,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                     postModeGroups[g] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'
                   }`}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={postModeGroups[g] ? 'black' : 'white'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
-                  </svg>
+                  <Icon name="camera" size={15} stroke={postModeGroups[g] ? 'black' : 'white'} strokeWidth={2.2} />
                 </button>
               </div>
             </div>
@@ -162,16 +159,10 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                     <div className="relative pr-3 shrink-0">
                       <button
                         aria-label={`Upload photo for match ${getPairName(m.pairAId)} vs ${getPairName(m.pairBId)}`}
-                        onClick={() => {
-                          activeUploadMatchId.current = m.id
-                          fileInputRef.current?.click()
-                        }}
+                        onClick={() => openMatchUpload(m.id)}
                         className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                          <circle cx="12" cy="13" r="4"/>
-                        </svg>
+                        <Icon name="camera" size={13} stroke="white" strokeWidth={2.2} />
                       </button>
                       {matchPhotos[m.id] && (
                         <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-slate-800" />
@@ -235,21 +226,8 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         type="file"
         accept="image/jpeg,image/png,image/webp"
         className="hidden"
-        ref={fileInputRef}
-        onChange={async (e) => {
-          const file = e.target.files?.[0]
-          const matchId = activeUploadMatchId.current
-          if (!file || !matchId) return
-          const url = URL.createObjectURL(file)
-          const img = new Image()
-          img.onload = () => {
-            URL.revokeObjectURL(url)
-            setMatchPhotos(prev => ({ ...prev, [matchId]: img }))
-          }
-          img.onerror = () => URL.revokeObjectURL(url)
-          img.src = url
-          e.target.value = ''
-        }}
+        ref={matchFileInputRef}
+        onChange={onMatchFileChange}
       />
 
       {activeMatch && (
