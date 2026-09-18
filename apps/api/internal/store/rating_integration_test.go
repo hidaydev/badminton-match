@@ -36,6 +36,37 @@ func ratingTestEnv(t *testing.T) (*SessionStore, string) {
 	return NewSessionStore(pool, schema), schema
 }
 
+// testSessionDate — tanggal untuk integration test. WAJIB masa depan: Save()
+// meng-auto-lock sesi bertanggal lampau (dan sesi yang semua gamenya sudah
+// diputuskan), sehingga test yang butuh sesi draft akan gagal "session is locked"
+// dan cleanup-nya ikut bocor.
+func testSessionDate(daysAhead int) string {
+	return time.Now().AddDate(0, 0, daysAhead).Format("2006-01-02")
+}
+
+// saveLock — set Locked lalu Save. Sesi yang semua gamenya sudah berskor sudah
+// otomatis ter-lock oleh Save pertama, sehingga Save lock mengembalikan
+// ErrLocked — itu berarti target (locked) sudah tercapai, bukan kegagalan.
+func saveLock(t *testing.T, st *SessionStore, ctx context.Context, id string) {
+	t.Helper()
+	created, err := st.Load(ctx, id)
+	if err != nil {
+		t.Fatalf("load untuk lock: %v", err)
+	}
+	created.Session.Locked = true
+	if _, err := st.Save(ctx, id, created); err != nil && !errors.Is(err, ErrLocked) {
+		t.Fatalf("lock: %v", err)
+	}
+}
+
+// cleanupSession — hapus sesi test walau sudah ter-lock. Delete() sengaja
+// menolak sesi non-draft; kalau dibiarkan, sesi bocor dan bikin test lain tidak
+// deterministik (AutoIngestLockedSessions/statistik dihitung lintas-sesi).
+func cleanupSession(ctx context.Context, st *SessionStore, id string) {
+	_, _ = st.pool.Exec(ctx, `UPDATE `+st.schema+`.sessions SET status='draft' WHERE share_code = $1`, id)
+	_, _ = st.pool.Exec(ctx, `DELETE FROM `+st.schema+`.sessions WHERE share_code = $1`, id)
+}
+
 // buat + lock sesi (2 game berskor) — helper.
 func ratingCreateLockedSession(t *testing.T, st *SessionStore, ctx context.Context, players []domain.Player, suffix string) string {
 	t.Helper()
@@ -66,15 +97,11 @@ func ratingCreateLockedSession(t *testing.T, st *SessionStore, ctx context.Conte
 			"1-0": {A: 18, B: 21},
 		},
 	}
-	created, err := st.Save(ctx, id, snap)
-	if err != nil {
+	if _, err := st.Save(ctx, id, snap); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	// lock
-	created.Session.Locked = true
-	if _, err := st.Save(ctx, id, created); err != nil {
-		t.Fatalf("lock: %v", err)
-	}
+	// Semua game berskor → Save di atas sudah auto-lock; saveLock idempoten.
+	saveLock(t, st, ctx, id)
 	return id
 }
 
@@ -218,11 +245,7 @@ func TestIntegrationRatingIngestSession(t *testing.T) {
 	if _, err := st.Save(ctx, id, loaded2); err != nil {
 		t.Fatalf("save edit: %v", err)
 	}
-	loaded3, _ := st.Load(ctx, id)
-	loaded3.Session.Locked = true
-	if _, err := st.Save(ctx, id, loaded3); err != nil {
-		t.Fatalf("re-lock: %v", err)
-	}
+	saveLock(t, st, ctx, id)
 
 	_, err = st.IngestSession(ctx, id)
 	if !errors.Is(err, ErrSourceChanged) {
@@ -271,7 +294,12 @@ func TestIntegrationRatingIngestGateLocked(t *testing.T) {
 			PlayerCount: 4, CourtNames: []string{"C1"},
 		},
 		Players: players, FixMatches: []domain.FixMatch{},
-		Schedule:    []domain.ScheduleSlot{{Slot: 0, Court: 0, TeamA: [2]string{"itg1", "itg2"}, TeamB: [2]string{"itg3", "itg4"}}},
+		Schedule: []domain.ScheduleSlot{
+			{Slot: 0, Court: 0, TeamA: [2]string{"itg1", "itg2"}, TeamB: [2]string{"itg3", "itg4"}},
+			// Slot 1 sengaja belum dimainkan: kalau SEMUA game sudah berskor,
+			// Save otomatis mengunci sesi → ingest tidak lagi ditolak.
+			{Slot: 1, Court: 0, TeamA: [2]string{"itg1", "itg3"}, TeamB: [2]string{"itg2", "itg4"}},
+		},
 		PlayedGames: []string{"0-0"},
 		GameScores:  map[string]domain.GameScore{"0-0": {A: 21, B: 10}},
 	})
@@ -280,7 +308,7 @@ func TestIntegrationRatingIngestGateLocked(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rating-gate%'`)
-		_ = st.Delete(ctx, id)
+		cleanupSession(ctx, st, id)
 	})
 
 	_, err = st.IngestSession(ctx, id)
@@ -344,12 +372,7 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("save %s: %v", label, err)
 		}
-		// lock
-		created, _ := st.Load(ctx, id)
-		created.Session.Locked = true
-		if _, err := st.Save(ctx, id, created); err != nil {
-			t.Fatalf("lock %s: %v", label, err)
-		}
+		saveLock(t, st, ctx, id)
 	}
 	mkSession(idA, futureA, players[:4], "A")
 	mkSession(idB, futureB, players[2:], "B")
@@ -493,7 +516,11 @@ func TestIntegrationAutoIngestLockedSessions(t *testing.T) {
 				PlayerCount: 4, CourtNames: []string{"C1"},
 			},
 			Players: players, FixMatches: []domain.FixMatch{},
-			Schedule:    []domain.ScheduleSlot{{Slot: 0, Court: 0, TeamA: [2]string{"itai1", "itai2"}, TeamB: [2]string{"itai3", "itai4"}}},
+			Schedule: []domain.ScheduleSlot{
+				{Slot: 0, Court: 0, TeamA: [2]string{"itai1", "itai2"}, TeamB: [2]string{"itai3", "itai4"}},
+				// Slot 1 belum dimainkan → sesi tetap draft sampai di-lock eksplisit.
+				{Slot: 1, Court: 0, TeamA: [2]string{"itai1", "itai3"}, TeamB: [2]string{"itai2", "itai4"}},
+			},
 			PlayedGames: []string{"0-0"},
 			GameScores:  map[string]domain.GameScore{"0-0": {A: 21, B: 10}},
 		}
@@ -523,11 +550,7 @@ func TestIntegrationAutoIngestLockedSessions(t *testing.T) {
 	}
 
 	// Lock → auto-ingest memproses
-	created, _ := st.Load(ctx, id)
-	created.Session.Locked = true
-	if _, err := st.Save(ctx, id, created); err != nil {
-		t.Fatalf("lock: %v", err)
-	}
+	saveLock(t, st, ctx, id)
 	n, err = st.AutoIngestLockedSessions(ctx)
 	if err != nil {
 		t.Fatalf("auto-ingest: %v", err)

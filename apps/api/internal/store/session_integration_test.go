@@ -50,7 +50,7 @@ func TestIntegrationSessionRoundTrip(t *testing.T) {
 	id := "it-session-" + t.Name() + "-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	snap := &domain.CloudSnapshot{
 		Session: domain.SessionConfig{
-			Title: "IT", Date: "2026-08-12", Courts: 1,
+			Title: "IT", Date: testSessionDate(2), Courts: 1,
 			SessionStart: "09:00", SlotMinutes: 20,
 			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
 			PlayerCount: len(players),
@@ -95,7 +95,11 @@ func TestIntegrationSessionRoundTrip(t *testing.T) {
 		t.Fatalf("loaded mismatch: %+v", loaded)
 	}
 
-	// Bersihkan sesi test
+	// Bersihkan sesi test — sesi otomatis ter-lock (semua game berskor),
+	// jadi unlock dulu sebelum delete.
+	if _, err := st.Unlock(ctx, id); err != nil {
+		t.Fatalf("cleanup unlock: %v", err)
+	}
 	if err := st.Delete(ctx, id); err != nil {
 		t.Fatalf("cleanup delete: %v", err)
 	}
@@ -137,7 +141,7 @@ func TestIntegrationSessionWritePathSemantics(t *testing.T) {
 	newSnap := func() *domain.CloudSnapshot {
 		return &domain.CloudSnapshot{
 			Session: domain.SessionConfig{
-				Title: "ITW", Date: "2026-08-12", Courts: 1,
+				Title: "ITW", Date: testSessionDate(2), Courts: 1,
 				SessionStart: "09:00", SlotMinutes: 20,
 				CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
 				PlayerCount: len(players),
@@ -261,7 +265,7 @@ func TestIntegrationSessionPublishPreservesSkipped(t *testing.T) {
 	id := "it-skip-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	snap := &domain.CloudSnapshot{
 		Session: domain.SessionConfig{
-			Title: "IT Skip", Date: "2026-08-13", Courts: 1,
+			Title: "IT Skip", Date: testSessionDate(2), Courts: 1,
 			SessionStart: "09:00", SlotMinutes: 20,
 			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
 			PlayerCount: len(players),
@@ -277,7 +281,7 @@ func TestIntegrationSessionPublishPreservesSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	defer func() { _ = st.Delete(ctx, id) }()
+	defer func() { cleanupSession(ctx, st, id) }()
 
 	// Simulasi skip via jalur granular (langsung ke kolom).
 	if _, err := pool.Exec(ctx, `

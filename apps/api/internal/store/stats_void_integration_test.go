@@ -14,11 +14,13 @@ import (
 	"majadu-api/internal/domain"
 )
 
-// TestIntegrationStatsVoidGames — verifikasi semantik VOID game
-// (ABSENT_TBD_PLAYERS_DESIGN.md §4): game yang memuat ≥1 pemain is_absent
-// tidak dihitung di career stats untuk SIAPA PUN (termasuk pemain absent itu
-// sendiri, teammate, dan lawan). Hanya jalan dengan MAJADU_TEST_DATABASE_URL.
-func TestIntegrationStatsVoidGames(t *testing.T) {
+// TestIntegrationStatsAbsentSkipPlayer — verifikasi semantik absent_policy
+// = "skip_player" (kontrak produk saat ini, lihat commit b4ad7af dan
+// absent_policy_verify_test.go): game yang memuat pemain is_absent TETAP
+// dihitung untuk pemain lain; hanya pemain absent sendiri yang dikecualikan.
+// Semantik lama "void seluruh game" sudah tidak dipakai.
+// Hanya jalan dengan MAJADU_TEST_DATABASE_URL.
+func TestIntegrationStatsAbsentSkipPlayer(t *testing.T) {
 	url := os.Getenv("MAJADU_TEST_DATABASE_URL")
 	if url == "" {
 		t.Skip("MAJADU_TEST_DATABASE_URL not set — skipping integration test")
@@ -67,7 +69,7 @@ func TestIntegrationStatsVoidGames(t *testing.T) {
 	//   g4 (3-0): itv1+itv2 vs itv3+itvF — VOID (itvF placeholder "free 1")
 	snap := &domain.CloudSnapshot{
 		Session: domain.SessionConfig{
-			Title: "ITV", Date: "2026-08-12", Courts: 1,
+			Title: "ITV", Date: testSessionDate(2), Courts: 1,
 			SessionStart: "09:00", SlotMinutes: 20,
 			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
 			PlayerCount: len(players),
@@ -96,7 +98,7 @@ func TestIntegrationStatsVoidGames(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 	defer func() {
-		_ = st.Delete(ctx, id)
+		cleanupSession(ctx, st, id)
 	}()
 
 	// Pastikan snapshot round-trip memuat absent
@@ -123,27 +125,34 @@ func TestIntegrationStatsVoidGames(t *testing.T) {
 		return s
 	}
 
-	// itv1: hanya game 1 (valid, menang 21-18)
+	// Kontrak skip_player: game yang memuat pemain lain yang absent tetap
+	// dihitung. g1 0-0 (21-18), g2 1-0 (21-10), g3 2-0 (12-21), g4 3-0 (21-19);
+	// itvX absent; itvF placeholder.
+	// itv1 main g1(A menang), g3(A kalah), g4(A menang).
 	s1 := get("ITV One")
-	if s1.GamesPlayed != 1 || s1.Wins != 1 || s1.Losses != 0 || s1.PointsFor != 21 || s1.PointsAgainst != 18 {
+	if s1.GamesPlayed != 3 || s1.Wins != 2 || s1.Losses != 1 || s1.PointsFor != 54 || s1.PointsAgainst != 58 {
 		t.Fatalf("ITV One stats salah: %+v", s1)
 	}
 
-	// itv2: hanya game 1 (game 2 & 3 VOID walau ia ikut di dalamnya)
+	// itv2 main g1(A menang), g2(A menang), g3(A kalah), g4(A menang).
 	s2 := get("ITV Two")
-	if s2.GamesPlayed != 1 || s2.Wins != 1 || s2.Losses != 0 || s2.PointsFor != 21 {
-		t.Fatalf("ITV Two stats salah (game void ikut terhitung?): %+v", s2)
+	if s2.GamesPlayed != 4 || s2.Wins != 3 || s2.Losses != 1 || s2.PointsFor != 75 || s2.PointsAgainst != 68 {
+		t.Fatalf("ITV Two stats salah: %+v", s2)
 	}
 
-	// itv3 & itv4: hanya game 1 (kalah)
-	for _, n := range []string{"ITV Three", "ITV Four"} {
-		s := get(n)
-		if s.GamesPlayed != 1 || s.Wins != 0 || s.Losses != 1 || s.PointsAgainst != 21 {
-			t.Fatalf("%s stats salah: %+v", n, s)
-		}
+	// itv3 main g1(B kalah), g2(B kalah), g3(B menang), g4(B kalah).
+	s3 := get("ITV Three")
+	if s3.GamesPlayed != 4 || s3.Wins != 1 || s3.Losses != 3 || s3.PointsFor != 68 || s3.PointsAgainst != 75 {
+		t.Fatalf("ITV Three stats salah: %+v", s3)
 	}
 
-	// itvX (absent): TIDAK boleh dapat games dari game void
+	// itv4 main g1(B kalah), g2(B kalah).
+	s4 := get("ITV Four")
+	if s4.GamesPlayed != 2 || s4.Wins != 0 || s4.Losses != 2 || s4.PointsFor != 28 || s4.PointsAgainst != 42 {
+		t.Fatalf("ITV Four stats salah: %+v", s4)
+	}
+
+	// itvX (absent): satu-satunya yang dikecualikan → 0 game.
 	sx := get("ITV Absent")
 	if sx.GamesPlayed != 0 || sx.Wins != 0 || sx.Losses != 0 {
 		t.Fatalf("absent player stats salah (harusnya 0 game): %+v", sx)

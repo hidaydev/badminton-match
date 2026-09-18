@@ -16,11 +16,13 @@ func TestIntegrationSeasonReset(t *testing.T) {
 	st, schema := ratingTestEnv(t)
 	ctx := context.Background()
 
+	// Peta tier numerik → kelas: 1..8 = D, D+, C, C+, B, B+, A, A+
+	// (session_write.go firstSetPlayerTier).
 	players := []domain.Player{
 		{ID: "itse1", Name: "ITSE One", Gender: "M", Tier: 3}, // C → mid 1450
 		{ID: "itse2", Name: "ITSE Two", Gender: "M", Tier: 3},
-		{ID: "itse3", Name: "ITSE Three", Gender: "M", Tier: 4}, // D → mid 1150
-		{ID: "itse4", Name: "ITSE Four", Gender: "M", Tier: 4},
+		{ID: "itse3", Name: "ITSE Three", Gender: "M", Tier: 1}, // D → mid 1150
+		{ID: "itse4", Name: "ITSE Four", Gender: "M", Tier: 1},
 	}
 	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
 		t.Fatalf("register: %v", err)
@@ -41,11 +43,7 @@ func TestIntegrationSeasonReset(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	created, _ := st.Load(ctx, id)
-	created.Session.Locked = true
-	if _, err := st.Save(ctx, id, created); err != nil {
-		t.Fatalf("lock: %v", err)
-	}
+	saveLock(t, st, ctx, id)
 
 	// Ingest → ada event + rating
 	if res, err := st.IngestSession(ctx, id); err != nil || res.Processed != 1 {
