@@ -9,6 +9,10 @@
 > tetap sebagai *read projection* (GET); kontrak write live = granular.
 > **Prinsip:** Ideal + best practice, tanpa kompromi solo-dev. Mengejar correctness,
 > concurrency, dan scalability untuk 60p + multi-admin live.
+>
+> **Catatan (2026-09-19):** ini arsip keputusan, bukan dokumen operasional. Skema terkini ada di
+> [`data-model.md`](data-model.md) + [`../backend/`](../backend/README.md); status & infra terkini di
+> [`current-status.md`](current-status.md). Sebutan `bm_dev`, IP, dan path VPS di bawah sudah tidak berlaku.
 
 ---
 

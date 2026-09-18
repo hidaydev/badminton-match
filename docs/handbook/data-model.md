@@ -73,6 +73,18 @@ Main sources: `apps/web/src/utils/tournament.ts` & `apps/web/src/utils/teamTourn
 
 Backend: Go (`majadu-api`) terhubung langsung ke PostgreSQL VPS pada schema `bm` (production).
 
+### Resolusi Nama (snapshot vs canonical)
+
+- `session_players.source_name` dan `tournament_team_players.player_name` adalah **snapshot** nama
+  saat sesi/turnamen dibuat. Nilainya ikut `SourceFingerprint` / `MatchKey`, jadi **tidak boleh
+  dimutasi** oleh rename — kalau berubah, sesi lama dianggap berubah sumbernya (`ErrSourceChanged`).
+- Nama yang ditampilkan di-resolve dari `players.canonical_name` bila pemain terdaftar:
+  `COALESCE(p.canonical_name, sp.source_name)` di read-path sesi, dan
+  `COALESCE(p.canonical_name, ttp.player_name)` di read-path team tournament.
+  Placeholder (pemain tanpa `player_id`) tetap memakai snapshot.
+- `RenamePlayer` hanya memperbarui `players.canonical_name`, `player_aliases`, dan
+  `tournament_pairs.pair_name` (classic tournament).
+
 ### Main Tables & Identity
 
 - `sessions`: Session aggregate metadata dengan `id` (UUID PK), `share_code` (`s+10alnum` UNIQUE), `version` (int), `status` (`'draft'` | `'locked'`), `session_date`.
@@ -85,6 +97,16 @@ Backend: Go (`majadu-api`) terhubung langsung ke PostgreSQL VPS pada schema `bm`
 - `scheduled_games`: Game unit per slot/court dengan `version` (BIGINT per-row OCC), `is_played`, `score_a`, `score_b`, `skipped_player_refs`.
 - `idempotency_keys`: `(session_id, key)` PK dengan `response` JSONB & `expires_at` TTL persistent.
 - `outbox_events`: Durable event log untuk SSE stream & event catch-up.
+
+### Player Achievements (Migration `000016`)
+
+- `player_achievements`: satu baris = satu achievement per pemain. `achievement_key` UNIQUE per
+  `player_id` (identitas + idempotency); `kind` ∈ `attendance`, `volume`, `opponent`, `tournament`,
+  `tier`, `rating`, `rank`, `social`, `season`; `season_id` opsional; `value` untuk achievement
+  tipe rekor; `earned_at` tidak berubah walau rekor naik; `meta` JSONB.
+- Index: `idx_player_achievements_player(player_id, earned_at DESC)`, `idx_player_achievements_kind(kind)`.
+- Definisi & ambang achievement: `apps/api/internal/domain/achievements.go` dan
+  `apps/web/src/config/achievements.ts`.
 
 ### Performance Indexes (Migration `000015`)
 
@@ -111,3 +133,5 @@ Backend: Go (`majadu-api`) terhubung langsung ke PostgreSQL VPS pada schema `bm`
 - `players.gender`: CHECK (gender IN ('M', 'F')), NOT NULL, DEFAULT 'M'.
 - `player_aliases.alias_name`: LOWERCASE UNIQUE PK.
 - `session_players`: UNIQUE (session_id, player_id).
+- `player_achievements`: UNIQUE (player_id, achievement_key); `player_id` ON DELETE CASCADE;
+  `season_id` ON DELETE SET NULL.

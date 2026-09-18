@@ -84,7 +84,17 @@ The app tracks player ratings using a **Glicko-1-lite** engine:
 - Player detail: stat cards, sparkline trend, recent matches (paginated, "with teammate · vs opponent" format), career stats
 - Auto-ingest locked sessions (backend ticker every 30 min)
 
-### 7. Tournament
+### 7. Achievements
+
+Setiap pemain punya koleksi badge yang dihitung backend dari riwayat rating & tournament
+(tabel `player_achievements`, migrasi `000016`):
+
+- kategori: `attendance`, `volume`, `opponent`, `tournament`, `tier`, `rating`, `rank`, `social`, `season`
+- medal bertingkat (Bronze–Onyx) untuk achievement tipe rekor; `earned_at` tetap walau rekor naik
+- tampil di halaman detail rating `/ratings/:playerId`
+- halaman preview semua badge di `/dev/achievement-badges`
+
+### 8. Tournament
 
 The tournament module supports two formats:
 
@@ -101,7 +111,7 @@ The tournament module supports two formats:
 - Champion banner with trophy decoration
 - Instagram post export with dark gradient frame
 
-### 8. Social export
+### 9. Social export
 
 The app can render session and tournament visuals for sharing:
 
@@ -110,7 +120,7 @@ The app can render session and tournament visuals for sharing:
 - bracket cover and result assets
 - team tournament standings post (dark gradient frame)
 
-### 9. Admin
+### 10. Admin
 
 5 separate admin pages for managing the system:
 

@@ -1,6 +1,6 @@
 # Majadu App — Design System
 
-> Formalized and adopted across the codebase. Last updated: 2026-07-30.
+> Formalized and adopted across the codebase. Last updated: 2026-09-19.
 
 ## Typography
 
@@ -14,44 +14,46 @@ Loaded via Google Fonts (`display=swap`). Body uses `var(--font-sans)`.
 
 ## Color Tokens (Tailwind v4 `@theme`)
 
-> These are the actual tokens used in components. Defined in `src/index.css` `@theme` block.
+> These are the actual tokens used in components. Defined in the `@theme` block of
+> `apps/web/src/index.css`. Contrast ratios dihitung terhadap `--color-ground`.
 
 ### Background
 | Token | Hex | Tailwind class | Usage |
 |-------|-----|----------------|-------|
-| `--color-ground` | `#0f172a` | `bg-ground` | Page background |
-| `--color-surface` | `#1e293b` | `bg-surface` | Cards, panels |
-| `--color-elevated` | `#334155` | `bg-elevated` | Inner cards, inputs |
+| `--color-ground` | `#0b0e13` | `bg-ground` | Page background |
+| `--color-surface` | `#14181f` | `bg-surface` | Cards, panels |
+| `--color-elevated` | `#1c212b` | `bg-elevated` | Inner cards, inputs |
 
 ### Border
 | Token | Hex | Tailwind class | Usage |
 |-------|-----|----------------|-------|
-| `--color-border` | `#475569` | `border-border` | Visible borders |
-| `--color-border-subtle` | `#334155` | `border-border-subtle` | Dividers, card borders |
+| `--color-border` | `#2a313c` | `border-border` | Visible borders |
+| `--color-border-subtle` | `#22272f` | `border-border-subtle` | Dividers, card borders |
 
 ### Text (WCAG AA on `bg-ground`)
 | Token | Hex | Tailwind class | Ratio |
 |-------|-----|----------------|-------|
-| `--color-fg` | `#f1f5f9` | `text-fg` | ~15.5:1 |
-| `--color-fg-dim` | `#94a3b8` | `text-fg-dim` | ~7.1:1 |
+| `--color-fg` | `#eef0f3` | `text-fg` | ~16.9:1 |
+| `--color-fg-dim` | `#8b939c` | `text-fg-dim` | ~6.2:1 |
 
 ### Accent
 | Token | Hex | Tailwind class | Usage |
 |-------|-----|----------------|-------|
-| `--color-accent` | `#fbbf24` | `text-accent` | Brand, CTA, highlights |
-| `--color-accent-alt` | `#818cf8` | `text-accent-alt` | Interactive, links |
+| `--color-accent` | `#e3b341` | `text-accent` | Brand, CTA, highlights |
+| `--color-accent-alt` | `#e3b341` | `text-accent-alt` | Interactive, links (kini sama dengan `accent`) |
 
 ### Status
 | Token | Hex | Tailwind class | Usage |
 |-------|-----|----------------|-------|
-| `--color-success` | `#34d399` | `text-success` | Positive states |
-| `--color-error` | `#f87171` | `text-error` | Errors, destructive |
-| `--color-warning` | `#fbbf24` | `text-warning` | Warnings |
-| `--color-info` | `#38bdf8` | `text-info` | Informational |
+| `--color-success` | `#43a57d` | `text-success` | Positive states |
+| `--color-error` | `#d65a5a` | `text-error` | Errors, destructive |
+| `--color-warning` | `#e3b341` | `text-warning` | Warnings (sama dengan `accent`) |
+| `--color-info` | `#5b8fbd` | `text-info` | Informational |
 
 ## Token Usage in Components
 
-The semantic tokens are actively used across the codebase:
+Migrasi ke semantic token belum 100%; sebagian komponen masih memakai kelas palet mentah
+(`slate-*`, `indigo-*`). Padanan yang dituju:
 
 | Pattern | Raw Tailwind | Semantic Token |
 |---------|-------------|----------------|
@@ -132,9 +134,12 @@ className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-
 
 ## File Locations
 
+Paths relatif terhadap `apps/web/`:
+
 | Resource | Path |
 |----------|------|
 | CSS tokens (`@theme`) | `src/index.css` |
 | Tier config | `src/config/tiers.ts` |
 | Canvas config | `src/config/canvas.ts` |
 | Generator config | `src/config/generator.ts` |
+| Achievement config | `src/config/achievements.ts` |

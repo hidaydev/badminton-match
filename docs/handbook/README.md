@@ -2,19 +2,22 @@
 
 ## Start Here
 
-- [current-status.md](current-status.md) — Primary handover document (last updated: 2026-09-10)
-- [product-overview.md](product-overview.md) — Product description & feature map
-- [architecture.md](architecture.md) — System architecture, SSE catch-up & PWA Workbox strategies
-- [backend-go-decision.md](backend-go-decision.md) — Architecture decision: Go backend menggantikan PostgREST RPC (2026-08-11)
-- [design-system.md](../design-system.md) — Colors, typography, components, tokens (Tailwind v4 `@theme`)
+- [current-status.md](current-status.md) — status, infrastruktur, hasil test (pintu masuk tercepat)
+- [product-overview.md](product-overview.md) — deskripsi produk & peta fitur
+- [architecture.md](architecture.md) — arsitektur sistem, SSE catch-up & PWA Workbox
+- [backend-go-decision.md](backend-go-decision.md) — ADR: Go menggantikan PostgREST RPC (2026-08-11, historis)
+- [design-system.md](../design-system.md) — colors, typography, components, tokens
 
 ## Reference
 
-- [data-model.md](data-model.md) — Single Source of Truth for Data Types & Database Schema (`bm` via `majadu-api`)
-- [features-and-routes.md](features-and-routes.md) — UI routes and features
-- [roadmap.md](roadmap.md) — Phase plan and status
-- [revamp-grand-plan.md](revamp-grand-plan.md) — Architecture Decision: Granular REST live ops
+- [data-model.md](data-model.md) — SSOT tipe data & skema Postgres (`bm`)
+- [features-and-routes.md](features-and-routes.md) — UI routes & kapabilitas halaman
+- [roadmap.md](roadmap.md) — fase selesai & prioritas berikutnya
+- [revamp-grand-plan.md](revamp-grand-plan.md) — design doc granular live (sudah diimplementasikan)
 
 ## Arsip
 
-Dokumen era Apps Script / Supabase (archive/, superpowers/, runbook, audit, dsb.) dihapus 2026-08-15 — semua tersedia di git history (`git log --all -- docs/`).
+- [`../backend/`](../backend/README.md) — SQL migrasi `000013`–`000016`
+- [`../superpowers/specs/`](../superpowers/specs/) — design spec per fitur
+- Dokumen era Apps Script / Supabase (archive/, runbook, audit) dihapus 2026-08-15 —
+  tersedia di git history (`git log --all -- docs/`).

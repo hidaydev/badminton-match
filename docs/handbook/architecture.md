@@ -222,7 +222,7 @@ Backend **Go (`majadu-api`)** menghubungkan frontend ke Postgres VPS langsung
 
 - write-path session/tournament: transaksi + advisory lock + version concurrency
 - read-path: rebuild snapshot langsung di Go
-- schema `bm` (prod, satu-satunya — `bm_dev`/instance dev di-sunset 2026-09-04); migrasi `000001`–`000011` disimpan di VPS (`/srv/qouver/apps/majadu/migrations/`), `000012`+ di [`docs/backend/`](../backend/)
+- schema `bm` (prod, satu-satunya — `bm_dev`/instance dev di-sunset 2026-09-04); migrasi `000001`–`000012` disimpan di VPS (tidak dipublikasikan), `000013`–`000016` di [`docs/backend/`](../backend/)
 - semua logika validasi/lock/resolve ada di Go — sisa fungsi SQL hanya
   `normalize_player_name` (CHECK constraint) + utilitas
 
@@ -251,7 +251,7 @@ PWA butuh feedback instan + offline; server tetap jadi penjaga invariant.
 - keep storage concerns behind the query layer
 - keep pure domain logic in generator and utility modules
 - avoid making `MDEF` shape the internal schema of `badminton-match`
-- treat `bm`/`bm_dev` as the runtime schema, diakses via `majadu-api`
+- treat `bm` as the runtime schema, diakses via backend Go (`apps/api`)
 
 ## Clean Architecture (post-audit)
 

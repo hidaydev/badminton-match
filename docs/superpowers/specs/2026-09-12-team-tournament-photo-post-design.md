@@ -1,7 +1,7 @@
 # Team Tournament · Photo & Instagram Post Feature
 
 **Date:** 2026-09-12
-**Status:** Approved
+**Status:** Implemented (2026-09-12, PR #20)
 
 ## Summary
 
