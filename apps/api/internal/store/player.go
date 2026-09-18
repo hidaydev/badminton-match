@@ -195,12 +195,101 @@ func (s *PlayerStore) RenamePlayer(ctx context.Context, playerID, newName string
 	// dibekukan saat publish, jadi tanpa ini sesi lama tetap menampilkan nama
 	// (beserta anotasi) yang sudah tak relevan — dan read-path Load() memakai
 	// kolom ini. Filter player_id: placeholder (player_id NULL) tidak ikut.
-	// Alias nama baru di atas membuat rating ingest sesi lama tetap resolve.
+	//
+	// HANYA sesi yang belum pernah di-ingest: source_name ikut masuk
+	// SourceFingerprint (berbasis nama). Mengubahnya pada sumber yang sudah
+	// ter-ingest membuat fingerprint mismatch → manual re-ingest gagal
+	// (ErrSourceChanged). Sesi ter-ingest sengaja dibiarkan memakai nama lama
+	// agar re-ingest/reconcile tetap aman.
 	if _, err := tx.Exec(ctx, `
-		UPDATE `+s.schema+`.session_players
+		UPDATE `+s.schema+`.session_players sp
 		SET source_name = $2
-		WHERE player_id = $1::uuid`, playerID, strings.TrimSpace(newName)); err != nil {
+		WHERE sp.player_id = $1::uuid
+		  AND NOT EXISTS (
+			SELECT 1 FROM `+s.schema+`.rating_sources rs
+			JOIN `+s.schema+`.sessions s ON s.share_code = rs.source_id
+			WHERE s.id = sp.session_id AND rs.fingerprint <> ''
+		  )`, playerID, strings.TrimSpace(newName)); err != nil {
+		return err
+	}
+
+	// Nama beku di tournament — pair_name ("Dwi & Ismet") dan
+	// tournament_team_players.player_name.
+	//
+	// Untuk team, player_name IKUT fingerprint (rating_extract extractTeamMatches
+	// membaca kolom ini) → hanya tournament yang BELUM ter-ingest boleh diubah.
+	// Untuk classic, fingerprint dibangun dari players.canonical_name (bukan
+	// pair_name), jadi gate pair_name sebenarnya lebih konservatif dari yang
+	// dibutuhkan — dipakai tetap agar konsisten & tidak mengejutkan.
+	// Catatan: rename canonical_name tetap mengubah fingerprint classic yang
+	// sudah ter-ingest (perilaku lama, di luar scope fix ini).
+	// Selalu dijalankan (termasuk rename beda kapital saja) agar konsisten
+	// dengan update session_players di atas; replacePlayerNameSegment
+	// mengembalikan string apa adanya bila tidak ada segmen yang cocok.
+	if err := s.propagateRenameToTournaments(ctx, tx, playerID, oldCanonical, strings.TrimSpace(newName)); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// propagateRenameToTournaments — ganti nama pemain di pair_name + player_name
+// tournament yang belum ter-ingest. pair_name adalah string gabungan, jadi
+// penggantian hanya pada segmen utuh (lihat replacePlayerNameSegment).
+// team_name adalah nama TIM, bukan nama pemain → tidak disentuh.
+func (s *PlayerStore) propagateRenameToTournaments(ctx context.Context, tx pgx.Tx, playerID, oldName, newName string) error {
+	// Pair yang memuat player ini, di tournament yang belum ter-ingest.
+	rows, err := tx.Query(ctx, `
+		SELECT DISTINCT tp.id::text, tp.pair_name
+		FROM `+s.schema+`.tournament_pairs tp
+		JOIN `+s.schema+`.tournament_pair_players tpp ON tpp.pair_id = tp.id
+		JOIN `+s.schema+`.tournaments t ON t.id = tp.tournament_id
+		WHERE tpp.player_id = $1::uuid
+		  AND NOT EXISTS (
+			SELECT 1 FROM `+s.schema+`.rating_sources rs
+			WHERE rs.source_id = t.share_code AND rs.fingerprint <> ''
+		  )`, playerID)
+	if err != nil {
+		return err
+	}
+	type pairUpdate struct {
+		id      string
+		newName string
+	}
+	updates := []pairUpdate{}
+	for rows.Next() {
+		var id, pairName string
+		if err := rows.Scan(&id, &pairName); err != nil {
+			rows.Close()
+			return err
+		}
+		if repl := replacePlayerNameSegment(pairName, oldName, newName); repl != pairName {
+			updates = append(updates, pairUpdate{id: id, newName: repl})
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, u := range updates {
+		if _, err := tx.Exec(ctx, `
+			UPDATE `+s.schema+`.tournament_pairs SET pair_name = $2 WHERE id = $1::uuid`, u.id, u.newName); err != nil {
+			return err
+		}
+	}
+
+	// team tournament: player_name denormalized (player_id tersimpan).
+	if _, err := tx.Exec(ctx, `
+		UPDATE `+s.schema+`.tournament_team_players ttp
+		SET player_name = $2
+		WHERE ttp.player_id = $1::uuid
+		  AND NOT EXISTS (
+			SELECT 1 FROM `+s.schema+`.tournament_teams tt
+			JOIN `+s.schema+`.tournaments t ON t.id = tt.tournament_id
+			JOIN `+s.schema+`.rating_sources rs
+			  ON rs.source_id = t.share_code AND rs.fingerprint <> ''
+			WHERE tt.id = ttp.team_id
+		  )`, playerID, newName); err != nil {
+		return err
+	}
+	return nil
 }
