@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import type { Gender, Tier, Player } from '../types'
 import { useStore } from '../store'
 import { useNavigate } from 'react-router-dom'
 import { isPlaceholderName } from '../utils/placeholders'
-import { listPlayers } from '../queries/endpoints'
+import { useListPlayers } from '../queries'
 
 function parsePlayerList(raw: string): string[] {
   return raw
@@ -336,25 +336,20 @@ export default function PlayersPage() {
   const [showForm, setShowForm] = useState(false)
   const [showBulk, setShowBulk] = useState(false)
   const navigate = useNavigate()
-  const [canonicalPlayers, setCanonicalPlayers] = useState<Map<string, { gender: Gender; tier: Tier }>>(new Map())
-  const [canonicalList, setCanonicalList] = useState<Array<{ name: string; gender: Gender; tier: Tier }>>([])
-
-  // Fetch canonical players for auto-fill
-  useEffect(() => {
-    listPlayers().then((rows) => {
-      const map = new Map<string, { gender: Gender; tier: Tier }>()
-      const list: Array<{ name: string; gender: Gender; tier: Tier }> = []
-      for (const row of rows) {
-        // Use tierInduk (canonical tier) if available, fallback to tier (display)
-        const canonicalTier = row.tierInduk ? tierStringToNumber(row.tierInduk) : (row.tier || 2)
-        const entry = { gender: row.gender as Gender, tier: canonicalTier as Tier }
-        map.set(row.name.toLowerCase(), entry)
-        list.push({ name: row.name, ...entry })
-      }
-      setCanonicalPlayers(map)
-      setCanonicalList(list)
-    }).catch(() => {})
-  }, [])
+  // Canonical players for auto-fill — via react-query (sama seperti AdminPlayersPage).
+  const { data: canonicalRows } = useListPlayers()
+  const { canonicalPlayers, canonicalList } = useMemo(() => {
+    const map = new Map<string, { gender: Gender; tier: Tier }>()
+    const list: Array<{ name: string; gender: Gender; tier: Tier }> = []
+    for (const row of canonicalRows ?? []) {
+      // Use tierInduk (canonical tier) if available, fallback to tier (display)
+      const canonicalTier = row.tierInduk ? tierStringToNumber(row.tierInduk) : (row.tier || 2)
+      const entry = { gender: row.gender as Gender, tier: canonicalTier as Tier }
+      map.set(row.name.toLowerCase(), entry)
+      list.push({ name: row.name, ...entry })
+    }
+    return { canonicalPlayers: map, canonicalList: list }
+  }, [canonicalRows])
 
   const required = session.playerCount
   const isComplete = players.length === required
