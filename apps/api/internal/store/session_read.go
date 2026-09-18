@@ -172,6 +172,11 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 	}
 	games := []gameRow{}
 	gameIdx := map[string]int{} // internal_id → index di games
+
+	// Baca scheduled_games, dengan fallback bila kolom skipped_player_refs
+	// belum ada (migration 000014 belum apply). hasSkippedCol menandai bentuk
+	// baris yang dipakai; scan menyesuaikan.
+	hasSkippedCol := true
 	rows, err = tx.Query(ctx, `
 		SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
 		       sg.is_played, sg.played_order, sg.score_a, sg.score_b,
@@ -179,70 +184,34 @@ func (s *SessionStore) Load(ctx context.Context, id string) (*domain.CloudSnapsh
 		FROM scheduled_games sg
 		WHERE sg.session_id = $1::uuid
 		ORDER BY sg.legacy_order`, sessionID)
-	if err != nil {
-		// Fallback if migration 000014 not yet applied (42703 undefined_column)
-		if isSkippedColumnMissing(err) {
-			rows, err = tx.Query(ctx, `
-				SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
-				       sg.is_played, sg.played_order, sg.score_a, sg.score_b
-				FROM scheduled_games sg
-				WHERE sg.session_id = $1::uuid
-				ORDER BY sg.legacy_order`, sessionID)
-		}
-		if err != nil {
-			return nil, err
-		}
+	if err != nil && isSkippedColumnMissing(err) {
+		hasSkippedCol = false
+		rows, err = tx.Query(ctx, `
+			SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
+			       sg.is_played, sg.played_order, sg.score_a, sg.score_b
+			FROM scheduled_games sg
+			WHERE sg.session_id = $1::uuid
+			ORDER BY sg.legacy_order`, sessionID)
 	}
-	// scan with fallback (skipped col may be missing)
-	hadSkippedCol := true
+	if err != nil {
+		return nil, err
+	}
 	for rows.Next() {
 		var g gameRow
-		var skipped []string
-		var scanErr error
-		if hadSkippedCol {
-			scanErr = rows.Scan(&g.internalID, &g.legacyOrd, &g.slot, &g.court, &g.isPlayed, &g.playedOrd, &g.scoreA, &g.scoreB, &skipped)
-			if scanErr != nil && isSkippedColumnMissing(scanErr) {
-				hadSkippedCol = false
-				// re-query without skipped column — should not happen mid-rows, but handle
+		if hasSkippedCol {
+			var skipped []string
+			if err := rows.Scan(&g.internalID, &g.legacyOrd, &g.slot, &g.court, &g.isPlayed, &g.playedOrd, &g.scoreA, &g.scoreB, &skipped); err != nil {
 				rows.Close()
-				rows, err = tx.Query(ctx, `
-					SELECT sg.internal_id::text, sg.legacy_order, sg.slot_index, sg.court_index,
-					       sg.is_played, sg.played_order, sg.score_a, sg.score_b
-					FROM scheduled_games sg
-					WHERE sg.session_id = $1::uuid
-					ORDER BY sg.legacy_order`, sessionID)
-				if err != nil {
-					return nil, err
-				}
-				// restart scan from new rows
-				games = []gameRow{}
-				gameIdx = map[string]int{}
-				for rows.Next() {
-					var g2 gameRow
-					if err := rows.Scan(&g2.internalID, &g2.legacyOrd, &g2.slot, &g2.court, &g2.isPlayed, &g2.playedOrd, &g2.scoreA, &g2.scoreB); err != nil {
-						rows.Close()
-						return nil, err
-					}
-					gameIdx[g2.internalID] = len(games)
-					games = append(games, g2)
-				}
-				rows.Close()
-				if err := rows.Err(); err != nil {
-					return nil, err
-				}
-				break
+				return nil, err
 			}
-		} else {
-			scanErr = rows.Scan(&g.internalID, &g.legacyOrd, &g.slot, &g.court, &g.isPlayed, &g.playedOrd, &g.scoreA, &g.scoreB)
-		}
-		if scanErr != nil {
-			rows.Close()
-			return nil, scanErr
-		}
-		if hadSkippedCol {
+			if skipped == nil {
+				skipped = []string{}
+			}
 			g.skipped = skipped
-			if g.skipped == nil {
-				g.skipped = []string{}
+		} else {
+			if err := rows.Scan(&g.internalID, &g.legacyOrd, &g.slot, &g.court, &g.isPlayed, &g.playedOrd, &g.scoreA, &g.scoreB); err != nil {
+				rows.Close()
+				return nil, err
 			}
 		}
 		gameIdx[g.internalID] = len(games)
