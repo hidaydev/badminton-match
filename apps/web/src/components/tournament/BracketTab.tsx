@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import { drawMatchPost, drawBracketRoundCover, drawPositionPost } from '../../utils/canvasPost'
 import type { TournamentMatch, TournamentPair } from '../../utils/tournament'
+import { QF_IDS, SF_IDS, FINAL_ID, THIRD_PLACE_ID } from '../../utils/tournament'
 import { canvasToBlob, shareOrDownload } from '../../utils/share'
 import { loadOverlayImages } from '../../utils/overlays'
 import { useImageUploadMap } from '../../hooks/useImageUploadMap'
@@ -120,10 +121,25 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     id ? (pairs.find((p) => p.id === id)?.name ?? id) : 'TBD'
   const get = (id: string) => matches.find((m) => m.id === id)
 
-  const qf1 = get('qf-1'); const qf2 = get('qf-2')
-  const qf3 = get('qf-3'); const qf4 = get('qf-4')
-  const sf1 = get('sf-1'); const sf2 = get('sf-2')
-  const final = get('final-1'); const third = get('3rd-1')
+  const [qf1, qf2, qf3, qf4] = QF_IDS.map(get)
+  const [sf1, sf2] = SF_IDS.map(get)
+  const final = get(FINAL_ID); const third = get(THIRD_PLACE_ID)
+
+  // Round config header — satu blok JSX di-map dari sini (QF/SF/Final).
+  const rounds: {
+    id: string
+    title: string
+    ariaLabel: string
+    downloadTitle: string
+    matchIds: readonly string[]
+  }[] = [
+    { id: 'qf', title: 'QF', ariaLabel: 'Download QF posts', downloadTitle: 'QUARTERFINAL', matchIds: QF_IDS },
+    { id: 'sf', title: 'SF', ariaLabel: 'Download SF posts', downloadTitle: 'SEMIFINAL', matchIds: SF_IDS },
+    { id: 'final', title: 'Final', ariaLabel: 'Download Final posts', downloadTitle: 'FINAL', matchIds: [FINAL_ID, THIRD_PLACE_ID] },
+  ]
+
+  /** Factory handler upload foto per match — hindari 8 closure inline identik. */
+  const openUpload = (matchId: string) => () => openBracketUpload(matchId)
 
   if (!qf1) {
     return (
@@ -145,14 +161,14 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
 
   const bracketSubtitle = (matchId: string): string => {
     const map: Record<string, string> = {
-      'qf-1': 'QUARTERFINAL · QF 1',
-      'qf-2': 'QUARTERFINAL · QF 2',
-      'qf-3': 'QUARTERFINAL · QF 3',
-      'qf-4': 'QUARTERFINAL · QF 4',
-      'sf-1': 'SEMIFINAL · SF 1',
-      'sf-2': 'SEMIFINAL · SF 2',
-      'final-1': 'FINAL',
-      '3rd-1': '3RD PLACE',
+      [QF_IDS[0]]: 'QUARTERFINAL · QF 1',
+      [QF_IDS[1]]: 'QUARTERFINAL · QF 2',
+      [QF_IDS[2]]: 'QUARTERFINAL · QF 3',
+      [QF_IDS[3]]: 'QUARTERFINAL · QF 4',
+      [SF_IDS[0]]: 'SEMIFINAL · SF 1',
+      [SF_IDS[1]]: 'SEMIFINAL · SF 2',
+      [FINAL_ID]: 'FINAL',
+      [THIRD_PLACE_ID]: '3RD PLACE',
     }
     return map[matchId] ?? matchId.toUpperCase()
   }
@@ -168,7 +184,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
     await shareOrDownload([file], positionLabel)
   }
 
-  const handleDownloadRound = async (roundMatchIds: string[], roundTitle: string) => {
+  const handleDownloadRound = async (roundMatchIds: readonly string[], roundTitle: string) => {
     const roundSlug = roundTitle.toLowerCase().replace(/\s+/g, '-')
     const files: File[] = []
 
@@ -222,109 +238,65 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
         <div className="min-w-75 w-full">
           {/* Column headers */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
-            {/* QF header */}
-            <div className="flex items-center justify-center gap-1.5">
-              <span>QF</span>
-              <button
-                onClick={() => setPostModeRounds(prev => ({ ...prev, qf: !prev.qf }))}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds.qf ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
-              >
-                <Icon name="camera" size={15} stroke={postModeRounds.qf ? 'black' : 'white'} strokeWidth={2.2} />
-              </button>
-              {postModeRounds.qf && ['qf-1','qf-2','qf-3','qf-4'].some(id => bracketPhotos[id]) && (
-                <button
-                  aria-label="Download QF posts"
-                  onClick={() => handleDownloadRound(['qf-1','qf-2','qf-3','qf-4'], 'QUARTERFINAL')}
-                  className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                </button>
-              )}
-            </div>
-            <span />
-            {/* SF header */}
-            <div className="flex items-center justify-center gap-1.5">
-              <span>SF</span>
-              <button
-                onClick={() => setPostModeRounds(prev => ({ ...prev, sf: !prev.sf }))}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds.sf ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
-              >
-                <Icon name="camera" size={15} stroke={postModeRounds.sf ? 'black' : 'white'} strokeWidth={2.2} />
-              </button>
-              {postModeRounds.sf && ['sf-1','sf-2'].some(id => bracketPhotos[id]) && (
-                <button
-                  aria-label="Download SF posts"
-                  onClick={() => handleDownloadRound(['sf-1','sf-2'], 'SEMIFINAL')}
-                  className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                </button>
-              )}
-            </div>
-            <span />
-            {/* Final header */}
-            <div className="flex items-center justify-center gap-1.5">
-              <span>Final</span>
-              <button
-                onClick={() => setPostModeRounds(prev => ({ ...prev, final: !prev.final }))}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds.final ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
-              >
-                <Icon name="camera" size={15} stroke={postModeRounds.final ? 'black' : 'white'} strokeWidth={2.2} />
-              </button>
-              {postModeRounds.final && ['final-1','3rd-1'].some(id => bracketPhotos[id]) && (
-                <button
-                  aria-label="Download Final posts"
-                  onClick={() => handleDownloadRound(['final-1','3rd-1'], 'FINAL')}
-                  className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                </button>
-              )}
-            </div>
+            {rounds.map((round, i) => (
+              <Fragment key={round.id}>
+                {i > 0 && <span />}
+                <div className="flex items-center justify-center gap-1.5">
+                  <span>{round.title}</span>
+                  <button
+                    onClick={() => setPostModeRounds(prev => ({ ...prev, [round.id]: !prev[round.id] }))}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds[round.id] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
+                  >
+                    <Icon name="camera" size={15} stroke={postModeRounds[round.id] ? 'black' : 'white'} strokeWidth={2.2} />
+                  </button>
+                  {postModeRounds[round.id] && round.matchIds.some(id => bracketPhotos[id]) && (
+                    <button
+                      aria-label={round.ariaLabel}
+                      onClick={() => handleDownloadRound(round.matchIds, round.downloadTitle)}
+                      className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </Fragment>
+            ))}
           </div>
 
           {/* Upper half: QF1+QF2 → SF1 → Final */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center mb-3">
             <div className="flex flex-col gap-3">
               <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
-                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-1']} onUploadPhoto={() => openBracketUpload('qf-1')} />
+                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[0]]} onUploadPhoto={openUpload(QF_IDS[0])} />
               <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
-                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-2']} onUploadPhoto={() => openBracketUpload('qf-2')} />
+                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[1]]} onUploadPhoto={openUpload(QF_IDS[1])} />
             </div>
             <Connector />
             <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
-              showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos['sf-1']} onUploadPhoto={() => openBracketUpload('sf-1')} />
+              showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos[SF_IDS[0]]} onUploadPhoto={openUpload(SF_IDS[0])} />
             <Connector />
             <MatchCard match={final} label="FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} onSelect={handleSelect}
-              showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos['final-1']} onUploadPhoto={() => openBracketUpload('final-1')} />
+              showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos[FINAL_ID]} onUploadPhoto={openUpload(FINAL_ID)} />
           </div>
 
           {/* Lower half: QF3+QF4 → SF2 | 3RD PLACE (no connector) */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center">
             <div className="flex flex-col gap-3">
               <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
-                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-3']} onUploadPhoto={() => openBracketUpload('qf-3')} />
+                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[2]]} onUploadPhoto={openUpload(QF_IDS[2])} />
               <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
-                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos['qf-4']} onUploadPhoto={() => openBracketUpload('qf-4')} />
+                showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[3]]} onUploadPhoto={openUpload(QF_IDS[3])} />
             </div>
             <Connector />
             <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
-              showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos['sf-2']} onUploadPhoto={() => openBracketUpload('sf-2')} />
+              showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos[SF_IDS[1]]} onUploadPhoto={openUpload(SF_IDS[1])} />
             <span /> {/* no connector to 3rd place */}
             <MatchCard match={third} label="3RD" borderColor="border-slate-600" labelColor="text-slate-400" getPairName={getPairName} onSelect={handleSelect}
-              showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos['3rd-1']} onUploadPhoto={() => openBracketUpload('3rd-1')} />
+              showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos[THIRD_PLACE_ID]} onUploadPhoto={openUpload(THIRD_PLACE_ID)} />
           </div>
         </div>
       </div>

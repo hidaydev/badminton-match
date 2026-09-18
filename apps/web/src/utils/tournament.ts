@@ -4,6 +4,18 @@ import { initTallyRow, tallyMatch, computeDiff, standardStandingSort, type Tally
 export type GroupId = 'A' | 'B' | 'C' | 'D'
 type MatchPhase = 'group' | 'qf' | 'sf' | '3rd' | 'final'
 
+/** Urutan grup kanonik (A–D) — single source of truth untuk seluruh UI/kueri. */
+export const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
+
+/** Grup kosong (4 grup) — default read-only; clone bila perlu dimutasi. */
+export const EMPTY_GROUPS: Record<GroupId, string[]> = { A: [], B: [], C: [], D: [] }
+
+/** Id match knockout — single source of truth (bracket/klasemen/propagasi). */
+export const QF_IDS = ['qf-1', 'qf-2', 'qf-3', 'qf-4'] as const
+export const SF_IDS = ['sf-1', 'sf-2'] as const
+export const FINAL_ID = 'final-1'
+export const THIRD_PLACE_ID = '3rd-1'
+
 export interface TournamentPair {
   id: string
   name: string
@@ -54,10 +66,10 @@ export function initKnockoutMatches(): TournamentMatch[] {
     id, phase, pairAId: null, pairBId: null, scoreA: null, scoreB: null,
   })
   return [
-    ko('qf-1', 'qf'), ko('qf-2', 'qf'), ko('qf-3', 'qf'), ko('qf-4', 'qf'),
-    ko('sf-1', 'sf'), ko('sf-2', 'sf'),
-    ko('3rd-1', '3rd'),
-    ko('final-1', 'final'),
+    ...QF_IDS.map((id) => ko(id, 'qf')),
+    ...SF_IDS.map((id) => ko(id, 'sf')),
+    ko(THIRD_PLACE_ID, '3rd'),
+    ko(FINAL_ID, 'final'),
   ]
 }
 
@@ -133,17 +145,20 @@ export function propagateBracket(
     D: computeGroupStandings('D', groups.D, result),
   }
 
+  const [qf1, qf2, qf3, qf4] = QF_IDS
+  const [sf1, sf2] = SF_IDS
+
   // QF seeding: A1 vs B2, C2 vs D1, C1 vs D2, A2 vs B1
-  update('qf-1', standings.A[0]?.pairId ?? null, standings.B[1]?.pairId ?? null)
-  update('qf-2', standings.C[1]?.pairId ?? null, standings.D[0]?.pairId ?? null)
-  update('qf-3', standings.C[0]?.pairId ?? null, standings.D[1]?.pairId ?? null)
-  update('qf-4', standings.A[1]?.pairId ?? null, standings.B[0]?.pairId ?? null)
+  update(qf1, standings.A[0]?.pairId ?? null, standings.B[1]?.pairId ?? null)
+  update(qf2, standings.C[1]?.pairId ?? null, standings.D[0]?.pairId ?? null)
+  update(qf3, standings.C[0]?.pairId ?? null, standings.D[1]?.pairId ?? null)
+  update(qf4, standings.A[1]?.pairId ?? null, standings.B[0]?.pairId ?? null)
 
-  update('sf-1', getMatchWinner(find('qf-1')), getMatchWinner(find('qf-2')))
-  update('sf-2', getMatchWinner(find('qf-3')), getMatchWinner(find('qf-4')))
+  update(sf1, getMatchWinner(find(qf1)), getMatchWinner(find(qf2)))
+  update(sf2, getMatchWinner(find(qf3)), getMatchWinner(find(qf4)))
 
-  update('final-1', getMatchWinner(find('sf-1')), getMatchWinner(find('sf-2')))
-  update('3rd-1',   getMatchLoser(find('sf-1')),  getMatchLoser(find('sf-2')))
+  update(FINAL_ID, getMatchWinner(find(sf1)), getMatchWinner(find(sf2)))
+  update(THIRD_PLACE_ID, getMatchLoser(find(sf1)), getMatchLoser(find(sf2)))
 
   return result
 }
@@ -158,7 +173,7 @@ export function assignGroupPics(
   const MAX_PIC_ATTEMPTS = 20
   const result = matches.map((match) => ({ ...match }))
 
-  for (const groupId of ['A', 'B', 'C', 'D'] as GroupId[]) {
+  for (const groupId of GROUP_IDS) {
     // Build pairId -> individual names
     const pairNames = new Map<string, string[]>()
     for (const pairId of groups[groupId]) {

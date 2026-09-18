@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useGetTournament } from '../queries'
-import { publishTournament } from '../queries/endpoints'
+import { useGetTournament, usePublishTeamTournament, normalizeTeamMatches } from '../queries'
 import {
   computeTeamStandings,
   generateTeamDraw,
@@ -13,7 +11,6 @@ import {
   teamLogoPath,
   buildTeamMatchFiles,
   buildTeamsByDraw,
-  DEFAULT_TEAM_COURTS,
   TEAM_NAMES,
   PARTAI_CLASSES,
   type TeamMatch,
@@ -39,7 +36,6 @@ const namedIdx = (name: string, fallback: number): number => {
 /** Halaman tournament format TIM: klasemen, undian, jadwal skor partai, final. */
 export default function TeamTournamentPage() {
   const { id = '' } = useParams()
-  const queryClient = useQueryClient()
   const { data, isFetching } = useGetTournament(id)
   const snap = data && data.format === 'team' ? data : null
 
@@ -72,37 +68,19 @@ export default function TeamTournamentPage() {
   // during render" — rekomendasi React, bukan setState di effect).
   if (snap && snap !== prevSnap) {
     setPrevSnap(snap)
-    setLocalMatches(snap.matches.map((m) => ({
-      ...m,
-      courts: m.courts ?? [...DEFAULT_TEAM_COURTS],
-      partai: m.partai.map((p) => ({ ...p })),
-    })))
+    setLocalMatches(normalizeTeamMatches(snap.matches))
     setSlotToNamed(snap.teams.map((t, i) => namedIdx(t.name, i)))
   }
 
-  const publish = useMutation({
-    mutationFn: async (patch: { matches?: TeamMatch[]; teams?: TeamInfo[] }) => {
-      const currentSnap = queryClient.getQueryData<TeamTournamentSnapshot>(['tournament', id])
-      if (!currentSnap || currentSnap.format !== 'team') throw new Error('no data')
-      const next: TeamTournamentSnapshot = { ...currentSnap, version: currentSnap.version, ...patch }
-      return await publishTournament(id, next)
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['tournament', id] })
-      setPublishError(null)
-    },
-    onError: (err) => {
-      setPublishError(err instanceof Error ? err.message : 'Failed to save.')
-      if (snap?.matches) {
-        setLocalMatches(snap.matches.map((m) => ({
-          ...m,
-          courts: m.courts ?? [...DEFAULT_TEAM_COURTS],
-          partai: m.partai.map((p) => ({ ...p })),
-        })))
-      }
-      queryClient.invalidateQueries({ queryKey: ['tournament', id] })
-    },
-  })
+  const publish = usePublishTeamTournament(id)
+
+  /** Publish patch + surface error ke toast (rollback & OCC retry ditangani hook). */
+  const publishPatch = (patch: { matches?: TeamMatch[]; teams?: TeamInfo[] }) => {
+    publish.mutate(patch, {
+      onSuccess: () => setPublishError(null),
+      onError: (err) => setPublishError(err instanceof Error ? err.message : 'Failed to save.'),
+    })
+  }
 
   useEffect(() => {
     if (!publishError) return
@@ -144,7 +122,7 @@ export default function TeamTournamentPage() {
 
   const saveMatches = (matches: TeamMatch[]) => {
     setLocalMatches(matches)
-    publish.mutate({ matches })
+    publishPatch({ matches })
   }
 
   // Undian manual hari-H: named team → dapat slot berapa. Memilih slot yang
@@ -177,7 +155,7 @@ export default function TeamTournamentPage() {
     const perm = slotToNamed ?? teams.map((_, i) => i)
     const namedTeams = buildTeamsByDraw(teams, perm)
     setLocalMatches(matches)
-    publish.mutate({ matches, teams: namedTeams })
+    publishPatch({ matches, teams: namedTeams })
     setTab('jadwal')
   }
 

@@ -1,13 +1,12 @@
 import { useMemo } from 'react'
-import { computeGroupStandings } from '../../utils/tournament'
+import { computeGroupStandings, GROUP_IDS, QF_IDS, FINAL_ID, THIRD_PLACE_ID } from '../../utils/tournament'
 import type { TournamentMatch, TournamentPair, GroupId } from '../../utils/tournament'
 
-const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 const STAGE_LABEL = ['Champion', 'Runner-up', '3rd Place', '4th Place', 'QF Exit', 'Group Stage']
 
 function stageRank(pairId: string, matches: TournamentMatch[]): number {
-  const final = matches.find((m) => m.id === 'final-1')
-  const third = matches.find((m) => m.id === '3rd-1')
+  const final = matches.find((m) => m.id === FINAL_ID)
+  const third = matches.find((m) => m.id === THIRD_PLACE_ID)
   const w = (m?: TournamentMatch) =>
     m && m.scoreA != null && m.scoreB != null ? (m.scoreA > m.scoreB ? m.pairAId : m.pairBId) : null
 
@@ -16,7 +15,7 @@ function stageRank(pairId: string, matches: TournamentMatch[]): number {
   if (w(third) === pairId) return 2
   if (third?.pairAId === pairId || third?.pairBId === pairId) return 3
 
-  const qfIds = ['qf-1', 'qf-2', 'qf-3', 'qf-4']
+  const qfIds: readonly string[] = QF_IDS
   if (matches.some((m) => qfIds.includes(m.id) && (m.pairAId === pairId || m.pairBId === pairId)))
     return 4
 

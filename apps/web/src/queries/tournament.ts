@@ -1,16 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getTournament, listTournaments, createTournament, type TournamentMeta } from './endpoints'
-import type { AnyTournamentSnapshot } from '../utils/teamTournament'
+import { getTournament, listTournaments, createTournament, publishTournament, type TournamentMeta } from './endpoints'
+import {
+  DEFAULT_TEAM_COURTS,
+  type AnyTournamentSnapshot,
+  type TeamInfo,
+  type TeamMatch,
+  type TeamTournamentSnapshot,
+} from '../utils/teamTournament'
 import type { GroupId, TournamentPair } from '../utils/tournament'
 import {
+  GROUP_IDS,
+  EMPTY_GROUPS,
   generateGroupMatches,
   initKnockoutMatches,
   propagateBracket,
   assignGroupPics,
 } from '../utils/tournament'
-import { useOptimisticTournamentMutation } from './useOptimisticMutation'
-
-const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
+import { useOptimisticMutation, useOptimisticTournamentMutation } from './useOptimisticMutation'
 
 /** Daftar tournament (metadata) untuk halaman list. */
 export function useListTournaments() {
@@ -92,7 +98,7 @@ export function useResetTournament(id: string) {
       name,
       date,
       pairs,
-      groups: { A: [], B: [], C: [], D: [] },
+      groups: EMPTY_GROUPS,
       matches: [],
     }),
   )
@@ -113,4 +119,45 @@ export function useRegeneratePics(id: string) {
     undefined,
     false,
   )
+}
+
+/** Patch snapshot tournament tim yang boleh di-publish. */
+export interface TeamTournamentPatch {
+  matches?: TeamMatch[]
+  teams?: TeamInfo[]
+}
+
+/**
+ * Publish patch tournament format TEAM lewat jalur queries — memakai optimistic
+ * update + OCC retry/rebase yang sama dengan mutation classic di file ini.
+ * `version` selalu diambil dari cache agar race-safe (jangan fetch terpisah).
+ */
+export function usePublishTeamTournament(id: string) {
+  return useOptimisticMutation<TeamTournamentSnapshot, TeamTournamentPatch>(
+    id,
+    {
+      queryKey: ['tournament', id],
+      fetchSnapshot: async (tournamentId) => {
+        const snap = await getTournament(tournamentId)
+        return snap && snap.format === 'team' ? snap : null
+      },
+      publish: async (tournamentId, snap) => {
+        const out = await publishTournament(tournamentId, snap)
+        return out.format === 'team' ? out : snap
+      },
+      optimisticUpdate: (current, patch) => {
+        if (!current) return null
+        return { ...current, ...patch, version: current.version }
+      },
+    },
+  )
+}
+
+/** Normalisasi match tim dari server ke bentuk editor (courts & partai dikloning). */
+export function normalizeTeamMatches(matches: TeamMatch[]): TeamMatch[] {
+  return matches.map((m) => ({
+    ...m,
+    courts: m.courts ?? [...DEFAULT_TEAM_COURTS],
+    partai: m.partai.map((p) => ({ ...p })),
+  }))
 }

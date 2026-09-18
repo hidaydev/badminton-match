@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { computeGroupStandings } from '../../utils/tournament'
+import { computeGroupStandings, GROUP_IDS } from '../../utils/tournament'
 import { GROUP_COURTS } from '../../config/tournament'
 import type { GroupId, TournamentMatch, TournamentPair } from '../../utils/tournament'
 import { useImageUploadMap } from '../../hooks/useImageUploadMap'
@@ -8,8 +8,6 @@ import ScoreModal from './ScoreModal'
 import { drawMatchPost, drawGroupSummary } from '../../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../../utils/share'
 import { loadOverlayImages } from '../../utils/overlays'
-
-const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
 interface GroupMatchesProps {
   pairs: TournamentPair[]
