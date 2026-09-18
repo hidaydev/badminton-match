@@ -67,3 +67,6 @@ MONOREPO_PLAN.md
 
 # Local DB dumps (jangan di-commit)
 dump/
+
+# Local quality remediation plan (working doc)
+QUALITY_REMEDIATION_PLAN.md
