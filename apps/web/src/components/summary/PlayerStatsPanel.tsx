@@ -2,6 +2,55 @@ import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, ScheduleSlot } from '../../types'
 import { computePlayerStats } from '../../utils/playerStats'
 
+interface GeneratedPlayerStatsProps {
+  schedule: ScheduleSlot[]
+  playerMap: Map<string, Player>
+}
+
+// Shared by the generate page (ScheduleView) and the non-standalone summary
+// branch: plays/sit/P/O breakdown with target-plays highlighting.
+export function GeneratedPlayerStats({ schedule, playerMap }: GeneratedPlayerStatsProps) {
+  const players = [...playerMap.values()]
+  if (players.length === 0 || schedule.length === 0) return null
+
+  const { playCount, sitCount, partnerWith, facedBy } = computePlayerStats(schedule, players.map(p => p.id))
+
+  const idealPlays = (schedule.length * 4) / players.length
+
+  return (
+    <div className="mt-6 bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-white">Player Stats</span>
+        <span className="text-xs text-slate-400">target ~{idealPlays.toFixed(1)} plays</span>
+      </div>
+      <div className="grid grid-cols-1 gap-y-2">
+        {players
+          .sort((a, b) => (playCount[b.id] ?? 0) - (playCount[a.id] ?? 0))
+          .map((p) => {
+            const plays = playCount[p.id] ?? 0
+            const sits = sitCount[p.id] ?? 0
+            const partners = Object.keys(partnerWith[p.id] ?? {}).length
+            const opponents = Object.keys(facedBy[p.id] ?? {}).length
+            const over = plays > Math.ceil(idealPlays)
+            const under = plays < Math.floor(idealPlays)
+            return (
+              <div key={p.id} className="flex items-center gap-2">
+                <span className="text-xs text-slate-300 w-20 truncate"><AnnotatedPlayerName name={p.name} /></span>
+                <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
+                  {plays}×
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {sits} sit · {partners} P · {opponents} O
+                </span>
+              </div>
+            )
+          })}
+      </div>
+      <p className="text-[10px] text-slate-400">P = unique partners · O = unique opponents faced</p>
+    </div>
+  )
+}
+
 interface PlayerStatsPanelProps {
   schedule: ScheduleSlot[]
   playerMap: Map<string, Player>
@@ -81,43 +130,5 @@ export default function PlayerStatsPanel({
   }
 
   // Generate page: original behavior with target plays
-  const players = [...playerMap.values()]
-  if (players.length === 0 || schedule.length === 0) return null
-
-  const { playCount, sitCount, partnerWith, facedBy } = computePlayerStats(schedule, players.map(p => p.id))
-
-  const idealPlays = (schedule.length * 4) / players.length
-
-  return (
-    <div className="mt-6 bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-white">Player Stats</span>
-        <span className="text-xs text-slate-400">target ~{idealPlays.toFixed(1)} plays</span>
-      </div>
-      <div className="grid grid-cols-1 gap-y-2">
-        {players
-          .sort((a, b) => (playCount[b.id] ?? 0) - (playCount[a.id] ?? 0))
-          .map((p) => {
-            const plays = playCount[p.id] ?? 0
-            const sits = sitCount[p.id] ?? 0
-            const partners = Object.keys(partnerWith[p.id] ?? {}).length
-            const opponents = Object.keys(facedBy[p.id] ?? {}).length
-            const over = plays > Math.ceil(idealPlays)
-            const under = plays < Math.floor(idealPlays)
-            return (
-              <div key={p.id} className="flex items-center gap-2">
-                <span className="text-xs text-slate-300 w-20 truncate"><AnnotatedPlayerName name={p.name} /></span>
-                <span className={`text-xs font-bold w-8 ${over ? 'text-amber-400' : under ? 'text-sky-400' : 'text-emerald-400'}`}>
-                  {plays}×
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  {sits} sit · {partners} P · {opponents} O
-                </span>
-              </div>
-            )
-          })}
-      </div>
-      <p className="text-[10px] text-slate-400">P = unique partners · O = unique opponents faced</p>
-    </div>
-  )
+  return <GeneratedPlayerStats schedule={schedule} playerMap={playerMap} />
 }
