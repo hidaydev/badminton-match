@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetTournament,
   useConfirmGroups,
   useSetTournamentScore,
-  useResetTournament,
-  useRegeneratePics,
 } from '../queries'
-import { getSaveErrorMessage } from '../queries/errors'
 import { GROUP_IDS, EMPTY_GROUPS, type GroupId } from '../utils/tournament'
 import { todayWIB } from '../utils/time'
+import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
+import ErrorBanner from '../components/ErrorBanner'
 import GroupAssignment from '../components/tournament/GroupAssignment'
 import GroupMatches from '../components/tournament/GroupMatches'
 import BracketTab from '../components/tournament/BracketTab'
@@ -60,11 +59,7 @@ export default function TournamentPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   // Auto-dismiss error toast after 5 seconds
-  useEffect(() => {
-    if (!saveError) return
-    const timer = setTimeout(() => setSaveError(null), 5000)
-    return () => clearTimeout(timer)
-  }, [saveError])
+  useAutoDismiss(saveError, setSaveError, 5000)
 
   const queryClient = useQueryClient()
   const { data: snapshot, isFetching, refetch } = useGetTournament(id)
@@ -121,10 +116,8 @@ export default function TournamentPage() {
 
   const { mutate: confirmGroups, isPending: confirmPending } = useConfirmGroups(id)
   const { mutate: setTournamentScore, isPending: setScorePending } = useSetTournamentScore(id)
-  const { mutate: resetTournament, isPending: resetPending } = useResetTournament(id)
-  const { mutate: regeneratePics, isPending: regeneratePicsPending } = useRegeneratePics(id)
 
-  const isSaving = confirmPending || setScorePending || resetPending || regeneratePicsPending
+  const isSaving = confirmPending || setScorePending
 
   // Tanpa id di URL (mis. akses langsung /tournament) → kembali ke list.
   if (!id) return <Navigate to="/tournaments" replace />
@@ -139,11 +132,7 @@ export default function TournamentPage() {
 
   return (
     <div className="flex flex-col gap-0 -mx-3 -mt-4">
-      {saveError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg" role="alert" aria-live="polite">
-          {saveError}
-        </div>
-      )}
+      {saveError && <ErrorBanner message={saveError} ariaLive="polite" />}
       {/* Header */}
       <div className="bg-slate-800 px-4 pt-3 pb-0 border-b border-slate-700">
         <div className="flex items-center gap-2">
@@ -196,22 +185,7 @@ export default function TournamentPage() {
                   pairs={pairs}
                   groups={committedGroups}
                   matches={matches}
-                  onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, {
-                    onSuccess: () => setSaveError(null),
-                    onError: (error) => setSaveError(getSaveErrorMessage(error)),
-                  })}
-                  onResetGroups={() => resetTournament({ name, date, pairs }, {
-                    onSuccess: () => {
-                      setSaveError(null)
-                      setLocalGroups(EMPTY_GROUPS)
-                    },
-                    onError: (error) => setSaveError(getSaveErrorMessage(error)),
-                  })}
-                  onRegeneratePics={() => regeneratePics(undefined, {
-                    onSuccess: () => setSaveError(null),
-                    onError: (error) => setSaveError(getSaveErrorMessage(error)),
-                  })}
-                  isRegeneratingPics={regeneratePicsPending}
+                  onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, mutationToastHandlers(setSaveError))}
                   onOpenModal={handleOpenModal}
                   isFetching={isFetching}
                   refetch={refetch}
@@ -221,10 +195,7 @@ export default function TournamentPage() {
                   groups={localGroups}
                   onAddPairToGroup={addPairToGroup}
                   onRemovePairFromGroup={removePairFromGroup}
-                  onConfirmGroups={() => confirmGroups({ localGroups: (Object.fromEntries(GROUP_IDS.map(g => [g, localGroups[g].filter((id): id is string => id !== null)])) as Record<GroupId, string[]>), name, date, pairs }, {
-                    onSuccess: () => setSaveError(null),
-                    onError: (error) => setSaveError(getSaveErrorMessage(error)),
-                  })}
+                  onConfirmGroups={() => confirmGroups({ localGroups: (Object.fromEntries(GROUP_IDS.map(g => [g, localGroups[g].filter((id): id is string => id !== null)])) as Record<GroupId, string[]>), name, date, pairs }, mutationToastHandlers(setSaveError))}
                   isLoading={confirmPending || isFetching}
                 />
         )}
@@ -232,10 +203,7 @@ export default function TournamentPage() {
           <BracketTab
             pairs={pairs}
             matches={matches}
-            onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, {
-              onSuccess: () => setSaveError(null),
-              onError: (error) => setSaveError(getSaveErrorMessage(error)),
-            })}
+            onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, mutationToastHandlers(setSaveError))}
             onOpenModal={handleOpenModal}
             isFetching={isFetching}
             refetch={refetch}
