@@ -47,19 +47,18 @@ export default function GeneratePage() {
   const cloudSessionId = useStore((s) => s.cloudSessionId)
   const absentPlayers = useStore((s) => s.absentPlayers)
   const setAbsentPlayers = useStore((s) => s.setAbsentPlayers)
-  const [result, setResult] = useState<GeneratorResult | null>(
-    isSharedView ? (snapshot?.lastResult ?? null) : storeResult
+  // Normal flow reads lastResult from the store as the single source of truth.
+  // Shared view is read-only against the server, but its edit handlers may still
+  // adjust the locally-displayed schedule; those tweaks are ephemeral (never
+  // published) and held in this override rather than duplicated store state.
+  const [sharedResult, setSharedResult] = useState<GeneratorResult | null>(
+    isSharedView ? (snapshot?.lastResult ?? null) : null
   )
+  const result = isSharedView ? (sharedResult ?? snapshot?.lastResult ?? null) : storeResult
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [retryInfo, setRetryInfo] = useState<{ attempts: number; perfect: boolean } | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-
-  // Sync local result with store when store changes (e.g., after swapSlotsWithScores)
-  // Handled by reading from store directly in the render, not via useEffect
-  if (!isSharedView && storeResult && storeResult !== result) {
-    setResult(storeResult)
-  }
 
   // Auto-dismiss error toast after 3 seconds (keputusan poin 4)
   useEffect(() => {
@@ -88,7 +87,7 @@ export default function GeneratePage() {
     if (!result) return
     const newSchedule = applySwap(result.schedule, t1, t2)
     updateSchedule(newSchedule)
-    setResult({ ...result, schedule: newSchedule })
+    if (isSharedView) setSharedResult({ ...result, schedule: newSchedule })
     publishToCloud()
   }
 
@@ -96,14 +95,14 @@ export default function GeneratePage() {
     if (!result) return
     const newSchedule = applyTeamSwap(result.schedule, t1, t2)
     updateSchedule(newSchedule)
-    setResult({ ...result, schedule: newSchedule })
+    if (isSharedView) setSharedResult({ ...result, schedule: newSchedule })
     publishToCloud()
   }
 
   function handleSwapSlots(g1: SlotSwapTarget, g2: SlotSwapTarget) {
     if (!result) return
     swapSlotsWithScores(g1, g2)
-    setResult((prev) => prev ? { ...prev, schedule: applySlotSwap(prev.schedule, g1, g2) } : prev)
+    if (isSharedView) setSharedResult({ ...result, schedule: applySlotSwap(result.schedule, g1, g2) })
     publishToCloud()
   }
 
@@ -117,7 +116,7 @@ export default function GeneratePage() {
       teamB: slot.teamB.map(id => id === pid ? newNameId : id) as [PlayerId, PlayerId],
     }))
     updateSchedule(newSchedule)
-    setResult({ ...result, schedule: newSchedule })
+    if (isSharedView) setSharedResult({ ...result, schedule: newSchedule })
     publishToCloud()
   }
 
@@ -171,7 +170,6 @@ export default function GeneratePage() {
         attempts++
         if (isGood(best)) break
       }
-      setResult(best)
       setStoreResult(best)
       setRetryInfo({ attempts, perfect: isGood(best) })
     } catch (e) {
