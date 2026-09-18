@@ -2,6 +2,7 @@ import type { SessionConfig, CourtTime } from '../types'
 import { toTimeString, createCourtTime } from '../types'
 import { timeToMinutes, minutesToTime, todayWIB } from '../utils/time'
 import type { SetState } from './index'
+import { RESET_GENERATED } from './reset'
 
 const DEFAULT_SLOT_MINUTES = 20
 const DEFAULT_COURT_TIMES: CourtTime[] = [
@@ -67,7 +68,7 @@ export const createSessionSlice = (
           courts: n,
           courtTimes,
         },
-        schedule: [], lastResult: null, playedGames: [], gameScores: {},
+        ...RESET_GENERATED,
       }
     }),
 
@@ -86,7 +87,7 @@ export const createSessionSlice = (
           sessionStart: toTimeString(time),
           courtTimes,
         },
-        schedule: [], lastResult: null, playedGames: [], gameScores: {},
+        ...RESET_GENERATED,
       }
     }),
 
@@ -98,7 +99,7 @@ export const createSessionSlice = (
           ...s.session,
           slotMinutes: min,
         },
-        schedule: [], lastResult: null, playedGames: [], gameScores: {},
+        ...RESET_GENERATED,
       }
     }),
 
@@ -116,7 +117,7 @@ export const createSessionSlice = (
             ...s.session,
             courtTimes,
           },
-          schedule: [], lastResult: null, playedGames: [], gameScores: {},
+          ...RESET_GENERATED,
         }
       } catch (e) {
         // If validation fails, don't update - return current state
@@ -151,10 +152,7 @@ export const createSessionSlice = (
       session: makeDefaultSession(),
       players: [],
       fixMatches: [],
-      schedule: [],
-      lastResult: null,
-      playedGames: [],
-      gameScores: {},
+      ...RESET_GENERATED,
       cloudSessionId: null,
       absentPlayers: [],
     })),

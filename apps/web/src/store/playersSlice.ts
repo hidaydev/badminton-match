@@ -2,6 +2,7 @@ import type { Player, MatchConstraint } from '../types'
 import { toPlayerId } from '../types'
 import { generateId } from './sessionSlice'
 import type { SetState } from './index'
+import { RESET_GENERATED } from './reset'
 
 export interface PlayersSlice {
   players: Player[]
@@ -20,7 +21,7 @@ export const createPlayersSlice = (
   addPlayer: (p) =>
     set((s) => {
       if (s.players.length >= s.session.playerCount || s.players.length >= 60) return s
-      return { players: [...s.players, { ...p, id: toPlayerId(generateId()) }], schedule: [], lastResult: null, playedGames: [], gameScores: {} }
+      return { players: [...s.players, { ...p, id: toPlayerId(generateId()) }], ...RESET_GENERATED }
     }),
 
   addPlayers: (newPlayers) =>
@@ -31,7 +32,7 @@ export const createPlayersSlice = (
       if (toAdd.length === 0) return s
       return {
         players: [...s.players, ...toAdd.map((p) => ({ ...p, id: toPlayerId(generateId()) }))],
-        schedule: [], lastResult: null, playedGames: [], gameScores: {},
+        ...RESET_GENERATED,
       }
     }),
 
@@ -47,7 +48,7 @@ export const createPlayersSlice = (
         ((patch.gender !== undefined && patch.gender !== current.gender) ||
           (patch.tier !== undefined && patch.tier !== current.tier))
       if (!changesGeneratorInput) return { players }
-      return { players, schedule: [], lastResult: null, playedGames: [], gameScores: {} }
+      return { players, ...RESET_GENERATED }
     }),
 
   removePlayer: (id) =>
@@ -64,7 +65,7 @@ export const createPlayersSlice = (
           }))
           .filter((m) => m.slots.some((st) => st !== '')),
         absentPlayers: s.absentPlayers.filter((pid) => pid !== id),
-        schedule: [], lastResult: null, playedGames: [], gameScores: {},
+        ...RESET_GENERATED,
       }
     }),
 })
