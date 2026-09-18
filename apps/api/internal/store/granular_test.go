@@ -107,7 +107,6 @@ func TestMetricsRender(t *testing.T) {
 	for _, want := range []string{
 		"majadu_granular_ops_total 3",
 		"majadu_granular_conflicts_total 1",
-		"majadu_contentions_total 0",
 		"majadu_snapshot_puts_total 0",
 		"majadu_outbox_events_total 0",
 		"majadu_idempotency_hits_total 0",

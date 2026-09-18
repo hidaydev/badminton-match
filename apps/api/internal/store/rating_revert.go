@@ -232,7 +232,7 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 			T string `json:"t"`
 		}
 		var ps []pj
-		if err := jsonUnmarshal(playersJSON, &ps); err != nil {
+		if err := json.Unmarshal(playersJSON, &ps); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -405,9 +405,4 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	}
 
 	return len(runtime), nil
-}
-
-// jsonUnmarshal — wrapper encoding/json.Unmarshal (untuk pemain dari agg).
-func jsonUnmarshal(b []byte, v any) error {
-	return json.Unmarshal(b, v)
 }

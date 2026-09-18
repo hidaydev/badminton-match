@@ -14,7 +14,6 @@ import (
 
 // ── Admin: tier induk, delete player (ADMIN_MENU_PLAN.md §3.3-3.4) ──
 
-// SetPlayerTier — ubah tier induk (STICKY, admin-only). TIER_8_UNIFICATION:
 // logRebuildError — RebuildAll setelah commit gagal: perubahan destruktif
 // sudah persisten, rating tinggal tidak konsisten. Log supaya tidak senyap;
 // operator bisa jalankan rebuild manual.
@@ -230,15 +229,4 @@ func (s *SessionStore) AdminDeleteTournament(ctx context.Context, lookup string)
 		return "", err
 	}
 	return shareCode, nil
-}
-
-// SetPlayerTierOnRegister — set tier induk saat registrasi player baru
-// (POST /players optional tier). First-set (tier IS NULL). Validasi 8-tier.
-func (s *SessionStore) SetPlayerTierOnRegister(ctx context.Context, playerID, tier string) error {
-	if !domain.ValidTier(tier) {
-		return fmt.Errorf("%w: tier must be 8-tier (D..A+)", ErrValidation)
-	}
-	_, err := s.pool.Exec(ctx, `UPDATE `+s.schema+`.players SET tier = $2 WHERE id = $1::uuid AND tier IS NULL`,
-		playerID, tier)
-	return err
 }

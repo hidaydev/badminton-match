@@ -477,10 +477,10 @@ func parseSeed(id string) (int, error) {
 func splitPairNames(name string) []string {
 	var out []string
 	for _, part := range strings.FieldsFunc(name, func(r rune) bool {
+		// 'vs' ditangani sebagai kata di bawah; di sini & , / - saja.
 		switch r {
-		case '&', 'v', 's', ',', '/', '-':
-			// 'vs' ditangani secara kata di bawah; di sini & , / - saja
-			return r == '&' || r == ',' || r == '/' || r == '-'
+		case '&', ',', '/', '-':
+			return true
 		}
 		return false
 	}) {
@@ -536,7 +536,7 @@ func registerPlayerInTx(ctx context.Context, tx pgx.Tx, schema string, name, can
 	}
 	// Default gender ke 'M' jika kosong
 	if gender == "" {
-		gender = "M"
+		gender = domain.DefaultGender
 	}
 	var pid string
 	err := tx.QueryRow(ctx, `SELECT player_id::text FROM `+schema+`.player_aliases WHERE alias_name = $1`, aliasNorm).Scan(&pid)

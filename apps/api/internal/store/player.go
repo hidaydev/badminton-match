@@ -110,6 +110,18 @@ func (s *PlayerStore) Register(ctx context.Context, name, canonicalName, gender 
 	return pid, nil
 }
 
+// SetTierOnRegister — set tier induk saat registrasi pemain baru (POST /players
+// dengan tier opsional). First-set saja (tier IS NULL). Validasi 8-tier.
+// Dipindah ke PlayerStore supaya handler tidak perlu orkestrasi dua store.
+func (s *PlayerStore) SetTierOnRegister(ctx context.Context, playerID, tier string) error {
+	if !domain.ValidTier(tier) {
+		return fmt.Errorf("%w: tier must be 8-tier (D..A+)", ErrValidation)
+	}
+	_, err := s.pool.Exec(ctx, `UPDATE `+s.schema+`.players SET tier = $2 WHERE id = $1::uuid AND tier IS NULL`,
+		playerID, tier)
+	return err
+}
+
 // Stats — statistik karier pemain (port bm.get_player_stats_compat) → JSON.
 // Pemain tidak dikenal → statistik kosong dengan `name` = nama yang dicari.
 func (s *PlayerStore) Stats(ctx context.Context, name string) ([]byte, error) {
