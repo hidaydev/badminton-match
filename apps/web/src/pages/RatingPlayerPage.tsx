@@ -15,6 +15,8 @@ import { isEventKey, medalIcon, seedFromKey } from '../utils/achievementBadge'
 import type { AchievementRow } from '../queries/endpoints'
 
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
+import { collectAmbiguousBaseNames } from '../utils/nameParser'
+import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
 
 const MATCHES_PER_PAGE = 5
 
@@ -42,7 +44,19 @@ export default function RatingPlayerPage() {
     { label: 'Standard', rows: medalList.filter((a) => !isEventKey(a.key)) },
   ]
 
+  // Badge (i) untuk rekan/lawan yang baseName-nya ambigu. Set diambil dari
+  // semua nama yang tampil di halaman ini: pemain, history, dan career stats.
+  const ambiguousNames = collectAmbiguousBaseNames([
+    name,
+    ...safeHistory.flatMap((h) => [...(h.teammates ?? []), ...(h.opponents ?? [])]),
+    ...(stats?.topPartners ?? []).map((p) => p.name),
+    ...(stats?.topOpponents ?? []).map((p) => p.name),
+    ...(stats?.tournamentStats?.topPartners ?? []).map((p) => p.name),
+    ...(stats?.tournamentStats?.topOpponents ?? []).map((p) => p.name),
+  ])
+
   return (
+    <AmbiguousNamesProvider value={ambiguousNames}>
     <div className="flex flex-col gap-4 pb-10">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
@@ -190,5 +204,6 @@ export default function RatingPlayerPage() {
 
       <AchievementDetailModal achievement={selectedAchievement} onClose={() => setSelectedAchievement(null)} />
     </div>
+    </AmbiguousNamesProvider>
   )
 }

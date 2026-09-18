@@ -181,5 +181,26 @@ func (s *PlayerStore) RenamePlayer(ctx context.Context, playerID, newName string
 			return err
 		}
 	}
+	// Nama BARU juga harus jadi alias: resolve (session_write.resolvePlayerAliases,
+	// tournament.resolveTournamentPlayer) HANYA lewat player_aliases, tidak ada
+	// fallback ke players.canonical_name. Tanpa ini, rename membuat nama baru
+	// tak resolvable → publish/rating sesi berikutnya gagal atau auto-register salah.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO player_aliases (player_id, alias_name) VALUES ($1, $2)
+		ON CONFLICT (alias_name) DO NOTHING`, playerID, newNorm); err != nil {
+		return err
+	}
+
+	// Nama tampilan di sesi lama ikut rename. session_players.source_name
+	// dibekukan saat publish, jadi tanpa ini sesi lama tetap menampilkan nama
+	// (beserta anotasi) yang sudah tak relevan — dan read-path Load() memakai
+	// kolom ini. Filter player_id: placeholder (player_id NULL) tidak ikut.
+	// Alias nama baru di atas membuat rating ingest sesi lama tetap resolve.
+	if _, err := tx.Exec(ctx, `
+		UPDATE `+s.schema+`.session_players
+		SET source_name = $2
+		WHERE player_id = $1::uuid`, playerID, strings.TrimSpace(newName)); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }

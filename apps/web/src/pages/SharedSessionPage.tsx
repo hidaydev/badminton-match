@@ -17,6 +17,8 @@ import {
 } from '../queries'
 import { registerPlayer } from '../queries/endpoints'
 import { selectSlotsPerCourt } from '../store/selectors'
+import { collectAmbiguousBaseNames } from '../utils/nameParser'
+import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import type { TeamSwapTarget, SwapTarget } from '../utils/swap'
@@ -116,6 +118,7 @@ export default function SharedSessionPage() {
   }
 
   const playerMap = snapshot ? new Map(snapshot.players.map((p) => [p.id, p])) : new Map()
+  const ambiguousNames = collectAmbiguousBaseNames((snapshot?.players ?? []).map((p) => p.name))
 
   const result: GeneratorResult | null = snapshot ? {
     schedule: snapshot.schedule,
@@ -127,6 +130,7 @@ export default function SharedSessionPage() {
   } : null
 
   return (
+    <AmbiguousNamesProvider value={ambiguousNames}>
     <main className="min-h-screen bg-ground text-fg flex flex-col">
       {header}
       {saveError && <ErrorBanner message={saveError} ariaLive="polite" />}
@@ -185,5 +189,6 @@ export default function SharedSessionPage() {
         locked={!!snapshot?.session?.locked}
       />
     </main>
+    </AmbiguousNamesProvider>
   )
 }

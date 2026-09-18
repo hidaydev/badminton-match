@@ -1,6 +1,7 @@
 // src/components/AnnotatedPlayerName.tsx — Komponen penampil nama pemain dengan anotasi penjelas (i)
 import { useState } from 'react'
 import { parsePlayerName } from '../utils/nameParser'
+import { useAmbiguousNames } from '../context/AmbiguousNamesContext'
 
 interface AnnotatedPlayerNameProps {
   name: string
@@ -12,6 +13,10 @@ interface AnnotatedPlayerNameProps {
  * Merender nama pemain. Jika nama mengandung anotasi dalam kurung (mis. "Arya (Shania)"),
  * nama ditampilkan sebagai "Arya" dengan penanda subtle "(i)" yang ketika di-hover / di-tap
  * akan menampilkan tooltip/popover nama lengkap.
+ *
+ * Badge "(i)" hanya ditampilkan bila baseName AMBIGU (muncul >1x dalam daftar yang
+ * disediakan lewat AmbiguousNamesContext). Nama unik ditampilkan polos — anotasi pada
+ * nama unik hanya noise (mis. "Miqdad (Teman Ismet)" padahal satu-satunya Miqdad).
  */
 export default function AnnotatedPlayerName({
   name,
@@ -19,9 +24,12 @@ export default function AnnotatedPlayerName({
   annotationClassName = 'text-accent/90',
 }: AnnotatedPlayerNameProps) {
   const { baseName, annotation } = parsePlayerName(name)
+  const ambiguousNames = useAmbiguousNames()
   const [showTooltip, setShowTooltip] = useState(false)
 
-  if (!annotation) {
+  const isAmbiguous = ambiguousNames.has(baseName.toLowerCase())
+
+  if (!annotation || !isAmbiguous) {
     return <span className={className}>{baseName}</span>
   }
 
