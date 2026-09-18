@@ -9,7 +9,8 @@ import {
   useRegeneratePics,
 } from '../queries'
 import { getSaveErrorMessage } from '../queries/errors'
-import type { GroupId, TournamentPair } from '../utils/tournament'
+import type { GroupId } from '../utils/tournament'
+import { todayWIB } from '../utils/time'
 import GroupAssignment from '../components/tournament/GroupAssignment'
 import GroupMatches from '../components/tournament/GroupMatches'
 import BracketTab from '../components/tournament/BracketTab'
@@ -18,25 +19,6 @@ import StandingsTab from '../components/tournament/StandingsTab'
 type Tab = 'groups' | 'bracket' | 'standings'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
-
-const INITIAL_PAIRS: TournamentPair[] = [
-  { id: 'p1',  name: 'Dwi & Ismet' },
-  { id: 'p2',  name: 'Vina & Fredi' },
-  { id: 'p3',  name: 'Iky & Raihan' },
-  { id: 'p4',  name: 'Azzam & Zainal' },
-  { id: 'p5',  name: 'Dendi & Maul' },
-  { id: 'p6',  name: 'Euis & Akid' },
-  { id: 'p7',  name: 'Anas & Nindya' },
-  { id: 'p8',  name: 'Faiz & Dimas' },
-  { id: 'p9',  name: 'Fahmi & Lulud' },
-  { id: 'p10', name: 'Agha & Lita' },
-  { id: 'p11', name: 'Rakha & Visi' },
-  { id: 'p12', name: 'Fakhri & Novian' },
-  { id: 'p13', name: 'Hidayat & Zaid' },
-  { id: 'p14', name: 'Boby & Andri' },
-  { id: 'p15', name: 'Rudi & Ega' },
-  { id: 'p16', name: 'Bowo & Didik' },
-]
 
 const EMPTY_GROUPS: Record<GroupId, string[]> = { A: [], B: [], C: [], D: [] }
 
@@ -98,10 +80,10 @@ export default function TournamentPage() {
     await queryClient.invalidateQueries({ queryKey: ['tournament', id] })
   }
 
-  const pairs = classic?.pairs ?? INITIAL_PAIRS
+  const pairs = classic?.pairs ?? []
   const committedGroups = classic?.groups ?? EMPTY_GROUPS
   const matches = classic?.matches ?? []
-  const name = classic?.name ?? 'MAJADU Internal Tournament 2026'
+  const name = classic?.name ?? ''
 
   // Sync localGroups HANYA saat committedGroups benar-benar berubah dari server.
   // Pola "prevCommitted" mencegah localGroups di-revert setiap render saat user
@@ -122,7 +104,7 @@ export default function TournamentPage() {
       D: toSlots(committedGroups.D),
     })
   }
-  const date = classic?.date ?? '2026-05-23'
+  const date = classic?.date ?? todayWIB()
 
   const groupsFull = GROUP_IDS.every((g) => committedGroups[g].length === 4)
 
