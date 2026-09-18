@@ -307,6 +307,33 @@ func syncSessionTables(ctx context.Context, tx pgx.Tx, sessionID string, snap *d
 	if _, err := tx.Exec(ctx, `DELETE FROM fix_matches WHERE session_id = $1::uuid`, sessionID); err != nil {
 		return err
 	}
+	// source_name = catatan MENTAH nama saat sumber pertama dipublish. Load()
+	// mengembalikan players.canonical_name untuk pemain terdaftar, jadi snapshot
+	// yang di-save-balik membawa nama canonical — jangan sampai itu menimpa
+	// source_name. Kolom ini ikut SourceFingerprint, sehingga perubahannya bikin
+	// re-ingest sumber ter-ingest gagal (ErrSourceChanged). Placeholder
+	// (player_id NULL) tidak punya canonical → tetap pakai nama dari snapshot.
+	prevSourceName := map[string]string{} // player_id → source_name
+	{
+		prows, err := tx.Query(ctx, `
+			SELECT player_id::text, source_name FROM session_players
+			WHERE session_id = $1::uuid AND player_id IS NOT NULL`, sessionID)
+		if err != nil {
+			return err
+		}
+		for prows.Next() {
+			var pid, name string
+			if err := prows.Scan(&pid, &name); err != nil {
+				prows.Close()
+				return err
+			}
+			prevSourceName[pid] = name
+		}
+		prows.Close()
+		if err := prows.Err(); err != nil {
+			return err
+		}
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM session_players WHERE session_id = $1::uuid`, sessionID); err != nil {
 		return err
 	}
@@ -361,13 +388,20 @@ func syncSessionTables(ctx context.Context, tx pgx.Tx, sessionID string, snap *d
 		if !isAbsent {
 			ao = -1 // NULL
 		}
+		// Pemain terdaftar: pertahankan source_name mentah yang sudah ada.
+		sourceName := p.Name
+		if pid := resolved[ref]; pid != "" {
+			if prev, ok := prevSourceName[pid]; ok && prev != "" {
+				sourceName = prev
+			}
+		}
 		var internalID string
 		if err := tx.QueryRow(ctx, `
 			INSERT INTO session_players
 				(session_id, player_id, player_ref, source_name, sort_order, absent_order, gender, tier, is_absent)
 			VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9)
 			RETURNING internal_id::text`,
-			sessionID, nilableString(resolved[ref]), ref, p.Name, i, nilableInt(ao), p.Gender, p.Tier, isAbsent).Scan(&internalID); err != nil {
+			sessionID, nilableString(resolved[ref]), ref, sourceName, i, nilableInt(ao), p.Gender, p.Tier, isAbsent).Scan(&internalID); err != nil {
 			return err
 		}
 		playerInternal[ref] = internalID
