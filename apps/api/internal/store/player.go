@@ -18,13 +18,11 @@ type PlayerStore struct {
 	schema string
 }
 
-// NewPlayerStore — buat PlayerStore dengan pool koneksi + optional schema.
-func NewPlayerStore(pool *pgxpool.Pool, schema ...string) *PlayerStore {
-	sch := "bm"
-	if len(schema) > 0 && schema[0] != "" {
-		sch = schema[0]
-	}
-	return &PlayerStore{pool: pool, schema: sch}
+// NewPlayerStore — buat PlayerStore dengan pool koneksi + schema.
+// Schema wajib eksplisit: fallback diam-diam ke "bm" pernah membuat env dev
+// menulis ke schema prod (tabel di-qualify schema, search_path tidak menolong).
+func NewPlayerStore(pool *pgxpool.Pool, schema string) *PlayerStore {
+	return &PlayerStore{pool: pool, schema: schema}
 }
 
 // PlayerSummary — baris dari list_players (read-path port bm.list_players).

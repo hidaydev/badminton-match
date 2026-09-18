@@ -172,7 +172,7 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /sessions/{id}/delete", handler.AdminGuard(cfg.AdminToken, sessions.DeleteAdmin))
 
 	players := &handler.PlayerHandler{
-		Store:      store.NewPlayerStore(pool),
+		Store:      store.NewPlayerStore(pool, cfg.DatabaseSchema),
 		Logger:     logger,
 		AdminToken: cfg.AdminToken,
 		AdminStore: sessionStore,

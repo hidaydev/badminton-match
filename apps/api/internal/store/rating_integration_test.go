@@ -574,7 +574,7 @@ func TestIntegrationAutoIngestLockedSessions(t *testing.T) {
 	}
 
 	// Stats response membawa playerId
-	raw, err := NewPlayerStore(st.pool).Stats(ctx, "ITAI One")
+	raw, err := NewPlayerStore(st.pool, schema).Stats(ctx, "ITAI One")
 	if err != nil {
 		t.Fatalf("stats: %v", err)
 	}

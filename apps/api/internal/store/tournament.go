@@ -470,9 +470,6 @@ func splitPairNames(name string) []string {
 // resolveTournamentPlayer — port bm.resolve_tournament_player: placeholder
 // → (false); yang belum terdaftar di-auto-register (TOCTOU-safe).
 func resolveTournamentPlayer(ctx context.Context, tx pgx.Tx, schema string, name string) (string, bool, error) {
-	if schema == "" {
-		schema = "bm"
-	}
 	v := strings.TrimSpace(name)
 	// Placeholder legacy (x-prefix, "-") + pola placeholder (§5.2 ABSENT_TBD).
 	if v == "" || v == "-" || strings.HasPrefix(strings.ToLower(v), "x") || domain.IsPlaceholderName(v) {
@@ -500,9 +497,6 @@ func resolveTournamentPlayer(ctx context.Context, tx pgx.Tx, schema string, name
 // registerPlayerInTx — port bm.register_player: idempotent + TOCTOU-safe
 // (re-query alias setelah INSERT ON CONFLICT DO NOTHING).
 func registerPlayerInTx(ctx context.Context, tx pgx.Tx, schema string, name, canonical, gender string) (string, error) {
-	if schema == "" {
-		schema = "bm"
-	}
 	aliasNorm := domain.NormalizePlayerName(name)
 	if aliasNorm == "" {
 		return "", fmt.Errorf("%w: player name must not be blank", ErrValidation)

@@ -47,7 +47,7 @@ func TestIntegrationReadPathParity(t *testing.T) {
 	}
 
 	st := NewSessionStore(pool, schema)
-	ps := NewPlayerStore(pool)
+	ps := NewPlayerStore(pool, schema)
 
 	players := []domain.Player{
 		{ID: "par1", Name: "Par One", Gender: "M", Tier: 1},

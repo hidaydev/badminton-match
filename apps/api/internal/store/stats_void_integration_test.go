@@ -34,7 +34,7 @@ func TestIntegrationStatsVoidGames(t *testing.T) {
 	}
 	defer pool.Close()
 	st := NewSessionStore(pool, schema)
-	ps := NewPlayerStore(pool)
+	ps := NewPlayerStore(pool, schema)
 	ctx := context.Background()
 
 	// Pre-count placeholder (data legacy bm_dev sudah punya "free*" dari

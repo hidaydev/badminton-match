@@ -178,7 +178,7 @@ func TestIntegrationRegisterIdempotent(t *testing.T) {
 	defer pool.Close()
 	ctx := context.Background()
 
-	ps := NewPlayerStore(pool)
+	ps := NewPlayerStore(pool, schema)
 	name := fmt.Sprintf("Reg Test %d", time.Now().UnixNano()%100000)
 	id1, err := ps.Register(ctx, name, name, "M")
 	if err != nil {
