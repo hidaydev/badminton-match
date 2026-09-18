@@ -225,69 +225,9 @@ func (s *TournamentStore) TeamSave(ctx context.Context, id string, snap *domain.
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 
-	var locked bool
-	if err := tx.QueryRow(ctx,
-		`SELECT pg_try_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))`,
-		s.schema+".publish_tournament", id).Scan(&locked); err != nil {
+	rowID, shareCode, found, err := s.publishTournamentHeader(ctx, tx, "tournaments", id, snap.Name, snap.Date, "team", snap.Version)
+	if err != nil {
 		return nil, err
-	}
-	if !locked {
-		return nil, ErrContention
-	}
-
-	var (
-		rowID      string
-		shareCode  string
-		currentVer int
-		found      bool
-	)
-	err = tx.QueryRow(ctx, `
-		SELECT t.id::text, t.share_code, t.version FROM tournaments t
-		WHERE t.share_code = $1 OR t.id::text = $1
-		ORDER BY (t.share_code = $1) DESC
-		LIMIT 1
-		FOR UPDATE NOWAIT`, id).Scan(&rowID, &shareCode, &currentVer)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		found = false
-	case err != nil:
-		if isLockNotAvailable(err) {
-			return nil, ErrContention
-		}
-		return nil, err
-	default:
-		found = true
-	}
-
-	expected := snap.Version
-	var nextVersion int
-	switch {
-	case found:
-		if expected != nil && *expected != currentVer {
-			return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expected, currentVer)
-		}
-		nextVersion = currentVer + 1
-	default:
-		if expected != nil {
-			return nil, fmt.Errorf("%w: expected %d, actual null", ErrVersionMismatch, *expected)
-		}
-		nextVersion = 1
-	}
-
-	// Upsert header (format team)
-	if found {
-		if _, err := tx.Exec(ctx, `
-			UPDATE tournaments SET name = $2, event_date = $3::date, version = $4, format = 'team', updated_at = now()
-			WHERE id = $1::uuid`, rowID, snap.Name, snap.Date, nextVersion); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO tournaments (share_code, name, event_date, version, format)
-			VALUES ($1, $2, $3::date, $4, 'team')
-			RETURNING id::text`, id, snap.Name, snap.Date, nextVersion).Scan(&rowID); err != nil {
-			return nil, err
-		}
 	}
 
 	// Registrasi pemain (auto-register — mirror resolve_tournament_player)

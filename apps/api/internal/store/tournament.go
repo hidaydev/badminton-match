@@ -229,70 +229,9 @@ func (s *TournamentStore) Save(ctx context.Context, id string, snap *domain.Tour
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 
-	// Advisory lock — namespace schema dari config (bm / bm_dev).
-	var locked bool
-	if err := tx.QueryRow(ctx,
-		`SELECT pg_try_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))`,
-		s.schema+".publish_tournament", id).Scan(&locked); err != nil {
+	rowID, shareCode, found, err := s.publishTournamentHeader(ctx, tx, s.schema+".tournaments", id, name, date, "", snap.Version)
+	if err != nil {
 		return nil, err
-	}
-	if !locked {
-		return nil, ErrContention
-	}
-
-	var (
-		rowID      string
-		shareCode  string
-		currentVer int
-		found      bool
-	)
-	err = tx.QueryRow(ctx, `
-		SELECT t.id::text, t.share_code, t.version FROM `+s.schema+`.tournaments t
-		WHERE t.share_code = $1 OR t.id::text = $1
-		ORDER BY (t.share_code = $1) DESC
-		LIMIT 1
-		FOR UPDATE NOWAIT`, id).Scan(&rowID, &shareCode, &currentVer)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		found = false
-	case err != nil:
-		if isLockNotAvailable(err) {
-			return nil, ErrContention
-		}
-		return nil, err
-	default:
-		found = true
-	}
-
-	expected := snap.Version
-	var nextVersion int
-	switch {
-	case found:
-		if expected != nil && *expected != currentVer {
-			return nil, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expected, currentVer)
-		}
-		nextVersion = currentVer + 1
-	default:
-		if expected != nil {
-			return nil, fmt.Errorf("%w: expected %d, actual null", ErrVersionMismatch, *expected)
-		}
-		nextVersion = 1
-	}
-
-	// Upsert header
-	if found {
-		if _, err := tx.Exec(ctx, `
-			UPDATE `+s.schema+`.tournaments SET name = $2, event_date = $3::date, version = $4, updated_at = now()
-			WHERE id = $1::uuid`, rowID, name, date, nextVersion); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO `+s.schema+`.tournaments (share_code, name, event_date, version)
-			VALUES ($1, $2, $3::date, $4)
-			RETURNING id::text`, id, name, date, nextVersion).Scan(&rowID); err != nil {
-			return nil, err
-		}
 	}
 
 	// Delete-and-reinsert child (pola sama dengan publish_session)
@@ -428,6 +367,100 @@ func (s *TournamentStore) Save(ctx context.Context, id string, snap *domain.Tour
 		return nil, err
 	}
 	return s.Load(ctx, id)
+}
+
+// publishTournamentHeader — kerangka publish bersama Save (classic) dan
+// TeamSave (team): advisory lock, resolve baris (share_code / id) dengan
+// FOR UPDATE NOWAIT, version check, lalu upsert header.
+//
+// table  — referensi tabel tournaments; classic schema-qualified, team polos.
+// format — "" untuk classic (kolom format tidak disentuh), "team" untuk team.
+// expected — versi dari snapshot; nil berarti create-only.
+func (s *TournamentStore) publishTournamentHeader(
+	ctx context.Context,
+	tx pgx.Tx,
+	table, id, name, date, format string,
+	expected *int,
+) (rowID, shareCode string, found bool, err error) {
+	// Advisory lock — namespace schema dari config (bm / bm_dev). Kunci sengaja
+	// dibagi classic & team agar publish format apapun pada id yang sama saling
+	// eksklusif.
+	var locked bool
+	if err := tx.QueryRow(ctx,
+		`SELECT pg_try_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))`,
+		s.schema+".publish_tournament", id).Scan(&locked); err != nil {
+		return "", "", false, err
+	}
+	if !locked {
+		return "", "", false, ErrContention
+	}
+
+	var currentVer int
+	err = tx.QueryRow(ctx, `
+		SELECT t.id::text, t.share_code, t.version FROM `+table+` t
+		WHERE t.share_code = $1 OR t.id::text = $1
+		ORDER BY (t.share_code = $1) DESC
+		LIMIT 1
+		FOR UPDATE NOWAIT`, id).Scan(&rowID, &shareCode, &currentVer)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		found = false
+	case err != nil:
+		if isLockNotAvailable(err) {
+			return "", "", false, ErrContention
+		}
+		return "", "", false, err
+	default:
+		found = true
+	}
+
+	var nextVersion int
+	switch {
+	case found:
+		if expected != nil && *expected != currentVer {
+			return "", "", false, fmt.Errorf("%w: expected %d, actual %d", ErrVersionMismatch, *expected, currentVer)
+		}
+		nextVersion = currentVer + 1
+	default:
+		if expected != nil {
+			return "", "", false, fmt.Errorf("%w: expected %d, actual null", ErrVersionMismatch, *expected)
+		}
+		nextVersion = 1
+	}
+
+	// Upsert header
+	if found {
+		if format == "" {
+			if _, err := tx.Exec(ctx, `
+				UPDATE `+table+` SET name = $2, event_date = $3::date, version = $4, updated_at = now()
+				WHERE id = $1::uuid`, rowID, name, date, nextVersion); err != nil {
+				return "", "", false, err
+			}
+		} else {
+			if _, err := tx.Exec(ctx, `
+				UPDATE `+table+` SET name = $2, event_date = $3::date, version = $4, format = $5, updated_at = now()
+				WHERE id = $1::uuid`, rowID, name, date, nextVersion, format); err != nil {
+				return "", "", false, err
+			}
+		}
+	} else {
+		if format == "" {
+			if err := tx.QueryRow(ctx, `
+				INSERT INTO `+table+` (share_code, name, event_date, version)
+				VALUES ($1, $2, $3::date, $4)
+				RETURNING id::text`, id, name, date, nextVersion).Scan(&rowID); err != nil {
+				return "", "", false, err
+			}
+		} else {
+			if err := tx.QueryRow(ctx, `
+				INSERT INTO `+table+` (share_code, name, event_date, version, format)
+				VALUES ($1, $2, $3::date, $4, $5)
+				RETURNING id::text`, id, name, date, nextVersion, format).Scan(&rowID); err != nil {
+				return "", "", false, err
+			}
+		}
+	}
+	return rowID, shareCode, found, nil
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────
