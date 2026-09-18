@@ -150,7 +150,7 @@ func (s *SessionStore) extractSessionMatches(ctx context.Context, tx pgx.Tx, loo
 			GameOrder:    fmt.Sprintf("%d-%d", g.slot, g.court),
 			ScoreA:       scoreA,
 			ScoreB:       scoreB,
-			Target:       21,
+			Target:       domain.KindRegistry["session"].DefaultTarget,
 			Phase:        "regular",
 			Players:      players,
 		})
@@ -316,7 +316,7 @@ func (s *SessionStore) extractClassicMatches(ctx context.Context, tx pgx.Tx, tou
 			GameOrder:    m.matchKey,
 			ScoreA:       m.scoreA,
 			ScoreB:       m.scoreB,
-			Target:       21,
+			Target:       domain.KindRegistry["tournament_classic"].DefaultTarget,
 			Phase:        m.phase,
 			Players:      players,
 		})
