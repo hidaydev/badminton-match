@@ -8,6 +8,7 @@ import {
 import type { GeneratorResult } from '../generator'
 import type { Player, GameScore, CourtTime } from '../types'
 import { formatMergedCourtTimes } from '../utils/time'
+import { courtLabel } from '../utils/courtLabel'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../utils/swap'
 import { validateChangeName } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
@@ -92,7 +93,6 @@ export default function SummaryModal({
   deleteLoading = false,
   locked = false,
 }: SummaryModalProps) {
-  const courts = slotsPerCourt.length
   const played = new Set(playedArr)
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings'>('schedule')
@@ -189,9 +189,6 @@ export default function SummaryModal({
     useSensor(PointerSensor),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
   )
-
-  const courtLabel = (i: number) =>
-    courtNames[i] || (courts <= 26 ? String.fromCharCode(65 + i) : String(i + 1))
 
   const totalGames = result.schedule.length
   const playedCount = played.size
@@ -366,7 +363,7 @@ export default function SummaryModal({
                 ? `${absentPending.size} player${absentPending.size === 1 ? '' : 's'} marked absent — tap to toggle`
                 : 'Tap players to mark absent'}
             </span>
-            <span className="text-[11px] text-red-400/70">whole session — 36 games</span>
+            <span className="text-[11px] text-red-400/70">whole session — {totalGames} games</span>
             <div className="flex flex-wrap gap-1.5">
               {[...playerMap.values()].map((p) => {
                 const isSelected = absentPending.has(p.id)
@@ -475,7 +472,7 @@ export default function SummaryModal({
             ) : (
               <>
                 <span className="text-xs text-sky-300 font-medium">
-                  Change <strong>{playerMap.get(changeTarget.playerId)?.name ?? '?'}</strong> (Slot {changeTarget.slot + 1}, {courtLabel(changeTarget.court)}) to:
+                  Change <strong>{playerMap.get(changeTarget.playerId)?.name ?? '?'}</strong> (Slot {changeTarget.slot + 1}, {courtLabel(courtNames, changeTarget.court)}) to:
                 </span>
                 <div className="flex gap-2 items-center">
                   <input
@@ -600,7 +597,7 @@ export default function SummaryModal({
         playerMap={playerMap}
         schedule={result.schedule}
         saving={saving}
-        courtLabel={courtLabel}
+        courtLabel={(i) => courtLabel(courtNames, i)}
       />
     </div>
   )

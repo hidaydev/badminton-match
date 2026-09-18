@@ -2,6 +2,7 @@ import type { Player, MatchConstraint } from '../../types'
 import { toPlayerId, toTimeString } from '../../types'
 import { useStore } from '../../store'
 import { computeTimeSlots, courtsAtTime } from '../../utils/time'
+import { courtLabel } from '../../utils/courtLabel'
 import { SlotPicker } from './SlotPicker'
 
 // ── Fix Match card ────────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ export function FixMatchCard({
             >
               <option value="">— Select court —</option>
               {availableCourts.map((c) => (
-                <option key={c} value={c}>{session.courtNames?.[c] || `Court ${c + 1}`}</option>
+                <option key={c} value={c}>{courtLabel(session.courtNames, c)}</option>
               ))}
             </select>
           </div>
@@ -157,7 +158,7 @@ export function FixMatchCard({
       )}
       {hint && isPinned && match.pinnedTime && match.pinnedCourt !== undefined && (
         <p className="text-xs text-indigo-400 bg-indigo-900/20 border border-indigo-800/40 rounded-lg px-3 py-1.5">
-          📌 {match.pinnedTime} · {session.courtNames?.[match.pinnedCourt] || `Court ${match.pinnedCourt + 1}`} · {hint}
+          📌 {match.pinnedTime} · {courtLabel(session.courtNames, match.pinnedCourt)} · {hint}
         </p>
       )}
     </div>

@@ -6,6 +6,7 @@ import type { Player, MatchConstraint, ScheduleSlot } from '../../types'
 import type { GeneratorResult } from '../../generator'
 import { TIER_LABELS, TIER_COLORS } from '../../config/tiers'
 import { computePlayerStats, computeBackToBackRunBySlot } from '../../utils/playerStats'
+import { courtLabel } from '../../utils/courtLabel'
 import { computeQuality } from '../../utils/quality'
 
 // ── Tier letters ─────────────────────────────────────────────────────────────
@@ -61,7 +62,6 @@ function TierBalance({ tiersA, tiersB }: { tiersA: number[]; tiersB: number[] })
 // ── Game card ────────────────────────────────────────────────────────────────
 
 function GameCard({
-  court,
   slot,
   teamA,
   teamB,
@@ -69,7 +69,6 @@ function GameCard({
   backToBackRunBySlot,
   courtName,
 }: {
-  court: number
   slot: number
   teamA: [string, string]
   teamB: [string, string]
@@ -85,7 +84,7 @@ function GameCard({
   return (
     <div className="bg-elevated border border-border rounded-xl px-3 py-2 flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] text-slate-400 font-medium">{courtName || `Court ${court + 1}`}</span>
+        <span className="text-[10px] text-slate-400 font-medium">{courtName}</span>
         <TierBalance tiersA={tiersA} tiersB={tiersB} />
       </div>
       <div className="flex items-center gap-2">
@@ -159,13 +158,12 @@ export function ScheduleView({
                 {games.map((g) => (
                   <GameCard
                     key={`${g.court}-${g.slot}`}
-                    court={g.court}
                     slot={g.slot}
                     teamA={g.teamA}
                     teamB={g.teamB}
                     playerMap={playerMap}
                     backToBackRunBySlot={backToBackRunBySlot}
-                    courtName={courtNames[g.court]}
+                    courtName={courtLabel(courtNames, g.court)}
                   />
                 ))}
                 {out.length > 0 && (

@@ -1,9 +1,11 @@
+import { useMemo } from 'react'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
 import type { Player, GameScore } from '../../types'
 import { toGameKey } from '../../types'
 import { computeBackToBackRunBySlot } from '../../utils/playerStats'
+import { courtLabel } from '../../utils/courtLabel'
 import { timeToMinutes, minutesToTime } from '../../utils/time'
 import type { SwapTarget, TeamSwapTarget, ChangeTarget } from '../../utils/swap'
 import type { PlayerChipMode } from './PlayerChipRenderer'
@@ -91,9 +93,12 @@ export default function ScheduleGrid({
   setDraftScores,
   highlightedPlayerId,
 }: ScheduleGridProps) {
-  const played = new Set(playedGames)
+  const played = useMemo(() => new Set(playedGames), [playedGames])
 
-  const backToBackRunBySlot = computeBackToBackRunBySlot(result.schedule, [...playerMap.keys()])
+  const backToBackRunBySlot = useMemo(
+    () => computeBackToBackRunBySlot(result.schedule, [...playerMap.keys()]),
+    [result.schedule, playerMap],
+  )
 
   const bySlot = new Map<number, typeof result.schedule>()
   for (const game of result.schedule) {
@@ -106,11 +111,6 @@ export default function ScheduleGrid({
     Math.max(...slotsPerCourt),
     ...result.schedule.map(g => g.slot + 1)
   )
-
-  function courtLabel(courtIndex: number): string {
-    // `||` (bukan `??`) supaya nama kosong "" ikut fallback — samakan dengan SummaryModal.
-    return courtNames[courtIndex] || `C${courtIndex + 1}`
-  }
 
   function name(id: string): string {
     return playerMap.get(id)?.name ?? id
@@ -236,7 +236,7 @@ export default function ScheduleGrid({
                         style={{ gridTemplateColumns: 'minmax(32px, 40px) 1fr 20px 1fr' }}
                       >
                         <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap">
-                          {courtLabel(g.court)}
+                          {courtLabel(courtNames, g.court)}
                         </span>
                         {teamCell('A')}
                         <span className="text-slate-400 text-xs font-bold text-center select-none shrink-0">vs</span>

@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { selectTotalGames } from '../store/selectors'
 import { PLAYERS_PER_GAME } from '../types'
 import { timeToMinutes, minutesToTime } from '../utils/time'
+import { courtLabel } from '../utils/courtLabel'
 import { useNavigate } from 'react-router-dom'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -154,7 +155,7 @@ function CourtTimeline({
             const slots = Math.max(0, Math.floor((timeToMinutes(ct.end) - timeToMinutes(ct.start)) / slotMinutes))
             return (
               <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] text-slate-400 w-12 shrink-0">{courtNames[i] || `Court ${i + 1}`}</span>
+                <span className="text-[10px] text-slate-400 w-12 shrink-0">{courtLabel(courtNames, i)}</span>
                 <div className="flex-1 relative h-5 bg-slate-800 rounded">
                   <div
                     className={`absolute h-full rounded ${COURT_COLORS[i % COURT_COLORS.length]} opacity-80 flex items-center justify-center`}
@@ -300,7 +301,7 @@ export default function SetupPage() {
                   <input
                     value={session.courtNames?.[i] ?? ''}
                     onChange={(e) => setCourtName(i, e.target.value)}
-                    placeholder={`Court ${i + 1}`}
+                    placeholder={courtLabel(session.courtNames, i)}
                     className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-400 focus:outline-none focus:text-white focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus-visible:rounded-lg"
                   />
                   <TimeSelect
