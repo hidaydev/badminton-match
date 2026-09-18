@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { getSession, publishSession, listSessions, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers, patchGameSkipped, swapMembers } from './endpoints'
 import type { GranularSwapTarget } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
@@ -31,6 +32,94 @@ async function invalidateAllQueries(queryClient: ReturnType<typeof useQueryClien
     queryClient.invalidateQueries({ queryKey: ['player'] }),
     queryClient.invalidateQueries({ queryKey: ['ratings'] }),
   ])
+}
+
+// ── Granular optimistic lifecycle (shared) ───────────────────────────────────
+// Satu sumber untuk pola onMutate/onError/onSuccess yang dipakai mutation
+// granular: cancel query → snapshot cache → optimistic; rollback + refetch
+// saat version mismatch/lock/contention; commit respons server lalu invalidate.
+function withGranularOptimisticLifecycle<TVars>(
+  queryClient: QueryClient,
+  sessionId: string,
+  optimisticUpdate: (previous: CloudSnapshot, vars: TVars) => CloudSnapshot | undefined,
+  invalidate: () => void | Promise<void>,
+) {
+  return {
+    onMutate: async (vars: TVars) => {
+      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
+      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      if (previous) {
+        const next = optimisticUpdate(previous, vars)
+        if (next) queryClient.setQueryData(['session', sessionId], next)
+      }
+      return { previous }
+    },
+    onError: async (error: unknown, _vars: TVars, ctx: { previous?: CloudSnapshot } | undefined) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(['session', sessionId], ctx.previous)
+      if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
+        try {
+          await queryClient.fetchQuery<CloudSnapshot | null>({
+            queryKey: ['session', sessionId],
+            queryFn: () => getSession(sessionId),
+          })
+        } catch { /* ignore */ }
+      }
+    },
+    onSuccess: (snap: CloudSnapshot) => {
+      queryClient.setQueryData(['session', sessionId], snap)
+      void invalidate()
+    },
+  }
+}
+
+// Retry 1x on row-level OCC conflict: fetch game version → patch → ulangi sekali.
+async function withGameVersionRetry<T>(
+  sessionId: string,
+  key: string,
+  patch: (version: number) => Promise<T>,
+): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const game = await getGame(sessionId, key)
+    if (!game) throw new Error(`Game ${key} not found`)
+    try {
+      return await patch(game.version)
+    } catch (err) {
+      if (attempt === 0 && isVersionMismatch(err)) continue
+      throw err
+    }
+  }
+  throw new Error('unreachable')
+}
+
+// Retry 1x on session-level OCC conflict: baca version dari cache → patch →
+// saat mismatch refetch fresh lalu ulangi sekali. `requireFreshVersion` = true
+// hanya lanjut kalau snapshot fresh punya version (dipakai patchAbsentPlayers).
+async function withSnapshotVersionRetry<T>(
+  queryClient: QueryClient,
+  sessionId: string,
+  patch: (version: number) => Promise<T>,
+  opts?: { requireFreshVersion?: boolean },
+): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+    const ver = current?.version
+    if (ver == null) throw new Error('session version not loaded')
+    try {
+      return await patch(ver)
+    } catch (err) {
+      if (attempt === 0 && isVersionMismatch(err)) {
+        try {
+          const fresh = await queryClient.fetchQuery<CloudSnapshot | null>({
+            queryKey: ['session', sessionId],
+            queryFn: () => getSession(sessionId),
+          })
+          if (!opts?.requireFreshVersion || fresh?.version != null) continue
+        } catch { /* ignore */ }
+      }
+      throw err
+    }
+  }
+  throw new Error('unreachable')
 }
 
 export function useListSessions(options?: { enabled?: boolean }) {
@@ -177,48 +266,22 @@ export function useTogglePlayed(sessionId: string) {
         const cur = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
         nextPlayed = (cur?.playedGames ?? []).includes(key)
       }
+      const resolvedNextPlayed = nextPlayed
       // Granular: fetch game version → PATCH per game (row-level OCC). Retry 1x on version conflict.
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const game = await getGame(sessionId, key)
-        if (!game) throw new Error(`Game ${key} not found`)
-        try {
-          return await patchGamePlayed(sessionId, key, nextPlayed, game.version)
-        } catch (err) {
-          if (attempt === 0 && isVersionMismatch(err)) continue
-          throw err
-        }
-      }
-      throw new Error('unreachable')
+      return withGameVersionRetry(sessionId, key, (version) => patchGamePlayed(sessionId, key, resolvedNextPlayed, version))
     },
-    onMutate: async (vars) => {
-      const { key } = vars as { key: string }
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (previous) {
+    ...withGranularOptimisticLifecycle<{ key: string; nextPlayed?: boolean | string[] }>(
+      queryClient,
+      sessionId,
+      (previous, vars) => {
         let nextPlayed: boolean | undefined
-        const v = vars as { key: string; nextPlayed?: boolean | string[] }
-        if (typeof v.nextPlayed === 'boolean') nextPlayed = v.nextPlayed
-        else if (Array.isArray(v.nextPlayed)) nextPlayed = (v.nextPlayed as string[]).includes(key)
-        if (typeof nextPlayed !== 'boolean') nextPlayed = !previous.playedGames.includes(key)
-        queryClient.setQueryData(['session', sessionId], setPlayedInSnapshot(previous, key, nextPlayed))
-      }
-      return { previous }
-    },
-    onError: async (error, _vars, ctx) => {
-      if (ctx?.previous !== undefined) queryClient.setQueryData(['session', sessionId], ctx.previous)
-      if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
-        try {
-          await queryClient.fetchQuery<CloudSnapshot | null>({
-            queryKey: ['session', sessionId],
-            queryFn: () => getSession(sessionId),
-          })
-        } catch { /* ignore */ }
-      }
-    },
-    onSuccess: (snap) => {
-      queryClient.setQueryData(['session', sessionId], snap)
-      void invalidateSessionQueries(queryClient)
-    },
+        if (typeof vars.nextPlayed === 'boolean') nextPlayed = vars.nextPlayed
+        else if (Array.isArray(vars.nextPlayed)) nextPlayed = vars.nextPlayed.includes(vars.key)
+        if (typeof nextPlayed !== 'boolean') nextPlayed = !previous.playedGames.includes(vars.key)
+        return setPlayedInSnapshot(previous, vars.key, nextPlayed)
+      },
+      () => invalidateSessionQueries(queryClient),
+    ),
   })
 }
 
@@ -227,47 +290,22 @@ export function useSetScore(sessionId: string) {
   return useMutation({
     mutationFn: async (vars: { key: string; a: number; b: number }) => {
       const { key, a, b } = vars
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const game = await getGame(sessionId, key)
-        if (!game) throw new Error(`Game ${key} not found`)
-        try {
-          return await patchGameScore(sessionId, key, a, b, game.version)
-        } catch (err) {
-          if (attempt === 0 && isVersionMismatch(err)) continue
-          throw err
-        }
-      }
-      throw new Error('unreachable')
+      return withGameVersionRetry(sessionId, key, (version) => patchGameScore(sessionId, key, a, b, version))
     },
-    onMutate: async (vars) => {
-      const { key, a, b } = vars
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (previous) {
+    ...withGranularOptimisticLifecycle<{ key: string; a: number; b: number }>(
+      queryClient,
+      sessionId,
+      (previous, vars) => {
         try {
-          queryClient.setQueryData(['session', sessionId], setScoreInSnapshot(previous, key, a, b))
+          return setScoreInSnapshot(previous, vars.key, vars.a, vars.b)
         } catch (e) {
           // invalid score/gameKey — rollback nothing, let BE validate
           console.warn('[useSetScore] optimistic update skipped:', e)
+          return undefined
         }
-      }
-      return { previous }
-    },
-    onError: async (error, _vars, ctx) => {
-      if (ctx?.previous !== undefined) queryClient.setQueryData(['session', sessionId], ctx.previous)
-      if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
-        try {
-          await queryClient.fetchQuery<CloudSnapshot | null>({
-            queryKey: ['session', sessionId],
-            queryFn: () => getSession(sessionId),
-          })
-        } catch { /* ignore */ }
-      }
-    },
-    onSuccess: (snap) => {
-      queryClient.setQueryData(['session', sessionId], snap)
-      void invalidateSessionQueries(queryClient)
-    },
+      },
+      () => invalidateSessionQueries(queryClient),
+    ),
   })
 }
 
@@ -310,53 +348,19 @@ export function useSwapTeams(sessionId: string) {
 export function useSetAbsent(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (vars: { nextAbsent: string[] }) => {
-      const { nextAbsent } = vars
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-        const ver = current?.version
-        if (ver == null) throw new Error('session version not loaded')
-        try {
-          return await patchAbsentPlayers(sessionId, nextAbsent, ver)
-        } catch (err) {
-          if (attempt === 0 && isVersionMismatch(err)) {
-            // refetch fresh then retry with new version
-            try {
-              const fresh = await queryClient.fetchQuery<CloudSnapshot | null>({
-                queryKey: ['session', sessionId],
-                queryFn: () => getSession(sessionId),
-              })
-              if (fresh?.version != null) continue
-            } catch { /* ignore */ }
-          }
-          throw err
-        }
-      }
-      throw new Error('unreachable')
-    },
-    onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (previous) {
-        queryClient.setQueryData(['session', sessionId], setAbsentPlayersInSnapshot(previous, (vars as { nextAbsent: string[] }).nextAbsent))
-      }
-      return { previous }
-    },
-    onError: async (error, _vars, ctx) => {
-      if (ctx?.previous !== undefined) queryClient.setQueryData(['session', sessionId], ctx.previous)
-      if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
-        try {
-          await queryClient.fetchQuery<CloudSnapshot | null>({
-            queryKey: ['session', sessionId],
-            queryFn: () => getSession(sessionId),
-          })
-        } catch { /* ignore */ }
-      }
-    },
-    onSuccess: (snap) => {
-      queryClient.setQueryData(['session', sessionId], snap)
-      void invalidateAllQueries(queryClient)
-    },
+    mutationFn: (vars: { nextAbsent: string[] }) =>
+      withSnapshotVersionRetry(
+        queryClient,
+        sessionId,
+        (ver) => patchAbsentPlayers(sessionId, vars.nextAbsent, ver),
+        { requireFreshVersion: true },
+      ),
+    ...withGranularOptimisticLifecycle<{ nextAbsent: string[] }>(
+      queryClient,
+      sessionId,
+      (previous, vars) => setAbsentPlayersInSnapshot(previous, vars.nextAbsent),
+      () => invalidateAllQueries(queryClient),
+    ),
   })
 }
 
@@ -365,41 +369,14 @@ export function useSetGameSkipped(sessionId: string) {
   return useMutation({
     mutationFn: async (vars: { key: string; playerIds: string[] }) => {
       const { key, playerIds } = vars
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const game = await getGame(sessionId, key)
-        if (!game) throw new Error(`Game ${key} not found`)
-        try {
-          return await patchGameSkipped(sessionId, key, playerIds, game.version)
-        } catch (err) {
-          if (attempt === 0 && isVersionMismatch(err)) continue
-          throw err
-        }
-      }
-      throw new Error('unreachable')
+      return withGameVersionRetry(sessionId, key, (version) => patchGameSkipped(sessionId, key, playerIds, version))
     },
-    onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (previous) {
-        queryClient.setQueryData(['session', sessionId], setSkippedInSnapshot(previous, vars.key, vars.playerIds))
-      }
-      return { previous }
-    },
-    onError: async (error, _vars, ctx) => {
-      if (ctx?.previous !== undefined) queryClient.setQueryData(['session', sessionId], ctx.previous)
-      if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
-        try {
-          await queryClient.fetchQuery<CloudSnapshot | null>({
-            queryKey: ['session', sessionId],
-            queryFn: () => getSession(sessionId),
-          })
-        } catch { /* ignore */ }
-      }
-    },
-    onSuccess: (snap) => {
-      queryClient.setQueryData(['session', sessionId], snap)
-      void invalidateSessionQueries(queryClient)
-    },
+    ...withGranularOptimisticLifecycle<{ key: string; playerIds: string[] }>(
+      queryClient,
+      sessionId,
+      (previous, vars) => setSkippedInSnapshot(previous, vars.key, vars.playerIds),
+      () => invalidateSessionQueries(queryClient),
+    ),
   })
 }
 
@@ -444,51 +421,21 @@ function useGranularSwap<TVars = Record<string, unknown>>(
   return useMutation<CloudSnapshot, unknown, TVars, { previous?: CloudSnapshot }>({
     mutationFn: async (vars: TVars) => {
       const { a, b } = mapVars(vars)
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-        const ver = current?.version
-        if (ver == null) throw new Error('session version not loaded')
-        try {
-          return await swapMembers(sessionId, kind, a, b, ver)
-        } catch (err) {
-          if (attempt === 0 && isVersionMismatch(err)) {
-            try {
-              await queryClient.fetchQuery<CloudSnapshot | null>({
-                queryKey: ['session', sessionId],
-                queryFn: () => getSession(sessionId),
-              })
-              continue
-            } catch { /* ignore */ }
-          }
-          throw err
-        }
-      }
-      throw new Error('unreachable')
+      return withSnapshotVersionRetry(
+        queryClient,
+        sessionId,
+        (ver) => swapMembers(sessionId, kind, a, b, ver),
+      )
     },
-    onMutate: async (vars: TVars) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
-      if (previous) {
-        queryClient.setQueryData(['session', sessionId], optimisticUpdate(previous, vars))
-      }
-      return { previous }
-    },
-    onError: async (error, _vars, ctx) => {
-      if (ctx?.previous !== undefined) queryClient.setQueryData(['session', sessionId], ctx.previous)
-      if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
-        try {
-          await queryClient.fetchQuery<CloudSnapshot | null>({
-            queryKey: ['session', sessionId],
-            queryFn: () => getSession(sessionId),
-          })
-        } catch { /* ignore */ }
-      }
-    },
-    onSuccess: (snap) => {
-      queryClient.setQueryData(['session', sessionId], snap)
-      void invalidateSessionQueries(queryClient)
-      void queryClient.invalidateQueries({ queryKey: ['ratings'] })
-    },
+    ...withGranularOptimisticLifecycle<TVars>(
+      queryClient,
+      sessionId,
+      (previous, vars) => optimisticUpdate(previous, vars),
+      () => {
+        void invalidateSessionQueries(queryClient)
+        void queryClient.invalidateQueries({ queryKey: ['ratings'] })
+      },
+    ),
   })
 }
 
