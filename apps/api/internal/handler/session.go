@@ -150,7 +150,7 @@ func mapPublishError(err error) *httperr.Error {
 		default:
 			// Jangan kirim detail Postgres ke klien (bocor nama tabel/constraint).
 			// Cause tetap dibawa untuk diagnostics via Unwrap.
-			return httperr.Wrap(httperr.CodeValidation, "invalid session state", pgErr)
+			return httperr.Wrap(httperr.CodeDatabase, "database operation failed", pgErr)
 		}
 	}
 	return httperr.Wrap(httperr.CodeDatabase, "operation failed", err)

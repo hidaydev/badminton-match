@@ -82,9 +82,9 @@ func TestMapPublishErrorTable(t *testing.T) {
 			wantCode: "database_error",
 		},
 		{
-			name:     "unknown pg error maps to validation_error",
+			name:     "unknown pg error maps to database_error",
 			err:      &pgconn.PgError{Message: "ERROR: invalid input syntax for type integer"},
-			wantCode: "validation_error",
+			wantCode: "database_error",
 		},
 		// ── sentinels write-path Go (store) ──
 		{
@@ -117,8 +117,8 @@ func TestMapPublishErrorTable(t *testing.T) {
 		{
 			name:        "pg error detail tidak dibocorkan ke klien",
 			err:         &pgconn.PgError{Code: "23514", Message: `new row violates check constraint "sessions_status_check"`},
-			wantCode:    "validation_error",
-			wantMsgPart: "invalid session state",
+			wantCode:    "database_error",
+			wantMsgPart: "database operation failed",
 			wantNoPart:  "sessions_status_check",
 		},
 		{
