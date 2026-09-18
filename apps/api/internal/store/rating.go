@@ -467,70 +467,7 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 
 		for _, u := range updates {
-			// GrowRD by idle days (basis tanggal sumber — deterministik)
-			st := u.rt.state
-			if u.rt.lastPlayedAt != "" {
-				d1, err1 := time.Parse("2006-01-02", u.rt.lastPlayedAt)
-				d2, err2 := time.Parse("2006-01-02", m.Date)
-				if err1 == nil && err2 == nil && d2.After(d1) {
-					st.RD = domain.GrowRD(st.RD, int(d2.Sub(d1).Hours()/24), cfg.Params)
-				}
-			}
-
-			exp := 0.0
-			if len(u.opps) > 0 {
-				for _, o := range u.opps {
-					exp += domain.ExpectedScore(st.Rating, o)
-				}
-				exp /= float64(len(u.opps))
-			}
-
-			newSt, delta := domain.GlickoUpdate(st, u.opps, u.out, movm, phaseWeight, cfg.Params)
-
-			// Modifier post-Glicko (semua opsional, disabled by default):
-			//   - teamWeight: kompensasi tim dengan jumlah pemain berbeda
-			//   - volFactor:  dampening untuk win rate ekstrem
-			// Hitung SEMUA modifier dulu, lalu apply sekaligus + round2
-			// agar invariant determinism (semua nilai round2) tetap terjaga.
-			mod := 1.0
-			if w := domain.TeamSizeWeight(u.teamSize, cfg.Params); w < 1.0 {
-				mod *= w
-			}
-			if v := domain.VolatilityFactor(u.rt.wins, u.rt.losses, cfg.Params); v < 1.0 {
-				mod *= v
-			}
-			if mod < 1.0 {
-				delta = domain.Round2(delta * mod)
-				newSt.Rating = domain.Round2(st.Rating + delta)
-			}
-
-			// Active floor: floor dinamis berdasarkan jumlah game
-			activeFloor := domain.ActiveFloor(u.rt.games, cfg.Params)
-			if newSt.Rating < activeFloor {
-				newSt.Rating = activeFloor
-			}
-
-			u.rt.state = newSt
-			u.rt.games++
-			if u.out == 1.0 {
-				u.rt.wins++
-			} else if u.out == 0.0 {
-				u.rt.losses++
-			}
-			u.rt.lastPlayedAt = m.Date
-			if newSt.Rating > u.rt.peak {
-				u.rt.peak = newSt.Rating
-			}
-
-			outcome := "W"
-			if u.out == 0.0 {
-				outcome = "L"
-			}
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO `+s.schema+`.rating_deltas
-					(event_id, player_id, team, outcome, expected, movm, delta, new_rating)
-				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)`,
-				eventID, u.rt.id, u.team, outcome, domain.Round4(exp), domain.Round4(movm), delta, newSt.Rating); err != nil {
+			if err := s.applyPlayerUpdate(ctx, tx, u.rt, u.team, u.out, u.opps, u.teamSize, movm, phaseWeight, m.Date, eventID, cfg); err != nil {
 				return nil, err
 			}
 		}
@@ -634,6 +571,94 @@ func (s *SessionStore) insertRatingEvent(ctx context.Context, tx pgx.Tx, m *doma
 		return "", err
 	}
 	return id, nil
+}
+
+// applyPlayerUpdate — inti scoring Glicko untuk satu pemain dalam satu match.
+//
+// Dipakai BERSAMA oleh `ingest` dan `rebuildAll`. Kedua jalur WAJIB menghasilkan
+// angka bit-identik (lihat komentar determinisme di masing-masing pemanggil):
+// GrowRD → expected score → GlickoUpdate → modifier → active floor → delta insert.
+// Jangan ubah rumus di satu jalur saja.
+func (s *SessionStore) applyPlayerUpdate(
+	ctx context.Context,
+	tx pgx.Tx,
+	rt *playerRuntime,
+	team string,
+	out float64,
+	opps []domain.RatingOpponent,
+	teamSize int,
+	movm, phaseWeight float64,
+	date string,
+	eventID string,
+	cfg domain.RatingConfig,
+) error {
+	// GrowRD by idle days (basis tanggal sumber — deterministik)
+	st := rt.state
+	if rt.lastPlayedAt != "" {
+		d1, err1 := time.Parse("2006-01-02", rt.lastPlayedAt)
+		d2, err2 := time.Parse("2006-01-02", date)
+		if err1 == nil && err2 == nil && d2.After(d1) {
+			st.RD = domain.GrowRD(st.RD, int(d2.Sub(d1).Hours()/24), cfg.Params)
+		}
+	}
+
+	exp := 0.0
+	if len(opps) > 0 {
+		for _, o := range opps {
+			exp += domain.ExpectedScore(st.Rating, o)
+		}
+		exp /= float64(len(opps))
+	}
+
+	newSt, delta := domain.GlickoUpdate(st, opps, out, movm, phaseWeight, cfg.Params)
+
+	// Modifier post-Glicko (semua opsional, disabled by default):
+	//   - teamWeight: kompensasi tim dengan jumlah pemain berbeda
+	//   - volFactor:  dampening untuk win rate ekstrem
+	// Hitung SEMUA modifier dulu, lalu apply sekaligus + round2
+	// agar invariant determinism (semua nilai round2) tetap terjaga.
+	mod := 1.0
+	if w := domain.TeamSizeWeight(teamSize, cfg.Params); w < 1.0 {
+		mod *= w
+	}
+	if v := domain.VolatilityFactor(rt.wins, rt.losses, cfg.Params); v < 1.0 {
+		mod *= v
+	}
+	if mod < 1.0 {
+		delta = domain.Round2(delta * mod)
+		newSt.Rating = domain.Round2(st.Rating + delta)
+	}
+
+	// Active floor: floor dinamis berdasarkan jumlah game
+	activeFloor := domain.ActiveFloor(rt.games, cfg.Params)
+	if newSt.Rating < activeFloor {
+		newSt.Rating = activeFloor
+	}
+
+	rt.state = newSt
+	rt.games++
+	if out == 1.0 {
+		rt.wins++
+	} else if out == 0.0 {
+		rt.losses++
+	}
+	rt.lastPlayedAt = date
+	if newSt.Rating > rt.peak {
+		rt.peak = newSt.Rating
+	}
+
+	outcome := "W"
+	if out == 0.0 {
+		outcome = "L"
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO `+s.schema+`.rating_deltas
+			(event_id, player_id, team, outcome, expected, movm, delta, new_rating)
+		VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)`,
+		eventID, rt.id, team, outcome, domain.Round4(exp), domain.Round4(movm), delta, newSt.Rating); err != nil {
+		return err
+	}
+	return nil
 }
 
 // playerRuntime — state in-memory selama ingest.

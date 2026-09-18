@@ -338,67 +338,7 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		}
 
 		for _, x := range updates {
-			st := x.rt.state
-			if x.rt.lastPlayedAt != "" {
-				d1, err1 := time.Parse("2006-01-02", x.rt.lastPlayedAt)
-				d2, err2 := time.Parse("2006-01-02", e.date)
-				if err1 == nil && err2 == nil && d2.After(d1) {
-					st.RD = domain.GrowRD(st.RD, int(d2.Sub(d1).Hours()/24), cfg.Params)
-				}
-			}
-			exp := 0.0
-			if len(x.opps) > 0 {
-				for _, o := range x.opps {
-					exp += domain.ExpectedScore(st.Rating, o)
-				}
-				exp /= float64(len(x.opps))
-			}
-			newSt, delta := domain.GlickoUpdate(st, x.opps, x.out, movm, phaseWeight, cfg.Params)
-
-			// Modifier post-Glicko (semua opsional, disabled by default):
-			//   - teamWeight: kompensasi tim dengan jumlah pemain berbeda
-			//   - volFactor:  dampening untuk win rate ekstrem
-			// Hitung SEMUA modifier dulu, lalu apply sekaligus + round2
-			// agar invariant determinism (semua nilai round2) tetap terjaga.
-			mod := 1.0
-			if w := domain.TeamSizeWeight(x.teamSize, cfg.Params); w < 1.0 {
-				mod *= w
-			}
-			if v := domain.VolatilityFactor(x.rt.wins, x.rt.losses, cfg.Params); v < 1.0 {
-				mod *= v
-			}
-			if mod < 1.0 {
-				delta = domain.Round2(delta * mod)
-				newSt.Rating = domain.Round2(st.Rating + delta)
-			}
-
-			// Active floor: floor dinamis berdasarkan jumlah game
-			activeFloor := domain.ActiveFloor(x.rt.games, cfg.Params)
-			if newSt.Rating < activeFloor {
-				newSt.Rating = activeFloor
-			}
-
-			x.rt.state = newSt
-			x.rt.games++
-			if x.out == 1.0 {
-				x.rt.wins++
-			} else if x.out == 0.0 {
-				x.rt.losses++
-			}
-			x.rt.lastPlayedAt = e.date
-			if newSt.Rating > x.rt.peak {
-				x.rt.peak = newSt.Rating
-			}
-
-			outcome := "W"
-			if x.out == 0.0 {
-				outcome = "L"
-			}
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO `+s.schema+`.rating_deltas
-					(event_id, player_id, team, outcome, expected, movm, delta, new_rating)
-				VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)`,
-				e.id, x.rt.id, x.team, outcome, domain.Round4(exp), domain.Round4(movm), delta, newSt.Rating); err != nil {
+			if err := s.applyPlayerUpdate(ctx, tx, x.rt, x.team, x.out, x.opps, x.teamSize, movm, phaseWeight, e.date, e.id, cfg); err != nil {
 				return 0, err
 			}
 		}
