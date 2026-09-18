@@ -11,7 +11,6 @@ import (
 type Metrics struct {
 	GranularOps       atomic.Int64 // total operasi granular sukses (score/played/absent)
 	GranularConflicts atomic.Int64 // 409 version mismatch di granular
-	Contentions       atomic.Int64 // 429 advisory/row lock contention
 	AutoLocks         atomic.Int64 // auto-lock saat skor terakhir masuk
 	SnapshotPuts      atomic.Int64 // PUT snapshot (deprecated path) — observability
 	OutboxEvents      atomic.Int64 // event outbox tertulis
@@ -24,7 +23,6 @@ func (m *Metrics) RenderMetrics() string {
 		"# majadu granular metrics (in-memory, since process start)",
 		fmt.Sprintf("majadu_granular_ops_total %d", m.GranularOps.Load()),
 		fmt.Sprintf("majadu_granular_conflicts_total %d", m.GranularConflicts.Load()),
-		fmt.Sprintf("majadu_contentions_total %d", m.Contentions.Load()),
 		fmt.Sprintf("majadu_auto_locks_total %d", m.AutoLocks.Load()),
 		fmt.Sprintf("majadu_snapshot_puts_total %d", m.SnapshotPuts.Load()),
 		fmt.Sprintf("majadu_outbox_events_total %d", m.OutboxEvents.Load()),

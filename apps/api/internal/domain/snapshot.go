@@ -4,6 +4,10 @@ package domain
 
 import "strconv"
 
+// DefaultGender — gender default saat tidak ditentukan (register player).
+// Satu sumber; jangan hardcode "M" di layer lain.
+const DefaultGender = "M"
+
 // CloudSnapshot — representasi lengkap satu session (kontrak frontend).
 type CloudSnapshot struct {
 	Version        *int                 `json:"version,omitempty"`

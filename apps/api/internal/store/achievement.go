@@ -183,7 +183,7 @@ type checkpoint struct {
 // BackfillAchievements — bangun ulang medal + collectible dari data historis.
 // Idempoten.
 func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult, error) {
-	_, seasonByID, openSeasonID, err := s.loadSeasons(ctx)
+	seasonByID, openSeasonID, err := s.loadSeasons(ctx)
 	if err != nil {
 		return BackfillResult{}, err
 	}
@@ -321,29 +321,27 @@ func mustMedal(id string) domain.MedalDef {
 
 // ── Loader helpers ────────────────────────────────────────────────────────
 
-func (s *SessionStore) loadSeasons(ctx context.Context) ([]seasonInfo, map[string]seasonInfo, string, error) {
+func (s *SessionStore) loadSeasons(ctx context.Context) (map[string]seasonInfo, string, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, name, start_date::text, COALESCE(end_date::text, '')
 		FROM `+s.schema+`.rating_seasons ORDER BY start_date ASC`)
 	if err != nil {
-		return nil, nil, "", err
+		return nil, "", err
 	}
 	defer rows.Close()
-	out := []seasonInfo{}
 	byID := map[string]seasonInfo{}
 	open := ""
 	for rows.Next() {
 		var si seasonInfo
 		if err := rows.Scan(&si.ID, &si.Name, &si.Start, &si.End); err != nil {
-			return nil, nil, "", err
+			return nil, "", err
 		}
-		out = append(out, si)
 		byID[si.ID] = si
 		if si.End == "" {
 			open = si.ID
 		}
 	}
-	return out, byID, open, rows.Err()
+	return byID, open, rows.Err()
 }
 
 func (s *SessionStore) loadSessions(ctx context.Context) ([]sessionInfo, map[string]int, error) {

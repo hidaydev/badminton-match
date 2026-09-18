@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"majadu-api/internal/domain"
 	"majadu-api/internal/httperr"
 	"majadu-api/internal/store"
 )
@@ -156,15 +157,15 @@ func (h *PlayerHandler) Register(w http.ResponseWriter, r *http.Request) {
 	// Default gender ke 'M'
 	gender := req.Gender
 	if gender == "" {
-		gender = "M"
+		gender = domain.DefaultGender
 	}
 	id, err := h.Store.Register(r.Context(), req.Name, canonical, gender)
 	if err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to register player", err))
 		return
 	}
-	if req.Tier != "" && h.AdminStore != nil {
-		if err := h.AdminStore.SetPlayerTierOnRegister(r.Context(), id, req.Tier); err != nil {
+	if req.Tier != "" {
+		if err := h.Store.SetTierOnRegister(r.Context(), id, req.Tier); err != nil {
 			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
 			return
 		}
