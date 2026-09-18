@@ -193,6 +193,45 @@ const EMPTY_TOURNAMENT_STATS: PlayerStats['tournamentStats'] = {
 
 const enc = encodeURIComponent
 
+/** Generate Idempotency-Key — uuid, fallback timestamp+random kalau crypto tidak ada. */
+function makeIdempotencyKey(): string {
+  try {
+    return crypto.randomUUID()
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }
+}
+
+/**
+ * PUT/PATCH/POST dengan OCC (`If-Match` bila versi diketahui) + Idempotency-Key,
+ * lalu validasi bentuk snapshot respons. `expectedVersion` undefined → tanpa If-Match.
+ */
+async function publishWithOcc<T>(
+  method: string,
+  path: string,
+  body: unknown,
+  expectedVersion: number | undefined,
+  validate: (data: unknown) => data is T,
+  warnLabel: string,
+  invalidMessage: string,
+): Promise<T> {
+  const headers: Record<string, string> = {}
+  if (expectedVersion != null) headers['If-Match'] = `"v${expectedVersion}"`
+  headers['Idempotency-Key'] = makeIdempotencyKey()
+  const out = await request<T>(method, path, body, undefined, headers)
+  if (!validate(out)) {
+    console.warn(`[${warnLabel}] response failed validation:`, out)
+    throw new ApiError(invalidMessage)
+  }
+  return out
+}
+
+/** Validate AnyTournamentSnapshot (classic atau team sesuai field `format`). */
+function isValidAnyTournamentSnapshot(data: unknown): data is AnyTournamentSnapshot {
+  const snap = data as AnyTournamentSnapshot
+  return snap.format === 'team' ? isValidTeamTournamentSnapshot(snap) : isValidTournamentSnapshot(snap)
+}
+
 // ── Sessions ──────────────────────────────────────────────────────────────
 
 export async function getSession(id: string, signal?: AbortSignal): Promise<CloudSnapshot | null> {
@@ -210,20 +249,16 @@ export async function getSession(id: string, signal?: AbortSignal): Promise<Clou
 }
 
 export async function publishSession(id: string, data: CloudSnapshot): Promise<CloudSnapshot> {
-  const headers: Record<string, string> = {}
-  if (data.version != null) headers['If-Match'] = `"v${data.version}"`
   // Idempotency-Key untuk network retry (timeout) — BE cache 24h, key = sessionId + uuid
-  try {
-    headers['Idempotency-Key'] = crypto.randomUUID()
-  } catch {
-    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  }
-  const out = await request<CloudSnapshot>('PUT', `/sessions/${enc(id)}`, data, undefined, headers)
-  if (!isValidSnapshot(out)) {
-    console.warn('[publishSession] response failed validation:', out)
-    throw new ApiError('Invalid session snapshot received from server')
-  }
-  return out
+  return publishWithOcc(
+    'PUT',
+    `/sessions/${enc(id)}`,
+    data,
+    data.version ?? undefined,
+    isValidSnapshot,
+    'publishSession',
+    'Invalid session snapshot received from server',
+  )
 }
 
 // ── Granular live v2 (clean break dari snapshot PUT) ────────────────────────
@@ -256,66 +291,54 @@ export async function getGame(id: string, key: string): Promise<GameRow | null> 
 
 /** PATCH /sessions/{id}/games/{key} — set score granular (row-level OCC). */
 export async function patchGameScore(id: string, key: string, a: number, b: number, expectedVersion: number): Promise<CloudSnapshot> {
-  const headers: Record<string, string> = { 'If-Match': `"v${expectedVersion}"` }
-  try {
-    headers['Idempotency-Key'] = crypto.randomUUID()
-  } catch {
-    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  }
-  const out = await request<CloudSnapshot>('PATCH', `/sessions/${enc(id)}/games/${enc(key)}`, { scoreA: a, scoreB: b }, undefined, headers)
-  if (!isValidSnapshot(out)) {
-    console.warn('[patchGameScore] response failed validation:', out)
-    throw new ApiError('Invalid session snapshot received from server')
-  }
-  return out
+  return publishWithOcc(
+    'PATCH',
+    `/sessions/${enc(id)}/games/${enc(key)}`,
+    { scoreA: a, scoreB: b },
+    expectedVersion,
+    isValidSnapshot,
+    'patchGameScore',
+    'Invalid session snapshot received from server',
+  )
 }
 
 /** PATCH /sessions/{id}/games/{key} — set played (idempotent) granular. */
 export async function patchGamePlayed(id: string, key: string, isPlayed: boolean, expectedVersion: number): Promise<CloudSnapshot> {
-  const headers: Record<string, string> = { 'If-Match': `"v${expectedVersion}"` }
-  try {
-    headers['Idempotency-Key'] = crypto.randomUUID()
-  } catch {
-    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  }
-  const out = await request<CloudSnapshot>('PATCH', `/sessions/${enc(id)}/games/${enc(key)}`, { isPlayed }, undefined, headers)
-  if (!isValidSnapshot(out)) {
-    console.warn('[patchGamePlayed] response failed validation:', out)
-    throw new ApiError('Invalid session snapshot received from server')
-  }
-  return out
+  return publishWithOcc(
+    'PATCH',
+    `/sessions/${enc(id)}/games/${enc(key)}`,
+    { isPlayed },
+    expectedVersion,
+    isValidSnapshot,
+    'patchGamePlayed',
+    'Invalid session snapshot received from server',
+  )
 }
 
 /** PATCH /sessions/{id}/absent — set absent players granular (session-level OCC). */
 export async function patchAbsentPlayers(id: string, playerIds: string[], expectedVersion: number): Promise<CloudSnapshot> {
-  const headers: Record<string, string> = { 'If-Match': `"v${expectedVersion}"` }
-  try {
-    headers['Idempotency-Key'] = crypto.randomUUID()
-  } catch {
-    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  }
-  const out = await request<CloudSnapshot>('PATCH', `/sessions/${enc(id)}/absent`, { playerIds }, undefined, headers)
-  if (!isValidSnapshot(out)) {
-    console.warn('[patchAbsentPlayers] response failed validation:', out)
-    throw new ApiError('Invalid session snapshot received from server')
-  }
-  return out
+  return publishWithOcc(
+    'PATCH',
+    `/sessions/${enc(id)}/absent`,
+    { playerIds },
+    expectedVersion,
+    isValidSnapshot,
+    'patchAbsentPlayers',
+    'Invalid session snapshot received from server',
+  )
 }
 
 /** PATCH /sessions/{id}/games/{key}/skip — set skipped players per-game (row-level OCC). */
 export async function patchGameSkipped(id: string, key: string, playerIds: string[], expectedVersion: number): Promise<CloudSnapshot> {
-  const headers: Record<string, string> = { 'If-Match': `"v${expectedVersion}"` }
-  try {
-    headers['Idempotency-Key'] = crypto.randomUUID()
-  } catch {
-    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  }
-  const out = await request<CloudSnapshot>('PATCH', `/sessions/${enc(id)}/games/${enc(key)}/skip`, { playerIds }, undefined, headers)
-  if (!isValidSnapshot(out)) {
-    console.warn('[patchGameSkipped] response failed validation:', out)
-    throw new ApiError('Invalid session snapshot received from server')
-  }
-  return out
+  return publishWithOcc(
+    'PATCH',
+    `/sessions/${enc(id)}/games/${enc(key)}/skip`,
+    { playerIds },
+    expectedVersion,
+    isValidSnapshot,
+    'patchGameSkipped',
+    'Invalid session snapshot received from server',
+  )
 }
 
 /** SwapTarget granular (mirror store.SwapTarget). */
@@ -334,18 +357,15 @@ export async function swapMembers(
   b: GranularSwapTarget,
   expectedVersion: number,
 ): Promise<CloudSnapshot> {
-  const headers: Record<string, string> = { 'If-Match': `"v${expectedVersion}"` }
-  try {
-    headers['Idempotency-Key'] = crypto.randomUUID()
-  } catch {
-    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  }
-  const out = await request<CloudSnapshot>('POST', `/sessions/${enc(id)}/swap`, { type, a, b }, undefined, headers)
-  if (!isValidSnapshot(out)) {
-    console.warn('[swapMembers] response failed validation:', out)
-    throw new ApiError('Invalid session snapshot received from server')
-  }
-  return out
+  return publishWithOcc(
+    'POST',
+    `/sessions/${enc(id)}/swap`,
+    { type, a, b },
+    expectedVersion,
+    isValidSnapshot,
+    'swapMembers',
+    'Invalid session snapshot received from server',
+  )
 }
 
 export async function listSessions(options?: { signal?: AbortSignal }): Promise<SessionMeta[]> {
@@ -453,20 +473,15 @@ export async function getTournament(id: string, signal?: AbortSignal): Promise<A
 export async function publishTournament(id: string, data: AnyTournamentSnapshot): Promise<AnyTournamentSnapshot> {
   // Samakan kontrak dengan publishSession: OCC via If-Match + Idempotency-Key
   // (server juga fallback ke version di body) + validasi bentuk respons.
-  const headers: Record<string, string> = {}
-  if (data.version != null) headers['If-Match'] = `"v${data.version}"`
-  try {
-    headers['Idempotency-Key'] = crypto.randomUUID()
-  } catch {
-    headers['Idempotency-Key'] = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  }
-  const out = await request<AnyTournamentSnapshot>('PUT', `/tournaments/${enc(id)}`, data, undefined, headers)
-  const valid = out.format === 'team' ? isValidTeamTournamentSnapshot(out) : isValidTournamentSnapshot(out)
-  if (!valid) {
-    console.warn('[publishTournament] response failed validation:', out)
-    throw new ApiError('Invalid tournament snapshot received from server')
-  }
-  return out
+  return publishWithOcc(
+    'PUT',
+    `/tournaments/${enc(id)}`,
+    data,
+    data.version ?? undefined,
+    isValidAnyTournamentSnapshot,
+    'publishTournament',
+    'Invalid tournament snapshot received from server',
+  )
 }
 
 /** Create tournament (classic atau team — format di body). Kembalikan id baru
