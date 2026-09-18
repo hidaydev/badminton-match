@@ -1,8 +1,13 @@
 # Keputusan Arsitektur: Backend Go (menggantikan PostgREST RPC)
 
-> **Status:** Accepted — 2026-08-11
+> **Status:** Accepted — 2026-08-11 · **historis**
 > **Pemutus:** owner (diskusi sesi 2026-08-11)
 > **Tujuan dokumen:** pegangan antar sesi — konteks, keputusan, dan langkah tanpa kehilangan arah.
+>
+> ⚠️ Dokumen ini merekam konteks saat keputusan diambil: Supabase/PostgREST masih hidup, repo
+> backend masih terpisah (`majadu-api`), dan ada instance dev `bm_dev`. Kondisi sekarang berbeda —
+> monorepo dengan Postgres `bm` tunggal; lihat [`current-status.md`](current-status.md).
+> Isi di bawah sengaja **tidak** diperbarui.
 
 ---
 

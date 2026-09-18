@@ -31,6 +31,8 @@ Defined in:
 
 - `/scoreboard`
   - fullscreen/mobile-friendly scoring screen
+- `/dev/achievement-badges`
+  - preview semua badge achievement (dev)
 
 ### Guided session flow
 
@@ -132,9 +134,9 @@ The summary modal acts as the operations console for live session management.
 When a session is locked:
 
 - all interactive elements are disabled (checkboxes, scores, actions)
-- server rejects any mutation via `publish_session` (any non-draft status blocks writes)
+- server rejects setiap mutasi selama status bukan `draft` (write-path Go)
 - delete session is also blocked for locked sessions
-- unlock is admin-only via `bm.unlock_session` RPC (not in UI)
+- unlock tersedia di admin UI — `AdminSessionsPage`, `POST /sessions/{id}/unlock`
 - unlock bumps the session version
 - auto-lock triggers on save when all scores are entered (save-path, no ticker)
 
@@ -177,6 +179,19 @@ Capabilities:
 - career stats (W/L, points, sessions, top partners/opponents, tournament)
   dirender di `/ratings/:playerId` — satu halaman, tanpa cross-link nested.
 - Route `/player-history*` dan halaman terpisah DIHAPUS (keputusan 2026-08-19).
+
+## Achievements
+
+Files:
+
+- `src/config/achievements.ts` (definisi & ambang)
+- `src/components/ratings/AchievementBadge.tsx`
+- `src/components/ratings/AchievementDetailModal.tsx`
+- `src/pages/AchievementBadgesPreviewPage.tsx` (route dev `/dev/achievement-badges`)
+
+Badge koleksi per pemain, dihitung backend dari riwayat rating & tournament
+(`apps/api/internal/domain/achievements.go`, tabel `player_achievements` — migrasi `000016`).
+Ditampilkan di halaman detail rating `/ratings/:playerId`.
 
 ## Tournament flow
 

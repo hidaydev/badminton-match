@@ -18,11 +18,11 @@ Regression tests exist via `node:test` (pure logic — retry policy, generator q
 
 ```bash
 cd apps/web
-npm run check              # Types + lint + tailwind + regression tests (74 tests PASS)
+npm run check              # Types + lint + tailwind + regression tests (87 tests PASS)
 npm run check:regression   # Regression tests only (node:test)
 ```
 
-Backend lives in the same monorepo at `apps/api` (`go test ./...` — 183 unit + handler + integration tests PASS). See `apps/api/README.md`.
+Backend lives in the same monorepo at `apps/api` (`go test ./...` — 212 unit + handler tests PASS; test yang butuh Postgres di-skip tanpa `TEST_DATABASE_URL`). See `apps/api/README.md`.
 
 ## Architecture
 
@@ -91,6 +91,7 @@ Frontend:
 - `apps/web/src/queries/ratings.ts` — React Query hooks for leaderboard, player detail, history
 - `apps/web/src/components/ratings/` — `RatingTierBadge`, `RatingSparkline`, `CareerStats`
 - `apps/web/src/config/ratingTiers.ts` — 8-band rating tier colors
+- `apps/web/src/config/achievements.ts` + `apps/web/src/components/ratings/AchievementBadge.tsx` — koleksi badge pemain (backend: `apps/api/internal/domain/achievements.go`, tabel `player_achievements`, migrasi `000016`)
 
 ### Tournament Components
 
@@ -106,7 +107,7 @@ Frontend:
 
 `apps/web/src/queries/` is the single access point for all server state. No page or component imports fetch functions directly.
 
-- `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `registerPlayer`, `deleteSession`, `unlockSession`, `getTournament`, `publishTournament`) + `RpcError` class. Internal to the layer — not re-exported from `index.ts`.
+- `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `registerPlayer`, `deleteSession`, `listTournaments`, `getTournament`, `publishTournament`, granular mutations) + `ApiError` class. Internal to the layer — not re-exported from `index.ts`.
 - `types.ts` — shared types: `CloudSnapshot`, `SessionMeta`, `PlayerSummary`, `PlayerStats`, re-exports `TournamentSnapshot`.
 - `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSwapTeams`, `useSwapSlots`, `useSetAbsent`, `useReplacePlayer`, `useChangePlayer`, `useLockSession`, `useDeleteSession`, `useFetchSession`. Mutations own all cache logic (optimistic update, rollback-first error handling, smart invalidation).
 - `players.ts` — `useListPlayers`, `useGetPlayerStats`.

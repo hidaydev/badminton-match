@@ -19,6 +19,7 @@
   - **Classic Tournament**: 16 pairs → 4 groups round-robin → knockout bracket.
   - **Team Tournament**: 36 players across 6 skill classes → 6 balanced teams with manual assignment.
 - 📈 **Glicko-1 Rating Engine**: Season-based rating calculation, automatic rating delta ingestion, 8-band rating tiers, and player career sparklines.
+- 🏅 **Player Achievements**: Badge collection computed from rating & tournament history (attendance, volume, opponent, tournament, tier, rating, rank, social, season).
 - 🎨 **Instagram Content Canvas**: Built-in HTML5 Canvas generator for exporting branded 1080×1350 posts and 1080×1920 stories.
 
 ---
@@ -56,7 +57,7 @@ make dev          # or npm run dev
 # Start Go API backend (requires Postgres DATABASE_URL)
 make dev-api      # or npm run dev-api
 
-# Run full web check (TypeScript, Lint, Tailwind, 74 pure logic regression tests)
+# Run full web check (TypeScript, Lint, Tailwind, 87 pure logic regression tests)
 make check-web    # or npm run check:web
 
 # Run full backend check (Go vet, formatting, unit & integration tests)
@@ -82,8 +83,8 @@ make check-api    # or npm run check:api
 | [`apps/web/README.md`](apps/web/README.md) | Frontend architecture, state management, components, scripts |
 | [`apps/api/README.md`](apps/api/README.md) | REST API endpoints, OpenAPI contract, database schema, rating engine |
 | [`docs/handbook/`](docs/handbook/README.md) | Product overview, data models, routes, architectural decisions |
+| [`docs/backend/`](docs/backend/README.md) | SQL migrations `000013`–`000016` |
 | [`docs/design-system.md`](docs/design-system.md) | UI tokens, color palettes, typography, theme rules |
-| [`docs/audits/`](docs/audits/) | Fullstack technical audit reports & verification logs |
 
 ---
 
