@@ -63,6 +63,51 @@ type patchGameRequest struct {
 	IsPlayed *bool `json:"isPlayed"`
 }
 
+// requireIfMatch — parse header If-Match "v<n>" untuk mutasi granular. Menulis
+// respons 412/400 dan mengembalikan ok=false bila header absen atau malformed.
+// requiredMsg adalah pesan precondition saat header absen; tiap endpoint bisa
+// berbeda (mis. "... for granular game mutations" vs plain).
+func (h *SessionHandler) requireIfMatch(w http.ResponseWriter, r *http.Request, requiredMsg string) (*int, bool) {
+	v, err := versionRequired(r)
+	switch {
+	case err == nil:
+		return &v, true
+	case errors.Is(err, errIfMatchMissing):
+		httperr.WriteError(w, h.Logger, httperr.Precondition(requiredMsg))
+	default:
+		httperr.WriteError(w, h.Logger, httperr.Validation("invalid If-Match header"))
+	}
+	return nil, false
+}
+
+// replayIdempotent — bila header Idempotency-Key ada, cek cache idempotency
+// in-memory. Pada hit: tulis snapshot cached (200) dan kembalikan (snap, true).
+func (h *SessionHandler) replayIdempotent(w http.ResponseWriter, r *http.Request, id string) (*domain.CloudSnapshot, bool) {
+	idemKey := r.Header.Get("Idempotency-Key")
+	if idemKey == "" {
+		return nil, false
+	}
+	cached, ok := getIdempotentResponse(id + ":" + idemKey)
+	if !ok {
+		return nil, false
+	}
+	h.writeSession(w, http.StatusOK, cached)
+	return cached, true
+}
+
+// storeIdempotentResponse — simpan snapshot ke cache idempotency in-memory
+// bila header Idempotency-Key ada dan snapshot non-nil. No-op selain itu.
+func (h *SessionHandler) storeIdempotentResponse(r *http.Request, id string, snap *domain.CloudSnapshot) {
+	if snap == nil {
+		return
+	}
+	idemKey := r.Header.Get("Idempotency-Key")
+	if idemKey == "" {
+		return
+	}
+	setIdempotentResponse(id+":"+idemKey, snap)
+}
+
 // PatchGame — PATCH /sessions/{id}/games/{gameKey}
 // Granular live: score atau played per game, row-level OCC.
 func (h *SessionHandler) PatchGame(w http.ResponseWriter, r *http.Request) {
@@ -77,24 +122,13 @@ func (h *SessionHandler) PatchGame(w http.ResponseWriter, r *http.Request) {
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid JSON body: "+err.Error()))
 		return
 	}
-	idemKey := r.Header.Get("Idempotency-Key")
-	cacheKey := ""
-	if idemKey != "" {
-		cacheKey = id + ":" + idemKey
-		if cached, ok := getIdempotentResponse(cacheKey); ok {
-			h.writeSession(w, http.StatusOK, cached)
-			return
-		}
-	}
-
-	var expected *int
-	if v, err := versionRequired(r); err == nil {
-		expected = &v
-	} else if errors.Is(err, errIfMatchMissing) {
-		httperr.WriteError(w, h.Logger, httperr.Precondition("If-Match header is required for granular game mutations"))
+	// Idempotency replay SEBELUM If-Match (urutan PatchGame; handler lain
+	// memeriksa If-Match lebih dulu). Pertahankan urutan ini.
+	if _, hit := h.replayIdempotent(w, r, id); hit {
 		return
-	} else {
-		httperr.WriteError(w, h.Logger, httperr.Validation("invalid If-Match header"))
+	}
+	expected, ok := h.requireIfMatch(w, r, "If-Match header is required for granular game mutations")
+	if !ok {
 		return
 	}
 
@@ -105,13 +139,11 @@ func (h *SessionHandler) PatchGame(w http.ResponseWriter, r *http.Request) {
 			httperr.WriteError(w, h.Logger, httperr.Validation("both scoreA and scoreB are required"))
 			return
 		}
-		if *req.ScoreA < 0 || *req.ScoreA > 99 || *req.ScoreB < 0 || *req.ScoreB > 99 || *req.ScoreA == *req.ScoreB {
-			httperr.WriteError(w, h.Logger, httperr.Validation("scores must be 0..99 and not equal"))
-			return
-		}
-		out, opErr = h.Store.SetGameScore(r.Context(), id, gameKey, *req.ScoreA, *req.ScoreB, expected, idemKey)
+		// Aturan skor (0..99, tidak sama) divalidasi store via domain.ValidateScore
+		// dan muncul sebagai ErrValidation 400 lewat mapPublishError.
+		out, opErr = h.Store.SetGameScore(r.Context(), id, gameKey, *req.ScoreA, *req.ScoreB, expected, r.Header.Get("Idempotency-Key"))
 	} else if req.IsPlayed != nil {
-		out, opErr = h.Store.SetGamePlayed(r.Context(), id, gameKey, *req.IsPlayed, expected, idemKey)
+		out, opErr = h.Store.SetGamePlayed(r.Context(), id, gameKey, *req.IsPlayed, expected, r.Header.Get("Idempotency-Key"))
 	} else {
 		httperr.WriteError(w, h.Logger, httperr.Validation("body must contain scoreA/scoreB or isPlayed"))
 		return
@@ -122,10 +154,8 @@ func (h *SessionHandler) PatchGame(w http.ResponseWriter, r *http.Request) {
 		httperr.WriteError(w, h.Logger, mapPublishError(opErr))
 		return
 	}
-	if cacheKey != "" && out != nil {
-		if snap, ok := out.(*domain.CloudSnapshot); ok {
-			setIdempotentResponse(cacheKey, snap)
-		}
+	if snap, ok := out.(*domain.CloudSnapshot); ok {
+		h.storeIdempotentResponse(r, id, snap)
 	}
 	h.writeSessionAny(w, http.StatusOK, out)
 }
@@ -166,38 +196,24 @@ func (h *SessionHandler) PatchGameSkipped(w http.ResponseWriter, r *http.Request
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid JSON body"))
 		return
 	}
-	var expected *int
-	if v, err := versionRequired(r); err == nil {
-		expected = &v
-	} else if errors.Is(err, errIfMatchMissing) {
-		httperr.WriteError(w, h.Logger, httperr.Precondition("If-Match header is required for granular game mutations"))
-		return
-	} else {
-		httperr.WriteError(w, h.Logger, httperr.Validation("invalid If-Match header"))
+	expected, ok := h.requireIfMatch(w, r, "If-Match header is required for granular game mutations")
+	if !ok {
 		return
 	}
-	idemKey := r.Header.Get("Idempotency-Key")
-	cacheKey := ""
-	if idemKey != "" {
-		cacheKey = id + ":" + idemKey
-		if cached, ok := getIdempotentResponse(cacheKey); ok {
-			h.writeSession(w, http.StatusOK, cached)
-			return
-		}
+	if _, hit := h.replayIdempotent(w, r, id); hit {
+		return
 	}
 	// Normalize nil to empty slice (clear skip)
 	if req.PlayerIDs == nil {
 		req.PlayerIDs = []string{}
 	}
-	out, err := h.Store.SetGameSkipped(r.Context(), id, gameKey, req.PlayerIDs, expected, idemKey)
+	out, err := h.Store.SetGameSkipped(r.Context(), id, gameKey, req.PlayerIDs, expected, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.Logger.Warn("granular skip rejected", "session", id, "gameKey", gameKey, "error", err)
 		httperr.WriteError(w, h.Logger, mapPublishError(err))
 		return
 	}
-	if cacheKey != "" && out != nil {
-		setIdempotentResponse(cacheKey, out)
-	}
+	h.storeIdempotentResponse(r, id, out)
 	h.writeSession(w, http.StatusOK, out)
 }
 
@@ -209,34 +225,20 @@ func (h *SessionHandler) PatchAbsent(w http.ResponseWriter, r *http.Request) {
 		httperr.WriteError(w, h.Logger, httperr.Validation("invalid JSON body"))
 		return
 	}
-	var expected *int
-	if v, err := versionRequired(r); err == nil {
-		expected = &v
-	} else if errors.Is(err, errIfMatchMissing) {
-		httperr.WriteError(w, h.Logger, httperr.Precondition("If-Match header is required"))
-		return
-	} else {
-		httperr.WriteError(w, h.Logger, httperr.Validation("invalid If-Match header"))
+	expected, ok := h.requireIfMatch(w, r, "If-Match header is required")
+	if !ok {
 		return
 	}
-	idemKey := r.Header.Get("Idempotency-Key")
-	cacheKey := ""
-	if idemKey != "" {
-		cacheKey = id + ":" + idemKey
-		if cached, ok := getIdempotentResponse(cacheKey); ok {
-			h.writeSession(w, http.StatusOK, cached)
-			return
-		}
+	if _, hit := h.replayIdempotent(w, r, id); hit {
+		return
 	}
-	out, err := h.Store.SetAbsentPlayers(r.Context(), id, req.PlayerIDs, expected, idemKey)
+	out, err := h.Store.SetAbsentPlayers(r.Context(), id, req.PlayerIDs, expected, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		h.Logger.Warn("granular absent rejected", "session", id, "error", err)
 		httperr.WriteError(w, h.Logger, mapPublishError(err))
 		return
 	}
-	if cacheKey != "" && out != nil {
-		setIdempotentResponse(cacheKey, out)
-	}
+	h.storeIdempotentResponse(r, id, out)
 	h.writeSession(w, http.StatusOK, out)
 }
 
