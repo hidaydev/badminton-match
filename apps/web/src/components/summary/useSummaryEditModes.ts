@@ -1,7 +1,7 @@
 // useSummaryEditModes — state machine untuk mode edit SummaryModal (swap/absent/
 // skip/replace/slotSwap/teamSwap/change) + handler konfirmasi & validasi.
 // Dipisah dari komponen agar render tetap tipis.
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { Player, ScheduleSlot } from '../../types'
 import { toPlayerId } from '../../types'
@@ -68,7 +68,7 @@ export function useSummaryEditModes({
   const [actionsOpen, setActionsOpen] = useState(false)
 
   // Exit current mode and reset associated state
-  function exitCurrentMode() {
+  const exitCurrentMode = useCallback(() => {
     switch (mode) {
       case 'swap':
         setSwapSelected(null)
@@ -104,28 +104,28 @@ export function useSummaryEditModes({
     setMode('idle')
     // Reset score-related state
     onExitExtra()
-  }
+  }, [mode, onExitExtra])
 
-  function enterSwapMode() {
+  const enterSwapMode = useCallback(() => {
     exitCurrentMode()
     setMode('swap')
-  }
+  }, [exitCurrentMode])
 
-  function enterAbsentMode() {
+  const enterAbsentMode = useCallback(() => {
     exitCurrentMode()
     setAbsentPending(new Set(absentPlayers))
     setMode('absent')
-  }
+  }, [exitCurrentMode, absentPlayers])
 
-  function enterSkipMode() {
+  const enterSkipMode = useCallback(() => {
     exitCurrentMode()
     const m = new Map<string, Set<string>>()
     for (const [k, v] of Object.entries(skippedPlayers)) m.set(k, new Set(v))
     setSkipPending(m)
     setMode('skip')
-  }
+  }, [exitCurrentMode, skippedPlayers])
 
-  function toggleSkipForGame(gameKey: string, playerId: string) {
+  const toggleSkipForGame = useCallback((gameKey: string, playerId: string) => {
     setSkipPending(prev => {
       const next = new Map(prev)
       const cur = new Set(next.get(gameKey) ?? [])
@@ -135,32 +135,32 @@ export function useSummaryEditModes({
       else next.set(gameKey, cur)
       return next
     })
-  }
+  }, [])
 
-  function enterReplaceMode() {
+  const enterReplaceMode = useCallback(() => {
     exitCurrentMode()
     setMode('replace')
-  }
+  }, [exitCurrentMode])
 
-  function enterSlotSwapMode() {
+  const enterSlotSwapMode = useCallback(() => {
     exitCurrentMode()
     setActionsOpen(false)
     setMode('slotSwap')
-  }
+  }, [exitCurrentMode])
 
-  function enterTeamSwapMode() {
+  const enterTeamSwapMode = useCallback(() => {
     exitCurrentMode()
     setActionsOpen(false)
     setMode('teamSwap')
-  }
+  }, [exitCurrentMode])
 
-  function enterChangeMode() {
+  const enterChangeMode = useCallback(() => {
     exitCurrentMode()
     setActionsOpen(false)
     setMode('change')
-  }
+  }, [exitCurrentMode])
 
-  function handleDragEnd(event: DragEndEvent) {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
     const parseId = (id: string | number) => {
@@ -176,9 +176,9 @@ export function useSummaryEditModes({
     }
     setSlotSwapError(null)
     setPendingSlotSwap({ g1, g2 })
-  }
+  }, [schedule, playerMap])
 
-  function handleTeamClick(target: TeamSwapTarget) {
+  const handleTeamClick = useCallback((target: TeamSwapTarget) => {
     if (mode !== 'teamSwap') return
     if (
       teamSwapSelected &&
@@ -204,9 +204,9 @@ export function useSummaryEditModes({
     setTeamSwapError(null)
     setPendingTeamSwap({ t1: teamSwapSelected, t2: target })
     setTeamSwapSelected(null)
-  }
+  }, [mode, teamSwapSelected, schedule, playerMap])
 
-  function handleChipClick(target: SwapTarget) {
+  const handleChipClick = useCallback((target: SwapTarget) => {
     if (mode !== 'swap') return
     if (!swapSelected) {
       setSwapSelected(target)
@@ -245,10 +245,10 @@ export function useSummaryEditModes({
     setSwapError(null)
     setPendingSwap({ t1: swapSelected, t2: target })
     setSwapSelected(null)
-  }
+  }, [mode, swapSelected, schedule])
 
   // Toggle replace target selection
-  function handleReplaceToggle(playerId: string) {
+  const handleReplaceToggle = useCallback((playerId: string) => {
     if (replaceTarget === playerId) {
       setReplaceTarget(null)
       setReplaceName('')
@@ -256,14 +256,14 @@ export function useSummaryEditModes({
       setReplaceTarget(playerId)
       setReplaceName('')
     }
-  }
+  }, [replaceTarget])
 
   // Select change target
-  function handleChangeSelect(target: ChangeTarget) {
+  const handleChangeSelect = useCallback((target: ChangeTarget) => {
     setChangeTarget(target)
     setChangeName('')
     setChangeError(null)
-  }
+  }, [])
 
   // In absent mode, preview pending selections; otherwise use saved state.
   // useMemo → identitas stabil supaya memo di StandingsTab tidak invalid tiap render.
@@ -306,21 +306,21 @@ export function useSummaryEditModes({
   const flatSkippedCount = Object.values(effectiveSkipped).reduce((n, s) => n + s.size, 0)
 
   // ConfirmBars callbacks
-  function handleCancelSwap() { setPendingSwap(null) }
-  function handleConfirmSwap() { if (pendingSwap) { onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2); exitCurrentMode() } }
-  function handleCancelSlotSwap() { setPendingSlotSwap(null) }
-  function handleConfirmSlotSwap() { if (pendingSlotSwap) { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitCurrentMode() } }
-  function handleCancelTeamSwap() { exitCurrentMode() }
-  function handleConfirmTeamSwap() { if (pendingTeamSwap) { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitCurrentMode() } }
-  function handleCancelChange() { setPendingChange(null) }
-  function handleConfirmChange() { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitCurrentMode() } }
-  function handleConfirmAbsent() {
+  const handleCancelSwap = useCallback(() => { setPendingSwap(null) }, [])
+  const handleConfirmSwap = useCallback(() => { if (pendingSwap) { onSwapPlayers?.(pendingSwap.t1, pendingSwap.t2); exitCurrentMode() } }, [pendingSwap, onSwapPlayers, exitCurrentMode])
+  const handleCancelSlotSwap = useCallback(() => { setPendingSlotSwap(null) }, [])
+  const handleConfirmSlotSwap = useCallback(() => { if (pendingSlotSwap) { onSwapSlots?.(pendingSlotSwap.g1, pendingSlotSwap.g2); exitCurrentMode() } }, [pendingSlotSwap, onSwapSlots, exitCurrentMode])
+  const handleCancelTeamSwap = useCallback(() => { exitCurrentMode() }, [exitCurrentMode])
+  const handleConfirmTeamSwap = useCallback(() => { if (pendingTeamSwap) { onSwapTeams?.(pendingTeamSwap.t1, pendingTeamSwap.t2); exitCurrentMode() } }, [pendingTeamSwap, onSwapTeams, exitCurrentMode])
+  const handleCancelChange = useCallback(() => { setPendingChange(null) }, [])
+  const handleConfirmChange = useCallback(() => { if (pendingChange) { onChangePlayer?.(pendingChange.target, pendingChange.newName); exitCurrentMode() } }, [pendingChange, onChangePlayer, exitCurrentMode])
+  const handleConfirmAbsent = useCallback(() => {
     const ids = [...absentPending]
     onSetAbsent?.(ids)
     exitCurrentMode()
-  }
+  }, [absentPending, onSetAbsent, exitCurrentMode])
 
-  function handleConfirmSkip() {
+  const handleConfirmSkip = useCallback(() => {
     // Send per-game PATCH sequentially (row-level OCC, low contention)
     for (const [key, set] of skipPending) {
       onSetGameSkipped?.(key, [...set])
@@ -330,7 +330,7 @@ export function useSummaryEditModes({
       if (!skipPending.has(k)) onSetGameSkipped?.(k, [])
     }
     exitCurrentMode()
-  }
+  }, [skipPending, skippedPlayers, onSetGameSkipped, exitCurrentMode])
 
   return {
     mode,
