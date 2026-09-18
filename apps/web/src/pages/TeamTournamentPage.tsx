@@ -20,7 +20,9 @@ import {
 import TeamMatchCard from '../components/tournament/TeamMatchCard'
 import TeamGroupSchedule from '../components/tournament/TeamGroupSchedule'
 import Icon from '../components/Icon'
+import ErrorBanner from '../components/ErrorBanner'
 import { useImageUploadMap } from '../hooks/useImageUploadMap'
+import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { drawPositionPost, loadImage } from '../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../utils/share'
 import { loadOverlayImages } from '../utils/overlays'
@@ -82,11 +84,7 @@ export default function TeamTournamentPage() {
     })
   }
 
-  useEffect(() => {
-    if (!publishError) return
-    const t = setTimeout(() => setPublishError(null), 5000)
-    return () => clearTimeout(t)
-  }, [publishError])
+  useAutoDismiss(publishError, setPublishError, 5000)
 
   const teams = useMemo(() => snap?.teams ?? [], [snap?.teams])
   const matches = useMemo(() => localMatches ?? snap?.matches ?? [], [localMatches, snap?.matches])
@@ -239,11 +237,7 @@ export default function TeamTournamentPage() {
 
   return (
     <div className="flex flex-col gap-0 -mx-3 -mt-4">
-      {publishError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg" role="alert">
-          {publishError}
-        </div>
-      )}
+      {publishError && <ErrorBanner message={publishError} />}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border-subtle">
         <div className="flex items-center gap-2">
           <h2 className="text-[1rem] font-bold text-fg leading-tight">{snap.name}</h2>
