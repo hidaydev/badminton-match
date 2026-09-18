@@ -157,44 +157,7 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 
 	// Placeholder promotion guard: cek apakah ada placeholder yang sudah
 	// melebihi threshold → tandai untuk review admin.
-	// Placeholder disimpan di session_players dengan player_id = NULL dan
-	// source_name = nama placeholder. Mereka TIDAK pernah dapat rating_deltas
-	// (hanya jadi opponent sintetik), jadi hitung dari session_players.
-	if cfg.PlaceholderPromoteGames > 0 {
-		placeholderNames := map[string]bool{}
-		for _, m := range matches {
-			for _, p := range m.Players {
-				if p.Placeholder && !p.Absent {
-					placeholderNames[p.Name] = true
-				}
-			}
-		}
-		for name := range placeholderNames {
-			var gamesPlayed int
-			// Pakai tx (bukan s.pool) — query ini jalan DI DALAM transaksi; memakai
-			// koneksi pool kedua saat tx terbuka berisiko pool exhaustion/deadlock.
-			if err := tx.QueryRow(ctx, `
-			SELECT count(DISTINCT sgp.scheduled_game_internal_id)
-			FROM `+s.schema+`.scheduled_game_players sgp
-			JOIN `+s.schema+`.session_players sp
-			  ON sp.internal_id = sgp.session_player_internal_id
-			WHERE sp.player_id IS NULL
-			  AND sp.source_name = $1`, name).Scan(&gamesPlayed); err != nil {
-				slog.Warn("placeholder games count failed", "placeholder", name, "error", err)
-			}
-			if gamesPlayed >= cfg.PlaceholderPromoteGames {
-				// Warning: placeholder sudah terlalu banyak game
-				// Idealnya admin register pemain ini sebagai real player
-				// Untuk sekarang, kita log warning tapi tidak block ingest
-				slog.Warn("placeholder Promotion threshold exceeded",
-					"placeholder", name,
-					"games_played", gamesPlayed,
-					"threshold", cfg.PlaceholderPromoteGames,
-					"source", meta.SourceID,
-				)
-			}
-		}
-	}
+	s.warnPlaceholderPromotions(ctx, tx, matches, meta.SourceID, cfg)
 
 	// Filter void games sesuai absent_policy:
 	//   skip_game → game yang memuat ≥1 pemain absent di-void SELURUHNYA
@@ -203,29 +166,16 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 	//               delta (kontrak produk: "3 player lain dapat delta").
 	//   count → pemain absent dihitung seperti pemain normal.
 	// Fingerprint TETAP dari semua match (termasuk void) — §4.4a.
+	playable, skipped := s.filterPlayableMatches(matches, cfg)
+	domain.SortMatchesByOrder(playable)
+
+	// teamPlayers — daftar pemain per tim sesuai absent_policy, dipakai loop scoring.
 	teamPlayers := func(m domain.RawMatch, team string) []domain.RawPlayer {
 		if cfg.AbsentPolicy == domain.AbsentCount {
 			return m.PlayersByTeamInclAbsent(team)
 		}
 		return m.PlayersByTeam(team) // skip_player & skip_game: exclude absent
 	}
-
-	playable := make([]domain.RawMatch, 0, len(matches))
-	skipped := []SkippedGame{}
-	for _, m := range matches {
-		if cfg.AbsentPolicy == domain.AbsentSkipGame && m.Void() {
-			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "void (absent)"})
-			continue
-		}
-		// PRE-SEASON filter SEBELUM seq invariant: match sebelum season_start
-		// tidak pernah valid — drop di sini (bukan tolak out-of-order).
-		if m.Date < cfg.SeasonStart {
-			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "pre-season"})
-			continue
-		}
-		playable = append(playable, m)
-	}
-	domain.SortMatchesByOrder(playable)
 
 	if len(playable) == 0 {
 		// Semua match di-skip (pre-season / absent-void). Tandai di rating_sources
@@ -659,6 +609,69 @@ func (s *SessionStore) applyPlayerUpdate(
 		return err
 	}
 	return nil
+}
+
+// filterPlayableMatches — pisahkan match yang bisa diproses dari yang di-skip
+// (void absent per policy skip_game, atau pre-season). Urutan input dipertahankan;
+// SortMatchesByOrder dipanggil pemanggil setelahnya.
+func (s *SessionStore) filterPlayableMatches(matches []domain.RawMatch, cfg domain.RatingConfig) ([]domain.RawMatch, []SkippedGame) {
+	playable := make([]domain.RawMatch, 0, len(matches))
+	skipped := []SkippedGame{}
+	for _, m := range matches {
+		if cfg.AbsentPolicy == domain.AbsentSkipGame && m.Void() {
+			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "void (absent)"})
+			continue
+		}
+		// PRE-SEASON filter SEBELUM seq invariant: match sebelum season_start
+		// tidak pernah valid — drop di sini (bukan tolak out-of-order).
+		if m.Date < cfg.SeasonStart {
+			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "pre-season"})
+			continue
+		}
+		playable = append(playable, m)
+	}
+	return playable, skipped
+}
+
+// warnPlaceholderPromotions — hitung game per placeholder (player_id NULL) dan
+// log warning bila melewati threshold. Placeholder disimpan di session_players
+// dengan player_id = NULL dan source_name = nama placeholder; mereka TIDAK
+// pernah dapat rating_deltas (hanya opponent sintetik). Query memakai tx yang
+// sama (bukan pool) agar tidak pool-exhaustion saat tx terbuka.
+func (s *SessionStore) warnPlaceholderPromotions(ctx context.Context, tx pgx.Tx, matches []domain.RawMatch, sourceID string, cfg domain.RatingConfig) {
+	if cfg.PlaceholderPromoteGames <= 0 {
+		return
+	}
+	placeholderNames := map[string]bool{}
+	for _, m := range matches {
+		for _, p := range m.Players {
+			if p.Placeholder && !p.Absent {
+				placeholderNames[p.Name] = true
+			}
+		}
+	}
+	for name := range placeholderNames {
+		var gamesPlayed int
+		if err := tx.QueryRow(ctx, `
+			SELECT count(DISTINCT sgp.scheduled_game_internal_id)
+			FROM `+s.schema+`.scheduled_game_players sgp
+			JOIN `+s.schema+`.session_players sp
+			  ON sp.internal_id = sgp.session_player_internal_id
+			WHERE sp.player_id IS NULL
+			  AND sp.source_name = $1`, name).Scan(&gamesPlayed); err != nil {
+			slog.Warn("placeholder games count failed", "placeholder", name, "error", err)
+		}
+		if gamesPlayed >= cfg.PlaceholderPromoteGames {
+			// Warning: placeholder sudah terlalu banyak game. Idealnya admin
+			// register pemain ini sebagai real player; sekarang log saja.
+			slog.Warn("placeholder Promotion threshold exceeded",
+				"placeholder", name,
+				"games_played", gamesPlayed,
+				"threshold", cfg.PlaceholderPromoteGames,
+				"source", sourceID,
+			)
+		}
+	}
 }
 
 // playerRuntime — state in-memory selama ingest.
