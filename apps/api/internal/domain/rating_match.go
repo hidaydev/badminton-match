@@ -48,7 +48,8 @@ type RawPlayer struct {
 	Placeholder bool   `json:"placeholder"` // pattern placeholder (free/tbd/dst)
 	Team        string `json:"team"`        // 'A' | 'B'
 	Position    int    `json:"position"`    // partai index (team format) / 0
-	Absent      bool   `json:"absent"`      // is_absent (game ini void bila ada)
+	Absent      bool   `json:"absent"`      // is_absent: pemain tidak hadir
+	Skipped     bool   `json:"skipped"`     // di-skip per game (skip_player_refs): digantikan
 }
 
 // RawMatch — satu game siap diproses.
@@ -66,28 +67,30 @@ type RawMatch struct {
 	Players      []RawPlayer `json:"players"`
 }
 
-// Void — game void bila memuat ≥1 pemain absent (design §4.1/§8).
+// Void — game void bila memuat ≥1 pemain absent/skipped (design §4.1/§8).
+// Dipakai policy absent_policy=skip_game: seluruh game dibatalkan.
 func (m *RawMatch) Void() bool {
 	for _, p := range m.Players {
-		if p.Absent {
+		if p.Absent || p.Skipped {
 			return true
 		}
 	}
 	return false
 }
 
-// PlayersByTeam — pemain tim A/B (bukan placeholder, bukan absent).
+// PlayersByTeam — pemain tim A/B yang benar-benar dapat delta: bukan
+// placeholder, tidak absent, dan tidak di-skip per game.
 func (m *RawMatch) PlayersByTeam(team string) []RawPlayer {
 	out := []RawPlayer{}
 	for _, p := range m.Players {
-		if p.Team == team && !p.Placeholder && !p.Absent {
+		if p.Team == team && !p.Placeholder && !p.Absent && !p.Skipped {
 			out = append(out, p)
 		}
 	}
 	return out
 }
 
-// PlayersByTeamInclAbsent — pemain tim A/B termasuk yang absent (bukan
+// PlayersByTeamInclAbsent — pemain tim A/B termasuk yang absent/skipped (bukan
 // placeholder). Dipakai policy absent_policy=count — absent dihitung normal.
 func (m *RawMatch) PlayersByTeamInclAbsent(team string) []RawPlayer {
 	out := []RawPlayer{}
@@ -97,6 +100,52 @@ func (m *RawMatch) PlayersByTeamInclAbsent(team string) []RawPlayer {
 		}
 	}
 	return out
+}
+
+// SideHasRealPlayer — true bila tim punya ≥1 pemain real (bukan placeholder)
+// yang hadir. Pemain yang di-skip per game TETAP dihitung (dia hadir, hanya
+// digantikan di game ini); pemain absent tidak.
+//
+// Dipakai MatchRateable: sisi yang seluruhnya placeholder atau seluruhnya
+// absent tidak bisa dinilai.
+func (m *RawMatch) SideHasRealPlayer(team string) bool {
+	for _, p := range m.Players {
+		if p.Team == team && !p.Placeholder && !p.Absent {
+			return true
+		}
+	}
+	return false
+}
+
+// SkippedPlayersByTeam — pemain tim A/B yang di-skip per game (digantikan).
+// Dipakai ingest untuk mensintesis lawan pengganti dari tier assigned-nya saat
+// satu sisi habis di-skip, supaya match tetap bisa dinilai.
+func (m *RawMatch) SkippedPlayersByTeam(team string) []RawPlayer {
+	out := []RawPlayer{}
+	for _, p := range m.Players {
+		if p.Team == team && !p.Placeholder && p.Skipped {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// MatchRateable — apakah match masih layak dinilai setelah absent_policy
+// diterapkan. Pemain yang absent/skipped tidak dapat delta (PlayersByTeam),
+// tapi match TETAP dinilai untuk pemain yang benar-benar main.
+//
+// Satu sisi boleh kosong (0 eligible) selama isinya pemain real yang
+// digantikan — ingest mensintesis lawannya dari tier assigned. Match dibuang bila:
+//   - salah satu sisi tidak punya pemain real sama sekali (mis. seluruhnya
+//     placeholder atau seluruhnya absent), atau
+//   - kedua sisi tidak punya pemain eligible (mis. semua pemain di-skip).
+//
+// eligibleA/eligibleB = jumlah pemain eligible hasil gate journey per pemain.
+func (m *RawMatch) MatchRateable(eligibleA, eligibleB int) bool {
+	if !m.SideHasRealPlayer("A") || !m.SideHasRealPlayer("B") {
+		return false
+	}
+	return eligibleA > 0 || eligibleB > 0
 }
 
 // PlaceholdersByTeam — placeholder tim A/B (rate_as_unknown → sintetik 1250/350).

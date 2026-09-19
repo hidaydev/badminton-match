@@ -124,16 +124,18 @@ func (s *SessionStore) extractSessionMatches(ctx context.Context, tx pgx.Tx, loo
 				prows.Close()
 				return nil, nil, err
 			}
-			// Per-game skipped overrides is_absent — skipped in this game = absent for rating
-			if _, isSkipped := skippedSet[playerRef]; isSkipped {
-				absent = true
-			}
+			// Skip per game ≠ absent: pemain hadir tapi digantikan di game ini.
+			// Tidak dapat delta, tapi match TETAP dinilai untuk yang benar-benar
+			// main — lawan dari sisi yang habis di-skip disintesis dari tier
+			// assigned pemain tsb (lihat opponentsFor di rating.go).
+			_, skippedHere := skippedSet[playerRef]
 			players = append(players, domain.RawPlayer{
 				Name:        name,
 				Placeholder: domain.IsPlaceholderName(name),
 				Team:        team,
 				Position:    position,
 				Absent:      absent,
+				Skipped:     skippedHere,
 			})
 		}
 		prows.Close()

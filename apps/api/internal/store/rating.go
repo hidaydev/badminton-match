@@ -328,9 +328,11 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 	for _, m := range fresh {
 		// GATE journey per-player (RATING_TIERING_REVAMP §2.5.6): match sebelum
 		// registered_at pemain → pemain tidak ikut.
-		// Jika salah satu sisi kosong → skip match.
-		// Pemain absent di-exclude sesuai absent_policy (skip_player: tidak
-		// dapat delta; count: tetap dihitung; skip_game: sudah di-filter di atas).
+		// Keputusan match layak/tidak ada di MatchRateable (domain): satu sisi
+		// boleh kosong bila isinya pemain yang di-skip per game (digantikan),
+		// karena lawannya disintesis dari tier assigned (lihat opponentsFor).
+		// Pemain absent/skipped di-exclude sesuai absent_policy (skip_player:
+		// tidak dapat delta; count: tetap dihitung; skip_game: sudah di-filter).
 		eligibleA := []domain.RawPlayer{}
 		eligibleB := []domain.RawPlayer{}
 		for _, p := range teamPlayers(m, "A") {
@@ -350,7 +352,7 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 				}
 			}
 		}
-		if len(eligibleA) == 0 || len(eligibleB) == 0 {
+		if !m.MatchRateable(len(eligibleA), len(eligibleB)) {
 			skipped = append(skipped, SkippedGame{GameRef: m.StableGameID, Reason: "no eligible players (season/journey)"})
 			continue
 		}
@@ -391,6 +393,23 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 			}
 			for _, _ = range m.PlaceholdersByTeam(oppTeam) {
 				opps = append(opps, domain.RatingOpponent{Rating: cfg.Params.InitialRating, RD: cfg.Params.InitialRD})
+			}
+			// Sisi lawan habis di-skip (semua digantikan) → sintesis lawan
+			// pengganti dari baseline tier assigned pemain yang di-skip
+			// (FormingForTier = nilai session_tier_init, sama dengan forming
+			// pemain baru). Pemain itu sendiri tetap TIDAK dapat delta.
+			// Sengaja hanya saat sisi lawan 0 eligible — skip sebagian tetap
+			// dihitung 2v1 seperti sebelumnya (TeamSizeNormalization).
+			if len(teamPlayers(m, oppTeam)) == 0 {
+				for _, op := range m.SkippedPlayersByTeam(oppTeam) {
+					r := cfg.Params.InitialRating // fallback: tanpa tier assigned
+					if tier := tierByPlayer[playerIDs[op.Name]]; tier != "" {
+						if init, ok := cfg.FormingForTier(tier); ok {
+							r = init.Rating
+						}
+					}
+					opps = append(opps, domain.RatingOpponent{Rating: r, RD: cfg.Params.InitialRD})
+				}
 			}
 			return opps
 		}
@@ -645,7 +664,7 @@ func (s *SessionStore) warnPlaceholderPromotions(ctx context.Context, tx pgx.Tx,
 	placeholderNames := map[string]bool{}
 	for _, m := range matches {
 		for _, p := range m.Players {
-			if p.Placeholder && !p.Absent {
+			if p.Placeholder && !p.Absent && !p.Skipped {
 				placeholderNames[p.Name] = true
 			}
 		}

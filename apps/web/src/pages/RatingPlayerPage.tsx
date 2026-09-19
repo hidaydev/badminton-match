@@ -72,7 +72,7 @@ export default function RatingPlayerPage() {
           </div>
         </div>
         <span className="text-right">
-          <span className="block text-2xl font-bold font-sans text-accent leading-none">{rating.toFixed(0)}</span>
+          <span className="block text-2xl font-bold font-sans text-accent leading-none">{rating.toFixed(2)}</span>
           <span className="block text-[10px] font-sans text-fg-dim mt-1">RD {rd.toFixed(1)}</span>
         </span>
       </div>
@@ -80,7 +80,7 @@ export default function RatingPlayerPage() {
       {/* Stat cards — rated games (Glicko) */}
       <div className="grid grid-cols-4 gap-2">
         {[
-          { label: 'Peak', value: peak.toFixed(0) },
+          { label: 'Peak', value: peak.toFixed(2) },
           { label: 'Rated Games', value: String(games) },
           { label: 'W-L', value: `${wins}-${losses}` },
           { label: 'Tier', value: tier || '—' },

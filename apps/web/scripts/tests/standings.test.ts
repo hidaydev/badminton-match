@@ -130,3 +130,73 @@ test('computeStandings: tim tanpa pemain aktif sama sekali → game di-skip', ()
   assert.equal(byId.get(toPlayerId('p1'))!.losses, 1)
   assert.equal(byId.get(toPlayerId('p3'))!.wins, 1)
 })
+
+// ── Tim yang habis di-skip per game (pemain digantikan orang lain) ──────────
+// Sisi yang kosong karena anggotanya di-skip per game TIDAK membatalkan game
+// untuk tim lawan: mereka benar-benar main dan skornya sah. Mirror
+// domain.MatchRateable (rating_match.go) — satu sisi boleh kosong selama ia
+// masih punya pemain real dan sisi lain punya pemain eligible.
+
+test('computeStandings: tim habis di-skip per game → lawannya tetap dihitung', () => {
+  const ega = makePlayer('ega')
+  const ismet = makePlayer('ismet')
+  const vira = makePlayer('vira')
+  const fathur = makePlayer('fathur')
+  const key = toGameKey(1, 1)
+  const schedule: ScheduleSlot[] = [
+    { slot: 1, court: 1, teamA: [toPlayerId('ega'), toPlayerId('ismet')], teamB: [toPlayerId('vira'), toPlayerId('fathur')] },
+  ]
+  const gameScores: Record<string, GameScore> = { [key]: { a: 30, b: 27 } }
+  const rows = computeStandings(
+    [ega, ismet, vira, fathur],
+    schedule,
+    gameScores,
+    [],
+    { [key]: [toPlayerId('vira'), toPlayerId('fathur')] },
+  )
+  const byId = new Map(rows.map((r) => [r.player.id, r]))
+  // Ega & Ismet menang 30-27 → game tetap masuk tally
+  assert.equal(byId.get(toPlayerId('ega'))!.wins, 1)
+  assert.equal(byId.get(toPlayerId('ismet'))!.wins, 1)
+  assert.equal(byId.get(toPlayerId('ega'))!.pointsFor, 30)
+  assert.equal(byId.get(toPlayerId('ega'))!.pointsAgainst, 27)
+  // Vira & Fathur di-skip → tidak dapat tally
+  assert.equal(byId.get(toPlayerId('vira'))!.wins + byId.get(toPlayerId('vira'))!.losses, 0)
+  assert.equal(byId.get(toPlayerId('fathur'))!.wins + byId.get(toPlayerId('fathur'))!.losses, 0)
+})
+
+test('computeStandings: SEMUA pemain di-skip → game tetap dibuang', () => {
+  const p1 = makePlayer('p1')
+  const p2 = makePlayer('p2')
+  const p3 = makePlayer('p3')
+  const p4 = makePlayer('p4')
+  const key = toGameKey(1, 1)
+  const schedule: ScheduleSlot[] = [
+    { slot: 1, court: 1, teamA: [toPlayerId('p1'), toPlayerId('p2')], teamB: [toPlayerId('p3'), toPlayerId('p4')] },
+  ]
+  const gameScores: Record<string, GameScore> = { [key]: { a: 21, b: 10 } }
+  const rows = computeStandings([p1, p2, p3, p4], schedule, gameScores, [], {
+    [key]: [toPlayerId('p1'), toPlayerId('p2'), toPlayerId('p3'), toPlayerId('p4')],
+  })
+  const byId = new Map(rows.map((r) => [r.player.id, r]))
+  for (const id of ['p1', 'p2', 'p3', 'p4']) {
+    assert.equal(byId.get(toPlayerId(id))!.wins + byId.get(toPlayerId(id))!.losses, 0)
+  }
+})
+
+test('computeStandings: tim semua placeholder → game dibuang (tidak berubah)', () => {
+  const p1 = makePlayer('p1')
+  const p2 = makePlayer('p2')
+  const key = toGameKey(1, 1)
+  const schedule: ScheduleSlot[] = [
+    { slot: 1, court: 1, teamA: [toPlayerId('p1'), toPlayerId('p2')], teamB: [toPlayerId('Free 1'), toPlayerId('Free 2')] },
+  ]
+  const gameScores: Record<string, GameScore> = { [key]: { a: 21, b: 10 } }
+  // Pemanggil hanya mengoper pemain real; placeholder masuk sebagai void.
+  const rows = computeStandings([p1, p2], schedule, gameScores, [
+    toPlayerId('Free 1'),
+    toPlayerId('Free 2'),
+  ])
+  const byId = new Map(rows.map((r) => [r.player.id, r]))
+  assert.equal(byId.get(toPlayerId('p1'))!.wins + byId.get(toPlayerId('p1'))!.losses, 0)
+})
