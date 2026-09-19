@@ -127,6 +127,75 @@ func TestPlayersByTeamInclAbsent(t *testing.T) {
 	}
 }
 
+func TestPlayersByTeamExcludesSkipped(t *testing.T) {
+	m := matchFixture()
+	m.Players[2].Skipped = true
+	if got := m.PlayersByTeam("B"); len(got) != 1 {
+		t.Fatalf("tim B harus 1 pemain (skipped disaring dari delta), got %d", len(got))
+	}
+	if got := m.SkippedPlayersByTeam("B"); len(got) != 1 {
+		t.Fatalf("pemain skipped tim B harus 1, got %d", len(got))
+	}
+	// skipped ≠ absent: sisi B tetap punya pemain real (hadir, hanya digantikan)
+	if !m.SideHasRealPlayer("B") {
+		t.Fatal("tim B dengan pemain skipped harus tetap dianggap punya pemain real")
+	}
+}
+
+// TestRawMatchVoidIncludesSkipped — policy absent_policy=skip_game membatalkan
+// game yang memuat pemain absent MAUPUN yang di-skip per game.
+func TestRawMatchVoidIncludesSkipped(t *testing.T) {
+	m := matchFixture()
+	m.Players[1].Skipped = true
+	if !m.Void() {
+		t.Fatal("match dengan pemain skipped harus void")
+	}
+}
+
+func TestMatchRateable(t *testing.T) {
+	markTeam := func(m RawMatch, team string, set func(*RawPlayer)) RawMatch {
+		for i := range m.Players {
+			if m.Players[i].Team == team {
+				set(&m.Players[i])
+			}
+		}
+		return m
+	}
+	skipTeam := func(m RawMatch, team string) RawMatch {
+		return markTeam(m, team, func(p *RawPlayer) { p.Skipped = true })
+	}
+
+	tests := []struct {
+		name      string
+		mutate    func(RawMatch) RawMatch
+		eligibleA int
+		eligibleB int
+		want      bool
+	}{
+		{"normal (kedua sisi eligible)", func(m RawMatch) RawMatch { return m }, 2, 2, true},
+		{"satu sisi habis di-skip (digantikan)", func(m RawMatch) RawMatch { return skipTeam(m, "B") }, 2, 0, true},
+		{"kedua sisi habis di-skip", func(m RawMatch) RawMatch { return skipTeam(skipTeam(m, "A"), "B") }, 0, 0, false},
+		{"satu sisi semua placeholder", func(m RawMatch) RawMatch {
+			return markTeam(m, "B", func(p *RawPlayer) { p.Placeholder = true })
+		}, 2, 0, false},
+		{"satu sisi absent global", func(m RawMatch) RawMatch {
+			return markTeam(m, "B", func(p *RawPlayer) { p.Absent = true })
+		}, 2, 0, false},
+		{"satu sisi kosong tanpa pemain", func(m RawMatch) RawMatch {
+			m.Players = m.Players[:2] // buang seluruh tim B
+			return m
+		}, 2, 0, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := tc.mutate(matchFixture())
+			if got := m.MatchRateable(tc.eligibleA, tc.eligibleB); got != tc.want {
+				t.Fatalf("MatchRateable(%d,%d) = %v, want %v", tc.eligibleA, tc.eligibleB, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestSortMatchesByOrderNumeric — game_order "slot-court" harus diurut numerik,
 // bukan leksikografis ("0-10" keliru berada sebelum "0-2"). Audit 2026-09-12.
 func TestSortMatchesByOrderNumeric(t *testing.T) {

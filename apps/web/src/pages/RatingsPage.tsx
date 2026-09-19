@@ -116,7 +116,7 @@ export default function RatingsPage() {
               <RatingTierBadge tier={r.tier_display} />
               <span className="flex-1 min-w-0 truncate text-sm font-medium text-fg">{r.name}</span>
               <span className="shrink-0 text-right font-sans">
-                <span className="block text-sm font-bold text-fg">{r.rating.toFixed(0)}</span>
+                <span className="block text-sm font-bold text-fg">{r.rating.toFixed(2)}</span>
                 <span className="block text-[10px] text-fg-dim">{r.games} game{r.games !== 1 ? 's' : ''} · {r.wins}-{r.losses}</span>
               </span>
             </div>
@@ -154,7 +154,7 @@ export default function RatingsPage() {
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
-                  <span className="block text-sm font-bold font-sans text-fg">{r.rating.toFixed(0)}</span>
+                  <span className="block text-sm font-bold font-sans text-fg">{r.rating.toFixed(2)}</span>
                   <span className="block text-[10px] font-sans flex items-center gap-1 justify-end">
                     <span className={trendColor}>{trendLabel}</span>
                     {r.provisional && (
