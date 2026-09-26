@@ -127,8 +127,7 @@ export default function RatingsPage() {
       {!error && !loading && filtered.length > 0 && (
         <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden divide-y divide-border-subtle">
           {filtered.map((r) => {
-            const originalIdx = rows.findIndex((x) => x.player_id === r.player_id)
-            const rank = offset + originalIdx + 1
+            const rank = r.rank
             const isFirst = rank === 1
             const isSecond = rank === 2
             const isThird = rank === 3
