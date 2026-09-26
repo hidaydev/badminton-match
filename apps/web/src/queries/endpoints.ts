@@ -527,6 +527,10 @@ export async function createTournament(data: AnyTournamentSnapshot): Promise<{ i
 export interface RatingLeaderboardRow {
   player_id: string
   name: string
+  // rank — posisi 1-based dari backend. Pemain dengan (rating, games) sama
+  // berbagi posisi (1,2,2,4). Jangan hitung ulang di client: rank harus tetap
+  // benar lintas paginasi.
+  rank: number
   rating: number
   rd: number
   tier: string

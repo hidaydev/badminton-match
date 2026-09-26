@@ -15,8 +15,12 @@ import (
 // LeaderboardRow — baris leaderboard (TIER_8_UNIFICATION.md: tier 8-band).
 // `Tier` = assigned (players.tier, single source), "" = belum ter-assign.
 type LeaderboardRow struct {
-	PlayerID    string  `json:"player_id"`
-	Name        string  `json:"name"`
+	PlayerID string `json:"player_id"`
+	Name     string `json:"name"`
+	// Rank — posisi 1-based dari SQL (rank() OVER). Pemain dengan (rating,
+	// games_played) identik BERBAGI posisi (1,2,2,4) — kompromi BWF §11,
+	// bukan 1,2,3,4. Dihitung di DB supaya tetap benar lintas paginasi.
+	Rank        int     `json:"rank"`
 	Rating      float64 `json:"rating"`
 	RD          float64 `json:"rd"`
 	Tier        string  `json:"tier"`
@@ -28,8 +32,18 @@ type LeaderboardRow struct {
 	Provisional bool    `json:"provisional"`
 }
 
-// RatingLeaderboard — leaderboard rating, urut rating desc. `active` =
-// games_played > 0 (dan, opsional, main dalam 90 hari terakhir).
+// RatingLeaderboard — leaderboard rating, urut rating desc.
+//
+// Eligibility (keputusan 2026-09-26, paritas BWF §14): pemain tanpa hasil
+// eligible (games_played = 0 — baris reset-to-default `RebuildAll` / forming)
+// TIDAK diranking, di kedua view. Sebelumnya view active=false menampilkan
+// mereka dengan rating baseline tier, sehingga pemain 0-game duduk di papan
+// peringkat (Hafidh 2150 A+ di rank #4).
+//
+// `active` mempersempit ke yang main dalam 90 hari terakhir.
+//
+// Tie-break (BWF §11): rating sama → yang lebih banyak main di atas. Kalau
+// masih sama, posisi dibagi (lihat LeaderboardRow.Rank).
 func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit, offset int) (int, []LeaderboardRow, error) {
 	cfg, err := s.LoadRatingConfig(ctx, false)
 	if err != nil {
@@ -42,9 +56,9 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 		offset = 0
 	}
 
-	where := ""
+	where := ` WHERE rp.games_played > 0`
 	if active {
-		where = ` WHERE rp.games_played > 0 AND rp.last_played_at >= now() - interval '90 days'`
+		where += ` AND rp.last_played_at >= now() - interval '90 days'`
 	}
 
 	var total int
@@ -55,7 +69,8 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 
 	rows, err := s.pool.Query(ctx, `
 		SELECT rp.player_id::text, p.canonical_name, rp.rating, rp.rd, coalesce(p.tier, ''),
-		       rp.peak_rating, rp.games_played, coalesce(tr.delta, 0)
+		       rp.peak_rating, rp.games_played, coalesce(tr.delta, 0),
+		       rank() OVER (ORDER BY rp.rating DESC, rp.games_played DESC) AS rank_num
 		FROM `+s.schema+`.rating_players rp
 		JOIN `+s.schema+`.players p ON p.id = rp.player_id
 		LEFT JOIN LATERAL (
@@ -66,7 +81,7 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 			ORDER BY re.date DESC, re.created_at DESC, re.source_id DESC, re.game_order DESC
 			LIMIT 1
 		) tr ON true`+where+`
-		ORDER BY rp.rating DESC, p.canonical_name ASC
+		ORDER BY rp.rating DESC, rp.games_played DESC, p.canonical_name ASC
 		LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return 0, nil, err
@@ -76,7 +91,7 @@ func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit
 	out := []LeaderboardRow{}
 	for rows.Next() {
 		var r LeaderboardRow
-		if err := rows.Scan(&r.PlayerID, &r.Name, &r.Rating, &r.RD, &r.Tier, &r.Peak, &r.Games, &r.Trend); err != nil {
+		if err := rows.Scan(&r.PlayerID, &r.Name, &r.Rating, &r.RD, &r.Tier, &r.Peak, &r.Games, &r.Trend, &r.Rank); err != nil {
 			return 0, nil, err
 		}
 		r.TierDerived = cfg.TierForRating(r.Rating)
