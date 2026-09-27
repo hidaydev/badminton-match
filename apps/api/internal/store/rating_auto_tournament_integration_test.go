@@ -53,12 +53,22 @@ func TestIntegrationAutoIngestTournament(t *testing.T) {
 		pids = append(pids, resolveIDByAlias(t, st, lowerAlias(p.Name)))
 	}
 
-	_, shareComplete := createTestClassicTournament(t, st, ctx, schema, prefix+"-ok", true, pids)
-	_, shareIncomplete := createTestClassicTournament(t, st, ctx, schema, prefix+"-partial", false, pids)
+	// Turnamen test harus bertanggal SETELAH event terakhir di DB, kalau tidak
+	// ingest menolak dengan ErrOutOfOrder (invariant kronologis). DB test bisa
+	// berisi data prod, jadi tanggal dihitung relatif ke max(date) yang ada.
+	var eventDate string
+	if err := st.pool.QueryRow(ctx, `
+		SELECT (COALESCE(max(date), CURRENT_DATE) + INTERVAL '1 day')::date::text
+		FROM `+schema+`.rating_events`).Scan(&eventDate); err != nil {
+		t.Fatalf("hitung tanggal turnamen test: %v", err)
+	}
+
+	_, shareComplete := createTestClassicTournament(t, st, ctx, schema, prefix+"-ok", eventDate, true, pids)
+	_, shareIncomplete := createTestClassicTournament(t, st, ctx, schema, prefix+"-partial", eventDate, false, pids)
 	// Turnamen TANPA match sama sekali: dulu lolos gate (NOT EXISTS pada
 	// himpunan kosong = TRUE) -> ter-finalisasi tanpa event, dan karena
 	// rating_sources terisi, tidak pernah dicoba lagi.
-	_, shareEmpty := createTestClassicTournament(t, st, ctx, schema, prefix+"-nomatch", true, pids, true)
+	_, shareEmpty := createTestClassicTournament(t, st, ctx, schema, prefix+"-nomatch", eventDate, true, pids, true)
 
 	n, err := st.AutoIngestTournaments(ctx)
 	if err != nil {
@@ -146,14 +156,19 @@ func TestIntegrationAutoIngestTournament(t *testing.T) {
 // createTestClassicTournament — bikin turnamen classic 4 pasangan (2 pasangan
 // lawan 2 pasangan, 1 match) utk menguji gate "semua match berskor".
 // complete=false → skor satu match dikosongkan.
-func createTestClassicTournament(t *testing.T, st *SessionStore, ctx context.Context, schema, shareCode string, complete bool, pids []string, noMatch ...bool) (string, string) {
+// noMatch=true → turnamen tanpa match sama sekali.
+//
+// eventDate: WAJIB diisi pemanggil. Ingest menegakkan invariant "kronologis"
+// (batch harus lebih baru dari event terakhir di DB), dan DB test biasanya
+// berisi data prod — jadi tanggal CURRENT_DATE bisa ditolak ErrOutOfOrder.
+func createTestClassicTournament(t *testing.T, st *SessionStore, ctx context.Context, schema, shareCode, eventDate string, complete bool, pids []string, noMatch ...bool) (string, string) {
 	t.Helper()
 
 	var tourID string
 	if err := st.pool.QueryRow(ctx, `
 		INSERT INTO `+schema+`.tournaments (share_code, name, event_date, format, version)
-		VALUES ($1, $2, CURRENT_DATE - 1, 'classic', 1)
-		RETURNING id::text`, shareCode, "ITT "+shareCode).Scan(&tourID); err != nil {
+		VALUES ($1, $2, $3::date, 'classic', 1)
+		RETURNING id::text`, shareCode, "ITT "+shareCode, eventDate).Scan(&tourID); err != nil {
 		t.Fatalf("insert tournament: %v", err)
 	}
 
