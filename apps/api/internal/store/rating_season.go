@@ -17,8 +17,14 @@ import (
 //  2. Tutup musim (end_date = startDate - 1)
 //  3. Buat musim baru (auto "Season YYYY-N")
 //  4. season_start config = startDate
-//  5. Hapus events < startDate (musim lama tidak dihitung)
-//  6. RebuildAll → semua pemain forming ulang dari mid kelas
+//  5. Invalidasi fingerprint semua source (re-ingest wajib memproses ulang)
+//  6. RebuildAll → Glicko musim baru mulai dari mid kelas, hanya events ≥ startDate
+//
+// PENTING: events musim lama TIDAK dihapus. History harus awet — ranking poin
+// memakai window bergulir (12 minggu) yang membaca events lintas musim, dan
+// menghapusnya membuat window mustahil dihitung. Glicko tetap "musim-scoped"
+// karena rebuildAll hanya memutar events ≥ season_start, bukan karena
+// penghapusan.
 func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string) (string, error) {
 	start, err := time.Parse("2006-01-02", startDate)
 	if err != nil {
@@ -100,12 +106,11 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 		return "", fmt.Errorf("rating: season_start config row missing")
 	}
 
-	// 5. Hapus events musim lama (deltas cascade)
-	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_events WHERE date < $1::date`, startDate); err != nil {
-		return "", err
-	}
-	// Invalidasi fingerprint semua source — re-ingest (post-season) wajib
-	// memproses ulang (events sudah dihapus; fingerprint lama membuat no-op).
+	// 5. Invalidasi fingerprint semua source — re-ingest (post-season) wajib
+	// memproses ulang. rating_players di-reset total oleh RebuildAll, jadi
+	// state harus direkonstruksi dari events; fingerprint lama akan membuat
+	// re-ingest jadi no-op.
+	// NOTE: events musim lama SENGAJA tidak dihapus (lihat doc komentar atas).
 	if _, err := tx.Exec(ctx, `UPDATE `+s.schema+`.rating_sources SET fingerprint = ''`); err != nil {
 		return "", err
 	}
@@ -114,7 +119,8 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 		return "", err
 	}
 
-	// 6. RebuildAll (forming ulang dari mid kelas, events ≥ startDate)
+	// 6. RebuildAll — Glicko musim baru mulai dari mid kelas, hanya events
+	// ≥ startDate (season_start sudah digeser di langkah 4).
 	if _, err := s.RebuildAll(ctx); err != nil {
 		return "", err
 	}

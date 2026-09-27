@@ -205,6 +205,9 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	// Baca events urut global + pemainnya (via rating_deltas — SATU-SATUNYA
 	// sumber pemetaan event→pemain). DIBACA DULU sebelum reset, karena
 	// rating_deltas akan dihapus.
+	// Hanya events ≥ season_start: Glicko bersifat musim-scoped (mulai dari
+	// mid kelas tiap musim). Events lama tetap tersimpan di tabel untuk
+	// ranking poin ber-window, tetapi tidak dihitung ke rating Glicko musim ini.
 	rows, err := tx.Query(ctx, `
 		SELECT re.id::text, re.date::text, re.score_a, re.score_b, re.target,
 		       re.phase_weight,
@@ -212,8 +215,10 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		           ORDER BY rd.team, rd.player_id::text) FILTER (WHERE rd.player_id IS NOT NULL), '[]'::jsonb)
 		FROM `+s.schema+`.rating_events re
 		LEFT JOIN `+s.schema+`.rating_deltas rd ON rd.event_id = re.id
+		WHERE re.date >= $1::date
 		GROUP BY re.id
-		ORDER BY re.date ASC, re.created_at ASC, re.source_id ASC, re.game_order ASC`)
+		ORDER BY re.date ASC, re.created_at ASC, re.source_id ASC, re.game_order ASC`,
+		cfg.SeasonStart)
 	if err != nil {
 		return 0, err
 	}
