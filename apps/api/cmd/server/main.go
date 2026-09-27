@@ -108,6 +108,18 @@ func main() {
 				if ni > 0 {
 					logger.Info("auto-ingest", "sessions_ingested", ni)
 				}
+				// 3) Ingest turnamen yang sudah selesai (semua match berskor)
+				//    tapi belum pernah diingest. Sebelumnya ticker hanya
+				//    menyapu tabel sessions, sehingga turnamen tidak pernah
+				//    masuk rating sama sekali (lihat rating_auto_tournament.go).
+				//    Kegagalan di sini TIDAK menghentikan tick: sesi sudah
+				//    selesai diproses di atas, dan turnamen berikutnya di
+				//    dalam loop tetap dilewati satu per satu.
+				if nt, err := locker.AutoIngestTournaments(runCtx); err != nil {
+					logger.Error("auto-ingest turnamen gagal", "error", err)
+				} else if nt > 0 {
+					logger.Info("auto-ingest turnamen", "tournaments_ingested", nt)
+				}
 			}
 			ticker := time.NewTicker(30 * time.Minute)
 			defer ticker.Stop()
