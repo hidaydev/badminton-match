@@ -76,7 +76,7 @@ func (s *SessionStore) AutoIngestTournaments(ctx context.Context) (int, error) {
 	}
 	defer rows.Close()
 
-		ingested := 0
+	ingested := 0
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
