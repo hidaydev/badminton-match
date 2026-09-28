@@ -27,6 +27,12 @@ func TestVerifyAbsentSkipPlayer(t *testing.T) {
 	if schema == "" {
 		schema = "bm_dev"
 	}
+	// KERAS: test ini me-revert SEMUA source di schema yang ditunjuk, lalu
+	// re-ingest. Menjalankannya pada schema prod ('bm') berarti menghapus
+	// seluruh riwayat rating. Hentikan sebelum menyentuh apa pun.
+	if schema == "bm" {
+		t.Skip("menolak berjalan pada schema prod 'bm' — test ini me-revert semua source")
+	}
 	pool, err := db.NewPool(context.Background(), url, schema, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("db connect: %v", err)

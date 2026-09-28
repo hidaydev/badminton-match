@@ -48,6 +48,15 @@ type RatingConfig struct {
 	// dianggap "real player" dan mendapat rating normal (bukan sintetik).
 	// 0 = disabled (placeholder selalu rate_as_unknown).
 	PlaceholderPromoteGames int
+
+	// ── Ranking poin (papan publik ala BWF) ──────────────────────────────
+	// Lihat RANKING_POIN_BWF_RANCANGAN.md §4.8. Poin dihitung saat baca.
+	RankWindowWeeks    int        // window bergulir; entri lebih tua diabaikan
+	RankBestN          int        // ambil N entri terbaik dalam window
+	RankOpponentWeight bool       // pakai pengali kekuatan lawan
+	RankOpponentClamp  [2]float64 // penjepit pengali [min, max]
+	RankSessionBase    float64    // nilai dasar game sesi
+	RankThinEvidenceN  int        // entri < N → tandai "bukti tipis"
 }
 
 // TierInit — baseline forming dari tier.
@@ -74,6 +83,14 @@ var DefaultRatingConfig = RatingConfig{
 	DecayFloor:              1000,
 	SeasonStart:             "2026-05-23",
 	PlaceholderPromoteGames: 10, // setelah 10 game, placeholder dianggap real player
+
+	// Ranking poin — nilai awal mengikuti RANKING_POIN_BWF_RANCANGAN.md §4.8.
+	RankWindowWeeks:    12,
+	RankBestN:          10,
+	RankOpponentWeight: true,
+	RankOpponentClamp:  [2]float64{0.5, 1.5},
+	RankSessionBase:    250,
+	RankThinEvidenceN:  3,
 	SessionTierInit: map[string]TierInit{
 		"D":  {Class: "D", Rating: 1150},
 		"D+": {Class: "D+", Rating: 1250},

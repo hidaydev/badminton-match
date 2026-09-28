@@ -183,7 +183,11 @@ func (h *RatingsHandler) ReplaySource(w http.ResponseWriter, r *http.Request) {
 	httperr.WriteJSON(w, http.StatusOK, report)
 }
 
-// Leaderboard — GET /ratings/leaderboard?active&limit&offset → publik.
+// Leaderboard — GET /ratings/leaderboard?active&limit&offset → ADMIN.
+//
+// Ini papan Glicko (mesin internal). Papan PUBLIK adalah GET /rankings
+// (poin ber-window). Dipindah ke admin supaya pemain tidak membandingkan
+// dua angka rating yang berbeda di dua halaman.
 func (h *RatingsHandler) Leaderboard(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	active := q.Get("active") == "true"
@@ -198,6 +202,39 @@ func (h *RatingsHandler) Leaderboard(w http.ResponseWriter, r *http.Request) {
 		"total": total,
 		"rows":  rows,
 	})
+}
+
+// Rankings — GET /rankings?limit&as_of → PUBLIK.
+//
+// Papan poin ala BWF: total poin dari N entri (sesi) terbaik dalam window
+// bergulir (default 12 minggu, 10 terbaik). Poin dihitung saat baca.
+func (h *RatingsHandler) Rankings(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit := atoiSafe(q.Get("limit"), 200)
+	board, err := h.Store.RankPointsBoard(r.Context(), q.Get("as_of"), limit)
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch rankings", err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, board)
+}
+
+// PlayerRankPoints — GET /rankings/players/{playerId} → PUBLIK.
+//
+// Poin pemain di halaman detail. found=false (bukan 404) bila belum ada entri
+// di window: pemain baru tetap boleh membuka halamannya.
+func (h *RatingsHandler) PlayerRankPoints(w http.ResponseWriter, r *http.Request) {
+	pid := r.PathValue("playerId")
+	row, found, err := h.Store.RankPointsForPlayer(r.Context(), pid)
+	if err != nil {
+		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch rank points", err))
+		return
+	}
+	if !found {
+		httperr.WriteJSON(w, http.StatusOK, map[string]any{"found": false})
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, map[string]any{"found": true, "row": row})
 }
 
 // Player — GET /ratings/players/{playerId} → publik.

@@ -23,6 +23,7 @@ const InstagramPostPage = safeLazy(() => import('./pages/InstagramPostPage'))
 const TournamentPage = safeLazy(() => import('./pages/TournamentRouter'))
 const TournamentListPage = safeLazy(() => import('./pages/TournamentListPage'))
 const RatingsPage = safeLazy(() => import('./pages/RatingsPage'))
+const RankingsPage = safeLazy(() => import('./pages/RankingsPage'))
 const AdminSessionsPage = safeLazy(() => import('./pages/admin/AdminSessionsPage'))
 const AdminPlayersPage = safeLazy(() => import('./pages/admin/AdminPlayersPage'))
 const AdminRatingsPage = safeLazy(() => import('./pages/admin/AdminRatingsPage'))
@@ -94,8 +95,11 @@ export default function App() {
           <Route element={<HomeLayout />}>
             <Route index element={<HomePage />} />
             <Route path="sessions" element={<SessionListPage />} />
-            <Route path="ratings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="ratings"><RatingsPage /></ErrorBoundary></Suspense>} />
-            <Route path="ratings/:playerId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rating-player"><RatingPlayerPage /></ErrorBoundary></Suspense>} />
+            <Route path="rankings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rankings"><RankingsPage /></ErrorBoundary></Suspense>} />
+            <Route path="rankings/:playerId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rankings-player"><RatingPlayerPage /></ErrorBoundary></Suspense>} />
+            {/* Tautan lama tetap hidup: /ratings adalah alamat yang sudah beredar. */}
+            <Route path="ratings" element={<Navigate to="/rankings" replace />} />
+            <Route path="ratings/:playerId" element={<Navigate to="/rankings" replace />} />
             <Route path="dev/achievement-badges" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="achievement-badges-preview"><AchievementBadgesPreviewPage /></ErrorBoundary></Suspense>} />
             <Route path="dev/match-result-preview" element={<Suspense fallback={<Loading />}><MatchResultPreview /></Suspense>} />
             <Route path="tournament" element={<Navigate to="/tournaments" replace />} />
@@ -109,6 +113,7 @@ export default function App() {
               <Route path="sessions" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-sessions"><AdminSessionsPage /></ErrorBoundary></Suspense>} />
               <Route path="players" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-players"><AdminPlayersPage /></ErrorBoundary></Suspense>} />
               <Route path="ratings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-ratings"><AdminRatingsPage /></ErrorBoundary></Suspense>} />
+              <Route path="glicko" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-glicko"><RatingsPage /></ErrorBoundary></Suspense>} />
               <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-tournaments"><AdminTournamentsPage /></ErrorBoundary></Suspense>} />
               <Route path="seasons" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-seasons"><AdminSeasonsPage /></ErrorBoundary></Suspense>} />
             </Route>
