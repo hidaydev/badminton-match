@@ -19,10 +19,11 @@ type ReplayResult struct {
 
 // ReplayReport — ringkasan keseluruhan replay-all.
 type ReplayReport struct {
-	Replayed int            `json:"replayed"` // sumber yang berhasil di-ingest ulang
-	Failed   int            `json:"failed"`   // sumber yang gagal (lihat Results)
-	Rebuilt  int            `json:"rebuilt"`  // jumlah pemain dari RebuildAll terakhir
-	Results  []ReplayResult `json:"results"`
+	Replayed  int            `json:"replayed"`  // sumber yang berhasil di-ingest ulang
+	Failed    int            `json:"failed"`    // sumber yang gagal (lihat Results)
+	Remaining int            `json:"remaining"` // sumber yang TIDAK dicoba (loop berhenti lebih dulu)
+	Rebuilt   int            `json:"rebuilt"`   // jumlah pemain dari RebuildAll terakhir
+	Results   []ReplayResult `json:"results"`
 }
 
 // ReplayAll — proses ulang SEMUA sumber rating (sesi non-draft + turnamen
@@ -82,7 +83,7 @@ func (s *SessionStore) ReplayAll(ctx context.Context) (*ReplayReport, error) {
 		}
 	}
 
-	for _, src := range sources {
+	for i, src := range sources {
 		res, err := s.ingestClearedSource(ctx, src.id, src.kind)
 		if err != nil {
 			// BERHENTI di kegagalan pertama. Lanjut ke sumber lebih baru
@@ -97,6 +98,7 @@ func (s *SessionStore) ReplayAll(ctx context.Context) (*ReplayReport, error) {
 			report.Results = append(report.Results, ReplayResult{
 				SourceID: src.id, Kind: src.kind, Skipped: err.Error(),
 			})
+			report.Remaining = len(sources) - i - 1 // tidak dicoba (lihat catatan urutan)
 			break
 		}
 		report.Replayed++
@@ -142,6 +144,8 @@ func (s *SessionStore) listReplaySources(ctx context.Context) ([]replaySource, e
 		       t.event_date::text, t.created_at
 		FROM `+s.schema+`.tournaments t
 		WHERE t.event_date >= (SELECT (value #>> '{}')::date FROM `+s.schema+`.rating_config WHERE key = 'season_start')
+		  -- Minimal harus punya match/partai (dulu: NOT EXISTS himpunan
+		  -- kosong = TRUE, turnamen tanpa match lolos).
 		  AND (
 			(t.format IS DISTINCT FROM 'team' AND EXISTS (
 				SELECT 1 FROM `+s.schema+`.tournament_matches tm WHERE tm.tournament_id = t.id))
@@ -150,6 +154,31 @@ func (s *SessionStore) listReplaySources(ctx context.Context) ([]replaySource, e
 				SELECT 1 FROM `+s.schema+`.tournament_team_match_games g
 				JOIN `+s.schema+`.tournament_team_matches m ON m.id = g.team_match_id
 				WHERE m.tournament_id = t.id))
+		  )
+		  -- Dua populasi (audit: penghapusan filter fingerprint membawa
+	  -- konsekuensi untuk turnamen BELUM pernah di-ingest):
+		  --  * fingerprint terisi (sudah pernah diproses) → boleh replay,
+		  --    persis populasi asli replay-all.
+		  --  * fingerprint = '' → hanya kalau predikatnya sama dengan
+		  --    AutoIngestTournaments (tidak ada match kosong). Turnamen
+		  --    in-progress jangan disentuh: ingestClearedSource memaksa
+		  --    finalized + mengisi fingerprint → ticker tak pernah menyentuh
+		  --    lagi dan ratingnya menetap PARSIAL diam-diam.
+		  AND (
+			COALESCE((SELECT rs.fingerprint FROM `+s.schema+`.rating_sources rs
+			          WHERE rs.source_id = t.share_code), '') != ''
+			OR (
+				(t.format IS DISTINCT FROM 'team' AND NOT EXISTS (
+					SELECT 1 FROM `+s.schema+`.tournament_matches tm
+					WHERE tm.tournament_id = t.id
+					  AND (tm.score_a IS NULL OR tm.score_b IS NULL)))
+				OR
+				(t.format = 'team' AND NOT EXISTS (
+					SELECT 1 FROM `+s.schema+`.tournament_team_match_games g
+					JOIN `+s.schema+`.tournament_team_matches m ON m.id = g.team_match_id
+					WHERE m.tournament_id = t.id
+					  AND (g.score_a IS NULL OR g.score_b IS NULL)))
+			)
 		  )
 		ORDER BY 3, 4, 1`)
 	if err != nil {
