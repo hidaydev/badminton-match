@@ -203,3 +203,77 @@ func TestIntegrationRebuildHonorsAbsentCountPolicy(t *testing.T) {
 		t.Fatalf("rebuild (count) delta pemain absent = %d, want 1 — rekonstruksi harus menilai pemain absent saat policy=count", n)
 	}
 }
+
+// TestIntegrationReplayAllStopsAtFailure — ReplayAll BERHENTI pada kegagalan
+// ingest pertama, bukan melanjut ke sumber lebih baru.
+//
+// Meng-ingest sumber lebih baru setelah kegagalan menanam max event baru →
+// sumber yang gagal (dan semua yang lebih lama) ditolak ErrOutOfOrder
+// selamanya, termasuk oleh ticker pemulih. Dengan break, sumber yang belum
+// diproses tetap ber-events kosong + fingerprint = ”: error transient
+// dipulihkan ticker urut menaik; permanen — re-run replay-all (idempoten).
+func TestIntegrationReplayAllStopsAtFailure(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	// Dua sesi final & ter-ingest; tanggal menaik (rbjFixture menghitung
+	// dateAfterAllEvents → sesi kedua selalu lebih baru).
+	rbjFixture(t, st, schema, "RB FailA", nil) // lebih lama → sumber pertama
+	rbjFixture(t, st, schema, "RB FailB", nil) // lebih baru
+
+	// Pecahkan sesi A: legacy_order NULL membuat scan di extractSessionMatches
+	// gagal → ingestClearedSource error (list tetap memilihnya: ada games,
+	// fingerprint terisi, status bukan draft).
+	if _, err := st.pool.Exec(ctx, `
+		UPDATE `+schema+`.scheduled_games SET legacy_order = NULL
+		WHERE session_id IN (SELECT id FROM `+schema+`.sessions WHERE share_code = 'RB FailA-sess')`); err != nil {
+		t.Fatalf("rusak legacy_order: %v", err)
+	}
+
+	rep, err := st.ReplayAll(ctx)
+	if err != nil {
+		t.Fatalf("replay-all: %v", err)
+	}
+	if rep.Failed != 1 || rep.Replayed != 0 {
+		t.Fatalf("report = replayed %d failed %d, want 0/1", rep.Replayed, rep.Failed)
+	}
+	if len(rep.Results) != 1 || rep.Results[0].SourceID != "RB FailA-sess" || rep.Results[0].Skipped == "" {
+		t.Fatalf("results = %+v, want hanya RB FailA-sess dengan alasan gagal", rep.Results)
+	}
+	// Sumber B TIDAK boleh ter-ingest setelah kegagalan A (kalau ia masuk,
+	// A terkunci ErrOutOfOrder selamanya).
+	var evB int
+	if err := st.pool.QueryRow(ctx,
+		`SELECT count(*) FROM `+schema+`.rating_events WHERE source_id = 'RB FailB-sess'`).
+		Scan(&evB); err != nil {
+		t.Fatalf("hitung events B: %v", err)
+	}
+	if evB != 0 {
+		t.Fatalf("events sumber B = %d, want 0 — ReplayAll tidak boleh lanjut ke sumber lebih baru setelah gagal", evB)
+	}
+
+	// Perbaiki data → re-run replay-all (jalur pemulihan yang didokumentasikan)
+	// harus beres untuk SEMUA sumber.
+	if _, err := st.pool.Exec(ctx, `
+		UPDATE `+schema+`.scheduled_games SET legacy_order = 0
+		WHERE session_id IN (SELECT id FROM `+schema+`.sessions WHERE share_code = 'RB FailA-sess')`); err != nil {
+		t.Fatalf("pulihkan legacy_order: %v", err)
+	}
+	rep2, err := st.ReplayAll(ctx)
+	if err != nil {
+		t.Fatalf("replay-all ulang: %v", err)
+	}
+	if rep2.Failed != 0 || rep2.Replayed != 2 {
+		t.Fatalf("replay ulang = replayed %d failed %d, want 2/0", rep2.Replayed, rep2.Failed)
+	}
+	for _, id := range []string{"RB FailA-sess", "RB FailB-sess"} {
+		var n int
+		if err := st.pool.QueryRow(ctx,
+			`SELECT count(*) FROM `+schema+`.rating_events WHERE source_id = $1`, id).Scan(&n); err != nil {
+			t.Fatalf("hitung events %s: %v", id, err)
+		}
+		if n != 1 {
+			t.Fatalf("events %s = %d, want 1 setelah replay ulang", id, n)
+		}
+	}
+}

@@ -50,10 +50,25 @@ type ReplayReport struct {
 // tanggalnya memang lebih lama dari sisa). Dengan menghapus dulu semuanya,
 // tiap ingest menghadapi max yang lebih lama darinya sendiri → selalu lolos.
 //
-// Bila ingest gagal di tengah (resolve error, dll), sumber yang tersisa
-// kehilangan events-nya tapi fingerprint sudah dikosongkan — DAN kedua ticker
-// (AutoIngestLockedSessions, AutoIngestTournaments) sengaja memilih sumber
-// dengan fingerprint = ”, jadi mereka memulihkannya otomatis urut menaik.
+// Bila ingest sumber GAGAL, loop BERHENTI (break) — sumber lebih baru sengaja
+// tidak diproses. Meng-ingest yang lebih baru membuat sumber gagal terkunci
+// permanen: invariant ErrOutOfOrder menolak batch yang lebih lama, dan ticker
+// (AutoIngestLockedSessions, AutoIngestTournaments) memilih fingerprint = ”
+// tapi tetap kena ErrOutOfOrder yang sama. Sumber yang belum diproses
+// ber-events kosong + fingerprint = ”: kalau errornya transient, ticker
+// memulihkannya urut menaik pada run berikutnya; kalau permanen — perbaiki
+// datanya lalu jalankan ulang replay-all (idempoten: clear semua → ingest
+// urut → RebuildAll sekali).
+//
+// Crash di tengah loop (proses mati) pulih dengan cara yang sama: re-run
+// replay-all. Clear-all membuang events parsial, lalu ingest ulang bersih +
+// RebuildAll mengoreksi rating_players — ingest di atas state lama tanpa
+// RebuildAll bisa menumpuk delta ganda di atas kontribusi lama.
+//
+// Catatan batas: clear-all dan loop ingest adalah transaksi TERPISAH; ticker
+// yang jalan di antaranya bisa meng-ingest sumber ber-fingerprint = ” lebih
+// dahulu. Bila report.ReplayAll mengembalikan kegagalan ErrOutOfOrder,
+// jalankan ulang replay-all.
 func (s *SessionStore) ReplayAll(ctx context.Context) (*ReplayReport, error) {
 	sources, err := s.listReplaySources(ctx)
 	if err != nil {
@@ -70,16 +85,19 @@ func (s *SessionStore) ReplayAll(ctx context.Context) (*ReplayReport, error) {
 	for _, src := range sources {
 		res, err := s.ingestClearedSource(ctx, src.id, src.kind)
 		if err != nil {
-			// Satu sumber gagal tidak memblokir sisanya — laporkan alasannya.
-			// Sumber ini tetap bisa dipulihkan ticker (fingerprint = ”).
+			// BERHENTI di kegagalan pertama. Lanjut ke sumber lebih baru
+			// = menanam max event baru sehingga sumber ini (dan semua yang
+			// lebih lama) gagal ErrOutOfOrder selamanya — termasuk di mata
+			// ticker. Sisa sumber belum diproses; lihat catatan urutan di
+			// atas untuk jalur pemulihannya.
 			if s.logger != nil {
-				s.logger.Warn("replay-all: sumber dilewati", "source", src.id, "kind", src.kind, "error", err)
+				s.logger.Warn("replay-all: berhenti pada sumber gagal", "source", src.id, "kind", src.kind, "error", err)
 			}
 			report.Failed++
 			report.Results = append(report.Results, ReplayResult{
 				SourceID: src.id, Kind: src.kind, Skipped: err.Error(),
 			})
-			continue
+			break
 		}
 		report.Replayed++
 		report.Results = append(report.Results, ReplayResult{
@@ -105,22 +123,25 @@ type replaySource struct {
 
 // listReplaySources — semua sumber yang layak di-replay, URUT NAIK kronologis
 // (date, created_at, source_id) — kunci invariant ErrOutOfOrder di ingest.
-// Termasuk yang sudah ter-ingest (fingerprint != ”) — justru itulah kasus
-// yang tidak tertangani ticker.
+//
+// Filter fingerprint DIHAPUS: dulu hanya sumber ber-fingerprint terisi yang
+// terpilih, sehingga sumber yang baru di-clear (fingerprint = ”) — persis
+// kondisi setelah replay-all gagal di tengah — TIDAK BISA di-replay ulang,
+// padahal re-run replay-all adalah jalur pemulihannya. Kini sumber
+// terdampar/fingerprint ” ikut terpilih; ticker memilihnya juga, tapi
+// pemilihan ulang lewat replay-all aman (clear semua dulu, lalu ingest urut).
 func (s *SessionStore) listReplaySources(ctx context.Context) ([]replaySource, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT share_code, 'session', s.session_date::text, s.created_at FROM `+s.schema+`.sessions s
 		WHERE s.status != 'draft'
 		  AND s.session_date >= (SELECT (value #>> '{}')::date FROM `+s.schema+`.rating_config WHERE key = 'season_start')
 		  AND EXISTS (SELECT 1 FROM `+s.schema+`.scheduled_games sg WHERE sg.session_id = s.id)
-		  AND COALESCE((SELECT rs.fingerprint FROM `+s.schema+`.rating_sources rs WHERE rs.source_id = s.share_code), '') != ''
 		UNION ALL
 		SELECT t.share_code,
 		       CASE WHEN t.format = 'team' THEN 'tournament_team' ELSE 'tournament_classic' END,
 		       t.event_date::text, t.created_at
 		FROM `+s.schema+`.tournaments t
 		WHERE t.event_date >= (SELECT (value #>> '{}')::date FROM `+s.schema+`.rating_config WHERE key = 'season_start')
-		  AND COALESCE((SELECT rs.fingerprint FROM `+s.schema+`.rating_sources rs WHERE rs.source_id = t.share_code), '') != ''
 		  AND (
 			(t.format IS DISTINCT FROM 'team' AND EXISTS (
 				SELECT 1 FROM `+s.schema+`.tournament_matches tm WHERE tm.tournament_id = t.id))
