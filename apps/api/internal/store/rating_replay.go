@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -38,6 +39,21 @@ type ReplayReport struct {
 // Berbeda dari memanggil RevertSource per sumber: rebuild hanya dilakukan
 // SEKALI di akhir, bukan sekali per sumber — jadi biayanya O(events), bukan
 // O(events × jumlah sumber).
+//
+// PENTING — urutan operasi: events SEMUA sumber dihapus dahulu (satu
+// transaksi), baru ingest satu per satu URUT NAIK (date, created_at,
+// source_id). Desain "hapus + ingest per sumber bergantian" tidak mungkin
+// bekerja: selama masih ada events sumber lain, ingest sumber yang lebih lama
+// selalu ditolak invariant ErrOutOfOrder (batch harus lebih baru dari max
+// yang tersisa), sehingga sumber-sumber itu gagal dan events-nya sudah
+// terhapus — hilang permanen (ticker pun kena ErrOutOfOrder yang sama, karena
+// tanggalnya memang lebih lama dari sisa). Dengan menghapus dulu semuanya,
+// tiap ingest menghadapi max yang lebih lama darinya sendiri → selalu lolos.
+//
+// Bila ingest gagal di tengah (resolve error, dll), sumber yang tersisa
+// kehilangan events-nya tapi fingerprint sudah dikosongkan — DAN kedua ticker
+// (AutoIngestLockedSessions, AutoIngestTournaments) sengaja memilih sumber
+// dengan fingerprint = ”, jadi mereka memulihkannya otomatis urut menaik.
 func (s *SessionStore) ReplayAll(ctx context.Context) (*ReplayReport, error) {
 	sources, err := s.listReplaySources(ctx)
 	if err != nil {
@@ -45,10 +61,17 @@ func (s *SessionStore) ReplayAll(ctx context.Context) (*ReplayReport, error) {
 	}
 
 	report := &ReplayReport{Results: []ReplayResult{}}
+	if len(sources) > 0 {
+		if err := s.clearSources(ctx, sources); err != nil {
+			return nil, err
+		}
+	}
+
 	for _, src := range sources {
-		res, err := s.replaySource(ctx, src.id, src.kind)
+		res, err := s.ingestClearedSource(ctx, src.id, src.kind)
 		if err != nil {
 			// Satu sumber gagal tidak memblokir sisanya — laporkan alasannya.
+			// Sumber ini tetap bisa dipulihkan ticker (fingerprint = ”).
 			if s.logger != nil {
 				s.logger.Warn("replay-all: sumber dilewati", "source", src.id, "kind", src.kind, "error", err)
 			}
@@ -74,23 +97,27 @@ func (s *SessionStore) ReplayAll(ctx context.Context) (*ReplayReport, error) {
 }
 
 type replaySource struct {
-	id   string
-	kind string
+	id        string
+	kind      string
+	date      string
+	createdAt time.Time
 }
 
-// listReplaySources — semua sumber yang layak di-replay, urut kronologis.
+// listReplaySources — semua sumber yang layak di-replay, URUT NAIK kronologis
+// (date, created_at, source_id) — kunci invariant ErrOutOfOrder di ingest.
 // Termasuk yang sudah ter-ingest (fingerprint != ”) — justru itulah kasus
 // yang tidak tertangani ticker.
 func (s *SessionStore) listReplaySources(ctx context.Context) ([]replaySource, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT share_code, 'session' FROM `+s.schema+`.sessions s
+		SELECT share_code, 'session', s.session_date::text, s.created_at FROM `+s.schema+`.sessions s
 		WHERE s.status != 'draft'
 		  AND s.session_date >= (SELECT (value #>> '{}')::date FROM `+s.schema+`.rating_config WHERE key = 'season_start')
 		  AND EXISTS (SELECT 1 FROM `+s.schema+`.scheduled_games sg WHERE sg.session_id = s.id)
 		  AND COALESCE((SELECT rs.fingerprint FROM `+s.schema+`.rating_sources rs WHERE rs.source_id = s.share_code), '') != ''
 		UNION ALL
 		SELECT t.share_code,
-		       CASE WHEN t.format = 'team' THEN 'tournament_team' ELSE 'tournament_classic' END
+		       CASE WHEN t.format = 'team' THEN 'tournament_team' ELSE 'tournament_classic' END,
+		       t.event_date::text, t.created_at
 		FROM `+s.schema+`.tournaments t
 		WHERE t.event_date >= (SELECT (value #>> '{}')::date FROM `+s.schema+`.rating_config WHERE key = 'season_start')
 		  AND COALESCE((SELECT rs.fingerprint FROM `+s.schema+`.rating_sources rs WHERE rs.source_id = t.share_code), '') != ''
@@ -103,7 +130,7 @@ func (s *SessionStore) listReplaySources(ctx context.Context) ([]replaySource, e
 				JOIN `+s.schema+`.tournament_team_matches m ON m.id = g.team_match_id
 				WHERE m.tournament_id = t.id))
 		  )
-		ORDER BY 1`)
+		ORDER BY 3, 4, 1`)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +139,7 @@ func (s *SessionStore) listReplaySources(ctx context.Context) ([]replaySource, e
 	out := []replaySource{}
 	for rows.Next() {
 		var r replaySource
-		if err := rows.Scan(&r.id, &r.kind); err != nil {
+		if err := rows.Scan(&r.id, &r.kind, &r.date, &r.createdAt); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -120,12 +147,77 @@ func (s *SessionStore) listReplaySources(ctx context.Context) ([]replaySource, e
 	return out, rows.Err()
 }
 
-// replaySource — hapus events sumber (bila ada) lalu ingest ulang.
+// clearSources — hapus events + kosongkan fingerprint untuk beberapa sumber
+// dalam SATU transaksi (advisory lock dipegang bersama).
+//
+// Dipisah dari ingest supaya ReplayAll bisa menghapus semua sumber lebih dulu
+// sebelum meng-ingest satu pun (lihat catatan urutan di ReplayAll).
+func (s *SessionStore) clearSources(ctx context.Context, sources []replaySource) error {
+	if len(sources) == 0 {
+		return nil
+	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+		s.schema+":ratings_ingest"); err != nil {
+		return err
+	}
+	for _, src := range sources {
+		if err := s.deleteSourceEvents(ctx, tx, src.id); err != nil {
+			return err
+		}
+		// Invalidasi fingerprint: ingest berikutnya harus memproses ulang,
+		// bukan no-op. Juga yang membuat ticker bersedia memulihkan sumber ini
+		// bila ingest selanjutnya gagal (dia memilih fingerprint = ”).
+		if _, err := tx.Exec(ctx,
+			`UPDATE `+s.schema+`.rating_sources SET fingerprint = '' WHERE source_id = $1`,
+			src.id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// ingestClearedSource — ingest sumber yang events-nya sudah dikosongkan oleh
+// clearSources (tanpa menghapus apa pun).
+func (s *SessionStore) ingestClearedSource(ctx context.Context, sourceID, kind string) (*IngestResult, error) {
+	if kind == "session" {
+		return s.IngestSession(ctx, sourceID)
+	}
+	// Turnamen: finalisasi dulu (gate extractTournamentMatches).
+	if err := s.SetSourceFinalized(ctx, sourceID, true); err != nil {
+		return nil, err
+	}
+	return s.IngestTournament(ctx, sourceID)
+}
+
+// replaySource — hapus events sumber (bila ada) lalu ingest ulang, SATU
+// sumber.
 //
 // Fingerprint dikosongkan lebih dulu supaya ingest memperlakukan ini sebagai
 // ingest baru (bukan ErrSourceChanged). Tanpa itu, AutoReconcile=false akan
 // menolak sumber yang memang sengaja kita proses ulang.
+//
+// Untuk kasus tunggal events sumber lain masih ada, jadi ingest bisa kena
+// ErrOutOfOrder. Pre-check di bawah MENOLAK sebelum ada penghapusan — tanpa
+// itu events sumber ini hilang permanen setelah ingest ditolak.
 func (s *SessionStore) replaySource(ctx context.Context, sourceID, kind string) (*IngestResult, error) {
+	// Ambil kunci ordering sumber ini (date, created_at) = basis invariant.
+	var srcDate string
+	var srcCreated time.Time
+	err := s.pool.QueryRow(ctx, `
+		SELECT s.session_date::text, s.created_at FROM `+s.schema+`.sessions s WHERE s.share_code = $1
+		UNION ALL
+		SELECT t.event_date::text, t.created_at FROM `+s.schema+`.tournaments t WHERE t.share_code = $1
+		LIMIT 1`, sourceID).Scan(&srcDate, &srcCreated)
+	if err != nil {
+		return nil, fmt.Errorf("replay: baca tanggal sumber %s: %w", sourceID, err)
+	}
+
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
 	if err != nil {
 		return nil, err
@@ -135,6 +227,23 @@ func (s *SessionStore) replaySource(ctx context.Context, sourceID, kind string) 
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
 		s.schema+":ratings_ingest"); err != nil {
 		return nil, err
+	}
+
+	// Pre-check: ada events sumber LAIN yang lebih baru dari sumber ini?
+	// Kalau ya, ingest setelah penghapusan pasti ErrOutOfOrder — menolak di
+	// sini menyelamatkan events-nya.
+	var outsideNewer bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM `+s.schema+`.rating_events re
+			WHERE re.source_id <> $1
+			  AND (re.date, re.created_at, re.source_id) > ($2::date, $3::timestamptz, $1::text))`,
+		sourceID, srcDate, srcCreated).Scan(&outsideNewer); err != nil {
+		return nil, err
+	}
+	if outsideNewer {
+		return nil, fmt.Errorf("%w: source %s (date %s) — events sumber lain lebih baru, hapus/replay sumber yang lebih baru dulu atau pakai replay-all",
+			ErrOutOfOrder, sourceID, srcDate)
 	}
 
 	if err := s.deleteSourceEvents(ctx, tx, sourceID); err != nil {
@@ -150,15 +259,7 @@ func (s *SessionStore) replaySource(ctx context.Context, sourceID, kind string) 
 		return nil, err
 	}
 
-	// Ingest di transaksi terpisah (ingest punya tx + lock sendiri).
-	if kind == "session" {
-		return s.IngestSession(ctx, sourceID)
-	}
-	// Turnamen: finalisasi dulu (gate extractTournamentMatches).
-	if err := s.SetSourceFinalized(ctx, sourceID, true); err != nil {
-		return nil, err
-	}
-	return s.IngestTournament(ctx, sourceID)
+	return s.ingestClearedSource(ctx, sourceID, kind)
 }
 
 // ReplaySource — replay satu sumber (dipakai bila admin hanya ingin
