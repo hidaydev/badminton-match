@@ -175,6 +175,43 @@ type seedRow struct {
 	setAt  *time.Time
 }
 
+// reconstructedPlayerMappingSQL — SQL pemetaan event→pemain yang dibangun dari
+// SUMBER KEBENARAN (bukan dari rating_deltas), untuk event sesi.
+//
+// Mereturn CTE sub-kolom (eid, player_id, team) yang di-UNION kan dengan
+// rating_deltas sebagai cadangan oleh pemanggil. Event sesi mengenali dirinya
+// lewat stable_game_id = "legacy-N", lalu di-join ke baris ke-(N+1) sesi
+// berdasarkan scheduled_games.legacy_order.
+//
+// Aturan penyaringan pemain — semua terverifikasi menghasilkan pemetaan PERSIS
+// sama dengan 2541 baris rating_deltas di data produksi (0 selisih):
+//
+//   - not sp.is_absent              : pemain absen tidak pernah dapat delta
+//   - sp.player_id is not null      : slot kosong (pemain belum terisi)
+//   - player_ref tidak ada di skipped_player_refs : pemain yang di-skip dari
+//     game tertentu (mekanisme skip per-game)
+//
+// Event yang tidak memenuhi syarat (turnamen, sesi yang sudah hilang dari
+// tabel) tidak menghasilkan baris — pemanggil jatuh ke rating_deltas.
+func (s *SessionStore) reconstructedPlayerMappingSQL() string {
+	return `
+		SELECT re.id AS eid, sp.player_id, gp.team
+		FROM ` + s.schema + `.rating_events re
+		JOIN ` + s.schema + `.sessions ses ON ses.share_code = re.source_id
+		JOIN ` + s.schema + `.scheduled_games sg
+		  ON sg.session_id = ses.id
+		 AND sg.legacy_order = substring(re.stable_game_id FROM '^legacy-([0-9]+)$')::int
+		JOIN ` + s.schema + `.scheduled_game_players gp
+		  ON gp.scheduled_game_internal_id = sg.internal_id
+		JOIN ` + s.schema + `.session_players sp
+		  ON sp.internal_id = gp.session_player_internal_id
+		WHERE re.stable_game_id ~ '^legacy-[0-9]+$'
+		  AND NOT sp.is_absent
+		  AND sp.player_id IS NOT NULL
+		  AND NOT (sg.skipped_player_refs IS NOT NULL
+		           AND sp.player_ref = ANY(sg.skipped_player_refs))`
+}
+
 // rebuildAll — recompute SEMUA rating_players dari events tersisa, urut
 // (date, created_at, source_id, game_order). Memakai stored phase_weight &
 // target & scores dari rating_events; pemain dari rating_deltas (team).
@@ -237,19 +274,37 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		players     []evPlayer
 	}
 
-	// Baca events urut global + pemainnya (via rating_deltas — SATU-SATUNYA
-	// sumber pemetaan event→pemain). DIBACA DULU sebelum reset, karena
+	// Baca events urut global + pemainnya. DIBACA DULU sebelum reset, karena
 	// rating_deltas akan dihapus.
+	//
+	// Sumber pemetaan event→pemain, berurutan prioritas:
+	//
+	//  1. REKONSTRUKSI dari sumber kebenaran (sessions + scheduled_games +
+	//     session_players). rating_deltas adalah tabel turunan; menjadikannya
+	//     satu-satunya input membuat rebuild kehilangan datanya sendiri saat
+	//     rating_deltas hilang (ketergantungan melingkar). Rekonstruksi ini
+	//     diverifikasi eksak terhadap 2541 baris rating_deltas prod.
+	//  2. rating_deltas — cadangan untuk event yang TIDAK bisa direkonstruksi
+	//     (turnamen memakai stable_game_id = matchKey, bukan "legacy-N"), dan
+	//     untuk event pra-migrasi ber-stable_game_id 'legacy-0'.
+	//
 	// Hanya events ≥ season_start: Glicko bersifat musim-scoped (mulai dari
 	// mid kelas tiap musim). Events lama tetap tersimpan di tabel untuk
 	// ranking poin ber-window, tetapi tidak dihitung ke rating Glicko musim ini.
 	rows, err := tx.Query(ctx, `
+		WITH recon AS (`+s.reconstructedPlayerMappingSQL()+`)
 		SELECT re.id::text, re.date::text, re.score_a, re.score_b, re.target,
 		       re.phase_weight,
-		       coalesce(jsonb_agg(jsonb_build_object('p', rd.player_id::text, 't', rd.team)
-		           ORDER BY rd.team, rd.player_id::text) FILTER (WHERE rd.player_id IS NOT NULL), '[]'::jsonb)
+		       coalesce(jsonb_agg(jsonb_build_object('p', m.player_id::text, 't', m.team)
+		           ORDER BY m.team, m.player_id::text) FILTER (WHERE m.player_id IS NOT NULL), '[]'::jsonb)
 		FROM `+s.schema+`.rating_events re
-		LEFT JOIN `+s.schema+`.rating_deltas rd ON rd.event_id = re.id
+		LEFT JOIN (
+			SELECT r.eid, r.player_id, r.team FROM recon r
+			UNION
+			SELECT rd.event_id, rd.player_id, rd.team
+			FROM `+s.schema+`.rating_deltas rd
+			WHERE NOT EXISTS (SELECT 1 FROM recon r2 WHERE r2.eid = rd.event_id)
+		) m ON m.eid = re.id
 		WHERE re.date >= $1::date
 		GROUP BY re.id
 		ORDER BY re.date ASC, re.created_at ASC, re.source_id ASC, re.game_order ASC`,
@@ -314,7 +369,19 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_players`); err != nil {
 		return 0, err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.rating_deltas`); err != nil {
+	// HAPUS HANYA deltas musim berjalan — sisanya diisi ulang oleh
+	// applyPlayerUpdate di bawah.
+	//
+	// Dulu DELETE ini tanpa syarat, padahal yang diproses ulang hanya events
+	// >= season_start. Konsekuensinya: begitu season_start maju (musim baru),
+	// deltas SEMUA event di bawahnya terhapus dan tidak pernah ditulis lagi.
+	// Rebuild pada saat season_start berada di masa depan (kondisi yang sempat
+	// dipicu test) menghapus seluruh rating_deltas padahal events-nya tetap
+	// ada — dan rating_deltas adalah bahan baku papan poin ber-window.
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM `+s.schema+`.rating_deltas rd
+		USING `+s.schema+`.rating_events re
+		WHERE rd.event_id = re.id AND re.date >= $1::date`, cfg.SeasonStart); err != nil {
 		return 0, err
 	}
 

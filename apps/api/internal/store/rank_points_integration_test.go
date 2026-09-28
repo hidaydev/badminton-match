@@ -181,6 +181,8 @@ func resolveIDByAliasFuzzy(t *testing.T, st *SessionStore, schema, code string) 
 		// Kode khusus test parity (papan + jalur satu-pemain) supaya tidak
 		// bertabrakan dengan pemain test board di atas.
 		"rpp1": "RPP One", "rpp2": "RPP Two", "rpp3": "RPP Three", "rpp4": "RPP Four",
+		"rpd1": "RPD One", "rpd2": "RPD Two", "rpd3": "RPD Three", "rpd4": "RPD Four",
+		"rz1": "RZ One", "rz2": "RZ Two", "rz3": "RZ Three", "rz4": "RZ Four",
 	}
 	name, ok := names[code]
 	if !ok {
