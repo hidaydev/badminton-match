@@ -404,8 +404,8 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		}
 		if mapped == 0 {
 			return 0, fmt.Errorf(
-				"rebuild dibatalkan: %d event dalam musim tapi tidak ada pemetaan event→pemain; "+
-					"rating_deltas kemungkinan kosong atau tidak lengkap — "+
+				"rebuild dibatalkan: %d event dalam musim tapi tidak ada pemetaan event→pemain "+
+					"(rekonstruksi dari sesi gagal dan rating_deltas kosong) — "+
 					"rebuild akan menghapus seluruh rating tanpa bisa dipulihkan",
 				len(events))
 		}

@@ -28,8 +28,17 @@ Beberapa test (`TestIntegrationRatingReadPathAndTransitivity`,
 data miliknya sendiri, jadi angka mereka meleset bila DB tidak kosong. Pakai DB
 scratch khusus.
 
-**`POST /ratings/rebuild-all` menghapus seluruh `rating_deltas`.**
-Tabel itu satu-satunya sumber pemetaan event→pemain, dan tidak ada jalur
-pemulihan bila isinya hilang. Sejak `RebuildAll` menolak berjalan saat ada event
-dalam musim tanpa pemetaan pemain — jangan dilewati pengaman itu.
+**`POST /ratings/rebuild-all` butuh pemetaan event→pemain.**
+Rebuild menghapus `rating_players` + `rating_deltas` (untuk events dalam musim
+saja; deltas musim sebelumnya tidak disentuh), lalu menyusun ulang dari pemetaan
+yang dibaca lebih dulu: **rekonstruksi dari sesi** (`sessions` +
+`scheduled_games.legacy_order`) sebagai sumber utama, `rating_deltas` sebagai
+cadangan. Bila ada event dalam musim tapi kedua sumber itu tidak menghasilkan
+pemain sama sekali — deltas kosong DAN sesinya sudah tidak ada — rebuild
+**menolak berjalan** (pengaman data-loss), bukan menulis rating kosong.
+
+**`POST /ratings/replay-all` harus dipakai untuk proses ulang massal.**
+Ia menghapus events semua sumber lebih dulu baru meng-ingest menaik kronologis;
+replay per-sumber tunggal untuk sumber yang lebih lama akan ditolak pre-check
+`ErrOutOfOrder` sebelum ada penghapusan.
 
