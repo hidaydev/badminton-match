@@ -339,7 +339,10 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		FROM `+s.schema+`.rating_events re
 		LEFT JOIN (
 			-- DISTINCT: rating_deltas tidak punya UNIQUE(event_id,
-			-- player_id); duplikat internal tidak boleh menggandakan delta.
+			-- player_id); duplikat EKSAK (event, player, team sama) tidak
+			-- boleh menggandakan delta. Baris beda team untuk (event,
+			-- player) sama — mustahil dari writer ingest — tidak dijamin
+			-- oleh DISTINCT ini.
 			SELECT DISTINCT rd.event_id AS eid, rd.player_id, rd.team,
 			       false AS absent, false AS skipped, true AS journey
 			FROM `+s.schema+`.rating_deltas rd

@@ -441,3 +441,97 @@ func TestIntegrationReplayAllMultipleSources(t *testing.T) {
 		}
 	}
 }
+
+// TestIntegrationReplayAllSkipsInProgressTournament — cabang turnamen
+// listReplaySources membedakan dua populasi (audit ke-5):
+//
+//   - fingerprint terisi (sudah pernah diproses) → replay proses ulang;
+//   - fingerprint = ” → hanya turnamen yang sudah tidak ada match kosong
+//     (predikat AutoIngestTournaments).
+//
+// Tanpa syarat kedua, turnamen yang MASIH BERJALAN ikut ter-replay:
+// ingestClearedSource memaksa finalized=true lalu mengisi fingerprint →
+// ticker tak pernah menyentuhnya lagi dan ratingnya menetap parsial diam-diam
+// saat turnamen selesai nanti.
+func TestIntegrationReplayAllSkipsInProgressTournament(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	const prefix = "rpt"
+	cleanup := func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (
+			SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE $1)`, prefix+"-%")
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE $1`, prefix+"-%")
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE $1`, prefix+"-%")
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.tournament_matches WHERE tournament_id IN (
+			SELECT id FROM `+schema+`.tournaments WHERE share_code LIKE $1)`, prefix+"-%")
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.tournaments WHERE share_code LIKE $1`, prefix+"-%")
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (
+			SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RPT %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'rpt %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RPT %'`)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	players := []domain.Player{
+		{ID: "rpt1", Name: "RPT One", Gender: "M", Tier: 2},
+		{ID: "rpt2", Name: "RPT Two", Gender: "M", Tier: 3},
+		{ID: "rpt3", Name: "RPT Three", Gender: "M", Tier: 4},
+		{ID: "rpt4", Name: "RPT Four", Gender: "M", Tier: 5},
+	}
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	pids := []string{}
+	for _, p := range players {
+		pids = append(pids, resolveIDByAlias(t, st, lowerAlias(p.Name)))
+	}
+
+	var eventDate string
+	if err := st.pool.QueryRow(ctx, `
+		SELECT (COALESCE(max(date), CURRENT_DATE) + INTERVAL '1 day')::date::text
+		FROM `+schema+`.rating_events`).Scan(&eventDate); err != nil {
+		t.Fatalf("hitung tanggal: %v", err)
+	}
+
+	// Satu turnamen SELESAI (semua match berskor) + satu MASIH BERJALAN.
+	_, shareDone := createTestClassicTournament(t, st, ctx, schema, prefix+"-done", eventDate, true, pids)
+	_, shareLive := createTestClassicTournament(t, st, ctx, schema, prefix+"-live", eventDate, false, pids)
+
+	rep, err := st.ReplayAll(ctx)
+	if err != nil {
+		t.Fatalf("replay-all: %v", err)
+	}
+	if rep.Failed != 0 || rep.Replayed != 1 || rep.Remaining != 0 {
+		t.Fatalf("report = replayed %d failed %d remaining %d, want 1/0/0 (hanya turnamen selesai)",
+			rep.Replayed, rep.Failed, rep.Remaining)
+	}
+
+	// Turnamen selesai: masuk rating.
+	var finDone bool
+	var evDoneN int
+	_ = st.pool.QueryRow(ctx,
+		`SELECT count(*) FROM `+schema+`.rating_events WHERE source_id = $1`, shareDone).Scan(&evDoneN)
+	_ = st.pool.QueryRow(ctx,
+		`SELECT finalized FROM `+schema+`.rating_sources WHERE source_id = $1`, shareDone).Scan(&finDone)
+	if evDoneN == 0 || !finDone {
+		t.Fatalf("turnamen selesai: events=%d finalized=%v, want >0/true", evDoneN, finDone)
+	}
+
+	// Turnamen in-progress: TIDAK boleh tersentuh — tanpa row rating_sources
+	// (SetSourceFinalized tidak dipanggil) dan tanpa events.
+	var srcLive, evLive int
+	if err := st.pool.QueryRow(ctx,
+		`SELECT count(*) FROM `+schema+`.rating_sources WHERE source_id = $1`, shareLive).Scan(&srcLive); err != nil {
+		t.Fatalf("cek sources live: %v", err)
+	}
+	if err := st.pool.QueryRow(ctx,
+		`SELECT count(*) FROM `+schema+`.rating_events WHERE source_id = $1`, shareLive).Scan(&evLive); err != nil {
+		t.Fatalf("cek events live: %v", err)
+	}
+	if srcLive != 0 || evLive != 0 {
+		t.Fatalf("turnamen in-progress tersentuh replay: sources=%d events=%d, want 0/0 "+
+			"(finalisasi paksa membuat rating menetap parsial + ticker tak pernah mengulang)", srcLive, evLive)
+	}
+}
