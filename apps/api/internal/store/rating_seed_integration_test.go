@@ -167,3 +167,149 @@ func TestIntegrationSeasonSeed(t *testing.T) {
 	}
 	_ = ratingBefore
 }
+
+// TestIntegrationSeasonSeedWithoutOpenSeason — menutup musim saat TIDAK ada
+// musim terbuka tetap harus menyegel benih.
+//
+// Regresi: dulu sealSeasonSeeds hanya dipanggil di dalam cabang "ada musim
+// terbuka". Pada DB baru / yang di-reset (rating_seasons kosong), benih tidak
+// pernah disegel sehingga pemain ber-riwayat terlempar ke mid kelas di musim
+// berikutnya — persis yang ingin dicegah fitur benih.
+//
+// Sekaligus memastikan benih lama TIDAK ditimpa: kalau tertimpa dengan state
+// saat ini, rebuild menjadi tidak idempotent.
+func TestIntegrationSeasonSeedWithoutOpenSeason(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	players := []domain.Player{
+		{ID: "zzw1", Name: "ZZW One", Gender: "M", Tier: 3},
+		{ID: "zzw2", Name: "ZZW Two", Gender: "M", Tier: 3},
+		{ID: "zzw3", Name: "ZZW Three", Gender: "M", Tier: 1},
+		{ID: "zzw4", Name: "ZZW Four", Gender: "M", Tier: 1},
+	}
+	cleanup := func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE 'zzw%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'zzw%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE 'zzw%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.scheduled_games WHERE session_id IN (SELECT id FROM `+schema+`.sessions WHERE share_code LIKE 'zzw%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE 'zzw%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'ZZW %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'zzw %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'ZZW %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_seasons`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.season_player_snapshots`)
+		_, _ = st.pool.Exec(ctx, `UPDATE `+schema+`.rating_players SET seed_rating=NULL, seed_rd=NULL, seed_set_at=NULL WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'ZZW %')`)
+		_, _ = st.pool.Exec(ctx, `UPDATE `+schema+`.rating_config SET value='"2026-05-23"' WHERE key='season_start'`)
+	}
+	cleanup()
+	t.Cleanup(func() {
+		cleanup()
+		// Pulihkan musim prod supaya test lain tidak terpengaruh.
+		_, _ = st.pool.Exec(ctx, `INSERT INTO `+schema+`.rating_seasons (name, start_date) VALUES ('Season 2026-1', '2026-05-23') ON CONFLICT DO NOTHING`)
+	})
+
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	var date string
+	if err := st.pool.QueryRow(ctx, `
+		SELECT (GREATEST(
+			(SELECT (value #>> '{}')::date FROM `+schema+`.rating_config WHERE key='season_start'),
+			COALESCE((SELECT max(date) FROM `+schema+`.rating_events), CURRENT_DATE)
+		) + INTERVAL '1 day')::date::text`).Scan(&date); err != nil {
+		t.Fatalf("hitung tanggal: %v", err)
+	}
+
+	id := "zzw-sess"
+	if _, err := st.Save(ctx, id, &domain.CloudSnapshot{
+		Session: domain.SessionConfig{
+			Title: "ZZW", Date: date, Courts: 1,
+			SessionStart: "09:00", SlotMinutes: 20,
+			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
+			PlayerCount: 4, CourtNames: []string{"C1"},
+		},
+		Players: players, FixMatches: []domain.FixMatch{},
+		Schedule:    []domain.ScheduleSlot{{Slot: 0, Court: 0, TeamA: [2]string{"zzw1", "zzw2"}, TeamB: [2]string{"zzw3", "zzw4"}}},
+		PlayedGames: []string{"0-0"},
+		GameScores:  map[string]domain.GameScore{"0-0": {A: 21, B: 10}},
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	saveLock(t, st, ctx, id)
+	if r, err := st.IngestSession(ctx, id); err != nil || r.Processed != 1 {
+		t.Fatalf("ingest: %+v %v", r, err)
+	}
+
+	pid := resolveIDByAlias(t, st, "zzw one")
+	var ratingBefore float64
+	if err := st.pool.QueryRow(ctx,
+		`SELECT rating FROM `+schema+`.rating_players WHERE player_id = $1::uuid`, pid).Scan(&ratingBefore); err != nil {
+		t.Fatalf("baca rating: %v", err)
+	}
+
+	// Prasyarat: tidak ada musim terbuka (simulasi DB baru / reset).
+	var open int
+	if err := st.pool.QueryRow(ctx,
+		`SELECT count(*) FROM `+schema+`.rating_seasons WHERE end_date IS NULL`).Scan(&open); err != nil {
+		t.Fatalf("hitung musim terbuka: %v", err)
+	}
+	if open != 0 {
+		t.Fatalf("prasyarat gagal: masih ada %d musim terbuka", open)
+	}
+
+	sd, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if _, err := st.CloseAndStartSeason(ctx, sd.AddDate(0, 0, 1).Format("2006-01-02")); err != nil {
+		t.Fatalf("close season: %v", err)
+	}
+
+	var seedRating, seedRD *float64
+	if err := st.pool.QueryRow(ctx,
+		`SELECT seed_rating, seed_rd FROM `+schema+`.rating_players WHERE player_id = $1::uuid`, pid).
+		Scan(&seedRating, &seedRD); err != nil {
+		t.Fatalf("baca benih: %v", err)
+	}
+	if seedRating == nil || seedRD == nil {
+		t.Fatalf("benih tidak disegel tanpa musim terbuka (seed_rating=%v seed_rd=%v)", seedRating, seedRD)
+	}
+	if *seedRating != ratingBefore {
+		t.Errorf("seed_rating=%.4f, want rating terakhir %.4f", *seedRating, ratingBefore)
+	}
+
+	// Benih yang sudah ada TIDAK boleh ditimpa oleh jalur TANPA musim terbuka.
+	// Buktikan dengan menghapus musim terbuka supaya penutupan berikutnya
+	// kembali melewati jalur itu.
+	sentinel := 1234.5678
+	if _, err := st.pool.Exec(ctx,
+		`UPDATE `+schema+`.rating_players SET seed_rating=$2 WHERE player_id=$1::uuid`, pid, sentinel); err != nil {
+		t.Fatalf("set sentinel: %v", err)
+	}
+	if _, err := st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_seasons WHERE end_date IS NULL`); err != nil {
+		t.Fatalf("hapus musim terbuka: %v", err)
+	}
+	if err := st.pool.QueryRow(ctx,
+		`SELECT count(*) FROM `+schema+`.rating_seasons WHERE end_date IS NULL`).Scan(&open); err != nil {
+		t.Fatalf("hitung musim terbuka 2: %v", err)
+	}
+	if open != 0 {
+		t.Fatalf("prasyarat 2 gagal: masih ada %d musim terbuka", open)
+	}
+	if _, err := st.CloseAndStartSeason(ctx, sd.AddDate(0, 0, 3).Format("2006-01-02")); err != nil {
+		t.Fatalf("close season 2: %v", err)
+	}
+	var after *float64
+	if err := st.pool.QueryRow(ctx,
+		`SELECT seed_rating FROM `+schema+`.rating_players WHERE player_id = $1::uuid`, pid).Scan(&after); err != nil {
+		t.Fatalf("baca benih 2: %v", err)
+	}
+	if after == nil {
+		t.Fatal("benih hilang pada penutupan kedua")
+	}
+	if *after != sentinel {
+		t.Errorf("benih lama tertimpa jalur tanpa-musim: jadi %.4f, want sentinel %.4f", *after, sentinel)
+	}
+}
