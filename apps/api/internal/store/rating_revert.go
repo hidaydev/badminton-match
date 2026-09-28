@@ -178,24 +178,30 @@ type seedRow struct {
 // reconstructedPlayerMappingSQL — SQL pemetaan event→pemain yang dibangun dari
 // SUMBER KEBENARAN (bukan dari rating_deltas), untuk event sesi.
 //
-// Mereturn CTE sub-kolom (eid, player_id, team) yang di-UNION kan dengan
-// rating_deltas sebagai cadangan oleh pemanggil. Event sesi mengenali dirinya
-// lewat stable_game_id = "legacy-N", lalu di-join ke baris ke-(N+1) sesi
-// berdasarkan scheduled_games.legacy_order.
+// Mereturn kolom (eid, player_id, team, absent, skipped). Pemain yang TIDAK
+// dapat delta (absent, atau digantikan pada game ini) ikut diambil — DENGAN
+// FLAG — karena ingest membutuhkannya untuk dua keputusan:
 //
-// Aturan penyaringan pemain — semua terverifikasi menghasilkan pemetaan PERSIS
-// sama dengan 2541 baris rating_deltas di data produksi (0 selisih):
+//   - MatchRateable: sisi yang isinya pemain di-skip tetap "real" (hadir),
+//     sisi yang semuanya absen tidak. Membuang pemain ini membuat rebuild
+//     salah menilai game satu sisi.
+//   - opponentsFor: saat satu sisi habis di-skip, lawan pengganti
+//     disintesis dari tier assigned pemain yang di-skip.
 //
-//   - not sp.is_absent              : pemain absen tidak pernah dapat delta
-//   - sp.player_id is not null      : slot kosong (pemain belum terisi)
-//   - player_ref tidak ada di skipped_player_refs : pemain yang di-skip dari
-//     game tertentu (mekanisme skip per-game)
+// Pemain dengan player_id NULL (slot belum terisi) dibuang: tidak ada pemain
+// nyata di baliknya, jadi tidak ada yang bisa dihitung maupun disintesis.
 //
 // Event yang tidak memenuhi syarat (turnamen, sesi yang sudah hilang dari
 // tabel) tidak menghasilkan baris — pemanggil jatuh ke rating_deltas.
+//
+// Aturan penyaringan pemain diverifikasi terhadap data produksi: pemetaan
+// pemain yang dapat delta = 2541 baris rating_deltas prod, 0 selisih.
 func (s *SessionStore) reconstructedPlayerMappingSQL() string {
 	return `
-		SELECT re.id AS eid, sp.player_id, gp.team
+		SELECT re.id AS eid, sp.player_id, gp.team,
+		       sp.is_absent AS absent,
+		       (sg.skipped_player_refs IS NOT NULL
+		        AND sp.player_ref = ANY(sg.skipped_player_refs)) AS skipped
 		FROM ` + s.schema + `.rating_events re
 		JOIN ` + s.schema + `.sessions ses ON ses.share_code = re.source_id
 		JOIN ` + s.schema + `.scheduled_games sg
@@ -206,10 +212,7 @@ func (s *SessionStore) reconstructedPlayerMappingSQL() string {
 		JOIN ` + s.schema + `.session_players sp
 		  ON sp.internal_id = gp.session_player_internal_id
 		WHERE re.stable_game_id ~ '^legacy-[0-9]+$'
-		  AND NOT sp.is_absent
-		  AND sp.player_id IS NOT NULL
-		  AND NOT (sg.skipped_player_refs IS NOT NULL
-		           AND sp.player_ref = ANY(sg.skipped_player_refs))`
+		  AND sp.player_id IS NOT NULL`
 }
 
 // rebuildAll — recompute SEMUA rating_players dari events tersisa, urut
@@ -261,10 +264,21 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		return 0, err
 	}
 
+	// evPlayer — pemain dalam satu event, lengkap dengan status kehadirannya
+	// supaya rebuild bisa meniru keputusan ingest persis:
+	//
+	//   - absent   : tidak hadir → sisi TIDAK "real" (MatchRateable false)
+	//   - skipped  : hadir tapi digantikan di game ini → tidak dapat delta,
+	//                tetap dihitung sisi real, dan disintesis jadi lawan saat
+	//                satu sisi habis di-skip (opponentsFor di rating.go)
+	//   - eligible : !absent && !skipped → dapat delta
 	type evPlayer struct {
 		playerID string
 		team     string
+		absent   bool
+		skipped  bool
 	}
+	eligible := func(p evPlayer) bool { return !p.absent && !p.skipped }
 	type ev struct {
 		id, date    string
 		scoreA      int
@@ -295,13 +309,15 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		WITH recon AS (`+s.reconstructedPlayerMappingSQL()+`)
 		SELECT re.id::text, re.date::text, re.score_a, re.score_b, re.target,
 		       re.phase_weight,
-		       coalesce(jsonb_agg(jsonb_build_object('p', m.player_id::text, 't', m.team)
+		       coalesce(jsonb_agg(jsonb_build_object(
+		           'p', m.player_id::text, 't', m.team,
+		           'a', m.absent, 's', m.skipped)
 		           ORDER BY m.team, m.player_id::text) FILTER (WHERE m.player_id IS NOT NULL), '[]'::jsonb)
 		FROM `+s.schema+`.rating_events re
 		LEFT JOIN (
-			SELECT r.eid, r.player_id, r.team FROM recon r
+			SELECT r.eid, r.player_id, r.team, r.absent, r.skipped FROM recon r
 			UNION
-			SELECT rd.event_id, rd.player_id, rd.team
+			SELECT rd.event_id, rd.player_id, rd.team, false, false
 			FROM `+s.schema+`.rating_deltas rd
 			WHERE NOT EXISTS (SELECT 1 FROM recon r2 WHERE r2.eid = rd.event_id)
 		) m ON m.eid = re.id
@@ -323,8 +339,10 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 			return 0, err
 		}
 		type pj struct {
-			P string `json:"p"`
-			T string `json:"t"`
+			P       string `json:"p"`
+			T       string `json:"t"`
+			Absent  bool   `json:"a"`
+			Skipped bool   `json:"s"`
 		}
 		var ps []pj
 		if err := json.Unmarshal(playersJSON, &ps); err != nil {
@@ -332,7 +350,9 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 			return 0, err
 		}
 		for _, p := range ps {
-			e.players = append(e.players, evPlayer{playerID: p.P, team: p.T})
+			e.players = append(e.players, evPlayer{
+				playerID: p.P, team: p.T, absent: p.Absent, skipped: p.Skipped,
+			})
 		}
 		events = append(events, e)
 	}
@@ -426,17 +446,40 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 
 	// Proses ulang berurutan
 	for _, e := range events {
-		playersA := []string{}
-		playersB := []string{}
+		playersA, playersB := []string{}, []string{} // eligible → dapat delta
+		skippedA, skippedB := []string{}, []string{} // hadir tapi digantikan
+		realA, realB := false, false                 // SideHasRealPlayer (bukan absent)
 		for _, p := range e.players {
-			if p.team == "A" {
-				playersA = append(playersA, p.playerID)
-			} else {
-				playersB = append(playersB, p.playerID)
+			isA := p.team == "A"
+			if !p.absent {
+				if isA {
+					realA = true
+				} else {
+					realB = true
+				}
+			}
+			switch {
+			case eligible(p):
+				if isA {
+					playersA = append(playersA, p.playerID)
+				} else {
+					playersB = append(playersB, p.playerID)
+				}
+			case p.skipped && !p.absent:
+				if isA {
+					skippedA = append(skippedA, p.playerID)
+				} else {
+					skippedB = append(skippedB, p.playerID)
+				}
 			}
 		}
-		if len(playersA) == 0 || len(playersB) == 0 {
-			continue // event tanpa salah satu sisi (data lama) — dilewati
+		// Nilai layak (= MatchRateable di domain) kalau kedua sisi punya pemain
+		// real dan minimal satu sisi punya pemain eligible. Satu sisi BOLEH
+		// kosong selama isinya pemain yang digantikan — ingest menilainya dengan
+		// lawan disintesis dari tier mereka. Dulu event seperti ini dilewati
+		// begitu saja (len==0 → continue) sehingga delta-nya hilang permanen.
+		if !realA || !realB || (len(playersA) == 0 && len(playersB) == 0) {
+			continue
 		}
 
 		phaseWeight := e.phaseWeight
@@ -453,14 +496,29 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		outcomeB := 1.0 - outcomeA
 
 		oppsFor := func(myTeam string) []domain.RatingOpponent {
-			opp := playersB
+			opp, oppSkipped := playersB, skippedB
 			if myTeam == "B" {
-				opp = playersA
+				opp, oppSkipped = playersA, skippedA
 			}
 			out := []domain.RatingOpponent{}
 			for _, id := range opp {
 				rt := getRT(id)
 				out = append(out, domain.RatingOpponent{Rating: rt.state.Rating, RD: rt.state.RD})
+			}
+			// Sisi lawan habis di-skip (semua digantikan) → sintesis lawan
+			// pengganti dari baseline tier assigned pemain yang di-skip —
+			// tiruan persis opponentsFor di rating.go. Pemainnya sendiri tetap
+			// TIDAK dapat delta.
+			if len(opp) == 0 {
+				for _, id := range oppSkipped {
+					r := cfg.Params.InitialRating
+					if tier := priorTier[id]; tier != "" {
+						if init, ok := cfg.FormingForTier(tier); ok {
+							r = init.Rating
+						}
+					}
+					out = append(out, domain.RatingOpponent{Rating: r, RD: cfg.Params.InitialRD})
+				}
 			}
 			return out
 		}
