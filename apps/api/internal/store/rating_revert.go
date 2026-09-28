@@ -178,8 +178,9 @@ type seedRow struct {
 // reconstructedPlayerMappingSQL — SQL pemetaan event→pemain yang dibangun dari
 // SUMBER KEBENARAN (bukan dari rating_deltas), untuk event sesi.
 //
-// Mereturn kolom (eid, player_id, team, absent, skipped). Pemain yang TIDAK
-// dapat delta (absent, atau digantikan pada game ini) ikut diambil — DENGAN
+// Mereturn kolom (eid, player_id, team, absent, skipped, journey). Pemain yang
+// TIDAK dapat delta (absent, digantikan pada game ini, atau journey-gagal
+// karena registered_at > tanggal sesi) ikut diambil — DENGAN
 // FLAG — karena ingest membutuhkannya untuk dua keputusan:
 //
 //   - MatchRateable: sisi yang isinya pemain di-skip tetap "real" (hadir),
@@ -201,7 +202,9 @@ func (s *SessionStore) reconstructedPlayerMappingSQL() string {
 		SELECT re.id AS eid, sp.player_id, gp.team,
 		       sp.is_absent AS absent,
 		       (sg.skipped_player_refs IS NOT NULL
-		        AND sp.player_ref = ANY(sg.skipped_player_refs)) AS skipped
+		        AND sp.player_ref = ANY(sg.skipped_player_refs)) AS skipped,
+		       (p.registered_at IS NULL
+		        OR ses.session_date >= p.registered_at) AS journey
 		FROM ` + s.schema + `.rating_events re
 		JOIN ` + s.schema + `.sessions ses ON ses.share_code = re.source_id
 		JOIN ` + s.schema + `.scheduled_games sg
@@ -211,6 +214,7 @@ func (s *SessionStore) reconstructedPlayerMappingSQL() string {
 		  ON gp.scheduled_game_internal_id = sg.internal_id
 		JOIN ` + s.schema + `.session_players sp
 		  ON sp.internal_id = gp.session_player_internal_id
+		JOIN ` + s.schema + `.players p ON p.id = sp.player_id
 		WHERE re.stable_game_id ~ '^legacy-[0-9]+$'
 		  AND sp.player_id IS NOT NULL`
 }
@@ -271,14 +275,31 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	//   - skipped  : hadir tapi digantikan di game ini → tidak dapat delta,
 	//                tetap dihitung sisi real, dan disintesis jadi lawan saat
 	//                satu sisi habis di-skip (opponentsFor di rating.go)
-	//   - eligible : !absent && !skipped → dapat delta
+	//   - journey  : lolos gate registered_at (§2.5.6) — rekonstruksi yang
+	//                journey-gagal TIDAK menambah delta yang sudah ditolak
+	//                ingest; baris yang datang dari rating_deltas selalu true
+	//                (catatan diberikan saat kejadian, registered_at boleh saja
+	//                berubah belakangan)
+	//   - eligible : dapat delta — journey && sesuai absent_policy
+	//                (skip_player/count; skip_game: event void tidak pernah
+	//                dibuat ingest, jadi tidak ada yang direkonstruksi —
+	//                perubahan policy diterapkan lewat replay, bukan rebuild)
 	type evPlayer struct {
 		playerID string
 		team     string
 		absent   bool
 		skipped  bool
+		journey  bool
 	}
-	eligible := func(p evPlayer) bool { return !p.absent && !p.skipped }
+	eligible := func(p evPlayer) bool {
+		if !p.journey {
+			return false
+		}
+		if cfg.AbsentPolicy == domain.AbsentCount {
+			return true // count: pemain absent/skipped dihitung normal
+		}
+		return !p.absent && !p.skipped
+	}
 	type ev struct {
 		id, date    string
 		scoreA      int
@@ -291,16 +312,18 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	// Baca events urut global + pemainnya. DIBACA DULU sebelum reset, karena
 	// rating_deltas akan dihapus.
 	//
-	// Sumber pemetaan event→pemain, berurutan prioritas:
+	// Sumber pemetaan event→pemain, per (event, pemain):
 	//
-	//  1. REKONSTRUKSI dari sumber kebenaran (sessions + scheduled_games +
-	//     session_players). rating_deltas adalah tabel turunan; menjadikannya
-	//     satu-satunya input membuat rebuild kehilangan datanya sendiri saat
-	//     rating_deltas hilang (ketergantungan melingkar). Rekonstruksi ini
-	//     diverifikasi eksak terhadap 2541 baris rating_deltas prod.
-	//  2. rating_deltas — cadangan untuk event yang TIDAK bisa direkonstruksi
-	//     (turnamen memakai stable_game_id = matchKey, bukan "legacy-N"), dan
-	//     untuk event pra-migrasi ber-stable_game_id 'legacy-0'.
+	//  1. rating_deltas MENANG — catatan yang ditulis saat kejadian. Rebuild
+	//     tidak boleh membatalkinya: registered_at bisa berubah SETELAH delta
+	//     diberikan (first-set/merge), dan menghapus delta historis karena
+	//     meta yang berubah belakangan merusak data prod.
+	//  2. REKONSTRUKSI dari sumber kebenaran (sessions + scheduled_games +
+	//     session_players) melengkapi pemain yang tidak tercatat di deltas —
+	//     memulihkan rating_deltas yang hilang (ketergantungan melingkar bila
+	//     deltas satu-satunya input), menutup event pra-migrasi 'legacy-0',
+	//     dan di gate journey supaya TIDAK menambah delta yang ditolak ingest.
+	//     Diverifikasi eksak terhadap 2541 baris rating_deltas prod.
 	//
 	// Hanya events ≥ season_start: Glicko bersifat musim-scoped (mulai dari
 	// mid kelas tiap musim). Events lama tetap tersimpan di tabel untuk
@@ -311,15 +334,19 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		       re.phase_weight,
 		       coalesce(jsonb_agg(jsonb_build_object(
 		           'p', m.player_id::text, 't', m.team,
-		           'a', m.absent, 's', m.skipped)
+		           'a', m.absent, 's', m.skipped, 'j', m.journey)
 		           ORDER BY m.team, m.player_id::text) FILTER (WHERE m.player_id IS NOT NULL), '[]'::jsonb)
 		FROM `+s.schema+`.rating_events re
 		LEFT JOIN (
-			SELECT r.eid, r.player_id, r.team, r.absent, r.skipped FROM recon r
-			UNION
-			SELECT rd.event_id, rd.player_id, rd.team, false, false
+			SELECT rd.event_id AS eid, rd.player_id, rd.team,
+			       false AS absent, false AS skipped, true AS journey
 			FROM `+s.schema+`.rating_deltas rd
-			WHERE NOT EXISTS (SELECT 1 FROM recon r2 WHERE r2.eid = rd.event_id)
+			UNION ALL
+			SELECT r.eid, r.player_id, r.team, r.absent, r.skipped, r.journey
+			FROM recon r
+			WHERE NOT EXISTS (
+				SELECT 1 FROM `+s.schema+`.rating_deltas rd2
+				WHERE rd2.event_id = r.eid AND rd2.player_id = r.player_id)
 		) m ON m.eid = re.id
 		WHERE re.date >= $1::date
 		GROUP BY re.id
@@ -343,6 +370,7 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 			T       string `json:"t"`
 			Absent  bool   `json:"a"`
 			Skipped bool   `json:"s"`
+			Journey bool   `json:"j"`
 		}
 		var ps []pj
 		if err := json.Unmarshal(playersJSON, &ps); err != nil {
@@ -351,7 +379,8 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		}
 		for _, p := range ps {
 			e.players = append(e.players, evPlayer{
-				playerID: p.P, team: p.T, absent: p.Absent, skipped: p.Skipped,
+				playerID: p.P, team: p.T, absent: p.Absent,
+				skipped: p.Skipped, journey: p.Journey,
 			})
 		}
 		events = append(events, e)
@@ -362,12 +391,12 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	}
 
 	// Pengaman: rebuild menghapus rating_players + rating_deltas lalu menyusun
-	// ulang dari pemetaan event→pemain di memori. Pemetaan itu HANYA bisa dibaca
-	// dari rating_deltas — tabel yang akan dihapus. Jadi bila ada event dalam
-	// musim tapi tidak ada satu pun pemetaan yang terbaca, rating_deltas hilang
-	// atau tidak lengkap: melanjutkan berarti menulis ulang seluruh rating
-	// sebagai kosong TANPA jalur pemulihan (rating_deltas adalah satu-satunya
-	// sumber pemetaan). Menolak lebih baik daripada memusnahkan data.
+	// ulang dari pemetaan event→pemain yang dibaca lebih dulu — rekonstruksi
+	// dari sesi (utama) lalu rating_deltas (cadangan). Bila ada event dalam
+	// musim tapi KEDUA sumber itu tidak menghasilkan satu pun pemain (deltas
+	// kosong DAN sesinya sudah tidak ada), melanjutkan berarti menulis seluruh
+	// rating sebagai kosong TANPA jalur pemulihan. Menolak lebih baik daripada
+	// memusnahkan data.
 	if len(events) > 0 {
 		mapped := 0
 		for i := range events {
