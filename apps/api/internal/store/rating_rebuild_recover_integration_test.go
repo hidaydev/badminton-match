@@ -240,3 +240,131 @@ func TestIntegrationRebuildPreservesPreSeasonDeltas(t *testing.T) {
 	_ = fmt.Sprintf
 	_ = time.Now
 }
+
+// TestIntegrationRebuildRatesOneSidedGame — game dengan satu sisi habis
+// di-skip tetap harus dinilai rebuild.
+//
+// Bug yang dijaga test ini: loop rebuild membuang event begitu salah satu
+// sisi tidak punya pemain, padahal ingest tetap menilainya — sisi yang semua
+// pemainnya digantikan masih "real" (mereka hadir, hanya digantikan di game
+// ini), dan lawan penggantinya disintesis dari tier assigned mereka.
+// Akibat bug itu delta pemain yang benar-benar main hilang permanen setiap
+// rebuild (terukur di data produksi: 1 event, 2 delta lenyap tiap kali).
+//
+// Pemetaan rekonstruksi juga harus ikut membawa pemain yang di-skip (dengan
+// flag), bukan dibuang — tanpa mereka, sisi yang kosong itu dianggap tidak
+// real dan game dianggap tidak layak dinilai.
+func TestIntegrationRebuildRatesOneSidedGame(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	const prefix = "it-onesided"
+	players := []domain.Player{
+		{ID: "ros1", Name: "ROS One", Gender: "M", Tier: 3},
+		{ID: "ros2", Name: "ROS Two", Gender: "M", Tier: 3},
+		{ID: "ros3", Name: "ROS Three", Gender: "M", Tier: 1},
+		{ID: "ros4", Name: "ROS Four", Gender: "M", Tier: 1},
+	}
+	cleanup := func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.scheduled_game_players WHERE scheduled_game_internal_id IN (SELECT sg.internal_id FROM `+schema+`.scheduled_games sg JOIN `+schema+`.sessions s ON s.id=sg.session_id WHERE s.share_code LIKE '`+prefix+`%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.scheduled_games WHERE session_id IN (SELECT id FROM `+schema+`.sessions WHERE share_code LIKE '`+prefix+`%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'ROS %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'ros %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'ROS %'`)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	var date string
+	if err := st.pool.QueryRow(ctx, `
+		SELECT (GREATEST(
+			(SELECT (value #>> '{}')::date FROM `+schema+`.rating_config WHERE key='season_start'),
+			COALESCE((SELECT max(date) FROM `+schema+`.rating_events), CURRENT_DATE)
+		) + INTERVAL '1 day')::date::text`).Scan(&date); err != nil {
+		t.Fatalf("hitung tanggal: %v", err)
+	}
+
+	id := prefix + "-sess"
+	snap := &domain.CloudSnapshot{
+		Session: domain.SessionConfig{
+			Title: "ROS", Date: date, Courts: 1,
+			SessionStart: "09:00", SlotMinutes: 20,
+			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
+			PlayerCount: 4, CourtNames: []string{"C1"},
+		},
+		Players: players, FixMatches: []domain.FixMatch{},
+		Schedule:       []domain.ScheduleSlot{{Slot: 0, Court: 0, TeamA: [2]string{"ros1", "ros2"}, TeamB: [2]string{"ros3", "ros4"}}},
+		PlayedGames:    []string{"0-0"},
+		GameScores:     map[string]domain.GameScore{"0-0": {A: 21, B: 10}},
+		SkippedPlayers: map[string][]string{"0-0": {"ros3", "ros4"}}, // sisi B habis di-skip
+	}
+	if _, err := st.Save(ctx, id, snap); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	saveLock(t, st, ctx, id)
+	if r, err := st.IngestSession(ctx, id); err != nil || r.Processed != 1 {
+		t.Fatalf("ingest: %+v %v", r, err)
+	}
+
+	// Prasyarat: jalur ingest menilai game ini (hanya sisi A dapat delta).
+	want := ratingMappingSnapshot(t, st, schema, id)
+	t.Logf("pemetaan dari ingest: %v", want)
+	if len(want) != 1 {
+		t.Fatalf("prasyarat gagal: ingest menghasilkan %d game, want 1", len(want))
+	}
+	var nDelta int
+	if err := st.pool.QueryRow(ctx, `
+		SELECT count(*) FROM `+schema+`.rating_deltas rd
+		JOIN `+schema+`.rating_events re ON re.id = rd.event_id
+		WHERE re.source_id = $1`, id).Scan(&nDelta); err != nil {
+		t.Fatal(err)
+	}
+	if nDelta != 2 {
+		t.Fatalf("prasyarat gagal: ingest menghasilkan %d delta, want 2 (hanya sisi A)", nDelta)
+	}
+
+	if _, err := st.RebuildAll(ctx); err != nil {
+		t.Fatalf("rebuild: %v", err)
+	}
+
+	// Delta pemain sisi A harus dipulihkan, dan tetap tidak ada delta untuk
+	// pemain yang di-skip.
+	var after int
+	if err := st.pool.QueryRow(ctx, `
+		SELECT count(*) FROM `+schema+`.rating_deltas rd
+		JOIN `+schema+`.rating_events re ON re.id = rd.event_id
+		WHERE re.source_id = $1`, id).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if after != nDelta {
+		t.Errorf("delta setelah rebuild = %d, want %d — game satu sisi tidak diproses ulang", after, nDelta)
+	}
+	for game, wantVal := range want {
+		if got := ratingMappingSnapshot(t, st, schema, id)[game]; got != wantVal {
+			t.Errorf("game %s: pemetaan %q, want %q", game, got, wantVal)
+		}
+	}
+
+	// Pemain yang di-skip tidak boleh menerima delta.
+	for _, ref := range []string{"ros three", "ros four"} {
+		pid := resolveIDByAlias(t, st, ref)
+		var n int
+		if err := st.pool.QueryRow(ctx, `
+			SELECT count(*) FROM `+schema+`.rating_deltas rd
+			JOIN `+schema+`.rating_events re ON re.id=rd.event_id
+			WHERE re.source_id=$1 AND rd.player_id=$2::uuid`, id, pid).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Errorf("pemain di-skip %s dapat %d delta, want 0", ref, n)
+		}
+	}
+}
