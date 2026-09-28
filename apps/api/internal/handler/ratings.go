@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"majadu-api/internal/httperr"
 	"majadu-api/internal/store"
@@ -211,7 +212,16 @@ func (h *RatingsHandler) Leaderboard(w http.ResponseWriter, r *http.Request) {
 func (h *RatingsHandler) Rankings(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	limit := atoiSafe(q.Get("limit"), 200)
-	board, err := h.Store.RankPointsBoard(r.Context(), q.Get("as_of"), limit)
+	asOf := q.Get("as_of")
+	// as_of masuk langsung sebagai $1::date di store — string rusak di sana
+	// melempar error Postgres yang berujung 500. Tangkap di sini sebagai 400.
+	if asOf != "" {
+		if _, err := time.Parse("2006-01-02", asOf); err != nil {
+			httperr.WriteError(w, h.Logger, httperr.Validation("as_of harus format YYYY-MM-DD"))
+			return
+		}
+	}
+	board, err := h.Store.RankPointsBoard(r.Context(), asOf, limit)
 	if err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch rankings", err))
 		return
@@ -225,6 +235,13 @@ func (h *RatingsHandler) Rankings(w http.ResponseWriter, r *http.Request) {
 // di window: pemain baru tetap boleh membuka halamannya.
 func (h *RatingsHandler) PlayerRankPoints(w http.ResponseWriter, r *http.Request) {
 	pid := r.PathValue("playerId")
+	// id yang bukan format UUID tidak mungkin menunjuk pemain mana pun, dan
+	// cast ::uuid di store akan melempar error Postgres (500). Kontrak
+	// found=false dipertahankan untuk kedua kasus.
+	if !isUUIDFormat(pid) {
+		httperr.WriteJSON(w, http.StatusOK, map[string]any{"found": false})
+		return
+	}
 	row, found, err := h.Store.RankPointsForPlayer(r.Context(), pid)
 	if err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch rank points", err))
@@ -235,6 +252,27 @@ func (h *RatingsHandler) PlayerRankPoints(w http.ResponseWriter, r *http.Request
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]any{"found": true, "row": row})
+}
+
+// isUUIDFormat — cek format UUID 8-4-4-4-12 heksadesimal tanpa library
+// tambahan (go.mod sengaja minimal: pgx + godotenv saja).
+func isUUIDFormat(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			if c != '-' {
+				return false
+			}
+			continue
+		}
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 // Player — GET /ratings/players/{playerId} → publik.
