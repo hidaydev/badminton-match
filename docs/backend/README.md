@@ -8,6 +8,7 @@ SQL migrasi untuk schema PostgreSQL `bm`.
 | `000014_skip_per_game.sql` | Skip per-game (`scheduled_games.skipped_player_refs`) |
 | `000015_performance_indexes.sql` | 5 composite/partial index performa |
 | `000016_player_achievements.sql` | `player_achievements` |
+| `000017_rating_seed.sql` | Benih rating musim: `rating_players.seed_rating/seed_rd/seed_set_at` (disegel `CloseAndStartSeason`) |
 
 Catatan:
 
