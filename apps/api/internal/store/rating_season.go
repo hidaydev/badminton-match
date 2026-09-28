@@ -79,7 +79,7 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 		// sesuai lama jeda. Pemain 0-game dibiarkan tanpa benih supaya musim
 		// baru memperlakukannya sebagai pemain baru (mid kelas).
 		// Nilai ini stabil: rebuildAll membacanya, bukan rating hasil rebuild.
-		if err := s.sealSeasonSeeds(ctx, tx); err != nil {
+		if err := s.sealSeasonSeeds(ctx, tx, false); err != nil {
 			return "", err
 		}
 		if _, err := tx.Exec(ctx, `
@@ -91,6 +91,15 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return "", err
+	}
+	// Tidak ada musim terbuka: tetap segel benih dari state pemain saat ini.
+	// Kalau ini dilewati, pemain ber-riwayat tidak punya seed_* dan saat musim
+	// berikutnya di-rebuild mereka akan terlempar ke mid kelas — persis bug yang
+	// ingin dicegah oleh benih. Terjadi pada DB baru / yang di-reset.
+	if err != nil && errors.Is(err, pgx.ErrNoRows) {
+		if err := s.sealSeasonSeeds(ctx, tx, true); err != nil {
+			return "", err
+		}
 	}
 
 	// 3. Musim baru — auto "Season YYYY-N"
@@ -147,15 +156,25 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 //
 // Hanya dijalankan sekali per musim (CloseAndStartSeason). rebuildAll hanya
 // MEMBACA seed ini, sehingga hasil rebuild selalu sama.
-func (s *SessionStore) sealSeasonSeeds(ctx context.Context, tx pgx.Tx) error {
+// sealSeasonSeeds — segel benih musim BERIKUTNYA dari state pemain saat ini.
+// Parameter onlyMissing membatasi pada pemain yang belum punya benih.
+//
+// Benih disegel sekali per musim: rebuildAll membacanya, bukan rating hasil
+// rebuild. Kalau benih diambil dari rating saat ini berulang kali, rebuild
+// menjadi tidak idempotent (terukur: 1495 -> 1525 -> 1554).
+func (s *SessionStore) sealSeasonSeeds(ctx context.Context, tx pgx.Tx, onlyMissing bool) error {
 	cfg, err := s.LoadRatingConfig(ctx, false)
 	if err != nil {
 		return err
 	}
+	filter := ""
+	if onlyMissing {
+		filter = " AND seed_rating IS NULL"
+	}
 	rows, err := tx.Query(ctx, `
 		SELECT player_id::text, rating, rd, coalesce(last_played_at::text, '')
 		FROM `+s.schema+`.rating_players
-		WHERE games_played > 0`)
+		WHERE games_played > 0`+filter)
 	if err != nil {
 		return err
 	}
