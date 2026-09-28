@@ -338,7 +338,9 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		           ORDER BY m.team, m.player_id::text) FILTER (WHERE m.player_id IS NOT NULL), '[]'::jsonb)
 		FROM `+s.schema+`.rating_events re
 		LEFT JOIN (
-			SELECT rd.event_id AS eid, rd.player_id, rd.team,
+			-- DISTINCT: rating_deltas tidak punya UNIQUE(event_id,
+			-- player_id); duplikat internal tidak boleh menggandakan delta.
+			SELECT DISTINCT rd.event_id AS eid, rd.player_id, rd.team,
 			       false AS absent, false AS skipped, true AS journey
 			FROM `+s.schema+`.rating_deltas rd
 			UNION ALL
