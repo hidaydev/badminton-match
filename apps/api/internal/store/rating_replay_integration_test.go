@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"majadu-api/internal/domain"
@@ -178,11 +179,13 @@ func TestIntegrationReplayAll(t *testing.T) {
 
 // TestIntegrationRebuildAllRefusesWithoutMapping — pengaman data-loss.
 //
-// rebuildAll menghapus rating_players + rating_deltas, lalu menyusun ulang dari
-// pemetaan event→pemain di memori. Pemetaan itu HANYA bisa dibaca dari
-// rating_deltas, tabel yang akan dihapus. Kalau rating_deltas kosong sementara
-// ada event dalam musim, rebuild akan menulis seluruh rating sebagai kosong
-// tanpa jalur pemulihan. Harus DITOLAK, bukan dijalankan.
+// rebuildAll menghapus rating_players + rating_deltas lalu menyusun ulang dari
+// pemetaan event→pemain yang dibaca lebih dulu: rekonstruksi dari sesi (utama)
+// lalu rating_deltas (cadangan).
+//
+// Kalau KEDUA sumbernya habis — deltas kosong DAN sesinya sudah tidak ada —
+// rebuild akan menulis seluruh rating sebagai kosong TANPA jalur pemulihan.
+// Kondisi itu harus DITOLAK, bukan dijalankan.
 func TestIntegrationRebuildAllRefusesWithoutMapping(t *testing.T) {
 	st, schema := ratingTestEnv(t)
 	ctx := context.Background()
@@ -289,5 +292,152 @@ func TestIntegrationRebuildAllRefusesWithoutMapping(t *testing.T) {
 	}
 	if after != before {
 		t.Errorf("rating_players berubah walau rebuild ditolak: %d → %d", before, after)
+	}
+}
+
+// TestIntegrationReplayAllMultipleSources — ReplayAll harus memulihkan SEMUA
+// sumber, bukan hanya sumber yang kebetulan paling baru.
+//
+// Bug yang dijaga test ini: replay dulu menghapus events lalu meng-ingest satu
+// per satu. Selama masih ada events sumber lain, ingest sumber yang lebih lama
+// selalu ditolak invariant ErrOutOfOrder — akibatnya sumber itu gagal DAN
+// events-nya sudah terhapus (fingerprint juga sudah dikosongkan, jadi tidak
+// pernah terpilih lagi; ticker kena ErrOutOfOrder yang sama). Data hilang
+// permanen. Urutan pemrosesan dulu = share_code, yang posisinya terhadap
+// tanggal TIDAK menentukannya.
+//
+// Fixture-nya sengaja dibuat berlawanan: sesi LEBIH LAMA dapat share_code
+// yang urut abjadnya DI AWAL ("aa…" = duluan diproses desain lama), dan sesi
+// lebih baru di akhir ("zz…"). Desain lama gagal di langkah pertama; desain
+// baru (hapus semua dulu → ingest menaik) sukses untuk keduanya.
+func TestIntegrationReplayAllMultipleSources(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	// id sesi: urutan abjad sengaja BERLAWANAN dengan tanggal ("aa" = lebih
+	// lama) supaya desain lama (urut share_code) gagal deterministik.
+	const prefixJul = "aa-rt-jul"
+	const prefixAug = "zz-rt-aug"
+	mkPlayers := func(prefix string, names []string) []domain.Player {
+		out := []domain.Player{}
+		for i, n := range names {
+			out = append(out, domain.Player{
+				ID:     fmt.Sprintf("%s%d", prefix, i+1),
+				Name:   n,
+				Gender: "M",
+				Tier:   3,
+			})
+		}
+		return out
+	}
+	julPlayers := mkPlayers("rtj", []string{"RTJ One", "RTJ Two", "RTJ Three", "RTJ Four"})
+	augPlayers := mkPlayers("rta", []string{"RTA One", "RTA Two", "RTA Three", "RTA Four"})
+	// Pemain terpisah per sesi: registered_at (ditulis Save) jangan sampai
+	// men-gate sesi yang lebih lama.
+
+	cleanup := func() {
+		for _, p := range []string{prefixJul, prefixAug} {
+			_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+p+`%')`)
+			_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE '`+p+`%'`)
+			_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE '`+p+`%'`)
+			_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.scheduled_games WHERE session_id IN (SELECT id FROM `+schema+`.sessions WHERE share_code LIKE '`+p+`%')`)
+			_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE '`+p+`%'`)
+		}
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RTJ %' OR canonical_name LIKE 'RTA %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'rtj %' OR alias_name LIKE 'rta %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RTJ %' OR canonical_name LIKE 'RTA %'`)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	if err := st.EnsurePlayersRegistered(ctx, append(append([]domain.Player{}, julPlayers...), augPlayers...)); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	// Dua tanggal: jul = setelah event terakhir, aug = sehari sesudahnya.
+	var dateJul, dateAug string
+	if err := st.pool.QueryRow(ctx, `
+		SELECT (GREATEST(
+			(SELECT (value #>> '{}')::date FROM `+schema+`.rating_config WHERE key='season_start'),
+			COALESCE((SELECT max(date) FROM `+schema+`.rating_events), CURRENT_DATE)
+		) + INTERVAL '1 day')::date::text,
+		(GREATEST(
+			(SELECT (value #>> '{}')::date FROM `+schema+`.rating_config WHERE key='season_start'),
+			COALESCE((SELECT max(date) FROM `+schema+`.rating_events), CURRENT_DATE)
+		) + INTERVAL '2 day')::date::text`).Scan(&dateJul, &dateAug); err != nil {
+		t.Fatalf("tanggal: %v", err)
+	}
+
+	saveOne := func(id, title, date string, players []domain.Player, teamA, teamB [2]string) {
+		t.Helper()
+		snap := &domain.CloudSnapshot{
+			Session: domain.SessionConfig{
+				Title: title, Date: date, Courts: 1,
+				SessionStart: "09:00", SlotMinutes: 20,
+				CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
+				PlayerCount: 4, CourtNames: []string{"C1"},
+			},
+			Players: players, FixMatches: []domain.FixMatch{},
+			Schedule:    []domain.ScheduleSlot{{Slot: 0, Court: 0, TeamA: teamA, TeamB: teamB}},
+			PlayedGames: []string{"0-0"},
+			GameScores:  map[string]domain.GameScore{"0-0": {A: 21, B: 10}},
+		}
+		if _, err := st.Save(ctx, id, snap); err != nil {
+			t.Fatalf("save %s: %v", id, err)
+		}
+		saveLock(t, st, ctx, id)
+		if r, err := st.IngestSession(ctx, id); err != nil || r.Processed != 1 {
+			t.Fatalf("ingest %s: %+v %v", id, r, err)
+		}
+	}
+
+	idJul, idAug := prefixJul, prefixAug
+	saveOne(idJul, "RT Jul", dateJul, julPlayers,
+		[2]string{"rtj1", "rtj2"}, [2]string{"rtj3", "rtj4"})
+	saveOne(idAug, "RT Aug", dateAug, augPlayers,
+		[2]string{"rta1", "rta2"}, [2]string{"rta3", "rta4"})
+
+	countEvents := func(id string) int {
+		t.Helper()
+		var n int
+		if err := st.pool.QueryRow(ctx,
+			`SELECT count(*) FROM `+schema+`.rating_events WHERE source_id = $1`, id).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if countEvents(idJul) != 1 || countEvents(idAug) != 1 {
+		t.Fatalf("prasyarat: jul=%d aug=%d events, want 1+1", countEvents(idJul), countEvents(idAug))
+	}
+
+	report, err := st.ReplayAll(ctx)
+	if err != nil {
+		t.Fatalf("replay-all: %v", err)
+	}
+	t.Logf("replay-all: replayed=%d failed=%d", report.Replayed, report.Failed)
+	for _, r := range report.Results {
+		t.Logf("  %s (%s): processed=%d skipped=%q", r.SourceID, r.Kind, r.Processed, r.Skipped)
+	}
+
+	if report.Failed != 0 {
+		t.Errorf("failed=%d, want 0 — sumber kehilangan events tanpa bisa dipulihkan", report.Failed)
+	}
+	// Kedua sumber harus ter-ingest ulang, events-nya utuh.
+	if n := countEvents(idJul); n != 1 {
+		t.Errorf("events %s = %d, want 1 (hilang setelah replay)", idJul, n)
+	}
+	if n := countEvents(idAug); n != 1 {
+		t.Errorf("events %s = %d, want 1 (hilang setelah replay)", idAug, n)
+	}
+	// Fingerprint kembali terisi (artinya benar-benar di-ingest, bukan dilewati).
+	for _, id := range []string{idJul, idAug} {
+		var fp string
+		if err := st.pool.QueryRow(ctx,
+			`SELECT coalesce(fingerprint,'') FROM `+schema+`.rating_sources WHERE source_id = $1`, id).Scan(&fp); err != nil {
+			t.Fatalf("baca fingerprint %s: %v", id, err)
+		}
+		if fp == "" {
+			t.Errorf("%s: fingerprint kosong — sumber tidak di-ingest ulang", id)
+		}
 	}
 }
