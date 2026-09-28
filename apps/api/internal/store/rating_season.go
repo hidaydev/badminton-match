@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"majadu-api/internal/domain"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -72,6 +74,14 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 			seasonID); err != nil {
 			return "", err
 		}
+		// Segel benih musim berikutnya: pemain yang PUNYA riwayat (≥1 game)
+		// memakai rating terakhirnya sebagai titik awal, dengan RD ditumbuhkan
+		// sesuai lama jeda. Pemain 0-game dibiarkan tanpa benih supaya musim
+		// baru memperlakukannya sebagai pemain baru (mid kelas).
+		// Nilai ini stabil: rebuildAll membacanya, bukan rating hasil rebuild.
+		if err := s.sealSeasonSeeds(ctx, tx); err != nil {
+			return "", err
+		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE `+s.schema+`.rating_seasons
 			SET end_date = $1::date, closed_at = now()
@@ -126,6 +136,67 @@ func (s *SessionStore) CloseAndStartSeason(ctx context.Context, startDate string
 	}
 
 	return newID, nil
+}
+
+// sealSeasonSeeds — segel benih musim berikutnya dari state musim yang berakhir.
+//
+// Pemain dengan riwayat (games_played > 0) → seed = rating terakhir, seed_rd =
+// RD yang sudah ditumbuhkan sesuai lama jeda (memakai domain.GrowRD yang sama
+// dengan GrowthRD lain). Pemain 0-game tidak disegel: musim baru memperlakukan
+// mereka sebagai pemain baru (mid kelas).
+//
+// Hanya dijalankan sekali per musim (CloseAndStartSeason). rebuildAll hanya
+// MEMBACA seed ini, sehingga hasil rebuild selalu sama.
+func (s *SessionStore) sealSeasonSeeds(ctx context.Context, tx pgx.Tx) error {
+	cfg, err := s.LoadRatingConfig(ctx, false)
+	if err != nil {
+		return err
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT player_id::text, rating, rd, coalesce(last_played_at::text, '')
+		FROM `+s.schema+`.rating_players
+		WHERE games_played > 0`)
+	if err != nil {
+		return err
+	}
+	type seeded struct {
+		id      string
+		rating  float64
+		rd      float64
+		idleDay int
+	}
+	batch := []seeded{}
+	for rows.Next() {
+		var id, lastPlayed string
+		var rating, rd float64
+		if err := rows.Scan(&id, &rating, &rd, &lastPlayed); err != nil {
+			rows.Close()
+			return err
+		}
+		idleDays := 0
+		if lastPlayed != "" {
+			if last, perr := time.Parse("2006-01-02", lastPlayed); perr == nil {
+				idleDays = int(time.Since(last).Hours() / 24)
+			}
+		}
+		batch = append(batch, seeded{id: id, rating: rating, rd: rd, idleDay: idleDays})
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, b := range batch {
+		seedRD := domain.GrowRD(b.rd, b.idleDay, cfg.Params)
+		if _, err := tx.Exec(ctx, `
+			UPDATE `+s.schema+`.rating_players
+			SET seed_rating = $2, seed_rd = $3, seed_set_at = now()
+			WHERE player_id = $1::uuid`,
+			b.id, b.rating, seedRD); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // autoSeasonName — "Season 2026-1", "Season 2026-2", dst.

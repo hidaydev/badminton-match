@@ -119,19 +119,26 @@ func TestIntegrationSeasonReset(t *testing.T) {
 	}
 
 	// Pre-season baru → Glicko musim ini mengabaikan events < season_start
-	// (dikecualikan rebuildAll), jadi pemain tampak reset ke mid kelas.
+	// (dikecualikan rebuildAll). Pemain yang PUNYA riwayat memakai benih
+	// (rating terakhir), bukan mid kelas — lihat TestIntegrationSeasonSeed.
 	pid := resolveIDByAlias(t, st, "itse one")
 	dt, err := st.RatingPlayer(ctx, pid)
 	if err != nil || dt == nil {
 		t.Fatalf("detail: %v", err)
 	}
-	if dt.Games != 0 || dt.Rating != 1450 {
-		t.Fatalf("ITSE One setelah reset: games=%d rating=%.2f, want 0/1450 (mid kelas C)", dt.Games, dt.Rating)
+	if dt.Games != 0 {
+		t.Fatalf("ITSE One setelah reset: games=%d, want 0 (event di luar musim dikecualikan)", dt.Games)
+	}
+	if dt.Rating == 1450 {
+		t.Fatal("ITSE One jatuh tepat ke mid kelas C (1450) — pemain ber-riwayat harus memakai benih")
 	}
 	pid3 := resolveIDByAlias(t, st, "itse three")
 	dt3, _ := st.RatingPlayer(ctx, pid3)
-	if dt3.Games != 0 || dt3.Rating != 1150 {
-		t.Fatalf("ITSE Three setelah reset: games=%d rating=%.2f, want 0/1150 (mid kelas D)", dt3.Games, dt3.Rating)
+	if dt3.Games != 0 {
+		t.Fatalf("ITSE Three setelah reset: games=%d, want 0", dt3.Games)
+	}
+	if dt3.Rating == 1150 {
+		t.Fatal("ITSE Three jatuh tepat ke mid kelas D (1150) — pemain ber-riwayat harus memakai benih")
 	}
 
 	// Cleanup — restore state global dev
@@ -249,8 +256,10 @@ func TestIntegrationRebuildAllSeasonScoped(t *testing.T) {
 		t.Fatal("event sesi hilang setelah tutup musim — history harus awet")
 	}
 
-	// RebuildAll: event lama (< season_start baru) harus DIABAIKAN, jadi
-	// RBAS One kembali ke mid kelas dengan 0 game.
+	// RebuildAll: event lama (< season_start baru) harus DIABAIKAN. Buktinya
+	// games kembali 0 walau event sesi lama masih ada di tabel. Nilai rating
+	// TIDAK dipatok mid kelas: pemain ber-riwayat memakai benih musim
+	// (lihat TestIntegrationSeasonSeed).
 	pid := resolveIDByAlias(t, st, "rbas one")
 	dt, err := st.RatingPlayer(ctx, pid)
 	if err != nil || dt == nil {
@@ -258,8 +267,5 @@ func TestIntegrationRebuildAllSeasonScoped(t *testing.T) {
 	}
 	if dt.Games != 0 {
 		t.Fatalf("RBAS One games=%d, want 0 — event < season_start ikut terhitung (filter season_start hilang di rebuildAll)", dt.Games)
-	}
-	if dt.Rating != 1450 {
-		t.Fatalf("RBAS One rating=%.2f, want 1450 (mid kelas C)", dt.Rating)
 	}
 }
