@@ -178,6 +178,9 @@ func resolveIDByAliasFuzzy(t *testing.T, st *SessionStore, schema, code string) 
 	names := map[string]string{
 		"rp1": "RP One", "rp2": "RP Two", "rp3": "RP Three",
 		"rp4": "RP Four", "rp5": "RP Five", "rp6": "RP Six",
+		// Kode khusus test parity (papan + jalur satu-pemain) supaya tidak
+		// bertabrakan dengan pemain test board di atas.
+		"rpp1": "RPP One", "rpp2": "RPP Two", "rpp3": "RPP Three", "rpp4": "RPP Four",
 	}
 	name, ok := names[code]
 	if !ok {
@@ -254,4 +257,117 @@ func insertRankTestEvent(t *testing.T, st *SessionStore, ctx context.Context, sc
 		}
 	}
 	_ = fmt.Sprintf
+}
+
+// TestIntegrationRankPointsPlayerParity — jalur satu-pemain
+// (RankPointsForPlayer) harus menghasilkan angka IDENTIK dengan jalur papan
+// penuh (RankPointsBoard) untuk SETIAP pemain.
+//
+// Kedua jalur menghitung dengan cara berbeda: papan penuh mengagregasi semua
+// pemain di Go lalu memeringkat, jalur satu-pemain menyaring di SQL dan
+// menghitung peringkat lewat count(*). Perbedaan implementasi seperti ini mudah
+// menyimpang diam-diam (dan pernah menyimpang: peringkat meleset satu karena
+// pembulatan poin), jadi kesamaannya dikunci di sini.
+func TestIntegrationRankPointsPlayerParity(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	const prefix = "it-rankpar"
+	players := []domain.Player{
+		{ID: "rpp1", Name: "RPP One", Gender: "M", Tier: 5},
+		{ID: "rpp2", Name: "RPP Two", Gender: "M", Tier: 5},
+		{ID: "rpp3", Name: "RPP Three", Gender: "M", Tier: 1},
+		{ID: "rpp4", Name: "RPP Four", Gender: "M", Tier: 1},
+	}
+	cleanup := func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RPP %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'rpp %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RPP %'`)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	latestDate, err := st.latestEventDate(ctx)
+	if err != nil {
+		t.Fatalf("latest date: %v", err)
+	}
+	if latestDate == "" {
+		latestDate = "2026-09-27" // DB kosong: pakai tanggal tetap
+	}
+	for id, r := range map[string]float64{"rpp1": 2000, "rpp2": 2000, "rpp3": 1200, "rpp4": 1200} {
+		if _, err := st.pool.Exec(ctx, `
+			INSERT INTO `+schema+`.rating_players (player_id, rating, rd, games_played, wins, losses)
+			VALUES ($1::uuid, $2, 80, 5, 3, 2)
+			ON CONFLICT (player_id) DO UPDATE SET rating = EXCLUDED.rating, games_played = 5`,
+			resolveIDByAliasFuzzy(t, st, schema, id), r); err != nil {
+			t.Fatalf("rating %s: %v", id, err)
+		}
+	}
+
+	// Dua sesi: pemain kuat menang, lalu menang lagi (skor beda).
+	// Tanggal ditambatkan ke event terakhir di DB (window poin bergulir dari
+	// sana), bukan tanggal tetap: kalau DB berisi data nyata yang lebih baru,
+	// tanggal tetap bisa jatuh di luar window dan papan jadi kosong.
+	base := dateMinusDays(t, latestDate, 7)
+	insertRankTestEvent(t, st, ctx, schema, prefix+"s1", base, "session", 30, 20, 21, []playerSide{
+		{id: "rpp1", team: "A"}, {id: "rpp2", team: "A"}, {id: "rpp3", team: "B"}, {id: "rpp4", team: "B"},
+	})
+	insertRankTestEvent(t, st, ctx, schema, prefix+"s2", latestDate, "session", 21, 15, 21, []playerSide{
+		{id: "rpp1", team: "A"}, {id: "rpp3", team: "A"}, {id: "rpp2", team: "B"}, {id: "rpp4", team: "B"},
+	})
+
+	board, err := st.RankPointsBoard(ctx, "", 0)
+	if err != nil {
+		t.Fatalf("board: %v", err)
+	}
+	// Hanya pemain uji yang dibandingkan: papan penuh bisa memuat seluruh isi
+	// DB (ratusan pemain), dan memanggil jalur satu-pemain untuk semuanya
+	// membuat test ini lambat tanpa menambah cakupan.
+	mine := map[string]bool{}
+	for _, p := range players {
+		mine[resolveIDByAliasFuzzy(t, st, schema, p.ID)] = true
+	}
+	compared := 0
+	for _, full := range board.Rows {
+		if !mine[full.PlayerID] {
+			continue
+		}
+		compared++
+		one, found, err := st.RankPointsForPlayer(ctx, full.PlayerID)
+		if err != nil {
+			t.Fatalf("%s: %v", full.Name, err)
+		}
+		if !found {
+			t.Errorf("%s: ada di papan tapi jalur satu-pemain found=false", full.Name)
+			continue
+		}
+		if one.Points != full.Points ||
+			one.Rank != full.Rank ||
+			one.CountedEntries != full.CountedEntries ||
+			one.EntriesAvailable != full.EntriesAvailable ||
+			one.ThinEvidence != full.ThinEvidence ||
+			one.Name != full.Name {
+			t.Errorf("%s berbeda:\n  satu-pemain: pts=%v rank=%d n=%d/%d thin=%v name=%q\n  papan      : pts=%v rank=%d n=%d/%d thin=%v name=%q",
+				full.Name,
+				one.Points, one.Rank, one.CountedEntries, one.EntriesAvailable, one.ThinEvidence, one.Name,
+				full.Points, full.Rank, full.CountedEntries, full.EntriesAvailable, full.ThinEvidence, full.Name)
+		}
+	}
+	if compared == 0 {
+		t.Fatal("tidak ada pemain uji yang muncul di papan")
+	}
+	if compared != len(players) {
+		t.Errorf("pemain uji di papan = %d, want %d", compared, len(players))
+	}
+
+	// Pemain tanpa entri di window → found=false (bukan error).
+	if _, found, err := st.RankPointsForPlayer(ctx, "00000000-0000-0000-0000-0000000000ff"); err != nil || found {
+		t.Errorf("pemain tanpa entri: found=%v err=%v (harus found=false, err=nil)", found, err)
+	}
 }

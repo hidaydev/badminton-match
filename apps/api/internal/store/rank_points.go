@@ -106,11 +106,19 @@ type rankPointEntryRow struct {
 // Rating lawan diambil dari rating_players SAAT INI (bukan saat match) —
 // keputusan yang disadari: Glicko menjadi INPUT poin (§4.5).
 func (s *SessionStore) sessionEntries(ctx context.Context, cfg domain.RatingConfig, asOf string) ([]rankPointEntryRow, error) {
+	return s.sessionEntriesFor(ctx, cfg, asOf, "")
+}
+
+// sessionEntriesFor — sama seperti sessionEntries, tapi bila playerFilter tidak
+// kosong hanya baris pemain itu yang diambil. Dipakai jalur satu-pemain supaya
+// halaman detail tidak mengagregasi seluruh papan.
+func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingConfig, asOf, playerFilter string) ([]rankPointEntryRow, error) {
 	popAvg, err := s.popAverageRating(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	// $3 kosong → semua pemain. NULLIF agar perbandingan tidak memfilter apa pun.
 	rows, err := s.pool.Query(ctx, `
 		SELECT rd.player_id::text,
 		       re.source_id,
@@ -130,7 +138,9 @@ func (s *SessionStore) sessionEntries(ctx context.Context, cfg domain.RatingConf
 		JOIN `+s.schema+`.rating_events re ON re.id = rd.event_id
 		WHERE re.date >= ($1::date - ($2 * 7))
 		  AND re.date <= $1::date
-		  AND re.target > 0`, asOf, cfg.RankWindowWeeks)
+		  AND re.target > 0
+		  AND rd.player_id = COALESCE(NULLIF($3, '')::uuid, rd.player_id)`,
+		asOf, cfg.RankWindowWeeks, playerFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -214,15 +224,14 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 	}
 
 	if asOf == "" {
-		var d *string
-		if err := s.pool.QueryRow(ctx,
-			`SELECT max(date)::text FROM `+s.schema+`.rating_events`).Scan(&d); err != nil {
+		d, err := s.latestEventDate(ctx)
+		if err != nil {
 			return nil, err
 		}
-		if d == nil {
+		if d == "" {
 			return &RankPointsBoard{WindowWeeks: cfg.RankWindowWeeks, BestN: cfg.RankBestN, Rows: []RankPointRow{}}, nil
 		}
-		asOf = *d
+		asOf = d
 	}
 
 	entries, err := s.sessionEntries(ctx, cfg, asOf)
@@ -243,12 +252,7 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 
 	rows := []RankPointRow{}
 	for pid, es := range byPlayer {
-		sort.Slice(es, func(i, j int) bool {
-			if es[i].Points != es[j].Points {
-				return es[i].Points > es[j].Points
-			}
-			return es[i].Date > es[j].Date
-		})
+		sortEntries(es)
 		avail := len(es)
 		n := cfg.RankBestN
 		if avail < n {
@@ -269,7 +273,7 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 		})
 	}
 
-	// Urut: poin desc, bukti lebih banyak dulu, lalu nama (deterministik).
+	// Urut: poin desc, bukti lebih banyak dulu, lalu nama, lalu ID (deterministik).
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Points != rows[j].Points {
 			return rows[i].Points > rows[j].Points
@@ -277,7 +281,10 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 		if rows[i].EntriesAvailable != rows[j].EntriesAvailable {
 			return rows[i].EntriesAvailable > rows[j].EntriesAvailable
 		}
-		return rows[i].Name < rows[j].Name
+		if rows[i].Name != rows[j].Name {
+			return rows[i].Name < rows[j].Name
+		}
+		return rows[i].PlayerID < rows[j].PlayerID
 	})
 	if limit > 0 && len(rows) > limit {
 		rows = rows[:limit]
@@ -320,22 +327,146 @@ func (s *SessionStore) playerNames(ctx context.Context) (map[string]string, erro
 
 // RankPointsForPlayer — papan satu pemain, dipakai halaman detail publik.
 //
-// Poin dihitung saat baca, dan perhitungannya identik untuk semua pemain
-// (rata-rata populasi + entri window), jadi board penuh dihitung sekali lalu
-// baris pemain dicari. Untuk ~119 pemain ini remeh; kalau nanti berat,
-// agregasi bisa dipindah ke SQL agregat tanpa mengubah kontrak.
+// Poin dihitung saat baca. Mengagregasi SELURUH papan lalu mencari satu baris
+// berarti endpoint publik ini mengerjakan pekerjaan untuk ~119 pemain pada tiap
+// request (3 query + agregasi semua event). Jalur ini menyaring satu pemain
+// sejak di query, jadi biayanya tidak ikut jumlah pemain.
 //
 // found=false bila pemain tidak punya entri di window sama sekali.
 func (s *SessionStore) RankPointsForPlayer(ctx context.Context, playerID string) (*RankPointRow, bool, error) {
-	board, err := s.RankPointsBoard(ctx, "", 0) // 0 = semua baris
+	cfg, err := s.LoadRatingConfig(ctx, false)
 	if err != nil {
 		return nil, false, err
 	}
-	for i := range board.Rows {
-		if board.Rows[i].PlayerID == playerID {
-			row := board.Rows[i]
-			return &row, true, nil
-		}
+	if cfg.RankWindowWeeks <= 0 {
+		cfg.RankWindowWeeks = 12
 	}
-	return nil, false, nil
+	if cfg.RankBestN <= 0 {
+		cfg.RankBestN = 10
+	}
+
+	asOf, err := s.latestEventDate(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	if asOf == "" {
+		return nil, false, nil
+	}
+
+	entries, err := s.sessionEntriesFor(ctx, cfg, asOf, playerID)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(entries) == 0 {
+		return nil, false, nil
+	}
+
+	es := make([]RankPointEntry, 0, len(entries))
+	for _, e := range entries {
+		es = append(es, e.entry)
+	}
+	sortEntries(es)
+
+	n := cfg.RankBestN
+	if len(es) < n {
+		n = len(es)
+	}
+	total := 0.0
+	for i := 0; i < n; i++ {
+		total += es[i].Points
+	}
+
+	var name string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT canonical_name FROM `+s.schema+`.players WHERE id = $1::uuid`, playerID).Scan(&name); err != nil {
+		name = "" // nama bukan alasan gagal; baris tetap berguna lewat poinnya
+	}
+
+	// Peringkat = banyaknya pemain dengan poin LEBIH TINGGI + 1. Ini sama
+	// dengan peringkat seri dibagi (1,2,2,4) yang dipakai papan penuh: dua
+	// pemain berpoin sama mendapat angka yang sama.
+	rank := 1
+	if err := s.pool.QueryRow(ctx, `
+		WITH pop AS (
+			SELECT avg(rating) AS pop_avg FROM `+s.schema+`.rating_players WHERE games_played > 0
+		),
+		g AS (
+			SELECT rd.player_id, re.source_id,
+			       CASE WHEN rd.team = 'B' THEN abs(re.score_a - re.score_b)
+			            ELSE abs(re.score_b - re.score_a) END AS margin,
+			       re.target,
+			       COALESCE((
+			           SELECT avg(rp2.rating)
+			           FROM `+s.schema+`.rating_deltas rd2
+			           JOIN `+s.schema+`.rating_players rp2 ON rp2.player_id = rd2.player_id
+			           WHERE rd2.event_id = rd.event_id
+			             AND rd2.team <> rd.team
+			             AND rp2.games_played > 0
+			       ), 0) AS opp_avg
+			FROM `+s.schema+`.rating_deltas rd
+			JOIN `+s.schema+`.rating_events re ON re.id = rd.event_id
+			WHERE re.date >= ($1::date - ($2 * 7))
+			  AND re.date <= $1::date
+			  AND re.target > 0
+		),
+		val AS (
+			SELECT g.player_id, g.source_id, g.target,
+			       $3::numeric * (0.5 + 0.5 * LEAST(1.0, g.margin::numeric / g.target))
+			       * CASE WHEN $4::boolean
+			              THEN LEAST($5::numeric, GREATEST($6::numeric,
+			                   CASE WHEN pop.pop_avg > 0 AND g.opp_avg > 0
+			                        THEN g.opp_avg / pop.pop_avg ELSE 1 END))
+			              ELSE 1 END AS pts
+			FROM g, pop
+		),
+		ent AS (
+			SELECT player_id, source_id, sum(pts) AS entry_pts
+			FROM val GROUP BY player_id, source_id
+		),
+		best AS (
+			SELECT player_id, sum(entry_pts) AS total FROM (
+				SELECT *, row_number() OVER (PARTITION BY player_id ORDER BY entry_pts DESC) rn
+				FROM ent
+			) x WHERE rn <= $7 GROUP BY player_id
+		)
+		SELECT count(*) + 1 FROM best WHERE round(total) > round($8::numeric)`,
+		asOf, cfg.RankWindowWeeks, cfg.RankSessionBase, cfg.RankOpponentWeight,
+		cfg.RankOpponentClamp[1], cfg.RankOpponentClamp[0], cfg.RankBestN, total).Scan(&rank); err != nil {
+		return nil, false, err
+	}
+
+	return &RankPointRow{
+		Rank:             rank,
+		PlayerID:         playerID,
+		Name:             name,
+		Points:           math.Round(total),
+		CountedEntries:   n,
+		EntriesAvailable: len(es),
+		ThinEvidence:     len(es) < cfg.RankThinEvidenceN,
+		Breakdown:        es[:n],
+	}, true, nil
+}
+
+// latestEventDate — tanggal acuan window: event terakhir (bukan CURRENT_DATE)
+// supaya hasil stabil saat tidak ada aktivitas baru. "" bila belum ada event.
+func (s *SessionStore) latestEventDate(ctx context.Context) (string, error) {
+	var d *string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT max(date)::text FROM `+s.schema+`.rating_events`).Scan(&d); err != nil {
+		return "", err
+	}
+	if d == nil {
+		return "", nil
+	}
+	return *d, nil
+}
+
+// sortEntries — poin desc, lalu tanggal terbaru (deterministik).
+func sortEntries(es []RankPointEntry) {
+	sort.Slice(es, func(i, j int) bool {
+		if es[i].Points != es[j].Points {
+			return es[i].Points > es[j].Points
+		}
+		return es[i].Date > es[j].Date
+	})
 }
