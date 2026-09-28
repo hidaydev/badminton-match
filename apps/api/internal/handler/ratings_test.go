@@ -7,6 +7,7 @@ import (
 	"majadu-api/internal/httperr"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"majadu-api/internal/store"
@@ -104,4 +105,64 @@ func TestRatingsHandlerErrorEnvelope(t *testing.T) {
 		t.Fatalf("code = %q, want validation_error", body.Error.Code)
 	}
 	_ = context.Background()
+}
+
+// TestRankingsPublicInputValidation — endpoint publik baru harus menolak input
+// rusak SEBELUM menyentuh store.
+//
+// Bug yang dijaga test ini: as_of masuk sebagai $1::date dan playerId sebagai
+// ::uuid langsung ke Postgres. String rusak → error cast → 500 dari endpoint
+// publik. Store di test ini sengaja kosong: kalau ia dipanggil, test panic
+// (nil pool), jadi status 400/200 di bawah juga membuktikan urutan validasi.
+func TestRankingsPublicInputValidation(t *testing.T) {
+	h := &RatingsHandler{Store: &store.SessionStore{}, AdminToken: "sekret-admin"}
+
+	t.Run("as_of bukan tanggal → 400", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/rankings?as_of=garbage", nil)
+		rec := httptest.NewRecorder()
+		h.Rankings(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400 (body=%s)", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("playerId bukan uuid → 200 found:false, store tak disentuh", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/rankings/players/abc", nil)
+		req.SetPathValue("playerId", "abc")
+		rec := httptest.NewRecorder()
+		h.PlayerRankPoints(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+		}
+		if body := strings.TrimSpace(rec.Body.String()); body != `{"found":false}` {
+			t.Fatalf("body = %q, want {\"found\":false}", body)
+		}
+	})
+
+	// Kasus uuid valid sengaja TIDAK diuji di sini: ia memanggil store
+	// (store kosong → panic). Format uuid valid diuji lewat unit isUUIDFormat.
+}
+
+// TestIsUUIDFormat — parser uuid tanpa library.
+func TestIsUUIDFormat(t *testing.T) {
+	ok := []string{
+		"123e4567-e89b-12d3-a456-426614174000",
+		"F657DC05-1BAA-48E7-9CE9-7C84EA46002F",
+	}
+	bad := []string{
+		"", "abc", "123e4567e89b12d3a456426614174000", // tanpa strip
+		"123e4567-e89b-12d3-a456-42661417400",  // kepanjangan 1
+		"123e4567-e89b-12d3-a456-42661417400g", // heks invalid
+		"zzzzzzzz-1111-1111-1111-111111111111",
+	}
+	for _, s := range ok {
+		if !isUUIDFormat(s) {
+			t.Errorf("isUUIDFormat(%q) = false, want true", s)
+		}
+	}
+	for _, s := range bad {
+		if isUUIDFormat(s) {
+			t.Errorf("isUUIDFormat(%q) = true, want false", s)
+		}
+	}
 }
