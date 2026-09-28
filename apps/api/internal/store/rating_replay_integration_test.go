@@ -240,10 +240,34 @@ func TestIntegrationRebuildAllRefusesWithoutMapping(t *testing.T) {
 		t.Fatalf("ingest: %+v %v", r, err)
 	}
 
-	// Simulasi kerusakan: rating_deltas hilang, rating_events tetap ada.
-	if _, err := st.pool.Exec(ctx,
-		`DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%')`); err != nil {
+	// Simulasi kerusakan TOTAL: rating_deltas hilang DAN sumber kebenaran
+	// (sesi) ikut hilang — tidak ada jalur rekonstruksi tersisa.
+	//
+	// Beda dengan kerusakan parsial (deltas hilang, sesi masih ada): saat itu
+	// RebuildAll justru harus BERHASIL memulihkan pemetaan dari sesi — kasus
+	// ini diuji TestIntegrationRebuildRestoresMissingDeltas. Pengaman di
+	// bawah hanya berlaku kalau KEDUA sumbernya habis.
+	if _, err := st.pool.Exec(ctx, `
+		DELETE FROM `+schema+`.rating_deltas
+		WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%')`); err != nil {
 		t.Fatalf("hapus deltas: %v", err)
+	}
+	if _, err := st.pool.Exec(ctx, `
+		DELETE FROM `+schema+`.scheduled_game_players
+		WHERE scheduled_game_internal_id IN (
+			SELECT sg.internal_id FROM `+schema+`.scheduled_games sg
+			JOIN `+schema+`.sessions s ON s.id = sg.session_id
+			WHERE s.share_code LIKE '`+prefix+`%')`); err != nil {
+		t.Fatalf("hapus pemain game: %v", err)
+	}
+	if _, err := st.pool.Exec(ctx, `
+		DELETE FROM `+schema+`.scheduled_games
+		WHERE session_id IN (SELECT id FROM `+schema+`.sessions WHERE share_code LIKE '`+prefix+`%')`); err != nil {
+		t.Fatalf("hapus scheduled_games: %v", err)
+	}
+	if _, err := st.pool.Exec(ctx, `
+		DELETE FROM `+schema+`.sessions WHERE share_code LIKE '`+prefix+`%'`); err != nil {
+		t.Fatalf("hapus sesi: %v", err)
 	}
 
 	// Jangan biarkan test lain (yang mungkin gagal) memusnahkan rating nyata:
