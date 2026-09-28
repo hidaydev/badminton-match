@@ -175,3 +175,95 @@ func TestIntegrationReplayAll(t *testing.T) {
 			after.Rating, after.Games, again.Rating, again.Games)
 	}
 }
+
+// TestIntegrationRebuildAllRefusesWithoutMapping — pengaman data-loss.
+//
+// rebuildAll menghapus rating_players + rating_deltas, lalu menyusun ulang dari
+// pemetaan event→pemain di memori. Pemetaan itu HANYA bisa dibaca dari
+// rating_deltas, tabel yang akan dihapus. Kalau rating_deltas kosong sementara
+// ada event dalam musim, rebuild akan menulis seluruh rating sebagai kosong
+// tanpa jalur pemulihan. Harus DITOLAK, bukan dijalankan.
+func TestIntegrationRebuildAllRefusesWithoutMapping(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	const prefix = "it-rbmap"
+	players := []domain.Player{
+		{ID: "rbm1", Name: "RBM One", Gender: "M", Tier: 3},
+		{ID: "rbm2", Name: "RBM Two", Gender: "M", Tier: 3},
+		{ID: "rbm3", Name: "RBM Three", Gender: "M", Tier: 1},
+		{ID: "rbm4", Name: "RBM Four", Gender: "M", Tier: 1},
+	}
+	cleanup := func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.scheduled_games WHERE session_id IN (SELECT id FROM `+schema+`.sessions WHERE share_code LIKE '`+prefix+`%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RBM %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'rbm %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RBM %'`)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	var date string
+	if err := st.pool.QueryRow(ctx, `
+		SELECT (GREATEST(
+			(SELECT (value #>> '{}')::date FROM `+schema+`.rating_config WHERE key='season_start'),
+			COALESCE((SELECT max(date) FROM `+schema+`.rating_events), CURRENT_DATE)
+		) + INTERVAL '1 day')::date::text`).Scan(&date); err != nil {
+		t.Fatalf("tanggal: %v", err)
+	}
+
+	id := prefix + "-sess"
+	if _, err := st.Save(ctx, id, &domain.CloudSnapshot{
+		Session: domain.SessionConfig{
+			Title: "RBM", Date: date, Courts: 1,
+			SessionStart: "09:00", SlotMinutes: 20,
+			CourtTimes:  []domain.CourtTime{{Start: "09:00", End: "10:00"}},
+			PlayerCount: 4, CourtNames: []string{"C1"},
+		},
+		Players: players, FixMatches: []domain.FixMatch{},
+		Schedule:    []domain.ScheduleSlot{{Slot: 0, Court: 0, TeamA: [2]string{"rbm1", "rbm2"}, TeamB: [2]string{"rbm3", "rbm4"}}},
+		PlayedGames: []string{"0-0"},
+		GameScores:  map[string]domain.GameScore{"0-0": {A: 21, B: 10}},
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	saveLock(t, st, ctx, id)
+	if r, err := st.IngestSession(ctx, id); err != nil || r.Processed != 1 {
+		t.Fatalf("ingest: %+v %v", r, err)
+	}
+
+	// Simulasi kerusakan: rating_deltas hilang, rating_events tetap ada.
+	if _, err := st.pool.Exec(ctx,
+		`DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%')`); err != nil {
+		t.Fatalf("hapus deltas: %v", err)
+	}
+
+	// Jangan biarkan test lain (yang mungkin gagal) memusnahkan rating nyata:
+	// hitung dulu berapa baris rating_players sebelum rebuild gagal.
+	var before int
+	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM `+schema+`.rating_players`).Scan(&before); err != nil {
+		t.Fatalf("hitung rating_players: %v", err)
+	}
+
+	if _, err := st.RebuildAll(ctx); err == nil {
+		t.Fatal("RebuildAll harus MENOLAK saat pemetaan event→pemain kosong")
+	} else {
+		t.Logf("ditolak seperti diharapkan: %v", err)
+	}
+
+	var after int
+	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM `+schema+`.rating_players`).Scan(&after); err != nil {
+		t.Fatalf("hitung rating_players 2: %v", err)
+	}
+	if after != before {
+		t.Errorf("rating_players berubah walau rebuild ditolak: %d → %d", before, after)
+	}
+}

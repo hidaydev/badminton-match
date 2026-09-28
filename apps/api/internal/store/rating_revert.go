@@ -286,6 +286,27 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		return 0, err
 	}
 
+	// Pengaman: rebuild menghapus rating_players + rating_deltas lalu menyusun
+	// ulang dari pemetaan event→pemain di memori. Pemetaan itu HANYA bisa dibaca
+	// dari rating_deltas — tabel yang akan dihapus. Jadi bila ada event dalam
+	// musim tapi tidak ada satu pun pemetaan yang terbaca, rating_deltas hilang
+	// atau tidak lengkap: melanjutkan berarti menulis ulang seluruh rating
+	// sebagai kosong TANPA jalur pemulihan (rating_deltas adalah satu-satunya
+	// sumber pemetaan). Menolak lebih baik daripada memusnahkan data.
+	if len(events) > 0 {
+		mapped := 0
+		for i := range events {
+			mapped += len(events[i].players)
+		}
+		if mapped == 0 {
+			return 0, fmt.Errorf(
+				"rebuild dibatalkan: %d event dalam musim tapi tidak ada pemetaan event→pemain; "+
+					"rating_deltas kemungkinan kosong atau tidak lengkap — "+
+					"rebuild akan menghapus seluruh rating tanpa bisa dipulihkan",
+				len(events))
+		}
+	}
+
 	// Reset semua state (setelah pemetaan event→pemain tersimpan di memori).
 	// seedRows sudah dibaca di atas dan akan ditulis ulang di flush — DELETE
 	// di sini memang menghapus kolom seed_*, itu disengaja supaya tidak ada
