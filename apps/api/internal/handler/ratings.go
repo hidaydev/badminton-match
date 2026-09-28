@@ -34,6 +34,7 @@ type ratingBody struct {
 	SourceID     string `json:"sourceId"`
 	Finalized    *bool  `json:"finalized"`
 	StartDate    string `json:"startDate"`
+	Kind         string `json:"kind"` // session | tournament (replay-source)
 }
 
 // mapRatingError — sentinel store → httperr (design §6 error contract).
@@ -141,6 +142,45 @@ func (h *RatingsHandler) RebuildAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]int{"rebuilt": n})
+}
+
+// ReplayAll — POST /ratings/replay-all (admin) — proses ulang SEMUA sumber
+// rating sejak season_start + rebuild sekali.
+//
+// Jalur pemulihan untuk sumber yang sudah ter-ingest lalu berubah (skor
+// diedit setelah sesi ter-lock). Ticker hanya menyapu sumber yang belum
+// pernah di-ingest, sehingga kasus itu tidak pernah diperbaiki otomatis.
+func (h *RatingsHandler) ReplayAll(w http.ResponseWriter, r *http.Request) {
+	report, err := h.Store.ReplayAll(r.Context())
+	if err != nil {
+		httperr.WriteError(w, h.Logger, mapRatingError(err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, report)
+}
+
+// ReplaySource — POST /ratings/replay-source {sourceId, kind} (admin) —
+// proses ulang satu sesi/turnamen + rebuild.
+func (h *RatingsHandler) ReplaySource(w http.ResponseWriter, r *http.Request) {
+	var body ratingBody
+	if err := decodeJSON(r, &body); err != nil || body.SourceID == "" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("sourceId is required"))
+		return
+	}
+	kind := body.Kind
+	if kind == "" {
+		kind = "session"
+	}
+	if kind != "session" && kind != "tournament" {
+		httperr.WriteError(w, h.Logger, httperr.Validation("kind must be 'session' or 'tournament'"))
+		return
+	}
+	report, err := h.Store.ReplaySource(r.Context(), body.SourceID, kind)
+	if err != nil {
+		httperr.WriteError(w, h.Logger, mapRatingError(err))
+		return
+	}
+	httperr.WriteJSON(w, http.StatusOK, report)
 }
 
 // Leaderboard — GET /ratings/leaderboard?active&limit&offset → publik.

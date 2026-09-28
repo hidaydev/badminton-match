@@ -131,6 +131,10 @@ func TestIntegrationRatingSeasonGate(t *testing.T) {
 	}
 	saveLock(t, st, ctx, id)
 	t.Cleanup(func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (
+			SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE 'it-season-gate%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'it-season-gate%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE 'it-season-gate%'`)
 		_, _ = st.pool.Exec(ctx, `UPDATE `+schema+`.sessions SET status='draft' WHERE share_code LIKE 'it-season-gate%'`)
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE 'it-season-gate%'`)
 		_, _ = st.pool.Exec(ctx, `UPDATE `+schema+`.rating_config SET value='"2026-05-23"' WHERE key='season_start'`)
