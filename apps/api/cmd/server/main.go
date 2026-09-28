@@ -222,6 +222,8 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /ratings/revert-tournament", http.HandlerFunc(ratings.RequireAdmin(ratings.RevertTournament)))
 	mux.Handle("POST /ratings/sources/{sourceId}/finalize", http.HandlerFunc(ratings.RequireAdmin(ratings.FinalizeSource)))
 	mux.Handle("POST /ratings/rebuild-all", http.HandlerFunc(ratings.RequireAdmin(ratings.RebuildAll)))
+	mux.Handle("POST /ratings/replay-all", http.HandlerFunc(ratings.RequireAdmin(ratings.ReplayAll)))
+	mux.Handle("POST /ratings/replay-source", http.HandlerFunc(ratings.RequireAdmin(ratings.ReplaySource)))
 	mux.Handle("POST /ratings/achievements/backfill", http.HandlerFunc(ratings.RequireAdmin(ratings.BackfillAchievements)))
 	mux.Handle("POST /ratings/season", http.HandlerFunc(ratings.RequireAdmin(ratings.Season)))
 	// Read path (publik)

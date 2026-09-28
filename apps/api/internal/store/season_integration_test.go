@@ -136,6 +136,13 @@ func TestIntegrationSeasonReset(t *testing.T) {
 
 	// Cleanup — restore state global dev
 	t.Cleanup(func() {
+		// Events & sources sesi test ikut dibersihkan: sejak tutup musim tidak
+		// lagi menghapus events, sesi test meninggalkan baris permanen yang
+		// menggeser max(event.date) dan memicu ErrOutOfOrder di test lain.
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (
+			SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE 'it-season-reset%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'it-season-reset%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE 'it-season-reset%'`)
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_seasons WHERE id <> (SELECT id FROM `+schema+`.rating_seasons WHERE start_date='2026-05-23' LIMIT 1)`)
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.season_player_snapshots`)
 		_, _ = st.pool.Exec(ctx, `UPDATE `+schema+`.rating_seasons SET end_date=NULL, closed_at=NULL`)
