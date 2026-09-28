@@ -139,7 +139,7 @@ export default function RatingsPage() {
             return (
               <button
                 key={r.player_id}
-                onClick={() => navigate(`/ratings/${r.player_id}`)}
+                onClick={() => navigate(`/rankings/${r.player_id}`)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
               >
                 <span className={`w-6 text-sm font-sans shrink-0 ${medal}`}>{rank}</span>

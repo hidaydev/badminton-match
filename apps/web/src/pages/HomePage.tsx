@@ -9,7 +9,7 @@ import AdminMenuGrid from '../components/admin/AdminMenuGrid'
 
 const secondary: { icon: IconName; label: string; description: string; to: string }[] = [
   { icon: 'sessions', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
-  { icon: 'ratings', label: 'Ratings', description: 'Skill ratings', to: '/ratings' },
+  { icon: 'ratings', label: 'Ranking', description: 'Poin 12 minggu terakhir', to: '/rankings' },
   { icon: 'scoreboard', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
   { icon: 'tournament', label: 'Tournament', description: 'Leaderboard & cup', to: '/tournaments' },
   { icon: 'post', label: 'Instagram Post', description: 'Create a post', to: '/instagram-post' },

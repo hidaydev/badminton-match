@@ -1,9 +1,9 @@
-// src/pages/RatingPlayerPage.tsx — detail rating + career pemain.
-// Player History diserap ke sini (UI_UX_POLISH_PLAN §4) — satu halaman,
+// src/pages/RatingPlayerPage.tsx: detail rating + career pemain.
+// Player History diserap ke sini (UI_UX_POLISH_PLAN §4), satu halaman,
 // tanpa cross-link nested.
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useRatingPlayer, useRatingPlayerAchievements } from '../queries/ratings'
+import { useRatingPlayer, useRatingPlayerAchievements, usePlayerRankPoints } from '../queries/ratings'
 import { useGetPlayerStats } from '../queries'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import RatingSparkline from '../components/ratings/RatingSparkline'
@@ -77,13 +77,17 @@ export default function RatingPlayerPage() {
         </span>
       </div>
 
-      {/* Stat cards — rated games (Glicko) */}
+      {/* Poin ranking (publik). Rating Glicko di bawah adalah mesin internal;
+          blok ini yang dipakai papan publik, jadi ditampilkan lebih dulu. */}
+      <RankPointsCard playerId={playerId} />
+
+      {/* Stat cards: rated games (Glicko) */}
       <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'Peak', value: peak.toFixed(2) },
           { label: 'Rated Games', value: String(games) },
           { label: 'W-L', value: `${wins}-${losses}` },
-          { label: 'Tier', value: tier || '—' },
+          { label: 'Tier', value: tier || '-' },
         ].map((s) => (
           <div key={s.label} className="bg-surface border border-border-subtle rounded-lg p-2.5 text-center">
             <div className="text-base font-bold font-sans text-fg">{s.value}</div>
@@ -205,5 +209,53 @@ export default function RatingPlayerPage() {
       <AchievementDetailModal achievement={selectedAchievement} onClose={() => setSelectedAchievement(null)} />
     </div>
     </AmbiguousNamesProvider>
+  )
+}
+
+// RankPointsCard: poin ranking pemain (window bergulir, N entri terbaik).
+// Pemain tanpa entri di window tetap melihat penjelasan, bukan nilai kosong.
+function RankPointsCard({ playerId }: { playerId: string | undefined }) {
+  const { data, isLoading, isError } = usePlayerRankPoints(playerId)
+
+  if (isLoading) {
+    return (
+      <div className="bg-surface border border-border-subtle rounded-lg p-3 animate-pulse">
+        <div className="h-3 w-24 bg-slate-700 rounded mb-2" />
+        <div className="h-6 w-20 bg-slate-700 rounded" />
+      </div>
+    )
+  }
+  if (isError) {
+    return (
+      <div className="bg-surface border border-border-subtle rounded-lg p-3">
+        <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Poin ranking</p>
+        <p className="text-xs text-error mt-1">Gagal memuat poin.</p>
+      </div>
+    )
+  }
+  const row = data?.row
+  return (
+    <div className="bg-surface border border-border-subtle rounded-lg p-3">
+      <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Poin ranking</p>
+      {row ? (
+        <>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-2xl font-bold font-mono text-accent leading-none">
+              {Math.round(row.points).toLocaleString('id-ID')}
+            </span>
+            <span className="text-[10px] font-mono text-fg-dim">#{row.rank}</span>
+          </div>
+          <p className="text-[10px] font-sans text-fg-dim mt-1.5">
+            {row.counted_entries}
+            {row.entries_available > row.counted_entries ? ` dari ${row.entries_available}` : ''} sesi terbaik dihitung
+            {row.thin_evidence ? ' · bukti masih tipis' : ''}
+          </p>
+        </>
+      ) : (
+        <p className="text-xs font-sans text-fg-dim mt-1">
+          Belum ada sesi dinilai dalam 12 minggu terakhir.
+        </p>
+      )}
+    </div>
   )
 }

@@ -617,6 +617,54 @@ export async function getPlayerAchievements(playerId: string, signal?: AbortSign
 }
 
 
+// ── Ranking poin (papan publik ala BWF) ──────────────────────────────────
+// Total poin dari N entri (sesi) terbaik dalam window bergulir. Glicko tetap
+// dipakai untuk detail pemain; papan publik memakai poin.
+
+export interface RankPointEntry {
+  source_id: string
+  date: string
+  kind: string
+  points: number
+  games: number
+}
+
+export interface RankPointRow {
+  rank: number
+  player_id: string
+  name: string
+  points: number
+  // Jujur soal bukti: berapa entri yang dihitung vs tersedia di window.
+  counted_entries: number
+  entries_available: number
+  // true bila entri tersedia di bawah ambang (papan masih tipis).
+  thin_evidence: boolean
+  breakdown: RankPointEntry[]
+}
+
+export interface RankPointsBoard {
+  window_weeks: number
+  best_n: number
+  as_of: string
+  rows: RankPointRow[]
+}
+
+export async function getRankings(limit: number, signal?: AbortSignal): Promise<RankPointsBoard> {
+  const data = await request<RankPointsBoard>('GET', `/rankings?limit=${limit}`, undefined, signal)
+  return data ?? { window_weeks: 12, best_n: 10, as_of: '', rows: [] }
+}
+
+export interface PlayerRankPoints {
+  found: boolean
+  row?: RankPointRow
+}
+
+export async function getPlayerRankPoints(playerId: string, signal?: AbortSignal): Promise<PlayerRankPoints> {
+  const data = await request<PlayerRankPoints>('GET', `/rankings/players/${enc(playerId)}`, undefined, signal)
+  return data ?? { found: false }
+}
+
+
 // ── Season (plan RATINGS_FRONTEND_PLAN Rev 3.7) ──────────────────────────
 
 export interface RatingSeason {

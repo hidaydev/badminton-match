@@ -34,6 +34,15 @@ func TestIntegrationAutoIngestTournament(t *testing.T) {
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.tournament_matches WHERE tournament_id IN (
 			SELECT id FROM `+schema+`.tournaments WHERE share_code LIKE $1)`, prefix+"%")
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.tournaments WHERE share_code LIKE $1`, prefix+"%")
+		// Pemain dihapus TOTAL, bukan hanya rating-nya. Save() menulis
+		// players.registered_at = tanggal sesi, dan gate journey
+		// (m.Date >= registered_at) memakai nilai itu. Run sebelumnya dengan
+		// tanggal lebih jauh meninggalkan registered_at di masa depan sehingga
+		// semua match jadi "no eligible players" di run berikutnya.
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (
+			SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'ITT %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'itt %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'ITT %'`)
 	}
 	cleanup()
 	t.Cleanup(cleanup)

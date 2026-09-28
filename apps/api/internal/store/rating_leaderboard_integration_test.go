@@ -70,12 +70,25 @@ func setPlayerRating(t *testing.T, st *SessionStore, ctx context.Context, schema
 
 // maxRating — plafon rating yang ada, jadi basis nilai unik untuk test
 // (di atas plafon ⇒ tidak ada pemain riil yang seri dengan pemain test).
+// maxRating — rating tertinggi yang ada, dipakai test untuk menempatkan
+// pemain di puncak papan.
+//
+// Dibatasi ke atas pada batas constraint `rating_players_rating_ck`
+// (rating BETWEEN 1000 AND 2500) dikurangi ruang untuk penambahan pemanggil.
+// DB integration test bisa berisi data prod (atau sisa test lain) yang sudah
+// dekat batas atas; tanpa penjepit ini, test gagal karena constraint, bukan
+// karena perilaku yang diuji.
 func maxRating(t *testing.T, st *SessionStore, ctx context.Context, schema string) float64 {
 	t.Helper()
+	const ratingMax = 2500.0
+	const headroom = 120.0 // ruang untuk base+i dan base+100
 	var m float64
 	if err := st.pool.QueryRow(ctx,
 		`SELECT coalesce(max(rating), 0) FROM `+schema+`.rating_players`).Scan(&m); err != nil {
 		t.Fatalf("max rating: %v", err)
+	}
+	if limit := ratingMax - headroom; m > limit {
+		return limit
 	}
 	return m
 }

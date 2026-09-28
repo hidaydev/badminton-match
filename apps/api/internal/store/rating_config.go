@@ -216,6 +216,35 @@ func (s *SessionStore) LoadRatingConfig(ctx context.Context, failFast bool) (dom
 	if err := apply("placeholder_promote_games", func(v json.RawMessage) error { return asInt("placeholder_promote_games", &cfg.PlaceholderPromoteGames) }); err != nil {
 		return domain.RatingConfig{}, err
 	}
+	// ── Ranking poin (§4.8) ──
+	if err := apply("rank_window_weeks", func(v json.RawMessage) error { return asInt("rank_window_weeks", &cfg.RankWindowWeeks) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("rank_best_n", func(v json.RawMessage) error { return asInt("rank_best_n", &cfg.RankBestN) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("rank_opponent_weight", func(v json.RawMessage) error { return asBool("rank_opponent_weight", &cfg.RankOpponentWeight) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("rank_session_base", func(v json.RawMessage) error { return f("rank_session_base")(v, &cfg.RankSessionBase) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("rank_thin_evidence_n", func(v json.RawMessage) error { return asInt("rank_thin_evidence_n", &cfg.RankThinEvidenceN) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
+	if err := apply("rank_opponent_clamp", func(v json.RawMessage) error {
+		var arr []float64
+		if err := json.Unmarshal(v, &arr); err != nil {
+			return fmt.Errorf("rating_config: rank_opponent_clamp harus array 2 angka: %w", err)
+		}
+		if len(arr) != 2 {
+			return fmt.Errorf("rating_config: rank_opponent_clamp harus 2 elemen, dapat %d", len(arr))
+		}
+		cfg.RankOpponentClamp = [2]float64{arr[0], arr[1]}
+		return nil
+	}); err != nil {
+		return domain.RatingConfig{}, err
+	}
 	if err := apply("season_start", func(v json.RawMessage) error {
 		return asString("season_start", &cfg.SeasonStart)
 	}); err != nil {

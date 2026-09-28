@@ -58,7 +58,7 @@ export default function AdminSeasonsPage() {
                     <span className="flex-1 min-w-36 text-[10px] font-sans text-fg-dim">
                       {s.start_date} → {endLabel} · {daySpan(s.start_date, s.end_date, nowMs)} {t('admin.days')}
                     </span>
-                    <a href="/ratings" className="text-[10px] font-sans text-accent shrink-0">{t('admin.standings')} →</a>
+                    <a href="/admin/glicko" className="text-[10px] font-sans text-accent shrink-0">{t('admin.standings')} →</a>
                   </div>
                 )
               })}
