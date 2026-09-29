@@ -318,7 +318,7 @@ func (s *SessionStore) extractClassicMatches(ctx context.Context, tx pgx.Tx, tou
 			GameOrder:    m.matchKey,
 			ScoreA:       m.scoreA,
 			ScoreB:       m.scoreB,
-			Target:       domain.KindRegistry["tournament_classic"].DefaultTarget,
+			Target:       domain.ClassicTarget(m.phase), // group/QF 30, sf/3rd/final 42
 			Phase:        m.phase,
 			Players:      players,
 		})

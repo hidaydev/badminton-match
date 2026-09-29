@@ -26,20 +26,35 @@ const (
 // format baru = tambah entri di sini.
 type KindSpec struct {
 	Name          string // 'session' | 'tournament_classic' | 'tournament_team'
-	DefaultTarget int    // 21 / 30 / 42
+	DefaultTarget int    // 30 (default) — fase tinggi: ClassicTarget/TeamTarget
 	Pairing       PairingStrategy
 	PlayerCount   int // 2 (singles) / 4 (doubles) / 6 (partai) — informasi
 }
 
 var KindRegistry = map[string]KindSpec{
-	"session":            {Name: "session", DefaultTarget: 21, Pairing: PairingTeamAverage, PlayerCount: 4},
-	"tournament_classic": {Name: "tournament_classic", DefaultTarget: 21, Pairing: PairingTeamAverage, PlayerCount: 4},
+	// Aturan komunitas (Sep 2026): sesi fun game & turnamen classic MAIN
+	// LANGSUNG 30 (bukan 21+deuce). Fase tinggi classic → ClassicTarget.
+	"session":            {Name: "session", DefaultTarget: 30, Pairing: PairingTeamAverage, PlayerCount: 4},
+	"tournament_classic": {Name: "tournament_classic", DefaultTarget: 30, Pairing: PairingTeamAverage, PlayerCount: 4},
 	"tournament_team":    {Name: "tournament_team", DefaultTarget: 30, Pairing: PairingPositional, PlayerCount: 6},
 }
 
 func (k KindSpec) Valid() bool {
 	_, ok := KindRegistry[k.Name]
 	return ok
+}
+
+// ClassicTarget — target skor turnamen classic per fase: SF, perebutan
+// juara 3, dan final = 42; group/QF = 30 (aturan komunitas; paralel
+// TeamTarget di team_tournament.go yang hanya final yang 42).
+// Dipakai extract — target menentukan MoVM rating dan bonus poin
+// (margin/target), jadi fase tinggi tidak boleh dihitung pakai 30.
+func ClassicTarget(phase string) int {
+	switch phase {
+	case "sf", "3rd", "final":
+		return 42
+	}
+	return 30
 }
 
 // RawPlayer — satu pemain dalam sebuah game.

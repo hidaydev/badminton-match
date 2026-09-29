@@ -223,3 +223,29 @@ func TestSortMatchesByOrderNumeric(t *testing.T) {
 		t.Fatalf("fallback string salah: %v", []string{ms[0].GameOrder, ms[1].GameOrder, ms[2].GameOrder})
 	}
 }
+
+// TestClassicTarget — target per fase turnamen classic: SF/3rd/final 42,
+// sisanya 30 (aturan komunitas; target = pembagi MoVM & bonus poin).
+func TestClassicTarget(t *testing.T) {
+	cases := map[string]int{
+		"group":   30,
+		"qf":      30,
+		"sf":      42,
+		"3rd":     42,
+		"final":   42,
+		"":        30, // fase tak dikenal → default aman 30
+		"unknown": 30,
+	}
+	for phase, want := range cases {
+		if got := ClassicTarget(phase); got != want {
+			t.Errorf("ClassicTarget(%q) = %d, want %d", phase, got, want)
+		}
+	}
+	// Registry default juga 30 (sesi fun game main langsung 30).
+	if got := KindRegistry["session"].DefaultTarget; got != 30 {
+		t.Errorf("session DefaultTarget = %d, want 30", got)
+	}
+	if got := KindRegistry["tournament_classic"].DefaultTarget; got != 30 {
+		t.Errorf("tournament_classic DefaultTarget = %d, want 30", got)
+	}
+}
