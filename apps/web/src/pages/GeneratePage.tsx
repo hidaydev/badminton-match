@@ -16,7 +16,7 @@ import { ScheduleView, QualityBanner } from '../components/generate/ScheduleComp
 import { useDebouncedPublish } from '../hooks/useDebouncedPublish'
 import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
-import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
+import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
 
 export default function GeneratePage() {
   const { isSharedView, snapshot, exitSharedView } = useSharedView()
@@ -69,9 +69,12 @@ export default function GeneratePage() {
   // Derivasi stabil: map pemain & layout court dihitung ulang hanya saat input berubah.
   const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players])
   // Base name yang ambigu (muncul >1x) → hanya mereka yang tampil badge (i).
+  // Digabung dengan set global (populasi): nama yang ambigu di populasi tetap
+  // dapat badge meski di sesi ini hanya muncul sekali.
+  const globalAmbiguous = useAmbiguousNames()
   const ambiguousNames = useMemo(
-    () => collectAmbiguousBaseNames(players.map((p) => p.name)),
-    [players],
+    () => combineAmbiguous(globalAmbiguous, collectAmbiguousBaseNames(players.map((p) => p.name))),
+    [globalAmbiguous, players],
   )
   const slotsPerCourt = useMemo(() => selectSlotsPerCourt(session), [session])
 
