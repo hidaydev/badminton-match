@@ -11,29 +11,13 @@ func TestRatingConfigValidateDefault(t *testing.T) {
 func TestRatingConfigValidateCatchesBadRanges(t *testing.T) {
 	cfg := DefaultRatingConfig
 
-	// max_delta ≤ 0
-	bad := cfg
-	bad.Params.MaxDelta = 0
-	if err := bad.Validate(); err == nil {
-		t.Fatal("max_delta=0 harus gagal")
-	}
-
-	// initial_rd di luar [rd_min, rd_max]
-	bad = cfg
-	bad.Params.InitialRD = 500
-	if err := bad.Validate(); err == nil {
-		t.Fatal("initial_rd=500 (>rd_max 350) harus gagal")
-	}
-
-	// rating_min ≥ rating_max
-	bad = cfg
-	bad.Params.RatingMin = 2600
-	if err := bad.Validate(); err == nil {
-		t.Fatal("rating_min>rating_max harus gagal")
-	}
+	// Validasi param rating Glicko (max_delta, initial_rd, rating_min/max)
+	// dihapus bersama pensiun Glicko — parameternya tidak lagi dibaca, jadi
+	// tidak ada lagi jalur gagal untuk diuji. Yang diuji di sini hanya
+	// invariant yang MASIH berlaku.
 
 	// phase_weights kosong
-	bad = cfg
+	bad := cfg
 	bad.PhaseWeights = map[string]float64{}
 	if err := bad.Validate(); err == nil {
 		t.Fatal("phase_weights kosong harus gagal")
