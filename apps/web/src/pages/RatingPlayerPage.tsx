@@ -25,6 +25,10 @@ export default function RatingPlayerPage() {
   const { data, isLoading, isError } = useRatingPlayer(playerId)
   const { data: stats } = useGetPlayerStats(data?.name ?? '')
   const { data: achievements, isLoading: achLoading, isError: achError } = useRatingPlayerAchievements(playerId)
+  // Poin per sesi yang masuk perhitungan — dipakai menandai daftar Sessions
+  // di CareerStats. Query key sama dengan RankPointsCard → React Query
+  // menyajikan hasil yang sama tanpa request kedua.
+  const { data: rankPoints } = usePlayerRankPoints(playerId)
   const [matchesPage, setMatchesPage] = useState(0)
   const [selectedAchievement, setSelectedAchievement] = useState<AchievementRow | null>(null)
 
@@ -34,6 +38,9 @@ export default function RatingPlayerPage() {
 
   const { name, rating, rd, tier, tier_display, peak, games, wins, losses, history } = data
   const safeHistory = history ?? []
+  const countedPoints = new Map(
+    (rankPoints?.row?.breakdown ?? []).map((e) => [e.source_id, e.points] as const),
+  )
   const provisional = rd > 200
   // API DESC → balik untuk sparkline (kronologis); sparkline pakai new_rating
   const chrono = [...safeHistory].reverse().map((h) => ({ rating: h.new_rating }))
@@ -170,7 +177,7 @@ export default function RatingPlayerPage() {
       {/* Career (bekas Player History) */}
       <div className="flex flex-col gap-2">
         <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider px-1">Career</p>
-        {stats ? <CareerStats stats={stats} /> : <p className="text-fg-dim text-xs font-sans text-center py-6">No career stats yet.</p>}
+        {stats ? <CareerStats stats={stats} countedPoints={countedPoints} /> : <p className="text-fg-dim text-xs font-sans text-center py-6">No career stats yet.</p>}
       </div>
 
       {/* Medals: event di atas, standard (milestone) di bawah */}
