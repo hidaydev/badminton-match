@@ -15,7 +15,7 @@ import type { AchievementRow } from '../queries/endpoints'
 
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
-import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
+import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
 
 const MATCHES_PER_PAGE = 5
 
@@ -30,6 +30,8 @@ export default function RatingPlayerPage() {
   const { data: rankPoints } = usePlayerRankPoints(playerId)
   const [matchesPage, setMatchesPage] = useState(0)
   const [selectedAchievement, setSelectedAchievement] = useState<AchievementRow | null>(null)
+  // Hook wajib sebelum early return di bawah.
+  const globalAmbiguous = useAmbiguousNames()
 
   if (isLoading) return <p className="text-fg-dim text-sm">Loading rating…</p>
   if (isError) return <p className="text-error text-sm">Failed to load rating.</p>
@@ -49,16 +51,17 @@ export default function RatingPlayerPage() {
     { label: 'Standard', rows: medalList.filter((a) => !isEventKey(a.key)) },
   ]
 
-  // Badge (i) untuk rekan/lawan yang baseName-nya ambigu. Set diambil dari
-  // semua nama yang tampil di halaman ini: pemain, history, dan career stats.
-  const ambiguousNames = collectAmbiguousBaseNames([
+  // Badge (i) untuk rekan/lawan yang baseName-nya ambigu. Set lokal digabung
+  // dengan set global (populasi) — mengganti, bukan menggabung, akan menghapus
+  // badge untuk nama yang ambigu di luar halaman ini.
+  const ambiguousNames = combineAmbiguous(globalAmbiguous, collectAmbiguousBaseNames([
     name,
     ...safeHistory.flatMap((h) => [...(h.teammates ?? []), ...(h.opponents ?? [])]),
     ...(stats?.topPartners ?? []).map((p) => p.name),
     ...(stats?.topOpponents ?? []).map((p) => p.name),
     ...(stats?.tournamentStats?.topPartners ?? []).map((p) => p.name),
     ...(stats?.tournamentStats?.topOpponents ?? []).map((p) => p.name),
-  ])
+  ]))
 
   return (
     <AmbiguousNamesProvider value={ambiguousNames}>

@@ -6,6 +6,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 import UpdateBanner from './components/UpdateBanner'
 import ErrorBoundary from './components/ErrorBoundary'
 import HomeLayout from './components/HomeLayout'
+import GlobalAmbiguousNames from './context/GlobalAmbiguousNames'
 import SessionLayout from './components/SessionLayout'
 import HomePage from './pages/HomePage'
 import SetupPage from './pages/SetupPage'
@@ -89,6 +90,11 @@ export default function App() {
         />
       )}
       <AdminProvider><BrowserRouter>
+        {/* Badge "(i)" harus bekerja di SEMUA layar. Provider per-halaman hanya
+            dipasang di 3 tempat, sehingga nama ambigu tampil tanpa pembeda di
+            halaman lain (mis. dua "Arya" di papan ranking). Default global dari
+            seluruh populasi pemain; halaman boleh menimpanya. */}
+        <GlobalAmbiguousNames>
         <Routes>
           <Route element={<HomeLayout />}>
             <Route index element={<HomePage />} />
@@ -124,6 +130,7 @@ export default function App() {
           </Route>
           <Route path="s/:sessionId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="shared-session"><SharedSessionPage /></ErrorBoundary></Suspense>} />
         </Routes>
+        </GlobalAmbiguousNames>
       </BrowserRouter></AdminProvider>
     </SharedViewContext.Provider>
     </ErrorBoundary>

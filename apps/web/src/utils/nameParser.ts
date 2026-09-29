@@ -47,3 +47,17 @@ export function collectAmbiguousBaseNames(names: Iterable<string>): Set<string> 
   }
   return out
 }
+
+// combineAmbiguous — gabungkan set ambigu global (populasi) dengan set konteks
+// lokal. Halaman TIDAK boleh mengganti set global: nama yang ambigu di seluruh
+// populasi tetap ambigu walau di halaman ini hanya muncul sekali (mis. riwayat
+// satu pemain memuat lawan "Arya (Dika)" sementara "Arya (Shania)" tidak
+// tampil). Union = benar untuk keduanya.
+export function combineAmbiguous(
+  global: ReadonlySet<string>,
+  ...locals: ReadonlySet<string>[]
+): ReadonlySet<string> {
+  const out = new Set(global)
+  for (const l of locals) for (const v of l) out.add(v)
+  return out
+}

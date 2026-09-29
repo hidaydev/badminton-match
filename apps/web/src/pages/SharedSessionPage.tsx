@@ -18,7 +18,7 @@ import {
 import { registerPlayer } from '../queries/endpoints'
 import { selectSlotsPerCourt } from '../store/selectors'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
-import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
+import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
 import type { GeneratorResult } from '../generator'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import type { TeamSwapTarget, SwapTarget } from '../utils/swap'
@@ -33,6 +33,8 @@ export default function SharedSessionPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Hook wajib sebelum early return di bawah.
+  const globalAmbiguous = useAmbiguousNames()
 
   // Auto-dismiss error toast after 3 seconds (keputusan poin 4)
   useAutoDismiss(saveError, setSaveError, 3000)
@@ -118,7 +120,12 @@ export default function SharedSessionPage() {
   }
 
   const playerMap = snapshot ? new Map(snapshot.players.map((p) => [p.id, p])) : new Map()
-  const ambiguousNames = collectAmbiguousBaseNames((snapshot?.players ?? []).map((p) => p.name))
+  // Gabung dengan set global: nama ambigu di populasi tetap dapat badge walau
+  // di sesi ini hanya muncul sekali.
+  const ambiguousNames = combineAmbiguous(
+    globalAmbiguous,
+    collectAmbiguousBaseNames((snapshot?.players ?? []).map((p) => p.name)),
+  )
 
   const result: GeneratorResult | null = snapshot ? {
     schedule: snapshot.schedule,
