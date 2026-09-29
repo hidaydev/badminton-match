@@ -24,7 +24,6 @@ type achievementRow struct {
 	PlayerID string
 	Key      string
 	Kind     string
-	SeasonID *string
 	EarnedAt string
 	Value    *int64
 	Meta     map[string]string
@@ -42,8 +41,6 @@ type AchievementView struct {
 	TierName   string            `json:"tierName,omitempty"`   // Bronze..Onyx
 	NextTarget *int64            `json:"nextTarget,omitempty"` // ambang tingkat berikutnya
 	Thresholds []int64           `json:"thresholds,omitempty"` // tangga ambang 1..5
-	SeasonID   string            `json:"seasonId,omitempty"`
-	Season     string            `json:"season,omitempty"`
 	EarnedAt   string            `json:"earnedAt"`
 	Meta       map[string]string `json:"meta,omitempty"`
 }
@@ -59,10 +56,8 @@ type BackfillResult struct {
 func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) ([]AchievementView, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT pa.achievement_key, pa.kind, pa.value, pa.earned_at::text,
-		       COALESCE(pa.season_id::text, ''), COALESCE(rs.name, ''),
 		       COALESCE(pa.meta::text, '{}')
 		FROM `+s.schema+`.player_achievements pa
-		LEFT JOIN `+s.schema+`.rating_seasons rs ON rs.id = pa.season_id
 		WHERE pa.player_id = $1::uuid
 		ORDER BY pa.earned_at DESC, pa.achievement_key ASC`, playerID)
 	if err != nil {
@@ -77,7 +72,7 @@ func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) 
 			value   *int64
 			metaRaw string
 		)
-		if err := rows.Scan(&v.Key, &v.Kind, &value, &v.EarnedAt, &v.SeasonID, &v.Season, &metaRaw); err != nil {
+		if err := rows.Scan(&v.Key, &v.Kind, &value, &v.EarnedAt, &metaRaw); err != nil {
 			return nil, err
 		}
 		v.Value = value
@@ -123,24 +118,20 @@ func (s *SessionStore) insertAchievements(ctx context.Context, rows []achievemen
 		var sb strings.Builder
 		args := make([]any, 0, (end-i)*7)
 		sb.WriteString(`INSERT INTO ` + s.schema + `.player_achievements
-			(player_id, achievement_key, kind, season_id, earned_at, value, meta) VALUES `)
+			(player_id, achievement_key, kind, earned_at, value, meta) VALUES `)
 		for j, r := range rows[i:end] {
 			if j > 0 {
 				sb.WriteString(", ")
 			}
 			b := len(args)
-			sb.WriteString(fmt.Sprintf("($%d::uuid,$%d,$%d,$%d::uuid,$%d::date,$%d,$%d::jsonb)",
-				b+1, b+2, b+3, b+4, b+5, b+6, b+7))
+			sb.WriteString(fmt.Sprintf("($%d::uuid,$%d,$%d,$%d::date,$%d,$%d::jsonb)",
+				b+1, b+2, b+3, b+4, b+5, b+6))
 			meta, _ := json.Marshal(r.Meta)
-			var season any
-			if r.SeasonID != nil {
-				season = *r.SeasonID
-			}
 			var value any
 			if r.Value != nil {
 				value = *r.Value
 			}
-			args = append(args, r.PlayerID, r.Key, r.Kind, season, r.EarnedAt, value, string(meta))
+			args = append(args, r.PlayerID, r.Key, r.Kind, r.EarnedAt, value, string(meta))
 		}
 		if record {
 			sb.WriteString(` ON CONFLICT (player_id, achievement_key) DO UPDATE
@@ -159,7 +150,6 @@ func (s *SessionStore) insertAchievements(ctx context.Context, rows []achievemen
 }
 
 // ── Backfill ──────────────────────────────────────────────────────────────
-
 
 type sessionInfo struct {
 	ID   string
@@ -206,18 +196,14 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 		seenCollectible[k] = true
 		collectibles = append(collectibles, r)
 	}
-	addMedal := func(pid string, def domain.MedalDef, value int64, seasonID, earnedAt string, meta map[string]string) {
+	addMedal := func(pid string, def domain.MedalDef, value int64, earnedAt string, meta map[string]string) {
 		if value < def.Thresholds[0] {
 			return
-		}
-		var seasonPtr *string
-		if seasonID != "" {
-			seasonPtr = &seasonID
 		}
 		v := value
 		medals = append(medals, achievementRow{
 			PlayerID: pid, Key: domain.MedalKey(def.ID), Kind: string(def.Kind),
-			SeasonID: seasonPtr, EarnedAt: earnedAt, Value: &v, Meta: meta,
+			EarnedAt: earnedAt, Value: &v, Meta: meta,
 		})
 	}
 
@@ -242,10 +228,10 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 				winsCk = append(winsCk, checkpoint{value: wins, date: e.endDate})
 			}
 		}
-			// season_id tidak lagi diisi: season pensiun bersama Glicko, jadi medal
+		// season_id tidak lagi diisi: season pensiun bersama Glicko, jadi medal
 		// games/wins tidak punya konteks musim.
-		addMedal(pid, mustMedal("games"), games, "", firstDateAt(gamesCk, mustMedal("games").Thresholds[0], today), nil)
-		addMedal(pid, mustMedal("wins"), wins, "", firstDateAt(winsCk, mustMedal("wins").Thresholds[0], today), nil)
+		addMedal(pid, mustMedal("games"), games, firstDateAt(gamesCk, mustMedal("games").Thresholds[0], today), nil)
+		addMedal(pid, mustMedal("wins"), wins, firstDateAt(winsCk, mustMedal("wins").Thresholds[0], today), nil)
 	}
 
 	// ── Kehadiran: sessions + streak (career) ─────────────────────────────
@@ -290,7 +276,6 @@ func mustMedal(id string) domain.MedalDef {
 
 // ── Loader helpers ────────────────────────────────────────────────────────
 
-
 func (s *SessionStore) loadSessions(ctx context.Context) ([]sessionInfo, map[string]int, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id::text, session_date::text
@@ -312,8 +297,6 @@ func (s *SessionStore) loadSessions(ctx context.Context) ([]sessionInfo, map[str
 	}
 	return out, idx, rows.Err()
 }
-
-
 
 type currentRating struct {
 	sticky              string
@@ -349,7 +332,7 @@ func (s *SessionStore) loadCurrentRatings(ctx context.Context) (map[string]curre
 func (s *SessionStore) backfillAttendance(
 	ctx context.Context,
 	sessions []sessionInfo,
-	addMedal func(string, domain.MedalDef, int64, string, string, map[string]string),
+	addMedal func(string, domain.MedalDef, int64, string, map[string]string),
 	addCollectible func(achievementRow),
 ) error {
 	rows, err := s.pool.Query(ctx, `
@@ -414,9 +397,9 @@ func (s *SessionStore) backfillAttendance(
 			streakCk = append(streakCk, checkpoint{value: run, date: sess.Date})
 		}
 		sessionDef := mustMedal("sessions")
-		addMedal(pid, sessionDef, count, "", firstDateAt(sessionCk, sessionDef.Thresholds[0], today), nil)
+		addMedal(pid, sessionDef, count, firstDateAt(sessionCk, sessionDef.Thresholds[0], today), nil)
 		streakDef := mustMedal("streak")
-		addMedal(pid, streakDef, runMax, "", firstDateAt(streakCk, streakDef.Thresholds[0], today), nil)
+		addMedal(pid, streakDef, runMax, firstDateAt(streakCk, streakDef.Thresholds[0], today), nil)
 	}
 	return nil
 }
@@ -425,7 +408,7 @@ func (s *SessionStore) backfillAttendance(
 
 func (s *SessionStore) backfillSocialRecords(
 	ctx context.Context,
-	addMedal func(string, domain.MedalDef, int64, string, string, map[string]string),
+	addMedal func(string, domain.MedalDef, int64, string, map[string]string),
 ) error {
 	today := todayDate()
 	// partner & lawan berbeda
@@ -459,7 +442,7 @@ func (s *SessionStore) backfillSocialRecords(
 				rows.Close()
 				return err
 			}
-			addMedal(pid, mustMedal(spec.medalID), n, "", today, nil)
+			addMedal(pid, mustMedal(spec.medalID), n, today, nil)
 		}
 		rows.Close()
 		if err := rows.Err(); err != nil {

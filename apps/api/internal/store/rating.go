@@ -288,21 +288,16 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 	}
 
-	// Muat state runtime per pemain (dari DB atau default+forming)
+	// Muat bookkeeping runtime per pemain (games/wins/losses/lastPlayedAt).
+	// Tidak ada lagi state rating: kolom Glicko dihapus dari skema.
 	runtime := map[string]*playerRuntime{}
 	for _, id := range ids {
-		// Kolom rating/rd/peak tidak lagi dihitung (Glicko pensiun) dan tidak
-		// dibaca siapa pun; nilainya hanya tempat duduk agar NOT NULL terisi.
-		rt := &playerRuntime{
-			id:    id,
-			state: domain.RatingState{Rating: ratingPlaceholder, RD: rdPlaceholder},
-			peak:  ratingPlaceholder,
-		}
+		rt := &playerRuntime{id: id}
 		var lastPlayed *time.Time
 		err := tx.QueryRow(ctx, `
-			SELECT rating, rd, peak_rating, games_played, wins, losses, last_played_at
+			SELECT games_played, wins, losses, last_played_at
 			FROM `+s.schema+`.rating_players WHERE player_id = $1::uuid`, id).
-			Scan(&rt.state.Rating, &rt.state.RD, &rt.peak, &rt.games, &rt.wins, &rt.losses, &lastPlayed)
+			Scan(&rt.games, &rt.wins, &rt.losses, &lastPlayed)
 		if err == nil {
 			rt.exists = true
 			if lastPlayed != nil {
@@ -310,15 +305,6 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 			}
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return nil, err
-		} else {
-			// PEMAIN BARU — FORMING dari tier induk (single source players.tier):
-			// rating awal = baseline tier (session_tier_init). TIER_8_UNIFICATION §3.4.
-			if tier := tierByPlayer[rt.id]; tier != "" {
-				if init, ok := cfg.FormingForTier(tier); ok {
-					rt.state.Rating = init.Rating
-					rt.peak = init.Rating
-				}
-			}
 		}
 		runtime[id] = rt
 	}
@@ -358,7 +344,7 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 			continue
 		}
 
-		eventID, err := s.insertRatingEvent(ctx, tx, &m, meta, cfg)
+		eventID, err := s.insertRatingEvent(ctx, tx, &m, meta)
 		if err != nil {
 			return nil, err
 		}
@@ -395,7 +381,7 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 
 		for _, u := range updates {
-			if err := s.applyPlayerUpdate(ctx, tx, u.rt, u.team, u.out, nil, 0, 0, 0, m.Date, eventID, cfg); err != nil {
+			if err := s.applyPlayerUpdate(ctx, tx, u.rt, u.team, u.out, m.Date, eventID); err != nil {
 				return nil, err
 			}
 		}
@@ -410,13 +396,12 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO `+s.schema+`.rating_players
-				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at, updated_at)
-			VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, now())
+				(player_id, games_played, wins, losses, last_played_at, updated_at)
+			VALUES ($1::uuid, $2, $3, $4, $5::date, now())
 			ON CONFLICT (player_id) DO UPDATE SET
-				rating = EXCLUDED.rating, rd = EXCLUDED.rd, peak_rating = EXCLUDED.peak_rating,
 				games_played = EXCLUDED.games_played, wins = EXCLUDED.wins, losses = EXCLUDED.losses,
 				last_played_at = EXCLUDED.last_played_at, updated_at = now()`,
-			id, rt.state.Rating, rt.state.RD, rt.peak, rt.games, rt.wins, rt.losses, lastPlayed); err != nil {
+			id, rt.games, rt.wins, rt.losses, lastPlayed); err != nil {
 			return nil, err
 		}
 	}
@@ -480,18 +465,17 @@ func (s *SessionStore) resolveRatingPlayers(ctx context.Context, tx pgx.Tx, matc
 }
 
 // insertRatingEvent — tulis rating_events (idempotent via match_key).
-func (s *SessionStore) insertRatingEvent(ctx context.Context, tx pgx.Tx, m *domain.RawMatch, meta *sourceMeta, cfg domain.RatingConfig) (string, error) {
+func (s *SessionStore) insertRatingEvent(ctx context.Context, tx pgx.Tx, m *domain.RawMatch, meta *sourceMeta) (string, error) {
 	var id string
 	err := tx.QueryRow(ctx, `
 		INSERT INTO `+s.schema+`.rating_events
 			(match_key, kind, source_id, source_fingerprint, stable_game_id, date, created_at,
-			 game_order, title, score_a, score_b, target, phase, phase_weight, processed_at)
-		VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8, $9, $10, $11, $12, $13, $14, now())
+			 game_order, title, score_a, score_b, target, phase, processed_at)
+		VALUES ($1, $2, $3, $4, $5, $6::date, $7, $8, $9, $10, $11, $12, $13, now())
 		ON CONFLICT (match_key) DO NOTHING
 		RETURNING id::text`,
 		m.MatchKey(), m.Kind, meta.SourceID, meta.Fingerprint, m.StableGameID, m.Date,
-		meta.CreatedAt, m.GameOrder, m.Title, m.ScoreA, m.ScoreB, m.Target, m.Phase,
-		cfg.PhaseWeights[m.Phase]).Scan(&id)
+		meta.CreatedAt, m.GameOrder, m.Title, m.ScoreA, m.ScoreB, m.Target, m.Phase).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", fmt.Errorf("rating: match_key %s already ingested", m.MatchKey())
 	}
@@ -503,45 +487,24 @@ func (s *SessionStore) insertRatingEvent(ctx context.Context, tx pgx.Tx, m *doma
 
 // applyPlayerUpdate — catat hasil satu pemain dalam satu match.
 //
-// PENSIUN GLICKO (2026-09-29): fungsi ini DULU menghitung rating Glicko
-// (GrowRD → expected → GlickoUpdate → modifier → active floor) lalu menulis
-// rating_deltas. Perhitungan itu kini DIHENTIKAN — tidak ada lagi pemanggilan
-// ke fungsi mesin Glicko di jalur produksi.
+// PENSIUN GLICKO (2026-09-29): fungsi ini DULU menghitung rating Glicko lalu
+// menulis rating_deltas. Perhitungan itu DIHENTIKAN; kolom angka Glicko
+// (expected/movm/delta/new_rating) ikut dihapus dari skema lewat migration.
 //
-// Yang tetap dilakukan (dan WAJIB tetap benar):
+// Yang tersisa HANYA:
 //   - menulis baris rating_deltas: event_id/player_id/team/outcome — EMPAT
-//     kolom ini bahan baku papan poin BWF (rank_points.go membacanya, tidak
-//     pernah menyentuh kolom angka).
+//     kolom ini bahan baku papan poin BWF (rank_points.go membacanya).
 //   - bookkeeping runtime: games/wins/losses/lastPlayedAt — dipakai stats &
 //     achievement (bukan rating).
-//
-// Kolom angka Glicko (expected, movm, delta, new_rating) diisi 0 dan
-// DIKOSONGKAN maknanya. Tidak ada pembaca yang bergantung padanya: satu-
-// satunya adalah riwayat rating di rating_read.go, dan itu ikut dipensiunkan.
-// Mengisi 0 dipilih di atas migration drop-NOT-NULL agar tidak ada perubahan
-// skema — kolom itu murni tempat duduk yang tidak lagi dibaca.
-//
-// JANGAN pakai kembali field ini untuk perhitungan baru tanpa menghitung
-// ulang; angkanya tidak bermakna.
 func (s *SessionStore) applyPlayerUpdate(
 	ctx context.Context,
 	tx pgx.Tx,
 	rt *playerRuntime,
 	team string,
 	out float64,
-	opps []domain.RatingOpponent,
-	teamSize int,
-	movm, phaseWeight float64,
 	date string,
 	eventID string,
-	cfg domain.RatingConfig,
 ) error {
-	// opps/teamSize/movm/phaseWeight tidak lagi dipakai: dulu input rumus
-	// Glicko. Parameter dipertahankan supaya kedua pemanggil (ingest &
-	// rebuildAll) tidak perlu diubah — pemisahan jalur adalah langkah
-	// terpisah yang lebih berisiko.
-	_, _, _, _ = opps, teamSize, movm, phaseWeight
-
 	rt.games++
 	if out == 1.0 {
 		rt.wins++
@@ -555,10 +518,9 @@ func (s *SessionStore) applyPlayerUpdate(
 		outcome = "L"
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO `+s.schema+`.rating_deltas
-			(event_id, player_id, team, outcome, expected, movm, delta, new_rating)
-		VALUES ($1::uuid, $2::uuid, $3, $4, 0, 0, 0, $5)`,
-		eventID, rt.id, team, outcome, rt.state.Rating); err != nil {
+		INSERT INTO `+s.schema+`.rating_deltas (event_id, player_id, team, outcome)
+		VALUES ($1::uuid, $2::uuid, $3, $4)`,
+		eventID, rt.id, team, outcome); err != nil {
 		return err
 	}
 	return nil
@@ -627,23 +589,13 @@ func (s *SessionStore) warnPlaceholderPromotions(ctx context.Context, tx pgx.Tx,
 	}
 }
 
-// playerRuntime — state in-memory selama ingest.
+// playerRuntime — bookkeeping in-memory selama ingest. Tidak ada lagi state
+// rating: Glicko dipensiunkan, yang tersisa hanya hitungan game.
 type playerRuntime struct {
 	id           string
-	state        domain.RatingState
-	peak         float64
 	games        int
 	wins         int
 	losses       int
 	lastPlayedAt string
 	exists       bool
 }
-
-// Nilai pengisi kolom rating/rd di rating_players. Sejak Glicko dipensiunkan
-// (2026-09-29) kolom-kolom itu tidak dihitung dan tidak dibaca siapa pun —
-// nilainya hanya untuk memenuhi NOT NULL. Sengaja TIDAK diambil dari config
-// supaya tidak menyiratkan ada parameter rating yang masih berlaku.
-const (
-	ratingPlaceholder = 1250.0
-	rdPlaceholder     = 220.0
-)

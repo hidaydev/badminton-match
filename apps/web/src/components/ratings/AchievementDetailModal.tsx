@@ -34,7 +34,6 @@ export default function AchievementDetailModal({ achievement, onClose }: Achieve
   const isMilestone = thresholds.length > 0 && tierLevel > 0
 
   const rows: [string, string][] = [['Earned', a.earnedAt]]
-  if (a.season) rows.unshift(['Season', a.season])
 
   return (
     <div

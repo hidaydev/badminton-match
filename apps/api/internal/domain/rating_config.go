@@ -20,7 +20,6 @@ const (
 type RatingConfig struct {
 	// Params (RatingParams) dihapus 2026-09-29 bersama pensiun Glicko —
 	// tidak ada lagi perhitungan rating yang memakai parameter numeriknya.
-	PhaseWeights     map[string]float64
 	IngestLockedOnly bool
 	AutoReconcile    bool
 	AbsentPolicy     AbsentPolicy
@@ -58,9 +57,6 @@ type TierInit struct {
 // AbsentPolicy default = skip_player (kontrak produk: game tetap jalan,
 // absent player tidak dapat delta — 3 player lain tetap dapat delta).
 var DefaultRatingConfig = RatingConfig{
-	PhaseWeights: map[string]float64{
-		"group": 1.0, "qf": 1.05, "sf": 1.15, "3rd": 1.0, "final": 1.25, "regular": 1.0,
-	},
 	IngestLockedOnly:        true,
 	AutoReconcile:           false,
 	AbsentPolicy:            AbsentSkipPlayer,
@@ -103,14 +99,6 @@ func fptr(v float64) *float64 { return &v }
 // bersama pensiun Glicko: parameternya tidak lagi dibaca siapa pun, jadi
 // memvalidasinya hanya menambah jalur gagal yang tidak bermakna.
 func (c *RatingConfig) Validate() error {
-	if len(c.PhaseWeights) == 0 {
-		return fmt.Errorf("rating_config: phase_weights must not be empty")
-	}
-	for phase, w := range c.PhaseWeights {
-		if w <= 0 {
-			return fmt.Errorf("rating_config: phase_weights[%q] = %v, harus > 0", phase, w)
-		}
-	}
 	switch c.AbsentPolicy {
 	case AbsentSkipGame, AbsentSkipPlayer, AbsentCount:
 	default:

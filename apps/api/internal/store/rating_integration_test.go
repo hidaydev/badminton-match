@@ -105,19 +105,27 @@ func ratingCreateLockedSession(t *testing.T, st *SessionStore, ctx context.Conte
 	return id
 }
 
-func ratingPlayers(t *testing.T, st *SessionStore, ctx context.Context) map[string]domain.RatingState {
+// playerBookkeeping — games/wins/losses per pemain.
+//
+// Dulu helper ini membaca rating/rd. Setelah Glicko dipensiunkan, satu-satunya
+// state yang tersisa adalah bookkeeping; determinisme rebuild diuji lewat itu.
+type playerBookkeeping struct {
+	Games, Wins, Losses int
+}
+
+func ratingPlayers(t *testing.T, st *SessionStore, ctx context.Context) map[string]playerBookkeeping {
 	t.Helper()
 	rows, err := st.pool.Query(ctx,
-		`SELECT player_id::text, rating, rd FROM `+st.schema+`.rating_players`)
+		`SELECT player_id::text, games_played, wins, losses FROM `+st.schema+`.rating_players`)
 	if err != nil {
 		t.Fatalf("query rating_players: %v", err)
 	}
 	defer rows.Close()
-	out := map[string]domain.RatingState{}
+	out := map[string]playerBookkeeping{}
 	for rows.Next() {
 		var id string
-		var r domain.RatingState
-		if err := rows.Scan(&id, &r.Rating, &r.RD); err != nil {
+		var r playerBookkeeping
+		if err := rows.Scan(&id, &r.Games, &r.Wins, &r.Losses); err != nil {
 			t.Fatalf("scan: %v", err)
 		}
 		out[id] = r
@@ -191,8 +199,8 @@ func TestIntegrationRatingIngestSession(t *testing.T) {
 	for _, nm := range []string{"itr one", "itr two", "itr three", "itr four"} {
 		itrPids[resolveIDByAlias(t, st, nm)] = true
 	}
-	filterITR := func(m map[string]domain.RatingState) map[string]domain.RatingState {
-		out := map[string]domain.RatingState{}
+	filterITR := func(m map[string]playerBookkeeping) map[string]playerBookkeeping {
+		out := map[string]playerBookkeeping{}
 		for pid, r := range m {
 			if itrPids[pid] {
 				out[pid] = r
@@ -226,9 +234,9 @@ func TestIntegrationRatingIngestSession(t *testing.T) {
 		if !ok {
 			t.Fatalf("player %s hilang setelah rebuild", pid)
 		}
-		if a.Rating != r.Rating || a.RD != r.RD {
-			t.Fatalf("player %s: rebuild tidak identik (%.2f/%.2f vs %.2f/%.2f)",
-				pid, a.Rating, a.RD, r.Rating, r.RD)
+		if a.Games != r.Games || a.Wins != r.Wins || a.Losses != r.Losses {
+			t.Fatalf("player %s: rebuild tidak identik (%d/%d/%d vs %d/%d/%d)",
+				pid, a.Games, a.Wins, a.Losses, r.Games, r.Wins, r.Losses)
 		}
 	}
 
@@ -475,9 +483,9 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 		if !ok {
 			t.Fatalf("player %s tidak ada di state revert", pid)
 		}
-		if a.Rating != r.Rating || a.RD != r.RD {
-			t.Fatalf("transitivity gagal: player %s revert=%.2f/%.2f vs freshB=%.2f/%.2f",
-				pid, a.Rating, a.RD, r.Rating, r.RD)
+		if a.Games != r.Games || a.Wins != r.Wins || a.Losses != r.Losses {
+			t.Fatalf("transitivity gagal: player %s revert=%d/%d/%d vs freshB=%d/%d/%d",
+				pid, a.Games, a.Wins, a.Losses, r.Games, r.Wins, r.Losses)
 		}
 	}
 	if checked != 4 {
@@ -487,7 +495,7 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 
 // TestIntegrationAutoIngestLockedSessions — P0 frontend plan: sesi yang
 // menjadi locked otomatis diingest oleh ticker helper; draft dilewati;
-// leaderboard membawa player_id; history membawa new_rating.
+// leaderboard membawa player_id; history membawa fakta pertandingan.
 func TestIntegrationAutoIngestLockedSessions(t *testing.T) {
 	st, schema := ratingTestEnv(t)
 	ctx := context.Background()
@@ -571,7 +579,7 @@ func TestIntegrationAutoIngestLockedSessions(t *testing.T) {
 		t.Fatalf("detail ITAI One salah: %+v", itai)
 	}
 
-	// History membawa fakta pertandingan (new_rating tidak lagi disajikan
+	// History membawa fakta pertandingan (angka Glicko tidak lagi disajikan
 	// sejak Glicko dipensiunkan): tanggal, skor, hasil, rekan/lawan.
 	pid := resolveIDByAlias(t, st, "itai one")
 	hist, err := st.RatingPlayerHistory(ctx, pid, 10)
