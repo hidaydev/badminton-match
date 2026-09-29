@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"math"
 	"sort"
 
@@ -25,6 +27,9 @@ type RankPointEntry struct {
 	Kind     string  `json:"kind"`
 	Points   float64 `json:"points"`
 	Games    int     `json:"games"`
+	// Result — kunci hasil turnamen ("final", "runner_up", "sf", ...).
+	// Kosong untuk entri sesi; dipakai breakdown di halaman pemain.
+	Result string `json:"result,omitempty"`
 }
 
 // RankPointRow — satu baris papan ranking poin.
@@ -92,6 +97,107 @@ func (s *SessionStore) popAverageRating(ctx context.Context) (float64, error) {
 	return *avg, nil
 }
 
+// rankLevel — satu baris rank_point_levels (§4.4 dokumen rancangan):
+// kind → poin juara + rasio per ronde. Format baru = tambah baris, bukan
+// ubah kode.
+type rankLevel struct {
+	champion float64
+	ratios   map[string]float64
+	enabled  bool
+}
+
+// defaultTournamentRatios — default §4.4; baris di rank_point_levels boleh
+// menimpanya. Fallback mengisi kunci yang belum ada di data (mis. runner_up
+// yang belum terisi di prod) supaya poin final tetap masuk akal.
+var defaultTournamentRatios = map[string]float64{
+	"final":       1.0,
+	"runner_up":   0.85,
+	"sf":          0.7,
+	"qf":          0.55,
+	"group":       0.4,
+	"participant": 0.2,
+}
+
+// rankLevels — baca seluruh rank_point_levels (panggil sekali per query).
+func (s *SessionStore) rankLevels(ctx context.Context) (map[string]rankLevel, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT kind, champion_points, round_ratios, enabled
+		FROM `+s.schema+`.rank_point_levels`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]rankLevel{}
+	for rows.Next() {
+		var kind string
+		var lv rankLevel
+		var raw []byte
+		if err := rows.Scan(&kind, &lv.champion, &raw, &lv.enabled); err != nil {
+			return nil, err
+		}
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &lv.ratios); err != nil {
+				return nil, fmt.Errorf("rank_point_levels %q round_ratios: %w", kind, err)
+			}
+		}
+		out[kind] = lv
+	}
+	return out, rows.Err()
+}
+
+// ratioOf — rasio hasil: data dulu, lalu default §4.4, terakhir 0.
+func (lv rankLevel) ratioOf(key string) float64 {
+	if v, ok := lv.ratios[key]; ok {
+		return v
+	}
+	if v, ok := defaultTournamentRatios[key]; ok {
+		return v
+	}
+	return 0
+}
+
+// tournPhaseRank — peringkat fase turnamen (makin tinggi makin jauh). "3rd"
+// disetarakan "sf": perebutan juara-3 hanya diikuti yang kalah semifinal.
+func tournPhaseRank(phase string) int {
+	switch phase {
+	case "final":
+		return 4
+	case "sf", "3rd":
+		return 3
+	case "qf":
+		return 2
+	case "group":
+		return 1
+	}
+	return 0 // fase tak dikenal → tidak di atas grup
+}
+
+// tournResultKey — kunci rasio round_ratios untuk hasil SEORANG pemain di
+// satu turnamen (§4.4): menang final → final; kalah final padahal menang di
+// babak sebelumnya → runner_up; tidak menang match sama sekali →
+// participant; selain itu → fase tertinggi yang dicapai.
+func tournResultKey(bestRank int, finalOutcome string, anyWin bool) string {
+	if !anyWin {
+		return "participant"
+	}
+	if bestRank >= 4 {
+		if finalOutcome == "W" {
+			return "final"
+		}
+		return "runner_up"
+	}
+	switch bestRank {
+	case 3:
+		return "sf"
+	case 2:
+		return "qf"
+	case 1:
+		return "group"
+	}
+	return "participant" // fase tak dikenal → ikut saja
+}
+
 // rankPointEntryRow — hasil agregasi mentah per (pemain, sesi).
 type rankPointEntryRow struct {
 	playerID string
@@ -125,7 +231,7 @@ func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingC
 		       re.date::text,
 		       re.kind,
 		       re.score_a, re.score_b, re.target,
-		       rd.team,
+		       rd.team, re.phase, rd.outcome,
 		       COALESCE((
 		           SELECT avg(rp2.rating)
 		           FROM `+s.schema+`.rating_deltas rd2
@@ -147,28 +253,29 @@ func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingC
 	defer rows.Close()
 
 	// Agregasi di Go: satu entri per (pemain, source_id).
+	levels, err := s.rankLevels(ctx)
+	if err != nil {
+		return nil, err
+	}
 	type acc struct {
 		entry RankPointEntry
+		// Turnamen dengan baris level aktif: fase tertinggi + pernah menang.
+		// Points dihitung ulang setelah loop (champion × rasio), bukan Σ
+		// gameValue — poin turnamen tidak pernah terbagi per game (§4.4).
+		useLevel  bool
+		bestRank  int
+		anyWin    bool
+		finalOutc string
 	}
 	agg := map[string]*acc{}
 	order := []string{}
 	for rows.Next() {
-		var playerID, sourceID, date, kind, team string
+		var playerID, sourceID, date, kind, team, phase, outcome string
 		var scoreA, scoreB, target int
 		var oppAvg float64
-		if err := rows.Scan(&playerID, &sourceID, &date, &kind, &scoreA, &scoreB, &target, &team, &oppAvg); err != nil {
+		if err := rows.Scan(&playerID, &sourceID, &date, &kind, &scoreA, &scoreB,
+			&target, &team, &phase, &outcome, &oppAvg); err != nil {
 			return nil, err
-		}
-		margin := float64(scoreB - scoreA)
-		if team == "B" {
-			margin = float64(scoreA - scoreB)
-		}
-		if margin < 0 {
-			margin = -margin
-		}
-		pts := gameValue(cfg.RankSessionBase, margin, float64(target))
-		if cfg.RankOpponentWeight {
-			pts *= opponentMultiplier(oppAvg, popAvg, cfg.RankOpponentClamp)
 		}
 
 		key := playerID + "\x00" + sourceID
@@ -180,8 +287,36 @@ func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingC
 			agg[key] = a
 			order = append(order, key)
 		}
-		a.entry.Points += pts
 		a.entry.Games++
+
+		// Turnamen dengan level aktif → akumulasi hasil, tanpa gameValue.
+		if lv, isT := levels[kind]; kind != "session" && isT && lv.enabled {
+			a.useLevel = true
+			if r := tournPhaseRank(phase); r > a.bestRank {
+				a.bestRank = r
+			}
+			if outcome == "W" {
+				a.anyWin = true
+			}
+			if phase == "final" {
+				a.finalOutc = outcome
+			}
+			continue
+		}
+
+		// Sesi (atau turnamen tanpa baris level) → rumus game §4.5.
+		margin := float64(scoreB - scoreA)
+		if team == "B" {
+			margin = float64(scoreA - scoreB)
+		}
+		if margin < 0 {
+			margin = -margin
+		}
+		pts := gameValue(cfg.RankSessionBase, margin, float64(target))
+		if cfg.RankOpponentWeight {
+			pts *= opponentMultiplier(oppAvg, popAvg, cfg.RankOpponentClamp)
+		}
+		a.entry.Points += pts
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -191,6 +326,12 @@ func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingC
 	for _, k := range order {
 		a := agg[k]
 		pid, _, _ := splitKey(k)
+		if a.useLevel {
+			lv := levels[a.entry.Kind]
+			res := tournResultKey(a.bestRank, a.finalOutc, a.anyWin)
+			a.entry.Points = lv.champion * lv.ratioOf(res)
+			a.entry.Result = res
+		}
 		out = append(out, rankPointEntryRow{playerID: pid, entry: a.entry})
 	}
 	return out, nil
