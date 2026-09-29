@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"majadu-api/internal/domain"
 
@@ -13,10 +12,9 @@ import (
 )
 
 // ── Revert + FULL REBUILD (RATING_ENGINE_DESIGN.md §4.4a) ─────────────────
-// Revert = hapus events by source → FULL REBUILD semua rating_players dari
-// SEMUA events tersisa (recompute, BUKAN reuse stored delta — transitivity
-// melalui lawan). Deterministik: ordering (date, created_at, source_id,
-// game_order) + basis waktu tanggal sumber + phase_weight tersimpan.
+// Revert = hapus events by source → FULL REBUILD bookkeeping rating_players
+// dari SEMUA events tersisa. Deterministik: ordering (date, created_at,
+// source_id, game_order) + skor/target tersimpan di rating_events.
 
 // RebuildAll — full rebuild SEMUA rating dari semua events (tool tuning
 // config: ubah rating_config → RebuildAll → revalidate). Idempotent.
@@ -45,12 +43,10 @@ func (s *SessionStore) RebuildAll(ctx context.Context) (int, error) {
 	// Segarkan achievement SETELAH rebuild commit.
 	//
 	// Backfill dulu hanya dipanggil manual dari endpoint admin, sehingga
-	// medal yang dihitung dari rating (mis. Peak Rating) bisa USANG: replay
-	// menaikkan peak_rating melewati ambang, tapi medalnya tidak pernah
-	// ditulis. Di prod sempat terjadi (Revfath 2050 & Raihan 2052 punya peak
-	// di atas ambang 2000 tanpa medal). Dipanggil di sini karena rebuild
-	// adalah jalur yang mengubah data sumber achievement; idempoten, jadi
-	// aman diulang.
+	// medal bisa USANG terhadap data yang baru diubah rebuild (di prod:
+	// rating_players lebih baru daripada player_achievements). Dipanggil di
+	// sini karena rebuild adalah jalur yang mengubah data sumber achievement;
+	// idempoten, jadi aman diulang.
 	//
 	// Kegagalan TIDAK menggagalkan rebuild: rating sudah konsisten di DB,
 	// dan achievement bisa disegarkan lagi kapan pun (tidak ada data hilang).
@@ -176,22 +172,6 @@ func (s *SessionStore) resolveSourceID(ctx context.Context, tx pgx.Tx, lookup, k
 	return share, err
 }
 
-// priorPlayer — benih musim berjalan untuk seorang pemain, dibaca dari kolom
-// seed_* rating_players (kolomnya tetap ada; penyegel lama CloseAndStartSeason
-// sudah pensiun bersama Glicko). Stabil lintas rebuild.
-type priorPlayer struct {
-	rating float64
-	rd     float64 // 0 = belum disegel, pakai initial RD
-}
-
-// seedRow — nilai kolom seed_* apa adanya, untuk ditulis ulang setelah
-// DELETE FROM rating_players.
-type seedRow struct {
-	rating *float64
-	rd     *float64
-	setAt  *time.Time
-}
-
 // reconstructedPlayerMappingSQL — SQL pemetaan event→pemain yang dibangun dari
 // SUMBER KEBENARAN (bukan dari rating_deltas), untuk event sesi.
 //
@@ -236,49 +216,27 @@ func (s *SessionStore) reconstructedPlayerMappingSQL() string {
 		  AND sp.player_id IS NOT NULL`
 }
 
-// rebuildAll — recompute SEMUA rating_players dari events tersisa, urut
-// (date, created_at, source_id, game_order). Memakai stored phase_weight &
-// target & scores dari rating_events; pemain dari rating_deltas (team).
+// rebuildAll — recompute SEMUA bookkeeping rating_players dari events tersisa,
+// urut (date, created_at, source_id, game_order). Memakai target & skor dari
+// rating_events; pemain dari rating_deltas (team/outcome).
 func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.RatingConfig) (int, error) {
-	// Tangkap pemain yang pernah ter-rating (untuk reset-to-default) + tier
-	// assigned (players.tier — TIER_8_UNIFICATION) + BENIH musim berjalan.
-	//
-	// Benih dibaca dari kolom seed_* (peninggalan fitur musim), BUKAN dari
-	// rating saat ini. Kalau benih diambil dari rating_players.rating, rebuild
-	// akan memakai hasil rebuild sebelumnya sebagai input → tidak idempotent
-	// (terukur: rating naik tiap rebuild: 1495 → 1525 → 1554).
+	// Tangkap pemain yang pernah ter-rating (untuk reset-to-default). Benih
+	// musim (kolom seed_*) sudah dihapus bersama pensiunnya Glicko: tidak ada
+	// lagi rating yang perlu dibawa lintas musim.
 	priorRows, err := tx.Query(ctx, `
-		SELECT rp.player_id::text, coalesce(p.tier, ''),
-		       rp.seed_rating, rp.seed_rd, rp.seed_set_at
-		FROM `+s.schema+`.rating_players rp
-		LEFT JOIN `+s.schema+`.players p ON p.id = rp.player_id`)
+		SELECT rp.player_id::text
+		FROM `+s.schema+`.rating_players rp`)
 	if err != nil {
 		return 0, err
 	}
 	prior := map[string]bool{}
-	priorTier := map[string]string{}
-	priorState := map[string]priorPlayer{}
-	// seedRows menyimpan benih apa adanya supaya bisa ditulis ulang setelah
-	// DELETE FROM rating_players (yang menghapus kolom seed_* juga).
-	seedRows := map[string]seedRow{}
 	for priorRows.Next() {
-		var id, tier string
-		var seedRating, seedRD *float64
-		var seedSetAt *time.Time
-		if err := priorRows.Scan(&id, &tier, &seedRating, &seedRD, &seedSetAt); err != nil {
+		var id string
+		if err := priorRows.Scan(&id); err != nil {
 			priorRows.Close()
 			return 0, err
 		}
 		prior[id] = true
-		priorTier[id] = tier
-		seedRows[id] = seedRow{rating: seedRating, rd: seedRD, setAt: seedSetAt}
-		if seedRating != nil {
-			pri := priorPlayer{rating: *seedRating}
-			if seedRD != nil {
-				pri.rd = *seedRD
-			}
-			priorState[id] = pri
-		}
 	}
 	priorRows.Close()
 	if err := priorRows.Err(); err != nil {
@@ -463,30 +421,7 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	getRT := func(id string) *playerRuntime {
 		rt, ok := runtime[id]
 		if !ok {
-			// Nilai pengisi NOT NULL — tidak lagi dihitung & tidak dibaca.
-			rt = &playerRuntime{
-				id:    id,
-				state: domain.RatingState{Rating: ratingPlaceholder, RD: rdPlaceholder},
-				peak:  ratingPlaceholder,
-			}
-			if pri, hasSeed := priorState[id]; hasSeed {
-				// Benih pemain lama: rating terakhir musim lalu, RD sudah
-				// ditumbuhkan sesuai jeda saat musim ditutup. Disimpan di
-				// kolom seed_* supaya rebuild tetap idempotent.
-				rt.state.Rating = pri.rating
-				if pri.rd > 0 {
-					rt.state.RD = pri.rd
-				}
-				rt.peak = pri.rating
-				if tier := priorTier[id]; tier != "" {
-				}
-			} else if tier := priorTier[id]; tier != "" {
-				// Pemain baru dengan tier assigned → mid kelas.
-				if mid, ok := cfg.MidRatingForTier(tier); ok {
-					rt.state.Rating = mid
-					rt.peak = mid
-				}
-			}
+			rt = &playerRuntime{id: id}
 			runtime[id] = rt
 		}
 		return rt
@@ -555,7 +490,7 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		}
 
 		for _, x := range updates {
-			if err := s.applyPlayerUpdate(ctx, tx, x.rt, x.team, x.out, nil, 0, 0, 0, e.date, e.id, cfg); err != nil {
+			if err := s.applyPlayerUpdate(ctx, tx, x.rt, x.team, x.out, e.date, e.id); err != nil {
 				return 0, err
 			}
 		}
@@ -563,32 +498,21 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 
 	// Flush rating_players.
 	//
-	// Decay (rating turun karena lama tidak bermain) DIHENTIKAN 2026-09-29
-	// bersama pensiun Glicko: sebelumnya blok ini masih menurunkan
-	// rt.state.Rating pada tiap rebuild, sehingga kolom rating TIDAK benar-
-	// benar beku walau perhitungan Glicko sudah berhenti. Tidak ada pembaca
-	// yang bergantung padanya (papan poin hanya memakai games/wins/losses &
-	// kolom fakta rating_deltas), jadi menghapusnya tidak mengubah apa pun
-	// selain membuat state berhenti bergerak.
+	// Flush bookkeeping. Decay & benih musim sudah dihapus bersama pensiunnya
+	// Glicko — tidak ada lagi state rating yang bergerak di sini.
 	for id, rt := range runtime {
 		var lastPlayed any
 		if rt.lastPlayedAt != "" {
 			lastPlayed = rt.lastPlayedAt
 		}
-		sr := seedRows[id]
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO `+s.schema+`.rating_players
-				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at,
-				 seed_rating, seed_rd, seed_set_at, updated_at)
-			VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, now())
+				(player_id, games_played, wins, losses, last_played_at, updated_at)
+			VALUES ($1::uuid, $2, $3, $4, $5::date, now())
 			ON CONFLICT (player_id) DO UPDATE SET
-				rating = EXCLUDED.rating, rd = EXCLUDED.rd, peak_rating = EXCLUDED.peak_rating,
 				games_played = EXCLUDED.games_played, wins = EXCLUDED.wins, losses = EXCLUDED.losses,
-				last_played_at = EXCLUDED.last_played_at,
-				seed_rating = EXCLUDED.seed_rating, seed_rd = EXCLUDED.seed_rd,
-				seed_set_at = EXCLUDED.seed_set_at, updated_at = now()`,
-			id, rt.state.Rating, rt.state.RD, rt.peak, rt.games, rt.wins, rt.losses, lastPlayed,
-			sr.rating, sr.rd, sr.setAt); err != nil {
+				last_played_at = EXCLUDED.last_played_at, updated_at = now()`,
+			id, rt.games, rt.wins, rt.losses, lastPlayed); err != nil {
 			return 0, err
 		}
 	}
@@ -596,38 +520,19 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	// Reset-to-default: pemain yang sebelumnya ter-rating tapi kini 0 event
 	// (semua game-nya di luar musim berjalan / source yang di-revert).
 	//
-	// Pemain dengan BENIH memakai benihnya (rating terakhir musim lalu + RD
-	// yang sudah tumbuh) — bukan mid kelas. Ini yang membedakan pemain lama
-	// dari pemain baru; mengabaikan benih di sini membuat tiap ganti musim
-	// pemain lama terlempar kembali ke mid kelas.
+	// Pemain yang ada di rating_players tapi tidak tersentuh rebuild tetap
+	// direset (bookkeeping bersih) supaya idempoten.
 	for id := range prior {
 		if _, ok := runtime[id]; ok {
 			continue
 		}
-		base := ratingPlaceholder
-		baseRD := rdPlaceholder
-		if pri, hasSeed := priorState[id]; hasSeed {
-			base = pri.rating
-			if pri.rd > 0 {
-				baseRD = pri.rd
-			}
-		} else if tier := priorTier[id]; tier != "" {
-			if mid, ok := cfg.MidRatingForTier(tier); ok {
-				base = mid
-			}
-		}
-		sr := seedRows[id]
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO `+s.schema+`.rating_players
-				(player_id, rating, rd, peak_rating, games_played, wins, losses, last_played_at,
-				 seed_rating, seed_rd, seed_set_at, updated_at)
-			VALUES ($1::uuid, $2, $3, $4, 0, 0, 0, NULL, $5, $6, $7, now())
+				(player_id, games_played, wins, losses, last_played_at, updated_at)
+			VALUES ($1::uuid, 0, 0, 0, NULL, now())
 			ON CONFLICT (player_id) DO UPDATE SET
-				rating = EXCLUDED.rating, rd = EXCLUDED.rd, peak_rating = EXCLUDED.peak_rating,
 				games_played = 0, wins = 0, losses = 0, last_played_at = NULL,
-				seed_rating = EXCLUDED.seed_rating, seed_rd = EXCLUDED.seed_rd,
-				seed_set_at = EXCLUDED.seed_set_at, updated_at = now()`,
-			id, base, baseRD, base, sr.rating, sr.rd, sr.setAt); err != nil {
+				updated_at = now()`, id); err != nil {
 			return 0, err
 		}
 	}

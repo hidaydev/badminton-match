@@ -13,8 +13,8 @@ import (
 // RatingHistoryRow — satu baris riwayat pertandingan pemain.
 //
 // Sejak Glicko dipensiunkan (2026-09-29) baris ini TIDAK lagi memuat angka
-// rating (delta/expected/movm/new_rating): semuanya berhenti bermakna. Yang
-// tersisa adalah fakta pertandingan — tanggal, lawan, skor, hasil.
+// rating: kolomnya sudah dihapus dari skema (migration 000020). Yang tersisa
+// adalah fakta pertandingan — tanggal, lawan, skor, hasil.
 type RatingHistoryRow struct {
 	Date      string   `json:"date"`
 	Title     string   `json:"title"`

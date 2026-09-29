@@ -53,7 +53,8 @@ var CareerMedals = []MedalDef{
 
 func MedalKey(id string) string { return "medal:" + id }
 
-func TournamentKey(id string) string   { return "tournament:" + id }
+func TournamentKey(id string) string { return "tournament:" + id }
+
 // ── Tier helpers ──────────────────────────────────────────────────────────
 
 // TierForValue — level 1..5 untuk sebuah medal; 0 kalau belum mencapai Bronze.

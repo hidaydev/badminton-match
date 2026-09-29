@@ -96,16 +96,6 @@ func (s *SessionStore) LoadRatingConfig(ctx context.Context, failFast bool) (dom
 		return nil
 	}
 
-	if err := apply("phase_weights", func(v json.RawMessage) error {
-		var m map[string]float64
-		if err := json.Unmarshal(v, &m); err != nil {
-			return fmt.Errorf("rating_config.phase_weights: %w", err)
-		}
-		cfg.PhaseWeights = m
-		return nil
-	}); err != nil {
-		return domain.RatingConfig{}, err
-	}
 	if err := apply("ingest_locked_only", func(v json.RawMessage) error { return asBool("ingest_locked_only", &cfg.IngestLockedOnly) }); err != nil {
 		return domain.RatingConfig{}, err
 	}

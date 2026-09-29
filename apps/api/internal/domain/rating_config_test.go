@@ -16,15 +16,8 @@ func TestRatingConfigValidateCatchesBadRanges(t *testing.T) {
 	// tidak ada lagi jalur gagal untuk diuji. Yang diuji di sini hanya
 	// invariant yang MASIH berlaku.
 
-	// phase_weights kosong
-	bad := cfg
-	bad.PhaseWeights = map[string]float64{}
-	if err := bad.Validate(); err == nil {
-		t.Fatal("phase_weights kosong harus gagal")
-	}
-
 	// absent_policy tak dikenal
-	bad = cfg
+	bad := cfg
 	bad.AbsentPolicy = AbsentPolicy("hmm")
 	if err := bad.Validate(); err == nil {
 		t.Fatal("absent_policy tak dikenal harus gagal")

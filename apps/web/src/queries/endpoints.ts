@@ -566,8 +566,6 @@ export interface AchievementRow {
   tierName?: string
   nextTarget?: number
   thresholds?: number[]
-  seasonId?: string
-  season?: string
   earnedAt: string
   meta?: Record<string, string>
 }

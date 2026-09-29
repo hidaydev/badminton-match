@@ -60,15 +60,15 @@ func TestIntegrationRankPointsBoard(t *testing.T) {
 	// ── Siapkan rating_players manual: RP One kuat, sisanya lemah. ──
 	// (Rating tetap di-seed untuk konsistensi data, tapi TIDAK lagi menjadi
 	// basis pengali kekuatan lawan sejak revisi 2026-09-29.)
-	ratingOf := map[string]float64{"rp1": 2000, "rp2": 2000, "rp3": 1200, "rp4": 1200, "rp5": 1200, "rp6": 1200}
-	for id, r := range ratingOf {
+	ratingOf := []string{"rp1", "rp2", "rp3", "rp4", "rp5", "rp6"}
+	for _, id := range ratingOf {
 		pid := resolveIDByAliasFuzzy(t, st, schema, id)
 		if _, err := st.pool.Exec(ctx, `
-			INSERT INTO `+schema+`.rating_players (player_id, rating, rd, peak_rating, games_played, wins, losses)
-			VALUES ($1::uuid, $2, 100, $2, 1, 1, 0)
-			ON CONFLICT (player_id) DO UPDATE SET rating = EXCLUDED.rating, games_played = 1, rd = 100, peak_rating = EXCLUDED.peak_rating`,
-			pid, r); err != nil {
-			t.Fatalf("seed rating %s: %v", id, err)
+			INSERT INTO `+schema+`.rating_players (player_id, games_played, wins, losses)
+			VALUES ($1::uuid, 1, 1, 0)
+			ON CONFLICT (player_id) DO UPDATE SET games_played = 1, wins = 1, losses = 0`,
+			pid); err != nil {
+			t.Fatalf("seed bookkeeping %s: %v", id, err)
 		}
 	}
 
@@ -256,8 +256,8 @@ func insertRankTestEvent(t *testing.T, st *SessionStore, ctx context.Context, sc
 	if err := st.pool.QueryRow(ctx, `
 		INSERT INTO `+schema+`.rating_events
 			(match_key, kind, source_id, source_fingerprint, stable_game_id, date,
-			 game_order, title, score_a, score_b, target, phase, phase_weight, created_at, processed_at)
-		VALUES ($1, $2, $3, 'test', $4, $5::date, '1', 'Rank Test', $6, $7, $8, 'regular', 1.0, now(), now())
+			 game_order, title, score_a, score_b, target, phase, created_at, processed_at)
+		VALUES ($1, $2, $3, 'test', $4, $5::date, '1', 'Rank Test', $6, $7, $8, 'regular', now(), now())
 		RETURNING id::text`,
 		sourceID+"-mk", kind, sourceID, sourceID+"-g1", date, scoreA, scoreB, target).
 		Scan(&eventID); err != nil {
@@ -280,9 +280,8 @@ func insertRankTestEvent(t *testing.T, st *SessionStore, ctx context.Context, sc
 			outcome = "W"
 		}
 		if _, err := st.pool.Exec(ctx, `
-			INSERT INTO `+schema+`.rating_deltas
-				(event_id, player_id, team, outcome, expected, movm, delta, new_rating)
-			VALUES ($1::uuid, $2::uuid, $3, $4, 0.5, 1.0, 0, 1500)`,
+			INSERT INTO `+schema+`.rating_deltas (event_id, player_id, team, outcome)
+			VALUES ($1::uuid, $2::uuid, $3, $4)`,
 			eventID, pid, sd.team, outcome); err != nil {
 			t.Fatalf("insert delta %s (%s): %v", sourceID, sd.id, err)
 		}
@@ -331,13 +330,13 @@ func TestIntegrationRankPointsPlayerParity(t *testing.T) {
 	if latestDate == "" {
 		latestDate = "2026-09-27" // DB kosong: pakai tanggal tetap
 	}
-	for id, r := range map[string]float64{"rpp1": 2000, "rpp2": 2000, "rpp3": 1200, "rpp4": 1200} {
+	for _, id := range []string{"rpp1", "rpp2", "rpp3", "rpp4"} {
 		if _, err := st.pool.Exec(ctx, `
-			INSERT INTO `+schema+`.rating_players (player_id, rating, rd, games_played, wins, losses)
-			VALUES ($1::uuid, $2, 80, 5, 3, 2)
-			ON CONFLICT (player_id) DO UPDATE SET rating = EXCLUDED.rating, games_played = 5`,
-			resolveIDByAliasFuzzy(t, st, schema, id), r); err != nil {
-			t.Fatalf("rating %s: %v", id, err)
+			INSERT INTO `+schema+`.rating_players (player_id, games_played, wins, losses)
+			VALUES ($1::uuid, 5, 3, 2)
+			ON CONFLICT (player_id) DO UPDATE SET games_played = 5, wins = 3, losses = 2`,
+			resolveIDByAliasFuzzy(t, st, schema, id)); err != nil {
+			t.Fatalf("bookkeeping %s: %v", id, err)
 		}
 	}
 
@@ -467,9 +466,9 @@ func TestIntegrationRankPointsTurnamen(t *testing.T) {
 		if err := st.pool.QueryRow(ctx, `
 			INSERT INTO `+schema+`.rating_events
 				(match_key, kind, source_id, source_fingerprint, stable_game_id, date,
-				 game_order, title, score_a, score_b, target, phase, phase_weight, created_at, processed_at)
+				 game_order, title, score_a, score_b, target, phase, created_at, processed_at)
 			VALUES ($1, 'tournament_classic', $2, 'test', $3, $4::date, $5, 'Rank Turnamen',
-			        $6, $7, 30, $8, 1.0, now(), now())
+			        $6, $7, 30, $8, now(), now())
 			RETURNING id::text`,
 			e.mk, src, e.mk, date, e.order, e.scoreA, e.scoreB, e.phase).
 			Scan(&eventID); err != nil {
@@ -488,9 +487,8 @@ func TestIntegrationRankPointsTurnamen(t *testing.T) {
 				outcome = "W"
 			}
 			if _, err := st.pool.Exec(ctx, `
-				INSERT INTO `+schema+`.rating_deltas
-					(event_id, player_id, team, outcome, expected, movm, delta, new_rating)
-				VALUES ($1::uuid, $2::uuid, $3, $4, 0.5, 1.0, 0, 1500)`,
+				INSERT INTO `+schema+`.rating_deltas (event_id, player_id, team, outcome)
+				VALUES ($1::uuid, $2::uuid, $3, $4)`,
 				eventID, pid, sd.team, outcome); err != nil {
 				t.Fatalf("insert delta %s: %v", e.mk, err)
 			}
@@ -620,14 +618,14 @@ func TestIntegrationRankMovement(t *testing.T) {
 			t.Fatalf("set tier %s: %v", id, err)
 		}
 	}
-	for id, r := range map[string]float64{"rm1": 2000, "rm2": 2000, "rm3": 1200, "rm4": 1200} {
+	for _, id := range []string{"rm1", "rm2", "rm3", "rm4"} {
 		pid := resolveIDByAliasFuzzy(t, st, schema, id)
 		if _, err := st.pool.Exec(ctx, `
-			INSERT INTO `+schema+`.rating_players (player_id, rating, rd, peak_rating, games_played, wins, losses)
-			VALUES ($1::uuid, $2, 100, $2, 1, 1, 0)
-			ON CONFLICT (player_id) DO UPDATE SET rating = EXCLUDED.rating, rd = 100, peak_rating = EXCLUDED.peak_rating`,
-			pid, r); err != nil {
-			t.Fatalf("seed rating %s: %v", id, err)
+			INSERT INTO `+schema+`.rating_players (player_id, games_played, wins, losses)
+			VALUES ($1::uuid, 1, 1, 0)
+			ON CONFLICT (player_id) DO UPDATE SET games_played = 1, wins = 1, losses = 0`,
+			pid); err != nil {
+			t.Fatalf("seed bookkeeping %s: %v", id, err)
 		}
 	}
 
