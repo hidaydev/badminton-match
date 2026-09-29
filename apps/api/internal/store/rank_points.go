@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -89,19 +90,80 @@ func opponentMultiplier(oppAvg, popAvg float64, clamp [2]float64) float64 {
 	return w
 }
 
-// popAverageRating — rata-rata rating populasi ber-riwayat (pembagi pengali).
-// Pemain tanpa riwayat tidak ikut supaya mid kelas tidak menyeret rata-rata.
-func (s *SessionStore) popAverageRating(ctx context.Context) (float64, error) {
-	var avg *float64
-	err := s.pool.QueryRow(ctx, `
-		SELECT avg(rating) FROM `+s.schema+`.rating_players WHERE games_played > 0`).Scan(&avg)
+// tierStrength — nilai kekuatan dari tier sticky, memakai band tengah
+// ClassBands (D 1000-1199 → 1100, dst). Dipakai sebagai pengganti rating
+// Glicko di pengali kekuatan lawan: tier stabil (tidak bergerak sendiri),
+// jadi pengali tidak lagi bergantung mesin rating.
+//
+// ok=false bila tier kosong/tak dikenal → pemanggil memakai nilai netral.
+func tierStrength(cfg domain.RatingConfig, tier string) (float64, bool) {
+	band, ok := cfg.ClassBands[tier]
+	if !ok {
+		return 0, false
+	}
+	lo, hi := band[0], band[1]
+	switch {
+	case lo != nil && hi != nil:
+		return (*lo + *hi) / 2, true
+	case lo != nil: // band terbuka ke atas (A+): tebarkan 100 di atas batas
+		return *lo + 100, true
+	case hi != nil:
+		return *hi - 100, true
+	default:
+		return 0, false
+	}
+}
+
+// avgTierStrength — rata-rata nilai tier dari daftar tier dipisah koma
+// (dari string_agg di SQL). "" / tier tak dikenal dilewati.
+func avgTierStrength(cfg domain.RatingConfig, tiers string) float64 {
+	if tiers == "" {
+		return 0
+	}
+	var sum float64
+	var n int
+	for _, t := range strings.Split(tiers, ",") {
+		if v, ok := tierStrength(cfg, t); ok {
+			sum += v
+			n++
+		}
+	}
+	if n == 0 {
+		return 0
+	}
+	return sum / float64(n)
+}
+
+// popTierStrength — rata-rata tierStrength populasi (pembagi pengali).
+// Menggantikan rata-rata rating: keduanya sama-sama titik netral skala,
+// sehingga rasio pengali tetap berpusat ~1.0 (diverifikasi pada data prod:
+// rata-rata 1.004). Pemain tanpa tier tidak ikut.
+func (s *SessionStore) popTierStrength(ctx context.Context, cfg domain.RatingConfig) (float64, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT tier FROM `+s.schema+`.players WHERE tier IS NOT NULL`)
 	if err != nil {
 		return 0, err
 	}
-	if avg == nil || *avg <= 0 {
+	defer rows.Close()
+	var sum float64
+	var n int
+	for rows.Next() {
+		var tier string
+		if err := rows.Scan(&tier); err != nil {
+			return 0, err
+		}
+		if v, ok := tierStrength(cfg, tier); ok {
+			sum += v
+			n++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if n == 0 {
 		return 0, nil
 	}
-	return *avg, nil
+	return sum / float64(n), nil
 }
 
 // rankLevel — satu baris rank_point_levels (§4.4 dokumen rancangan):
@@ -222,8 +284,10 @@ type rankPointEntryRow struct {
 // Satu sesi = satu entri (§ keputusan #1). Nilai entri = jumlah nilai game
 // pemain itu di sesi tersebut, masing-masing dikali pengali kekuatan lawan.
 //
-// Rating lawan diambil dari rating_players SAAT INI (bukan saat match) —
-// keputusan yang disadari: Glicko menjadi INPUT poin (§4.5).
+// Kekuatan lawan diambil dari TIER STICKY lawan (band tengah ClassBands),
+// bukan rating Glicko: pengali jadi tidak bergantung mesin rating, dan tier
+// tidak bergerak sendiri sehingga poin sesi lama tidak berubah makna saat
+// rating lawan naik/turun. Keputusan #§4.5 (revisi 2026-09-29).
 func (s *SessionStore) sessionEntries(ctx context.Context, cfg domain.RatingConfig, asOf string) ([]rankPointEntryRow, error) {
 	return s.sessionEntriesFor(ctx, cfg, asOf, "")
 }
@@ -232,7 +296,7 @@ func (s *SessionStore) sessionEntries(ctx context.Context, cfg domain.RatingConf
 // kosong hanya baris pemain itu yang diambil. Dipakai jalur satu-pemain supaya
 // halaman detail tidak mengagregasi seluruh papan.
 func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingConfig, asOf, playerFilter string) ([]rankPointEntryRow, error) {
-	popAvg, err := s.popAverageRating(ctx)
+	popAvg, err := s.popTierStrength(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -246,13 +310,12 @@ func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingC
 		       re.score_a, re.score_b, re.target,
 		       rd.team, re.phase, rd.outcome,
 		       COALESCE((
-		           SELECT avg(rp2.rating)
+		           SELECT string_agg(COALESCE(p2.tier, ''), ',')
 		           FROM `+s.schema+`.rating_deltas rd2
-		           JOIN `+s.schema+`.rating_players rp2 ON rp2.player_id = rd2.player_id
+		           JOIN `+s.schema+`.players p2 ON p2.id = rd2.player_id
 		           WHERE rd2.event_id = rd.event_id
 		             AND rd2.team <> rd.team
-		             AND rp2.games_played > 0
-		       ), 0) AS opp_avg
+		       ), '') AS opp_tiers
 		FROM `+s.schema+`.rating_deltas rd
 		JOIN `+s.schema+`.rating_events re ON re.id = rd.event_id
 		WHERE re.date >= ($1::date - ($2 * 7))
@@ -285,11 +348,15 @@ func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingC
 	for rows.Next() {
 		var playerID, sourceID, date, kind, team, phase, outcome string
 		var scoreA, scoreB, target int
-		var oppAvg float64
+		var oppTiers string
 		if err := rows.Scan(&playerID, &sourceID, &date, &kind, &scoreA, &scoreB,
-			&target, &team, &phase, &outcome, &oppAvg); err != nil {
+			&target, &team, &phase, &outcome, &oppTiers); err != nil {
 			return nil, err
 		}
+		// Kekuatan lawan = rata-rata band tengah tier lawan. Lawan tanpa tier
+		// (atau tier tak dikenal) dilewati; bila tidak ada satu pun yang
+		// terbaca, oppAvg=0 → opponentMultiplier mengembalikan 1 (netral).
+		oppAvg := avgTierStrength(cfg, oppTiers)
 
 		key := playerID + "\x00" + sourceID
 		a, ok := agg[key]
