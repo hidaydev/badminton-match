@@ -639,6 +639,10 @@ export interface RankPointRow {
   entries_available: number
   // true bila entri tersedia di bawah ambang (papan masih tipis).
   thin_evidence: boolean
+  // Movement rank vs snapshot tanggal acuan sebelumnya. rank_delta > 0 =
+  // naik, < 0 = turun, 0 = tetap; null bila belum ada pembanding.
+  prev_rank: number | null
+  rank_delta: number | null
   breakdown: RankPointEntry[]
 }
 

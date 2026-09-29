@@ -6,6 +6,8 @@ import (
 	"math"
 	"sort"
 
+	"github.com/jackc/pgx/v5"
+
 	"majadu-api/internal/domain"
 )
 
@@ -41,6 +43,12 @@ type RankPointRow struct {
 	EntriesAvailable int              `json:"entries_available"` // entri tersedia di window
 	ThinEvidence     bool             `json:"thin_evidence"`     // entri < ambang
 	Breakdown        []RankPointEntry `json:"breakdown"`
+
+	// Movement rank vs snapshot tanggal acuan sebelumnya (tabel
+	// rank_snapshots). RankDelta > 0 = naik (rank mengecil); 0 = tetap;
+	// null = belum ada pembanding (pemain baru di papan).
+	PrevRank  *int `json:"prev_rank"`
+	RankDelta *int `json:"rank_delta"`
 }
 
 // RankPointsBoard — hasil papan.
@@ -389,6 +397,13 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 		return nil, err
 	}
 	rows := boardRowsFromEntries(entries, cfg, names, limit)
+	// Movement dibaca dari snapshot SEBELUM asOf. Kalau tabel belum punya
+	// baris sebelumnya, movement tetap null (bukan error) — papan tetap tampil.
+	if err := s.applyRankMovement(ctx, asOf, rows); err != nil {
+		if s.logger != nil {
+			s.logger.Warn("rank movement dilewati", "as_of", asOf, "error", err)
+		}
+	}
 
 	return &RankPointsBoard{
 		WindowWeeks: cfg.RankWindowWeeks,
@@ -462,6 +477,114 @@ func boardRowsFromEntries(entries []rankPointEntryRow, cfg domain.RatingConfig,
 	return rows
 }
 
+// CaptureRankSnapshot — simpan posisi papan saat ini sebagai snapshot
+// pada tanggal asOf. Idempoten per (as_of, player_id): pemanggilan berulang
+// di hari yang sama menimpa baris lama, jadi snapshot selalu mencerminkan
+// papan terakhir yang dihitung.
+//
+// Dipanggil ticker auto-ingest (30 menit). asOf kosong → tanggal event
+// terakhir. Tidak ada event → tidak ada yang disimpan (papan kosong).
+func (s *SessionStore) CaptureRankSnapshot(ctx context.Context) (int, error) {
+	cfg, err := s.LoadRatingConfig(ctx, false)
+	if err != nil {
+		return 0, err
+	}
+	if cfg.RankWindowWeeks <= 0 {
+		cfg.RankWindowWeeks = 12
+	}
+	if cfg.RankBestN <= 0 {
+		cfg.RankBestN = 10
+	}
+
+	asOf, err := s.latestEventDate(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if asOf == "" {
+		return 0, nil
+	}
+
+	entries, err := s.sessionEntries(ctx, cfg, asOf)
+	if err != nil {
+		return 0, err
+	}
+	if len(entries) == 0 {
+		return 0, nil
+	}
+	rows := boardRowsFromEntries(entries, cfg, nil, 0)
+
+	batch := &pgx.Batch{}
+	for _, r := range rows {
+		batch.Queue(`
+			INSERT INTO `+s.schema+`.rank_snapshots (as_of, player_id, rank, points)
+			VALUES ($1::date, $2::uuid, $3, $4)
+			ON CONFLICT (as_of, player_id) DO UPDATE
+			SET rank = EXCLUDED.rank,
+			    points = EXCLUDED.points,
+			    captured_at = now()`,
+			asOf, r.PlayerID, r.Rank, r.Points)
+	}
+	br := s.pool.SendBatch(ctx, batch)
+	defer br.Close()
+	for range rows {
+		if _, err := br.Exec(); err != nil {
+			return 0, err
+		}
+	}
+	return len(rows), nil
+}
+
+// rankSnapshotRanks — rank dari snapshot tanggal acuan SEBELUM asOf.
+//
+// "Sebelumnya" = as_of terbesar yang < asOf, bukan asOf-1 hari: papan
+// berubah saat ada sesi baru, dan tanggal acuan melompat mengikuti event
+// terakhir. Snapshot yang lebih tua dipakai sebagai pembanding supaya
+// movement tetap bermakna walau ada hari tanpa aktivitas.
+func (s *SessionStore) rankSnapshotRanks(ctx context.Context, asOf string) (map[string]int, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT player_id::text, rank
+		FROM `+s.schema+`.rank_snapshots
+		WHERE as_of = (
+			SELECT max(as_of) FROM `+s.schema+`.rank_snapshots WHERE as_of < $1::date
+		)`, asOf)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]int{}
+	for rows.Next() {
+		var pid string
+		var rank int
+		if err := rows.Scan(&pid, &rank); err != nil {
+			return nil, err
+		}
+		out[pid] = rank
+	}
+	return out, rows.Err()
+}
+
+// applyRankMovement — isi PrevRank/RankDelta dari snapshot sebelumnya.
+// Tabel mungkin belum ada isinya (awal musim) → biarkan null.
+func (s *SessionStore) applyRankMovement(ctx context.Context, asOf string, rows []RankPointRow) error {
+	prev, err := s.rankSnapshotRanks(ctx, asOf)
+	if err != nil {
+		return err
+	}
+	if len(prev) == 0 {
+		return nil
+	}
+	for i := range rows {
+		if pr, ok := prev[rows[i].PlayerID]; ok {
+			p := pr
+			d := pr - rows[i].Rank // rank mengecil = naik → delta positif
+			rows[i].PrevRank = &p
+			rows[i].RankDelta = &d
+		}
+	}
+	return nil
+}
+
 func (s *SessionStore) playerNames(ctx context.Context) (map[string]string, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id::text, canonical_name FROM `+s.schema+`.players`)
@@ -482,10 +605,9 @@ func (s *SessionStore) playerNames(ctx context.Context) (map[string]string, erro
 
 // RankPointsForPlayer — papan satu pemain, dipakai halaman detail publik.
 //
-// Poin dihitung saat baca. Mengagregasi SELURUH papan lalu mencari satu baris
-// berarti endpoint publik ini mengerjakan pekerjaan untuk ~119 pemain pada tiap
-// request (3 query + agregasi semua event). Jalur ini menyaring satu pemain
-// sejak di query, jadi biayanya tidak ikut jumlah pemain.
+// Poin dihitung saat baca. Mengagregasi SELURUH papan lalu mencari satu baris:
+// dengan ~119 pemain dan ~2.5k event biayanya remeh, dan konsistensi dengan
+// papan lebih penting daripada menghemat agregasi (audit ke-7).
 //
 // found=false bila pemain tidak punya entri di window sama sekali.
 func (s *SessionStore) RankPointsForPlayer(ctx context.Context, playerID string) (*RankPointRow, bool, error) {
@@ -523,6 +645,11 @@ func (s *SessionStore) RankPointsForPlayer(ctx context.Context, playerID string)
 		return nil, false, err
 	}
 	all := boardRowsFromEntries(entries, cfg, names, 0)
+	if err := s.applyRankMovement(ctx, asOf, all); err != nil {
+		if s.logger != nil {
+			s.logger.Warn("rank movement dilewati", "as_of", asOf, "error", err)
+		}
+	}
 	for i := range all {
 		if all[i].PlayerID == playerID {
 			return &all[i], true, nil
