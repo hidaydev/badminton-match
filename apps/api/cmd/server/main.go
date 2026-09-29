@@ -242,10 +242,8 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /ratings/replay-all", http.HandlerFunc(ratings.RequireAdmin(ratings.ReplayAll)))
 	mux.Handle("POST /ratings/replay-source", http.HandlerFunc(ratings.RequireAdmin(ratings.ReplaySource)))
 	mux.Handle("POST /ratings/achievements/backfill", http.HandlerFunc(ratings.RequireAdmin(ratings.BackfillAchievements)))
-	// Read path publik
-	// Papan PUBLIK = poin ber-window (ala BWF). Papan Glicko (/ratings/leaderboard)
-	// dipindah ke admin: itu mesin internal, dan menampilkan dua angka rating
-	// berbeda ke pemain hanya membingungkan.
+	// Read path publik. Papan PUBLIK = poin ber-window (ala BWF); papan Glicko
+	// beserta halaman adminnya dihapus bersama pensiun Glicko (2026-09-29).
 	mux.Handle("GET /rankings", http.HandlerFunc(ratings.Rankings))
 	mux.Handle("GET /rankings/players/{playerId}", http.HandlerFunc(ratings.PlayerRankPoints))
 	mux.Handle("GET /ratings/players/{playerId}", http.HandlerFunc(ratings.Player))

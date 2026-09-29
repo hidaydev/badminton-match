@@ -449,10 +449,11 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	getRT := func(id string) *playerRuntime {
 		rt, ok := runtime[id]
 		if !ok {
+			// Nilai pengisi NOT NULL — tidak lagi dihitung & tidak dibaca.
 			rt = &playerRuntime{
 				id:    id,
-				state: domain.RatingState{Rating: cfg.Params.InitialRating, RD: cfg.Params.InitialRD},
-				peak:  cfg.Params.InitialRating,
+				state: domain.RatingState{Rating: ratingPlaceholder, RD: rdPlaceholder},
+				peak:  ratingPlaceholder,
 			}
 			if pri, hasSeed := priorState[id]; hasSeed {
 				// Benih pemain lama: rating terakhir musim lalu, RD sudah
@@ -517,92 +518,47 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 			continue
 		}
 
-		phaseWeight := e.phaseWeight
-		if phaseWeight <= 0 {
-			phaseWeight = 1.0
-		}
-		movm := domain.MarginOfVictory(e.scoreA, e.scoreB, e.target, cfg.Params)
+		// Pensiun Glicko: tidak ada lagi perhitungan rating di sini. Yang perlu
+		// ditulis hanya fakta pertandingan (team + hasil) untuk rating_deltas —
+		// bahan baku papan poin BWF — plus bookkeeping games/wins/losses.
+		// Aparatus lama (movm, oppsFor/sintesis lawan, teamSize, phaseWeight)
+		// dibuang karena applyPlayerUpdate tidak lagi memakainya.
 		outcomeA := 0.0
 		if e.scoreA > e.scoreB {
 			outcomeA = 1.0
-		} else if e.scoreA == e.scoreB {
-			outcomeA = 0.5
 		}
 		outcomeB := 1.0 - outcomeA
 
-		oppsFor := func(myTeam string) []domain.RatingOpponent {
-			opp, oppSkipped := playersB, skippedB
-			if myTeam == "B" {
-				opp, oppSkipped = playersA, skippedA
-			}
-			out := []domain.RatingOpponent{}
-			for _, id := range opp {
-				rt := getRT(id)
-				out = append(out, domain.RatingOpponent{Rating: rt.state.Rating, RD: rt.state.RD})
-			}
-			// Sisi lawan habis di-skip (semua digantikan) → sintesis lawan
-			// pengganti dari baseline tier assigned pemain yang di-skip —
-			// tiruan persis opponentsFor di rating.go. Pemainnya sendiri tetap
-			// TIDAK dapat delta.
-			if len(opp) == 0 {
-				for _, id := range oppSkipped {
-					r := cfg.Params.InitialRating
-					if tier := priorTier[id]; tier != "" {
-						if init, ok := cfg.FormingForTier(tier); ok {
-							r = init.Rating
-						}
-					}
-					out = append(out, domain.RatingOpponent{Rating: r, RD: cfg.Params.InitialRD})
-				}
-			}
-			return out
-		}
-
 		type u struct {
-			rt       *playerRuntime
-			team     string
-			out      float64
-			opps     []domain.RatingOpponent
-			teamSize int
+			rt   *playerRuntime
+			team string
+			out  float64
 		}
 		updates := []u{}
-		teamASize := len(playersA)
-		teamBSize := len(playersB)
 		for _, id := range playersA {
-			rt := getRT(id)
-			updates = append(updates, u{rt: rt, team: "A", out: outcomeA, opps: oppsFor("A"), teamSize: teamASize})
+			updates = append(updates, u{rt: getRT(id), team: "A", out: outcomeA})
 		}
 		for _, id := range playersB {
-			rt := getRT(id)
-			updates = append(updates, u{rt: rt, team: "B", out: outcomeB, opps: oppsFor("B"), teamSize: teamBSize})
+			updates = append(updates, u{rt: getRT(id), team: "B", out: outcomeB})
 		}
 
 		for _, x := range updates {
-			if err := s.applyPlayerUpdate(ctx, tx, x.rt, x.team, x.out, x.opps, x.teamSize, movm, phaseWeight, e.date, e.id, cfg); err != nil {
+			if err := s.applyPlayerUpdate(ctx, tx, x.rt, x.team, x.out, nil, 0, 0, 0, e.date, e.id, cfg); err != nil {
 				return 0, err
 			}
 		}
 	}
 
-	// Flush rating_players — dengan decay applied
+	// Flush rating_players.
+	//
+	// Decay (rating turun karena lama tidak bermain) DIHENTIKAN 2026-09-29
+	// bersama pensiun Glicko: sebelumnya blok ini masih menurunkan
+	// rt.state.Rating pada tiap rebuild, sehingga kolom rating TIDAK benar-
+	// benar beku walau perhitungan Glicko sudah berhenti. Tidak ada pembaca
+	// yang bergantung padanya (papan poin hanya memakai games/wins/losses &
+	// kolom fakta rating_deltas), jadi menghapusnya tidak mengubah apa pun
+	// selain membuat state berhenti bergerak.
 	for id, rt := range runtime {
-		// Apply decay: rating turun berdasarkan idle sejak game terakhir.
-		// NOTE: peak_rating TIDAK ikut turun — peak adalah rekor tertinggi
-		// yang pernah dicapai, bukan state saat ini.
-		if cfg.DecayEnabled && rt.lastPlayedAt != "" {
-			lastPlayed, err := time.Parse("2006-01-02", rt.lastPlayedAt)
-			if err == nil {
-				idleDays := int(time.Since(lastPlayed).Hours() / 24)
-				if idleDays > cfg.DecayThresholdDays {
-					rt.state.Rating = domain.DecayFactor(
-						rt.state.Rating, idleDays, cfg.Params,
-						cfg.DecayEnabled, cfg.DecayThresholdDays,
-						cfg.DecayPerWeek, cfg.DecayFloor,
-					)
-				}
-			}
-		}
-
 		var lastPlayed any
 		if rt.lastPlayedAt != "" {
 			lastPlayed = rt.lastPlayedAt
@@ -636,8 +592,8 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		if _, ok := runtime[id]; ok {
 			continue
 		}
-		base := cfg.Params.InitialRating
-		baseRD := cfg.Params.InitialRD
+		base := ratingPlaceholder
+		baseRD := rdPlaceholder
 		if pri, hasSeed := priorState[id]; hasSeed {
 			base = pri.rating
 			if pri.rd > 0 {

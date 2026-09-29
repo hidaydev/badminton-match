@@ -291,10 +291,12 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 	// Muat state runtime per pemain (dari DB atau default+forming)
 	runtime := map[string]*playerRuntime{}
 	for _, id := range ids {
+		// Kolom rating/rd/peak tidak lagi dihitung (Glicko pensiun) dan tidak
+		// dibaca siapa pun; nilainya hanya tempat duduk agar NOT NULL terisi.
 		rt := &playerRuntime{
 			id:    id,
-			state: domain.RatingState{Rating: cfg.Params.InitialRating, RD: cfg.Params.InitialRD},
-			peak:  cfg.Params.InitialRating,
+			state: domain.RatingState{Rating: ratingPlaceholder, RD: rdPlaceholder},
+			peak:  ratingPlaceholder,
 		}
 		var lastPlayed *time.Time
 		err := tx.QueryRow(ctx, `
@@ -366,77 +368,35 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 		}
 		processedCount++
 
-		phaseWeight := cfg.PhaseWeights[m.Phase]
-		if phaseWeight <= 0 {
-			phaseWeight = 1.0
-		}
-		movm := domain.MarginOfVictory(m.ScoreA, m.ScoreB, m.Target, cfg.Params)
+		// Pensiun Glicko: hanya fakta pertandingan (team + hasil) yang perlu
+		// dicatat ke rating_deltas — bahan baku papan poin. Aparatus lama
+		// (phaseWeight, movm, opponentsFor + sintesis placeholder/lawan-skip,
+		// teamSize) dibuang karena applyPlayerUpdate tidak lagi memakainya.
 		outcomeA := 0.0
 		if m.ScoreA > m.ScoreB {
 			outcomeA = 1.0
-		} else if m.ScoreA == m.ScoreB {
-			outcomeA = 0.5
 		}
 		outcomeB := 1.0 - outcomeA
 
-		// opponent helper: real lawan + placeholder sintetik (rate_as_unknown)
-		opponentsFor := func(myTeam string) []domain.RatingOpponent {
-			oppTeam := "B"
-			if myTeam == "B" {
-				oppTeam = "A"
-			}
-			opps := []domain.RatingOpponent{}
-			for _, op := range teamPlayers(m, oppTeam) {
-				if ort := runtime[playerIDs[op.Name]]; ort != nil {
-					opps = append(opps, domain.RatingOpponent{Rating: ort.state.Rating, RD: ort.state.RD})
-				}
-			}
-			for _, _ = range m.PlaceholdersByTeam(oppTeam) {
-				opps = append(opps, domain.RatingOpponent{Rating: cfg.Params.InitialRating, RD: cfg.Params.InitialRD})
-			}
-			// Sisi lawan habis di-skip (semua digantikan) → sintesis lawan
-			// pengganti dari baseline tier assigned pemain yang di-skip
-			// (FormingForTier = nilai session_tier_init, sama dengan forming
-			// pemain baru). Pemain itu sendiri tetap TIDAK dapat delta.
-			// Sengaja hanya saat sisi lawan 0 eligible — skip sebagian tetap
-			// dihitung 2v1 seperti sebelumnya (TeamSizeNormalization).
-			if len(teamPlayers(m, oppTeam)) == 0 {
-				for _, op := range m.SkippedPlayersByTeam(oppTeam) {
-					r := cfg.Params.InitialRating // fallback: tanpa tier assigned
-					if tier := tierByPlayer[playerIDs[op.Name]]; tier != "" {
-						if init, ok := cfg.FormingForTier(tier); ok {
-							r = init.Rating
-						}
-					}
-					opps = append(opps, domain.RatingOpponent{Rating: r, RD: cfg.Params.InitialRD})
-				}
-			}
-			return opps
-		}
-
 		type updateEntry struct {
-			rt       *playerRuntime
-			team     string
-			out      float64
-			opps     []domain.RatingOpponent
-			teamSize int // jumlah pemain di tim yang sama
+			rt   *playerRuntime
+			team string
+			out  float64
 		}
 		updates := []updateEntry{}
-		teamASize := len(eligibleA)
-		teamBSize := len(eligibleB)
 		for _, p := range eligibleA {
 			if rt := runtime[playerIDs[p.Name]]; rt != nil {
-				updates = append(updates, updateEntry{rt: rt, team: "A", out: outcomeA, opps: opponentsFor("A"), teamSize: teamASize})
+				updates = append(updates, updateEntry{rt: rt, team: "A", out: outcomeA})
 			}
 		}
 		for _, p := range eligibleB {
 			if rt := runtime[playerIDs[p.Name]]; rt != nil {
-				updates = append(updates, updateEntry{rt: rt, team: "B", out: outcomeB, opps: opponentsFor("B"), teamSize: teamBSize})
+				updates = append(updates, updateEntry{rt: rt, team: "B", out: outcomeB})
 			}
 		}
 
 		for _, u := range updates {
-			if err := s.applyPlayerUpdate(ctx, tx, u.rt, u.team, u.out, u.opps, u.teamSize, movm, phaseWeight, m.Date, eventID, cfg); err != nil {
+			if err := s.applyPlayerUpdate(ctx, tx, u.rt, u.team, u.out, nil, 0, 0, 0, m.Date, eventID, cfg); err != nil {
 				return nil, err
 			}
 		}
@@ -546,7 +506,8 @@ func (s *SessionStore) insertRatingEvent(ctx context.Context, tx pgx.Tx, m *doma
 //
 // PENSIUN GLICKO (2026-09-29): fungsi ini DULU menghitung rating Glicko
 // (GrowRD → expected → GlickoUpdate → modifier → active floor) lalu menulis
-// rating_deltas. Perhitungan itu kini DIHENTIKAN.
+// rating_deltas. Perhitungan itu kini DIHENTIKAN — tidak ada lagi pemanggilan
+// ke fungsi mesin Glicko di jalur produksi.
 //
 // Yang tetap dilakukan (dan WAJIB tetap benar):
 //   - menulis baris rating_deltas: event_id/player_id/team/outcome — EMPAT
@@ -679,3 +640,12 @@ type playerRuntime struct {
 	tier         string // assigned tier (players.tier — single source)
 	exists       bool
 }
+
+// Nilai pengisi kolom rating/rd di rating_players. Sejak Glicko dipensiunkan
+// (2026-09-29) kolom-kolom itu tidak dihitung dan tidak dibaca siapa pun —
+// nilainya hanya untuk memenuhi NOT NULL. Sengaja TIDAK diambil dari config
+// supaya tidak menyiratkan ada parameter rating yang masih berlaku.
+const (
+	ratingPlaceholder = 1250.0
+	rdPlaceholder     = 220.0
+)
