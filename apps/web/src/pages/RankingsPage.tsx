@@ -79,8 +79,6 @@ export default function RankingsPage() {
               // Accent hanya untuk juara: hierarki, bukan dekorasi.
               const rankColor = r.rank === 1 ? 'text-accent' : 'text-fg-dim'
               const rowBg = r.rank === 1 ? 'bg-accent/[0.04]' : ''
-              const counted = r.counted_entries
-              const available = r.entries_available
               return (
                 <li key={r.player_id}>
                   <button
@@ -88,15 +86,8 @@ export default function RankingsPage() {
                     className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
                   >
                     <span className={`w-6 shrink-0 font-mono text-sm ${rankColor}`}>{r.rank}</span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-sm font-medium text-fg truncate">
-                        <AnnotatedPlayerName name={r.name} />
-                      </span>
-                      <span className="block text-[10px] font-mono text-fg-dim">
-                        {counted}
-                        {available > counted ? ` dari ${available}` : ''} sesi
-                        {r.thin_evidence && <span className="text-fg-dim"> · bukti tipis</span>}
-                      </span>
+                    <span className="flex-1 min-w-0 text-sm font-medium text-fg truncate">
+                      <AnnotatedPlayerName name={r.name} />
                     </span>
                     <span className="shrink-0 font-mono text-sm font-bold text-fg">
                       {Math.round(r.points).toLocaleString('id-ID')}
