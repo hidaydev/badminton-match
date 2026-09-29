@@ -15,9 +15,9 @@ import (
 // ── Ranking poin (papan publik ala BWF) ───────────────────────────────────
 // RANKING_POIN_BWF_RANCANGAN.md §4.4–4.7.
 //
-// Papan publik memakai POIN, bukan Glicko: window bergulir 12 minggu, ambil
-// 10 entri (sesi) terbaik. Glicko tetap mesin internal (generator/pairing +
-// halaman detail pemain).
+// Papan publik memakai POIN: window bergulir 12 minggu, ambil 10 entri (sesi)
+// terbaik. Glicko sudah pensiun total (2026-09-29) — tidak ada lagi mesin
+// rating; pemain dibedakan lewat poin dan tier sticky (players.tier).
 //
 // Poin dihitung SAAT BACA (tidak ada tabel materialized) — dengan ~655 event
 // agregasi ini remeh, dan tidak ada state yang bisa basi.
