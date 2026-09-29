@@ -44,7 +44,10 @@ export default function CareerStats({ stats, countedPoints }: {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Overview — session games (excl. void/absent/skipped, incl. only where player actually played) */}
+      {/* Overview — SEMUA game berskor pemain (excl. void/absent/skipped).
+          Berbeda dari "Ranked Games" di header halaman, yang hanya menghitung
+          game sejak season_start (sesi pra-season tidak di-ingest ranking).
+          Karena itu angka di sini bisa lebih besar. */}
       <div className="grid grid-cols-4 gap-2">
         <StatCard label="Session Games" value={String(stats.gamesPlayed)} />
         <StatCard label="Win Rate" value={`${winRate}%`} />
@@ -55,7 +58,10 @@ export default function CareerStats({ stats, countedPoints }: {
       {/* Sessions */}
       {stats.sessions.length > 0 && (
         <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-          <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Sessions ({stats.sessions.length})</p>
+          <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">
+            Sessions ({stats.sessions.length})
+            <span className="normal-case tracking-normal"> — yang berpoin ditandai</span>
+          </p>
           {stats.sessions.slice(sessionsPage * SESSIONS_PER_PAGE, (sessionsPage + 1) * SESSIONS_PER_PAGE).map((s) => {
             // Sesi ini masuk perhitungan poin? Cocokkan lewat share_code
             // (rating_events.source_id = sessions.share_code).

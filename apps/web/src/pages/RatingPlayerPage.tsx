@@ -80,10 +80,14 @@ export default function RatingPlayerPage() {
           blok ini yang dipakai papan publik, jadi ditampilkan lebih dulu. */}
       <RankPointsCard playerId={playerId} />
 
-      {/* Stat cards — bookkeeping pertandingan (Glicko dipensiunkan). */}
+      {/* Stat cards — bookkeeping pertandingan (Glicko dipensiunkan).
+          "Ranked Games" = game yang masuk hitungan ranking (sejak season_start).
+          CareerStats di bawah menampilkan "All Session Games" yang mencakup
+          sesi pra-season, jadi angkanya bisa lebih besar — dua angka sah, beda
+          cakupan, dan label sengaja dibedakan agar tidak tampak kontradiktif. */}
       <div className="grid grid-cols-3 gap-2">
         {[
-          { label: 'Games', value: String(games) },
+          { label: 'Ranked Games', value: String(games) },
           { label: 'W-L', value: `${wins}-${losses}` },
           { label: 'Tier', value: tier || '-' },
         ].map((s) => (
