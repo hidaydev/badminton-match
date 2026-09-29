@@ -17,21 +17,13 @@ const (
 	AbsentCount      AbsentPolicy = "count"
 )
 
-type PlaceholderPolicy string
-
-const (
-	PlaceholderRateAsUnknown PlaceholderPolicy = "rate_as_unknown"
-	PlaceholderSkip          PlaceholderPolicy = "skip"
-)
-
 type RatingConfig struct {
 	// Params (RatingParams) dihapus 2026-09-29 bersama pensiun Glicko —
 	// tidak ada lagi perhitungan rating yang memakai parameter numeriknya.
-	PhaseWeights      map[string]float64
-	IngestLockedOnly  bool
-	AutoReconcile     bool
-	AbsentPolicy      AbsentPolicy
-	PlaceholderPolicy PlaceholderPolicy
+	PhaseWeights     map[string]float64
+	IngestLockedOnly bool
+	AutoReconcile    bool
+	AbsentPolicy     AbsentPolicy
 	// SeasonStart — awal musim (RATING_TIERING_REVAMP §2.5.7). Match < season_start
 	// tidak dihitung rating. Format yyyy-mm-dd.
 	SeasonStart string
@@ -72,7 +64,6 @@ var DefaultRatingConfig = RatingConfig{
 	IngestLockedOnly:        true,
 	AutoReconcile:           false,
 	AbsentPolicy:            AbsentSkipPlayer,
-	PlaceholderPolicy:       PlaceholderRateAsUnknown,
 	SeasonStart:             "2026-05-23",
 	PlaceholderPromoteGames: 10, // setelah 10 game, placeholder dianggap real player
 
@@ -124,11 +115,6 @@ func (c *RatingConfig) Validate() error {
 	case AbsentSkipGame, AbsentSkipPlayer, AbsentCount:
 	default:
 		return fmt.Errorf("rating_config: absent_policy %q tidak dikenal", c.AbsentPolicy)
-	}
-	switch c.PlaceholderPolicy {
-	case PlaceholderRateAsUnknown, PlaceholderSkip:
-	default:
-		return fmt.Errorf("rating_config: placeholder_policy %q tidak dikenal", c.PlaceholderPolicy)
 	}
 	if c.PlaceholderPromoteGames < 0 {
 		return fmt.Errorf("rating_config: placeholder_promote_games must be ≥ 0")

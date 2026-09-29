@@ -269,6 +269,13 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 		}
 		addMedal(pid, mustMedal("games"), games, lastSeasonID(entries), firstDateAt(gamesCk, mustMedal("games").Thresholds[0], today), nil)
 		addMedal(pid, mustMedal("wins"), wins, lastSeasonID(entries), firstDateAt(winsCk, mustMedal("wins").Thresholds[0], today), nil)
+		// Medali Peak Rating: BEKU sejak pensiun Glicko (2026-09-29). Rating
+		// tidak lagi dihitung sehingga peakMax hanya bernilai placeholder dan
+		// tidak pernah melewati ambang terendah (2000) — medali baru tidak
+		// akan pernah lahir. Medali lama TIDAK hilang: upsert memakai guard
+		// `EXCLUDED.value > player_achievements.value`, jadi nilai 2000+ yang
+		// sudah tersimpan tidak bisa turun. Baris ini sengaja dipertahankan
+		// agar riwayat 27 pemain tetap konsisten bila suatu saat dihitung ulang.
 		addMedal(pid, mustMedal("rating"), int64(peakMax), "", firstDateAt(ratingCk, mustMedal("rating").Thresholds[0], today), nil)
 	}
 

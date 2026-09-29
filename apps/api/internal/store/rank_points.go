@@ -677,7 +677,8 @@ func (s *SessionStore) playerNames(ctx context.Context) (map[string]string, erro
 // papan lebih penting daripada menghemat agregasi (audit ke-7).
 //
 // found=false bila pemain tidak punya entri di window sama sekali.
-func (s *SessionStore) RankPointsForPlayer(ctx context.Context, playerID string) (*RankPointRow, bool, error) {
+// asOf kosong → tanggal event terakhir, sama seperti papan.
+func (s *SessionStore) RankPointsForPlayer(ctx context.Context, playerID, asOf string) (*RankPointRow, bool, error) {
 	cfg, err := s.LoadRatingConfig(ctx, false)
 	if err != nil {
 		return nil, false, err
@@ -689,9 +690,12 @@ func (s *SessionStore) RankPointsForPlayer(ctx context.Context, playerID string)
 		cfg.RankBestN = 10
 	}
 
-	asOf, err := s.latestEventDate(ctx)
-	if err != nil {
-		return nil, false, err
+	if asOf == "" {
+		var err error
+		asOf, err = s.latestEventDate(ctx)
+		if err != nil {
+			return nil, false, err
+		}
 	}
 	if asOf == "" {
 		return nil, false, nil
