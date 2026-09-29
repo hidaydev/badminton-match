@@ -45,8 +45,21 @@ func TestIntegrationRankPointsBoard(t *testing.T) {
 		t.Fatalf("register: %v", err)
 	}
 
+	// ── Tier sticky: RP One/Two kelas A (kuat), RP Three..Six kelas D. ──
+	// Pengali kekuatan lawan memakai TIER, bukan rating — jadi tier pemain
+	// harus di-set eksplisit (registrasi test tidak mengisi tier).
+	tierOf := map[string]string{"rp1": "A", "rp2": "A", "rp3": "D", "rp4": "D", "rp5": "D", "rp6": "D"}
+	for id, tier := range tierOf {
+		pid := resolveIDByAliasFuzzy(t, st, schema, id)
+		if _, err := st.pool.Exec(ctx,
+			`UPDATE `+schema+`.players SET tier = $2 WHERE id = $1::uuid`, pid, tier); err != nil {
+			t.Fatalf("set tier %s: %v", id, err)
+		}
+	}
+
 	// ── Siapkan rating_players manual: RP One kuat, sisanya lemah. ──
-	// Papan butuh rating untuk pengali kekuatan lawan.
+	// (Rating tetap di-seed untuk konsistensi data, tapi TIDAK lagi menjadi
+	// basis pengali kekuatan lawan sejak revisi 2026-09-29.)
 	ratingOf := map[string]float64{"rp1": 2000, "rp2": 2000, "rp3": 1200, "rp4": 1200, "rp5": 1200, "rp6": 1200}
 	for id, r := range ratingOf {
 		pid := resolveIDByAliasFuzzy(t, st, schema, id)
@@ -135,20 +148,27 @@ func TestIntegrationRankPointsBoard(t *testing.T) {
 		t.Fatalf("RP Two entri=%d tapi thin_evidence=true (ambang 3)", rpTwo.EntriesAvailable)
 	}
 
-	// ── Pengali kekuatan lawan ──
-	// RP One (rating 2000) bermain melawan RP Three/RP Four (rating 1200).
-	// Nilai game mentah tiap sesi = 1 game × 250 (menang telak, margin 21 =
-	// target 21 → nilai 250). Tanpa pengali, poin entri = 250.
-	// Dengan pengali (rata-rata lawan / rata-rata populasi, dijepit), poin
-	// harus BERBEDA dari 250 — dan arahnya sesuai rumus.
-	popAvg, err := st.popAverageRating(ctx)
+	// ── Pengali kekuatan lawan (basis TIER sticky) ──
+	// RP One bermain melawan RP Three/RP Four. Nilai game mentah = 1 game ×
+	// 250 (menang telak, margin = target). Pengali = band-tengah tier lawan
+	// ÷ band-tengah tier populasi, dijepit. Basisnya tier, bukan rating:
+	// rating 2000/1200 di test ini sengaja TIDAK memengaruhi hasil.
+	//
+	// Test ini mengunci basisnya: kalau seseorang mengembalikan pengali ke
+	// rating Glicko, wantMult di bawah tidak lagi cocok.
+	popAvg, err := st.popTierStrength(ctx, cfgForRankTest(t, st))
 	if err != nil {
-		t.Fatalf("populasi: %v", err)
+		t.Fatalf("populasi tier: %v", err)
 	}
 	if popAvg <= 0 {
-		t.Fatal("rata-rata populasi 0 — pengali tidak akan pernah diuji")
+		t.Fatal("rata-rata tier populasi 0 — pengali tidak akan pernah diuji")
 	}
-	wantMult := 1200 / popAvg
+	cfgRT := cfgForRankTest(t, st)
+	oppStrength, ok := tierStrength(cfgRT, "D") // RP Three/RP Four = tier D
+	if !ok {
+		t.Fatal("tier D tidak ada di ClassBands")
+	}
+	wantMult := oppStrength / popAvg
 	if wantMult < 0.5 {
 		wantMult = 0.5
 	}
@@ -158,7 +178,7 @@ func TestIntegrationRankPointsBoard(t *testing.T) {
 	wantEntryPoints := 250 * wantMult
 	got := rpOne.Breakdown[0].Points
 	if diff := got - wantEntryPoints; diff > 0.5 || diff < -0.5 {
-		t.Fatalf("poin entri terbaik RP One = %.4f, want %.4f (250 × %.4f) — pengali kekuatan lawan tidak diterapkan dengan benar",
+		t.Fatalf("poin entri terbaik RP One = %.4f, want %.4f (250 × %.4f dari tier lawan) — pengali kekuatan lawan tidak diterapkan dengan benar",
 			got, wantEntryPoints, wantMult)
 	}
 	if got == 250 {
@@ -587,6 +607,15 @@ func TestIntegrationRankMovement(t *testing.T) {
 	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
 		t.Fatalf("register: %v", err)
 	}
+	// Tier sticky: RM One/Two kelas A, RM Three/Four kelas D. Pengali
+	// kekuatan lawan memakai TIER (bukan rating), jadi tier harus di-set.
+	for id, tier := range map[string]string{"rm1": "A", "rm2": "A", "rm3": "D", "rm4": "D"} {
+		pid := resolveIDByAliasFuzzy(t, st, schema, id)
+		if _, err := st.pool.Exec(ctx,
+			`UPDATE `+schema+`.players SET tier = $2 WHERE id = $1::uuid`, pid, tier); err != nil {
+			t.Fatalf("set tier %s: %v", id, err)
+		}
+	}
 	for id, r := range map[string]float64{"rm1": 2000, "rm2": 2000, "rm3": 1200, "rm4": 1200} {
 		pid := resolveIDByAliasFuzzy(t, st, schema, id)
 		if _, err := st.pool.Exec(ctx, `
@@ -716,4 +745,14 @@ func fmtIntPtr(p *int) string {
 		return "null"
 	}
 	return strconv.Itoa(*p)
+}
+
+// cfgForRankTest — config rating aktif untuk test (memuat ClassBands).
+func cfgForRankTest(t *testing.T, st *SessionStore) domain.RatingConfig {
+	t.Helper()
+	cfg, err := st.LoadRatingConfig(context.Background(), false)
+	if err != nil {
+		t.Fatalf("LoadRatingConfig: %v", err)
+	}
+	return cfg
 }
