@@ -210,6 +210,8 @@ func resolveIDByAliasFuzzy(t *testing.T, st *SessionStore, schema, code string) 
 		"rm1": "RM One", "rm2": "RM Two", "rm3": "RM Three", "rm4": "RM Four",
 		// Test as_of per-pemain.
 		"ra1": "RA One", "ra2": "RA Two", "ra3": "RA Three", "ra4": "RA Four",
+		// Test backfill achievement setelah rebuild.
+		"ab1": "AB One", "ab2": "AB Two", "ab3": "AB Three", "ab4": "AB Four",
 	}
 	name, ok := names[code]
 	if !ok {
