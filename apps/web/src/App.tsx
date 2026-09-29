@@ -22,13 +22,11 @@ const ScoreboardPage = safeLazy(() => import('./pages/ScoreboardPage'))
 const InstagramPostPage = safeLazy(() => import('./pages/InstagramPostPage'))
 const TournamentPage = safeLazy(() => import('./pages/TournamentRouter'))
 const TournamentListPage = safeLazy(() => import('./pages/TournamentListPage'))
-const RatingsPage = safeLazy(() => import('./pages/RatingsPage'))
 const RankingsPage = safeLazy(() => import('./pages/RankingsPage'))
 const AdminSessionsPage = safeLazy(() => import('./pages/admin/AdminSessionsPage'))
 const AdminPlayersPage = safeLazy(() => import('./pages/admin/AdminPlayersPage'))
 const AdminRatingsPage = safeLazy(() => import('./pages/admin/AdminRatingsPage'))
 const AdminTournamentsPage = safeLazy(() => import('./pages/admin/AdminTournamentsPage'))
-const AdminSeasonsPage = safeLazy(() => import('./pages/admin/AdminSeasonsPage'))
 const RatingPlayerPage = safeLazy(() => import('./pages/RatingPlayerPage'))
 const AchievementBadgesPreviewPage = safeLazy(() => import('./pages/AchievementBadgesPreviewPage'))
 const MatchResultPreview = safeLazy(() => import('./pages/MatchResultPreview'))
@@ -113,9 +111,7 @@ export default function App() {
               <Route path="sessions" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-sessions"><AdminSessionsPage /></ErrorBoundary></Suspense>} />
               <Route path="players" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-players"><AdminPlayersPage /></ErrorBoundary></Suspense>} />
               <Route path="ratings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-ratings"><AdminRatingsPage /></ErrorBoundary></Suspense>} />
-              <Route path="glicko" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-glicko"><RatingsPage /></ErrorBoundary></Suspense>} />
               <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-tournaments"><AdminTournamentsPage /></ErrorBoundary></Suspense>} />
-              <Route path="seasons" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-seasons"><AdminSeasonsPage /></ErrorBoundary></Suspense>} />
             </Route>
           </Route>
           <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="scoreboard"><ScoreboardPage /></ErrorBoundary></Suspense>} />

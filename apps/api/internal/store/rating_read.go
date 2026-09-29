@@ -5,156 +5,61 @@ import (
 	"errors"
 	"time"
 
-	"majadu-api/internal/domain"
-
 	"github.com/jackc/pgx/v5"
 )
 
 // ── Rating read path (RATING_ENGINE_DESIGN.md §6) ─────────────────────────
 
-// LeaderboardRow — baris leaderboard (TIER_8_UNIFICATION.md: tier 8-band).
-// `Tier` = assigned (players.tier, single source), "" = belum ter-assign.
-type LeaderboardRow struct {
-	PlayerID string `json:"player_id"`
-	Name     string `json:"name"`
-	// Rank — posisi 1-based dari SQL (rank() OVER). Pemain dengan (rating,
-	// games_played) identik BERBAGI posisi (1,2,2,4) — kompromi BWF §11,
-	// bukan 1,2,3,4. Dihitung di DB supaya tetap benar lintas paginasi.
-	Rank        int     `json:"rank"`
-	Rating      float64 `json:"rating"`
-	RD          float64 `json:"rd"`
-	Tier        string  `json:"tier"`
-	TierDerived string  `json:"tier_derived"` // dari rating (8 band)
-	TierDisplay string  `json:"tier_display"` // = tier_derived (keputusan 2026-08-23: badge murni dari rating season, tanpa floor sticky)
-	Peak        float64 `json:"peak"`
-	Games       int     `json:"games"`
-	Trend       float64 `json:"trend"`
-	Provisional bool    `json:"provisional"`
-}
-
-// RatingLeaderboard — leaderboard rating, urut rating desc.
+// RatingHistoryRow — satu baris riwayat pertandingan pemain.
 //
-// Eligibility (keputusan 2026-09-26, paritas BWF §14): pemain tanpa hasil
-// eligible (games_played = 0 — baris reset-to-default `RebuildAll` / forming)
-// TIDAK diranking, di kedua view. Sebelumnya view active=false menampilkan
-// mereka dengan rating baseline tier, sehingga pemain 0-game duduk di papan
-// peringkat (Hafidh 2150 A+ di rank #4).
-//
-// `active` mempersempit ke yang main dalam 90 hari terakhir.
-//
-// Tie-break (BWF §11): rating sama → yang lebih banyak main di atas. Kalau
-// masih sama, posisi dibagi (lihat LeaderboardRow.Rank).
-func (s *SessionStore) RatingLeaderboard(ctx context.Context, active bool, limit, offset int) (int, []LeaderboardRow, error) {
-	cfg, err := s.LoadRatingConfig(ctx, false)
-	if err != nil {
-		return 0, nil, err
-	}
-	if limit <= 0 || limit > 500 {
-		limit = 100
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	where := ` WHERE rp.games_played > 0`
-	if active {
-		where += ` AND rp.last_played_at >= now() - interval '90 days'`
-	}
-
-	var total int
-	if err := s.pool.QueryRow(ctx,
-		`SELECT count(*) FROM `+s.schema+`.rating_players rp`+where).Scan(&total); err != nil {
-		return 0, nil, err
-	}
-
-	rows, err := s.pool.Query(ctx, `
-		SELECT rp.player_id::text, p.canonical_name, rp.rating, rp.rd, coalesce(p.tier, ''),
-		       rp.peak_rating, rp.games_played, coalesce(tr.delta, 0),
-		       rank() OVER (ORDER BY rp.rating DESC, rp.games_played DESC) AS rank_num
-		FROM `+s.schema+`.rating_players rp
-		JOIN `+s.schema+`.players p ON p.id = rp.player_id
-		LEFT JOIN LATERAL (
-			SELECT rd.delta
-			FROM `+s.schema+`.rating_deltas rd
-			JOIN `+s.schema+`.rating_events re ON re.id = rd.event_id
-			WHERE rd.player_id = rp.player_id
-			ORDER BY re.date DESC, re.created_at DESC, re.source_id DESC, re.game_order DESC
-			LIMIT 1
-		) tr ON true`+where+`
-		ORDER BY rp.rating DESC, rp.games_played DESC, p.canonical_name ASC
-		LIMIT $1 OFFSET $2`, limit, offset)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer rows.Close()
-
-	out := []LeaderboardRow{}
-	for rows.Next() {
-		var r LeaderboardRow
-		if err := rows.Scan(&r.PlayerID, &r.Name, &r.Rating, &r.RD, &r.Tier, &r.Peak, &r.Games, &r.Trend, &r.Rank); err != nil {
-			return 0, nil, err
-		}
-		r.TierDerived = cfg.TierForRating(r.Rating)
-		r.TierDisplay = r.TierDerived
-		r.Provisional = domain.Provisional(r.RD)
-		out = append(out, r)
-	}
-	return total, out, rows.Err()
-}
-
-// RatingHistoryRow — satu baris history pemain.
+// Sejak Glicko dipensiunkan (2026-09-29) baris ini TIDAK lagi memuat angka
+// rating (delta/expected/movm/new_rating): semuanya berhenti bermakna. Yang
+// tersisa adalah fakta pertandingan — tanggal, lawan, skor, hasil.
 type RatingHistoryRow struct {
 	Date      string   `json:"date"`
 	Title     string   `json:"title"`
 	GameRef   string   `json:"game_ref"`
 	Outcome   string   `json:"outcome"`
-	Delta     float64  `json:"delta"`
-	Expected  float64  `json:"expected"`
-	Movm      float64  `json:"movm"`
 	ScoreA    int      `json:"score_a"`
 	ScoreB    int      `json:"score_b"`
-	NewRating float64  `json:"new_rating"`
 	Teammates []string `json:"teammates"`
 	Opponents []string `json:"opponents"`
 }
 
-// RatingPlayerDetail — detail pemain + history.
+// RatingPlayerDetail — detail pemain + riwayat pertandingan.
+//
+// Sejak Glicko dipensiunkan (2026-09-29): rating/rd/peak/tier_derived tidak
+// lagi disajikan — tidak ada mesin yang menghitungnya. Tier yang tersisa
+// adalah players.tier (sticky), satu-satunya sumber kelas pemain.
 type RatingPlayerDetail struct {
-	Name        string             `json:"name"`
-	Rating      float64            `json:"rating"`
-	RD          float64            `json:"rd"`
-	Tier        string             `json:"tier"`
-	TierDerived string             `json:"tier_derived"`
-	TierDisplay string             `json:"tier_display"` // = tier_derived (badge murni dari rating)
-	Peak        float64            `json:"peak"`
-	Games       int                `json:"games"`
-	Wins        int                `json:"wins"`
-	Losses      int                `json:"losses"`
-	History     []RatingHistoryRow `json:"history"`
+	Name    string             `json:"name"`
+	Tier    string             `json:"tier"`
+	Games   int                `json:"games"`
+	Wins    int                `json:"wins"`
+	Losses  int                `json:"losses"`
+	History []RatingHistoryRow `json:"history"`
 }
 
 // RatingPlayer — detail pemain (by player_id uuid).
+//
+// games/wins/losses diambil dari rating_players (bookkeeping yang tetap
+// dipelihara ingest), tier dari players.tier (sticky). Tidak ada angka
+// rating yang disajikan.
 func (s *SessionStore) RatingPlayer(ctx context.Context, playerID string) (*RatingPlayerDetail, error) {
-	cfg, err := s.LoadRatingConfig(ctx, false)
-	if err != nil {
-		return nil, err
-	}
 	var d RatingPlayerDetail
-	err = s.pool.QueryRow(ctx, `
-		SELECT p.canonical_name, rp.rating, rp.rd, coalesce(p.tier, ''), rp.peak_rating,
-		       rp.games_played, rp.wins, rp.losses
-		FROM `+s.schema+`.rating_players rp
-		JOIN `+s.schema+`.players p ON p.id = rp.player_id
-		WHERE rp.player_id = $1::uuid`, playerID).
-		Scan(&d.Name, &d.Rating, &d.RD, &d.Tier, &d.Peak, &d.Games, &d.Wins, &d.Losses)
+	err := s.pool.QueryRow(ctx, `
+		SELECT p.canonical_name, coalesce(p.tier, ''),
+		       coalesce(rp.games_played, 0), coalesce(rp.wins, 0), coalesce(rp.losses, 0)
+		FROM `+s.schema+`.players p
+		LEFT JOIN `+s.schema+`.rating_players rp ON rp.player_id = p.id
+		WHERE p.id = $1::uuid`, playerID).
+		Scan(&d.Name, &d.Tier, &d.Games, &d.Wins, &d.Losses)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	d.TierDerived = cfg.TierForRating(d.Rating)
-	d.TierDisplay = d.TierDerived
 	d.History, err = s.RatingPlayerHistory(ctx, playerID, 200)
 	if err != nil {
 		return nil, err
@@ -169,7 +74,7 @@ func (s *SessionStore) RatingPlayerHistory(ctx context.Context, playerID string,
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT re.date::text, re.title, re.stable_game_id, rd.outcome,
-		       rd.delta, rd.expected, rd.movm, re.score_a, re.score_b, rd.new_rating,
+		       re.score_a, re.score_b,
 		       (SELECT COALESCE(array_agg(p.canonical_name ORDER BY p.canonical_name), '{}')
 		        FROM `+s.schema+`.rating_deltas rd2
 		        JOIN `+s.schema+`.players p ON p.id = rd2.player_id
@@ -192,7 +97,7 @@ func (s *SessionStore) RatingPlayerHistory(ctx context.Context, playerID string,
 	for rows.Next() {
 		var h RatingHistoryRow
 		if err := rows.Scan(&h.Date, &h.Title, &h.GameRef, &h.Outcome,
-			&h.Delta, &h.Expected, &h.Movm, &h.ScoreA, &h.ScoreB, &h.NewRating,
+			&h.ScoreA, &h.ScoreB,
 			&h.Teammates, &h.Opponents); err != nil {
 			return nil, err
 		}

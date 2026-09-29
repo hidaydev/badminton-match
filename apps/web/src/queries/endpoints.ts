@@ -524,62 +524,28 @@ export async function createTournament(data: AnyTournamentSnapshot): Promise<{ i
 
 // ── Rating (plan RATINGS_FRONTEND_PLAN.md §6.3) ───────────────────────────
 
-export interface RatingLeaderboardRow {
-  player_id: string
-  name: string
-  // rank — posisi 1-based dari backend. Pemain dengan (rating, games) sama
-  // berbagi posisi (1,2,2,4). Jangan hitung ulang di client: rank harus tetap
-  // benar lintas paginasi.
-  rank: number
-  rating: number
-  rd: number
-  tier: string
-  tier_derived: string
-  tier_display: string
-  peak: number
-  games: number
-  trend: number
-  provisional: boolean
-}
-
+// RatingHistoryRow — fakta satu pertandingan. Angka rating (delta/expected/
+// movm/new_rating) tidak lagi dikirim sejak Glicko dipensiunkan.
 export interface RatingHistoryRow {
   date: string
   title: string
   game_ref: string
   outcome: 'W' | 'L'
-  delta: number
-  expected: number
-  movm: number
   score_a: number
   score_b: number
-  new_rating: number
   teammates: string[]
   opponents: string[]
 }
 
+// RatingPlayer — detail pemain. Sejak Glicko dipensiunkan (2026-09-29) tidak
+// ada lagi angka rating/rd/peak/tier_derived; tier adalah players.tier sticky.
 export interface RatingPlayer {
   name: string
-  rating: number
-  rd: number
   tier: string
-  tier_derived: string
-  tier_display: string
-  peak: number
   games: number
   wins: number
   losses: number
   history: RatingHistoryRow[]
-}
-
-export async function getRatingLeaderboard(
-  active: boolean,
-  limit: number,
-  offset: number,
-  signal?: AbortSignal,
-): Promise<{ total: number; rows: RatingLeaderboardRow[] }> {
-  const q = `?active=${active}&limit=${limit}&offset=${offset}`
-  const data = await request<{ total: number; rows: RatingLeaderboardRow[] }>('GET', `/ratings/leaderboard${q}`, undefined, signal)
-  return data ?? { total: 0, rows: [] }
 }
 
 export async function getRatingPlayer(playerId: string, signal?: AbortSignal): Promise<RatingPlayer> {
@@ -670,33 +636,3 @@ export async function getPlayerRankPoints(playerId: string, signal?: AbortSignal
 
 
 // ── Season (plan RATINGS_FRONTEND_PLAN Rev 3.7) ──────────────────────────
-
-export interface RatingSeason {
-  id: string
-  name: string
-  start_date: string
-  end_date: string | null
-  open: boolean
-}
-
-export interface SeasonStandingRow {
-  name: string
-  rating: number
-  rd: number
-  peak: number
-  tier: string
-  tier_display: string
-  games: number
-  wins: number
-  losses: number
-}
-
-export async function getRatingSeasons(signal?: AbortSignal): Promise<RatingSeason[]> {
-  const data = await request<{ seasons: RatingSeason[] }>('GET', `/ratings/seasons`, undefined, signal)
-  return data?.seasons ?? []
-}
-
-export async function getSeasonStandings(seasonId: string, signal?: AbortSignal): Promise<SeasonStandingRow[]> {
-  const data = await request<{ rows: SeasonStandingRow[] }>('GET', `/ratings/seasons/${enc(seasonId)}/standings`, undefined, signal)
-  return data?.rows ?? []
-}

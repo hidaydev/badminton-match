@@ -6,7 +6,6 @@ import { useParams } from 'react-router-dom'
 import { useRatingPlayer, useRatingPlayerAchievements, usePlayerRankPoints } from '../queries/ratings'
 import { useGetPlayerStats } from '../queries'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
-import RatingSparkline from '../components/ratings/RatingSparkline'
 import CareerStats from '../components/ratings/CareerStats'
 import AchievementBadge from '../components/ratings/AchievementBadge'
 import AchievementDetailModal from '../components/ratings/AchievementDetailModal'
@@ -36,14 +35,13 @@ export default function RatingPlayerPage() {
   if (isError) return <p className="text-error text-sm">Failed to load rating.</p>
   if (!data) return null
 
-  const { name, rating, rd, tier, tier_display, peak, games, wins, losses, history } = data
+  // Glicko dipensiunkan: yang tersisa hanya nama, tier sticky, dan bookkeeping
+  // games/wins/losses. Tidak ada lagi angka rating/RD/peak untuk ditampilkan.
+  const { name, tier, games, wins, losses, history } = data
   const safeHistory = history ?? []
   const countedPoints = new Map(
     (rankPoints?.row?.breakdown ?? []).map((e) => [e.source_id, e.points] as const),
   )
-  const provisional = rd > 200
-  // API DESC → balik untuk sparkline (kronologis); sparkline pakai new_rating
-  const chrono = [...safeHistory].reverse().map((h) => ({ rating: h.new_rating }))
 
   const medalList = achievements ?? []
   const medalSections = [
@@ -70,29 +68,19 @@ export default function RatingPlayerPage() {
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-fg"><AnnotatedPlayerName name={name} /></h2>
-            <RatingTierBadge tier={tier_display} size="md" />
-            {provisional && (
-              <span className="text-[9px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1.5 py-0.5 uppercase tracking-wider">
-                provisional
-              </span>
-            )}
+            {tier && <RatingTierBadge tier={tier} size="md" />}
           </div>
         </div>
-        <span className="text-right">
-          <span className="block text-2xl font-bold font-sans text-accent leading-none">{rating.toFixed(2)}</span>
-          <span className="block text-[10px] font-sans text-fg-dim mt-1">RD {rd.toFixed(1)}</span>
-        </span>
       </div>
 
       {/* Poin ranking (publik). Rating Glicko di bawah adalah mesin internal;
           blok ini yang dipakai papan publik, jadi ditampilkan lebih dulu. */}
       <RankPointsCard playerId={playerId} />
 
-      {/* Stat cards: rated games (Glicko) */}
-      <div className="grid grid-cols-4 gap-2">
+      {/* Stat cards — bookkeeping pertandingan (Glicko dipensiunkan). */}
+      <div className="grid grid-cols-3 gap-2">
         {[
-          { label: 'Peak', value: peak.toFixed(2) },
-          { label: 'Rated Games', value: String(games) },
+          { label: 'Games', value: String(games) },
           { label: 'W-L', value: `${wins}-${losses}` },
           { label: 'Tier', value: tier || '-' },
         ].map((s) => (
@@ -101,12 +89,6 @@ export default function RatingPlayerPage() {
             <div className="text-[10px] font-sans text-fg-dim uppercase tracking-wider mt-0.5">{s.label}</div>
           </div>
         ))}
-      </div>
-
-      {/* Sparkline */}
-      <div className="bg-surface border border-border-subtle rounded-lg p-3">
-        <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider mb-2">Rating trend</p>
-        <RatingSparkline points={chrono} />
       </div>
 
       {/* Recent matches */}
@@ -145,9 +127,6 @@ export default function RatingPlayerPage() {
                   {h.date} · {h.score_a}-{h.score_b} · {h.title}
                 </p>
               </div>
-              <span className={`text-xs font-sans font-bold shrink-0 ${h.delta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {h.delta > 0 ? '+' : ''}{h.delta.toFixed(1)}
-              </span>
             </div>
           )
         })}

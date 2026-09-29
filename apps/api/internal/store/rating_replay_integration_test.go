@@ -146,7 +146,7 @@ func TestIntegrationReplayAll(t *testing.T) {
 	}
 
 	// Skor baru (kalah) harus tercermin: RPL One sempat menang 21-10,
-	// sekarang kalah 5-21, jadi rating/presentasinya berubah.
+	// sekarang kalah 5-21, jadi hasilnya berubah.
 	pid := resolveIDByAlias(t, st, "rpl one")
 	after, err := st.RatingPlayer(ctx, pid)
 	if err != nil || after == nil {
@@ -171,9 +171,11 @@ func TestIntegrationReplayAll(t *testing.T) {
 	if err != nil || again == nil {
 		t.Fatalf("detail kedua: %v", err)
 	}
-	if again.Rating != after.Rating || again.Games != after.Games {
-		t.Fatalf("replay tidak idempotent: %.4f/%d vs %.4f/%d",
-			after.Rating, after.Games, again.Rating, again.Games)
+	// Rating tidak lagi disajikan (Glicko dipensiunkan); idempotensi diukur
+	// dari bookkeeping yang tetap dipelihara.
+	if again.Games != after.Games || again.Wins != after.Wins || again.Losses != after.Losses {
+		t.Fatalf("replay tidak idempotent: games/wins/losses %d/%d/%d vs %d/%d/%d",
+			after.Games, after.Wins, after.Losses, again.Games, again.Wins, again.Losses)
 	}
 }
 
