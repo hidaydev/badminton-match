@@ -121,13 +121,6 @@ function Glyph({ icon, stroke, fill }: { icon: MedalIcon; stroke: string; fill: 
           <path d="M18 40.5 H28.8" />
         </g>
       )
-    case 'arrow-up':
-      return (
-        <g fill="none" stroke={stroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M23.4 14 V38" />
-          <path d="M15.5 22.5 L23.4 14 L31.3 22.5" />
-        </g>
-      )
     case 'flame':
       return (
         <path
@@ -157,14 +150,6 @@ function Glyph({ icon, stroke, fill }: { icon: MedalIcon; stroke: string; fill: 
         <g fill="none" stroke={stroke} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M16.5 12 V41" />
           <path d="M16.5 14 H33.5 L29.5 20.5 L33.5 27 H16.5 Z" fill={fill} />
-        </g>
-      )
-    case 'calendar':
-      return (
-        <g fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="14.5" y="18" width="18" height="19" rx="2" />
-          <path d="M14.5 25 H32.5" />
-          <path d="M19 14 V20 M28 14 V20" />
         </g>
       )
   }

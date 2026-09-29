@@ -9,7 +9,8 @@ import "strings"
 //     dari katalog saat dibaca, jadi tidak perlu baris terpisah per ambang.
 //     Key: `medal:<id>`.
 //   - Event → satu badge per event, tidak bertingkat, sekali dapat. Key spesifik
-//     per event (`tournament:<id>`, `season_member:<seasonID>`).
+//     per event (`tournament:<id>`). Badge season sudah dihapus bersama
+//     pensiunnya konsep season (2026-09-29).
 //
 // Catatan istilah: "tier" di app ini berarti kelas skill (D..A+). Tingkat medal
 // disebut Bronze..Onyx; di UI memakai kata "medal".
@@ -22,8 +23,6 @@ const (
 	AchOpponent   AchievementKind = "opponent"
 	AchTournament AchievementKind = "tournament"
 	AchSocial     AchievementKind = "social"
-	AchRating     AchievementKind = "rating"
-	AchSeason     AchievementKind = "season"
 )
 
 // MedalTiers — nama tingkat dari terendah ke tertinggi (level 1..5).
@@ -45,11 +44,6 @@ var CareerMedals = []MedalDef{
 	{ID: "sessions", Kind: AchAttendance, Title: "Attendance", Unit: "sessions", Note: "Sessions attended", Thresholds: [5]int64{5, 10, 15, 20, 25}},
 	{ID: "games", Kind: AchVolume, Title: "Games", Unit: "games", Note: "Games played", Thresholds: [5]int64{10, 25, 50, 100, 200}},
 	{ID: "wins", Kind: AchVolume, Title: "Wins", Unit: "wins", Note: "Games won", Thresholds: [5]int64{5, 20, 50, 100, 200}},
-	// Peak Rating — BEKU sejak pensiun Glicko (2026-09-29): tidak ada rating
-	// baru yang dihitung, jadi ambang ini tidak bisa dicapai lagi. Definisi
-	// dipertahankan supaya medali lama (27 pemain) tetap punya judul/threshold
-	// saat ditampilkan.
-	{ID: "rating", Kind: AchRating, Title: "Peak Rating", Unit: "rating", Note: "Highest rating reached", Thresholds: [5]int64{2000, 2100, 2200, 2300, 2400}},
 	{ID: "streak", Kind: AchAttendance, Title: "Streak", Unit: "sessions", Note: "Best run of consecutive sessions", Thresholds: [5]int64{3, 5, 8, 12, 16}},
 	{ID: "partners", Kind: AchSocial, Title: "Partners", Unit: "partners", Note: "Distinct partners played with", Thresholds: [5]int64{5, 15, 30, 60, 100}},
 	{ID: "opponents", Kind: AchOpponent, Title: "Opponents", Unit: "opponents", Note: "Distinct opponents faced", Thresholds: [5]int64{10, 25, 50, 100, 200}},
@@ -60,8 +54,6 @@ var CareerMedals = []MedalDef{
 func MedalKey(id string) string { return "medal:" + id }
 
 func TournamentKey(id string) string   { return "tournament:" + id }
-func SeasonMemberKey(id string) string { return "season_member:" + id }
-
 // ── Tier helpers ──────────────────────────────────────────────────────────
 
 // TierForValue — level 1..5 untuk sebuah medal; 0 kalau belum mencapai Bronze.
@@ -111,8 +103,6 @@ func DescribeCollectible(key string, meta map[string]string) (title, detail stri
 	switch {
 	case strings.HasPrefix(key, "tournament:"):
 		return meta["name"], "Played in the tournament"
-	case strings.HasPrefix(key, "season_member:"):
-		return "Member · " + meta["season"], "Played this season"
 	}
 	return key, ""
 }

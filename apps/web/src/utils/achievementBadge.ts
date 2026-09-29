@@ -7,12 +7,10 @@ export type MedalIcon =
   | 'check'
   | 'shuttlecock'
   | 'trophy'
-  | 'arrow-up'
   | 'flame'
   | 'team'
   | 'versus'
   | 'flag'
-  | 'calendar'
 
 // medalIcon — achievement_key → ikon.
 export function medalIcon(key: string): MedalIcon {
@@ -23,8 +21,6 @@ export function medalIcon(key: string): MedalIcon {
       return 'shuttlecock'
     case 'medal:wins':
       return 'trophy'
-    case 'medal:rating':
-      return 'arrow-up'
     case 'medal:streak':
       return 'flame'
     case 'medal:partners':
@@ -33,13 +29,13 @@ export function medalIcon(key: string): MedalIcon {
       return 'versus'
   }
   if (key.startsWith('tournament:')) return 'flag'
-  if (key.startsWith('season_member:')) return 'calendar'
   return 'trophy'
 }
 
 // isEventKey — badge event (satu per event) vs milestone bertingkat.
+// Badge season sudah dihapus bersama pensiunnya konsep season (2026-09-29).
 export function isEventKey(key: string): boolean {
-  return key.startsWith('tournament:') || key.startsWith('season_member:')
+  return key.startsWith('tournament:')
 }
 
 // medalTone — warna pangkat untuk level 1..5 (Bronze..Onyx).
@@ -58,15 +54,14 @@ export function hashSeed(s: string): number {
   return Math.abs(h)
 }
 
-// eventTone — warna unik deterministik untuk medal event (turnamen/season).
+// eventTone — warna unik deterministik untuk medal event (turnamen).
 export function eventTone(seed: string): string {
   return EVENT_TONES[hashSeed(seed) % EVENT_TONES.length]
 }
 
-// seedFromKey — ambil id event/season dari achievement_key, kalau badge event.
+// seedFromKey — ambil id event dari achievement_key, kalau badge event.
 export function seedFromKey(key: string): string | undefined {
-  for (const prefix of ['tournament:', 'season_member:']) {
-    if (key.startsWith(prefix)) return key.slice(prefix.length)
-  }
+  const prefix = 'tournament:'
+  if (key.startsWith(prefix)) return key.slice(prefix.length)
   return undefined
 }
