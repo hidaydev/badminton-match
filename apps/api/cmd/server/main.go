@@ -120,6 +120,16 @@ func main() {
 				} else if nt > 0 {
 					logger.Info("auto-ingest turnamen", "tournaments_ingested", nt)
 				}
+				// 4) Rekam posisi papan poin sebagai snapshot tanggal acuan
+				//    hari ini — dasar panah movement (^/v) di papan publik.
+				//    Idempoten per (as_of, player_id), jadi tick berulang dalam
+				//    hari yang sama hanya menyegarkan. Kegagalan TIDAK
+				//    menghentikan tick: ini turunan, bukan sumber data.
+				if ns, err := locker.CaptureRankSnapshot(runCtx); err != nil {
+					logger.Error("snapshot ranking poin gagal", "error", err)
+				} else if ns > 0 {
+					logger.Info("snapshot ranking poin", "players", ns)
+				}
 			}
 			ticker := time.NewTicker(30 * time.Minute)
 			defer ticker.Stop()

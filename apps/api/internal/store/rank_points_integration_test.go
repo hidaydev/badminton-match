@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -185,6 +186,8 @@ func resolveIDByAliasFuzzy(t *testing.T, st *SessionStore, schema, code string) 
 		"rz1": "RZ One", "rz2": "RZ Two", "rz3": "RZ Three", "rz4": "RZ Four",
 		// Test poin turnamen (champion × rasio hasil).
 		"rtp1": "RTP One", "rtp2": "RTP Two", "rtp3": "RTP Three", "rtp4": "RTP Four",
+		// Test movement rank (snapshot + panah ^/v).
+		"rm1": "RM One", "rm2": "RM Two", "rm3": "RM Three", "rm4": "RM Four",
 	}
 	name, ok := names[code]
 	if !ok {
@@ -550,4 +553,167 @@ func TestIntegrationRankPointsTurnamen(t *testing.T) {
 		t.Errorf("fallback enabled=false: points = %v, want rumus sesi (~138), bukan champion %v",
 			fb.Points, want["RTP Three"])
 	}
+}
+
+// TestIntegrationRankMovement — panah movement (^/v) di papan.
+//
+// Snapshot ditulis manual untuk tanggal acuan lama (mewakili papan beberapa
+// hari lalu), lalu papan hari ini dibandingkan. Juga membuktikan
+// CaptureRankSnapshot idempoten per (as_of, player_id).
+func TestIntegrationRankMovement(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	const prefix = "it-rankmove"
+	players := []domain.Player{
+		{ID: "rm1", Name: "RM One", Gender: "M", Tier: 5},
+		{ID: "rm2", Name: "RM Two", Gender: "M", Tier: 5},
+		{ID: "rm3", Name: "RM Three", Gender: "M", Tier: 1},
+		{ID: "rm4", Name: "RM Four", Gender: "M", Tier: 1},
+	}
+	cleanup := func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rank_snapshots WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RM %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rankmove%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE 'it-rankmove%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE 'it-rankmove%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE 'it-rankmove%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RM %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'rm %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RM %'`)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	for id, r := range map[string]float64{"rm1": 2000, "rm2": 2000, "rm3": 1200, "rm4": 1200} {
+		pid := resolveIDByAliasFuzzy(t, st, schema, id)
+		if _, err := st.pool.Exec(ctx, `
+			INSERT INTO `+schema+`.rating_players (player_id, rating, rd, peak_rating, games_played, wins, losses)
+			VALUES ($1::uuid, $2, 100, $2, 1, 1, 0)
+			ON CONFLICT (player_id) DO UPDATE SET rating = EXCLUDED.rating, rd = 100, peak_rating = EXCLUDED.peak_rating`,
+			pid, r); err != nil {
+			t.Fatalf("seed rating %s: %v", id, err)
+		}
+	}
+
+	// RM One jauh di atas RM Two: RM One menang telak 3 sesi, RM Two kalah.
+	baseDate := "2026-09-27"
+	for i := 0; i < 3; i++ {
+		insertRankTestEvent(t, st, ctx, schema, prefix+"-s"+pad2(i), dateMinusDays(t, baseDate, i), "session",
+			21, 0, 21, []playerSide{
+				{id: "rm1", team: "A"}, {id: "rm2", team: "A"},
+				{id: "rm3", team: "B"}, {id: "rm4", team: "B"},
+			})
+	}
+
+	board, err := st.RankPointsBoard(ctx, baseDate, 5000)
+	if err != nil {
+		t.Fatalf("board: %v", err)
+	}
+	if len(board.Rows) < 2 {
+		t.Fatalf("rows=%d, want >= 2", len(board.Rows))
+	}
+	// Tanpa snapshot sebelumnya: tidak ada movement.
+	for _, r := range board.Rows {
+		if r.PrevRank != nil || r.RankDelta != nil {
+			t.Fatalf("%s sudah punya movement tanpa snapshot sebelumnya", r.Name)
+		}
+	}
+
+	// Snapshot "hari sebelumnya": RM Two di atas RM One (posisi terbalik),
+	// RM Three di bawah. Tanggal acuan lebih tua → jadi pembanding.
+	prevDate := dateMinusDays(t, baseDate, 3)
+	rankPrev := map[string]int{"rm1": 2, "rm2": 1, "rm4": 3}
+	for id, rk := range rankPrev {
+		pid := resolveIDByAliasFuzzy(t, st, schema, id)
+		if _, err := st.pool.Exec(ctx, `
+			INSERT INTO `+schema+`.rank_snapshots (as_of, player_id, rank, points)
+			VALUES ($1::date, $2::uuid, $3, 0)`, prevDate, pid, rk); err != nil {
+			t.Fatalf("snapshot %s: %v", id, err)
+		}
+	}
+
+	board2, err := st.RankPointsBoard(ctx, baseDate, 5000)
+	if err != nil {
+		t.Fatalf("board2: %v", err)
+	}
+	byName := map[string]RankPointRow{}
+	for _, r := range board2.Rows {
+		byName[r.Name] = r
+	}
+	// Papan nyata di sini: RM Three & RM Four rank 1 (984 — menang melawan
+	// pemain kuat), RM One & RM Two rank 3 (590 — menang melawan pemain
+	// lemah). Pengali kekuatan lawan, bukan urutan tim. Snapshot pembanding
+	// menaruh RM One di 2 dan RM Two di 1, jadi:
+	//   RM One: 2 → 3 = turun, delta -1.
+	//   RM Two: 1 → 3 = turun, delta -2.
+	if r := byName["RM One"]; r.RankDelta == nil || *r.RankDelta != -1 || r.PrevRank == nil || *r.PrevRank != 2 {
+		t.Errorf("RM One: delta=%s prev=%s, want -1 dari 2", fmtIntPtr(r.RankDelta), fmtIntPtr(r.PrevRank))
+	}
+	if r := byName["RM Two"]; r.RankDelta == nil || *r.RankDelta != -2 || r.PrevRank == nil || *r.PrevRank != 1 {
+		t.Errorf("RM Two: delta=%s prev=%s, want -2 dari 1", fmtIntPtr(r.RankDelta), fmtIntPtr(r.PrevRank))
+	}
+	// RM Three: tidak ada di snapshot sebelumnya → null (pemain baru di papan).
+	if r := byName["RM Three"]; r.PrevRank != nil || r.RankDelta != nil {
+		t.Errorf("RM Three: prev=%v delta=%v, want null (tanpa pembanding)", r.PrevRank, r.RankDelta)
+	}
+
+	// CaptureRankSnapshot: idempoten per (as_of, player_id) → jumlah baris
+	// papan hari ini tetap, bukan bertambah pada pemanggilan kedua.
+	n1, err := st.CaptureRankSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("capture 1: %v", err)
+	}
+	n2, err := st.CaptureRankSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("capture 2: %v", err)
+	}
+	if n1 != n2 {
+		t.Fatalf("capture: n1=%d n2=%d, want sama (idempoten)", n1, n2)
+	}
+	var cnt1, cnt2 int
+	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM `+schema+`.rank_snapshots WHERE as_of = $1::date`, baseDate).Scan(&cnt1); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if _, err := st.CaptureRankSnapshot(ctx); err != nil {
+		t.Fatalf("capture 3: %v", err)
+	}
+	if err := st.pool.QueryRow(ctx, `SELECT count(*) FROM `+schema+`.rank_snapshots WHERE as_of = $1::date`, baseDate).Scan(&cnt2); err != nil {
+		t.Fatalf("count2: %v", err)
+	}
+	if cnt1 != cnt2 {
+		t.Fatalf("snapshot hari ini bertambah: %d → %d (harus idempoten)", cnt1, cnt2)
+	}
+	// Snapshot hari ini = papan terisi + RM Three (yang tadi null) kini punya
+	// baris sendiri pada as_of hari ini.
+	if cnt1 < len(board2.Rows) {
+		t.Errorf("snapshot hari ini=%d baris, papan=%d baris", cnt1, len(board2.Rows))
+	}
+
+	// Movement harus tetap dibandingkan dengan snapshot SEBELUM asOf, bukan
+	// dengan snapshot hari ini yang baru saja ditulis. Kalau pembandingnya
+	// <= asOf (termasuk snapshot hari ini), papan akan dibandingkan dengan
+	// dirinya sendiri → delta 0 dan panah hilang.
+	board3, err := st.RankPointsBoard(ctx, baseDate, 5000)
+	if err != nil {
+		t.Fatalf("board3: %v", err)
+	}
+	for i := range board3.Rows {
+		if board3.Rows[i].Name == "RM One" {
+			if board3.Rows[i].RankDelta == nil || *board3.Rows[i].RankDelta != -1 {
+				t.Errorf("setelah snapshot hari ini ditulis, RM One delta=%s, want tetap -1",
+					fmtIntPtr(board3.Rows[i].RankDelta))
+			}
+		}
+	}
+}
+
+// fmtIntPtr — cetak *int untuk pesan test (nil → "null").
+func fmtIntPtr(p *int) string {
+	if p == nil {
+		return "null"
+	}
+	return strconv.Itoa(*p)
 }

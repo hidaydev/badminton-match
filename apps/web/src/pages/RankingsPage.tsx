@@ -86,6 +86,24 @@ export default function RankingsPage() {
                     className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
                   >
                     <span className={`w-6 shrink-0 font-mono text-sm ${rankColor}`}>{r.rank}</span>
+                    <span className="w-3 shrink-0 font-mono text-[10px] leading-none">
+                      {r.rank_delta == null || r.rank_delta === 0 ? (
+                        <>
+                          <span className="text-fg-dim/40" aria-hidden="true">·</span>
+                          <span className="sr-only">tetap</span>
+                        </>
+                      ) : r.rank_delta > 0 ? (
+                        <>
+                          <span className="text-green-400" aria-hidden="true">▲</span>
+                          <span className="sr-only">naik {r.rank_delta} peringkat</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-red-400" aria-hidden="true">▼</span>
+                          <span className="sr-only">turun {-r.rank_delta} peringkat</span>
+                        </>
+                      )}
+                    </span>
                     <span className="flex-1 min-w-0 text-sm font-medium text-fg truncate">
                       <AnnotatedPlayerName name={r.name} />
                     </span>
