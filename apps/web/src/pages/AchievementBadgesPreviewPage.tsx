@@ -8,7 +8,7 @@ import MedalHoneycomb from '../components/ratings/MedalHoneycomb'
 import { MEDAL_TIER_NAMES } from '../config/achievements'
 import type { MedalIcon } from '../utils/achievementBadge'
 
-const MEDAL_ICONS: MedalIcon[] = ['check', 'shuttlecock', 'trophy', 'arrow-up', 'flame', 'team', 'versus']
+const MEDAL_ICONS: MedalIcon[] = ['check', 'shuttlecock', 'trophy', 'flame', 'team', 'versus']
 const EVENT_SEEDS = ['majadu-open', 'internal-cup', 'season-2026-1', 'city-league', 'club-night', 'ramadan-cup']
 
 export default function AchievementBadgesPreviewPage() {
@@ -67,12 +67,10 @@ export default function AchievementBadgesPreviewPage() {
               'check',
               'shuttlecock',
               'trophy',
-              'arrow-up',
               'flame',
               'team',
               'versus',
               'flag',
-              'calendar',
               'trophy',
               'check',
             ].map((icon, i) => (

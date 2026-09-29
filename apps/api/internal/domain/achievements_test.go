@@ -9,13 +9,10 @@ func TestMedalKeys(t *testing.T) {
 	if got := TournamentKey("t1"); got != "tournament:t1" {
 		t.Fatalf("TournamentKey = %q", got)
 	}
-	if got := SeasonMemberKey("s1"); got != "season_member:s1" {
-		t.Fatalf("SeasonMemberKey = %q", got)
-	}
 }
 
 func TestCareerMedalCatalog(t *testing.T) {
-	want := []string{"sessions", "games", "wins", "rating", "streak", "partners", "opponents"}
+	want := []string{"sessions", "games", "wins", "streak", "partners", "opponents"}
 	if len(CareerMedals) != len(want) {
 		t.Fatalf("jumlah milestone = %d, want %d", len(CareerMedals), len(want))
 	}
@@ -80,7 +77,6 @@ func TestDescribeCollectible(t *testing.T) {
 		title string
 	}{
 		{"tournament:t1", map[string]string{"name": "Majadu Open"}, "Majadu Open"},
-		{"season_member:s1", map[string]string{"season": "Season 2026-1"}, "Member · Season 2026-1"},
 	}
 	for _, tc := range cases {
 		got, _ := DescribeCollectible(tc.key, tc.meta)

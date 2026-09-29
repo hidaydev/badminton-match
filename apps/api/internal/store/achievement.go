@@ -160,9 +160,6 @@ func (s *SessionStore) insertAchievements(ctx context.Context, rows []achievemen
 
 // ── Backfill ──────────────────────────────────────────────────────────────
 
-type seasonInfo struct {
-	ID, Name, Start, End string
-}
 
 type sessionInfo struct {
 	ID   string
@@ -170,9 +167,8 @@ type sessionInfo struct {
 }
 
 type seasonEntry struct {
-	seasonID, endDate string
-	games, wins       int64
-	peak, rd          float64
+	endDate     string
+	games, wins int64
 }
 
 type checkpoint struct {
@@ -183,15 +179,7 @@ type checkpoint struct {
 // BackfillAchievements — bangun ulang medal + collectible dari data historis.
 // Idempoten.
 func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult, error) {
-	seasonByID, openSeasonID, err := s.loadSeasons(ctx)
-	if err != nil {
-		return BackfillResult{}, err
-	}
 	sessions, _, err := s.loadSessions(ctx)
-	if err != nil {
-		return BackfillResult{}, err
-	}
-	snaps, err := s.loadSeasonSnapshots(ctx)
 	if err != nil {
 		return BackfillResult{}, err
 	}
@@ -202,16 +190,9 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 
 	today := todayDate()
 	ordered := map[string][]seasonEntry{}
-	for _, sn := range snaps {
-		ordered[sn.playerID] = append(ordered[sn.playerID], seasonEntry{
-			seasonID: sn.seasonID, endDate: sn.endDate,
-			games: sn.games, wins: sn.wins, peak: sn.peak, rd: sn.rd,
-		})
-	}
 	for pid, c := range current {
 		ordered[pid] = append(ordered[pid], seasonEntry{
-			seasonID: openSeasonID, endDate: today,
-			games: c.games, wins: c.wins, peak: c.peak, rd: c.rd,
+			endDate: today, games: c.games, wins: c.wins,
 		})
 	}
 
@@ -245,38 +226,26 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 		if len(entries) == 0 {
 			continue
 		}
+		// Medal season & Peak Rating sudah dihapus bersama pensiunnya season dan
+		// Glicko (2026-09-29): season tidak lagi punya siklus, dan rating tidak
+		// lagi dihitung sehingga ambang 2000 mustahil dicapai. Baris lama di
+		// player_achievements ikut dihapus lewat migration.
 		var (
-			gamesCk, winsCk, ratingCk []checkpoint
-			games, wins               int64
-			peakMax                   float64
+			gamesCk, winsCk []checkpoint
+			games, wins     int64
 		)
 		for _, e := range entries {
 			games += e.games
 			wins += e.wins
-			if e.peak > peakMax {
-				peakMax = e.peak
-			}
-			if e.games > 0 || e.wins > 0 || e.peak > 0 {
+			if e.games > 0 || e.wins > 0 {
 				gamesCk = append(gamesCk, checkpoint{value: games, date: e.endDate})
 				winsCk = append(winsCk, checkpoint{value: wins, date: e.endDate})
-				ratingCk = append(ratingCk, checkpoint{value: int64(peakMax), date: e.endDate})
-			}
-			if e.games > 0 && e.seasonID != "" {
-				sid := e.seasonID
-				addCollectible(achievementRow{PlayerID: pid, Key: domain.SeasonMemberKey(sid), Kind: string(domain.AchSeason),
-					SeasonID: &sid, EarnedAt: e.endDate, Meta: map[string]string{"season": seasonByID[sid].Name}})
 			}
 		}
-		addMedal(pid, mustMedal("games"), games, lastSeasonID(entries), firstDateAt(gamesCk, mustMedal("games").Thresholds[0], today), nil)
-		addMedal(pid, mustMedal("wins"), wins, lastSeasonID(entries), firstDateAt(winsCk, mustMedal("wins").Thresholds[0], today), nil)
-		// Medali Peak Rating: BEKU sejak pensiun Glicko (2026-09-29). Rating
-		// tidak lagi dihitung sehingga peakMax hanya bernilai placeholder dan
-		// tidak pernah melewati ambang terendah (2000) — medali baru tidak
-		// akan pernah lahir. Medali lama TIDAK hilang: upsert memakai guard
-		// `EXCLUDED.value > player_achievements.value`, jadi nilai 2000+ yang
-		// sudah tersimpan tidak bisa turun. Baris ini sengaja dipertahankan
-		// agar riwayat 27 pemain tetap konsisten bila suatu saat dihitung ulang.
-		addMedal(pid, mustMedal("rating"), int64(peakMax), "", firstDateAt(ratingCk, mustMedal("rating").Thresholds[0], today), nil)
+			// season_id tidak lagi diisi: season pensiun bersama Glicko, jadi medal
+		// games/wins tidak punya konteks musim.
+		addMedal(pid, mustMedal("games"), games, "", firstDateAt(gamesCk, mustMedal("games").Thresholds[0], today), nil)
+		addMedal(pid, mustMedal("wins"), wins, "", firstDateAt(winsCk, mustMedal("wins").Thresholds[0], today), nil)
 	}
 
 	// ── Kehadiran: sessions + streak (career) ─────────────────────────────
@@ -314,13 +283,6 @@ func firstDateAt(cks []checkpoint, threshold int64, fallback string) string {
 	return fallback
 }
 
-func lastSeasonID(entries []seasonEntry) string {
-	if len(entries) == 0 {
-		return ""
-	}
-	return entries[len(entries)-1].seasonID
-}
-
 func mustMedal(id string) domain.MedalDef {
 	d, _ := domain.MedalByID(id)
 	return d
@@ -328,28 +290,6 @@ func mustMedal(id string) domain.MedalDef {
 
 // ── Loader helpers ────────────────────────────────────────────────────────
 
-func (s *SessionStore) loadSeasons(ctx context.Context) (map[string]seasonInfo, string, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT id::text, name, start_date::text, COALESCE(end_date::text, '')
-		FROM `+s.schema+`.rating_seasons ORDER BY start_date ASC`)
-	if err != nil {
-		return nil, "", err
-	}
-	defer rows.Close()
-	byID := map[string]seasonInfo{}
-	open := ""
-	for rows.Next() {
-		var si seasonInfo
-		if err := rows.Scan(&si.ID, &si.Name, &si.Start, &si.End); err != nil {
-			return nil, "", err
-		}
-		byID[si.ID] = si
-		if si.End == "" {
-			open = si.ID
-		}
-	}
-	return byID, open, rows.Err()
-}
 
 func (s *SessionStore) loadSessions(ctx context.Context) ([]sessionInfo, map[string]int, error) {
 	rows, err := s.pool.Query(ctx, `
@@ -373,43 +313,16 @@ func (s *SessionStore) loadSessions(ctx context.Context) ([]sessionInfo, map[str
 	return out, idx, rows.Err()
 }
 
-type snapRow struct {
-	playerID, seasonID, endDate string
-	rating, rd, peak            float64
-	games, wins                 int64
-}
 
-func (s *SessionStore) loadSeasonSnapshots(ctx context.Context) ([]snapRow, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT sp.player_id::text, sp.season_id::text, sp.rating, sp.rd, sp.peak,
-		       sp.games, sp.wins, r.end_date::text
-		FROM `+s.schema+`.season_player_snapshots sp
-		JOIN `+s.schema+`.rating_seasons r ON r.id = sp.season_id
-		ORDER BY r.start_date ASC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []snapRow{}
-	for rows.Next() {
-		var r snapRow
-		if err := rows.Scan(&r.playerID, &r.seasonID, &r.rating, &r.rd, &r.peak, &r.games, &r.wins, &r.endDate); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rows.Err()
-}
 
 type currentRating struct {
 	sticky              string
-	rating, rd, peak    float64
 	games, wins, losses int64
 }
 
 func (s *SessionStore) loadCurrentRatings(ctx context.Context) (map[string]currentRating, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT rp.player_id::text, COALESCE(p.tier, ''), rp.rating, rp.rd, rp.peak_rating,
+		SELECT rp.player_id::text, COALESCE(p.tier, ''),
 		       rp.games_played, rp.wins, rp.losses
 		FROM `+s.schema+`.rating_players rp
 		JOIN `+s.schema+`.players p ON p.id = rp.player_id`)
@@ -423,7 +336,7 @@ func (s *SessionStore) loadCurrentRatings(ctx context.Context) (map[string]curre
 			pid string
 			c   currentRating
 		)
-		if err := rows.Scan(&pid, &c.sticky, &c.rating, &c.rd, &c.peak, &c.games, &c.wins, &c.losses); err != nil {
+		if err := rows.Scan(&pid, &c.sticky, &c.games, &c.wins, &c.losses); err != nil {
 			return nil, err
 		}
 		out[pid] = c
