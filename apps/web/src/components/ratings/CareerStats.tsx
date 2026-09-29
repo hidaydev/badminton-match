@@ -35,7 +35,6 @@ export default function CareerStats({ stats, countedPoints }: {
   // → tanpa penanda (mis. pemain tanpa entri di window).
   countedPoints?: Map<string, number>
 }) {
-  const winRate = stats.gamesPlayed > 0 ? Math.round((stats.wins / stats.gamesPlayed) * 100) : 0
   const tWinRate = stats.tournamentStats.gamesPlayed > 0
     ? Math.round((stats.tournamentStats.wins / stats.tournamentStats.gamesPlayed) * 100)
     : 0
@@ -44,17 +43,6 @@ export default function CareerStats({ stats, countedPoints }: {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Overview — SEMUA game berskor pemain (excl. void/absent/skipped).
-          Berbeda dari "Ranked Games" di header halaman, yang hanya menghitung
-          game sejak season_start (sesi pra-season tidak di-ingest ranking).
-          Karena itu angka di sini bisa lebih besar. */}
-      <div className="grid grid-cols-4 gap-2">
-        <StatCard label="Session Games" value={String(stats.gamesPlayed)} />
-        <StatCard label="Win Rate" value={`${winRate}%`} />
-        <StatCard label="Wins" value={String(stats.wins)} />
-        <StatCard label="Losses" value={String(stats.losses)} />
-      </div>
-
       {/* Sessions */}
       {stats.sessions.length > 0 && (
         <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
