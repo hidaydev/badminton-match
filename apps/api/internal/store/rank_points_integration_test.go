@@ -499,7 +499,9 @@ func TestIntegrationRankPointsTurnamen(t *testing.T) {
 		}
 	}
 
-	// Jalur per-pemain identik dengan papan (parity juga untuk turnamen).
+	// Jalur per-pemain IDENTIK dengan papan — termasuk Rank (audit ke-7:
+	// CTE SQL lama menghitung rank dengan rumus sesi sehingga menyimpang
+	// begitu poin turnamen ada).
 	pr, found, err := st.RankPointsForPlayer(ctx, resolveIDByAlias(t, st, "rtp four"))
 	if err != nil || !found {
 		t.Fatalf("RankPointsForPlayer: found=%v err=%v", found, err)
@@ -509,5 +511,43 @@ func TestIntegrationRankPointsTurnamen(t *testing.T) {
 	}
 	if pr.Breakdown != nil && len(pr.Breakdown) > 0 && pr.Breakdown[0].Result != "runner_up" {
 		t.Errorf("breakdown result = %q, want runner_up", pr.Breakdown[0].Result)
+	}
+	var boardRow *RankPointRow
+	for i := range board.Rows {
+		if board.Rows[i].PlayerID == pr.PlayerID {
+			boardRow = &board.Rows[i]
+			break
+		}
+	}
+	if boardRow == nil {
+		t.Fatalf("pemain %s tidak ada di papan", pr.PlayerID)
+	}
+	if boardRow.Rank != pr.Rank || boardRow.Points != pr.Points ||
+		boardRow.CountedEntries != pr.CountedEntries || boardRow.EntriesAvailable != pr.EntriesAvailable {
+		t.Errorf("parity per-pemain vs papan: rank %d/%d, points %v/%v, entries %d/%d vs %d/%d",
+			pr.Rank, boardRow.Rank, pr.Points, boardRow.Points,
+			pr.CountedEntries, pr.EntriesAvailable, boardRow.EntriesAvailable, boardRow.EntriesAvailable)
+	}
+
+	// Fallback: baris level disabled → turnamen jatuh ke rumus sesi §4.5
+	// (bukan 0, bukan champion). Mengunci jalur fallback supaya tak terganti
+	// diam-diam jadi level-only.
+	if _, err := st.pool.Exec(ctx,
+		`UPDATE `+schema+`.rank_point_levels SET enabled = false WHERE kind = 'tournament_classic'`); err != nil {
+		t.Fatalf("disable level: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = st.pool.Exec(ctx,
+			`UPDATE `+schema+`.rank_point_levels SET enabled = true WHERE kind = 'tournament_classic'`)
+	})
+	fb, found, err := st.RankPointsForPlayer(ctx, resolveIDByAlias(t, st, "rtp three"))
+	if err != nil || !found {
+		t.Fatalf("fallback per-pemain: found=%v err=%v", found, err)
+	}
+	// RTP Three: satu match final menang 21-18, target 30 →
+	// 250 × (0.5 + 0.5 × 3/30) = 137.5 → 138 (round board).
+	if fb.Points == want["RTP Three"] || fb.Points >= 1000 {
+		t.Errorf("fallback enabled=false: points = %v, want rumus sesi (~138), bukan champion %v",
+			fb.Points, want["RTP Three"])
 	}
 }
