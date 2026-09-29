@@ -542,12 +542,27 @@ func (s *SessionStore) insertRatingEvent(ctx context.Context, tx pgx.Tx, m *doma
 	return id, nil
 }
 
-// applyPlayerUpdate — inti scoring Glicko untuk satu pemain dalam satu match.
+// applyPlayerUpdate — catat hasil satu pemain dalam satu match.
 //
-// Dipakai BERSAMA oleh `ingest` dan `rebuildAll`. Kedua jalur WAJIB menghasilkan
-// angka bit-identik (lihat komentar determinisme di masing-masing pemanggil):
-// GrowRD → expected score → GlickoUpdate → modifier → active floor → delta insert.
-// Jangan ubah rumus di satu jalur saja.
+// PENSIUN GLICKO (2026-09-29): fungsi ini DULU menghitung rating Glicko
+// (GrowRD → expected → GlickoUpdate → modifier → active floor) lalu menulis
+// rating_deltas. Perhitungan itu kini DIHENTIKAN.
+//
+// Yang tetap dilakukan (dan WAJIB tetap benar):
+//   - menulis baris rating_deltas: event_id/player_id/team/outcome — EMPAT
+//     kolom ini bahan baku papan poin BWF (rank_points.go membacanya, tidak
+//     pernah menyentuh kolom angka).
+//   - bookkeeping runtime: games/wins/losses/lastPlayedAt — dipakai stats &
+//     achievement (bukan rating).
+//
+// Kolom angka Glicko (expected, movm, delta, new_rating) diisi 0 dan
+// DIKOSONGKAN maknanya. Tidak ada pembaca yang bergantung padanya: satu-
+// satunya adalah riwayat rating di rating_read.go, dan itu ikut dipensiunkan.
+// Mengisi 0 dipilih di atas migration drop-NOT-NULL agar tidak ada perubahan
+// skema — kolom itu murni tempat duduk yang tidak lagi dibaca.
+//
+// JANGAN pakai kembali field ini untuk perhitungan baru tanpa menghitung
+// ulang; angkanya tidak bermakna.
 func (s *SessionStore) applyPlayerUpdate(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -561,50 +576,12 @@ func (s *SessionStore) applyPlayerUpdate(
 	eventID string,
 	cfg domain.RatingConfig,
 ) error {
-	// GrowRD by idle days (basis tanggal sumber — deterministik)
-	st := rt.state
-	if rt.lastPlayedAt != "" {
-		d1, err1 := time.Parse("2006-01-02", rt.lastPlayedAt)
-		d2, err2 := time.Parse("2006-01-02", date)
-		if err1 == nil && err2 == nil && d2.After(d1) {
-			st.RD = domain.GrowRD(st.RD, int(d2.Sub(d1).Hours()/24), cfg.Params)
-		}
-	}
+	// opps/teamSize/movm/phaseWeight tidak lagi dipakai: dulu input rumus
+	// Glicko. Parameter dipertahankan supaya kedua pemanggil (ingest &
+	// rebuildAll) tidak perlu diubah — pemisahan jalur adalah langkah
+	// terpisah yang lebih berisiko.
+	_, _, _, _ = opps, teamSize, movm, phaseWeight
 
-	exp := 0.0
-	if len(opps) > 0 {
-		for _, o := range opps {
-			exp += domain.ExpectedScore(st.Rating, o)
-		}
-		exp /= float64(len(opps))
-	}
-
-	newSt, delta := domain.GlickoUpdate(st, opps, out, movm, phaseWeight, cfg.Params)
-
-	// Modifier post-Glicko (semua opsional, disabled by default):
-	//   - teamWeight: kompensasi tim dengan jumlah pemain berbeda
-	//   - volFactor:  dampening untuk win rate ekstrem
-	// Hitung SEMUA modifier dulu, lalu apply sekaligus + round2
-	// agar invariant determinism (semua nilai round2) tetap terjaga.
-	mod := 1.0
-	if w := domain.TeamSizeWeight(teamSize, cfg.Params); w < 1.0 {
-		mod *= w
-	}
-	if v := domain.VolatilityFactor(rt.wins, rt.losses, cfg.Params); v < 1.0 {
-		mod *= v
-	}
-	if mod < 1.0 {
-		delta = domain.Round2(delta * mod)
-		newSt.Rating = domain.Round2(st.Rating + delta)
-	}
-
-	// Active floor: floor dinamis berdasarkan jumlah game
-	activeFloor := domain.ActiveFloor(rt.games, cfg.Params)
-	if newSt.Rating < activeFloor {
-		newSt.Rating = activeFloor
-	}
-
-	rt.state = newSt
 	rt.games++
 	if out == 1.0 {
 		rt.wins++
@@ -612,9 +589,6 @@ func (s *SessionStore) applyPlayerUpdate(
 		rt.losses++
 	}
 	rt.lastPlayedAt = date
-	if newSt.Rating > rt.peak {
-		rt.peak = newSt.Rating
-	}
 
 	outcome := "W"
 	if out == 0.0 {
@@ -623,8 +597,8 @@ func (s *SessionStore) applyPlayerUpdate(
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO `+s.schema+`.rating_deltas
 			(event_id, player_id, team, outcome, expected, movm, delta, new_rating)
-		VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)`,
-		eventID, rt.id, team, outcome, domain.Round4(exp), domain.Round4(movm), delta, newSt.Rating); err != nil {
+		VALUES ($1::uuid, $2::uuid, $3, $4, 0, 0, 0, $5)`,
+		eventID, rt.id, team, outcome, rt.state.Rating); err != nil {
 		return err
 	}
 	return nil
