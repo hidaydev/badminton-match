@@ -14,8 +14,10 @@
 --   Positif = naik (rank mengecil). Pemain yang baru muncul di papan
 --   (belum ada di snapshot sebelumnya) → belum ada gerakan (NULL).
 --
---   Additive + idempotent. Angka poin disimpan apa adanya pada saat snapshot
---   (numeric, tanpa pembulatan) supaya bisa dipakai lagi untuk tren nanti.
+--   Additive + idempotent. Kolom points mengikuti nilai papan saat snapshot
+--   (sudah dibulatkan, sama dengan yang ditampilkan) — bukan angka mentah
+--   tanpa pembulatan. Kolom itu disimpan untuk keperluan tampilan/tren poin;
+--   rank tetap fungsi utama tabel ini.
 -- =============================================================================
 BEGIN;
 
