@@ -41,6 +41,22 @@ func (s *SessionStore) RebuildAll(ctx context.Context) (int, error) {
 	if err := tx.Commit(ctx); err != nil {
 		return 0, err
 	}
+
+	// Segarkan achievement SETELAH rebuild commit.
+	//
+	// Backfill dulu hanya dipanggil manual dari endpoint admin, sehingga
+	// medal yang dihitung dari rating (mis. Peak Rating) bisa USANG: replay
+	// menaikkan peak_rating melewati ambang, tapi medalnya tidak pernah
+	// ditulis. Di prod sempat terjadi (Revfath 2050 & Raihan 2052 punya peak
+	// di atas ambang 2000 tanpa medal). Dipanggil di sini karena rebuild
+	// adalah jalur yang mengubah data sumber achievement; idempoten, jadi
+	// aman diulang.
+	//
+	// Kegagalan TIDAK menggagalkan rebuild: rating sudah konsisten di DB,
+	// dan achievement bisa disegarkan lagi kapan pun (tidak ada data hilang).
+	if _, err := s.BackfillAchievements(ctx); err != nil && s.logger != nil {
+		s.logger.Warn("backfill achievement setelah rebuild gagal", "error", err)
+	}
 	return n, nil
 }
 
