@@ -1,15 +1,7 @@
 // src/queries/ratings.ts — hooks rating (plan RATINGS_FRONTEND_PLAN.md §6.3)
 import { useQuery } from '@tanstack/react-query'
-import { getRatingLeaderboard, getRatingPlayer, getRatingSeasons, getSeasonStandings, getPlayerAchievements, getRankings, getPlayerRankPoints, request } from './endpoints'
-import type { RatingPlayer, RatingLeaderboardRow, RatingSeason, SeasonStandingRow, AchievementRow, RankPointsBoard, PlayerRankPoints } from './endpoints'
-
-export function useRatingLeaderboard(active: boolean, limit: number, offset: number) {
-  return useQuery<{ total: number; rows: RatingLeaderboardRow[] }>({
-    queryKey: ['ratings', 'leaderboard', active, limit, offset],
-    queryFn: ({ signal }) => getRatingLeaderboard(active, limit, offset, signal),
-    staleTime: 1000 * 60,
-  })
-}
+import { getRatingPlayer, getPlayerAchievements, getRankings, getPlayerRankPoints, request } from './endpoints'
+import type { RatingPlayer, AchievementRow, RankPointsBoard, PlayerRankPoints } from './endpoints'
 
 // useRankings — papan poin publik (window bergulir, N entri terbaik).
 export function useRankings(limit = 200) {
@@ -45,22 +37,6 @@ export function useRatingPlayerAchievements(playerId: string | undefined) {
     queryFn: ({ signal }) => getPlayerAchievements(playerId!, signal),
     enabled: !!playerId,
     staleTime: 1000 * 60,
-  })
-}
-
-export function useRatingSeasons() {
-  return useQuery<RatingSeason[]>({
-    queryKey: ['ratings', 'seasons'],
-    queryFn: ({ signal }) => getRatingSeasons(signal),
-    staleTime: 1000 * 60 * 5,
-  })
-}
-
-export function useSeasonStandings(seasonId: string | null) {
-  return useQuery<SeasonStandingRow[]>({
-    queryKey: ['ratings', 'season', seasonId, 'standings'],
-    queryFn: ({ signal }) => getSeasonStandings(seasonId!, signal),
-    enabled: !!seasonId,
   })
 }
 

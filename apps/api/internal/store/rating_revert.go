@@ -161,7 +161,8 @@ func (s *SessionStore) resolveSourceID(ctx context.Context, tx pgx.Tx, lookup, k
 }
 
 // priorPlayer — benih musim berjalan untuk seorang pemain, dibaca dari kolom
-// seed_* rating_players (disegel CloseAndStartSeason). Stabil lintas rebuild.
+// seed_* rating_players (kolomnya tetap ada; penyegel lama CloseAndStartSeason
+// sudah pensiun bersama Glicko). Stabil lintas rebuild.
 type priorPlayer struct {
 	rating float64
 	rd     float64 // 0 = belum disegel, pakai initial RD
@@ -226,7 +227,7 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	// Tangkap pemain yang pernah ter-rating (untuk reset-to-default) + tier
 	// assigned (players.tier — TIER_8_UNIFICATION) + BENIH musim berjalan.
 	//
-	// Benih dibaca dari kolom seed_* (disegel CloseAndStartSeason), BUKAN dari
+	// Benih dibaca dari kolom seed_* (peninggalan fitur musim), BUKAN dari
 	// rating saat ini. Kalau benih diambil dari rating_players.rating, rebuild
 	// akan memakai hasil rebuild sebelumnya sebagai input → tidak idempotent
 	// (terukur: rating naik tiap rebuild: 1495 → 1525 → 1554).

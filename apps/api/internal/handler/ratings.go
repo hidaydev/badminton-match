@@ -184,27 +184,6 @@ func (h *RatingsHandler) ReplaySource(w http.ResponseWriter, r *http.Request) {
 	httperr.WriteJSON(w, http.StatusOK, report)
 }
 
-// Leaderboard — GET /ratings/leaderboard?active&limit&offset → ADMIN.
-//
-// Ini papan Glicko (mesin internal). Papan PUBLIK adalah GET /rankings
-// (poin ber-window). Dipindah ke admin supaya pemain tidak membandingkan
-// dua angka rating yang berbeda di dua halaman.
-func (h *RatingsHandler) Leaderboard(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	active := q.Get("active") == "true"
-	limit := atoiSafe(q.Get("limit"), 100)
-	offset := atoiSafe(q.Get("offset"), 0)
-	total, rows, err := h.Store.RatingLeaderboard(r.Context(), active, limit, offset)
-	if err != nil {
-		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch leaderboard", err))
-		return
-	}
-	httperr.WriteJSON(w, http.StatusOK, map[string]any{
-		"total": total,
-		"rows":  rows,
-	})
-}
-
 // Rankings — GET /rankings?limit&as_of → PUBLIK.
 //
 // Papan poin ala BWF: total poin dari N entri (sesi) terbaik dalam window
@@ -320,42 +299,6 @@ func (h *RatingsHandler) Sources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httperr.WriteJSON(w, http.StatusOK, map[string]any{"sources": srcs})
-}
-
-// Season — POST /ratings/season {startDate} (admin) — close & start new season.
-func (h *RatingsHandler) Season(w http.ResponseWriter, r *http.Request) {
-	var body ratingBody
-	if err := decodeJSON(r, &body); err != nil || body.StartDate == "" {
-		httperr.WriteError(w, h.Logger, httperr.Validation("startDate is required"))
-		return
-	}
-	id, err := h.Store.CloseAndStartSeason(r.Context(), body.StartDate)
-	if err != nil {
-		httperr.WriteError(w, h.Logger, mapRatingError(err))
-		return
-	}
-	httperr.WriteJSON(w, http.StatusOK, map[string]string{"season_id": id})
-}
-
-// Seasons — GET /ratings/seasons → daftar musim.
-func (h *RatingsHandler) Seasons(w http.ResponseWriter, r *http.Request) {
-	seasons, err := h.Store.ListSeasons(r.Context())
-	if err != nil {
-		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to list seasons", err))
-		return
-	}
-	httperr.WriteJSON(w, http.StatusOK, map[string]any{"seasons": seasons})
-}
-
-// SeasonStandings — GET /ratings/seasons/{seasonId}/standings → beku.
-func (h *RatingsHandler) SeasonStandings(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("seasonId")
-	rows, err := h.Store.SeasonStandings(r.Context(), id)
-	if err != nil {
-		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch season standings", err))
-		return
-	}
-	httperr.WriteJSON(w, http.StatusOK, map[string]any{"rows": rows})
 }
 
 // atoiSafe — parse int query param dengan fallback yang aman dari integer overflow.

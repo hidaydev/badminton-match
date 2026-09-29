@@ -387,21 +387,15 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 		t.Fatalf("ingest B: %v", err)
 	}
 
-	// Read path: leaderboard
-	total, rows, err := st.RatingLeaderboard(ctx, false, 100, 0)
-	if err != nil {
-		t.Fatalf("leaderboard: %v", err)
+	// Read path: detail pemain (leaderboard Glicko dipensiunkan).
+	itt3Pid := resolveIDByAlias(t, st, "itt three")
+	itt3Det, err := st.RatingPlayer(ctx, itt3Pid)
+	if err != nil || itt3Det == nil {
+		t.Fatalf("detail ITT Three: %v", err)
 	}
-	// total global berisi data backfill juga — cukup cek row ITT.
-	rowByName := map[string]LeaderboardRow{}
-	for _, r := range rows {
-		rowByName[r.Name] = r
+	if itt3Det.Games != 4 {
+		t.Fatalf("ITT Three games=%d, want 4", itt3Det.Games)
 	}
-	itt3, ok := rowByName["ITT Three"]
-	if !ok || itt3.Games != 4 {
-		t.Fatalf("ITT Three leaderboard salah: %+v (ok=%v)", itt3, ok)
-	}
-	_ = total
 
 	// Read path: player detail + history
 	pid3 := resolveIDByAlias(t, st, "itt three")
@@ -409,7 +403,9 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("player detail: %v", err)
 	}
-	if d == nil || d.Games != 4 || d.TierDisplay == "" {
+	// tier_display (turunan rating) sudah dipensiunkan; yang tersisa tier
+	// sticky — boleh kosong di data test, jadi tidak dijadikan syarat.
+	if d == nil || d.Games != 4 || d.Name == "" {
 		t.Fatalf("player detail salah: %+v", d)
 	}
 	hist, err := st.RatingPlayerHistory(ctx, pid3, 10)
@@ -434,17 +430,17 @@ func TestIntegrationRatingReadPathAndTransitivity(t *testing.T) {
 		t.Fatalf("revert A: %v", err)
 	}
 
-	// verifikasi P1/P2 reset ke default
+	// verifikasi P1/P2 kembali ke 0 game setelah revert A.
+	// (Reset-to-default mid kelas tidak lagi berlaku sejak Glicko dipensiunkan
+	// — yang tersisa bookkeeping games, dan itu yang diperiksa.)
 	for _, nm := range []string{"ITT One", "ITT Two"} {
 		pid := resolveIDByAlias(t, st, lowerAlias(nm))
 		dt, err := st.RatingPlayer(ctx, pid)
 		if err != nil || dt == nil {
 			t.Fatalf("detail %s: %v", nm, err)
 		}
-		// Reset-to-default = mid tier (8-tier): D→1150, D+→1250
-		wantMid := map[string]float64{"ITT One": 1150, "ITT Two": 1250}[nm]
-		if dt.Games != 0 || dt.Rating != wantMid {
-			t.Fatalf("%s setelah revert A: games=%d rating=%.2f, want 0/%.0f (mid kelas)", nm, dt.Games, dt.Rating, wantMid)
+		if dt.Games != 0 {
+			t.Fatalf("%s setelah revert A: games=%d, want 0", nm, dt.Games)
 		}
 	}
 
@@ -565,35 +561,25 @@ func TestIntegrationAutoIngestLockedSessions(t *testing.T) {
 		t.Fatalf("auto-ingest kedua n=%d err=%v, want 0", n2, err)
 	}
 
-	// Leaderboard membawa player_id
-	total, rows, err := st.RatingLeaderboard(ctx, false, 100, 0)
-	if err != nil {
-		t.Fatalf("leaderboard: %v", err)
+	// Detail pemain membawa nama & bookkeeping game
+	itaiPid := resolveIDByAlias(t, st, "itai one")
+	itai, err := st.RatingPlayer(ctx, itaiPid)
+	if err != nil || itai == nil {
+		t.Fatalf("detail ITAI One: %v", err)
 	}
-	if total < 4 {
-		t.Fatalf("leaderboard total = %d, want ≥4", total)
-	}
-	found := 0
-	for _, r := range rows {
-		if r.PlayerID == "" {
-			t.Fatal("leaderboard row tanpa player_id")
-		}
-		if r.Name == "ITAI One" {
-			found++
-		}
-	}
-	if found != 1 {
-		t.Fatalf("ITAI One tidak ditemukan di leaderboard")
+	if itai.Name != "ITAI One" || itai.Games == 0 {
+		t.Fatalf("detail ITAI One salah: %+v", itai)
 	}
 
-	// History membawa new_rating
+	// History membawa fakta pertandingan (new_rating tidak lagi disajikan
+	// sejak Glicko dipensiunkan): tanggal, skor, hasil, rekan/lawan.
 	pid := resolveIDByAlias(t, st, "itai one")
 	hist, err := st.RatingPlayerHistory(ctx, pid, 10)
 	if err != nil {
 		t.Fatalf("history: %v", err)
 	}
-	if len(hist) == 0 || hist[0].NewRating <= 0 {
-		t.Fatalf("history new_rating kosong: %+v", hist)
+	if len(hist) == 0 || hist[0].Date == "" || hist[0].Outcome == "" {
+		t.Fatalf("history tanpa fakta pertandingan: %+v", hist)
 	}
 
 	// Stats response membawa playerId

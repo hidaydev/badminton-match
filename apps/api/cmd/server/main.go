@@ -242,19 +242,15 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("POST /ratings/replay-all", http.HandlerFunc(ratings.RequireAdmin(ratings.ReplayAll)))
 	mux.Handle("POST /ratings/replay-source", http.HandlerFunc(ratings.RequireAdmin(ratings.ReplaySource)))
 	mux.Handle("POST /ratings/achievements/backfill", http.HandlerFunc(ratings.RequireAdmin(ratings.BackfillAchievements)))
-	mux.Handle("POST /ratings/season", http.HandlerFunc(ratings.RequireAdmin(ratings.Season)))
 	// Read path publik
 	// Papan PUBLIK = poin ber-window (ala BWF). Papan Glicko (/ratings/leaderboard)
 	// dipindah ke admin: itu mesin internal, dan menampilkan dua angka rating
 	// berbeda ke pemain hanya membingungkan.
 	mux.Handle("GET /rankings", http.HandlerFunc(ratings.Rankings))
 	mux.Handle("GET /rankings/players/{playerId}", http.HandlerFunc(ratings.PlayerRankPoints))
-	mux.Handle("GET /ratings/leaderboard", http.HandlerFunc(ratings.RequireAdmin(ratings.Leaderboard)))
 	mux.Handle("GET /ratings/players/{playerId}", http.HandlerFunc(ratings.Player))
 	mux.Handle("GET /ratings/players/{playerId}/achievements", http.HandlerFunc(ratings.PlayerAchievements))
 	mux.Handle("GET /ratings/sources", http.HandlerFunc(ratings.Sources))
-	mux.Handle("GET /ratings/seasons", http.HandlerFunc(ratings.Seasons))
-	mux.Handle("GET /ratings/seasons/{seasonId}/standings", http.HandlerFunc(ratings.SeasonStandings))
 
 	// Middleware chain: recover (luar) → request-id → logging → CORS → rate limit → mux.
 	var h http.Handler = mux
