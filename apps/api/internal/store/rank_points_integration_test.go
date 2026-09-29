@@ -183,6 +183,8 @@ func resolveIDByAliasFuzzy(t *testing.T, st *SessionStore, schema, code string) 
 		"rpp1": "RPP One", "rpp2": "RPP Two", "rpp3": "RPP Three", "rpp4": "RPP Four",
 		"rpd1": "RPD One", "rpd2": "RPD Two", "rpd3": "RPD Three", "rpd4": "RPD Four",
 		"rz1": "RZ One", "rz2": "RZ Two", "rz3": "RZ Three", "rz4": "RZ Four",
+		// Test poin turnamen (champion × rasio hasil).
+		"rtp1": "RTP One", "rtp2": "RTP Two", "rtp3": "RTP Three", "rtp4": "RTP Four",
 	}
 	name, ok := names[code]
 	if !ok {
@@ -371,5 +373,141 @@ func TestIntegrationRankPointsPlayerParity(t *testing.T) {
 	// Pemain tanpa entri di window → found=false (bukan error).
 	if _, found, err := st.RankPointsForPlayer(ctx, "00000000-0000-0000-0000-0000000000ff"); err != nil || found {
 		t.Errorf("pemain tanpa entri: found=%v err=%v (harus found=false, err=nil)", found, err)
+	}
+}
+
+// TestIntegrationRankPointsTurnamen — poin turnamen = champion_points ×
+// rasio hasil (§4.4), SATU entri per turnamen — bukan Σ gameValue per game
+// (rumus sesi). Empat hasil dikunci sekaligus: juara, runner-up, gugur SF,
+// ikut tanpa menang.
+//
+// Butuh baris rank_point_levels(kind='tournament_classic') di DB scratch
+// (data prod — lihat docs/backend/README.md).
+func TestIntegrationRankPointsTurnamen(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	const prefix = "it-rkturn"
+	players := []domain.Player{
+		{ID: "rtp1", Name: "RTP One", Gender: "M", Tier: 5},
+		{ID: "rtp2", Name: "RTP Two", Gender: "M", Tier: 5},
+		{ID: "rtp3", Name: "RTP Three", Gender: "M", Tier: 5},
+		{ID: "rtp4", Name: "RTP Four", Gender: "M", Tier: 5},
+	}
+	cleanup := func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RTP %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'rtp %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RTP %'`)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	// champion_points dari konfigurasi (bukan hardcode) — kalau baris hilang
+	// di scratch, gagal di sini dengan pesan jelas.
+	var champion float64
+	if err := st.pool.QueryRow(ctx,
+		`SELECT champion_points FROM `+schema+`.rank_point_levels WHERE kind = 'tournament_classic'`).
+		Scan(&champion); err != nil {
+		t.Fatalf("baca rank_point_levels (scratch harus punya data, lihat docs/backend/README.md): %v", err)
+	}
+
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	date := dateAfterAllEvents(t, st, schema)
+	src := prefix + "-1"
+
+	// Satu turnamen, empat match beda fase (match_key & game_order unik —
+	// rating_events_order_uniq & match_key unik).
+	type ev struct {
+		mk, phase string
+		order     string
+		scoreA    int
+		scoreB    int
+		sides     []playerSide
+	}
+	evs := []ev{
+		{"mk-grup", "group", "1", 21, 15, []playerSide{{id: "rtp1", team: "A"}, {id: "rtp2", team: "B"}}},
+		{"mk-qf", "qf", "2", 21, 10, []playerSide{{id: "rtp4", team: "A"}}},
+		{"mk-sf", "sf", "3", 21, 12, []playerSide{{id: "rtp1", team: "B"}}},
+		{"mk-fin", "final", "4", 21, 18, []playerSide{{id: "rtp3", team: "A"}, {id: "rtp4", team: "B"}}},
+	}
+	for _, e := range evs {
+		var eventID string
+		if err := st.pool.QueryRow(ctx, `
+			INSERT INTO `+schema+`.rating_events
+				(match_key, kind, source_id, source_fingerprint, stable_game_id, date,
+				 game_order, title, score_a, score_b, target, phase, phase_weight, created_at, processed_at)
+			VALUES ($1, 'tournament_classic', $2, 'test', $3, $4::date, $5, 'Rank Turnamen',
+			        $6, $7, 30, $8, 1.0, now(), now())
+			RETURNING id::text`,
+			e.mk, src, e.mk, date, e.order, e.scoreA, e.scoreB, e.phase).
+			Scan(&eventID); err != nil {
+			t.Fatalf("insert event %s: %v", e.mk, err)
+		}
+		if _, err := st.pool.Exec(ctx, `
+			INSERT INTO `+schema+`.rating_sources (source_id, source_kind, fingerprint, finalized, last_ingested_seq, ingested_at)
+			VALUES ($1, 'tournament_classic', 'test', true, 0, now())
+			ON CONFLICT (source_id) DO NOTHING`, src); err != nil {
+			t.Fatalf("insert source: %v", err)
+		}
+		for _, sd := range e.sides {
+			pid := resolveIDByAliasFuzzy(t, st, schema, sd.id)
+			outcome := "L"
+			if (sd.team == "A" && e.scoreA > e.scoreB) || (sd.team == "B" && e.scoreB > e.scoreA) {
+				outcome = "W"
+			}
+			if _, err := st.pool.Exec(ctx, `
+				INSERT INTO `+schema+`.rating_deltas
+					(event_id, player_id, team, outcome, expected, movm, delta, new_rating)
+				VALUES ($1::uuid, $2::uuid, $3, $4, 0.5, 1.0, 0, 1500)`,
+				eventID, pid, sd.team, outcome); err != nil {
+				t.Fatalf("insert delta %s: %v", e.mk, err)
+			}
+		}
+	}
+
+	board, err := st.RankPointsBoard(ctx, "", 200)
+	if err != nil {
+		t.Fatalf("board: %v", err)
+	}
+	byName := map[string]RankPointRow{}
+	for _, r := range board.Rows {
+		byName[r.Name] = r
+	}
+	// Juara ×1.0, runner-up ×0.85, gugur SF ×0.7, ikut tanpa menang ×0.2.
+	want := map[string]float64{
+		"RTP Three": champion * 1.0,  // menang final
+		"RTP Four":  champion * 0.85, // menang qf, kalah final
+		"RTP One":   champion * 0.7,  // menang grup, kalah sf
+		"RTP Two":   champion * 0.2,  // kalah grup, tanpa kemenangan
+	}
+	for name, w := range want {
+		r, ok := byName[name]
+		if !ok {
+			t.Fatalf("%s tidak ada di papan", name)
+		}
+		if r.Points != w {
+			t.Errorf("%s = %v, want %v (champion=%v) — poin turnamen harus champion×rasio, bukan Σ gameValue",
+				name, r.Points, w, champion)
+		}
+		if r.EntriesAvailable != 1 || r.CountedEntries != 1 {
+			t.Errorf("%s entries = %d/%d, want 1/1 — turnamen = satu entri", name, r.CountedEntries, r.EntriesAvailable)
+		}
+	}
+
+	// Jalur per-pemain identik dengan papan (parity juga untuk turnamen).
+	pr, found, err := st.RankPointsForPlayer(ctx, resolveIDByAlias(t, st, "rtp four"))
+	if err != nil || !found {
+		t.Fatalf("RankPointsForPlayer: found=%v err=%v", found, err)
+	}
+	if pr.Points != want["RTP Four"] {
+		t.Errorf("per-pemain RTP Four = %v, want %v", pr.Points, want["RTP Four"])
+	}
+	if pr.Breakdown != nil && len(pr.Breakdown) > 0 && pr.Breakdown[0].Result != "runner_up" {
+		t.Errorf("breakdown result = %q, want runner_up", pr.Breakdown[0].Result)
 	}
 }
