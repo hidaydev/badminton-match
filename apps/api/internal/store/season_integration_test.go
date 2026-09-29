@@ -118,9 +118,9 @@ func TestIntegrationSeasonReset(t *testing.T) {
 		t.Fatal("events sesi terhapus setelah tutup musim — history hilang, window poin mustahil dihitung")
 	}
 
-	// Pre-season baru → Glicko musim ini mengabaikan events < season_start
-	// (dikecualikan rebuildAll). Pemain yang PUNYA riwayat memakai benih
-	// (rating terakhir), bukan mid kelas — lihat TestIntegrationSeasonSeed.
+	// Pre-season baru → rebuildAll mengabaikan events < season_start.
+	// (Sejak Glicko dipensiunkan, benih rating tidak lagi dihitung; test
+	// benih lama dihapus bersama fiturnya.)
 	pid := resolveIDByAlias(t, st, "itse one")
 	dt, err := st.RatingPlayer(ctx, pid)
 	if err != nil || dt == nil {
@@ -257,9 +257,8 @@ func TestIntegrationRebuildAllSeasonScoped(t *testing.T) {
 	}
 
 	// RebuildAll: event lama (< season_start baru) harus DIABAIKAN. Buktinya
-	// games kembali 0 walau event sesi lama masih ada di tabel. Nilai rating
-	// TIDAK dipatok mid kelas: pemain ber-riwayat memakai benih musim
-	// (lihat TestIntegrationSeasonSeed).
+	// games kembali 0 walau event sesi lama masih ada di tabel.
+	// (Benih rating musim tidak lagi berlaku sejak Glicko dipensiunkan.)
 	pid := resolveIDByAlias(t, st, "rbas one")
 	dt, err := st.RatingPlayer(ctx, pid)
 	if err != nil || dt == nil {
