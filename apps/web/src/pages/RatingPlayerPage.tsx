@@ -81,14 +81,15 @@ export default function RatingPlayerPage() {
       <RankPointsCard playerId={playerId} />
 
       {/* Stat cards — bookkeeping pertandingan (Glicko dipensiunkan).
-          "Ranked Games" = game yang masuk hitungan ranking (sejak season_start).
-          CareerStats di bawah menampilkan "All Session Games" yang mencakup
-          sesi pra-season, jadi angkanya bisa lebih besar — dua angka sah, beda
-          cakupan, dan label sengaja dibedakan agar tidak tampak kontradiktif. */}
-      <div className="grid grid-cols-3 gap-2">
+          Satu cakupan saja: game yang masuk hitungan ranking (sejak
+          season_start). Sebelumnya CareerStats menampilkan blok serupa dengan
+          cakupan lebih luas (termasuk sesi pra-season), yang untuk 80 dari 123
+          pemain angkanya identik sehingga tampak duplikat. */}
+      <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'Ranked Games', value: String(games) },
           { label: 'W-L', value: `${wins}-${losses}` },
+          { label: 'Win Rate', value: games > 0 ? `${Math.round((wins / games) * 100)}%` : '—' },
           { label: 'Tier', value: tier || '-' },
         ].map((s) => (
           <div key={s.label} className="bg-surface border border-border-subtle rounded-lg p-2.5 text-center">
