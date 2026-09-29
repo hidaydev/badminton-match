@@ -114,9 +114,14 @@ func main() {
 				//    masuk rating sama sekali (lihat rating_auto_tournament.go).
 				//    Kegagalan di sini TIDAK menghentikan tick: sesi sudah
 				//    selesai diproses di atas, dan turnamen berikutnya di
-				//    dalam loop tetap dilewati satu per satu.
+				//    dalam loop tetap dilewati satu per satu. Snapshot poin
+				//    (langkah 4) DILEWATI saat gagal — snapshot = papan yang
+				//    dihitung saat baca, dan menyimpannya ketika sumber belum
+				//    lengkap membuat pembanding movement bias permanen.
+				tournamentIngestOK := true
 				if nt, err := locker.AutoIngestTournaments(runCtx); err != nil {
 					logger.Error("auto-ingest turnamen gagal", "error", err)
+					tournamentIngestOK = false
 				} else if nt > 0 {
 					logger.Info("auto-ingest turnamen", "tournaments_ingested", nt)
 				}
@@ -125,7 +130,9 @@ func main() {
 				//    Idempoten per (as_of, player_id), jadi tick berulang dalam
 				//    hari yang sama hanya menyegarkan. Kegagalan TIDAK
 				//    menghentikan tick: ini turunan, bukan sumber data.
-				if ns, err := locker.CaptureRankSnapshot(runCtx); err != nil {
+				if !tournamentIngestOK {
+					logger.Warn("snapshot ranking poin dilewati: ingest turnamen gagal")
+				} else if ns, err := locker.CaptureRankSnapshot(runCtx); err != nil {
 					logger.Error("snapshot ranking poin gagal", "error", err)
 				} else if ns > 0 {
 					logger.Info("snapshot ranking poin", "players", ns)
