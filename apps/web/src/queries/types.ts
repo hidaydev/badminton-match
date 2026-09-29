@@ -18,7 +18,9 @@ export interface PlayerStats {
   losses: number
   pointsFor: number
   pointsAgainst: number
-  sessions: { id: string; date: string; title: string; absent?: boolean }[]
+  // share_code = kunci penghubung ke entri ranking poin (dipakai untuk
+  // menandai sesi mana yang masuk perhitungan).
+  sessions: { id: string; share_code?: string; date: string; title: string; absent?: boolean }[]
   topPartners: { name: string; count: number; wins: number; losses: number }[]
   topOpponents: { name: string; count: number; wins: number; losses: number }[]
   // Tournament career stats — dihitung dari tabel tournament normalized (V2).

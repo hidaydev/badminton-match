@@ -28,7 +28,13 @@ function PairRow({ name, wins, losses, count }: { name: string; wins: number; lo
   )
 }
 
-export default function CareerStats({ stats }: { stats: PlayerStats }) {
+export default function CareerStats({ stats, countedPoints }: {
+  stats: PlayerStats
+  // source_id (share_code sesi) → poin yang disumbang ke ranking. Hanya
+  // entri yang MASUK perhitungan (10 terbaik dalam window). Kosong/undefined
+  // → tanpa penanda (mis. pemain tanpa entri di window).
+  countedPoints?: Map<string, number>
+}) {
   const winRate = stats.gamesPlayed > 0 ? Math.round((stats.wins / stats.gamesPlayed) * 100) : 0
   const tWinRate = stats.tournamentStats.gamesPlayed > 0
     ? Math.round((stats.tournamentStats.wins / stats.tournamentStats.gamesPlayed) * 100)
@@ -50,17 +56,31 @@ export default function CareerStats({ stats }: { stats: PlayerStats }) {
       {stats.sessions.length > 0 && (
         <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
           <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Sessions ({stats.sessions.length})</p>
-          {stats.sessions.slice(sessionsPage * SESSIONS_PER_PAGE, (sessionsPage + 1) * SESSIONS_PER_PAGE).map((s) => (
-            <div key={s.id} className="flex justify-between items-center text-sm gap-2">
-              <span className={s.absent ? 'text-fg-dim line-through truncate min-w-0' : 'text-fg truncate min-w-0'}>
-                {s.title || 'Untitled'}
-              </span>
-              <div className="flex items-center gap-2 shrink-0">
-                {s.absent && <span className="text-[10px] font-sans text-fg-dim">absent</span>}
-                <span className="text-[10px] font-sans text-fg-dim">{s.date.split('-').reverse().join('-')}</span>
+          {stats.sessions.slice(sessionsPage * SESSIONS_PER_PAGE, (sessionsPage + 1) * SESSIONS_PER_PAGE).map((s) => {
+            // Sesi ini masuk perhitungan poin? Cocokkan lewat share_code
+            // (rating_events.source_id = sessions.share_code).
+            const pts = s.share_code ? countedPoints?.get(s.share_code) : undefined
+            const counted = pts !== undefined
+            return (
+              <div key={s.id} className="flex justify-between items-center text-sm gap-2">
+                <span className={s.absent ? 'text-fg-dim line-through truncate min-w-0' : 'text-fg truncate min-w-0'}>
+                  {s.title || 'Untitled'}
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {counted && (
+                    <span
+                      className="text-[10px] font-mono text-accent"
+                      title={`Masuk perhitungan poin: +${Math.round(pts).toLocaleString('id-ID')}`}
+                    >
+                      dihitung +{Math.round(pts).toLocaleString('id-ID')}
+                    </span>
+                  )}
+                  {s.absent && <span className="text-[10px] font-sans text-fg-dim">absent</span>}
+                  <span className="text-[10px] font-sans text-fg-dim">{s.date.split('-').reverse().join('-')}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
           {sessionsTotal > 1 && (
             <div className="flex items-center justify-between pt-1">
               <button

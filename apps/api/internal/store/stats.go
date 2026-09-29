@@ -15,10 +15,14 @@ import (
 // bm.get_player_stats_compat) ─────────────────────────────────────────────
 
 type sessionStat struct {
-	ID     string `json:"id"`
-	Date   string `json:"date"`
-	Title  string `json:"title"`
-	Absent bool   `json:"absent"`
+	ID string `json:"id"`
+	// ShareCode — kunci yang menghubungkan sesi ini dengan entri ranking poin
+	// (rating_events.source_id = sessions.share_code). Dipakai halaman pemain
+	// untuk menandai sesi mana yang masuk perhitungan poin.
+	ShareCode string `json:"share_code"`
+	Date      string `json:"date"`
+	Title     string `json:"title"`
+	Absent    bool   `json:"absent"`
 }
 
 type statEntry struct {
@@ -132,7 +136,7 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 
 	// ── sessions (mirror session_rows) ───────────────────────────────────
 	rows, err := pool.Query(ctx, `
-		SELECT s.id::text, s.session_date::text, s.title, sp.is_absent
+		SELECT s.id::text, s.share_code, s.session_date::text, s.title, sp.is_absent
 		FROM session_players sp
 		JOIN sessions s ON s.id = sp.session_id
 		WHERE sp.player_id = $1::uuid
@@ -142,7 +146,7 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 	}
 	for rows.Next() {
 		var st sessionStat
-		if err := rows.Scan(&st.ID, &st.Date, &st.Title, &st.Absent); err != nil {
+		if err := rows.Scan(&st.ID, &st.ShareCode, &st.Date, &st.Title, &st.Absent); err != nil {
 			rows.Close()
 			return nil, err
 		}
