@@ -208,6 +208,8 @@ func resolveIDByAliasFuzzy(t *testing.T, st *SessionStore, schema, code string) 
 		"rtp1": "RTP One", "rtp2": "RTP Two", "rtp3": "RTP Three", "rtp4": "RTP Four",
 		// Test movement rank (snapshot + panah ^/v).
 		"rm1": "RM One", "rm2": "RM Two", "rm3": "RM Three", "rm4": "RM Four",
+		// Test as_of per-pemain.
+		"ra1": "RA One", "ra2": "RA Two", "ra3": "RA Three", "ra4": "RA Four",
 	}
 	name, ok := names[code]
 	if !ok {
@@ -366,7 +368,7 @@ func TestIntegrationRankPointsPlayerParity(t *testing.T) {
 			continue
 		}
 		compared++
-		one, found, err := st.RankPointsForPlayer(ctx, full.PlayerID)
+		one, found, err := st.RankPointsForPlayer(ctx, full.PlayerID, "")
 		if err != nil {
 			t.Fatalf("%s: %v", full.Name, err)
 		}
@@ -394,7 +396,7 @@ func TestIntegrationRankPointsPlayerParity(t *testing.T) {
 	}
 
 	// Pemain tanpa entri di window → found=false (bukan error).
-	if _, found, err := st.RankPointsForPlayer(ctx, "00000000-0000-0000-0000-0000000000ff"); err != nil || found {
+	if _, found, err := st.RankPointsForPlayer(ctx, "00000000-0000-0000-0000-0000000000ff", ""); err != nil || found {
 		t.Errorf("pemain tanpa entri: found=%v err=%v (harus found=false, err=nil)", found, err)
 	}
 }
@@ -525,7 +527,7 @@ func TestIntegrationRankPointsTurnamen(t *testing.T) {
 	// Jalur per-pemain IDENTIK dengan papan — termasuk Rank (audit ke-7:
 	// CTE SQL lama menghitung rank dengan rumus sesi sehingga menyimpang
 	// begitu poin turnamen ada).
-	pr, found, err := st.RankPointsForPlayer(ctx, resolveIDByAlias(t, st, "rtp four"))
+	pr, found, err := st.RankPointsForPlayer(ctx, resolveIDByAlias(t, st, "rtp four"), "")
 	if err != nil || !found {
 		t.Fatalf("RankPointsForPlayer: found=%v err=%v", found, err)
 	}
@@ -563,7 +565,7 @@ func TestIntegrationRankPointsTurnamen(t *testing.T) {
 		_, _ = st.pool.Exec(ctx,
 			`UPDATE `+schema+`.rank_point_levels SET enabled = true WHERE kind = 'tournament_classic'`)
 	})
-	fb, found, err := st.RankPointsForPlayer(ctx, resolveIDByAlias(t, st, "rtp three"))
+	fb, found, err := st.RankPointsForPlayer(ctx, resolveIDByAlias(t, st, "rtp three"), "")
 	if err != nil || !found {
 		t.Fatalf("fallback per-pemain: found=%v err=%v", found, err)
 	}
@@ -755,4 +757,90 @@ func cfgForRankTest(t *testing.T, st *SessionStore) domain.RatingConfig {
 		t.Fatalf("LoadRatingConfig: %v", err)
 	}
 	return cfg
+}
+
+// TestIntegrationRankPointsForPlayerAsOf — as_of dihormati di jalur
+// per-pemain, sama seperti papan.
+//
+// Regresi yang dikunci: dulu RankPointsForPlayer selalu memakai tanggal event
+// terakhir, sehingga halaman detail pemain menampilkan peringkat/poin yang
+// berbeda dari papan pada tanggal yang sedang dilihat pengguna.
+func TestIntegrationRankPointsForPlayerAsOf(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	const prefix = "it-rasof"
+	players := []domain.Player{
+		{ID: "ra1", Name: "RA One", Gender: "M", Tier: 3},
+		{ID: "ra2", Name: "RA Two", Gender: "M", Tier: 3},
+		{ID: "ra3", Name: "RA Three", Gender: "M", Tier: 1},
+		{ID: "ra4", Name: "RA Four", Gender: "M", Tier: 1},
+	}
+	cleanup := func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.sessions WHERE share_code LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RA %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'ra %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RA %'`)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	tierOf := map[string]string{"ra1": "C", "ra2": "C", "ra3": "D", "ra4": "D"}
+	for id, tier := range tierOf {
+		pid := resolveIDByAliasFuzzy(t, st, schema, id)
+		if _, err := st.pool.Exec(ctx, `UPDATE `+schema+`.players SET tier = $2 WHERE id = $1::uuid`, pid, tier); err != nil {
+			t.Fatalf("tier %s: %v", id, err)
+		}
+	}
+
+	// Dua sesi di tanggal berbeda.
+	early := "2026-08-01"
+	late := "2026-09-27"
+	insertRankTestEvent(t, st, ctx, schema, prefix+"-a", early, "session", 21, 0, 30, []playerSide{
+		{id: "ra1", team: "A"}, {id: "ra2", team: "A"},
+		{id: "ra3", team: "B"}, {id: "ra4", team: "B"},
+	})
+	insertRankTestEvent(t, st, ctx, schema, prefix+"-b", late, "session", 21, 0, 30, []playerSide{
+		{id: "ra1", team: "A"}, {id: "ra2", team: "A"},
+		{id: "ra3", team: "B"}, {id: "ra4", team: "B"},
+	})
+
+	pid := resolveIDByAliasFuzzy(t, st, schema, "ra3")
+
+	// asOf awal: hanya sesi pertama dalam window → 1 entri.
+	earlyRow, found, err := st.RankPointsForPlayer(ctx, pid, early)
+	if err != nil || !found {
+		t.Fatalf("asOf awal: found=%v err=%v", found, err)
+	}
+	// asOf akhir: dua entri.
+	lateRow, found, err := st.RankPointsForPlayer(ctx, pid, late)
+	if err != nil || !found {
+		t.Fatalf("asOf akhir: found=%v err=%v", found, err)
+	}
+	if lateRow.EntriesAvailable <= earlyRow.EntriesAvailable {
+		t.Fatalf("as_of tidak dihormati: entri awal=%d, akhir=%d (harus bertambah)",
+			earlyRow.EntriesAvailable, lateRow.EntriesAvailable)
+	}
+
+	// Paritas dengan papan pada tanggal yang sama.
+	board, err := st.RankPointsBoard(ctx, early, 500)
+	if err != nil {
+		t.Fatalf("board: %v", err)
+	}
+	for i := range board.Rows {
+		if board.Rows[i].PlayerID == pid {
+			if board.Rows[i].Points != earlyRow.Points || board.Rows[i].Rank != earlyRow.Rank {
+				t.Fatalf("per-pemain != papan pada as_of %s: %v/%d vs %v/%d",
+					early, earlyRow.Points, earlyRow.Rank, board.Rows[i].Points, board.Rows[i].Rank)
+			}
+			return
+		}
+	}
+	t.Fatalf("pemain tidak ada di papan as_of %s", early)
 }

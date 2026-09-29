@@ -211,7 +211,8 @@ func (h *RatingsHandler) Rankings(w http.ResponseWriter, r *http.Request) {
 // PlayerRankPoints — GET /rankings/players/{playerId} → PUBLIK.
 //
 // Poin pemain di halaman detail. found=false (bukan 404) bila belum ada entri
-// di window: pemain baru tetap boleh membuka halamannya.
+// di window: pemain baru tetap boleh membuka halamannya. as_of opsional
+// (YYYY-MM-DD) — kosong berarti tanggal event terakhir.
 func (h *RatingsHandler) PlayerRankPoints(w http.ResponseWriter, r *http.Request) {
 	pid := r.PathValue("playerId")
 	// id yang bukan format UUID tidak mungkin menunjuk pemain mana pun, dan
@@ -221,7 +222,17 @@ func (h *RatingsHandler) PlayerRankPoints(w http.ResponseWriter, r *http.Request
 		httperr.WriteJSON(w, http.StatusOK, map[string]any{"found": false})
 		return
 	}
-	row, found, err := h.Store.RankPointsForPlayer(r.Context(), pid)
+	// as_of dihormati sama seperti papan: tanpa ini halaman detail memakai
+	// tanggal default (event terakhir) dan bisa menampilkan peringkat yang
+	// berbeda dari papan pada tanggal yang sedang dilihat pengguna.
+	asOf := r.URL.Query().Get("as_of")
+	if asOf != "" {
+		if _, err := time.Parse("2006-01-02", asOf); err != nil {
+			httperr.WriteError(w, h.Logger, httperr.Validation("as_of harus format YYYY-MM-DD"))
+			return
+		}
+	}
+	row, found, err := h.Store.RankPointsForPlayer(r.Context(), pid, asOf)
 	if err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch rank points", err))
 		return

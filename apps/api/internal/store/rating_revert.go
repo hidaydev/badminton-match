@@ -302,12 +302,11 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		return !p.absent && !p.skipped
 	}
 	type ev struct {
-		id, date    string
-		scoreA      int
-		scoreB      int
-		target      int
-		phaseWeight float64
-		players     []evPlayer
+		id, date string
+		scoreA   int
+		scoreB   int
+		target   int
+		players  []evPlayer
 	}
 
 	// Baca events urut global + pemainnya. DIBACA DULU sebelum reset, karena
@@ -332,7 +331,6 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 	rows, err := tx.Query(ctx, `
 		WITH recon AS (`+s.reconstructedPlayerMappingSQL()+`)
 		SELECT re.id::text, re.date::text, re.score_a, re.score_b, re.target,
-		       re.phase_weight,
 		       coalesce(jsonb_agg(jsonb_build_object(
 		           'p', m.player_id::text, 't', m.team,
 		           'a', m.absent, 's', m.skipped, 'j', m.journey)
@@ -367,7 +365,7 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 		var e ev
 		var playersJSON []byte
 		if err := rows.Scan(&e.id, &e.date, &e.scoreA, &e.scoreB, &e.target,
-			&e.phaseWeight, &playersJSON); err != nil {
+			&playersJSON); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -465,14 +463,12 @@ func (s *SessionStore) rebuildAll(ctx context.Context, tx pgx.Tx, cfg domain.Rat
 				}
 				rt.peak = pri.rating
 				if tier := priorTier[id]; tier != "" {
-					rt.tier = tier
 				}
 			} else if tier := priorTier[id]; tier != "" {
 				// Pemain baru dengan tier assigned → mid kelas.
 				if mid, ok := cfg.MidRatingForTier(tier); ok {
 					rt.state.Rating = mid
 					rt.peak = mid
-					rt.tier = tier
 				}
 			}
 			runtime[id] = rt

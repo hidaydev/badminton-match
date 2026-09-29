@@ -115,11 +115,6 @@ func (s *SessionStore) LoadRatingConfig(ctx context.Context, failFast bool) (dom
 	if err := apply("absent_policy", func(v json.RawMessage) error { return asString("absent_policy", (*string)(&cfg.AbsentPolicy)) }); err != nil {
 		return domain.RatingConfig{}, err
 	}
-	if err := apply("placeholder_policy", func(v json.RawMessage) error {
-		return asString("placeholder_policy", (*string)(&cfg.PlaceholderPolicy))
-	}); err != nil {
-		return domain.RatingConfig{}, err
-	}
 	if err := apply("placeholder_promote_games", func(v json.RawMessage) error { return asInt("placeholder_promote_games", &cfg.PlaceholderPromoteGames) }); err != nil {
 		return domain.RatingConfig{}, err
 	}

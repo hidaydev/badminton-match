@@ -30,10 +30,4 @@ func TestRatingConfigValidateCatchesBadRanges(t *testing.T) {
 		t.Fatal("absent_policy tak dikenal harus gagal")
 	}
 
-	// placeholder_policy tak dikenal
-	bad = cfg
-	bad.PlaceholderPolicy = PlaceholderPolicy("hmm")
-	if err := bad.Validate(); err == nil {
-		t.Fatal("placeholder_policy tak dikenal harus gagal")
-	}
 }

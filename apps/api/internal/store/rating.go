@@ -317,7 +317,6 @@ func (s *SessionStore) ingest(ctx context.Context, lookup string, ex extractor) 
 				if init, ok := cfg.FormingForTier(tier); ok {
 					rt.state.Rating = init.Rating
 					rt.peak = init.Rating
-					rt.tier = tier
 				}
 			}
 		}
@@ -637,7 +636,6 @@ type playerRuntime struct {
 	wins         int
 	losses       int
 	lastPlayedAt string
-	tier         string // assigned tier (players.tier — single source)
 	exists       bool
 }
 
