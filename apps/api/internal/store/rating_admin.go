@@ -126,6 +126,12 @@ func (s *SessionStore) DeletePlayer(ctx context.Context, playerID string, force 
 	}
 	// panggil delete_player SQL (session ref check)
 	if _, err := tx.Exec(ctx, `SELECT `+s.schema+`.delete_player($1::uuid, $2)`, playerID, force); err != nil {
+		// Pemain yang masih dipakai sesi ditolak delete_player tanpa force.
+		// Diterjemahkan ke sentinel supaya handler membalas 409 + pesan asli,
+		// bukan 500 "failed to delete player" yang tidak bisa ditindaklanjuti.
+		if strings.Contains(err.Error(), "is referenced in") {
+			return fmt.Errorf("%w: %s", ErrPlayerReferenced, err.Error())
+		}
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

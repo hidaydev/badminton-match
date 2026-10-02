@@ -27,6 +27,10 @@ var (
 	ErrValidation = errors.New("validation failed")
 	// ErrContention — sesi sedang di-update request lain (advisory lock / FOR UPDATE NOWAIT).
 	ErrContention = errors.New("session is being updated by another request; reload and retry")
+	// ErrPlayerReferenced — pemain masih dipakai sesi; hapus butuh force.
+	// Diterjemahkan dari error PL/pgSQL delete_player supaya handler bisa
+	// membalas 409 dengan pesan yang bisa ditindaklanjuti UI (bukan 500 generic).
+	ErrPlayerReferenced = errors.New("player is referenced in sessions")
 )
 
 // SessionStore — akses session.
