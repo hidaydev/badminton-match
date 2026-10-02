@@ -54,10 +54,12 @@ export const createPlayersSlice = (
   removePlayer: (id) =>
     set((s) => {
       const nextPlayers = s.players.filter((p) => p.id !== id)
-      const nextPlayerCount = Math.max(4, Math.min(s.session.playerCount, nextPlayers.length))
+      // playerCount TIDAK ikut diturunkan. Itu target yang diatur di Setup dan
+      // dipakai tombol "Add Player" (disabled saat players.length >= playerCount).
+      // Dulu nilainya di-clamp ke jumlah pemain, sehingga sekali menghapus tombol
+      // tambah langsung terkunci — pemain tidak bisa dikembalikan.
       return {
         players: nextPlayers,
-        session: { ...s.session, playerCount: nextPlayerCount },
         fixMatches: s.fixMatches
           .map((m) => ({
             ...m,

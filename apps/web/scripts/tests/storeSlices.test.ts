@@ -7,7 +7,7 @@ import { createPlayersSlice } from '../../src/store/playersSlice.ts'
 import { createSessionSlice } from '../../src/store/sessionSlice.ts'
 import type { SetState } from '../../src/store/index.ts'
 import { toPlayerId, toGameKey } from '../../src/types/index.ts'
-import type { Player, ScheduleSlot, GameScore, GameKey } from '../../src/types/index.ts'
+import type { Player, ScheduleSlot, GameScore, GameKey, MatchConstraint } from '../../src/types/index.ts'
 
 type AppState = Parameters<SetState>[0] extends (s: infer S) => unknown ? S : never
 
@@ -133,4 +133,83 @@ test('setCourts: court baru tidak punya end < start saat sessionStart malam', ()
     newCourt.end >= newCourt.start,
     `end (${newCourt.end}) harus >= start (${newCourt.start})`,
   )
+})
+
+// Regression: hapus pemain di session wizard mengunci tombol "Add Player".
+//
+// Bug yang dilaporkan: "habis remove player, tidak bisa nambah lagi" di layar
+// Players (session wizard). Penyebabnya removePlayer ikut MENURUNKAN
+// session.playerCount, sedangkan tombol Add di-disabled saat
+// players.length >= playerCount. Jadi sekali menghapus, target ikut turun ke
+// jumlah saat itu dan tombol tambah terkunci — pemain tidak bisa dikembalikan.
+
+// harness pemain + session: createPlayersSlice & createSessionSlice digabung,
+// karena removePlayer dulu menulis ke session.playerCount.
+function playersHarness(playerCount: number) {
+  const h = harness({})
+  const sessionSlice = createSessionSlice(h.set)
+  const playersSlice = createPlayersSlice(h.set)
+  h.set((s) => ({
+    ...s,
+    ...sessionSlice,
+    ...playersSlice,
+    // Default yang dibutuhkan removePlayer; test boleh menimpanya.
+    players: [],
+    fixMatches: [],
+    absentPlayers: [],
+  }))
+  h.get().setPlayerCount(playerCount)
+  return { h, players: playersSlice }
+}
+
+test('removePlayer: tidak menurunkan playerCount (target tetap dari Setup)', () => {
+  const { h, players } = playersHarness(8)
+  h.set((s) => ({ ...s, players: [p('a'), p('b'), p('c'), p('d')] }))
+
+  players.removePlayer(toPlayerId('a'))
+
+  const s = h.get()
+  assert.equal(s.players.length, 3)
+  assert.equal(
+    s.session.playerCount,
+    8,
+    'playerCount harus tetap 8 — kalau ikut turun, tombol Add Player terkunci',
+  )
+})
+
+test('removePlayer lalu addPlayer: jumlah pemain bisa kembali penuh', () => {
+  const { h, players } = playersHarness(4)
+  h.set((s) => ({ ...s, players: [p('a'), p('b'), p('c'), p('d')] }))
+
+  players.removePlayer(toPlayerId('a'))
+  assert.equal(h.get().session.playerCount, 4, 'kapasitas harus tetap untuk pengganti')
+
+  players.addPlayer({ name: 'E', gender: 'M', tier: 3 })
+  const s = h.get()
+  assert.equal(s.players.length, 4, 'pemain pengganti harus bisa ditambahkan')
+  assert.equal(s.session.playerCount, 4)
+})
+
+test('removePlayer: tetap bersihkan fixMatch & absent yang menunjuk pemain itu', () => {
+  const { h, players } = playersHarness(5)
+  h.set((s) => ({
+    ...s,
+    players: [p('a'), p('b'), p('c'), p('d')],
+    absentPlayers: [toPlayerId('a'), toPlayerId('b')],
+    fixMatches: [
+      {
+        id: toGameKey(1, 0),
+        slots: [toPlayerId('a'), toPlayerId('b'), '', ''] as MatchConstraint['slots'],
+        mode: 'flexible',
+      },
+    ],
+  }))
+
+  players.removePlayer(toPlayerId('a'))
+
+  const s = h.get()
+  assert.deepEqual(s.absentPlayers, [toPlayerId('b')])
+  assert.equal(s.fixMatches.length, 1)
+  assert.equal(s.fixMatches[0].slots[0], '')
+  assert.equal(s.session.playerCount, 5)
 })
