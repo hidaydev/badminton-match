@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useListPlayers } from '../../queries'
 import { adminRequest } from '../../queries/admin'
+import { ApiError } from '../../queries/retry'
 import { t, en } from '../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
@@ -145,13 +146,27 @@ export default function AdminPlayersPage() {
                     }
                   }}>Rename</ActionButton>
                   <ActionButton tone="red" onClick={() => {
-                    if (window.confirm(en.admin.playerDeleteConfirm(pl.name))) {
-                      run(
-                        () => adminRequest('DELETE', `/players/${pl.playerId}`),
-                        t('admin.playerDeleted'),
-                        () => refetch(),
-                      )
-                    }
+                    if (!window.confirm(en.admin.playerDeleteConfirm(pl.name))) return
+                    run(
+                      async () => {
+                        try {
+                          await adminRequest('DELETE', `/players/${pl.playerId}`)
+                        } catch (e) {
+                          // Pemain yang pernah ikut sesi ditolak server (409
+                          // player_referenced) — hapus butuh konfirmasi kedua.
+                          // Sebelum ini UI selalu kena 500 dan tombol tampak
+                          // rusak untuk 94% pemain.
+                          if (e instanceof ApiError && e.status === 409) {
+                            if (!window.confirm(en.admin.playerDeleteForceConfirm(pl.name))) return false
+                            await adminRequest('DELETE', `/players/${pl.playerId}?force=true`)
+                            return
+                          }
+                          throw e
+                        }
+                      },
+                      t('admin.playerDeleted'),
+                      () => refetch(),
+                    )
                   }}>Delete</ActionButton>
                 </div>
               ))}

@@ -59,6 +59,10 @@ func (h *PlayerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, store.ErrNotFound):
 			httperr.WriteError(w, h.Logger, httperr.NotFound("player not found"))
+		case errors.Is(err, store.ErrPlayerReferenced):
+			// Bukan kegagalan server: pemain memang masih dipakai sesi dan
+			// butuh force. 409 supaya UI bisa menampilkan konfirmasi kedua.
+			httperr.WriteError(w, h.Logger, httperr.Conflict(err.Error()))
 		case errors.Is(err, store.ErrValidation):
 			httperr.WriteError(w, h.Logger, httperr.Validation(err.Error()))
 		default:

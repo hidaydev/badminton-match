@@ -41,6 +41,9 @@ export const en = {
       `Delete tournament "${name}"?\n\nRating source will be removed & all ratings rebuilt.`,
     playerDeleteConfirm: (name: string) =>
       `Delete player "${name}"? (session history stays, rating data removed)`,
+    // Konfirmasi kedua: pemain masih dipakai sesi (butuh force).
+    playerDeleteForceConfirm: (name: string) =>
+      `"${name}" sudah dipakai di sesi-sesi lama.\n\nTetap hapus? Pemain ini akan hilang dari daftar pemain di sesi tersebut (riwayat sesinya sendiri tetap ada). Tindakan ini tidak bisa dibatalkan.`,
     nameRequired: 'Name is required',
     newPlayerName: 'Player name',
     tierInduk: 'Tier',

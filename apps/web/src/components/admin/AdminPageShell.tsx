@@ -36,7 +36,12 @@ export default function AdminPageShell({ children }: AdminPageShellProps) {
   const run = useCallback(async (fn: () => Promise<unknown>, okLabel: string, refresh?: () => void) => {
     setError(null)
     try {
-      await fn()
+      // fn boleh mengembalikan false untuk menandai "tidak ada perubahan"
+      // (mis. pengguna membatalkan konfirmasi kedua). Jangan tampilkan pesan
+      // sukses dalam kasus itu — dulu selalu, sehingga batal pun terlihat
+      // seperti berhasil.
+      const result = await fn()
+      if (result === false) return
       flash(okLabel)
       refresh?.()
     } catch (e) {
