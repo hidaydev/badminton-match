@@ -12,6 +12,7 @@ SQL migrasi untuk schema PostgreSQL `bm`.
 | `000018_rank_points.sql` | Ranking poin: `rank_point_levels` + 6 config `rank_*` di `rating_config` |
 | `000019_rank_snapshots.sql` | `rank_snapshots` — posisi papan per `as_of` untuk panah gerakan |
 | `000020_purge_glicko.sql` | Purge peninggalan Glicko & musim: drop kolom rating/seed, tabel `rating_seasons`/`season_player_snapshots`, kolom angka `rating_deltas`, `rating_events.phase_weight`, `player_achievements.season_id`; hapus baris medal `medal:rating`/`season_member:*`; perbarui `merge_players` |
+| `000021_grant_delete_player.sql` | `GRANT EXECUTE bm.delete_player` ke `majadu_app` — tanpa ini tombol Delete pemain selalu 500 (permission denied) |
 
 Catatan:
 
