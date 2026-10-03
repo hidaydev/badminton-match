@@ -1,3 +1,6 @@
+import { useRef, useEffect } from 'react'
+import { useEscapeKey } from '../hooks/useEscapeKey'
+
 interface CelebrationOverlayProps {
   onDismiss(): void
 }
@@ -13,16 +16,23 @@ const PARTICLES = Array.from({ length: 60 }, (_, i) => ({
   color: COLORS[i % COLORS.length],
   width: 6 + (i % 5) * 2,
   height: 10 + (i % 4) * 3,
-  delay: `${(i * 0.17) % 3}s`,
+  delay: `-${((i * 0.17) % 3).toFixed(2)}s`,
   duration: `${2.5 + (i % 5) * 0.4}s`,
   borderRadius: i % 3 === 0 ? '50%' : '2px',
 }))
 
 export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProps) {
+  const overlayRef = useRef<HTMLDivElement>(null)
+
+  useEscapeKey(onDismiss)
+
+  useEffect(() => { overlayRef.current?.focus() }, [])
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
-      style={{ background: 'rgba(0,0,0,0.82)' }}
+      ref={overlayRef}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/80"
       onClick={onDismiss}
       role="dialog"
       aria-modal="true"
@@ -53,6 +63,7 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         className="relative z-10 object-contain drop-shadow-2xl animate-[fadeInScale_0.4s_ease-out]"
         style={{ maxHeight: '72vh', maxWidth: '90vw' }}
         draggable={false}
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
       />
     </div>
   )
