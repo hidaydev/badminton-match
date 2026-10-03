@@ -4,7 +4,7 @@ import { AdminProvider } from './context/AdminContext'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import UpdateBanner from './components/UpdateBanner'
-import AnnivBannerOverlay from './components/AnnivBannerOverlay'
+import CelebrationOverlay from './components/CelebrationOverlay'
 import ErrorBoundary from './components/ErrorBoundary'
 import HomeLayout from './components/HomeLayout'
 import GlobalAmbiguousNames from './context/GlobalAmbiguousNames'
@@ -70,7 +70,7 @@ export default function App() {
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash)
   )
-  const [showAnnivBanner, setShowAnnivBanner] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(true)
 
   const exitSharedView = useCallback(() => {
     window.location.href = window.location.origin + '/'
@@ -85,8 +85,8 @@ export default function App() {
   return (
     <ErrorBoundary routeName="app">
     <SharedViewContext.Provider value={sharedViewValue}>
-      {showAnnivBanner && (
-        <AnnivBannerOverlay onDismiss={() => setShowAnnivBanner(false)} />
+      {showCelebration && (
+        <CelebrationOverlay onDismiss={() => setShowCelebration(false)} />
       )}
       {needRefresh && (
         <UpdateBanner
