@@ -17,14 +17,16 @@ function getTimeLeft() {
   }
 }
 
-const SPARKLES = Array.from({ length: 36 }, (_, i) => ({
+const STARS = Array.from({ length: 20 }, (_, i) => ({
   id: i,
-  left: `${(i * 2.8 + Math.sin(i * 1.3) * 15 + 50) % 100}%`,
-  bottom: `${(i * 7) % 40}%`,
-  size: 4 + (i % 5) * 3,
-  delay: `-${((i * 0.23) % 4).toFixed(2)}s`,
-  duration: `${3 + (i % 4) * 0.7}s`,
-  color: ['#e3b341', '#f5d278', '#ffffff', '#e8cd83', '#ffeaa0'][i % 5],
+  top: `${(i * 7 + Math.sin(i) * 8) % 60}%`,
+  left: `${20 + (i * 4.3 + Math.cos(i) * 12) % 75}%`,
+  width: 1.5 + (i % 3) * 0.5,
+  length: 60 + (i % 5) * 30,
+  angle: -35 - (i % 4) * 8,
+  delay: `-${((i * 0.6) % 5).toFixed(2)}s`,
+  duration: `${1.2 + (i % 4) * 0.4}s`,
+  color: ['#ffffff', '#e3b341', '#f5d278', '#ffffff', '#e8cd83'][i % 5],
 }))
 
 function CountdownUnit({ value, label }: { value: number; label: string }) {
@@ -77,24 +79,26 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
         }}
       />
 
-      {/* Gold sparkle particles */}
+      {/* Shooting stars */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true" style={{ zIndex: 2 }}>
-        {SPARKLES.map((s) => (
+        {STARS.map((s) => (
+          /* Outer div: position + rotation; inner div: streak that travels along that axis */
           <div
             key={s.id}
             className="absolute"
-            style={{
-              left: s.left,
-              bottom: s.bottom,
-              width: s.size,
-              height: s.size,
-              background: s.color,
-              transform: 'rotate(45deg)',
-              borderRadius: '1px',
-              boxShadow: `0 0 ${s.size * 2}px ${s.color}`,
-              animation: `annivSparkleFloat ${s.duration} ${s.delay} ease-in infinite`,
-            }}
-          />
+            style={{ top: s.top, left: s.left, transform: `rotate(${s.angle}deg)` }}
+          >
+            <div
+              style={{
+                width: s.width,
+                height: s.length,
+                background: `linear-gradient(to bottom, ${s.color}, transparent)`,
+                borderRadius: '999px',
+                boxShadow: `0 0 4px ${s.color}`,
+                animation: `annivShootingStar ${s.duration} ${s.delay} linear infinite`,
+              }}
+            />
+          </div>
         ))}
       </div>
 
@@ -131,24 +135,28 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
 
       {/* Side players row */}
       <div className="pointer-events-none relative flex w-full items-end justify-between flex-1" style={{ zIndex: 10 }}>
-        <img
-          src="/anniv-left.png"
-          alt=""
-          aria-hidden="true"
-          className="object-contain object-bottom"
-          style={{ height: '65vh', maxWidth: '45vw', animation: 'annivSlideInLeft 0.7s 0s ease-out both' }}
-          draggable={false}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-        <img
-          src="/anniv-right.png"
-          alt=""
-          aria-hidden="true"
-          className="object-contain object-bottom"
-          style={{ height: '65vh', maxWidth: '45vw', animation: 'annivSlideInRight 0.7s 0s ease-out both' }}
-          draggable={false}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
+        <div style={{ height: '65vh', animation: 'annivSlideInLeft 0.7s 0s ease-out both', marginLeft: '-20%' }}>
+          <img
+            src="/anniv-left.png"
+            alt=""
+            aria-hidden="true"
+            style={{ height: '100%', width: 'auto' }}
+            className="object-bottom"
+            draggable={false}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+        </div>
+        <div style={{ height: '65vh', animation: 'annivSlideInRight 0.7s 0s ease-out both', marginRight: '-10%' }}>
+          <img
+            src="/anniv-right.png"
+            alt=""
+            aria-hidden="true"
+            style={{ height: '100%', width: 'auto' }}
+            className="object-bottom"
+            draggable={false}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+        </div>
       </div>
 
     </div>
