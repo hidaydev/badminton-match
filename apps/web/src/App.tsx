@@ -4,7 +4,7 @@ import { AdminProvider } from './context/AdminContext'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import UpdateBanner from './components/UpdateBanner'
-import CelebrationOverlay from './components/CelebrationOverlay'
+import AnnivBannerOverlay from './components/AnnivBannerOverlay'
 import ErrorBoundary from './components/ErrorBoundary'
 import HomeLayout from './components/HomeLayout'
 import GlobalAmbiguousNames from './context/GlobalAmbiguousNames'
@@ -86,7 +86,7 @@ export default function App() {
     <ErrorBoundary routeName="app">
     <SharedViewContext.Provider value={sharedViewValue}>
       {showCelebration && (
-        <CelebrationOverlay onDismiss={() => setShowCelebration(false)} />
+        <AnnivBannerOverlay onDismiss={() => setShowCelebration(false)} />
       )}
       {needRefresh && (
         <UpdateBanner
