@@ -159,7 +159,8 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
         <img
           src="/anniv-center.png"
           alt="Team lineup"
-          className="w-full max-w-sm object-contain drop-shadow-xl"
+          className="w-full object-contain drop-shadow-xl"
+          style={{ maxWidth: 'clamp(160px, 50vw, 320px)' }}
           draggable={false}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
