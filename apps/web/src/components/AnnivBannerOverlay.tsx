@@ -136,7 +136,7 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
           alt=""
           aria-hidden="true"
           className="object-contain object-bottom"
-          style={{ height: '55vh', maxWidth: '45vw', animation: 'annivSlideInLeft 0.7s 0s ease-out both' }}
+          style={{ width: '42vw', maxHeight: '65vh', animation: 'annivSlideInLeft 0.7s 0s ease-out both' }}
           draggable={false}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
@@ -145,16 +145,16 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
           alt=""
           aria-hidden="true"
           className="object-contain object-bottom"
-          style={{ height: '55vh', maxWidth: '45vw', animation: 'annivSlideInRight 0.7s 0s ease-out both' }}
+          style={{ width: '42vw', maxHeight: '65vh', animation: 'annivSlideInRight 0.7s 0s ease-out both' }}
           draggable={false}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
       </div>
 
-      {/* Team lineup logos */}
+      {/* Team lineup logos — behind players */}
       <div
         className="pointer-events-none absolute inset-x-0 flex justify-center px-8"
-        style={{ animation: 'annivFadeInUp 0.7s 0.6s ease-out both', zIndex: 20, top: '46%' }}
+        style={{ animation: 'annivFadeInUp 0.7s 0.6s ease-out both', zIndex: 5, top: '46%' }}
       >
         <img
           src="/anniv-center.png"
