@@ -4,6 +4,7 @@ import { usePwaInstall } from '../hooks/usePwaInstall'
 import { useLastSession } from '../hooks/useLastSession'
 import { useAdmin } from '../context/AdminContext'
 import InstallModal from '../components/InstallModal'
+import CelebrationOverlay from '../components/CelebrationOverlay'
 import Icon, { type IconName } from '../components/Icon'
 import AdminMenuGrid from '../components/admin/AdminMenuGrid'
 
@@ -28,6 +29,7 @@ export default function HomePage() {
   const { lastSession } = useLastSession()
   const [installDismissed, setInstallDismissed] = useState(false)
   const [manualInstallOpen, setManualInstallOpen] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(true)
   const today = new Date().toDateString()
   const modalOpen =
     manualInstallOpen || (
@@ -137,6 +139,9 @@ export default function HomePage() {
             setManualInstallOpen(false)
           }}
         />
+      )}
+      {showCelebration && (
+        <CelebrationOverlay onDismiss={() => setShowCelebration(false)} />
       )}
     </div>
   )
