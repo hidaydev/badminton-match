@@ -50,8 +50,8 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
       <img
         src="/team-winner.png"
         alt="Majadu Badminton Club — Champions"
-        className="relative z-10 max-h-[72vh] max-w-[90vw] object-contain drop-shadow-2xl
-          animate-[fadeInScale_0.4s_ease-out]"
+        className="relative z-10 object-contain drop-shadow-2xl animate-[fadeInScale_0.4s_ease-out]"
+        style={{ maxHeight: '72vh', maxWidth: '90vw' }}
         draggable={false}
       />
     </div>
