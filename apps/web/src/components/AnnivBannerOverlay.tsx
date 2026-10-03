@@ -131,24 +131,26 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
 
       {/* Side players row */}
       <div className="pointer-events-none relative flex w-full items-end justify-between flex-1" style={{ zIndex: 10 }}>
-        <img
-          src="/anniv-left.png"
-          alt=""
-          aria-hidden="true"
-          className="object-contain object-bottom"
-          style={{ width: '42vw', maxHeight: '65vh', animation: 'annivSlideInLeft 0.7s 0s ease-out both' }}
-          draggable={false}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-        <img
-          src="/anniv-right.png"
-          alt=""
-          aria-hidden="true"
-          className="object-contain object-bottom"
-          style={{ width: '42vw', maxHeight: '65vh', animation: 'annivSlideInRight 0.7s 0s ease-out both' }}
-          draggable={false}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
+        <div style={{ width: '44vw', height: '65vh', animation: 'annivSlideInLeft 0.7s 0s ease-out both' }}>
+          <img
+            src="/anniv-left.png"
+            alt=""
+            aria-hidden="true"
+            className="w-full h-full object-contain object-bottom"
+            draggable={false}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+        </div>
+        <div style={{ width: '44vw', height: '65vh', animation: 'annivSlideInRight 0.7s 0s ease-out both' }}>
+          <img
+            src="/anniv-right.png"
+            alt=""
+            aria-hidden="true"
+            className="w-full h-full object-contain object-bottom"
+            draggable={false}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+        </div>
       </div>
 
       {/* Team lineup logos — behind players */}
