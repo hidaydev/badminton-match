@@ -60,7 +60,7 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
 
       {/* Team lineup logos — fades up in center */}
       <div
-        className="pointer-events-none absolute z-20 flex justify-center px-8"
+        className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-8"
         style={{ animation: 'annivFadeInUp 0.7s 0.6s ease-out both' }}
       >
         <img
