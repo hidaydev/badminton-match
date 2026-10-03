@@ -70,7 +70,7 @@ export default function App() {
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash)
   )
-  const [showCelebration, setShowCelebration] = useState(true)
+  const [showAnnivBanner, setShowAnnivBanner] = useState(true)
 
   const exitSharedView = useCallback(() => {
     window.location.href = window.location.origin + '/'
@@ -85,8 +85,8 @@ export default function App() {
   return (
     <ErrorBoundary routeName="app">
     <SharedViewContext.Provider value={sharedViewValue}>
-      {showCelebration && (
-        <AnnivBannerOverlay onDismiss={() => setShowCelebration(false)} />
+      {showAnnivBanner && (
+        <AnnivBannerOverlay onDismiss={() => setShowAnnivBanner(false)} />
       )}
       {needRefresh && (
         <UpdateBanner
