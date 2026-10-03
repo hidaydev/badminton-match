@@ -151,20 +151,6 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
         />
       </div>
 
-      {/* Team lineup logos — behind players */}
-      <div
-        className="pointer-events-none absolute inset-x-0 flex justify-center px-8"
-        style={{ animation: 'annivFadeInUp 0.7s 0.6s ease-out both', zIndex: 5, top: '46%' }}
-      >
-        <img
-          src="/anniv-center.png"
-          alt="Team lineup"
-          className="w-full object-contain drop-shadow-xl"
-          style={{ maxWidth: 'clamp(160px, 50vw, 320px)' }}
-          draggable={false}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-      </div>
     </div>
   )
 }
