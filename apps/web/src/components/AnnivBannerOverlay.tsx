@@ -154,7 +154,7 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
       {/* Team lineup logos */}
       <div
         className="pointer-events-none absolute inset-x-0 flex justify-center px-8"
-        style={{ animation: 'annivFadeInUp 0.7s 0.6s ease-out both', zIndex: 20, top: '50%' }}
+        style={{ animation: 'annivFadeInUp 0.7s 0.6s ease-out both', zIndex: 20, top: '46%' }}
       >
         <img
           src="/anniv-center.png"
