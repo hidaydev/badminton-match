@@ -28,7 +28,7 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
         <img
           src="/anniv-top.png"
           alt="Majadu 1st Anniversary"
-          className="w-full max-w-xs object-contain drop-shadow-2xl"
+          className="w-full max-w-lg object-contain drop-shadow-2xl"
           draggable={false}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
