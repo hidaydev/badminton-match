@@ -17,16 +17,26 @@ function getTimeLeft() {
   }
 }
 
-const STARS = Array.from({ length: 20 }, (_, i) => ({
-  id: i,
-  top: `${(i * 7 + Math.sin(i) * 8) % 60}%`,
-  left: `${20 + (i * 4.3 + Math.cos(i) * 12) % 75}%`,
-  width: 1.5 + (i % 3) * 0.5,
-  length: 60 + (i % 5) * 30,
-  angle: -35 - (i % 4) * 8,
-  delay: `-${((i * 0.6) % 5).toFixed(2)}s`,
-  duration: `${1.2 + (i % 4) * 0.4}s`,
-  color: ['#ffffff', '#e3b341', '#f5d278', '#ffffff', '#e8cd83'][i % 5],
+const FW_COLORS = ['#e3b341', '#f5d278', '#ffffff', '#ff9f43', '#a8edea', '#fd79a8', '#e8cd83']
+
+const BURSTS = Array.from({ length: 7 }, (_, b) => ({
+  id: b,
+  left: `${12 + (b * 13 + Math.sin(b * 2) * 9) % 76}%`,
+  top:  `${10 + (b * 11 + Math.cos(b * 1.7) * 7) % 55}%`,
+  delay: `${((b * 1.1) % 5).toFixed(1)}s`,
+  duration: '2.8s',
+  flashColor: FW_COLORS[b % FW_COLORS.length],
+  particles: Array.from({ length: 14 }, (_, p) => {
+    const angle = (p / 14) * Math.PI * 2
+    const dist  = 30 + (p % 5) * 14
+    return {
+      id: p,
+      tx: Math.cos(angle) * dist,
+      ty: Math.sin(angle) * dist,
+      color: FW_COLORS[(b * 3 + p) % FW_COLORS.length],
+      size: 3 + (p % 3) * 2,
+    }
+  }),
 }))
 
 function CountdownUnit({ value, label }: { value: number; label: string }) {
@@ -69,9 +79,9 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
         className="absolute pointer-events-none"
         aria-hidden="true"
         style={{
-          width: '160vw',
-          height: '160vw',
-          top: '-40vw',
+          width: '200vmax',
+          height: '200vmax',
+          top: '-50vmax',
           left: '50%',
           background: 'repeating-conic-gradient(rgba(227,179,65,0.07) 0deg, rgba(227,179,65,0.07) 7deg, transparent 7deg, transparent 20deg)',
           animation: 'annivRaySpin 16s linear infinite',
@@ -79,25 +89,34 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
         }}
       />
 
-      {/* Shooting stars */}
-      <div className="absolute inset-0 pointer-events-none" aria-hidden="true" style={{ zIndex: 2 }}>
-        {STARS.map((s) => (
-          /* Outer div: position + rotation; inner div: streak that travels along that axis */
-          <div
-            key={s.id}
-            className="absolute"
-            style={{ top: s.top, left: s.left, transform: `rotate(${s.angle}deg)` }}
-          >
-            <div
-              style={{
-                width: s.width,
-                height: s.length,
-                background: `linear-gradient(to bottom, ${s.color}, transparent)`,
-                borderRadius: '999px',
-                boxShadow: `0 0 4px ${s.color}`,
-                animation: `annivShootingStar ${s.duration} ${s.delay} linear infinite`,
-              }}
-            />
+      {/* Fireworks */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden="true" style={{ zIndex: 3 }}>
+        {BURSTS.map((burst) => (
+          <div key={burst.id} className="absolute" style={{ left: burst.left, top: burst.top }}>
+            {/* Flash at center */}
+            <div style={{
+              position: 'absolute',
+              width: 10, height: 10,
+              borderRadius: '50%',
+              background: burst.flashColor,
+              boxShadow: `0 0 12px 4px ${burst.flashColor}`,
+              transform: 'translate(-50%, -50%)',
+              animation: `annivFireworkFlash ${burst.duration} ${burst.delay} ease-out infinite backwards`,
+            }} />
+            {/* Particles */}
+            {burst.particles.map((p) => (
+              <div key={p.id} style={{
+                position: 'absolute',
+                width: p.size, height: p.size,
+                borderRadius: '50%',
+                background: p.color,
+                boxShadow: `0 0 ${p.size * 2}px ${p.color}`,
+                transform: 'translate(-50%, -50%)',
+                ['--fw-tx' as string]: `${p.tx}px`,
+                ['--fw-ty' as string]: `${p.ty}px`,
+                animation: `annivFireworkBurst ${burst.duration} ${burst.delay} ease-out infinite backwards`,
+              }} />
+            ))}
           </div>
         ))}
       </div>
@@ -134,8 +153,8 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
       </div>
 
       {/* Side players row */}
-      <div className="pointer-events-none relative flex w-full items-end justify-between flex-1" style={{ zIndex: 10 }}>
-        <div style={{ height: '65vh', animation: 'annivSlideInLeft 0.7s 0s ease-out both', marginLeft: '-20%' }}>
+      <div className="pointer-events-none relative flex w-full items-end justify-between flex-1" style={{ zIndex: 10, isolation: 'isolate' }}>
+        <div className="anniv-left" style={{ height: '65vh', animation: 'annivSlideInLeft 0.7s 0s ease-out both', marginLeft: '-20%' }}>
           <img
             src="/anniv-left.png"
             alt=""
@@ -146,7 +165,7 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
           />
         </div>
-        <div style={{ height: '65vh', animation: 'annivSlideInRight 0.7s 0s ease-out both', marginRight: '-10%' }}>
+        <div className="anniv-right" style={{ height: '65vh', animation: 'annivSlideInRight 0.7s 0s ease-out both', marginRight: '-10%' }}>
           <img
             src="/anniv-right.png"
             alt=""
@@ -158,6 +177,14 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
           />
         </div>
       </div>
+
+      {/* Tap to dismiss */}
+      <p
+        className="pointer-events-none absolute bottom-6 inset-x-0 text-center text-[11px] uppercase tracking-widest text-white/30 font-sans"
+        style={{ zIndex: 30, animation: 'annivBlink 3s ease-in-out infinite' }}
+      >
+        Tap anywhere to dismiss
+      </p>
 
     </div>
   )
