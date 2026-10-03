@@ -152,26 +152,24 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
         </div>
       </div>
 
-      {/* Side players row */}
-      <div className="pointer-events-none relative flex w-full items-end justify-between flex-1" style={{ zIndex: 10, isolation: 'isolate' }}>
-        <div className="anniv-left" style={{ height: '65vh', animation: 'annivSlideInLeft 0.7s 0s ease-out both', marginLeft: '-20%' }}>
+      {/* Side players row — absolute so tall screens don't stretch them */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex items-end justify-between" style={{ zIndex: 10, isolation: 'isolate' }}>
+        <div className="anniv-left" style={{ animation: 'annivSlideInLeft 0.7s 0s ease-out both', marginLeft: '-20%' }}>
           <img
             src="/anniv-left.png"
             alt=""
             aria-hidden="true"
-            style={{ height: '100%', width: 'auto' }}
-            className="object-bottom"
+            style={{ maxHeight: '62vh', width: 'auto', display: 'block' }}
             draggable={false}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
           />
         </div>
-        <div className="anniv-right" style={{ height: '65vh', animation: 'annivSlideInRight 0.7s 0s ease-out both', marginRight: '-10%' }}>
+        <div className="anniv-right" style={{ animation: 'annivSlideInRight 0.7s 0s ease-out both', marginRight: '-10%' }}>
           <img
             src="/anniv-right.png"
             alt=""
             aria-hidden="true"
-            style={{ height: '100%', width: 'auto' }}
-            className="object-bottom"
+            style={{ maxHeight: '62vh', width: 'auto', display: 'block' }}
             draggable={false}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
           />
