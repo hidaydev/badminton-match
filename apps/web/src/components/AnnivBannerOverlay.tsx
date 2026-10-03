@@ -136,7 +136,7 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
           alt=""
           aria-hidden="true"
           className="object-contain object-bottom"
-          style={{ height: '65vh', animation: 'annivSlideInLeft 0.7s 0s ease-out both' }}
+          style={{ height: '65vh', maxWidth: '45vw', animation: 'annivSlideInLeft 0.7s 0s ease-out both' }}
           draggable={false}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
@@ -145,7 +145,7 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
           alt=""
           aria-hidden="true"
           className="object-contain object-bottom"
-          style={{ height: '65vh', animation: 'annivSlideInRight 0.7s 0s ease-out both' }}
+          style={{ height: '65vh', maxWidth: '45vw', animation: 'annivSlideInRight 0.7s 0s ease-out both' }}
           draggable={false}
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
