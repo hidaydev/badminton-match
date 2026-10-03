@@ -69,6 +69,7 @@ export default function AnnivBannerOverlay({ onDismiss }: AnnivBannerOverlayProp
       ref={overlayRef}
       tabIndex={-1}
       className="fixed inset-0 z-50 overflow-hidden bg-black/90 flex flex-col items-center justify-center"
+      style={{ paddingBottom: '55vh' }}
       onClick={onDismiss}
       role="dialog"
       aria-modal="true"
