@@ -231,13 +231,7 @@ export function drawMatchPost(options: DrawMatchPostOptions) {
   }
   ctx.restore()
 
-  // Anniversary card logo — team tournament only, floats above footer edge
-  if (cardLogo) {
-    const sH = 90
-    const sW = sH * (cardLogo.naturalWidth / cardLogo.naturalHeight)
-    ctx.drawImage(cardLogo, (W - sW) / 2, footerY - sH * 0.55, sW, sH)
-  } else if (sponsor) {
-    // Classic tournament: sponsor logo inside footer (original position)
+  if (sponsor) {
     const sH = 60
     const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
     ctx.drawImage(sponsor, (W - sW) / 2, footerY + 15, sW, sH)
