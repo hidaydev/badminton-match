@@ -113,10 +113,11 @@ function PositionCanvas({ positionLabel, teamName }: { positionLabel: string; te
     const canvas = canvasRef.current
     if (!canvas) return
     async function render() {
-      const [photo, logo, cardLogo, chevrons, teamLogo] = await Promise.all([
+      const [photo, logo, cardLogo, sponsor, chevrons, teamLogo] = await Promise.all([
         loadImage('/court-bg.png').catch(() => undefined),
         loadImage('/majadu-logo.png').catch(() => undefined),
         loadImage('/anniversary-card-logo.png').catch(() => undefined),
+        loadImage('/team-sponsor-logo.png').catch(() => undefined),
         loadImage('/chevrons.png').catch(() => undefined),
         teamLogoPath(teamName) ? loadImage(teamLogoPath(teamName)!).catch(() => undefined) : Promise.resolve(undefined),
       ])
@@ -128,6 +129,7 @@ function PositionCanvas({ positionLabel, teamName }: { positionLabel: string; te
         name: teamName,
         logo,
         cardLogo,
+        sponsor,
         chevrons,
         teamLogo,
       })
