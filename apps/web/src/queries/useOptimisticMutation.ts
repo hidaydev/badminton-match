@@ -96,13 +96,17 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
             if (retried) {
               queryClient.setQueryData(queryKey, retried)
               try {
-                await publish(id, retried)
-                try {
-                  await queryClient.fetchQuery<TData | null>({
-                    queryKey,
-                    queryFn: () => fetchSnapshot(id),
-                  })
-                } catch { /* ignore */ }
+                const out = await publish(id, retried)
+                if (out) {
+                  queryClient.setQueryData(queryKey, out)
+                } else {
+                  try {
+                    await queryClient.fetchQuery<TData | null>({
+                      queryKey,
+                      queryFn: () => fetchSnapshot(id),
+                    })
+                  } catch { /* ignore */ }
+                }
                 if (onSuccessCallback) await onSuccessCallback()
                 return // Success — no rollback
               } catch {
@@ -130,13 +134,17 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
         }
       }
     },
-    onSuccess: async () => {
-      // Don't set cache from server response — it can race with subsequent
-      // mutations. Instead, refetch fresh data from server.
-      await queryClient.fetchQuery<TData | null>({
-        queryKey,
-        queryFn: () => fetchSnapshot(id),
-      })
+    onSuccess: async (data) => {
+      // Commit response dari server (berisi version + 1 terbaru) secara sinkron ke cache
+      // untuk mencegah race window saat mutasi berurutan / cepat.
+      if (data) {
+        queryClient.setQueryData(queryKey, data)
+      } else {
+        await queryClient.fetchQuery<TData | null>({
+          queryKey,
+          queryFn: () => fetchSnapshot(id),
+        })
+      }
       if (onSuccessCallback) await onSuccessCallback()
     },
   })

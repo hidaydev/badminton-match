@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { useGetTournament, usePublishTeamTournament, normalizeTeamMatches } from '../queries'
+import { useGetTournament, usePublishTeamTournament, normalizeTeamMatches, getSaveErrorMessage } from '../queries'
 import {
   computeTeamStandings,
   generateTeamDraw,
@@ -66,21 +66,25 @@ export default function TeamTournamentPage() {
     }).then(setOverlays)
   }, [])
 
+  const publish = usePublishTeamTournament(id)
+
   // Sinkronkan editor dengan snapshot server saat refetch (pola "adjust state
   // during render" — rekomendasi React, bukan setState di effect).
   if (snap && snap !== prevSnap) {
     setPrevSnap(snap)
-    setLocalMatches(normalizeTeamMatches(snap.matches))
+    // Jika save gagal (misal validasi skor), pertahankan draf lokal user agar
+    // skor yang sudah diketik tidak hilang/reset dan bisa langsung diperbaiki.
+    if (!publish.isError || !localMatches) {
+      setLocalMatches(normalizeTeamMatches(snap.matches))
+    }
     setSlotToNamed(snap.teams.map((t, i) => namedIdx(t.name, i)))
   }
-
-  const publish = usePublishTeamTournament(id)
 
   /** Publish patch + surface error ke toast (rollback & OCC retry ditangani hook). */
   const publishPatch = (patch: { matches?: TeamMatch[]; teams?: TeamInfo[] }) => {
     publish.mutate(patch, {
       onSuccess: () => setPublishError(null),
-      onError: (err) => setPublishError(err instanceof Error ? err.message : 'Failed to save.'),
+      onError: (err) => setPublishError(getSaveErrorMessage(err)),
     })
   }
 

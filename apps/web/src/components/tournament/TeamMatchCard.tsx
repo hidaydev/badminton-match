@@ -36,8 +36,8 @@ export default function TeamMatchCard({
   const target = teamTarget(match.phase)
   const courts = match.courts ?? DEFAULT_TEAM_COURTS
   const label = match.phase === 'final'
-    ? `FINAL · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
-    : `Group · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`
+    ? `FINAL · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)} (rally 42)`
+    : `Group · ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)} (rally 30)`
 
   const getTeamPlayer = (teamId: string, cls: string) => {
     const team = teams.find((t) => t.id === teamId)
