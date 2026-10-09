@@ -455,7 +455,7 @@ export function drawPositionPost(options: DrawPositionPostOptions) {
     ctx.restore()
   }
 
-  drawHeader(ctx, W, logo, ANNIVERSARY_LABEL)
+  drawAnniversaryHeader(ctx, W, logo, cardLogo)
 
   // Team logo centered below header, with drop shadow
   if (teamLogo) {
@@ -499,14 +499,31 @@ export function drawPositionPost(options: DrawPositionPostOptions) {
     ctx.restore()
   }
 
-  const footerY = H - 320
+  const footerY = H - 370
 
-  // Anniversary card logo
-  const footerLogoImg = cardLogo ?? sponsor
-  if (footerLogoImg) {
-    const sH = 60
-    const sW = sH * (footerLogoImg.naturalWidth / footerLogoImg.naturalHeight)
-    ctx.drawImage(footerLogoImg, (W - sW) / 2, footerY + 10, sW, sH)
+  // Sponsor logo — bottom center, stepped downscale
+  if (sponsor) {
+    const sH = 44
+    const sW = Math.round(sH * (sponsor.naturalWidth / sponsor.naturalHeight))
+    let src: CanvasImageSource = sponsor
+    let srcW = sponsor.naturalWidth
+    let srcH = sponsor.naturalHeight
+    while (srcW / 2 > sW * 1.5) {
+      const mid = document.createElement('canvas')
+      mid.width = Math.round(srcW / 2)
+      mid.height = Math.round(srcH / 2)
+      const mctx = mid.getContext('2d')!
+      mctx.imageSmoothingEnabled = true
+      mctx.imageSmoothingQuality = 'high'
+      mctx.drawImage(src, 0, 0, mid.width, mid.height)
+      src = mid; srcW = mid.width; srcH = mid.height
+    }
+    ctx.save()
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.globalAlpha = 0.85
+    ctx.drawImage(src, (W - sW) / 2, H - sH - 24, sW, sH)
+    ctx.restore()
   }
 
   // Position label
@@ -515,7 +532,7 @@ export function drawPositionPost(options: DrawPositionPostOptions) {
   ctx.fillStyle = C.accent
   ctx.textAlign = 'center'
   ctx.letterSpacing = '6px'
-  ctx.fillText(positionLabel, W / 2, footerY + 160)
+  ctx.fillText(positionLabel, W / 2, footerY + 120)
   ctx.restore()
 
   // Name
@@ -524,7 +541,7 @@ export function drawPositionPost(options: DrawPositionPostOptions) {
   ctx.fillStyle = C.white
   ctx.textAlign = 'center'
   const maxW = W - 100
-  ctx.fillText(truncateToWidth(ctx, name, maxW), W / 2, footerY + 270)
+  ctx.fillText(truncateToWidth(ctx, name, maxW), W / 2, footerY + 230)
   ctx.restore()
 }
 
