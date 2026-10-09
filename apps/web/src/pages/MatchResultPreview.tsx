@@ -30,7 +30,7 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
         loadImage('/court-bg.png').catch(() => undefined),
         loadImage('/majadu-logo.png').catch(() => undefined),
         loadImage('/anniversary-card-logo.png').catch(() => undefined),
-        loadImage('/sponsor-logo.png').catch(() => undefined),
+        loadImage('/team-sponsor-logo.png').catch(() => undefined),
         teamLogoPath(teamA) ? loadImage(teamLogoPath(teamA)!).catch(() => undefined) : Promise.resolve(undefined),
         teamLogoPath(teamB) ? loadImage(teamLogoPath(teamB)!).catch(() => undefined) : Promise.resolve(undefined),
         loadTeamPhoto(teamA),
