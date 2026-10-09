@@ -60,7 +60,7 @@ export default function TeamTournamentPage() {
       logo: '/majadu-logo.png',
       badge: '/tournament-badge.png',
       chevrons: '/chevrons.png',
-      sponsor: '/sponsor-logo.png',
+      sponsor: '/team-sponsor-logo.png',
       summaryBg: '/summary-bg.jpg',
       cardLogo: '/anniversary-card-logo.png',
     }).then(setOverlays)
