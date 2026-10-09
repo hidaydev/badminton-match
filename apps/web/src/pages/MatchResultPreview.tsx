@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { drawTeamMatchPost, loadImage, type TeamMatchPartaiRow } from '../utils/canvasPost'
+import { drawTeamMatchPost, drawMatchPost, loadImage, type TeamMatchPartaiRow } from '../utils/canvasPost'
 import { teamLogoPath, teamColor, teamPhotoPath } from '../utils/teamTournament'
 
 const MOCK_PARTAI: TeamMatchPartaiRow[] = [
@@ -67,10 +67,51 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
   )
 }
 
+function PartaiCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    async function render() {
+      const [photo, logo, cardLogo, sponsor, teamALogo, teamBLogo] = await Promise.all([
+        loadImage('/court-bg.png').catch(() => undefined),
+        loadImage('/majadu-logo.png').catch(() => undefined),
+        loadImage('/anniversary-card-logo.png').catch(() => undefined),
+        loadImage('/team-sponsor-logo.png').catch(() => undefined),
+        teamLogoPath('BLUE WAVES') ? loadImage(teamLogoPath('BLUE WAVES')!).catch(() => undefined) : Promise.resolve(undefined),
+        teamLogoPath('RED RAPTORS') ? loadImage(teamLogoPath('RED RAPTORS')!).catch(() => undefined) : Promise.resolve(undefined),
+      ])
+      if (!photo) return
+      drawMatchPost({
+        canvas: canvas!,
+        photo,
+        pairAName: 'Fahmi / Tari',
+        pairBName: 'Dimas / Sarah',
+        scoreA: 21,
+        scoreB: 18,
+        subtitle: 'GROUP MATCH · C+C',
+        logo,
+        cardLogo,
+        sponsor,
+        teamALogo,
+        teamBLogo,
+      })
+    }
+    render()
+  }, [])
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <p className="text-slate-400 text-xs tracking-widest uppercase">Individual Match Post — Example</p>
+      <canvas ref={canvasRef} style={{ width: '480px', maxWidth: '100%', borderRadius: '12px' }} />
+    </div>
+  )
+}
+
 export default function MatchResultPreview() {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center py-8 gap-10">
       <p className="text-slate-500 text-sm tracking-widest uppercase">Match Result Preview — All Teams</p>
+      <PartaiCanvas />
       {MATCHES.map(m => (
         <MatchCanvas key={`${m.teamA}-${m.teamB}`} {...m} />
       ))}

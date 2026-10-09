@@ -208,7 +208,7 @@ export function drawMatchPost(options: DrawMatchPostOptions) {
   else drawTournamentHeader(ctx, W, logo)
 
   // Footer
-  const footerH = 230
+  const footerH = 270
   const footerY = H - footerH
   ctx.save()
   ctx.fillStyle = 'rgba(0,0,0,0.85)'
@@ -216,7 +216,7 @@ export function drawMatchPost(options: DrawMatchPostOptions) {
   ctx.restore()
 
   // Team logos as large semi-transparent bg watermarks in footer
-  const teamLogoH = 210
+  const teamLogoH = 250
   ctx.save()
   ctx.globalAlpha = 0.25
   if (teamALogo) {
@@ -232,13 +232,30 @@ export function drawMatchPost(options: DrawMatchPostOptions) {
   ctx.restore()
 
   if (sponsor) {
-    const sH = 60
-    const sW = sH * (sponsor.naturalWidth / sponsor.naturalHeight)
-    ctx.drawImage(sponsor, (W - sW) / 2, footerY + 15, sW, sH)
+    const sH = 44
+    const sW = Math.round(sH * (sponsor.naturalWidth / sponsor.naturalHeight))
+    let src: CanvasImageSource = sponsor
+    let srcW = sponsor.naturalWidth
+    let srcH = sponsor.naturalHeight
+    while (srcW / 2 > sW * 1.5) {
+      const mid = document.createElement('canvas')
+      mid.width = Math.round(srcW / 2)
+      mid.height = Math.round(srcH / 2)
+      const mctx = mid.getContext('2d')!
+      mctx.imageSmoothingEnabled = true
+      mctx.imageSmoothingQuality = 'high'
+      mctx.drawImage(src, 0, 0, mid.width, mid.height)
+      src = mid; srcW = mid.width; srcH = mid.height
+    }
+    ctx.save()
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(src, (W - sW) / 2, footerY + footerH - sH - 14, sW, sH)
+    ctx.restore()
   }
 
   // Names + score row
-  const rowY = footerY + 140
+  const rowY = footerY + 80
   const maxNameW = 360
   ctx.save()
   ctx.font = 'bold 36px Arial, sans-serif'
@@ -276,7 +293,7 @@ export function drawMatchPost(options: DrawMatchPostOptions) {
   ctx.font = '20px monospace'
   ctx.fillStyle = C.muted
   ctx.textAlign = 'center'
-  ctx.fillText(subtitle, W / 2, footerY + 205)
+  ctx.fillText(subtitle, W / 2, footerY + footerH - 44 - 14 - 76)
   ctx.restore()
 }
 
