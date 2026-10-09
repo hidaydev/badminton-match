@@ -62,10 +62,10 @@ func TestValidateTeamValidWithScoresAndFinal(t *testing.T) {
 		{ScoreA: intPtr(29), ScoreB: intPtr(30)},
 		{ScoreA: intPtr(30), ScoreB: intPtr(25)},
 	}
-	// final: top-2 (t1 vs t2), harus tepat 42
+	// final: top-2 (t1 vs t2), skor bebas
 	snap.Matches = append(snap.Matches, TeamMatch{
 		ID: "final", Phase: "final", TeamA: "t1", TeamB: "t2",
-		Partai: []TeamPartai{{ScoreA: intPtr(42), ScoreB: intPtr(40)}, {}, {}},
+		Partai: []TeamPartai{{ScoreA: intPtr(21), ScoreB: intPtr(15)}, {}, {}},
 	})
 	if err := ValidateTeamTournament(snap); err != nil {
 		t.Fatalf("valid scored snapshot rejected: %v", err)
@@ -112,9 +112,6 @@ func TestValidateTeamRejects(t *testing.T) {
 		{"skor tie", func(s *TeamTournamentSnapshot) {
 			s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(30), ScoreB: intPtr(30)}
 		}, "must not be equal"},
-		{"skor final bukan 42", func(s *TeamTournamentSnapshot) {
-			s.Matches = append(s.Matches, TeamMatch{ID: "final", Phase: "final", TeamA: "t1", TeamB: "t2", Partai: []TeamPartai{{ScoreA: intPtr(30), ScoreB: intPtr(20)}, {}, {}}})
-		}, "reach the target exactly"},
 		{"2 final", func(s *TeamTournamentSnapshot) {
 			s.Matches = append(s.Matches,
 				TeamMatch{ID: "f1", Phase: "final", TeamA: "t1", TeamB: "t2", Partai: []TeamPartai{{}, {}, {}}},
