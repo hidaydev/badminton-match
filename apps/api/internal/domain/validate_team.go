@@ -148,8 +148,8 @@ func ValidateTeamTournament(snap *TeamTournamentSnapshot) error {
 	return nil
 }
 
-// validateTeamPartai — skor per partai: keduanya null atau keduanya ada;
-// grup → salah satu tepat 30 (lain ≤29); final → salah satu tepat 42 (lain ≤41).
+// validateTeamPartai — skor per partai: keduanya null atau keduanya ada; tidak boleh seri.
+// Grup: skor bebas asal tidak seri. Final: salah satu harus tepat 42 (lain ≤41).
 func validateTeamPartai(pt TeamPartai, phase string) error {
 	if pt.ScoreA == nil && pt.ScoreB == nil {
 		return nil
@@ -161,13 +161,15 @@ func validateTeamPartai(pt TeamPartai, phase string) error {
 	if a == b {
 		return errors.New("team match partai scores must not be equal (no deuce)")
 	}
-	target := TeamTarget(phase)
-	winner, loser := a, b
-	if b > a {
-		winner, loser = b, a
-	}
-	if winner != target || loser > target-1 || loser < 0 || winner < 0 {
-		return errors.New("team match partai winner must reach the target exactly (30 group / 42 final)")
+	if phase == "final" {
+		target := TeamTarget(phase)
+		winner, loser := a, b
+		if b > a {
+			winner, loser = b, a
+		}
+		if winner != target || loser > target-1 || loser < 0 || winner < 0 {
+			return errors.New("team match partai winner must reach the target exactly (42 final)")
+		}
 	}
 	return nil
 }
