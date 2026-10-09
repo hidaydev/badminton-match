@@ -70,7 +70,7 @@ export default function App() {
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash)
   )
-  const [showAnnivBanner, setShowAnnivBanner] = useState(true)
+  const [showAnnivBanner, setShowAnnivBanner] = useState(false)
 
   const exitSharedView = useCallback(() => {
     window.location.href = window.location.origin + '/'

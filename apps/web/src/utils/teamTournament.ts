@@ -259,12 +259,12 @@ export function teamLogoPath(name: string): string | undefined {
 }
 
 const TEAM_PHOTO_MAP: Partial<Record<TeamName, string>> = {
-  'RED RAPTORS':     '/team-photos/red-raptors.png',
-  'WHITE FURY':      '/team-photos/white-fury.png',
-  'BLUE WAVES':      '/team-photos/blue-waves.png',
-  'PURPLE PHANTOMS': '/team-photos/purple-phantoms.png',
-  'GREEN GROVE':     '/team-photos/green-grove.png',
-  'PINK SPECTRE':    '/team-photos/pink-spectre.png',
+  'RED RAPTORS':     '/team-photos/red-raptors.webp',
+  'WHITE FURY':      '/team-photos/white-fury.webp',
+  'BLUE WAVES':      '/team-photos/blue-waves.webp',
+  'PURPLE PHANTOMS': '/team-photos/purple-phantoms.webp',
+  'GREEN GROVE':     '/team-photos/green-grove.webp',
+  'PINK SPECTRE':    '/team-photos/pink-spectre.webp',
 }
 
 /** Returns team member photo path, or undefined (caller should fall back to placeholder). */
