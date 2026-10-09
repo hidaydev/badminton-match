@@ -56,19 +56,32 @@ func TestValidateTeamValidUndrawn(t *testing.T) {
 
 func TestValidateTeamValidWithScoresAndFinal(t *testing.T) {
 	snap := buildTeamSnap()
-	// skor grup: pemenang tepat 30
+	// skor grup: bebas asal tidak seri
 	snap.Matches[0].Partai = []TeamPartai{
 		{ScoreA: intPtr(30), ScoreB: intPtr(28)},
 		{ScoreA: intPtr(29), ScoreB: intPtr(30)},
 		{ScoreA: intPtr(30), ScoreB: intPtr(25)},
 	}
-	// final: top-2 (t1 vs t2), rally 42
+	// final: top-2 (t1 vs t2), skor bebas
 	snap.Matches = append(snap.Matches, TeamMatch{
 		ID: "final", Phase: "final", TeamA: "t1", TeamB: "t2",
-		Partai: []TeamPartai{{ScoreA: intPtr(42), ScoreB: intPtr(40)}, {}, {}},
+		Partai: []TeamPartai{{ScoreA: intPtr(21), ScoreB: intPtr(15)}, {}, {}},
 	})
 	if err := ValidateTeamTournament(snap); err != nil {
 		t.Fatalf("valid scored snapshot rejected: %v", err)
+	}
+}
+
+func TestValidateTeamGroupFlexibleScore(t *testing.T) {
+	snap := buildTeamSnap()
+	// skor grup fleksibel: 1-2 harus valid
+	snap.Matches[0].Partai = []TeamPartai{
+		{ScoreA: intPtr(1), ScoreB: intPtr(2)},
+		{ScoreA: intPtr(15), ScoreB: intPtr(10)},
+		{ScoreA: intPtr(7), ScoreB: intPtr(5)},
+	}
+	if err := ValidateTeamTournament(snap); err != nil {
+		t.Fatalf("flexible group score rejected: %v", err)
 	}
 }
 
@@ -96,15 +109,12 @@ func TestValidateTeamRejects(t *testing.T) {
 			s.Matches[1].TeamA, s.Matches[1].TeamB = s.Matches[0].TeamA, s.Matches[0].TeamB
 		}, "must not repeat a pairing"},
 		{"tim main tidak 3×", func(s *TeamTournamentSnapshot) { s.Matches[0].TeamB = "t5" }, "exactly 3 group matches"},
+		{"skor negatif", func(s *TeamTournamentSnapshot) {
+			s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(-1), ScoreB: intPtr(10)}
+		}, "must not be negative"},
 		{"skor tie", func(s *TeamTournamentSnapshot) {
 			s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(30), ScoreB: intPtr(30)}
 		}, "must not be equal"},
-		{"skor bukan target", func(s *TeamTournamentSnapshot) {
-			s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(31), ScoreB: intPtr(28)}
-		}, "reach the target exactly"},
-		{"skor final bukan 42", func(s *TeamTournamentSnapshot) {
-			s.Matches = append(s.Matches, TeamMatch{ID: "final", Phase: "final", TeamA: "t1", TeamB: "t2", Partai: []TeamPartai{{ScoreA: intPtr(30), ScoreB: intPtr(20)}, {}, {}}})
-		}, "reach the target exactly"},
 		{"2 final", func(s *TeamTournamentSnapshot) {
 			s.Matches = append(s.Matches,
 				TeamMatch{ID: "f1", Phase: "final", TeamA: "t1", TeamB: "t2", Partai: []TeamPartai{{}, {}, {}}},
