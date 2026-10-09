@@ -258,6 +258,20 @@ export function teamLogoPath(name: string): string | undefined {
   return TEAM_LOGO_MAP[name.trim().toUpperCase() as TeamName]
 }
 
+const TEAM_PHOTO_MAP: Partial<Record<TeamName, string>> = {
+  'RED RAPTORS':     '/team-photos/red-raptors.png',
+  'WHITE FURY':      '/team-photos/white-fury.png',
+  'BLUE WAVES':      '/team-photos/blue-waves.png',
+  'PURPLE PHANTOMS': '/team-photos/purple-phantoms.png',
+  'GREEN GROVE':     '/team-photos/green-grove.png',
+  'PINK SPECTRE':    '/team-photos/pink-spectre.png',
+}
+
+/** Returns team member photo path, or undefined (caller should fall back to placeholder). */
+export function teamPhotoPath(name: string): string | undefined {
+  return TEAM_PHOTO_MAP[name.trim().toUpperCase() as TeamName]
+}
+
 const TEAM_COLOR_MAP: Record<TeamName, string> = {
   'RED RAPTORS':     '180,20,20',
   'WHITE FURY':      '200,200,210',
@@ -308,10 +322,17 @@ export async function buildTeamMatchFiles({
   const teamBName = teamName(teams, match.teamB)
   const files: File[] = []
 
-  const [teamALogoImg, teamBLogoImg, teamPhotoPlaceholder] = await Promise.all([
+  const loadTeamPhoto = (name: string) => {
+    const path = teamPhotoPath(name)
+    if (path) return loadImage(path).catch(() => loadImage('/team-photo-placeholder.png').catch(() => undefined))
+    return loadImage('/team-photo-placeholder.png').catch(() => undefined)
+  }
+
+  const [teamALogoImg, teamBLogoImg, teamAPhotoImg, teamBPhotoImg] = await Promise.all([
     teamLogoPath(teamAName) ? loadImage(teamLogoPath(teamAName)!).catch(() => undefined) : Promise.resolve(undefined),
     teamLogoPath(teamBName) ? loadImage(teamLogoPath(teamBName)!).catch(() => undefined) : Promise.resolve(undefined),
-    loadImage('/team-photo-placeholder.png').catch(() => undefined),
+    loadTeamPhoto(teamAName),
+    loadTeamPhoto(teamBName),
   ])
 
   for (let pi = 0; pi < PARTAI_CLASSES.length; pi++) {
@@ -363,8 +384,8 @@ export async function buildTeamMatchFiles({
     cardLogo: overlays.cardLogo,
     teamALogo: teamALogoImg,
     teamBLogo: teamBLogoImg,
-    teamAPhoto: teamPhotoPlaceholder,
-    teamBPhoto: teamPhotoPlaceholder,
+    teamAPhoto: teamAPhotoImg,
+    teamBPhoto: teamBPhotoImg,
     teamAColor: teamColor(teamAName),
     teamBColor: teamColor(teamBName),
   })

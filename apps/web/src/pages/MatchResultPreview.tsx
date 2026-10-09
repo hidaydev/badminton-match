@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { drawTeamMatchPost, loadImage, type TeamMatchPartaiRow } from '../utils/canvasPost'
-import { teamLogoPath, teamColor } from '../utils/teamTournament'
+import { teamLogoPath, teamColor, teamPhotoPath } from '../utils/teamTournament'
 
 const MOCK_PARTAI: TeamMatchPartaiRow[] = [
   { tier: 'C+C', nameA: 'Fahmi / Tari',   scoreA: 21, scoreB: 18, nameB: 'Dimas / Sarah' },
@@ -21,13 +21,19 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
     const canvas = canvasRef.current
     if (!canvas) return
     async function render() {
-      const [summaryBg, logo, cardLogo, teamALogo, teamBLogo, teamPhoto] = await Promise.all([
+      const loadTeamPhoto = (name: string) => {
+        const path = teamPhotoPath(name)
+        if (path) return loadImage(path).catch(() => loadImage('/team-photo-placeholder.png').catch(() => undefined))
+        return loadImage('/team-photo-placeholder.png').catch(() => undefined)
+      }
+      const [summaryBg, logo, cardLogo, teamALogo, teamBLogo, teamAPhoto, teamBPhoto] = await Promise.all([
         loadImage('/court-bg.png').catch(() => undefined),
         loadImage('/majadu-logo.png').catch(() => undefined),
         loadImage('/anniversary-card-logo.png').catch(() => undefined),
         teamLogoPath(teamA) ? loadImage(teamLogoPath(teamA)!).catch(() => undefined) : Promise.resolve(undefined),
         teamLogoPath(teamB) ? loadImage(teamLogoPath(teamB)!).catch(() => undefined) : Promise.resolve(undefined),
-        loadImage('/team-photo-placeholder.png').catch(() => undefined),
+        loadTeamPhoto(teamA),
+        loadTeamPhoto(teamB),
       ])
       drawTeamMatchPost({
         canvas: canvas!,
@@ -42,8 +48,8 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
         cardLogo,
         teamALogo,
         teamBLogo,
-        teamAPhoto: teamPhoto,
-        teamBPhoto: teamPhoto,
+        teamAPhoto,
+        teamBPhoto,
         teamAColor: teamColor(teamA),
         teamBColor: teamColor(teamB),
       })
