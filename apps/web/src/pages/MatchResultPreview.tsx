@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { drawTeamMatchPost, drawMatchPost, loadImage, type TeamMatchPartaiRow } from '../utils/canvasPost'
+import { drawTeamMatchPost, drawMatchPost, drawPositionPost, loadImage, type TeamMatchPartaiRow } from '../utils/canvasPost'
 import { teamLogoPath, teamColor, teamPhotoPath } from '../utils/teamTournament'
 
 const MOCK_PARTAI: TeamMatchPartaiRow[] = [
@@ -107,10 +107,48 @@ function PartaiCanvas() {
   )
 }
 
+function PositionCanvas({ positionLabel, teamName }: { positionLabel: string; teamName: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    async function render() {
+      const [photo, logo, cardLogo, chevrons, teamLogo] = await Promise.all([
+        loadImage('/court-bg.png').catch(() => undefined),
+        loadImage('/majadu-logo.png').catch(() => undefined),
+        loadImage('/anniversary-card-logo.png').catch(() => undefined),
+        loadImage('/chevrons.png').catch(() => undefined),
+        teamLogoPath(teamName) ? loadImage(teamLogoPath(teamName)!).catch(() => undefined) : Promise.resolve(undefined),
+      ])
+      if (!photo) return
+      drawPositionPost({
+        canvas: canvas!,
+        photo,
+        positionLabel,
+        name: teamName,
+        logo,
+        cardLogo,
+        chevrons,
+        teamLogo,
+      })
+    }
+    render()
+  }, [positionLabel, teamName])
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <p className="text-slate-400 text-xs tracking-widest uppercase">{positionLabel} — {teamName}</p>
+      <canvas ref={canvasRef} style={{ width: '480px', maxWidth: '100%', borderRadius: '12px' }} />
+    </div>
+  )
+}
+
 export default function MatchResultPreview() {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center py-8 gap-10">
       <p className="text-slate-500 text-sm tracking-widest uppercase">Match Result Preview — All Teams</p>
+      <PositionCanvas positionLabel="🏆 CHAMPION" teamName="BLUE WAVES" />
+      <PositionCanvas positionLabel="🥈 RUNNER-UP" teamName="RED RAPTORS" />
       <PartaiCanvas />
       {MATCHES.map(m => (
         <MatchCanvas key={`${m.teamA}-${m.teamB}`} {...m} />
