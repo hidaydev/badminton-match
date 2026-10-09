@@ -1077,16 +1077,22 @@ export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
 
   // 4. Team photos — transparent-bg PNGs anchored to PHOTO_BOTTOM
   const drawTeamPhoto = (img: HTMLImageElement, side: 'left' | 'right', grayscale: boolean) => {
-    const maxW = W * 0.5
-    const maxH = PHOTO_BOTTOM - 90
-    const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight)
+    const maxH = 500
+    const scale = maxH / img.naturalHeight
     const pW = img.naturalWidth * scale
     const pH = img.naturalHeight * scale
     const cx = side === 'left' ? W * 0.26 : W * 0.74
     const px = cx - pW / 2
     const py = PHOTO_BOTTOM - pH
 
+    // Clip to this side's half so wide photos don't bleed across the center
+    const clipX = side === 'left' ? 0 : W / 2
+    const clipW = W / 2
+
     ctx.save()
+    ctx.beginPath()
+    ctx.rect(clipX, 0, clipW, PHOTO_BOTTOM)
+    ctx.clip()
     if (grayscale) ctx.filter = 'grayscale(0.9) brightness(0.85)'
     ctx.drawImage(img, px, py, pW, pH)
     ctx.filter = 'none'
