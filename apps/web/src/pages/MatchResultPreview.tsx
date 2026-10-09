@@ -26,10 +26,11 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
         if (path) return loadImage(path).catch(() => loadImage('/team-photo-placeholder.png').catch(() => undefined))
         return loadImage('/team-photo-placeholder.png').catch(() => undefined)
       }
-      const [summaryBg, logo, cardLogo, teamALogo, teamBLogo, teamAPhoto, teamBPhoto] = await Promise.all([
+      const [summaryBg, logo, cardLogo, sponsor, teamALogo, teamBLogo, teamAPhoto, teamBPhoto] = await Promise.all([
         loadImage('/court-bg.png').catch(() => undefined),
         loadImage('/majadu-logo.png').catch(() => undefined),
         loadImage('/anniversary-card-logo.png').catch(() => undefined),
+        loadImage('/team-sponsor-logo.png').catch(() => undefined),
         teamLogoPath(teamA) ? loadImage(teamLogoPath(teamA)!).catch(() => undefined) : Promise.resolve(undefined),
         teamLogoPath(teamB) ? loadImage(teamLogoPath(teamB)!).catch(() => undefined) : Promise.resolve(undefined),
         loadTeamPhoto(teamA),
@@ -46,6 +47,7 @@ function MatchCanvas({ teamA, teamB, winsA, winsB }: { teamA: string; teamB: str
         summaryBg,
         logo,
         cardLogo,
+        sponsor,
         teamALogo,
         teamBLogo,
         teamAPhoto,

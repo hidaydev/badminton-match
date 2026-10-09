@@ -1023,7 +1023,7 @@ export interface DrawTeamMatchPostOptions {
 export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
   const {
     canvas, teamAName, teamBName, teamAWins, teamBWins, partaiRows, subtitle,
-    summaryBg, logo, cardLogo, teamALogo, teamBLogo,
+    summaryBg, logo, sponsor, cardLogo, teamALogo, teamBLogo,
     teamAPhoto, teamBPhoto, teamAColor, teamBColor,
   } = options
   const W = POST_WIDTH
@@ -1083,7 +1083,7 @@ export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
     const pH = img.naturalHeight * scale
     const cx = side === 'left' ? W * 0.26 : W * 0.74
     const px = cx - pW / 2
-    const py = PHOTO_BOTTOM - pH
+    const py = PHOTO_BOTTOM - pH - 30
 
     // Clip to this side's half so wide photos don't bleed across the center
     const clipX = side === 'left' ? 0 : W / 2
@@ -1141,7 +1141,7 @@ export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
   ctx.restore()
 
   // 9. Score section — team logos + score + names (overlaps into photo area)
-  const SCORE_TOP = 810
+  const SCORE_TOP = 780
   const TEAM_LOGO_H = 175
   const NAME_FONT = 22
 
@@ -1204,7 +1204,7 @@ export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
   ctx.restore()
 
   // 11. Partai rows
-  const partaiStartY = divY + 55
+  const partaiStartY = divY + 45
   const maxPartaiNameW = 220
 
   partaiRows.forEach((row, i) => {
@@ -1243,6 +1243,34 @@ export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
   })
 
 
-  // 13. Header — drawn last so it sits above photos
+  // 13. Sponsor logo — bottom center, small (stepped downscale for quality)
+  if (sponsor) {
+    const sH = 44
+    const sW = Math.round(sH * (sponsor.naturalWidth / sponsor.naturalHeight))
+    // Step down in halves until close to target to preserve sharpness
+    let src: CanvasImageSource = sponsor
+    let srcW = sponsor.naturalWidth
+    let srcH = sponsor.naturalHeight
+    while (srcW / 2 > sW * 1.5) {
+      const mid = document.createElement('canvas')
+      mid.width = Math.round(srcW / 2)
+      mid.height = Math.round(srcH / 2)
+      const mctx = mid.getContext('2d')!
+      mctx.imageSmoothingEnabled = true
+      mctx.imageSmoothingQuality = 'high'
+      mctx.drawImage(src, 0, 0, mid.width, mid.height)
+      src = mid
+      srcW = mid.width
+      srcH = mid.height
+    }
+    ctx.save()
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+    ctx.globalAlpha = 0.85
+    ctx.drawImage(src, (W - sW) / 2, H - sH - 24, sW, sH)
+    ctx.restore()
+  }
+
+  // 14. Header — drawn last so it sits above photos
   drawAnniversaryHeader(ctx, W, logo, cardLogo)
 }
