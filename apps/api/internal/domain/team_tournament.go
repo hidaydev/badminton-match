@@ -50,8 +50,8 @@ var TeamClasses = []string{"A+", "A", "B+", "B", "C+", "C"}
 // partai 1 = C+ C, partai 2 = A+ A, partai 3 = B+ B.
 var TeamPartaiClasses = [][2]string{{"C+", "C"}, {"A+", "A"}, {"B+", "B"}}
 
-// TeamTarget — target skor per fase: grup 30, final 42. Satu-satunya sumber
-// di backend (dipakai validasi & rating extraction).
+// TeamTarget — target skor per fase: grup 30, final 42. Dipakai rating extraction;
+// tidak lagi dipakai validasi (skor bebas asal tidak seri dan tidak negatif).
 func TeamTarget(phase string) int {
 	if phase == "final" {
 		return 42
