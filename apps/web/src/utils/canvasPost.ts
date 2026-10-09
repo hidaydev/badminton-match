@@ -250,7 +250,7 @@ export function drawMatchPost(options: DrawMatchPostOptions) {
     ctx.save()
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(src, (W - sW) / 2, footerY + footerH - sH - 14, sW, sH)
+    ctx.drawImage(src, (W - sW) / 2, footerY + footerH - sH - 24, sW, sH)
     ctx.restore()
   }
 
@@ -522,7 +522,7 @@ export function drawPositionPost(options: DrawPositionPostOptions) {
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
     ctx.globalAlpha = 0.85
-    ctx.drawImage(src, (W - sW) / 2, H - sH - 24, sW, sH)
+    ctx.drawImage(src, (W - sW) / 2, H - sH - 34, sW, sH)
     ctx.restore()
   }
 
@@ -1295,7 +1295,7 @@ export function drawTeamMatchPost(options: DrawTeamMatchPostOptions) {
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
     ctx.globalAlpha = 0.85
-    ctx.drawImage(src, (W - sW) / 2, H - sH - 24, sW, sH)
+    ctx.drawImage(src, (W - sW) / 2, H - sH - 34, sW, sH)
     ctx.restore()
   }
 
