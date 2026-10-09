@@ -13,7 +13,7 @@ import (
 //   - Fase grup: 0 (belum undian) atau 9 team-match; tiap tim muncul tepat 3×,
 //     tanpa melawan diri sendiri, tanpa duplikat lawan
 //   - Skor partai: keduanya null (belum main) atau keduanya ada;
-//     grup → pemenang tepat 30 (loser ≤29); final → pemenang tepat 42 (loser ≤41)
+//     skor bebas (tidak ada target) asal tidak seri dan tidak negatif
 //   - Final: 0 atau 1 team-match; team refs valid.
 //
 // Catatan: seeding top-2 final (dan poin/tiebreak klasemen) TIDAK divalidasi di
@@ -156,6 +156,9 @@ func validateTeamPartai(pt TeamPartai, _ string) error {
 	}
 	if pt.ScoreA == nil || pt.ScoreB == nil {
 		return errors.New("team match partai must have both scores or none")
+	}
+	if *pt.ScoreA < 0 || *pt.ScoreB < 0 {
+		return errors.New("team match partai scores must not be negative")
 	}
 	if *pt.ScoreA == *pt.ScoreB {
 		return errors.New("team match partai scores must not be equal (no deuce)")

@@ -109,6 +109,9 @@ func TestValidateTeamRejects(t *testing.T) {
 			s.Matches[1].TeamA, s.Matches[1].TeamB = s.Matches[0].TeamA, s.Matches[0].TeamB
 		}, "must not repeat a pairing"},
 		{"tim main tidak 3×", func(s *TeamTournamentSnapshot) { s.Matches[0].TeamB = "t5" }, "exactly 3 group matches"},
+		{"skor negatif", func(s *TeamTournamentSnapshot) {
+			s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(-1), ScoreB: intPtr(10)}
+		}, "must not be negative"},
 		{"skor tie", func(s *TeamTournamentSnapshot) {
 			s.Matches[0].Partai[0] = TeamPartai{ScoreA: intPtr(30), ScoreB: intPtr(30)}
 		}, "must not be equal"},
