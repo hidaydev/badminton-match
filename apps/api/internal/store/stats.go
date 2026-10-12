@@ -33,11 +33,15 @@ type statEntry struct {
 }
 
 type tournamentEntry struct {
-	Name   string `json:"name"`
-	Date   string `json:"date"`
-	Games  int    `json:"games"`
-	Wins   int    `json:"wins"`
-	Losses int    `json:"losses"`
+	Name string `json:"name"`
+	// ShareCode — kunci penghubung ke entri ranking poin (rating_events.source_id
+	// = tournaments.share_code). Dipakai halaman pemain untuk menandai turnamen
+	// mana yang masuk perhitungan poin.
+	ShareCode string `json:"share_code"`
+	Date      string `json:"date"`
+	Games     int    `json:"games"`
+	Wins      int    `json:"wins"`
+	Losses    int    `json:"losses"`
 }
 
 type tournamentEntrySmall struct {
@@ -233,16 +237,9 @@ func loadTournamentStats(ctx context.Context, pool *pgxpool.Pool, playerID strin
 		TopOpponents: []tournamentEntrySmall{},
 	}
 
-	type tMatch struct {
-		mySide string // 'A' | 'B'
-		scoreA int
-		scoreB int
-		name   string
-		date   string
-	}
-	matches := []tMatch{}
+	matches := []playerTournamentMatch{}
 	rows, err := pool.Query(ctx, `
-		SELECT t.name, t.event_date::text, tm.score_a, tm.score_b,
+		SELECT t.name, t.event_date::text, t.share_code, tm.score_a, tm.score_b,
 		       tm.pair_a_id::text, tm.pair_b_id::text, tpp.pair_id::text
 		FROM tournament_pair_players tpp
 		JOIN tournament_pairs tp ON tp.id = tpp.pair_id
@@ -256,10 +253,10 @@ func loadTournamentStats(ctx context.Context, pool *pgxpool.Pool, playerID strin
 	}
 	for rows.Next() {
 		var (
-			m                    tMatch
+			m                    playerTournamentMatch
 			pairA, pairB, myPair string
 		)
-		if err := rows.Scan(&m.name, &m.date, &m.scoreA, &m.scoreB, &pairA, &pairB, &myPair); err != nil {
+		if err := rows.Scan(&m.name, &m.date, &m.share, &m.scoreA, &m.scoreB, &pairA, &pairB, &myPair); err != nil {
 			rows.Close()
 			return out, err
 		}
@@ -275,6 +272,13 @@ func loadTournamentStats(ctx context.Context, pool *pgxpool.Pool, playerID strin
 		return out, err
 	}
 
+	// Turnamen TIM: partai di mana kelas pemain ikut main (ClassInPartai).
+	teamMatches, err := loadTeamTournamentMatches(ctx, pool, playerID)
+	if err != nil {
+		return out, err
+	}
+	matches = append(matches, teamMatches...)
+
 	// t_base + t_tournaments
 	tournMap := map[string]*tournamentEntry{}
 	for _, m := range matches {
@@ -287,10 +291,15 @@ func loadTournamentStats(ctx context.Context, pool *pgxpool.Pool, playerID strin
 		if loss {
 			out.Losses++
 		}
-		key := m.name + "\x00" + m.date
+		// Key per turnamen: share_code kalau ada (dua turnamen beda dengan nama
+		// sama tidak tercampur); fallback nama+tanggal untuk data lama.
+		key := m.share
+		if key == "" {
+			key = m.name + "\x00" + m.date
+		}
 		te, ok := tournMap[key]
 		if !ok {
-			te = &tournamentEntry{Name: m.name, Date: m.date}
+			te = &tournamentEntry{Name: m.name, Date: m.date, ShareCode: m.share}
 			tournMap[key] = te
 		}
 		te.Games++
@@ -315,6 +324,64 @@ func loadTournamentStats(ctx context.Context, pool *pgxpool.Pool, playerID strin
 		return out, err
 	}
 	return out, nil
+}
+
+// playerTournamentMatch — satu game turnamen (classic/team) yang dimainkan
+// seorang pemain, dari sudut pandangnya ('A' | 'B'). Classic & team melewati
+// agregasi yang sama.
+type playerTournamentMatch struct {
+	mySide string
+	scoreA int
+	scoreB int
+	name   string
+	date   string
+	share  string // tournaments.share_code
+}
+
+// loadTeamTournamentMatches — game turnamen TIM untuk seorang pemain. Satu
+// partai = satu game, tapi hanya partai yang kelasnya cocok (ClassInPartai)
+// yang dihitung. Keputusan kelas→partai tetap di domain, tidak diduplikasi di SQL.
+func loadTeamTournamentMatches(ctx context.Context, pool *pgxpool.Pool, playerID string) ([]playerTournamentMatch, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT t.name, t.event_date::text, t.share_code,
+		       ttp.cls, (tm.team_a_id = ttp.team_id) AS is_a,
+		       tg.partai_index, tg.score_a, tg.score_b
+		FROM tournament_team_players ttp
+		JOIN tournament_teams tt ON tt.id = ttp.team_id
+		JOIN tournaments t ON t.id = tt.tournament_id
+		JOIN tournament_team_matches tm ON tm.tournament_id = t.id
+			AND (tm.team_a_id = ttp.team_id OR tm.team_b_id = ttp.team_id)
+		JOIN tournament_team_match_games tg ON tg.team_match_id = tm.id
+		WHERE ttp.player_id = $1::uuid
+		  AND tg.score_a IS NOT NULL AND tg.score_b IS NOT NULL`, playerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []playerTournamentMatch{}
+	for rows.Next() {
+		var (
+			m         playerTournamentMatch
+			cls       string
+			isA       bool
+			partaiIdx int
+		)
+		if err := rows.Scan(&m.name, &m.date, &m.share, &cls, &isA, &partaiIdx,
+			&m.scoreA, &m.scoreB); err != nil {
+			return nil, err
+		}
+		if !domain.ClassInPartai(partaiIdx, cls) {
+			continue
+		}
+		if isA {
+			m.mySide = "A"
+		} else {
+			m.mySide = "B"
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }
 
 // loadTournamentEntries — top-5 partner/lawan tournament (port t_partner_rows

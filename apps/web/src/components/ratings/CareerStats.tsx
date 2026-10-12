@@ -143,17 +143,30 @@ export default function CareerStats({ stats, countedPoints }: {
               <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">
                 Tournaments ({stats.tournamentStats.tournaments.length})
               </p>
-              {stats.tournamentStats.tournaments.map((t) => (
-                <div key={t.name} className="flex justify-between items-center text-sm gap-2">
-                  <span className="text-fg truncate min-w-0">{t.name}</span>
-                  <div className="flex items-center gap-2 shrink-0 font-sans text-[10px]">
-                    <span className="text-emerald-400 font-semibold">{t.wins}W</span>
-                    <span className="text-red-400 font-semibold">{t.losses}L</span>
-                    <span className="text-fg-dim">{t.games} games</span>
-                    <span className="text-fg-dim">{t.date.split('-').reverse().join('-')}</span>
+              {stats.tournamentStats.tournaments.map((t) => {
+                // Turnamen ini masuk perhitungan poin? Cocokkan lewat share_code
+                // (rating_events.source_id = tournaments.share_code).
+                const tPts = t.share_code ? countedPoints?.get(t.share_code) : undefined
+                return (
+                  <div key={t.share_code || t.name} className="flex justify-between items-center text-sm gap-2">
+                    <span className="text-fg truncate min-w-0">{t.name}</span>
+                    <div className="flex items-center gap-2 shrink-0 font-sans text-[10px]">
+                      {tPts !== undefined && (
+                        <span
+                          className="font-mono text-accent"
+                          title={`Masuk perhitungan poin: +${Math.round(tPts).toLocaleString('id-ID')}`}
+                        >
+                          dihitung +{Math.round(tPts).toLocaleString('id-ID')}
+                        </span>
+                      )}
+                      <span className="text-emerald-400 font-semibold">{t.wins}W</span>
+                      <span className="text-red-400 font-semibold">{t.losses}L</span>
+                      <span className="text-fg-dim">{t.games} games</span>
+                      <span className="text-fg-dim">{t.date.split('-').reverse().join('-')}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
