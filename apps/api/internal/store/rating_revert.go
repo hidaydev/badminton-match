@@ -53,6 +53,12 @@ func (s *SessionStore) RebuildAll(ctx context.Context) (int, error) {
 	if _, err := s.BackfillAchievements(ctx); err != nil && s.logger != nil {
 		s.logger.Warn("backfill achievement setelah rebuild gagal", "error", err)
 	}
+	// Snapshot poin yang tanggal acuannya sudah tidak punya event (sesi/turnamen
+	// dihapus setelah snapshot terekam) dibuang — kalau dibiarkan, ia terpilih
+	// sebagai pembanding movement dan menggeser seluruh panah (audit 2026-10-12).
+	if _, err := s.PurgeOrphanRankSnapshots(ctx); err != nil && s.logger != nil {
+		s.logger.Warn("purge snapshot ranking yatim gagal", "error", err)
+	}
 	return n, nil
 }
 
@@ -108,6 +114,11 @@ func (s *SessionStore) RevertSource(ctx context.Context, lookup, kind string) (*
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
+	}
+	// Source ini mungkin tanggal acuan satu-satunya event; setelah events-nya
+	// hilang, snapshot tanggal itu jadi yatim — buang supaya movement tak bias.
+	if _, err := s.PurgeOrphanRankSnapshots(ctx); err != nil && s.logger != nil {
+		s.logger.Warn("purge snapshot ranking yatim gagal", "error", err)
 	}
 	return &IngestResult{Processed: -count, Players: rebuilt}, nil
 }

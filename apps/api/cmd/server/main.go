@@ -125,6 +125,14 @@ func main() {
 				} else if nt > 0 {
 					logger.Info("auto-ingest turnamen", "tournaments_ingested", nt)
 				}
+				// 3b) Buang snapshot yatim (as_of tanpa event) — self-heal bila
+				//     ada source yang dihapus di luar jalur rebuild. Snapshot
+				//     yatim bikin panah movement bias (audit 2026-10-12).
+				if np, err := locker.PurgeOrphanRankSnapshots(runCtx); err != nil {
+					logger.Error("purge snapshot ranking yatim gagal", "error", err)
+				} else if np > 0 {
+					logger.Info("purge snapshot ranking yatim", "rows", np)
+				}
 				// 4) Rekam posisi papan poin sebagai snapshot tanggal acuan
 				//    hari ini — dasar panah movement (^/v) di papan publik.
 				//    Idempoten per (as_of, player_id), jadi tick berulang dalam
