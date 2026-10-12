@@ -56,8 +56,10 @@ type BackfillResult struct {
 func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) ([]AchievementView, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT pa.achievement_key, pa.kind, pa.value, pa.earned_at::text,
-		       COALESCE(pa.meta::text, '{}')
+		       COALESCE(pa.meta::text, '{}'), COALESCE(t.name, '')
 		FROM `+s.schema+`.player_achievements pa
+		LEFT JOIN `+s.schema+`.tournaments t
+		  ON pa.achievement_key = 'tournament:' || t.id::text
 		WHERE pa.player_id = $1::uuid
 		ORDER BY pa.earned_at DESC, pa.achievement_key ASC`, playerID)
 	if err != nil {
@@ -68,11 +70,12 @@ func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) 
 	out := []AchievementView{}
 	for rows.Next() {
 		var (
-			v       AchievementView
-			value   *int64
-			metaRaw string
+			v        AchievementView
+			value    *int64
+			metaRaw  string
+			liveName string
 		)
-		if err := rows.Scan(&v.Key, &v.Kind, &value, &v.EarnedAt, &metaRaw); err != nil {
+		if err := rows.Scan(&v.Key, &v.Kind, &value, &v.EarnedAt, &metaRaw, &liveName); err != nil {
 			return nil, err
 		}
 		v.Value = value
@@ -96,6 +99,11 @@ func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) 
 			}
 		} else {
 			v.Title, v.Detail = domain.DescribeCollectible(v.Key, v.Meta)
+			// Nama turnamen dibaca LIVE dari tournaments, bukan snapshot meta,
+			// supaya medal ikut nama terbaru saat turnamen di-rename.
+			if liveName != "" && strings.HasPrefix(v.Key, "tournament:") {
+				v.Title = liveName
+			}
 		}
 		out = append(out, v)
 	}
@@ -246,6 +254,18 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 
 	// ── Event: partisipasi turnamen ───────────────────────────────────────
 	if err := s.backfillTournaments(ctx, addCollectible); err != nil {
+		return BackfillResult{}, err
+	}
+
+	// Buang collectible turnamen yatim: baris 'tournament:<id>' tidak punya FK
+	// ke tournaments, jadi turnamen yang sudah dihapus meninggalkan medal yang
+	// nyangkut selamanya. Sapu di sini supaya rak = turnamen yang benar-benar ada.
+	if _, err := s.pool.Exec(ctx, `
+		DELETE FROM `+s.schema+`.player_achievements pa
+		WHERE pa.achievement_key LIKE 'tournament:%'
+		  AND NOT EXISTS (
+		    SELECT 1 FROM `+s.schema+`.tournaments t
+		    WHERE pa.achievement_key = 'tournament:' || t.id::text)`); err != nil {
 		return BackfillResult{}, err
 	}
 

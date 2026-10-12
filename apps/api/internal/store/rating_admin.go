@@ -226,6 +226,12 @@ func (s *SessionStore) AdminDeleteTournament(ctx context.Context, lookup string)
 	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.tournaments WHERE id = $1::uuid`, rowID); err != nil {
 		return "", err
 	}
+	// Medal partisipasi ikut hilang: collectible 'tournament:<id>' tidak punya FK
+	// ke tournaments, jadi kalau tidak dibersihkan di sini medal akan nyangkut
+	// setelah turnamen (mis. hasil testing) dihapus.
+	if _, err := tx.Exec(ctx, `DELETE FROM `+s.schema+`.player_achievements WHERE achievement_key = 'tournament:' || $1::text`, rowID); err != nil {
+		return "", err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return "", err
 	}
