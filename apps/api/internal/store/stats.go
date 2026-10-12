@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
+	"strings"
 
 	"majadu-api/internal/domain"
 
@@ -384,44 +386,148 @@ func loadTeamTournamentMatches(ctx context.Context, pool *pgxpool.Pool, playerID
 	return out, rows.Err()
 }
 
-// loadTournamentEntries — top-5 partner/lawan tournament (port t_partner_rows
-// / t_opponent_rows).
+// tournamentEncounter — satu kemunculan rekan/lawan di satu game turnamen,
+// ternormalisasi lintas format (classic & team) agar bisa diagregasi bersama.
+type tournamentEncounter struct {
+	name string
+	win  bool
+}
+
+// loadTournamentEntries — top-5 partner/lawan turnamen (port t_partner_rows /
+// t_opponent_rows), classic + team. Diagregasi di Go supaya pemain yang sama di
+// classic DAN team tidak terpecah jadi dua baris.
 func loadTournamentEntries(ctx context.Context, pool *pgxpool.Pool, playerID string, opponent bool) ([]tournamentEntrySmall, error) {
+	classic, err := loadClassicTournamentEncounters(ctx, pool, playerID, opponent)
+	if err != nil {
+		return nil, err
+	}
+	team, err := loadTeamTournamentEncounters(ctx, pool, playerID, opponent)
+	if err != nil {
+		return nil, err
+	}
+	encounters := append(classic, team...)
+
+	type agg struct{ count, wins int }
+	byName := map[string]*agg{}
+	order := []string{}
+	for _, e := range encounters {
+		a, ok := byName[e.name]
+		if !ok {
+			a = &agg{}
+			byName[e.name] = a
+			order = append(order, e.name)
+		}
+		a.count++
+		if e.win {
+			a.wins++
+		}
+	}
+	out := make([]tournamentEntrySmall, 0, len(order))
+	for _, n := range order {
+		out = append(out, tournamentEntrySmall{Name: n, Count: byName[n].count, Wins: byName[n].wins})
+	}
+	// count desc, lalu nama (case-insensitive) — mirror "ORDER BY count(*) DESC,
+	// lower(name)". Di Go supaya penggabungan classic+team ikut tersortir.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+	})
+	if len(out) > 5 {
+		out = out[:5]
+	}
+	return out, nil
+}
+
+// loadClassicTournamentEncounters — rekan (pair_id sama) atau lawan (pair lawan)
+// per match classic. Satu baris = satu match.
+func loadClassicTournamentEncounters(ctx context.Context, pool *pgxpool.Pool, playerID string, opponent bool) ([]tournamentEncounter, error) {
 	joinCond := "tpp2.pair_id = tpp.pair_id AND tpp2.player_id <> tpp.player_id"
 	if opponent {
 		joinCond = `tpp2.pair_id = CASE WHEN tm.pair_a_id = tpp.pair_id THEN tm.pair_b_id ELSE tm.pair_a_id END
 		     AND tpp2.player_id <> tpp.player_id`
 	}
-	query := `
+	rows, err := pool.Query(ctx, `
 		SELECT other.canonical_name,
-		       count(DISTINCT tm.id)::integer,
-		       coalesce(sum(CASE WHEN tm.score_a IS NULL OR tm.score_b IS NULL THEN 0
-				WHEN tpp.pair_id = tm.pair_a_id AND tm.score_a > tm.score_b THEN 1
-				WHEN tpp.pair_id = tm.pair_b_id AND tm.score_b > tm.score_a THEN 1 ELSE 0 END), 0)::integer
+		       (tpp.pair_id = tm.pair_a_id AND tm.score_a > tm.score_b)
+		    OR (tpp.pair_id = tm.pair_b_id AND tm.score_b > tm.score_a)
 		FROM tournament_pair_players tpp
 		JOIN tournament_pairs tp ON tp.id = tpp.pair_id
 		JOIN tournament_matches tm ON (tm.pair_a_id = tpp.pair_id OR tm.pair_b_id = tpp.pair_id)
 			AND tm.tournament_id = tp.tournament_id
-		JOIN tournament_pair_players tpp2 ON ` + joinCond + `
+		JOIN tournament_pair_players tpp2 ON `+joinCond+`
 		JOIN players other ON other.id = tpp2.player_id
 		WHERE tpp.player_id = $1::uuid
-		  AND tm.score_a IS NOT NULL AND tm.score_b IS NOT NULL
-		GROUP BY other.canonical_name
-		ORDER BY count(DISTINCT tm.id) DESC, lower(other.canonical_name)
-		LIMIT 5`
-	rows, err := pool.Query(ctx, query, playerID)
+		  AND tm.score_a IS NOT NULL AND tm.score_b IS NOT NULL`, playerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	out := []tournamentEntrySmall{}
+	out := []tournamentEncounter{}
 	for rows.Next() {
-		var e tournamentEntrySmall
-		if err := rows.Scan(&e.Name, &e.Count, &e.Wins); err != nil {
+		var e tournamentEncounter
+		if err := rows.Scan(&e.name, &e.win); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// loadTeamTournamentEncounters — rekan/lawan per partai turnamen TIM. Satu baris
+// = (game partai) × (pemain lawan/serekan). Sisi ganda ditentukan kelas→partai
+// lewat domain.ClassInPartai, tidak diduplikasi di SQL: pada satu partai,
+// rekan = anggota tim yang kelasnya satu grup, lawan = dua pemain tim lawan grup
+// yang sama.
+func loadTeamTournamentEncounters(ctx context.Context, pool *pgxpool.Pool, playerID string, opponent bool) ([]tournamentEncounter, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT ttp.cls,
+		       tg.partai_index,
+		       CASE WHEN tm.team_a_id = ttp.team_id
+		            THEN tg.score_a > tg.score_b
+		            ELSE tg.score_b > tg.score_a END AS win,
+		       (other.team_id = ttp.team_id) AS same_team,
+		       other.cls,
+		       COALESCE(p.canonical_name, other.player_name) AS other_name
+		FROM tournament_team_players ttp
+		JOIN tournament_teams tt ON tt.id = ttp.team_id
+		JOIN tournament_team_matches tm ON tm.tournament_id = tt.tournament_id
+			AND (tm.team_a_id = ttp.team_id OR tm.team_b_id = ttp.team_id)
+		JOIN tournament_team_match_games tg ON tg.team_match_id = tm.id
+			AND tg.score_a IS NOT NULL AND tg.score_b IS NOT NULL
+		JOIN tournament_team_players other
+			ON other.team_id IN (tm.team_a_id, tm.team_b_id)
+			AND NOT (other.team_id = ttp.team_id AND other.cls = ttp.cls)
+		LEFT JOIN players p ON p.id = other.player_id
+		WHERE ttp.player_id = $1::uuid`, playerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []tournamentEncounter{}
+	for rows.Next() {
+		var (
+			myCls, otherCls, otherName string
+			partaiIdx                  int
+			win, sameTeam              bool
+		)
+		if err := rows.Scan(&myCls, &partaiIdx, &win, &sameTeam, &otherCls, &otherName); err != nil {
+			return nil, err
+		}
+		if !domain.ClassInPartai(partaiIdx, myCls) {
+			continue // pemain tak main di partai ini
+		}
+		if !domain.ClassInPartai(partaiIdx, otherCls) {
+			continue // hanya grup partai yang sama yang relevan
+		}
+		// partner → butuh serekan (sameTeam); opponent → butuh tim lawan.
+		if sameTeam == opponent {
+			continue
+		}
+		out = append(out, tournamentEncounter{name: otherName, win: win})
 	}
 	return out, rows.Err()
 }
