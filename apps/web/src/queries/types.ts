@@ -28,7 +28,7 @@ export interface PlayerStats {
     gamesPlayed: number
     wins: number
     losses: number
-    tournaments: { name: string; date: string; games: number; wins: number; losses: number }[]
+    tournaments: { name: string; share_code?: string; date: string; games: number; wins: number; losses: number }[]
     topPartners: { name: string; count: number; wins: number }[]
     topOpponents: { name: string; count: number; wins: number }[]
   }
