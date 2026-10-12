@@ -601,6 +601,25 @@ func (s *SessionStore) CaptureRankSnapshot(ctx context.Context) (int, error) {
 	return len(rows), nil
 }
 
+// PurgeOrphanRankSnapshots — hapus snapshot yang tanggal acuannya (as_of) sudah
+// tidak punya satu pun rating_event. Ini terjadi saat sesi/turnamen dihapus atau
+// di-revert SETELAH snapshot-nya terekam: tanpa pembersihan, snapshot yatim tetap
+// dipilih sebagai pembanding movement, dan karena papan berubah (mis. sebagian
+// barisnya hilang lewat cascade), seluruh panah bisa bergeser sepihak.
+//
+// Audit 2026-10-12: as_of 2026-10-09 tanpa event sama sekali (event tes dihapus)
+// dengan rank bergeser +36 → papan tampak "semua naik". Idempoten.
+func (s *SessionStore) PurgeOrphanRankSnapshots(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `
+		DELETE FROM `+s.schema+`.rank_snapshots rs
+		WHERE NOT EXISTS (
+			SELECT 1 FROM `+s.schema+`.rating_events re WHERE re.date = rs.as_of)`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // rankSnapshotRanks — rank dari snapshot tanggal acuan SEBELUM asOf.
 //
 // "Sebelumnya" = as_of terbesar yang < asOf, bukan asOf-1 hari: papan

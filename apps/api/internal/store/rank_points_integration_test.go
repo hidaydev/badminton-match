@@ -844,3 +844,80 @@ func TestIntegrationRankPointsForPlayerAsOf(t *testing.T) {
 	}
 	t.Fatalf("pemain tidak ada di papan as_of %s", early)
 }
+
+// TestIntegrationPurgeOrphanRankSnapshots — snapshot dengan as_of yang sudah
+// TIDAK punya rating_event (tanggal acuannya hilang karena sesi/turnamen
+// dihapus/revert setelah snapshot terekam) harus dibuang. Kalau tertinggal ia
+// terpilih sebagai pembanding movement dan menggeser seluruh panah.
+//
+// Regresi prod 2026-10-12: snapshot as_of tanpa event, rank bergeser → papan
+// tampak "semua naik" (99 naik / 0 turun).
+func TestIntegrationPurgeOrphanRankSnapshots(t *testing.T) {
+	st, schema := ratingTestEnv(t)
+	ctx := context.Background()
+
+	const prefix = "it-rpurge"
+	players := []domain.Player{
+		{ID: "rpg1", Name: "RPG One", Gender: "M", Tier: 5},
+		{ID: "rpg2", Name: "RPG Two", Gender: "M", Tier: 5},
+	}
+	cleanup := func() {
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rank_snapshots WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RPG %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_deltas WHERE event_id IN (SELECT id FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_events WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_sources WHERE source_id LIKE '`+prefix+`%'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rating_players WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RPG %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'rpg %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RPG %'`)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	// Tanggal acuan SAH (punya event) + tanggal YATIM tepat di bawahnya.
+	validDate := "2026-09-06"
+	orphanDate := dateMinusDays(t, validDate, 1)
+	insertRankTestEvent(t, st, ctx, schema, prefix+"-s0", validDate, "session",
+		21, 10, 21, []playerSide{
+			{id: "rpg1", team: "A"}, {id: "rpg2", team: "B"},
+		})
+
+	insertSnap := func(asOf string, rank int, id string) {
+		pid := resolveIDByAliasFuzzy(t, st, schema, id)
+		if _, err := st.pool.Exec(ctx, `
+			INSERT INTO `+schema+`.rank_snapshots (as_of, player_id, rank, points)
+			VALUES ($1::date, $2::uuid, $3, 0)`, asOf, pid, rank); err != nil {
+			t.Fatalf("snapshot %s@%s: %v", id, asOf, err)
+		}
+	}
+	insertSnap(validDate, 1, "rpg1")
+	insertSnap(validDate, 2, "rpg2")
+	insertSnap(orphanDate, 1, "rpg1")
+	insertSnap(orphanDate, 2, "rpg2")
+
+	if _, err := st.PurgeOrphanRankSnapshots(ctx); err != nil {
+		t.Fatalf("purge: %v", err)
+	}
+
+	// Hitung hanya baris pemain test (bm_dev bisa berisi sisa test lain).
+	countFor := func(asOf string) int {
+		t.Helper()
+		var n int
+		if err := st.pool.QueryRow(ctx, `
+			SELECT count(*) FROM `+schema+`.rank_snapshots rs
+			JOIN `+schema+`.players p ON p.id = rs.player_id
+			WHERE rs.as_of = $1::date AND p.canonical_name LIKE 'RPG %'`, asOf).Scan(&n); err != nil {
+			t.Fatalf("count %s: %v", asOf, err)
+		}
+		return n
+	}
+	if n := countFor(orphanDate); n != 0 {
+		t.Errorf("snapshot yatim %s masih %d baris, want 0", orphanDate, n)
+	}
+	if n := countFor(validDate); n != 2 {
+		t.Errorf("snapshot sah %s = %d baris, want 2 (tak boleh ikut terhapus)", validDate, n)
+	}
+}
