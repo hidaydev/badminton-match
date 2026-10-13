@@ -70,7 +70,9 @@ export default function App() {
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash)
   )
-  const [showCelebration, setShowCelebration] = useState(true)
+  const [showCelebration, setShowCelebration] = useState(
+    () => !sessionStorage.getItem('celebration-shown')
+  )
 
   const exitSharedView = useCallback(() => {
     window.location.href = window.location.origin + '/'
@@ -86,7 +88,7 @@ export default function App() {
     <ErrorBoundary routeName="app">
     <SharedViewContext.Provider value={sharedViewValue}>
       {showCelebration && (
-        <CelebrationOverlay onDismiss={() => setShowCelebration(false)} />
+        <CelebrationOverlay onDismiss={() => { sessionStorage.setItem('celebration-shown', '1'); setShowCelebration(false) }} />
       )}
       {needRefresh && (
         <UpdateBanner
