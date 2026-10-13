@@ -9,6 +9,7 @@ const WINNER = {
   name: 'Green Grove',
   photo: '/team-photos/green-grove.webp',
   logo: '/team-logos/Green_Grove-removebg-preview.png',
+  logoSize: '9rem',
   label: 'Champion',
   emoji: '🏆',
   accent: '#5fb58f',
@@ -19,6 +20,7 @@ const RUNNER_UP = {
   name: 'Blue Waves',
   photo: '/team-photos/blue-waves.webp',
   logo: '/team-logos/Blue_Waves-removebg-preview.png',
+  logoSize: '7rem',
   label: 'Runner-Up',
   emoji: '🥈',
   accent: '#6d9dc8',
@@ -135,8 +137,8 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
           <img
             src={slide.logo}
             alt={slide.name}
-            className="absolute w-28 h-28 object-contain"
-            style={{ bottom: '-3.5rem' }}
+            className="absolute object-contain"
+            style={{ bottom: '-3.5rem', width: slide.logoSize, height: slide.logoSize }}
             draggable={false}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
           />
