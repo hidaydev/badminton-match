@@ -94,6 +94,11 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         ))}
       </div>
 
+      {/* Anniversary logo — top center, outside animated slide so it stays fixed */}
+      <div className="absolute top-6 left-0 right-0 flex justify-center z-10 pointer-events-none" aria-hidden="true">
+        <img src="/anniversary-card-logo.png" alt="" className="h-14 w-auto" draggable={false} />
+      </div>
+
       {/* Slide content */}
       <div
         className="relative z-10 flex flex-col items-center gap-4 px-6 text-center"
