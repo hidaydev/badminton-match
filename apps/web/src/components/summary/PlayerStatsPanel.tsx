@@ -124,7 +124,7 @@ export default function PlayerStatsPanel({
                 <span className={`inline-flex items-center gap-1 text-xs truncate ${isAbsent ? 'text-slate-400 line-through' : isSelected && !teamTheme ? 'text-yellow-300' : 'text-slate-300'}`}
                   style={isSelected && teamTheme ? { color: teamTheme.color } : undefined}>
                   <AnnotatedPlayerName name={name} />
-                  {teamTheme && <img src={teamTheme.logo} style={{ width: teamKey === 'Green Grove' ? 18 : 16, height: teamKey === 'Green Grove' ? 18 : 16, objectFit: 'contain', flexShrink: 0 }} />}
+                  {teamTheme && <img src={teamTheme.logo} style={{ width: teamKey === 'Green Grove' ? 18 : 15, height: teamKey === 'Green Grove' ? 18 : 15, objectFit: 'contain', flexShrink: 0 }} />}
                 </span>
                 {isAbsent && <span className="text-[10px] text-slate-300 bg-slate-800 rounded px-1 py-0.5 shrink-0">absent</span>}
                 <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-400' : isSelected && !teamTheme ? 'text-yellow-400' : 'text-white'}`}
