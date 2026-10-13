@@ -98,15 +98,13 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         ))}
       </div>
 
-      {/* Anniversary logo — top center, outside animated slide so it stays fixed */}
-      <div className="absolute top-6 left-0 right-0 flex justify-center z-10 pointer-events-none" aria-hidden="true">
+      {/* Anniversary logo + Congratulations — grouped at top, fixed */}
+      <div className="absolute top-6 left-0 right-0 flex flex-col items-center gap-2 z-10 pointer-events-none" aria-hidden="true">
         <img src="/anniversary-card-logo.png" alt="" className="h-14 w-auto" draggable={false} />
+        <p className="text-2xl font-bold text-fg tracking-wide" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
+          Congratulations!
+        </p>
       </div>
-
-      {/* Congratulations — static, not part of the flip transition */}
-      <p className="relative z-10 text-2xl font-bold text-fg tracking-wide mb-8" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
-        Congratulations!
-      </p>
 
       {/* Slide content */}
       <div
