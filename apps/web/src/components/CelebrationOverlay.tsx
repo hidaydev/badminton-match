@@ -12,8 +12,8 @@ const WINNER = {
   logoSize: '8rem',
   label: 'Champion',
   emoji: '🏆',
-  accent: '#5fb58f',
-  glow: 'rgba(95,181,143,0.35)',
+  accent: '#2d7a55',
+  glow: 'rgba(45,122,85,0.35)',
 }
 
 const RUNNER_UP = {
