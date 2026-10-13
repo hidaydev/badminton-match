@@ -121,24 +121,28 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
           </span>
         </div>
 
-        {/* Team photo */}
-        <img
-          src={slide.photo}
-          alt={`${slide.name} — ${slide.label}`}
-          className="block object-cover"
-          style={{ maxHeight: '54vh', maxWidth: '86vw', minWidth: 200, display: 'block' }}
-          draggable={false}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
-
-        {/* Team logo */}
-        <img
-          src={slide.logo}
-          alt={slide.name}
-          className="h-16 w-auto object-contain"
-          draggable={false}
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-        />
+        {/* Team photo + logo badge */}
+        <div className="relative flex flex-col items-center">
+          <img
+            src={slide.photo}
+            alt={`${slide.name} — ${slide.label}`}
+            className="block object-cover"
+            style={{ maxHeight: '54vh', maxWidth: '86vw', minWidth: 200, display: 'block' }}
+            draggable={false}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+          {/* Team logo — half overlapping the photo bottom */}
+          <img
+            src={slide.logo}
+            alt={slide.name}
+            className="absolute w-28 h-28 object-contain"
+            style={{ bottom: '-3.5rem' }}
+            draggable={false}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+        </div>
+        {/* Spacer to push content below the logo overhang */}
+        <div style={{ height: '3.5rem' }} />
       </div>
 
       {/* Logo + dot indicators */}
