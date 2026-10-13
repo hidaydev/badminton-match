@@ -1,9 +1,29 @@
-import { useRef, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 
 interface CelebrationOverlayProps {
   onDismiss(): void
 }
+
+const WINNER = {
+  name: 'Green Grove',
+  photo: '/team-photos/green-grove.webp',
+  label: 'Champion',
+  emoji: '🏆',
+  accent: '#5fb58f',
+  glow: 'rgba(95,181,143,0.35)',
+}
+
+const RUNNER_UP = {
+  name: 'Blue Waves',
+  photo: '/team-photos/blue-waves.webp',
+  label: 'Runner-Up',
+  emoji: '🥈',
+  accent: '#6d9dc8',
+  glow: 'rgba(109,157,200,0.35)',
+}
+
+const FLIP_INTERVAL = 4500  // ms per slide
 
 const COLORS = [
   '#e3b341', '#ffffff', '#5fb58f', '#d65a5a',
@@ -21,24 +41,42 @@ const PARTICLES = Array.from({ length: 60 }, (_, i) => ({
   borderRadius: i % 3 === 0 ? '50%' : '2px',
 }))
 
+const SLIDES = [WINNER, RUNNER_UP]
+
 export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProps) {
+  const [idx, setIdx] = useState(0)
+  const [visible, setVisible] = useState(true)
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEscapeKey(onDismiss)
-
   useEffect(() => { overlayRef.current?.focus() }, [])
+
+  // Auto-flip between winner and runner-up
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        setIdx((i) => (i + 1) % SLIDES.length)
+        setVisible(true)
+      }, 350)
+    }, FLIP_INTERVAL)
+    return () => clearInterval(timer)
+  }, [])
+
+  const slide = SLIDES[idx]
 
   return (
     <div
       ref={overlayRef}
       tabIndex={-1}
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/80"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden"
+      style={{ background: 'rgba(8,10,14,0.92)' }}
       onClick={onDismiss}
       role="dialog"
       aria-modal="true"
-      aria-label="Team celebration"
+      aria-label="Championship celebration"
     >
-      {/* Confetti layer — pointer-events none so tap always hits backdrop */}
+      {/* Confetti */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
         {PARTICLES.map((p) => (
           <div
@@ -56,15 +94,69 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         ))}
       </div>
 
-      {/* Team photo */}
-      <img
-        src="/team-winner.png"
-        alt="Majadu Badminton Club — Champions"
-        className="relative z-10 object-contain drop-shadow-2xl animate-[fadeInScale_0.4s_ease-out]"
-        style={{ maxHeight: '72vh', maxWidth: '90vw' }}
-        draggable={false}
-        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-      />
+      {/* Slide content */}
+      <div
+        className="relative z-10 flex flex-col items-center gap-4 px-6 text-center"
+        style={{
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'scale(1) translateY(0)' : 'scale(0.94) translateY(12px)',
+          transition: 'opacity 0.35s ease, transform 0.35s ease',
+        }}
+        aria-live="polite"
+      >
+        {/* Label */}
+        <div className="flex flex-col items-center gap-1">
+          <span
+            className="text-xs font-semibold uppercase tracking-[0.25em] px-3 py-1 rounded-full"
+            style={{ background: `${slide.glow}`, color: slide.accent, border: `1px solid ${slide.accent}40` }}
+          >
+            {slide.emoji} {slide.label}
+          </span>
+        </div>
+
+        {/* Team photo */}
+        <div
+          className="rounded-2xl overflow-hidden"
+          style={{
+            boxShadow: `0 0 60px 8px ${slide.glow}, 0 8px 32px rgba(0,0,0,0.6)`,
+            border: `2px solid ${slide.accent}60`,
+          }}
+        >
+          <img
+            src={slide.photo}
+            alt={`${slide.name} — ${slide.label}`}
+            className="block object-cover"
+            style={{ maxHeight: '52vh', maxWidth: '82vw', minWidth: 200, display: 'block' }}
+            draggable={false}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+          />
+        </div>
+
+        {/* Team name */}
+        <p className="text-2xl font-bold text-fg tracking-wide" style={{ textShadow: `0 0 24px ${slide.glow}` }}>
+          {slide.name}
+        </p>
+      </div>
+
+      {/* Dot indicators */}
+      <div className="absolute bottom-10 flex gap-2 z-10" aria-hidden="true">
+        {SLIDES.map((_, i) => (
+          <div
+            key={i}
+            className="rounded-full transition-all duration-300"
+            style={{
+              width: i === idx ? 20 : 6,
+              height: 6,
+              background: i === idx ? SLIDES[i].accent : 'rgba(255,255,255,0.25)',
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Dismiss hint */}
+      <p className="absolute bottom-4 text-[11px] text-fg-dim/50 z-10 tracking-wide pointer-events-none">
+        tap anywhere to close
+      </p>
     </div>
   )
 }
