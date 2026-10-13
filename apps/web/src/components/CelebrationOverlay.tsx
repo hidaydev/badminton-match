@@ -27,7 +27,7 @@ const RUNNER_UP = {
   glow: 'rgba(109,157,200,0.35)',
 }
 
-const FLIP_INTERVAL = 4500  // ms per slide
+const FLIP_INTERVAL = 8000  // ms per slide
 
 const COLORS = [
   '#e3b341', '#ffffff', '#5fb58f', '#d65a5a',
