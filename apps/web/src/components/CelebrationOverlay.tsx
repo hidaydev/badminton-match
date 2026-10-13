@@ -8,6 +8,7 @@ interface CelebrationOverlayProps {
 const WINNER = {
   name: 'Green Grove',
   photo: '/team-photos/green-grove.webp',
+  logo: '/team-logos/Green_Grove-removebg-preview.png',
   label: 'Champion',
   emoji: '🏆',
   accent: '#5fb58f',
@@ -17,6 +18,7 @@ const WINNER = {
 const RUNNER_UP = {
   name: 'Blue Waves',
   photo: '/team-photos/blue-waves.webp',
+  logo: '/team-logos/Blue_Waves-removebg-preview.png',
   label: 'Runner-Up',
   emoji: '🥈',
   accent: '#6d9dc8',
@@ -129,10 +131,14 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
         />
 
-        {/* Team name */}
-        <p className="text-2xl font-bold text-fg tracking-wide" style={{ textShadow: `0 0 24px ${slide.glow}` }}>
-          {slide.name}
-        </p>
+        {/* Team logo */}
+        <img
+          src={slide.logo}
+          alt={slide.name}
+          className="h-16 w-auto object-contain"
+          draggable={false}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
       </div>
 
       {/* Logo + dot indicators */}
