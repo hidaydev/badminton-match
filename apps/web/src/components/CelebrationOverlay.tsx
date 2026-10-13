@@ -104,13 +104,13 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
       </div>
 
       {/* Congratulations — static, not part of the flip transition */}
-      <p className="relative z-10 text-2xl font-bold text-fg tracking-wide mb-4" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
+      <p className="relative z-10 text-2xl font-bold text-fg tracking-wide mb-8" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
         Congratulations!
       </p>
 
       {/* Slide content */}
       <div
-        className="relative z-10 flex flex-col items-center gap-6 px-6 text-center"
+        className="relative z-10 flex flex-col items-center gap-4 px-6 text-center"
         style={{
           opacity: visible ? 1 : 0,
           transform: visible ? 'scale(1) translateY(0)' : 'scale(0.94) translateY(12px)',
