@@ -9,7 +9,7 @@ const WINNER = {
   name: 'Green Grove',
   photo: '/team-photos/green-grove.webp',
   logo: '/team-logos/Green_Grove-removebg-preview.png',
-  logoSize: '9rem',
+  logoSize: '8rem',
   label: 'Champion',
   emoji: '🏆',
   accent: '#5fb58f',
