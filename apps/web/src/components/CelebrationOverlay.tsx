@@ -23,8 +23,8 @@ const RUNNER_UP = {
   logoSize: '7rem',
   label: 'Runner-Up',
   emoji: '🥈',
-  accent: '#6d9dc8',
-  glow: 'rgba(109,157,200,0.35)',
+  accent: '#2d5f8a',
+  glow: 'rgba(45,95,138,0.35)',
 }
 
 const FLIP_INTERVAL = 8000  // ms per slide
