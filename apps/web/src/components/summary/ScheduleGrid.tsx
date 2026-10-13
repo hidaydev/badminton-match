@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
-import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHTS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
+import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
 import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
 import type { Player, GameScore } from '../../types'
