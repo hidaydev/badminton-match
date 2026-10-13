@@ -115,22 +115,14 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         </div>
 
         {/* Team photo */}
-        <div
-          className="rounded-2xl overflow-hidden"
-          style={{
-            boxShadow: `0 0 60px 8px ${slide.glow}, 0 8px 32px rgba(0,0,0,0.6)`,
-            border: `2px solid ${slide.accent}60`,
-          }}
-        >
-          <img
-            src={slide.photo}
-            alt={`${slide.name} — ${slide.label}`}
-            className="block object-cover"
-            style={{ maxHeight: '52vh', maxWidth: '82vw', minWidth: 200, display: 'block' }}
-            draggable={false}
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-          />
-        </div>
+        <img
+          src={slide.photo}
+          alt={`${slide.name} — ${slide.label}`}
+          className="block object-cover"
+          style={{ maxHeight: '54vh', maxWidth: '86vw', minWidth: 200, display: 'block' }}
+          draggable={false}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+        />
 
         {/* Team name */}
         <p className="text-2xl font-bold text-fg tracking-wide" style={{ textShadow: `0 0 24px ${slide.glow}` }}>
@@ -138,8 +130,10 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         </p>
       </div>
 
-      {/* Dot indicators */}
-      <div className="absolute bottom-10 flex gap-2 z-10" aria-hidden="true">
+      {/* Logo + dot indicators */}
+      <div className="absolute bottom-6 flex flex-col items-center gap-3 z-10" aria-hidden="true">
+        <img src="/majadu-logo.png" alt="Majadu" className="h-8 w-auto opacity-80" draggable={false} />
+        <div className="flex gap-2">
         {SLIDES.map((_, i) => (
           <div
             key={i}
@@ -151,10 +145,11 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
             }}
           />
         ))}
+        </div>
       </div>
 
       {/* Dismiss hint */}
-      <p className="absolute bottom-4 text-[11px] text-fg-dim/50 z-10 tracking-wide pointer-events-none">
+      <p className="absolute bottom-1 text-[11px] text-fg-dim/50 z-10 tracking-wide pointer-events-none">
         tap anywhere to close
       </p>
     </div>
