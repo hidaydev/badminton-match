@@ -1,6 +1,7 @@
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, ScheduleSlot } from '../../types'
 import { computePlayerStats } from '../../utils/playerStats'
+import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHTS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
 
 interface GeneratedPlayerStatsProps {
   schedule: ScheduleSlot[]
@@ -106,19 +107,28 @@ export default function PlayerStatsPanel({
             const isAbsent = absentSet.has(id)
             const isSelected = highlightedPlayerId === id
             const isDimmed = highlightedPlayerId && !isSelected
+            const teamKey = TEAM_HIGHLIGHT_ENABLED ? HIGHLIGHTED_PLAYERS[name] : undefined
+            const teamTheme = teamKey ? TEAM_HIGHLIGHTS[teamKey] : null
+            const selectedStyle = isSelected && teamTheme
+              ? { backgroundColor: `${teamTheme.color}18`, outline: `1px solid ${teamTheme.color}80` }
+              : undefined
             return (
               <button
                 key={id}
                 onClick={() => onSelectPlayer?.(id)}
                 className={`flex items-center justify-between gap-1 min-w-0 rounded px-1 -mx-1 py-0.5 text-left transition-colors ${
-                  isSelected ? 'bg-yellow-400/15 ring-1 ring-yellow-400/40' : 'hover:bg-slate-700/50 active:bg-slate-700'
+                  isSelected && !teamTheme ? 'bg-yellow-400/15 ring-1 ring-yellow-400/40' : 'hover:bg-slate-700/50 active:bg-slate-700'
                 } ${isAbsent || isDimmed ? 'opacity-40' : ''}`}
+                style={selectedStyle}
               >
-                <span className={`text-xs truncate ${isAbsent ? 'text-slate-400 line-through' : isSelected ? 'text-yellow-300' : 'text-slate-300'}`}>
+                <span className={`inline-flex items-center gap-1 text-xs truncate ${isAbsent ? 'text-slate-400 line-through' : isSelected && !teamTheme ? 'text-yellow-300' : 'text-slate-300'}`}
+                  style={isSelected && teamTheme ? { color: teamTheme.color } : undefined}>
                   <AnnotatedPlayerName name={name} />
+                  {teamTheme && <img src={teamTheme.logo} style={{ width: teamKey === 'Green Grove' ? 14 : 12, height: teamKey === 'Green Grove' ? 14 : 12, objectFit: 'contain', flexShrink: 0 }} />}
                 </span>
                 {isAbsent && <span className="text-[10px] text-slate-300 bg-slate-800 rounded px-1 py-0.5 shrink-0">absent</span>}
-                <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-400' : isSelected ? 'text-yellow-400' : 'text-white'}`}>
+                <span className={`text-xs font-bold shrink-0 ${isAbsent ? 'text-slate-400' : isSelected && !teamTheme ? 'text-yellow-400' : 'text-white'}`}
+                  style={isSelected && teamTheme ? { color: teamTheme.color } : undefined}>
                   {plays}×
                 </span>
               </button>
