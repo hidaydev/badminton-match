@@ -101,7 +101,7 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
       {/* Anniversary logo + Congratulations — grouped at top, fixed */}
       <div className="absolute top-6 left-0 right-0 flex flex-col items-center gap-14 z-10 pointer-events-none" aria-hidden="true">
         <img src="/anniversary-card-logo.png" alt="" className="h-14 w-auto" draggable={false} />
-        <p className="text-xl font-light text-fg/70 tracking-widest" style={{ animation: 'annivBlink 1.8s ease-in-out infinite' }}>
+        <p className="text-sm font-light text-fg/70 tracking-widest" style={{ animation: 'annivBlink 1.8s ease-in-out infinite' }}>
           Congratulations!
         </p>
       </div>
