@@ -103,9 +103,14 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         <img src="/anniversary-card-logo.png" alt="" className="h-14 w-auto" draggable={false} />
       </div>
 
+      {/* Congratulations — static, not part of the flip transition */}
+      <p className="relative z-10 text-2xl font-bold text-fg tracking-wide mb-4" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
+        Congratulations!
+      </p>
+
       {/* Slide content */}
       <div
-        className="relative z-10 flex flex-col items-center gap-4 px-6 text-center"
+        className="relative z-10 flex flex-col items-center gap-6 px-6 text-center"
         style={{
           opacity: visible ? 1 : 0,
           transform: visible ? 'scale(1) translateY(0)' : 'scale(0.94) translateY(12px)',
@@ -113,11 +118,8 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         }}
         aria-live="polite"
       >
-        {/* Congratulations + label */}
-        <div className="flex flex-col items-center gap-2">
-          <p className="text-2xl font-bold text-fg tracking-wide" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
-            Congratulations!
-          </p>
+        {/* Label */}
+        <div className="flex flex-col items-center">
           <span
             className="text-xs font-semibold uppercase tracking-[0.25em] px-3 py-1 rounded-full"
             style={{ background: `${slide.glow}`, color: slide.accent, border: `1px solid ${slide.accent}40` }}
