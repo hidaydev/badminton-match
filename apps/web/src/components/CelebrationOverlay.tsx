@@ -41,7 +41,7 @@ const PARTICLES = Array.from({ length: 60 }, (_, i) => ({
   width: 6 + (i % 5) * 2,
   height: 10 + (i % 4) * 3,
   delay: `-${((i * 0.17) % 3).toFixed(2)}s`,
-  duration: `${2.5 + (i % 5) * 0.4}s`,
+  duration: `${5.5 + (i % 5) * 0.8}s`,
   borderRadius: i % 3 === 0 ? '50%' : '2px',
 }))
 
