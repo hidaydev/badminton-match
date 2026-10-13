@@ -113,8 +113,11 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         }}
         aria-live="polite"
       >
-        {/* Label */}
-        <div className="flex flex-col items-center gap-1">
+        {/* Congratulations + label */}
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-2xl font-bold text-fg tracking-wide" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
+            Congratulations!
+          </p>
           <span
             className="text-xs font-semibold uppercase tracking-[0.25em] px-3 py-1 rounded-full"
             style={{ background: `${slide.glow}`, color: slide.accent, border: `1px solid ${slide.accent}40` }}
