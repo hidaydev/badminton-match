@@ -74,7 +74,10 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
       ref={overlayRef}
       tabIndex={-1}
       className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden"
-      style={{ background: 'rgba(8,10,14,0.92)' }}
+      style={{
+        background: `radial-gradient(ellipse 70% 60% at 50% 55%, ${slide.glow} 0%, rgba(8,10,14,0) 70%), rgba(8,10,14,0.92)`,
+        transition: 'background 0.8s ease',
+      }}
       onClick={onDismiss}
       role="dialog"
       aria-modal="true"
@@ -129,7 +132,10 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
             src={slide.photo}
             alt={`${slide.name} — ${slide.label}`}
             className="block object-cover"
-            style={{ maxHeight: '54vh', maxWidth: '86vw', minWidth: 200, display: 'block' }}
+            style={{
+              maxHeight: '54vh', maxWidth: '86vw', minWidth: 200, display: 'block',
+              filter: `drop-shadow(0 0 32px ${slide.accent}99) drop-shadow(0 0 8px ${slide.accent}55)`,
+            }}
             draggable={false}
             onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
           />
