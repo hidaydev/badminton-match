@@ -142,7 +142,7 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
       </div>
 
       {/* Logo + dot indicators */}
-      <div className="absolute bottom-6 flex flex-col items-center gap-3 z-10" aria-hidden="true">
+      <div className="absolute bottom-12 flex flex-col items-center gap-3 z-10" aria-hidden="true">
         <img src="/majadu-logo.png" alt="Majadu" className="h-8 w-auto opacity-80" draggable={false} />
         <div className="flex gap-2">
         {SLIDES.map((_, i) => (
@@ -160,7 +160,7 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
       </div>
 
       {/* Dismiss hint */}
-      <p className="absolute bottom-1 text-[11px] text-fg-dim/50 z-10 tracking-wide pointer-events-none">
+      <p className="absolute bottom-6 text-[11px] text-fg-dim/50 z-10 tracking-wide pointer-events-none">
         tap anywhere to close
       </p>
     </div>
