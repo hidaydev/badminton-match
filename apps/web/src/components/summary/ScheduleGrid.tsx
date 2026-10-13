@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
+import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
 import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
 import type { Player, GameScore } from '../../types'
@@ -214,14 +215,23 @@ export default function ScheduleGrid({
                 const allPlayers = [...g.teamA, ...g.teamB] as string[]
                 const isHighlighted = highlightedPlayerId ? allPlayers.includes(highlightedPlayerId) : false
                 const isDimmed = highlightedPlayerId ? !isHighlighted : false
+                const highlightedName = TEAM_HIGHLIGHT_ENABLED && highlightedPlayerId ? playerMap.get(highlightedPlayerId)?.name ?? null : null
+                const highlightedTeam = highlightedName ? HIGHLIGHTED_PLAYERS[highlightedName] ?? null : null
+                const glowClass = isHighlighted && highlightedTeam
+                  ? (highlightedTeam === 'Green Grove' ? 'row-glow-g' : 'row-glow-b')
+                  : ''
 
                 const gameRow = (
                   <div className="flex flex-col gap-1">
                     {/* Game row header */}
                     <div
                       className={`flex items-center gap-2 select-none rounded-lg px-1 py-0.5 -mx-1 transition-colors ${
-                        isHighlighted ? 'bg-yellow-400/10 ring-1 ring-yellow-400/40' : done ? 'opacity-40' : 'hover:bg-slate-800/40'
-                      } ${isDimmed ? 'opacity-25' : ''}`}
+                        isHighlighted && TEAM_HIGHLIGHT_ENABLED && highlightedTeam === 'Green Grove' ? 'bg-emerald-400/8'
+                        : isHighlighted && TEAM_HIGHLIGHT_ENABLED && highlightedTeam === 'Blue Waves' ? 'bg-sky-400/8'
+                        : isHighlighted ? 'bg-yellow-400/10 ring-1 ring-yellow-400/40'
+                        : done ? 'opacity-40'
+                        : 'hover:bg-slate-800/40'
+                      } ${isDimmed ? 'opacity-25' : ''} ${glowClass}`}
                     >
                       {/* Played checkbox */}
                       <div
