@@ -35,6 +35,7 @@ export default function RankingsPage() {
           {data && rows.length > 0 && (
             <span className="text-[10px] font-mono text-fg-dim uppercase">
               {data.window_weeks} minggu · {data.best_n} terbaik
+              {data.min_sessions > 1 ? ` · min ${data.min_sessions} sesi` : ''}
             </span>
           )}
         </div>

@@ -23,6 +23,7 @@ const (
 	AchOpponent   AchievementKind = "opponent"
 	AchTournament AchievementKind = "tournament"
 	AchSocial     AchievementKind = "social"
+	AchRank       AchievementKind = "rank"
 )
 
 // MedalTiers — nama tingkat dari terendah ke tertinggi (level 1..5).
@@ -36,6 +37,9 @@ type MedalDef struct {
 	Unit       string // satuan tampilan: 'sessions', 'games', ...
 	Note       string // deskripsi singkat untuk popup detail
 	Thresholds [5]int64
+	// Inverted — nilai lebih KECIL lebih baik (mis. peringkat: #1 > #10).
+	// Membalik arah TierForValue dan upsert (lihat store.insertAchievements).
+	Inverted bool
 }
 
 // CareerMedals — tujuh milestone yang dipertahankan. Ambang sengaja renggang
@@ -47,6 +51,11 @@ var CareerMedals = []MedalDef{
 	{ID: "streak", Kind: AchAttendance, Title: "Streak", Unit: "sessions", Note: "Best run of consecutive sessions", Thresholds: [5]int64{3, 5, 8, 12, 16}},
 	{ID: "partners", Kind: AchSocial, Title: "Partners", Unit: "partners", Note: "Distinct partners played with", Thresholds: [5]int64{5, 15, 30, 60, 100}},
 	{ID: "opponents", Kind: AchOpponent, Title: "Opponents", Unit: "opponents", Note: "Distinct opponents faced", Thresholds: [5]int64{10, 25, 50, 100, 200}},
+	// Rank — best (minimum) ranking reached on the public board. Inverted:
+	// lower rank number = higher tier (Bronze=Top10 … Onyx=#1).
+	{ID: "rank", Kind: AchRank, Title: "Rank", Unit: "rank", Note: "Best ranking reached", Inverted: true, Thresholds: [5]int64{10, 5, 3, 2, 1}},
+	// Top-3 Streak — longest run of consecutive matchdays holding a top-3 rank.
+	{ID: "rank_streak", Kind: AchRank, Title: "Top-3 Streak", Unit: "events", Note: "Longest run holding a top-3 rank", Thresholds: [5]int64{3, 5, 8, 12, 16}},
 }
 
 // ── Key builders ──────────────────────────────────────────────────────────
@@ -58,10 +67,19 @@ func TournamentKey(id string) string { return "tournament:" + id }
 // ── Tier helpers ──────────────────────────────────────────────────────────
 
 // TierForValue — level 1..5 untuk sebuah medal; 0 kalau belum mencapai Bronze.
+// Medal inverted (rank) naik saat nilai mengecil.
 func TierForValue(def MedalDef, v int64) int {
+	// v ≤ 0 = "tak ada nilai" (mis. rank yang belum pernah diraih) → tanpa tier.
+	if v <= 0 {
+		return 0
+	}
 	level := 0
 	for i, th := range def.Thresholds {
-		if v >= th {
+		if def.Inverted {
+			if v <= th {
+				level = i + 1
+			}
+		} else if v >= th {
 			level = i + 1
 		}
 	}

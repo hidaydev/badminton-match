@@ -69,16 +69,18 @@ export default function AchievementDetailModal({ achievement, onClose }: Achieve
               {thresholds.map((target, i) => {
                 const level = i + 1
                 const achieved = level <= tierLevel
+                // Rank: ambangnya nomor peringkat, jadi tampilkan sebagai #N.
+                const label = a.key === 'medal:rank' ? `#${target}` : `${target}`
                 return (
-                  <div key={level} className="flex flex-col items-center gap-1" aria-label={`${MEDAL_TIER_NAMES[i]} ${target}`}>
+                  <div key={level} className="flex flex-col items-center gap-1" aria-label={`${MEDAL_TIER_NAMES[i]} ${label}`}>
                     <AchievementBadge
                       icon={medalIcon(a.key)}
                       tierLevel={level}
-                      title={`${MEDAL_TIER_NAMES[i]} ${target}`}
+                      title={`${MEDAL_TIER_NAMES[i]} ${label}`}
                       state={achieved ? 'earned' : 'locked'}
                       width={40}
                     />
-                    <span className={`text-[10px] leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}>{target}</span>
+                    <span className={`text-[10px] leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}>{label}</span>
                   </div>
                 )
               })}

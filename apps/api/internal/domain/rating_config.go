@@ -45,6 +45,9 @@ type RatingConfig struct {
 	RankOpponentClamp  [2]float64 // penjepit pengali [min, max]
 	RankSessionBase    float64    // nilai dasar game sesi
 	RankThinEvidenceN  int        // entri < N → tandai "bukti tipis"
+	// RankMinSessions — entri minimum dalam window sebelum pemain boleh
+	// tampil di papan publik. 0 = tanpa ambang.
+	RankMinSessions int
 }
 
 // TierInit — baseline forming dari tier.
@@ -70,6 +73,7 @@ var DefaultRatingConfig = RatingConfig{
 	RankOpponentClamp:  [2]float64{0.5, 1.5},
 	RankSessionBase:    250,
 	RankThinEvidenceN:  3,
+	RankMinSessions:    3,
 	SessionTierInit: map[string]TierInit{
 		"D":  {Class: "D", Rating: 1150},
 		"D+": {Class: "D+", Rating: 1250},
@@ -106,6 +110,9 @@ func (c *RatingConfig) Validate() error {
 	}
 	if c.PlaceholderPromoteGames < 0 {
 		return fmt.Errorf("rating_config: placeholder_promote_games must be ≥ 0")
+	}
+	if c.RankMinSessions < 0 {
+		return fmt.Errorf("rating_config: rank_min_sessions must be ≥ 0")
 	}
 	if c.SeasonStart == "" {
 		return fmt.Errorf("rating_config: season_start must not be empty")

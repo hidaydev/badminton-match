@@ -152,6 +152,24 @@ function Glyph({ icon, stroke, fill }: { icon: MedalIcon; stroke: string; fill: 
           <path d="M16.5 14 H33.5 L29.5 20.5 L33.5 27 H16.5 Z" fill={fill} />
         </g>
       )
+    // Rank — podium: blok tengah (peringkat 1) disorot.
+    case 'podium':
+      return (
+        <g fill="none" stroke={stroke} strokeWidth="2" strokeLinejoin="round">
+          <rect x="13" y="27" width="6.8" height="11" />
+          <rect x="19.8" y="20" width="6.8" height="18" fill={fill} />
+          <rect x="26.6" y="30.5" width="6.8" height="7.5" />
+          <path d="M11.5 39 H35.5" strokeLinecap="round" />
+        </g>
+      )
+    // Top-3 streak — tangga naik dengan panah.
+    case 'stairup':
+      return (
+        <g fill="none" stroke={stroke} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M13.5 39.5 H21 V33 H28.5 V26.5 H36" />
+          <path d="M31 22 L36 26.5 L31 31" />
+        </g>
+      )
   }
 }
 

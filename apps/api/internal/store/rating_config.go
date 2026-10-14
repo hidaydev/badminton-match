@@ -124,6 +124,9 @@ func (s *SessionStore) LoadRatingConfig(ctx context.Context, failFast bool) (dom
 	if err := apply("rank_thin_evidence_n", func(v json.RawMessage) error { return asInt("rank_thin_evidence_n", &cfg.RankThinEvidenceN) }); err != nil {
 		return domain.RatingConfig{}, err
 	}
+	if err := apply("rank_min_sessions", func(v json.RawMessage) error { return asInt("rank_min_sessions", &cfg.RankMinSessions) }); err != nil {
+		return domain.RatingConfig{}, err
+	}
 	if err := apply("rank_opponent_clamp", func(v json.RawMessage) error {
 		var arr []float64
 		if err := json.Unmarshal(v, &arr); err != nil {

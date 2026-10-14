@@ -95,7 +95,11 @@ func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) 
 				v.NextTarget = &next
 			}
 			if value != nil {
-				v.Detail = fmt.Sprintf("%d %s", *value, unit)
+				if def.Inverted {
+					v.Detail = fmt.Sprintf("Best rank #%d", *value)
+				} else {
+					v.Detail = fmt.Sprintf("%d %s", *value, unit)
+				}
 			}
 		} else {
 			v.Title, v.Detail = domain.DescribeCollectible(v.Key, v.Meta)
@@ -111,8 +115,10 @@ func (s *SessionStore) PlayerAchievements(ctx context.Context, playerID string) 
 }
 
 // insertAchievements — batch insert. record=false → DO NOTHING (collectible);
-// record=true → update bila value lebih besar (medal; earned_at tetap).
-func (s *SessionStore) insertAchievements(ctx context.Context, rows []achievementRow, record bool) (int, error) {
+// record=true → update bila nilai lebih baik (medal). `inverted` membalik arah
+// perbandingan: medal normal naik saat value membesar, medal inverted (rank)
+// naik saat value mengecil. earned_at tetap tanggal pertama.
+func (s *SessionStore) insertAchievements(ctx context.Context, rows []achievementRow, record, inverted bool) (int, error) {
 	if len(rows) == 0 {
 		return 0, nil
 	}
@@ -142,9 +148,16 @@ func (s *SessionStore) insertAchievements(ctx context.Context, rows []achievemen
 			args = append(args, r.PlayerID, r.Key, r.Kind, r.EarnedAt, value, string(meta))
 		}
 		if record {
-			sb.WriteString(` ON CONFLICT (player_id, achievement_key) DO UPDATE
-				SET value = EXCLUDED.value, meta = EXCLUDED.meta, updated_at = now()
-				WHERE player_achievements.value IS NULL OR EXCLUDED.value > player_achievements.value`)
+			if inverted {
+				// Rank: makin kecil makin baik → update saat value mengecil.
+				sb.WriteString(` ON CONFLICT (player_id, achievement_key) DO UPDATE
+					SET value = EXCLUDED.value, meta = EXCLUDED.meta, updated_at = now()
+					WHERE player_achievements.value IS NULL OR EXCLUDED.value < player_achievements.value`)
+			} else {
+				sb.WriteString(` ON CONFLICT (player_id, achievement_key) DO UPDATE
+					SET value = EXCLUDED.value, meta = EXCLUDED.meta, updated_at = now()
+					WHERE player_achievements.value IS NULL OR EXCLUDED.value > player_achievements.value`)
+			}
 		} else {
 			sb.WriteString(` ON CONFLICT (player_id, achievement_key) DO NOTHING`)
 		}
@@ -205,7 +218,17 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 		collectibles = append(collectibles, r)
 	}
 	addMedal := func(pid string, def domain.MedalDef, value int64, earnedAt string, meta map[string]string) {
-		if value < def.Thresholds[0] {
+		// Ambang terendah: medal normal butuh value ≥ threshold[0]; medal
+		// inverted (rank) butuh value ≤ threshold[0]. Nilai tak bermakna
+		// (≤ 0) dilewati untuk keduanya.
+		if value <= 0 {
+			return
+		}
+		if def.Inverted {
+			if value > def.Thresholds[0] {
+				return
+			}
+		} else if value < def.Thresholds[0] {
 			return
 		}
 		v := value
@@ -257,6 +280,11 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 		return BackfillResult{}, err
 	}
 
+	// ── Rank: pencapaian peringkat papan ──────────────────────────────────
+	if err := s.backfillRankMedals(ctx, addMedal); err != nil {
+		return BackfillResult{}, err
+	}
+
 	// Buang collectible turnamen yatim: baris 'tournament:<id>' tidak punya FK
 	// ke tournaments, jadi turnamen yang sudah dihapus meninggalkan medal yang
 	// nyangkut selamanya. Sapu di sini supaya rak = turnamen yang benar-benar ada.
@@ -269,11 +297,26 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 		return BackfillResult{}, err
 	}
 
-	medCount, err := s.insertAchievements(ctx, medals, true)
+	// Medal ditulis dua arah: naik (normal) dan turun (inverted, mis. rank).
+	// Dipisah karena klausa ON CONFLICT-nya berbeda arah.
+	var ascending, inverted []achievementRow
+	for _, r := range medals {
+		if def, ok := domain.MedalByID(strings.TrimPrefix(r.Key, "medal:")); ok && def.Inverted {
+			inverted = append(inverted, r)
+		} else {
+			ascending = append(ascending, r)
+		}
+	}
+	medCount, err := s.insertAchievements(ctx, ascending, true, false)
 	if err != nil {
 		return BackfillResult{}, err
 	}
-	colCount, err := s.insertAchievements(ctx, collectibles, false)
+	nInv, err := s.insertAchievements(ctx, inverted, true, true)
+	if err != nil {
+		return BackfillResult{}, err
+	}
+	medCount += nInv
+	colCount, err := s.insertAchievements(ctx, collectibles, false, false)
 	if err != nil {
 		return BackfillResult{}, err
 	}

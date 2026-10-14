@@ -11,6 +11,8 @@ export type MedalIcon =
   | 'team'
   | 'versus'
   | 'flag'
+  | 'podium'
+  | 'stairup'
 
 // medalIcon — achievement_key → ikon.
 export function medalIcon(key: string): MedalIcon {
@@ -27,6 +29,10 @@ export function medalIcon(key: string): MedalIcon {
       return 'team'
     case 'medal:opponents':
       return 'versus'
+    case 'medal:rank':
+      return 'podium'
+    case 'medal:rank_streak':
+      return 'stairup'
   }
   if (key.startsWith('tournament:')) return 'flag'
   return 'trophy'

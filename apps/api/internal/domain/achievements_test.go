@@ -12,7 +12,7 @@ func TestMedalKeys(t *testing.T) {
 }
 
 func TestCareerMedalCatalog(t *testing.T) {
-	want := []string{"sessions", "games", "wins", "streak", "partners", "opponents"}
+	want := []string{"sessions", "games", "wins", "streak", "partners", "opponents", "rank", "rank_streak"}
 	if len(CareerMedals) != len(want) {
 		t.Fatalf("jumlah milestone = %d, want %d", len(CareerMedals), len(want))
 	}
@@ -67,6 +67,41 @@ func TestTitleForMedal(t *testing.T) {
 	}
 	if _, _, _, ok := TitleForMedal("tournament:t1"); ok {
 		t.Fatal("event badge tidak boleh dianggap milestone")
+	}
+}
+
+// Medal inverted (rank): nilai lebih kecil = tier lebih tinggi.
+func TestMedalTierInverted(t *testing.T) {
+	def, ok := MedalByID("rank")
+	if !ok {
+		t.Fatal("medal rank tidak ada")
+	}
+	// Thresholds: 10/5/3/2/1 (Bronze=Top10 … Onyx=#1)
+	cases := []struct {
+		value int64
+		level int
+	}{
+		{0, 0},
+		{11, 0},
+		{10, 1},
+		{7, 1},
+		{5, 2},
+		{4, 2},
+		{3, 3},
+		{2, 4},
+		{1, 5},
+	}
+	for _, tc := range cases {
+		if got := TierForValue(def, tc.value); got != tc.level {
+			t.Fatalf("TierForValue(rank, %d) = %d, want %d", tc.value, got, tc.level)
+		}
+	}
+	if !def.Inverted {
+		t.Fatal("medal rank harus inverted")
+	}
+	// Target berikutnya untuk #3 (Gold) adalah #2.
+	if next, ok := NextTarget(def, 3); !ok || next != 2 {
+		t.Fatalf("NextTarget(rank, 3) = %d,%v want 2,true", next, ok)
 	}
 }
 

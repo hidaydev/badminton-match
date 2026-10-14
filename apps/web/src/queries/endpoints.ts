@@ -613,23 +613,28 @@ export interface RankPointRow {
 export interface RankPointsBoard {
   window_weeks: number
   best_n: number
+  // Ambang entri minimum agar pemain tampil di papan; 0 = tanpa ambang.
+  min_sessions: number
   as_of: string
   rows: RankPointRow[]
 }
 
 export async function getRankings(limit: number, signal?: AbortSignal): Promise<RankPointsBoard> {
   const data = await request<RankPointsBoard>('GET', `/rankings?limit=${limit}`, undefined, signal)
-  return data ?? { window_weeks: 12, best_n: 10, as_of: '', rows: [] }
+  return data ?? { window_weeks: 12, best_n: 10, min_sessions: 0, as_of: '', rows: [] }
 }
 
 export interface PlayerRankPoints {
   found: boolean
   row?: RankPointRow
+  // Ambang entri minimum papan saat ini, untuk menjelaskan kenapa `found`
+  // bisa false walau pemain punya sesi.
+  min_sessions?: number
 }
 
 export async function getPlayerRankPoints(playerId: string, signal?: AbortSignal): Promise<PlayerRankPoints> {
   const data = await request<PlayerRankPoints>('GET', `/rankings/players/${enc(playerId)}`, undefined, signal)
-  return data ?? { found: false }
+  return data ?? { found: false, min_sessions: 0 }
 }
 
 
