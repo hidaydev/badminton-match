@@ -562,7 +562,8 @@ func boardRowsFromEntries(entries []rankPointEntryRow, cfg domain.RatingConfig,
 // CaptureRankSnapshot — simpan posisi papan saat ini sebagai snapshot
 // pada tanggal asOf. Idempoten per (as_of, player_id): pemanggilan berulang
 // di hari yang sama menimpa baris lama, jadi snapshot selalu mencerminkan
-// papan terakhir yang dihitung.
+// papan terakhir yang dihitung. Baris as_of itu milik pemain yang sudah keluar
+// dari papan ikut dibuang, supaya snapshot = papan (lihat komentar DELETE).
 //
 // Dipanggil ticker auto-ingest (30 menit). asOf kosong → tanggal event
 // terakhir. Tidak ada event → tidak ada yang disimpan (papan kosong).
@@ -612,6 +613,23 @@ func (s *SessionStore) CaptureRankSnapshot(ctx context.Context) (int, error) {
 		if _, err := br.Exec(); err != nil {
 			return 0, err
 		}
+	}
+
+	// Buang baris as_of ini yang pemainnya sudah keluar dari papan. Upsert di
+	// atas hanya menyegarkan pemain yang masih ada, sehingga sisanya tertinggal
+	// dengan rank dari definisi lama (mis. saat ambang entri minimum dinaikkan)
+	// dan jadi pembanding movement yang bias. player_id digabung jadi string
+	// lalu dipecah di SQL: hindari encoding array uuid lewat driver.
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.PlayerID)
+	}
+	if _, err := s.pool.Exec(ctx, `
+		DELETE FROM `+s.schema+`.rank_snapshots
+		WHERE as_of = $1::date
+		  AND NOT (player_id = ANY(string_to_array($2, ',')::uuid[]))`,
+		asOf, strings.Join(ids, ",")); err != nil {
+		return 0, err
 	}
 	return len(rows), nil
 }
