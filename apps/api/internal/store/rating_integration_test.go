@@ -33,6 +33,19 @@ func ratingTestEnv(t *testing.T) (*SessionStore, string) {
 		t.Fatalf("db connect: %v", err)
 	}
 	t.Cleanup(func() { pool.Close() })
+
+	// rank_min_sessions adalah kebijakan OPERASIONAL (di prod di-set lewat
+	// config). Mayoritas test papan sengaja memakai pemain berentri 1–2 supaya
+	// cepat, jadi ambangnya dipin ke 0 di sini: hasil test tidak boleh
+	// bergantung pada nilai yang kebetulan ada di DB scratch. Aturan ambangnya
+	// diuji terpisah — unit TestBoardRowsMinSessionsFilter, integrasi
+	// TestIntegrationRankMinSessions.
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO `+schema+`.rating_config (key, value)
+		VALUES ('rank_min_sessions', '0'::jsonb)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`); err != nil {
+		t.Fatalf("pin rank_min_sessions (scratch harus punya tabel rating_config, lihat docs/backend/README.md): %v", err)
+	}
 	return NewSessionStore(pool, schema), schema
 }
 
