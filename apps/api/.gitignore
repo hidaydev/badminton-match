@@ -14,6 +14,3 @@
 *.out
 *.test
 server
-
-# Graphify output (analisis lokal, bukan source)
-graphify-out/

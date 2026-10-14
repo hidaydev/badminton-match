@@ -29,10 +29,6 @@ supabase/.temp
 
 .opencode
 
-# Graphify
-graphify-out/
-.graphify/
-
 # VPS setup kit (jangan di-commit — berisi kredensial & konfigurasi lokal)
 vps-setup/
 
