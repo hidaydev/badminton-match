@@ -56,7 +56,8 @@ type RankPointRow struct {
 type RankPointsBoard struct {
 	WindowWeeks int            `json:"window_weeks"`
 	BestN       int            `json:"best_n"`
-	AsOf        string         `json:"as_of"` // tanggal acuan window
+	MinSessions int            `json:"min_sessions"` // ambang entri minimum
+	AsOf        string         `json:"as_of"`        // tanggal acuan window
 	Rows        []RankPointRow `json:"rows"`
 }
 
@@ -475,6 +476,7 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 	return &RankPointsBoard{
 		WindowWeeks: cfg.RankWindowWeeks,
 		BestN:       cfg.RankBestN,
+		MinSessions: cfg.RankMinSessions,
 		AsOf:        asOf,
 		Rows:        rows,
 	}, nil
@@ -515,6 +517,19 @@ func boardRowsFromEntries(entries []rankPointEntryRow, cfg domain.RatingConfig,
 			ThinEvidence:     avail < cfg.RankThinEvidenceN,
 			Breakdown:        es[:n],
 		})
+	}
+
+	// Sembunyikan pemain dengan sesi minim dalam window. Diterapkan SEBELUM
+	// urut/peringkat supaya rank dihitung pada himpunan yang benar-benar
+	// tampil, dan konsisten untuk papan publik, halaman pemain, dan snapshot.
+	if cfg.RankMinSessions > 0 {
+		filtered := rows[:0]
+		for _, r := range rows {
+			if r.EntriesAvailable >= cfg.RankMinSessions {
+				filtered = append(filtered, r)
+			}
+		}
+		rows = filtered
 	}
 
 	// Urut: poin desc, bukti lebih banyak dulu, lalu nama, lalu ID (deterministik).
@@ -687,6 +702,16 @@ func (s *SessionStore) playerNames(ctx context.Context) (map[string]string, erro
 		out[id] = name
 	}
 	return out, rows.Err()
+}
+
+// RankMinSessions — ambang entri minimum papan publik (dari config). Dipakai
+// handler halaman pemain untuk menjelaskan kenapa pemain tidak tampil.
+func (s *SessionStore) RankMinSessions(ctx context.Context) (int, error) {
+	cfg, err := s.LoadRatingConfig(ctx, false)
+	if err != nil {
+		return 0, err
+	}
+	return cfg.RankMinSessions, nil
 }
 
 // RankPointsForPlayer — papan satu pemain, dipakai halaman detail publik.
