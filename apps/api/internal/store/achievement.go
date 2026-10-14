@@ -281,7 +281,8 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 	}
 
 	// ── Rank: pencapaian peringkat papan ──────────────────────────────────
-	if err := s.backfillRankMedals(ctx, addMedal); err != nil {
+	rankSets, err := s.backfillRankMedals(ctx, addMedal)
+	if err != nil {
 		return BackfillResult{}, err
 	}
 
@@ -318,6 +319,12 @@ func (s *SessionStore) BackfillAchievements(ctx context.Context) (BackfillResult
 	medCount += nInv
 	colCount, err := s.insertAchievements(ctx, collectibles, false, false)
 	if err != nil {
+		return BackfillResult{}, err
+	}
+	// Medal rank turunan penuh dari papan: pemain yang keluar dari papan
+	// (mis. ambang entri minimum naik) kehilangan medalnya. Dijalankan setelah
+	// insert supaya baris pengganti sudah ada lebih dulu.
+	if err := s.purgeStaleRankMedals(ctx, rankSets); err != nil {
 		return BackfillResult{}, err
 	}
 	return BackfillResult{Medals: medCount, Collectibles: colCount}, nil
