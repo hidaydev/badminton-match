@@ -11,18 +11,22 @@ import (
 // papan, jadi pemain yang keluar dari papan (mis. ambang entri minimum naik
 // 3 → 5) harus kehilangan medalnya. Klausa upsert hanya memperbaiki nilai,
 // tidak pernah menghapus baris — itulah yang ditutup rekonsiliasi ini.
+//
+// Pemain di sini tidak perlu event: yang diuji murni perilaku DELETE-nya,
+// jadi id-nya dicari lewat alias nama sendiri (bukan lewat map kode bersama,
+// yang dipakai test papan).
 func TestIntegrationPurgeStaleRankMedals(t *testing.T) {
 	st, schema := ratingTestEnv(t)
 	ctx := context.Background()
 
 	players := []domain.Player{
-		{ID: "rp1", Name: "RP Keep", Gender: "M", Tier: 1},
-		{ID: "rp2", Name: "RP Drop", Gender: "M", Tier: 1},
+		{ID: "rpz1", Name: "RPZ Keep", Gender: "M", Tier: 1},
+		{ID: "rpz2", Name: "RPZ Drop", Gender: "M", Tier: 1},
 	}
 	cleanup := func() {
-		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_achievements WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RP %')`)
-		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'rp %'`)
-		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RP %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_achievements WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RPZ %')`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.player_aliases WHERE alias_name LIKE 'rpz %'`)
+		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.players WHERE canonical_name LIKE 'RPZ %'`)
 	}
 	cleanup()
 	t.Cleanup(cleanup)
@@ -30,8 +34,8 @@ func TestIntegrationPurgeStaleRankMedals(t *testing.T) {
 	if err := st.EnsurePlayersRegistered(ctx, players); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	keep := resolveIDByAliasFuzzy(t, st, schema, "rp1")
-	drop := resolveIDByAliasFuzzy(t, st, schema, "rp2")
+	keep := resolveIDByAlias(t, st, lowerAlias("RPZ Keep"))
+	drop := resolveIDByAlias(t, st, lowerAlias("RPZ Drop"))
 
 	ins := func(pid, key, kind string, v int64) {
 		t.Helper()
