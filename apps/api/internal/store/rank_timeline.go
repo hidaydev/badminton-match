@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"strings"
 
 	"majadu-api/internal/domain"
 )
@@ -101,28 +102,75 @@ func computeRankStats(dates []string, ranksByDate map[string]map[string]int) map
 	return out
 }
 
-// backfillRankMedals — tulis medal rank + top-3 streak dari timeline.
-func (s *SessionStore) backfillRankMedals(ctx context.Context, addMedal func(string, domain.MedalDef, int64, string, map[string]string)) error {
+// rankMedalSets — himpunan pemain yang MASIH berhak atas medal rank / streak
+// dari satu kali perhitungan timeline. `ok=false` artinya timeline tidak bisa
+// dihitung (tanpa event) → rekonsiliasi dilewati, jangan hapus apa pun.
+type rankMedalSets struct {
+	ok      bool
+	ranks   []string
+	streaks []string
+}
+
+// backfillRankMedals — stage medal rank + top-3 streak dari timeline dan
+// kembalikan himpunan pemain yang berhak, untuk rekonsiliasi baris lama
+// (lihat purgeStaleRankMedals). Tidak menulis apa pun ke DB; baris yang
+// di-stage ditulis oleh pemanggil.
+func (s *SessionStore) backfillRankMedals(ctx context.Context, addMedal func(string, domain.MedalDef, int64, string, map[string]string)) (rankMedalSets, error) {
 	cfg, err := s.LoadRatingConfig(ctx, false)
 	if err != nil {
-		return err
+		return rankMedalSets{}, err
 	}
 	dates, ranksByDate, err := s.rankTimeline(ctx, cfg)
 	if err != nil {
-		return err
+		return rankMedalSets{}, err
 	}
 	if len(dates) == 0 {
-		return nil
+		return rankMedalSets{}, nil
 	}
 	stats := computeRankStats(dates, ranksByDate)
 	rankDef := mustMedal("rank")
 	streakDef := mustMedal("rank_streak")
+	sets := rankMedalSets{ok: true}
 	for pid, st := range stats {
 		if st.best > 0 {
+			sets.ranks = append(sets.ranks, pid)
 			addMedal(pid, rankDef, int64(st.best), st.bestDate, nil)
 		}
 		if st.streak > 0 {
+			sets.streaks = append(sets.streaks, pid)
 			addMedal(pid, streakDef, int64(st.streak), st.streakDate, nil)
+		}
+	}
+	return sets, nil
+}
+
+// purgeStaleRankMedals — buang medal rank / top-3 streak milik pemain yang
+// sudah TIDAK lagi berhak. Medal rank sepenuhnya turunan dari papan, jadi saat
+// definisi papan berubah (mis. ambang entri minimum naik) pemain bisa keluar
+// dari papan sementara medalnya tetap nyangkut: klausa upsert hanya memperbaiki
+// nilai, tidak pernah menghapus baris.
+//
+// Dipanggil SETELAH baris pengganti ditulis supaya tidak ada jendela di mana
+// medal yang sah sudah terhapus tapi penggantinya belum ada.
+func (s *SessionStore) purgeStaleRankMedals(ctx context.Context, sets rankMedalSets) error {
+	if !sets.ok {
+		return nil
+	}
+	// player_id digabung jadi string lalu dipecah di SQL: hindari encoding
+	// array uuid lewat driver, dan id bersih dari koma.
+	for _, t := range []struct {
+		key  string
+		pids []string
+	}{
+		{domain.MedalKey("rank"), sets.ranks},
+		{domain.MedalKey("rank_streak"), sets.streaks},
+	} {
+		if _, err := s.pool.Exec(ctx, `
+			DELETE FROM `+s.schema+`.player_achievements pa
+			WHERE pa.achievement_key = $1
+			  AND NOT (pa.player_id = ANY(string_to_array($2, ',')::uuid[]))`,
+			t.key, strings.Join(t.pids, ",")); err != nil {
+			return err
 		}
 	}
 	return nil
