@@ -208,10 +208,16 @@ func resolveIDByAliasFuzzy(t *testing.T, st *SessionStore, schema, code string) 
 		"rtp1": "RTP One", "rtp2": "RTP Two", "rtp3": "RTP Three", "rtp4": "RTP Four",
 		// Test movement rank (snapshot + panah ^/v).
 		"rm1": "RM One", "rm2": "RM Two", "rm3": "RM Three", "rm4": "RM Four",
+		// RM Five sengaja tanpa event — dipakai menguji rekonsiliasi snapshot.
+		"rm5": "RM Five",
 		// Test as_of per-pemain.
 		"ra1": "RA One", "ra2": "RA Two", "ra3": "RA Three", "ra4": "RA Four",
+		// Test ambang entri minimum papan (min-sesi).
+		"rmn1": "RMN One", "rmn2": "RMN Two",
 		// Test backfill achievement setelah rebuild.
 		"ab1": "AB One", "ab2": "AB Two", "ab3": "AB Three", "ab4": "AB Four",
+		// Test purge snapshot yatim (as_of tanpa event).
+		"rpg1": "RPG One", "rpg2": "RPG Two",
 	}
 	name, ok := names[code]
 	if !ok {
