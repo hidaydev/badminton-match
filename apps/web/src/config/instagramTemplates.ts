@@ -10,6 +10,7 @@ interface PostTemplate {
   brushStroke?: string  // brush stroke texture behind year text
   chevrons?: string     // chevron ornament PNG
   storyBg?: string      // story background PNG
+  badge?: string        // bottom-center badge overlay PNG
 }
 
 export const instagramTemplates: PostTemplate[] = [
@@ -32,5 +33,6 @@ export const instagramTemplates: PostTemplate[] = [
     footer: '/instagram-post-v2-frame.png',
     brushStroke: '/brush-stroke.webp',
     storyBg: '/story-bg-v2.png',
+    badge: '/main-aja-dulu.png',
   },
 ]

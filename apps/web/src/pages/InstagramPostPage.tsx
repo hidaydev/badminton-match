@@ -55,6 +55,7 @@ export default function InstagramPostPage() {
           brushStroke: TEMPLATE.brushStroke,
           chevrons: TEMPLATE.chevrons,
           storyBg: TEMPLATE.storyBg,
+          badge: TEMPLATE.badge,
         })
         setOverlays(loaded as OverlayImages)
       } catch (err) {

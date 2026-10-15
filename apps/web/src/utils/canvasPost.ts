@@ -20,6 +20,7 @@ export interface OverlayImages {
   brushStroke?: HTMLImageElement
   chevrons?: HTMLImageElement
   storyBg?: HTMLImageElement
+  badge?: HTMLImageElement
 }
 
 export function loadImage(src: string): Promise<HTMLImageElement> {

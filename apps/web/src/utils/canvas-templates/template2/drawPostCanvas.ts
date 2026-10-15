@@ -172,4 +172,18 @@ export function drawPostCanvas(options: PostCanvasOptions) {
   if (date) {
     drawDateV2(ctx, canvas.width, canvas.height, date.day, date.month, date.year)
   }
+
+  // Layer 4: bottom-center badge
+  if (overlays.badge) {
+    const badgeH = 140
+    const badgeW = badgeH * (overlays.badge.naturalWidth / overlays.badge.naturalHeight)
+    const bx = (canvas.width - badgeW) / 2
+    const by = canvas.height - badgeH - 20
+    ctx.shadowColor = 'rgba(0,0,0,0.30)'
+    ctx.shadowBlur = 18
+    ctx.shadowOffsetX = 2
+    ctx.shadowOffsetY = 2
+    ctx.drawImage(overlays.badge, bx, by, badgeW, badgeH)
+    ctx.shadowColor = 'transparent'
+  }
 }
