@@ -20,6 +20,7 @@ export interface OverlayImages {
   brushStroke?: HTMLImageElement
   chevrons?: HTMLImageElement
   storyBg?: HTMLImageElement
+  badge?: HTMLImageElement
 }
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
@@ -31,7 +32,7 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-function drawCoverFill(
+export function drawCoverFill(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   canvasW: number,
@@ -73,7 +74,7 @@ function drawSideText(
   }
 }
 
-function drawHeader(
+export function drawHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   logo: HTMLImageElement | undefined,
@@ -547,7 +548,7 @@ export function drawPositionPost(options: DrawPositionPostOptions) {
 
 // ── Date overlay ─────────────────────────────────────────────────────────────
 
-function drawDate(
+export function drawDate(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   day: string,
@@ -629,50 +630,13 @@ function drawDate(
   ctx.restore()
 }
 
-// ── Post canvas (photo + date + header + footer) ─────────────────────────────
-
-interface PostCanvasOptions {
+export interface PostCanvasOptions {
   canvas: HTMLCanvasElement
   userPhoto: HTMLImageElement | null
   photoOffset: { x: number; y: number }
   photoZoom: number
   overlays: OverlayImages
   date: { day: string; month: string; year: string } | null
-}
-
-export function drawPostCanvas(options: PostCanvasOptions) {
-  const { canvas, userPhoto, photoOffset, photoZoom, overlays, date } = options
-  const ctx = canvas.getContext('2d')!
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-  // Layer 1: user photo
-  if (userPhoto) {
-    drawCoverFill(ctx, userPhoto, canvas.width, canvas.height, photoOffset.x, photoOffset.y, photoZoom)
-  } else {
-    ctx.fillStyle = C.bgDark
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-  }
-
-  // Layer 2: date + chevron ornament
-  if (date) {
-    drawDate(ctx, canvas.width, date.day, date.month, date.year, overlays.brushStroke)
-  }
-  if (overlays.chevrons) {
-    const img = overlays.chevrons
-    const h = 115
-    const w = h * (img.naturalWidth / img.naturalHeight)
-    ctx.drawImage(img, canvas.width - w - 30, canvas.height * 0.3, w, h)
-  }
-
-  // Layer 3: header band
-  drawHeader(ctx, canvas.width, overlays.logo)
-
-  // Layer 4: footer
-  if (overlays.footer) {
-    const img = overlays.footer
-    const h = canvas.width * (img.naturalHeight / img.naturalWidth)
-    ctx.drawImage(img, 0, canvas.height - h, canvas.width, h)
-  }
 }
 
 // ── Standings canvas (leaderboard card) ──────────────────────────────────────
@@ -686,10 +650,12 @@ interface StandingsCanvasOptions {
   userPhoto?: HTMLImageElement | null
   photoOffset?: { x: number; y: number }
   photoZoom?: number
+  headerLabel?: string
+  hideHeader?: boolean
 }
 
 export function drawStandingsCanvas(options: StandingsCanvasOptions) {
-  const { canvas, standings, meta, overlays, isStory, userPhoto, photoOffset, photoZoom } = options
+  const { canvas, standings, meta, overlays, isStory, userPhoto, photoOffset, photoZoom, headerLabel, hideHeader } = options
   const ctx = canvas.getContext('2d')!
   const W = canvas.width
   const H = canvas.height
@@ -705,7 +671,7 @@ export function drawStandingsCanvas(options: StandingsCanvasOptions) {
     ctx.fillRect(0, 0, W, H)
   }
 
-  if (!isStory) drawHeader(ctx, W, overlays.logo)
+  if (!isStory && !hideHeader) drawHeader(ctx, W, overlays.logo, headerLabel)
 
   const FOOTER_H = (!isStory && overlays.footer)
     ? W * (overlays.footer.naturalHeight / overlays.footer.naturalWidth)
@@ -740,10 +706,10 @@ export function drawStandingsCanvas(options: StandingsCanvasOptions) {
 
   const CARD_TOP_PAD = 38
   const outerCardH   = CARD_TOP_PAD + META_H + HEADER_ROW_H + top10.length * ROW_H + BOT_PAD
-  const cardTop      = isStory ? Math.round((H - outerCardH) / 2) : CONTENT_TOP + 20
+  const cardTop      = isStory ? Math.round((H - outerCardH) / 2) : CONTENT_TOP + 50
   if (isStory || (!isStory && userPhoto)) {
     ctx.save()
-    ctx.fillStyle = 'rgba(4, 7, 14, 0.94)'
+    ctx.fillStyle = 'rgba(5, 18, 42, 0.97)'
     ctx.beginPath()
     ctx.roundRect(cardPadX, cardTop, W - cardPadX * 2, outerCardH, 32)
     ctx.fill()

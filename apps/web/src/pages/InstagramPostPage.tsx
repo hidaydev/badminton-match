@@ -1,15 +1,17 @@
 // src/pages/InstagramPostPage.tsx
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { instagramTemplates } from '../config/instagramTemplates'
+import { ACTIVE_TEMPLATE } from '../utils/canvas-templates/config'
 import { useListSessions, useFetchSession } from '../queries'
 import { computeStandings } from '../utils/standings'
 import { isPlaceholderName } from '../utils/placeholders'
 import type { SessionMeta } from '../queries'
-import { loadImage, drawPostCanvas, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
+import { loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
+import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
 import { todayWIB } from '../utils/time'
 
-const TEMPLATE = instagramTemplates[0]
+const TEMPLATE = instagramTemplates[ACTIVE_TEMPLATE - 1]
 
 const MONTHS = ['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGU','SEP','OKT','NOV','DES']
 
@@ -53,6 +55,7 @@ export default function InstagramPostPage() {
           brushStroke: TEMPLATE.brushStroke,
           chevrons: TEMPLATE.chevrons,
           storyBg: TEMPLATE.storyBg,
+          badge: TEMPLATE.badge,
         })
         setOverlays(loaded as OverlayImages)
       } catch (err) {
@@ -253,6 +256,7 @@ export default function InstagramPostPage() {
         userPhoto,
         photoOffset,
         photoZoom,
+        hideHeader: ACTIVE_TEMPLATE === 2,
       })
 
       offscreen.toBlob((blob) => {
