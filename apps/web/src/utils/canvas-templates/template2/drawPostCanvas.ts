@@ -74,7 +74,7 @@ function drawDateV2(
   const cy = canvasH * 0.42
 
   ctx.translate(cx, cy)
-  ctx.rotate(-4 * Math.PI / 180)   // tilt whole logo upward-right like reference
+  ctx.rotate(-2 * Math.PI / 180)   // tilt whole logo upward-right like reference
   // Extra italic lean on top of font's native italic
   ctx.transform(1, 0, -0.10, 1, 0, 0)
 
@@ -87,9 +87,14 @@ function drawDateV2(
   const yearY  = monthY + RIGHT_SIZE * CAP_RATIO - 8    // very tight, slight overlap
 
   // ── Texts ──────────────────────────────────────────────────────────────────
-  drawSportsText(ctx, day,   dx,          dy,          DAY_SIZE)
+  drawSportsText(ctx, day, dx, dy, DAY_SIZE)
+
+  // Extra italic shear for OKT and 2026
+  ctx.save()
+  ctx.transform(1, 0, -0.18, 1, 0, 0)
   drawSportsText(ctx, month, dx + rightX, dy + monthY, RIGHT_SIZE)
   drawSportsText(ctx, year,  dx + rightX, dy + yearY,  RIGHT_SIZE)
+  ctx.restore()
 
   // ── Yellow vertical divider ────────────────────────────────────────────────
   const divX = dx + dividerX + divGap / 2
