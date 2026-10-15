@@ -102,23 +102,6 @@ function drawDateV2(
   ctx.lineCap     = 'butt'
   ctx.stroke()
 
-  // Top diagonal slash
-  ctx.beginPath()
-  ctx.moveTo(dx - 44, dy - compH * 0.72)
-  ctx.lineTo(dx + 62, dy - compH * 0.92)
-  ctx.strokeStyle = YELLOW
-  ctx.lineWidth   = 10
-  ctx.lineCap     = 'butt'
-  ctx.stroke()
-
-  // Bottom diagonal slash
-  ctx.beginPath()
-  ctx.moveTo(dx - 28, dy + DAY_SIZE * 0.1 + 30)
-  ctx.lineTo(dx + 48, dy + DAY_SIZE * 0.1 + 8)
-  ctx.strokeStyle = YELLOW
-  ctx.lineWidth   = 8
-  ctx.lineCap     = 'butt'
-  ctx.stroke()
 
   ctx.restore()
 
