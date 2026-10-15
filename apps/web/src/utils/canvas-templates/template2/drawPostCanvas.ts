@@ -88,7 +88,7 @@ function drawDateV2(
   ctx.save()
   ctx.transform(1, 0, -0.38, 1, 0, 0)  // single italic shear, same for all elements
 
-  drawSportsText(ctx, day,   dx + 40,     dy - 80,     DAY_SIZE)
+  drawSportsText(ctx, day,   dx + 20,     dy - 80,     DAY_SIZE)
   drawSportsText(ctx, month, dx + rightX, dy + monthY, RIGHT_SIZE)
   drawSportsText(ctx, year,  dx + rightX, dy + yearY,  RIGHT_SIZE)
 
