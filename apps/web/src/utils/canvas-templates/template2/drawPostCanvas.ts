@@ -96,7 +96,7 @@ function drawDateV2(
   const divX   = dx + dividerX + divGap / 2
   const divTop = dy + monthY - RIGHT_SIZE * CAP_RATIO - 8
   const divBot = dy + yearY + 10
-  const lean   = 30  // extra x offset at top to match font italic + shear
+  const lean   = 18  // extra x offset at top to match font italic + shear
   ctx.beginPath()
   ctx.moveTo(divX + lean, divTop)
   ctx.lineTo(divX,        divBot)
