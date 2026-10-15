@@ -93,7 +93,7 @@ function drawDateV2(
   drawSportsText(ctx, year,  dx + rightX, dy + yearY,  RIGHT_SIZE)
 
   // Yellow vertical divider — slanted to match text italic lean
-  const divX   = dx + dividerX + divGap / 2
+  const divX   = dx + dividerX + divGap / 2 - 20
   const divTop = dy + monthY - RIGHT_SIZE * CAP_RATIO - 8
   const divBot = dy + yearY + 10
   const lean   = 18  // extra x offset at top to match font italic + shear
