@@ -47,70 +47,73 @@ function drawDateV2(
   year: string,
 ) {
   const DAY_SIZE   = 310
-  const RIGHT_SIZE = 140  // OKT and 2026 same size
+  const RIGHT_SIZE = 140
+  const CAP_RATIO  = 0.85
 
   ctx.save()
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'left'
 
-  // Measure widths (no transform yet)
+  // Measure widths before any transform
   ctx.font = `italic 900 ${DAY_SIZE}px ${FONT}`
   const dayW = ctx.measureText(day).width
 
   ctx.font = `italic 900 ${RIGHT_SIZE}px ${FONT}`
-  const monthW = ctx.measureText(month).width
-  const yearW  = ctx.measureText(year).width
+  const monthW    = ctx.measureText(month).width
+  const yearW     = ctx.measureText(year).width
   const rightColW = Math.max(monthW, yearW)
 
-  const divGap    = 28
-  const dividerX  = dayW + divGap
-  const rightX    = dividerX + divGap + 6
-  const totalW    = rightX + rightColW
+  const divGap = 28
+  const dividerX = dayW + divGap
+  const rightX   = dividerX + divGap + 6
+  const totalW   = rightX + rightColW
+  const compH    = DAY_SIZE * CAP_RATIO   // ≈ 263px — full cap height
 
-  // Center horizontally; sit just inside the top frame band (~22% = 297px)
-  const originX = (canvasW - totalW) / 2
-  const originY = canvasH * 0.46   // leaves ~50px gap below top band
+  // Rotate around the composition's visual center
+  const cx = canvasW / 2
+  const cy = canvasH * 0.42
 
-  ctx.translate(originX, originY)
-  // NO extra skew — italic font provides the lean
+  ctx.translate(cx, cy)
+  ctx.rotate(-7 * Math.PI / 180)   // tilt whole logo upward-right like reference
+  // Extra italic lean on top of font's native italic
+  ctx.transform(1, 0, -0.10, 1, 0, 0)
 
-  // Vertical layout:
-  // · 15 baseline  = 0
-  // · OKT cap-top aligns with 15 cap-top  → monthY = -(DAY_SIZE - RIGHT_SIZE) * 0.85
-  // · 2026 baseline aligns with 15 baseline → yearY = 0
-  const CAP_RATIO = 0.85
-  const monthY = -((DAY_SIZE - RIGHT_SIZE) * CAP_RATIO)   // ≈ -144.5
-  const yearY  = 0
+  // Draw origin: top-left of bounding box at (-totalW/2, -compH)
+  // → baseline of 15 at y = 0 relative to this translate
+  const dx = -totalW / 2   // horizontal offset so composition is centered
+  const dy = compH * 0.5   // vertical offset so composition is vertically centered
+
+  const monthY = -((DAY_SIZE - RIGHT_SIZE) * CAP_RATIO)  // OKT top aligns with 15 top
+  const yearY  = 0                                        // 2026 baseline = 15 baseline
 
   // ── Texts ──────────────────────────────────────────────────────────────────
-  drawSportsText(ctx, day,   0,      0,      DAY_SIZE)
-  drawSportsText(ctx, month, rightX, monthY, RIGHT_SIZE)
-  drawSportsText(ctx, year,  rightX, yearY,  RIGHT_SIZE)
+  drawSportsText(ctx, day,   dx,          dy,          DAY_SIZE)
+  drawSportsText(ctx, month, dx + rightX, dy + monthY, RIGHT_SIZE)
+  drawSportsText(ctx, year,  dx + rightX, dy + yearY,  RIGHT_SIZE)
 
-  // ── Yellow vertical divider (thick, tapered top & bottom) ─────────────────
-  const divX = dividerX + divGap / 2
-  const capH = DAY_SIZE * CAP_RATIO
+  // ── Yellow vertical divider ────────────────────────────────────────────────
+  const divX = dx + dividerX + divGap / 2
   ctx.beginPath()
-  ctx.moveTo(divX, -(capH + 12))
-  ctx.lineTo(divX, DAY_SIZE * 0.08)
+  ctx.moveTo(divX, dy - compH - 12)
+  ctx.lineTo(divX, dy + DAY_SIZE * 0.08)
   ctx.strokeStyle = YELLOW
   ctx.lineWidth   = 12
   ctx.lineCap     = 'butt'
   ctx.stroke()
 
-  // ── Top diagonal slash (upper-left of 15, angled ↗) ───────────────────────
+  // ── Top diagonal slash ─────────────────────────────────────────────────────
   ctx.beginPath()
-  ctx.moveTo(-44, -(capH * 0.72))
-  ctx.lineTo(62,  -(capH * 0.92))
+  ctx.moveTo(dx - 44, dy - compH * 0.72)
+  ctx.lineTo(dx + 62, dy - compH * 0.92)
   ctx.strokeStyle = YELLOW
   ctx.lineWidth   = 10
   ctx.lineCap     = 'butt'
   ctx.stroke()
 
-  // ── Bottom diagonal slash (lower-left, shorter) ────────────────────────────
+  // ── Bottom diagonal slash (shorter) ───────────────────────────────────────
   ctx.beginPath()
-  ctx.moveTo(-28, DAY_SIZE * 0.1 + 30)
-  ctx.lineTo(48,  DAY_SIZE * 0.1 + 8)
+  ctx.moveTo(dx - 28, dy + DAY_SIZE * 0.1 + 30)
+  ctx.lineTo(dx + 48, dy + DAY_SIZE * 0.1 + 8)
   ctx.strokeStyle = YELLOW
   ctx.lineWidth   = 8
   ctx.lineCap     = 'butt'
