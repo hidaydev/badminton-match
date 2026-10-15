@@ -60,14 +60,15 @@ function drawDateV2(
   ctx.font = `italic 900 ${YEAR_SIZE}px ${FONT}`
   const yearW = ctx.measureText(year).width
 
-  const rightColW = Math.max(monthW, yearW)
-  const divGap    = 26
-  const dividerX  = dayW + divGap
-  const rightX    = dividerX + divGap + 4
+  const rightColW  = Math.max(monthW, yearW)
+  const divGap     = 26
+  const dividerX   = dayW + divGap
+  const rightX     = dividerX + divGap + 4
+  const totalWidth = rightX + rightColW
 
-  // Anchor: lower-left photo area
-  const originX = 88
-  const originY = canvasH * 0.76
+  // Center horizontally; place in upper photo area (just below top frame band ~22%)
+  const originX = (canvasW - totalWidth) / 2
+  const originY = canvasH * 0.38   // ~22% top band + some margin
 
   ctx.translate(originX, originY)
   // Slight rightward-upward lean
