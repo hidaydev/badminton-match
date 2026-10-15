@@ -1,4 +1,4 @@
-import { drawCoverFill, drawDate, drawHeader, type OverlayImages, type PostCanvasOptions } from '../../canvasPost'
+import { drawCoverFill, drawDate, drawHeader, type PostCanvasOptions } from '../../canvasPost'
 import { CANVAS_COLORS as C } from '../../../config/canvas'
 
 export function drawPostCanvas(options: PostCanvasOptions) {
