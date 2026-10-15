@@ -31,5 +31,6 @@ export const instagramTemplates: PostTemplate[] = [
     height: 1350,
     footer: '/instagram-post-v2-frame.png',
     brushStroke: '/brush-stroke.webp',
+    storyBg: '/story-bg-v2.png',
   },
 ]

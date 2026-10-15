@@ -255,6 +255,7 @@ export default function InstagramPostPage() {
         userPhoto,
         photoOffset,
         photoZoom,
+        hideHeader: ACTIVE_TEMPLATE === 2,
       })
 
       offscreen.toBlob((blob) => {

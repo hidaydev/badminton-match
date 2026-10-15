@@ -649,10 +649,12 @@ interface StandingsCanvasOptions {
   userPhoto?: HTMLImageElement | null
   photoOffset?: { x: number; y: number }
   photoZoom?: number
+  headerLabel?: string
+  hideHeader?: boolean
 }
 
 export function drawStandingsCanvas(options: StandingsCanvasOptions) {
-  const { canvas, standings, meta, overlays, isStory, userPhoto, photoOffset, photoZoom } = options
+  const { canvas, standings, meta, overlays, isStory, userPhoto, photoOffset, photoZoom, headerLabel, hideHeader } = options
   const ctx = canvas.getContext('2d')!
   const W = canvas.width
   const H = canvas.height
@@ -668,7 +670,7 @@ export function drawStandingsCanvas(options: StandingsCanvasOptions) {
     ctx.fillRect(0, 0, W, H)
   }
 
-  if (!isStory) drawHeader(ctx, W, overlays.logo)
+  if (!isStory && !hideHeader) drawHeader(ctx, W, overlays.logo, headerLabel)
 
   const FOOTER_H = (!isStory && overlays.footer)
     ? W * (overlays.footer.naturalHeight / overlays.footer.naturalWidth)
@@ -703,10 +705,10 @@ export function drawStandingsCanvas(options: StandingsCanvasOptions) {
 
   const CARD_TOP_PAD = 38
   const outerCardH   = CARD_TOP_PAD + META_H + HEADER_ROW_H + top10.length * ROW_H + BOT_PAD
-  const cardTop      = isStory ? Math.round((H - outerCardH) / 2) : CONTENT_TOP + 20
+  const cardTop      = isStory ? Math.round((H - outerCardH) / 2) : CONTENT_TOP + 50
   if (isStory || (!isStory && userPhoto)) {
     ctx.save()
-    ctx.fillStyle = 'rgba(4, 7, 14, 0.94)'
+    ctx.fillStyle = 'rgba(5, 18, 42, 0.97)'
     ctx.beginPath()
     ctx.roundRect(cardPadX, cardTop, W - cardPadX * 2, outerCardH, 32)
     ctx.fill()
