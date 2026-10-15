@@ -74,7 +74,7 @@ function drawDateV2(
   const cy = canvasH * 0.42
 
   ctx.translate(cx, cy)
-  ctx.rotate(-7 * Math.PI / 180)   // tilt whole logo upward-right like reference
+  ctx.rotate(-4 * Math.PI / 180)   // tilt whole logo upward-right like reference
   // Extra italic lean on top of font's native italic
   ctx.transform(1, 0, -0.10, 1, 0, 0)
 
@@ -97,7 +97,7 @@ function drawDateV2(
   ctx.moveTo(divX, dy - compH - 12)
   ctx.lineTo(divX, dy + DAY_SIZE * 0.08)
   ctx.strokeStyle = YELLOW
-  ctx.lineWidth   = 12
+  ctx.lineWidth   = 20
   ctx.lineCap     = 'butt'
   ctx.stroke()
 
