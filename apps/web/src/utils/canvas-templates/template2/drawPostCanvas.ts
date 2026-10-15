@@ -1,14 +1,13 @@
 import { drawCoverFill, type PostCanvasOptions } from '../../canvasPost'
 import { CANVAS_COLORS as C } from '../../../config/canvas'
 
-const FONT      = '"Barlow Condensed", "Arial Narrow", Impact, sans-serif'
-const NAVY      = '#09264D'
-const DARK_NAVY = '#061430'
-const YELLOW    = '#FFC700'
-const WHITE     = '#FFFFFF'
+const FONT   = '"Barlow Condensed", "Arial Narrow", Impact, sans-serif'
+const NAVY   = '#09264D'
+const YELLOW = '#FFC700'
+const WHITE  = '#FFFFFF'
 
-// Stacked offset fills — no strokeText (prevents edge blur on dark bg)
-function drawLayeredText(
+// Classic sports-logo outlined text: thick navy border + white fill
+function drawSportsText(
   ctx: CanvasRenderingContext2D,
   text: string,
   x: number,
@@ -19,17 +18,22 @@ function drawLayeredText(
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'left'
 
-  // Far shadow — gives depth against dark bg
-  ctx.fillStyle = 'rgba(0, 4, 18, 0.85)'
-  ctx.fillText(text, x + 10, y + 13)
+  // 1. Dark drop shadow (no blur, offset down-right)
+  ctx.fillStyle = 'rgba(0, 4, 20, 0.85)'
+  ctx.fillText(text, x + 8, y + 10)
 
-  // Navy extrusion layers (back → front, darker at base)
-  for (let i = 8; i >= 1; i--) {
-    ctx.fillStyle = i > 4 ? DARK_NAVY : NAVY
-    ctx.fillText(text, x + i * 0.75, y + i * 0.95)
-  }
+  // 2. Thick navy stroke — creates the surrounding border
+  ctx.strokeStyle = NAVY
+  ctx.lineWidth = size * 0.09
+  ctx.lineJoin = 'miter'
+  ctx.miterLimit = 3
+  ctx.strokeText(text, x, y)
 
-  // White foreground — sits cleanly on top
+  // 3. Navy fill — fills the interior solid navy before white layer
+  ctx.fillStyle = NAVY
+  ctx.fillText(text, x, y)
+
+  // 4. White fill — foreground, sits cleanly on the navy interior
   ctx.fillStyle = WHITE
   ctx.fillText(text, x, y)
 }
@@ -43,75 +47,72 @@ function drawDateV2(
   year: string,
 ) {
   const DAY_SIZE   = 310
-  const MONTH_SIZE = 104
-  const YEAR_SIZE  = 92
+  const RIGHT_SIZE = 140  // OKT and 2026 same size
 
   ctx.save()
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'left'
 
-  // Measure in default state first
+  // Measure widths (no transform yet)
   ctx.font = `italic 900 ${DAY_SIZE}px ${FONT}`
   const dayW = ctx.measureText(day).width
 
-  ctx.font = `italic 900 ${MONTH_SIZE}px ${FONT}`
+  ctx.font = `italic 900 ${RIGHT_SIZE}px ${FONT}`
   const monthW = ctx.measureText(month).width
+  const yearW  = ctx.measureText(year).width
+  const rightColW = Math.max(monthW, yearW)
 
-  ctx.font = `italic 900 ${YEAR_SIZE}px ${FONT}`
-  const yearW = ctx.measureText(year).width
+  const divGap    = 28
+  const dividerX  = dayW + divGap
+  const rightX    = dividerX + divGap + 6
+  const totalW    = rightX + rightColW
 
-  const rightColW  = Math.max(monthW, yearW)
-  const divGap     = 26
-  const dividerX   = dayW + divGap
-  const rightX     = dividerX + divGap + 4
-  const totalWidth = rightX + rightColW
-
-  // Center horizontally; place in upper photo area (just below top frame band ~22%)
-  const originX = (canvasW - totalWidth) / 2
-  const originY = canvasH * 0.38   // ~22% top band + some margin
+  // Center horizontally; sit just inside the top frame band (~22% = 297px)
+  const originX = (canvasW - totalW) / 2
+  const originY = canvasH * 0.46   // leaves ~50px gap below top band
 
   ctx.translate(originX, originY)
-  // Slight rightward-upward lean
-  ctx.transform(1, -0.05, 0, 1, 0, 0)
+  // NO extra skew — italic font provides the lean
 
-  // Vertical positions relative to origin (= 15 baseline)
-  const dayY   = 0
-  // OKT baseline: align its cap-height with top of 15
-  const capH15  = DAY_SIZE * 0.85
-  const capHOKT = MONTH_SIZE * 0.85
-  const monthY  = -(capH15 - capHOKT)         // ≈ top of 15 = top of OKT
-  const yearY   = monthY + YEAR_SIZE + 12
+  // Vertical layout:
+  // · 15 baseline  = 0
+  // · OKT cap-top aligns with 15 cap-top  → monthY = -(DAY_SIZE - RIGHT_SIZE) * 0.85
+  // · 2026 baseline aligns with 15 baseline → yearY = 0
+  const CAP_RATIO = 0.85
+  const monthY = -((DAY_SIZE - RIGHT_SIZE) * CAP_RATIO)   // ≈ -144.5
+  const yearY  = 0
 
   // ── Texts ──────────────────────────────────────────────────────────────────
-  drawLayeredText(ctx, day,   0,      dayY,   DAY_SIZE)
-  drawLayeredText(ctx, month, rightX, monthY, MONTH_SIZE)
-  drawLayeredText(ctx, year,  rightX, yearY,  YEAR_SIZE)
+  drawSportsText(ctx, day,   0,      0,      DAY_SIZE)
+  drawSportsText(ctx, month, rightX, monthY, RIGHT_SIZE)
+  drawSportsText(ctx, year,  rightX, yearY,  RIGHT_SIZE)
 
-  // ── Yellow vertical divider ────────────────────────────────────────────────
+  // ── Yellow vertical divider (thick, tapered top & bottom) ─────────────────
   const divX = dividerX + divGap / 2
+  const capH = DAY_SIZE * CAP_RATIO
   ctx.beginPath()
-  ctx.moveTo(divX, -(capH15 + 10))
-  ctx.lineTo(divX, DAY_SIZE * 0.1)
+  ctx.moveTo(divX, -(capH + 12))
+  ctx.lineTo(divX, DAY_SIZE * 0.08)
   ctx.strokeStyle = YELLOW
-  ctx.lineWidth   = 6
+  ctx.lineWidth   = 12
   ctx.lineCap     = 'butt'
   ctx.stroke()
 
-  // ── Top diagonal slash (upper-left of 15) ─────────────────────────────────
+  // ── Top diagonal slash (upper-left of 15, angled ↗) ───────────────────────
   ctx.beginPath()
-  ctx.moveTo(-38, -(capH15 * 0.78))
-  ctx.lineTo(52,  -(capH15 * 0.96))
+  ctx.moveTo(-44, -(capH * 0.72))
+  ctx.lineTo(62,  -(capH * 0.92))
   ctx.strokeStyle = YELLOW
-  ctx.lineWidth   = 8
+  ctx.lineWidth   = 10
   ctx.lineCap     = 'butt'
   ctx.stroke()
 
   // ── Bottom diagonal slash (lower-left, shorter) ────────────────────────────
   ctx.beginPath()
-  ctx.moveTo(-24, dayY + 42)
-  ctx.lineTo(42,  dayY + 22)
+  ctx.moveTo(-28, DAY_SIZE * 0.1 + 30)
+  ctx.lineTo(48,  DAY_SIZE * 0.1 + 8)
   ctx.strokeStyle = YELLOW
-  ctx.lineWidth   = 6
+  ctx.lineWidth   = 8
   ctx.lineCap     = 'butt'
   ctx.stroke()
 
@@ -127,7 +128,7 @@ export function drawPostCanvas(options: PostCanvasOptions) {
   if (userPhoto) {
     drawCoverFill(ctx, userPhoto, canvas.width, canvas.height, photoOffset.x, photoOffset.y, photoZoom)
   } else {
-    ctx.fillStyle = C.bgDark
+    ctx.fillStyle = NAVY
     ctx.fillRect(0, 0, canvas.width, canvas.height)
   }
 
