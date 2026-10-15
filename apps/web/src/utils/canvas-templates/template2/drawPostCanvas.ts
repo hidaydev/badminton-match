@@ -86,15 +86,15 @@ function drawDateV2(
   const monthY = -((DAY_SIZE - RIGHT_SIZE) * CAP_RATIO)  // OKT top aligns with 15 top
   const yearY  = monthY + RIGHT_SIZE * CAP_RATIO - 8    // very tight, slight overlap
 
-  // ── Texts — extra italic shear on all text ────────────────────────────────
+  // ── All elements share the same italic shear ──────────────────────────────
   ctx.save()
   ctx.transform(1, 0, -0.18, 1, 0, 0)
+
   drawSportsText(ctx, day,   dx,          dy,          DAY_SIZE)
   drawSportsText(ctx, month, dx + rightX, dy + monthY, RIGHT_SIZE)
   drawSportsText(ctx, year,  dx + rightX, dy + yearY,  RIGHT_SIZE)
-  ctx.restore()
 
-  // ── Yellow vertical divider ────────────────────────────────────────────────
+  // Yellow vertical divider
   const divX = dx + dividerX + divGap / 2
   ctx.beginPath()
   ctx.moveTo(divX, dy - compH - 12)
@@ -104,7 +104,7 @@ function drawDateV2(
   ctx.lineCap     = 'butt'
   ctx.stroke()
 
-  // ── Top diagonal slash ─────────────────────────────────────────────────────
+  // Top diagonal slash
   ctx.beginPath()
   ctx.moveTo(dx - 44, dy - compH * 0.72)
   ctx.lineTo(dx + 62, dy - compH * 0.92)
@@ -113,7 +113,7 @@ function drawDateV2(
   ctx.lineCap     = 'butt'
   ctx.stroke()
 
-  // ── Bottom diagonal slash (shorter) ───────────────────────────────────────
+  // Bottom diagonal slash
   ctx.beginPath()
   ctx.moveTo(dx - 28, dy + DAY_SIZE * 0.1 + 30)
   ctx.lineTo(dx + 48, dy + DAY_SIZE * 0.1 + 8)
@@ -121,6 +121,8 @@ function drawDateV2(
   ctx.lineWidth   = 8
   ctx.lineCap     = 'butt'
   ctx.stroke()
+
+  ctx.restore()
 
   ctx.restore()
 }
