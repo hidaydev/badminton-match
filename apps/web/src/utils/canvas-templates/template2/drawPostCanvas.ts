@@ -46,7 +46,7 @@ function drawDateV2(
   month: string,
   year: string,
 ) {
-  const DAY_SIZE   = 310
+  const DAY_SIZE   = 360
   const RIGHT_SIZE = 140
   const CAP_RATIO  = 0.85
 
@@ -78,7 +78,7 @@ function drawDateV2(
 
   // Draw origin: top-left of bounding box at (-totalW/2, -compH)
   // → baseline of 15 at y = 0 relative to this translate
-  const dx = -totalW / 2   // horizontal offset so composition is centered
+  const dx = -totalW / 2 + 50   // shift slightly right
   const dy = compH * 0.5   // vertical offset so composition is vertically centered
 
   const monthY = -((DAY_SIZE - RIGHT_SIZE) * CAP_RATIO)  // OKT top aligns with 15 top
