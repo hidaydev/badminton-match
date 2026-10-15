@@ -92,11 +92,11 @@ function drawDateV2(
   drawSportsText(ctx, month, dx + rightX, dy + monthY, RIGHT_SIZE)
   drawSportsText(ctx, year,  dx + rightX, dy + yearY,  RIGHT_SIZE)
 
-  // Yellow vertical divider
+  // Yellow vertical divider — height matches OKT top to 2026 baseline
   const divX = dx + dividerX + divGap / 2
   ctx.beginPath()
-  ctx.moveTo(divX, dy - compH - 12)
-  ctx.lineTo(divX, dy + DAY_SIZE * 0.08)
+  ctx.moveTo(divX, dy + monthY - RIGHT_SIZE * CAP_RATIO - 8)
+  ctx.lineTo(divX, dy + yearY + 10)
   ctx.strokeStyle = YELLOW
   ctx.lineWidth   = 20
   ctx.lineCap     = 'butt'
