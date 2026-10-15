@@ -92,11 +92,14 @@ function drawDateV2(
   drawSportsText(ctx, month, dx + rightX, dy + monthY, RIGHT_SIZE)
   drawSportsText(ctx, year,  dx + rightX, dy + yearY,  RIGHT_SIZE)
 
-  // Yellow vertical divider — height matches OKT top to 2026 baseline
-  const divX = dx + dividerX + divGap / 2
+  // Yellow vertical divider — slanted to match text italic lean
+  const divX   = dx + dividerX + divGap / 2
+  const divTop = dy + monthY - RIGHT_SIZE * CAP_RATIO - 8
+  const divBot = dy + yearY + 10
+  const lean   = 30  // extra x offset at top to match font italic + shear
   ctx.beginPath()
-  ctx.moveTo(divX, dy + monthY - RIGHT_SIZE * CAP_RATIO - 8)
-  ctx.lineTo(divX, dy + yearY + 10)
+  ctx.moveTo(divX + lean, divTop)
+  ctx.lineTo(divX,        divBot)
   ctx.strokeStyle = YELLOW
   ctx.lineWidth   = 20
   ctx.lineCap     = 'butt'
