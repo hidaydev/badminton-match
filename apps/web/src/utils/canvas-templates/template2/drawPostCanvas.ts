@@ -1,41 +1,146 @@
 import { drawCoverFill, type PostCanvasOptions } from '../../canvasPost'
 import { CANVAS_COLORS as C } from '../../../config/canvas'
 
-const FONT   = '"Barlow Condensed", "Arial Narrow", Impact, sans-serif'
+const FONT_STACK = '"Squada One", Impact, sans-serif'
+const ITALIC     = false
 const NAVY   = '#09264D'
 const YELLOW = '#FFC700'
 const WHITE  = '#FFFFFF'
 
-// Classic sports-logo outlined text: thick navy border + white fill
+const OUTLINE      = 4   // navy outline thickness (px)
+const BLOCK_DEPTH  = 13  // 3D block extrusion depth (px)
+const BLOCK_COLOR  = '#09264D'  // navy block shadow
+
 function drawSportsText(
   ctx: CanvasRenderingContext2D,
   text: string,
   x: number,
   y: number,
   size: number,
+  fontStack: string,
+  italic: boolean,
 ) {
-  ctx.font = `italic 900 ${size}px ${FONT}`
+  const style = italic ? 'italic 900' : '900'
+  ctx.font = `${style} ${size}px ${fontStack}`
+  ctx.textBaseline = 'alphabetic'
+  ctx.textAlign = 'left'
+  ctx.lineJoin = 'miter'
+  ctx.miterLimit = 3
+
+  // 3D block layers — drawn back to front (deepest first)
+  for (let i = BLOCK_DEPTH; i >= 1; i--) {
+    ctx.strokeStyle = BLOCK_COLOR
+    ctx.lineWidth = OUTLINE * 2
+    ctx.strokeText(text, x + i, y + i)
+    ctx.fillStyle = BLOCK_COLOR
+    ctx.fillText(text, x + i, y + i)
+  }
+
+  // Top layer: navy outline + white fill
+  ctx.strokeStyle = NAVY
+  ctx.lineWidth = OUTLINE * 2
+  ctx.strokeText(text, x, y)
+  ctx.fillStyle = WHITE
+  ctx.fillText(text, x, y)
+}
+
+function drawDateWithFont(
+  ctx: CanvasRenderingContext2D,
+  canvasW: number,
+  centerY: number,
+  day: string,
+  month: string,
+  year: string,
+  fontStack: string,
+  italic: boolean,
+) {
+  const DAY_SIZE   = 220
+  const RIGHT_SIZE = 88
+  const CAP_RATIO  = 0.85
+  const italicStyle = italic ? 'italic 900' : '900'
+
+  ctx.save()
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = 'left'
 
-  // 1. Dark drop shadow (no blur, offset down-right)
-  ctx.fillStyle = 'rgba(0, 4, 20, 0.85)'
-  ctx.fillText(text, x + 8, y + 10)
+  ctx.font = `${italicStyle} ${DAY_SIZE}px ${fontStack}`
+  const dayW = ctx.measureText(day).width
 
-  // 2. Thick navy stroke — creates the surrounding border
+  ctx.font = `${italicStyle} ${RIGHT_SIZE}px ${fontStack}`
+  const monthW    = ctx.measureText(month).width
+  const yearW     = ctx.measureText(year).width
+  const rightColW = Math.max(monthW, yearW)
+
+  const divGap   = 14
+  const dividerX = dayW + divGap
+  const rightX   = dividerX + divGap + 6
+  const totalW   = rightX + rightColW
+  const compH    = DAY_SIZE * CAP_RATIO
+
+  ctx.translate(canvasW / 2, centerY)
+  ctx.rotate(-10 * Math.PI / 180)
+
+  const dx = -totalW / 2
+  const dy = compH * 0.5
+
+  const monthY = -((DAY_SIZE - RIGHT_SIZE) * CAP_RATIO)
+  const yearY  = monthY + RIGHT_SIZE * CAP_RATIO + 2
+
+  ctx.save()
+  ctx.transform(1, 0, -0.38, 1, 0, 0)
+
+  let charX = dx - 9
+  for (const char of day) {
+    drawSportsText(ctx, char, charX, dy - 70, DAY_SIZE, fontStack, italic)
+    ctx.font = `${italicStyle} ${DAY_SIZE}px ${fontStack}`
+    charX += ctx.measureText(char).width - 1
+  }
+  let mX = dx + rightX
+  for (const char of month) {
+    drawSportsText(ctx, char, mX, dy + monthY, RIGHT_SIZE, fontStack, italic)
+    ctx.font = `${italicStyle} ${RIGHT_SIZE}px ${fontStack}`
+    mX += ctx.measureText(char).width + 6
+  }
+  let yX = dx + rightX
+  for (const char of year) {
+    drawSportsText(ctx, char, yX, dy + yearY, RIGHT_SIZE, fontStack, italic)
+    ctx.font = `${italicStyle} ${RIGHT_SIZE}px ${fontStack}`
+    yX += ctx.measureText(char).width + 6
+  }
+
+  const divX   = dx + dividerX + divGap / 2 - 10
+  const divTop = dy + monthY - RIGHT_SIZE * CAP_RATIO + 12
+  const divBot = dy + yearY + 6
+  const lean   = 0
+
+  // Block shadow for slash
+  ctx.lineWidth = 12 + OUTLINE * 2
+  ctx.lineCap   = 'square'
+  for (let i = BLOCK_DEPTH; i >= 1; i--) {
+    ctx.beginPath()
+    ctx.moveTo(divX + lean + i, divTop + i)
+    ctx.lineTo(divX        + i, divBot + i)
+    ctx.strokeStyle = BLOCK_COLOR
+    ctx.stroke()
+  }
+
+  // Navy outline
+  ctx.beginPath()
+  ctx.moveTo(divX + lean, divTop)
+  ctx.lineTo(divX,        divBot)
   ctx.strokeStyle = NAVY
-  ctx.lineWidth = size * 0.09
-  ctx.lineJoin = 'miter'
-  ctx.miterLimit = 3
-  ctx.strokeText(text, x, y)
+  ctx.stroke()
 
-  // 3. Navy fill — fills the interior solid navy before white layer
-  ctx.fillStyle = NAVY
-  ctx.fillText(text, x, y)
+  // Yellow fill
+  ctx.beginPath()
+  ctx.moveTo(divX + lean, divTop)
+  ctx.lineTo(divX,        divBot)
+  ctx.strokeStyle = YELLOW
+  ctx.lineWidth   = 12
+  ctx.stroke()
 
-  // 4. White fill — foreground, sits cleanly on the navy interior
-  ctx.fillStyle = WHITE
-  ctx.fillText(text, x, y)
+  ctx.restore()
+  ctx.restore()
 }
 
 function drawDateV2(
@@ -46,69 +151,7 @@ function drawDateV2(
   month: string,
   year: string,
 ) {
-  const DAY_SIZE   = 360
-  const RIGHT_SIZE = 140
-  const CAP_RATIO  = 0.85
-
-  ctx.save()
-  ctx.textBaseline = 'alphabetic'
-  ctx.textAlign = 'left'
-
-  // Measure widths before any transform
-  ctx.font = `italic 900 ${DAY_SIZE}px ${FONT}`
-  const dayW = ctx.measureText(day).width
-
-  ctx.font = `italic 900 ${RIGHT_SIZE}px ${FONT}`
-  const monthW    = ctx.measureText(month).width
-  const yearW     = ctx.measureText(year).width
-  const rightColW = Math.max(monthW, yearW)
-
-  const divGap = 28
-  const dividerX = dayW + divGap
-  const rightX   = dividerX + divGap + 6
-  const totalW   = rightX + rightColW
-  const compH    = DAY_SIZE * CAP_RATIO   // ≈ 263px — full cap height
-
-  // Rotate around the composition's visual center
-  const cx = canvasW / 2
-  const cy = canvasH * 0.42
-
-  ctx.translate(cx, cy)
-  ctx.rotate(-10 * Math.PI / 180)   // tilt whole logo upward-right like reference
-
-  // Draw origin: top-left of bounding box at (-totalW/2, -compH)
-  // → baseline of 15 at y = 0 relative to this translate
-  const dx = -totalW / 2 + 50   // shift slightly right
-  const dy = compH * 0.5   // vertical offset so composition is vertically centered
-
-  const monthY = -((DAY_SIZE - RIGHT_SIZE) * CAP_RATIO)  // OKT top aligns with 15 top
-  const yearY  = monthY + RIGHT_SIZE * CAP_RATIO - 8    // very tight, slight overlap
-
-  // ── All elements share the same italic shear ──────────────────────────────
-  ctx.save()
-  ctx.transform(1, 0, -0.38, 1, 0, 0)  // single italic shear, same for all elements
-
-  drawSportsText(ctx, day,   dx - 10,     dy - 80,     DAY_SIZE)
-  drawSportsText(ctx, month, dx + rightX, dy + monthY, RIGHT_SIZE)
-  drawSportsText(ctx, year,  dx + rightX, dy + yearY,  RIGHT_SIZE)
-
-  // Yellow vertical divider — slanted to match text italic lean
-  const divX   = dx + dividerX + divGap / 2 - 20
-  const divTop = dy + monthY - RIGHT_SIZE * CAP_RATIO - 8
-  const divBot = dy + yearY + 10
-  const lean   = 18  // extra x offset at top to match font italic + shear
-  ctx.beginPath()
-  ctx.moveTo(divX + lean, divTop)
-  ctx.lineTo(divX,        divBot)
-  ctx.strokeStyle = YELLOW
-  ctx.lineWidth   = 20
-  ctx.lineCap     = 'butt'
-  ctx.stroke()
-
-
-  ctx.restore()
-
-  ctx.restore()
+  drawDateWithFont(ctx, canvasW, canvasH * 0.22, day, month, year, FONT_STACK, ITALIC)
 }
 
 export function drawPostCanvas(options: PostCanvasOptions) {
