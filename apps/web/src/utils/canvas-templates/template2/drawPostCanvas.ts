@@ -71,7 +71,7 @@ function drawDateV2(
 
   // Rotate around the composition's visual center
   const cx = canvasW / 2
-  const cy = canvasH * 0.33
+  const cy = canvasH * 0.42
 
   ctx.translate(cx, cy)
   ctx.rotate(-10 * Math.PI / 180)   // tilt whole logo upward-right like reference
