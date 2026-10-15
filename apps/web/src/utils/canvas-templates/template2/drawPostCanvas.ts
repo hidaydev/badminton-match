@@ -86,12 +86,10 @@ function drawDateV2(
   const monthY = -((DAY_SIZE - RIGHT_SIZE) * CAP_RATIO)  // OKT top aligns with 15 top
   const yearY  = monthY + RIGHT_SIZE * CAP_RATIO - 8    // very tight, slight overlap
 
-  // ── Texts ──────────────────────────────────────────────────────────────────
-  drawSportsText(ctx, day, dx, dy, DAY_SIZE)
-
-  // Extra italic shear for OKT and 2026
+  // ── Texts — extra italic shear on all text ────────────────────────────────
   ctx.save()
   ctx.transform(1, 0, -0.18, 1, 0, 0)
+  drawSportsText(ctx, day,   dx,          dy,          DAY_SIZE)
   drawSportsText(ctx, month, dx + rightX, dy + monthY, RIGHT_SIZE)
   drawSportsText(ctx, year,  dx + rightX, dy + yearY,  RIGHT_SIZE)
   ctx.restore()
