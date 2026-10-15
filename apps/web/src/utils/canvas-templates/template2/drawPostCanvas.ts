@@ -84,7 +84,7 @@ function drawDateV2(
   const dy = compH * 0.5   // vertical offset so composition is vertically centered
 
   const monthY = -((DAY_SIZE - RIGHT_SIZE) * CAP_RATIO)  // OKT top aligns with 15 top
-  const yearY  = monthY + RIGHT_SIZE * CAP_RATIO + 6    // tight gap (~6px) below OKT
+  const yearY  = monthY + RIGHT_SIZE * CAP_RATIO - 8    // very tight, slight overlap
 
   // ── Texts ──────────────────────────────────────────────────────────────────
   drawSportsText(ctx, day,   dx,          dy,          DAY_SIZE)
