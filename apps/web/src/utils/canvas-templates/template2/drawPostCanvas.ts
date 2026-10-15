@@ -1,5 +1,4 @@
 import { drawCoverFill, type PostCanvasOptions } from '../../canvasPost'
-import { CANVAS_COLORS as C } from '../../../config/canvas'
 
 const FONT_STACK   = '"Anton", Impact, sans-serif'
 const FONT_WEIGHT  = '400'
@@ -8,25 +7,6 @@ const NAVY   = '#09264D'
 const YELLOW = '#FFC700'
 const WHITE  = '#FFFFFF'
 
-const OUTLINE      = 4   // navy outline thickness (px)
-const BLOCK_DEPTH  = 13  // 3D block extrusion depth (px)
-const BLOCK_COLOR  = '#09264D'  // navy block shadow
-
-function makeGrainPattern(ctx: CanvasRenderingContext2D, size = 64): CanvasPattern {
-  const off = document.createElement('canvas')
-  off.width = off.height = size
-  const c = off.getContext('2d')!
-  const img = c.createImageData(size, size)
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = 210 + Math.random() * 45   // white-ish (210–255)
-    img.data[i]     = v
-    img.data[i + 1] = v
-    img.data[i + 2] = v
-    img.data[i + 3] = 255
-  }
-  c.putImageData(img, 0, 0)
-  return ctx.createPattern(off, 'repeat')!
-}
 
 function drawSportsText(
   ctx: CanvasRenderingContext2D,
