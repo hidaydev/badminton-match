@@ -75,8 +75,6 @@ function drawDateV2(
 
   ctx.translate(cx, cy)
   ctx.rotate(-10 * Math.PI / 180)   // tilt whole logo upward-right like reference
-  // Extra italic lean on top of font's native italic
-  ctx.transform(1, 0, -0.10, 1, 0, 0)
 
   // Draw origin: top-left of bounding box at (-totalW/2, -compH)
   // → baseline of 15 at y = 0 relative to this translate
@@ -88,7 +86,7 @@ function drawDateV2(
 
   // ── All elements share the same italic shear ──────────────────────────────
   ctx.save()
-  ctx.transform(1, 0, -0.30, 1, 0, 0)
+  ctx.transform(1, 0, -0.38, 1, 0, 0)  // single italic shear, same for all elements
 
   drawSportsText(ctx, day,   dx,          dy,          DAY_SIZE)
   drawSportsText(ctx, month, dx + rightX, dy + monthY, RIGHT_SIZE)
