@@ -24,4 +24,12 @@ export const instagramTemplates: PostTemplate[] = [
     chevrons: '/chevrons.png',
     storyBg: '/story-bg.png',
   },
+  {
+    id: 'portrait-v2',
+    label: 'Dark Frame',
+    width: 1080,
+    height: 1350,
+    footer: '/instagram-post-v2-frame.png',
+    brushStroke: '/brush-stroke.webp',
+  },
 ]
