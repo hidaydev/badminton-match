@@ -74,7 +74,7 @@ function drawDateV2(
   const cy = canvasH * 0.42
 
   ctx.translate(cx, cy)
-  ctx.rotate(-2 * Math.PI / 180)   // tilt whole logo upward-right like reference
+  ctx.rotate(-5 * Math.PI / 180)   // tilt whole logo upward-right like reference
   // Extra italic lean on top of font's native italic
   ctx.transform(1, 0, -0.10, 1, 0, 0)
 
