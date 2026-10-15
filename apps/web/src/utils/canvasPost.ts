@@ -31,7 +31,7 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-function drawCoverFill(
+export function drawCoverFill(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   canvasW: number,
@@ -73,7 +73,7 @@ function drawSideText(
   }
 }
 
-function drawHeader(
+export function drawHeader(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   logo: HTMLImageElement | undefined,
@@ -547,7 +547,7 @@ export function drawPositionPost(options: DrawPositionPostOptions) {
 
 // ── Date overlay ─────────────────────────────────────────────────────────────
 
-function drawDate(
+export function drawDate(
   ctx: CanvasRenderingContext2D,
   canvasW: number,
   day: string,
@@ -631,7 +631,7 @@ function drawDate(
 
 // ── Post canvas (photo + date + header + footer) ─────────────────────────────
 
-interface PostCanvasOptions {
+export interface PostCanvasOptions {
   canvas: HTMLCanvasElement
   userPhoto: HTMLImageElement | null
   photoOffset: { x: number; y: number }
