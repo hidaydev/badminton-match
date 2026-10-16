@@ -1,13 +1,73 @@
 // src/i18n/en.ts — English dictionary (satu-satunya bahasa aktif).
-// Skeleton i18n ringan: typed dictionary, tanpa dependency. Kalau nanti mau
-// multi-bahasa: tambah id.ts/dict lain + lang state di index.ts (tanpa
-// perubahan pemakaian — key path sama).
+// Skeleton i18n ringan: typed dictionary, tanpa dependency.
 
 export const en = {
   common: {
     prev: '← Prev',
     next: 'Next →',
     close: 'Close',
+    loading: 'Loading…',
+    total: 'total',
+    all: 'All',
+  },
+  rankings: {
+    title: 'Rankings',
+    allSubtitle: 'Leaderboard of all active players (past 12 weeks). Select a tier above to view specific intra-tier rankings.',
+    tierSubtitle: (tier: string) => `Rankings for Tier ${tier} players. Primary rank shows position within this tier.`,
+    searchAll: 'Search player…',
+    searchTier: (tier: string) => `Search player in Tier ${tier}…`,
+    loadFailed: 'Failed to load rankings.',
+    noPointsYet: 'No points yet. Rankings will appear once sessions are locked and rated.',
+    noMatchesQuery: (query: string) => `No players matching “${query}”.`,
+    noPlayersInTier: (tier: string) => `No active players in Tier ${tier}.`,
+    noPlayers: 'No players to display.',
+    deltaSame: 'same',
+    deltaUp: (n: number) => `up ${n} positions`,
+    deltaDown: (n: number) => `down ${n} positions`,
+  },
+  player: {
+    loadFailed: 'Failed to load player profile.',
+    leaderboard: 'Leaderboard',
+    unranked: 'Unranked',
+    rankPointsTitle: 'Ranking Points (12 Weeks)',
+    noPointsPeriod: 'No rated sessions in the past 12 weeks.',
+    countedSessions: (counted: number, total: number) =>
+      `${counted}${total > counted ? ` of ${total}` : ''} best sessions counted`,
+    thinEvidence: 'Thin evidence (<5 sessions)',
+    matches: 'Matches',
+    record: 'W - L',
+    winRate: 'Win Rate',
+    recentMatches: 'Recent Matches',
+    noMatches: 'No match history yet.',
+    with: 'with',
+    vs: 'vs',
+    opponentsUnrecorded: 'Opponents not recorded',
+    careerHistory: 'Career History',
+    noCareer: 'No career statistics yet.',
+    medals: 'Medals & Achievements',
+    loadingMedals: 'Loading medals…',
+    medalsFailed: 'Failed to load medals.',
+    noMedals: 'No medals yet. Play match sessions to earn medals.',
+    eventMedals: 'Event',
+    standardMedals: 'Standard',
+  },
+  career: {
+    sessions: 'Sessions',
+    ratedNote: '— rated sessions highlighted',
+    absent: 'absent',
+    topPartners: 'Top Partners',
+    topOpponents: 'Top Opponents',
+    tournGames: 'Tourn Games',
+    tournWl: 'Tourn W - L',
+    tournWinRate: 'Tourn Win Rate',
+    tournaments: 'Tournaments',
+    games: 'games',
+    tournamentPartners: 'Tournament Partners',
+    tournamentOpponents: 'Tournament Opponents',
+  },
+  home: {
+    newSession: 'New Session',
+    rankingsDesc: 'Past 12 weeks leaderboard',
   },
   admin: {
     title: 'Admin',
@@ -41,9 +101,9 @@ export const en = {
       `Delete tournament "${name}"?\n\nRating source will be removed & all ratings rebuilt.`,
     playerDeleteConfirm: (name: string) =>
       `Delete player "${name}"? (session history stays, rating data removed)`,
-    // Konfirmasi kedua: pemain masih dipakai sesi (butuh force).
+    // Second confirmation: player referenced in past sessions (needs force delete).
     playerDeleteForceConfirm: (name: string) =>
-      `"${name}" sudah dipakai di sesi-sesi lama.\n\nTetap hapus? Pemain ini akan hilang dari daftar pemain di sesi tersebut (riwayat sesinya sendiri tetap ada). Tindakan ini tidak bisa dibatalkan.`,
+      `"${name}" is already referenced in past sessions.\n\nDelete anyway? This player will be removed from past session rosters (their session history remains). This cannot be undone.`,
     nameRequired: 'Name is required',
     newPlayerName: 'Player name',
     tierInduk: 'Tier',
