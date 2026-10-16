@@ -44,67 +44,127 @@ export default function AdminRatingsPage() {
     <AdminPageShell>
       {({ run }) => (
         <>
-          <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-sans text-amber-500/80 uppercase tracking-wider">{t('admin.sectionRating')}</p>
-            <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-              {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-4">{t('admin.noSources')}</p>}
-              {slice.map((src) => (
-                <div key={src.source_id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <span className="flex-1 min-w-0 text-fg truncate font-sans text-xs">{src.source_name}</span>
-                  <span className="text-[10px] font-sans text-fg-dim">{src.event_count} ev</span>
-                  {src.source_kind.startsWith('tournament') && (
-                    <ActionButton
-                      tone={src.finalized ? 'green' : 'neutral'}
-                      onClick={() => run(
-                        () => adminRequest('POST', `/ratings/sources/${src.source_id}/finalize`, { finalized: !src.finalized }),
-                        src.finalized ? 'Un-finalized' : 'Finalized',
-                        refreshRatingData,
-                      )}
-                    >
-                      {src.finalized ? 'Finalized' : 'Finalize'}
-                    </ActionButton>
-                  )}
-                  <ActionButton onClick={() => run(
-                    () => {
-                      const isT = src.source_kind.startsWith('tournament')
-                      return adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
-                        isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
-                    },
-                    'Ingested',
-                    refreshRatingData,
-                  )}>
-                    Ingest
-                  </ActionButton>
-                  <ActionButton tone="red" onClick={() => run(
-                    () => {
-                      const isT = src.source_kind.startsWith('tournament')
-                      return adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
-                        isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
-                    },
-                    'Reverted',
-                    refreshRatingData,
-                  )}>
-                    Revert
-                  </ActionButton>
+          {/* Hero: Rebuild All Ratings Card */}
+          <div className="bg-surface border border-border-subtle rounded-xl p-4 flex flex-col gap-3 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-center text-accent shrink-0 mt-0.5">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <h3 className="text-sm font-bold text-fg leading-tight">{t('admin.rebuild')}</h3>
+                <p className="text-xs text-fg-dim leading-snug mt-1">{t('admin.rebuildHelp')}</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => runRebuild()}
+              disabled={rebuilding}
+              className="w-full py-2.5 px-4 rounded-lg bg-accent text-slate-950 font-bold text-xs flex items-center justify-center gap-2 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-40 shadow-xs cursor-pointer"
+            >
+              {rebuilding ? (
+                <>
+                  <svg className="animate-spin w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span>{t('admin.rebuilding')}</span>
+                </>
+              ) : (
+                <span>{t('admin.rebuild')}</span>
+              )}
+            </button>
+
+            {rebuildMsg && (
+              <p className={`text-xs px-3 py-2 rounded-lg font-medium border ${rebuildMsg.kind === 'ok' ? 'bg-success/15 border-success/30 text-success' : 'bg-error/15 border-error/30 text-error'}`}>
+                {rebuildMsg.text}
+              </p>
+            )}
+          </div>
+
+          {/* Sources Section */}
+          <section className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionRating')}</p>
+              <span className="text-xs font-mono text-fg-dim">{(sources ?? []).length} sources</span>
+            </div>
+
+            <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">
+              {slice.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+                  <span className="text-2xl">📊</span>
+                  <p className="text-fg-dim text-xs">{t('admin.noSources')}</p>
                 </div>
-              ))}
+              )}
+              {slice.map((src) => {
+                const isTournament = src.source_kind.startsWith('tournament')
+                return (
+                  <div key={src.source_id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 hover:bg-elevated/20 transition-colors">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <span className="text-lg shrink-0 mt-0.5">{isTournament ? '🏆' : '🏸'}</span>
+                      <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-fg truncate">{src.source_name}</span>
+                          <span className={`text-[10px] font-mono uppercase px-1.5 py-0.2 rounded border ${isTournament ? 'bg-accent/10 border-accent/30 text-accent font-semibold' : 'bg-elevated border-border-subtle text-fg-dim'}`}>
+                            {isTournament ? 'Tournament' : 'Session'}
+                          </span>
+                          {src.finalized && (
+                            <span className="text-[10px] font-medium bg-success/15 border border-success/30 text-success px-1.5 py-0.2 rounded-full">
+                              Finalized
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-fg-dim">
+                          <span className="font-mono">{src.event_count} events</span>
+                          {src.ingested_at && (
+                            <span>· Ingested {new Date(src.ingested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                      {isTournament && (
+                        <ActionButton
+                          tone={src.finalized ? 'green' : 'neutral'}
+                          onClick={() => run(
+                            () => adminRequest('POST', `/ratings/sources/${src.source_id}/finalize`, { finalized: !src.finalized }),
+                            src.finalized ? 'Un-finalized' : 'Finalized',
+                            refreshRatingData,
+                          )}
+                        >
+                          {src.finalized ? 'Finalized' : 'Finalize'}
+                        </ActionButton>
+                      )}
+                      <ActionButton onClick={() => run(
+                        () => {
+                          const isT = src.source_kind.startsWith('tournament')
+                          return adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
+                            isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
+                        },
+                        'Ingested',
+                        refreshRatingData,
+                      )}>
+                        Ingest
+                      </ActionButton>
+                      <ActionButton tone="red" onClick={() => run(
+                        () => {
+                          const isT = src.source_kind.startsWith('tournament')
+                          return adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
+                            isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
+                        },
+                        'Reverted',
+                        refreshRatingData,
+                      )}>
+                        Revert
+                      </ActionButton>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
             <Pager page={page} total={(sources ?? []).length} onPage={setPage} />
-            <div className="flex flex-col gap-1">
-              <button
-                onClick={() => runRebuild()}
-                disabled={rebuilding}
-                className="py-2 rounded-lg border border-border-subtle text-sm text-fg-dim hover:text-fg disabled:opacity-40"
-              >
-                {rebuilding ? t('admin.rebuilding') : t('admin.rebuild')}
-              </button>
-              {rebuildMsg && (
-                <p className={`text-[10px] font-sans ${rebuildMsg.kind === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {rebuildMsg.text}
-                </p>
-              )}
-              <p className="text-[10px] text-fg-dim">{t('admin.rebuildHelp')}</p>
-            </div>
           </section>
         </>
       )}
