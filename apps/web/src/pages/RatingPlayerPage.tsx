@@ -228,7 +228,6 @@ function RankPointsCard({ playerId }: { playerId: string | undefined }) {
     )
   }
   const row = data?.row
-  const minSessions = data?.min_sessions ?? 0
   return (
     <div className="bg-surface border border-border-subtle rounded-lg p-3">
       <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Poin ranking</p>
@@ -248,9 +247,7 @@ function RankPointsCard({ playerId }: { playerId: string | undefined }) {
         </>
       ) : (
         <p className="text-xs font-sans text-fg-dim mt-1">
-          {minSessions > 1
-            ? `Butuh minimal ${minSessions} sesi dalam 12 minggu terakhir untuk masuk ranking.`
-            : 'Belum ada sesi dinilai dalam 12 minggu terakhir.'}
+          Belum ada sesi dinilai dalam 12 minggu terakhir.
         </p>
       )}
     </div>
