@@ -4,9 +4,7 @@
 // bukan rating Glicko. Glicko tetap ada di halaman detail pemain; papan
 // Glicko dipindah ke admin supaya pemain tidak melihat dua angka berbeda.
 //
-// 2 Tab:
-//   1. Top Players — papan utama pemain reguler.
-//   2. Semua & Per Level — seluruh pemain aktif + filter tier.
+// Menampilkan seluruh pemain aktif dengan filter per-level (tier).
 import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useRankings } from '../queries/ratings'
@@ -18,26 +16,12 @@ import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
 
 const LIMIT = 200
 
-type TabKey = 'top' | 'all'
-
 export default function RankingsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  const tab: TabKey = searchParams.get('tab') === 'all' ? 'all' : 'top'
   const selectedTier = searchParams.get('tier') || 'all'
   const [query, setQuery] = useState('')
-
-  const handleTabChange = (newTab: TabKey) => {
-    const next = new URLSearchParams(searchParams)
-    if (newTab === 'top') {
-      next.delete('tab')
-      next.delete('tier')
-    } else {
-      next.set('tab', 'all')
-    }
-    setSearchParams(next, { replace: true })
-  }
 
   const handleTierChange = (tier: string) => {
     const next = new URLSearchParams(searchParams)
@@ -49,32 +33,24 @@ export default function RankingsPage() {
     setSearchParams(next, { replace: true })
   }
 
-  // Tab 'top' memanggil query default (menggunakan min_sessions dari server/config).
-  // Tab 'all' memanggil query dengan min_sessions=0 (mengambil seluruh pemain aktif di window).
-  const { data: topData, isLoading: topLoading, isError: topError } = useRankings(LIMIT)
-  const { data: allData, isLoading: allLoading, isError: allError } = useRankings(LIMIT, 0)
+  // Mengambil seluruh pemain aktif di window 12 minggu (min_sessions=0).
+  const { data, isLoading, isError } = useRankings(LIMIT, 0)
+  const rawRows = useMemo(() => data?.rows ?? [], [data])
 
-  const activeData = tab === 'top' ? topData : allData
-  const isLoading = tab === 'top' ? topLoading : allLoading
-  const isError = tab === 'top' ? topError : allError
-
-  const rawRows = useMemo(() => activeData?.rows ?? [], [activeData])
-
-  // Hitung jumlah pemain per tier untuk tab 'all'
-  const allRows = useMemo(() => allData?.rows ?? [], [allData])
+  // Hitung jumlah pemain per tier
   const tierCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const r of allRows) {
+    for (const r of rawRows) {
       if (r.tier) {
         counts[r.tier] = (counts[r.tier] || 0) + 1
       }
     }
     return counts
-  }, [allRows])
+  }, [rawRows])
 
   // Filter tier & hitung peringkat intra-level
   const rowsWithRank = useMemo(() => {
-    if (tab === 'top' || selectedTier === 'all') {
+    if (selectedTier === 'all') {
       return rawRows.map((r) => ({ ...r, displayRank: r.rank }))
     }
     const filteredByTier = rawRows.filter((r) => r.tier === selectedTier)
@@ -87,11 +63,11 @@ export default function RankingsPage() {
       }
       return { ...r, displayRank }
     })
-  }, [tab, selectedTier, rawRows])
+  }, [selectedTier, rawRows])
 
   const ambiguousNames = useMemo(
-    () => collectAmbiguousBaseNames((allRows.length > 0 ? allRows : rawRows).map((r) => r.name)),
-    [allRows, rawRows],
+    () => collectAmbiguousBaseNames(rawRows.map((r) => r.name)),
+    [rawRows],
   )
 
   const filtered = query
@@ -106,84 +82,54 @@ export default function RankingsPage() {
           <h2 className="text-lg font-bold text-fg">Ranking</h2>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex bg-surface border border-border-subtle rounded-xl p-1 gap-1">
+        {/* Filter Tier Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
           <button
             type="button"
-            onClick={() => handleTabChange('top')}
-            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
-              tab === 'top'
-                ? 'bg-elevated border border-border text-fg shadow-sm'
-                : 'text-fg-dim hover:text-fg hover:bg-elevated/40'
+            onClick={() => handleTierChange('all')}
+            className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
+              selectedTier === 'all'
+                ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
+                : 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
             }`}
           >
-            Top Players
+            Semua ({rawRows.length})
           </button>
-          <button
-            type="button"
-            onClick={() => handleTabChange('all')}
-            className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
-              tab === 'all'
-                ? 'bg-elevated border border-border text-fg shadow-sm'
-                : 'text-fg-dim hover:text-fg hover:bg-elevated/40'
-            }`}
-          >
-            Semua &amp; Per Level
-          </button>
+          {ALL_RATING_TIERS.map((tier) => {
+            const count = tierCounts[tier] || 0
+            const isSelected = selectedTier === tier
+            return (
+              <button
+                key={tier}
+                type="button"
+                onClick={() => handleTierChange(tier)}
+                className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border flex items-center gap-1 ${
+                  isSelected
+                    ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
+                    : count > 0
+                      ? 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
+                      : 'bg-surface/50 text-fg-dim/40 border-border-subtle/50'
+                }`}
+              >
+                <span>{tier}</span>
+                <span className="text-[10px] font-mono opacity-70">({count})</span>
+              </button>
+            )
+          })}
         </div>
-
-        {/* Filter Tier Chips (hanya tampil di Tab 'all') */}
-        {tab === 'all' && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-            <button
-              type="button"
-              onClick={() => handleTierChange('all')}
-              className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
-                selectedTier === 'all'
-                  ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
-                  : 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
-              }`}
-            >
-              Semua ({allRows.length})
-            </button>
-            {ALL_RATING_TIERS.map((tier) => {
-              const count = tierCounts[tier] || 0
-              const isSelected = selectedTier === tier
-              return (
-                <button
-                  key={tier}
-                  type="button"
-                  onClick={() => handleTierChange(tier)}
-                  className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border flex items-center gap-1 ${
-                    isSelected
-                      ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
-                      : count > 0
-                        ? 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
-                        : 'bg-surface/50 text-fg-dim/40 border-border-subtle/50'
-                  }`}
-                >
-                  <span>{tier}</span>
-                  <span className="text-[10px] font-mono opacity-70">({count})</span>
-                </button>
-              )
-            })}
-          </div>
-        )}
 
         {/* Penjelasan singkat */}
         <p className="text-xs font-sans text-fg-dim">
-          {tab === 'top'
-            ? 'Papan utama pemain reguler yang telah memenuhi syarat minimal sesi dalam window 12 minggu.'
-            : selectedTier === 'all'
-              ? 'Papan seluruh pemain aktif. Pilih level di atas untuk melihat peringkat spesifik antarpemain selevel.'
-              : `Peringkat antarpemain di Level ${selectedTier}. Peringkat utama menunjukkan posisi di level ini.`}
+          {selectedTier === 'all'
+            ? 'Papan ranking seluruh pemain aktif (12 minggu terakhir). Pilih level di atas untuk melihat peringkat spesifik antarpemain selevel.'
+            : `Peringkat antarpemain di Level ${selectedTier}. Peringkat utama menunjukkan posisi di level ini.`}
         </p>
 
         {/* Search Input */}
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={tab === 'top' ? 'Cari pemain top…' : selectedTier === 'all' ? 'Cari pemain…' : `Cari pemain di level ${selectedTier}…`}
+          placeholder={selectedTier === 'all' ? 'Cari pemain…' : `Cari pemain di level ${selectedTier}…`}
           className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
         />
 
@@ -213,8 +159,8 @@ export default function RankingsPage() {
               const isFirst = r.displayRank === 1
               const rankColor = isFirst ? 'text-accent font-bold' : 'text-fg-dim'
               const rowBg = isFirst ? 'bg-accent/[0.04]' : ''
-              const showDelta = tab === 'top' || selectedTier === 'all'
-              const isFilteredTier = tab === 'all' && selectedTier !== 'all'
+              const showDelta = selectedTier === 'all'
+              const isFilteredTier = selectedTier !== 'all'
 
               return (
                 <li key={r.player_id}>
@@ -234,7 +180,7 @@ export default function RankingsPage() {
                       )}
                     </div>
 
-                    {/* Movement Indicator (▲ / ▼ / ·) */}
+                    {/* Movement Indicator (▲ / ▼ / ·) saat view Semua */}
                     {showDelta && (
                       <span className="w-3 shrink-0 font-mono text-[10px] leading-none text-center">
                         {r.rank_delta == null || r.rank_delta === 0 ? (
