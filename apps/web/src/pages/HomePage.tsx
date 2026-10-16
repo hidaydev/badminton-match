@@ -1,3 +1,4 @@
+// src/pages/HomePage.tsx: home landing hub and primary navigation.
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { usePwaInstall } from '../hooks/usePwaInstall'
@@ -6,6 +7,7 @@ import { useAdmin } from '../context/AdminContext'
 import InstallModal from '../components/InstallModal'
 import Icon, { type IconName } from '../components/Icon'
 import AdminMenuGrid from '../components/admin/AdminMenuGrid'
+import { t } from '../i18n'
 
 const secondary: { icon: IconName; label: string; description: string; to: string }[] = [
   { icon: 'sessions', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
@@ -48,40 +50,63 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 pt-2">
-      {/* Hero CTA — action harian */}
+    <div className="flex flex-col gap-4 pt-1">
+      {/* Hero CTA — New Session */}
       <button
         onClick={() => navigate('/session/new')}
-        className="w-full flex items-center justify-center gap-2 py-4 rounded-lg bg-accent text-slate-950 font-bold text-[1rem] transition-all active:scale-[0.98] hover:brightness-110"
+        className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-accent text-slate-950 font-bold text-[1rem] transition-all active:scale-[0.98] hover:brightness-110 shadow-sm"
       >
         <Icon name="plus" size={20} />
-        New Session
+        {t('home.newSession')}
       </button>
 
+      {/* Continue Session Card */}
       {lastSession && (
         <button
           onClick={() => navigate(`/s/${lastSession.id}`)}
-          className="flex items-center gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
+          className="w-full flex items-center gap-3.5 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.99] transition-all text-left shadow-sm"
         >
-          <Icon name="play" size={20} />
-          <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-            <span className="text-[10px] font-sans text-fg-dim uppercase" style={{ letterSpacing: '0.12em' }}>
-              Continue Session
+          <div className="w-11 h-11 rounded-lg bg-accent/15 border border-accent/30 text-accent flex items-center justify-center shrink-0">
+            <Icon name="play" size={20} />
+          </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
+            <span className="text-[10px] font-sans font-semibold text-fg-dim uppercase tracking-wider">
+              {t('home.continueSession')}
             </span>
-            <span className="text-[1rem] font-bold text-fg leading-tight truncate">
+            <span className="text-sm sm:text-base font-bold text-fg leading-tight truncate">
               {lastSession.title || 'Untitled Session'}
             </span>
-            <span className="text-xs text-fg-dim font-sans">
-              {lastSession.date.split('-').reverse().join('-')} · {lastSession.playerCount} players · {lastSession.totalGames} games
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-mono text-fg-dim">
+                {lastSession.date.split('-').reverse().join('-')}
+              </span>
+              <span className="text-[10px] font-mono text-fg-dim/60">·</span>
+              <span className="text-[10px] font-mono text-fg-dim">
+                {lastSession.playerCount}p · {lastSession.totalGames}g
+              </span>
+            </div>
           </div>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-fg-dim/40 shrink-0"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
         </button>
       )}
 
-      {/* Grid sekunder — menu utama */}
-      <div className="flex flex-col gap-2.5">
-        <p className="text-[10px] font-sans text-fg-dim uppercase" style={{ letterSpacing: '0.12em' }}>
-          App
+      {/* App Grid */}
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-sans font-semibold text-fg-dim uppercase tracking-wider px-1">
+          {t('home.appSection')}
         </p>
         <div className="grid grid-cols-2 gap-2.5">
           {secondary.map((item) => (
@@ -92,12 +117,14 @@ export default function HomePage() {
                   ? openScoreboard(navigate)
                   : navigate(item.to)
               }
-              className="flex items-start gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
+              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
             >
-              <Icon name={item.icon} size={20} />
+              <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
+                <Icon name={item.icon} size={18} />
+              </div>
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-sm font-semibold text-fg leading-tight">{item.label}</span>
-                <span className="text-[11px] text-fg-dim">{item.description}</span>
+                <span className="text-[11px] text-fg-dim leading-snug">{item.description}</span>
               </div>
             </button>
           ))}
@@ -105,22 +132,24 @@ export default function HomePage() {
           {isInstallable && (
             <button
               onClick={() => setManualInstallOpen(true)}
-              className="flex items-start gap-3 p-4 rounded-lg bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
+              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
             >
-              <Icon name="download" size={20} />
+              <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
+                <Icon name="download" size={18} />
+              </div>
               <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-sm font-semibold text-fg leading-tight">Install App</span>
-                <span className="text-[11px] text-fg-dim">Add to home screen</span>
+                <span className="text-sm font-semibold text-fg leading-tight">{t('home.installApp')}</span>
+                <span className="text-[11px] text-fg-dim leading-snug">{t('home.installDesc')}</span>
               </div>
             </button>
           )}
         </div>
       </div>
 
-      {/* Section ADMIN — muncul permanen kalau isAdmin */}
+      {/* Admin Section */}
       {isAdmin && (
-        <div className="flex flex-col gap-2.5">
-          <p className="text-[10px] font-sans text-amber-500/80 uppercase" style={{ letterSpacing: '0.12em' }}>
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-sans font-semibold text-amber-500/80 uppercase tracking-wider px-1">
             Admin
           </p>
           <AdminMenuGrid />
