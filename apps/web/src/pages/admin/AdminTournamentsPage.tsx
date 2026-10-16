@@ -1,43 +1,65 @@
-// src/pages/admin/AdminTournamentsPage.tsx — Admin: list & delete tournaments.
+import { useState } from 'react'
 import { useListTournaments } from '../../queries'
 import { adminRequest } from '../../queries/admin'
 import { t, en } from '../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
+import Pager from '../../components/admin/Pager'
+
+const PAGE = 10
 
 export default function AdminTournamentsPage() {
+  const [page, setPage] = useState(0)
   const { data: tournaments, refetch } = useListTournaments()
+
+  const slice = (tournaments ?? []).slice(page * PAGE, page * PAGE + PAGE)
 
   return (
     <AdminPageShell>
       {({ run }) => (
         <>
-          <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-sans text-amber-500/80 uppercase tracking-wider">{t('admin.sectionTournament')}</p>
-            <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-              {(tournaments ?? []).length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-4">{t('admin.noTournaments')}</p>}
-              {(tournaments ?? []).map((t2) => (
-                <div key={t2.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <span className="flex-1 min-w-0 text-sm text-fg truncate">{t2.name || 'Untitled Tournament'}</span>
-                  <span className="text-[10px] font-sans text-fg-dim">{t2.date}</span>
-                  <span className={`text-[10px] font-sans ${t2.format === 'team' ? 'text-accent' : 'text-fg-dim'}`}>{t2.format}</span>
-                  <ActionButton
-                    tone="red"
-                    onClick={() => {
-                      if (window.confirm(en.admin.tournamentDeleteConfirm(t2.name || 'Untitled Tournament'))) {
-                        run(
-                          () => adminRequest('POST', `/tournaments/${t2.id}/delete`),
-                          t('admin.tournamentDeleted'),
-                          () => refetch(),
-                        )
-                      }
-                    }}
-                  >
-                    Delete
-                  </ActionButton>
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between px-0.5">
+              <p className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionTournament')}</p>
+              <span className="text-xs font-mono text-fg-dim">{(tournaments ?? []).length} tournaments</span>
+            </div>
+
+            <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">
+              {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">{t('admin.noTournaments')}</p>}
+              {slice.map((t2) => (
+                <div key={t2.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-elevated/30 transition-colors">
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-fg truncate">{t2.name || 'Untitled Tournament'}</span>
+                    <div className="flex items-center gap-2 text-[11px] text-fg-dim font-mono mt-0.5">
+                      <span>{t2.date}</span>
+                      <span>·</span>
+                      <span className={t2.format === 'team' ? 'text-accent font-medium font-sans' : 'text-fg-dim font-sans'}>
+                        {t2.format === 'team' ? 'Team Cup' : 'Classic'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <ActionButton
+                      tone="red"
+                      onClick={() => {
+                        if (window.confirm(en.admin.tournamentDeleteConfirm(t2.name || 'Untitled Tournament'))) {
+                          run(
+                            () => adminRequest('POST', `/tournaments/${t2.id}/delete`),
+                            t('admin.tournamentDeleted'),
+                            () => refetch(),
+                          )
+                        }
+                      }}
+                    >
+                      Delete
+                    </ActionButton>
+                  </div>
                 </div>
               ))}
             </div>
+
+            <Pager page={page} total={(tournaments ?? []).length} onPage={setPage} />
           </section>
         </>
       )}
