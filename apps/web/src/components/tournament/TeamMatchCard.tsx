@@ -56,7 +56,7 @@ export default function TeamMatchCard({
               type="text"
               value={courts[0]}
               onChange={(e) => onUpdateCourt(matchIdx, e.target.value)}
-              className="w-20 bg-transparent text-xs text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+              className="w-20 bg-transparent text-xs text-fg-dim border-b border-border-subtle focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
               placeholder="Court"
               aria-label={`Court ${teamName(teams, match.teamA)} vs ${teamName(teams, match.teamB)}`}
             />
@@ -71,12 +71,12 @@ export default function TeamMatchCard({
           {postProps && (
             <button
               onClick={postProps.onTogglePostMode}
-              className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
-                postProps.isPostMode ? 'bg-accent' : 'bg-elevated border border-border-subtle'
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                postProps.isPostMode ? 'bg-accent' : 'bg-elevated border border-border-subtle text-fg-dim hover:text-fg'
               }`}
               aria-label="Toggle post mode"
             >
-              <Icon name="camera" size={13} stroke={postProps.isPostMode ? 'black' : 'currentColor'} strokeWidth={2.2} />
+              <Icon name="camera" size={14} stroke={postProps.isPostMode ? 'black' : 'currentColor'} strokeWidth={2.2} />
             </button>
           )}
         </div>
@@ -97,7 +97,7 @@ export default function TeamMatchCard({
                 max={target}
                 value={match.partai[pi].scoreA ?? ''}
                 onChange={(e) => onChange(matchIdx, pi, { scoreA: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
-                className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                className="w-14 h-10 bg-elevated border border-border rounded-md px-2.5 py-2 text-base font-bold font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                 aria-label={`Score ${teamName(teams, match.teamA)} partai ${pi + 1}`}
               />
               <span className="text-fg-dim text-xs shrink-0">:</span>
@@ -107,7 +107,7 @@ export default function TeamMatchCard({
                 max={target}
                 value={match.partai[pi].scoreB ?? ''}
                 onChange={(e) => onChange(matchIdx, pi, { scoreB: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
-                className="w-14 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                className="w-14 h-10 bg-elevated border border-border rounded-md px-2.5 py-2 text-base font-bold font-sans text-fg text-center focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                 aria-label={`Score ${teamName(teams, match.teamB)} partai ${pi + 1}`}
               />
               <span className="flex-1 text-[11px] text-fg-dim truncate text-right">
@@ -118,13 +118,13 @@ export default function TeamMatchCard({
                 <div className="relative shrink-0">
                   <button
                     onClick={() => postProps.onUploadPartai(pi)}
-                    className="w-6 h-6 rounded-full bg-elevated border border-border-subtle flex items-center justify-center active:bg-border"
+                    className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center active:bg-border text-fg-dim hover:text-fg transition-colors"
                     aria-label={`Upload photo for ${clsA}${clsB}`}
                   >
-                    <Icon name="camera" size={11} strokeWidth={2.2} />
+                    <Icon name="camera" size={13} strokeWidth={2.2} />
                   </button>
                   {postProps.partaiPhotos[pi] && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-success border border-surface" />
                   )}
                 </div>
               )}
@@ -138,7 +138,7 @@ export default function TeamMatchCard({
         <button
           onClick={onSave}
           disabled={saving || !dirty}
-          className="flex-1 py-2 rounded-lg bg-accent/15 border border-accent/30 text-accent text-sm font-bold disabled:opacity-40"
+          className="flex-1 py-2.5 rounded-lg bg-accent/15 border border-accent/30 text-accent text-sm font-bold disabled:opacity-40"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
@@ -147,7 +147,7 @@ export default function TeamMatchCard({
           <button
             onClick={postProps.onDownload}
             disabled={postProps.uploadedCount === 0}
-            className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center active:bg-yellow-300 disabled:opacity-40 shrink-0"
+            className="w-10 h-10 rounded-lg bg-accent text-slate-950 flex items-center justify-center hover:brightness-110 active:scale-[0.98] disabled:opacity-40 shrink-0"
             aria-label="Download posts"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

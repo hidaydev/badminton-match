@@ -53,28 +53,28 @@ export default class ErrorBoundary extends Component<Props, State> {
           <div className="text-3xl">{isChunkErr ? '🔄' : '⚠️'}</div>
           <div>
             <p className="text-fg font-semibold text-sm mb-1">
-              {isChunkErr ? 'Versi Aplikasi Diperbarui' : 'Terjadi kesalahan'}
+              {isChunkErr ? 'App Version Updated' : 'Something went wrong'}
             </p>
             <p className="text-fg-dim text-xs max-w-xs">
               {isChunkErr
-                ? 'Ada pembaruan versi baru di server. Silakan reload halaman untuk memuat versi terbaru.'
-                : this.state.error.message || 'Unexpected error — coba reload halaman.'}
+                ? 'A new version of the app is available on the server. Please reload the page to get the latest version.'
+                : this.state.error.message || 'Unexpected error — try reloading the page.'}
             </p>
           </div>
           <div className="flex gap-2">
             {!isChunkErr && (
               <button
                 onClick={this.handleReset}
-                className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-fg transition-colors"
+                className="text-xs px-3 py-1.5 rounded-lg bg-elevated hover:bg-border text-fg transition-colors"
               >
-                Coba lagi
+                Try again
               </button>
             )}
             <button
               onClick={() => window.location.reload()}
-              className="text-xs px-3 py-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 transition-colors"
+              className="text-xs px-3 py-1.5 rounded-lg bg-accent/20 hover:bg-accent/30 text-accent transition-colors font-semibold"
             >
-              Reload halaman
+              Reload page
             </button>
           </div>
         </div>

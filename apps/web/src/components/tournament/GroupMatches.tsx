@@ -93,16 +93,16 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
         const standings = computeGroupStandings(g, groups[g], matches)
 
         return (
-          <div key={g} className="bg-slate-800 rounded-xl overflow-hidden">
+          <div key={g} className="bg-surface rounded-xl overflow-hidden border border-border-subtle shadow-xs">
             {/* Group header */}
-            <div className="px-4 py-2 flex justify-between items-center border-b border-yellow-500/30">
-              <span className="text-yellow-300 font-bold text-sm">GROUP {g}</span>
+            <div className="px-4 py-2 flex justify-between items-center border-b border-border-subtle">
+              <span className="text-accent font-bold text-sm">GROUP {g}</span>
               <div className="flex items-center gap-3">
-                <span className="text-yellow-600 text-xs">Court {GROUP_COURTS[g]}</span>
+                <span className="text-accent/80 text-xs">Court {GROUP_COURTS[g]}</span>
                 <button
                   onClick={() => setPostModeGroups(prev => ({ ...prev, [g]: !prev[g] }))}
                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                    postModeGroups[g] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'
+                    postModeGroups[g] ? 'bg-accent active:bg-accent/80' : 'bg-black/50 active:bg-black/70'
                   }`}
                 >
                   <Icon name="camera" size={15} stroke={postModeGroups[g] ? 'black' : 'white'} strokeWidth={2.2} />
@@ -111,22 +111,22 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
             </div>
 
             {/* Match rows */}
-            <div className="divide-y divide-slate-700/50">
+            <div className="divide-y divide-border-subtle">
               {groupMatches.map((m) => (
                 <div key={m.id} className="relative flex items-center divide-y-0">
                   <button
                     onClick={() => { onOpenModal(); setActiveMatchId(m.id) }}
-                    className="flex-1 flex flex-col px-4 pt-3 pb-2.5 hover:bg-slate-700/50 active:bg-slate-600/60 active:scale-98 transition-transform duration-75 gap-1.5"
+                    className="flex-1 flex flex-col px-4 pt-3 pb-2.5 hover:bg-elevated/60 active:bg-elevated active:scale-98 transition-transform duration-75 gap-1.5"
                   >
                     <div className="flex items-center gap-2 w-full">
-                      <span className="text-xs text-slate-300 flex-1 truncate text-left">{getPairName(m.pairAId)}</span>
-                      <span className="text-xs font-bold text-yellow-400 shrink-0 min-w-14 text-center bg-slate-900 rounded-md px-2 py-1">
+                      <span className="text-xs text-fg flex-1 truncate text-left">{getPairName(m.pairAId)}</span>
+                      <span className="text-xs font-bold font-mono text-accent shrink-0 min-w-14 text-center bg-elevated border border-border-subtle rounded-md px-2 py-1">
                         {m.scoreA !== null ? `${m.scoreA}–${m.scoreB}` : '—'}
                       </span>
-                      <span className="text-xs text-slate-300 flex-1 text-right truncate">{getPairName(m.pairBId)}</span>
+                      <span className="text-xs text-fg flex-1 text-right truncate">{getPairName(m.pairBId)}</span>
                     </div>
                     {m.picName && (
-                      <span className="text-[9px] text-slate-400 leading-none text-center w-full">{m.picName}</span>
+                      <span className="text-[9px] text-fg-dim leading-none text-center w-full">{m.picName}</span>
                     )}
                   </button>
 
@@ -140,7 +140,7 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                         <Icon name="camera" size={13} stroke="white" strokeWidth={2.2} />
                       </button>
                       {matchPhotos[m.id] && (
-                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-slate-800" />
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-success border border-surface" />
                       )}
                     </div>
                   )}
@@ -150,14 +150,14 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
 
             {/* Download bar */}
             {postModeGroups[g] && (
-              <div className="px-4 py-2.5 flex items-center justify-between bg-slate-900/50 border-t border-slate-700">
-                <span className="text-xs text-slate-400">
+              <div className="px-4 py-2.5 flex items-center justify-between bg-elevated/50 border-t border-border-subtle">
+                <span className="text-xs text-fg-dim">
                   {Object.keys(matchPhotos).filter(id => groupMatches.some(m => m.id === id)).length} of {groupMatches.length} photos
                 </span>
                 <button
                   aria-label={`Download posts for Group ${g}`}
                   onClick={() => handleDownloadGroup(g, groupMatches, groups[g], matches)}
-                  className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+                  className="w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -169,8 +169,8 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
             )}
 
             {/* Mini standings */}
-            <div className="border-t border-slate-700 px-4 py-2">
-              <div className="grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] text-[10px] text-slate-400 mb-1 px-1 gap-x-2">
+            <div className="border-t border-border-subtle px-4 py-2">
+              <div className="grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] text-[10px] text-fg-dim mb-1 px-1 gap-x-2">
                 <span>#</span><span></span>
                 <span className="text-center">W</span>
                 <span className="text-center">L</span>
@@ -180,16 +180,16 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
               {standings.map((row, i) => (
                 <div
                   key={row.pairId}
-                  className={`grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] items-center py-1 px-1 rounded gap-x-2 text-xs ${i < 2 ? 'bg-yellow-400/6' : ''}`}
+                  className={`grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] items-center py-1 px-1 rounded gap-x-2 text-xs ${i < 2 ? 'bg-accent/5' : ''}`}
                 >
-                  <span className={`font-bold ${i < 2 ? 'text-yellow-100' : 'text-slate-400'}`}>{i + 1}</span>
-                  <span className={`truncate font-medium ${i < 2 ? 'text-yellow-100' : 'text-slate-400'}`}>{getPairName(row.pairId)}</span>
-                  <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-400'}`}>{row.wins}</span>
-                  <span className={`text-center ${i < 2 ? 'text-slate-300' : 'text-slate-400'}`}>{row.losses}</span>
-                  <span className={`text-center font-medium ${row.diff > 0 ? 'text-green-400' : row.diff < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                  <span className={`font-bold font-mono ${i < 2 ? 'text-accent' : 'text-fg-dim'}`}>{i + 1}</span>
+                  <span className={`truncate font-medium ${i < 2 ? 'text-fg' : 'text-fg-dim'}`}>{getPairName(row.pairId)}</span>
+                  <span className={`text-center font-mono ${i < 2 ? 'text-fg' : 'text-fg-dim'}`}>{row.wins}</span>
+                  <span className={`text-center font-mono ${i < 2 ? 'text-fg' : 'text-fg-dim'}`}>{row.losses}</span>
+                  <span className={`text-center font-mono font-medium ${row.diff > 0 ? 'text-success' : row.diff < 0 ? 'text-error' : 'text-fg-dim'}`}>
                     {row.diff > 0 ? `+${row.diff}` : row.diff === 0 ? '—' : row.diff}
                   </span>
-                  <span className={`w-1.5 h-1.5 rounded-full mx-auto ${i < 2 ? 'bg-yellow-400' : ''}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full mx-auto ${i < 2 ? 'bg-accent' : ''}`} />
                 </div>
               ))}
             </div>

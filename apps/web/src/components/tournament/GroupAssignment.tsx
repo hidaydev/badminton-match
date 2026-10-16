@@ -66,14 +66,14 @@ export default function GroupAssignment({
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-slate-400 text-center">
+      <p className="text-xs text-fg-dim text-center">
         Tap an empty slot, then tap a pair to assign
       </p>
 
       {/* 2×2 group grid */}
       <div className="grid grid-cols-2 gap-3">
         {GROUP_IDS.map((g) => (
-          <div key={g} className="bg-slate-800 rounded-xl overflow-hidden">
+          <div key={g} className="bg-surface border border-border-subtle rounded-xl overflow-hidden shadow-xs">
             <div className={`px-3 py-1.5 flex justify-between items-center ${GROUP_HEAD_CLASS[g]}`}>
               <span className="text-xs font-bold">GROUP {g}</span>
               <span className="text-xs opacity-70">{groups[g].filter(Boolean).length}/4</span>
@@ -88,18 +88,18 @@ export default function GroupAssignment({
                   return (
                     <div
                       key={slotIdx}
-                      className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5"
+                      className="flex items-center gap-1.5 bg-elevated border border-border-subtle rounded-lg px-2 py-1.5"
                     >
-                      <span className="text-[8px] font-bold text-slate-400" style={{ minWidth: '18px' }}>
+                      <span className="text-[8px] font-bold text-fg-dim" style={{ minWidth: '18px' }}>
                         #{num}
                       </span>
-                      <span className="text-xs text-slate-300 truncate flex-1">
+                      <span className="text-xs text-fg truncate flex-1 font-medium">
                         {getPairName(pairId)}
                       </span>
                       <button
                         onClick={() => onRemovePairFromGroup(pairId)}
                         aria-label={`Remove ${getPairName(pairId)}`}
-                        className="text-slate-400 hover:text-slate-400 shrink-0 ml-1"
+                        className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-md text-fg-dim hover:text-fg hover:bg-surface active:bg-border transition-colors shrink-0 ml-1 text-base leading-none"
                       >
                         ×
                       </button>
@@ -112,19 +112,19 @@ export default function GroupAssignment({
                     key={slotIdx}
                     onClick={() => handleSlotTap(g, slotIdx)}
                     className={[
-                      'flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-all',
+                      'flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-left transition-all shadow-xs',
                       active
-                        ? 'bg-amber-400/10 border border-amber-400 ring-2 ring-amber-400/30'
-                        : 'bg-slate-900 border border-dashed border-slate-700 hover:border-slate-500',
+                        ? 'bg-accent/10 border border-accent ring-2 ring-accent/30'
+                        : 'bg-elevated border border-dashed border-border hover:border-border-subtle hover:bg-surface/80',
                     ].join(' ')}
                   >
                     <span
-                      className={`text-[8px] font-bold ${active ? 'text-amber-400' : 'text-slate-400'}`}
+                      className={`text-[8px] font-bold ${active ? 'text-accent' : 'text-fg-dim'}`}
                       style={{ minWidth: '18px' }}
                     >
                       #{num}
                     </span>
-                    <span className={`text-xs ${active ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
+                    <span className={`text-xs ${active ? 'text-accent font-semibold' : 'text-fg-dim'}`}>
                       {active ? '← pick a pair below' : 'tap to fill'}
                     </span>
                   </button>
@@ -138,7 +138,7 @@ export default function GroupAssignment({
       {/* Unassigned pool */}
       {unassigned.length > 0 && (
         <div>
-          <p className={`text-xs mb-2 ${activeSlot ? 'text-yellow-400 font-semibold' : 'text-slate-400'}`}>
+          <p className={`text-xs mb-2 ${activeSlot ? 'text-accent font-semibold' : 'text-fg-dim'}`}>
             {activeLabel ?? 'Unassigned — tap a slot above first'}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -148,10 +148,10 @@ export default function GroupAssignment({
                 onClick={() => handlePairTap(p.id)}
                 disabled={!activeSlot}
                 className={[
-                  'text-xs rounded-lg px-3 py-2 font-medium transition-all',
+                  'text-xs rounded-lg px-3 py-2 font-medium transition-all shadow-xs',
                   activeSlot
-                    ? 'bg-slate-900 text-yellow-300 border border-yellow-400 font-semibold hover:bg-slate-800'
-                    : 'bg-slate-700 text-slate-400 border border-slate-600 cursor-default',
+                    ? 'bg-elevated text-accent border border-accent font-semibold hover:bg-surface active:scale-98'
+                    : 'bg-surface text-fg-dim border border-border-subtle cursor-default',
                 ].join(' ')}
               >
                 {p.name}
@@ -166,7 +166,7 @@ export default function GroupAssignment({
         <button
           onClick={onConfirmGroups}
           disabled={isLoading}
-          className="w-full py-3 rounded-xl bg-yellow-400 text-slate-900 font-bold text-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-xl bg-accent text-slate-950 font-bold text-sm mt-2 disabled:opacity-60 flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-98 transition-all"
         >
           {isLoading && (
             <svg className="animate-spin w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">

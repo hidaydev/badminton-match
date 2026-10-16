@@ -38,12 +38,12 @@ function MatchCard({
   hasPhoto?: boolean
   onUploadPhoto?: () => void
 }) {
-  if (!match) return <div className="h-16 bg-slate-800/30 rounded-lg" />
+  if (!match) return <div className="h-16 bg-surface/40 border border-border-subtle/50 rounded-lg" />
   const canEnter = !!(match.pairAId && match.pairBId)
   const scored = match.scoreA !== null
   return (
-    <div className={`w-full bg-slate-800 rounded-lg border-l-2 ${borderColor} overflow-hidden`}>
-      <div className={`px-2 py-1.5 border-b border-slate-700 flex items-center justify-between`}>
+    <div className={`w-full bg-surface rounded-lg border-l-2 ${borderColor} border-t border-r border-b border-border-subtle overflow-hidden shadow-xs`}>
+      <div className="px-2 py-1.5 border-b border-border-subtle flex items-center justify-between">
         <span className={`text-[8px] font-bold tracking-wide ${labelColor}`}>{label}</span>
         {showPostIcon && (
           <div className="relative shrink-0">
@@ -55,7 +55,7 @@ function MatchCard({
               <Icon name="camera" size={13} stroke="white" strokeWidth={2.2} />
             </button>
             {hasPhoto && (
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-slate-800" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-success border border-surface" />
             )}
           </div>
         )}
@@ -63,16 +63,16 @@ function MatchCard({
       <button
         onClick={() => canEnter && onSelect(match)}
         disabled={!canEnter}
-        className="w-full text-left disabled:opacity-60 hover:bg-slate-700/50 disabled:hover:bg-transparent"
+        className="w-full text-left disabled:opacity-60 hover:bg-elevated/60 disabled:hover:bg-transparent transition-colors"
       >
         <div className="px-2 pt-2 pb-1">
-          <div className="text-xs text-slate-200 font-medium truncate">{getPairName(match.pairAId)}</div>
+          <div className="text-xs text-fg font-medium truncate">{getPairName(match.pairAId)}</div>
           {scored ? (
-            <div className="text-[10px] font-bold text-yellow-400 text-center my-1">{match.scoreA} – {match.scoreB}</div>
+            <div className="text-[10px] font-bold font-mono text-accent text-center my-1">{match.scoreA} – {match.scoreB}</div>
           ) : (
-            <div className="text-[9px] text-slate-400 text-center my-1">vs</div>
+            <div className="text-[9px] text-fg-dim text-center my-1 font-medium">vs</div>
           )}
-          <div className="text-xs text-slate-200 font-medium truncate">{getPairName(match.pairBId)}</div>
+          <div className="text-xs text-fg font-medium truncate">{getPairName(match.pairBId)}</div>
         </div>
       </button>
     </div>
@@ -82,7 +82,7 @@ function MatchCard({
 function Connector() {
   return (
     <div className="flex items-stretch w-3 shrink-0">
-      <div className="flex-1 border-t border-r border-b border-slate-700 rounded-r my-2" />
+      <div className="flex-1 border-t border-r border-b border-border rounded-r my-2" />
     </div>
   )
 }
@@ -144,8 +144,8 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
   if (!qf1) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
-        <p className="text-slate-400 text-sm">Assign groups and confirm to see the bracket.</p>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-fg-dim"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
+        <p className="text-fg-dim text-sm">Assign groups and confirm to see the bracket.</p>
       </div>
     )
   }
@@ -234,10 +234,10 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
   return (
     <div>
       {/* Bracket — horizontally scrollable */}
-      <div className="overflow-x-auto -mx-3 px-3 pb-2">
+      <div className="overflow-x-auto -mx-3 px-3 pb-2 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="min-w-75 w-full">
           {/* Column headers */}
-          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
+          <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-[10px] text-fg-dim uppercase tracking-widest font-semibold">
             {rounds.map((round, i) => (
               <Fragment key={round.id}>
                 {i > 0 && <span />}
@@ -245,7 +245,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
                   <span>{round.title}</span>
                   <button
                     onClick={() => setPostModeRounds(prev => ({ ...prev, [round.id]: !prev[round.id] }))}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds[round.id] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds[round.id] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}
                   >
                     <Icon name="camera" size={15} stroke={postModeRounds[round.id] ? 'black' : 'white'} strokeWidth={2.2} />
                   </button>
@@ -253,7 +253,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
                     <button
                       aria-label={round.ariaLabel}
                       onClick={() => handleDownloadRound(round.matchIds, round.downloadTitle)}
-                      className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
+                      className="w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -295,7 +295,7 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
             <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos[SF_IDS[1]]} onUploadPhoto={openUpload(SF_IDS[1])} />
             <span /> {/* no connector to 3rd place */}
-            <MatchCard match={third} label="3RD" borderColor="border-slate-600" labelColor="text-slate-400" getPairName={getPairName} onSelect={handleSelect}
+            <MatchCard match={third} label="3RD" borderColor="border-border" labelColor="text-fg-dim" getPairName={getPairName} onSelect={handleSelect}
               showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos[THIRD_PLACE_ID]} onUploadPhoto={openUpload(THIRD_PLACE_ID)} />
           </div>
         </div>
@@ -307,39 +307,76 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
         const runnerUpName = loser(final) ?? 'TBD'
         const thirdName = winner(third) ?? 'TBD'
         const positions = [
-          { pos: 'runner-up', rank: '2', rankCls: 'text-slate-300', label: '2nd', positionLabel: 'RUNNER UP', name: runnerUpName, mt: '', champion: false },
-          { pos: 'champion', rank: '1', rankCls: 'text-accent', label: 'CHAMPION', positionLabel: 'WINNER', name: championName, mt: '-mt-4', champion: true },
-          { pos: 'third', rank: '3', rankCls: 'text-slate-400', label: '3rd', positionLabel: '3RD PLACE', name: thirdName, mt: '', champion: false },
+          {
+            pos: 'runner-up',
+            rank: '2',
+            badgeBg: 'bg-gradient-to-b from-slate-200/20 to-slate-400/5',
+            badgeBorder: 'border-slate-300/40 shadow-[0_0_12px_rgba(199,204,209,0.2)]',
+            rankCls: 'text-slate-200',
+            label: '2nd',
+            positionLabel: 'RUNNER UP',
+            name: runnerUpName,
+            mt: '',
+            champion: false,
+          },
+          {
+            pos: 'champion',
+            rank: '1',
+            badgeBg: 'bg-gradient-to-b from-yellow-300/25 to-yellow-600/10',
+            badgeBorder: 'border-accent/60 shadow-[0_0_16px_rgba(227,179,65,0.35)]',
+            rankCls: 'text-accent',
+            label: 'CHAMPION',
+            positionLabel: 'WINNER',
+            name: championName,
+            mt: '-mt-4',
+            champion: true,
+          },
+          {
+            pos: 'third',
+            rank: '3',
+            badgeBg: 'bg-gradient-to-b from-[#e0985c]/20 to-[#713b16]/10',
+            badgeBorder: 'border-[#b36d33]/50 shadow-[0_0_12px_rgba(192,133,82,0.2)]',
+            rankCls: 'text-[#e0985c]',
+            label: '3rd',
+            positionLabel: '3RD PLACE',
+            name: thirdName,
+            mt: '',
+            champion: false,
+          },
         ]
         return (
-          <div className="mt-5 bg-slate-800 rounded-lg p-4 flex justify-around items-end">
-              {positions.map(({ pos, rank, rankCls, label, positionLabel, name, mt, champion: isChamp }) => (
-                <div key={pos} className={`text-center ${mt}`}>
-                  <div className={`${isChamp ? 'text-3xl' : 'text-2xl'} font-bold font-sans ${rankCls}`}>{rank}</div>
-                  <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-accent' : 'text-slate-400'}`}>{label}</div>
-                  <div className={`text-xs mt-1 font-medium ${isChamp ? 'text-slate-200 text-sm' : 'text-slate-300'}`}>{name}</div>
-                  <div className="mt-2 flex items-center justify-center gap-1.5">
-                    <button
-                      onClick={() => openPodiumUpload(pos)}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${podiumPhotos[pos] ? 'bg-yellow-400 active:bg-yellow-300' : 'bg-black/50 active:bg-black/70'}`}
-                    >
-                      <Icon name="camera" size={15} stroke={podiumPhotos[pos] ? 'black' : 'white'} strokeWidth={2.2} />
-                    </button>
-                    {podiumPhotos[pos] && (
-                      <button
-                        onClick={() => handleDownloadPosition(pos, positionLabel, name)}
-                        className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                          <polyline points="7 10 12 15 17 10"/>
-                          <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                      </button>
-                    )}
-                  </div>
+          <div className="mt-5 bg-surface border border-border-subtle rounded-xl p-4 flex justify-around items-end shadow-xs">
+            {positions.map(({ pos, rank, badgeBg, badgeBorder, rankCls, label, positionLabel, name, mt, champion: isChamp }) => (
+              <div key={pos} className={`flex flex-col items-center text-center ${mt}`}>
+                <div className={`flex items-center justify-center rounded-full border ${badgeBg} ${badgeBorder} ${isChamp ? 'w-13 h-13' : 'w-10 h-10'} mb-1`}>
+                  <span className={`${isChamp ? 'text-2xl' : 'text-xl'} font-bold font-sans ${rankCls}`}>
+                    {rank}
+                  </span>
                 </div>
-              ))}
+                <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-accent' : 'text-fg-dim'}`}>{label}</div>
+                <div className={`text-xs mt-1 font-medium max-w-24 truncate ${isChamp ? 'text-fg text-sm font-semibold' : 'text-fg-dim'}`}>{name}</div>
+                <div className="mt-2 flex items-center justify-center gap-1.5">
+                  <button
+                    onClick={() => openPodiumUpload(pos)}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${podiumPhotos[pos] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}
+                  >
+                    <Icon name="camera" size={15} stroke={podiumPhotos[pos] ? 'black' : 'white'} strokeWidth={2.2} />
+                  </button>
+                  {podiumPhotos[pos] && (
+                    <button
+                      onClick={() => handleDownloadPosition(pos, positionLabel, name)}
+                      className="w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )
       })()}

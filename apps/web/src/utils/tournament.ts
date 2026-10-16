@@ -130,7 +130,17 @@ export function propagateBracket(
   let result = [...matches]
 
   const update = (id: string, pairAId: string | null, pairBId: string | null) => {
-    result = result.map((m) => (m.id === id ? { ...m, pairAId, pairBId } : m))
+    result = result.map((m) => {
+      if (m.id !== id) return m
+      const changed = m.pairAId !== pairAId || m.pairBId !== pairBId
+      return {
+        ...m,
+        pairAId,
+        pairBId,
+        scoreA: changed ? null : m.scoreA,
+        scoreB: changed ? null : m.scoreB,
+      }
+    })
   }
   const find = (id: string): TournamentMatch => {
     const m = result.find((match) => match.id === id)
