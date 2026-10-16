@@ -9,10 +9,10 @@ interface ActionButtonProps {
 }
 
 const tones = {
-  neutral: 'border-border text-fg-dim hover:text-fg',
-  amber: 'border-amber-700/50 text-amber-300 hover:bg-amber-900/40',
-  red: 'border-red-800/50 text-red-400 hover:bg-red-950/40',
-  green: 'border-emerald-700/60 text-emerald-400 hover:bg-emerald-950/40',
+  neutral: 'border-border-subtle bg-elevated/40 text-fg-dim hover:text-fg hover:border-border',
+  amber: 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/20',
+  red: 'border-error/30 bg-error/10 text-error hover:bg-error/20',
+  green: 'border-success/30 bg-success/10 text-success hover:bg-success/20',
 }
 
 export default function ActionButton({ onClick, children, tone = 'neutral', disabled }: ActionButtonProps) {
@@ -20,7 +20,7 @@ export default function ActionButton({ onClick, children, tone = 'neutral', disa
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`text-[10px] font-sans px-2 py-1 rounded border transition-colors disabled:opacity-40 ${tones[tone]}`}
+      className={`text-xs font-medium px-2.5 py-1 rounded-md border transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ${tones[tone]}`}
     >
       {children}
     </button>
