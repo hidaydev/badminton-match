@@ -19,38 +19,61 @@ export default function AdminSessionsPage() {
     <AdminPageShell>
       {({ run }) => (
         <>
-          <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-sans text-amber-500/80 uppercase tracking-wider">{t('admin.sectionSession')}</p>
-            <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-              {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-4">{t('admin.noSessions')}</p>}
+          <section className="flex flex-col gap-2.5">
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionSession')}</p>
+              <span className="text-xs font-mono text-fg-dim">{(sessions ?? []).length} sessions</span>
+            </div>
+
+            <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">
+              {slice.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+                  <span className="text-2xl">🏸</span>
+                  <p className="text-fg-dim text-xs font-sans">{t('admin.noSessions')}</p>
+                </div>
+              )}
               {slice.map((s) => (
-                <div key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <span className="flex-1 min-w-0 text-sm text-fg truncate">{s.title || 'Untitled'}</span>
-                  <span className="text-[10px] font-sans text-fg-dim">{s.date}</span>
-                  <span className={`text-[10px] font-sans ${s.locked ? 'text-amber-300/70' : 'text-fg-dim'}`}>{s.locked ? t('admin.locked') : t('admin.draft')}</span>
-                  {s.locked && (
-                    <ActionButton tone="amber" onClick={() => run(
-                      () => adminRequest('POST', `/sessions/${s.id}/unlock`),
-                      t('admin.unlocked'),
-                      () => refetch(),
-                    )}>
-                      Unlock
+                <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 hover:bg-elevated/20 transition-colors">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <span className="text-lg shrink-0 mt-0.5">🏸</span>
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-fg truncate">{s.title || 'Untitled'}</span>
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${s.locked ? 'bg-amber-400/10 text-amber-300 border-amber-400/30' : 'bg-elevated border-border-subtle text-fg-dim'}`}>
+                          {s.locked ? t('admin.locked') : t('admin.draft')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-fg-dim font-mono">
+                        <span>{s.date}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    {s.locked && (
+                      <ActionButton tone="amber" onClick={() => run(
+                        () => adminRequest('POST', `/sessions/${s.id}/unlock`),
+                        t('admin.unlocked'),
+                        () => refetch(),
+                      )}>
+                        Unlock
+                      </ActionButton>
+                    )}
+                    <ActionButton
+                      tone="red"
+                      onClick={() => {
+                        if (window.confirm(en.admin.sessionDeleteConfirm(s.title || 'Untitled', s.date))) {
+                          run(
+                            () => adminRequest('POST', `/sessions/${s.id}/delete`),
+                            t('admin.sessionDeleted'),
+                            () => refetch(),
+                          )
+                        }
+                      }}
+                    >
+                      Delete
                     </ActionButton>
-                  )}
-                  <ActionButton
-                    tone="red"
-                    onClick={() => {
-                      if (window.confirm(en.admin.sessionDeleteConfirm(s.title || 'Untitled', s.date))) {
-                        run(
-                          () => adminRequest('POST', `/sessions/${s.id}/delete`),
-                          t('admin.sessionDeleted'),
-                          () => refetch(),
-                        )
-                      }
-                    }}
-                  >
-                    Delete
-                  </ActionButton>
+                  </div>
                 </div>
               ))}
             </div>
