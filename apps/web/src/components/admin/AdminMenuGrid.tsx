@@ -18,12 +18,14 @@ export default function AdminMenuGrid() {
         <button
           key={it.to}
           onClick={() => navigate(it.to)}
-          className="flex items-start gap-3 p-4 rounded-lg bg-amber-950/20 border border-amber-800/40 hover:border-amber-700 active:scale-[0.98] transition-all text-left"
+          className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-950/20 border border-amber-800/40 hover:border-amber-700 active:scale-[0.98] transition-all text-left shadow-sm"
         >
-          <Icon name={it.icon} size={20} />
+          <div className="w-8 h-8 rounded-lg bg-amber-900/30 border border-amber-700/50 flex items-center justify-center shrink-0 text-amber-300">
+            <Icon name={it.icon} size={18} />
+          </div>
           <div className="flex flex-col gap-0.5 min-w-0">
             <span className="text-sm font-semibold text-amber-200 leading-tight">{it.label}</span>
-            <span className="text-[11px] text-amber-200/60">{it.desc}</span>
+            <span className="text-[11px] text-amber-200/60 leading-snug">{it.desc}</span>
           </div>
         </button>
       ))}

@@ -74,7 +74,7 @@ export default function AdminPlayersPage() {
             {mergeSource && (
               <div className="flex flex-col gap-1.5 rounded-lg border border-amber-700/50 bg-amber-900/20 px-3 py-2">
                 <p className="text-xs text-amber-300">
-                  Merge mode: pilih <b>target</b> — semua data dari <b>{players?.find(p => p.playerId === mergeSource)?.name ?? 'source'}</b> akan digabung ke target, lalu source dihapus.
+                  Merge mode: select <b>target</b> — all data from <b>{players?.find(p => p.playerId === mergeSource)?.name ?? 'source'}</b> will be merged into target, and source will be deleted.
                 </p>
                 <button
                   onClick={() => setMergeSource(null)}
@@ -101,7 +101,7 @@ export default function AdminPlayersPage() {
                       onClick={() => {
                         const sourceName = players?.find(p => p.playerId === mergeSource)?.name ?? 'source'
                         const targetName = pl.name
-                        if (window.confirm(`Merge "${sourceName}" into "${targetName}"?\n\nSemua data source dipindah ke target, source dihapus, rating di-rebuild.`)) {
+                        if (window.confirm(`Merge "${sourceName}" into "${targetName}"?\n\nAll source data will be transferred to target, source deleted, and ratings rebuilt.`)) {
                           run(
                             async () => {
                               await adminRequest('POST', '/players/merge', {

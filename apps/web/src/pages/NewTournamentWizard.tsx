@@ -111,7 +111,7 @@ function TeamWizard() {
         onSuccess: ({ id }) => navigate(`/tournaments/${id}`),
         onError: (err) => {
           console.error('create team tournament failed', err)
-          alert('Gagal membuat tournament. Coba lagi.')
+          alert('Failed to create tournament. Please try again.')
         },
       },
     )
@@ -131,7 +131,7 @@ function TeamWizard() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="mis. Majadu Team Cup"
+              placeholder="e.g. Majadu Team Cup"
               className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
             />
           </label>
@@ -206,7 +206,7 @@ function TeamWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-fg-dim">Roster per tim (1 pemain per kelas) · slot (Tim 1..6) diundi hari-H</p>
+            <p className="text-xs text-fg-dim">Team rosters (1 player per class) · slots (Teams 1–6) drawn on matchday</p>
             <button
               onClick={formTeams}
               className="text-xs px-3 py-1.5 rounded-md border border-border-subtle text-fg-dim hover:text-fg"
@@ -216,7 +216,7 @@ function TeamWizard() {
           </div>
           {teams.length === 0 && (
             <p className="text-xs text-fg-dim">
-              Data tim akan muncul setelah Anda mengisi pemain di Step 2.
+              Team data will appear once players are entered in Step 2.
             </p>
           )}
           <div className="flex flex-col gap-2.5">
@@ -302,7 +302,7 @@ function ClassicWizard() {
       },
       onError: (err) => {
         console.error('create tournament failed', err)
-        alert('Gagal membuat tournament. Coba lagi.')
+        alert('Failed to create tournament. Please try again.')
       },
     })
   }
@@ -327,16 +327,16 @@ function ClassicWizard() {
       {step === 1 && (
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">Nama tournament</span>
+            <span className="text-xs text-fg-dim">Tournament name</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="mis. Internal Cup 2026"
+              placeholder="e.g. Internal Cup 2026"
               className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-fg-dim">Tanggal</span>
+            <span className="text-xs text-fg-dim">Date</span>
             <input
               type="date"
               value={date}
