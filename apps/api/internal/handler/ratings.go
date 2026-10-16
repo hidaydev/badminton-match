@@ -200,7 +200,13 @@ func (h *RatingsHandler) Rankings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	board, err := h.Store.RankPointsBoard(r.Context(), asOf, limit)
+	var minSessionsArg []int
+	if minS := q.Get("min_sessions"); minS != "" {
+		if ms, err := strconv.Atoi(minS); err == nil && ms >= 0 {
+			minSessionsArg = []int{ms}
+		}
+	}
+	board, err := h.Store.RankPointsBoard(r.Context(), asOf, limit, minSessionsArg...)
 	if err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch rankings", err))
 		return

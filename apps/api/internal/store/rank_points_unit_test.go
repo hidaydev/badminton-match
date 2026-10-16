@@ -20,18 +20,19 @@ func TestBoardRowsMinSessionsFilter(t *testing.T) {
 		{playerID: "p2", entry: RankPointEntry{SourceID: "s3", Date: "2026-01-12", Points: 100}},
 	}
 	names := map[string]string{"p1": "One", "p2": "Two"}
+	tiers := map[string]string{"p1": "C+", "p2": "A"}
 
-	rows := boardRowsFromEntries(entries, cfg, names, 0)
+	rows := boardRowsFromEntries(entries, cfg, names, tiers, 0)
 	if len(rows) != 1 {
 		t.Fatalf("rows = %d, want 1 (p1 tersaring)", len(rows))
 	}
-	if rows[0].PlayerID != "p2" || rows[0].Rank != 1 {
-		t.Fatalf("rows[0] = %+v, want p2 rank 1", rows[0])
+	if rows[0].PlayerID != "p2" || rows[0].Rank != 1 || rows[0].Tier != "A" {
+		t.Fatalf("rows[0] = %+v, want p2 rank 1 tier A", rows[0])
 	}
 
 	// Ambang 0 → tanpa filter.
 	cfg.RankMinSessions = 0
-	if got := boardRowsFromEntries(entries, cfg, names, 0); len(got) != 2 {
+	if got := boardRowsFromEntries(entries, cfg, names, tiers, 0); len(got) != 2 {
 		t.Fatalf("rows = %d, want 2 (tanpa ambang)", len(got))
 	}
 }

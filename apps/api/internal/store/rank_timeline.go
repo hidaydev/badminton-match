@@ -57,7 +57,7 @@ func (s *SessionStore) rankTimeline(ctx context.Context, cfg domain.RatingConfig
 			return nil, nil, err
 		}
 		m := map[string]int{}
-		for _, r := range boardRowsFromEntries(entries, cfg, names, 0) {
+		for _, r := range boardRowsFromEntries(entries, cfg, names, nil, 0) {
 			m[r.PlayerID] = r.Rank
 		}
 		byDate[d] = m
