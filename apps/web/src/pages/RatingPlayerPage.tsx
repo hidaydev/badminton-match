@@ -99,17 +99,6 @@ export default function RatingPlayerPage() {
   return (
     <AmbiguousNamesProvider value={ambiguousNames}>
       <div className="flex flex-col gap-4 pb-12">
-        {/* Navigation Bar Back link */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1.5 text-xs text-fg-dim hover:text-fg transition-colors active:scale-95 py-1"
-          >
-            <span aria-hidden="true">←</span>
-            <span>Kembali ke Ranking</span>
-          </button>
-        </div>
-
         {/* Athlete Hero Card */}
         <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 relative overflow-hidden shadow-sm">
           {/* Subtle gold ambient glow */}
