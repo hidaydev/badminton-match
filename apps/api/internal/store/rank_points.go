@@ -771,6 +771,9 @@ func (s *SessionStore) RankPointsForPlayer(ctx context.Context, playerID, asOf s
 	if cfg.RankBestN <= 0 {
 		cfg.RankBestN = 10
 	}
+	// Di halaman detail pemain, jangan sembunyikan baris pemain (tanpa ambang min-sesi)
+	// agar poin dan sesi yang dihitung selalu tampil.
+	cfg.RankMinSessions = 0
 
 	if asOf == "" {
 		var err error

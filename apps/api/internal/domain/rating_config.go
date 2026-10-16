@@ -73,7 +73,7 @@ var DefaultRatingConfig = RatingConfig{
 	RankOpponentClamp:  [2]float64{0.5, 1.5},
 	RankSessionBase:    250,
 	RankThinEvidenceN:  3,
-	RankMinSessions:    3,
+	RankMinSessions:    0,
 	SessionTierInit: map[string]TierInit{
 		"D":  {Class: "D", Rating: 1150},
 		"D+": {Class: "D+", Rating: 1250},
