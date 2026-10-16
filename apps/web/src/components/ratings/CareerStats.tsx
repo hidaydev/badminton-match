@@ -6,23 +6,22 @@ import type { PlayerStats } from '../../queries/types'
 
 const SESSIONS_PER_PAGE = 5
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-surface border border-border-subtle rounded-lg p-3 text-center">
-      <div className="text-base font-bold font-sans text-fg">{value}</div>
-      <div className="text-[10px] font-sans text-fg-dim uppercase tracking-wider mt-0.5">{label}</div>
-    </div>
-  )
-}
-
 function PairRow({ name, wins, losses, count }: { name: string; wins: number; losses: number; count: number }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-sm text-fg truncate min-w-0"><AnnotatedPlayerName name={name} /></span>
-      <div className="flex items-center gap-1.5 font-sans text-[10px] shrink-0">
-        <span className="text-emerald-400 font-semibold">{wins}W</span>
-        {losses > 0 && <span className="text-red-400 font-semibold">{losses}L</span>}
-        <span className="text-fg-dim">{count}×</span>
+    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-border-subtle/40 last:border-0">
+      <span className="text-xs sm:text-sm text-fg truncate min-w-0 font-medium">
+        <AnnotatedPlayerName name={name} />
+      </span>
+      <div className="flex items-center gap-1.5 font-mono text-[10px] shrink-0">
+        <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+          {wins}W
+        </span>
+        {losses > 0 && (
+          <span className="text-red-400 font-bold bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
+            {losses}L
+          </span>
+        )}
+        <span className="text-fg-dim font-sans">{count}×</span>
       </div>
     </div>
   )
@@ -43,74 +42,82 @@ export default function CareerStats({ stats, countedPoints }: {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Sessions */}
+      {/* Sessions History */}
       {stats.sessions.length > 0 && (
-        <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-          <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">
-            Sessions ({stats.sessions.length})
-            <span className="normal-case tracking-normal"> — yang berpoin ditandai</span>
-          </p>
+        <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between pb-1">
+            <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold">
+              Sessions ({stats.sessions.length})
+              <span className="normal-case tracking-normal opacity-80"> — yang berpoin ditandai</span>
+            </p>
+          </div>
           {stats.sessions.slice(sessionsPage * SESSIONS_PER_PAGE, (sessionsPage + 1) * SESSIONS_PER_PAGE).map((s) => {
             // Sesi ini masuk perhitungan poin? Cocokkan lewat share_code
             // (rating_events.source_id = sessions.share_code).
             const pts = s.share_code ? countedPoints?.get(s.share_code) : undefined
             const counted = pts !== undefined
             return (
-              <div key={s.id} className="flex justify-between items-center text-sm gap-2">
-                <span className={s.absent ? 'text-fg-dim line-through truncate min-w-0' : 'text-fg truncate min-w-0'}>
+              <div key={s.id} className="flex justify-between items-center text-sm gap-2 py-1.5 border-b border-border-subtle/50 last:border-0">
+                <span className={s.absent ? 'text-fg-dim/60 line-through truncate min-w-0 font-medium' : 'text-fg truncate min-w-0 font-medium'}>
                   {s.title || 'Untitled'}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   {counted && (
                     <span
-                      className="text-[10px] font-mono text-accent"
+                      className="text-[10px] font-mono text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold"
                       title={`Masuk perhitungan poin: +${Math.round(pts).toLocaleString('id-ID')}`}
                     >
-                      dihitung +{Math.round(pts).toLocaleString('id-ID')}
+                      +{Math.round(pts).toLocaleString('id-ID')} pts
                     </span>
                   )}
-                  {s.absent && <span className="text-[10px] font-sans text-fg-dim">absent</span>}
-                  <span className="text-[10px] font-sans text-fg-dim">{s.date.split('-').reverse().join('-')}</span>
+                  {s.absent && (
+                    <span className="text-[10px] font-sans text-fg-dim/70 bg-elevated px-1.5 py-0.5 rounded border border-border-subtle">
+                      absent
+                    </span>
+                  )}
+                  <span className="text-[10px] font-mono text-fg-dim">{s.date.split('-').reverse().join('-')}</span>
                 </div>
               </div>
             )
           })}
           {sessionsTotal > 1 && (
-            <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center justify-between pt-2">
               <button
                 onClick={() => setSessionsPage((p) => Math.max(0, p - 1))}
                 disabled={sessionsPage === 0}
-                className="text-xs text-fg-dim hover:text-fg disabled:opacity-30 transition-colors"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
               >
-                ← Prev
+                ← Sebelumnya
               </button>
-              <span className="text-[10px] font-sans text-fg-dim">
-                {sessionsPage + 1}/{sessionsTotal}
+              <span className="text-xs font-mono text-fg-dim">
+                {sessionsPage + 1} / {sessionsTotal}
               </span>
               <button
                 onClick={() => setSessionsPage((p) => Math.min(sessionsTotal - 1, p + 1))}
                 disabled={sessionsPage >= sessionsTotal - 1}
-                className="text-xs text-fg-dim hover:text-fg disabled:opacity-30 transition-colors"
+                className="px-3.5 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg hover:border-border disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all"
               >
-                Next →
+                Selanjutnya →
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* Top partners & opponents — dua kolom biar hemat tinggi */}
+      {/* Top partners & opponents — dua kolom */}
       {(stats.topPartners.length > 0 || stats.topOpponents.length > 0) && (
         <div
           className={
             stats.topPartners.length > 0 && stats.topOpponents.length > 0
-              ? 'grid grid-cols-2 gap-2'
-              : 'flex flex-col gap-2'
+              ? 'grid grid-cols-1 sm:grid-cols-2 gap-3'
+              : 'flex flex-col gap-3'
           }
         >
           {stats.topPartners.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Top Partners</p>
+            <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
+              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold pb-1">
+                Top Partners
+              </p>
               {stats.topPartners.map((p) => (
                 <PairRow key={p.name} name={p.name} wins={p.wins} losses={p.losses} count={p.count} />
               ))}
@@ -118,8 +125,10 @@ export default function CareerStats({ stats, countedPoints }: {
           )}
 
           {stats.topOpponents.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Top Opponents</p>
+            <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
+              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold pb-1">
+                Top Opponents
+              </p>
               {stats.topOpponents.map((p) => (
                 <PairRow key={p.name} name={p.name} wins={p.wins} losses={p.losses} count={p.count} />
               ))}
@@ -131,16 +140,51 @@ export default function CareerStats({ stats, countedPoints }: {
       {/* Tournament career */}
       {stats.tournamentStats.gamesPlayed > 0 && (
         <>
-          <div className="grid grid-cols-4 gap-2">
-            <StatCard label="Tourn Games" value={String(stats.tournamentStats.gamesPlayed)} />
-            <StatCard label="Tourn W/R" value={`${tWinRate}%`} />
-            <StatCard label="Tourn W" value={String(stats.tournamentStats.wins)} />
-            <StatCard label="Tourn L" value={String(stats.tournamentStats.losses)} />
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            {/* Tourn Games */}
+            <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
+              <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none">
+                {stats.tournamentStats.gamesPlayed}
+              </span>
+              <span className="text-[10px] sm:text-xs font-sans text-fg-dim uppercase tracking-wider mt-1.5 font-medium">
+                Tourn Games
+              </span>
+            </div>
+
+            {/* Tourn W - L */}
+            <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
+              <div className="text-xl sm:text-2xl font-bold font-mono leading-none flex items-center justify-center gap-1">
+                <span className="text-emerald-400">{stats.tournamentStats.wins}W</span>
+                <span className="text-fg-dim/40 text-sm font-light">/</span>
+                <span className="text-red-400">{stats.tournamentStats.losses}L</span>
+              </div>
+              <span className="text-[10px] sm:text-xs font-sans text-fg-dim uppercase tracking-wider mt-1.5 font-medium">
+                Tourn W - L
+              </span>
+            </div>
+
+            {/* Tourn Win Rate */}
+            <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
+              <span className="text-xl sm:text-2xl font-bold font-mono text-fg leading-none">
+                {tWinRate}%
+              </span>
+              {stats.tournamentStats.gamesPlayed > 0 && (
+                <div className="w-14 mx-auto h-1 bg-ground rounded-full overflow-hidden mt-1.5">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, Math.max(0, tWinRate))}%` }}
+                  />
+                </div>
+              )}
+              <span className="text-[10px] sm:text-xs font-sans text-fg-dim uppercase tracking-wider mt-1 font-medium">
+                Tourn Win Rate
+              </span>
+            </div>
           </div>
 
           {stats.tournamentStats.tournaments.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">
+            <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2.5">
+              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold pb-1">
                 Tournaments ({stats.tournamentStats.tournaments.length})
               </p>
               {stats.tournamentStats.tournaments.map((t) => {
@@ -148,20 +192,24 @@ export default function CareerStats({ stats, countedPoints }: {
                 // (rating_events.source_id = tournaments.share_code).
                 const tPts = t.share_code ? countedPoints?.get(t.share_code) : undefined
                 return (
-                  <div key={t.share_code || t.name} className="flex justify-between items-center text-sm gap-2">
-                    <span className="text-fg truncate min-w-0">{t.name}</span>
-                    <div className="flex items-center gap-2 shrink-0 font-sans text-[10px]">
+                  <div key={t.share_code || t.name} className="flex justify-between items-center text-sm gap-2 py-1.5 border-b border-border-subtle/50 last:border-0">
+                    <span className="text-fg font-medium truncate min-w-0">{t.name}</span>
+                    <div className="flex items-center gap-2 shrink-0 font-mono text-[10px]">
                       {tPts !== undefined && (
                         <span
-                          className="font-mono text-accent"
+                          className="text-accent bg-accent/10 border border-accent/30 rounded px-1.5 py-0.5 font-bold"
                           title={`Masuk perhitungan poin: +${Math.round(tPts).toLocaleString('id-ID')}`}
                         >
-                          dihitung +{Math.round(tPts).toLocaleString('id-ID')}
+                          +{Math.round(tPts).toLocaleString('id-ID')} pts
                         </span>
                       )}
-                      <span className="text-emerald-400 font-semibold">{t.wins}W</span>
-                      <span className="text-red-400 font-semibold">{t.losses}L</span>
-                      <span className="text-fg-dim">{t.games} games</span>
+                      <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                        {t.wins}W
+                      </span>
+                      <span className="text-red-400 font-bold bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
+                        {t.losses}L
+                      </span>
+                      <span className="text-fg-dim font-sans">{t.games} games</span>
                       <span className="text-fg-dim">{t.date.split('-').reverse().join('-')}</span>
                     </div>
                   </div>
@@ -174,13 +222,15 @@ export default function CareerStats({ stats, countedPoints }: {
             <div
               className={
                 stats.tournamentStats.topPartners.length > 0 && stats.tournamentStats.topOpponents.length > 0
-                  ? 'grid grid-cols-2 gap-2'
-                  : 'flex flex-col gap-2'
+                  ? 'grid grid-cols-1 sm:grid-cols-2 gap-3'
+                  : 'flex flex-col gap-3'
               }
             >
               {stats.tournamentStats.topPartners.length > 0 && (
-                <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Tournament Partners</p>
+                <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
+                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold pb-1">
+                    Tournament Partners
+                  </p>
                   {stats.tournamentStats.topPartners.map((p) => (
                     <PairRow key={p.name} name={p.name} wins={p.wins} losses={0} count={p.count} />
                   ))}
@@ -188,8 +238,10 @@ export default function CareerStats({ stats, countedPoints }: {
               )}
 
               {stats.tournamentStats.topOpponents.length > 0 && (
-                <div className="bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
-                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider">Tournament Opponents</p>
+                <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
+                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold pb-1">
+                    Tournament Opponents
+                  </p>
                   {stats.tournamentStats.topOpponents.map((p) => (
                     <PairRow key={p.name} name={p.name} wins={p.wins} losses={0} count={p.count} />
                   ))}
