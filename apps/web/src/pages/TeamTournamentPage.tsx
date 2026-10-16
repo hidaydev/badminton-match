@@ -265,7 +265,7 @@ export default function TeamTournamentPage() {
         </div>
       </div>
 
-      <div className="px-3 pt-4 pb-8 flex flex-col gap-3">
+      <div className="px-3 pt-4 pb-8 flex flex-col gap-4">
         {tab === 'klasemen' && (
           <>
             <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden">
@@ -279,14 +279,22 @@ export default function TeamTournamentPage() {
                 return (
                   <div key={r.teamId} className={`border-b border-border-subtle last:border-0 ${isTop ? 'bg-accent/5' : ''}`}>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2.5">
-                      <span className={`w-5 text-sm font-sans shrink-0 ${i === 0 ? 'text-accent' : i === 1 ? 'text-slate-200' : 'text-fg-dim'}`}>
+                      <span className={`w-5 text-sm font-sans shrink-0 ${i === 0 ? 'text-accent' : i === 1 ? 'text-fg' : 'text-fg-dim'}`}>
                         {i === 0 && isChampion ? '👑' : i + 1}
                       </span>
                       {/* Nama tim fixed & terkunci (dipilih saat registrasi) — tidak bisa diedit di sini. */}
                       <span className="flex-1 text-sm text-fg truncate">{r.teamName}</span>
-                      <span className="text-xs text-fg-dim font-sans shrink-0">
-                        {r.points}pt · {r.teamWins}-{r.teamLosses} · {r.pointsFor}-{r.pointsAgainst}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="bg-elevated px-2 py-0.5 rounded text-xs font-mono font-bold text-accent">
+                          {r.points}pt
+                        </span>
+                        <span className="bg-elevated px-2 py-0.5 rounded text-xs font-mono text-fg font-medium">
+                          {r.teamWins}-{r.teamLosses}
+                        </span>
+                        <span className="bg-elevated px-2 py-0.5 rounded text-xs font-mono text-fg-dim">
+                          {r.pointsFor}-{r.pointsAgainst}
+                        </span>
+                      </div>
                     </div>
                     {/* Team members */}
                     {team && team.players.length > 0 && (
@@ -316,10 +324,10 @@ export default function TeamTournamentPage() {
                         value={String(slot)}
                         onChange={(e) => assignDrawSlot(k, Number(e.target.value))}
                         className="w-28 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer"
-                        aria-label={`Slot untuk ${name}`}
+                        aria-label={`Slot for ${name}`}
                       >
                         {TEAM_NAMES.map((_, si) => (
-                          <option key={si} value={si}>Tim {si + 1}</option>
+                          <option key={si} value={si}>Team {si + 1}</option>
                         ))}
                       </select>
                     </div>
@@ -414,12 +422,12 @@ export default function TeamTournamentPage() {
                       <div className="relative">
                         <button
                           onClick={() => openFinalUpload('champion')}
-                          className="w-7 h-7 rounded-full bg-elevated border border-border-subtle flex items-center justify-center"
+                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors"
                           aria-label="Upload champion photo"
                         >
                           <Icon name="camera" size={13} strokeWidth={2.2} />
                         </button>
-                        {finalPhotos['champion'] && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />}
+                        {finalPhotos['champion'] && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-success border border-surface" />}
                       </div>
                     </div>
                   )}
@@ -430,12 +438,12 @@ export default function TeamTournamentPage() {
                       <div className="relative">
                         <button
                           onClick={() => openFinalUpload('runnerup')}
-                          className="w-7 h-7 rounded-full bg-elevated border border-border-subtle flex items-center justify-center"
+                          className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors"
                           aria-label="Upload runner-up photo"
                         >
                           <Icon name="camera" size={13} strokeWidth={2.2} />
                         </button>
-                        {finalPhotos['runnerup'] && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-surface" />}
+                        {finalPhotos['runnerup'] && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-success border border-surface" />}
                       </div>
                     </div>
                   )}

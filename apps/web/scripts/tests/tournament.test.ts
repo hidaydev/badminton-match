@@ -130,3 +130,34 @@ test('propagateBracket: aman saat grup belum penuh (null seed)', () => {
   assert.equal(qf1.pairAId, 'a1')
   assert.equal(qf1.pairBId, null)
 })
+
+test('propagateBracket: reset skor knockout jika pasangan berubah', () => {
+  const groups: Record<GroupId, string[]> = {
+    A: ['a1', 'a2', 'a3', 'a4'],
+    B: ['b1', 'b2', 'b3', 'b4'],
+    C: ['c1', 'c2', 'c3', 'c4'],
+    D: ['d1', 'd2', 'd3', 'd4'],
+  }
+  let matches: TournamentMatch[] = [
+    ...GROUP_IDS.flatMap((g) => generateGroupMatches(g, groups[g])),
+    ...initKnockoutMatches(),
+  ]
+  // Set QF1 (A1 vs B2) punya skor 21-15
+  matches = propagateBracket(matches, groups)
+  const qf1 = matches.find((m) => m.id === 'qf-1')!
+  qf1.scoreA = 21
+  qf1.scoreB = 15
+
+  // Jika grup A berubah urutan sehingga A1 bukan juara lagi:
+  const alteredGroups: Record<GroupId, string[]> = {
+    ...groups,
+    A: ['a2', 'a1', 'a3', 'a4'], // a2 sekarang jadi rank 1
+  }
+  matches = propagateBracket(matches, alteredGroups)
+  const updatedQf1 = matches.find((m) => m.id === 'qf-1')!
+  assert.equal(updatedQf1.pairAId, 'a2')
+  // Skor harus di-reset karena pairAId berubah dari a1 ke a2
+  assert.equal(updatedQf1.scoreA, null)
+  assert.equal(updatedQf1.scoreB, null)
+})
+

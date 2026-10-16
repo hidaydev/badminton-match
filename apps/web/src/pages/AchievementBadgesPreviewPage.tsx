@@ -78,10 +78,10 @@ export default function AchievementBadgesPreviewPage() {
         </p>
       </div>
 
-      {/* ── 1. Milestone Tiap Tingkat ──────────────────────────────── */}
+      {/* ── 1. Milestones by Tier ─────────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
-          1. Milestone Tiap Tingkat (Bronze..Onyx)
+          1. Milestones by Tier (Bronze..Onyx)
         </p>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           {MEDAL_TIER_NAMES.map((name, i) => (
@@ -99,10 +99,10 @@ export default function AchievementBadgesPreviewPage() {
         </div>
       </section>
 
-      {/* ── 2. Seluruh 9 Ikon Glyph ─────────────────────────────────── */}
+      {/* ── 2. All 9 Glyph Icons ───────────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
-          2. Ikon Unik Tiap Medal (9 Distinct Glyphs)
+          2. Unique Medal Icons (9 Distinct Glyphs)
         </p>
         <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           {ALL_MEDAL_ICONS.map((icon) => (
@@ -141,10 +141,10 @@ export default function AchievementBadgesPreviewPage() {
         </div>
       </section>
 
-      {/* ── 4. State Terkunci ────────────────────────────────────────── */}
+      {/* ── 4. Locked State ────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
-          4. State Terkunci (Frosted Dark Obsidian Silhouette)
+          4. Locked State (Frosted Dark Obsidian Silhouette)
         </p>
         <div className="flex flex-wrap items-center gap-5 rounded-xl border border-border-subtle bg-surface px-5 py-5">
           <div className="flex flex-col items-center gap-1.5">
@@ -175,7 +175,7 @@ export default function AchievementBadgesPreviewPage() {
       {/* ── 5. Honeycomb Shelf Layout ───────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-fg-dim">
-          5. Honeycomb Shelf Layout (Packing Tanpa Celah)
+          5. Honeycomb Shelf Layout (Gapless Packing)
         </p>
         <div className="rounded-xl border border-border-subtle bg-surface px-4 py-6">
           <MedalHoneycomb

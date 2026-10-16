@@ -13,7 +13,7 @@ import { todayWIB } from '../utils/time'
 
 const TEMPLATE = instagramTemplates[ACTIVE_TEMPLATE - 1]
 
-const MONTHS = ['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGU','SEP','OKT','NOV','DES']
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 
 
 type StandingMode = 'post' | 'story'
@@ -206,7 +206,7 @@ export default function InstagramPostPage() {
     a.href = url
     a.download = filename
     a.click()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }, [])
 
   const closeSheet = useCallback(() => {
