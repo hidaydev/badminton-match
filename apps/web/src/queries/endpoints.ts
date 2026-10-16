@@ -597,6 +597,7 @@ export interface RankPointRow {
   rank: number
   player_id: string
   name: string
+  tier?: string
   points: number
   // Jujur soal bukti: berapa entri yang dihitung vs tersedia di window.
   counted_entries: number
@@ -619,8 +620,12 @@ export interface RankPointsBoard {
   rows: RankPointRow[]
 }
 
-export async function getRankings(limit: number, signal?: AbortSignal): Promise<RankPointsBoard> {
-  const data = await request<RankPointsBoard>('GET', `/rankings?limit=${limit}`, undefined, signal)
+export async function getRankings(limit: number, minSessions?: number, signal?: AbortSignal): Promise<RankPointsBoard> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (minSessions != null) {
+    query.set('min_sessions', String(minSessions))
+  }
+  const data = await request<RankPointsBoard>('GET', `/rankings?${query.toString()}`, undefined, signal)
   return data ?? { window_weeks: 12, best_n: 10, min_sessions: 0, as_of: '', rows: [] }
 }
 

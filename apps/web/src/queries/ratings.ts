@@ -4,10 +4,10 @@ import { getRatingPlayer, getPlayerAchievements, getRankings, getPlayerRankPoint
 import type { RatingPlayer, AchievementRow, RankPointsBoard, PlayerRankPoints } from './endpoints'
 
 // useRankings — papan poin publik (window bergulir, N entri terbaik).
-export function useRankings(limit = 200) {
+export function useRankings(limit = 200, minSessions?: number) {
   return useQuery<RankPointsBoard>({
-    queryKey: ['rankings', limit],
-    queryFn: ({ signal }) => getRankings(limit, signal),
+    queryKey: ['rankings', limit, minSessions],
+    queryFn: ({ signal }) => getRankings(limit, minSessions, signal),
     staleTime: 1000 * 60,
   })
 }
