@@ -183,6 +183,27 @@ input, select, textarea {
 }
 @keyframes glowSpin { to { --glow-angle: 360deg; } }
 
+/* Medal & Achievement tactile micro-interactions */
+.medal-badge-btn {
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease-out;
+  will-change: transform, filter;
+}
+.medal-badge-btn:hover {
+  transform: scale(1.08) translateY(-1px);
+  filter: drop-shadow(0 6px 16px var(--medal-glow, rgba(227, 179, 65, 0.35)));
+  z-index: 10;
+}
+.medal-badge-btn:active {
+  transform: scale(0.96) translateY(0);
+  transition-duration: 0.1s;
+}
+.medal-badge-btn:focus-visible {
+  outline: none;
+  filter: drop-shadow(0 0 12px var(--medal-glow, rgba(227, 179, 65, 0.5)));
+  z-index: 10;
+}
+
 .row-glow-g, .row-glow-b {
   position: relative;
 }
