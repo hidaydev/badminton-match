@@ -1,7 +1,7 @@
 // src/components/admin/AdminPageShell.tsx — Shared layout untuk semua admin pages.
 // Auth guard + banner + flash messages + run() helper.
 import { useState, useCallback } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext'
 import { t } from '../../i18n'
 
@@ -20,17 +20,9 @@ function clearFlashTimer() {
   if (flashTimer) { clearTimeout(flashTimer); flashTimer = null }
 }
 
-const NAV_ITEMS = [
-  { to: '/admin/sessions', label: 'Sessions' },
-  { to: '/admin/players', label: 'Players' },
-  { to: '/admin/ratings', label: 'Ratings' },
-  { to: '/admin/tournaments', label: 'Tournaments' },
-]
-
 export default function AdminPageShell({ children }: AdminPageShellProps) {
   const { isAdmin, logout } = useAdmin()
   const navigate = useNavigate()
-  const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [okMsg, setOkMsg] = useState<string | null>(null)
 
@@ -85,26 +77,6 @@ export default function AdminPageShell({ children }: AdminPageShellProps) {
           </button>
         </div>
       </div>
-
-      {/* Admin Tab Nav */}
-      <nav className="flex items-center gap-1 p-1 rounded-xl bg-surface border border-border-subtle" aria-label="Admin Navigation">
-        {NAV_ITEMS.map((item) => {
-          const isActive = location.pathname === item.to
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={`flex-1 text-center py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                isActive
-                  ? 'bg-elevated text-accent border border-border-subtle shadow-xs'
-                  : 'text-fg-dim hover:text-fg'
-              }`}
-            >
-              {item.label}
-            </Link>
-          )
-        })}
-      </nav>
 
       {error && <p className="text-error text-xs bg-error/10 border border-error/30 rounded-lg px-3 py-2 font-medium">{error}</p>}
       {okMsg && <p className="text-success text-xs bg-success/10 border border-success/30 rounded-lg px-3 py-2 font-medium">{okMsg}</p>}
