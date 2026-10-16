@@ -5,10 +5,10 @@
 // Glicko dipindah ke admin supaya pemain tidak melihat dua angka berbeda.
 //
 // 2 Tab:
-//   1. Top Players — berbasis minimal sesi (default 5 sesi di config).
-//   2. Semua & Per Level — seluruh pemain aktif (min 1 sesi) + filter tier.
+//   1. Top Players — papan utama pemain reguler.
+//   2. Semua & Per Level — seluruh pemain aktif + filter tier.
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useRankings } from '../queries/ratings'
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
@@ -22,11 +22,34 @@ type TabKey = 'top' | 'all'
 
 export default function RankingsPage() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<TabKey>('top')
-  const [selectedTier, setSelectedTier] = useState<string>('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const tab: TabKey = searchParams.get('tab') === 'all' ? 'all' : 'top'
+  const selectedTier = searchParams.get('tier') || 'all'
   const [query, setQuery] = useState('')
 
-  // Tab 'top' memanggil query default (menggunakan min_sessions dari server/config, mis. 5).
+  const handleTabChange = (newTab: TabKey) => {
+    const next = new URLSearchParams(searchParams)
+    if (newTab === 'top') {
+      next.delete('tab')
+      next.delete('tier')
+    } else {
+      next.set('tab', 'all')
+    }
+    setSearchParams(next, { replace: true })
+  }
+
+  const handleTierChange = (tier: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (tier === 'all') {
+      next.delete('tier')
+    } else {
+      next.set('tier', tier)
+    }
+    setSearchParams(next, { replace: true })
+  }
+
+  // Tab 'top' memanggil query default (menggunakan min_sessions dari server/config).
   // Tab 'all' memanggil query dengan min_sessions=0 (mengambil seluruh pemain aktif di window).
   const { data: topData, isLoading: topLoading, isError: topError } = useRankings(LIMIT)
   const { data: allData, isLoading: allLoading, isError: allError } = useRankings(LIMIT, 0)
@@ -81,34 +104,24 @@ export default function RankingsPage() {
         {/* Header Title */}
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold text-fg">Ranking</h2>
-          {activeData && rawRows.length > 0 && (
-            <span className="text-[10px] font-mono text-fg-dim uppercase">
-              {activeData.window_weeks} minggu · {activeData.best_n} terbaik
-              {tab === 'top' && activeData.min_sessions > 1 ? ` · min ${activeData.min_sessions} sesi` : ''}
-              {tab === 'all' ? ' · semua pemain' : ''}
-            </span>
-          )}
         </div>
 
         {/* Tab Switcher */}
         <div className="flex bg-surface border border-border-subtle rounded-xl p-1 gap-1">
           <button
             type="button"
-            onClick={() => {
-              setTab('top')
-              setSelectedTier('all')
-            }}
+            onClick={() => handleTabChange('top')}
             className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
               tab === 'top'
                 ? 'bg-elevated border border-border text-fg shadow-sm'
                 : 'text-fg-dim hover:text-fg hover:bg-elevated/40'
             }`}
           >
-            Top Players (Min {topData?.min_sessions || 5} Sesi)
+            Top Players
           </button>
           <button
             type="button"
-            onClick={() => setTab('all')}
+            onClick={() => handleTabChange('all')}
             className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
               tab === 'all'
                 ? 'bg-elevated border border-border text-fg shadow-sm'
@@ -124,7 +137,7 @@ export default function RankingsPage() {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
             <button
               type="button"
-              onClick={() => setSelectedTier('all')}
+              onClick={() => handleTierChange('all')}
               className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border ${
                 selectedTier === 'all'
                   ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
@@ -140,7 +153,7 @@ export default function RankingsPage() {
                 <button
                   key={tier}
                   type="button"
-                  onClick={() => setSelectedTier(tier)}
+                  onClick={() => handleTierChange(tier)}
                   className={`shrink-0 px-2.5 py-1 rounded-full font-medium transition-colors border flex items-center gap-1 ${
                     isSelected
                       ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
@@ -251,16 +264,11 @@ export default function RankingsPage() {
                       {r.tier && <RatingTierBadge tier={r.tier} size="sm" />}
                     </div>
 
-                    {/* Points & Sessions Count */}
-                    <div className="shrink-0 flex flex-col items-end justify-center">
+                    {/* Points */}
+                    <div className="shrink-0 flex items-center">
                       <span className="font-mono text-sm font-bold text-fg leading-none">
                         {Math.round(r.points).toLocaleString('id-ID')}
                       </span>
-                      {tab === 'all' && (
-                        <span className="text-[10px] font-mono text-fg-dim leading-tight mt-0.5">
-                          {r.entries_available} sesi
-                        </span>
-                      )}
                     </div>
                   </button>
                 </li>
