@@ -8,19 +8,13 @@ const SESSIONS_PER_PAGE = 5
 
 function PairRow({ name, wins, losses, count }: { name: string; wins: number; losses: number; count: number }) {
   return (
-    <div className="flex items-center justify-between gap-2 py-1.5 border-b border-border-subtle/40 last:border-0">
-      <span className="text-xs sm:text-sm text-fg truncate min-w-0 font-medium">
+    <div className="flex items-center justify-between gap-1.5 py-1 border-b border-border-subtle/40 last:border-0">
+      <span className="text-xs text-fg truncate min-w-0 font-medium">
         <AnnotatedPlayerName name={name} />
       </span>
-      <div className="flex items-center gap-1.5 font-mono text-[10px] shrink-0">
-        <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-          {wins}W
-        </span>
-        {losses > 0 && (
-          <span className="text-red-400 font-bold bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
-            {losses}L
-          </span>
-        )}
+      <div className="flex items-center gap-1 font-mono text-[10px] shrink-0">
+        <span className="text-emerald-400 font-semibold">{wins}W</span>
+        {losses > 0 && <span className="text-red-400 font-semibold">{losses}L</span>}
         <span className="text-fg-dim font-sans">{count}×</span>
       </div>
     </div>
@@ -104,18 +98,18 @@ export default function CareerStats({ stats, countedPoints }: {
         </div>
       )}
 
-      {/* Top partners & opponents — dua kolom */}
+      {/* Top partners & opponents — dua kolom biar hemat tinggi */}
       {(stats.topPartners.length > 0 || stats.topOpponents.length > 0) && (
         <div
           className={
             stats.topPartners.length > 0 && stats.topOpponents.length > 0
-              ? 'grid grid-cols-1 sm:grid-cols-2 gap-3'
-              : 'flex flex-col gap-3'
+              ? 'grid grid-cols-2 gap-2'
+              : 'flex flex-col gap-2'
           }
         >
           {stats.topPartners.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
-              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold pb-1">
+            <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-col gap-1.5">
+              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold">
                 Top Partners
               </p>
               {stats.topPartners.map((p) => (
@@ -125,8 +119,8 @@ export default function CareerStats({ stats, countedPoints }: {
           )}
 
           {stats.topOpponents.length > 0 && (
-            <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
-              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold pb-1">
+            <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-col gap-1.5">
+              <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold">
                 Top Opponents
               </p>
               {stats.topOpponents.map((p) => (
@@ -222,13 +216,13 @@ export default function CareerStats({ stats, countedPoints }: {
             <div
               className={
                 stats.tournamentStats.topPartners.length > 0 && stats.tournamentStats.topOpponents.length > 0
-                  ? 'grid grid-cols-1 sm:grid-cols-2 gap-3'
-                  : 'flex flex-col gap-3'
+                  ? 'grid grid-cols-2 gap-2'
+                  : 'flex flex-col gap-2'
               }
             >
               {stats.tournamentStats.topPartners.length > 0 && (
-                <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
-                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold pb-1">
+                <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-col gap-1.5">
+                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold">
                     Tournament Partners
                   </p>
                   {stats.tournamentStats.topPartners.map((p) => (
@@ -238,8 +232,8 @@ export default function CareerStats({ stats, countedPoints }: {
               )}
 
               {stats.tournamentStats.topOpponents.length > 0 && (
-                <div className="bg-surface border border-border-subtle rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
-                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold pb-1">
+                <div className="bg-surface border border-border-subtle rounded-xl p-3 flex flex-col gap-1.5">
+                  <p className="text-[10px] font-sans text-fg-dim uppercase tracking-wider font-semibold">
                     Tournament Opponents
                   </p>
                   {stats.tournamentStats.topOpponents.map((p) => (
