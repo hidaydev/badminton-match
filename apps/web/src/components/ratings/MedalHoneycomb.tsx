@@ -52,14 +52,14 @@ export default function MedalHoneycomb({ items, width = 64 }: MedalHoneycombProp
         {rows.map((row, ri) => (
           <div
             key={ri}
-            className="flex"
+            className="flex relative hover:z-10"
             style={{
               marginTop: ri === 0 ? 0 : -Math.round(height * 0.25),
               paddingLeft: ri % 2 && perRow >= 2 ? Math.round(width / 2) : 0,
             }}
           >
             {row.map((node, ci) => (
-              <div key={ci} style={{ width, height, flex: 'none' }}>
+              <div key={ci} className="relative hover:z-20" style={{ width, height, flex: 'none' }}>
                 {node}
               </div>
             ))}
