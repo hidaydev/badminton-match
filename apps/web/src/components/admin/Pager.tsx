@@ -22,21 +22,19 @@ export default function Pager({ page, total, onPage }: PagerProps) {
 
   if (pages <= 1) return null
   return (
-    <div className="flex items-center justify-between px-1 py-1">
+    <div className="flex items-center justify-between px-1">
       <button
         onClick={() => onPage(page - 1)}
         disabled={page <= 0}
-        className="px-3 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs"
+        className="text-xs font-sans text-fg-dim hover:text-fg disabled:opacity-30"
       >
         {t('common.prev')}
       </button>
-      <span className="text-xs font-mono text-fg-dim bg-elevated px-2.5 py-1 rounded-md border border-border-subtle">
-        {page + 1} / {pages}
-      </span>
+      <span className="text-[10px] font-sans text-fg-dim">{page + 1} / {pages}</span>
       <button
         onClick={() => onPage(page + 1)}
         disabled={page >= pages - 1}
-        className="px-3 py-1.5 rounded-lg border border-border-subtle bg-surface text-xs font-medium text-fg-dim hover:text-fg active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-2xs"
+        className="text-xs font-sans text-fg-dim hover:text-fg disabled:opacity-30"
       >
         {t('common.next')}
       </button>
