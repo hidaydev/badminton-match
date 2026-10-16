@@ -1,10 +1,4 @@
-// src/pages/RankingsPage.tsx: papan poin publik (ala BWF).
-//
-// Papan ini memakai POIN (window bergulir 12 minggu, 10 entri terbaik),
-// bukan rating Glicko. Glicko tetap ada di halaman detail pemain; papan
-// Glicko dipindah ke admin supaya pemain tidak melihat dua angka berbeda.
-//
-// Menampilkan seluruh pemain aktif dengan filter per-level (tier).
+// src/pages/RankingsPage.tsx: public leaderboard based on rolling 12-week points.
 import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useRankings } from '../queries/ratings'
@@ -13,6 +7,7 @@ import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import { ALL_RATING_TIERS } from '../config/ratingTiers'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
+import { t, en } from '../i18n'
 
 const LIMIT = 200
 
@@ -33,11 +28,11 @@ export default function RankingsPage() {
     setSearchParams(next, { replace: true })
   }
 
-  // Mengambil seluruh pemain aktif di window 12 minggu (min_sessions=0).
+  // Fetch all active players in 12-week window (min_sessions=0).
   const { data, isLoading, isError } = useRankings(LIMIT, 0)
   const rawRows = useMemo(() => data?.rows ?? [], [data])
 
-  // Hitung jumlah pemain per tier
+  // Count players per tier
   const tierCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const r of rawRows) {
@@ -48,13 +43,13 @@ export default function RankingsPage() {
     return counts
   }, [rawRows])
 
-  // Filter tier & hitung peringkat intra-level
+  // Filter tier & calculate intra-tier rank
   const rowsWithRank = useMemo(() => {
     if (selectedTier === 'all') {
       return rawRows.map((r) => ({ ...r, displayRank: r.rank }))
     }
     const filteredByTier = rawRows.filter((r) => r.tier === selectedTier)
-    // Peringkat seri dibagi (1,2,2,4) di dalam level
+    // Tied points share rank (1, 2, 2, 4) within tier
     return filteredByTier.map((r, idx, arr) => {
       let displayRank = idx + 1
       if (idx > 0 && r.points === arr[idx - 1].points) {
@@ -79,7 +74,7 @@ export default function RankingsPage() {
       <div className="flex flex-col gap-3">
         {/* Header Title */}
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-lg font-bold text-fg">Ranking</h2>
+          <h2 className="text-lg font-bold text-fg">{t('rankings.title')}</h2>
         </div>
 
         {/* Filter Tier Chips */}
@@ -93,7 +88,7 @@ export default function RankingsPage() {
                 : 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
             }`}
           >
-            Semua ({rawRows.length})
+            {t('common.all')} ({rawRows.length})
           </button>
           {ALL_RATING_TIERS.map((tier) => {
             const count = tierCounts[tier] || 0
@@ -118,22 +113,22 @@ export default function RankingsPage() {
           })}
         </div>
 
-        {/* Penjelasan singkat */}
+        {/* Subtitle */}
         <p className="text-xs font-sans text-fg-dim">
           {selectedTier === 'all'
-            ? 'Papan ranking seluruh pemain aktif (12 minggu terakhir). Pilih level di atas untuk melihat peringkat spesifik antarpemain selevel.'
-            : `Peringkat antarpemain di Level ${selectedTier}. Peringkat utama menunjukkan posisi di level ini.`}
+            ? t('rankings.allSubtitle')
+            : en.rankings.tierSubtitle(selectedTier)}
         </p>
 
         {/* Search Input */}
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={selectedTier === 'all' ? 'Cari pemain…' : `Cari pemain di level ${selectedTier}…`}
+          placeholder={selectedTier === 'all' ? t('rankings.searchAll') : en.rankings.searchTier(selectedTier)}
           className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
         />
 
-        {isError && <p className="text-error text-sm">Gagal memuat ranking.</p>}
+        {isError && <p className="text-error text-sm">{t('rankings.loadFailed')}</p>}
 
         {!isError && isLoading && (
           <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden animate-pulse">
@@ -149,7 +144,7 @@ export default function RankingsPage() {
 
         {!isError && !isLoading && rawRows.length === 0 && (
           <p className="text-fg-dim text-xs font-sans text-center py-8">
-            Belum ada poin. Ranking muncul setelah sesi dikunci dan dinilai.
+            {t('rankings.noPointsYet')}
           </p>
         )}
 
@@ -168,7 +163,7 @@ export default function RankingsPage() {
                     onClick={() => navigate(`/rankings/${r.player_id}`)}
                     className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-elevated transition-colors ${rowBg}`}
                   >
-                    {/* Rank Number (dan Global Rank bila sedang filter tier) */}
+                    {/* Rank Number (and Global Rank if filtering by tier) */}
                     <div className="w-9 shrink-0 flex flex-col items-start justify-center">
                       <span className={`font-mono text-sm leading-none ${rankColor}`}>
                         #{r.displayRank}
@@ -180,23 +175,23 @@ export default function RankingsPage() {
                       )}
                     </div>
 
-                    {/* Movement Indicator (▲ / ▼ / ·) saat view Semua */}
+                    {/* Movement Indicator (▲ / ▼ / ·) when viewing All */}
                     {showDelta && (
                       <span className="w-3 shrink-0 font-mono text-[10px] leading-none text-center">
                         {r.rank_delta == null || r.rank_delta === 0 ? (
                           <>
                             <span className="text-fg-dim/40" aria-hidden="true">·</span>
-                            <span className="sr-only">tetap</span>
+                            <span className="sr-only">{t('rankings.deltaSame')}</span>
                           </>
                         ) : r.rank_delta > 0 ? (
                           <>
                             <span className="text-green-400" aria-hidden="true">▲</span>
-                            <span className="sr-only">naik {r.rank_delta} peringkat</span>
+                            <span className="sr-only">{en.rankings.deltaUp(r.rank_delta)}</span>
                           </>
                         ) : (
                           <>
                             <span className="text-red-400" aria-hidden="true">▼</span>
-                            <span className="sr-only">turun {-r.rank_delta} peringkat</span>
+                            <span className="sr-only">{en.rankings.deltaDown(-r.rank_delta)}</span>
                           </>
                         )}
                       </span>
@@ -213,7 +208,7 @@ export default function RankingsPage() {
                     {/* Points */}
                     <div className="shrink-0 flex items-center">
                       <span className="font-mono text-sm font-bold text-fg leading-none">
-                        {Math.round(r.points).toLocaleString('id-ID')}
+                        {Math.round(r.points).toLocaleString('en-US')}
                       </span>
                     </div>
                   </button>
@@ -226,10 +221,10 @@ export default function RankingsPage() {
         {!isError && !isLoading && filtered.length === 0 && (
           <p className="text-fg-dim text-xs font-sans text-center py-8">
             {query
-              ? `Tidak ada pemain yang cocok dengan \u201C${query}\u201D.`
+              ? en.rankings.noMatchesQuery(query)
               : selectedTier !== 'all'
-                ? `Belum ada pemain aktif di Level ${selectedTier}.`
-                : 'Tidak ada pemain untuk ditampilkan.'}
+                ? en.rankings.noPlayersInTier(selectedTier)
+                : t('rankings.noPlayers')}
           </p>
         )}
       </div>
