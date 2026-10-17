@@ -91,18 +91,6 @@ export default function AchievementDetailModal({
           style={{ background: currentTierStyle.glow }}
         />
 
-        {/* Tombol Tutup Silang (Top-Right) */}
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close dialog"
-          className="absolute right-3.5 top-3.5 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-elevated/80 text-fg-dim transition-colors hover:bg-border hover:text-fg"
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z" />
-          </svg>
-        </button>
-
         {/* ── Showcase Kartu Medal Utama ─────────────────────────── */}
         <div className="relative flex flex-col items-center px-6 pt-7 pb-4 text-center">
           <div className="mb-3 transition-transform hover:scale-105 duration-300">
@@ -149,7 +137,7 @@ export default function AchievementDetailModal({
 
         {/* ── Tangga Tingkat (Milestone Ladder) ─────────────────── */}
         {isMilestone ? (
-          <div className="flex flex-col gap-3 border-t border-border-subtle bg-surface/50 px-5 py-4">
+          <div className="flex flex-col gap-3 border-t border-border-subtle bg-surface/50 px-5 pt-4 pb-5">
             <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-fg-dim">
               <span>Milestone Ladder</span>
               <span className="text-fg">
@@ -242,7 +230,7 @@ export default function AchievementDetailModal({
           </div>
         ) : (
           /* Metadata untuk Event Medals */
-          <div className="flex flex-col gap-2 border-t border-border-subtle bg-surface/50 px-5 py-4">
+          <div className="flex flex-col gap-2 border-t border-border-subtle bg-surface/50 px-5 pt-4 pb-5">
             <dl className="flex flex-col gap-1.5">
               <div className="flex justify-between gap-3 text-xs">
                 <dt className="text-fg-dim">Earned On</dt>
@@ -257,18 +245,6 @@ export default function AchievementDetailModal({
             </dl>
           </div>
         )}
-
-        {/* ── Tombol Tutup ───────────────────────────────────────── */}
-        <div className="border-t border-border-subtle p-4">
-          <button
-            type="button"
-            autoFocus
-            onClick={onClose}
-            className="w-full rounded-xl bg-elevated py-2.5 text-sm font-semibold text-fg transition-all hover:bg-border/80 active:scale-[0.98] focus-visible:outline-none"
-          >
-            Close
-          </button>
-        </div>
       </div>
     </div>
   )
