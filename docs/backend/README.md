@@ -14,6 +14,7 @@ SQL migrasi untuk schema PostgreSQL `bm`.
 | `000020_purge_glicko.sql` | Purge peninggalan Glicko & musim: drop kolom rating/seed, tabel `rating_seasons`/`season_player_snapshots`, kolom angka `rating_deltas`, `rating_events.phase_weight`, `player_achievements.season_id`; hapus baris medal `medal:rating`/`season_member:*`; perbarui `merge_players` |
 | `000021_grant_delete_player.sql` | `GRANT EXECUTE bm.delete_player` ke `majadu_app` — tanpa ini tombol Delete pemain selalu 500 (permission denied) |
 | `000022_rank_min_sessions.sql` | Config `rank_min_sessions` (default 3) — ambang entri minimum agar pemain tampil di papan poin |
+| `000023_adjust_tournament_points.sql` | Rasionalisasi poin turnamen: Classic (2.500) & Team (3.000) agar seimbang terhadap sesi reguler |
 
 Catatan:
 
