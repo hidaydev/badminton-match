@@ -9,9 +9,9 @@
     ],
     "trigger-rule": {
       "match": {
-        "type": "payload-hmac-sha1",
+        "type": "payload-hmac-sha256",
         "secret": "YOUR_WEBHOOK_HMAC_SECRET",
-        "parameter": { "source": "header", "name": "X-Hub-Signature" }
+        "parameter": { "source": "header", "name": "X-Hub-Signature-256" }
       }
     }
   }
