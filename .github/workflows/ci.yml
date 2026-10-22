@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        env:
+          MAJADU_TEST_DATABASE_URL: ${{ secrets.MAJADU_TEST_DATABASE_URL }}
+          MAJADU_TEST_DB_SCHEMA: ${{ vars.MAJADU_TEST_DB_SCHEMA }}
+        run: |
+          if [ -z "$MAJADU_TEST_DATABASE_URL" ]; then
+            echo "::warning title=Integration tests skipped::MAJADU_TEST_DATABASE_URL tidak di-set — write-path/transaksi/lock/rating TIDAK diuji di CI. Lihat apps/api/README.md."
+          fi
+          go test ./...
+
+      - name: Go fmt check
+        run: test -z "$(gofmt -l .)"
+
+  web:
+    name: Web (React 19)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Check (types + lint + tailwind + regression)
+        run: npm run check
+
+  security:
+    name: Security (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
