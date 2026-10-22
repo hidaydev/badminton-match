@@ -64,6 +64,7 @@ type RankPointsBoard struct {
 
 // gameValue — nilai satu game sesi: 250 × (0.5 + 0.5 × margin/target).
 // Murni hasil; tidak ada poin kehadiran (§4.5).
+// Margin bertanda (myScore - oppScore): positif untuk pemenang, negatif untuk yang kalah.
 func gameValue(base, margin, target float64) float64 {
 	if target <= 0 {
 		return 0
@@ -71,6 +72,9 @@ func gameValue(base, margin, target float64) float64 {
 	m := margin / target
 	if m > 1 {
 		m = 1 // clamp defensif: aturan main kini tak melebihi target (30/42), batasi jaga-jaga
+	}
+	if m < -1 {
+		m = -1
 	}
 	return base * (0.5 + 0.5*m)
 }
@@ -387,12 +391,10 @@ func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingC
 		}
 
 		// Sesi (atau turnamen tanpa baris level) → rumus game §4.5.
-		margin := float64(scoreB - scoreA)
+		// Margin bertanda (myScore - oppScore): positif untuk pemenang, negatif untuk yang kalah.
+		margin := float64(scoreA - scoreB)
 		if team == "B" {
-			margin = float64(scoreA - scoreB)
-		}
-		if margin < 0 {
-			margin = -margin
+			margin = float64(scoreB - scoreA)
 		}
 		pts := gameValue(cfg.RankSessionBase, margin, float64(target))
 		if cfg.RankOpponentWeight {

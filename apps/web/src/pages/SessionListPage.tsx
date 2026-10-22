@@ -11,7 +11,12 @@ export default function SessionListPage() {
   const [query, setQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
 
-  const { data: sessions = [], isLoading, isError } = useListSessions()
+  const hasFilter = Boolean(query.trim() || dateFilter)
+  const { data: sessions = [], isLoading, isError } = useListSessions({
+    q: query.trim() || undefined,
+    date: dateFilter || undefined,
+    enabled: hasFilter,
+  })
 
   const filtered = useMemo(() => {
     return sessions.filter((s) => {
@@ -74,15 +79,15 @@ export default function SessionListPage() {
         </div>
       )}
 
-      {!isError && !isLoading && filtered.length === 0 && (
+      {!isError && !isLoading && (!hasFilter || filtered.length === 0) && (
         <div className="bg-surface border border-border-subtle rounded-xl p-8 text-center">
           <p className="text-fg-dim text-xs font-sans">
-            {sessions.length === 0 ? t('sessions.noSessionsYet') : t('sessions.noSessionsFound')}
+            {!hasFilter ? t('sessions.searchPlaceholder') : t('sessions.noSessionsFound')}
           </p>
         </div>
       )}
 
-      {!isError && !isLoading && filtered.length > 0 && (
+      {!isError && !isLoading && hasFilter && filtered.length > 0 && (
         <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-sm">
           {filtered.map((s) => {
             const dateParts = s.date ? s.date.split('-') : []
