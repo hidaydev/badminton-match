@@ -197,7 +197,11 @@ export default function InstagramPostPage() {
   const [sheetScreen, setSheetScreen] = useState<'formats' | 'session-picker'>('formats')
   const [pendingStandingMode, setPendingStandingMode] = useState<StandingMode | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const { data: sessions } = useListSessions({ enabled: sheetScreen === 'session-picker' })
+  const [sessionQuery, setSessionQuery] = useState('')
+  const { data: sessions } = useListSessions({
+    q: sessionQuery.trim() || undefined,
+    enabled: sheetScreen === 'session-picker' && sessionQuery.trim().length > 0,
+  })
   const fetchSession = useFetchSession()
 
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
@@ -533,6 +537,16 @@ export default function InstagramPostPage() {
                   <p className="text-xs font-sans text-slate-400 tracking-widest uppercase">Pick a session</p>
                 </div>
 
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={sessionQuery}
+                    onChange={(e) => setSessionQuery(e.target.value)}
+                    placeholder="Search session by title…"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:border-yellow-400"
+                  />
+                </div>
+
                 {isGenerating && (
                   <div className="flex items-center justify-center py-8 gap-3">
                     <div className="w-5 h-5 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
@@ -542,13 +556,16 @@ export default function InstagramPostPage() {
 
                 {!isGenerating && (
                   <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
-                    {!sessions && (
+                    {!sessionQuery.trim() && (
+                      <p className="text-sm text-slate-400 text-center py-4">Search session by title to select</p>
+                    )}
+                    {sessionQuery.trim() && !sessions && (
                       <p className="text-sm text-slate-400 text-center py-4">Loading sessions…</p>
                     )}
-                    {sessions?.length === 0 && (
+                    {sessionQuery.trim() && sessions?.length === 0 && (
                       <p className="text-sm text-slate-400 text-center py-4">No sessions found</p>
                     )}
-                    {sessions?.map(s => (
+                    {sessionQuery.trim() && sessions?.map(s => (
                       <button
                         key={s.id}
                         onClick={() => handleDownloadStanding(s)}

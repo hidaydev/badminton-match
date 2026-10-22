@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -154,5 +155,76 @@ func TestMapPublishErrorTable(t *testing.T) {
 				t.Fatalf("message %q must not contain %q", got.Message, c.wantNoPart)
 			}
 		})
+	}
+}
+
+// TestSessionListFilterRequiredForPublic — GET /sessions menolak akses publik tanpa filter.
+func TestSessionListFilterRequiredForPublic(t *testing.T) {
+	h := &SessionHandler{
+		AdminToken: "super-secret-token",
+	}
+
+	// 1. Publik tanpa filter → 400 validation error
+	req := httptest.NewRequest("GET", "/sessions", nil)
+	rec := httptest.NewRecorder()
+	h.List(rec, req)
+	if rec.Code != 400 {
+		t.Fatalf("expected 400 Bad Request for public list without filter, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "validation_error") {
+		t.Fatalf("expected validation_error in body, got %s", rec.Body.String())
+	}
+
+	// 2. Publik dengan whitespace-only filter → tetap 400
+	reqSpaces := httptest.NewRequest("GET", "/sessions?q=%20%20&date=%20", nil)
+	recSpaces := httptest.NewRecorder()
+	h.List(recSpaces, reqSpaces)
+	if recSpaces.Code != 400 {
+		t.Fatalf("expected 400 Bad Request for whitespace filter, got %d", recSpaces.Code)
+	}
+}
+
+// TestAdminGuardDestructiveSessionEndpoints — DELETE dan POST /sessions/{id}/lock dilindungi AdminGuard.
+func TestAdminGuardDestructiveSessionEndpoints(t *testing.T) {
+	const adminToken = "secret-admin-token"
+
+	handlerInvoked := false
+	dummyHandler := func(w http.ResponseWriter, r *http.Request) {
+		handlerInvoked = true
+		w.WriteHeader(200)
+	}
+
+	guarded := AdminGuard(adminToken, dummyHandler)
+
+	// 1. Tanpa token → 401
+	reqAnon := httptest.NewRequest("DELETE", "/sessions/abc", nil)
+	recAnon := httptest.NewRecorder()
+	guarded(recAnon, reqAnon)
+	if recAnon.Code != 401 {
+		t.Fatalf("expected 401 for unauthenticated request, got %d", recAnon.Code)
+	}
+	if handlerInvoked {
+		t.Fatal("handler should not have been invoked for unauthenticated request")
+	}
+
+	// 2. Token salah → 401
+	reqWrong := httptest.NewRequest("POST", "/sessions/abc/lock", nil)
+	reqWrong.Header.Set("Authorization", "Bearer wrong-token")
+	recWrong := httptest.NewRecorder()
+	guarded(recWrong, reqWrong)
+	if recWrong.Code != 401 {
+		t.Fatalf("expected 401 for wrong token, got %d", recWrong.Code)
+	}
+
+	// 3. Token valid → 200 (handler dipanggil)
+	reqValid := httptest.NewRequest("POST", "/sessions/abc/lock", nil)
+	reqValid.Header.Set("Authorization", "Bearer "+adminToken)
+	recValid := httptest.NewRecorder()
+	guarded(recValid, reqValid)
+	if recValid.Code != 200 {
+		t.Fatalf("expected 200 for valid token, got %d", recValid.Code)
+	}
+	if !handlerInvoked {
+		t.Fatal("expected handler to be invoked for valid token")
 	}
 }
