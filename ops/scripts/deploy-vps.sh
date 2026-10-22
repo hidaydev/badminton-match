@@ -12,8 +12,8 @@ mkdir -p "$APP_DIR/logs"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] deploy trigger: $REPO ref=$REF" | tee -a "$LOG"
 
 # Fail-closed: hanya deploy untuk push ke branch main
-if [ -n "$REF" ] && [ "$REF" != "refs/heads/main" ]; then
-  echo "==> skip: ref=$REF (bukan main)" | tee -a "$LOG"
+if [ "$REF" != "refs/heads/main" ]; then
+  echo "==> skip: ref=${REF:-<kosong>} (bukan refs/heads/main)" | tee -a "$LOG"
   exit 0
 fi
 
