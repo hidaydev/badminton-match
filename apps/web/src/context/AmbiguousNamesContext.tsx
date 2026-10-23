@@ -5,6 +5,7 @@
 // Default global disediakan GlobalAmbiguousNames (dari seluruh populasi
 // pemain) sehingga badge bekerja di semua layar. Halaman yang punya konteks
 // lebih sempit boleh menimpa lewat AmbiguousNamesProvider.
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext } from 'react'
 
 // combineAmbiguous tinggal di utils/nameParser (tanpa JSX) supaya bisa diuji
