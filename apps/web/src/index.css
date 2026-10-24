@@ -169,6 +169,63 @@ input, select, textarea {
   }
 }
 
+/* Team player highlight shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* Rotating border glow for team players when highlighted */
+@property --glow-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes glowSpin { to { --glow-angle: 360deg; } }
+
+/* Medal & Achievement tactile micro-interactions */
+.medal-badge-btn {
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease-out;
+  will-change: transform, filter;
+}
+.medal-badge-btn:hover {
+  transform: scale(1.08) translateY(-1px);
+  filter: drop-shadow(0 6px 16px var(--medal-glow, rgba(227, 179, 65, 0.35)));
+  z-index: 10;
+}
+.medal-badge-btn:active {
+  transform: scale(0.96) translateY(0);
+  transition-duration: 0.1s;
+}
+.medal-badge-btn:focus-visible {
+  outline: none;
+  filter: drop-shadow(0 0 12px var(--medal-glow, rgba(227, 179, 65, 0.5)));
+  z-index: 10;
+}
+
+.row-glow-g, .row-glow-b {
+  position: relative;
+}
+.row-glow-g::before, .row-glow-b::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 9px;
+  padding: 2px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: glowSpin 2s linear infinite;
+  pointer-events: none;
+}
+.row-glow-g::before {
+  background: conic-gradient(from var(--glow-angle), transparent 50%, #52c987 72%, #c8fff0 82%, #52c987 92%, transparent 100%);
+}
+.row-glow-b::before {
+  background: conic-gradient(from var(--glow-angle), transparent 50%, #5baee8 72%, #c8e8ff 82%, #5baee8 92%, transparent 100%);
+}
+
 /* Celebration overlay — confetti particle fall */
 @keyframes confettiFall {
   0%   { transform: translateY(-10vh) rotate(0deg);   opacity: 1; }

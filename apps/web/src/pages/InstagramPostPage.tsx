@@ -1,17 +1,19 @@
 // src/pages/InstagramPostPage.tsx
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { instagramTemplates } from '../config/instagramTemplates'
+import { ACTIVE_TEMPLATE } from '../utils/canvas-templates/config'
 import { useListSessions, useFetchSession } from '../queries'
 import { computeStandings } from '../utils/standings'
 import { isPlaceholderName } from '../utils/placeholders'
 import type { SessionMeta } from '../queries'
-import { loadImage, drawPostCanvas, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
+import { loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/canvasPost'
+import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
 import { todayWIB } from '../utils/time'
 
-const TEMPLATE = instagramTemplates[0]
+const TEMPLATE = instagramTemplates[ACTIVE_TEMPLATE - 1]
 
-const MONTHS = ['JAN','FEB','MAR','APR','MEI','JUN','JUL','AGU','SEP','OKT','NOV','DES']
+const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 
 
 type StandingMode = 'post' | 'story'
@@ -53,6 +55,7 @@ export default function InstagramPostPage() {
           brushStroke: TEMPLATE.brushStroke,
           chevrons: TEMPLATE.chevrons,
           storyBg: TEMPLATE.storyBg,
+          badge: TEMPLATE.badge,
         })
         setOverlays(loaded as OverlayImages)
       } catch (err) {
@@ -194,7 +197,11 @@ export default function InstagramPostPage() {
   const [sheetScreen, setSheetScreen] = useState<'formats' | 'session-picker'>('formats')
   const [pendingStandingMode, setPendingStandingMode] = useState<StandingMode | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const { data: sessions } = useListSessions({ enabled: sheetScreen === 'session-picker' })
+  const [sessionQuery, setSessionQuery] = useState('')
+  const { data: sessions } = useListSessions({
+    q: sessionQuery.trim() || undefined,
+    enabled: sheetScreen === 'session-picker' && sessionQuery.trim().length > 0,
+  })
   const fetchSession = useFetchSession()
 
   const triggerDownload = useCallback((blob: Blob, filename: string) => {
@@ -203,7 +210,7 @@ export default function InstagramPostPage() {
     a.href = url
     a.download = filename
     a.click()
-    URL.revokeObjectURL(url)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }, [])
 
   const closeSheet = useCallback(() => {
@@ -253,6 +260,7 @@ export default function InstagramPostPage() {
         userPhoto,
         photoOffset,
         photoZoom,
+        hideHeader: ACTIVE_TEMPLATE === 2,
       })
 
       offscreen.toBlob((blob) => {
@@ -529,6 +537,16 @@ export default function InstagramPostPage() {
                   <p className="text-xs font-sans text-slate-400 tracking-widest uppercase">Pick a session</p>
                 </div>
 
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={sessionQuery}
+                    onChange={(e) => setSessionQuery(e.target.value)}
+                    placeholder="Search session by title…"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:border-yellow-400"
+                  />
+                </div>
+
                 {isGenerating && (
                   <div className="flex items-center justify-center py-8 gap-3">
                     <div className="w-5 h-5 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
@@ -538,13 +556,16 @@ export default function InstagramPostPage() {
 
                 {!isGenerating && (
                   <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
-                    {!sessions && (
+                    {!sessionQuery.trim() && (
+                      <p className="text-sm text-slate-400 text-center py-4">Search session by title to select</p>
+                    )}
+                    {sessionQuery.trim() && !sessions && (
                       <p className="text-sm text-slate-400 text-center py-4">Loading sessions…</p>
                     )}
-                    {sessions?.length === 0 && (
+                    {sessionQuery.trim() && sessions?.length === 0 && (
                       <p className="text-sm text-slate-400 text-center py-4">No sessions found</p>
                     )}
-                    {sessions?.map(s => (
+                    {sessionQuery.trim() && sessions?.map(s => (
                       <button
                         key={s.id}
                         onClick={() => handleDownloadStanding(s)}

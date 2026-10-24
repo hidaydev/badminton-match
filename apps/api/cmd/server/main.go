@@ -198,8 +198,8 @@ func registerRoutes(mux *http.ServeMux, logger *slog.Logger, cfg config.Config, 
 	mux.Handle("GET /sessions/{id}/watch", http.HandlerFunc(sessions.Watch))
 	mux.Handle("PUT /sessions/{id}", http.HandlerFunc(sessions.Put))
 	mux.Handle("PATCH /sessions/{id}", http.HandlerFunc(sessions.Patch))
-	mux.Handle("DELETE /sessions/{id}", http.HandlerFunc(sessions.Delete))
-	mux.Handle("POST /sessions/{id}/lock", http.HandlerFunc(sessions.Lock))
+	mux.Handle("DELETE /sessions/{id}", handler.AdminGuard(cfg.AdminToken, sessions.Delete))
+	mux.Handle("POST /sessions/{id}/lock", handler.AdminGuard(cfg.AdminToken, sessions.Lock))
 	// Granular live v2 (clean break) — row-level OCC, tanpa snapshot full
 	mux.Handle("GET /sessions/{id}/games/{gameKey}", http.HandlerFunc(sessions.GetGame))
 	mux.Handle("PATCH /sessions/{id}/games/{gameKey}", http.HandlerFunc(sessions.PatchGame))

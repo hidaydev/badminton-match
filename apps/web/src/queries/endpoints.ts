@@ -387,7 +387,17 @@ export async function swapMembers(
   )
 }
 
-export async function listSessions(options?: { signal?: AbortSignal }): Promise<SessionMeta[]> {
+export async function listSessions(options?: {
+  date?: string
+  q?: string
+  limit?: number
+  signal?: AbortSignal
+}): Promise<SessionMeta[]> {
+  const params = new URLSearchParams()
+  if (options?.date) params.set('date', options.date)
+  if (options?.q) params.set('q', options.q)
+  if (options?.limit) params.set('limit', String(options.limit))
+  const qs = params.toString() ? `?${params.toString()}` : ''
   const rows = await request<Array<{
     id: string
     title: string
@@ -395,7 +405,7 @@ export async function listSessions(options?: { signal?: AbortSignal }): Promise<
     player_count: number
     total_games: number
     locked: boolean
-  }>>('GET', '/sessions', undefined, options?.signal)
+  }>>('GET', `/sessions${qs}`, undefined, options?.signal)
 
   if (!Array.isArray(rows)) {
     console.warn('[listSessions] response is not an array:', rows)
@@ -597,6 +607,7 @@ export interface RankPointRow {
   rank: number
   player_id: string
   name: string
+  tier?: string
   points: number
   // Jujur soal bukti: berapa entri yang dihitung vs tersedia di window.
   counted_entries: number
@@ -613,23 +624,32 @@ export interface RankPointRow {
 export interface RankPointsBoard {
   window_weeks: number
   best_n: number
+  // Ambang entri minimum agar pemain tampil di papan; 0 = tanpa ambang.
+  min_sessions: number
   as_of: string
   rows: RankPointRow[]
 }
 
-export async function getRankings(limit: number, signal?: AbortSignal): Promise<RankPointsBoard> {
-  const data = await request<RankPointsBoard>('GET', `/rankings?limit=${limit}`, undefined, signal)
-  return data ?? { window_weeks: 12, best_n: 10, as_of: '', rows: [] }
+export async function getRankings(limit: number, minSessions?: number, signal?: AbortSignal): Promise<RankPointsBoard> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (minSessions != null) {
+    query.set('min_sessions', String(minSessions))
+  }
+  const data = await request<RankPointsBoard>('GET', `/rankings?${query.toString()}`, undefined, signal)
+  return data ?? { window_weeks: 12, best_n: 10, min_sessions: 0, as_of: '', rows: [] }
 }
 
 export interface PlayerRankPoints {
   found: boolean
   row?: RankPointRow
+  // Ambang entri minimum papan saat ini, untuk menjelaskan kenapa `found`
+  // bisa false walau pemain punya sesi.
+  min_sessions?: number
 }
 
 export async function getPlayerRankPoints(playerId: string, signal?: AbortSignal): Promise<PlayerRankPoints> {
   const data = await request<PlayerRankPoints>('GET', `/rankings/players/${enc(playerId)}`, undefined, signal)
-  return data ?? { found: false }
+  return data ?? { found: false, min_sessions: 0 }
 }
 
 

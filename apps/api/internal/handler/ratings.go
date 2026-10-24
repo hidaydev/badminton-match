@@ -200,7 +200,13 @@ func (h *RatingsHandler) Rankings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	board, err := h.Store.RankPointsBoard(r.Context(), asOf, limit)
+	var minSessionsArg []int
+	if minS := q.Get("min_sessions"); minS != "" {
+		if ms, err := strconv.Atoi(minS); err == nil && ms >= 0 {
+			minSessionsArg = []int{ms}
+		}
+	}
+	board, err := h.Store.RankPointsBoard(r.Context(), asOf, limit, minSessionsArg...)
 	if err != nil {
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch rankings", err))
 		return
@@ -237,11 +243,17 @@ func (h *RatingsHandler) PlayerRankPoints(w http.ResponseWriter, r *http.Request
 		httperr.WriteError(w, h.Logger, httperr.Wrap(httperr.CodeDatabase, "failed to fetch rank points", err))
 		return
 	}
+	// Ambang min-sesi diikutkan supaya UI bisa menjelaskan kenapa pemain
+	// (yang lolos dari papan) tidak muncul di ranking.
+	minSessions, err := h.Store.RankMinSessions(r.Context())
+	if err != nil {
+		minSessions = 0
+	}
 	if !found {
-		httperr.WriteJSON(w, http.StatusOK, map[string]any{"found": false})
+		httperr.WriteJSON(w, http.StatusOK, map[string]any{"found": false, "min_sessions": minSessions})
 		return
 	}
-	httperr.WriteJSON(w, http.StatusOK, map[string]any{"found": true, "row": row})
+	httperr.WriteJSON(w, http.StatusOK, map[string]any{"found": true, "row": row, "min_sessions": minSessions})
 }
 
 // isUUIDFormat — cek format UUID 8-4-4-4-12 heksadesimal tanpa library

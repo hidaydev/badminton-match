@@ -233,9 +233,9 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
     detail: b2bDetail,
     level: (q.backToBackCount === 0 ? 'ok' : 'warn') as Level,
     hint: b2bConfigLimited
-      ? 'Tak terhindarkan dengan jumlah pemain & court ini'
+      ? 'Unavoidable with this number of players and courts'
       : b2bRetryable
-      ? 'Bisa dikurangi — coba generate ulang'
+      ? 'Can be reduced — try regenerating'
       : undefined,
   }
 
@@ -290,7 +290,7 @@ export function QualityBanner({ result, playerMap, fixMatches, onRetryUntilGood,
       </div>
       {b2bConfigLimited && (
         <p className="text-[11px] text-amber-400/90 leading-snug border-t border-amber-800/50 pt-2">
-          ⚠ Konfigurasi ini membuat pemain main tanpa istirahat ({q.backToBackCount} back-to-back) — sudah di batas matematis, generate ulang tidak akan mengurangi. Tambah pemain atau kurangi jumlah slot untuk menghindarinya.
+          ⚠ This configuration forces players to play back-to-back ({q.backToBackCount} back-to-back) — it is at the mathematical limit, regenerating will not reduce it. Add players or reduce slots to avoid this.
         </p>
       )}
     </div>

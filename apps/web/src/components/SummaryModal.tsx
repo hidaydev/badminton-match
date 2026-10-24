@@ -308,7 +308,7 @@ export default function SummaryModal({
             {title && <p className="text-white font-bold text-[1rem] leading-tight">{title}</p>}
             {date && (
               <p className="text-slate-400 text-xs mt-0.5">
-                {new Date(date + 'T00:00:00').toLocaleDateString('en-GB', {
+                {new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
                   weekday: 'long',
                   day: 'numeric',
                   month: 'long',

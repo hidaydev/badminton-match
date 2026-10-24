@@ -74,7 +74,7 @@ export default function TeamGroupSchedule({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {groupMatches.length === 0 && (
         <button
           onClick={onDraw}

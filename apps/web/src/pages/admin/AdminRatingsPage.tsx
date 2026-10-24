@@ -44,66 +44,89 @@ export default function AdminRatingsPage() {
     <AdminPageShell>
       {({ run }) => (
         <>
-          <section className="flex flex-col gap-2">
-            <p className="text-[10px] font-sans text-amber-500/80 uppercase tracking-wider">{t('admin.sectionRating')}</p>
-            <div className="bg-surface border border-border-subtle rounded-lg divide-y divide-border-subtle overflow-hidden">
-              {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-4">{t('admin.noSources')}</p>}
-              {slice.map((src) => (
-                <div key={src.source_id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                  <span className="flex-1 min-w-0 text-fg truncate font-sans text-xs">{src.source_name}</span>
-                  <span className="text-[10px] font-sans text-fg-dim">{src.event_count} ev</span>
-                  {src.source_kind.startsWith('tournament') && (
-                    <ActionButton
-                      tone={src.finalized ? 'green' : 'neutral'}
-                      onClick={() => run(
-                        () => adminRequest('POST', `/ratings/sources/${src.source_id}/finalize`, { finalized: !src.finalized }),
-                        src.finalized ? 'Un-finalized' : 'Finalized',
-                        refreshRatingData,
-                      )}
-                    >
-                      {src.finalized ? 'Finalized' : 'Finalize'}
-                    </ActionButton>
-                  )}
-                  <ActionButton onClick={() => run(
-                    () => {
-                      const isT = src.source_kind.startsWith('tournament')
-                      return adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
-                        isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
-                    },
-                    'Ingested',
-                    refreshRatingData,
-                  )}>
-                    Ingest
-                  </ActionButton>
-                  <ActionButton tone="red" onClick={() => run(
-                    () => {
-                      const isT = src.source_kind.startsWith('tournament')
-                      return adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
-                        isT ? { tournamentId: src.source_id } : { sessionId: src.source_id })
-                    },
-                    'Reverted',
-                    refreshRatingData,
-                  )}>
-                    Revert
-                  </ActionButton>
-                </div>
-              ))}
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between px-0.5">
+              <p className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionRating')}</p>
+              <span className="text-xs font-mono text-fg-dim">{(sources ?? []).length} sources</span>
             </div>
+
+            <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">
+              {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">{t('admin.noSources')}</p>}
+              {slice.map((src) => {
+                const isT = src.source_kind.startsWith('tournament')
+                return (
+                  <div key={src.source_id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-elevated/30 transition-colors">
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-medium text-fg truncate">{src.source_name}</span>
+                      <span className="text-[11px] text-fg-dim font-mono mt-0.5">
+                        {isT ? 'Tournament' : 'Session'} · {src.event_count} events
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isT && (
+                        <ActionButton
+                          tone={src.finalized ? 'green' : 'neutral'}
+                          onClick={() => run(
+                            () => adminRequest('POST', `/ratings/sources/${src.source_id}/finalize`, { finalized: !src.finalized }),
+                            src.finalized ? 'Un-finalized' : 'Finalized',
+                            refreshRatingData,
+                          )}
+                        >
+                          {src.finalized ? 'Finalized' : 'Finalize'}
+                        </ActionButton>
+                      )}
+                      <ActionButton onClick={() => run(
+                        () => adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
+                          isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
+                        'Ingested',
+                        refreshRatingData,
+                      )}>
+                        Ingest
+                      </ActionButton>
+                      <ActionButton tone="red" onClick={() => run(
+                        () => adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
+                          isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
+                        'Reverted',
+                        refreshRatingData,
+                      )}>
+                        Revert
+                      </ActionButton>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
             <Pager page={page} total={(sources ?? []).length} onPage={setPage} />
-            <div className="flex flex-col gap-1">
+
+            <div className="flex flex-col gap-2 pt-2">
               <button
                 onClick={() => runRebuild()}
                 disabled={rebuilding}
-                className="py-2 rounded-lg border border-border-subtle text-sm text-fg-dim hover:text-fg disabled:opacity-40"
+                className="w-full py-2.5 rounded-xl border border-border-subtle bg-surface hover:bg-elevated text-sm font-semibold text-fg hover:text-accent disabled:opacity-40 transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2"
               >
-                {rebuilding ? t('admin.rebuilding') : t('admin.rebuild')}
+                {rebuilding ? (
+                  <svg className="animate-spin w-4 h-4 text-accent shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent shrink-0">
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                    <path d="M21 3v5h-5"/>
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                    <path d="M8 16H3v5"/>
+                  </svg>
+                )}
+                <span>{rebuilding ? t('admin.rebuilding') : t('admin.rebuild')}</span>
               </button>
               {rebuildMsg && (
-                <p className={`text-[10px] font-sans ${rebuildMsg.kind === 'ok' ? 'text-emerald-400' : 'text-red-400'}`}>
+                <p className={`text-xs px-3 py-2 rounded-lg font-medium border ${rebuildMsg.kind === 'ok' ? 'bg-success/10 border-success/30 text-success' : 'bg-error/10 border-error/30 text-error'}`}>
                   {rebuildMsg.text}
                 </p>
               )}
-              <p className="text-[10px] text-fg-dim">{t('admin.rebuildHelp')}</p>
+              <p className="text-xs text-fg-dim px-1">{t('admin.rebuildHelp')}</p>
             </div>
           </section>
         </>

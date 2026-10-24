@@ -182,7 +182,7 @@ func computePlayerStats(ctx context.Context, pool *pgxpool.Pool, name string) ([
 	return json.Marshal(out)
 }
 
-// loadStatEntries — top-5 partner (opponent=false) atau lawan (opponent=true).
+// loadStatEntries — top-3 partner (opponent=false) atau lawan (opponent=true).
 // Port dari CTE partner_rows / opponent_rows di get_player_stats_compat.
 func loadStatEntries(ctx context.Context, pool *pgxpool.Pool, playerID string, opponent bool) ([]statEntry, error) {
 	joinCond := "tl.team = sgp.team AND tl.session_player_internal_id <> sp.internal_id"
@@ -212,7 +212,7 @@ func loadStatEntries(ctx context.Context, pool *pgxpool.Pool, playerID string, o
 		  AND (pself.canonical_name IS NULL OR pself.canonical_name !~* '^(free|tbd|default|xxx|unknown|kosong|belum ada)( [0-9]+)?$|^\?+$')
 		GROUP BY partner.canonical_name
 		ORDER BY count(*) DESC, lower(partner.canonical_name)
-		LIMIT 5`
+		LIMIT 3`
 	rows, err := pool.Query(ctx, query, playerID)
 	if err != nil {
 		return nil, err
@@ -393,7 +393,7 @@ type tournamentEncounter struct {
 	win  bool
 }
 
-// loadTournamentEntries — top-5 partner/lawan turnamen (port t_partner_rows /
+// loadTournamentEntries — top-3 partner/lawan turnamen (port t_partner_rows /
 // t_opponent_rows), classic + team. Diagregasi di Go supaya pemain yang sama di
 // classic DAN team tidak terpecah jadi dua baris.
 func loadTournamentEntries(ctx context.Context, pool *pgxpool.Pool, playerID string, opponent bool) ([]tournamentEntrySmall, error) {
@@ -434,8 +434,8 @@ func loadTournamentEntries(ctx context.Context, pool *pgxpool.Pool, playerID str
 		}
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
-	if len(out) > 5 {
-		out = out[:5]
+	if len(out) > 3 {
+		out = out[:3]
 	}
 	return out, nil
 }

@@ -89,7 +89,27 @@ paths:
     get:
       tags: [Sessions]
       summary: List metadata session
+      description: >
+        Daftar metadata session. Pengguna publik wajib menyertakan filter ('date' atau 'q')
+        untuk mencegah enumerasi seluruh share code. Admin dengan token Bearer dapat melihat
+        seluruh daftar tanpa filter.
       operationId: listSessions
+      parameters:
+        - name: date
+          in: query
+          required: false
+          schema: { type: string, format: date }
+          description: Filter tanggal sesi (YYYY-MM-DD)
+        - name: q
+          in: query
+          required: false
+          schema: { type: string }
+          description: Filter pencarian judul sesi
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50 }
+          description: Batas jumlah sesi yang dikembalikan (maksimal 50 untuk publik)
       responses:
         "200":
           description: Daftar metadata
@@ -98,6 +118,11 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/SessionMeta" }
+        "400":
+          description: Filter parameter ('date' atau 'q') tidak disertakan oleh pemanggil publik
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
     post:
       tags: [Sessions]
       summary: Buat session baru
@@ -199,13 +224,20 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
     delete:
       tags: [Sessions]
-      summary: Hapus session (admin)
+      summary: Hapus session draft (admin)
       operationId: deleteSession
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/SessionId"
       responses:
         "204":
           description: Terhapus
+        "401":
+          description: Token admin tidak valid / tidak ada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "409":
           description: Session terkunci
           content:
@@ -214,8 +246,10 @@ paths:
   /sessions/{id}/lock:
     post:
       tags: [Sessions]
-      summary: Kunci session (cegah semua write)
+      summary: Kunci session (admin, cegah semua write)
       operationId: lockSession
+      security:
+        - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/SessionId"
         - $ref: "#/components/parameters/IfMatch"
@@ -227,6 +261,11 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Session" }
+        "401":
+          description: Token admin tidak valid / tidak ada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
 
   # ── Granular live v2 (clean break dari snapshot PUT) ─────────────────────
   /sessions/{id}/games/{gameKey}:

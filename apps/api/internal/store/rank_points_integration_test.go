@@ -208,10 +208,16 @@ func resolveIDByAliasFuzzy(t *testing.T, st *SessionStore, schema, code string) 
 		"rtp1": "RTP One", "rtp2": "RTP Two", "rtp3": "RTP Three", "rtp4": "RTP Four",
 		// Test movement rank (snapshot + panah ^/v).
 		"rm1": "RM One", "rm2": "RM Two", "rm3": "RM Three", "rm4": "RM Four",
+		// RM Five sengaja tanpa event — dipakai menguji rekonsiliasi snapshot.
+		"rm5": "RM Five",
 		// Test as_of per-pemain.
 		"ra1": "RA One", "ra2": "RA Two", "ra3": "RA Three", "ra4": "RA Four",
+		// Test ambang entri minimum papan (min-sesi).
+		"rmn1": "RMN One", "rmn2": "RMN Two",
 		// Test backfill achievement setelah rebuild.
 		"ab1": "AB One", "ab2": "AB Two", "ab3": "AB Three", "ab4": "AB Four",
+		// Test purge snapshot yatim (as_of tanpa event).
+		"rpg1": "RPG One", "rpg2": "RPG Two",
 	}
 	name, ok := names[code]
 	if !ok {
@@ -592,6 +598,8 @@ func TestIntegrationRankMovement(t *testing.T) {
 		{ID: "rm2", Name: "RM Two", Gender: "M", Tier: 5},
 		{ID: "rm3", Name: "RM Three", Gender: "M", Tier: 1},
 		{ID: "rm4", Name: "RM Four", Gender: "M", Tier: 1},
+		// RM Five sengaja tanpa event: dipakai menguji rekonsiliasi snapshot.
+		{ID: "rm5", Name: "RM Five", Gender: "M", Tier: 1},
 	}
 	cleanup := func() {
 		_, _ = st.pool.Exec(ctx, `DELETE FROM `+schema+`.rank_snapshots WHERE player_id IN (SELECT id FROM `+schema+`.players WHERE canonical_name LIKE 'RM %')`)
@@ -717,10 +725,40 @@ func TestIntegrationRankMovement(t *testing.T) {
 	if cnt1 != cnt2 {
 		t.Fatalf("snapshot hari ini bertambah: %d → %d (harus idempoten)", cnt1, cnt2)
 	}
-	// Snapshot hari ini = papan terisi + RM Three (yang tadi null) kini punya
-	// baris sendiri pada as_of hari ini.
-	if cnt1 < len(board2.Rows) {
-		t.Errorf("snapshot hari ini=%d baris, papan=%d baris", cnt1, len(board2.Rows))
+	// Snapshot hari ini = papan, tidak lebih: baris pemain yang sudah keluar
+	// dari papan tidak boleh tertinggal.
+	if cnt1 != len(board2.Rows) {
+		t.Errorf("snapshot hari ini=%d baris, papan=%d baris (harus sama)", cnt1, len(board2.Rows))
+	}
+
+	// Rekonsiliasi: baris as_of ini milik pemain di luar papan (RM Five tak
+	// punya satu pun entri) harus ikut dibuang saat capture. Tanpa itu, baris
+	// tersebut jadi pembanding movement yang bias — persis yang terjadi di prod
+	// ketika ambang entri minimum dinaikkan dan snapshot lama masih menyimpan
+	// pemain yang sudah tersaring.
+	rm5 := resolveIDByAliasFuzzy(t, st, schema, "rm5")
+	if _, err := st.pool.Exec(ctx, `
+		INSERT INTO `+schema+`.rank_snapshots (as_of, player_id, rank, points)
+		VALUES ($1::date, $2::uuid, 1, 0)`, baseDate, rm5); err != nil {
+		t.Fatalf("snapshot RM Five: %v", err)
+	}
+	hasRM5Snapshot := func() bool {
+		var n int
+		if err := st.pool.QueryRow(ctx, `
+			SELECT count(*) FROM `+schema+`.rank_snapshots
+			WHERE as_of = $1::date AND player_id = $2::uuid`, baseDate, rm5).Scan(&n); err != nil {
+			t.Fatalf("count RM Five: %v", err)
+		}
+		return n > 0
+	}
+	if !hasRM5Snapshot() {
+		t.Fatal("baris stale RM Five tidak terpasang — test tidak bermakna")
+	}
+	if _, err := st.CaptureRankSnapshot(ctx); err != nil {
+		t.Fatalf("capture rekonsiliasi: %v", err)
+	}
+	if hasRM5Snapshot() {
+		t.Fatal("snapshot pemain di luar papan tidak dibuang saat capture")
 	}
 
 	// Movement harus tetap dibandingkan dengan snapshot SEBELUM asOf, bukan

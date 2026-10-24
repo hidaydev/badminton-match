@@ -1,5 +1,6 @@
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { SwapTarget } from '../../utils/swap'
+import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHTS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
 
 export type PlayerChipMode = 'idle' | 'swap' | 'absent' | 'skip' | 'replace' | 'slotSwap' | 'teamSwap' | 'change'
 
@@ -166,6 +167,26 @@ export default function PlayerChipRenderer({
 
   // Idle / default — absent / skipped / done line-through / plain white
   const showSkippedIdle = !!isSkipped
+  const teamKey = TEAM_HIGHLIGHT_ENABLED ? HIGHLIGHTED_PLAYERS[playerName] : undefined
+  const teamTheme = teamKey && !done && !isAbsent && !showSkippedIdle ? TEAM_HIGHLIGHTS[teamKey] : null
+
+  if (teamTheme) {
+    return (
+      <span className="inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-md border border-transparent text-white" style={{ position: 'relative', overflow: 'visible' }}>
+        <img src={teamTheme.logo} style={{
+          position: 'absolute', top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: teamKey === 'Green Grove' ? 46 : 34, height: teamKey === 'Green Grove' ? 46 : 34, maxWidth: 'none', objectFit: 'contain',
+          opacity: 0.3, pointerEvents: 'none',
+        }} />
+        <span style={{ position: 'relative' }}>
+          <AnnotatedPlayerName name={playerName} />
+        </span>
+        {backToBackRun ? <sup className="text-[8px] font-bold text-amber-400 shrink-0 leading-none" style={{ position: 'relative' }}>*{backToBackRun}</sup> : null}
+      </span>
+    )
+  }
+
   return (
     <span
       className={`inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-md border ${

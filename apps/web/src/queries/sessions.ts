@@ -122,10 +122,21 @@ async function withSnapshotVersionRetry<T>(
   throw new Error('unreachable')
 }
 
-export function useListSessions(options?: { enabled?: boolean }) {
+export function useListSessions(options?: {
+  date?: string
+  q?: string
+  limit?: number
+  enabled?: boolean
+}) {
   return useQuery<SessionMeta[]>({
-    queryKey: ['sessions'],
-    queryFn: ({ signal }) => listSessions({ signal }),
+    queryKey: ['sessions', options?.date, options?.q, options?.limit],
+    queryFn: ({ signal }) =>
+      listSessions({
+        date: options?.date,
+        q: options?.q,
+        limit: options?.limit,
+        signal,
+      }),
     enabled: options?.enabled ?? true,
   })
 }

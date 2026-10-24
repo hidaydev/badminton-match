@@ -178,7 +178,12 @@ type SessionMeta struct {
 // ListSessions — read-path (port bm.list_sessions): metadata semua session
 // (share_code, title, date, player_count, total_games, locked).
 func (s *SessionStore) ListSessions(ctx context.Context) ([]SessionMeta, error) {
-	rows, err := s.pool.Query(ctx, `
+	return s.ListSessionsFiltered(ctx, "", "", 0)
+}
+
+// ListSessionsFiltered — metadata session dengan opsi filter tanggal, judul (query), dan limit.
+func (s *SessionStore) ListSessionsFiltered(ctx context.Context, date, query string, limit int) ([]SessionMeta, error) {
+	baseQuery := `
 		SELECT s.share_code, s.title, s.session_date::text,
 		       coalesce(pc.player_count, 0), coalesce(gc.total_games, 0),
 		       (s.status <> 'draft') AS locked
@@ -190,8 +195,36 @@ func (s *SessionStore) ListSessions(ctx context.Context) ([]SessionMeta, error) 
 		LEFT JOIN (
 			SELECT sg.session_id, count(*)::integer AS total_games
 			FROM scheduled_games sg GROUP BY sg.session_id
-		) gc ON gc.session_id = s.id
-		ORDER BY s.session_date DESC, s.updated_at DESC`)
+		) gc ON gc.session_id = s.id`
+
+	var whereClauses []string
+	var args []any
+	argIdx := 1
+
+	if date != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("s.session_date = $%d::date", argIdx))
+		args = append(args, date)
+		argIdx++
+	}
+
+	if query != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("s.title ILIKE '%%' || $%d || '%%'", argIdx))
+		args = append(args, query)
+		argIdx++
+	}
+
+	if len(whereClauses) > 0 {
+		baseQuery += " WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	baseQuery += " ORDER BY s.session_date DESC, s.updated_at DESC"
+
+	if limit > 0 {
+		baseQuery += fmt.Sprintf(" LIMIT $%d", argIdx)
+		args = append(args, limit)
+	}
+
+	rows, err := s.pool.Query(ctx, baseQuery, args...)
 	if err != nil {
 		return nil, err
 	}

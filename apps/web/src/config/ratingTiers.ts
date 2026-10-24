@@ -15,3 +15,5 @@ export const RATING_TIER_BADGE_COLORS: Record<RatingTier, string> = {
   'A': 'bg-accent/20 text-accent border-accent/50',
   'A+': 'bg-accent/30 text-accent border-accent',
 }
+
+export const ALL_RATING_TIERS: RatingTier[] = ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D']

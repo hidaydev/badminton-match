@@ -160,7 +160,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
       {ambiguousMatches && ambiguousMatches.length > 0 && (
         <div className="bg-amber-950/70 border border-amber-600/70 rounded-xl p-2.5 flex flex-col gap-1.5 text-xs ml-1 mr-1">
           <span className="text-amber-300 font-semibold flex items-center gap-1">
-            ⚠️ Nama &ldquo;{player.name}&rdquo; ambigu (ada {ambiguousMatches.length} pemain terdaftar):
+            ⚠️ Name &ldquo;{player.name}&rdquo; is ambiguous ({ambiguousMatches.length} registered players found):
           </span>
           <div className="flex flex-wrap gap-1.5">
             {ambiguousMatches.map((m) => (
@@ -473,7 +473,7 @@ export default function PlayersPage() {
         {!session.locked
           ? 'Go to Setup to start session'
           : hasAmbiguous
-          ? 'Pilih pemain resmi untuk nama yang ambigu ⚠️'
+          ? 'Select official player for ambiguous names ⚠️'
           : isComplete
           ? 'Next: Constraints →'
           : `Add players (${players.length}/${required})`}

@@ -36,10 +36,6 @@ export default function AdminPageShell({ children }: AdminPageShellProps) {
   const run = useCallback(async (fn: () => Promise<unknown>, okLabel: string, refresh?: () => void) => {
     setError(null)
     try {
-      // fn boleh mengembalikan false untuk menandai "tidak ada perubahan"
-      // (mis. pengguna membatalkan konfirmasi kedua). Jangan tampilkan pesan
-      // sukses dalam kasus itu — dulu selalu, sehingga batal pun terlihat
-      // seperti berhasil.
       const result = await fn()
       if (result === false) return
       flash(okLabel)
@@ -51,26 +47,39 @@ export default function AdminPageShell({ children }: AdminPageShellProps) {
 
   if (!isAdmin) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-amber-300/80 text-sm">Admin mode inactive.</p>
-        <button onClick={() => navigate('/')} className="text-accent text-sm">Back to home</button>
+      <div className="flex flex-col gap-3 py-10">
+        <p className="text-fg-dim text-sm">Admin mode inactive.</p>
+        <button onClick={() => navigate('/')} className="text-accent text-sm text-left">Back to home</button>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Banner pembeda */}
-      <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-amber-950/30 border border-amber-800/60">
-        <div className="flex flex-col">
-          <p className="text-sm font-bold text-amber-200">{t('admin.title')}</p>
-          <p className="text-[10px] font-sans text-amber-300/60 uppercase tracking-wider">{t('admin.subtitle')}</p>
+    <div className="flex flex-col gap-4 pb-20">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-surface border border-border-subtle shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-fg leading-tight">{t('admin.title')}</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-accent/15 border border-accent/30 text-accent font-bold">ROOT</span>
         </div>
-        <button onClick={logout} className="text-xs font-sans text-fg-dim hover:text-red-400 transition-colors">{t('admin.logout')}</button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/')}
+            className="text-xs text-fg-dim hover:text-fg transition-colors cursor-pointer"
+          >
+            Home
+          </button>
+          <button
+            onClick={logout}
+            className="text-xs text-error/80 hover:text-error transition-colors font-medium cursor-pointer"
+          >
+            {t('admin.logout')}
+          </button>
+        </div>
       </div>
 
-      {error && <p className="text-red-400 text-xs bg-red-950/30 border border-red-800/60 rounded-lg px-3 py-2">{error}</p>}
-      {okMsg && <p className="text-emerald-400 text-xs bg-emerald-950/30 border border-emerald-800/60 rounded-lg px-3 py-2">{okMsg}</p>}
+      {error && <p className="text-error text-xs bg-error/10 border border-error/30 rounded-lg px-3 py-2 font-medium">{error}</p>}
+      {okMsg && <p className="text-success text-xs bg-success/10 border border-success/30 rounded-lg px-3 py-2 font-medium">{okMsg}</p>}
 
       {children({ run, error, okMsg })}
     </div>

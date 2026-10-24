@@ -39,6 +39,7 @@ type RankPointRow struct {
 	Rank             int              `json:"rank"`
 	PlayerID         string           `json:"player_id"`
 	Name             string           `json:"name"`
+	Tier             string           `json:"tier"`
 	Points           float64          `json:"points"`
 	CountedEntries   int              `json:"counted_entries"`   // entri yang dihitung (≤ best_n)
 	EntriesAvailable int              `json:"entries_available"` // entri tersedia di window
@@ -56,12 +57,14 @@ type RankPointRow struct {
 type RankPointsBoard struct {
 	WindowWeeks int            `json:"window_weeks"`
 	BestN       int            `json:"best_n"`
-	AsOf        string         `json:"as_of"` // tanggal acuan window
+	MinSessions int            `json:"min_sessions"` // ambang entri minimum
+	AsOf        string         `json:"as_of"`        // tanggal acuan window
 	Rows        []RankPointRow `json:"rows"`
 }
 
 // gameValue — nilai satu game sesi: 250 × (0.5 + 0.5 × margin/target).
 // Murni hasil; tidak ada poin kehadiran (§4.5).
+// Margin bertanda (myScore - oppScore): positif untuk pemenang, negatif untuk yang kalah.
 func gameValue(base, margin, target float64) float64 {
 	if target <= 0 {
 		return 0
@@ -69,6 +72,9 @@ func gameValue(base, margin, target float64) float64 {
 	m := margin / target
 	if m > 1 {
 		m = 1 // clamp defensif: aturan main kini tak melebihi target (30/42), batasi jaga-jaga
+	}
+	if m < -1 {
+		m = -1
 	}
 	return base * (0.5 + 0.5*m)
 }
@@ -385,12 +391,10 @@ func (s *SessionStore) sessionEntriesFor(ctx context.Context, cfg domain.RatingC
 		}
 
 		// Sesi (atau turnamen tanpa baris level) → rumus game §4.5.
-		margin := float64(scoreB - scoreA)
+		// Margin bertanda (myScore - oppScore): positif untuk pemenang, negatif untuk yang kalah.
+		margin := float64(scoreA - scoreB)
 		if team == "B" {
-			margin = float64(scoreA - scoreB)
-		}
-		if margin < 0 {
-			margin = -margin
+			margin = float64(scoreB - scoreA)
 		}
 		pts := gameValue(cfg.RankSessionBase, margin, float64(target))
 		if cfg.RankOpponentWeight {
@@ -432,7 +436,9 @@ func splitKey(k string) (string, string, bool) {
 // asOf kosong → pakai tanggal event terakhir (bukan CURRENT_DATE) supaya
 // window stabil walau tidak ada aktivitas baru; ini juga membuat hasil
 // deterministik untuk test.
-func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit int) (*RankPointsBoard, error) {
+// minSessions opsional (variadic): bila diberikan dan >= 0, menimpa
+// cfg.RankMinSessions.
+func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit int, minSessions ...int) (*RankPointsBoard, error) {
 	cfg, err := s.LoadRatingConfig(ctx, false)
 	if err != nil {
 		return nil, err
@@ -443,6 +449,9 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 	if cfg.RankBestN <= 0 {
 		cfg.RankBestN = 10
 	}
+	if len(minSessions) > 0 && minSessions[0] >= 0 {
+		cfg.RankMinSessions = minSessions[0]
+	}
 
 	if asOf == "" {
 		d, err := s.latestEventDate(ctx)
@@ -450,7 +459,7 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 			return nil, err
 		}
 		if d == "" {
-			return &RankPointsBoard{WindowWeeks: cfg.RankWindowWeeks, BestN: cfg.RankBestN, Rows: []RankPointRow{}}, nil
+			return &RankPointsBoard{WindowWeeks: cfg.RankWindowWeeks, BestN: cfg.RankBestN, MinSessions: cfg.RankMinSessions, Rows: []RankPointRow{}}, nil
 		}
 		asOf = d
 	}
@@ -459,11 +468,11 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 	if err != nil {
 		return nil, err
 	}
-	names, err := s.playerNames(ctx)
+	names, tiers, err := s.playerMetas(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rows := boardRowsFromEntries(entries, cfg, names, limit)
+	rows := boardRowsFromEntries(entries, cfg, names, tiers, limit)
 	// Movement dibaca dari snapshot SEBELUM asOf. Kalau tabel belum punya
 	// baris sebelumnya, movement tetap null (bukan error) — papan tetap tampil.
 	if err := s.applyRankMovement(ctx, asOf, rows); err != nil {
@@ -475,12 +484,12 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 	return &RankPointsBoard{
 		WindowWeeks: cfg.RankWindowWeeks,
 		BestN:       cfg.RankBestN,
+		MinSessions: cfg.RankMinSessions,
 		AsOf:        asOf,
 		Rows:        rows,
 	}, nil
 }
 
-// playerNames — peta player_id → canonical_name.
 // boardRowsFromEntries — kelompokkan entri per pemain, totalkan best_n,
 // urut, beri peringkat (seri dibagi: 1,2,2,4). SATU logika untuk papan
 // penuh dan jalur per-pemain: duplikasi logika membuat rank per-pemain
@@ -488,7 +497,7 @@ func (s *SessionStore) RankPointsBoard(ctx context.Context, asOf string, limit i
 // lama di RankPointsForPlayer tidak tahu rank_point_levels).
 // limit 0 = tanpa pemotongan.
 func boardRowsFromEntries(entries []rankPointEntryRow, cfg domain.RatingConfig,
-	names map[string]string, limit int) []RankPointRow {
+	names map[string]string, tiers map[string]string, limit int) []RankPointRow {
 	byPlayer := map[string][]RankPointEntry{}
 	for _, e := range entries {
 		byPlayer[e.playerID] = append(byPlayer[e.playerID], e.entry)
@@ -506,15 +515,36 @@ func boardRowsFromEntries(entries []rankPointEntryRow, cfg domain.RatingConfig,
 		for i := 0; i < n; i++ {
 			total += es[i].Points
 		}
+		var name, tier string
+		if names != nil {
+			name = names[pid]
+		}
+		if tiers != nil {
+			tier = tiers[pid]
+		}
 		rows = append(rows, RankPointRow{
 			PlayerID:         pid,
-			Name:             names[pid],
+			Name:             name,
+			Tier:             tier,
 			Points:           math.Round(total),
 			CountedEntries:   n,
 			EntriesAvailable: avail,
 			ThinEvidence:     avail < cfg.RankThinEvidenceN,
 			Breakdown:        es[:n],
 		})
+	}
+
+	// Sembunyikan pemain dengan sesi minim dalam window. Diterapkan SEBELUM
+	// urut/peringkat supaya rank dihitung pada himpunan yang benar-benar
+	// tampil, dan konsisten untuk papan publik, halaman pemain, dan snapshot.
+	if cfg.RankMinSessions > 0 {
+		filtered := rows[:0]
+		for _, r := range rows {
+			if r.EntriesAvailable >= cfg.RankMinSessions {
+				filtered = append(filtered, r)
+			}
+		}
+		rows = filtered
 	}
 
 	// Urut: poin desc, bukti lebih banyak dulu, lalu nama, lalu ID (deterministik).
@@ -547,7 +577,8 @@ func boardRowsFromEntries(entries []rankPointEntryRow, cfg domain.RatingConfig,
 // CaptureRankSnapshot — simpan posisi papan saat ini sebagai snapshot
 // pada tanggal asOf. Idempoten per (as_of, player_id): pemanggilan berulang
 // di hari yang sama menimpa baris lama, jadi snapshot selalu mencerminkan
-// papan terakhir yang dihitung.
+// papan terakhir yang dihitung. Baris as_of itu milik pemain yang sudah keluar
+// dari papan ikut dibuang, supaya snapshot = papan (lihat komentar DELETE).
 //
 // Dipanggil ticker auto-ingest (30 menit). asOf kosong → tanggal event
 // terakhir. Tidak ada event → tidak ada yang disimpan (papan kosong).
@@ -578,7 +609,7 @@ func (s *SessionStore) CaptureRankSnapshot(ctx context.Context) (int, error) {
 	if len(entries) == 0 {
 		return 0, nil
 	}
-	rows := boardRowsFromEntries(entries, cfg, nil, 0)
+	rows := boardRowsFromEntries(entries, cfg, nil, nil, 0)
 
 	batch := &pgx.Batch{}
 	for _, r := range rows {
@@ -597,6 +628,23 @@ func (s *SessionStore) CaptureRankSnapshot(ctx context.Context) (int, error) {
 		if _, err := br.Exec(); err != nil {
 			return 0, err
 		}
+	}
+
+	// Buang baris as_of ini yang pemainnya sudah keluar dari papan. Upsert di
+	// atas hanya menyegarkan pemain yang masih ada, sehingga sisanya tertinggal
+	// dengan rank dari definisi lama (mis. saat ambang entri minimum dinaikkan)
+	// dan jadi pembanding movement yang bias. player_id digabung jadi string
+	// lalu dipecah di SQL: hindari encoding array uuid lewat driver.
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.PlayerID)
+	}
+	if _, err := s.pool.Exec(ctx, `
+		DELETE FROM `+s.schema+`.rank_snapshots
+		WHERE as_of = $1::date
+		  AND NOT (player_id = ANY(string_to_array($2, ',')::uuid[]))`,
+		asOf, strings.Join(ids, ",")); err != nil {
+		return 0, err
 	}
 	return len(rows), nil
 }
@@ -671,22 +719,39 @@ func (s *SessionStore) applyRankMovement(ctx context.Context, asOf string, rows 
 	return nil
 }
 
-func (s *SessionStore) playerNames(ctx context.Context) (map[string]string, error) {
+func (s *SessionStore) playerMetas(ctx context.Context) (map[string]string, map[string]string, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id::text, canonical_name FROM `+s.schema+`.players`)
+		`SELECT id::text, canonical_name, COALESCE(tier, '') FROM `+s.schema+`.players`)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
-	out := map[string]string{}
+	names := map[string]string{}
+	tiers := map[string]string{}
 	for rows.Next() {
-		var id, name string
-		if err := rows.Scan(&id, &name); err != nil {
-			return nil, err
+		var id, name, tier string
+		if err := rows.Scan(&id, &name, &tier); err != nil {
+			return nil, nil, err
 		}
-		out[id] = name
+		names[id] = name
+		tiers[id] = tier
 	}
-	return out, rows.Err()
+	return names, tiers, rows.Err()
+}
+
+func (s *SessionStore) playerNames(ctx context.Context) (map[string]string, error) {
+	names, _, err := s.playerMetas(ctx)
+	return names, err
+}
+
+// RankMinSessions — ambang entri minimum papan publik (dari config). Dipakai
+// handler halaman pemain untuk menjelaskan kenapa pemain tidak tampil.
+func (s *SessionStore) RankMinSessions(ctx context.Context) (int, error) {
+	cfg, err := s.LoadRatingConfig(ctx, false)
+	if err != nil {
+		return 0, err
+	}
+	return cfg.RankMinSessions, nil
 }
 
 // RankPointsForPlayer — papan satu pemain, dipakai halaman detail publik.
@@ -708,6 +773,9 @@ func (s *SessionStore) RankPointsForPlayer(ctx context.Context, playerID, asOf s
 	if cfg.RankBestN <= 0 {
 		cfg.RankBestN = 10
 	}
+	// Di halaman detail pemain, jangan sembunyikan baris pemain (tanpa ambang min-sesi)
+	// agar poin dan sesi yang dihitung selalu tampil.
+	cfg.RankMinSessions = 0
 
 	if asOf == "" {
 		var err error
@@ -730,11 +798,11 @@ func (s *SessionStore) RankPointsForPlayer(ctx context.Context, playerID, asOf s
 	if err != nil {
 		return nil, false, err
 	}
-	names, err := s.playerNames(ctx)
+	names, tiers, err := s.playerMetas(ctx)
 	if err != nil {
 		return nil, false, err
 	}
-	all := boardRowsFromEntries(entries, cfg, names, 0)
+	all := boardRowsFromEntries(entries, cfg, names, tiers, 0)
 	if err := s.applyRankMovement(ctx, asOf, all); err != nil {
 		if s.logger != nil {
 			s.logger.Warn("rank movement dilewati", "as_of", asOf, "error", err)
