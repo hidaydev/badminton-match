@@ -68,6 +68,7 @@ export const en = {
   sessions: {
     title: 'Sessions',
     searchPlaceholder: 'Search session by title…',
+    filterRequired: 'Pick a date or search by title to load sessions.',
     loadFailed: 'Failed to load sessions.',
     noSessionsFound: 'No sessions match your filter.',
     noSessionsYet: 'No sessions yet.',
