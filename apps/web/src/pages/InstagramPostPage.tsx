@@ -237,6 +237,7 @@ export default function InstagramPostPage() {
           ...(snapshot.absentPlayers ?? []),
           ...snapshot.players.filter(p => isPlaceholderName(p.name)).map(p => p.id),
         ], // skip_player: game dengan absent tetap dihitung untuk pemain yang main
+        snapshot.skippedPlayers ?? {},
       )
 
       const isStory = mode === 'story'
