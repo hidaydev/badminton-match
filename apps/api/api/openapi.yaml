@@ -90,9 +90,9 @@ paths:
       tags: [Sessions]
       summary: List metadata session
       description: >
-        Daftar metadata session. Pengguna publik wajib menyertakan filter ('date' atau 'q')
-        untuk mencegah enumerasi seluruh share code. Admin dengan token Bearer dapat melihat
-        seluruh daftar tanpa filter.
+        Daftar metadata session. Filter 'date' dan 'q' opsional (publik boleh
+        melihat seluruh daftar); share code tetap acak dan tidak dapat ditebak
+        dari daftar ini.
       operationId: listSessions
       parameters:
         - name: date
@@ -108,8 +108,8 @@ paths:
         - name: limit
           in: query
           required: false
-          schema: { type: integer, minimum: 1, maximum: 50 }
-          description: Batas jumlah sesi yang dikembalikan (maksimal 50 untuk publik)
+          schema: { type: integer, minimum: 1 }
+          description: Batas jumlah sesi yang dikembalikan (kosong = semua)
       responses:
         "200":
           description: Daftar metadata
