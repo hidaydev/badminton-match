@@ -2,20 +2,25 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useListSessions } from '../queries'
+import { useAdmin } from '../context/AdminContext'
 import { t } from '../i18n'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
 export default function SessionListPage() {
   const navigate = useNavigate()
+  const { isAdmin } = useAdmin()
   const [query, setQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
 
   const hasFilter = Boolean(query.trim() || dateFilter)
+  // Public listing requires a filter (anti enumeration, enforced by the API).
+  // Admin requests carry the Bearer token, so the full list is available unfiltered.
+  const canList = isAdmin || hasFilter
   const { data: sessions = [], isLoading, isError } = useListSessions({
     q: query.trim() || undefined,
     date: dateFilter || undefined,
-    enabled: hasFilter,
+    enabled: canList,
   })
 
   const filtered = useMemo(() => {
@@ -32,7 +37,7 @@ export default function SessionListPage() {
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-lg font-bold text-fg">{t('sessions.title')}</h2>
         <span className="text-xs font-mono text-fg-dim font-medium">
-          {filtered.length} {t('common.total')}
+          {canList ? `${filtered.length} ${t('common.total')}` : ''}
         </span>
       </div>
 
@@ -79,15 +84,21 @@ export default function SessionListPage() {
         </div>
       )}
 
-      {!isError && !isLoading && (!hasFilter || filtered.length === 0) && (
+      {!isError && !isLoading && !canList && (
+        <div className="bg-surface border border-border-subtle rounded-xl p-8 text-center">
+          <p className="text-fg-dim text-xs font-sans">{t('sessions.filterRequired')}</p>
+        </div>
+      )}
+
+      {!isError && !isLoading && canList && filtered.length === 0 && (
         <div className="bg-surface border border-border-subtle rounded-xl p-8 text-center">
           <p className="text-fg-dim text-xs font-sans">
-            {!hasFilter ? t('sessions.searchPlaceholder') : t('sessions.noSessionsFound')}
+            {hasFilter ? t('sessions.noSessionsFound') : t('sessions.noSessionsYet')}
           </p>
         </div>
       )}
 
-      {!isError && !isLoading && hasFilter && filtered.length > 0 && (
+      {!isError && !isLoading && canList && filtered.length > 0 && (
         <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-sm">
           {filtered.map((s) => {
             const dateParts = s.date ? s.date.split('-') : []
