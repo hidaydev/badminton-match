@@ -158,32 +158,6 @@ func TestMapPublishErrorTable(t *testing.T) {
 	}
 }
 
-// TestSessionListFilterRequiredForPublic — GET /sessions menolak akses publik tanpa filter.
-func TestSessionListFilterRequiredForPublic(t *testing.T) {
-	h := &SessionHandler{
-		AdminToken: "super-secret-token",
-	}
-
-	// 1. Publik tanpa filter → 400 validation error
-	req := httptest.NewRequest("GET", "/sessions", nil)
-	rec := httptest.NewRecorder()
-	h.List(rec, req)
-	if rec.Code != 400 {
-		t.Fatalf("expected 400 Bad Request for public list without filter, got %d", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), "validation_error") {
-		t.Fatalf("expected validation_error in body, got %s", rec.Body.String())
-	}
-
-	// 2. Publik dengan whitespace-only filter → tetap 400
-	reqSpaces := httptest.NewRequest("GET", "/sessions?q=%20%20&date=%20", nil)
-	recSpaces := httptest.NewRecorder()
-	h.List(recSpaces, reqSpaces)
-	if recSpaces.Code != 400 {
-		t.Fatalf("expected 400 Bad Request for whitespace filter, got %d", recSpaces.Code)
-	}
-}
-
 // TestAdminGuardDestructiveSessionEndpoints — DELETE dan POST /sessions/{id}/lock dilindungi AdminGuard.
 func TestAdminGuardDestructiveSessionEndpoints(t *testing.T) {
 	const adminToken = "secret-admin-token"

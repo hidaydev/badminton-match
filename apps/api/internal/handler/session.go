@@ -117,31 +117,18 @@ type patchSessionRequest struct {
 // ── List & Create ────────────────────────────────────────────────────────
 
 // List — GET /api/sessions: metadata session.
-// Publik WAJIB menyertakan filter ('date' atau 'q') untuk mencegah enumerasi share code.
-// Admin (Bearer MAJADU_ADMIN_TOKEN) boleh melihat seluruh daftar tanpa filter.
+// Filter 'date' dan 'q' bersifat opsional untuk publik. Sengaja dibuka agar
+// logbook bisa dijelajahi tanpa menebak tanggal (share code tetap acak dan
+// tidak dapat di-derive dari daftar ini).
 func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 	date := strings.TrimSpace(r.URL.Query().Get("date"))
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	limitStr := strings.TrimSpace(r.URL.Query().Get("limit"))
 
-	isAdmin := IsAdmin(h.AdminToken, r)
-
-	// Non-admin wajib menyertakan filter ('date' atau 'q')
-	if !isAdmin && date == "" && q == "" {
-		httperr.WriteError(w, h.Logger, httperr.Validation("filter parameter ('date' or 'q') is required for public session listing"))
-		return
-	}
-
 	limit := 0
 	if limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 			limit = l
-		}
-	}
-	// Untuk publik, batasi limit defensif jika tidak dispesifikasikan atau melebihi 50
-	if !isAdmin {
-		if limit <= 0 || limit > 50 {
-			limit = 50
 		}
 	}
 
