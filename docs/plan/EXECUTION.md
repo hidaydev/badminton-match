@@ -92,7 +92,7 @@ Aturan tambahan untuk agen backend:
 - `./task dev-db` membuat `bm2_dev` dari nol < 20 s; clone worker < 1 s.
 - `dbtools verify` bersih pada `0001`–`0005`.
 - `./task build` menghasilkan binary yang berjalan dan merespons `/healthz`.
-- `./task contract-gen` menghasilkan 63 operasi dan `git diff --exit-code` bersih.
+- `./task contract-gen` menghasilkan 66 operasi dan `git diff --exit-code` bersih.
 - `./task mock-api` melayani FE.
 - Definisi CI lolos parse + skema (dan `actionlint` bila terpasang — belum ada di mesin ini);
   `./task ci` hijau lokal.
@@ -109,13 +109,16 @@ Aturan tambahan untuk agen backend:
    `https://majadu.vercel.app/api/auth/google/callback` (prod).
    Mendaftarkannya di `api.qouver.com` membuat cookie flow dan callback berada di
    host berbeda → login selalu gagal.
-3. Simpan `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET` di
+3. Daftarkan juga alias staging tetap (`https://staging.majadu.vercel.app/api/auth/google/callback`)
+   untuk menguji `Set-Cookie` lewat proxy sebelum cutover. Preview deployment acak
+   tidak didaftarkan karena URL-nya berubah.
+4. Simpan `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET` di
    `/srv/qouver/apps/<app>/env/` mode `600`; repo hanya memuat `.example`.
-4. Rotasi: buat secret baru di console, deploy dengan secret baru, hapus yang lama
-   setelah 24 jam. Kunci sesi dan `SHARE_CODE_KEY` terpisah — menggantinya membuat
+5. Rotasi: buat secret baru di console, deploy dengan secret baru, hapus yang lama
+   setelah 24 jam. Kunci sesi dan `SHARE_CODE_KEYS` terpisah — menggantinya membuat
    semua sesi logout / semua tautan harus dienkripsi ulang, jadi lakukan bersamaan
    dengan deploy yang direncanakan.
-5. Uji: login berhasil, `state` salah → 400, `nonce` salah → 400, akun tanpa
+6. Uji: login berhasil, `state` salah → 400, `nonce` salah → 400, akun tanpa
    `email_verified` → 403, `return_to` absolut → 400.
 
 ### 6.2 Backup & restore (sebelum impor apa pun)

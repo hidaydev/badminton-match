@@ -64,6 +64,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | COM-08 | C | Direktori komunitas publik | Default mati; bila dinyalakan, hanya slug + nama yang tampil |
 | COM-09 | M | Satu akun Google untuk semua komunitas | Tidak ada akun ganda untuk orang yang sama |
 | COM-10 | S | Keluar/dikeluarkan dari komunitas mencabut akses seketika | Request berikutnya → 404/401, bukan cache lama |
+| COM-11 | M | Pengguna bisa mengajukan join; `admin` memutuskan | Pengajuan ganda saat masih pending → 409; setelah disetujui menjadi `member`; penolakan tidak membuka data |
 
 ### 4.1 Autentikasi & otorisasi
 
@@ -81,6 +82,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | AUTH-10 | S | Akun bisa dinonaktifkan dan dianonimkan tanpa menghapus riwayat rating | Nama/email dihapus; `sub` disimpan sebagai hash agar login ditolak; klaim pemain dilepas sehingga bisa diklaim akun lain; baris rating utuh; audit mencatat aktor |
 | AUTH-11 | M | WebSocket diautentikasi tiket sekali pakai, bukan cookie | Tiket kedaluwarsa (60 s) atau dipakai dua kali → 401; tiket hanya membuka satu kanal dan tidak bisa menulis |
 | AUTH-12 | M | `platform_owner` boleh menjadi anggota biasa sebuah komunitas untuk bermain | Bergabung tanpa undangan (aksi eksplisit, tercatat audit) memberi peran `member`; klaim profil berhasil; kekuasaan global tetap berlaku tanpa keanggotaan |
+| AUTH-13 | M | Hanya satu akun `platform_owner` aktif | Menambah akun kedua lewat UI ditolak; lewat CLI tercatat audit |
 
 ### 4.2 Sesi & share link
 
@@ -237,6 +239,8 @@ juga di luar lingkup** — React 19 + Vite + Tailwind 4 dibekukan (O-17).
 | Backup | Tetap di disk VPS (risiko diterima, dicatat) |
 | Rollback cutover | Image `:v1-final` disimpan 14 hari di luar rotasi normal |
 | Image rilis | Dibangun sekali di CI, dideploy berdasarkan digest |
+| Cara bergabung | Undangan **atau** pengajuan join yang disetujui `admin` |
+| Jumlah platform owner | Satu akun aktif; penambahan lewat CLI ber-audit |
 
 Tidak ada pertanyaan terbuka yang tersisa; perubahan berikutnya harus lewat
 `contract-change.md` (T-016) bila menyentuh kontrak.

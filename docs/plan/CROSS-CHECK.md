@@ -167,7 +167,7 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 |---|---|---|
 | Integritas task | parse tabel backlog | **84 task**, 0 duplikat, 0 dependency menggantung |
 | Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah pemisahan per file |
-| Traceability | 65 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
+| Traceability | 67 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
 | Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
 | Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
 | Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
@@ -238,7 +238,7 @@ Requirement menjadi **62** (AUTH-10, OPS-06, OPS-07) dan seluruhnya terpetakan.
 | Bahasa UI | Inggris saja, kunci i18n disiapkan | O-21, T-028 |
 | Observability | 8 metrik inti, tanpa alert | TECH-SPEC §8, T-062 |
 
-Angka: task **80 → 84**, requirement **59 → 65**, operasi **59 → 63** (lihat putaran 12).
+Angka: task **80 → 84**, requirement **59 → 67**, operasi **59 → 66** (lihat putaran 13).
 
 ---
 
@@ -305,7 +305,7 @@ read-only setelah cutover; ETL tidak membuat membership.
 | Rilis | deploy bisa jalan sebelum image ada; pull tanpa auth | urutan tag → digest → `main`; `podman login` + token |
 | T-108 | `git filter-repo` rusak di mesin ini | acceptance mewajibkan perbaikan alat, `--force`, origin dipasang ulang, `--force-with-lease` |
 
-Angka akhir: task **84**, requirement **65**, operasi **63**, ADR **26**, O-1..O-29.
+Angka akhir: task **84**, requirement **67**, operasi **66**, ADR **26**, O-1..O-29.
 
 ---
 

@@ -163,7 +163,7 @@ di-scope: `(community_id, slug)`, `(community_id, alias_key)`,
 
 Tabel platform: `platform.community`, `platform.user` (global),
 `community.membership` (user × community × role), `community.invite`,
-`community.settings`. Peran disimpan per keanggotaan; `platform_owner` global
+`community.join_request`, `community.settings`. Peran disimpan per keanggotaan; `platform_owner` global
 hanya untuk membuat komunitas.
 
 | Kriteria | 1:1 `bm` | Evolve `bm` | **Redesign `bm2`** |
@@ -281,7 +281,7 @@ kecuali ada di allowlist L0 (`allowlist_constants.txt`) dengan alasan tertulis.
 
 ## 5. API
 
-- Permukaan v2: **63 operasi**. Hitungan per kelompok, bukan klaim:
+- Permukaan v2: **66 operasi**. Hitungan per kelompok, bukan klaim:
 
   | Kelompok | v1 | v2 | Perubahan |
   |---|---|---|---|
@@ -292,9 +292,9 @@ kecuali ada di allowlist L0 (`allowlist_constants.txt`) dengan alasan tertulis.
   | Players | 7 | **8** | `PATCH /tier` + `PATCH /name` dilebur, `+` merge di path pemain |
   | Tournaments | 6 | **6** | `-` `PATCH /tournaments/{id}`, `+` `PATCH .../matches/{id}` |
   | Rankings & ratings | 14 | **10** | 4 route admin digabung ke path resource |
-  | **Subtotal** | **48** | **52** | |
-  | Komunitas & config | 0 | **11** | buat/daftar komunitas, gabung, buat/terima undangan, daftar anggota, ubah peran, keluarkan anggota, pengaturan, config, direktori |
-  | **Total** | 48 | **63** | |
+  | **Subtotal** | **48** | **55** | |
+  | Komunitas & config | 0 | **14** | buat/daftar komunitas, gabung, buat/terima undangan, ajukan join, daftar pengajuan, putuskan pengajuan, daftar anggota, ubah peran, keluarkan anggota, pengaturan, config, direktori |
+  | **Total** | 48 | **66** | |
 
   Path di tabel ditulis tanpa prefix. Route komunitas memakai `/c/{slug}` di
   depannya; pengecualiannya `/s/{code}` dan `POST /s/{code}/ws-ticket`, yang
@@ -443,11 +443,15 @@ Model peran (ADR-023, O-26): **satu peran global + tiga peran komunitas**. Tidak
 | Buat/ubah sesi & turnamen | — | ya | ya | ya |
 | Terbitkan/rotasi tautan, lock/approve | — | ya | ya | ya |
 | Merge pemain, rebuild/revert poin | — | — | ya | ya |
-| Kelola anggota, peran, undangan | — | — | ya | ya |
+| Kelola anggota, peran, undangan, putuskan pengajuan join | — | — | ya | ya |
 | Pengaturan komunitas & override dalam plafon | — | — | ya | ya |
 | Buat/hapus komunitas, angkat admin, ubah L1 & plafon | — | — | — | ya |
 | Aksi **manajemen** di komunitas yang belum diikuti (pengaturan, peran, hapus) | — | — | — | ya (audit setiap aksi) |
 | Baca data domain komunitas yang belum diikuti | — | — | — | tidak — 404; harus join dulu |
+
+Hanya **satu** akun `platform_owner` aktif; menambah akun kedua lewat CLI dengan
+audit, bukan lewat UI. Pengguna biasa masuk lewat undangan **atau** pengajuan join
+yang diputuskan `admin` komunitas; pengajuan ganda yang masih pending ditolak 409.
 
 `platform_owner` **tidak otomatis** menjadi anggota komunitas mana pun, tetapi
 **boleh bergabung** sebagai anggota biasa (`member`) lewat `POST /c/{slug}/join`
@@ -528,6 +532,10 @@ Nightly: gitleaks penuh, osv-scanner, drift `--pull=always`, `ci-repeat 2`.
 
 **Image:** multi-stage, `debian:bookworm-slim@sha256`, uid 10001, HEALTHCHECK,
 ≤120 MB, digest reproducibility diuji.
+
+**Alias staging.** Sebelum cutover, `staging.majadu.vercel.app` didaftarkan sebagai
+redirect URI kedua di Google dan dipakai untuk memverifikasi `Set-Cookie` lewat
+proxy, login, dan satu alur sesi. Alias ini stabil (bukan preview deployment).
 
 **Deploy (`ops/scripts/deploy-vps.sh`)** wajib:
 

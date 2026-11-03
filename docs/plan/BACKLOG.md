@@ -64,12 +64,12 @@ Konkurensi maksimum: **4 agen** (2 backend, 1 FE, 1 platform/infra).
 | T-006b | Migrasi rating & achievement | T-006a | `db/migrations/0002_*.sql` | Idem; relasi opsional dijaga CHECK/trigger, bukan FK komposit | ya (006c) |
 | T-006c | Migrasi tournament | T-006a | `db/migrations/0003_*.sql` | Idem | ya |
 | T-006d | Migrasi platform/auth: `platform.{community,user,config,config_version,idempotency_keys,import_row_map,ws_ticket,cutover_state}`, `auth.oauth_flows`, `account.sessions`, `account.audit`, `outbox` | T-006a | `db/migrations/0004_*.sql` | Idem | ya |
-| T-006e | Migrasi komunitas: `community.{membership,invite,settings}` | T-006a | `db/migrations/0005_*.sql` | `UNIQUE(community_id,user_id)`; peran per keanggotaan; undangan unik | ya |
+| T-006e | Migrasi komunitas: `community.{membership,invite,join_request,settings}` | T-006a | `db/migrations/0005_*.sql` | `UNIQUE(community_id,user_id)`; satu pengajuan pending per user+komunitas; peran per keanggotaan; undangan unik | ya |
 | T-099 | Generator data sintetis deterministik untuk v1 (tanpa data produksi) | T-007 | `tools/fixtures/` | Seed < 10 s; dua kali jalan → data sama | ya |
 | T-014 | Env v1 lokal: restore skema + data sintetis | T-007, T-099 | `ops/dev/v1/` | `./task dev-v1` naik; v1 merespons 48 route | ya |
 | T-008a | OpenAPI inti (auth, session, share, player, rating, achievement, tournament) | T-018 | `packages/contracts/openapi/core.yaml` | Spec lint bersih | ya |
 | T-008b | OpenAPI komunitas & config (10 operasi) | T-018 | `packages/contracts/openapi/community.yaml` | Spec lint bersih; 10 operasi komunitas | ya |
-| T-009 | `contract-gen`: gabung spec → route Nim + client TS | T-008a, T-008b | `tools/contract-gen/{gen,emit_nim,emit_ts}.nim`, `apps/api/src/routes_gen.nim`, `packages/web-client/` | Generate bersih; handler hilang = error kompilasi; 63 operasi | tidak |
+| T-009 | `contract-gen`: gabung spec → route Nim + client TS | T-008a, T-008b | `tools/contract-gen/{gen,emit_nim,emit_ts}.nim`, `apps/api/src/routes_gen.nim`, `packages/web-client/` | Generate bersih; handler hilang = error kompilasi; 66 operasi | tidak |
 | T-016 | Gerbang perubahan kontrak | T-009 | `tools/contract-gen/check.nim`, `docs/plan/contract-change.md`, `task.d/contract.sh` | `./task contract-check` gagal bila spec berubah tanpa hash baru | ya |
 | T-015 | `./task mock-api` dari kontrak | T-009 | `tools/mock-api/`, `task.d/mock.sh` | FE develop tanpa backend | ya |
 | T-010 | `archcheck`: aturan impor + scope komunitas | T-018 | `tools/archcheck/{main,rules}.nim` | Pelanggaran → exit ≠ 0; uji negatif | ya |
@@ -78,7 +78,7 @@ Konkurensi maksimum: **4 agen** (2 backend, 1 FE, 1 platform/infra).
 | T-012 | Parity tool: recorder/replayer/normalizer/fake clock | T-003 | `tools/parity/` | Satu kasus rekam+replay end-to-end | ya |
 | T-013 | Korpus parity v1 | T-014, T-012 | `testdata/parity/v1/` | ≥80 kasus, 48 route, manifest ber-checksum | tidak |
 
-**Gate R0:** `./task check` ≤ 60 s; dua DB lokal naik; kontrak 63 operasi ter-generate;
+**Gate R0:** `./task check` ≤ 60 s; dua DB lokal naik; kontrak 66 operasi ter-generate;
 mock API jalan; CI definitions valid.
 
 ---
@@ -99,12 +99,12 @@ mock API jalan; CI definitions valid.
 | T-076 | CSRF (`Origin`/`Sec-Fetch-Site`) + header keamanan | T-003, T-096 | `apps/api/src/security_headers.nim` | Origin di luar `security.allowed_origins` → 403; CSP/HSTS terkirim | ya |
 | T-077 | Idempotency store (key + hash body, scoped komunitas) | T-006d | `modules/platform/idempotency.nim` | Key sama + body beda → 409 | ya |
 | T-090 | Domain `community`: slug, settings, direktori, admin pertama | T-006e | `modules/community/domain/` | Slug unik; hanya `platform_owner`; pembuatan wajib menyertakan email admin pertama; direktori butuh login | ya |
-| T-091 | Keanggotaan, undangan sekali pakai, join platform owner | T-090, T-020 | `modules/community/infrastructure/{membership,invite}.nim`, `apps/api/src/join_routes.nim` | `POST /c/{slug}/join`; undangan 2× gagal; `platform_owner` join tanpa undangan sebagai `member` (audit), tidak otomatis admin; `UNIQUE(community_id,user_id)` | ya |
+| T-091 | Keanggotaan, undangan, pengajuan join, join platform owner | T-090, T-020 | `modules/community/infrastructure/{membership,invite,join_request}.nim`, `apps/api/src/join_routes.nim` | `POST /c/{slug}/join` (platform_owner) dan `join-request` (pengguna); pengajuan ganda pending → 409; `admin` approve/reject lewat `PATCH`; `UNIQUE(community_id,user_id)` | ya |
 | T-092 | Middleware konteks komunitas (slug → 404) + allowlist baca publik | T-090, T-020 | `apps/api/src/community_context.nim` | Slug asing/bukan anggota → 404; tanpa login hanya peringkat & `/s/{code}` yang bisa dibaca | tidak |
 | T-094 | Suite keamanan cross-tenant | T-092 | `apps/api/tests/tenant/` | Setiap resource: komunitas lain → 404, termasuk `platform_owner` yang belum join; aksi manajemen platform_owner diizinkan tetapi menulis audit | ya |
 | T-096 | Registry config + seed L1 | T-006d, T-003 | `modules/platform/config/`, `db/seeds/platform_config.sql` | Key wajib hilang → tolak start; ubah nilai tanpa restart | tidak |
 | T-097 | API admin parameter + override komunitas + audit | T-096, T-023 | `apps/api/src/config_routes.nim` | Di luar plafon → 400; audit lama/baru/aktor | ya |
-| T-103 | Bootstrap: `platform_owner` pertama (via `--sub`), komunitas default, seed config | T-096, T-091 | `tools/ownerseed/` | Instance kosong bisa dipakai tanpa SQL manual; `--sub` wajib; tanpa membership otomatis | tidak |
+| T-103 | Bootstrap: `platform_owner` pertama (via `--sub`), komunitas default, seed config | T-096, T-091 | `tools/ownerseed/` | Instance kosong bisa dipakai tanpa SQL manual; `--sub` wajib; hanya satu `platform_owner` aktif, penambahan via CLI + audit; tanpa membership otomatis | tidak |
 | T-105 | Janitor retensi: flow OAuth, idempotency key, outbox, tautan kedaluwarsa, tiket WS, audit lama | T-006d, T-022 | `modules/platform/janitor.nim`, `apps/api/tests/janitor/` | Baris kedaluwarsa terhapus (termasuk `ws_ticket`); baris aktif tidak tersentuh; jumlah terhapus muncul di metrik | ya |
 | T-024 | Share links: hash + ciphertext (nonce/tag/AAD), keyring `SHARE_CODE_KEYS`, tampil-ulang ber-audit, CLI rotasi | T-006a | `modules/share/`, `tools/sharekeys/` | Boot gagal tanpa kunci aktif; rotasi idempoten dan tautan lama tetap terbaca; tampil ulang hanya `admin`/`host` + audit; 128-bit | ya |
 | T-025 | Session read API (list tanpa kode, by id, by view_code) | T-009, T-024, T-092 | `modules/session/read*.nim` | SES-01/02; hanya komunitas aktif | tidak |
@@ -254,6 +254,7 @@ T-029 ── T-030
 | COM-07 | T-090, T-097 |
 | COM-09 | T-020, T-091 |
 | COM-10 | T-091, T-094 |
+| COM-11 | T-091 |
 | AUTH-01, AUTH-02 | T-021, T-084 |
 | AUTH-03 | T-023, T-028, T-070 |
 | AUTH-04, AUTH-05 | T-022 |
@@ -272,6 +273,7 @@ T-029 ── T-030
 | PLY-04 | T-048 |
 | AUTH-10 | T-106 |
 | AUTH-12 | T-091, T-048 |
+| AUTH-13 | T-103 |
 | AUTH-11 | T-027 |
 | PLY-02 | T-041 |
 | PLY-03 | T-040 |
@@ -306,7 +308,7 @@ T-029 ── T-030
 | executability | tidak ada produsen data untuk T-014 | T-099 generator sintetis |
 | executability | config seed tidak ada pemilik | T-096 owns `db/seeds/` |
 | executability | kontrak auth bentrok | ADR-015: code flow + callback; memo 04 ditandai |
-| executability | T-008 "48 operasi" vs target | T-008a/b, total 63 |
+| executability | T-008 "48 operasi" vs target | T-008a/b, total 66 |
 | executability | context & sha256 tanpa pemilik | masuk T-003; T-004 |
 | executability | tabrakan `Owns` | T-010/T-098, T-009/T-016, T-020/T-023 dipisah per file |
 | executability | tabel tanpa migrasi | `session.links`, trigger version → T-006a; `import_row_map`, `user_id` → T-006a/d |

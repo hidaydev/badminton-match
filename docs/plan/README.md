@@ -18,7 +18,7 @@ Status: draft untuk review pemilik (belum ada kode produksi yang berubah)
 | # | Dokumen | Untuk siapa | Isi |
 |---|---------|-------------|-----|
 | 1 | [`BRD.md`](BRD.md) | pemilik | kenapa, tujuan bisnis, risiko, definisi sukses, keputusan final |
-| 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 65 requirement ber-ID, NFR, perubahan UX |
+| 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 67 requirement ber-ID, NFR, perubahan UX |
 | 3 | [`TECH-SPEC.md`](TECH-SPEC.md) | semua engineer | stack, layout, database `bm2`, kontrak, keamanan, CI/CD, parity, risiko |
 | 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 84 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
 | 5 | [`CROSS-CHECK.md`](CROSS-CHECK.md) | reviewer | 19 klaim diuji ke sumber, 9 putaran konsistensi, 3 review independen |
@@ -36,7 +36,7 @@ Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.
 | Keputusan | Pilihan | Alasan singkat |
 |-----------|---------|----------------|
 | Lokasi rewrite | repo ini | majadu v2 tidak disentuh (O-1) |
-| Kontrak API | boleh berubah; 63 operasi | FE ikut dikerjakan (O-2) |
+| Kontrak API | boleh berubah; 66 operasi | FE ikut dikerjakan (O-2) |
 | Auth | Google OIDC untuk **semua penulis**; tautan hanya baca | tidak ada jalur tulis anonim (O-3, O-9) |
 | Multi-komunitas | satu instance, `community_id` + FK komposit, poin per komunitas | skema, auth, routing berubah (O-13..O-16) |
 | Frontend | React 19 + Vite + Tailwind 4, **dibekukan** | tidak ada rewrite Svelte (O-17) |

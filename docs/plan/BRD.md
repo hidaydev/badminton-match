@@ -160,13 +160,15 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-27 | Kode share disimpan terenkripsi agar `admin`/`host` bisa menampilkannya lagi, dengan audit setiap penampilan |
 | O-28 | Image dibangun sekali di CI pada tag dan dideploy berdasarkan digest; deploy tidak rebuild |
 | O-29 | Image `:v1-final` dipertahankan 14 hari di luar rotasi `:local`/`:prev` sebagai jalur rollback |
+| O-30 | Pengguna biasa masuk komunitas lewat undangan **atau** pengajuan join yang diputuskan `admin` |
+| O-31 | Hanya satu akun `platform_owner` aktif; penambahan lewat CLI dengan audit |
 
 ### Keterlacakan: di mana tiap keputusan diwujudkan
 
 | Keputusan | Wujud konkret | Task |
 |---|---|---|
 | O-1 | Seluruh kode baru di `apps/api/`, `modules/`, `shared/` repo ini; tidak ada sentuhan ke `majadu` | T-001 |
-| O-2 | Kontrak v2 ditulis ulang (48 → 63 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
+| O-2 | Kontrak v2 ditulis ulang (48 → 66 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
 | O-3 | OIDC Google; tidak ada magic link / token admin | T-021, T-084 |
 | O-4 | Tidak ada commit perbaikan di `apps/api/internal/`; P0 ditutup di Nim | T-021, T-023, T-025 |
 | O-5 | `./task dev-db` memakai cluster lokal; container hanya fallback | T-007 |
@@ -195,6 +197,8 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-27 | `session.links.code_enc` + endpoint tampil-ulang + audit | T-024, T-006a |
 | O-28 | Build image di workflow rilis, deploy by digest | T-107, T-060 |
 | O-29 | Tag `:v1-final` + pengecualian rotasi di `deploy-vps.sh` | T-060, T-082 |
+| O-30 | Tabel `community.join_request`, route ajukan/daftar/putuskan, persetujuan `admin` | T-091, T-006e |
+| O-31 | Batas satu `platform_owner` aktif + CLI promosi ber-audit | T-103 |
 
 ## 10. Jawaban pemilik (2026-11-03)
 
