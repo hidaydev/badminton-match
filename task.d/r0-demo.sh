@@ -89,6 +89,15 @@ community=$(curl -s -b "$JAR" -X POST -H 'Content-Type: application/json' \
 [ "$(printf '%s' "$community" | json "['timezone']")" = "Asia/Jakarta" ] ||
   fail_step "community timezone default"
 
+csrf=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X POST \
+  -H 'Origin: https://evil.example' -H 'Content-Type: application/json' \
+  -d '{"slug":"csrf","name":"CSRF"}' "$base/communities")
+[ "$csrf" = "403" ] || fail_step "foreign origin should be 403, got $csrf"
+
+curl -s -D /tmp/r0-headers -o /dev/null "$base/healthz"
+grep -qi '^X-Content-Type-Options: nosniff' /tmp/r0-headers || fail_step "security headers"
+grep -qi '^Content-Security-Policy:' /tmp/r0-headers || fail_step "CSP header"
+
 duplicate=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X POST \
   -H 'Content-Type: application/json' -d '{"slug":"demo-club","name":"Again"}' \
   "$base/communities")

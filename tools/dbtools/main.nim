@@ -132,9 +132,10 @@ proc seed*(db: Db, dir: string) =
       let sum = checksum(path)
       let existing = conn.queryOne(
         "select checksum from dbtools.seed_files where name = $1", @[textParam(name)])
-      if existing.isSome:
-        if existing.get.get("checksum") != sum:
-          fail "seed drift: " & name
+      # Seeds are idempotent by construction (INSERT ... ON CONFLICT DO
+      # NOTHING), so a changed file is applied again and the ledger records the
+      # new checksum. Operator edits to existing values survive; new rows land.
+      if existing.isSome and existing.get.get("checksum") == sum:
         continue
       conn.execScript(readFile(path))
       discard conn.execUpdate(

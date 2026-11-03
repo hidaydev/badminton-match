@@ -18,6 +18,7 @@ type
     keyRankBoardLimit = "rank.board_limit"
     keyRatingTierBands = "rating.tier_bands"
     keyTournamentClassicPairCount = "tournament.classic.pair_count"
+    keySecurityAllowedOrigins = "security.allowed_origins"
     keySecurityMaxBodyBytes = "security.max_body_bytes"
     keySecurityMaxJsonDepth = "security.max_json_depth"
     keySecurityReadTimeoutMs = "security.read_timeout_ms"
@@ -55,6 +56,7 @@ const allKeys* = [
   spec(keyRankBoardLimit, ctInt, 1, 10_000, true),
   spec(keyRatingTierBands, ctJson),
   spec(keyTournamentClassicPairCount, ctInt, 2, 256, true),
+  spec(keySecurityAllowedOrigins, ctJson),
   spec(keySecurityMaxBodyBytes, ctInt, 1024, 16_777_216, true),
   spec(keySecurityMaxJsonDepth, ctInt, 1, 64, true),
   spec(keySecurityReadTimeoutMs, ctInt, 100, 300_000, true),

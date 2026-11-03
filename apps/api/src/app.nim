@@ -2,6 +2,7 @@ import std/[base64, json, options, os, strutils, sysrand, times, uri]
 import mummy
 import auth_middleware
 import community_context
+import security_headers
 import db/db
 import sha256
 import uuidv7
@@ -68,16 +69,27 @@ proc audit(action: string, communityId: string, user: AuthUser,
     targetKind = targetKind, targetId = targetId, requestId = uuidv7()).withEvidence(
       newJObject(), after))
 
+proc send(request: Request, status: int,
+          headers: openArray[(string, string)], body: string) =
+  ## Single response path: every response carries the security headers, so a new
+  ## route cannot silently ship without CSP or nosniff.
+  var merged = @headers
+  for pair in securityHeaders(application.cookieSecure):
+    merged.add(pair)
+  request.respond(status, merged, body)
+
+proc send(request: Request, status: int, body: string) =
+  send(request, status, @[("Content-Type", "application/json")], body)
+
 proc jsonResponse(request: Request, status: int, body: JsonNode,
                   extra: openArray[(string, string)] = []) =
   var headers = @[("Content-Type", "application/json")]
   for pair in extra:
     headers.add(pair)
-  request.respond(status, headers, $body)
+  send(request, status, headers, $body)
 
 proc problem(request: Request, status: int, code, detail: string) =
-  request.respond(status, @[("Content-Type", "application/json")],
-    $ %*{"status": status, "code": code, "detail": detail})
+  send(request, status, $ %*{"status": status, "code": code, "detail": detail})
 
 proc bodyJson(request: Request): JsonNode =
   if request.body.len == 0:
@@ -109,7 +121,7 @@ proc setSessionCookie(request: Request, token: string) =
   var cookie = "majadu_session=" & token & "; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000"
   if application.cookieSecure:
     cookie.add("; Secure")
-  request.respond(204, @[("Set-Cookie", cookie)], "")
+  send(request, 204, @[("Set-Cookie", cookie)], "")
 
 proc createSessionToken(userId: string): string =
   let days = configSnapshot().intValue(%*{}, keySessionAbsoluteDays)
@@ -253,7 +265,7 @@ proc finishAuth(request: Request) =
     problem(request, 500, "USER_UPSERT_FAILED", "cannot create user")
     return
   let token = createSessionToken(userRow.get.get("id"))
-  request.respond(302,
+  send(request, 302,
     @[("Location", flow.get("return_to")), ("Set-Cookie", sessionCookie(token))], "")
 
 proc listAuthSessions(request: Request) =
@@ -270,7 +282,7 @@ proc revokeOtherSessions(request: Request) =
   let user = requireUser(request)
   if user.isNone: return
   revokeOthers(application.db, user.get.id, cookieValue(request, "majadu_session"))
-  request.respond(204, @[("Cache-Control", "no-store")], "")
+  send(request, 204, @[("Cache-Control", "no-store")], "")
 
 proc me(request: Request) =
   let user = requireUser(request)
@@ -285,7 +297,7 @@ proc logout(request: Request) =
   let token = cookieValue(request, "majadu_session")
   if token.len > 0:
     revoke(application.db, token)
-  request.respond(204, @[("Set-Cookie",
+  send(request, 204, @[("Set-Cookie",
     "majadu_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")], "")
 
 proc createCommunity(request: Request) =
@@ -480,12 +492,19 @@ proc route(request: Request) =
   try:
     let path = request.path
     let verb = request.httpMethod
+    let snapshot = configSnapshot()
+    if request.body.len > 0 and bodyTooLarge(request, snapshot):
+      problem(request, 413, "BODY_TOO_LARGE", "request body exceeds the limit")
+      return
+    if csrfCheck(request, snapshot) == csrfRejected:
+      problem(request, 403, "CSRF_REJECTED", "origin is not allowed")
+      return
     if path == "/healthz":
-      request.respond(200, @[("Content-Type", "application/json")], """{"status":"ok"}""")
+      send(request, 200, """{"status":"ok"}""")
       return
     if path == "/readyz":
       discard application.db.queryOne("select 1 as ok")
-      request.respond(200, @[("Content-Type", "application/json")], """{"status":"ok"}""")
+      send(request, 200, """{"status":"ok"}""")
       return
     case path
     of "/auth/start":
