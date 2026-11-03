@@ -27,6 +27,8 @@ Rujukan: `PRD.md`, `TECH-SPEC.md`, `reviews/`
    (hasil gabungan), `routes_gen.nim`, dan `packages/web-client/` adalah artefak
    generated — task lain tidak menyentuhnya.
 9. **Tidak ada push.** Merge ke `main` lokal oleh orchestrator.
+10. **Dokumen beku setelah R0** (O-43): perubahan setelah walking skeleton lulus
+    hanya lewat OpenAPI, `testdata/authz/matrix.yaml`, dan baris backlog ini.
 
 Konkurensi maksimum: **4 agen** (2 backend, 1 FE, 1 platform/infra).
 
@@ -164,9 +166,9 @@ mock API jalan; CI definitions valid.
 | T-063 | Rehearsal: binary + DB lokal wajib; **rehearsal kedua di VPS D-3** | T-060, T-061, T-062 | `tools/rehearsal/`, `tools/rehearsal/timings.json` | Rehearsal memakai `bm_staging` → `bm2_rehearsal`; rehearsal di VPS sungguhan menjalankan Quadlet + Caddy + rollback ber-stopwatch (tidak ada Podman di mesin dev); menulis durasi per langkah ke `timings.json` yang dibaca gate; total < 15 menit; rollback dan `--from` terbukti; restore < 30 menit | tidak |
 | T-064 | ETL `bm_staging` → `bm2` + rekonsiliasi (sekali saat cutover) | T-006b, T-006c, T-043, T-090, T-099 | `tools/import/{etl,verify}.nim` | Sumber tunggal `bm_staging` (hasil restore dump); satu transaksi; selisih 0 terhadap staging; semua baris punya `community_id`; ID baru UUIDv7 dengan peta lama→baru di `import_row_map` (PK per komunitas) sehingga re-run idempoten; `date` v1 (WIB) → tanggal kalender komunitas + instan diuji di batas hari; **tidak** membuat membership atau tautan | tidak |
 | T-095 | Pemetaan v1 → komunitas default | T-064, T-090 | `tools/import/community_map.nim` | Satu komunitas default; idempoten | tidak |
-| T-065 | Runbook cutover manual + rollback | T-063, T-064 | `docs/ops/cutover.md` | Urutan maintenance → dump → ETL → tukar env/Caddy → `/readyz` → smoke, dijalankan `cutover.sh` oleh operator; D-7/D-1/D-day/D+1/D+14 checklist; rollback ke `:v1-final` teruji; konsekuensi rollback (sesi v2, cache FE) dinyatakan | tidak |
+| T-065 | Runbook cutover manual + rollback | T-063, T-064 | `docs/ops/cutover.md` | Urutan maintenance → dump → ETL → tukar env/Caddy → `/readyz` → smoke, dijalankan `cutover.sh` oleh operator; D-7/D-1/D-day/D+1/D+30 checklist; rollback ke `:v1-final` teruji; konsekuensi rollback (sesi v2, cache FE) dinyatakan | tidak |
 | T-112 | Dokumen operasi + privasi | T-011, T-065 | `docs/ops/operations.md`, `docs/privacy.md` | Insiden 5-field (deteksi, dampak, tindakan, pencegahan, pemilik) + daftar pemegang akses (Google/GitHub/VPS/GHCR) + MFA wajib; privasi: dasar pemrosesan, retensi, apa yang dianonimkan vs dipertahankan, kanal kebocoran; tidak ada artefak ISO lain | tidak |
-| T-082 | Dekomisi Go + hapus `:v1-final` | T-065 + 14 hari observasi (bukti di `docs/ops/cutover.md`) | `apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`, `apps/api/go.mod`, `apps/api/go.sum`, `apps/api/Makefile`, `apps/api/README.md`, `Makefile`, `README.md`, `package.json` | tiga grep terpisah di `apps/`, `package.json`, `Makefile`, `task.d/`, `.github/`: `grep -rnE '\.go\b'` = 0, `grep -rn 'go build'` = 0, `grep -rn 'go test'` = 0 (dokumentasi dikecualikan lewat daftar path, bukan regex longgar); CI tanpa job Go; `pnpm install --frozen-lockfile` tetap bersih | tidak |
+| T-082 | Dekomisi Go + hapus `:v1-final` (tarball diarsipkan lebih dulu) | T-065 + 30 hari observasi (bukti di `docs/ops/cutover.md`) | `apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`, `apps/api/go.mod`, `apps/api/go.sum`, `apps/api/Makefile`, `apps/api/README.md`, `Makefile`, `README.md`, `package.json` | tiga grep terpisah di `apps/`, `package.json`, `Makefile`, `task.d/`, `.github/`: `grep -rnE '\.go\b'` = 0, `grep -rn 'go build'` = 0, `grep -rn 'go test'` = 0 (dokumentasi dikecualikan lewat daftar path, bukan regex longgar); CI tanpa job Go; `pnpm install --frozen-lockfile` tetap bersih | tidak |
 | T-083 | ADR-011: P0 diterima + cara mencabut (O-4) | T-021 | `docs/plan/ADR-011.md` | Kondisi, dampak, pemicu tinjau ulang | ya |
 | T-107 | Versioning & release: SemVer 2.0 dari Conventional Commits, `VERSION` mulai `2.0.0`, CHANGELOG, SSH-signed tag, image sekali di CI, GitHub Release ber-digest | T-011, T-018 | `VERSION`, `CHANGELOG.md`, `task.d/release.sh`, `tools/release/`, `.github/workflows/release.yml`, `.github/allowed_signers`, `docs/ops/release.md` | `--dry-run` menghitung bump dan `--pre rc`; tag tanpa tanda tangan/tree kotor ditolak; image didorong ke GHCR; urutan push tag → tunggu digest → `main`; workflow gagal = `main` tidak didorong | ya |
 | T-108 | Higiene pra-push: keluarkan `docs/audits` dari riwayat yang akan diterbitkan, pindahkan ke `.local/`, pasang hook penolak | T-011 | `.gitignore`, `.githooks/pre-push`, `task.d/hooks.sh`, `docs/ops/pre-push.md` | `git filter-repo --version` jalan (alat diperbaiki dulu); hook menolak push bila `docs/audits` ada; `origin` dipasang kembali setelah rewrite; push pertama `--force-with-lease`; `git log --all` bersih | tidak |
@@ -348,7 +350,7 @@ T-065 ── T-112
 | round-2 cutover | ETL dua pemilik | ETL sekali saat cutover; rehearsal memakai salinan `bm_staging` |
 | round-2 cutover | script lama dipakai pada push cutover | self re-exec |
 | round-2 cutover | `flock` membuang deploy, gate healthz | `flock -w 900` + `exit 1`, gate `/readyz` |
-| round-2 cutover | v1 hilang dari `:prev` | `:v1-final` 14 hari |
+| round-2 cutover | v1 hilang dari `:prev` | `:v1-final` 30 hari (keputusan akhir) |
 | round-2 cutover | digest rilis tak jelas | build sekali di CI, deploy by digest |
 | round-2 product | poin tidak pernah di-approve | lock = approval |
 | round-2 product | komunitas tanpa admin | email admin pertama di COM-01 |

@@ -55,9 +55,9 @@ berbeda. Jangan menambah agen ketiga sebelum `T-006a` selesai.
 **Batas WIP (PM review):** maksimal **3 agen aktif** dan **6 task berjalan**; antrean
 review owner adalah bottleneck sebenarnya, bukan penulisan kode. Budget review
 **15 menit/task**; task yang butuh lebih dari satu hari kerja dipecah sebelum
-diberikan ke agen. Anggaran perubahan **10%** dari total estimasi; setelah R1,
-BRD/PRD/TECH-SPEC dibekukan dan perubahan hanya masuk lewat kontrak (OpenAPI) +
-`testdata/authz/matrix.yaml` + baris backlog.
+diberikan ke agen. Anggaran perubahan **10%** dari total estimasi; **setelah walking skeleton R0
+lulus**, BRD/PRD/TECH-SPEC dibekukan dan perubahan hanya masuk lewat kontrak
+(OpenAPI) + `testdata/authz/matrix.yaml` + baris backlog.
 
 ## 3. Menyerahkan task ke subagent
 

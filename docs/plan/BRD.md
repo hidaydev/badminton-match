@@ -159,7 +159,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-26 | Peran: `platform_owner` global (dewa, satu akun) + `admin`/`host`/`member` per komunitas; tanpa `owner` per komunitas; platform owner **boleh bergabung** sebagai anggota biasa untuk bermain |
 | O-27 | Kode share disimpan terenkripsi agar `admin`/`host` bisa menampilkannya lagi, dengan audit setiap penampilan |
 | O-28 | Image dibangun sekali di CI pada tag dan dideploy berdasarkan digest; deploy tidak rebuild |
-| O-29 | Image `:v1-final` dipertahankan 14 hari di luar rotasi `:local`/`:prev` sebagai jalur rollback |
+| O-29 | Image `:v1-final` dipertahankan **30 hari** di luar rotasi `:local`/`:prev` sebagai jalur rollback, lalu diarsipkan sebagai tarball sebelum dihapus |
 | O-30 | Pengguna biasa masuk komunitas lewat undangan **atau** pengajuan join yang diputuskan `admin` |
 | O-31 | Hanya satu akun `platform_owner` aktif; penambahan lewat CLI dengan audit |
 | O-32 | Papan peringkat tidak punya pintu publik tanpa kode: `/c/{slug}/rankings` khusus anggota, `/s/{code}/rankings` untuk penonton |
@@ -171,6 +171,9 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-38 | Pemain boleh melepas klaim profilnya sendiri; setelah lepas, akun Google mana pun (termasuk email berbeda) boleh mengajukan klaim baru lewat persetujuan `admin`, **tanpa masa tunggu** |
 | O-39 | Cutover pertama dijalankan **manual** oleh pemilik lewat `cutover.sh`; deploy dari push tidak pernah memicu cutover |
 | O-40 | Semua halaman FE v1 yang masih dipakai diport (players, admin sesi/rating/turnamen, setup); tidak ada fitur yang hilang |
+| O-41 | Database `bm` disimpan **permanen** sebagai arsip read-only setelah cutover; tidak ada DDL, tidak ada tulisan, akses aplikasi dicabut |
+| O-42 | 2.0.0 tidak punya notifikasi (email/push/webhook); admin melihat permintaan join/klaim saat membuka aplikasi |
+| O-43 | Dokumen perencanaan dibekukan setelah walking skeleton R0 lulus; perubahan setelah itu hanya lewat kontrak, matriks authz, dan baris backlog |
 
 ### Keterlacakan: di mana tiap keputusan diwujudkan
 
@@ -205,7 +208,10 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-26 | Matriks kapabilitas, RBAC middleware, peran per keanggotaan, join platform owner | T-023, T-020, T-090, T-091 |
 | O-27 | `session.links.code_enc` + endpoint tampil-ulang + audit | T-024, T-006a |
 | O-28 | Build image di workflow rilis, deploy by digest | T-107, T-060 |
-| O-29 | Tag `:v1-final` + pengecualian rotasi di `deploy-vps.sh` | T-060, T-082 |
+| O-29 | Tag `:v1-final` + pengecualian rotasi 30 hari + tarball arsip | T-060, T-082 |
+| O-41 | `bm` tidak di-drop; dump harian berhenti setelah 30 hari, akses aplikasi dicabut | T-082 |
+| O-42 | Tidak ada task notifikasi; antrean join/klaim adalah UI admin | T-111 |
+| O-43 | Freeze dokumen dicatat di `EXECUTION.md` §2 | — (dokumen) |
 | O-30 | Tabel `community.join_request`, route ajukan/daftar/putuskan, persetujuan `admin` | T-091, T-006e |
 | O-31 | Batas satu `platform_owner` aktif + CLI promosi ber-audit | T-103 |
 | O-32 | Dua route papan (`/c/{slug}/rankings` anggota, `/s/{code}/rankings` penonton); tidak ada route publik tanpa kode | T-044, T-092 |
@@ -235,6 +241,13 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | Masa berlaku tautan | Tanpa kedaluwarsa otomatis, hanya dicabut/dirotasi | O-35 |
 | Gate coverage | Tetap 90/75 ratchet; `check` tanpa DB | O-36 |
 | Step-up auth | Tidak perlu; diganti revoke-all sesi + audit | O-37; ADR-029 |
+| P0 terbuka | Ditinjau ulang dengan estimasi 3–5 bulan; tetap diterima tanpa hotfix (O-8) | ADR-011 |
+| Hosting FE | Tetap Vercel + proxy; kompleksitas tambahan diterima | O-22; ADR-021 |
+| Lingkup 2.0.0 | Penuh; tidak ada pemotongan fitur, dokumen dibekukan di R0 | O-43 |
+| Retensi v1 | 30 hari + arsip tarball | O-29; ADR-026 |
+| Database `bm` | Disimpan permanen sebagai arsip read-only | O-41 |
+| Notifikasi | Tidak ada di 2.0.0; manual | O-42 |
+| Backup | Tetap di disk VPS | O-23 |
 | Lepas klaim lalu klaim ulang | Boleh, tanpa cooldown, tetap lewat persetujuan admin | O-38; ADR-030; PLY-05 |
 | Pemicu cutover | Manual lewat `cutover.sh` | O-39; ADR-031 |
 | Halaman FE yang hilang | Semua diport, satu task | O-40; T-111 |

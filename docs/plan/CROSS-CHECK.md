@@ -230,7 +230,7 @@ Requirement menjadi **62** (AUTH-10, OPS-06, OPS-07) dan seluruhnya terpetakan.
 | Backup | `pg_dump` harian, retensi 7, snapshot pra-impor, restore diuji | O-23, T-060, T-063, T-064 |
 | Retensi data | Janitor otomatis | OPS-06, T-105 |
 | Google OAuth | Belum ada kredensial; runbook wajib | T-021, `docs/ops/google-oauth.md` |
-| Dekomisi Go | Setelah cutover + 14 hari observasi | T-082 |
+| Dekomisi Go | Setelah cutover + 30 hari observasi | T-082 |
 | Unit test FE | vitest | T-028, T-046, T-054 |
 | Cutover | Deploy berpasangan, HTML `no-store`, aset ber-hash | TECH-SPEC §8, T-065 |
 | Hapus akun | Nonaktifkan + anonimisasi, riwayat tetap | ADR-018, AUTH-10, T-106 |
@@ -414,7 +414,7 @@ Yang diterima:
 | PM | review owner = bottleneck | WIP 3 agen / 6 task / 15 menit per task |
 | PM | rehearsal tidak pernah menyentuh VPS | rehearsal kedua D-3 + rollback ber-stopwatch |
 | PM | `:v1-final` kedaluwarsa tanpa jejak | tanggal hapus + digest diarsipkan (T-082/T-107) |
-| PM | dokumen jadi permukaan perubahan | freeze R1 + anggaran perubahan 10% |
+| PM | dokumen jadi permukaan perubahan | freeze di R0 + anggaran perubahan 10% |
 
 Yang **ditolak**:
 
@@ -431,7 +431,28 @@ Yang **ditolak**:
 Keputusan pemilik yang masuk: **O-38** (lepas klaim + klaim ulang tanpa cooldown),
 **O-39** (cutover manual), **O-40** (semua halaman FE diport).
 
-Angka akhir: task **88**, requirement **72**, operasi **73**, ADR **31**, O-1..O-40.
+Angka akhir putaran 15: task **88**, requirement **72**, operasi **73**, ADR **31**, O-1..O-40.
+
+---
+
+## Putaran 16 — keputusan penutup (interaktif, 2026-11-03)
+
+Tujuh pertanyaan terbuka dari audit putaran 15 dijawab pemilik. Tidak ada yang
+menambah task atau operasi; dua mengubah jangka waktu, satu mengubah titik beku
+dokumen.
+
+| Pertanyaan | Jawaban | Konsekuensi |
+|---|---|---|
+| Hotfix P0 di v1? | **Tidak**, tetap O-8 | Eksposur berlanjut sampai v2 live; dicatat sebagai risiko sadar dengan estimasi 3–5 bulan, bukan asumsi "cepat" |
+| Hosting FE? | **Tetap Vercel** | Proxy, header `vercel.json`, alias staging, dan log Vercel tetap dirawat; diterima sebagai kompleksitas |
+| Lingkup 2.0.0? | **Penuh**, tanpa pemotongan | 88 task; tidak ada fitur v1 yang hilang |
+| Retensi v1? | **30 hari + arsip tarball** | O-29/ADR-026 diperbarui; D+14 → D+30 |
+| Database `bm`? | **Simpan permanen** sebagai arsip read-only | O-41; T-082 tidak menyentuh `bm` |
+| Notifikasi? | **Manual** | O-42; antrean join/klaim hanya di UI admin |
+| Backup off-box? | **Tetap di VPS** | O-23 dipertahankan; risiko disk tetap diterima |
+| Freeze dokumen? | **Di R0** | O-43; perubahan setelah walking skeleton hanya lewat kontrak/matriks/backlog |
+
+Angka akhir: task **88**, requirement **72**, operasi **73**, ADR **31**, O-1..O-43.
 
 ---
 
@@ -458,6 +479,12 @@ Angka akhir: task **88**, requirement **72**, operasi **73**, ADR **31**, O-1..O
 | Lepas klaim lalu klaim ulang | boleh, tanpa cooldown, tetap lewat persetujuan admin (O-38) |
 | Pemicu cutover | manual lewat `cutover.sh` (O-39) |
 | Halaman FE lama | semua diport, satu task (O-40) |
+| Database `bm` | disimpan permanen sebagai arsip read-only (O-41) |
+| Notifikasi | tidak ada di 2.0.0; manual (O-42) |
+| Freeze dokumen | setelah R0 (O-43) |
+| P0 v1 | tetap terbuka (O-8 ditinjau ulang) |
+| Hosting FE | tetap Vercel (O-22) |
+| Backup | tetap di VPS (O-23) |
 
 Sisa risiko yang **tidak** diselesaikan keputusan ini: enumerasi `GET /sessions`
 dan mutasi skor anonim tetap terbuka sampai API Nim rilis (lihat TECH-SPEC §7.5).

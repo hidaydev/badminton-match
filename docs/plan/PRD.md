@@ -246,7 +246,7 @@ juga di luar lingkup** — React 19 + Vite + Tailwind 4 dibekukan (O-17).
 | Model peran | `platform_owner` global + `admin`/`host`/`member` per komunitas; tanpa `owner` per komunitas |
 | Kode share | Hash + salinan terenkripsi; bisa ditampilkan ulang oleh `admin`/`host` dengan audit |
 | Backup | Tetap di disk VPS (risiko diterima, dicatat) |
-| Rollback cutover | Image `:v1-final` disimpan 14 hari di luar rotasi normal |
+| Rollback cutover | Image `:v1-final` disimpan 30 hari di luar rotasi normal, lalu diarsipkan sebagai tarball |
 | Image rilis | Dibangun sekali di CI, dideploy berdasarkan digest |
 | Cara bergabung | Undangan **atau** pengajuan join yang disetujui `admin` |
 | Jumlah platform owner | Satu akun aktif; penambahan lewat CLI ber-audit |

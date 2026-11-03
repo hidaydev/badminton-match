@@ -24,6 +24,10 @@ Rujukan: `BRD.md`, `PRD.md`, `BACKLOG.md`, `memos/01..06`
    `community_id`; pelanggaran harus jadi error, bukan hasil kosong.
 7. **Angka bisnis hidup di DB.** Kode hanya menyimpan invarian struktural.
    Menambah aturan baru = menambah key config, bukan menambah konstanta.
+8. **Tidak ada notifikasi keluar di 2.0.0** (O-42): tidak ada email, push, atau
+   webhook ke pengguna. Admin melihat antrean join/klaim saat membuka aplikasi.
+9. **Dokumen dibekukan setelah R0** (O-43). Setelah walking skeleton lulus,
+   perubahan hanya lewat OpenAPI, `testdata/authz/matrix.yaml`, dan baris backlog.
 
 ---
 
@@ -753,7 +757,8 @@ berisi dua origin produksi/dev dan tidak ada client staging yang masih aktif.
   `exec` dirinya sendiri — supaya push yang memperkenalkan logika cutover tetap
   memakai logika baru pada push itu juga, bukan "berlaku deploy berikutnya";
 - retensi `:local` dan `:prev`, ditambah **satu** tag `:v1-final` yang dikecualikan
-  dari rotasi selama 14 hari (amandemen eksplisit kontrak retensi, ADR-026);
+  dari rotasi selama **30 hari** (amandemen eksplisit kontrak retensi, ADR-026); sebelum
+  tag dihapus, image di-`podman save` ke tarball yang diarsipkan di luar rotasi;
 - **deploy tidak pernah menjalankan cutover.** `cutover.request` yang tidak sengaja
   tertinggal membuat deploy **berhenti** dengan pesan, bukan memulai cutover;
 - **cutover manual (`ops/scripts/cutover.sh`, O-39)**: dijalankan sekali oleh
@@ -913,7 +918,7 @@ keenam ini benar — (1) GitHub Release berisi digest image yang benar-benar
 dideploy; (2) `build_info{version}` di produksi == tag; (3) `/readyz` hijau 24 jam
 tanpa restart loop; (4) tidak ada error 5xx baru di log yang tidak ada di baseline;
 (5) smoke login + satu sesi + satu share link lulus di produksi; (6) `:v1-final`
-dijadwalkan penghapusan bertanggal (D+14) dan digest-nya diarsipkan di Release
+dijadwalkan penghapusan bertanggal (D+30) dan digest + tarball-nya diarsipkan
 sebelum tag dihapus. Checklist ini hidup di `docs/ops/release.md` (T-107).
 
 **Yang tidak boleh:** tag dari UI GitHub, `npm version`, atau mengubah `VERSION`
@@ -1041,8 +1046,14 @@ ada cutover otomatis dari push. ETL dijalankan **sekali**, saat v1 berhenti.
    karena `no-store` hanya berlaku untuk dokumen baru. Runbook menyatakan ini
    eksplisit, termasuk bahwa `410 CLIENT_OUTDATED` tidak ada di v1 sehingga tab
    lama akan gagal dengan error jaringan, bukan pesan yang ramah. `:v1-final`
-   dipertahankan 14 hari, lalu dihapus bersama T-082.
+   dipertahankan **30 hari**, lalu dihapus bersama T-082 setelah tarball image diarsipkan.
 10. Tab FE lama menerima `410 CLIENT_OUTDATED` dengan banner reload.
+11. **`bm` disimpan permanen sebagai arsip read-only** (O-41). Tidak ada DDL dan
+    tidak ada tulisan setelah v1 berhenti; `bm2_app` tidak pernah punya akses ke
+    `bm`. Hak akses aplikasi v1 dicabut, dan dump arsip tetap dibuat harian
+    bersama `bm2` (O-23) selama 30 hari pertama. Menyimpannya permanen menghindari
+    dua masalah: kehilangan bukti bila ada sengketa riwayat, dan kebutuhan
+    me-restore `bm` dari dump saat membandingkan hasil ETL di kemudian hari.
 
 ---
 
@@ -1058,7 +1069,7 @@ ada cutover otomatis dari push. ETL dijalankan **sekali**, saat v1 berhenti.
 | T6 | Waktu tidak deterministik | fake clock wajib | fixture kedaluwarsa |
 | T7 | Redesign skema kehilangan data | ETL dari dump beku + rekonsiliasi; `bm` utuh | selisih rekonsiliasi > 0 |
 | T8 | Backup hilang bersama VPS | diterima (O-23): dump di disk yang sama; restore diuji | disk/VPS hilang |
-| T9 | Cutover satu arah tanpa masa berdampingan | `:v1-final` 14 hari + `rollback.sh` + rehearsal | rollback gagal atau melewati 14 hari |
+| T9 | Cutover satu arah tanpa masa berdampingan | `:v1-final` 30 hari + tarball arsip + `rollback.sh` + rehearsal | rollback gagal atau melewati 30 hari |
 | T10 | Kunci `SHARE_CODE_KEY` hilang | kunci disimpan di env VPS + salinan aman; `key_id` memungkinkan rotasi | dekripsi gagal saat menampilkan tautan |
 | T11 | Cutover terulang / `:v1-final` tertimpa saat resume | guard `cutover_state` + "buat hanya bila belum ada" (§8) | `cutover.request` muncul lagi setelah v2 hidup |
 | T12 | Kegagalan ETL tidak terdeteksi | probe eksternal + `rows_imported` per tabel + `majadu-alert.service` | `/readyz` 200 tetapi jumlah baris ≠ staging |
@@ -1097,7 +1108,7 @@ ada cutover otomatis dari push. ETL dijalankan **sekali**, saat v1 berhenti.
 | ADR-023 | Satu peran global (`platform_owner`) + tiga peran komunitas (`admin`/`host`/`member`); tidak ada `owner` per komunitas | diterima (O-26) |
 | ADR-024 | Image dibangun sekali di CI pada tag, dideploy berdasarkan digest; build lokal hanya untuk dev/rollback | diterima (O-28) |
 | ADR-025 | Kode share disimpan sebagai hash + salinan terenkripsi AES-256-GCM agar bisa ditampilkan ulang dengan audit | diterima (O-27) |
-| ADR-026 | Tag `:v1-final` dipertahankan 14 hari di luar rotasi `:local`/`:prev` sebagai jalur rollback cutover | diterima (O-29) |
+| ADR-026 | Tag `:v1-final` dipertahankan 30 hari di luar rotasi `:local`/`:prev`, lalu diarsipkan sebagai tarball sebelum dihapus | diterima (O-29) |
 | ADR-027 | Papan peringkat tidak punya pintu publik tanpa kode: `/c/{slug}/rankings` khusus anggota, `/s/{code}/rankings` untuk penonton | diterima (O-32) |
 | ADR-028 | Semua klaim pemain wajib persetujuan `admin`; merge hanya `admin` dengan `merge_log` + audit | diterima (O-33) |
 | ADR-029 | Tanpa step-up auth; kontrol pengganti = daftar sesi + revoke-all + audit aksi sensitif | diterima (O-37) |
