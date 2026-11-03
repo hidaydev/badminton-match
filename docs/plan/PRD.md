@@ -55,7 +55,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | ID | Pri | Requirement | Acceptance |
 |----|-----|-------------|------------|
 | COM-01 | M | Buat komunitas dengan slug unik dan email admin pertama | Slug bentrok → 409; slug tidak valid → 400; tanpa email admin → 400; akun itu menjadi `admin` pada login pertama |
-| COM-02 | M | Bergabung lewat undangan sekali pakai, berbatas peran & waktu | Undangan dipakai dua kali → gagal; kedaluwarsa → gagal |
+| COM-02 | M | Bergabung lewat undangan sekali pakai yang **terikat email**, berbatas peran & waktu | Undangan dipakai dua kali → gagal; email berbeda → 403; kedaluwarsa → gagal |
 | COM-03 | M | Peran per komunitas: `admin`/`host`/`member`; `platform_owner` global | Peran di komunitas A tidak memberi hak di komunitas B |
 | COM-04 | M | Isolasi data antar komunitas | Request lintas komunitas → **404**, bukan 403; query tanpa `community_id` ditolak |
 | COM-05 | M | Konteks komunitas di URL: web dan API sama-sama `/c/{slug}/…`; FE memanggilnya lewat proxy `/api/c/{slug}/…` | Route komunitas tanpa slug → 404 |
@@ -64,7 +64,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | COM-08 | C | Direktori komunitas publik | Default mati; bila dinyalakan, hanya slug + nama yang tampil |
 | COM-09 | M | Satu akun Google untuk semua komunitas | Tidak ada akun ganda untuk orang yang sama |
 | COM-10 | S | Keluar/dikeluarkan dari komunitas mencabut akses seketika | Request berikutnya → 404/401, bukan cache lama |
-| COM-11 | M | Pengguna bisa mengajukan join; `admin` memutuskan | Pengajuan ganda saat masih pending → 409; setelah disetujui menjadi `member`; penolakan tidak membuka data |
+| COM-11 | M | Pengguna bisa mengajukan join; `admin` memutuskan | Jawaban selalu `202` identik (slug tidak ada / tidak menerima / sudah pending) sehingga keberadaan komunitas tidak bocor; pengajuan ganda tidak membuat baris kedua; setelah disetujui menjadi `member`; penolakan tidak membuka data |
 
 ### 4.1 Autentikasi & otorisasi
 
@@ -73,15 +73,15 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | AUTH-01 | M | Login hanya lewat Google OIDC (Authorization Code + PKCE) | Login berhasil dengan akun Google; `state`/`nonce` salah ditolak 400 tanpa membuat sesi |
 | AUTH-02 | M | Tidak ada token di JavaScript | Cookie sesi `HttpOnly`; tidak ada access token di localStorage/sessionStorage |
 | AUTH-03 | M | Peran per komunitas: `admin`, `host`, `member`; `platform_owner` global dengan bypass teraudit | Matriks route×role×komunitas diuji; belum login → 401, peran kurang → 403, beda komunitas → 404 |
-| AUTH-04 | M | Sesi absolut 30 hari, idle 14 hari, bisa dicabut | Sesi dicabut langsung 401 pada request berikutnya |
+| AUTH-04 | M | Sesi absolut 30 hari, idle 14 hari, bisa dicabut satu-satu atau semuanya | Sesi dicabut langsung 401; `DELETE /auth/sessions` mencabut semua sesi lain dan menutup socket-nya |
 | AUTH-05 | M | Perubahan role tercatat di audit log | Setiap perubahan role punya baris aktor, target, waktu; kolom alasan wajib diisi pada form, bukan opsional |
 | AUTH-06 | S | CLI ops memakai bearer token terpisah dari sesi web | Token CLI tidak berlaku di route web |
 | AUTH-07 | M | CSRF: perubahan state hanya dari origin yang diizinkan | `Origin` di luar `security.allowed_origins` → 403; cookie first-party `SameSite=Lax` lewat proxy |
 | AUTH-08 | M | Rate limit per route + per IP, memakai proxy tepercaya | Melebihi batas → 429 dengan `Retry-After`; IP asli terbaca di belakang proxy |
 | AUTH-09 | M | `Idempotency-Key` disimpan bersama hash body | Reuse key dengan body berbeda → 409; key sama + body sama → hasil sama |
-| AUTH-10 | S | Akun bisa dinonaktifkan dan dianonimkan tanpa menghapus riwayat rating | Nama/email dihapus; `sub` disimpan sebagai hash agar login ditolak; klaim pemain dilepas sehingga bisa diklaim akun lain; baris rating utuh; audit mencatat aktor |
+| AUTH-10 | S | Akun bisa dinonaktifkan dan dianonimkan tanpa menghapus riwayat rating | Nama/email dihapus; `sub` disimpan sebagai hash agar login ditolak; klaim pemain dilepas dan klaim berikutnya harus disetujui `admin`; baris rating utuh; audit mencatat aktor |
 | AUTH-11 | M | WebSocket diautentikasi tiket sekali pakai, bukan cookie | Tiket kedaluwarsa (60 s) atau dipakai dua kali → 401; tiket hanya membuka satu kanal dan tidak bisa menulis |
-| AUTH-12 | M | `platform_owner` boleh menjadi anggota biasa sebuah komunitas untuk bermain | Bergabung tanpa undangan (aksi eksplisit, tercatat audit) memberi peran `member`; klaim profil berhasil; kekuasaan global tetap berlaku tanpa keanggotaan |
+| AUTH-12 | M | `platform_owner` boleh menjadi anggota biasa sebuah komunitas untuk bermain | Bergabung tanpa undangan (aksi eksplisit, tercatat audit) memberi peran `member`; pengajuan klaim profil tercatat dan menunggu persetujuan `admin` komunitas; kekuasaan global tetap berlaku tanpa keanggotaan |
 | AUTH-13 | M | Hanya satu akun `platform_owner` aktif | Menambah akun kedua lewat UI ditolak; lewat CLI tercatat audit |
 
 ### 4.2 Sesi & share link
@@ -90,7 +90,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 |----|-----|-------------|------------|
 | SES-01 | M | `GET /sessions` tidak pernah memuat kode apa pun | Respons diuji: tidak ada `share_code` maupun `view_code` |
 | SES-02 | M | Tautan baca (`view_code`) hanya untuk membaca | `GET` OK; `PATCH`/`PUT` dengan `view_code` → **401** (belum terautentikasi) |
-| SES-03 | M | Hanya ada tautan baca (`view_code`), bisa dicabut dan dirotasi | Rotasi membuat kode lama 404; satu kode hidup per sesi |
+| SES-03 | M | Hanya ada tautan baca (`view_code`), bisa dicabut dan dirotasi, tanpa kedaluwarsa otomatis | Rotasi membuat kode lama 404; satu kode hidup per sesi; tautan hidup sampai dicabut |
 | SES-04 | M | Menulis wajib sesi login; tautan tidak memberi hak tulis | `PATCH`/`PUT` tanpa sesi → 401; dengan `view_code` tetap 401 |
 | SES-05 | M | Buat sesi/turnamen wajib `host` **di komunitas itu** | Anonim → 401; `member` → 403; `host` di komunitas lain → 404 |
 | SES-06 | M | Lock menyetujui sumber poin tanpa menulis event di transaksi yang sama | Transaksi lock menstempel `approved_at`; 0 baris `rating_events` baru sesudah lock |
@@ -114,9 +114,9 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | PLY-01 | M | Registrasi pemain wajib sesi login (`member` ke atas) | Anonim → 401; registrasi tidak memberi peran tambahan |
 | PLY-02 | M | Merge/rename/delete/tier hanya `admin`+ | Role rendah → 403 |
 | PLY-03 | M | Hapus pemain tidak menghapus riwayat pemain lain | Setelah delete, poin rekan/lawan tetap; `rebuild` menghasilkan angka sama |
-| PLY-04 | M | Klaim pemain: satu akun boleh mengklaim pemain yang belum diklaim; pemain yang sudah diklaim hanya bisa digabung admin | Klaim kedua pada pemain yang sama → 409; merge oleh `admin` tercatat di audit; riwayat pindah utuh |
+| PLY-04 | M | Klaim pemain harus disetujui `admin`; merge hanya `admin` dan tercatat | Klaim masuk antrean; pengajuan ganda saat pending → 409; setelah disetujui `user_id` terisi; merge menulis audit + `merge_log` |
 | RNK-01 | M | Poin = window 12 minggu, best 10, base 250, pengali lawan 0.5–1.5 | Parity dengan v1 pada fixture; properti: deterministik, invarian jumlah, **bukan** monoton (window bergeser bisa menurunkan poin) |
-| RNK-02 | M | Papan top 200 per komunitas + filter tier | Halaman `/c/{slug}/rankings` menampilkan 200 baris komunitas itu saja |
+| RNK-02 | M | Papan top 200 per komunitas + filter tier; tidak ada pintu publik tanpa kode | `/c/{slug}/rankings` bukan anggota → 404; `/s/{code}/rankings` tanpa kode valid → 404; dengan kode → 200 baris komunitas itu saja |
 | RNK-03 | S | Snapshot pergerakan (naik/turun) konsisten | Snapshot harian tidak drift terhadap perhitungan ulang |
 | ACH-01 | M | Badge dihitung dari riwayat pertandingan; `earned_at` tidak turun | Menambah pertandingan tidak menghapus badge |
 | ACH-02 | S | Backfill badge bisa dijalankan ulang, idempoten | Dua kali backfill → jumlah baris sama |
@@ -146,8 +146,9 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | OPS-03 | M | Log terstruktur tanpa PII, file 0600 | Log tidak memuat email/nama/kode; permission diuji |
 | OPS-04 | M | Deploy gagal → rollback otomatis & terverifikasi; cutover instan satu push | Failure injection: build gagal, health gagal → `:prev` hidup; pra-impor dapat diulang; setelah push, v1 tidak lagi melayani |
 | OPS-05 | M | Rilis tidak pernah hilang senyap | Deploy kedua saat deploy berjalan → antre atau gagal berisik, tidak `exit 0` |
-| OPS-06 | M | Data sementara punya masa simpan dan dibersihkan otomatis | `auth.oauth_flows`, `idempotency_keys`, `outbox_events`, `session.links` kedaluwarsa, dan audit lama terhapus oleh janitor; jumlah baris terhapus terlihat di metrik |
+| OPS-06 | M | Data sementara punya masa simpan dan dibersihkan otomatis | `auth.oauth_flows`, `idempotency_keys`, `outbox_events`, `session.links` yang dicabut (bukan yang hidup), dan audit lama terhapus oleh janitor; jumlah baris terhapus terlihat di metrik |
 | OPS-07 | S | Rilis berversi SemVer otomatis dari riwayat commit, dengan catatan rilis | `VERSION` satu-satunya sumber; tag `vX.Y.Z`; GitHub Release berisi catatan per kelompok; nomor versi hidup di `/version` |
+| OPS-08 | M | Kegagalan ETL/cutover terdeteksi tanpa dashboard | `rows_imported` per tabel dibandingkan dengan `bm_staging`; selisih atau `/readyz` gagal dalam 1 menit memicu `majadu-alert.service`; `cutover.step` menunjukkan langkah terakhir |
 
 ### 4.8 Konfigurasi & parameter
 
@@ -173,7 +174,7 @@ band tier, ukuran turnamen, batas pagination, TTL, dan dimensi gambar dibaca dar
 | Latensi tulis skor (p95) | < 200 ms |
 | Reconnect live | < 2 s sampai state konsisten |
 | Memori proses (RSS, 50 watcher) | < 250 MB, tidak naik monoton |
-| Availability deploy | Tanpa downtime; rollback < 60 s |
+| Availability deploy | Deploy rutin tanpa downtime; cutover pertama = maintenance 1–3 menit (O-10); rollback < 5 menit dan teruji |
 | Aksesibilitas web | WCAG 2.2 AA untuk alur inti; 0 violation pada halaman yang diuji |
 | Mobile | Layar 360 px tanpa scroll horizontal; tap target ≥ 44 px |
 | Keamanan | 0 P0/P1 terbuka; security suite lulus; **0 kebocoran lintas komunitas** |
@@ -195,7 +196,9 @@ band tier, ukuran turnamen, batas pagination, TTL, dan dimensi gambar dibaca dar
 4. **Menulis skor**: semua penulis wajib login Google. Tidak ada kode tulis, tidak
    ada jalur anonim. Ini menghapus satu persona (scorer tamu) dengan sadar.
 5. **Daftar sesi**: butuh login. Halaman publik hanya lewat tautan langsung.
-6. **Papan peringkat**: tetap publik di dalam komunitas, tanpa login.
+6. **Papan peringkat**: tidak ada halaman publik tanpa kode. Anggota membuka
+   `/c/{slug}/rankings`; penonton membuka `/s/{code}/rankings` dari tautan yang
+   dibagikan. Satu tautan yang bocor tidak membuka roster komunitas.
 7. **Bahasa**: seluruh antarmuka berbahasa Inggris; teks diambil dari kunci i18n
    sehingga bahasa lain bisa ditambah tanpa mengubah komponen.
 8. **Akun**: pengguna bisa meminta penonaktifan; nama dan identitas Google
@@ -225,7 +228,7 @@ juga di luar lingkup** — React 19 + Vite + Tailwind 4 dibekukan (O-17).
 |---|---|
 | Jendela P0 terbuka | diterima apa adanya, tanpa kontrol tambahan |
 | Penonton menulis | tidak — `view_code` read-only |
-| Host tanpa login | tidak — semua penulis login Google, `edit_code` dihapus |
+| Host tanpa login | tidak — semua penulis login Google; tidak ada kode tulis |
 | Impor data v1 | pra-impor ke `bm2` saat v1 masih hidup, lalu satu push = cutover |
 | Verifikasi RS256 | modul binding OpenSSL (ADR-009 diterima) |
 | Peran `member` | R2 |

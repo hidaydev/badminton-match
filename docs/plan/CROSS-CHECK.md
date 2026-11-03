@@ -165,9 +165,9 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 
 | Pemeriksaan | Metode | Hasil |
 |---|---|---|
-| Integritas task | parse tabel backlog | **84 task**, 0 duplikat, 0 dependency menggantung |
+| Integritas task | parse tabel backlog | **85 task**, 0 duplikat, 0 dependency menggantung |
 | Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah pemisahan per file |
-| Traceability | 67 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
+| Traceability | 68 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
 | Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
 | Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
 | Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
@@ -275,14 +275,14 @@ Perubahan angka: operasi **59 → 60** (`POST …/ws-ticket`), requirement **62 
 | Produk | lock tidak pernah menyetujui sumber poin | lock menstempel `approved_at`; SES-06/07/08 ditulis ulang |
 | Produk | komunitas baru/default tidak punya admin | COM-01 wajib email admin pertama; default read-only sampai diangkat |
 | Produk | penonton tidak bisa dapat tiket WS | `POST /s/{code}/ws-ticket` anonim, per kode + IP |
-| Produk | klaim pemain tanpa aturan | PLY-04: klaim bebas untuk yang belum diklaim, merge oleh admin |
+| Produk | klaim pemain tanpa aturan | PLY-04 (putaran ini): klaim bebas untuk yang belum diklaim, merge oleh admin — **diganti putaran 14**: semua klaim lewat persetujuan admin |
 | Produk | RNK-01 mengklaim monoton | dihapus; window bergeser bisa menurunkan poin |
 | Konsistensi | `Owns` direktori bertabrakan, 5 task tanpa agen, sisa model lama | dipersempit, lane dilengkapi, teks diperbarui |
 | Desain | `platform_owner` tidak bisa menjadi anggota sehingga tidak bisa klaim profil dan ikut bermain | AUTH-12: boleh join sebagai `member` tanpa undangan (audit); kekuasaan global tetap independen |
 
-Angka: task **83 → 84** (T-108), requirement **63 → 65** (PLY-04, AUTH-12),
-operasi **60 → 63** (tampil-ulang share, tiket penonton, join), ADR **22 → 26**,
-keputusan **O-1..O-29**.
+Angka **pada putaran itu**: task 83 → 84 (T-108), requirement 63 → 65 (PLY-04,
+AUTH-12), operasi 60 → 63 (tampil-ulang share, tiket penonton, join), ADR 22 → 26,
+keputusan O-1..O-29. Angka final ada di putaran 14.
 
 Risiko yang **diterima** (bukan lupa): backup tetap di disk VPS; komunitas default
 read-only setelah cutover; ETL tidak membuat membership.
@@ -305,7 +305,68 @@ read-only setelah cutover; ETL tidak membuat membership.
 | Rilis | deploy bisa jalan sebelum image ada; pull tanpa auth | urutan tag → digest → `main`; `podman login` + token |
 | T-108 | `git filter-repo` rusak di mesin ini | acceptance mewajibkan perbaikan alat, `--force`, origin dipasang ulang, `--force-with-lease` |
 
-Angka akhir: task **84**, requirement **67**, operasi **66**, ADR **26**, O-1..O-29.
+## Putaran 14 — lima SME (DB, Nim, abuse, SRE, QA)
+
+Lima review independen ditulis di `reviews/round-4-*.md`, masing-masing menyerang
+area yang belum diuji: DDL, kelayakan pustaka, jalur penyalahgunaan, kegagalan
+operasional, dan test yang tidak bisa gagal. Yang diterima:
+
+| Area | Temuan | Perbaikan |
+|---|---|---|
+| DB | `0001` memuat FK ke `platform.community`/`user` yang dibuat di `0004` | tabel platform inti pindah ke `0001`; D1 |
+| DB | FK komposit mustahil tanpa `UNIQUE(community_id,id)` di parent | D2 + index anak D3 |
+| DB | `session.links` tanpa `community_id`; `id` berdefault; `expires_at` wajib | D4–D6, kolom ditambah |
+| DB | `UNIQUE(community_id, slug)` menghapus keunikan slug | slug unik global (O-32 tidak berlaku untuk identitas platform) |
+| DB | `join_request` unik polos memblokir pengajuan ulang | unik parsial `WHERE status='pending'` + CHECK (D7) |
+| DB | `cutover_state` bisa multi-baris; `ws_ticket.channel` teks bebas; `import_row_map` PK global | D8, D9, D10 |
+| DB | `player.user_id` unik gagal saat merge; nama mentah duplikat | `canonical_key` + unik parsial (D11) |
+| DB | `rating.deltas` RESTRICT dua sisi membuat hapus turnamen gagal | urutan delete eksplisit + uji negatif |
+| DB | index papan/sesi/rating hilang atau salah kolom | index berawalan `community_id`, tanpa `now()` |
+| DB | ETL menyalin `id` v4 sementara ADR-016 menjanjikan v7 | UUIDv7 baru + peta di `import_row_map` |
+| Nim | `dynlib` memilih LibreSSL Apple yang tidak punya `EVP_DigestVerifyUpdate` | soname eksplisit + boot-check `OpenSSL_version` (T-084) |
+| Nim | `destroy(true)` menutup socket sebelum drain → klien menerima 0 byte | SIGTERM → `sleep(drain)` → `close()`; T-001/T-060 |
+| Nim | `serverThreads` privat; pool "dihitung dari serverThreads" tidak bisa diekspresikan | `workerThreads` eksplisit, pool = N, dicetak di log |
+| Nim | `DEFAULT now()` tidak bisa difake; Mummy gzip tanpa `Vary` | lint SQL + `Accept-Encoding: identity` di replayer |
+| Nim | `nim check` dan `nim c` berbagi cache dan saling membatalkan | dua direktori nimcache (T-018) |
+| Nim | `libpq.dylib` keg-only | `DYLD_FALLBACK_LIBRARY_PATH` + catatan di EXECUTION |
+| Abuse | kode share bocor di log Vercel, bukan di app | header `no-store`/`no-referrer`/`noindex` di API + `vercel.json` |
+| Abuse | rotasi tidak mencabut karena cache edge dan tanpa `no-store` | §7.6; rotasi = operasi normal |
+| Abuse | roster semua komunitas terbaca anonim lewat slug | `/c/{slug}/rankings` khusus anggota; `/s/{code}/rankings` (O-32) |
+| Abuse | bucket anon per kode bisa dipakai DoS per tautan | bucket `(template, IP)` + plafon scrape per kode |
+| Abuse | join-request membocorkan keberadaan komunitas lewat status/`code` | `202` identik byte-per-byte |
+| Abuse | undangan bisa diteruskan menjadi `host` | terikat `email_hash` (O-34) |
+| Abuse | merge bisa dipakai mencuri riwayat | admin-only + `merge_log` + audit (O-33) |
+| Abuse | tiket WS hidup setelah logout | hapus semua tiket principal |
+| Abuse | callback OIDC bisa diputar ulang | `DELETE … RETURNING` sebelum tukar code (D12) |
+| Abuse | audit menyimpan kode/email/IP mentah | allowlist field (D13) + metrik berlabel template |
+| Abuse | satu body besar bisa menjatuhkan proses | `max_body_bytes`, depth JSON ≤ 16, timeout |
+| SRE | `:v1-final` bisa tertimpa saat resume | buat hanya bila belum ada + cek digest |
+| SRE | flag cutover tidak dihapus saat gagal → cutover kedua | guard `cutover_state` + hapus di `trap` |
+| SRE | reboot di tengah cutover menghidupkan v1 | `cutover.lock` + `ConditionPathExists` + stop v1 |
+| SRE | `restore.sh` menolak `bm_staging` | whitelist diperluas |
+| SRE | crash loop tanpa alarm | `StartLimit*`, `MemoryMax`, `OnFailure` |
+| SRE | `no-store` hanya di Caddy, FE dilayani Vercel | header di `vercel.json` |
+| SRE | env hilang = tautan mati permanen | dicatat di runbook + `prod.env.example` memuat role `bm2` |
+| SRE | kegagalan ETL tak terlihat (metrik dari app) | probe eksternal + `rows_imported` + OPS-08 |
+| QA | gate coverage hanya prosa | T-109 + `coverage-baseline.json` |
+| QA | matriks otorisasi bukan artefak | `testdata/authz/matrix.yaml`, route tanpa baris = gagal |
+| QA | parity dihitung dari jumlah kasus | ≥1 kasus per operasi + ≥40% status ≥400 |
+| QA | `state.json` tidak deterministik (`now()`, uuid) | proyeksi kolom + alias UUID + lint SQL |
+| QA | "restore terbukti" pakai stopwatch | `timings.json` per langkah |
+| QA | a11y/snapshot tanpa pin font/browser | `deps.lock` + font lokal + `maxDiffPixels: 0` |
+| QA | uji entropi kode share tak pernah jalan | N=10⁵ tanpa duplikat + min-entropy |
+| QA | pola `git grep` T-082 mustahil hijau | dua grep terpisah + pengecualian path eksplisit |
+| QA | skema divergensi tanpa field yang bisa gagal | `expectedDivergence`/`expectNim` + owner |
+
+Yang **ditolak** (dengan alasan, bukan karena tidak nyaman):
+
+| Klaim | Alasan ditolak |
+|---|---|
+| QA: pola `\.go\b` cocok dengan `logo`/`django` | butuh titik literal sebelum `go`; yang benar hanya bahwa `go build`/`go test` bisa muncul di dokumentasi — diperbaiki dengan mempersempit cakupan path, bukan mengganti regex |
+| Abuse: `api.qouver.com` harus menutup semua selain `/ws/*` karena melayani banyak operasi | memanggil API langsung tanpa cookie tidak menambah kemampuan penyerang anonim; yang valid hanya OAuth client terpisah untuk staging dan penghapusan alias saat cutover |
+| Internal: "timezone campur" sebagai alasan redesign | dump v1 berisi 27 `timestamptz`, 0 `timestamp without time zone`, 8 `date`; masalahnya konversi `date` WIB, bukan tipe campur — alasan diperbaiki agar tidak menjadi klaim palsu |
+
+Angka akhir: task **85**, requirement **68**, operasi **72**, ADR **29**, O-1..O-37.
 
 ---
 
@@ -323,6 +384,12 @@ Angka akhir: task **84**, requirement **67**, operasi **66**, ADR **26**, O-1..O
 | Frontend | React 19 + Vite + Tailwind 4 dibekukan (tanpa Svelte) |
 | Parameter | semua angka bisnis dari DB, berlapis platform → komunitas |
 | Database | `bm2` sebagai database terpisah + role `bm2_app` |
+| Papan peringkat | anggota via `/c/{slug}/rankings`, penonton via `/s/{code}/rankings`; tanpa kode → 404 (O-32) |
+| Klaim pemain | semua lewat persetujuan `admin`; merge admin-only + `merge_log` (O-33) |
+| Undangan | terikat email (O-34) |
+| Masa berlaku tautan | tanpa kedaluwarsa otomatis; hanya dicabut/dirotasi (O-35) |
+| Gate coverage | 90/75 ratchet dengan baseline; `check` tetap tanpa DB (O-36) |
+| Step-up auth | tidak perlu; diganti daftar sesi + revoke-all + audit (O-37) |
 
 Sisa risiko yang **tidak** diselesaikan keputusan ini: enumerasi `GET /sessions`
 dan mutasi skor anonim tetap terbuka sampai API Nim rilis (lihat TECH-SPEC §7.5).

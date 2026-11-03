@@ -162,13 +162,19 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-29 | Image `:v1-final` dipertahankan 14 hari di luar rotasi `:local`/`:prev` sebagai jalur rollback |
 | O-30 | Pengguna biasa masuk komunitas lewat undangan **atau** pengajuan join yang diputuskan `admin` |
 | O-31 | Hanya satu akun `platform_owner` aktif; penambahan lewat CLI dengan audit |
+| O-32 | Papan peringkat tidak punya pintu publik tanpa kode: `/c/{slug}/rankings` khusus anggota, `/s/{code}/rankings` untuk penonton |
+| O-33 | Semua klaim pemain wajib disetujui `admin`; merge hanya `admin`, dengan audit + `merge_log` |
+| O-34 | Undangan terikat email (`email_hash`); undangan yang diteruskan ke akun lain ditolak |
+| O-35 | Tautan `/s/{code}` tidak kedaluwarsa otomatis; hanya bisa dicabut/dirotasi, dan rotasi adalah operasi normal |
+| O-36 | Gate coverage tetap domain ≥ 90%, total ≥ 75%, ratchet dari baseline; `./task check` tetap tanpa DB |
+| O-37 | Tanpa step-up auth; kontrol pengganti = `GET`/`DELETE /auth/sessions` (revoke-all) + audit aksi sensitif |
 
 ### Keterlacakan: di mana tiap keputusan diwujudkan
 
 | Keputusan | Wujud konkret | Task |
 |---|---|---|
 | O-1 | Seluruh kode baru di `apps/api/`, `modules/`, `shared/` repo ini; tidak ada sentuhan ke `majadu` | T-001 |
-| O-2 | Kontrak v2 ditulis ulang (48 → 66 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
+| O-2 | Kontrak v2 ditulis ulang (48 → 72 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
 | O-3 | OIDC Google; tidak ada magic link / token admin | T-021, T-084 |
 | O-4 | Tidak ada commit perbaikan di `apps/api/internal/`; P0 ditutup di Nim | T-021, T-023, T-025 |
 | O-5 | `./task dev-db` memakai cluster lokal; container hanya fallback | T-007 |
@@ -199,6 +205,12 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-29 | Tag `:v1-final` + pengecualian rotasi di `deploy-vps.sh` | T-060, T-082 |
 | O-30 | Tabel `community.join_request`, route ajukan/daftar/putuskan, persetujuan `admin` | T-091, T-006e |
 | O-31 | Batas satu `platform_owner` aktif + CLI promosi ber-audit | T-103 |
+| O-32 | Dua route papan (`/c/{slug}/rankings` anggota, `/s/{code}/rankings` penonton); tidak ada route publik tanpa kode | T-044, T-092 |
+| O-33 | `player.claims` + route ajukan/daftar/putuskan; `merge_log` | T-048, T-041 |
+| O-34 | `community.invite.email_hash` + penolakan email berbeda | T-091, T-006e |
+| O-35 | `expires_at` NULLable dan tidak diisi; janitor menghapus tautan **dicabut** | T-024, T-105, T-006a |
+| O-36 | `task.d/coverage.sh` + `coverage-baseline.json` + job CI | T-109 |
+| O-37 | `GET`/`DELETE /auth/sessions`; tidak ada step-up | T-022, T-023 |
 
 ## 10. Jawaban pemilik (2026-11-03)
 
@@ -211,5 +223,11 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | Verifikasi RS256 | Bangun modul binding OpenSSL | ADR-009 diterima; menambah satu task teknis |
 | Peran `member` | Masuk R2 | R1 hanya `owner`/`admin`/`host` |
 | Multi-komunitas | Masuk repo ini, `community_id` + FK komposit, poin per komunitas, akun global | Skema, auth, routing, dan backlog berubah (lihat §9 O-13..O-16) |
+| Papan peringkat | Butuh kode share untuk penonton; anggota tetap bisa membuka `/c/{slug}/rankings` | O-32; ADR-027 |
+| Klaim pemain | Semua klaim lewat persetujuan `admin` | O-33; ADR-028 |
+| Undangan | Terikat email | O-34 |
+| Masa berlaku tautan | Tanpa kedaluwarsa otomatis, hanya dicabut/dirotasi | O-35 |
+| Gate coverage | Tetap 90/75 ratchet; `check` tanpa DB | O-36 |
+| Step-up auth | Tidak perlu; diganti revoke-all sesi + audit | O-37; ADR-029 |
 
 Tidak ada pertanyaan terbuka yang tersisa untuk fase perencanaan.

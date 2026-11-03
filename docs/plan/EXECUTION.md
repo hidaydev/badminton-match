@@ -92,7 +92,7 @@ Aturan tambahan untuk agen backend:
 - `./task dev-db` membuat `bm2_dev` dari nol < 20 s; clone worker < 1 s.
 - `dbtools verify` bersih pada `0001`–`0005`.
 - `./task build` menghasilkan binary yang berjalan dan merespons `/healthz`.
-- `./task contract-gen` menghasilkan 66 operasi dan `git diff --exit-code` bersih.
+- `./task contract-gen` menghasilkan 72 operasi dan `git diff --exit-code` bersih.
 - `./task mock-api` melayani FE.
 - Definisi CI lolos parse + skema (dan `actionlint` bila terpasang — belum ada di mesin ini);
   `./task ci` hijau lokal.
@@ -126,8 +126,11 @@ Aturan tambahan untuk agen backend:
 - `ops/scripts/backup.sh` menjalankan `pg_dump -Fc` untuk `bm` dan `bm2`, retensi
   7 hari, mode `600`, dan memverifikasi hasilnya dengan `pg_restore --list`.
 - Sebelum impor atau migrasi destruktif: dump tambahan + catat nama berkasnya.
-- `ops/scripts/restore.sh <dump> <database>` hanya menerima nama database berawalan
-  `bm2_` atau `bm_restore_`; tidak pernah menimpa `bm` produksi.
+- `ops/scripts/restore.sh <dump> <database>` menerima `bm`, `bm2`, `bm2_*`,
+  `bm_restore_*`, dan **`bm_staging`**; menolak nama lain. Tanpa pengecualian
+  `bm_staging`, guard ini memblokir satu-satunya langkah cutover yang
+  membutuhkannya. `bm` produksi hanya bisa menjadi target bila dipanggil dengan
+  `--i-know-this-overwrites-prod`.
 - Latihan restore wajib di T-063; target < 30 menit dari dump terbaru.
 - **Risiko yang diterima:** salinan berada di disk yang sama dengan database. Kalau
   VPS atau disknya hilang, backup ikut hilang. Ini keputusan biaya yang dicatat,
@@ -143,13 +146,20 @@ repo + ref:
 2. Push `main` (atau jalankan `deploy-vps.sh --resume-cutover` bila sebelumnya
    gagal). Script mendeteksi penanda, melewati gate `apps/api/`, dan menulis
    `cutover.step` setiap langkah.
-3. Langkah: `:v1-final` → maintenance Caddy (non-GET 503) → stop v1 →
+3. Langkah: `cutover.lock` → stop v1 (`systemctl --user stop`, bukan freeze) →
+   `:v1-final` **hanya bila belum ada** → maintenance Caddy (non-GET 503) →
    `pg_dump` → restore `bm_staging` → siapkan `bm2` + migrasi + seed +
    `ownerseed --sub` → ETL satu transaksi → verifikasi → `cutover_state` →
    env + Caddy v2 → start → `/readyz` (skema + `CUTOVER_SNAPSHOT_SHA256`) →
-   smoke → lepas maintenance → hapus `cutover.request`.
+   smoke → lepas maintenance → hapus `cutover.request` + `cutover.lock`.
+   Bila `cutover_state` sudah terisi dan v2 sudah hidup, script menghapus penanda
+   dan keluar `0` tanpa menyentuh layanan (anti-cutover-kedua).
 4. Jika gagal di langkah mana pun: `rollback.sh` mengembalikan `:v1-final`, env
-   `bm`, Caddy v1, dan start v1. `cutover.step` menunjukkan titik gagal.
+   `bm`, Caddy v1, dan start v1. `cutover.step` menunjukkan titik gagal; penanda
+   **tidak** dihapus otomatis supaya kegagalan tidak hilang dari pandangan.
+5. Reboot di tengah cutover: unit v2 memakai
+   `ConditionPathExists=!/srv/qouver/apps/<app>/cutover.lock`, dan v1 sudah
+   `systemctl --user stop`, sehingga ticker v1 tidak menulis ke `bm` selama dump.
 
 Catatan:
 
@@ -158,7 +168,7 @@ Catatan:
 - Komunitas default read-only sampai `platform_owner` mengangkat `admin`; ETL
   tidak membuat membership.
 - Tautan `/s/{code}` lama tidak dipertahankan.
-- Tab FE lama menerima `410 CLIENT_OUTDATED` + banner reload.
+- Tab FE lama menerima `410 CLIENT_OUTDATED` + banner reload **hanya selama v2 hidup**; setelah rollback ke v1 pesan itu tidak ada, jadi runbook meminta reload paksa dan pengguna login ulang (sesi v2 tidak berlaku, data `bm2` setelah cutover hilang).
 
 ### 6.4 Rilis (setelah R4)
 
@@ -203,11 +213,16 @@ Sebelum push pertama:
 | Jebakan | Tindakan |
 |---|---|
 | `nimble.lock` mematikan path global | jangan dibuat; pakai pin persis + `deps-check` |
-| nimcache dipakai bersama antar-worktree | `./task` menyetel `--nimcache` per worktree (T-018) |
-| Mummy default `serverThreads` = core×10 | pool DB dihitung dari `serverThreads`, bukan angka tetap |
+| nimcache dipakai bersama antar-worktree, dan `check` vs build saling membatalkan | `./task` menyetel `--nimcache` per worktree **dua direktori** (`/check`, `/build`) (T-018) |
+| Mummy default thread = core×10 dan `serverThreads` privat | `workerThreads` eksplisit dipakai untuk server **dan** pool |
 | `db_connector` meng-escape, bukan bind, dan NULL jadi `""` | binder `PQexecParams` (T-004), termasuk NULL & operator jsonb `?` |
 | migrasi dijalankan dua agen bersamaan | hanya `tools/dbtools`; satu pemilik migrasi per waktu |
 | DB dev tercampur data uji antar agen | satu **database** per worker (`bm2_<agent>`) + guard prefiks `bm2_` |
 | Mummy + ORC pernah SIGSEGV | `--mm:atomicArc` sejak hari pertama |
-| Waktu tidak deterministik | `MAJADU_NOW` sejak test pertama; kolom `now()` di DB dinormalisasi di parity |
+| Waktu tidak deterministik | `MAJADU_NOW` sejak test pertama; `DEFAULT now()` dilarang di tabel korpus (tidak bisa difake), kolom waktu lain diproyeksikan tetap |
+| Mummy `destroy(true)` menutup socket sebelum drain | SIGTERM → `sleep(drain_ms)` → `close()`; handler 700 ms harus menerima respons utuh (T-001) |
+| Mummy meng-gzip body > 860 byte tanpa `Vary` | replayer mengirim `Accept-Encoding: identity` |
+| `-d:release` mencabut stack trace | build produksi memakai `--stackTrace:on` |
+| macOS `dynlib` memilih LibreSSL Apple | soname eksplisit + `DYLD_FALLBACK_LIBRARY_PATH` keg `openssl@3` (T-084) |
+| `libpq` keg-only di macOS | `DYLD_FALLBACK_LIBRARY_PATH` juga untuk `libpq` |
 | Instance kosong tidak bisa boot | `T-103` bootstrap: platform_owner, komunitas pertama, seed config |
