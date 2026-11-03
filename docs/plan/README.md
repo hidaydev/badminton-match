@@ -25,7 +25,7 @@ Status: perencanaan ditutup 2026-11-03; pembekuan efektif saat R0 lulus (lihat `
 | 6 | [`REVIEW-scrum.md`](REVIEW-scrum.md) | reviewer | audit dependency, tabrakan file, gap, DoR/DoD |
 | 7 | [`memos/`](memos/) | referensi | 6 memo ahli: stack, security, data, API, CI/CD, QA |
 | 8 | [`EXECUTION.md`](EXECUTION.md) | pelaksana | prasyarat terverifikasi, urutan bootstrap, template prompt agen, protokol merge |
-| 9 | [`reviews/`](reviews/) | reviewer | 27 audit independen dalam enam putaran (executability, consistency, adversarial; DB/Nim/abuse/SRE/QA; craft/Sonar/OWASP/ISO/scrum/PM; gate final) |
+| 9 | [`reviews/`](reviews/) | reviewer | 27 audit independen dalam enam putaran; **internal, tidak diterbitkan** — dikeluarkan dari riwayat publik oleh T-108 |
 | 10 | [`FROZEN.md`](FROZEN.md) | pelaksana | protokol beku, hash baseline dokumen, dan gate R0 |
 
 Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.

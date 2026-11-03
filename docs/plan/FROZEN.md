@@ -13,14 +13,15 @@ Verifikasi dengan `shasum -a 256 docs/plan/<berkas>`; harus sama persis.
 | `BRD.md` | `ac782e58369b3586837c5ab898879aa78ddab6b13b212f3bc08c9babb7774bd7` |
 | `PRD.md` | `f4dc7137c9013646be849c9609c85734863cf7ae3a93f158c70aa77492e292ed` |
 | `TECH-SPEC.md` | `0f25a675c805884f245b826076230522b00d9357f3d694fdaa25517093296ebf` |
-| `BACKLOG.md` | `b038e01a2a8ed7a1edab3bc9d561691a4882c218a755b33cdb135d35d436e75e` |
+| `BACKLOG.md` | `437991ae5e179122a23157a32f72db85d1aa68595fc75050ae41e861fcc69cda` |
 | `EXECUTION.md` | `9d47b00e35a8a844f8ecc16205b6fdd825885cb7ea0176b62f9a6f3fcca163ed` |
 | `CROSS-CHECK.md` | `a974207cb0929cd313a1dd84a683b84c88b2e0488266c8916e0699fa80518b6f` |
-| `README.md` | `0168728ac4c1ea2d76b95bbdcf7505ed75102303976af612cd3f5d392667db5c` |
+| `README.md` | `43bb7acb617c253524e42fb78d5806846779a6eafeed199d8b5178c7783ef357` |
 
 Commit pembekuan = commit yang memuat berkas ini; lihat
-`git log -1 -- docs/plan/FROZEN.md`. `memos/` dan `reviews/` bersifat historis:
-isinya tidak mengikat dan tidak di-hash.
+`git log -1 -- docs/plan/FROZEN.md`. `memos/` bersifat historis dan tidak di-hash.
+`reviews/` juga tidak di-hash dan **tidak diterbitkan**: T-108 mengeluarkannya dari
+riwayat publik bersama `docs/audits`.
 
 ## Angka yang dibekukan
 
