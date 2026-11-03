@@ -142,6 +142,22 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | OPS-04 | M | Deploy gagal → rollback otomatis & terverifikasi | Failure injection: build gagal, health gagal → `:prev` hidup |
 | OPS-05 | M | Rilis tidak pernah hilang senyap | Deploy kedua saat deploy berjalan → antre atau gagal berisik, tidak `exit 0` |
 
+### 4.8 Konfigurasi & parameter
+
+Tidak ada angka atau aturan bisnis di dalam kode. Nilai seperti window poin, best-N,
+band tier, ukuran turnamen, batas pagination, TTL, dan dimensi gambar dibaca dari DB.
+
+| ID | Pri | Requirement | Acceptance |
+|----|-----|-------------|------------|
+| CFG-01 | M | Setiap parameter punya key, tipe, nilai default, dan batas sah | Key tak dikenal → 400; nilai di luar batas → 400 |
+| CFG-02 | M | Presedensi: override komunitas → default platform; **tidak ada default di kode** | Menghapus baris config wajib → server menolak start, bukan memakai angka tersembunyi |
+| CFG-03 | M | Perubahan parameter berlaku tanpa restart dan tanpa deploy | Ubah `rank_window_weeks` → papan berubah pada request berikutnya |
+| CFG-04 | M | Komunitas tidak bisa melewati batas aman platform | Nilai di atas plafon ditolak; plafon hanya bisa diubah platform owner |
+| CFG-05 | M | Setiap perubahan parameter tercatat: aktor, nilai lama, nilai baru, waktu | Audit dapat ditelusuri per key |
+| CFG-06 | M | Tidak ada literal angka bisnis di kode | `archcheck` menggagalkan build bila konstanta menduplikasi key config |
+| CFG-07 | S | Parameter bisa diekspor/diimpor untuk bootstrap komunitas baru | Ekspor/​impor menghasilkan perilaku sama |
+| CFG-08 | M | Konstanta teknis (status HTTP, SQL, kripto) dikecualikan lewat allowlist eksplisit | Allowlist ditinjau di code review, tidak tersembunyi |
+
 ## 5. Non-functional requirements
 
 | Area | Target |

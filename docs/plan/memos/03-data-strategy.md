@@ -1,5 +1,10 @@
 # Memo 03 — Strategi Data: skema, migrasi, DB dev, parity
 
+> **Catatan status (2026-11-03):** keputusan pemilik O-20 menetapkan `bm2` sebagai
+> **database terpisah** dengan role `bm2_app`, bukan schema tambahan di database `bm`.
+> Verdict memo (redesign, bukan 1:1 port) tetap berlaku; "schema per subagent" hanya
+> untuk lingkungan dev.
+
 > **Tanggal:** 3 Nov 2026 · **Panel:** data architect · **Target:** backend Nim untuk
 > `badminton-match`, v1 (Go) tetap jalan.
 > **Basis fakta:** dump skema nyata `.local/schema-bm-2026-11-03.sql` (26 tabel, 26 index,

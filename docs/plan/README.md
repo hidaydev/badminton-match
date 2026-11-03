@@ -14,9 +14,9 @@ Status: draft untuk review pemilik (belum ada kode produksi yang berubah)
 | # | Dokumen | Untuk siapa | Isi |
 |---|---------|-------------|-----|
 | 1 | [`BRD.md`](BRD.md) | pemilik | kenapa, tujuan bisnis, risiko, definisi sukses, keputusan final |
-| 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 41 requirement ber-ID, NFR, perubahan UX |
+| 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 59 requirement ber-ID, NFR, perubahan UX |
 | 3 | [`TECH-SPEC.md`](TECH-SPEC.md) | semua engineer | stack, layout, skema `bm2`, kontrak, keamanan, CI/CD, parity, risiko |
-| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 60 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
+| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 71 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
 | 5 | [`CROSS-CHECK.md`](CROSS-CHECK.md) | reviewer | 19 klaim diuji ke sumber, 10 konsistensi, koreksi audit |
 | 6 | [`REVIEW-scrum.md`](REVIEW-scrum.md) | reviewer | audit dependency, tabrakan file, gap, DoR/DoD |
 | 7 | [`memos/`](memos/) | referensi | 6 memo ahli (2.167 baris): stack, security, data, API, CI/CD, QA |
@@ -34,6 +34,7 @@ Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.
 | Auth | Google OIDC untuk **semua penulis**; tautan hanya baca | tidak ada jalur tulis anonim (O-3, O-9) |
 | Multi-komunitas | satu instance, `community_id` + FK komposit, poin per komunitas | skema, auth, routing berubah (O-13..O-16) |
 | Frontend | React 19 + Vite + Tailwind 4, **dibekukan** | tidak ada rewrite Svelte (O-17) |
+| Parameter | semua angka bisnis di DB, berlapis platform → komunitas | tanpa default di kode, tanpa deploy (O-18, O-19) |
 | P0 | diperbaiki sekali di Nim | keputusan pemilik (O-4) |
 | Skema | `bm2` baru, `bm` nol DDL | utang v1 tidak bisa dibetulkan di tempat |
 | Realtime | WebSocket | Mummy tidak bisa SSE |
@@ -77,6 +78,9 @@ Batas aman: **4 agen aktif**. Jalur kritis yang tidak boleh ditambah beban:
 | Peran `member` | R2 | `PRD` R2, task T-048 |
 | Multi-komunitas | masuk repo ini: `community_id` + FK komposit, poin per komunitas, akun global | `TECH-SPEC` §4/§5, task T-090..T-095 |
 | Frontend | React 19 + Vite + Tailwind 4 dibekukan | tidak ada rewrite Svelte (O-17) |
+| Parameter | semua angka bisnis dibaca dari DB, berlapis platform → komunitas | `TECH-SPEC` §4A, task T-096..T-098 |
+| Database baru | `bm2` sebagai database terpisah + role `bm2_app` | `TECH-SPEC` §4 (O-20) |
+| Database | **database baru `bm2`** (bukan schema di `bm`), role `bm2_app` terpisah | `bm` nol DDL (O-20) |
 
 Tidak ada pertanyaan terbuka. Perubahan berikutnya yang menyentuh kontrak harus
 lewat T-016 (`contract-change.md`).

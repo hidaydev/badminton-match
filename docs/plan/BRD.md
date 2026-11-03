@@ -45,6 +45,7 @@ bentuk skema, auth, routing, dan sebagian besar requirement.
 | B5 | Perilaku tidak berubah tanpa sengaja | Parity harness Go↔Nim lulus dengan divergensi yang dideklarasikan eksplisit |
 | B6 | Maintainer tunggal tetap sanggup | `./task check` ≤ 60 s, `./task verify` ≤ 5 min, tanpa ritual manual |
 | B7 | Satu instance melayani banyak komunitas | Komunitas baru bisa dibuat tanpa deploy; data & poin tidak pernah tercampur |
+| B8 | Aturan bisa diubah tanpa deploy | Mengubah ambang/poin/format/limit = satu baris DB + audit, tanpa rilis |
 
 ## 3. Stakeholder
 
@@ -64,7 +65,7 @@ bentuk skema, auth, routing, dan sebagian besar requirement.
 - Rewrite backend ke Nim: 48 route v1 dipetakan ke permukaan v2 (keep/ubah/hapus/tambah).
 - Autentikasi Google (OIDC) + model peran; pemisahan tegas baca publik vs tulis terautentikasi.
 - Rework frontend yang terdampak perubahan kontrak dan auth.
-- Skema data baru (`bm2`) + jalur impor dari `bm`, dijalankan setelah stabil.
+- **Database baru `bm2`** (terpisah dari `bm`, role sendiri) + jalur impor dari `bm`, dijalankan setelah stabil.
 - Pipeline CI/CD, image, deploy, rollback, observability.
 - Test: unit, property, integrasi DB, kontrak, parity, E2E, a11y.
 - Dokumentasi: PRD/BRD/TECH-SPEC/BACKLOG, ADR, OpenAPI sebagai kontrak.
@@ -93,6 +94,7 @@ bentuk skema, auth, routing, dan sebagian besar requirement.
 | C5 | Satu instance API | Realtime boleh in-memory, tapi tidak boleh mengklaim durable |
 | C6 | Windows/macOS dev | Build & test harus jalan di macOS arm64 tanpa dependensi OS khusus |
 | C7 | **Frontend stack dibekukan**: React 19 + Vite + Tailwind 4 + React Query + Zustand + react-router | Tidak ada rewrite ke Svelte/framework lain; pekerjaan FE hanya menyesuaikan kontrak, auth, dan multi-komunitas |
+| C8 | **Tidak ada angka/aturan bisnis hardcoded** | Semua parameter bisnis dibaca dari DB (default platform + override komunitas); mengubah nilai tidak boleh butuh deploy |
 
 ## 7. Risiko bisnis
 
@@ -142,6 +144,9 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-15 | Papan poin dihitung per komunitas, bukan global |
 | O-16 | Akun global (satu Google untuk semua komunitas), peran berlaku per komunitas |
 | O-17 | Frontend tetap React 19 + Vite + Tailwind 4; **tidak ada rewrite ke Svelte** atau framework lain |
+| O-18 | Semua parameter/aturan bisnis disimpan di DB, bukan di kode; nilai bisa diubah tanpa deploy |
+| O-19 | Parameter berlapis: default platform, lalu override per komunitas; komunitas tidak bisa melewati batas aman yang ditetapkan platform |
+| O-20 | Boleh membuat **database baru `bm2`** di instance PostgreSQL yang sama; arsitektur DB dirancang ulang, bukan diturunkan dari `bm` |
 
 ## 10. Jawaban pemilik (2026-11-03)
 

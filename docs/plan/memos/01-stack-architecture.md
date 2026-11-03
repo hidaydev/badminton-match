@@ -1,5 +1,9 @@
 # Memo 01 — Stack & Arsitektur (Go → Nim)
 
+> **Catatan status (2026-11-03):** sejak O-13 multi-komunitas masuk lingkup, jumlah
+> domain menjadi **9** (ditambah `modules/community/`), bukan 8. Stack, memory manager,
+> dan aturan impor di memo ini tetap berlaku.
+
 > **Tanggal:** 3 Nov 2026 · **Panel:** senior Nim engineer + arsitektur · **Target:** backend
 > Nim untuk `badminton-match`, v1 (Go) tetap jalan selama transisi.
 > **Basis fakta:** pembacaan `docs/audits/2026-11-03/{00,02,06}`, `~/Projects/majadu` (v2 live),

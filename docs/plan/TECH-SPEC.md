@@ -18,6 +18,8 @@ Rujukan: `BRD.md`, `PRD.md`, `BACKLOG.md`, `memos/01..06`
 5. **Repo publik = nol rahasia.** Tidak ada secret, IP asli, dump, atau data pribadi.
 6. **Komunitas adalah batas data.** Tidak ada query yang boleh berjalan tanpa
    `community_id`; pelanggaran harus jadi error, bukan hasil kosong.
+7. **Angka bisnis hidup di DB.** Kode hanya menyimpan invarian struktural.
+   Menambah aturan baru = menambah key config, bukan menambah konstanta.
 
 ---
 
@@ -120,7 +122,11 @@ Rumus poin **wajib** di `modules/rating/domain` — bukan di store seperti v1
 
 ## 4. Data
 
-**Keputusan: skema baru `bm2` di instance PostgreSQL yang sama. `bm` nol DDL.**
+**Keputusan: database baru `bm2` di instance PostgreSQL yang sama. `bm` nol DDL.**
+
+Bukan schema tambahan di dalam database `bm`: database terpisah memberi isolasi nyata
+pada backup, hak akses, ledger migrasi, dan restore. Role aplikasi baru (`bm2_app`)
+tidak memiliki akses ke `bm`. Satu instance, dua database, nol jalur silang.
 
 **Batas komunitas (O-13…O-16).** Setiap tabel domain punya `community_id NOT NULL`.
 PK tetap surrogate (`id`), tetapi setiap FK memakai pasangan komposit
@@ -178,12 +184,61 @@ timezone campur. Semuanya hanya bisa dibetulkan dengan mengubah bentuk tabel.
 
 ---
 
+## 4A. Konfigurasi berlapis (tanpa angka bisnis di kode)
+
+Tiga lapisan, dan hanya satu yang boleh berisi angka bisnis:
+
+| Lapis | Isi | Disimpan di | Boleh diubah tanpa deploy |
+|-------|-----|-------------|---------------------------|
+| **L0 — invarian** | status HTTP, nama kolom, algoritma kripto, urutan SQL | kode | tidak (memang harus) |
+| **L1 — default platform** | nilai awal semua parameter | `platform.config` | ya |
+| **L2 — override komunitas** | penyesuaian per komunitas, dibatasi plafon L1 | `community.settings` | ya |
+
+**Resolusi nilai:** `L2 → L1 → error`. Tidak ada lapis ketiga berupa konstanta di kode.
+Bila key wajib tidak ada di kedua lapis, server **menolak start** (sama seperti migrasi
+tertunda). Ini mencegah "default tersembunyi" yang membuat perilaku berbeda antara
+lokal dan produksi.
+
+**Registry key** (satu sumber, dipakai loader, validator, admin UI, dan test):
+
+```text
+key, tipe (int|decimal|bool|string|json), default, min, max, scope
+(platform|community), deskripsi, sejak versi
+```
+
+**Cache & invalidasi:** tabel `platform.config_version` menyimpan satu counter.
+Setiap tulis menaikkannya dalam transaksi yang sama; proses menyimpan snapshot
+immutable dan memuat ulang saat counter berubah. Tidak ada TTL misterius, tidak ada
+restart.
+
+**Batas aman:** nilai komunitas divalidasi terhadap plafon L1. `platform_owner` bisa
+menaikkan plafon; `owner` komunitas tidak.
+
+**Contoh angka v1 yang wajib pindah ke config** (semua terverifikasi di kode):
+
+| Nilai sekarang | Lokasi v1 | Key |
+|---|---|---|
+| ticker ingest 30 menit | `apps/api/cmd/server/main.go:149` | `ingest.ticker_minutes` |
+| pagination granular 100 | `apps/api/internal/handler/granular.go:35` | `api.page_size_default` |
+| papan peringkat 200 | `apps/api/internal/handler/ratings.go:193` | `rank.board_limit` |
+| band 8-tier (1000–2100+) | `apps/api/internal/domain/rating_config.go:88-92` | `rating.tier_bands` |
+| turnamen tepat 16 pair | `apps/api/internal/domain/tournament.go:61` | `tournament.classic.pair_count` |
+| window 12 minggu, best 10, base 250 | seed `000018` | sudah config; pindahkan ke registry |
+
+**Penegakan:** `tools/archcheck` memindai literal numerik di `modules/*/domain` dan
+`apps/api/src`; setiap literal yang cocok dengan key registry menggagalkan build,
+kecuali ada di allowlist L0 (`allowlist_constants.txt`) dengan alasan tertulis.
+
+---
+
 ## 5. API
 
-- Permukaan v2: **48 → 48** route. 7 dihapus tanpa pengganti (`/admin/verify`,
+- Permukaan v2: **48 route v1 + 10 route komunitas = 58**. Dari 48: 7 dihapus tanpa pengganti (`/admin/verify`,
   publik `/metrics`, `/watch`, `/events`, `POST /sessions/{id}/delete`,
   `PATCH /tournaments/{id}`, `ratings/achievements/backfill`), 2 pasang digabung,
-  9 baru (auth ×3, share ×3, ws ×2, patch match).
+  9 baru (auth ×3, share ×3, ws ×2, patch match), lalu **10 route komunitas**
+  (buat/daftar komunitas, buat/terima undangan, daftar anggota, ubah peran, keluarkan
+  anggota, pengaturan, config, direktori). Daftar final dibekukan di T-008.
 - Konvensi: camelCase, RFC 9457 `problem+json` dengan `code` + `i18nKey`,
   pagination cursor, `Idempotency-Key` + hash body, `ETag`/`If-Match`
   (**412** bila basi, 428 bila tidak dikirim), batas ukuran body per route.
@@ -401,3 +456,4 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 | ADR-011 | P0 diterima terbuka tanpa hotfix dan tanpa kontrol kompensasi | diterima (O-8), dengan konsekuensi tertulis di §7.5 |
 | ADR-012 | Multi-komunitas: satu skema, `community_id` + FK komposit, poin per komunitas, akun global | diterima (O-13..O-16) |
 | ADR-013 | Frontend React 19 + Vite + Tailwind 4 dibekukan | diterima (O-17) |
+| ADR-014 | Parameter bisnis berlapis di DB (`platform.config` → `community.settings`), tanpa default di kode | diterima (O-18, O-19) |

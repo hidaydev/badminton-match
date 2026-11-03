@@ -96,7 +96,7 @@ dan memaksa penyuntingan lintas dokumen:
 | `view_code` read-only | acceptance keamanan | BACKLOG T-070 |
 
 Konsistensi pasca-perubahan diuji ulang: tidak ada sisa `edit_code`/`X-Edit-Code`
-di dokumen, dan jumlah requirement PRD (41) tetap seluruhnya terpetakan.
+di dokumen, dan seluruh requirement PRD (saat itu 41) tetap terpetakan.
 
 ---
 
@@ -120,6 +120,74 @@ di dokumen, dan jumlah requirement PRD (41) tetap seluruhnya terpetakan.
 
 ---
 
+## Putaran 5 — parameter/DB-driven
+
+Prinsip: **tidak ada angka bisnis di kode** (O-18/O-19). Nilai berlapis:
+`platform.config` → `community.settings`; tidak ada lapis ketiga berupa konstanta.
+
+Angka v1 yang wajib pindah, semuanya diverifikasi di kode:
+
+| Nilai | Lokasi | Key |
+|---|---|---|
+| ticker ingest 30 menit | `main.go:149` | `ingest.ticker_minutes` |
+| pagination granular 100 | `handler/granular.go:35` | `api.page_size_default` |
+| papan 200 | `handler/ratings.go:193` | `rank.board_limit` |
+| band tier 1000–2100+ | `domain/rating_config.go:88-92` | `rating.tier_bands` |
+| tepat 16 pair | `domain/tournament.go:61` | `tournament.classic.pair_count` |
+
+Konsekuensi desain yang sudah masuk dokumen: tabel `platform.config` +
+`platform.config_version`, registry bertipe, cache dengan invalidasi, tolak-start bila
+key wajib hilang, plafon platform untuk override komunitas, dan `archcheck` yang
+menggagalkan build pada literal yang menduplikasi key.
+
+**Cek konsistensi:** requirement CFG-01..08 seluruhnya terpetakan (T-096..T-098);
+T-094 yang sempat hilang saat penyuntingan sudah dikembalikan; jumlah task naik dari
+68 → 71.
+
+---
+
+## Putaran 6 — database `bm2` terpisah
+
+Keputusan O-20: `bm2` adalah **database** baru di instance yang sama, dengan role
+`bm2_app` tanpa akses ke `bm`. Alasan: isolasi backup, hak akses, ledger migrasi, dan
+restore — sesuatu yang tidak didapat dari schema tambahan.
+
+Yang berubah: BRD §4, TECH-SPEC §4, README ringkasan, BACKLOG T-007 (nama DB dev),
+dan catatan status di memo 03. Yang **tidak** berubah: verdict redesign, `bm` nol DDL,
+dan rencana impor.
+
+---
+
+## Putaran 7 — audit menyeluruh dokumen perencanaan
+
+Dijalankan setelah seluruh keputusan masuk (O-1..O-20). Ini pemeriksaan **mesin**,
+bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
+
+| Pemeriksaan | Metode | Hasil |
+|---|---|---|
+| Integritas task | parse 71 baris tabel | 71 task, **0 duplikat**, **0 dependency menggantung** |
+| Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah `testdata/parity/v1` vs `v2` dipisah |
+| Traceability | 59 requirement PRD vs referensi backlog | **0 tidak terpetakan**, **0 referensi hantu** |
+| Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
+| Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
+| Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
+| Link relatif | 11 berkas di `docs/plan` | **semua resolve** |
+| Secret scan | grep IP/token/private key | bersih |
+
+**Perbaikan yang dilakukan selama audit ini:**
+
+1. `README.md` masih menulis "41 requirement" dan "60 task" → 59 dan 71.
+2. `CROSS-CHECK` menyebut "41 tetap terpetakan" pada putaran sebelumnya → diberi
+   konteks "saat itu".
+3. Permukaan API masih "48 → 48" → 58 (48 v1 + 10 komunitas).
+4. Memo 01 masih "8 domain" → diberi catatan 9 domain.
+5. Memo 04 masih "48 → 48" → diberi catatan 58.
+6. `testdata/parity/` diklaim dua task → dipecah `v1/` (T-013) dan `v2/` (T-071).
+7. `bm2` ambigu antara schema dan database → database terpisah (O-20), memo 03
+   diberi catatan status.
+
+---
+
 ## Yang sudah diputuskan (tidak lagi terbuka)
 
 | Pertanyaan | Keputusan |
@@ -130,6 +198,10 @@ di dokumen, dan jumlah requirement PRD (41) tetap seluruhnya terpetakan.
 | Impor data v1 | rilis kosong, impor setelah stabil |
 | Verifikasi RS256 | modul binding OpenSSL |
 | Peran `member` | R2 |
+| Multi-komunitas | masuk repo ini; isolasi `community_id` + FK komposit; poin per komunitas; akun global |
+| Frontend | React 19 + Vite + Tailwind 4 dibekukan (tanpa Svelte) |
+| Parameter | semua angka bisnis dari DB, berlapis platform → komunitas |
+| Database | `bm2` sebagai database terpisah + role `bm2_app` |
 
 Sisa risiko yang **tidak** diselesaikan keputusan ini: enumerasi `GET /sessions`
 dan mutasi skor anonim tetap terbuka sampai API Nim rilis (lihat TECH-SPEC §7.5).
