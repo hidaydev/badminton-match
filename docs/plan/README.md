@@ -15,11 +15,13 @@ Status: draft untuk review pemilik (belum ada kode produksi yang berubah)
 |---|---------|-------------|-----|
 | 1 | [`BRD.md`](BRD.md) | pemilik | kenapa, tujuan bisnis, risiko, definisi sukses, keputusan final |
 | 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 59 requirement ber-ID, NFR, perubahan UX |
-| 3 | [`TECH-SPEC.md`](TECH-SPEC.md) | semua engineer | stack, layout, skema `bm2`, kontrak, keamanan, CI/CD, parity, risiko |
-| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 71 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
-| 5 | [`CROSS-CHECK.md`](CROSS-CHECK.md) | reviewer | 19 klaim diuji ke sumber, 10 konsistensi, koreksi audit |
+| 3 | [`TECH-SPEC.md`](TECH-SPEC.md) | semua engineer | stack, layout, database `bm2`, kontrak, keamanan, CI/CD, parity, risiko |
+| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 80 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
+| 5 | [`CROSS-CHECK.md`](CROSS-CHECK.md) | reviewer | 19 klaim diuji ke sumber, 9 putaran konsistensi, 3 review independen |
 | 6 | [`REVIEW-scrum.md`](REVIEW-scrum.md) | reviewer | audit dependency, tabrakan file, gap, DoR/DoD |
-| 7 | [`memos/`](memos/) | referensi | 6 memo ahli (2.167 baris): stack, security, data, API, CI/CD, QA |
+| 7 | [`memos/`](memos/) | referensi | 6 memo ahli: stack, security, data, API, CI/CD, QA |
+| 8 | [`EXECUTION.md`](EXECUTION.md) | pelaksana | prasyarat terverifikasi, urutan bootstrap, template prompt agen, protokol merge |
+| 9 | [`reviews/`](reviews/) | reviewer | tiga audit independen: executability, consistency, adversarial |
 
 Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.
 
@@ -30,7 +32,7 @@ Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.
 | Keputusan | Pilihan | Alasan singkat |
 |-----------|---------|----------------|
 | Lokasi rewrite | repo ini | majadu v2 tidak disentuh (O-1) |
-| Kontrak API | boleh berubah | FE ikut dikerjakan (O-2) |
+| Kontrak API | boleh berubah; 59 operasi | FE ikut dikerjakan (O-2) |
 | Auth | Google OIDC untuk **semua penulis**; tautan hanya baca | tidak ada jalur tulis anonim (O-3, O-9) |
 | Multi-komunitas | satu instance, `community_id` + FK komposit, poin per komunitas | skema, auth, routing berubah (O-13..O-16) |
 | Frontend | React 19 + Vite + Tailwind 4, **dibekukan** | tidak ada rewrite Svelte (O-17) |
@@ -39,7 +41,7 @@ Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.
 | Skema | `bm2` baru, `bm` nol DDL | utang v1 tidak bisa dibetulkan di tempat |
 | Realtime | WebSocket | Mummy tidak bisa SSE |
 | Kontrak | OpenAPI tulis tangan + codegen | handler hilang = error kompilasi |
-| DB dev | Podman lokal + template DB | nol risiko ke produksi |
+| DB dev | PostgreSQL lokal (Homebrew 18.6, sudah berjalan) + template DB | nol risiko ke produksi |
 | Parity | golden JSON + divergensi deklaratif | mencegah bug v1 ikut pindah |
 
 ---

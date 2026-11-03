@@ -1,9 +1,15 @@
 # 04 — API Contract (v2, Nim)
 
 > **Catatan status (2026-11-03):** angka "48 → 48" di memo ini berlaku sebelum
-> multi-komunitas (O-13). Dengan 10 route komunitas, permukaan final menjadi **58**;
+> multi-komunitas (O-13) dan pemisahan auth menjadi `start`/`callback`, permukaan
+> final menjadi **59** operasi;
 > detailnya dibekukan di T-008 (`api.yaml`). Konvensi, realtime, dan alur kontrak di
 > memo ini tetap berlaku.
+>
+> Dua koreksi wajib: **`POST /auth/google` DITOLAK** — keputusan ADR-015 memakai
+> Authorization Code + PKCE dengan `GET /auth/google/start` dan
+> `GET /auth/google/callback` (tidak ada ID token dari JavaScript). Path realtime
+> adalah `/ws/c/{slug}/sessions/{publicId}`, bukan `/sessions/{id}/ws`.
 
 > Peran: arsitek API/kontrak. Lingkup: kontrak saja (bukan skema DB, bukan isi engine rating).
 > Sifat: proposal untuk panel. Semua klaim kode dirujuk `path:line`.

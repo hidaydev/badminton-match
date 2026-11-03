@@ -14,8 +14,8 @@ tidak dirata-ratakan, tapi dipilih satu dan alasannya ditulis.
 | # | Klaim | Sumber yang diuji | Hasil |
 |---|-------|-------------------|-------|
 | 1 | 48 route di v1 | `main.go`, dihitung ulang otomatis | **benar** (48) |
-| 2 | Skema `bm` = 26 tabel, 26 index, 4 fungsi | `pg_dump --schema-only` | **benar** |
-| 3 | `GET /sessions` membocorkan `share_code` sebagai `id` | `session_admin.go:169-176,188` + `session.go:119-141` | **benar** |
+| 2 | Skema `bm` = **27** tabel, 26 index, 4 fungsi | `pg_dump --schema-only` | **benar** (hitungan awal 26 salah) |
+| 3 | `GET /sessions` membocorkan `share_code` sebagai `id` | `session_admin.go:169-176,187` + `session.go:119-141` | **benar** |
 | 4 | `PUT/PATCH/games/absent/swap` tanpa guard | `main.go:199-208` | **benar** |
 | 5 | `POST /sessions` & `POST /tournaments` anonim | `main.go:196,231` | **benar** |
 | 6 | `DELETE /sessions/{id}` & `lock` sebenarnya admin | `main.go:201-202` | **benar** (audit 05/01 sempat menyebut anonim; README sudah dikoreksi) |
@@ -57,7 +57,7 @@ tidak dirata-ratakan, tapi dipilih satu dan alasannya ditulis.
 | 6 | Verifikasi ID token: memo 01 (klaim saja) vs memo 02 (RS256) | **konflik** | diselesaikan di TECH-SPEC §7.2, ADR-009 tetap terbuka |
 | 7 | Rute baru vs lama: `/rankings` diklaim baru? | **sudah ada di v1** (`main.go:255`) | tidak dimasukkan sebagai rute baru |
 | 8 | Nomor migrasi di dokumen lama (`000013–000016`) | sudah dikoreksi ke `000023` di commit `08e93a8` | — |
-| 9 | Istilah `publicId` vs `public_id` | dipakai `publicId` (JSON) / `public_id` (kolom) | konsisten dengan memo 04 |
+| 9 | Istilah `publicId` vs `public_id` | keputusan ADR-016: kolom `id` UUIDv7, JSON `id`; tidak ada `public_id` | menggantikan usulan memo 03/04 |
 | 10 | Gate per rilis R0–R4 ada di PRD dan BACKLOG | cocok | — |
 
 ---
@@ -70,7 +70,7 @@ Lihat `REVIEW-scrum.md`. Temuan review diadopsi/ditolak secara eksplisit di bawa
 | Temuan review | Keputusan |
 |---------------|-----------|
 | Task keamanan tanpa pemilik (rate limit, CSRF, idempotency, `/auth/*`) | diadopsi → T-075..T-078, AUTH-07..09 |
-| T-006 terlalu besar, lingkup "26 tabel" salah | diadopsi → T-006a–d termasuk `auth.*`, `account.*`, `platform.idempotency_keys` |
+| T-006 terlalu besar, lingkup tabel salah | diadopsi → dipecah T-006a–e termasuk `auth.*`, `account.*`, `platform.idempotency_keys` |
 | T-013 bergantung pada DB yang salah | diadopsi → T-014 (env v1 lokal) |
 | `Owns` glob saling menabrak | diadopsi → semua ke file-level |
 | FE tanpa edge ke kontrak, tanpa mock API | diadopsi → T-015, T-016 |
@@ -165,9 +165,9 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 
 | Pemeriksaan | Metode | Hasil |
 |---|---|---|
-| Integritas task | parse 71 baris tabel | 71 task, **0 duplikat**, **0 dependency menggantung** |
-| Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah `testdata/parity/v1` vs `v2` dipisah |
-| Traceability | 59 requirement PRD vs referensi backlog | **0 tidak terpetakan**, **0 referensi hantu** |
+| Integritas task | parse tabel backlog | **80 task**, 0 duplikat, 0 dependency menggantung |
+| Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah pemisahan per file |
+| Traceability | 59 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
 | Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
 | Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
 | Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
@@ -179,12 +179,46 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 1. `README.md` masih menulis "41 requirement" dan "60 task" → 59 dan 71.
 2. `CROSS-CHECK` menyebut "41 tetap terpetakan" pada putaran sebelumnya → diberi
    konteks "saat itu".
-3. Permukaan API masih "48 → 48" → 58 (48 v1 + 10 komunitas).
+3. Permukaan API masih "48 → 48" → 59 (49 tanpa komunitas + 10 komunitas).
 4. Memo 01 masih "8 domain" → diberi catatan 9 domain.
-5. Memo 04 masih "48 → 48" → diberi catatan 58.
+5. Memo 04 masih "48 → 48" → diberi catatan 59.
 6. `testdata/parity/` diklaim dua task → dipecah `v1/` (T-013) dan `v2/` (T-071).
 7. `bm2` ambigu antara schema dan database → database terpisah (O-20), memo 03
    diberi catatan status.
+
+---
+
+## Putaran 8 — kelayakan lingkungan
+
+Diuji di mesin ini, bukan diasumsikan:
+
+| Alat | Hasil | Dampak |
+|---|---|---|
+| Nim | 2.4.0 arm64 | sesuai pin |
+| pnpm | 11.25.0 | sesuai `packageManager` |
+| PostgreSQL | 18.6 Homebrew, **berjalan** | DB dev bisa langsung dipakai |
+| psql | 18.6 | inspeksi & reset |
+| Go | 1.27.3 | cukup untuk capture parity v1 |
+| **Podman** | **tidak terpasang** | T-007/O-5 diubah: server lokal jadi default, container hanya fallback |
+
+Cluster lokal sudah berisi banyak database uji proyek lain (`*_test`, `*_e2e`).
+Karena itu penamaan `bm2_dev` + guard nama wajib, dan reset tidak boleh menyentuh
+database di luar prefiks `bm2_`.
+
+---
+
+## Putaran 9 — tiga review independen
+
+Tiga reviewer dengan sudut berbeda membaca seluruh rencana. Ringkasan dan tindakan:
+
+| Review | Temuan utama | Tindakan |
+|---|---|---|
+| `reviews/executability.md` | `task`/`config.nims` satu pemilik; Dockerfile tanpa pemilik; rantai DB tanpa T-007; T-014 tanpa produsen data; seed config tidak ada; kontrak auth bentrok; T-008 "48" vs 58; context/sha256 tanpa pemilik; 3 tabrakan `Owns`; tabel tanpa migrasi; acceptance tak terverifikasi; T-082 tak bisa bersih; client FE lama | **14/14 diterima** → T-018 dispatcher, T-099 fixture, T-085 stub OIDC, T-101 pensiun client, T-102 ops token, T-103 bootstrap, `Owns` dipecah per file |
+| `reviews/consistency.md` | 27 tabel (bukan 26); T-008 48 vs 59; SES-02 403 vs 401; PLY-01 anonim; `session.links` 4 penamaan; `public_id` vs `id`; memo K1–K6 vs O-8; memo 01 "8 domain"; `POST /auth/google`; path WS; ADR-010 tanpa desain; AUTH-06 salah task | **semua diterima**; ADR-015/016/017 ditambahkan, memo diberi catatan status |
+| `reviews/adversarial.md` | pool 8 vs `serverThreads` 10× core; NULL→`""` dan `?` di jsonb; nimcache per nama file; FK komposit `MATCH SIMPLE`; share code per komunitas vs `/s/{code}`; bootstrap instance kosong; `libcrypto` dynlib | **semua diterima** → T-004 PQexecParams, T-018 nimcache, TECH-SPEC §4 butir 11, ADR-017, T-103, T-084 cek boot |
+
+Angka yang berubah: task **71 → 80**, permukaan API **59**, tabel v1 **27**.
+Requirement tetap **59** dan seluruhnya terpetakan.
 
 ---
 

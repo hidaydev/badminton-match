@@ -3,6 +3,10 @@
 > **Catatan status (2026-11-03):** sejak O-13 multi-komunitas masuk lingkup, jumlah
 > domain menjadi **9** (ditambah `modules/community/`), bukan 8. Stack, memory manager,
 > dan aturan impor di memo ini tetap berlaku.
+>
+> Dua hal di memo ini **tidak** diadopsi: pernyataan bahwa "registry config tidak
+> dikerjakan di fase 1" (kini wajib, O-18/O-19) dan bahwa multi-tenant "bukan fase 1"
+> (kini masuk R1, O-13).
 
 > **Tanggal:** 3 Nov 2026 · **Panel:** senior Nim engineer + arsitektur · **Target:** backend
 > Nim untuk `badminton-match`, v1 (Go) tetap jalan selama transisi.

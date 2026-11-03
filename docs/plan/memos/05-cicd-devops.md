@@ -1,5 +1,10 @@
 # Memo 05 — CI/CD & DevOps (rewrite Nim + rework frontend)
 
+> **Catatan status (2026-11-03):** `/readyz` **bukan** ping-only — keputusan
+> TECH-SPEC §8: `/readyz` memeriksa DB **dan** versi skema. Retensi log diseragamkan
+> **7 hari** untuk semua log aplikasi, dan jumlah job CI final **7** (termasuk `Gate`),
+> bukan 8. Sisanya berlaku.
+
 Basis: `docs/audits/2026-11-03/03-ci.md`, `04-deploy-pipeline.md`, `05-security.md`,
 kontrak emas `cbs` (AGENTS.md §2–3, `task`, `.github/workflows/ci.yml`) dan `majadu`
 (`.github/workflows/*`, `ops/scripts/*`, `ops/github/ruleset-main.json`).

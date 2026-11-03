@@ -16,7 +16,7 @@ Edge yang hilang atau salah:
 
 | Task | Masalah | Keputusan |
 |------|---------|-----------|
-| T-006 | Satu task memuat 26 tabel + 7 perbaikan + tabel modul; memblokir T-020/024/040/042/050/051/064 | dipecah T-006a–d |
+| T-006 | Satu task memuat 27 tabel + 7 perbaikan + tabel modul; memblokir T-020/024/040/042/050/051/064 | dipecah T-006a–d |
 | T-013 | Bergantung pada T-007 (DB `bm2`), padahal capture butuh v1 | tambah T-014, edge T-014 → T-013 |
 | T-028–T-030 | Tidak ada edge ke T-008/T-009 | ditambah, plus T-015 (mock) |
 | T-046 | Tidak bergantung pada T-044 | ditambah |

@@ -131,7 +131,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-2 | Kontrak API boleh berubah; frontend ikut dikerjakan |
 | O-3 | Auth: passwordless Google (OIDC), bukan magic link, bukan admin token statis |
 | O-4 | P0 diperbaiki sekali di Nim (tidak ada hotfix Go) |
-| O-5 | DB dev/test: PostgreSQL lokal via Podman + dump skema |
+| O-5 | DB dev/test: PostgreSQL lokal (Homebrew 18.6 sudah berjalan; Podman opsional bila terpasang) + dump skema |
 | O-6 | Blueprint stack dipilih berdasarkan bukti, bukan preferensi |
 | O-7 | Tidak ada push ke remote sampai seluruh rangkaian stabil |
 | O-8 | P0 diterima terbuka selama rewrite; tidak ada hotfix Go dan tidak ada kontrol kompensasi |
@@ -140,13 +140,38 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-11 | Peran `member` masuk R2, bukan R1 |
 | O-12 | Verifikasi ID token RS256 dibangun sebagai modul binding OpenSSL lokal (ADR-009 diterima) |
 | O-13 | Multi-komunitas masuk repo ini, bukan diserahkan ke majadu v2 |
-| O-14 | Isolasi data: satu skema `bm2`, kolom `community_id`, FK komposit |
+| O-14 | Isolasi data: satu database `bm2`, kolom `community_id` NOT NULL, FK komposit untuk relasi NOT NULL |
 | O-15 | Papan poin dihitung per komunitas, bukan global |
 | O-16 | Akun global (satu Google untuk semua komunitas), peran berlaku per komunitas |
 | O-17 | Frontend tetap React 19 + Vite + Tailwind 4; **tidak ada rewrite ke Svelte** atau framework lain |
 | O-18 | Semua parameter/aturan bisnis disimpan di DB, bukan di kode; nilai bisa diubah tanpa deploy |
 | O-19 | Parameter berlapis: default platform, lalu override per komunitas; komunitas tidak bisa melewati batas aman yang ditetapkan platform |
 | O-20 | Boleh membuat **database baru `bm2`** di instance PostgreSQL yang sama; arsitektur DB dirancang ulang, bukan diturunkan dari `bm` |
+
+### Keterlacakan: di mana tiap keputusan diwujudkan
+
+| Keputusan | Wujud konkret | Task |
+|---|---|---|
+| O-1 | Seluruh kode baru di `apps/api/`, `modules/`, `shared/` repo ini; tidak ada sentuhan ke `majadu` | T-001 |
+| O-2 | Kontrak v2 ditulis ulang (48 → 59 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
+| O-3 | OIDC Google; tidak ada magic link / token admin | T-021, T-084 |
+| O-4 | Tidak ada commit perbaikan di `apps/api/internal/`; P0 ditutup di Nim | T-021, T-023, T-025 |
+| O-5 | `./task dev-db` memakai cluster lokal; container hanya fallback | T-007 |
+| O-6 | Setiap klaim stack diuji di `CROSS-CHECK.md` (putaran 8) dan memo | — (dokumen) |
+| O-7 | Protokol merge lokal; tidak ada push sampai R4 | seluruh backlog §0 butir 8 |
+| O-8 | ADR-011 menerima P0 terbuka; tidak ada kontrol kompensasi di kode | T-083 |
+| O-9 | `session.links` read-only, tanpa `kind`; semua tulis butuh principal | T-024, T-023 |
+| O-10 | Rilis v2 tanpa data; ETL berjalan pasca-rilis | T-064, T-095 |
+| O-11 | `member` tidak dipakai di R1; masuk R2 | T-048 |
+| O-12 | Binding OpenSSL + cek `libcrypto` saat boot | T-084 |
+| O-13 | 9 modul termasuk `modules/community/`; 10 route komunitas | T-090–T-093 |
+| O-14 | `community_id NOT NULL`, FK komposit untuk relasi NOT NULL, UNIQUE scoped | T-006a–e |
+| O-15 | `rating_events`/`deltas`/`players` ber-`community_id`; papan per komunitas | T-042–T-044 |
+| O-16 | `platform.user` global; peran di `community.membership` | T-020, T-091 |
+| O-17 | Frontend tetap React 19 + Vite + Tailwind 4; tidak ada dependensi Svelte | T-028 |
+| O-18 | Tidak ada konstanta bisnis di kode; `archcheck` memindai literal | T-096, T-098 |
+| O-19 | Resolusi `L2 → L1 → error`, plafon L1 divalidasi saat tulis | T-096, T-097 |
+| O-20 | Database `bm2` + role `bm2_app`; `bm` nol DDL | T-007, T-005 |
 
 ## 10. Jawaban pemilik (2026-11-03)
 

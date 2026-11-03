@@ -30,7 +30,7 @@ Diambil langsung dari kode, dump skema, dan library — bukan dari ingatan.
 | Fakta | Bukti |
 |-------|-------|
 | 48 route terdaftar di v1 | `apps/api/cmd/server/main.go`, dihitung otomatis |
-| Skema `bm`: 26 tabel, 26 index, 4 fungsi | dump schema-only 2026-11-03 (lokal, tidak di repo) |
+| Skema `bm`: **27** tabel, 26 index, 4 fungsi | dump schema-only 2026-11-03 (lokal, tidak di repo) |
 | `rating_deltas` **sudah** punya PK `(event_id, player_id)` | dump, constraint `rating_deltas_pkey` |
 | `rating_events_order_uniq (date, created_at, source_id, game_order)` **sudah ada** | dump |
 | `db_connector` meng-escape string, **bukan** server-side bind | `db_postgres.nim:118` (`dbQuote`) + `db_common` |
@@ -79,30 +79,51 @@ memverifikasi hash tree): `mummy 0.4.8`, `nimcrypto 0.7.3`, `zippy 0.10.20`,
 
 ```text
 badminton-match/
-├── task                        # satu-satunya sumber flag build (POSIX)
+├── task                        # dispatcher POSIX (memanggil task.d/<target>.sh)
+├── task.d/                     # satu berkas per target; tidak ada file bersama
 ├── config.nims                 # path modul; dipakai nimsuggest & nim c polos
+├── deps.lock                   # pin versi toolchain & dependensi
 ├── apps/
-│   ├── api/                    # entrypoint: main.nim, server.nim, routes_gen.nim
+│   ├── api/
+│   │   ├── src/                # main.nim, server.nim, health.nim, auth_routes.nim,
+│   │   │                       # live.nim, ratelimit.nim, community_context.nim,
+│   │   │                       # routes_gen.nim (generated — jangan diedit)
+│   │   ├── tests/              # security/, tenant/
+│   │   └── Dockerfile
 │   └── web/                    # React 19 + Vite + Tailwind 4 (stack dibekukan)
 ├── modules/                    # 9 domain, tiap modul punya permukaan api.nim
-│   ├── session/                # domain/ infrastructure/ migrations/ tests/ api.nim
+│   ├── session/                # domain/ infrastructure/ tests/ api.nim
 │   ├── player/
 │   ├── rating/
 │   ├── tournament/
 │   ├── achievement/
 │   ├── share/
 │   ├── community/              # komunitas, anggota, undangan, pengaturan
-│   ├── platform/               # config, audit log, clock, id
+│   ├── platform/               # config, idempotency, audit log
 │   └── account/                # OIDC, sesi, role
 ├── packages/
-│   ├── contracts/openapi/api.yaml   # SUMBER KEBENARAN kontrak
-│   └── web-client/                  # TS client hasil generate
-├── shared/platform-lib/        # logger, metrics, clock, uuidv7, db binder
+│   ├── contracts/openapi/      # core.yaml + community.yaml (ditulis tangan)
+│   │                           # api.yaml = hasil gabungan (generated)
+│   └── web-client/             # TS client hasil generate
+├── shared/platform-lib/        # logger, metrics, clock, uuidv7, sha256, db binder
+├── db/
+│   ├── migrations/             # 0001…0005, hanya lewat tools/dbtools
+│   └── seeds/                  # platform_config.sql (L1)
 ├── tools/
 │   ├── dbtools/                # migrate/verify/seed
-│   ├── archcheck/              # menegakkan aturan impor antar modul
-│   └── parity/                 # recorder + replayer
-├── ops/                        # caddy, env example, scripts, systemd, webhook
+│   ├── archcheck/              # aturan impor + pemindai literal angka bisnis
+│   ├── contract-gen/           # spec → route Nim + client TS
+│   ├── mock-api/               # server tiruan dari spec
+│   ├── parity/                 # recorder + replayer + normalizer
+│   ├── fixtures/               # data sintetis v1 deterministik
+│   ├── oidc-stub/              # IdP palsu untuk E2E/CI
+│   ├── ownerseed/              # bootstrap platform_owner + komunitas pertama
+│   ├── rehearsal/              # latihan deploy/rollback
+│   ├── import/                 # ETL bm → bm2
+│   └── soak/                   # uji beban
+├── ops/                        # dev/, caddy/, env/, scripts/, systemd/, webhook/
+├── e2e/                        # Playwright: fungsional + a11y + visual
+├── testdata/parity/            # korpus v1 dan v2
 └── docs/
 ```
 
@@ -129,11 +150,12 @@ pada backup, hak akses, ledger migrasi, dan restore. Role aplikasi baru (`bm2_ap
 tidak memiliki akses ke `bm`. Satu instance, dua database, nol jalur silang.
 
 **Batas komunitas (O-13…O-16).** Setiap tabel domain punya `community_id NOT NULL`.
-PK tetap surrogate (`id`), tetapi setiap FK memakai pasangan komposit
-`(community_id, id)` sehingga baris **tidak bisa** merujuk entitas komunitas lain
-bahkan bila kode lupa memfilter. Setiap UNIQUE ikut di-scope: `(community_id, slug)`,
-`(community_id, alias_key)`, `(community_id, match_key)`, dan seterusnya.
-Index operasional selalu berawalan `community_id`.
+PK tetap surrogate (`id`). FK yang **kedua kolomnya NOT NULL** memakai pasangan
+komposit `(community_id, id)` sehingga baris tidak bisa merujuk entitas komunitas
+lain bahkan bila kode lupa memfilter (batasannya di butir 11). Setiap UNIQUE ikut
+di-scope: `(community_id, slug)`, `(community_id, alias_key)`,
+`(community_id, match_key)`, dan seterusnya. Index operasional selalu berawalan
+`community_id`.
 
 Tabel platform: `platform.community`, `platform.user` (global),
 `community.membership` (user × community × role), `community.invite`,
@@ -171,15 +193,26 @@ timezone campur. Semuanya hanya bisa dibetulkan dengan mengubah bentuk tabel.
    tuning operator).
 7. Semua waktu: `timestamptz` UTC untuk instan, `date` WIB untuk tanggal kalender —
    satu konvensi, ditegakkan test.
-8. `share_code`/`view_code` unik **per komunitas**, bukan global; tautan lama
-   komunitas lain tidak bisa ditebak dari pola.
+8. `view_code` unik **global**, bukan per komunitas: `/s/{code}` tidak membawa slug,
+   jadi kode harus bisa diresolusi tanpa konteks. Kode acak ≥128 bit; charset
+   alfanumerik seperti v1 (`handler/session.go:543-556`), bukan pola baru yang
+   menolak kode lama.
 9. Poin dihitung per komunitas: `rating_events`/`rating_deltas`/`rating_players`
    membawa `community_id`; window dan best-N dievaluasi di dalam komunitas itu.
 10. Query builder menolak query tanpa predikat `community_id` pada tabel domain
     (gagal di test, bukan menghasilkan daftar kosong).
+11. **FK komposit hanya untuk kolom NOT NULL.** PostgreSQL memakai `MATCH SIMPLE`:
+    bila salah satu kolom FK bernilai NULL, constraint dilewati sepenuhnya. Karena
+    itu relasi opsional (`rating_events.session_id` vs `tournament_id`,
+    `game_players.replaced_player_id`) **tidak** memakai FK komposit; integritasnya
+    dijaga `CHECK` + trigger + test, dan `community_id`-nya tetap NOT NULL.
+12. Database dev lokal bernama `bm2_dev`; setiap worker mendapat **database sendiri**
+    (`bm2_<agent>`) yang dikloning dari `bm2_template` — bukan schema tambahan,
+    karena schema per worker akan bertabrakan dengan schema domain (`community`,
+    `session`, …). Semua tooling menolak nama database yang tidak berawalan `bm2_`.
 
 **Migrasi:** nomor urut, `schema_version` + checksum, dua fase untuk destruktif
-(`expand` → backfill → `contract`), DDL hanya lewat `tools/dbmigrate`. App
+(`expand` → backfill → `contract`), DDL hanya lewat `tools/dbtools`. App
 **menolak start** bila migrasi tertunda atau checksum drift.
 
 ---
@@ -233,12 +266,22 @@ kecuali ada di allowlist L0 (`allowlist_constants.txt`) dengan alasan tertulis.
 
 ## 5. API
 
-- Permukaan v2: **48 route v1 + 10 route komunitas = 58**. Dari 48: 7 dihapus tanpa pengganti (`/admin/verify`,
-  publik `/metrics`, `/watch`, `/events`, `POST /sessions/{id}/delete`,
-  `PATCH /tournaments/{id}`, `ratings/achievements/backfill`), 2 pasang digabung,
-  9 baru (auth ×3, share ×3, ws ×2, patch match), lalu **10 route komunitas**
-  (buat/daftar komunitas, buat/terima undangan, daftar anggota, ubah peran, keluarkan
-  anggota, pengaturan, config, direktori). Daftar final dibekukan di T-008.
+- Permukaan v2: **59 operasi**. Hitungan per kelompok, bukan klaim:
+
+  | Kelompok | v1 | v2 | Perubahan |
+  |---|---|---|---|
+  | System & auth | 5 | **7** | `-` `/metrics` publik, `-` `/admin/verify`; `+` `auth/start`, `auth/callback`, `auth/logout`, `auth/me` |
+  | Sessions | 16 | **13** | `-` `/watch`, `/events`, `POST /{id}/delete`; `PUT /sessions/{id}` → `PUT /{id}/schedule` |
+  | Share | 0 | **3** | semua baru: `POST`/`DELETE /sessions/{id}/share`, `GET /s/{code}` |
+  | Realtime | 0 | **2** | `/ws/c/{slug}/sessions/{id}` + satu kanal notifikasi komunitas |
+  | Players | 7 | **8** | `PATCH /tier` + `PATCH /name` dilebur, `+` merge di path pemain |
+  | Tournaments | 6 | **6** | `-` `PATCH /tournaments/{id}`, `+` `PATCH .../matches/{id}` |
+  | Rankings & ratings | 14 | **10** | 4 route admin digabung ke path resource |
+  | **Subtotal** | **48** | **49** | |
+  | Komunitas & config | 0 | **10** | buat/daftar komunitas, buat/terima undangan, daftar anggota, ubah peran, keluarkan anggota, pengaturan, config, direktori |
+  | **Total** | 48 | **59** | |
+
+  Daftar final dibekukan di T-008a/T-008b; angka `59` adalah acceptance T-009.
 - Konvensi: camelCase, RFC 9457 `problem+json` dengan `code` + `i18nKey`,
   pagination cursor, `Idempotency-Key` + hash body, `ETag`/`If-Match`
   (**412** bila basi, 428 bila tidak dikirim), batas ukuran body per route.
@@ -247,9 +290,12 @@ kecuali ada di allowlist L0 (`allowlist_constants.txt`) dengan alasan tertulis.
   anggota → 404 (bukan 403, agar keberadaan komunitas tidak bocor). Tautan publik
   `/s/{code}` tidak memakai slug: kode itu sendiri yang menentukan komunitas.
   `Idempotency-Key` di-scope per komunitas.
-- OpenAPI **ditulis tangan** di `packages/contracts/openapi/api.yaml`; `./task
-  contract-gen` menghasilkan kerangka route Nim + client TS. CI gagal bila hasil
-  generate berbeda dari commit.
+- OpenAPI **ditulis tangan** dalam dua berkas: `packages/contracts/openapi/core.yaml`
+  (auth, session, share, player, rating, achievement, tournament) dan
+  `community.yaml` (komunitas, config, direktori). `./task contract-gen` menggabungkan
+  keduanya menjadi `api.yaml` (artefak generated, tidak diedit tangan) lalu
+  menghasilkan kerangka route Nim + client TS. CI gagal bila hasil generate berbeda
+  dari commit.
 - Tidak ada shim Go. Overlap memakai deploy berpasangan: v1 tetap hidup sebagai
   jalur rollback sampai v2 dinyatakan stabil.
 
@@ -260,7 +306,7 @@ Detail per-route ada di `memos/04-api-contract.md`; ringkasan tabel final masuk
 
 ## 6. Realtime
 
-WebSocket di `/ws/c/{slug}/sessions/{publicId}` dan `/ws/share/{viewCode}`.
+WebSocket di `/ws/c/{slug}/sessions/{sessionId}` dan `/ws/share/{viewCode}`.
 Kanal sesi mewarisi `community_id` dari slug; kanal share mengambilnya dari kode.
 
 ```text
@@ -282,6 +328,9 @@ client → server: {"type":"ping"} | {"type":"subscribe","lastSeq":N}
 ### 7.1 Auth (Google OIDC)
 
 - Authorization Code + PKCE S256, ditukar server-side.
+- Endpoint: `GET /auth/google/start` → 302 ke Google; `GET /auth/google/callback`
+  → tukar code, set cookie, 302 ke aplikasi; `POST /auth/logout`; `GET /auth/me`.
+  Tidak ada endpoint yang menerima ID token dari JavaScript.
 - `state`, `nonce`, `code_verifier` disimpan sebagai **hash** di `auth.oauth_flows`;
   cookie hanya `flow_id` (`__Host-bm_oauth`, 10 menit).
 - ID token: `iss`/`aud`/`azp`/`exp`/`nonce`/`email_verified`, `sub` = kunci akun.
@@ -301,8 +350,10 @@ Catatan hasil verifikasi: wrapper bawaan Nim (`lib/wrappers/openssl.nim`)
 `EVP_DigestVerify*`, tidak ada `RSA_new`/`BN_bin2bn`/`EVP_PKEY_assign_RSA`.
 Jadi ini **modul binding lokal ±80–120 baris** (`importc` ke `libcrypto`) dengan
 test vektor dari JWKS Google, dimiliki task T-084.
-Bila `libcrypto` tidak tersedia di image runtime, build harus **gagal**, bukan
-diam-diam turun ke mode klaim-saja.
+Karena `libcrypto` dimuat lewat `dynlib`, build **tidak** akan gagal saat library
+absen. Karena itu verifikasi dilakukan saat boot: coba `dlopen` + satu vektor uji
+tanda tangan; bila gagal, proses menolak start (bukan turun diam-diam ke mode
+klaim-saja). Image runtime wajib menyertakan `libcrypto` dan ini diuji di job image.
 
 ### 7.3 Otorisasi & kapabilitas
 
@@ -314,6 +365,7 @@ diam-diam turun ke mode klaim-saja.
 | Merge/rename/delete pemain, tier | `admin`+ |
 | Rebuild/revert/ingest | `admin`+ |
 | Kelola role | `owner` **di komunitas itu** |
+| Ikut serta di komunitas | `member` (baca papan, klaim profil sendiri, tanpa tulis admin) |
 | Akses data lintas komunitas | tidak ada — 404 |
 
 ### 7.4 Remediasi P0/P1
@@ -355,6 +407,17 @@ mitigasi adalah kecepatan rilis R1.
 **Build:** satu sumber flag di `./task build`:
 `-d:release --opt:speed --threads:on --mm:atomicArc`. Nim 2.4.0 dipin di CI,
 Dockerfile (tarball + sha256), dan `.nimble`. `-static` ditolak (libpq dynlib).
+
+Dua aturan build yang wajib, karena kalau tidak, kerja paralel rusak:
+
+1. **`nimcache` per worktree.** Nim mengunci cache berdasarkan *nama file proyek*,
+   bukan path (`compiler/options.nim:1000-1018`), sehingga empat worktree yang
+   membangun `apps/api/src/main.nim` berbagi `~/.cache/nim/main_r`. `./task` wajib
+   menetapkan `--nimcache:$repoRoot/.cache/<worktree>`.
+2. **`serverThreads` = ukuran pool.** Mummy default `countProcessors()*10`
+   (`mummy.nim:1476`) dan menjalankan handler di thread itu (`:464-480`). Pool DB
+   yang lebih kecil dari jumlah thread menghasilkan 503 saat beban normal. Pool
+   dihitung dari `serverThreads`, bukan angka tetap.
 
 **CI** (semua `timeout-minutes: 15`, action di-pin SHA, `${{ }}` hanya di `env:`):
 
@@ -411,7 +474,8 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 ## 10. Migrasi & cutover
 
 1. R0–R3 berjalan lokal; v1 tetap di produksi tanpa perubahan.
-2. Rehearsal deploy di pod lokal: build, restart, health gagal, rollback.
+2. Rehearsal deploy di host lokal (binary + PostgreSQL lokal): build, restart,
+   health gagal, rollback. Container hanya bila runtime-nya ada.
 3. Cutover: deploy v2 berpasangan dengan v1 tetap tersedia sebagai `:prev`.
    **v2 rilis dengan data kosong** (O-10) — cutover tidak menunggu ETL.
 4. Import data `bm` → `bm2` **setelah** v2 stabil dan dipakai, dengan rekonsiliasi
@@ -421,7 +485,7 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
    fixture verifikasi.
 6. Seluruh data v1 dipetakan ke **satu komunitas default**; slug-nya ditentukan saat
    impor dan dicatat di `platform.import_row_map`.
-6. Rollback = kembali ke image `:prev`; skema `bm2` tidak dihapus.
+7. Rollback = kembali ke image `:prev`; database `bm2` tidak dihapus.
 
 ---
 
@@ -444,7 +508,7 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 | ID | Judul | Status |
 |----|-------|--------|
 | ADR-001 | Rewrite di repo ini, bukan di majadu v2 | diterima (O-1) |
-| ADR-002 | Skema `bm2` baru, `bm` nol DDL | diterima (memo 03) |
+| ADR-002 | Database `bm2` baru, `bm` nol DDL | diterima (memo 03) |
 | ADR-003 | WebSocket, bukan SSE | diterima (memo 01/04) |
 | ADR-004 | Kontrak ditulis tangan + codegen | diterima (memo 04) |
 | ADR-005 | Binder SQL wajib | diterima (memo 01) |
@@ -457,3 +521,6 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 | ADR-012 | Multi-komunitas: satu skema, `community_id` + FK komposit, poin per komunitas, akun global | diterima (O-13..O-16) |
 | ADR-013 | Frontend React 19 + Vite + Tailwind 4 dibekukan | diterima (O-17) |
 | ADR-014 | Parameter bisnis berlapis di DB (`platform.config` → `community.settings`), tanpa default di kode | diterima (O-18, O-19) |
+| ADR-015 | Auth memakai Authorization Code + PKCE; tidak ada ID token yang dikirim dari JavaScript | diterima (§7.1) |
+| ADR-016 | Identitas publik = `id` UUIDv7; tidak ada `public_id` terpisah | diterima (memo 03 vs 04) |
+| ADR-017 | `view_code` unik global agar `/s/{code}` bisa diresolusi tanpa komunitas | diterima (§4 butir 8) |

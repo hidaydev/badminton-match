@@ -72,7 +72,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 |----|-----|-------------|------------|
 | AUTH-01 | M | Login hanya lewat Google OIDC (Authorization Code + PKCE) | Login berhasil dengan akun Google; `state`/`nonce` salah ditolak 400 tanpa membuat sesi |
 | AUTH-02 | M | Tidak ada token di JavaScript | Cookie sesi `HttpOnly`; tidak ada access token di localStorage/sessionStorage |
-| AUTH-03 | M | Peran per komunitas: `owner`, `admin`, `host`, `member`; `platform_owner` global | Matriks route×role×komunitas diuji; role rendah → 403, anonim → 401, beda komunitas → 404 |
+| AUTH-03 | M | Peran per komunitas: `owner`, `admin`, `host`, `member`; `platform_owner` global | Matriks route×role×komunitas diuji; belum login → 401, peran kurang → 403, beda komunitas → 404 |
 | AUTH-04 | M | Sesi absolut 30 hari, idle 14 hari, bisa dicabut | Sesi dicabut langsung 401 pada request berikutnya |
 | AUTH-05 | M | Perubahan role tercatat di audit log | Setiap perubahan role punya baris aktor, target, waktu, alasan |
 | AUTH-06 | S | CLI ops memakai bearer token terpisah dari sesi web | Token CLI tidak berlaku di route web |
@@ -85,7 +85,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | ID | Pri | Requirement | Acceptance |
 |----|-----|-------------|------------|
 | SES-01 | M | `GET /sessions` tidak pernah memuat kode apa pun | Respons diuji: tidak ada `share_code` maupun `view_code` |
-| SES-02 | M | Tautan baca (`view_code`) hanya untuk membaca | `GET` OK; semua `PATCH`/`PUT` dengan `view_code` → 403 |
+| SES-02 | M | Tautan baca (`view_code`) hanya untuk membaca | `GET` OK; `PATCH`/`PUT` dengan `view_code` → **401** (belum terautentikasi) |
 | SES-03 | M | Hanya ada tautan baca (`view_code`), bisa dicabut dan dirotasi | Rotasi membuat kode lama 404; satu kode hidup per sesi |
 | SES-04 | M | Menulis wajib sesi login; tautan tidak memberi hak tulis | `PATCH`/`PUT` tanpa sesi → 401; dengan `view_code` tetap 401 |
 | SES-05 | M | Buat sesi/turnamen wajib `host` **di komunitas itu** | Anonim → 401; `member` → 403; `host` di komunitas lain → 404 |
@@ -107,7 +107,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 
 | ID | Pri | Requirement | Acceptance |
 |----|-----|-------------|------------|
-| PLY-01 | M | Registrasi pemain boleh anonim, tapi tidak bisa menaikkan peran | Registrasi tidak menghasilkan sesi login |
+| PLY-01 | M | Registrasi pemain wajib sesi login (`member` ke atas) | Anonim → 401; registrasi tidak memberi peran tambahan |
 | PLY-02 | M | Merge/rename/delete/tier hanya `admin`+ | Role rendah → 403 |
 | PLY-03 | M | Hapus pemain tidak menghapus riwayat pemain lain | Setelah delete, poin rekan/lawan tetap; `rebuild` menghasilkan angka sama |
 | RNK-01 | M | Poin = window 12 minggu, best 10, base 250, pengali lawan 0.5–1.5 | Parity dengan v1 pada fixture; properti: monoton naik saat menang, invarian jumlah |

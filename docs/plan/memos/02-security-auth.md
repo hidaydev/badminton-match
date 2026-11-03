@@ -5,6 +5,10 @@
 > tautan hanya read-only. Bagian 2.5, §3 (link), §6 (`X-Edit-Code`), dan tabel
 > otorisasi harus dibaca sebagai usulan, bukan keputusan. Kebenaran ada di `BRD.md`
 > (O-9), `TECH-SPEC.md` §7.3, dan `BACKLOG.md` T-024.
+>
+> **Kontrol kompensasi K1–K6 juga DITOLAK** (O-8): P0 diterima apa adanya tanpa
+> tindakan tambahan. Selain itu `K1` menargetkan `bm.player_ratings`, nama yang tidak
+> ada — tabel v1 adalah `bm.rating_players`.
 
 - **Status:** draft untuk panel perencanaan. Read-only terhadap repo; tidak ada kode yang diubah.
 - **Pengambil keputusan:** owner. Auth = **Google OAuth / OIDC** (bukan magic link). Kontrak API boleh berubah; FE dirombak.

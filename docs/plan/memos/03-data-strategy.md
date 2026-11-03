@@ -1,13 +1,16 @@
 # Memo 03 — Strategi Data: skema, migrasi, DB dev, parity
 
-> **Catatan status (2026-11-03):** keputusan pemilik O-20 menetapkan `bm2` sebagai
-> **database terpisah** dengan role `bm2_app`, bukan schema tambahan di database `bm`.
-> Verdict memo (redesign, bukan 1:1 port) tetap berlaku; "schema per subagent" hanya
-> untuk lingkungan dev.
+> **Catatan status (2026-11-03):** `bm2` adalah database terpisah dengan role
+> `bm2_app` (O-20), bukan schema tambahan di `bm`. Verdict redesign tetap berlaku.
+> **Nama tool:** yang mengikat adalah `tools/dbtools` (T-005); "dbmigrate" di memo
+> ini adalah nama lama untuk komponen yang sama.
+> **Lingkungan lokal aktual:** PostgreSQL 18.6 Homebrew sudah berjalan; Podman
+> **tidak terpasang**. Skrip dev harus memakai server lokal sebagai default dan
+> container hanya sebagai fallback.
 
 > **Tanggal:** 3 Nov 2026 · **Panel:** data architect · **Target:** backend Nim untuk
 > `badminton-match`, v1 (Go) tetap jalan.
-> **Basis fakta:** dump skema nyata `.local/schema-bm-2026-11-03.sql` (26 tabel, 26 index,
+> **Basis fakta:** dump skema nyata `.local/schema-bm-2026-11-03.sql` (27 tabel, 26 index,
 > 4 fungsi — dibaca penuh), `docs/audits/2026-11-03/{07-database,02-backend,03-ci}.md`,
 > ETL terbukti di `~/Projects/majadu` (`docs/migration/*`, `tools/importer`), dan runner
 > migrasi `~/Projects/cbs/tools/dbtools`.
