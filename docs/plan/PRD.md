@@ -59,7 +59,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | COM-02 | M | Bergabung lewat undangan sekali pakai, berbatas peran & waktu | Undangan dipakai dua kali → gagal; kedaluwarsa → gagal |
 | COM-03 | M | Peran berlaku per komunitas: `owner`/`admin`/`host`/`member` | Peran di komunitas A tidak memberi hak di komunitas B |
 | COM-04 | M | Isolasi data antar komunitas | Request lintas komunitas → **404**, bukan 403; query tanpa `community_id` ditolak |
-| COM-05 | M | Konteks komunitas di URL: web `/c/{slug}/…`, API `/c/{slug}/api/…` | Route komunitas tanpa slug → 404 |
+| COM-05 | M | Konteks komunitas di URL: web dan API sama-sama `/c/{slug}/…`; FE memanggilnya lewat proxy `/api/c/{slug}/…` | Route komunitas tanpa slug → 404 |
 | COM-06 | M | Pengguna bisa berpindah komunitas tanpa login ulang | Daftar "komunitas saya"; pilihan tersimpan |
 | COM-07 | S | Pengaturan komunitas: nama, zona waktu, parameter poin, nama lapangan default | Perubahan berlaku tanpa deploy; tercatat di audit |
 | COM-08 | C | Direktori komunitas publik | Default mati; bila dinyalakan, hanya slug + nama yang tampil |
@@ -76,10 +76,11 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | AUTH-04 | M | Sesi absolut 30 hari, idle 14 hari, bisa dicabut | Sesi dicabut langsung 401 pada request berikutnya |
 | AUTH-05 | M | Perubahan role tercatat di audit log | Setiap perubahan role punya baris aktor, target, waktu, alasan |
 | AUTH-06 | S | CLI ops memakai bearer token terpisah dari sesi web | Token CLI tidak berlaku di route web |
-| AUTH-07 | M | CSRF: perubahan state hanya dari origin sendiri | `Origin`/`Sec-Fetch-Site` asing → 403; cookie `SameSite=Lax` |
+| AUTH-07 | M | CSRF: perubahan state hanya dari origin yang diizinkan | `Origin` di luar `security.allowed_origins` → 403; cookie first-party `SameSite=Lax` lewat proxy |
 | AUTH-08 | M | Rate limit per route + per IP, memakai proxy tepercaya | Melebihi batas → 429 dengan `Retry-After`; IP asli terbaca di belakang proxy |
 | AUTH-09 | M | `Idempotency-Key` disimpan bersama hash body | Reuse key dengan body berbeda → 409; key sama + body sama → hasil sama |
 | AUTH-10 | S | Akun bisa dinonaktifkan dan dianonimkan tanpa menghapus riwayat rating | Nama/email/identitas Google dihapus; baris rating tetap utuh; audit mencatat aktor; login berikutnya ditolak |
+| AUTH-11 | M | WebSocket diautentikasi tiket sekali pakai, bukan cookie | Tiket kedaluwarsa (60 s) atau dipakai dua kali → 401; tiket hanya membuka satu kanal dan tidak bisa menulis |
 
 ### 4.2 Sesi & share link
 
@@ -140,7 +141,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | OPS-01 | M | `/healthz` = proses hidup, `/readyz` = DB + versi skema cocok | DB dimatikan → `/readyz` 503, `/healthz` 200 |
 | OPS-02 | M | Metrics di listener internal, tidak publik | Port metrics tidak terjangkau dari internet |
 | OPS-03 | M | Log terstruktur tanpa PII, file 0600 | Log tidak memuat email/nama/kode; permission diuji |
-| OPS-04 | M | Deploy gagal → rollback otomatis & terverifikasi | Failure injection: build gagal, health gagal → `:prev` hidup |
+| OPS-04 | M | Deploy gagal → rollback otomatis & terverifikasi; cutover instan satu push | Failure injection: build gagal, health gagal → `:prev` hidup; pra-impor dapat diulang; setelah push, v1 tidak lagi melayani |
 | OPS-05 | M | Rilis tidak pernah hilang senyap | Deploy kedua saat deploy berjalan → antre atau gagal berisik, tidak `exit 0` |
 | OPS-06 | M | Data sementara punya masa simpan dan dibersihkan otomatis | `auth.oauth_flows`, `idempotency_keys`, `outbox_events`, `session.links` kedaluwarsa, dan audit lama terhapus oleh janitor; jumlah baris terhapus terlihat di metrik |
 | OPS-07 | S | Rilis berversi SemVer otomatis dari riwayat commit, dengan catatan rilis | `VERSION` satu-satunya sumber; tag `vX.Y.Z`; GitHub Release berisi catatan per kelompok; nomor versi hidup di `/version` |
@@ -222,7 +223,7 @@ juga di luar lingkup** — React 19 + Vite + Tailwind 4 dibekukan (O-17).
 | Jendela P0 terbuka | diterima apa adanya, tanpa kontrol tambahan |
 | Penonton menulis | tidak — `view_code` read-only |
 | Host tanpa login | tidak — semua penulis login Google, `edit_code` dihapus |
-| Impor data v1 | v2 rilis kosong, impor setelah stabil |
+| Impor data v1 | pra-impor ke `bm2` saat v1 masih hidup, lalu satu push = cutover |
 | Verifikasi RS256 | modul binding OpenSSL (ADR-009 diterima) |
 | Peran `member` | R2 |
 | Multi-komunitas | masuk repo ini; `community_id` + FK komposit; poin per komunitas; akun global dengan peran per komunitas |

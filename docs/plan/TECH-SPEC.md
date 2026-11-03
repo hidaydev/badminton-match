@@ -270,30 +270,36 @@ kecuali ada di allowlist L0 (`allowlist_constants.txt`) dengan alasan tertulis.
 
 ## 5. API
 
-- Permukaan v2: **59 operasi**. Hitungan per kelompok, bukan klaim:
+- Permukaan v2: **60 operasi**. Hitungan per kelompok, bukan klaim:
 
   | Kelompok | v1 | v2 | Perubahan |
   |---|---|---|---|
   | System & auth | 5 | **7** | `-` `/metrics` publik, `-` `/admin/verify`; `+` `auth/start`, `auth/callback`, `auth/logout`, `auth/me` |
   | Sessions | 16 | **13** | `-` `/watch`, `/events`, `POST /{id}/delete`; `PUT /sessions/{id}` → `PUT /{id}/schedule` |
   | Share | 0 | **3** | semua baru: `POST`/`DELETE /sessions/{id}/share`, `GET /s/{code}` |
-  | Realtime | 0 | **2** | `/ws/c/{slug}/sessions/{id}` + satu kanal notifikasi komunitas |
+  | Realtime | 0 | **3** | `WS /ws/c/{slug}/sessions/{id}`, `WS /ws/share/{code}`, `POST /c/{slug}/sessions/{id}/ws-ticket` |
   | Players | 7 | **8** | `PATCH /tier` + `PATCH /name` dilebur, `+` merge di path pemain |
   | Tournaments | 6 | **6** | `-` `PATCH /tournaments/{id}`, `+` `PATCH .../matches/{id}` |
   | Rankings & ratings | 14 | **10** | 4 route admin digabung ke path resource |
-  | **Subtotal** | **48** | **49** | |
+  | **Subtotal** | **48** | **50** | |
   | Komunitas & config | 0 | **10** | buat/daftar komunitas, buat/terima undangan, daftar anggota, ubah peran, keluarkan anggota, pengaturan, config, direktori |
-  | **Total** | 48 | **59** | |
+  | **Total** | 48 | **60** | |
 
-  Daftar final dibekukan di T-008a/T-008b; angka `59` adalah acceptance T-009.
+  Daftar final dibekukan di T-008a/T-008b; angka `60` adalah acceptance T-009.
 - Konvensi: camelCase, RFC 9457 `problem+json` dengan `code` + `i18nKey`,
   pagination cursor, `Idempotency-Key` + hash body, `ETag`/`If-Match`
   (**412** bila basi, 428 bila tidak dikirim), batas ukuran body per route.
-- **Semua route komunitas ber-prefix `/c/{slug}/api/…`.** Middleware me-resolve
+- **Semua route komunitas ber-prefix `/c/{slug}/…`.** Middleware me-resolve
   slug → `community_id` **sebelum** handler; slug tidak dikenal atau user bukan
   anggota → 404 (bukan 403, agar keberadaan komunitas tidak bocor). Tautan publik
   `/s/{code}` tidak memakai slug: kode itu sendiri yang menentukan komunitas.
   `Idempotency-Key` di-scope per komunitas.
+- **Proxy same-origin (ADR-021).** FE tetap di `majadu.vercel.app`; browser tidak
+  pernah memanggil `api.qouver.com` untuk HTTP. `vercel.json` me-rewrite
+  `/api/:path*` → `https://api.qouver.com/:path*`, sehingga cookie sesi menjadi
+  **first-party** dan `SameSite=Lax` sah. API sendiri **tidak** memakai prefix
+  `/api`; prefix itu hanya ada di sisi FE. WebSocket tidak melewati proxy: klien
+  memakai `wss://api.qouver.com/ws/...` dengan tiket sekali pakai (lihat §6).
 - OpenAPI **ditulis tangan** dalam dua berkas: `packages/contracts/openapi/core.yaml`
   (auth, session, share, player, rating, achievement, tournament) dan
   `community.yaml` (komunitas, config, direktori). `./task contract-gen` menggabungkan
@@ -310,8 +316,20 @@ Detail per-route ada di `memos/04-api-contract.md`; ringkasan tabel final masuk
 
 ## 6. Realtime
 
-WebSocket di `/ws/c/{slug}/sessions/{sessionId}` dan `/ws/share/{viewCode}`.
-Kanal sesi mewarisi `community_id` dari slug; kanal share mengambilnya dari kode.
+WebSocket di `wss://api.qouver.com/ws/c/{slug}/sessions/{sessionId}` dan
+`ws/share/{viewCode}`. Kanal sesi mewarisi `community_id` dari slug; kanal share
+mengambilnya dari kode.
+
+**Auth WebSocket = tiket, bukan cookie** (ADR-021). Handshake lintas site tidak
+dapat diandalkan membawa cookie (Safari memblokir cookie pihak ketiga), jadi:
+
+1. Klien memanggil `POST /c/{slug}/sessions/{id}/ws-ticket` lewat proxy HTTP
+   (first-party, cookie sah) dan menerima `{ticket, expiresIn: 60}`.
+2. Klien membuka `wss://api.qouver.com/ws/...?ticket=<opaque>`.
+3. Server memvalidasi tiket (HMAC, sekali pakai, terikat ke sesi + principal +
+   `community_id`), lalu menghapusnya. Tiket kedaluwarsa atau dipakai dua kali → 401.
+4. Tiket hanya memberi akses **kanal itu**; tidak ada tiket yang bisa dipakai
+   untuk menulis. Menulis tetap lewat HTTP dengan cookie.
 
 ```text
 server → client: {"type":"ready"} | {"type":"session.changed","seq":N}
@@ -341,11 +359,13 @@ client → server: {"type":"ping"} | {"type":"subscribe","lastSeq":N}
 - Sesi: cookie opaque 32 byte, hash-only di DB, `__Host-`, `HttpOnly`, `Secure`,
   `SameSite=Lax`; absolut 30 hari, idle 14 hari; revoke satu transaksi dengan
   perubahan role.
-- **Topologi (ADR-019, O-22):** FE `majadu.qouver.com`, API `api.qouver.com` — satu
-  site (eTLD+1 `qouver.com`), jadi `SameSite=Lax` cukup dan tidak perlu
-  `SameSite=None`. `__Host-` sah karena cookie di-set oleh API pada host API sendiri.
-  Daftar origin yang diizinkan disimpan di config `security.allowed_origins`
-  (bukan literal), dipakai T-076 dan CORS.
+- **Topologi (ADR-021, O-22):** FE tetap `majadu.vercel.app`; HTTP lewat rewrite
+  proxy same-origin `/api/*` di Vercel. Cookie karena itu **first-party** untuk
+  `majadu.vercel.app`, sehingga `SameSite=Lax` dan `__Host-` tetap sah dan tidak
+  perlu `SameSite=None`. Origin yang diizinkan (`https://majadu.vercel.app`,
+  `http://localhost:5173`) disimpan di config `security.allowed_origins`, bukan
+  literal. API harus mempercayai header proxy Vercel (`X-Forwarded-For`) agar rate
+  limit memakai IP asli — daftar proxy tepercaya ikut di config.
 - **Tidak ada** access/refresh token Google yang disimpan, tidak ada token di JS.
 
 ### 7.2 Verifikasi ID token (ADR-009 diterima)
@@ -453,63 +473,6 @@ gagal, `smoke.sh` + `rollback.sh` terpisah.
 **Observability:** `/healthz` (proses), `/readyz` (DB + versi skema), metrics di
 listener internal, log terstruktur tanpa PII, retensi 7 hari.
 
-### 8.1 Versioning & rilis (ADR-020, O-24)
-
-**Satu sumber versi:** berkas `VERSION` di root (`MAJOR.MINOR.PATCH[-prerelease]`).
-Tidak ada nomor versi yang ditulis tangan di kode, `package.json`, atau Dockerfile.
-`./task build` meneruskan `-d:AppVersion`, image menerima `--build-arg VERSION`,
-dan nilai yang benar-benar hidup terlihat di `GET /version` serta metrik
-`build_info{version,commit}`.
-
-**Skema:** SemVer 2.0. Tag berformat `vX.Y.Z` (annotated, bukan lightweight).
-Rilis pra-rilis memakai `vX.Y.Z-rc.N`.
-
-**Aturan kenaikan**, dihitung dari Conventional Commits sejak tag terakhir
-(`feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `chore`, `build`, `ci`):
-
-| Kondisi | `major > 0` | `major == 0` |
-|---|---|---|
-| ada `!` pada tipe atau footer `BREAKING CHANGE:` | **major** | **minor** |
-| ada `feat` | **minor** | **minor** |
-| sisanya (`fix`, `perf`, …) | **patch** | **patch** |
-
-Alasan aturan 0.x: selama proyek belum 1.0, kontrak masih boleh berubah; memaksa
-major akan menghasilkan angka 1.0.0 yang menyesatkan. Konsekuensinya ditulis di
-CHANGELOG: "0.x: minor dapat memuat perubahan yang merusak".
-
-**Alur `./task release`:**
-
-```text
-./task release patch|minor|major|auto [--pre rc] [--push] [--dry-run]
-```
-
-1. Tolak bila: tree kotor, bukan di `main`, tag tujuan sudah ada, `main` tertinggal
-   dari `origin/main`, atau gate `./task ci` gagal.
-2. Hitung versi berikutnya (atau pakai bump eksplisit; `auto` memakai tabel di atas).
-3. Untuk `--pre`: naikkan `N` bila inti versi sama dengan pra-rilis terakhir,
-   selain itu mulai dari `rc.1`. Promosi pra-rilis = jalankan tanpa `--pre` dengan
-   inti versi yang sama.
-4. Tulis `CHANGELOG.md`: bagian baru di atas, dikelompokkan
-   **Breaking / Added / Changed / Fixed / Security**, tiap entri menyebut commit
-   dan path yang terdampak. Perubahan pada `db/migrations/` wajib muncul sebagai
-   catatan migrasi.
-5. Perbarui `VERSION`, commit `chore(release): vX.Y.Z`, buat annotated tag dengan
-   isi catatan rilis yang sama.
-6. `--dry-run` mencetak versi + catatan tanpa menulis apa pun. Tanpa `--push`,
-   perintah berhenti dan mencetak dua perintah push; tidak ada push implisit.
-7. `--push` mendorong commit ke `main` **dan** tag. Commit ke `main` memicu deploy
-   (ref-guard), jadi `--push` hanya dipakai setelah R4 dan setelah gate rilis lolos.
-
-**GitHub Release:** workflow `.github/workflows/release.yml` terpicu tag `v*`,
-`permissions: contents: write`, `timeout-minutes: 15`, cache Nim/pnpm. Isinya:
-verifikasi tag = isi `VERSION`, jalankan test, buat GitHub Release memakai catatan
-dari annotated tag (`gh release create`), dan lampirkan digest image. Tidak ada
-tag yang dibuat oleh workflow — tag selalu berasal dari `./task release`, sehingga
-riwayat rilis bisa direproduksi lokal.
-
-**Yang tidak boleh:** tag dari UI GitHub, `npm version`, atau mengubah `VERSION`
-manual tanpa `./task release`; nomor versi di dua tempat; rilis tanpa catatan.
-
 Delapan metrik yang wajib ada (nama tetap, dipakai dashboard dan test):
 
 | Metrik | Tipe | Kenapa |
@@ -538,6 +501,72 @@ mengembalikan **keduanya**, bukan hanya image API. Urutan dan perintahnya ada di
 
 ---
 
+---
+
+### 8.1 Versioning & rilis (ADR-020, O-24)
+
+**Satu sumber versi:** berkas `VERSION` di root (`MAJOR.MINOR.PATCH[-prerelease]`).
+Tidak ada nomor versi yang ditulis tangan di kode, `package.json`, atau Dockerfile.
+`./task build` meneruskan `-d:AppVersion`, image menerima `--build-arg VERSION`,
+dan nilai yang benar-benar hidup terlihat di `GET /version` serta metrik
+`build_info{version,commit}`.
+
+**Skema:** SemVer 2.0. Tag berformat `vX.Y.Z` (**SSH-signed annotated**, bukan
+lightweight). Rilis pra-rilis memakai `vX.Y.Z-rc.N`.
+
+**Rilis pertama: `2.0.0`** (O-25). Angka ini menandai generasi kedua aplikasi
+(backend Nim + multi-komunitas), bukan kelanjutan nomor v1. Karena `major ≥ 1`
+sejak awal, tidak ada fase 0.x: aturan di bawah langsung berlaku.
+
+**Aturan kenaikan**, dihitung dari Conventional Commits sejak tag terakhir
+(`feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `chore`, `build`, `ci`):
+
+| Kondisi | Kenaikan |
+|---|---|
+| ada `!` pada tipe atau footer `BREAKING CHANGE:` | **major** |
+| ada `feat` | **minor** |
+| sisanya (`fix`, `perf`, …) | **patch** |
+
+`auto` memakai tabel ini. Bump eksplisit (`patch|minor|major`) tetap diizinkan,
+tetapi `./task release` menolak menurunkan versi dan menolak bump yang lebih kecil
+dari hasil `auto` (mis. `patch` saat ada `feat`) kecuali diberi `--force` dengan
+alasan yang dicatat di CHANGELOG.
+
+**Alur `./task release`:**
+
+```text
+./task release patch|minor|major|auto [--pre rc] [--push] [--dry-run]
+```
+
+1. Tolak bila: tree kotor, bukan di `main`, tag tujuan sudah ada, `main` tertinggal
+   dari `origin/main`, atau gate `./task ci` gagal.
+2. Hitung versi berikutnya (atau pakai bump eksplisit; `auto` memakai tabel di atas).
+3. Untuk `--pre`: naikkan `N` bila inti versi sama dengan pra-rilis terakhir,
+   selain itu mulai dari `rc.1`. Promosi pra-rilis = jalankan tanpa `--pre` dengan
+   inti versi yang sama.
+4. Tulis `CHANGELOG.md`: bagian baru di atas, dikelompokkan
+   **Breaking / Added / Changed / Fixed / Security**, tiap entri menyebut commit
+   dan path yang terdampak. Perubahan pada `db/migrations/` wajib muncul sebagai
+   catatan migrasi.
+5. Perbarui `VERSION`, commit `chore(release): vX.Y.Z`, buat annotated tag dengan
+   isi catatan rilis yang sama, lalu tanda tangani: `git tag -s` (SSH, `gpg.format
+   ssh`, kunci yang sama dengan commit). Workflow menolak tag tanpa tanda tangan valid.
+6. `--dry-run` mencetak versi + catatan tanpa menulis apa pun. Tanpa `--push`,
+   perintah berhenti dan mencetak dua perintah push; tidak ada push implisit.
+7. `--push` mendorong commit ke `main` **dan** tag. Commit ke `main` memicu deploy
+   (ref-guard), jadi `--push` hanya dipakai setelah R4 dan setelah gate rilis lolos.
+
+**GitHub Release:** workflow `.github/workflows/release.yml` terpicu tag `v*`,
+`permissions: contents: write`, `timeout-minutes: 15`, cache Nim/pnpm. Isinya:
+verifikasi tanda tangan tag, verifikasi tag = isi `VERSION`, jalankan test, buat
+GitHub Release memakai catatan dari annotated tag (`gh release create`), dan
+lampirkan **digest image** (tidak ada binary terpisah). Tidak ada tag yang dibuat
+oleh workflow — tag selalu berasal dari `./task release`, sehingga riwayat rilis
+bisa direproduksi lokal.
+
+**Yang tidak boleh:** tag dari UI GitHub, `npm version`, atau mengubah `VERSION`
+manual tanpa `./task release`; nomor versi di dua tempat; rilis tanpa catatan.
+
 ## 9. Testing
 
 | Lapis | Isi | Target |
@@ -563,21 +592,38 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 
 ---
 
-## 10. Migrasi & cutover
+## 10. Migrasi & cutover (ADR-022, O-10)
+
+Model: **cutover instan**. Satu push ke `main` = v2 live. Tidak ada masa
+berdampingan, tidak ada dua versi yang melayani trafik bersamaan. Konsekuensinya
+dipakai untuk merancang urutannya.
 
 1. R0–R3 berjalan lokal; v1 tetap di produksi tanpa perubahan.
 2. Rehearsal deploy di host lokal (binary + PostgreSQL lokal): build, restart,
    health gagal, rollback. Container hanya bila runtime-nya ada.
-3. Cutover: deploy v2 berpasangan dengan v1 tetap tersedia sebagai `:prev`.
-   **v2 rilis dengan data kosong** (O-10) — cutover tidak menunggu ETL.
-4. Import data `bm` → `bm2` **setelah** v2 stabil dan dipakai, dengan rekonsiliasi
-   (jumlah baris, checksum agregat, sampel acak), dan `platform.import_row_map`.
-   Impor boleh diulang dari snapshot baru sampai pemilik menyatakan final.
+3. **Pra-impor, saat v1 masih melayani.** Di VPS: siapkan database `bm2` + role
+   `bm2_app` → migrasi → seed L1 + bootstrap (`platform_owner`, komunitas default)
+   → ETL dari `bm` (baca saja) → rekonsiliasi. `bm` tidak pernah ditulis. Bootstrap
+   wajib lebih dulu: T-096 menolak start tanpa key L1, dan ETL butuh `community_id`
+   tujuan.
+   ETL boleh diulang selama v1 masih hidup; setiap ulangan menghapus dan membangun
+   ulang data `bm2` dari snapshot terbaru.
+4. **Satu push.** `main` memicu build + restart v2. Setelah `/readyz` hijau dan
+   smoke lulus, v1 tidak lagi dilayani. Push adalah titik tak bisa kembali untuk
+   *trafik*, bukan untuk data: `bm` utuh.
 5. Poin **dihitung ulang** dari event, bukan disalin; snapshot v1 dipakai sebagai
    fixture verifikasi.
 6. Seluruh data v1 dipetakan ke **satu komunitas default**; slug-nya ditentukan saat
    impor dan dicatat di `platform.import_row_map`.
-7. Rollback = kembali ke image `:prev`; database `bm2` tidak dihapus.
+7. Tautan `/s/{code}` lama **tidak dipertahankan**: kode baru diterbitkan per sesi,
+   karena format dan cakupan kode v1 tidak bisa dijamin sama. Komunikasi ke pengguna
+   adalah bagian dari runbook.
+8. **Rollback** = restart image `:prev` (v1) dan arahkan Caddy kembali; `bm` utuh,
+   data yang ditulis ke `bm2` setelah cutover dibuang. Rollback hanya tersedia
+   selama image v1 masih ada — karena itu T-082 menunggu 14 hari observasi.
+9. Jendela kehilangan data: baris yang ditulis ke `bm` antara langkah 3 dan 4 tidak
+   ikut terimpor. Pra-impor dijalankan sedekat mungkin dengan push, dan selisihnya
+   dicatat di runbook (`docs/ops/cutover.md`).
 
 ---
 
@@ -617,5 +663,7 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 | ADR-016 | Identitas publik = `id` UUIDv7; tidak ada `public_id` terpisah | diterima (memo 03 vs 04) |
 | ADR-017 | `view_code` unik global agar `/s/{code}` bisa diresolusi tanpa komunitas | diterima (§4 butir 8) |
 | ADR-018 | Akun dinonaktifkan + dianonimkan; riwayat rating dipertahankan (`ON DELETE RESTRICT` tetap) | diterima (AUTH-10) |
-| ADR-019 | FE dan API satu site (`majadu.qouver.com` + `api.qouver.com`); `SameSite=Lax` tanpa `SameSite=None` | diterima (O-22) |
+| ADR-019 | ~~FE dan API satu site~~ | **digantikan ADR-021** (O-22 berubah: FE tetap di Vercel) |
 | ADR-020 | SemVer dari Conventional Commits, versi tunggal di `VERSION`, tag annotated, GitHub Release dari tag | diterima (O-24) |
+| ADR-021 | FE tetap di `majadu.vercel.app`: HTTP lewat rewrite proxy same-origin + WebSocket auth tiket sekali pakai | diterima (O-22) |
+| ADR-022 | Cutover instan: pra-impor ke `bm2` saat v1 hidup, lalu satu push; tanpa masa berdampingan | diterima (O-10) |

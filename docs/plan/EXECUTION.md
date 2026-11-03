@@ -15,6 +15,8 @@ Rencana lengkap ada di `README.md`, `PRD.md`, `TECH-SPEC.md`, `BACKLOG.md`.
 | psql | tersedia | 18.6 | inspeksi, reset |
 | Go | tersedia | 1.27.3 | hanya untuk menjalankan v1 (parity capture) |
 | Podman | **tidak terpasang** | — | opsional; jangan dijadikan default |
+| `gh` CLI | tersedia | 2.103.3 | membuat GitHub Release dari tag (T-107) |
+| Kunci SSH | tersedia | `~/.ssh/id_ed25519` | tanda tangan tag rilis (`gpg.format ssh`) |
 
 Konsekuensi: T-007 memakai cluster PostgreSQL lokal, bukan container. Skrip `./task dev-db`
 harus mendeteksi server lokal lebih dulu; container hanya fallback untuk mesin lain.
@@ -90,7 +92,7 @@ Aturan tambahan untuk agen backend:
 - `./task dev-db` membuat `bm2_dev` dari nol < 20 s; clone worker < 1 s.
 - `dbtools verify` bersih pada `0001`–`0005`.
 - `./task build` menghasilkan binary yang berjalan dan merespons `/healthz`.
-- `./task contract-gen` menghasilkan 59 operasi dan `git diff --exit-code` bersih.
+- `./task contract-gen` menghasilkan 60 operasi dan `git diff --exit-code` bersih.
 - `./task mock-api` melayani FE.
 - Definisi CI lolos parse + skema (dan `actionlint` bila terpasang — belum ada di mesin ini);
   `./task ci` hijau lokal.
@@ -121,15 +123,35 @@ Aturan tambahan untuk agen backend:
   `bm2_` atau `bm_restore_`; tidak pernah menimpa `bm` produksi.
 - Latihan restore wajib di T-063; target < 30 menit dari dump terbaru.
 
-### 6.3 Deploy berpasangan (FE + API)
+### 6.3 Cutover instan (pra-impor, lalu satu push)
 
-Kontrak berubah, jadi tidak ada deploy API sendirian setelah R1:
+Tidak ada masa berdampingan. Urutannya:
 
-1. Build API dan FE dari commit yang sama.
-2. API naik dulu bila perubahannya aditif; FE naik setelah `/readyz` hijau.
-3. `index.html` `Cache-Control: no-store`; aset ber-hash dan `immutable`.
-4. Rollback mengembalikan **API dan FE** ke pasangan sebelumnya.
-5. Verifikasi pasca-deploy: login, satu sesi dibuka, satu skor disimpan.
+0. **Siapkan `bm2` di VPS** (sekali saja): database `bm2`, role `bm2_app` dengan
+   password dari env, lalu `dbtools migrate`.
+1. **Snapshot** `bm` (`ops/scripts/backup.sh bm`) dan verifikasi dump bisa dibaca.
+2. **Seed & bootstrap**: `dbtools seed` (L1 config) lalu `tools/ownerseed` —
+   platform_owner pertama + komunitas default. Tanpa ini v2 menolak start dan ETL
+   tidak punya `community_id` tujuan.
+3. **Pra-impor** `bm` → `bm2` (`tools/import/etl`), lalu rekonsiliasi (`verify`).
+   `bm` hanya dibaca; ETL boleh diulang dari snapshot baru.
+4. **Uji baca** pada `bm2`: jumlah pemain, jumlah sesi, papan peringkat komunitas
+   default, satu sesi acak. Gagal di sini → jangan push.
+5. **Push ke `main`** → build + restart v2. `/readyz` hijau, smoke lulus.
+6. **Verifikasi pasca-cutover**: login Google, buka `/c/{slug}/rankings`, buat satu
+   sesi, simpan satu skor, buka satu tautan `/s/{code}` baru.
+7. **Rollback** bila langkah 6 gagal: `systemctl --user restart` dengan image `:prev`
+   (v1). `bm` utuh; data `bm2` setelah cutover dibuang. Rollback hanya mungkin
+   selama image v1 masih ada.
+
+Catatan penting:
+
+- Cookie sesi sampai ke API lewat **proxy `/api/*` di Vercel**; jangan mengarahkan
+  FE langsung ke `api.qouver.com` untuk HTTP, atau cookie menjadi pihak ketiga.
+- WebSocket memakai `wss://api.qouver.com/...?ticket=`, bukan cookie.
+- Baris yang ditulis ke v1 antara langkah 3 dan 5 tidak ikut terimpor; jalankan
+  langkah 3 sedekat mungkin dengan 5 dan catat waktunya di runbook.
+- Tautan `/s/{code}` lama tidak dipertahankan; host menerbitkan kode baru.
 
 ### 6.4 Rilis (setelah R4)
 
@@ -139,7 +161,9 @@ Kontrak berubah, jadi tidak ada deploy API sendirian setelah R1:
 ./task release auto --push         # dorong commit ke main + tag (memicu deploy)
 ```
 
-- Bump dihitung dari Conventional Commits; lihat tabel di TECH-SPEC §8.1.
+- Rilis pertama adalah `2.0.0` (O-25); bump berikutnya mengikuti tabel di TECH-SPEC §8.1.
+- Tag wajib SSH-signed: `git config gpg.format ssh` + `user.signingkey ~/.ssh/id_ed25519.pub`.
+  Workflow menolak tag tanpa tanda tangan valid.
 - Rilis kandidat: `./task release minor --pre rc` → `vX.Y.Z-rc.1`; ulangi perintah
   yang sama untuk `rc.2`. Promosi: `./task release minor` dengan inti versi sama.
 - Tag **tidak** dibuat di GitHub UI; kalau dibuat di sana, workflow menolak karena

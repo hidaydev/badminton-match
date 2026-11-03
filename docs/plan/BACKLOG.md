@@ -69,7 +69,7 @@ Konkurensi maksimum: **4 agen** (2 backend, 1 FE, 1 platform/infra).
 | T-014 | Env v1 lokal: restore skema + data sintetis | T-007, T-099 | `ops/dev/v1/` | `./task dev-v1` naik; v1 merespons 48 route | ya |
 | T-008a | OpenAPI inti (auth, session, share, player, rating, achievement, tournament) | T-018 | `packages/contracts/openapi/core.yaml` | Spec lint bersih | ya |
 | T-008b | OpenAPI komunitas & config (10 operasi) | T-018 | `packages/contracts/openapi/community.yaml` | Spec lint bersih; 10 operasi komunitas | ya |
-| T-009 | `contract-gen`: gabung spec → route Nim + client TS | T-008a, T-008b | `tools/contract-gen/{gen,emit_nim,emit_ts}.nim`, `apps/api/src/routes_gen.nim`, `packages/web-client/` | Generate bersih; handler hilang = error kompilasi; 59 operasi | tidak |
+| T-009 | `contract-gen`: gabung spec → route Nim + client TS | T-008a, T-008b | `tools/contract-gen/{gen,emit_nim,emit_ts}.nim`, `apps/api/src/routes_gen.nim`, `packages/web-client/` | Generate bersih; handler hilang = error kompilasi; 60 operasi | tidak |
 | T-016 | Gerbang perubahan kontrak | T-009 | `tools/contract-gen/check.nim`, `docs/plan/contract-change.md`, `task.d/contract.sh` | `./task contract-check` gagal bila spec berubah tanpa hash baru | ya |
 | T-015 | `./task mock-api` dari kontrak | T-009 | `tools/mock-api/`, `task.d/mock.sh` | FE develop tanpa backend | ya |
 | T-010 | `archcheck`: aturan impor + scope komunitas | T-018 | `tools/archcheck/{main,rules}.nim` | Pelanggaran → exit ≠ 0; uji negatif | ya |
@@ -78,7 +78,7 @@ Konkurensi maksimum: **4 agen** (2 backend, 1 FE, 1 platform/infra).
 | T-012 | Parity tool: recorder/replayer/normalizer/fake clock | T-003 | `tools/parity/` | Satu kasus rekam+replay end-to-end | ya |
 | T-013 | Korpus parity v1 | T-014, T-012 | `testdata/parity/v1/` | ≥80 kasus, 48 route, manifest ber-checksum | tidak |
 
-**Gate R0:** `./task check` ≤ 60 s; dua DB lokal naik; kontrak 59 operasi ter-generate;
+**Gate R0:** `./task check` ≤ 60 s; dua DB lokal naik; kontrak 60 operasi ter-generate;
 mock API jalan; CI definitions valid.
 
 ---
@@ -95,12 +95,12 @@ mock API jalan; CI definitions valid.
 | T-085 | OIDC stub + kunci uji untuk E2E/CI | T-021 | `tools/oidc-stub/` | E2E login tanpa Google asli | ya |
 | T-023 | RBAC middleware (peran per komunitas) | T-020, T-092 | `apps/api/src/auth_middleware.nim` | 401/403/404 sesuai matriks | tidak |
 | T-102 | Token bearer CLI ops (terpisah dari sesi web) | T-022 | `modules/account/infrastructure/ops_token.nim` | Token CLI ditolak di route web | ya |
-| T-075 | Rate limit per route/IP + `trusted_proxy` | T-003, T-096 | `apps/api/src/ratelimit.nim`, `apps/api/src/config.nim` | 429 + `Retry-After`; ambang dari config | ya |
+| T-075 | Rate limit per route/IP + `trusted_proxy` (termasuk Vercel) | T-003, T-096 | `apps/api/src/ratelimit.nim`, `apps/api/src/config.nim` | 429 + `Retry-After`; ambang dari config; `X-Forwarded-For` palsu dari non-proxy ditolak | ya |
 | T-076 | CSRF (`Origin`/`Sec-Fetch-Site`) + header keamanan | T-003, T-096 | `apps/api/src/security_headers.nim` | Origin di luar `security.allowed_origins` → 403; CSP/HSTS terkirim | ya |
 | T-077 | Idempotency store (key + hash body, scoped komunitas) | T-006d | `modules/platform/idempotency.nim` | Key sama + body beda → 409 | ya |
-| T-090 | Domain `community`: slug, settings, direktori | T-006e | `modules/community/domain/` | Slug unik; validasi | ya |
+| T-090 | Domain `community`: slug, settings, direktori | T-006e | `modules/community/domain/` | Slug unik; hanya `platform_owner` yang bisa membuat komunitas; direktori butuh login | ya |
 | T-091 | Keanggotaan + undangan sekali pakai | T-090, T-020 | `modules/community/infrastructure/{membership,invite}.nim` | Undangan 2× gagal; peran per komunitas | ya |
-| T-092 | Middleware konteks komunitas (slug → 404) | T-090, T-020 | `apps/api/src/community_context.nim` | Slug asing/bukan anggota → 404 | tidak |
+| T-092 | Middleware konteks komunitas (slug → 404) + allowlist baca publik | T-090, T-020 | `apps/api/src/community_context.nim` | Slug asing/bukan anggota → 404; tanpa login hanya peringkat & `/s/{code}` yang bisa dibaca | tidak |
 | T-094 | Suite keamanan cross-tenant | T-092 | `apps/api/tests/tenant/` | Setiap resource: komunitas lain → 404 | ya |
 | T-096 | Registry config + seed L1 | T-006d, T-003 | `modules/platform/config/`, `db/seeds/platform_config.sql` | Key wajib hilang → tolak start; ubah nilai tanpa restart | tidak |
 | T-097 | API admin parameter + override komunitas + audit | T-096, T-023 | `apps/api/src/config_routes.nim` | Di luar plafon → 400; audit lama/baru/aktor | ya |
@@ -109,8 +109,8 @@ mock API jalan; CI definitions valid.
 | T-024 | Share links: `session.links`, `view_code` read-only global-unique | T-006a | `modules/share/` | Kode lama 404 setelah rotasi; `/s/{code}` resolve tanpa slug | ya |
 | T-025 | Session read API (list tanpa kode, by id, by view_code) | T-009, T-024, T-092 | `modules/session/read*.nim` | SES-01/02; hanya komunitas aktif | tidak |
 | T-026 | Session write API granular + OCC | T-025, T-077 | `modules/session/write*.nim` | Replay idempoten; versi basi 412; tanpa delete+insert | tidak |
-| T-027 | WS hub + batas watcher + heartbeat | T-009, T-025 | `apps/api/src/live.nim` | 51 watcher → `full`; reconnect konsisten | ya |
-| T-028 | FE shell: auth provider, login, `App.tsx`, manifest rute, i18n, vitest | T-009, T-015, T-078, T-085 | `apps/web/src/auth/`, `apps/web/src/App.tsx`, `apps/web/src/routes.manifest.ts`, `apps/web/src/i18n/`, `apps/web/vitest.config.ts`, `pnpm-workspace.yaml`, `pnpm-lock.yaml` | Login/logout; menu per peran; manifest siap; `pnpm test` jalan; tidak ada string UI keras di komponen | tidak |
+| T-027 | WS hub + tiket sekali pakai + batas watcher + heartbeat | T-009, T-025 | `apps/api/src/live.nim`, `apps/api/src/ws_ticket.nim` | `ws-ticket` mengeluarkan tiket 60 s sekali pakai; tiket kedaluwarsa/dipakai ulang → 401; 51 watcher → `full`; reconnect konsisten | ya |
+| T-028 | FE shell: auth provider, login, `App.tsx`, manifest rute, i18n, vitest, proxy | T-009, T-015, T-078, T-085 | `apps/web/src/auth/`, `apps/web/src/App.tsx`, `apps/web/src/routes.manifest.ts`, `apps/web/src/i18n/`, `apps/web/vitest.config.ts`, `apps/web/vercel.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml` | Login/logout; menu per peran; manifest siap; `pnpm test` jalan; `vercel.json` me-rewrite `/api/*` ke API; tidak ada string UI keras | tidak |
 | T-093 | FE komunitas: pemilih + halaman `/c/{slug}` | T-028, T-092 | `apps/web/src/community/` | Pindah komunitas tanpa login ulang | tidak |
 | T-029 | FE session read | T-028, T-025 | `apps/web/src/pages/SessionListPage.tsx`, `apps/web/src/queries/sessions.read.ts` | Tanpa token di JS | tidak |
 | T-030 | FE session write + share UI | T-029, T-026 | `apps/web/src/pages/{GeneratePage,SharedSessionPage}.tsx`, `apps/web/src/queries/sessions.write.ts` | Simpan hanya dengan sesi login | tidak |
@@ -156,16 +156,16 @@ mock API jalan; CI definitions valid.
 
 | ID | Task | Depends | Owns | Acceptance | Paralel |
 |---|---|---|---|---|---|
-| T-060 | `deploy-vps.sh` + smoke + rollback + backup | T-011, T-018 | `ops/scripts/{deploy-vps,smoke,rollback,backup,restore}.sh` | Shellcheck bersih; guard punya skenario uji; `backup.sh` menghasilkan dump yang lolos `pg_restore --list`; `restore.sh` memulihkan ke DB uji | ya |
+| T-060 | `deploy-vps.sh` + smoke + rollback + backup + mode cutover | T-011, T-018 | `ops/scripts/{deploy-vps,smoke,rollback,backup,restore}.sh` | Shellcheck bersih; guard punya skenario uji; `backup.sh` menghasilkan dump yang lolos `pg_restore --list`; `restore.sh` memulihkan ke DB uji; `CUTOVER=1` menjalankan pra-impor sebelum restart | ya |
 | T-061 | Quadlet, Caddy, env example | T-060 | `ops/systemd/`, `ops/caddy/`, `ops/env/` | Dua host satu site (`majadu.*` untuk SPA, `api.*` untuk API); hardening + header keamanan; `index.html` `no-store` | ya |
 | T-062 | Observability: `/healthz`, `/readyz` (DB+skema), metrics internal, log 0600 | T-003 | `apps/api/src/health.nim`, `ops/scripts/rotate-log.sh` | DB mati → 503; metrics tak publik | ya |
 | T-063 | Rehearsal: binary + DB lokal wajib; container bila runtime ada | T-060, T-061, T-062 | `tools/rehearsal/` | Skenario lulus < 15 menit; rollback terbukti; restore dari dump < 30 menit dan hasilnya dicatat | tidak |
-| T-064 | Import `bm` → `bm2` + rekonsiliasi | T-006b, T-006c, T-043, T-090, T-099, T-060 | `tools/import/{etl,verify}.nim` | Snapshot `bm` dibuat dan diverifikasi sebelum impor; selisih 0; bisa diulang; semua baris punya `community_id` | tidak |
+| T-064 | Pra-impor `bm` → `bm2` + rekonsiliasi (dijalankan saat v1 masih hidup) | T-006b, T-006c, T-043, T-090, T-099, T-060 | `tools/import/{etl,verify}.nim` | Snapshot `bm` diverifikasi; `bm` hanya dibaca; selisih 0; bisa diulang dari snapshot baru; semua baris punya `community_id`; tidak membuat tautan `view_code` | tidak |
 | T-095 | Pemetaan v1 → komunitas default | T-064, T-090 | `tools/import/community_map.nim` | Satu komunitas default; idempoten | tidak |
-| T-065 | Runbook cutover + rollback | T-063, T-064 | `docs/ops/cutover.md` | Bisa diikuti tanpa bertanya | tidak |
+| T-065 | Runbook cutover instan + rollback | T-063, T-064 | `docs/ops/cutover.md` | Urutan pra-impor → push → smoke → verifikasi tertulis; rollback ke image v1 teruji; jendela kehilangan data dicatat | tidak |
 | T-082 | Dekomisi Go | T-065 + 14 hari observasi produksi | `apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`, `apps/api/go.mod`, `apps/api/go.sum`, `apps/api/Makefile`, `apps/api/README.md`, `Makefile`, `README.md`, `package.json`, `.github/workflows/ci.yml` | `grep -r "\.go\b\|go build\|go test" apps/ package.json Makefile .github/` = 0; CI tanpa job Go; `pnpm install --frozen-lockfile` tetap bersih | tidak |
 | T-083 | ADR-011: P0 diterima + cara mencabut | T-021 | `docs/plan/ADR-011.md` | Kondisi, dampak, pemicu tinjau ulang | ya |
-| T-107 | Versioning & release: SemVer dari Conventional Commits, `VERSION`, CHANGELOG, tag, GitHub Release | T-011, T-018 | `VERSION`, `CHANGELOG.md`, `task.d/release.sh`, `tools/release/`, `.github/workflows/release.yml`, `docs/ops/release.md` | `./task release auto --dry-run` mencetak versi benar dari fixture commit (major/minor/patch, 0.x, `--pre rc`); tag ganda ditolak; tree kotor ditolak; changelog berkelompok; workflow valid; tag di repo uji menghasilkan Release | ya |
+| T-107 | Versioning & release: SemVer 2.0 dari Conventional Commits, `VERSION` mulai `2.0.0`, CHANGELOG, SSH-signed tag, GitHub Release | T-011, T-018 | `VERSION`, `CHANGELOG.md`, `task.d/release.sh`, `tools/release/`, `.github/workflows/release.yml`, `docs/ops/release.md` | `--dry-run` menghitung major/minor/patch dari fixture commit dan `--pre rc` menaikkan `N`; tag ganda/tanpa tanda tangan/tree kotor ditolak; changelog berkelompok; workflow memverifikasi tanda tangan; tag di repo uji menghasilkan Release berisi digest image | ya |
 
 ---
 
@@ -268,6 +268,7 @@ T-029 ── T-030
 | LIVE-04 | T-026 |
 | PLY-01 | T-040, T-048 |
 | AUTH-10 | T-106 |
+| AUTH-11 | T-027 |
 | PLY-02 | T-041 |
 | PLY-03 | T-040 |
 | RNK-01 | T-042, T-043 |
@@ -301,7 +302,7 @@ T-029 ── T-030
 | executability | tidak ada produsen data untuk T-014 | T-099 generator sintetis |
 | executability | config seed tidak ada pemilik | T-096 owns `db/seeds/` |
 | executability | kontrak auth bentrok | ADR-015: code flow + callback; memo 04 ditandai |
-| executability | T-008 "48 operasi" vs target | T-008a/b, total 59 |
+| executability | T-008 "48 operasi" vs target | T-008a/b, total 60 |
 | executability | context & sha256 tanpa pemilik | masuk T-003; T-004 |
 | executability | tabrakan `Owns` | T-010/T-098, T-009/T-016, T-020/T-023 dipisah per file |
 | executability | tabel tanpa migrasi | `session.links`, trigger version → T-006a; `import_row_map`, `user_id` → T-006a/d |

@@ -140,7 +140,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-7 | Tidak ada push ke remote sampai seluruh rangkaian stabil |
 | O-8 | P0 diterima terbuka selama rewrite; tidak ada hotfix Go dan tidak ada kontrol kompensasi |
 | O-9 | Tautan "Lihat" hanya untuk membaca; **semua penulis wajib login Google** (tidak ada `edit_code`) |
-| O-10 | v2 rilis dengan data kosong; impor v1 dijalankan setelah stabil |
+| O-10 | **Cutover instan**: satu push ke `main` = v2 live. Data v1 dipindahkan ke `bm2` **sebelum** push (pra-impor saat v1 masih melayani); tidak ada masa berdampingan |
 | O-11 | Peran `member` masuk R2, bukan R1 |
 | O-12 | Verifikasi ID token RS256 dibangun sebagai modul binding OpenSSL lokal (ADR-009 diterima) |
 | O-13 | Multi-komunitas masuk repo ini, bukan diserahkan ke majadu v2 |
@@ -152,16 +152,17 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-19 | Parameter berlapis: default platform, lalu override per komunitas; komunitas tidak bisa melewati batas aman yang ditetapkan platform |
 | O-20 | Boleh membuat **database baru `bm2`** di instance PostgreSQL yang sama; arsitektur DB dirancang ulang, bukan diturunkan dari `bm` |
 | O-21 | Antarmuka berbahasa **Inggris**; kunci i18n disiapkan agar bahasa lain bisa ditambah tanpa mengubah komponen |
-| O-22 | FE `majadu.qouver.com` + API `api.qouver.com` — satu site, cookie `SameSite=Lax`, tanpa `SameSite=None` |
+| O-22 | FE tetap `majadu.vercel.app`; HTTP ke API lewat rewrite proxy same-origin `/api/*`; WebSocket langsung dengan tiket sekali pakai |
 | O-23 | Backup: `pg_dump` harian `bm` + `bm2`, retensi 7 hari, snapshot wajib sebelum impor, restore diuji |
-| O-24 | Versioning SemVer otomatis dari Conventional Commits; `VERSION` satu sumber; tag annotated + GitHub Release |
+| O-24 | Versioning SemVer otomatis dari Conventional Commits; `VERSION` satu sumber; tag SSH-signed annotated + GitHub Release |
+| O-25 | Rilis publik pertama bernomor **2.0.0** (menandai generasi, bukan lanjutan v1); tidak ada fase 0.x |
 
 ### Keterlacakan: di mana tiap keputusan diwujudkan
 
 | Keputusan | Wujud konkret | Task |
 |---|---|---|
 | O-1 | Seluruh kode baru di `apps/api/`, `modules/`, `shared/` repo ini; tidak ada sentuhan ke `majadu` | T-001 |
-| O-2 | Kontrak v2 ditulis ulang (48 → 59 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
+| O-2 | Kontrak v2 ditulis ulang (48 → 60 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
 | O-3 | OIDC Google; tidak ada magic link / token admin | T-021, T-084 |
 | O-4 | Tidak ada commit perbaikan di `apps/api/internal/`; P0 ditutup di Nim | T-021, T-023, T-025 |
 | O-5 | `./task dev-db` memakai cluster lokal; container hanya fallback | T-007 |
@@ -169,7 +170,8 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-7 | Protokol merge lokal; tidak ada push sampai R4 | seluruh backlog §0 butir 8 |
 | O-8 | ADR-011 menerima P0 terbuka; tidak ada kontrol kompensasi di kode | T-083 |
 | O-9 | `session.links` read-only, tanpa `kind`; semua tulis butuh principal | T-024, T-023 |
-| O-10 | Rilis v2 tanpa data; ETL berjalan pasca-rilis | T-064, T-095 |
+| O-10 | Pra-impor ke `bm2` sebelum push; satu push = cutover; rollback ke image v1 | T-064, T-065, T-060 |
+| O-10 | Tautan `/s/{code}` lama tidak dipertahankan; kode baru per sesi | T-024, T-064 |
 | O-11 | `member` tidak dipakai di R1; masuk R2 | T-048 |
 | O-12 | Binding OpenSSL + cek `libcrypto` saat boot | T-084 |
 | O-13 | 9 modul termasuk `modules/community/`; 10 route komunitas | T-090–T-093 |
@@ -181,9 +183,10 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-19 | Resolusi `L2 → L1 → error`, plafon L1 divalidasi saat tulis | T-096, T-097 |
 | O-20 | Database `bm2` + role `bm2_app`; `bm` nol DDL | T-007, T-005 |
 | O-21 | Inggris sebagai bahasa UI; kunci i18n di kontrak dan komponen | T-028, T-029, T-030 |
-| O-22 | Konfigurasi Caddy dua host dalam satu site; `security.allowed_origins` | T-061, T-076 |
+| O-22 | `apps/web/vercel.json` rewrite + endpoint `ws-ticket` + `security.allowed_origins` | T-028, T-027, T-076 |
 | O-23 | Skrip dump harian + latihan restore + snapshot pra-impor | T-060, T-063, T-064 |
-| O-24 | `./task release`, `VERSION`, CHANGELOG, tag annotated, workflow Release | T-107 |
+| O-24 | `./task release`, `VERSION`, CHANGELOG, tag SSH-signed, workflow Release | T-107 |
+| O-25 | `VERSION` dimulai dari `2.0.0`; bump pertama menghasilkan `2.0.x`/`2.x.0`/`3.0.0` | T-107 |
 
 ## 10. Jawaban pemilik (2026-11-03)
 
@@ -192,7 +195,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | Jendela P0 terbuka | Diterima apa adanya, tanpa kontrol tambahan | Tidak ada perubahan v1; risiko dicatat di ADR-011 |
 | Penonton menulis? | Tidak — tautan "Lihat" hanya baca | `view_code` murni read-only |
 | Host tanpa login? | Tidak — semua penulis login Google | `edit_code` dihapus dari desain; model kapabilitas menyusut |
-| Impor data v1 | Kosong dulu, impor setelah stabil | Cutover tidak menunggu ETL; T-064 bisa berjalan pasca-rilis |
+| Impor data v1 | Pra-impor ke `bm2`, lalu satu push | Cutover instan; tidak ada jendela data kosong; kehilangan baris antara pra-impor dan push dicatat di runbook |
 | Verifikasi RS256 | Bangun modul binding OpenSSL | ADR-009 diterima; menambah satu task teknis |
 | Peran `member` | Masuk R2 | R1 hanya `owner`/`admin`/`host` |
 | Multi-komunitas | Masuk repo ini, `community_id` + FK komposit, poin per komunitas, akun global | Skema, auth, routing, dan backlog berubah (lihat §9 O-13..O-16) |

@@ -167,7 +167,7 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 |---|---|---|
 | Integritas task | parse tabel backlog | **83 task**, 0 duplikat, 0 dependency menggantung |
 | Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah pemisahan per file |
-| Traceability | 62 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
+| Traceability | 63 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
 | Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
 | Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
 | Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
@@ -238,7 +238,23 @@ Requirement menjadi **62** (AUTH-10, OPS-06, OPS-07) dan seluruhnya terpetakan.
 | Bahasa UI | Inggris saja, kunci i18n disiapkan | O-21, T-028 |
 | Observability | 8 metrik inti, tanpa alert | TECH-SPEC §8, T-062 |
 
-Angka: task **80 → 83**, requirement **59 → 62** (T-107/OPS-07 ditambahkan setelahnya).
+Angka: task **80 → 83**, requirement **59 → 63**, operasi **59 → 60** (lihat putaran 11).
+
+---
+
+## Putaran 11 — cutover instan & Vercel (2026-11-03)
+
+| Topik | Keputusan | Konsekuensi yang diterima |
+|---|---|---|
+| Nasib v1 | Cutover instan: satu push `main` = v2 live, tanpa berdampingan | Tidak ada jendela uji paralel; rollback = restart image v1 |
+| Data | Pra-impor ke `bm2` saat v1 masih melayani, lalu push | Baris yang ditulis v1 antara pra-impor dan push hilang; dicatat di runbook |
+| Tautan lama | Kode baru diterbitkan; `/s/{code}` v1 mati | Pengguna harus menerima tautan baru |
+| FE | Tetap `majadu.vercel.app`; HTTP lewat proxy same-origin `/api/*`, WS dengan tiket | Satu endpoint baru `ws-ticket`; API harus mempercayai `X-Forwarded-For` Vercel |
+| Rilis pertama | `2.0.0`, tag SSH-signed, lampiran digest image | Tidak ada fase 0.x; aturan bump major/minor/patch langsung berlaku |
+| Repo publik | Push hanya setelah v2 live dan v1 mati | Riwayat audit berisi langkah eksploitasi P0, jadi tidak boleh terbit lebih awal |
+
+Perubahan angka: operasi **59 → 60** (`POST …/ws-ticket`), requirement **62 → 63**
+(AUTH-11), task tetap **83**. ADR-019 digantikan ADR-021; ADR-022 ditambahkan.
 
 ---
 
