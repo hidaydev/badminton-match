@@ -79,7 +79,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | AUTH-07 | M | CSRF: perubahan state hanya dari origin yang diizinkan | `Origin` di luar `security.allowed_origins` → 403; cookie first-party `SameSite=Lax` lewat proxy |
 | AUTH-08 | M | Rate limit per route + per IP, memakai proxy tepercaya | Melebihi batas → 429 dengan `Retry-After`; IP asli terbaca di belakang proxy |
 | AUTH-09 | M | `Idempotency-Key` disimpan bersama hash body | Reuse key dengan body berbeda → 409; key sama + body sama → hasil sama |
-| AUTH-10 | S | Akun bisa dinonaktifkan dan dianonimkan tanpa menghapus riwayat rating | Nama/email dihapus; `sub` disimpan sebagai hash agar login ditolak; klaim pemain dilepas dan klaim berikutnya harus disetujui `admin`; baris rating utuh; audit mencatat aktor |
+| AUTH-10 | S | Akun bisa dinonaktifkan dan dianonimkan tanpa menghapus riwayat rating | Nama/email dihapus; `sub` disimpan sebagai hash agar login ditolak; klaim `approved` menjadi `released` (bukan dihapus) dengan alasan; baris rating utuh; audit mencatat aktor |
 | AUTH-11 | M | WebSocket diautentikasi tiket sekali pakai, bukan cookie | Tiket kedaluwarsa (60 s) atau dipakai dua kali → 401; tiket hanya membuka satu kanal dan tidak bisa menulis |
 | AUTH-12 | M | `platform_owner` boleh menjadi anggota biasa sebuah komunitas untuk bermain | Bergabung tanpa undangan (aksi eksplisit, tercatat audit) memberi peran `member`; pengajuan klaim profil tercatat dan menunggu persetujuan `admin` komunitas; kekuasaan global tetap berlaku tanpa keanggotaan |
 | AUTH-13 | M | Hanya satu akun `platform_owner` aktif | Menambah akun kedua lewat UI ditolak; lewat CLI tercatat audit |
@@ -115,6 +115,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | PLY-02 | M | Merge/rename/delete/tier hanya `admin`+ | Role rendah → 403 |
 | PLY-03 | M | Hapus pemain tidak menghapus riwayat pemain lain | Setelah delete, poin rekan/lawan tetap; `rebuild` menghasilkan angka sama |
 | PLY-04 | M | Klaim pemain harus disetujui `admin`; merge hanya `admin` dan tercatat | Klaim masuk antrean; pengajuan ganda saat pending → 409; setelah disetujui `user_id` terisi; merge menulis audit + `merge_log` |
+| PLY-05 | M | Pemilik klaim bisa melepas profilnya; setelah lepas, akun mana pun boleh mengajukan klaim baru lewat persetujuan `admin`, tanpa masa tunggu | Lepas klaim → `user_id` NULL, klaim `released`, audit tercatat; akun berbeda (email B) mengajukan klaim → `pending`, belum mengikat sampai `admin` setuju; `member` lain melepas klaim orang lain → 403; riwayat pelepasan terlihat di antrean |
 | RNK-01 | M | Poin = window 12 minggu, best 10, base 250, pengali lawan 0.5–1.5 | Parity dengan v1 pada fixture; properti: deterministik, invarian jumlah, **bukan** monoton (window bergeser bisa menurunkan poin) |
 | RNK-02 | M | Papan top 200 per komunitas + filter tier; tidak ada pintu publik tanpa kode | `/c/{slug}/rankings` bukan anggota → 404; `/s/{code}/rankings` tanpa kode valid → 404; dengan kode → 200 baris komunitas itu saja |
 | RNK-03 | S | Snapshot pergerakan (naik/turun) konsisten | Snapshot harian tidak drift terhadap perhitungan ulang |
@@ -144,11 +145,14 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | OPS-01 | M | `/healthz` = proses hidup, `/readyz` = DB + versi skema cocok | DB dimatikan → `/readyz` 503, `/healthz` 200 |
 | OPS-02 | M | Metrics di listener internal, tidak publik | Port metrics tidak terjangkau dari internet |
 | OPS-03 | M | Log terstruktur tanpa PII, file 0600 | Log tidak memuat email/nama/kode; permission diuji |
-| OPS-04 | M | Deploy gagal → rollback otomatis & terverifikasi; cutover instan satu push | Failure injection: build gagal, health gagal → `:prev` hidup; pra-impor dapat diulang; setelah push, v1 tidak lagi melayani |
+| OPS-04 | M | Deploy gagal → rollback otomatis & terverifikasi; cutover instan dijalankan manual | Failure injection: build gagal, health gagal → `:prev` hidup; ETL dapat diulang dari `bm_staging`; setelah `cutover.sh`, v1 tidak lagi melayani |
 | OPS-05 | M | Rilis tidak pernah hilang senyap | Deploy kedua saat deploy berjalan → antre atau gagal berisik, tidak `exit 0` |
-| OPS-06 | M | Data sementara punya masa simpan dan dibersihkan otomatis | `auth.oauth_flows`, `idempotency_keys`, `outbox_events`, `session.links` yang dicabut (bukan yang hidup), dan audit lama terhapus oleh janitor; jumlah baris terhapus terlihat di metrik |
+| OPS-06 | M | Data sementara punya masa simpan dan dibersihkan otomatis, audit tidak ikut | `auth.oauth_flows`, `idempotency_keys`, `outbox_events`, `session.links` yang dicabut (bukan yang hidup) terhapus oleh janitor; `account.audit` **tidak** disentuh; jumlah baris terhapus terlihat di metrik |
 | OPS-07 | S | Rilis berversi SemVer otomatis dari riwayat commit, dengan catatan rilis | `VERSION` satu-satunya sumber; tag `vX.Y.Z`; GitHub Release berisi catatan per kelompok; nomor versi hidup di `/version` |
 | OPS-08 | M | Kegagalan ETL/cutover terdeteksi tanpa dashboard | `rows_imported` per tabel dibandingkan dengan `bm_staging`; selisih atau `/readyz` gagal dalam 1 menit memicu `majadu-alert.service`; `cutover.step` menunjukkan langkah terakhir |
+| OPS-09 | M | Ada prosedur insiden dan daftar pemegang akses | `docs/ops/operations.md` memuat format 5-field dan pemegang akses Google/GitHub/VPS/GHCR dengan status MFA; insiden uji (deploy gagal) menghasilkan catatan sesuai format |
+| OPS-10 | M | Audit tidak bisa diubah aplikasi dan retensinya terpisah | `bm2_app` hanya `INSERT/SELECT` pada `account.audit`; `audit.retention_days` ≥ 365 dan tidak dipakai janitor data sementara; percobaan `UPDATE`/`DELETE` dari role aplikasi gagal |
+| OPS-11 | M | Rilis punya exit criteria yang bisa gagal | Enam syarat di `docs/ops/release.md`: digest cocok dengan yang hidup, `build_info` == tag, 24 jam tanpa restart loop, tidak ada 5xx baru, smoke produksi lulus, `:v1-final` punya tanggal hapus + digest diarsipkan |
 
 ### 4.8 Konfigurasi & parameter
 
@@ -180,6 +184,8 @@ band tier, ukuran turnamen, batas pagination, TTL, dan dimensi gambar dibaca dar
 | Keamanan | 0 P0/P1 terbuka; security suite lulus; **0 kebocoran lintas komunitas** |
 | Test | Domain ≥ 90%, total ≥ 75% (ratchet) |
 | Waktu check lokal | `./task check` ≤ 60 s |
+| Zona waktu | `date` mengikuti zona komunitas; instan RFC 3339 UTC `Z`; image memuat `tzdata` |
+| Kompatibilitas FE↔API | Bundle lama vs API baru dan bundle baru vs API baru lulus; API menolak klien usang dengan `426` |
 | Bahasa antarmuka | Inggris; semua teks lewat kunci i18n, tanpa string keras di komponen |
 | Backup | Dump harian, retensi 7 hari, snapshot sebelum impor; restore teruji < 30 menit |
 | Retensi data | Sesi kedaluwarsa, flow OAuth, idempotency key, dan audit lama dibersihkan otomatis |
@@ -229,7 +235,7 @@ juga di luar lingkup** — React 19 + Vite + Tailwind 4 dibekukan (O-17).
 | Jendela P0 terbuka | diterima apa adanya, tanpa kontrol tambahan |
 | Penonton menulis | tidak — `view_code` read-only |
 | Host tanpa login | tidak — semua penulis login Google; tidak ada kode tulis |
-| Impor data v1 | pra-impor ke `bm2` saat v1 masih hidup, lalu satu push = cutover |
+| Impor data v1 | ETL sekali dari dump beku saat v1 berhenti, dijalankan `cutover.sh` (O-39) |
 | Verifikasi RS256 | modul binding OpenSSL (ADR-009 diterima) |
 | Peran `member` | R2 |
 | Multi-komunitas | masuk repo ini; `community_id` + FK komposit; poin per komunitas; akun global dengan peran per komunitas |

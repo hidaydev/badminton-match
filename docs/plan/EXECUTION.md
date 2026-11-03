@@ -52,6 +52,13 @@ Target hari pertama:
 Setelah itu `T-005 → T-006a` dan `T-008a/b → T-009` boleh jalan bersamaan di dua agen
 berbeda. Jangan menambah agen ketiga sebelum `T-006a` selesai.
 
+**Batas WIP (PM review):** maksimal **3 agen aktif** dan **6 task berjalan**; antrean
+review owner adalah bottleneck sebenarnya, bukan penulisan kode. Budget review
+**15 menit/task**; task yang butuh lebih dari satu hari kerja dipecah sebelum
+diberikan ke agen. Anggaran perubahan **10%** dari total estimasi; setelah R1,
+BRD/PRD/TECH-SPEC dibekukan dan perubahan hanya masuk lewat kontrak (OpenAPI) +
+`testdata/authz/matrix.yaml` + baris backlog.
+
 ## 3. Menyerahkan task ke subagent
 
 Template yang dipakai orchestrator (salin apa adanya, isi bagian dalam kurung):
@@ -92,8 +99,13 @@ Aturan tambahan untuk agen backend:
 - `./task dev-db` membuat `bm2_dev` dari nol < 20 s; clone worker < 1 s.
 - `dbtools verify` bersih pada `0001`–`0005`.
 - `./task build` menghasilkan binary yang berjalan dan merespons `/healthz`.
-- `./task contract-gen` menghasilkan 72 operasi dan `git diff --exit-code` bersih.
+- `./task contract-gen` menghasilkan 73 operasi dan `git diff --exit-code` bersih.
 - `./task mock-api` melayani FE.
+- **Walking skeleton lulus lewat HTTP**: login dengan stub OIDC, buat satu
+  komunitas, satu sesi, terbitkan satu share link, lalu buka `/s/{code}` dan
+  `/s/{code}/rankings` — semuanya terhadap DB lokal dan binary Nim. Demo ini yang
+  menjadi definisi "R0 selesai"; FE shell (`T-028`) baru masuk di R1, tetapi
+  kontraknya sudah terbukti dipakai.
 - Definisi CI lolos parse + skema (dan `actionlint` bila terpasang — belum ada di mesin ini);
   `./task ci` hijau lokal.
 
@@ -126,6 +138,9 @@ Aturan tambahan untuk agen backend:
 - `ops/scripts/backup.sh` menjalankan `pg_dump -Fc` untuk `bm` dan `bm2`, retensi
   7 hari, mode `600`, dan memverifikasi hasilnya dengan `pg_restore --list`.
 - Sebelum impor atau migrasi destruktif: dump tambahan + catat nama berkasnya.
+- **Backup dan restore harus sudah terbukti sebelum ETL pertama dijalankan**, bukan
+  sesudah; `restore.sh` menerima `bm_staging` dan latihan restore T-063 menjadi
+  prasyarat, bukan teman sejalan.
 - `ops/scripts/restore.sh <dump> <database>` menerima `bm`, `bm2`, `bm2_*`,
   `bm_restore_*`, dan **`bm_staging`**; menolak nama lain. Tanpa pengecualian
   `bm_staging`, guard ini memblokir satu-satunya langkah cutover yang
@@ -139,27 +154,27 @@ Aturan tambahan untuk agen backend:
 ### 6.3 Cutover instan (ETL sekali, saat v1 berhenti)
 
 Rehearsal memakai `bm_staging` → `bm2_rehearsal` dan tidak menyentuh `bm` atau
-`bm2`. Cutover sebenarnya dipicu **berkas penanda**, karena webhook hanya mengirim
-repo + ref:
+`bm2`. Cutover sebenarnya **dijalankan manual** oleh operator lewat SSH (O-39);
+deploy dari push tidak pernah memicunya.
 
-1. `touch /srv/qouver/apps/<app>/cutover.request` (isi: tag rilis).
-2. Push `main` (atau jalankan `deploy-vps.sh --resume-cutover` bila sebelumnya
-   gagal). Script mendeteksi penanda, melewati gate `apps/api/`, dan menulis
-   `cutover.step` setiap langkah.
-3. Langkah: `cutover.lock` → stop v1 (`systemctl --user stop`, bukan freeze) →
+1. Pastikan tag rilis + digest image sudah ada di GHCR, dan `:v1-final` belum ada.
+2. **Rehearsal kedua di VPS D-3**: jalankan seluruh urutan di bawah dengan
+   `bm2_rehearsal`, termasuk rollback ber-stopwatch. Ini satu-satunya kesempatan
+   menguji Quadlet + Caddy sebelum hari-H (mesin dev tidak punya Podman).
+3. Jalankan `ops/scripts/cutover.sh --version vX.Y.Z` lewat SSH. Script menulis
+   `cutover.step` setiap langkah dan menerima `--from <step>` bila diulang.
+4. Langkah: `flock` → stop + **disable** v1 (`systemctl --user stop && disable`) →
    `:v1-final` **hanya bila belum ada** → maintenance Caddy (non-GET 503) →
    `pg_dump` → restore `bm_staging` → siapkan `bm2` + migrasi + seed +
    `ownerseed --sub` → ETL satu transaksi → verifikasi → `cutover_state` →
    env + Caddy v2 → start → `/readyz` (skema + `CUTOVER_SNAPSHOT_SHA256`) →
-   smoke → lepas maintenance → hapus `cutover.request` + `cutover.lock`.
-   Bila `cutover_state` sudah terisi dan v2 sudah hidup, script menghapus penanda
-   dan keluar `0` tanpa menyentuh layanan (anti-cutover-kedua).
-4. Jika gagal di langkah mana pun: `rollback.sh` mengembalikan `:v1-final`, env
-   `bm`, Caddy v1, dan start v1. `cutover.step` menunjukkan titik gagal; penanda
-   **tidak** dihapus otomatis supaya kegagalan tidak hilang dari pandangan.
-5. Reboot di tengah cutover: unit v2 memakai
-   `ConditionPathExists=!/srv/qouver/apps/<app>/cutover.lock`, dan v1 sudah
-   `systemctl --user stop`, sehingga ticker v1 tidak menulis ke `bm` selama dump.
+   smoke → lepas maintenance. Bila `cutover_state` sudah terisi, script berhenti
+   dengan "already cut over" tanpa menyentuh layanan (anti-cutover-kedua).
+5. Jika gagal di langkah mana pun: `rollback.sh` mengembalikan `:v1-final`, env
+   `bm`, Caddy v1, `systemctl --user enable` + start v1. `cutover.step` menunjukkan
+   titik gagal dan tidak dihapus otomatis.
+6. Reboot di tengah cutover: unit v1 sudah di-`disable`, jadi ticker v1 tidak
+   hidup kembali dan tidak menulis ke `bm` selama dump.
 
 Catatan:
 
@@ -225,4 +240,7 @@ Sebelum push pertama:
 | `-d:release` mencabut stack trace | build produksi memakai `--stackTrace:on` |
 | macOS `dynlib` memilih LibreSSL Apple | soname eksplisit + `DYLD_FALLBACK_LIBRARY_PATH` keg `openssl@3` (T-084) |
 | `libpq` keg-only di macOS | `DYLD_FALLBACK_LIBRARY_PATH` juga untuk `libpq` |
+| Nim tidak punya flag `--coverage` | gcov via `--passC:--coverage --passL:--coverage`; `LF = 0` menggagalkan gate (T-109) |
+| `trap ERR` tidak menyala di dalam `if ! cmd` | helper `fail()` + `shellcheck` SC2310/SC2311 (T-011, T-060) |
+| Container tanpa `tzdata` mengonversi tanggal ke UTC | image memuat `tzdata`; zona dari `community.settings.timezone` |
 | Instance kosong tidak bisa boot | `T-103` bootstrap: platform_owner, komunitas pertama, seed config |

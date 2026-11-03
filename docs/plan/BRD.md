@@ -140,7 +140,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-7 | Tidak ada push ke remote sampai seluruh rangkaian stabil |
 | O-8 | P0 diterima terbuka selama rewrite; tidak ada hotfix Go dan tidak ada kontrol kompensasi |
 | O-9 | Tautan "Lihat" hanya untuk membaca; **semua penulis wajib login Google** (tidak ada `edit_code`) |
-| O-10 | **Cutover instan**: satu push ke `main` = v2 live. Data v1 dipindahkan ke `bm2` **sebelum** push (pra-impor saat v1 masih melayani); tidak ada masa berdampingan |
+| O-10 | **Cutover instan**: satu kali eksekusi cutover menghentikan v1, mengambil dump beku, menjalankan ETL sekali, lalu v2 live. Tidak ada masa berdampingan dan tidak ada pra-impor |
 | O-11 | Peran `member` masuk R2, bukan R1 |
 | O-12 | Verifikasi ID token RS256 dibangun sebagai modul binding OpenSSL lokal (ADR-009 diterima) |
 | O-13 | Multi-komunitas masuk repo ini, bukan diserahkan ke majadu v2 |
@@ -168,13 +168,16 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-35 | Tautan `/s/{code}` tidak kedaluwarsa otomatis; hanya bisa dicabut/dirotasi, dan rotasi adalah operasi normal |
 | O-36 | Gate coverage tetap domain ≥ 90%, total ≥ 75%, ratchet dari baseline; `./task check` tetap tanpa DB |
 | O-37 | Tanpa step-up auth; kontrol pengganti = `GET`/`DELETE /auth/sessions` (revoke-all) + audit aksi sensitif |
+| O-38 | Pemain boleh melepas klaim profilnya sendiri; setelah lepas, akun Google mana pun (termasuk email berbeda) boleh mengajukan klaim baru lewat persetujuan `admin`, **tanpa masa tunggu** |
+| O-39 | Cutover pertama dijalankan **manual** oleh pemilik lewat `cutover.sh`; deploy dari push tidak pernah memicu cutover |
+| O-40 | Semua halaman FE v1 yang masih dipakai diport (players, admin sesi/rating/turnamen, setup); tidak ada fitur yang hilang |
 
 ### Keterlacakan: di mana tiap keputusan diwujudkan
 
 | Keputusan | Wujud konkret | Task |
 |---|---|---|
 | O-1 | Seluruh kode baru di `apps/api/`, `modules/`, `shared/` repo ini; tidak ada sentuhan ke `majadu` | T-001 |
-| O-2 | Kontrak v2 ditulis ulang (48 → 72 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
+| O-2 | Kontrak v2 ditulis ulang (48 → 73 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
 | O-3 | OIDC Google; tidak ada magic link / token admin | T-021, T-084 |
 | O-4 | Tidak ada commit perbaikan di `apps/api/internal/`; P0 ditutup di Nim | T-021, T-023, T-025 |
 | O-5 | `./task dev-db` memakai cluster lokal; container hanya fallback | T-007 |
@@ -182,7 +185,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-7 | Protokol merge lokal; tidak ada push sampai R4 | seluruh backlog §0 butir 8 |
 | O-8 | ADR-011 menerima P0 terbuka; tidak ada kontrol kompensasi di kode | T-083 |
 | O-9 | `session.links` read-only, tanpa `kind`; semua tulis butuh principal | T-024, T-023 |
-| O-10 | Pra-impor ke `bm2` sebelum push; satu push = cutover; rollback ke image v1 | T-064, T-065, T-060 |
+| O-10 | ETL sekali dari dump beku saat v1 berhenti; rollback ke image v1 | T-064, T-065, T-060 |
 | O-10 | Tautan `/s/{code}` lama tidak dipertahankan; kode baru per sesi | T-024, T-064 |
 | O-11 | `member` tidak dipakai di R1; masuk R2 | T-048 |
 | O-12 | Binding OpenSSL + cek `libcrypto` saat boot | T-084 |
@@ -196,7 +199,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-20 | Database `bm2` + role `bm2_app`; `bm` nol DDL | T-007, T-005 |
 | O-21 | Inggris sebagai bahasa UI; kunci i18n di kontrak dan komponen | T-028, T-029, T-030 |
 | O-22 | `apps/web/vercel.json` rewrite + endpoint `ws-ticket` + `security.allowed_origins` | T-028, T-027, T-076 |
-| O-23 | Skrip dump harian + latihan restore + snapshot pra-impor | T-060, T-063, T-064 |
+| O-23 | Skrip dump harian + latihan restore + snapshot sebelum ETL | T-060, T-063, T-064 |
 | O-24 | `./task release`, `VERSION`, CHANGELOG, tag SSH-signed, workflow Release | T-107 |
 | O-25 | `VERSION` dimulai dari `2.0.0`; bump pertama menghasilkan `2.0.x`/`2.x.0`/`3.0.0` | T-107 |
 | O-26 | Matriks kapabilitas, RBAC middleware, peran per keanggotaan, join platform owner | T-023, T-020, T-090, T-091 |
@@ -211,6 +214,9 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-35 | `expires_at` NULLable dan tidak diisi; janitor menghapus tautan **dicabut** | T-024, T-105, T-006a |
 | O-36 | `task.d/coverage.sh` + `coverage-baseline.json` + job CI | T-109 |
 | O-37 | `GET`/`DELETE /auth/sessions`; tidak ada step-up | T-022, T-023 |
+| O-38 | `DELETE …/claim` + status `released` + klaim ulang lewat persetujuan | T-110, T-048, T-006a |
+| O-39 | `ops/scripts/cutover.sh`; deploy menolak `cutover.request` | T-060, T-065 |
+| O-40 | `T-111` memport players + admin + setup | T-111, T-072 |
 
 ## 10. Jawaban pemilik (2026-11-03)
 
@@ -219,7 +225,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | Jendela P0 terbuka | Diterima apa adanya, tanpa kontrol tambahan | Tidak ada perubahan v1; risiko dicatat di ADR-011 |
 | Penonton menulis? | Tidak — tautan "Lihat" hanya baca | `view_code` murni read-only |
 | Host tanpa login? | Tidak — semua penulis login Google | `edit_code` dihapus dari desain; model kapabilitas menyusut |
-| Impor data v1 | Pra-impor ke `bm2`, lalu satu push | Cutover instan; tidak ada jendela data kosong; kehilangan baris antara pra-impor dan push dicatat di runbook |
+| Impor data v1 | ETL sekali saat cutover, dari dump beku | Cutover instan; `bm_staging` + `import_row_map` menjadi jalur re-run; kehilangan baris antara dump dan start dicatat di runbook |
 | Verifikasi RS256 | Bangun modul binding OpenSSL | ADR-009 diterima; menambah satu task teknis |
 | Peran `member` | Masuk R2 | R1 hanya `owner`/`admin`/`host` |
 | Multi-komunitas | Masuk repo ini, `community_id` + FK komposit, poin per komunitas, akun global | Skema, auth, routing, dan backlog berubah (lihat §9 O-13..O-16) |
@@ -229,5 +235,8 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | Masa berlaku tautan | Tanpa kedaluwarsa otomatis, hanya dicabut/dirotasi | O-35 |
 | Gate coverage | Tetap 90/75 ratchet; `check` tanpa DB | O-36 |
 | Step-up auth | Tidak perlu; diganti revoke-all sesi + audit | O-37; ADR-029 |
+| Lepas klaim lalu klaim ulang | Boleh, tanpa cooldown, tetap lewat persetujuan admin | O-38; ADR-030; PLY-05 |
+| Pemicu cutover | Manual lewat `cutover.sh` | O-39; ADR-031 |
+| Halaman FE yang hilang | Semua diport, satu task | O-40; T-111 |
 
 Tidak ada pertanyaan terbuka yang tersisa untuk fase perencanaan.

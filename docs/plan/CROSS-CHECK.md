@@ -165,9 +165,9 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 
 | Pemeriksaan | Metode | Hasil |
 |---|---|---|
-| Integritas task | parse tabel backlog | **85 task**, 0 duplikat, 0 dependency menggantung |
+| Integritas task | parse tabel backlog (saat putaran itu) | **85 task**, 0 duplikat, 0 dependency menggantung |
 | Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah pemisahan per file |
-| Traceability | 68 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
+| Traceability | requirement PRD vs referensi backlog (saat putaran itu) | **0 tidak terpetakan**, 0 referensi hantu |
 | Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
 | Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
 | Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
@@ -246,8 +246,8 @@ Angka: task **80 → 84**, requirement **59 → 67**, operasi **59 → 66** (lih
 
 | Topik | Keputusan | Konsekuensi yang diterima |
 |---|---|---|
-| Nasib v1 | Cutover instan: satu push `main` = v2 live, tanpa berdampingan | Tidak ada jendela uji paralel; rollback = restart image v1 |
-| Data | Pra-impor ke `bm2` saat v1 masih melayani, lalu push | Baris yang ditulis v1 antara pra-impor dan push hilang; dicatat di runbook |
+| Nasib v1 | Cutover instan, tanpa berdampingan (putaran 15: dijalankan manual `cutover.sh`) | Tidak ada jendela uji paralel; rollback = restart image v1 |
+| Data | ETL sekali dari dump beku saat v1 berhenti (menggantikan pra-impor) | Baris yang ditulis v1 antara dump dan start hilang; dicatat di runbook |
 | Tautan lama | Kode baru diterbitkan; `/s/{code}` v1 mati | Pengguna harus menerima tautan baru |
 | FE | Tetap `majadu.vercel.app`; HTTP lewat proxy same-origin `/api/*`, WS dengan tiket | Satu endpoint baru `ws-ticket`; API harus mempercayai `X-Forwarded-For` Vercel |
 | Rilis pertama | `2.0.0`, tag SSH-signed, lampiran digest image | Tidak ada fase 0.x; aturan bump major/minor/patch langsung berlaku |
@@ -366,7 +366,72 @@ Yang **ditolak** (dengan alasan, bukan karena tidak nyaman):
 | Abuse: `api.qouver.com` harus menutup semua selain `/ws/*` karena melayani banyak operasi | memanggil API langsung tanpa cookie tidak menambah kemampuan penyerang anonim; yang valid hanya OAuth client terpisah untuk staging dan penghapusan alias saat cutover |
 | Internal: "timezone campur" sebagai alasan redesign | dump v1 berisi 27 `timestamptz`, 0 `timestamp without time zone`, 8 `date`; masalahnya konversi `date` WIB, bukan tipe campur — alasan diperbaiki agar tidak menjadi klaim palsu |
 
-Angka akhir: task **85**, requirement **68**, operasi **72**, ADR **29**, O-1..O-37.
+Angka akhir putaran 14: task **85**, requirement **68**, operasi **72**, ADR **29**, O-1..O-37.
+
+---
+
+## Putaran 15 — kualitas kode, OWASP, ISO, scrum, PM
+
+Enam review baru (`reviews/round-5-*.md`) menyerang sisi yang belum pernah diuji:
+kualitas kode, aturan statis, OWASP/ASVS, ISO, alur scrum, dan manajemen proyek.
+Yang diterima:
+
+| Area | Temuan | Perbaikan |
+|---|---|---|
+| Craft | threadvar `request context` + Mummy multi-thread | `Ctx` eksplisit di handler (T-003/T-009) |
+| Craft | `now()` tersembunyi | `now` sebagai parameter + larangan `now()`/`CURRENT_TIMESTAMP` di `modules/**` (T-010) |
+| Craft | T-043 mengimpor `tournament` | seam `ratingSource(id)` |
+| Craft | `actor_role` tidak ada di audit | D13 |
+| Craft | O-38 butuh `DELETE` baris | transisi `approved → released` + `UPDATE … RETURNING` (D15) |
+| Sonar | `except Exception` menelan defect | `{.push raises: [].}` + boundary tunggal (T-010) |
+| Sonar | `discard` atas hasil DB, `getRow` 0 baris = `""` | update mengembalikan jumlah baris; 0 baris lewat `pqntuples` (T-004/T-010) |
+| Sonar | Nim tidak punya `--coverage` (diuji) | gcov via `--passC/--passL`, `LF = 0` menggagalkan gate (T-109) |
+| Sonar | `else: discard` pada enum | dilarang; exhaustiveness ditegakkan |
+| Sonar | asersi test lemah | hanya `expectProblem(status, code)` (T-010/T-070) |
+| Sonar | `trap ERR` inert di `if ! cmd` | `fail()` + `shellcheck` SC2310/2311 (T-011/T-060) |
+| Sonar | matriks tanpa dimensi kepemilikan | `self/other/none` (T-020/T-094) |
+| Sonar | hash `state.json` bisa konstan pada 0 baris | `rowCount > 0` + self-test mutasi (T-071) |
+| OWASP | nonce GCM bisa dipakai ulang saat rotasi | nonce baru + lewati baris yang sudah di kunci aktif (T-024) |
+| OWASP | audit bisa diubah aplikasi, tanpa `reason` | grant `INSERT/SELECT` saja + D13/D16 |
+| OWASP | JWKS tanpa batas redirect/ukuran/refetch | aturan fetch eksplisit (T-084) |
+| OWASP | identifier dinamis (sort/filter) | enum tertutup + archlint (T-008a/T-010) |
+| OWASP | retensi audit menyatu dengan data sementara | `audit.retention_days` terpisah (T-105) |
+| OWASP | alias staging bertahan | client terpisah + dihapus saat cutover + test origin (T-021) |
+| OWASP | antrean klaim tanpa plafon | `security.join_request_rate` + plafon pending (T-048) |
+| OWASP | `no-store` tidak menyeluruh | `/auth/me`, `/auth/sessions`, `/c/*` (T-076) |
+| ISO | tidak ada prosedur insiden/akses | `docs/ops/operations.md` (T-112) |
+| ISO | dasar & retensi data pribadi tidak tertulis | `docs/privacy.md` (T-112) |
+| ISO | `date` WIB di-hardcode vs zona komunitas | `local_date` per zona + `tzdata` (T-042/T-064/T-011) |
+| ISO | instan tanpa format kontrak | RFC 3339 `Z` (T-008a) |
+| ISO | tidak ada exit criteria rilis | OPS-11 + `docs/ops/release.md` (T-107) |
+| ISO | MFA/akses tidak pernah disebut | daftar pemegang akses di T-112 |
+| Scrum | R0 tanpa perilaku terlihat | walking skeleton + demo di gate R0 (EXECUTION §5) |
+| Scrum | FE menunggu binding OpenSSL | T-085 sebelum T-021 |
+| Scrum | T-048 tanpa lane | masuk D1 |
+| Scrum | O-38 sebagai sel acceptance | task sendiri (T-110) |
+| Scrum | fixture peran dibuat setelah T-020 | seed fixture di T-099 sebelum tes matriks |
+| PM | halaman FE tanpa pemilik | T-111 (players + admin + setup) |
+| PM | review owner = bottleneck | WIP 3 agen / 6 task / 15 menit per task |
+| PM | rehearsal tidak pernah menyentuh VPS | rehearsal kedua D-3 + rollback ber-stopwatch |
+| PM | `:v1-final` kedaluwarsa tanpa jejak | tanggal hapus + digest diarsipkan (T-082/T-107) |
+| PM | dokumen jadi permukaan perubahan | freeze R1 + anggaran perubahan 10% |
+
+Yang **ditolak**:
+
+| Klaim | Alasan |
+|---|---|
+| Craft: 9 modul → 5, registry tanpa plafon, 5 migrasi → 1–2 berkas | membongkar keputusan yang sudah jadi; jumlah modul/berkas bukan sumber kompleksitas, sedangkan plafon L2 adalah jaminan yang diminta pemilik |
+| Craft: buang emitter client TS, sisakan `schema.d.ts` | kontrak FE↔API adalah satu-satunya cara mencegah drift; emitter dipertahankan |
+| Craft: hapus D1 | D1 mencatat bug urutan migrasi nyata yang membuat DB kosong gagal |
+| OWASP: cosign untuk image | digest + tag SSH-signed + token GHCR sudah memberi integritas/autentisitas sepadan; cosign menambah kunci dan langkah verifikasi tanpa menghapus ancaman nyata |
+| Sonar: *indent walker* 150 baris sebagai gate R0 | alat baru harus dirawat sebelum ada kode yang diukur; batas ukuran/complexity dijadikan opsional |
+| Scrum: pecah T-060 jadi tiga, lipat delapan task "noise" | mengganti penomoran 85 task tanpa keuntungan setara; masalah nyata (backup sebelum ETL) diselesaikan dengan urutan |
+| PM: cap 2 agen | 3 agen cukup untuk paralelisme yang direncanakan tanpa melampaui kapasitas review |
+
+Keputusan pemilik yang masuk: **O-38** (lepas klaim + klaim ulang tanpa cooldown),
+**O-39** (cutover manual), **O-40** (semua halaman FE diport).
+
+Angka akhir: task **88**, requirement **72**, operasi **73**, ADR **31**, O-1..O-40.
 
 ---
 
@@ -390,6 +455,9 @@ Angka akhir: task **85**, requirement **68**, operasi **72**, ADR **29**, O-1..O
 | Masa berlaku tautan | tanpa kedaluwarsa otomatis; hanya dicabut/dirotasi (O-35) |
 | Gate coverage | 90/75 ratchet dengan baseline; `check` tetap tanpa DB (O-36) |
 | Step-up auth | tidak perlu; diganti daftar sesi + revoke-all + audit (O-37) |
+| Lepas klaim lalu klaim ulang | boleh, tanpa cooldown, tetap lewat persetujuan admin (O-38) |
+| Pemicu cutover | manual lewat `cutover.sh` (O-39) |
+| Halaman FE lama | semua diport, satu task (O-40) |
 
 Sisa risiko yang **tidak** diselesaikan keputusan ini: enumerasi `GET /sessions`
 dan mutasi skor anonim tetap terbuka sampai API Nim rilis (lihat TECH-SPEC §7.5).
