@@ -36,7 +36,7 @@ Tidak ada pekerjaan lain yang boleh dimulai sebelum dua jalur ini selesai:
 ```text
 T-001 skeleton ── T-002 pin deps
               ├─ T-003 platform-lib ── T-004 db binder ── T-005 dbtools ── T-006a ... d
-              ├─ T-008 OpenAPI ── T-009 contract-gen ── T-015 mock-api
+              ├─ T-008a/b OpenAPI ── T-009 contract-gen ── T-015 mock-api
               ├─ T-007 dev DB
               ├─ T-010 archcheck
               └─ T-011 CI
@@ -49,7 +49,7 @@ Target hari pertama:
 3. `T-003` + `T-004` paralel — logger/clock/ids dan pool/binder.
 4. `T-007` — `bm2_dev` + template + reset < 5 s.
 
-Setelah itu `T-005 → T-006a` dan `T-008 → T-009` boleh jalan bersamaan di dua agen
+Setelah itu `T-005 → T-006a` dan `T-008a/b → T-009` boleh jalan bersamaan di dua agen
 berbeda. Jangan menambah agen ketiga sebelum `T-006a` selesai.
 
 ## 3. Menyerahkan task ke subagent
@@ -92,7 +92,7 @@ Aturan tambahan untuk agen backend:
 - `./task dev-db` membuat `bm2_dev` dari nol < 20 s; clone worker < 1 s.
 - `dbtools verify` bersih pada `0001`–`0005`.
 - `./task build` menghasilkan binary yang berjalan dan merespons `/healthz`.
-- `./task contract-gen` menghasilkan 60 operasi dan `git diff --exit-code` bersih.
+- `./task contract-gen` menghasilkan 62 operasi dan `git diff --exit-code` bersih.
 - `./task mock-api` melayani FE.
 - Definisi CI lolos parse + skema (dan `actionlint` bila terpasang — belum ada di mesin ini);
   `./task ci` hijau lokal.
@@ -103,16 +103,20 @@ Aturan tambahan untuk agen backend:
 
 1. Buat project Google Cloud + OAuth consent screen (External, hanya scope
    `openid email profile`).
-2. Credential: **Web application**. Authorized redirect URI:
-   `http://localhost:8080/auth/google/callback` (dev) dan
-   `https://api.qouver.com/auth/google/callback` (prod). Tidak ada origin JS.
+2. Credential: **Web application**. Authorized redirect URI **harus di host FE**,
+   karena callback juga lewat proxy:
+   `http://localhost:5173/api/auth/google/callback` (dev) dan
+   `https://majadu.vercel.app/api/auth/google/callback` (prod).
+   Mendaftarkannya di `api.qouver.com` membuat cookie flow dan callback berada di
+   host berbeda → login selalu gagal.
 3. Simpan `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET` di
    `/srv/qouver/apps/<app>/env/` mode `600`; repo hanya memuat `.example`.
 4. Rotasi: buat secret baru di console, deploy dengan secret baru, hapus yang lama
-   setelah 24 jam. Kunci sesi/cookie terpisah — menggantinya berarti semua user
-   logout, jadi lakukan bersamaan dengan deploy yang direncanakan.
+   setelah 24 jam. Kunci sesi dan `SHARE_CODE_KEY` terpisah — menggantinya membuat
+   semua sesi logout / semua tautan harus dienkripsi ulang, jadi lakukan bersamaan
+   dengan deploy yang direncanakan.
 5. Uji: login berhasil, `state` salah → 400, `nonce` salah → 400, akun tanpa
-   `email_verified` → 403.
+   `email_verified` → 403, `return_to` absolut → 400.
 
 ### 6.2 Backup & restore (sebelum impor apa pun)
 
@@ -122,53 +126,68 @@ Aturan tambahan untuk agen backend:
 - `ops/scripts/restore.sh <dump> <database>` hanya menerima nama database berawalan
   `bm2_` atau `bm_restore_`; tidak pernah menimpa `bm` produksi.
 - Latihan restore wajib di T-063; target < 30 menit dari dump terbaru.
+- **Risiko yang diterima:** salinan berada di disk yang sama dengan database. Kalau
+  VPS atau disknya hilang, backup ikut hilang. Ini keputusan biaya yang dicatat,
+  bukan kelalaian.
 
-### 6.3 Cutover instan (pra-impor, lalu satu push)
+### 6.3 Cutover instan (ETL sekali, saat v1 dibekukan)
 
-Tidak ada masa berdampingan. Urutannya:
+Rehearsal (boleh berkali-kali) memakai `bm2_rehearsal` dan tidak menyentuh `bm2`
+produksi. Cutover sebenarnya dijalankan oleh `deploy-vps.sh` mode `CUTOVER=1` pada
+push yang sama, dalam urutan ini:
 
-0. **Siapkan `bm2` di VPS** (sekali saja): database `bm2`, role `bm2_app` dengan
-   password dari env, lalu `dbtools migrate`.
-1. **Snapshot** `bm` (`ops/scripts/backup.sh bm`) dan verifikasi dump bisa dibaca.
-2. **Seed & bootstrap**: `dbtools seed` (L1 config) lalu `tools/ownerseed` —
-   platform_owner pertama + komunitas default. Tanpa ini v2 menolak start dan ETL
-   tidak punya `community_id` tujuan.
-3. **Pra-impor** `bm` → `bm2` (`tools/import/etl`), lalu rekonsiliasi (`verify`).
-   `bm` hanya dibaca; ETL boleh diulang dari snapshot baru.
-4. **Uji baca** pada `bm2`: jumlah pemain, jumlah sesi, papan peringkat komunitas
-   default, satu sesi acak. Gagal di sini → jangan push.
-5. **Push ke `main`** → build + restart v2. `/readyz` hijau, smoke lulus.
-6. **Verifikasi pasca-cutover**: login Google, buka `/c/{slug}/rankings`, buat satu
-   sesi, simpan satu skor, buka satu tautan `/s/{code}` baru.
-7. **Rollback** bila langkah 6 gagal: `systemctl --user restart` dengan image `:prev`
-   (v1). `bm` utuh; data `bm2` setelah cutover dibuang. Rollback hanya mungkin
-   selama image v1 masih ada.
+1. **Maintenance**: Caddy menahan penulisan ke v1 (baca tetap jalan).
+2. **Dump** `bm` + verifikasi (`pg_restore --list`).
+3. **Siapkan `bm2`**: database, role `bm2_owner` (DDL), `bm2_app` (aplikasi),
+   `bm_ro` (baca `bm` untuk ETL), `bm2_etl` (tulis `bm2`), migrasi, seed L1,
+   bootstrap `platform_owner` (`tools/ownerseed --sub <google-sub>`).
+4. **ETL satu transaksi** dari dump tadi, lalu `verify` (selisih 0 terhadap dump).
+5. **Tukar**: env `DATABASE_URL` → `bm2`, snippet Caddy → v2, `cutover_state`
+   diisi, layanan start. `/readyz` hanya hijau bila skema cocok **dan**
+   `snapshot_sha256` sama dengan dump yang diimpor.
+6. **Smoke**: login, buka `/c/{slug}/rankings`, buat sesi, simpan skor, buka
+   `/s/{code}` baru. Keluar dari maintenance hanya setelah ini lulus.
+7. **Hapus akses tulis v1** setelah observasi awal; `bm` tetap utuh.
 
-Catatan penting:
+Rollback: `ops/scripts/rollback.sh` mengembalikan image `:v1-final`, env `bm`, dan
+snippet Caddy v1 sekaligus (`caddy validate` dulu). `bm` tidak pernah ditulis, jadi
+data v1 aman; data `bm2` setelah cutover dibuang.
 
-- Cookie sesi sampai ke API lewat **proxy `/api/*` di Vercel**; jangan mengarahkan
-  FE langsung ke `api.qouver.com` untuk HTTP, atau cookie menjadi pihak ketiga.
-- WebSocket memakai `wss://api.qouver.com/...?ticket=`, bukan cookie.
-- Baris yang ditulis ke v1 antara langkah 3 dan 5 tidak ikut terimpor; jalankan
-  langkah 3 sedekat mungkin dengan 5 dan catat waktunya di runbook.
+Catatan:
+
+- Komunitas default **read-only** setelah cutover sampai `platform_owner`
+  mengangkat satu `admin`. ETL tidak membuat membership.
 - Tautan `/s/{code}` lama tidak dipertahankan; host menerbitkan kode baru.
+- Tab FE lama menerima `410 CLIENT_OUTDATED` dengan banner reload.
 
 ### 6.4 Rilis (setelah R4)
 
 ```bash
 ./task release auto --dry-run      # lihat versi + catatan, tidak menulis apa pun
 ./task release auto                # commit chore(release) + annotated tag lokal
-./task release auto --push         # dorong commit ke main + tag (memicu deploy)
+./task release auto --push         # dorong commit + tag secara atomik
 ```
 
-- Rilis pertama adalah `2.0.0` (O-25); bump berikutnya mengikuti tabel di TECH-SPEC §8.1.
-- Tag wajib SSH-signed: `git config gpg.format ssh` + `user.signingkey ~/.ssh/id_ed25519.pub`.
-  Workflow menolak tag tanpa tanda tangan valid.
-- Rilis kandidat: `./task release minor --pre rc` → `vX.Y.Z-rc.1`; ulangi perintah
-  yang sama untuk `rc.2`. Promosi: `./task release minor` dengan inti versi sama.
-- Tag **tidak** dibuat di GitHub UI; kalau dibuat di sana, workflow menolak karena
-  isi tag tidak cocok dengan `VERSION`.
-- Jangan jalankan `--push` sebelum gate R4 lulus dan backup terbaru diverifikasi.
+- Rilis pertama `2.0.0` (O-25); bump mengikuti tabel di TECH-SPEC §8.1.
+- Tag wajib SSH-signed: `git config gpg.format ssh` +
+  `user.signingkey ~/.ssh/id_ed25519.pub`; `allowed_signers` di-commit.
+- Image dibangun **sekali** oleh workflow pada tag, didorong ke GHCR, dan digest-nya
+  masuk GitHub Release. Deploy menarik digest itu, bukan rebuild.
+- `--push` memakai `git push --atomic` supaya commit dan tag tidak terpisah.
+- Jangan `--push` sebelum gate R4 lulus dan backup terbaru diverifikasi.
+
+### 6.5 Higiene pra-push (T-108)
+
+Repo publik, dan riwayat lokal memuat `docs/audits/` yang menjelaskan P0 v1.
+Sebelum push pertama:
+
+1. Pasang hook: `git config core.hooksPath .githooks` (T-108), lalu pindahkan
+   audit ke `.local/audits/` (sudah di-gitignore).
+2. Tulis ulang riwayat agar path itu tidak pernah terbit:
+   `git filter-repo --invert-paths --path docs/audits`.
+3. Verifikasi: `git log --all --name-only | grep docs/audits` harus kosong.
+4. Periksa ulang: tidak ada IP asli, kredensial, atau dump di riwayat.
+5. Baru `./task release --push`.
 
 ## 7. Jebakan yang sudah diketahui
 

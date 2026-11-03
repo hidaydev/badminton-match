@@ -2,8 +2,8 @@
 
 > **Catatan status (2026-11-03):** angka "48 → 48" di memo ini berlaku sebelum
 > multi-komunitas (O-13) dan pemisahan auth menjadi `start`/`callback`, permukaan
-> final menjadi **59** operasi;
-> detailnya dibekukan di T-008 (`api.yaml`). Konvensi, realtime, dan alur kontrak di
+> final menjadi **62** operasi;
+> detailnya dibekukan di T-008a/T-008b (`core.yaml`/`community.yaml`). Konvensi, realtime, dan alur kontrak di
 > memo ini tetap berlaku.
 >
 > Dua koreksi wajib: **`POST /auth/google` DITOLAK** — keputusan ADR-015 memakai
@@ -185,7 +185,7 @@ penyerang bisa membuat sesi pada id pilihannya (`05-security.md:100-105`). v2: `
 |---|---|---|---|
 | Payload | snapshot **penuh** tiap broadcast (`handler/session.go:280-305`) | `OutboxEvent[]` + `nextSince` (`handler/granular.go:22-57`, `domain/outbox.go:7-16`) | `{"type":"ready"}` / `{"type":"session.changed"}` — tanpa state (`majadu/apps/api/src/live.nim:1-33`) |
 | Catch-up | muat ulang penuh tiap pesan | replay by id | baca ulang endpoint baca biasa (`DECISIONS.md:1303-1330`) |
-| Batas koneksi | tidak ada (`05-security.md:107-112`) | — | per-kode 50 / per-IP 150 / proses 500 + TTL (`DECISIONS.md:1334-1360`) |
+| Batas koneksi | tidak ada (`05-security.md:107-112`) | — | per-kode 50 / per-IP 150 / proses 500 + TTL (angka yang **mengikat** ada di TECH-SPEC §6: 20/IP) (`DECISIONS.md:1334-1360`) |
 | Origin | `Access-Control-Allow-Origin: *` hardcoded (`handler/session.go:263`) | — | same-origin |
 
 ### 3.2 Pilihan: WebSocket, frame notifikasi

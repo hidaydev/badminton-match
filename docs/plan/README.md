@@ -18,9 +18,9 @@ Status: draft untuk review pemilik (belum ada kode produksi yang berubah)
 | # | Dokumen | Untuk siapa | Isi |
 |---|---------|-------------|-----|
 | 1 | [`BRD.md`](BRD.md) | pemilik | kenapa, tujuan bisnis, risiko, definisi sukses, keputusan final |
-| 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 63 requirement ber-ID, NFR, perubahan UX |
+| 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 64 requirement ber-ID, NFR, perubahan UX |
 | 3 | [`TECH-SPEC.md`](TECH-SPEC.md) | semua engineer | stack, layout, database `bm2`, kontrak, keamanan, CI/CD, parity, risiko |
-| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 83 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
+| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 84 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
 | 5 | [`CROSS-CHECK.md`](CROSS-CHECK.md) | reviewer | 19 klaim diuji ke sumber, 9 putaran konsistensi, 3 review independen |
 | 6 | [`REVIEW-scrum.md`](REVIEW-scrum.md) | reviewer | audit dependency, tabrakan file, gap, DoR/DoD |
 | 7 | [`memos/`](memos/) | referensi | 6 memo ahli: stack, security, data, API, CI/CD, QA |
@@ -36,7 +36,7 @@ Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.
 | Keputusan | Pilihan | Alasan singkat |
 |-----------|---------|----------------|
 | Lokasi rewrite | repo ini | majadu v2 tidak disentuh (O-1) |
-| Kontrak API | boleh berubah; 60 operasi | FE ikut dikerjakan (O-2) |
+| Kontrak API | boleh berubah; 62 operasi | FE ikut dikerjakan (O-2) |
 | Auth | Google OIDC untuk **semua penulis**; tautan hanya baca | tidak ada jalur tulis anonim (O-3, O-9) |
 | Multi-komunitas | satu instance, `community_id` + FK komposit, poin per komunitas | skema, auth, routing berubah (O-13..O-16) |
 | Frontend | React 19 + Vite + Tailwind 4, **dibekukan** | tidak ada rewrite Svelte (O-17) |
@@ -81,7 +81,7 @@ Batas aman: **4 agen aktif**. Jalur kritis yang tidak boleh ditambah beban:
 | Jendela P0 terbuka | diterima apa adanya, tanpa kontrol tambahan | `TECH-SPEC` §7.5, `ADR-011` |
 | Penonton menulis | tidak, `view_code` read-only | `PRD` SES-02/03 |
 | Host tanpa login | tidak, semua penulis login Google | `edit_code` dihapus; `TECH-SPEC` §7.3, `BACKLOG` T-024/T-030 |
-| Impor data v1 | rilis kosong, impor setelah stabil | `TECH-SPEC` §10 |
+| Impor data v1 | ETL sekali saat cutover, v1 dibekukan | `TECH-SPEC` §10 |
 | Verifikasi RS256 | modul binding OpenSSL | `ADR-009` diterima, task T-084 |
 | Peran `member` | R2 | `PRD` R2, task T-048 |
 | Multi-komunitas | masuk repo ini: `community_id` + FK komposit, poin per komunitas, akun global | `TECH-SPEC` §4/§5, task T-090..T-095 |

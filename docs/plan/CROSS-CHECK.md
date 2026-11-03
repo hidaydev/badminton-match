@@ -49,11 +49,11 @@ tidak dirata-ratakan, tapi dipilih satu dan alasannya ditulis.
 
 | # | Yang diuji | Hasil | Tindakan |
 |---|------------|-------|----------|
-| 1 | Aritmetika permukaan API: 48 − 7 − 2 + 9 | 48 | konsisten (TECH-SPEC §5) |
-| 2 | Task ID yang dirujuk di `Depends` benar-benar ada | 48 task, 0 dangling | — |
+| 1 | Aritmetika permukaan API saat itu: 48 − 7 − 2 + 9 | 48 | diganti tabel per kelompok di TECH-SPEC §5 (kini 62) |
+| 2 | Task ID yang dirujuk di `Depends` benar-benar ada | 48 task (saat putaran 1), 0 dangling | — |
 | 3 | Task tanpa dependensi | hanya T-001 | disengaja |
 | 4 | Setiap requirement PRD punya task | awalnya **1 dari 38** | ditambah §10 matriks traceability |
-| 5 | Penamaan tautan: `share_links` (memo 03) vs `session.links` (memo 02) | **konflik** | dipilih `session.links` + `kind('view'\|'edit')`, dicatat di TECH-SPEC §4 |
+| 5 | Penamaan tautan: `share_links` (memo 03) vs `session.links` (memo 02) | **konflik** | dipilih `session.links` tanpa `kind`, dicatat di TECH-SPEC §4 |
 | 6 | Verifikasi ID token: memo 01 (klaim saja) vs memo 02 (RS256) | **konflik** | diselesaikan di TECH-SPEC §7.2, ADR-009 tetap terbuka |
 | 7 | Rute baru vs lama: `/rankings` diklaim baru? | **sudah ada di v1** (`main.go:255`) | tidak dimasukkan sebagai rute baru |
 | 8 | Nomor migrasi di dokumen lama (`000013–000016`) | sudah dikoreksi ke `000023` di commit `08e93a8` | — |
@@ -165,9 +165,9 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 
 | Pemeriksaan | Metode | Hasil |
 |---|---|---|
-| Integritas task | parse tabel backlog | **83 task**, 0 duplikat, 0 dependency menggantung |
+| Integritas task | parse tabel backlog | **84 task**, 0 duplikat, 0 dependency menggantung |
 | Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah pemisahan per file |
-| Traceability | 63 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
+| Traceability | 64 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
 | Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
 | Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
 | Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
@@ -238,7 +238,7 @@ Requirement menjadi **62** (AUTH-10, OPS-06, OPS-07) dan seluruhnya terpetakan.
 | Bahasa UI | Inggris saja, kunci i18n disiapkan | O-21, T-028 |
 | Observability | 8 metrik inti, tanpa alert | TECH-SPEC §8, T-062 |
 
-Angka: task **80 → 83**, requirement **59 → 63**, operasi **59 → 60** (lihat putaran 11).
+Angka: task **80 → 84**, requirement **59 → 64**, operasi **59 → 62** (lihat putaran 12).
 
 ---
 
@@ -258,6 +258,36 @@ Perubahan angka: operasi **59 → 60** (`POST …/ws-ticket`), requirement **62 
 
 ---
 
+## Putaran 12 — empat review independen (keamanan, cutover, konsistensi, produk)
+
+| Area | Temuan yang diterima | Perbaikan |
+|---|---|---|
+| Keamanan | redirect OAuth didaftarkan di host API padahal cookie flow hidup di host FE → login mustahil atau login CSRF | callback lewat `/api/auth/google/callback`; `return_to` wajib relatif; test open-redirect di T-070 |
+| Keamanan | aturan IP di balik dua rantai proxy (Vercel HTTP, WS langsung) tidak terdefinisi | `trusted_proxy_cidrs` + aturan "hop paling kanan yang bukan proxy"; XFF dari peer non-proxy diabaikan |
+| Keamanan | tiket WS tanpa penyimpanan, rawan balapan dan bocor di log | tabel `platform.ws_ticket`, konsumsi `DELETE … RETURNING`, redaksi parameter `ticket` |
+| Keamanan | pencabutan tidak menutup socket | logout/rotasi/perubahan peran menutup koneksi |
+| Cutover | ETL punya dua pemilik (`CUTOVER=1` vs manual) dan dump lama | ETL sekali di dalam `CUTOVER=1` dari dump beku; pra-impor hanya rehearsal |
+| Cutover | push cutover memakai script lama ("berlaku deploy berikutnya") | self re-exec |
+| Cutover | `flock -n` + `exit 0` membuang deploy; gate hanya `/healthz` | `flock -w 900` + `exit 1`; gate `/readyz` + `cutover_state` |
+| Cutover | `:prev` menggusur v1 sebelum 14 hari | tag `:v1-final` (ADR-026) |
+| Cutover | Caddy tetap `/majadu/*`, tidak pernah reload | snippet v1/v2 + `switch_site` dengan `caddy validate` |
+| Cutover | digest rilis tidak jelas asalnya | image dibangun sekali di CI, deploy by digest (ADR-024) |
+| Produk | lock tidak pernah menyetujui sumber poin | lock menstempel `approved_at`; SES-06/07/08 ditulis ulang |
+| Produk | komunitas baru/default tidak punya admin | COM-01 wajib email admin pertama; default read-only sampai diangkat |
+| Produk | penonton tidak bisa dapat tiket WS | `POST /s/{code}/ws-ticket` anonim, per kode + IP |
+| Produk | klaim pemain tanpa aturan | PLY-04: klaim bebas untuk yang belum diklaim, merge oleh admin |
+| Produk | RNK-01 mengklaim monoton | dihapus; window bergeser bisa menurunkan poin |
+| Konsistensi | `Owns` direktori bertabrakan, 5 task tanpa agen, sisa model lama | dipersempit, lane dilengkapi, teks diperbarui |
+
+Angka: task **83 → 84** (T-108), requirement **63 → 64** (PLY-04), operasi
+**60 → 62** (tampil-ulang share, tiket penonton), ADR **22 → 26**, keputusan
+**O-1..O-29**.
+
+Risiko yang **diterima** (bukan lupa): backup tetap di disk VPS; komunitas default
+read-only setelah cutover; ETL tidak membuat membership.
+
+---
+
 ## Yang sudah diputuskan (tidak lagi terbuka)
 
 | Pertanyaan | Keputusan |
@@ -265,7 +295,7 @@ Perubahan angka: operasi **59 → 60** (`POST …/ws-ticket`), requirement **62 
 | Jendela P0 terbuka | diterima apa adanya (ADR-011) |
 | Penonton menulis | tidak |
 | Host tanpa login | tidak; semua penulis login Google |
-| Impor data v1 | rilis kosong, impor setelah stabil |
+| Impor data v1 | ETL sekali saat cutover |
 | Verifikasi RS256 | modul binding OpenSSL |
 | Peran `member` | R2 |
 | Multi-komunitas | masuk repo ini; isolasi `community_id` + FK komposit; poin per komunitas; akun global |

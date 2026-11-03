@@ -314,7 +314,7 @@ timeout.
 2. `.nimble` pin + `deps.lock.txt` + `./task deps-check` (D3).
 3. `pre-commit` hooks + `.gitleaks.toml` allowlist fixture.
 4. Dockerfile baru (digest, non-root 10001, HEALTHCHECK, args) + `./task rehearse` (§4).
-5. Workflow baru: 6 job + `Gate`, cache, artifact, coverage ratchet.
+5. Workflow baru: 6 job kerja + `Gate` (= 7 total), cache, artifact, coverage ratchet.
 6. `deploy-vps.sh` v2: flock `-w`, `/readyz`, `trap ERR`, build-arg, `sync_units`, `smoke.sh`,
    `rollback.sh`; verifikasi lewat rehearsal **dan** satu deploy terkontrol ke staging.
 7. `ruleset-main.json` + secret scanning + dependabot + signing — **terakhir**, setelah semua
@@ -332,4 +332,4 @@ timeout.
 | Rehearsal ≠ quadlet/systemd | bug unit lolos ke prod | staging sebelum prod; unit di-`cmp` dengan server |
 | Ruleset aktif sebelum check stabil | semua PR terblokir | aktifkan terakhir (§8.7) |
 | Repo publik + IP/secret | kebocoran permanen (riwayat) | gitleaks full history, placeholder, pre-commit |
-| 8 job × 15 m pada akun gratis | antrean panjang | pisah path, cache, jangan naikkan timeout |
+| 7 job × 15 m pada akun gratis | antrean panjang | pisah path, cache, jangan naikkan timeout |

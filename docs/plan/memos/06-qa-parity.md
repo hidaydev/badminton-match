@@ -32,7 +32,7 @@ bukan pelengkap, ia satu-satunya spesifikasi yang dapat dieksekusi.
 | Integration (DB) | store: OCC, lock, ingest, rebuild | ~150 kasus | < 60 s | per modul |
 | Contract (HTTP) | 48 rute + error envelope | ~120 kasus | < 20 s | per modul |
 | **Parity (Go↔Nim)** | golden replay | ~80 kasus | < 90 s | per modul + rilis |
-| E2E (Playwright) | journey pengguna | ~15 alur | < 3 min | pra-rilis |
+| E2E (Playwright) | journey pengguna | ~15 alur | < 5 min (TECH-SPEC §9) | pra-rilis |
 | Visual + a11y | 3 viewport × rute | ~40 tangkapan | < 5 min | pra-rilis |
 
 Rasio **jumlah kasus** ≈ 55 / 10 / 20 / 15 — unit dan property mendominasi karena murah dan

@@ -24,10 +24,9 @@ menjaga alur lapangan tetap cepat.
 | **Host** (admin lapangan) | `host` — login Google | Menyiapkan sesi, membagikan tautan, mengoreksi skor di lapangan dalam hitungan detik |
 | **Penonton** | tanpa akun, `view_code` | Melihat skor dan jadwal berjalan tanpa bisa mengubah apa pun |
 | **Pemain** | `member` (opsional) | Melihat poin, riwayat, badge; mempercayai bahwa poin tidak bisa dipalsukan |
-| **Owner** | `owner` | Menjalankan operasi admin: merge pemain, rebuild poin, hapus turnamen |
-| **Community owner/admin** | `owner`/`admin` per komunitas | Mengelola anggota, peran, pengaturan komunitas, undangan |
+| **Admin komunitas** | `admin` per komunitas | Mengelola anggota, peran, pengaturan komunitas, undangan; merge pemain, rebuild poin |
 | **Anggota multi-komunitas** | satu akun, banyak komunitas | Berpindah komunitas tanpa login ulang; poin tiap komunitas terpisah |
-| **Platform owner** | `platform_owner` | Membuat komunitas baru; tidak otomatis menjadi anggota komunitas itu |
+| **Platform owner** | `platform_owner` (global, satu akun) | Membuat/menghapus komunitas, mengangkat admin, mengatur L1 dan plafon; boleh bertindak di komunitas mana pun (tercatat di audit), tanpa menjadi anggota |
 | **Maintainer** | — | Mengubah satu aturan tanpa menyentuh tiga bahasa |
 
 ## 3. Rencana rilis
@@ -38,7 +37,7 @@ menjaga alur lapangan tetap cepat.
 | **R1 — Auth, komunitas & sesi** | OIDC Google, sesi/role, komunitas + keanggotaan + routing `/c/{slug}`, tautan baca `view_code`, baca+tulis sesi (login-only), WebSocket live | Isolasi cross-tenant lulus; 3 sesi nyata berjalan di E2E |
 | **R2 — Pemain & poin** | Player CRUD/merge, papan poin, achievement, ingest/revert/rebuild, **peran `member` + klaim profil** | Parity poin identik dengan v1 pada fixture yang sama |
 | **R3 — Turnamen & ekspor** | Classic + team tournament, social export | Bracket & standings parity; export tervisualkan |
-| **R4 — Cutover** | Deploy rehearsal, rollback drill, migrasi data | Failure injection lulus; owner menyatakan siap |
+| **R4 — Cutover** | Deploy rehearsal, rollback drill, migrasi data | Failure injection lulus; platform_owner menyatakan siap |
 
 Aturan: **tidak ada rilis yang dimulai sebelum gate rilis sebelumnya lulus.**
 Pekerjaan dalam satu rilis boleh paralel (lihat `BACKLOG.md`).
@@ -55,9 +54,9 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 
 | ID | Pri | Requirement | Acceptance |
 |----|-----|-------------|------------|
-| COM-01 | M | Buat komunitas dengan slug unik | Slug bentrok → 409; slug tidak valid → 400 |
+| COM-01 | M | Buat komunitas dengan slug unik dan email admin pertama | Slug bentrok → 409; slug tidak valid → 400; tanpa email admin → 400; akun itu menjadi `admin` pada login pertama |
 | COM-02 | M | Bergabung lewat undangan sekali pakai, berbatas peran & waktu | Undangan dipakai dua kali → gagal; kedaluwarsa → gagal |
-| COM-03 | M | Peran berlaku per komunitas: `owner`/`admin`/`host`/`member` | Peran di komunitas A tidak memberi hak di komunitas B |
+| COM-03 | M | Peran per komunitas: `admin`/`host`/`member`; `platform_owner` global | Peran di komunitas A tidak memberi hak di komunitas B |
 | COM-04 | M | Isolasi data antar komunitas | Request lintas komunitas → **404**, bukan 403; query tanpa `community_id` ditolak |
 | COM-05 | M | Konteks komunitas di URL: web dan API sama-sama `/c/{slug}/…`; FE memanggilnya lewat proxy `/api/c/{slug}/…` | Route komunitas tanpa slug → 404 |
 | COM-06 | M | Pengguna bisa berpindah komunitas tanpa login ulang | Daftar "komunitas saya"; pilihan tersimpan |
@@ -72,9 +71,9 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 |----|-----|-------------|------------|
 | AUTH-01 | M | Login hanya lewat Google OIDC (Authorization Code + PKCE) | Login berhasil dengan akun Google; `state`/`nonce` salah ditolak 400 tanpa membuat sesi |
 | AUTH-02 | M | Tidak ada token di JavaScript | Cookie sesi `HttpOnly`; tidak ada access token di localStorage/sessionStorage |
-| AUTH-03 | M | Peran per komunitas: `owner`, `admin`, `host`, `member`; `platform_owner` global | Matriks route×role×komunitas diuji; belum login → 401, peran kurang → 403, beda komunitas → 404 |
+| AUTH-03 | M | Peran per komunitas: `admin`, `host`, `member`; `platform_owner` global dengan bypass teraudit | Matriks route×role×komunitas diuji; belum login → 401, peran kurang → 403, beda komunitas → 404 |
 | AUTH-04 | M | Sesi absolut 30 hari, idle 14 hari, bisa dicabut | Sesi dicabut langsung 401 pada request berikutnya |
-| AUTH-05 | M | Perubahan role tercatat di audit log | Setiap perubahan role punya baris aktor, target, waktu, alasan |
+| AUTH-05 | M | Perubahan role tercatat di audit log | Setiap perubahan role punya baris aktor, target, waktu; kolom alasan wajib diisi pada form, bukan opsional |
 | AUTH-06 | S | CLI ops memakai bearer token terpisah dari sesi web | Token CLI tidak berlaku di route web |
 | AUTH-07 | M | CSRF: perubahan state hanya dari origin yang diizinkan | `Origin` di luar `security.allowed_origins` → 403; cookie first-party `SameSite=Lax` lewat proxy |
 | AUTH-08 | M | Rate limit per route + per IP, memakai proxy tepercaya | Melebihi batas → 429 dengan `Retry-After`; IP asli terbaca di belakang proxy |
@@ -91,9 +90,9 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | SES-03 | M | Hanya ada tautan baca (`view_code`), bisa dicabut dan dirotasi | Rotasi membuat kode lama 404; satu kode hidup per sesi |
 | SES-04 | M | Menulis wajib sesi login; tautan tidak memberi hak tulis | `PATCH`/`PUT` tanpa sesi → 401; dengan `view_code` tetap 401 |
 | SES-05 | M | Buat sesi/turnamen wajib `host` **di komunitas itu** | Anonim → 401; `member` → 403; `host` di komunitas lain → 404 |
-| SES-06 | M | Lock tidak lagi memicu ingest poin | Lock → status `locked`; tidak ada baris `rating_events` baru |
-| SES-07 | M | Ingest hanya untuk sumber `approved` | Sesi `locked` tanpa approval tidak menambah poin |
-| SES-08 | S | Auto-lock tetap ada saat semua skor terisi | Skor terakhir → `locked`, tetap tanpa ingest implisit |
+| SES-06 | M | Lock menyetujui sumber poin tanpa menulis event di transaksi yang sama | Transaksi lock menstempel `approved_at`; 0 baris `rating_events` baru sesudah lock |
+| SES-07 | M | Ticker meng-ingest sumber yang sudah `approved` | Setelah satu ticker, baris `rating_events` ada tepat satu per sesi; ticker kedua tidak menggandakan |
+| SES-08 | S | Auto-lock tetap ada saat semua skor terisi | Skor terakhir → `locked` + `approved_at` terisi; ingest terjadi di ticker, bukan di request |
 
 ### 4.3 Live scoring
 
@@ -112,7 +111,8 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | PLY-01 | M | Registrasi pemain wajib sesi login (`member` ke atas) | Anonim → 401; registrasi tidak memberi peran tambahan |
 | PLY-02 | M | Merge/rename/delete/tier hanya `admin`+ | Role rendah → 403 |
 | PLY-03 | M | Hapus pemain tidak menghapus riwayat pemain lain | Setelah delete, poin rekan/lawan tetap; `rebuild` menghasilkan angka sama |
-| RNK-01 | M | Poin = window 12 minggu, best 10, base 250, pengali lawan 0.5–1.5 | Parity dengan v1 pada fixture; properti: monoton naik saat menang, invarian jumlah |
+| PLY-04 | M | Klaim pemain: satu akun boleh mengklaim pemain yang belum diklaim; pemain yang sudah diklaim hanya bisa digabung admin | Klaim kedua pada pemain yang sama → 409; merge oleh `admin` tercatat di audit; riwayat pindah utuh |
+| RNK-01 | M | Poin = window 12 minggu, best 10, base 250, pengali lawan 0.5–1.5 | Parity dengan v1 pada fixture; properti: deterministik, invarian jumlah, **bukan** monoton (window bergeser bisa menurunkan poin) |
 | RNK-02 | M | Papan top 200 per komunitas + filter tier | Halaman `/c/{slug}/rankings` menampilkan 200 baris komunitas itu saja |
 | RNK-03 | S | Snapshot pergerakan (naik/turun) konsisten | Snapshot harian tidak drift terhadap perhitungan ulang |
 | ACH-01 | M | Badge dihitung dari riwayat pertandingan; `earned_at` tidak turun | Menambah pertandingan tidak menghapus badge |
@@ -156,7 +156,7 @@ band tier, ukuran turnamen, batas pagination, TTL, dan dimensi gambar dibaca dar
 | CFG-01 | M | Setiap parameter punya key, tipe, nilai default, dan batas sah | Key tak dikenal → 400; nilai di luar batas → 400 |
 | CFG-02 | M | Presedensi: override komunitas → default platform; **tidak ada default di kode** | Menghapus baris config wajib → server menolak start, bukan memakai angka tersembunyi |
 | CFG-03 | M | Perubahan parameter berlaku tanpa restart dan tanpa deploy | Ubah `rank_window_weeks` → papan berubah pada request berikutnya |
-| CFG-04 | M | Komunitas tidak bisa melewati batas aman platform | Nilai di atas plafon ditolak; plafon hanya bisa diubah platform owner |
+| CFG-04 | M | Komunitas tidak bisa melewati batas aman platform | Nilai di atas plafon ditolak; plafon hanya bisa diubah `platform_owner` |
 | CFG-05 | M | Setiap perubahan parameter tercatat: aktor, nilai lama, nilai baru, waktu | Audit dapat ditelusuri per key |
 | CFG-06 | M | Tidak ada literal angka bisnis di kode | `archcheck` menggagalkan build bila konstanta menduplikasi key config |
 | CFG-07 | S | Parameter bisa diekspor/diimpor untuk bootstrap komunitas baru | Ekspor/​impor menghasilkan perilaku sama |
@@ -227,10 +227,15 @@ juga di luar lingkup** — React 19 + Vite + Tailwind 4 dibekukan (O-17).
 | Verifikasi RS256 | modul binding OpenSSL (ADR-009 diterima) |
 | Peran `member` | R2 |
 | Multi-komunitas | masuk repo ini; `community_id` + FK komposit; poin per komunitas; akun global dengan peran per komunitas |
-| Topologi origin | FE `majadu.qouver.com` dan API `api.qouver.com` — satu site, cookie `SameSite=Lax` |
+| Topologi origin | FE tetap `majadu.vercel.app`; HTTP lewat proxy `/api/*`, WebSocket pakai tiket |
 | Backup | Dump harian, retensi 7 hari, snapshot `bm` sebelum impor |
 | Bahasa antarmuka | Inggris saja; kunci i18n disiapkan sejak R1 |
 | Penghapusan akun | Nonaktifkan + anonimisasi, riwayat rating dipertahankan |
+| Model peran | `platform_owner` global + `admin`/`host`/`member` per komunitas; tanpa `owner` per komunitas |
+| Kode share | Hash + salinan terenkripsi; bisa ditampilkan ulang oleh `admin`/`host` dengan audit |
+| Backup | Tetap di disk VPS (risiko diterima, dicatat) |
+| Rollback cutover | Image `:v1-final` disimpan 14 hari di luar rotasi normal |
+| Image rilis | Dibangun sekali di CI, dideploy berdasarkan digest |
 
 Tidak ada pertanyaan terbuka yang tersisa; perubahan berikutnya harus lewat
 `contract-change.md` (T-016) bila menyentuh kontrak.
