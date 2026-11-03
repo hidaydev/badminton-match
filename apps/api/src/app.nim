@@ -6,12 +6,14 @@ import uuidv7
 import share/crypto
 import account/infrastructure/jwt_rs256
 import account/infrastructure/oidc
+import platform/config/store
 
 type
   App* = ref object
     db*: Db
     oidc*: OidcConfig
     keyring*: Keyring
+    config*: ConfigCache
     cookieSecure*: bool
     bootstrapOwner*: string
 
@@ -77,6 +79,16 @@ proc cookieValue(request: Request, name: string): string =
       return pair[1]
   ""
 
+proc configSnapshot(): Snapshot =
+  application.config.snapshot(application.db)
+
+proc sessionCookie(token: string): string =
+  let days = configSnapshot().intValue(%*{}, keySessionAbsoluteDays)
+  result = "majadu_session=" & token &
+    "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" & $(days * 86400)
+  if application.cookieSecure:
+    result.add("; Secure")
+
 proc setSessionCookie(request: Request, token: string) =
   var cookie = "majadu_session=" & token & "; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000"
   if application.cookieSecure:
@@ -85,11 +97,12 @@ proc setSessionCookie(request: Request, token: string) =
 
 proc createSessionToken(userId: string): string =
   let token = randomHex(32)
+  let days = configSnapshot().intValue(%*{}, keySessionAbsoluteDays)
   discard application.db.execUpdate(
     """insert into account.sessions
        (user_id, token_hash, absolute_expires_at)
-       values ($1, decode($2, 'hex'), now() + interval '30 days')""",
-    @[textParam(userId), textParam(sha256Hex(token))])
+       values ($1, decode($2, 'hex'), now() + make_interval(days => $3))""",
+    @[textParam(userId), textParam(sha256Hex(token)), intParam(days.int64)])
   token
 
 proc currentUser(request: Request): Option[AuthUser] =
@@ -164,13 +177,14 @@ proc startAuth(request: Request) =
   let verifier = randomHex(32)
   let challenge = b64url(sha256Raw(verifier))
   let (keyId, encrypted) = encryptWith(application.keyring, verifier, state)
+  let ttl = configSnapshot().intValue(%*{}, keyAuthFlowTtlMinutes)
   discard application.db.execUpdate(
     """insert into auth.oauth_flows
        (state_hash, nonce_hash, code_verifier_enc, return_to, expires_at)
        values (decode($1,'hex'), decode($2,'hex'), decode($3,'hex'), $4,
-               now() + interval '10 minutes')""",
+               now() + make_interval(mins => $5))""",
     @[textParam(sha256Hex(state)), textParam(sha256Hex(nonce)),
-      textParam(bytesHex(encrypted)), textParam(safeReturn)])
+      textParam(bytesHex(encrypted)), textParam(safeReturn), intParam(ttl.int64)])
   jsonResponse(request, 200, %*{
     "authorizeUrl": authorizeUrl(application.oidc, state, nonce, challenge),
     "keyId": keyId,
@@ -241,10 +255,8 @@ proc finishAuth(request: Request) =
     problem(request, 500, "USER_UPSERT_FAILED", "cannot create user")
     return
   let token = createSessionToken(userRow.get.get("id"))
-  var cookie = "majadu_session=" & token & "; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000"
-  if application.cookieSecure:
-    cookie.add("; Secure")
-  request.respond(302, @[("Location", flow.get("return_to")), ("Set-Cookie", cookie)], "")
+  request.respond(302,
+    @[("Location", flow.get("return_to")), ("Set-Cookie", sessionCookie(token))], "")
 
 proc me(request: Request) =
   let user = requireUser(request)
@@ -273,9 +285,11 @@ proc createCommunity(request: Request) =
   let body = bodyJson(request)
   let slug = body["slug"].getStr()
   let name = body["name"].getStr()
+  # No hidden default: a community without a timezone inherits the registry L1
+  # value, which the platform owner can change without a deploy.
   let timezone =
     if body.hasKey("timezone"): body["timezone"].getStr()
-    else: getEnv("MAJADU_DEFAULT_TIMEZONE", "Asia/Jakarta")
+    else: configSnapshot().stringValue(%*{}, keyCommunityDefaultTimezone)
   var row: Option[Row]
   try:
     row = application.db.queryOne(
@@ -345,11 +359,12 @@ proc createSession(request: Request, ctx: CommunityCtx, user: AuthUser) =
 
 proc listSessions(request: Request, ctx: CommunityCtx) =
   var items = newJArray()
+  let limit = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
   for row in application.db.query(
     """select id, title, session_date::text as session_date, status
        from session.sessions where community_id = $1
-       order by session_date desc, updated_at desc limit 100""",
-    @[textParam(ctx.id)]):
+       order by session_date desc, updated_at desc limit $2""",
+    @[textParam(ctx.id), intParam(limit.int64)]):
     items.add(%*{"id": row.get("id"), "title": row.get("title"),
       "date": row.get("session_date"), "status": row.get("status")})
   jsonResponse(request, 200, %*{"items": items})
@@ -420,14 +435,15 @@ proc getShared(request: Request, code: string) =
 
 proc rankings(request: Request, communityId: string) =
   var items = newJArray()
+  let limit = configSnapshot().intValue(%*{}, keyRankBoardLimit)
   for row in application.db.query(
     """select p.id, p.canonical_name, coalesce(ps.rating, 0) as rating
        from player.players p
        left join rating.player_state ps
          on ps.community_id = p.community_id and ps.player_id = p.id
        where p.community_id = $1
-       order by rating desc, p.canonical_name limit 200""",
-    @[textParam(communityId)]):
+       order by rating desc, p.canonical_name limit $2""",
+    @[textParam(communityId), intParam(limit.int64)]):
     items.add(%*{"playerId": row.get("id"), "name": row.get("canonical_name"),
       "rating": parseInt(row.get("rating"))})
   jsonResponse(request, 200, %*{"items": items},
@@ -537,8 +553,9 @@ proc route(request: Request) =
     stderr.writeLine "app error: " & error.msg
     problem(request, 500, "INTERNAL", "internal error")
 
-proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring): App =
-  App(db: db, oidc: oidc, keyring: keyring,
+proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring,
+             config: ConfigCache): App =
+  App(db: db, oidc: oidc, keyring: keyring, config: config,
       cookieSecure: getEnv("MAJADU_COOKIE_SECURE") == "1",
       bootstrapOwner: getEnv("MAJADU_BOOTSTRAP_OWNER_EMAIL"))
 

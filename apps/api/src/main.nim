@@ -5,6 +5,7 @@ import build_info
 import db/db
 import server
 import account/infrastructure/oidc
+import platform/config/store
 import share/crypto
 
 var shutdownRequested {.global.}: Atomic[bool]
@@ -39,7 +40,9 @@ proc bootHandler(config: ServerConfig, threads: int): RequestHandler =
   let oidc = loadOidcConfig()
   let keyring = loadKeyring(getEnv("SHARE_CODE_KEYS"),
     getEnv("SHARE_CODE_ACTIVE_KEY_ID"))
-  install(newApp(database, oidc, keyring))
+  # Loading the snapshot here refuses to start when a registry key is missing.
+  let config = newConfigCache(database)
+  install(newApp(database, oidc, keyring, config))
   result = handler()
 
 proc main() =
