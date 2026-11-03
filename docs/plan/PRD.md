@@ -73,7 +73,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | AUTH-01 | M | Login hanya lewat Google OIDC (Authorization Code + PKCE) | Login berhasil dengan akun Google; `state`/`nonce` salah ditolak 400 tanpa membuat sesi |
 | AUTH-02 | M | Tidak ada token di JavaScript | Cookie sesi `HttpOnly`; tidak ada access token di localStorage/sessionStorage |
 | AUTH-03 | M | Peran per komunitas: `admin`, `host`, `member`; `platform_owner` global dengan bypass teraudit | Matriks route×role×komunitas diuji; belum login → 401, peran kurang → 403, beda komunitas → 404 |
-| AUTH-04 | M | Sesi absolut 30 hari, idle 14 hari, bisa dicabut satu-satu atau semuanya | Sesi dicabut langsung 401; `DELETE /auth/sessions` mencabut semua sesi lain dan menutup socket-nya |
+| AUTH-04 | M | Sesi absolut 30 hari, idle 14 hari, bisa dicabut (logout) atau dicabut semuanya | Sesi dicabut langsung 401; `DELETE /auth/sessions` mencabut semua sesi lain dan menutup socket-nya |
 | AUTH-05 | M | Perubahan role tercatat di audit log | Setiap perubahan role punya baris aktor, target, waktu; kolom alasan wajib diisi pada form, bukan opsional |
 | AUTH-06 | S | CLI ops memakai bearer token terpisah dari sesi web | Token CLI tidak berlaku di route web |
 | AUTH-07 | M | CSRF: perubahan state hanya dari origin yang diizinkan | `Origin` di luar `security.allowed_origins` → 403; cookie first-party `SameSite=Lax` lewat proxy |
@@ -147,7 +147,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | OPS-03 | M | Log terstruktur tanpa PII, file 0600 | Log tidak memuat email/nama/kode; permission diuji |
 | OPS-04 | M | Deploy gagal → rollback otomatis & terverifikasi; cutover instan dijalankan manual | Failure injection: build gagal, health gagal → `:prev` hidup; ETL dapat diulang dari `bm_staging`; setelah `cutover.sh`, v1 tidak lagi melayani |
 | OPS-05 | M | Rilis tidak pernah hilang senyap | Deploy kedua saat deploy berjalan → antre atau gagal berisik, tidak `exit 0` |
-| OPS-06 | M | Data sementara punya masa simpan dan dibersihkan otomatis, audit tidak ikut | `auth.oauth_flows`, `idempotency_keys`, `outbox_events`, `session.links` yang dicabut (bukan yang hidup) terhapus oleh janitor; `account.audit` **tidak** disentuh; jumlah baris terhapus terlihat di metrik |
+| OPS-06 | M | Data sementara punya masa simpan dan dibersihkan otomatis, audit tidak ikut | `auth.oauth_flows`, `idempotency_keys`, `outbox`, `session.links` yang dicabut (bukan yang hidup) terhapus oleh janitor; `account.audit` **tidak** disentuh; jumlah baris terhapus terlihat di metrik |
 | OPS-07 | S | Rilis berversi SemVer otomatis dari riwayat commit, dengan catatan rilis | `VERSION` satu-satunya sumber; tag `vX.Y.Z`; GitHub Release berisi catatan per kelompok; nomor versi hidup di `/version` |
 | OPS-08 | M | Kegagalan ETL/cutover terdeteksi tanpa dashboard | `rows_imported` per tabel dibandingkan dengan `bm_staging`; selisih atau `/readyz` gagal dalam 1 menit memicu `majadu-alert.service`; `cutover.step` menunjukkan langkah terakhir |
 | OPS-09 | M | Ada prosedur insiden dan daftar pemegang akses | `docs/ops/operations.md` memuat format 5-field dan pemegang akses Google/GitHub/VPS/GHCR dengan status MFA; insiden uji (deploy gagal) menghasilkan catatan sesuai format |
@@ -185,10 +185,10 @@ band tier, ukuran turnamen, batas pagination, TTL, dan dimensi gambar dibaca dar
 | Test | Domain ≥ 90%, total ≥ 75% (ratchet) |
 | Waktu check lokal | `./task check` ≤ 60 s |
 | Zona waktu | `date` mengikuti zona komunitas; instan RFC 3339 UTC `Z`; image memuat `tzdata` |
-| Kompatibilitas FE↔API | Bundle lama vs API baru dan bundle baru vs API baru lulus; API menolak klien usang dengan `426` |
+| Kompatibilitas FE↔API | Bundle lama vs API baru dan bundle baru vs API baru lulus; API menolak klien usang dengan `410` + `CLIENT_OUTDATED` |
 | Bahasa antarmuka | Inggris; semua teks lewat kunci i18n, tanpa string keras di komponen |
 | Backup | Dump harian, retensi 7 hari, snapshot sebelum impor; restore teruji < 30 menit |
-| Retensi data | Sesi kedaluwarsa, flow OAuth, idempotency key, dan audit lama dibersihkan otomatis |
+| Retensi data | Sesi kedaluwarsa, flow OAuth, idempotency key dibersihkan otomatis; `account.audit` hanya dibersihkan job CLI `bm2_owner` dengan `audit.retention_days` terpisah |
 
 ## 6. Perubahan UX yang harus disepakati
 

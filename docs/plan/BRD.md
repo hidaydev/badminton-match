@@ -188,11 +188,10 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-7 | Protokol merge lokal; tidak ada push sampai R4 | seluruh backlog §0 butir 8 |
 | O-8 | ADR-011 menerima P0 terbuka; tidak ada kontrol kompensasi di kode | T-083 |
 | O-9 | `session.links` read-only, tanpa `kind`; semua tulis butuh principal | T-024, T-023 |
-| O-10 | ETL sekali dari dump beku saat v1 berhenti; rollback ke image v1 | T-064, T-065, T-060 |
-| O-10 | Tautan `/s/{code}` lama tidak dipertahankan; kode baru per sesi | T-024, T-064 |
+| O-10 | ETL sekali dari dump beku saat v1 berhenti; rollback ke image v1; tautan `/s/{code}` lama tidak dipertahankan | T-064, T-065, T-060, T-024 |
 | O-11 | `member` tidak dipakai di R1; masuk R2 | T-048 |
 | O-12 | Binding OpenSSL + cek `libcrypto` saat boot | T-084 |
-| O-13 | 9 modul termasuk `modules/community/`; 10 route komunitas | T-090–T-093 |
+| O-13 | 9 modul termasuk `modules/community/`; 14 operasi komunitas & config | T-090–T-093 |
 | O-14 | `community_id NOT NULL`, FK komposit untuk relasi NOT NULL, UNIQUE scoped | T-006a–e |
 | O-15 | `rating_events`/`deltas`/`players` ber-`community_id`; papan per komunitas | T-042–T-044 |
 | O-16 | `platform.user` global; peran di `community.membership` | T-020, T-091 |
@@ -221,7 +220,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-36 | `task.d/coverage.sh` + `coverage-baseline.json` + job CI | T-109 |
 | O-37 | `GET`/`DELETE /auth/sessions`; tidak ada step-up | T-022, T-023 |
 | O-38 | `DELETE …/claim` + status `released` + klaim ulang lewat persetujuan | T-110, T-048, T-006a |
-| O-39 | `ops/scripts/cutover.sh`; deploy menolak `cutover.request` | T-060, T-065 |
+| O-39 | `ops/scripts/cutover.sh`; deploy tidak pernah memicu cutover | T-060, T-065 |
 | O-40 | `T-111` memport players + admin + setup | T-111, T-072 |
 
 ## 10. Jawaban pemilik (2026-11-03)

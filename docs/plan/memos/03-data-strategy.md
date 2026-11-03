@@ -7,6 +7,9 @@
 > **Lingkungan lokal aktual:** PostgreSQL 18.6 Homebrew sudah berjalan; Podman
 > **tidak terpasang**. Skrip dev harus memakai server lokal sebagai default dan
 > container hanya sebagai fallback.
+> **Dua ide di memo ini ditolak:** `session.share_links` diganti `session.links`
+> (satu nama, `community_id`, AAD), dan `public_id` dihapus (ADR-016: identitas
+> publik hanya `id` UUIDv7).
 
 > **Tanggal:** 3 Nov 2026 · **Panel:** data architect · **Target:** backend Nim untuk
 > `badminton-match`, v1 (Go) tetap jalan.

@@ -2,7 +2,7 @@
 
 > **Catatan status (2026-11-03):** angka "48 → 48" di memo ini berlaku sebelum
 > multi-komunitas (O-13) dan pemisahan auth menjadi `start`/`callback`, permukaan
-> final menjadi **62** operasi;
+> final menjadi **73** operasi (angka terakhir, lihat `TECH-SPEC.md` §5);
 > detailnya dibekukan di T-008a/T-008b (`core.yaml`/`community.yaml`). Konvensi, realtime, dan alur kontrak di
 > memo ini tetap berlaku.
 >

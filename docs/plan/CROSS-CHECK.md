@@ -227,7 +227,7 @@ Requirement menjadi **62** (AUTH-10, OPS-06, OPS-07) dan seluruhnya terpetakan.
 | Topik | Keputusan | Wujud |
 |---|---|---|
 | Topologi origin | FE `majadu.qouver.com` + API `api.qouver.com`, satu site | ADR-019, O-22, T-061, T-076 |
-| Backup | `pg_dump` harian, retensi 7, snapshot pra-impor, restore diuji | O-23, T-060, T-063, T-064 |
+| Backup | `pg_dump` harian, retensi 7, snapshot sebelum ETL, restore diuji | O-23, T-060, T-063, T-064 |
 | Retensi data | Janitor otomatis | OPS-06, T-105 |
 | Google OAuth | Belum ada kredensial; runbook wajib | T-021, `docs/ops/google-oauth.md` |
 | Dekomisi Go | Setelah cutover + 30 hari observasi | T-082 |
@@ -249,7 +249,7 @@ Angka: task **80 → 84**, requirement **59 → 67**, operasi **59 → 66** (lih
 | Nasib v1 | Cutover instan, tanpa berdampingan (putaran 15: dijalankan manual `cutover.sh`) | Tidak ada jendela uji paralel; rollback = restart image v1 |
 | Data | ETL sekali dari dump beku saat v1 berhenti (menggantikan pra-impor) | Baris yang ditulis v1 antara dump dan start hilang; dicatat di runbook |
 | Tautan lama | Kode baru diterbitkan; `/s/{code}` v1 mati | Pengguna harus menerima tautan baru |
-| FE | Tetap `majadu.vercel.app`; HTTP lewat proxy same-origin `/api/*`, WS dengan tiket | Satu endpoint baru `ws-ticket`; API harus mempercayai `X-Forwarded-For` Vercel |
+| FE | Tetap `majadu.vercel.app`; HTTP lewat proxy same-origin `/api/*`, WS dengan tiket | Satu endpoint baru `ws-ticket`; **diganti putaran 13**: Caddy menulis `X-Client-IP`, aplikasi tidak membaca XFF |
 | Rilis pertama | `2.0.0`, tag SSH-signed, lampiran digest image | Tidak ada fase 0.x; aturan bump major/minor/patch langsung berlaku |
 | Repo publik | Push hanya setelah v2 live dan v1 mati | Riwayat audit berisi langkah eksploitasi P0, jadi tidak boleh terbit lebih awal |
 
@@ -266,7 +266,7 @@ Perubahan angka: operasi **59 → 60** (`POST …/ws-ticket`), requirement **62 
 | Keamanan | aturan IP di balik dua rantai proxy (Vercel HTTP, WS langsung) tidak terdefinisi | `trusted_proxy_cidrs` + aturan "hop paling kanan yang bukan proxy"; XFF dari peer non-proxy diabaikan |
 | Keamanan | tiket WS tanpa penyimpanan, rawan balapan dan bocor di log | tabel `platform.ws_ticket`, konsumsi `DELETE … RETURNING`, redaksi parameter `ticket` |
 | Keamanan | pencabutan tidak menutup socket | logout/rotasi/perubahan peran menutup koneksi |
-| Cutover | ETL punya dua pemilik (`CUTOVER=1` vs manual) dan dump lama | ETL sekali di dalam `CUTOVER=1` dari dump beku; pra-impor hanya rehearsal |
+| Cutover | ETL punya dua pemilik (`CUTOVER=1` vs manual) dan dump lama | ETL sekali dari dump beku; **diganti putaran 15/16**: seluruh urutan di `cutover.sh`, tidak ada `CUTOVER=1` |
 | Cutover | push cutover memakai script lama ("berlaku deploy berikutnya") | self re-exec |
 | Cutover | `flock -n` + `exit 0` membuang deploy; gate hanya `/healthz` | `flock -w 900` + `exit 1`; gate `/readyz` + `cutover_state` |
 | Cutover | `:prev` menggusur v1 sebelum 14 hari | tag `:v1-final` (ADR-026) |
@@ -300,7 +300,7 @@ read-only setelah cutover; ETL tidak membuat membership.
 | IP | aplikasi selalu melihat loopback; CIDR Vercel tak bisa diandalkan | Caddy menulis `X-Client-IP`, aplikasi tidak membaca XFF |
 | Log | kode di path `/s/{code}` masuk access log | redaksi di Caddy + logger |
 | Klaim | tidak ada unique parsial per komunitas | `UNIQUE(community_id,user_id)` |
-| Cutover | `CUTOVER=1` tak bisa lewat webhook; tanpa `trap`; `:v1-final` tak pernah dibuat | penanda `cutover.request`, `trap` + `cutover.step` + resume, langkah pin eksplisit |
+| Cutover | `CUTOVER=1` tak bisa lewat webhook; tanpa `trap`; `:v1-final` tak pernah dibuat | penanda `cutover.request` + `trap` + `cutover.step`; **diganti putaran 15**: cutover manual `cutover.sh` |
 | Cutover | sumber ETL tiga versi | sumber tunggal `bm_staging` |
 | Rilis | deploy bisa jalan sebelum image ada; pull tanpa auth | urutan tag → digest → `main`; `podman login` + token |
 | T-108 | `git filter-repo` rusak di mesin ini | acceptance mewajibkan perbaikan alat, `--force`, origin dipasang ulang, `--force-with-lease` |
@@ -342,7 +342,7 @@ operasional, dan test yang tidak bisa gagal. Yang diterima:
 | Abuse | satu body besar bisa menjatuhkan proses | `max_body_bytes`, depth JSON ≤ 16, timeout |
 | SRE | `:v1-final` bisa tertimpa saat resume | buat hanya bila belum ada + cek digest |
 | SRE | flag cutover tidak dihapus saat gagal → cutover kedua | guard `cutover_state` + hapus di `trap` |
-| SRE | reboot di tengah cutover menghidupkan v1 | `cutover.lock` + `ConditionPathExists` + stop v1 |
+| SRE | reboot di tengah cutover menghidupkan v1 | `cutover.lock`; **diganti putaran 15**: unit v1 di-`disable`, hanya `rollback.sh` yang `enable` |
 | SRE | `restore.sh` menolak `bm_staging` | whitelist diperluas |
 | SRE | crash loop tanpa alarm | `StartLimit*`, `MemoryMax`, `OnFailure` |
 | SRE | `no-store` hanya di Caddy, FE dilayani Vercel | header di `vercel.json` |
@@ -456,6 +456,32 @@ Angka akhir: task **88**, requirement **72**, operasi **73**, ADR **31**, O-1..O
 
 ---
 
+## Putaran 17 — gate final sebelum beku
+
+Tujuh reviewer independen dengan mandat sempit: cari drift dan ketidakbisaan
+eksekusi, bukan ide baru. Temuan hanya dihitung bila (a) dua dokumen bertentangan
+sehingga agen akan salah implementasi, (b) acceptance tidak bisa dijalankan, atau
+(c) angka/link rusak.
+
+| Reviewer | Verdict | Temuan blocking yang diterapkan |
+|---|---|---|
+| Drift | READY WITH FIXES | `72→73` di §5 dan tabel parity; ADR-022/§5 masih "satu push"; `426→410`; O-10 ganda; T-008b `10→14`; `CUTOVER=1`/`ConditionPathExists`/`cutover.request` dibersihkan; `share_links`/`public_id` ditandai ditolak di memo 03 |
+| Traceability | READY WITH FIXES | 15 acceptance cell yang lolos dengan stub 200 ditulis ulang menjadi bisa gagal (T-025/029/030/040/044/045/046/047/052/070/078/090/093/094/102) |
+| R0 simulation | READY WITH FIXES | Kontrak runtime (`MAJADU_PORT`, `/healthz`, `/readyz`, drain), `./task` (nama target = nama berkas, env, exit), `config.nims` (`thisDir()`), `Ctx`, API DB (`$1..$n`, `Option`, `tx`), DSN/role dev, `deps.lock` |
+| Security | READY WITH FIXES | Release/approve memakai `FOR UPDATE` + `UPDATE … RETURNING` (0 baris → 409); admin tidak memutuskan klaim sendiri; `reason` `self_released`; audit `target_kind='claim'`; invite `token_hash`; fallback pasca-cutover `:prev`; `REVOKE` + `CONNECT` untuk `bm`; dump final di luar rotasi; `no-store` diperluas |
+| Ops | READY WITH FIXES | `:v1-final` dibuat **sebelum** v1 dihentikan; rollback menghapus `cutover_state`; guard memeriksa `completed_at`; T-060 bergantung T-103; deploy tanpa path filter + membaca `VERSION`; T-063 dipisah (rehearsal ≤ 30 menit, jendela ≤ 10 menit); D-3 dijadwalkan |
+| Schema | READY WITH FIXES | D2/D3/D5/D6/D13/D14/D15/D16 diberi acceptance katalog (`pg_indexes`, `pg_attrdef`, `has_table_privilege`); `audit.retention_days` masuk registry; pembersih audit jadi tool `bm2_owner` |
+| Nim | READY WITH FIXES | `thisDir()` bukan `$projectDir`; `libcrypto.dylib` generik meng-abort saat load; `EVP_PKEY_assign(pkey, 6, rsa)`; `--lineTrace:on`; klaim suffix `_check`/`_r` dihapus; prasyarat `gcovr`/`lcov` dicatat |
+
+Temuan yang **ditolak**: menaikkan batas agen dari 3 menjadi 4 (WIP tetap 3 aktif,
+6 task berjalan). Temuan yang **ditunda**: seluruh usulan yang menambah
+task/requirement/operasi — itu masuk 2.1, bukan gate ini.
+
+Kedua checker (`audit_plan.py`, `check2.py`) bersih setelah perbaikan. Angka tidak
+berubah dari putaran 16: **88 task, 72 requirement, 73 operasi, 31 ADR, O-1..O-43**.
+
+---
+
 ## Yang sudah diputuskan (tidak lagi terbuka)
 
 | Pertanyaan | Keputusan |
@@ -495,4 +521,4 @@ dan mutasi skor anonim tetap terbuka sampai API Nim rilis (lihat TECH-SPEC §7.5
 
 - Klaim baris 1–19 diuji pada 2026-11-03; setelah kode berubah, klaim bisa kedaluwarsa.
 - Angka performa (p95, RSS, waktu compile) adalah **target**, bukan hasil pengukuran.
-- Estimasi kapasitas agen (4 paralel) adalah heuristik, belum divalidasi pada repo ini.
+- Estimasi kapasitas agen (3 aktif, 6 task berjalan) adalah heuristik, belum divalidasi pada repo ini.

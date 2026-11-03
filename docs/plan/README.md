@@ -9,7 +9,7 @@ tidak ada push sampai R4 dinyatakan stabil.
 > disentuh (O-1).
 
 Tanggal rencana: 2026-11-03
-Status: draft untuk review pemilik (belum ada kode produksi yang berubah)
+Status: perencanaan ditutup 2026-11-03; pembekuan efektif saat R0 lulus (lihat `FROZEN.md`)
 
 ---
 
@@ -20,12 +20,13 @@ Status: draft untuk review pemilik (belum ada kode produksi yang berubah)
 | 1 | [`BRD.md`](BRD.md) | pemilik | kenapa, tujuan bisnis, risiko, definisi sukses, keputusan final |
 | 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 72 requirement ber-ID, NFR, perubahan UX |
 | 3 | [`TECH-SPEC.md`](TECH-SPEC.md) | semua engineer | stack, layout, database `bm2`, kontrak, keamanan, CI/CD, parity, risiko |
-| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 88 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
-| 5 | [`CROSS-CHECK.md`](CROSS-CHECK.md) | reviewer | 19 klaim diuji ke sumber, 15 putaran konsistensi, 20 review independen |
+| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 88 task (T-008a/b) dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
+| 5 | [`CROSS-CHECK.md`](CROSS-CHECK.md) | reviewer | 19 klaim diuji ke sumber, 16 putaran konsistensi, 27 review independen |
 | 6 | [`REVIEW-scrum.md`](REVIEW-scrum.md) | reviewer | audit dependency, tabrakan file, gap, DoR/DoD |
 | 7 | [`memos/`](memos/) | referensi | 6 memo ahli: stack, security, data, API, CI/CD, QA |
 | 8 | [`EXECUTION.md`](EXECUTION.md) | pelaksana | prasyarat terverifikasi, urutan bootstrap, template prompt agen, protokol merge |
-| 9 | [`reviews/`](reviews/) | reviewer | 20 audit independen dalam lima putaran (executability, consistency, adversarial; DB/Nim/abuse/SRE/QA; craft/Sonar/OWASP/ISO/scrum/PM) |
+| 9 | [`reviews/`](reviews/) | reviewer | 27 audit independen dalam enam putaran (executability, consistency, adversarial; DB/Nim/abuse/SRE/QA; craft/Sonar/OWASP/ISO/scrum/PM; gate final) |
+| 10 | [`FROZEN.md`](FROZEN.md) | pelaksana | protokol beku, hash baseline dokumen, dan gate R0 |
 
 Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.
 

@@ -81,6 +81,13 @@ false positive. Mulai sekarang, klaim skema **wajib** diverifikasi ke dump.
 memverifikasi hash tree): `mummy 0.4.8`, `nimcrypto 0.7.3`, `zippy 0.10.20`,
 `webby 0.2.1`, `crunchy 0.1.11`, `nimsimd 1.3.2`, `db_connector` (commit pin).
 
+**Format `deps.lock`** (dibaca T-002, T-011, T-072): satu baris per entri,
+`name version source sha256`, komentar diawali `#`, header berisi `tree <sha256>`
+dari gabungan baris yang diurutkan. Entri juga mencakup alat non-Nim yang dipakai
+gate: versi Nim, Playwright, browser, dan font. `./task deps-check` menghitung
+ulang tree dari isi yang benar-benar terpasang dan gagal bila berbeda; ia tidak
+membandingkan timestamp.
+
 ---
 
 ## 3. Struktur repo
@@ -161,6 +168,39 @@ Rumus poin **wajib** di `modules/rating/domain` — bukan di store seperti v1
 | Shell: `shellcheck` SC2310/SC2311, helper `fail()` | CI job Shell | `trap ERR` tidak menyala di dalam `if ! cmd` |
 | Identitas kolom SQL dari enum, bukan string | archlint | binder mengikat nilai, bukan identifier |
 
+### 3.1 Kontrak `./task`
+
+- `./task <target> [args...]` → `exec sh "$REPO_ROOT/task.d/<target>.sh" "$@"`.
+  Target tak dikenal → cetak daftar target, exit 2.
+- **Nama target = nama berkas** (tanpa pengecualian): `check.sh`, `build.sh`,
+  `test.sh`, `verify.sh`, `ci.sh`, `dev-db.sh`, `contract-gen.sh`, `deps-check.sh`,
+  `mock-api.sh`, `coverage.sh`, `release.sh`.
+- Env yang dijamin: `REPO_ROOT`; `WORKTREE` = basename root + 8 karakter sha256
+  path (disanitasi); `NIMCACHE_CHECK=$REPO_ROOT/.cache/$WORKTREE/check`;
+  `NIMCACHE_BUILD=$REPO_ROOT/.cache/$WORKTREE/build`.
+- Semua skrip `set -eu`; error lewat `fail()`; `trap ERR` tidak diandalkan (lihat
+  §8). Exit 0 hanya bila seluruh langkah lulus.
+- `check` = format + `nim check` + archcheck + unit (< 60 s). `verify <module>` =
+  build + test modul itu dengan DB. `ci` = check + build + seluruh test + contract
+  check. `.cache/` dan `nimcache/` masuk `.gitignore` (dimiliki T-018).
+
+### 3.2 `config.nims`
+
+```nim
+switch("path", thisDir() & "/shared")
+switch("path", thisDir() & "/modules")
+switch("path", thisDir() & "/apps")
+switch("path", thisDir() & "/tools")
+switch("threads", "on")
+switch("mm", "atomicArc")
+switch("stackTrace", "on")
+switch("lineTrace", "on")
+```
+
+`thisDir()` dipakai, bukan `$projectDir` (yang menunjuk direktori entrypoint,
+`apps/api/src`). `-d:release --opt:speed` hanya ditambahkan oleh `./task build`,
+supaya `nim check` polos tetap cepat dan tetap memakai konfigurasi yang sama.
+
 ---
 
 ## 4. Data
@@ -211,7 +251,7 @@ Semuanya masuk `0001`/`0004`/`0005` dan diverifikasi `dbtools verify`:
 | D12 | `auth.oauth_flows` dikonsumsi dengan `DELETE … RETURNING` sebelum tukar `code` | callback yang diputar ulang harus gagal, bukan membuat sesi kedua |
 | D13 | `account.audit` menyimpan **allowlist** field (`actor_id`, `actor_role`, `community_id`, `action`, `target_kind`, `target_id`, `result`, `reason`, `request_id`, `before`/`after` hanya untuk kolom yang diizinkan per aksi); tidak ada kode share, ciphertext, email, atau IP mentah | audit paling sering dibaca saat insiden; tanpa `actor_role` aksi `platform_owner` tidak bisa dibedakan, tanpa `reason` keputusan klaim/merge tidak bisa dipertanggungjawabkan |
 | D16 | `account.audit` **append-only** di level grant: `bm2_app` hanya `INSERT, SELECT`; retensi `audit.retention_days` terpisah dari `janitor.retention_days`, dan pembersihannya lewat job CLI dengan role `bm2_owner` (bukan aplikasi) | audit yang bisa diubah aplikasi bukan bukti; retensi 7 hari untuk data sementara tidak boleh menghapus jejak insiden; audit juga tidak boleh tumbuh tanpa batas |
-| D14 | Tabel domain yang memuat kode/tiket (`session.links`, `platform.ws_ticket`) menyimpan **hash** untuk pencarian dan ciphertext/opaque untuk nilai asli | plaintext di DB membatalkan alasan enkripsi |
+| D14 | Tabel domain yang memuat kredensial (`session.links`, `community.invite`, `platform.ws_ticket`) menyimpan **hash** untuk pencarian dan ciphertext/opaque untuk nilai asli; `invite` memakai `token_hash bytea UNIQUE`, tanpa kolom token plaintext | plaintext di DB membatalkan alasan enkripsi; undangan adalah bearer token yang setara kode share |
 | D15 | `player.claims`: `status ∈ (pending, approved, rejected, released)`, `decided_at`/`decided_by`/`reason` NULL hanya saat `pending`; unik parsial `(community_id, player_id) WHERE status='pending'` dan `(player_id) WHERE status='approved'`; `player.merge_log` append-only (`source_id`, `target_id`, `rows_moved`, `actor_id`, `created_at`) | satu klaim menunggu per pemain; satu pemilik disetujui; pelepasan harus menutup klaim `approved` **dalam transaksi yang sama**, kalau tidak index parsial menolak klaim berikutnya; merge harus bisa ditelusuri |
 
 `rating.deltas` memakai `ON DELETE RESTRICT` di kedua sisi (butir 2), sehingga
@@ -354,10 +394,38 @@ kalau tidak, nilainya akan menjadi konstanta tersembunyi di kode:
 `security.join_request_rate`, `security.share_scrape_limit`,
 `ws.max_watchers_per_session`, `ws.max_watchers_per_ip`, `ws.max_watchers_process`,
 `ws.ticket_ttl_seconds`, `ws.session_ttl_minutes`, `session.absolute_days`,
-`session.idle_days`, `auth.flow_ttl_minutes`, `janitor.retention_days`.
+`session.idle_days`, `auth.flow_ttl_minutes`, `janitor.retention_days`,
+`audit.retention_days`.
 Semuanya di-scope `platform`; komunitas hanya boleh menurunkannya bila ada plafon.
 
----
+### 4B. Kontrak akses database (dipakai T-004, T-006, T-043)
+
+- **Placeholder selalu `$1..$n`.** Tidak ada rewriting `?` → `$n` sama sekali;
+  archlint menolak `?` di dalam string SQL. Ini menghapus satu parser dan seluruh
+  bug `jsonb ?` yang pernah muncul di v1.
+- Tipe parameter: `null | text | int64 | bool | uuid | timestamp` (timestamp
+  selalu UTC). `NULL` dikirim sebagai parameter NULL dan dibaca lewat
+  `pqgetisnull`; tidak pernah menjadi `""`.
+- Permukaan modul `shared/platform-lib/db`:
+  - `query(db, sql, params): seq[Row]`
+  - `queryOne(db, sql, params): Option[Row]`
+  - `execUpdate(db, sql, params): int` — jumlah baris; pemanggil wajib memeriksa
+    `== 1` untuk mutasi yang menargetkan satu baris.
+  - `tx(db, body: proc(tx: DbConn): T): T` (generik atas `T`) — `BEGIN`/`COMMIT`/`ROLLBACK`.
+- Error: `DbError` membawa `sqlState`, `constraint`, dan `message`; pemetaan
+  `23505` → 409 dilakukan di layer route, bukan di driver.
+- Pool: tepat `workerThreads` koneksi (T-004), checkout timeout dari config.
+- Tidak ada `discard` atas `execUpdate`/`query*`; dilanggar = build gagal (T-010).
+
+### 4C. Dev database (T-007)
+
+- DSN dari env `MAJADU_PG_DSN` (dev: `postgresql://$USER@127.0.0.1:5432/bm2_dev`).
+- Tiga role dibuat `ops/dev/pg-up.sh` dengan password dev dari `.env.local`
+  (gitignored): `bm2_owner` (DDL), `bm2_app` (DML), `bm2_etl` (baca staging,
+  tulis `bm2` hanya saat ETL).
+- `bm2_template` dibuat dengan menjalankan migrasi sebagai `bm2_owner`; worker
+  memakai `CREATE DATABASE bm2_<agent> TEMPLATE bm2_template`.
+- `bm2_app` dan `bm2_etl` **tidak** diberi `CONNECT` ke `bm` (O-41).
 
 ## 5. API
 
@@ -387,7 +455,7 @@ Semuanya di-scope `platform`; komunitas hanya boleh menurunkannya bila ada plafo
   Path di tabel ditulis tanpa prefix. Route komunitas memakai `/c/{slug}` di
   depannya; pengecualiannya `/s/{code}`, `POST /s/{code}/ws-ticket`, dan
   `/s/{code}/rankings`, yang sengaja tidak membawa slug. Daftar final dibekukan di
-  T-008a/T-008b; angka `72` adalah acceptance T-009.
+  T-008a/T-008b; angka `73` adalah acceptance T-009.
 - Konvensi: camelCase, RFC 9457 `problem+json` dengan `code` + `i18nKey`,
   pagination cursor, `Idempotency-Key` + hash body, `ETag`/`If-Match`
   (**412** bila basi, 428 bila tidak dikirim), batas ukuran body per route.
@@ -397,6 +465,21 @@ Semuanya di-scope `platform`; komunitas hanya boleh menurunkannya bila ada plafo
   nilai lain → 400. Binder SQL hanya mengikat **nilai**; identitas kolom dipilih
   lewat `case` atas enum, bukan string dari klien. `archcheck` menolak pemanggilan
   SQL yang argumennya bukan literal atau query builder bertipe.
+
+**`Ctx` eksplisit, tanpa threadvar** (dipakai T-003, T-009, T-092):
+
+```nim
+type Ctx* = object
+  requestId*: string
+  userId*: Option[UserId]
+  communityId*: Option[CommunityId]
+  role*: Role          # none|member|host|admin|platform_owner
+  clientIp*: string
+  now*: DateTime       # dari MAJADU_NOW; now() dilarang di modules/apps
+```
+
+Handler menerima `Ctx` + input hasil parse. Tidak ada state global/thread-local,
+sehingga handler aman dijalankan di thread Mummy mana pun.
 - **Semua route komunitas ber-prefix `/c/{slug}/…`.** Middleware me-resolve
   slug → `community_id` **sebelum** handler; slug tidak dikenal atau user bukan
   anggota → 404 (bukan 403, agar keberadaan komunitas tidak bocor). **Papan
@@ -418,9 +501,10 @@ Semuanya di-scope `platform`; komunitas hanya boleh menurunkannya bila ada plafo
   keduanya menjadi `api.yaml` (artefak generated, tidak diedit tangan) lalu
   menghasilkan kerangka route Nim + client TS. CI gagal bila hasil generate berbeda
   dari commit.
-- Tidak ada shim Go dan **tidak ada masa berdampingan** (ADR-022). Satu push
-  menggantikan v1; rollback berarti menyalakan kembali image v1 selama image itu
-  masih ada (`:prev`), dan itu hanya mungkin sebelum deploy berikutnya menggusurnya.
+- Tidak ada shim Go dan **tidak ada masa berdampingan** (ADR-022, ADR-031).
+  Cutover dijalankan **manual** lewat `ops/scripts/cutover.sh` (O-39); deploy dari
+  push tidak pernah memicunya. Rollback memakai `:v1-final` yang dipertahankan
+  30 hari (O-29), dan hanya `rollback.sh` yang menyalakan kembali v1.
 
 Detail per-route ada di `memos/04-api-contract.md`; ringkasan tabel final masuk
 `docs/handbook/features-and-routes.md` saat implementasi.
@@ -548,15 +632,20 @@ absen. Karena itu verifikasi dilakukan saat boot: coba `dlopen` + satu vektor uj
 tanda tangan; bila gagal, proses menolak start (bukan turun diam-diam ke mode
 klaim-saja). Image runtime wajib menyertakan `libcrypto` dan ini diuji di job image.
 
-**Jebakan yang sudah diuji di mesin ini (round-4 Nim review).** Pola `dynlib`
-bawaan (`lib/wrappers/openssl.nim:89`) di macOS memilih
-`/usr/lib/libcrypto.41.dylib` — itu **LibreSSL 4.1 milik Apple**, bukan OpenSSL.
-LibreSSL punya `EVP_DigestVerifyInit` dan `…Final` tetapi **tidak** punya
-`EVP_DigestVerifyUpdate` maupun `EVP_DigestVerify`, sehingga verifikasi pesan
-mustahil sementara `dlopen` + vektor tetap lolos. Karena itu:
+**Jebakan yang sudah diuji di mesin ini (round-6 Nim review).** Nama generik
+`libcrypto.dylib` **meng-abort proses saat load** (`SIGABRT`, "loading libcrypto
+in an unsafe way"), bahkan bila keg `openssl@3` ada di
+`DYLD_FALLBACK_LIBRARY_PATH`; tidak ada berkas `/usr/lib/libcrypto*.dylib` di
+macOS modern dan `/usr/bin/openssl` adalah LibreSSL 3.3.6. Konsekuensinya
+boot-check **tidak bisa** mendeteksi kesalahan nama library — proses sudah mati
+sebelum `main`. Karena itu:
 
-- soname ditulis eksplisit: `libcrypto.3.dylib` (macOS, keg `openssl@3`) dan
-  `libcrypto.so.3` (Debian bookworm), bukan `libcrypto.dylib` generik;
+- soname ditulis eksplisit sejak awal: `libcrypto.3.dylib` (macOS, keg
+  `openssl@3`) dan `libcrypto.so.3` (Debian bookworm), bukan `libcrypto.dylib`
+  generik;
+- `EVP_PKEY_assign_RSA` **adalah makro**, bukan simbol; binding memakai
+  `EVP_PKEY_assign(pkey, 6, rsa)` (NID RSA = 6), dan daftar simbol diverifikasi
+  dengan `nm -gU libcrypto.3.dylib` sebelum menulis `importc`;
 - boot-check menuntut `OpenSSL_version(0)` berawalan `"OpenSSL 3"` **dan**
   memanggil `EVP_DigestVerifyUpdate` pada vektor uji;
 - dev macOS menyetel `DYLD_FALLBACK_LIBRARY_PATH` ke keg `openssl@3`; tanpa itu
@@ -598,14 +687,25 @@ yang sama, sehingga tidak ada jendela "siapa cepat dia dapat" setelah akun pergi
 Merge hanya `admin`, menulis `account.audit` **dan** `player.merge_log` (pemain
 sumber, tujuan, jumlah baris riwayat yang pindah, aktor, waktu).
 
-**Pelepasan klaim (O-38, ADR-030).** Pemilik klaim boleh melepasnya sendiri
-(`DELETE …/claim`), `admin` boleh melepas klaim siapa pun dengan alasan. Satu
-transaksi: klaim `approved` → `released` (dengan `decided_by`, `decided_at`,
-`reason`), `player.user_id` → NULL, audit `player.claim.released`. **Tidak ada masa
-tunggu**: akun Google mana pun — termasuk email berbeda — boleh mengajukan klaim
-baru, tetapi tetap `pending` sampai `admin` menyetujui. Yang mencegah serah-terima
-riwayat secara diam-diam bukan waktu, melainkan (a) persetujuan admin, (b) riwayat
-klaim yang ditampilkan di antrean (`released` + aktor + waktu), dan (c) audit dua
+**Pelepasan klaim (O-38, ADR-030).** Pemilik klaim melepas klaimnya sendiri lewat
+`DELETE /c/{slug}/players/{id}/claim` (tanpa body; alasan tetap `self_released`).
+`admin` melepas klaim orang lain lewat aksi `release` pada
+`PATCH /c/{slug}/players/{id}/claims/{claimId}` dengan `reason` wajib. Keduanya:
+
+- mengambil `SELECT … FOR UPDATE` pada baris `player` **dan** klaim `approved`
+  lebih dulu, lalu menulis dengan `UPDATE … WHERE id=$claim AND status='approved'
+  AND user_id=$subject RETURNING …`; bila 0 baris → 409 (bukan 500);
+- mengubah klaim `approved` → `released` (`decided_by`, `decided_at`, `reason`),
+  `player.user_id` → NULL, dan menulis audit `player.claim.released`
+  (`target_kind='claim'`, `after={player_id,status,subject_user_id}`) dalam
+  transaksi yang sama.
+
+**`admin` tidak boleh memutuskan klaimnya sendiri** (`decided_by = claimant` →
+403); pada komunitas dengan satu admin, klaimnya harus diputuskan admin lain atau
+`platform_owner`. **Tidak ada masa tunggu**: akun Google mana pun — termasuk email
+berbeda — boleh mengajukan klaim baru, tetapi tetap `pending` sampai `admin`
+menyetujui. Yang mencegah serah-terima riwayat secara diam-diam bukan waktu,
+melainkan persetujuan admin, riwayat `released` di antrean, dan audit dua
 peristiwa. Riwayat rating tetap milik `player`, tidak ikut akun.
 
 Hanya **satu** akun `platform_owner` aktif (O-31); menambah akun kedua lewat CLI dengan
@@ -665,7 +765,8 @@ Round-4 red team menemukan bahwa jalur kebocoran utama bukan di app, melainkan d
 `/api/s/<code>` di log request-nya. Konsekuensinya:
 
 - **Header wajib pada setiap respons yang memuat kode** (`GET /s/{code}`, `GET
-  /s/{code}/rankings`, `POST /s/{code}/ws-ticket`, dan halaman FE-nya):
+  /s/{code}/rankings`, `POST /s/{code}/ws-ticket`, `POST`/`DELETE
+  /c/{slug}/sessions/{id}/share` yang mengembalikan kode, dan halaman FE-nya):
   `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag:
   noindex, nofollow`. `no-store` juga wajib untuk `/auth/me`, `/auth/sessions`,
   dan seluruh `/c/*` (respons berisi identitas dan peran; cache bersama tidak
@@ -703,16 +804,33 @@ Round-4 red team menemukan bahwa jalur kebocoran utama bukan di app, melainkan d
 ## 8. Build, CI/CD, operasional
 
 **Build:** satu sumber flag di `./task build`:
-`-d:release --opt:speed --threads:on --mm:atomicArc`. Nim 2.4.0 dipin di CI,
-Dockerfile (tarball + sha256), dan `.nimble`. `-static` ditolak (libpq dynlib).
+`-d:release --opt:speed --stackTrace:on --lineTrace:on --threads:on --mm:atomicArc`.
+Nim 2.4.0 dipin di CI, Dockerfile (tarball + sha256), dan `.nimble`. `-static`
+ditolak (libpq dynlib).
+
+**Kontrak proses runtime:**
+
+| Hal | Ketentuan |
+|---|---|
+| Port | env `MAJADU_PORT` (wajib; dev 8080). Tidak ada default di kode. |
+| `GET /healthz` | 200 `{"status":"ok"}` selama event loop hidup; tidak menyentuh DB. |
+| `GET /readyz` | 200 hanya bila DB terjangkau, migrasi terkini, dan `snapshot_sha256` cocok; selain itu 503 `problem+json`. |
+| `GET /version` | 200 `{"version","commit"}` dari `-d:AppVersion` + build info. |
+| Shutdown | SIGTERM/SIGINT → berhenti menerima, tidur `MAJADU_DRAIN_MS` (wajib; dev 5000), `server.close()`, exit 0; batas keras `MAJADU_SHUTDOWN_TIMEOUT_MS`. |
+| Log | satu baris JSON ke stdout: `ts, level, msg, request_id, route, method, status, dur_ms`; tanpa kode/email/IP. |
+
+Kedua nilai `MAJADU_*` adalah konfigurasi runtime proses (bukan angka bisnis),
+disuplai `EnvironmentFile`; `T-001` menerima keduanya lewat env dan menolak start
+bila `MAJADU_PORT` tidak ada.
 
 Dua aturan build yang wajib, karena kalau tidak, kerja paralel rusak:
 
 1. **`nimcache` per worktree, dua direktori.** Nim mengunci cache berdasarkan
-   *nama file proyek*, bukan path (`compiler/options.nim:1000-1018`), dan
-   menambahkan suffix `_check`/`_r` di belakang `--nimcache`
-   (`options.nim:1010-1016`). Akibatnya `nim check` dan `nim c` saling membatalkan
-   cache bila memakai satu direktori. `./task` menetapkan **dua** direktori:
+   *nama file proyek*, bukan path (`compiler/options.nim:1000-1018`), sehingga
+   beberapa worktree dengan nama proyek sama berbagi cache. `nim check` sendiri
+   menulis 0 berkas dan `--nimcache` eksplisit **tidak** menambah suffix, tetapi
+   `check` dan `build` yang bergantian pada satu direktori tetap memicu churn
+   artefak. `./task` karena itu menetapkan dua direktori:
    `--nimcache:$repoRoot/.cache/<worktree>/check` dan `…/build`.
 2. **`workerThreads` eksplisit = ukuran pool.** `ServerObj.serverThreads` privat
    (`mummy.nim:86`) tanpa accessor, default `countProcessors()*10`
@@ -759,8 +877,8 @@ berisi dua origin produksi/dev dan tidak ada client staging yang masih aktif.
 - retensi `:local` dan `:prev`, ditambah **satu** tag `:v1-final` yang dikecualikan
   dari rotasi selama **30 hari** (amandemen eksplisit kontrak retensi, ADR-026); sebelum
   tag dihapus, image di-`podman save` ke tarball yang diarsipkan di luar rotasi;
-- **deploy tidak pernah menjalankan cutover.** `cutover.request` yang tidak sengaja
-  tertinggal membuat deploy **berhenti** dengan pesan, bukan memulai cutover;
+- **deploy tidak pernah menjalankan cutover** dan tidak membaca berkas penanda apa
+  pun. Cutover hanya `ops/scripts/cutover.sh` (O-39);
 - **cutover manual (`ops/scripts/cutover.sh`, O-39)**: dijalankan sekali oleh
   operator lewat SSH, memakai `flock` yang sama dengan deploy. Guard: (a) menolak
   bila `cutover_state` sudah terisi ("already cut over"); (b) `:v1-final` dibuat
@@ -772,7 +890,9 @@ berisi dua origin produksi/dev dan tidak ada client staging yang masih aktif.
 - gate `/readyz` (bukan `/healthz`) + `smoke.sh`;
 - **tarik image**: `podman login ghcr.io` memakai token dari env (mode 600),
   `podman pull ghcr.io/hidaydev/badminton-match@sha256:…`, lalu tag `:local`;
-  registry tak terjangkau → rollback ke `:v1-final` tanpa menyentuh jaringan;
+  registry tak terjangkau → pakai `:prev` (v2 sebelumnya) tanpa menyentuh jaringan;
+  `:v1-final` **hanya** dipakai oleh `rollback.sh`, supaya v1 tidak pernah hidup lagi
+  dan menulis ke `bm` setelah cutover (O-41);
 - `rollback.sh` mengembalikan image, env, dan snippet Caddy sekaligus, dengan
   `caddy validate` sebelum reload.
 
@@ -932,7 +1052,7 @@ manual tanpa `./task release`; nomor versi di dua tempat; rilis tanpa catatan.
 | Property | poin, generator, validasi skor, standings | 10k kasus/menit |
 | Integrasi | DB nyata, satu binary per modul | gagal bila DB tak ada |
 | Kontrak | OpenAPI ↔ handler ↔ client | generate bersih |
-| Parity | golden JSON v1 vs v2 | **≥1 kasus per operasi** (71), < 90 s |
+| Parity | golden JSON v1 vs v2 | **≥1 kasus per operasi** (73), < 90 s |
 | E2E | alur host+guest, login, live | < 5 menit |
 | A11y/visual | halaman inti (daftar eksplisit) | 0 violation |
 
@@ -974,7 +1094,7 @@ ulang.
 
 **Kompatibilitas FE ↔ API** diuji, bukan hanya diprosedurkan: `apps/web` mencatat
 `apiVersion` minimum yang didukung, API menolak klien di bawahnya dengan
-`426 UPGRADE_REQUIRED` + `code: CLIENT_OUTDATED`, dan E2E menjalankan bundle
+`410 Gone` + `code: CLIENT_OUTDATED`, dan E2E menjalankan bundle
 terakhir terhadap API terakhir **dan** bundle sebelumnya terhadap API terakhir
 (dua arah rollback yang realistis). Daftar browser yang didukung ditulis di
 `e2e/browsers.ts` (Playwright project), bukan diasumsikan.
@@ -1004,15 +1124,18 @@ ada cutover otomatis dari push. ETL dijalankan **sekali**, saat v1 berhenti.
    menyentuh `bm` maupun `bm2` produksi.
 3. **Pemicu = perintah manual.** Tag rilis sudah terbit dan image digest sudah
    ada di GHCR. Operator menjalankan `ops/scripts/cutover.sh --version vX.Y.Z`
-   lewat SSH. `deploy-vps.sh` **menolak** berjalan bila menemukan
-   `cutover.request` (sisa berkas lama) dan tidak pernah menjalankan cutover.
-   Guard `cutover_state`: bila sudah terisi, script berhenti dengan "already cut
-   over" tanpa menyentuh layanan.
+   lewat SSH. `deploy-vps.sh` tidak pernah menjalankan cutover dan tidak membaca
+   berkas penanda apa pun.
+   Guard `cutover_state`: bila `completed_at` sudah terisi, script berhenti dengan
+   "already cut over" tanpa menyentuh layanan. Baris parsial **tidak** memblokir,
+   supaya `--from <step>` bisa melanjutkan.
 4. **Urutan cutover** (satu eksekusi, dengan `trap ERR` + berkas `cutover.step`):
-   a. `flock` yang sama dengan deploy, layanan v1 `systemctl --user stop` **dan
-      `disable`** (supaya reboot tidak menghidupkannya), lalu `:v1-final` dibuat
-      dari image v1 yang hidup **hanya bila belum ada**, dan digest-nya diperiksa.
-      Resume setelah v2 hidup tidak boleh menandai v2 sebagai `:v1-final`;
+   a. `flock` yang sama dengan deploy; `:v1-final` dibuat dari image v1 yang hidup
+      **hanya bila belum ada**, lalu digest-nya diperiksa. Baru setelah tag
+      terverifikasi, layanan v1 `systemctl --user stop` **dan `disable`** (supaya
+      reboot tidak menghidupkannya). Urutan ini wajib: bila pembuatan tag gagal
+      setelah v1 dimatikan, tidak ada jalur pulang. Resume setelah v2 hidup tidak
+      boleh menandai v2 sebagai `:v1-final`;
    b. Caddy masuk mode maintenance: semua metode non-GET ke `/api/*` dijawab
       `503` + `Retry-After`, halaman maintenance untuk GET;
    c. layanan v1 dipastikan mati (ticker ingest dan janitor tidak menulis apa pun);
@@ -1041,19 +1164,22 @@ ada cutover otomatis dari push. ETL dijalankan **sekali**, saat v1 berhenti.
    satu `admin`.
 8. Tautan `/s/{code}` lama **tidak dipertahankan**; kode baru diterbitkan per sesi.
 9. **Rollback** = `rollback.sh`: image `:v1-final`, env `bm`, snippet Caddy v1,
-   unit v1 di-`enable` kembali. `bm` utuh; data `bm2` setelah cutover dibuang; semua sesi v2 tidak berlaku
-   (pengguna login ulang); bundle FE v2 di cache browser harus di-reload paksa
+   unit v1 di-`enable` kembali. `bm` utuh; data `bm2` setelah cutover dibuang;
+   `cutover_state` dihapus (barisnya diarsipkan ke audit) sehingga cutover ulang
+   tidak diblokir guard; semua sesi v2 tidak berlaku (pengguna login ulang); bundle FE v2 di cache browser harus di-reload paksa
    karena `no-store` hanya berlaku untuk dokumen baru. Runbook menyatakan ini
    eksplisit, termasuk bahwa `410 CLIENT_OUTDATED` tidak ada di v1 sehingga tab
    lama akan gagal dengan error jaringan, bukan pesan yang ramah. `:v1-final`
    dipertahankan **30 hari**, lalu dihapus bersama T-082 setelah tarball image diarsipkan.
 10. Tab FE lama menerima `410 CLIENT_OUTDATED` dengan banner reload.
 11. **`bm` disimpan permanen sebagai arsip read-only** (O-41). Tidak ada DDL dan
-    tidak ada tulisan setelah v1 berhenti; `bm2_app` tidak pernah punya akses ke
-    `bm`. Hak akses aplikasi v1 dicabut, dan dump arsip tetap dibuat harian
-    bersama `bm2` (O-23) selama 30 hari pertama. Menyimpannya permanen menghindari
-    dua masalah: kehilangan bukti bila ada sengketa riwayat, dan kebutuhan
-    me-restore `bm` dari dump saat membandingkan hasil ETL di kemudian hari.
+    tidak ada tulisan setelah v1 berhenti. `ops/db/roles.sql` menjalankan
+    `REVOKE ALL ON DATABASE bm FROM bm2_app, bm2_etl` dan `REVOKE CONNECT` dari
+    `PUBLIC`, sehingga hanya role arsip/admin yang bisa membacanya; asersi
+    `has_database_privilege('bm2_app','bm','CONNECT') = false` masuk T-060.
+    Satu dump final `pg_dump -Fc bm` dibuat **di luar rotasi 7 hari** dan
+    disimpan bersama arsip; dump harian `bm` berhenti setelah 30 hari, sedangkan
+    `bm2` tetap harian (O-23).
 
 ---
 
@@ -1071,7 +1197,7 @@ ada cutover otomatis dari push. ETL dijalankan **sekali**, saat v1 berhenti.
 | T8 | Backup hilang bersama VPS | diterima (O-23): dump di disk yang sama; restore diuji | disk/VPS hilang |
 | T9 | Cutover satu arah tanpa masa berdampingan | `:v1-final` 30 hari + tarball arsip + `rollback.sh` + rehearsal | rollback gagal atau melewati 30 hari |
 | T10 | Kunci `SHARE_CODE_KEY` hilang | kunci disimpan di env VPS + salinan aman; `key_id` memungkinkan rotasi | dekripsi gagal saat menampilkan tautan |
-| T11 | Cutover terulang / `:v1-final` tertimpa saat resume | guard `cutover_state` + "buat hanya bila belum ada" (§8) | `cutover.request` muncul lagi setelah v2 hidup |
+| T11 | Cutover terulang / `:v1-final` tertimpa saat resume | guard `cutover_state.completed_at` + "buat hanya bila belum ada" (§8) | `cutover.sh` dijalankan lagi setelah v2 hidup |
 | T12 | Kegagalan ETL tidak terdeteksi | probe eksternal + `rows_imported` per tabel + `majadu-alert.service` | `/readyz` 200 tetapi jumlah baris ≠ staging |
 | T13 | Review owner menjadi bottleneck, bukan coding | WIP ≤ 3 agen aktif, ≤ 6 task berjalan, budget review 15 menit/task; task > 1 hari dipecah | antrean review > 5 task atau review < 15 menit/task |
 | T14 | ETL sekali jalan tidak teruji pada dump produksi | rehearsal dengan dump sintetis + `import_row_map` sebagai jalur re-run + buffer 1–2 hari | selisih rekonsiliasi ≠ 0 di rehearsal |
@@ -1104,7 +1230,7 @@ ada cutover otomatis dari push. ETL dijalankan **sekali**, saat v1 berhenti.
 | ADR-019 | FE dan API satu origin | **digantikan ADR-021** (O-22 berubah: FE tetap di Vercel) |
 | ADR-020 | SemVer dari Conventional Commits, versi tunggal di `VERSION`, tag annotated, GitHub Release dari tag | diterima (O-24) |
 | ADR-021 | FE tetap di `majadu.vercel.app`: HTTP lewat rewrite proxy same-origin + WebSocket auth tiket sekali pakai | diterima (O-22) |
-| ADR-022 | Cutover instan: ETL sekali saat v1 dibekukan, lalu satu push; tanpa masa berdampingan | diterima (O-10) |
+| ADR-022 | Cutover instan: ETL sekali saat v1 dibekukan; tanpa masa berdampingan | diterima (O-10), eksekusi diubah ADR-031 |
 | ADR-023 | Satu peran global (`platform_owner`) + tiga peran komunitas (`admin`/`host`/`member`); tidak ada `owner` per komunitas | diterima (O-26) |
 | ADR-024 | Image dibangun sekali di CI pada tag, dideploy berdasarkan digest; build lokal hanya untuk dev/rollback | diterima (O-28) |
 | ADR-025 | Kode share disimpan sebagai hash + salinan terenkripsi AES-256-GCM agar bisa ditampilkan ulang dengan audit | diterima (O-27) |
