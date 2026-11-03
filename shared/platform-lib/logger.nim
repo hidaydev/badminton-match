@@ -1,4 +1,4 @@
-import std/[json, re]
+import std/[json, re, times]
 import clock
 
 let
@@ -20,7 +20,7 @@ proc redact*(text: string): string =
 
 proc utcNowIso*(): string =
   ## Log timestamps are UTC; MAJADU_NOW is honoured through clock.utcNow.
-  $clock.utcNow()
+  clock.utcNow().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
 
 proc renderLog*(level, msg: string, fields: openArray[(string, string)]): string =
   ## One JSON object per line. Values are redacted before serialisation.
@@ -33,3 +33,15 @@ proc renderLog*(level, msg: string, fields: openArray[(string, string)]): string
     node[key] = %redact(value)
   $node
 
+
+proc emit(level, msg: string, fields: openArray[(string, string)]) =
+  stdout.writeLine renderLog(level, msg, fields)
+
+proc logInfo*(msg: string, fields: openArray[(string, string)] = []) =
+  emit("info", msg, fields)
+
+proc logWarn*(msg: string, fields: openArray[(string, string)] = []) =
+  emit("warn", msg, fields)
+
+proc logError*(msg: string, fields: openArray[(string, string)] = []) =
+  emit("error", msg, fields)
