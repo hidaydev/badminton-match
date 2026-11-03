@@ -32,6 +32,14 @@ suite "archcheck rules":
     check found.len == 1
     check found[0].contains("community_id")
 
+  test "SQL now() inside a literal is not a clock call":
+    check violationsFor("apps/api/src/app.nim",
+      "let q = \"update t set a = now() where id = $1\"\n").len == 0
+
+  test "infrastructure adapters may read the environment":
+    check violationsFor("modules/account/infrastructure/oidc.nim",
+      "let v = getEnv(\"OIDC_CLIENT_ID\")\n").len == 0
+
   test "SQL with community_id passes":
     check violationsFor("modules/session/x.nim",
       "let q = \"select id from session.sessions where community_id = $1\"\n").len == 0
