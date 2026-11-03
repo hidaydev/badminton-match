@@ -167,7 +167,7 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 |---|---|---|
 | Integritas task | parse tabel backlog | **84 task**, 0 duplikat, 0 dependency menggantung |
 | Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah pemisahan per file |
-| Traceability | 64 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
+| Traceability | 65 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
 | Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
 | Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
 | Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
@@ -238,7 +238,7 @@ Requirement menjadi **62** (AUTH-10, OPS-06, OPS-07) dan seluruhnya terpetakan.
 | Bahasa UI | Inggris saja, kunci i18n disiapkan | O-21, T-028 |
 | Observability | 8 metrik inti, tanpa alert | TECH-SPEC §8, T-062 |
 
-Angka: task **80 → 84**, requirement **59 → 64**, operasi **59 → 62** (lihat putaran 12).
+Angka: task **80 → 84**, requirement **59 → 65**, operasi **59 → 63** (lihat putaran 12).
 
 ---
 
@@ -278,13 +278,34 @@ Perubahan angka: operasi **59 → 60** (`POST …/ws-ticket`), requirement **62 
 | Produk | klaim pemain tanpa aturan | PLY-04: klaim bebas untuk yang belum diklaim, merge oleh admin |
 | Produk | RNK-01 mengklaim monoton | dihapus; window bergeser bisa menurunkan poin |
 | Konsistensi | `Owns` direktori bertabrakan, 5 task tanpa agen, sisa model lama | dipersempit, lane dilengkapi, teks diperbarui |
+| Desain | `platform_owner` tidak bisa menjadi anggota sehingga tidak bisa klaim profil dan ikut bermain | AUTH-12: boleh join sebagai `member` tanpa undangan (audit); kekuasaan global tetap independen |
 
-Angka: task **83 → 84** (T-108), requirement **63 → 64** (PLY-04), operasi
-**60 → 62** (tampil-ulang share, tiket penonton), ADR **22 → 26**, keputusan
-**O-1..O-29**.
+Angka: task **83 → 84** (T-108), requirement **63 → 65** (PLY-04, AUTH-12),
+operasi **60 → 63** (tampil-ulang share, tiket penonton, join), ADR **22 → 26**,
+keputusan **O-1..O-29**.
 
 Risiko yang **diterima** (bukan lupa): backup tetap di disk VPS; komunitas default
 read-only setelah cutover; ETL tidak membuat membership.
+
+---
+
+## Putaran 13 — review delta (keamanan & eksekusi)
+
+| Area | Temuan | Perbaikan |
+|---|---|---|
+| Peran | `platform_owner` tidak punya route join; T-020 melarang membership | `POST /c/{slug}/join` (operasi 63), AUTH-12, T-091 |
+| Anonimisasi | `sub` dihapus tetapi login harus ditolak; klaim pemain menggantung | simpan `sha256(sub)`, NULL-kan `player.user_id` |
+| Share | `key_id` tanpa keyring; format ciphertext tanpa nonce/tag/AAD | `SHARE_CODE_KEYS` + kunci aktif wajib, format `versi\|nonce\|ct\|tag`, AAD `community_id\|link_id` |
+| WS | pencabutan tidak menghapus tiket; `channel` tidak kanonik | kanal `session:<id>`/`share:<link_id>`, hapus tiket saat revoke |
+| IP | aplikasi selalu melihat loopback; CIDR Vercel tak bisa diandalkan | Caddy menulis `X-Client-IP`, aplikasi tidak membaca XFF |
+| Log | kode di path `/s/{code}` masuk access log | redaksi di Caddy + logger |
+| Klaim | tidak ada unique parsial per komunitas | `UNIQUE(community_id,user_id)` |
+| Cutover | `CUTOVER=1` tak bisa lewat webhook; tanpa `trap`; `:v1-final` tak pernah dibuat | penanda `cutover.request`, `trap` + `cutover.step` + resume, langkah pin eksplisit |
+| Cutover | sumber ETL tiga versi | sumber tunggal `bm_staging` |
+| Rilis | deploy bisa jalan sebelum image ada; pull tanpa auth | urutan tag → digest → `main`; `podman login` + token |
+| T-108 | `git filter-repo` rusak di mesin ini | acceptance mewajibkan perbaikan alat, `--force`, origin dipasang ulang, `--force-with-lease` |
+
+Angka akhir: task **84**, requirement **65**, operasi **63**, ADR **26**, O-1..O-29.
 
 ---
 

@@ -192,11 +192,16 @@ timezone campur. Semuanya hanya bisa dibetulkan dengan mengubah bentuk tabel.
    `expires_at`. Satu tautan hidup per sesi, read-only, bisa dicabut dan dirotasi.
    Tidak ada kolom `kind` karena tidak ada tautan tulis (O-9).
 5. Kode akses disimpan **dua bentuk** (ADR-025): `code_hash` (SHA-256) untuk
-   verifikasi, dan `code_enc` (AES-256-GCM, kunci dari env `SHARE_CODE_KEY`,
-   ditandai `key_id`) supaya `admin`/`host` bisa menampilkan ulang tautan yang
-   hilang. Menampilkan ulang lewat `GET /c/{slug}/sessions/{id}/share`, wajib
-   `host`+, menulis baris audit, dan dibatasi rate limit. Rotasi kunci = CLI yang
-   mendekripsi lalu mengenkripsi ulang; tidak ada plaintext di DB atau log.
+   verifikasi, dan `code_enc` untuk ditampilkan ulang. Format `code_enc` baku:
+   `versi(1) || nonce(12) || ciphertext || tag(16)`, AES-256-GCM dengan
+   **AAD = community_id || session_link_id** sehingga ciphertext tidak bisa
+   dipindah antar-baris. Kunci disimpan sebagai map di env `SHARE_CODE_KEYS`
+   (`{"1":"<base64-32B>","2":"…"}`) + `SHARE_CODE_ACTIVE_KEY_ID`; boot **gagal**
+   bila kunci aktif tidak ada. CLI rotasi mendekripsi dengan `key_id` lama lalu
+   mengenkripsi ulang dengan kunci aktif, idempoten dan bisa diulang.
+   Menampilkan ulang lewat `GET /c/{slug}/sessions/{id}/share`, wajib `host`+,
+   menulis audit (aktor, link, waktu), dan dibatasi rate limit. Tidak ada
+   plaintext di DB; parameter/path yang memuat kode diredaksi dari log.
    Satu kunci bertipe per query; tidak ada `share_code = $1 OR id::text = $1`.
 6. Seed poin memakai `ON CONFLICT DO NOTHING` (menggantikan `000023` yang menimpa
    tuning operator).
@@ -276,7 +281,7 @@ kecuali ada di allowlist L0 (`allowlist_constants.txt`) dengan alasan tertulis.
 
 ## 5. API
 
-- Permukaan v2: **62 operasi**. Hitungan per kelompok, bukan klaim:
+- Permukaan v2: **63 operasi**. Hitungan per kelompok, bukan klaim:
 
   | Kelompok | v1 | v2 | Perubahan |
   |---|---|---|---|
@@ -288,10 +293,13 @@ kecuali ada di allowlist L0 (`allowlist_constants.txt`) dengan alasan tertulis.
   | Tournaments | 6 | **6** | `-` `PATCH /tournaments/{id}`, `+` `PATCH .../matches/{id}` |
   | Rankings & ratings | 14 | **10** | 4 route admin digabung ke path resource |
   | **Subtotal** | **48** | **52** | |
-  | Komunitas & config | 0 | **10** | buat/daftar komunitas, buat/terima undangan, daftar anggota, ubah peran, keluarkan anggota, pengaturan, config, direktori |
-  | **Total** | 48 | **62** | |
+  | Komunitas & config | 0 | **11** | buat/daftar komunitas, gabung, buat/terima undangan, daftar anggota, ubah peran, keluarkan anggota, pengaturan, config, direktori |
+  | **Total** | 48 | **63** | |
 
-  Daftar final dibekukan di T-008a/T-008b; angka `62` adalah acceptance T-009.
+  Path di tabel ditulis tanpa prefix. Route komunitas memakai `/c/{slug}` di
+  depannya; pengecualiannya `/s/{code}` dan `POST /s/{code}/ws-ticket`, yang
+  sengaja tidak membawa slug. Daftar final dibekukan di T-008a/T-008b; angka `62`
+  adalah acceptance T-009.
 - Konvensi: camelCase, RFC 9457 `problem+json` dengan `code` + `i18nKey`,
   pagination cursor, `Idempotency-Key` + hash body, `ETag`/`If-Match`
   (**412** bila basi, 428 bila tidak dikirim), batas ukuran body per route.
@@ -338,14 +346,16 @@ dapat diandalkan membawa cookie (Safari memblokir cookie pihak ketiga), jadi:
    Penyimpanan: tabel `platform.ws_ticket` (`token_hash`, `channel`, `principal`,
    `community_id`, `expires_at`), dikonsumsi dengan satu `DELETE … RETURNING`
    sehingga balapan dua upgrade hanya menghasilkan satu pemenang. Tidak ada
-   tiket di memori proses.
+   tiket di memori proses. `channel` kanonik: `session:<uuid>` atau
+   `share:<link_id>` — bukan slug atau kode mentah.
 4. **Penonton tanpa login** memakai `POST /s/{code}/ws-ticket` (tanpa cookie,
    dibatasi per kode + per IP, hanya kanal `share`). Tiket tetap sekali pakai.
 5. Tiket hanya memberi akses **kanal itu**; tidak ada tiket yang bisa dipakai
    untuk menulis. Menulis tetap lewat HTTP dengan cookie.
-6. **Pencabutan menutup socket.** Logout, perubahan peran, penghapusan anggota,
-   dan rotasi tautan menulis event yang menutup koneksi terkait; tidak menunggu
-   TTL 60 menit.
+6. **Pencabutan menutup socket dan membuang tiket.** Logout, perubahan peran,
+   penghapusan anggota, dan rotasi tautan menulis event yang menutup koneksi
+   terkait **dan** menghapus baris `ws_ticket` untuk kanal itu; tiket yang terbit
+   sebelum pencabutan tidak bisa dipakai lagi. Tidak menunggu TTL 60 menit.
 7. Handshake memeriksa `Origin` terhadap `security.allowed_origins`; tiket di
    query string **tidak boleh** dicatat di access log (logger meredaksi parameter
    `ticket`).
@@ -378,8 +388,11 @@ client → server: {"type":"ping"} | {"type":"subscribe","lastSeq":N}
   berbeda dari host callback sehingga flow selalu gagal — dan pelonggaran
   pengecekan cookie akan menjadi login CSRF. Karena itu callback **harus** satu
   host dengan halaman login.
-- `return_to` hanya boleh path relatif di dalam aplikasi; URL absolut atau
-  `//host` ditolak 400. Ada test open-redirect di T-070.
+- `return_to` disimpan di `auth.oauth_flows` saat `start` dan divalidasi **dua kali**
+  (saat start dan saat callback): hanya path yang cocok
+  `^/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*$`, tanpa `..`, tanpa `//`, tanpa `\`, dan
+  tanpa encoding ganda (`%2F%2F`). Selain itu → 400. Test open-redirect di T-070
+  mencakup `//evil`, `/\evil`, `%2F%2Fevil`, dan `https://evil`.
 - `state`, `nonce`, `code_verifier` disimpan sebagai **hash** di `auth.oauth_flows`;
   cookie hanya `flow_id` (`__Host-bm_oauth`, 10 menit).
 - ID token: `iss`/`aud`/`azp`/`exp`/`nonce`/`email_verified`, `sub` = kunci akun.
@@ -392,12 +405,14 @@ client → server: {"type":"ping"} | {"type":"subscribe","lastSeq":N}
   `SameSite=Lax` dan `__Host-` sah tanpa `SameSite=None`. Origin yang diizinkan
   (`https://majadu.vercel.app`, `http://localhost:5173`) disimpan di config
   `security.allowed_origins`, bukan literal.
-- **Dua rantai proxy, satu aturan.** HTTP datang lewat Vercel → Caddy; WebSocket
-  langsung ke Caddy. Karena itu `security.trusted_proxy_cidrs` berisi CIDR Vercel
-  **dan** loopback, dan aturan penentuan IP klien adalah: ambil hop **paling kanan
-  yang bukan proxy tepercaya** dari `X-Forwarded-For`; kalau peer langsung bukan
-  proxy tepercaya, abaikan header sepenuhnya. `Host` tidak dipakai untuk keputusan
-  keamanan. Test: XFF palsu dari peer non-proxy → IP peer yang dipakai, bukan header.
+- **IP ditentukan di Caddy, bukan di aplikasi.** Aplikasi selalu melihat peer
+  loopback, jadi ia **tidak** mempercayai `X-Forwarded-For` sama sekali; ia membaca
+  satu header `X-Client-IP` yang **ditulis** Caddy. Caddy menghitungnya dari
+  `X-Forwarded-For` hanya bila peer ada di daftar `trusted_proxies` (rentang Vercel
+  yang dipublikasikan, diisi saat deploy), dan membuang header kiriman klien.
+  Listener WebSocket langsung juga lewat Caddy, jadi aturannya sama; tidak ada
+  listener yang mempercayai header dari luar. `Host` tidak dipakai untuk keputusan
+  keamanan. Test: XFF palsu dari peer non-proxy → `X-Client-IP` = IP peer.
 - **Tidak ada** access/refresh token Google yang disimpan, tidak ada token di JS.
 
 ### 7.2 Verifikasi ID token (ADR-009 diterima)
@@ -423,7 +438,7 @@ Model peran (ADR-023, O-26): **satu peran global + tiga peran komunitas**. Tidak
 
 | Kapabilitas | `member` | `host` | `admin` | `platform_owner` |
 |---|---|---|---|---|
-| Baca papan, klaim profil sendiri | ya | ya | ya | ya (bypass) |
+| Baca papan, klaim profil sendiri | ya | ya | ya | ya, **jika sudah bergabung** (default `member`) |
 | Lihat riwayat & badge sendiri | ya | ya | ya | ya |
 | Buat/ubah sesi & turnamen | — | ya | ya | ya |
 | Terbitkan/rotasi tautan, lock/approve | — | ya | ya | ya |
@@ -431,12 +446,20 @@ Model peran (ADR-023, O-26): **satu peran global + tiga peran komunitas**. Tidak
 | Kelola anggota, peran, undangan | — | — | ya | ya |
 | Pengaturan komunitas & override dalam plafon | — | — | ya | ya |
 | Buat/hapus komunitas, angkat admin, ubah L1 & plafon | — | — | — | ya |
-| Baca data lintas komunitas | — | — | — | ya (audit setiap akses) |
+| Aksi **manajemen** di komunitas yang belum diikuti (pengaturan, peran, hapus) | — | — | — | ya (audit setiap aksi) |
+| Baca data domain komunitas yang belum diikuti | — | — | — | tidak — 404; harus join dulu |
 
-`platform_owner` **tidak** terdaftar di `community.membership`. Bypass-nya diperiksa
-di middleware yang sama dengan RBAC, dan setiap tindakan lintas komunitas menulis
-baris audit dengan `actor_role = 'platform_owner'`. Akses pemain biasa lintas
-komunitas tetap 404.
+`platform_owner` **tidak otomatis** menjadi anggota komunitas mana pun, tetapi
+**boleh bergabung** sebagai anggota biasa (`member`) lewat `POST /c/{slug}/join`
+tanpa undangan; setiap join menulis audit. Ini perlu supaya platform owner bisa ikut
+bermain dan mengklaim profil.
+
+Bypass global hanya berlaku untuk **aksi manajemen** (pengaturan komunitas, peran,
+hapus, konfigurasi) dan setiap aksinya menulis audit dengan
+`actor_role = 'platform_owner'`. **Baca data domain** (pemain, sesi, poin,
+turnamen) tetap membutuhkan keanggotaan: tanpa join, hasilnya 404 seperti pengguna
+lain. Ini menghapus ambiguitas "boleh baca semua" yang bertabrakan dengan uji
+cross-tenant.
 
 ### 7.4 Remediasi P0/P1
 
@@ -517,9 +540,13 @@ Nightly: gitleaks penuh, osv-scanner, drift `--pull=always`, `ci-repeat 2`.
 - retensi `:local` dan `:prev`, ditambah **satu** tag `:v1-final` yang dikecualikan
   dari rotasi selama 14 hari (amandemen eksplisit kontrak retensi, ADR-026);
 - gate `/readyz` (bukan `/healthz`) + `smoke.sh`;
-- **mode cutover** (`CUTOVER=1`): bangun/reload Caddy untuk v2, tukar env
-  (`DATABASE_URL` ke `bm2`), jalankan ETL dari dump beku, set `cutover_state`,
-  baru start layanan;
+- **mode cutover** (§10): dipicu berkas `cutover.request`, melewati gate
+  `apps/api/`, dengan `trap ERR` + `cutover.step` dan opsi `--resume-cutover`;
+  membuat `:v1-final`, maintenance, stop v1, dump → `bm_staging`, ETL, tukar
+  env/Caddy, `cutover_state`, start;
+- **tarik image**: `podman login ghcr.io` memakai token dari env (mode 600),
+  `podman pull ghcr.io/hidaydev/badminton-match@sha256:…`, lalu tag `:local`;
+  registry tak terjangkau → rollback ke `:v1-final` tanpa menyentuh jaringan;
 - `rollback.sh` mengembalikan image, env, dan snippet Caddy sekaligus, dengan
   `caddy validate` sebelum reload.
 
@@ -528,6 +555,11 @@ mendorongnya ke `ghcr.io/hidaydev/badminton-match:vX.Y.Z`, dan mencatat digest d
 GitHub Release. Deploy menarik **digest itu** (bukan rebuild), lalu menandainya
 `:local`. Build lokal hanya untuk dev dan untuk rollback darurat. Ini menghapus
 kemungkinan dua image berbeda dengan versi yang sama.
+
+Ini **amandemen sadar** terhadap kontrak `podman build` lokal di `AGENTS.md` §3:
+unit tetap `Pull=never` karena image di-pull eksplisit oleh script (bukan oleh
+`AutoUpdate`), `podman login ghcr.io` memakai token dari env mode 600, dan bila
+registry tidak terjangkau rollback memakai `:v1-final` yang sudah ada di disk.
 
 **Observability:** `/healthz` (proses), `/readyz` (DB + versi skema), metrics di
 listener internal, log terstruktur tanpa PII, retensi 7 hari.
@@ -622,8 +654,11 @@ Isinya: verifikasi tanda tangan tag, verifikasi tag = isi `VERSION`, jalankan te
 bangun image, dorong ke GHCR, buat GitHub Release dengan catatan dari annotated tag
 (`gh release create`), dan lampirkan **digest image** (tidak ada binary terpisah).
 Tidak ada tag yang dibuat oleh workflow — tag selalu berasal dari `./task release`,
-sehingga riwayat rilis bisa direproduksi lokal. `./task release --push` mendorong
-commit dan tag secara atomik (`git push --atomic`).
+sehingga riwayat rilis bisa direproduksi lokal. **Urutan push tidak atomik, dan itu
+disengaja:** tag didorong lebih dulu, `./task release` menunggu Release + digest
+muncul (`gh release view`, timeout 10 menit), baru commit `main` didorong sehingga
+deploy menarik digest yang sudah ada. Kalau workflow gagal, `main` tidak didorong
+dan produksi tidak berubah.
 
 **Yang tidak boleh:** tag dari UI GitHub, `npm version`, atau mengubah `VERSION`
 manual tanpa `./task release`; nomor versi di dua tempat; rilis tanpa catatan.
@@ -656,39 +691,45 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 ## 10. Migrasi & cutover (ADR-022, O-10)
 
 Model: **cutover instan**. Satu push ke `main` = v2 live. Tidak ada masa
-berdampingan. Karena itu ETL dijalankan **sekali**, saat v1 dibekukan, bukan
-sebelumnya.
+berdampingan. ETL dijalankan **sekali**, saat v1 berhenti.
 
 1. R0–R3 berjalan lokal; v1 tetap di produksi tanpa perubahan.
-2. **Rehearsal** (boleh berkali-kali): dump `bm` → restore ke `bm2_rehearsal` →
-   migrasi, seed, bootstrap, ETL, rekonsiliasi, smoke. Tidak menyentuh `bm2`
-   produksi dan tidak menyentuh `bm`.
-3. **Cutover** (satu kali, dijalankan `deploy-vps.sh` mode `CUTOVER=1`):
-   a. hentikan penulisan v1 (mode maintenance Caddy) — v1 tetap hidup untuk baca;
-   b. `pg_dump` `bm` dan verifikasi dump bisa dibaca;
-   c. siapkan `bm2` + role (`bm2_owner` untuk DDL, `bm2_app` untuk aplikasi,
-      `bm_ro` untuk ETL), migrasi, seed L1, bootstrap `platform_owner`;
-   d. ETL dari dump tadi dalam satu transaksi, lalu rekonsiliasi;
-   e. `cutover_state.snapshot_sha256` diisi, `CUTOVER=1` menukar env dan Caddy ke
-      v2, layanan di-start;
-   f. `/readyz` hanya hijau bila versi skema cocok **dan** `snapshot_sha256` sama
-      dengan dump yang diimpor; smoke lulus; Caddy keluar dari mode maintenance.
-4. **Satu push** memicu langkah 3. Tidak ada jendela antara "ETL selesai" dan
-   "v2 live", karena keduanya ada di eksekusi yang sama.
-5. Poin **dihitung ulang** dari event, bukan disalin; snapshot v1 dipakai sebagai
-   fixture verifikasi.
-6. Seluruh data v1 dipetakan ke **satu komunitas default**; slug-nya ditentukan saat
-   impor dan dicatat di `platform.import_row_map`. **ETL tidak membuat membership.**
-   Setelah cutover komunitas default read-only sampai `platform_owner` mengangkat
-   satu `admin`. Ini disengaja: tidak ada peran yang diberikan otomatis dari data
-   lama.
-7. Tautan `/s/{code}` lama **tidak dipertahankan**: kode baru diterbitkan per sesi.
-   Komunikasi ke pengguna bagian dari runbook.
-8. **Rollback** = `rollback.sh`: image `:v1-final`, env `bm`, snippet Caddy v1.
-   `bm` utuh; data yang ditulis ke `bm2` setelah cutover dibuang. `:v1-final`
-   dipertahankan 14 hari, lalu dihapus bersama T-082.
-9. Klien FE yang masih membuka tab lama menerima `410 CLIENT_OUTDATED` pada route
-   yang dihapus, dengan banner "reload required"; tidak ada kegagalan senyap.
+2. **Rehearsal** (boleh berkali-kali): dump `bm` → restore ke `bm_staging` →
+   ETL ke `bm2_rehearsal` → migrasi, seed, bootstrap, verifikasi, smoke. Tidak
+   menyentuh `bm` maupun `bm2` produksi.
+3. **Penanda cutover.** Webhook hanya mengirim `repository.name` + `ref`, jadi
+   cutover tidak bisa lewat environment variable push. Operator membuat berkas
+   `/srv/qouver/apps/<app>/cutover.request` berisi tag rilis; `deploy-vps.sh`
+   mendeteksinya, **melewati** gate "hanya jika `apps/api/` berubah", dan
+   menghapus berkas itu setelah berhasil (idempoten bila diulang).
+4. **Urutan cutover** (satu eksekusi, dengan `trap ERR` + berkas `cutover.step`):
+   a. `:v1-final` dibuat dari `:local` **sebelum** rotasi apa pun, dan diperiksa ada;
+   b. Caddy masuk mode maintenance: semua metode non-GET ke `/api/*` dijawab
+      `503` + `Retry-After`, halaman maintenance untuk GET;
+   c. layanan v1 **dihentikan** (bukan hanya dibekukan) supaya ticker ingest dan
+      janitor tidak menulis apa pun;
+   d. `pg_dump` `bm` → `bm_staging` (restore), checksum dump dicatat;
+   e. `bm2` disiapkan: `bm2_owner` (DDL), `bm2_app` (aplikasi), migrasi, seed L1,
+      bootstrap `platform_owner` (`tools/ownerseed --sub`);
+   f. ETL **satu transaksi** dari `bm_staging`, lalu verifikasi terhadap staging;
+   g. `cutover_state` diisi (`snapshot_sha256`, `snapshot_taken_at`,
+      `etl_completed_at`, `rows_imported`), env ditukar ke `bm2`, snippet Caddy v2
+      diaktifkan (`caddy validate` lalu reload), layanan start;
+   h. `/readyz` hijau hanya bila skema cocok **dan** `snapshot_sha256` sama dengan
+      `CUTOVER_SNAPSHOT_SHA256` di env; smoke lulus; maintenance dilepas.
+5. Jika script mati di tengah: `cutover.step` menunjukkan langkah terakhir;
+   operator menjalankan `rollback.sh` (kembali ke `:v1-final`, env `bm`, Caddy v1)
+   atau `deploy-vps.sh --resume-cutover` dari langkah itu. Tidak ada keadaan
+   setengah jalan tanpa catatan.
+6. Poin **dihitung ulang** dari event, bukan disalin.
+7. Seluruh data v1 dipetakan ke **satu komunitas default**. **ETL tidak membuat
+   membership**; komunitas default read-only sampai `platform_owner` mengangkat
+   satu `admin`.
+8. Tautan `/s/{code}` lama **tidak dipertahankan**; kode baru diterbitkan per sesi.
+9. **Rollback** = `rollback.sh`: image `:v1-final`, env `bm`, snippet Caddy v1.
+   `bm` utuh; data `bm2` setelah cutover dibuang. `:v1-final` dipertahankan 14 hari,
+   lalu dihapus bersama T-082.
+10. Tab FE lama menerima `410 CLIENT_OUTDATED` dengan banner reload.
 
 ---
 

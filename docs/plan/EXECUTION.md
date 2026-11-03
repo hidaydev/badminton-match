@@ -92,7 +92,7 @@ Aturan tambahan untuk agen backend:
 - `./task dev-db` membuat `bm2_dev` dari nol < 20 s; clone worker < 1 s.
 - `dbtools verify` bersih pada `0001`–`0005`.
 - `./task build` menghasilkan binary yang berjalan dan merespons `/healthz`.
-- `./task contract-gen` menghasilkan 62 operasi dan `git diff --exit-code` bersih.
+- `./task contract-gen` menghasilkan 63 operasi dan `git diff --exit-code` bersih.
 - `./task mock-api` melayani FE.
 - Definisi CI lolos parse + skema (dan `actionlint` bila terpasang — belum ada di mesin ini);
   `./task ci` hijau lokal.
@@ -130,35 +130,32 @@ Aturan tambahan untuk agen backend:
   VPS atau disknya hilang, backup ikut hilang. Ini keputusan biaya yang dicatat,
   bukan kelalaian.
 
-### 6.3 Cutover instan (ETL sekali, saat v1 dibekukan)
+### 6.3 Cutover instan (ETL sekali, saat v1 berhenti)
 
-Rehearsal (boleh berkali-kali) memakai `bm2_rehearsal` dan tidak menyentuh `bm2`
-produksi. Cutover sebenarnya dijalankan oleh `deploy-vps.sh` mode `CUTOVER=1` pada
-push yang sama, dalam urutan ini:
+Rehearsal memakai `bm_staging` → `bm2_rehearsal` dan tidak menyentuh `bm` atau
+`bm2`. Cutover sebenarnya dipicu **berkas penanda**, karena webhook hanya mengirim
+repo + ref:
 
-1. **Maintenance**: Caddy menahan penulisan ke v1 (baca tetap jalan).
-2. **Dump** `bm` + verifikasi (`pg_restore --list`).
-3. **Siapkan `bm2`**: database, role `bm2_owner` (DDL), `bm2_app` (aplikasi),
-   `bm_ro` (baca `bm` untuk ETL), `bm2_etl` (tulis `bm2`), migrasi, seed L1,
-   bootstrap `platform_owner` (`tools/ownerseed --sub <google-sub>`).
-4. **ETL satu transaksi** dari dump tadi, lalu `verify` (selisih 0 terhadap dump).
-5. **Tukar**: env `DATABASE_URL` → `bm2`, snippet Caddy → v2, `cutover_state`
-   diisi, layanan start. `/readyz` hanya hijau bila skema cocok **dan**
-   `snapshot_sha256` sama dengan dump yang diimpor.
-6. **Smoke**: login, buka `/c/{slug}/rankings`, buat sesi, simpan skor, buka
-   `/s/{code}` baru. Keluar dari maintenance hanya setelah ini lulus.
-7. **Hapus akses tulis v1** setelah observasi awal; `bm` tetap utuh.
-
-Rollback: `ops/scripts/rollback.sh` mengembalikan image `:v1-final`, env `bm`, dan
-snippet Caddy v1 sekaligus (`caddy validate` dulu). `bm` tidak pernah ditulis, jadi
-data v1 aman; data `bm2` setelah cutover dibuang.
+1. `touch /srv/qouver/apps/<app>/cutover.request` (isi: tag rilis).
+2. Push `main` (atau jalankan `deploy-vps.sh --resume-cutover` bila sebelumnya
+   gagal). Script mendeteksi penanda, melewati gate `apps/api/`, dan menulis
+   `cutover.step` setiap langkah.
+3. Langkah: `:v1-final` → maintenance Caddy (non-GET 503) → stop v1 →
+   `pg_dump` → restore `bm_staging` → siapkan `bm2` + migrasi + seed +
+   `ownerseed --sub` → ETL satu transaksi → verifikasi → `cutover_state` →
+   env + Caddy v2 → start → `/readyz` (skema + `CUTOVER_SNAPSHOT_SHA256`) →
+   smoke → lepas maintenance → hapus `cutover.request`.
+4. Jika gagal di langkah mana pun: `rollback.sh` mengembalikan `:v1-final`, env
+   `bm`, Caddy v1, dan start v1. `cutover.step` menunjukkan titik gagal.
 
 Catatan:
 
-- Komunitas default **read-only** setelah cutover sampai `platform_owner`
-  mengangkat satu `admin`. ETL tidak membuat membership.
-- Tautan `/s/{code}` lama tidak dipertahankan; host menerbitkan kode baru.
-- Tab FE lama menerima `410 CLIENT_OUTDATED` dengan banner reload.
+- v1 **dihentikan**, bukan hanya dibekukan, supaya ticker ingest dan janitor tidak
+  menulis selama dump.
+- Komunitas default read-only sampai `platform_owner` mengangkat `admin`; ETL
+  tidak membuat membership.
+- Tautan `/s/{code}` lama tidak dipertahankan.
+- Tab FE lama menerima `410 CLIENT_OUTDATED` + banner reload.
 
 ### 6.4 Rilis (setelah R4)
 
@@ -173,7 +170,8 @@ Catatan:
   `user.signingkey ~/.ssh/id_ed25519.pub`; `allowed_signers` di-commit.
 - Image dibangun **sekali** oleh workflow pada tag, didorong ke GHCR, dan digest-nya
   masuk GitHub Release. Deploy menarik digest itu, bukan rebuild.
-- `--push` memakai `git push --atomic` supaya commit dan tag tidak terpisah.
+- Urutan `--push`: tag dulu → tunggu Release + digest → baru `main`. Ini tidak
+  atomik dengan sengaja; kalau workflow gagal, produksi tidak berubah.
 - Jangan `--push` sebelum gate R4 lulus dan backup terbaru diverifikasi.
 
 ### 6.5 Higiene pra-push (T-108)
@@ -181,13 +179,21 @@ Catatan:
 Repo publik, dan riwayat lokal memuat `docs/audits/` yang menjelaskan P0 v1.
 Sebelum push pertama:
 
-1. Pasang hook: `git config core.hooksPath .githooks` (T-108), lalu pindahkan
+1. Perbaiki alat dulu: `git filter-repo` di mesin ini rusak
+   (`bad interpreter` ke Python 3.14). Pasang ulang (`brew reinstall
+   git-filter-repo` atau `pipx install git-filter-repo`) dan pastikan
+   `git filter-repo --version` jalan.
+2. Pasang hook: `git config core.hooksPath .githooks` (T-108), lalu pindahkan
    audit ke `.local/audits/` (sudah di-gitignore).
-2. Tulis ulang riwayat agar path itu tidak pernah terbit:
-   `git filter-repo --invert-paths --path docs/audits`.
-3. Verifikasi: `git log --all --name-only | grep docs/audits` harus kosong.
-4. Periksa ulang: tidak ada IP asli, kredensial, atau dump di riwayat.
-5. Baru `./task release --push`.
+3. Tulis ulang riwayat agar path itu tidak pernah terbit:
+   `git filter-repo --invert-paths --path docs/audits --force`.
+   Langkah ini menghapus `origin`; tambahkan kembali setelah selesai.
+4. Verifikasi: `git log --all --name-only | grep docs/audits` harus kosong.
+5. Periksa ulang: tidak ada IP asli, kredensial, atau dump di riwayat.
+6. Push pertama butuh `--force-with-lease` (riwayat berubah). Periksa ruleset
+   GitHub dulu; kalau `non_fast_forward` aktif, longgarkan sementara untuk push
+   pertama, lalu aktifkan kembali.
+7. Baru `./task release --push`.
 
 ## 7. Jebakan yang sudah diketahui
 

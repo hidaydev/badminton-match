@@ -26,7 +26,7 @@ menjaga alur lapangan tetap cepat.
 | **Pemain** | `member` (opsional) | Melihat poin, riwayat, badge; mempercayai bahwa poin tidak bisa dipalsukan |
 | **Admin komunitas** | `admin` per komunitas | Mengelola anggota, peran, pengaturan komunitas, undangan; merge pemain, rebuild poin |
 | **Anggota multi-komunitas** | satu akun, banyak komunitas | Berpindah komunitas tanpa login ulang; poin tiap komunitas terpisah |
-| **Platform owner** | `platform_owner` (global, satu akun) | Membuat/menghapus komunitas, mengangkat admin, mengatur L1 dan plafon; boleh bertindak di komunitas mana pun (tercatat di audit), tanpa menjadi anggota |
+| **Platform owner** | `platform_owner` (global, satu akun) | Membuat/menghapus komunitas, mengangkat admin, mengatur L1 dan plafon. Boleh bergabung ke komunitas mana pun sebagai anggota biasa (default `member`) untuk ikut bermain dan mengklaim profil. Kekuasaan global berlaku untuk **aksi manajemen**; membaca data domain tetap butuh keanggotaan |
 | **Maintainer** | — | Mengubah satu aturan tanpa menyentuh tiga bahasa |
 
 ## 3. Rencana rilis
@@ -78,8 +78,9 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | AUTH-07 | M | CSRF: perubahan state hanya dari origin yang diizinkan | `Origin` di luar `security.allowed_origins` → 403; cookie first-party `SameSite=Lax` lewat proxy |
 | AUTH-08 | M | Rate limit per route + per IP, memakai proxy tepercaya | Melebihi batas → 429 dengan `Retry-After`; IP asli terbaca di belakang proxy |
 | AUTH-09 | M | `Idempotency-Key` disimpan bersama hash body | Reuse key dengan body berbeda → 409; key sama + body sama → hasil sama |
-| AUTH-10 | S | Akun bisa dinonaktifkan dan dianonimkan tanpa menghapus riwayat rating | Nama/email/identitas Google dihapus; baris rating tetap utuh; audit mencatat aktor; login berikutnya ditolak |
+| AUTH-10 | S | Akun bisa dinonaktifkan dan dianonimkan tanpa menghapus riwayat rating | Nama/email dihapus; `sub` disimpan sebagai hash agar login ditolak; klaim pemain dilepas sehingga bisa diklaim akun lain; baris rating utuh; audit mencatat aktor |
 | AUTH-11 | M | WebSocket diautentikasi tiket sekali pakai, bukan cookie | Tiket kedaluwarsa (60 s) atau dipakai dua kali → 401; tiket hanya membuka satu kanal dan tidak bisa menulis |
+| AUTH-12 | M | `platform_owner` boleh menjadi anggota biasa sebuah komunitas untuk bermain | Bergabung tanpa undangan (aksi eksplisit, tercatat audit) memberi peran `member`; klaim profil berhasil; kekuasaan global tetap berlaku tanpa keanggotaan |
 
 ### 4.2 Sesi & share link
 

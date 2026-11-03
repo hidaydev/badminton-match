@@ -156,7 +156,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-23 | Backup: `pg_dump` harian `bm` + `bm2`, retensi 7 hari, snapshot wajib sebelum impor, restore diuji |
 | O-24 | Versioning SemVer otomatis dari Conventional Commits; `VERSION` satu sumber; tag SSH-signed annotated + GitHub Release |
 | O-25 | Rilis publik pertama bernomor **2.0.0** (menandai generasi, bukan lanjutan v1); tidak ada fase 0.x |
-| O-26 | Peran: `platform_owner` global (dewa, satu akun) + `admin`/`host`/`member` per komunitas; tidak ada `owner` per komunitas |
+| O-26 | Peran: `platform_owner` global (dewa, satu akun) + `admin`/`host`/`member` per komunitas; tanpa `owner` per komunitas; platform owner **boleh bergabung** sebagai anggota biasa untuk bermain |
 | O-27 | Kode share disimpan terenkripsi agar `admin`/`host` bisa menampilkannya lagi, dengan audit setiap penampilan |
 | O-28 | Image dibangun sekali di CI pada tag dan dideploy berdasarkan digest; deploy tidak rebuild |
 | O-29 | Image `:v1-final` dipertahankan 14 hari di luar rotasi `:local`/`:prev` sebagai jalur rollback |
@@ -166,7 +166,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | Keputusan | Wujud konkret | Task |
 |---|---|---|
 | O-1 | Seluruh kode baru di `apps/api/`, `modules/`, `shared/` repo ini; tidak ada sentuhan ke `majadu` | T-001 |
-| O-2 | Kontrak v2 ditulis ulang (48 → 62 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
+| O-2 | Kontrak v2 ditulis ulang (48 → 63 operasi); FE ikut dirombak | T-008a/b, T-028–T-030, T-101 |
 | O-3 | OIDC Google; tidak ada magic link / token admin | T-021, T-084 |
 | O-4 | Tidak ada commit perbaikan di `apps/api/internal/`; P0 ditutup di Nim | T-021, T-023, T-025 |
 | O-5 | `./task dev-db` memakai cluster lokal; container hanya fallback | T-007 |
@@ -191,7 +191,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-23 | Skrip dump harian + latihan restore + snapshot pra-impor | T-060, T-063, T-064 |
 | O-24 | `./task release`, `VERSION`, CHANGELOG, tag SSH-signed, workflow Release | T-107 |
 | O-25 | `VERSION` dimulai dari `2.0.0`; bump pertama menghasilkan `2.0.x`/`2.x.0`/`3.0.0` | T-107 |
-| O-26 | Matriks kapabilitas, RBAC middleware, peran per keanggotaan | T-023, T-020, T-090 |
+| O-26 | Matriks kapabilitas, RBAC middleware, peran per keanggotaan, join platform owner | T-023, T-020, T-090, T-091 |
 | O-27 | `session.links.code_enc` + endpoint tampil-ulang + audit | T-024, T-006a |
 | O-28 | Build image di workflow rilis, deploy by digest | T-107, T-060 |
 | O-29 | Tag `:v1-final` + pengecualian rotasi di `deploy-vps.sh` | T-060, T-082 |
