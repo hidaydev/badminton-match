@@ -1,4 +1,5 @@
 switch("path", thisDir() & "/shared")
+switch("path", thisDir() & "/shared/platform-lib")
 switch("path", thisDir() & "/modules")
 switch("path", thisDir() & "/apps")
 switch("path", thisDir() & "/tools")
