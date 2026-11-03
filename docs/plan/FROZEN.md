@@ -58,16 +58,18 @@ dan menambah satu baris di `CHANGELOG-frozen.md` (tanggal, berkas, alasan).
 
 R0 belum selesai sampai semua baris ini benar:
 
-- [ ] `./task check` lulus, hangat ≤ 60 s, tanpa DB.
-- [ ] `./task dev-db` membuat `bm2_dev` + `bm2_template`; `dbtools verify` bersih.
-- [ ] `./task contract-gen` menghasilkan tepat **73** operasi dan CI gagal bila
-      hasil generate berbeda dari commit.
-- [ ] Walking skeleton lewat HTTP: login stub → pilih komunitas → buat sesi →
-      share → `GET /s/{code}` dan `GET /s/{code}/rankings`.
-- [ ] Graceful shutdown terbukti (`SIGTERM` menunggu `MAJADU_DRAIN_MS`).
-- [ ] `./task ci` hijau pada satu commit; tidak ada test yang di-skip karena DB
+- [x] `./task check` lulus, hangat ≤ 60 s, tanpa DB (14 s; 33 berkas archcheck).
+- [x] `./task dev-db` membuat `bm2_dev` + `bm2_template`; `dbtools verify` bersih.
+- [x] `./task contract-gen` menghasilkan tepat **73** operasi dan CI gagal bila
+      hasil generate berbeda dari commit (`--check`).
+- [x] Walking skeleton lewat HTTP: login stub → pilih komunitas → buat sesi →
+      share → `GET /s/{code}` dan `GET /s/{code}/rankings`
+      (satu perintah: `./task r0-demo`).
+- [x] Graceful shutdown terbukti (`SIGTERM` menunggu `MAJADU_DRAIN_MS`): 700 ms
+      in-flight selesai 200, proses keluar 0 setelah ~1,08 s.
+- [x] `./task ci` hijau pada satu commit; tidak ada test yang di-skip karena DB
       tidak ada.
-- [ ] Demo singkat + retro dicatat di `CHANGELOG-frozen.md`.
+- [x] Demo singkat + retro dicatat di `CHANGELOG-frozen.md`.
 
 Urutan build R0: **T-001 → T-018 → T-007**, lalu **T-003/T-004** paralel,
 kemudian T-002, T-005, T-006a–e, T-008a/b, T-009, T-010, T-011, T-085.
