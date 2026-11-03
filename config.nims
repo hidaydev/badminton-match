@@ -17,3 +17,15 @@ when defined(macosx):
       "/opt/homebrew/opt/postgresql@18/lib/postgresql")
     if dirExists(libpqDir):
       switch("passL", "-Wl,-rpath," & libpqDir)
+
+# OpenSSL 3 is a keg on macOS; same rpath reasoning as libpq above.
+when defined(macosx):
+  block:
+    let opensslDir = getEnv("MAJADU_OPENSSL_DIR",
+      "/opt/homebrew/opt/openssl@3/lib")
+    if dirExists(opensslDir):
+      switch("passL", "-Wl,-rpath," & opensslDir)
+# begin Nimble config (version 2)
+when withDir(thisDir(), system.fileExists("nimble.paths")):
+  include "nimble.paths"
+# end Nimble config
