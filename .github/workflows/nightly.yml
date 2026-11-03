@@ -1,0 +1,42 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full:
+    name: "Nightly: full suite"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: "2.4.0"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - name: "Database: provision"
+        env:
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
+        run: ./task dev-db
+      - name: "Nightly: full"
+        env:
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_dev
+        run: ./task ci
