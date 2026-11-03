@@ -1,10 +1,13 @@
 import std/[base64, json, options, os, strutils, sysrand, times, uri]
 import mummy
+import auth_middleware
+import community_context
 import db/db
 import sha256
 import uuidv7
 import share/crypto
 import account/domain/audit
+import account/domain/roles
 import account/infrastructure/audit_store
 import account/infrastructure/jwt_rs256
 import account/infrastructure/oidc
@@ -132,29 +135,24 @@ proc requireUser(request: Request): Option[AuthUser] =
   if result.isNone:
     problem(request, 401, "UNAUTHENTICATED", "login required")
 
-type CommunityCtx = object
-  id: string
-  slug: string
-  role: string
+proc actorOf(user: AuthUser, token: string): Actor =
+  Actor(userId: user.id, isPlatformOwner: user.isOwner, sessionToken: token)
 
-proc resolveCommunity(user: AuthUser, slug: string): Option[CommunityCtx] =
-  let row = application.db.queryOne(
-    """select c.id, c.slug, coalesce(m.role, '') as role
-       from platform.community c
-       left join community.membership m
-         on m.community_id = c.id and m.user_id = $2
-       where c.slug = $1""",
-    @[textParam(slug), textParam(user.id)])
-  if row.isNone:
-    return none(CommunityCtx)
-  let value = row.get
-  let role = value.get("role")
-  if role.len == 0 and not user.isOwner:
-    return none(CommunityCtx)
-  some(CommunityCtx(id: value.get("id"), slug: value.get("slug"), role: role))
+proc readAccess(): Access =
+  Access(isSession: true, roles: @[rMember])
 
-proc canWrite(ctx: CommunityCtx, user: AuthUser): bool =
-  user.isOwner or ctx.role in ["host", "admin"]
+proc writeAccess(): Access =
+  Access(isSession: true, roles: @[rHost, rAdmin])
+
+proc decide(user: AuthUser, token, slug: string,
+            access: Access): (Gate, Option[CommunityContext]) =
+  ## Membership is resolved before the gate so a foreign slug is a 404, not a
+  ## 403 that confirms the community exists.
+  let ctx = loadCommunity(application.db, user.id, slug)
+  (gate(access, some(actorOf(user, token)), ctx), ctx)
+
+proc respondGate(request: Request, decision: Gate) =
+  problem(request, statusFor(decision), codeFor(decision), codeFor(decision))
 
 proc authorizeUrl(config: OidcConfig, state, nonce, challenge: string): string =
   let separator = if '?' in config.authorizeUrl: "&" else: "?"
@@ -347,10 +345,7 @@ proc listCommunities(request: Request) =
       "name": row.get("name"), "role": row.get("role")})
   jsonResponse(request, 200, %*{"items": items})
 
-proc createSession(request: Request, ctx: CommunityCtx, user: AuthUser) =
-  if not canWrite(ctx, user):
-    problem(request, 403, "FORBIDDEN", "host or admin required")
-    return
+proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   let body = bodyJson(request)
   let title = if body.hasKey("title"): body["title"].getStr() else: ""
   let date = body["date"].getStr()
@@ -361,12 +356,12 @@ proc createSession(request: Request, ctx: CommunityCtx, user: AuthUser) =
        (community_id, title, session_date, start_time, slot_minutes, status, source)
        values ($1, $2, $3::date, $4::time, $5, 'draft', 'manual')
        returning id, title, session_date::text as session_date, status""",
-    @[textParam(ctx.id), textParam(title), textParam(date),
+    @[textParam(ctx.communityId), textParam(title), textParam(date),
       textParam(startTime), intParam(slot.int64)])
   if row.isNone:
     problem(request, 400, "INVALID_SESSION", "cannot create session")
     return
-  audit("session.create", ctx.id, user, "session", row.get.get("id"),
+  audit("session.create", ctx.communityId, user, "session", row.get.get("id"),
     %*{"title": row.get.get("title"), "date": row.get.get("session_date"),
         "status": row.get.get("status")})
   jsonResponse(request, 201, %*{
@@ -376,32 +371,29 @@ proc createSession(request: Request, ctx: CommunityCtx, user: AuthUser) =
     "status": row.get.get("status"),
   })
 
-proc listSessions(request: Request, ctx: CommunityCtx) =
+proc listSessions(request: Request, ctx: CommunityContext) =
   var items = newJArray()
   let limit = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
   for row in application.db.query(
     """select id, title, session_date::text as session_date, status
        from session.sessions where community_id = $1
        order by session_date desc, updated_at desc limit $2""",
-    @[textParam(ctx.id), intParam(limit.int64)]):
+    @[textParam(ctx.communityId), intParam(limit.int64)]):
     items.add(%*{"id": row.get("id"), "title": row.get("title"),
       "date": row.get("session_date"), "status": row.get("status")})
   jsonResponse(request, 200, %*{"items": items})
 
-proc createShare(request: Request, ctx: CommunityCtx, user: AuthUser,
+proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
                  sessionId: string) =
-  if not canWrite(ctx, user):
-    problem(request, 403, "FORBIDDEN", "host or admin required")
-    return
   let session = application.db.queryOne(
     "select id from session.sessions where id = $1 and community_id = $2",
-    @[textParam(sessionId), textParam(ctx.id)])
+    @[textParam(sessionId), textParam(ctx.communityId)])
   if session.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
   let linkId = uuidv7()
   let code = newShareCode()
-  let aad = ctx.id & "|" & linkId
+  let aad = ctx.communityId & "|" & linkId
   let (keyId, encrypted) = encryptWith(application.keyring, code, aad)
   discard application.db.execUpdate(
     """update session.links set revoked_at = now()
@@ -411,10 +403,10 @@ proc createShare(request: Request, ctx: CommunityCtx, user: AuthUser,
     """insert into session.links
        (id, community_id, session_id, code_hash, code_enc, key_id, created_by)
        values ($1, $2, $3, decode($4,'hex'), decode($5,'hex'), $6, $7)""",
-    @[textParam(linkId), textParam(ctx.id), textParam(sessionId),
+    @[textParam(linkId), textParam(ctx.communityId), textParam(sessionId),
       textParam(sha256Hex(code)), textParam(bytesHex(encrypted)),
       textParam(keyId), textParam(user.id)])
-  audit("share.issue", ctx.id, user, "session", sessionId,
+  audit("share.issue", ctx.communityId, user, "session", sessionId,
     %*{"sessionId": sessionId})
   jsonResponse(request, 201, %*{"code": code, "sessionId": sessionId})
 
@@ -528,9 +520,11 @@ proc route(request: Request) =
       if user.isNone:
         problem(request, 401, "UNAUTHENTICATED", "login required")
         return
-      let ctx = resolveCommunity(user.get, slug)
-      if ctx.isNone:
-        problem(request, 404, "NOT_FOUND", "community not found")
+      let token = cookieValue(request, "majadu_session")
+      let access = if verb == "GET": readAccess() else: writeAccess()
+      let (decision, ctx) = decide(user.get, token, slug, access)
+      if decision != gAllowed:
+        respondGate(request, decision)
         return
       if parts.len == 4 and verb == "GET":
         listSessions(request, ctx.get)
@@ -542,7 +536,7 @@ proc route(request: Request) =
         let row = application.db.queryOne(
           """select id, title, session_date::text as session_date, status
              from session.sessions where id = $1 and community_id = $2""",
-          @[textParam(parts[4]), textParam(ctx.get.id)])
+          @[textParam(parts[4]), textParam(ctx.get.communityId)])
         if row.isNone:
           problem(request, 404, "NOT_FOUND", "session not found")
           return
@@ -559,11 +553,12 @@ proc route(request: Request) =
       if user.isNone:
         problem(request, 401, "UNAUTHENTICATED", "login required")
         return
-      let ctx = resolveCommunity(user.get, parts[2])
-      if ctx.isNone:
-        problem(request, 404, "NOT_FOUND", "community not found")
+      let (decision, ctx) = decide(user.get,
+        cookieValue(request, "majadu_session"), parts[2], readAccess())
+      if decision != gAllowed:
+        respondGate(request, decision)
         return
-      rankings(request, ctx.get.id)
+      rankings(request, ctx.get.communityId)
       return
     # /s/{code} and /s/{code}/rankings
     if parts.len >= 3 and parts[1] == "s":
