@@ -12,7 +12,7 @@
 
 ---
 
-Majadu is a **mobile-first PWA** for running badminton sessions end-to-end. Configure courts and players, generate balanced doubles schedules with quality scoring, run live scoring with real-time sync, manage tournaments (classic & team), track **skill ratings (Glicko + 8-tier bands)** across seasons, and export branded social media content — all from one installable app.
+Majadu is a **mobile-first PWA** for running badminton sessions end-to-end. Configure courts and players, generate balanced doubles schedules with quality scoring, run live scoring with real-time sync, manage tournaments (classic & team), track **rank points on a rolling 12-week leaderboard (8-tier bands)**, and export branded social media content — all from one installable app.
 
 ---
 
@@ -34,17 +34,16 @@ Publish and share via URL. Full operations console:
 - 📊 Toggle played status & enter scores
 - 🔄 Swap players, teams, or game slots
 - 👤 Change individual players with cross-slot conflict detection
-- 🚫 Mark absences (game still counts — absent player doesn't get rating delta)
+- 🚫 Mark absences (game still counts — absent player earns no points)
 - 📈 Per-player stats (play count, sit count, partners, opponents)
 - 🔒 Lock session to prevent edits (server-enforced; auto-locks on save when all scores entered)
 - 💾 Auto-save with debounced cloud sync and version-mismatch retry
 
 ### Ratings & Leaderboard
 
-- **Glicko-1-lite** engine (server-authoritative, idempotent, auditable)
+- **Rank points** engine (server-authoritative, idempotent, auditable): rolling 12-week window, best 10 sessions
 - **8-tier bands** (D, D+, C, C+, B, B+, A, A+) — assigned tier never demotes below its letter
-- Season system: live standings, frozen archives, close & start new season
-- Player detail: rating sparkline, recent matches, and **career stats** (sessions, partners, opponents) in one place
+- Player detail: rank points, recent matches, and **career stats** (sessions, partners, opponents) in one place
 
 ### Tournament Manager
 
@@ -57,7 +56,7 @@ Publish and share via URL. Full operations console:
 ### Admin Area
 
 - Login once (password) — admin menus appear right on the home page
-- Unlock/delete sessions · ingest/revert/rebuild ratings · close & start season
+- Unlock/delete sessions · ingest/revert/rebuild ratings
 - Player management: add, rename, change tier, delete · delete tournaments
 
 ### Social Export
@@ -89,15 +88,15 @@ Publish and share via URL. Full operations console:
 | **Backend** | Go (`apps/api` — monorepo) | REST + Postgres, optimistic concurrency |
 | **PWA** | vite-plugin-pwa | Installable, offline-capable |
 | **DnD** | @dnd-kit/core | Accessible drag-and-drop |
-| **Testing** | node:test (regression) + Go tests | `npm run check` · `make check-api` (apps/api) |
+| **Testing** | node:test (regression) + Go tests | `pnpm run check` · `make check-api` (apps/api) |
 
 ---
 
 ## 🚀 Quick Start
 
 ```bash
-# 1. Install dependencies
-npm ci
+# 1. Install dependencies (from the monorepo root)
+pnpm install
 
 # 2. Configure environment (opsional — override API base URL)
 cp .env.local.example .env.local
@@ -108,7 +107,7 @@ cp .env.local.example .env.local
 # Jalankan apps/api dari root monorepo: make dev-api (butuh DATABASE_URL, schema bm).
 
 # 4. Start development
-npm run dev
+pnpm run dev
 ```
 
 The app runs at `http://localhost:5173` by default.
@@ -119,10 +118,10 @@ The app runs at `http://localhost:5173` by default.
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start dev server with Vite HMR |
-| `npm run build` | Type-check + production build |
-| `npm run check` | Full validation: types + lint + tailwind + regression tests |
-| `npm run check:regression` | Regression tests only (node:test) |
+| `pnpm run dev` | Start dev server with Vite HMR |
+| `pnpm run build` | Type-check + production build |
+| `pnpm run check` | Full validation: types + lint + tailwind + regression tests |
+| `pnpm run check:regression` | Regression tests only (node:test) |
 
 ---
 
@@ -135,21 +134,20 @@ src/
 ├── i18n/               # Skeleton i18n (typed en dict, t()/useT(), zero deps)
 ├── generator/          # 5-phase schedule engine (pure TypeScript, zero store deps)
 ├── utils/              # Pure utilities: time, quality, standings, swap, canvas, stats
-├── domain/ports/       # Repository interfaces (prepared for dependency injection)
 ├── queries/            # React Query hooks + REST client (majadu-api)
 │   ├── endpoints.ts    # Raw REST fetch functions (retry method-aware)
 │   ├── retry.ts        # Retry policy murni (testable)
 │   ├── sessions.ts     # Session mutation/query hooks
-│   ├── ratings.ts      # Rating/season hooks
+│   ├── ratings.ts      # Rank points / rating hooks
 │   ├── useOptimisticMutation.ts  # Factory hook for optimistic updates
 │   └── types.ts        # CloudSnapshot, SessionMeta, PlayerSummary types
-├── store/              # Zustand 5 slices (session, players, schedule, game, ui)
+├── store/              # Zustand 5 slices (session, players, fixMatches, schedule, ui)
 ├── hooks/              # Custom hooks (useDebouncedPublish, etc.)
 ├── components/         # UI components
 │   ├── summary/        #   SummaryModal sub-components
 │   ├── tournament/     #   Tournament tab components
 │   ├── generate/       #   Schedule view components
-│   ├── ratings/        #   RatingTierBadge, RatingSparkline, CareerStats
+│   ├── ratings/        #   RatingTierBadge, CareerStats, achievements
 │   └── admin/          #   AdminMenuGrid (home)
 ├── pages/              # Route pages
 └── index.css           # Tailwind v4 @theme tokens + global styles
@@ -158,9 +156,9 @@ scripts/                # Build & dev tooling (canvas export, tailwind check, re
 ../docs/                # Handbook + design system + spec archive (monorepo-level)
 ```
 
-Migrasi SQL `000001`–`000011` disimpan di VPS (repo public tanpa SQL):
-`/srv/qouver/apps/majadu/migrations/`. Migrasi terbaru (`000012`+ catatan,
-`000013`/`000014` SQL) di [`docs/backend/`](../../docs/backend/).
+Migrasi SQL `000001`–`000012` disimpan di VPS (repo public tanpa SQL):
+`/srv/qouver/apps/majadu/migrations/`. Migrasi `000013`–`000023` di
+[`docs/backend/`](../../docs/backend/).
 
 ---
 
@@ -178,7 +176,8 @@ Migrasi SQL `000001`–`000011` disimpan di VPS (repo public tanpa SQL):
    Route guards            Injected config         Version concurrency
 ```
 
-Backend: `apps/api` (Go, `net/http` + pgx). Kontrak di `apps/api/api/openapi.yaml`.
+Backend: `apps/api` (Go, `net/http` + pgx). Spec `apps/api/api/openapi.yaml` bersifat
+parsial (16 dari 48 route); daftar lengkap ada di `apps/api/cmd/server/main.go`.
 
 **Dependency rules:**
 
@@ -225,14 +224,14 @@ Full reference: [docs/design-system.md](../../docs/design-system.md)
 |----------|--------|----------|
 | `GET /sessions` · `GET /sessions/{id}` | anon | Read-only list / snapshot |
 | `PUT /sessions/{id}` | anon | Rejects writes when status ≠ 'draft' (lock) |
-| `DELETE /sessions/{id}` | anon | Draft sessions only |
-| `POST /sessions/{id}/lock` | anon | Host flow (server-enforced) |
+| `DELETE /sessions/{id}` | **admin** | Draft sessions only |
+| `POST /sessions/{id}/lock` | **admin** | Lock a session (server-enforced) |
 | `POST /sessions/{id}/unlock` · `/delete` | **admin** | AdminGuard (Bearer `MAJADU_ADMIN_TOKEN`) |
 | `POST /tournaments/{id}/delete` | **admin** | Delete + rating cleanup + rebuild |
 | `POST /players` | anon | Register (TOCTOU-safe; optional 8-tier) |
 | `PATCH /players/{id}/tier` · `/name` · `DELETE /players/{id}` | **admin** | Tier change (+rebuild) · rename · delete |
-| `POST /ratings/*` (ingest/revert/finalize/rebuild/season) | **admin** | Bearer token |
-| `GET /ratings/*` | anon | Public read (leaderboard, player, sources, seasons) |
+| `POST /ratings/*` (ingest/revert/finalize/rebuild/replay/backfill) | **admin** | Bearer token |
+| `GET /rankings` · `GET /ratings/*` | anon | Public read (rank points board, player, achievements, sources) |
 
 Concurrency: advisory locks (`pg_try_advisory_xact_lock` / `pg_advisory_xact_lock`) +
 `SELECT ... FOR UPDATE NOWAIT` + optimistic `If-Match`/ETag. Auth (JWT) is deferred —
@@ -270,7 +269,7 @@ Majadu is installable as a Progressive Web App:
 
 ```bash
 # Type checking + linting + tailwind validation + regression tests
-npm run check
+pnpm run check
 
 # Backend checks live in apps/api — from repo root: make check-api
 # (go vet + fmt + unit test). Env-guarded integration tests butuh SSH tunnel

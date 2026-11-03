@@ -12,10 +12,12 @@ Defined in:
   - home page (menu APP + section ADMIN saat login admin)
 - `/sessions`
   - published session list
-- `/ratings`
-  - rating leaderboard (8-tier) — pemain history digabung di detail (Career)
-- `/ratings/:playerId`
-  - detail rating + career stats (bekas Player History)
+- `/rankings`
+  - leaderboard poin 12 minggu (8-tier) — pemain history digabung di detail (Career)
+- `/rankings/:playerId`
+  - detail poin + career stats (bekas Player History)
+- `/ratings` · `/ratings/:playerId`
+  - alamat lama, hanya redirect ke `/rankings` / `/rankings/:playerId` (`App.tsx:112-114`)
 - `/tournaments`
   - tournament list (classic + team)
 - `/tournaments/new` · `/tournaments/new/:format`
@@ -23,7 +25,15 @@ Defined in:
 - `/tournaments/:id`
   - detail tournament (branch format)
 - `/admin`
-  - halaman operasi admin (bisa di-autofocus via `/admin?section=X`)
+  - redirect ke `/admin/sessions`
+- `/admin/sessions`
+  - unlock & delete sesi
+- `/admin/players`
+  - tambah/rename/tier/merge/hapus pemain
+- `/admin/ratings`
+  - ingest, revert, rebuild rating (papan poin)
+- `/admin/tournaments`
+  - hapus turnamen
 - `/instagram-post`
   - session and tournament media export
 
@@ -33,6 +43,10 @@ Defined in:
   - fullscreen/mobile-friendly scoring screen
 - `/dev/achievement-badges`
   - preview semua badge achievement (dev)
+- `/dev/match-result-preview`
+  - preview kartu hasil pertandingan (dev)
+- `/dev/session-preview`
+  - preview halaman sesi (dev)
 
 ### Guided session flow
 
@@ -166,7 +180,7 @@ Restricted to published sessions only (not available during schedule generation)
 - **Back-to-back warning** — the confirm bar shows a warning when the replacement
   player would play back-to-back games
 
-## Player history flow (diserap ke Ratings — 2026-08-19)
+## Player history flow (diserap ke Rankings — 2026-08-19)
 
 Files:
 
@@ -177,7 +191,7 @@ Capabilities:
 
 - recent matches show "with teammate · vs opponent" format (BE fetches teammates/opponents via correlated subqueries on rating_deltas; `COALESCE(array_agg, '{}')` sehingga selalu array, tidak `null` saat partner absent/skipped — fix 2026-09-07)
 - career stats (W/L, points, sessions, top partners/opponents, tournament)
-  dirender di `/ratings/:playerId` — satu halaman, tanpa cross-link nested.
+  dirender di `/rankings/:playerId` — satu halaman, tanpa cross-link nested.
 - Route `/player-history*` dan halaman terpisah DIHAPUS (keputusan 2026-08-19).
 
 ## Achievements
@@ -189,9 +203,9 @@ Files:
 - `src/components/ratings/AchievementDetailModal.tsx`
 - `src/pages/AchievementBadgesPreviewPage.tsx` (route dev `/dev/achievement-badges`)
 
-Badge koleksi per pemain, dihitung backend dari riwayat rating & tournament
+Badge koleksi per pemain, dihitung backend dari riwayat pertandingan & tournament
 (`apps/api/internal/domain/achievements.go`, tabel `player_achievements` — migrasi `000016`).
-Ditampilkan di halaman detail rating `/ratings/:playerId`.
+Ditampilkan di halaman detail ranking `/rankings/:playerId`.
 
 ## Tournament flow
 
@@ -244,3 +258,60 @@ Capabilities:
 - render standings and tournament outputs to canvas
 - export share-ready assets
 - team tournament standings post (dark gradient frame)
+
+## API endpoints (backend `apps/api`)
+
+Sumber: `apps/api/cmd/server/main.go:184-259` — 48 rute terdaftar. Ini **API**, bukan
+halaman web: papan peringkat dibaca dari `GET /rankings`, sedangkan halaman web-nya
+`/rankings` (`src/App.tsx:110-111`). Di prod semua path ber-prefix base path `/majadu`.
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/healthz` | publik |
+| GET | `/readyz` | publik |
+| GET | `/version` | publik |
+| GET | `/admin/verify` | admin |
+| GET | `/metrics` | publik |
+| GET | `/sessions` | publik |
+| POST | `/sessions` | publik |
+| GET | `/sessions/{id}` | publik |
+| GET | `/sessions/{id}/watch` | publik (SSE) |
+| PUT | `/sessions/{id}` | publik |
+| PATCH | `/sessions/{id}` | publik |
+| DELETE | `/sessions/{id}` | admin |
+| POST | `/sessions/{id}/lock` | admin |
+| GET | `/sessions/{id}/games/{gameKey}` | publik |
+| PATCH | `/sessions/{id}/games/{gameKey}` | publik |
+| PATCH | `/sessions/{id}/games/{gameKey}/skip` | publik |
+| PATCH | `/sessions/{id}/absent` | publik |
+| POST | `/sessions/{id}/swap` | publik |
+| GET | `/sessions/{id}/events` | publik |
+| POST | `/sessions/{id}/unlock` | admin |
+| POST | `/sessions/{id}/delete` | admin |
+| GET | `/players` | publik |
+| POST | `/players` | publik |
+| GET | `/players/{name}/stats` | publik |
+| PATCH | `/players/{playerId}/tier` | admin |
+| PATCH | `/players/{playerId}/name` | admin |
+| DELETE | `/players/{playerId}` | admin |
+| POST | `/players/merge` | admin |
+| GET | `/tournaments` | publik |
+| POST | `/tournaments` | publik |
+| GET | `/tournaments/{id}` | publik |
+| PUT | `/tournaments/{id}` | publik |
+| PATCH | `/tournaments/{id}` | publik |
+| POST | `/tournaments/{id}/delete` | admin |
+| GET | `/rankings` | publik |
+| GET | `/rankings/players/{playerId}` | publik |
+| GET | `/ratings/players/{playerId}` | publik |
+| GET | `/ratings/players/{playerId}/achievements` | publik |
+| GET | `/ratings/sources` | publik |
+| POST | `/ratings/ingest-session` | admin |
+| POST | `/ratings/ingest-tournament` | admin |
+| POST | `/ratings/revert-session` | admin |
+| POST | `/ratings/revert-tournament` | admin |
+| POST | `/ratings/sources/{sourceId}/finalize` | admin |
+| POST | `/ratings/rebuild-all` | admin |
+| POST | `/ratings/replay-all` | admin |
+| POST | `/ratings/replay-source` | admin |
+| POST | `/ratings/achievements/backfill` | admin |

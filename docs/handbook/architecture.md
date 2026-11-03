@@ -40,7 +40,7 @@ Pure time/scheduling functions are in:
 
 - `src/utils/time.ts`
 
-This module defines `timeToMinutes`, `minutesToTime`, `computeTimeSlots`, `courtsAtTime`, `timeToSlotIndex`, `derivedFromCourtTimes`. Imports only from `types/`.
+This module defines `todayWIB`, `timeToMinutes`, `minutesToTime`, `computeTimeSlots`, `courtsAtTime`, `timeToSlotIndex`, `computeSlotAllocation`, `formatMergedCourtTimes`. Imports only from `types/`.
 
 ### Local app state: Zustand
 
@@ -48,7 +48,7 @@ Primary local state is in:
 
 - `src/store/index.ts`
 
-This store imports types from `types/` and time utilities from `utils/time/`. It owns:
+This store imports types from `types/` and time utilities from `utils/time.ts`. It owns:
 
 - session config
 - players
@@ -94,7 +94,8 @@ Remote read/write access is wrapped in:
 | `useSetAbsent` | Mark/unmark players as absent |
 | `useReplacePlayer` | Replace player name in session |
 | `useDeleteSession` | Delete session (admin) |
-| `useLockSession` | Lock session (prevent edits) |
+| `useSessionRealtime` | Subscribe to session SSE (`/sessions/{id}/watch`) |
+| `useSetGameSkipped` | Skip a player in one game |
 | `useChangePlayer` | Change one player in a specific game |
 | `useFetchSession` | Fetch session for imperative use |
 
@@ -115,7 +116,7 @@ Main file:
 
 - `src/generator/index.ts`
 
-This is the core scheduling engine. It imports domain types from `types/` and `timeToSlotIndex` from `utils/time/` — it has no dependency on the store.
+This is the core scheduling engine. It imports domain types from `types/` and `timeToSlotIndex` from `utils/time.ts` — it has no dependency on the store.
 
 It tracks:
 
@@ -149,7 +150,7 @@ This file owns:
 
 Utility files:
 
-- `src/utils/time.ts` — time/slot computation (`timeToMinutes`, `minutesToTime`, `computeTimeSlots`, `courtsAtTime`, `timeToSlotIndex`, `derivedFromCourtTimes`)
+- `src/utils/time.ts` — time/slot computation (`todayWIB`, `timeToMinutes`, `minutesToTime`, `computeTimeSlots`, `courtsAtTime`, `timeToSlotIndex`, `computeSlotAllocation`, `formatMergedCourtTimes`)
 - `src/utils/counter.ts` — shared symmetric co-occurrence counter (`bumpCoOccurrence`)
 - `src/utils/array.ts` — shared array utilities (`shuffle`)
 - `src/utils/quality.ts` — schedule quality analysis (`computeQuality`, `qualityScore`, `isGoodQuality`)
@@ -179,8 +180,8 @@ These support:
 
 Used for:
 
-- landing/home (6 cards: Sessions, Ratings, Scoreboard, Tournament, IG Post, Admin)
-- admin section (5 cards: Sessions, Players, Ratings, Tournaments, Seasons)
+- landing/home (5 cards: Sessions, Rankings, Scoreboard, Tournament, Instagram Post)
+- admin section (4 cards: Unlock Session, Players, Ratings, Tournament — `/admin` me-redirect ke `/admin/sessions`)
 - tournament
 
 ### Session shell
@@ -222,9 +223,16 @@ Backend **Go (`majadu-api`)** menghubungkan frontend ke Postgres VPS langsung
 
 - write-path session/tournament: transaksi + advisory lock + version concurrency
 - read-path: rebuild snapshot langsung di Go
-- schema `bm` (prod, satu-satunya — `bm_dev`/instance dev di-sunset 2026-09-04); migrasi `000001`–`000012` disimpan di VPS (tidak dipublikasikan), `000013`–`000016` di [`docs/backend/`](../backend/)
+- schema `bm` (prod, satu-satunya — `bm_dev`/instance dev di-sunset 2026-09-04); migrasi `000001`–`000012` disimpan di VPS (tidak dipublikasikan), `000013`–`000023` di [`docs/backend/`](../backend/)
 - semua logika validasi/lock/resolve ada di Go — sisa fungsi SQL hanya
   `normalize_player_name` (CHECK constraint) + utilitas
+
+Utang lapisan yang nyata: aturan poin papan (window 12 minggu, best-N, pengali
+kekuatan lawan, rasio fase turnamen) hidup di paket SQL
+`apps/api/internal/store/rank_points.go` (`gameValue`, `opponentMultiplier`,
+`tierStrength`, `tournResultKey`, `boardRowsFromEntries`) — bukan di `domain`.
+`domain` sendiri murni stdlib dan hanya menyimpan konfigurasinya
+(`domain/rating_config.go`).
 
 Ini menjaga kontrak snapshot tetap stabil sambil memindahkan logika backend ke
 satu bahasa (Go) yang teruji.
@@ -263,11 +271,10 @@ src/
 ├── config/             # Named constants — generator weights, canvas dims, tier config, tokens
 ├── generator/          # Pure scheduling engine — zero imports from store/ or queries/
 ├── utils/              # Pure utilities — time, quality, standings, swap, canvas, stats
-├── domain/ports/       # Repository interfaces (prepared for DI)
 ├── queries/            # React Query hooks + REST client (majadu-api)
 │   ├── endpoints.ts    # Raw REST fetch functions (retry method-aware)
 │   ├── retry.ts        # Retry policy murni (testable)
-│   ├── sessions.ts     # Session query hooks (14 hooks)
+│   ├── sessions.ts     # Session query hooks (15 hooks)
 │   ├── players.ts      # Player query hooks
 │   ├── tournament.ts   # Tournament query hooks
 │   ├── types.ts        # CloudSnapshot, SessionMeta, PlayerSummary types
@@ -291,7 +298,7 @@ src/
 | `config/` | `types/` | `store/`, `queries/`, `pages/` |
 | `generator/` | `types/`, `config/`, `utils/time` | `store/`, `queries/`, `pages/` |
 | `utils/` | `types/`, `config/` | `store/`, `queries/`, `pages/` |
-| `queries/` | `types/`, `config/`, `utils/`, `domain/ports` | `store/`, `pages/` |
+| `queries/` | `types/`, `config/`, `utils/` | `store/`, `pages/` |
 | `store/` | `types/`, `config/`, `utils/` | `queries/`, `pages/` |
 | `components/` | everything except `pages/` | `pages/` |
 | `pages/` | everything | — |

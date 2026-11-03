@@ -8,7 +8,7 @@ SQL migrasi untuk schema PostgreSQL `bm`.
 | `000014_skip_per_game.sql` | Skip per-game (`scheduled_games.skipped_player_refs`) |
 | `000015_performance_indexes.sql` | 5 composite/partial index performa |
 | `000016_player_achievements.sql` | `player_achievements` |
-| `000017_rating_seed.sql` | Benih rating musim: `rating_players.seed_rating/seed_rd/seed_set_at` (disegel `CloseAndStartSeason`) |
+| `000017_rating_seed.sql` | Benih rating musim: `rating_players.seed_rating/seed_rd/seed_set_at` — **dibatalkan `000020`** (ketiga kolom di-drop) |
 | `000018_rank_points.sql` | Ranking poin: `rank_point_levels` + 6 config `rank_*` di `rating_config` |
 | `000019_rank_snapshots.sql` | `rank_snapshots` — posisi papan per `as_of` untuk panah gerakan |
 | `000020_purge_glicko.sql` | Purge peninggalan Glicko & musim: drop kolom rating/seed, tabel `rating_seasons`/`season_player_snapshots`, kolom angka `rating_deltas`, `rating_events.phase_weight`, `player_achievements.season_id`; hapus baris medal `medal:rating`/`season_member:*`; perbarui `merge_players` |
@@ -33,7 +33,7 @@ terpengaruh karena hanya menyentuh kolom fakta `rating_deltas`.
 
 **Jangan jalankan test integrasi terhadap DB berisi data produksi.**
 Beberapa test (`TestIntegrationRatingReadPathAndTransitivity`,
-`TestIntegrationAutoIngestLockedSessions`, `TestIntegrationLeaderboard*`,
+`TestIntegrationAutoIngestLockedSessions`,
 `TestIntegrationTeamTournamentRegisterPlayers`) menghitung baris tanpa memfilter
 data miliknya sendiri, jadi angka mereka meleset bila DB tidak kosong. Pakai DB
 scratch khusus.

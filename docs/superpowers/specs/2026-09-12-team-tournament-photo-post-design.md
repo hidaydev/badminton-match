@@ -74,25 +74,35 @@ Upload key convention:
 
 ### Signature
 ```ts
-export function drawTeamMatchPost(
-  canvas: HTMLCanvasElement,
-  photo: HTMLImageElement,
-  teamAName: string,
-  teamBName: string,
-  teamAWins: number,
-  teamBWins: number,
-  partaiRows: {
-    tier: string
-    nameA: string
-    nameB: string
-    scoreA: number | null
-    scoreB: number | null
-  }[],
-  subtitle: string,
-  logo: HTMLImageElement | undefined,
-  chevrons: HTMLImageElement | undefined,
-  sponsor: HTMLImageElement | undefined,
-): void
+export interface TeamMatchPartaiRow {
+  tier: string
+  nameA: string
+  nameB: string
+  scoreA: number | null
+  scoreB: number | null
+}
+
+export interface DrawTeamMatchPostOptions {
+  canvas: HTMLCanvasElement
+  teamAName: string
+  teamBName: string
+  teamAWins: number
+  teamBWins: number
+  partaiRows: TeamMatchPartaiRow[]
+  subtitle: string
+  summaryBg?: HTMLImageElement
+  logo?: HTMLImageElement
+  sponsor?: HTMLImageElement
+  cardLogo?: HTMLImageElement
+  teamALogo?: HTMLImageElement
+  teamBLogo?: HTMLImageElement
+  teamAPhoto?: HTMLImageElement
+  teamBPhoto?: HTMLImageElement
+  teamAColor?: string
+  teamBColor?: string
+}
+
+export function drawTeamMatchPost(options: DrawTeamMatchPostOptions): void
 ```
 
 ### Layers (1080×1350)

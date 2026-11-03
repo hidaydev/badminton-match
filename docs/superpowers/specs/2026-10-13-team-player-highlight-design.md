@@ -1,7 +1,8 @@
 # Team Player Highlight in Schedule Grid
 
-**Date:** 2026-10-13  
-**Status:** Approved
+**Date:** 2026-10-13
+
+> **Status:** Shipped (verified `apps/web/src/config/teamHighlights.ts` dengan `TEAM_HIGHLIGHT_ENABLED = true`, dipakai di `components/summary/PlayerChipRenderer.tsx:170`)
 
 ## Goal
 

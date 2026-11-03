@@ -17,7 +17,7 @@
 
 ## Arsip
 
-- [`../backend/`](../backend/README.md) — SQL migrasi `000013`–`000016`
+- [`../backend/`](../backend/README.md) — SQL migrasi `000013`–`000023`
 - [`../superpowers/specs/`](../superpowers/specs/) — design spec per fitur
 - Dokumen era Apps Script / Supabase (archive/, runbook, audit) dihapus 2026-08-15 —
   tersedia di git history (`git log --all -- docs/`).

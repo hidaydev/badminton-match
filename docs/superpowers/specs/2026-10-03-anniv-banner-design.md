@@ -1,5 +1,7 @@
 # Anniversary Banner Overlay — Design Spec
 
+> **Status:** Abandoned — `AnnivBannerOverlay.tsx` ada tetapi tidak di-import di mana pun; `App.tsx:92` kembali memakai `CelebrationOverlay` (revert `7b718d9` "Celebration rebased").
+
 **Date:** 2026-10-03
 
 ## Goal

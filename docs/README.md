@@ -27,7 +27,7 @@ Dokumentasi proyek, dua lane:
 
 ### `backend/`
 
-SQL migrasi `000013`–`000016` + daftarnya di [`backend/README.md`](backend/README.md).
+SQL migrasi `000013`–`000023` + daftarnya di [`backend/README.md`](backend/README.md).
 
 ### `superpowers/`
 

@@ -7,10 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Run web commands from the monorepo root (root `package.json` proxies to `apps/web`), or `cd apps/web`:
 
 ```bash
-npm run dev            # Start dev server (Vite HMR) — root proxy ke apps/web
-npm run build:web      # Type-check then build for production (apps/web)
-npm run check:web      # Web: types + lint + tailwind + regression tests
-npm run check:api      # API: go vet + fmt + test (apps/api)
+pnpm run dev            # Start dev server (Vite HMR) — root proxy ke apps/web
+pnpm run build:web      # Type-check then build for production (apps/web)
+pnpm run check:web      # Web: types + lint + tailwind + regression tests
+pnpm run check:api      # API: go vet + fmt + test (apps/api)
 # make equivalents: make dev · make dev-api · make build-web · make check-web · make check-api
 ```
 
@@ -18,15 +18,15 @@ Regression tests exist via `node:test` (pure logic — retry policy, generator q
 
 ```bash
 cd apps/web
-npm run check              # Types + lint + tailwind + regression tests (87 tests PASS)
-npm run check:regression   # Regression tests only (node:test)
+pnpm run check              # Types + lint + tailwind + regression tests
+pnpm run check:regression   # Regression tests only (node:test)
 ```
 
-Backend lives in the same monorepo at `apps/api` (`go test ./...` — 212 unit + handler tests PASS; test yang butuh Postgres di-skip tanpa `TEST_DATABASE_URL`). See `apps/api/README.md`.
+Backend lives in the same monorepo at `apps/api` (`go test ./...`; tests that need Postgres are skipped without `MAJADU_TEST_DATABASE_URL`). See `apps/api/README.md`.
 
 ## Architecture
 
-This is a mobile-first React PWA (React 19, Vite, Tailwind v4, TypeScript) in `apps/web` that generates optimised badminton match schedules for recreational sessions. It has grown to also include tournament management, session history, ratings/leaderboard, and admin tools. Backend is Go (`apps/api`, `net/http` + pgx) backed by Postgres on a VPS.
+This is a mobile-first React PWA (React 19, Vite, Tailwind v4, TypeScript) in `apps/web` that generates optimised badminton match schedules for recreational sessions. It has grown to also include tournament management, session history, rankings (rank points), and admin tools. Backend is Go (`apps/api`, `net/http` + pgx) backed by Postgres on a VPS.
 
 ### Core Session Flow
 
@@ -38,7 +38,7 @@ This is a mobile-first React PWA (React 19, Vite, Tailwind v4, TypeScript) in `a
 
 **Routing:** `RequireSession` redirects to `/session/new` if the session isn't locked; `RequirePlayers` additionally checks that the exact `playerCount` players have been entered before allowing access to `/session/constraints` or `/session/generate`.
 
-**Home page** shows 6 cards: Sessions, Ratings, Scoreboard, Tournament, IG Post, Admin. Admin section (5 cards: Sessions, Players, Ratings, Tournaments, Seasons) appears after login.
+**Home page** shows 5 cards: Sessions, Rankings, Scoreboard, Tournament, Instagram Post. Admin section (4 cards: Sessions, Players, Ratings, Tournaments) appears after login.
 
 ### State Management
 
@@ -60,8 +60,8 @@ Migration resets to defaults on any version mismatch. The tournament store was r
 ### Pages
 
 - **GeneratePage** ([apps/web/src/pages/GeneratePage.tsx](apps/web/src/pages/GeneratePage.tsx)) — `QualityBanner` grades the schedule; "Retry until good" runs up to 30 generations; `SummaryModal` is a full-screen overlay with a checklist view (tap to mark games as played, support for absent players). Debounces cloud publishes (300 ms trailing, 1s max delay) and flushes on unmount.
-- **RatingsPage** ([apps/web/src/pages/RatingsPage.tsx](apps/web/src/pages/RatingsPage.tsx)) — leaderboard with server-side pagination (100 per page), "Load more" button. Shows tier badge, rating, trend, games count. Peak rating removed from list (shown in player detail).
-- **RatingPlayerPage** ([apps/web/src/pages/RatingPlayerPage.tsx](apps/web/src/pages/RatingPlayerPage.tsx)) — per-player rating detail: stat cards (peak, games, W-L, tier), sparkline trend, recent matches (paginated, 5/page, shows "with teammate · vs opponent" format), career stats from `CareerStats.tsx`.
+- **RankingsPage** ([apps/web/src/pages/RankingsPage.tsx](apps/web/src/pages/RankingsPage.tsx)) — public rank-point board for the rolling 12-week window (limit 200 rows, `min_sessions=0`). Client-side tier filter + name search; shows tier badge, points, movement, games count.
+- **RatingPlayerPage** ([apps/web/src/pages/RatingPlayerPage.tsx](apps/web/src/pages/RatingPlayerPage.tsx)) — per-player detail: rank points, tier badge, recent matches (paginated, 5/page, "with teammate · vs opponent" format), career stats from `CareerStats.tsx`, and achievement badges.
 - **TournamentPage** ([apps/web/src/pages/TournamentPage.tsx](apps/web/src/pages/TournamentPage.tsx)) — tabbed UI for classic tournament: **Groups**, **Bracket**, **Standings**.
 - **TeamTournamentPage** ([apps/web/src/pages/TeamTournamentPage.tsx](apps/web/src/pages/TeamTournamentPage.tsx)) — tabbed UI for team tournament: **Standings** (editable team names, member list, crown for champion), **Schedule** (score entry per partai), **Final** (champion banner). Includes Instagram post export.
 - **SessionListPage** ([apps/web/src/pages/SessionListPage.tsx](apps/web/src/pages/SessionListPage.tsx)) — browse past cloud-synced sessions with date filter.
@@ -71,25 +71,24 @@ Migration resets to defaults on any version mismatch. The tournament store was r
 
 ### Admin Pages (`apps/web/src/pages/admin/`)
 
-5 separate admin pages, each with `AdminPageShell` layout:
-- **AdminSessionsPage** — list/lock/delete sessions
+4 separate admin pages, each with `AdminPageShell` layout:
+- **AdminSessionsPage** — list/lock/unlock/delete sessions
 - **AdminPlayersPage** — list/rename/delete players, set tier
 - **AdminRatingsPage** — ingest/revert/rebuild ratings
 - **AdminTournamentsPage** — list/delete tournaments
-- **AdminSeasonsPage** — manage rating seasons
 
 ### Ratings System
 
 Backend (Go, `apps/api`):
-- **Glicko-1-lite** rating engine with 8-tier ClassBands (D: 1000–1199, ..., A+: 2100+)
-- `rating_events` → `rating_deltas` → `rating_players` pipeline
-- Season system with `rating_config` (season_start, decay parameters, absent_policy)
-- `absent_policy`: `skip_player` (default) — absent/skipped player excluded, game counts for others
+- **Rank points** board for the rolling 12-week window (best 10 sessions), 8-band tiers (D ≤1199, ..., A+ ≥2100)
+- `rating_events` → `rating_deltas` (match facts) → `rating_players` (bookkeeping: games/wins/losses) pipeline
+- Tier is sticky on `players.tier`; absence policy: absent/skipped player is excluded, game counts for others
 - Auto-ingest locked sessions (ticker every 30 min)
+- Glicko engine and seasons retired 2026-09-29 (migration `000020`)
 
 Frontend:
-- `apps/web/src/queries/ratings.ts` — React Query hooks for leaderboard, player detail, history
-- `apps/web/src/components/ratings/` — `RatingTierBadge`, `RatingSparkline`, `CareerStats`
+- `apps/web/src/queries/ratings.ts` — React Query hooks (`useRankings`, `usePlayerRankPoints`, `useRatingPlayer`, `useRatingPlayerAchievements`, `useRatingSources`)
+- `apps/web/src/components/ratings/` — `RatingTierBadge`, `CareerStats`, `AchievementBadge`, `AchievementDetailModal`, `MedalHoneycomb`
 - `apps/web/src/config/ratingTiers.ts` — 8-band rating tier colors
 - `apps/web/src/config/achievements.ts` + `apps/web/src/components/ratings/AchievementBadge.tsx` — koleksi badge pemain (backend: `apps/api/internal/domain/achievements.go`, tabel `player_achievements`, migrasi `000016`)
 
@@ -109,10 +108,10 @@ Frontend:
 
 - `endpoints.ts` — raw fetch functions (`getSession`, `publishSession`, `listSessions`, `listPlayers`, `getPlayerStats`, `registerPlayer`, `deleteSession`, `listTournaments`, `getTournament`, `publishTournament`, granular mutations) + `ApiError` class. Internal to the layer — not re-exported from `index.ts`.
 - `types.ts` — shared types: `CloudSnapshot`, `SessionMeta`, `PlayerSummary`, `PlayerStats`, re-exports `TournamentSnapshot`.
-- `sessions.ts` — `useListSessions`, `useGetSession`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSwapTeams`, `useSwapSlots`, `useSetAbsent`, `useReplacePlayer`, `useChangePlayer`, `useLockSession`, `useDeleteSession`, `useFetchSession`. Mutations own all cache logic (optimistic update, rollback-first error handling, smart invalidation).
+- `sessions.ts` — `useListSessions`, `useGetSession`, `useSessionRealtime`, `usePublishSession`, `useTogglePlayed`, `useSetScore`, `useSwapPlayers`, `useSwapTeams`, `useSwapSlots`, `useSetAbsent`, `useSetGameSkipped`, `useReplacePlayer`, `useChangePlayer`, `useDeleteSession`, `useFetchSession`. Mutations own all cache logic (optimistic update, rollback-first error handling, smart invalidation).
 - `players.ts` — `useListPlayers`, `useGetPlayerStats`.
 - `tournament.ts` — `useGetTournament`, `useConfirmGroups`, `useSetTournamentScore`, `useResetTournament`, `useRegeneratePics`.
-- `ratings.ts` — `useRatingLeaderboard`, `useRatingPlayer`, `useRatingHistory`.
+- `ratings.ts` — `useRankings`, `usePlayerRankPoints`, `useRatingPlayer`, `useRatingPlayerAchievements`, `useRatingSources`.
 - `index.ts` — barrel export of all hooks and types.
 
 **Mutation call-site pattern** — destructure `{ mutate, isPending }` rather than storing the full mutation object:

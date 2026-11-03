@@ -10,7 +10,8 @@
 | Monospace | IBM Plex Mono | 400, 500 | `font-mono` | Labels, metadata, timestamps |
 | Decorative | Granesta + Edosz | — | — | Instagram canvas date overlay only |
 
-Loaded via Google Fonts (`display=swap`). Body uses `var(--font-sans)`.
+IBM Plex Sans/Mono dimuat via Google Fonts (`display=swap`); Granesta & Edosz
+self-hosted lewat `@font-face` di `apps/web/index.html`. Body uses `var(--font-sans)`.
 
 ## Color Tokens (Tailwind v4 `@theme`)
 

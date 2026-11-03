@@ -1,6 +1,6 @@
 # Grand Plan Revamp — Clean Break dari Snapshot Monolith
 
-> **Status: IMPLEMENTED** (2026-08) — lihat kontrak aktual di [`apps/api/README.md`](../../apps/api/README.md).  
+> **Status: IMPLEMENTED** (2026-08) — lihat kontrak aktual di [`apps/api/README.md`](../../apps/api/README.md); sisa item yang belum dicentang ada di §5.  
 > Dokumen ini rencana awal (DRAFT 2026-08-24); implementasi menghasilkan granular
 > live ops sebagai kontrak utama, sementara `PUT /sessions/{id}` (snapshot)
 > dipertahankan sebagai **legacy/deprecated** untuk fase setup/generate.
@@ -34,7 +34,7 @@
 
 ### 1.1 Frontend (`badminton-match` — React 19 + Vite + TS + Zustand + TanStack Query)
 
-**Entry & shell:** `src/main.tsx` → `src/App.tsx` routes + PWA. `HomeLayout` 6 cards, `SessionLayout` wizard `setup → players → constraints → generate`.
+**Entry & shell:** `src/main.tsx` → `src/App.tsx` routes + PWA. `HomeLayout` 5 cards, `SessionLayout` wizard `setup → players → constraints → generate`.
 
 **State layer (saat ini):**
 - `src/types/index.ts` — `PlayerId/GameKey` branded, `CloudSnapshot` (version?, session, players[60], schedule[36], playedGames, gameScores, absentPlayers)
@@ -57,14 +57,14 @@
 
 **Read path:** `Store.Load` (`RepeatableRead` `SET TRANSACTION READ ONLY`) rebuild `CloudSnapshot` dari `sessions + session_courts + session_players + fix_matches + scheduled_games + scheduled_game_players` — identik dengan kontrak lama.
 
-**Rating:** `internal/domain/rating.go` Glicko-1-lite pure, `store/rating*` ingest/revert/rebuild idempotent, `rating_sources` fingerprint. Auto-ingest locked sessions (ticker `30m`) di `main.go`.
+**Rating:** `internal/domain/rating.go` Glicko-1-lite pure, `store/rating*` ingest/revert/rebuild idempotent, `rating_sources` fingerprint. Auto-ingest locked sessions (ticker `30m`) di `main.go`. **Diganti 2026-09-29:** papan poin (window 12 minggu, 10 entri terbaik) di `store/rank_points.go`, konfigurasi di `domain/rating_config.go`.
 
 **Kekurangan BE ideal view:**
 - Session-level lock → false contention. `syncSessionTables` O(N) write amplification. `ValidateSnapshot` O(N) tiap score. `idempotencyStore` hilang saat restart → double-apply risk. `Subscribe/Broadcast` `map[chan]` loss on restart + buffer 4 drop.
 
 ### 1.3 DB VPS (`qouver-postgres:5432`, host `198.51.100.10`, schema `bm` prod / `bm_dev` dev)
 
-**Migrasi:** `/srv/qouver/majadu/migrations/000001–000011` (tidak di repo public). Baseline: `players` (8-tier CHECK D..A+, gender M/F), `player_aliases` (UNIQUE alias_name), `sessions` (id UUID, share_code `s+10alnum`, version INT, status draft/locked, session_date, session_start, slot_minutes), `session_players` (player_id FK, gender, tier, is_absent, absent_order), `session_courts` (court_index, name, start/end), `fix_matches` (legacy_ref), `scheduled_games` (internal_id, legacy_order, slot, court, status, is_played, played_order, score_a/b), `scheduled_game_players` (team A/B pos 0/1), `tournaments` + classic/team tables, `rating_*` (config, players, events, deltas, sources, season_player_snapshots). `search_path` per `MAJADU_DB_SCHEMA` (dev `bm_dev`, prod `bm`) — kueri tanpa prefix, merge branch aman.
+**Migrasi:** `/srv/qouver/majadu/migrations/000001–000012` (tidak di repo public). Baseline: `players` (8-tier CHECK D..A+, gender M/F), `player_aliases` (UNIQUE alias_name), `sessions` (id UUID, share_code `s+10alnum`, version INT, status draft/locked, session_date, session_start, slot_minutes), `session_players` (player_id FK, gender, tier, is_absent, absent_order), `session_courts` (court_index, name, start/end), `fix_matches` (legacy_ref), `scheduled_games` (internal_id, legacy_order, slot, court, status, is_played, played_order, score_a/b), `scheduled_game_players` (team A/B pos 0/1), `tournaments` + classic/team tables, `rating_*` (config, players, events, deltas, sources, season_player_snapshots). `search_path` per `MAJADU_DB_SCHEMA` (dev `bm_dev`, prod `bm`) — kueri tanpa prefix, merge branch aman.
 
 **Infra:** `db.NewPool` 10 conns, `pgxpool` `MinConns 1`, quadlet `majadu-api.container` (`:8080 bm`) + `majadu-api-dev.container` (`:8081 bm_dev`) `AutoUpdate=registry`, Caddy `api.qouver.com` strip `/majadu[-dev]`, logs `/srv/qouver/majadu/logs/{main,dev}/app-YYYY-MM-DD.log` retensi 7 hari, `config.RateLimitPerMin 120`.
 

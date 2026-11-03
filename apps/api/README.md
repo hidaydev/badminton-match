@@ -9,8 +9,9 @@ satu-satunya backend; keputusan arsitektur di
 
 - Go 1.26, stdlib `net/http` (Go 1.22+ routing) — tanpa framework HTTP
 - `pgx/v5` untuk Postgres (schema `bm`)
-- Rating engine **Glicko-1-lite** (server-authoritative, idempotent, auditable)
-- Kontrak RESTful didokumentasikan di [`api/openapi.yaml`](api/openapi.yaml)
+- Papan peringkat **rank points** (server-authoritative, idempotent, auditable)
+- Spesifikasi REST parsial di [`api/openapi.yaml`](api/openapi.yaml) — 16 dari 48
+  route terdaftar; daftar route lengkap ada di [`cmd/server/main.go`](cmd/server/main.go)
 
 ## Struktur
 
@@ -18,18 +19,18 @@ satu-satunya backend; keputusan arsitektur di
 cmd/server/              # entrypoint
 internal/config/         # env + godotenv (.env dev lokal) + validasi strict
 internal/db/             # koneksi pool pgx
-internal/domain/         # tipe + transform + validasi + rating math (Glicko, 8-tier)
+internal/domain/         # tipe + transform + validasi + ranking math (poin, 8-tier)
 internal/store/          # akses DB: write/read-path Go, rating ingest/revert/rebuild
 internal/handler/        # HTTP handlers (REST)
 internal/middleware/     # CORS, logging (slog), panic recovery, rate limit
 internal/httperr/        # error envelope JSON konsisten
 internal/build/          # versi binary (ldflags)
-api/openapi.yaml         # kontrak REST resmi
+api/openapi.yaml         # spec REST parsial (16 dari 48 route)
 ```
 
 > **SQL migrations** — `000001`–`000012` TIDAK di repo GitHub (sengaja — kode repo
 > public). Tersimpan di VPS: `/srv/qouver/backups/archive/2026-09-03/majadu-migrations/`.
-> `000013`+ didokumentasikan di [`docs/backend/`](../../docs/backend/).
+> `000013`–`000023` didokumentasikan di [`docs/backend/`](../../docs/backend/).
 
 ## Endpoint (ringkas)
 
@@ -40,8 +41,8 @@ Go backend melihat path bersih tanpa prefix).
 |---|---|---|
 | `GET` | `/healthz` · `/readyz` · `/version` | liveness / readiness / build info |
 | `POST` / `GET` | `/sessions` | create / list |
-| `GET` / `PUT` / `PATCH` / `DELETE` | `/sessions/{id}` | get / full-snapshot update / patch / delete (draft only) |
-| `POST` | `/sessions/{id}/lock` | kunci sesi (host flow) |
+| `GET` / `PUT` / `PATCH` / `DELETE` | `/sessions/{id}` | get / full-snapshot update / patch / **admin** delete (draft only) |
+| `POST` | `/sessions/{id}/lock` | **admin** — kunci sesi |
 | `POST` | `/sessions/{id}/unlock` · `/delete` | **admin** — unlock / delete (status apa pun + rating cleanup + rebuild) |
 | `GET` / `POST` | `/players` | list / register (opsional tier 8) |
 | `GET` | `/players/{name}/stats` | statistik karier (session + classic + void-filtered) |
@@ -52,9 +53,10 @@ Go backend melihat path bersih tanpa prefix).
 | `POST` | `/tournaments/{id}/delete` | **admin** — hapus + rating cleanup + rebuild |
 | `POST` | `/ratings/ingest-{session,tournament}` | **admin** — hitung & catat rating dari sumber |
 | `POST` | `/ratings/revert-{session,tournament}` | **admin** — cabut source + full rebuild |
-| `POST` | `/ratings/rebuild-all` · `/season` | **admin** — recompute semua / close & start season |
-| `POST` | `/ratings/sources/{id}/finalize` | **admin** — gate ingest tournament |
-| `GET` | `/ratings/leaderboard` · `/players/{id}` · `/sources` · `/seasons` · `/seasons/{id}/standings` | publik — read path 8-tier |
+| `POST` | `/ratings/rebuild-all` · `/replay-all` · `/replay-source` | **admin** — recompute semua / replay massal / replay per sumber |
+| `POST` | `/ratings/sources/{sourceId}/finalize` | **admin** — gate ingest tournament |
+| `POST` | `/ratings/achievements/backfill` | **admin** — isi ulang badge |
+| `GET` | `/rankings` · `/rankings/players/{playerId}` · `/ratings/players/{playerId}` · `/ratings/players/{playerId}/achievements` · `/ratings/sources` | publik — read path 8-tier + papan poin |
 
 **Live ops granular** (grand-revamp, kontrak utama untuk mutasi session):
 
@@ -121,10 +123,13 @@ langsung).
 `player_aliases`) + utilitas `delete_player` / trigger `set_updated_at`. Semua
 logika bisnis (session, player, tournament, **rating**) sudah 100% di Go.
 
-**Rating engine & season**: tabel `rating_*` (events/deltas/players/sources/config/seasons)
-dari migration `000008`–`000011`; unifikasi **8-tier** di `000011`
-(`players.tier` single source, `rating_players.class` di-drop). RebuildAll
-recomputs rating_players dari events (transitivity) — deterministik.
+**Papan poin & bookkeeping**: `rating_deltas` menyimpan fakta pertandingan
+(`event_id`/`player_id`/`team`/`outcome`); `rating_players` hanya bookkeeping
+(`games_played`, `wins`, `losses`, `last_played_at`). Poin dihitung saat baca dari
+window bergulir 12 minggu (best 10 entri) dengan config `rank_*` di `rating_config`
+(`000018`, `000022`), snapshot gerakan papan di `rank_snapshots` (`000019`), dan tier
+sticky di `players.tier`. Mesin Glicko beserta tabel musim di-drop di `000020`
+(2026-09-29).
 
 **Schema via `MAJADU_DB_SCHEMA` (env), BUKAN hardcode di SQL.** Store memakai
 kueri tanpa prefix schema; `search_path` diarahkan per-koneksi. Hanya ada satu
@@ -142,15 +147,15 @@ Vercel (frontend)                       VPS api.qouver.com (Caddy)
 main → apps/web (Root Directory)        main → https://api.qouver.com/majadu → 127.0.0.1:8080 (bm)
 ```
 
-**Artefak di `deploy/` (root monorepo):**
-- `majadu-api.container` — quadlet systemd unit (Image=localhost/majadu-api:local, Pull=never)
-- `deploy-vps.sh` — script deploy webhook (source of truth; server copy di `/srv/qouver/apps/majadu/scripts/`)
-- `webhook.json` — placeholder rule webhook (secret asli hanya di VPS, chmod 600)
+**Artefak di `ops/` (root monorepo):**
+- `systemd/majadu-api.container` — quadlet systemd unit (Image=localhost/majadu-api:local, Pull=never)
+- `scripts/deploy-vps.sh` — script deploy webhook (source of truth; server copy di `/srv/qouver/apps/majadu/scripts/`)
+- `webhook/webhook.json` — placeholder rule webhook (secret asli hanya di VPS, chmod 600)
 - `env/prod.env.example` — template env (secret diisi hanya di VPS)
-- `Caddyfile.api.qouver.com` — snippet Caddy (strip prefix `/majadu`)
+- `caddy/Caddyfile.api.qouver.com` — snippet Caddy (strip prefix `/majadu`)
 
 **Update:**
-- Push `main` → webhook trigger (HMAC-SHA1) → build lokal + restart. Deploy hanya
+- Push `main` → webhook trigger (HMAC-SHA256) → build lokal + restart. Deploy hanya
   jika `apps/api/` berubah (guard `ref=refs/heads/main` di script).
 - Rollback: image lokal sebelumnya masih ter-cache sampai `podman image prune` (01:30).
 

@@ -2,6 +2,15 @@
 
 Dokumen ini adalah **sumber kebenaran tunggal (*Single Source of Truth*)** untuk seluruh desain data model aplikasi Majadu, mencakup TypeScript domain types (Frontend) dan PostgreSQL relational schema (Backend `apps/api`).
 
+> **Batas verifikasi (2026-11-03).** Bagian TypeScript bersumber dari kode `apps/web`.
+> Untuk PostgreSQL: migrasi baseline `000001`–`000012` (tabel inti `sessions`, `players`,
+> `player_aliases`, `session_players`, `scheduled_games`, `scheduled_game_players`,
+> `rating_events`/`rating_deltas`/`rating_config`, termasuk PK/FK/UNIQUE/trigger)
+> **tidak ada di repo** — hanya diarsipkan di VPS. Karena itu isi §4 di bawah
+> terverifikasi dari migrasi `000013`–`000023` di [`docs/backend/`](../backend/) plus
+> query di `apps/api/internal/store/`; constraint baseline di §5 adalah asumsi yang
+> belum bisa diperiksa dari repo.
+
 ---
 
 ## 📱 1. Core Session Model (Frontend TS Types)
@@ -17,13 +26,14 @@ Fields:
 
 *Catatan:* `tier` bersifat "first-set sticky", disimpan secara kanonikal di tabel backend `players`.
 
-### FixMatch
+### FixMatch (kode: `MatchConstraint`)
+
 Fields:
 - `id`: Constraint ID
-- `slots`: `[string, string, string, string]`
+- `slots`: `[PlayerId, PlayerId, PlayerId, PlayerId]` (string kosong = bebas)
 - `mode`: `'flexible'` | `'pinned'`
-- `pinnedTime`?: String `HH:MM`
-- `pinnedCourt`?: Index lapangan (0-based)
+- `pinnedTime`: `TimeString` `HH:MM` (wajib untuk `mode: 'pinned'`)
+- `pinnedCourt`: Index lapangan (0-based, wajib untuk `mode: 'pinned'`)
 
 ### ScheduleSlot & GameScore
 - `ScheduleSlot`: Atomic scheduled game unit (`slot`, `court`, `teamA: [p1, p2]`, `teamB: [p3, p4]`).
@@ -37,18 +47,19 @@ Fields:
 
 ## ☁️ 2. Cloud & Shared Snapshot Models
 
-Main sources: `apps/web/src/queries/types.ts` & `apps/web/src/utils/shareUrl.ts`
+Main sources: `apps/web/src/types/index.ts` (definisi `CloudSnapshot`; di-re-export `apps/web/src/queries/types.ts`) & `apps/web/src/utils/shareUrl.ts`
 
 ### CloudSnapshot
 Payload operasional untuk publikasi & sinkronisasi sesi ke cloud:
 - `version`?: Optimistic concurrency version
 - `session`: `SessionConfig`
 - `players`: Array of `Player`
-- `fixMatches`: Array of `FixMatch`
+- `fixMatches`: Array of `MatchConstraint`
 - `schedule`: Array of `ScheduleSlot`
-- `playedGames`: Record of `${slot}-${court}` -> boolean
+- `playedGames`: `string[]` — daftar key `${slot}-${court}` yang sudah dimainkan
 - `gameScores`: Record of `${slot}-${court}` -> `GameScore`
 - `absentPlayers`?: Array of player IDs (absent players)
+- `skippedPlayers`?: Record of `${slot}-${court}` -> array player ref yang di-skip
 
 ---
 
@@ -102,8 +113,12 @@ Backend: Go (`majadu-api`) terhubung langsung ke PostgreSQL VPS pada schema `bm`
 
 - `player_achievements`: satu baris = satu achievement per pemain. `achievement_key` UNIQUE per
   `player_id` (identitas + idempotency); `kind` ∈ `attendance`, `volume`, `opponent`, `tournament`,
-  `tier`, `rating`, `rank`, `social`, `season`; `season_id` opsional; `value` untuk achievement
-  tipe rekor; `earned_at` tidak berubah walau rekor naik; `meta` JSONB.
+  `tier`, `rating`, `rank`, `social`, `season` (CHECK `000016:24-27`). Yang benar-benar ditulis
+  kode hanya `attendance`/`volume`/`opponent`/`tournament`/`social`/`rank`
+  (`domain/achievements.go:48-58`, `store/achievement.go:577`); `tier`/`rating`/`season` tinggal
+  nilai CHECK yang tak pernah dipakai sejak Glicko pensiun;
+  `value` untuk achievement tipe rekor; `earned_at` tidak berubah walau rekor naik; `meta` JSONB.
+  Kolom `season_id` + FK-nya di-drop `000020`.
 - Index: `idx_player_achievements_player(player_id, earned_at DESC)`, `idx_player_achievements_kind(kind)`.
 - Definisi & ambang achievement: `apps/api/internal/domain/achievements.go` dan
   `apps/web/src/config/achievements.ts`.
@@ -116,14 +131,34 @@ Backend: Go (`majadu-api`) terhubung langsung ke PostgreSQL VPS pada schema `bm`
 4. `idx_session_players_session_player`: Composite index `session_players(session_id, player_id)`
 5. `idx_scheduled_games_session`: Foreign key index `scheduled_games(session_id)`
 
-### Rating Engine Tables
+### Papan Poin Ranking (Migrasi `000018`–`000023`)
 
-- `rating_config`: JSONB key-value configuration (`season_start`, `session_tier_init`, `class_bands`)
-- `rating_players`: State rating pemain (`rating`, `rd`, `peak_rating`, `games_played`, `wins`, `losses`, `last_played_at`)
-- `rating_events`: Match-level Glicko event log (`source_id`, `date`, `score_a`, `score_b`, `teams`)
-- `rating_deltas`: Per-player rating change (`old_rating`, `new_rating`, `rd`, `delta`)
-- `rating_sources`: Tracking fingerprint sesi/turnamen yang sudah ter-ingest (`source_id`, `processed_at`)
-- `season_player_snapshots`: Snapshot rating akhir musim saat season close.
+Mesin Glicko dipensiunkan 2026-09-29 (`000020_purge_glicko.sql`): tidak ada lagi
+perhitungan rating. Papan publik memakai **poin** — window bergulir 12 minggu, 10 entri
+terbaik — dan dihitung **saat baca** (tidak ada tabel materialized).
+
+- `rating_config`: JSONB key-value. Key yang dibaca loader
+  (`apps/api/internal/store/rating_config.go`): `ingest_locked_only`, `auto_reconcile`,
+  `absent_policy`, `placeholder_promote_games`, `season_start`, `session_tier_init`,
+  `class_bands`, plus `rank_window_weeks`, `rank_best_n`, `rank_opponent_weight`,
+  `rank_opponent_clamp`, `rank_session_base`, `rank_thin_evidence_n`, `rank_min_sessions`.
+- `rating_players`: bookkeeping pertandingan — `games_played`, `wins`, `losses`,
+  `last_played_at` (`rating`, `rd`, `peak_rating`, `seed_*` di-drop `000020`).
+- `rating_events`: satu baris per pertandingan ter-ingest. Kolom yang dipakai kode:
+  `match_key` (UNIQUE), `kind`, `source_id` (share_code sesi/turnamen),
+  `source_fingerprint`, `stable_game_id`, `date`, `game_order`, `title`, `score_a`,
+  `score_b`, `target`, `phase`, `processed_at`.
+- `rating_deltas`: fakta per pemain — `event_id`, `player_id`, `team`, `outcome`.
+  Kolom angka Glicko (`expected`, `movm`, `delta`, `new_rating`) di-drop `000020`.
+- `rating_sources`: fingerprint sumber yang sudah ter-ingest — `source_id` (PK),
+  `source_kind`, `fingerprint`, `finalized`, `last_ingested_seq`, `ingested_at`.
+- `rank_point_levels` (`000018`): semua nilai poin di satu tabel — `kind` (PK: `session`,
+  `tournament_classic`, `tournament_team`), `champion_points`, `round_ratios` JSONB,
+  `enabled`.
+- `rank_snapshots` (`000019`): posisi papan per tanggal acuan — PK `(as_of, player_id)`,
+  `rank`, `points`, `captured_at`; dasar panah naik/turun di papan.
+
+Tabel musim (`rating_seasons`, `season_player_snapshots`) sudah di-drop `000020`.
 
 ---
 
@@ -133,5 +168,5 @@ Backend: Go (`majadu-api`) terhubung langsung ke PostgreSQL VPS pada schema `bm`
 - `players.gender`: CHECK (gender IN ('M', 'F')), NOT NULL, DEFAULT 'M'.
 - `player_aliases.alias_name`: LOWERCASE UNIQUE PK.
 - `session_players`: UNIQUE (session_id, player_id).
-- `player_achievements`: UNIQUE (player_id, achievement_key); `player_id` ON DELETE CASCADE;
-  `season_id` ON DELETE SET NULL.
+- `player_achievements`: UNIQUE (player_id, achievement_key); `player_id` ON DELETE CASCADE.
+  (Kolom `season_id` + FK `ON DELETE SET NULL` di-drop `000020`.)

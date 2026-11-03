@@ -1,5 +1,7 @@
 # Anniversary Banner Overlay Implementation Plan
 
+> **Status:** Abandoned — `AnnivBannerOverlay.tsx` ada tetapi tidak di-import di mana pun; `App.tsx:92` kembali memakai `CelebrationOverlay` (revert `7b718d9` "Celebration rebased").
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the celebration overlay in App.tsx with a full-screen anniversary "coming soon" banner showing two player groups sliding in from the sides, the MAJADU 1ST ANNIVERSARY logo dropping from the top, and team lineup logos fading in at the center.

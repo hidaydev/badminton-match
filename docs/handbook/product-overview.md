@@ -3,7 +3,7 @@
 ## Purpose
 
 `badminton-match` (Majadu) is a badminton operations app. It is optimized for real
-session management, rating/leaderboard tracking, and tournament management.
+session management, rank-point/leaderboard tracking, and tournament management.
 
 The app is designed to answer these operational questions:
 
@@ -73,25 +73,27 @@ Once a session is published:
 - locked sessions reject all mutations at the server level
 - auto-lock: sessions lock automatically when all scores are entered (save-path)
 
-### 6. Ratings & Leaderboard
+### 6. Rank points & Leaderboard
 
-The app tracks player ratings using a **Glicko-1-lite** engine:
+The public board ranks players by **rank points** (poin peringkat). Glicko was retired
+2026-09-29; no rating engine remains.
 
-- 8-tier ClassBands (D: 1000–1199, ..., A+: 2100+)
-- Season system with configurable start date and decay
-- `absent_policy`: `skip_player` — absent/skipped player excluded from rating, game counts for others
-- Leaderboard with server-side pagination
-- Player detail: stat cards, sparkline trend, recent matches (paginated, "with teammate · vs opponent" format), career stats
+- rolling 12-week window, best 10 sessions counted
+- 250 base points per game, weighted by score margin and opponent strength (clamped 0.5–1.5)
+- 8-tier skill bands (D, D+, C, C+, B, B+, A, A+), sticky per player from `players.tier`
+- `absent_policy`: `skip_player` — absent/skipped player excluded from points, game counts for others
+- Leaderboard: top 200 players by points, with tier filter
+- Player detail: stat cards, recent matches (paginated, "with teammate · vs opponent" format), career stats, achievement badges
 - Auto-ingest locked sessions (backend ticker every 30 min)
 
 ### 7. Achievements
 
-Setiap pemain punya koleksi badge yang dihitung backend dari riwayat rating & tournament
+Setiap pemain punya koleksi badge yang dihitung backend dari riwayat pertandingan & tournament
 (tabel `player_achievements`, migrasi `000016`):
 
-- kategori: `attendance`, `volume`, `opponent`, `tournament`, `tier`, `rating`, `rank`, `social`, `season`
+- kategori: `attendance`, `volume`, `opponent`, `tournament`, `social`, `rank`
 - medal bertingkat (Bronze–Onyx) untuk achievement tipe rekor; `earned_at` tetap walau rekor naik
-- tampil di halaman detail rating `/ratings/:playerId`
+- tampil di halaman detail peringkat `/rankings/:playerId`
 - halaman preview semua badge di `/dev/achievement-badges`
 
 ### 8. Tournament
@@ -122,18 +124,17 @@ The app can render session and tournament visuals for sharing:
 
 ### 10. Admin
 
-5 separate admin pages for managing the system:
+4 separate admin pages for managing the system:
 
-- **Sessions** — list, lock, delete sessions
+- **Sessions** — list, unlock, delete sessions
 - **Players** — list, rename, delete players, set tier
-- **Ratings** — ingest, revert, rebuild ratings
+- **Ratings** — ingest, revert, rebuild rank points
 - **Tournaments** — list, delete tournaments
-- **Seasons** — manage rating seasons
 
 ## Architecture
 
 - **Frontend**: React 19, Vite, Tailwind v4, TypeScript — [`apps/web`](../../apps/web/) (deployed on Vercel)
 - **Backend**: Go — [`apps/api`](../../apps/api/) (deployed on VPS via webhook → podman build lokal)
 - **Database**: PostgreSQL on VPS (schema `bm` — prod; instance dev `bm_dev` di-sunset)
-- **Rating engine**: Glicko-1-lite with 8-tier ClassBands
+- **Rating engine**: proportional rank points (12-week window, best 10 sessions) with 8-tier sticky bands
 - Monorepo: `badminton-match` (lihat [`README.md`](../../README.md))

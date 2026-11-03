@@ -1,7 +1,8 @@
 # Plan: aturan min-sesi ranking + medal rank
 
 Tanggal: 2026-10-14
-Status: rencana (belum diimplementasi)
+
+> **Status:** Shipped (verified `docs/backend/000022_rank_min_sessions.sql`, `apps/api/internal/domain/rating_config.go:50`, `apps/api/internal/store/rank_points.go:540`, medal `rank`/`rank_streak` di `apps/api/internal/domain/achievements.go:56,58`)
 
 ## Latar
 Papan poin publik menampilkan pemain dengan sesi sangat sedikit, dan belum
