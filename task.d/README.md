@@ -27,6 +27,8 @@ explicit `--nimcache` does not add a suffix.
 | `build` | release build into `.cache/$WORKTREE/bin/` | no |
 | `test` | unit + integration tests | integration only |
 | `verify <module>` | build and test one module | when it has integration tests |
+| `contract-gen` | regenerate routes, client and fingerprint | no |
+| `contract-check` | fail when specs and generated files drift | no |
 | `ci` | check + build + test + contract check | same as `test` |
 | `r0-demo` | walking skeleton over HTTP against `bm2_r0` | yes |
 

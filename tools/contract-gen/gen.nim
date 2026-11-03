@@ -1,23 +1,20 @@
 import std/[algorithm, json, os, tables]
 import emit_nim
 import emit_ts
-
-const
-  corePath = "packages/contracts/openapi/core.yaml"
-  communityPath = "packages/contracts/openapi/community.yaml"
-  mergedPath = "packages/contracts/openapi/api.yaml"
-  nimPath = "apps/api/src/routes_gen.nim"
-  tsPath = "packages/web-client/src/api.ts"
+import fingerprint
 
 proc fail(message: string) {.noreturn.} =
   stderr.writeLine "contract-gen: " & message
   quit(1)
 
-proc load(path: string): JsonNode =
+proc load(path: string): string =
   if not fileExists(path):
     fail "missing " & path
+  readFile(path)
+
+proc parse(path, source: string): JsonNode =
   try:
-    parseFile(path)
+    parseJson(source)
   except JsonParsingError as error:
     fail path & ": " & error.msg
 
@@ -75,8 +72,10 @@ proc main() =
     else:
       fail "unknown argument: " & argument
 
-  let core = load(corePath)
-  let community = load(communityPath)
+  let coreSource = load(corePath)
+  let communitySource = load(communityPath)
+  let core = parse(corePath, coreSource)
+  let community = parse(communityPath, communitySource)
   var operations = collectOperations(core, corePath)
   operations.add(collectOperations(community, communityPath))
   sortOperations(operations)
@@ -88,11 +87,16 @@ proc main() =
     if seen.hasKeyOrPut(operation.operationId, true):
       fail "duplicate operationId: " & operation.operationId
 
-  let merged = mergeDocs(core, community)
+  let mergedSource = renderJson(mergeDocs(core, community))
+  let nimSource = renderNim(operations)
+  let tsSource = renderTs(operations)
   var ok = true
-  ok = writeOrCheck(mergedPath, renderJson(merged), check) and ok
-  ok = writeOrCheck(nimPath, renderNim(operations), check) and ok
-  ok = writeOrCheck(tsPath, renderTs(operations), check) and ok
+  ok = writeOrCheck(mergedPath, mergedSource, check) and ok
+  ok = writeOrCheck(nimPath, nimSource, check) and ok
+  ok = writeOrCheck(tsPath, tsSource, check) and ok
+  ok = writeOrCheck(fingerprintPath, renderFingerprint(operations.len,
+    coreSource, communitySource, mergedSource, nimSource, tsSource),
+    check) and ok
   if not ok:
     fail "generated files differ; run ./task contract-gen"
   if check:

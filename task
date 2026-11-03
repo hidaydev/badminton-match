@@ -17,6 +17,7 @@ Targets:
   ci           check + build + test + contract check
   dev-db       create the local PostgreSQL databases and roles
   contract-gen generate Nim routes and the TypeScript client
+  contract-check verify the contract fingerprint and generated files
   deps-check   verify installed dependencies against deps.lock
   mock-api     serve the contract as a mock API
   r0-demo      boot the walking skeleton against the local database

@@ -73,8 +73,12 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
-      - name: "Contract: check"
-        run: ./task contract-gen --check
+      # Fails when the two source specs, the merged document, the generated Nim
+      # routes, or the generated TS client no longer match
+      # packages/contracts/openapi/CONTRACT.sha256. A spec edit must land with a
+      # regenerated fingerprint so the contract change is reviewable.
+      - name: "Contract: fingerprint and generated files must match the specs"
+        run: ./task contract-check
 
   web:
     name: "Web: build"
