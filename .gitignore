@@ -63,6 +63,8 @@ MONOREPO_PLAN.md
 
 # Local DB dumps (jangan di-commit)
 dump/
+# Working directory lokal: dump skema, fixtures, catatan sensitif (repo publik)
+.local/
 
 # Local quality remediation plan (working doc)
 QUALITY_REMEDIATION_PLAN.md
