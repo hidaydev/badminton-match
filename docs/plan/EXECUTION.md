@@ -131,6 +131,21 @@ Kontrak berubah, jadi tidak ada deploy API sendirian setelah R1:
 4. Rollback mengembalikan **API dan FE** ke pasangan sebelumnya.
 5. Verifikasi pasca-deploy: login, satu sesi dibuka, satu skor disimpan.
 
+### 6.4 Rilis (setelah R4)
+
+```bash
+./task release auto --dry-run      # lihat versi + catatan, tidak menulis apa pun
+./task release auto                # commit chore(release) + annotated tag lokal
+./task release auto --push         # dorong commit ke main + tag (memicu deploy)
+```
+
+- Bump dihitung dari Conventional Commits; lihat tabel di TECH-SPEC §8.1.
+- Rilis kandidat: `./task release minor --pre rc` → `vX.Y.Z-rc.1`; ulangi perintah
+  yang sama untuk `rc.2`. Promosi: `./task release minor` dengan inti versi sama.
+- Tag **tidak** dibuat di GitHub UI; kalau dibuat di sana, workflow menolak karena
+  isi tag tidak cocok dengan `VERSION`.
+- Jangan jalankan `--push` sebelum gate R4 lulus dan backup terbaru diverifikasi.
+
 ## 7. Jebakan yang sudah diketahui
 
 | Jebakan | Tindakan |

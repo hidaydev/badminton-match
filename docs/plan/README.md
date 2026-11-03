@@ -18,9 +18,9 @@ Status: draft untuk review pemilik (belum ada kode produksi yang berubah)
 | # | Dokumen | Untuk siapa | Isi |
 |---|---------|-------------|-----|
 | 1 | [`BRD.md`](BRD.md) | pemilik | kenapa, tujuan bisnis, risiko, definisi sukses, keputusan final |
-| 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 61 requirement ber-ID, NFR, perubahan UX |
+| 2 | [`PRD.md`](PRD.md) | pemilik + FE | persona, rilis R0–R4, 62 requirement ber-ID, NFR, perubahan UX |
 | 3 | [`TECH-SPEC.md`](TECH-SPEC.md) | semua engineer | stack, layout, database `bm2`, kontrak, keamanan, CI/CD, parity, risiko |
-| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 82 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
+| 4 | [`BACKLOG.md`](BACKLOG.md) | agen eksekusi | 83 task dengan `Depends`/`Owns`/acceptance, graf, pembagian agen |
 | 5 | [`CROSS-CHECK.md`](CROSS-CHECK.md) | reviewer | 19 klaim diuji ke sumber, 9 putaran konsistensi, 3 review independen |
 | 6 | [`REVIEW-scrum.md`](REVIEW-scrum.md) | reviewer | audit dependency, tabrakan file, gap, DoR/DoD |
 | 7 | [`memos/`](memos/) | referensi | 6 memo ahli: stack, security, data, API, CI/CD, QA |

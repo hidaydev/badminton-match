@@ -453,6 +453,63 @@ gagal, `smoke.sh` + `rollback.sh` terpisah.
 **Observability:** `/healthz` (proses), `/readyz` (DB + versi skema), metrics di
 listener internal, log terstruktur tanpa PII, retensi 7 hari.
 
+### 8.1 Versioning & rilis (ADR-020, O-24)
+
+**Satu sumber versi:** berkas `VERSION` di root (`MAJOR.MINOR.PATCH[-prerelease]`).
+Tidak ada nomor versi yang ditulis tangan di kode, `package.json`, atau Dockerfile.
+`./task build` meneruskan `-d:AppVersion`, image menerima `--build-arg VERSION`,
+dan nilai yang benar-benar hidup terlihat di `GET /version` serta metrik
+`build_info{version,commit}`.
+
+**Skema:** SemVer 2.0. Tag berformat `vX.Y.Z` (annotated, bukan lightweight).
+Rilis pra-rilis memakai `vX.Y.Z-rc.N`.
+
+**Aturan kenaikan**, dihitung dari Conventional Commits sejak tag terakhir
+(`feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `chore`, `build`, `ci`):
+
+| Kondisi | `major > 0` | `major == 0` |
+|---|---|---|
+| ada `!` pada tipe atau footer `BREAKING CHANGE:` | **major** | **minor** |
+| ada `feat` | **minor** | **minor** |
+| sisanya (`fix`, `perf`, …) | **patch** | **patch** |
+
+Alasan aturan 0.x: selama proyek belum 1.0, kontrak masih boleh berubah; memaksa
+major akan menghasilkan angka 1.0.0 yang menyesatkan. Konsekuensinya ditulis di
+CHANGELOG: "0.x: minor dapat memuat perubahan yang merusak".
+
+**Alur `./task release`:**
+
+```text
+./task release patch|minor|major|auto [--pre rc] [--push] [--dry-run]
+```
+
+1. Tolak bila: tree kotor, bukan di `main`, tag tujuan sudah ada, `main` tertinggal
+   dari `origin/main`, atau gate `./task ci` gagal.
+2. Hitung versi berikutnya (atau pakai bump eksplisit; `auto` memakai tabel di atas).
+3. Untuk `--pre`: naikkan `N` bila inti versi sama dengan pra-rilis terakhir,
+   selain itu mulai dari `rc.1`. Promosi pra-rilis = jalankan tanpa `--pre` dengan
+   inti versi yang sama.
+4. Tulis `CHANGELOG.md`: bagian baru di atas, dikelompokkan
+   **Breaking / Added / Changed / Fixed / Security**, tiap entri menyebut commit
+   dan path yang terdampak. Perubahan pada `db/migrations/` wajib muncul sebagai
+   catatan migrasi.
+5. Perbarui `VERSION`, commit `chore(release): vX.Y.Z`, buat annotated tag dengan
+   isi catatan rilis yang sama.
+6. `--dry-run` mencetak versi + catatan tanpa menulis apa pun. Tanpa `--push`,
+   perintah berhenti dan mencetak dua perintah push; tidak ada push implisit.
+7. `--push` mendorong commit ke `main` **dan** tag. Commit ke `main` memicu deploy
+   (ref-guard), jadi `--push` hanya dipakai setelah R4 dan setelah gate rilis lolos.
+
+**GitHub Release:** workflow `.github/workflows/release.yml` terpicu tag `v*`,
+`permissions: contents: write`, `timeout-minutes: 15`, cache Nim/pnpm. Isinya:
+verifikasi tag = isi `VERSION`, jalankan test, buat GitHub Release memakai catatan
+dari annotated tag (`gh release create`), dan lampirkan digest image. Tidak ada
+tag yang dibuat oleh workflow — tag selalu berasal dari `./task release`, sehingga
+riwayat rilis bisa direproduksi lokal.
+
+**Yang tidak boleh:** tag dari UI GitHub, `npm version`, atau mengubah `VERSION`
+manual tanpa `./task release`; nomor versi di dua tempat; rilis tanpa catatan.
+
 Delapan metrik yang wajib ada (nama tetap, dipakai dashboard dan test):
 
 | Metrik | Tipe | Kenapa |
@@ -561,3 +618,4 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 | ADR-017 | `view_code` unik global agar `/s/{code}` bisa diresolusi tanpa komunitas | diterima (§4 butir 8) |
 | ADR-018 | Akun dinonaktifkan + dianonimkan; riwayat rating dipertahankan (`ON DELETE RESTRICT` tetap) | diterima (AUTH-10) |
 | ADR-019 | FE dan API satu site (`majadu.qouver.com` + `api.qouver.com`); `SameSite=Lax` tanpa `SameSite=None` | diterima (O-22) |
+| ADR-020 | SemVer dari Conventional Commits, versi tunggal di `VERSION`, tag annotated, GitHub Release dari tag | diterima (O-24) |

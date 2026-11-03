@@ -165,9 +165,9 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 
 | Pemeriksaan | Metode | Hasil |
 |---|---|---|
-| Integritas task | parse tabel backlog | **82 task**, 0 duplikat, 0 dependency menggantung |
+| Integritas task | parse tabel backlog | **83 task**, 0 duplikat, 0 dependency menggantung |
 | Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah pemisahan per file |
-| Traceability | 61 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
+| Traceability | 62 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
 | Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
 | Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
 | Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
@@ -218,7 +218,7 @@ Tiga reviewer dengan sudut berbeda membaca seluruh rencana. Ringkasan dan tindak
 | `reviews/adversarial.md` | pool 8 vs `serverThreads` 10× core; NULL→`""` dan `?` di jsonb; nimcache per nama file; FK komposit `MATCH SIMPLE`; share code per komunitas vs `/s/{code}`; bootstrap instance kosong; `libcrypto` dynlib | **semua diterima** → T-004 PQexecParams, T-018 nimcache, TECH-SPEC §4 butir 11, ADR-017, T-103, T-084 cek boot |
 
 Angka yang berubah: task **71 → 80**, permukaan API **59**, tabel v1 **27**.
-Requirement menjadi **61** (AUTH-10, OPS-06) dan seluruhnya terpetakan.
+Requirement menjadi **62** (AUTH-10, OPS-06, OPS-07) dan seluruhnya terpetakan.
 
 ---
 
@@ -238,7 +238,7 @@ Requirement menjadi **61** (AUTH-10, OPS-06) dan seluruhnya terpetakan.
 | Bahasa UI | Inggris saja, kunci i18n disiapkan | O-21, T-028 |
 | Observability | 8 metrik inti, tanpa alert | TECH-SPEC §8, T-062 |
 
-Angka: task **80 → 82**, requirement **59 → 61**.
+Angka: task **80 → 83**, requirement **59 → 62** (T-107/OPS-07 ditambahkan setelahnya).
 
 ---
 

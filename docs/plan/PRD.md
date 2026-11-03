@@ -143,6 +143,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | OPS-04 | M | Deploy gagal → rollback otomatis & terverifikasi | Failure injection: build gagal, health gagal → `:prev` hidup |
 | OPS-05 | M | Rilis tidak pernah hilang senyap | Deploy kedua saat deploy berjalan → antre atau gagal berisik, tidak `exit 0` |
 | OPS-06 | M | Data sementara punya masa simpan dan dibersihkan otomatis | `auth.oauth_flows`, `idempotency_keys`, `outbox_events`, `session.links` kedaluwarsa, dan audit lama terhapus oleh janitor; jumlah baris terhapus terlihat di metrik |
+| OPS-07 | S | Rilis berversi SemVer otomatis dari riwayat commit, dengan catatan rilis | `VERSION` satu-satunya sumber; tag `vX.Y.Z`; GitHub Release berisi catatan per kelompok; nomor versi hidup di `/version` |
 
 ### 4.8 Konfigurasi & parameter
 

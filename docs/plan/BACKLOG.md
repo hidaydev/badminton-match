@@ -165,6 +165,7 @@ mock API jalan; CI definitions valid.
 | T-065 | Runbook cutover + rollback | T-063, T-064 | `docs/ops/cutover.md` | Bisa diikuti tanpa bertanya | tidak |
 | T-082 | Dekomisi Go | T-065 + 14 hari observasi produksi | `apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`, `apps/api/go.mod`, `apps/api/go.sum`, `apps/api/Makefile`, `apps/api/README.md`, `Makefile`, `README.md`, `package.json`, `.github/workflows/ci.yml` | `grep -r "\.go\b\|go build\|go test" apps/ package.json Makefile .github/` = 0; CI tanpa job Go; `pnpm install --frozen-lockfile` tetap bersih | tidak |
 | T-083 | ADR-011: P0 diterima + cara mencabut | T-021 | `docs/plan/ADR-011.md` | Kondisi, dampak, pemicu tinjau ulang | ya |
+| T-107 | Versioning & release: SemVer dari Conventional Commits, `VERSION`, CHANGELOG, tag, GitHub Release | T-011, T-018 | `VERSION`, `CHANGELOG.md`, `task.d/release.sh`, `tools/release/`, `.github/workflows/release.yml`, `docs/ops/release.md` | `./task release auto --dry-run` mencetak versi benar dari fixture commit (major/minor/patch, 0.x, `--pre rc`); tag ganda ditolak; tree kotor ditolak; changelog berkelompok; workflow valid; tag di repo uji menghasilkan Release | ya |
 
 ---
 
@@ -212,8 +213,9 @@ T-001 ── T-018 ──┬─ T-002
                  │                     ├─ T-015 ── T-028
                  │                     └─ T-027
                  ├─ T-010 ── T-098
-                 └─ T-011 ── T-060 ──┬─ T-061 ── T-063 ── T-065
-                                     └─ T-082
+                 └─ T-011 ──┬─ T-060 ──┬─ T-061 ── T-063 ── T-065 ── T-082
+                             │          └─ T-064
+                             └─ T-107
 T-024 ── T-025 ── T-026 ── T-030 ── T-101
 T-029 ── T-030
 ```
@@ -234,7 +236,7 @@ T-029 ── T-030
 | I1 | Security plumbing (T-023, T-075..T-077, T-092, T-094) | setelah T-003 | suite T-070 hijau |
 | J1 | Config & community (T-090, T-091, T-096, T-097, T-103, T-105) | setelah T-006d/e | R1 boot tanpa SQL manual |
 | H1 | Quality (T-012, T-013, T-070..T-074) | setelah T-012 | korpus & suite hijau |
-| G1 | Ops (T-060..T-065, T-082, T-083) | setelah T-011 | rehearsal lulus |
+| G1 | Ops (T-060..T-065, T-082, T-083, T-107) | setelah T-011 | rehearsal lulus; rilis pertama terbit dari tag |
 
 ---
 
@@ -280,6 +282,7 @@ T-029 ── T-030
 | OPS-03 | T-003, T-062 |
 | OPS-04, OPS-05 | T-060, T-063 |
 | OPS-06 | T-105 |
+| OPS-07 | T-107 |
 | CFG-01, CFG-02 | T-096 |
 | CFG-03, CFG-04 | T-096, T-097 |
 | CFG-05 | T-097 |

@@ -154,6 +154,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-21 | Antarmuka berbahasa **Inggris**; kunci i18n disiapkan agar bahasa lain bisa ditambah tanpa mengubah komponen |
 | O-22 | FE `majadu.qouver.com` + API `api.qouver.com` — satu site, cookie `SameSite=Lax`, tanpa `SameSite=None` |
 | O-23 | Backup: `pg_dump` harian `bm` + `bm2`, retensi 7 hari, snapshot wajib sebelum impor, restore diuji |
+| O-24 | Versioning SemVer otomatis dari Conventional Commits; `VERSION` satu sumber; tag annotated + GitHub Release |
 
 ### Keterlacakan: di mana tiap keputusan diwujudkan
 
@@ -182,6 +183,7 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-21 | Inggris sebagai bahasa UI; kunci i18n di kontrak dan komponen | T-028, T-029, T-030 |
 | O-22 | Konfigurasi Caddy dua host dalam satu site; `security.allowed_origins` | T-061, T-076 |
 | O-23 | Skrip dump harian + latihan restore + snapshot pra-impor | T-060, T-063, T-064 |
+| O-24 | `./task release`, `VERSION`, CHANGELOG, tag annotated, workflow Release | T-107 |
 
 ## 10. Jawaban pemilik (2026-11-03)
 
