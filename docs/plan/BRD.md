@@ -90,7 +90,7 @@ frontend ikut dikerjakan, autentikasi pindah ke Google.
 
 | # | Risiko | Dampak | Mitigasi |
 |---|--------|--------|----------|
-| R1 | P0 tetap terbuka selama rewrite (keputusan pemilik: perbaiki sekali di Nim) | Manipulasi skor/poin oleh pihak yang tahu URL | Kontrol kompensasi di edge + monitoring; tinjau ulang bila durasi melewati batas yang disepakati |
+| R1 | P0 tetap terbuka selama rewrite, **tanpa kontrol kompensasi** (keputusan pemilik, O-4/O-8) | Manipulasi skor/poin oleh pihak yang tahu URL; enumerasi seluruh sesi | Diterima sadar. Dicatat di `ADR-011` beserta cara mencabutnya bila berubah pikiran. Tidak ada perubahan pada v1. |
 | R2 | Scope creep (auth + kontrak + FE + skema + CI sekaligus) | Rewrite tidak selesai | Rilis bertahap R0–R4, tiap tahap punya gate yang bisa dihentikan |
 | R3 | Kontrak berubah saat FE belum siap | FE rusak, kerja serial | Kontrak dibekukan lebih dulu + mock API di hari pertama |
 | R4 | Redesign skema menghilangkan data | Kehilangan riwayat pertandingan | Import hanya setelah verifikasi rekonsiliasi; `bm` tidak disentuh |
@@ -121,11 +121,21 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-5 | DB dev/test: PostgreSQL lokal via Podman + dump skema |
 | O-6 | Blueprint stack dipilih berdasarkan bukti, bukan preferensi |
 | O-7 | Tidak ada push ke remote sampai seluruh rangkaian stabil |
+| O-8 | P0 diterima terbuka selama rewrite; tidak ada hotfix Go dan tidak ada kontrol kompensasi |
+| O-9 | Tautan "Lihat" hanya untuk membaca; **semua penulis wajib login Google** (tidak ada `edit_code`) |
+| O-10 | v2 rilis dengan data kosong; impor v1 dijalankan setelah stabil |
+| O-11 | Peran `member` masuk R2, bukan R1 |
+| O-12 | Verifikasi ID token RS256 dibangun sebagai modul binding OpenSSL lokal (ADR-009 diterima) |
 
-## 10. Pertanyaan terbuka untuk pemilik
+## 10. Jawaban pemilik (2026-11-03)
 
-1. Berapa lama jendela P0-terbuka yang bisa diterima sebelum kita memasang kontrol
-   kompensasi di edge (atau menambal Go 3 baris)?
-2. Apakah penonton boleh menulis (skor) tanpa login, atau baca saja?
-3. Apakah host non-login (guest courtside) masih diperlukan setelah Google auth?
-4. Apakah data v1 harus diimpor pada rilis pertama, atau boleh mulai kosong?
+| Pertanyaan | Jawaban | Konsekuensi |
+|---|---|---|
+| Jendela P0 terbuka | Diterima apa adanya, tanpa kontrol tambahan | Tidak ada perubahan v1; risiko dicatat di ADR-011 |
+| Penonton menulis? | Tidak — tautan "Lihat" hanya baca | `view_code` murni read-only |
+| Host tanpa login? | Tidak — semua penulis login Google | `edit_code` dihapus dari desain; model kapabilitas menyusut |
+| Impor data v1 | Kosong dulu, impor setelah stabil | Cutover tidak menunggu ETL; T-064 bisa berjalan pasca-rilis |
+| Verifikasi RS256 | Bangun modul binding OpenSSL | ADR-009 diterima; menambah satu task teknis |
+| Peran `member` | Masuk R2 | R1 hanya `owner`/`admin`/`host` |
+
+Tidak ada pertanyaan terbuka yang tersisa untuk fase perencanaan.

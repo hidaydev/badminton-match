@@ -81,13 +81,38 @@ Lihat `REVIEW-scrum.md`. Temuan review diadopsi/ditolak secara eksplisit di bawa
 
 ---
 
-## Yang masih terbuka (butuh pemilik, bukan analisis)
+## Putaran 3 — keputusan pemilik (2026-11-03)
 
-1. Jendela P0 terbuka: berapa lama dapat diterima sebelum kontrol kompensasi dipasang?
-2. Apakah penonton boleh menulis, atau baca saja?
-3. Apakah host tanpa login tetap wajib ada setelah Google auth?
-4. Urutan impor data: rilis pertama kosong, atau impor lebih dulu?
-5. ADR-009: setuju menambah modul binding OpenSSL untuk verifikasi RS256?
+Enam pertanyaan dijawab. Empat jawaban hanya mengonfirmasi rencana; dua mengubah desain
+dan memaksa penyuntingan lintas dokumen:
+
+| Jawaban | Yang harus diubah | Berkas yang disentuh |
+|---|---|---|
+| Semua penulis login Google; tidak ada host tanpa login | `edit_code` dihapus dari model kapabilitas, skema `session.links`, kontrak, UX, dan acceptance task | BRD, PRD, TECH-SPEC §4/§7.3, BACKLOG T-024/T-030/T-070 |
+| P0 diterima apa adanya, tanpa kontrol kompensasi | §7.5 berubah dari "usulan kontrol" menjadi "risiko diterima"; ADR-011 dibuat | BRD R1, TECH-SPEC §7.5/§12, BACKLOG T-083 |
+| RS256 via binding OpenSSL | ADR-009 dari "terbuka" menjadi "diterima"; verifier dipisah jadi task sendiri | TECH-SPEC §7.2/§12, BACKLOG T-084, T-021 |
+| `member` di R2 | tabel rilis + task klaim profil | PRD R2, BACKLOG T-048 |
+| Rilis kosong, impor setelah stabil | urutan cutover vs impor | TECH-SPEC §10 |
+| `view_code` read-only | acceptance keamanan | BACKLOG T-070 |
+
+Konsistensi pasca-perubahan diuji ulang: tidak ada sisa `edit_code`/`X-Edit-Code`
+di dokumen, dan jumlah requirement PRD (41) tetap seluruhnya terpetakan.
+
+---
+
+## Yang sudah diputuskan (tidak lagi terbuka)
+
+| Pertanyaan | Keputusan |
+|---|---|
+| Jendela P0 terbuka | diterima apa adanya (ADR-011) |
+| Penonton menulis | tidak |
+| Host tanpa login | tidak; semua penulis login Google |
+| Impor data v1 | rilis kosong, impor setelah stabil |
+| Verifikasi RS256 | modul binding OpenSSL |
+| Peran `member` | R2 |
+
+Sisa risiko yang **tidak** diselesaikan keputusan ini: enumerasi `GET /sessions`
+dan mutasi skor anonim tetap terbuka sampai API Nim rilis (lihat TECH-SPEC §7.5).
 
 ---
 

@@ -80,20 +80,21 @@ mock API jalan, CI definitions valid.
 | ID | Task | Depends | Owns | Acceptance | Paralel |
 |----|------|---------|------|------------|---------|
 | T-020 | Domain `account`: user, role, audit | T-006d | `modules/account/domain/` | Unit test matriks role | ya |
-| T-021 | OIDC Google: PKCE, state/nonce, JWKS + spike RS256 (ADR-009) | T-020 | `modules/account/infrastructure/oidc_*.nim` | Login berhasil; state/nonce salah ditolak; spike menghasilkan keputusan | ya |
+| T-021 | OIDC Google: PKCE, state/nonce, JWKS cache | T-020, T-084 | `modules/account/infrastructure/oidc_*.nim` | Login berhasil; state/nonce salah ditolak; `kid` tak dikenal → tolak | tidak |
+| T-084 | Verifier RS256: binding OpenSSL `EVP_DigestVerify*` + cache JWKS | T-003 | `modules/account/infrastructure/jwt_rs256.nim` | Vektor uji dari JWKS Google lulus; build **gagal** bila `libcrypto` tidak ada | ya |
 | T-022 | Sesi cookie + store + revoke | T-020 | `modules/account/infrastructure/session_store.nim` | Expiry idle/absolut diuji; revoke langsung 401 | tidak (dengan T-021) |
 | T-078 | Route `/auth/*` (start, callback, logout) | T-021, T-022 | `apps/api/src/auth_routes.nim` | Tiga route hidup; callback menolak nonce salah | tidak |
 | T-023 | RBAC middleware + matriks route×role | T-078 | `apps/api/src/auth_middleware.nim`, `modules/account/domain/rbac.nim` | 401/403 sesuai matriks; test negatif per peran | tidak |
 | T-075 | Rate limit per route/IP + `trusted_proxy` | T-003 | `apps/api/src/ratelimit.nim`, `apps/api/src/config.nim` | Melebihi batas → 429 + `Retry-After`; IP asli terbaca di belakang proxy | ya |
 | T-076 | Gerbang CSRF (`Origin`/`Sec-Fetch-Site`) + header keamanan | T-003 | `apps/api/src/security_headers.nim` | Origin asing → 403; CSP & HSTS terkirim | ya |
 | T-077 | Idempotency store (key + hash body) | T-006d | `modules/platform/idempotency.nim` | Key sama + body beda → 409; body sama → hasil sama | ya |
-| T-024 | Share links: `session.links`, `view_code`/`edit_code`, hash-only, rotasi | T-006a | `modules/share/` | Kode lama 403 setelah rotasi; satu hidup per kind | ya (lane C) |
+| T-024 | Share links: `session.links`, satu `view_code` read-only per sesi, hash-only, rotasi | T-006a | `modules/share/` | Kode lama 404 setelah rotasi; satu tautan hidup per sesi; tidak ada kode tulis | ya (lane C) |
 | T-025 | Session read API (list tanpa kode, get by publicId/view_code) | T-009, T-024 | `modules/session/read*.nim` | SES-01/02 lulus; parity subset | tidak (blokir T-026) |
 | T-026 | Session write API granular + OCC (412/428) + idempotency | T-025, T-077 | `modules/session/write*.nim` | Replay idempoten; versi basi 412; tidak ada delete+insert | tidak |
 | T-027 | WebSocket hub + batas watcher + heartbeat | T-009, T-025 | `apps/api/src/live.nim` | 51 watcher → `full`; reconnect → state konsisten | ya |
 | T-028 | FE auth: provider, login, menu berbasis role | T-008, T-015, T-078 | `apps/web/src/auth/`, `apps/web/src/App.tsx` | Login/logout; menu admin hanya untuk role | ya |
 | T-029 | FE session read (list, detail, share view) | T-028, T-025 | `apps/web/src/pages/SessionListPage.tsx`, `apps/web/src/queries/sessions.read.ts` | Render tanpa token di JS | tidak |
-| T-030 | FE session write + share UI (`X-Edit-Code`) | T-029, T-026 | `apps/web/src/pages/{GeneratePage,SharedSessionPage}.tsx`, `apps/web/src/queries/sessions.write.ts` | Skor tersimpan; kode tidak muncul di URL | tidak |
+| T-030 | FE session write + share UI (login-only) | T-029, T-026 | `apps/web/src/pages/{GeneratePage,SharedSessionPage}.tsx`, `apps/web/src/queries/sessions.write.ts` | Skor tersimpan hanya dengan sesi login; tautan read-only | tidak |
 
 **Gate R1:** security suite P0 lulus, 3 sesi E2E berjalan, tidak ada token di JS.
 
@@ -109,6 +110,7 @@ mock API jalan, CI definitions valid.
 | T-043 | Ingest/revert/rebuild + approval sumber | T-042, T-006b | `modules/rating/infrastructure/` | Rebuild deterministik; lock tidak ingest | tidak |
 | T-044 | Papan peringkat + snapshot pergerakan | T-043 | `modules/rating/read*.nim` | p95 < 150 ms pada dataset fixture 1 tahun; filter tier | ya |
 | T-045 | Achievement: hitung, backfill idempoten | T-043, T-006b | `modules/achievement/` | Backfill 2× → baris sama; 6 kategori | ya |
+| T-048 | Peran `member` + klaim profil pemain | T-041, T-022 | `modules/account/domain/member.nim`, `apps/api/src/member_routes.nim` | Klaim profil idempoten; `member` tidak bisa menulis admin | ya |
 | T-046 | FE peringkat + filter | T-044, T-028 | `apps/web/src/pages/RankingsPage.tsx` | 200 baris, filter, a11y | ya |
 | T-047 | FE detail pemain + badge | T-046, T-045 | `apps/web/src/pages/RatingPlayerPage.tsx` | Riwayat + badge; tanpa sparkline fiktif | ya |
 
@@ -141,7 +143,7 @@ mock API jalan, CI definitions valid.
 | T-064 | Import `bm` → `bm2` + rekonsiliasi + `import_row_map` | T-006b, T-006c, T-043 | `tools/import/` | Selisih rekonsiliasi = 0; bisa diulang | tidak |
 | T-065 | Runbook cutover + rollback | T-063, T-064 | `docs/ops/cutover.md` | Bisa diikuti orang lain tanpa bertanya | tidak |
 | T-082 | Dekomisi Go: hapus `apps/api/{cmd,internal}`, `apps/api/api/openapi.yaml`, generator FE lama | T-063 | `apps/api/cmd/`, `apps/api/internal/`, `apps/web/scripts/` | Tidak ada referensi Go tersisa; `grep` bersih | tidak |
-| T-083 | Keputusan freeze poin (K1) — ya/tidak, dengan konsekuensi produk | T-021 | `docs/plan/ADR-011.md` | Keputusan tertulis + cara mencabutnya | ya |
+| T-083 | Catat ADR-011: P0 diterima, konsekuensi, dan cara mencabutnya | T-021 | `docs/plan/ADR-011.md` | Dokumen berisi kondisi, dampak, dan pemicu peninjauan ulang | ya |
 
 ---
 
@@ -149,7 +151,7 @@ mock API jalan, CI definitions valid.
 
 | ID | Task | Depends | Owns | Acceptance | Paralel |
 |----|------|---------|------|------------|---------|
-| T-070 | Security suite bernama (IDOR, eskalasi, CSRF, replay OAuth, rate limit) | T-023, T-075, T-076 | `apps/api/tests/security/` | Merah di v1, hijau di v2 | ya |
+| T-070 | Security suite bernama (IDOR, eskalasi, CSRF, replay OAuth, rate limit) | T-023, T-075, T-076 | `apps/api/tests/security/` | Merah di v1, hijau di v2; termasuk `view_code` tidak bisa menulis | ya |
 | T-071 | Perluas korpus parity per modul | T-013 | `testdata/parity/` | Tiap route punya kasus contract+parity | ya |
 | T-072 | A11y + visual regression halaman inti | T-029, T-030, T-046, T-053 | `e2e/` | 0 violation; snapshot stabil | ya |
 | T-073 | Sinkron dokumen: `features-and-routes.md`, openapi, `data-model.md` | T-009 | `docs/handbook/` | Dokumen = kode; generate bersih | ya |
@@ -170,7 +172,8 @@ T-001 ──┬─ T-002
         │                             │           └─ T-064
         │                             ├─ T-006c ──┬─ T-050 ─┐
         │                             │           └─ T-051 ─┴─ T-052 ──┬─ T-053
-        │                             └─ T-006d ──┬─ T-020 ── T-021 ── T-022 ── T-078 ── T-023 ── T-070
+        │                             └─ T-006d ──┬─ T-020 ──┬─ T-021 ── T-022 ── T-078 ── T-023 ── T-070
+        │                                         │          └─ T-084
         │                                         └─ T-077
         ├─ T-007 ── T-014 ── T-013 ── T-071
         ├─ T-008 ── T-009 ──┬─ T-016
@@ -194,7 +197,7 @@ Jangan menambah pekerjaan di jalur ini.
 |------|------|-------------|----------------|
 | A1 | Platform inti (T-001..T-011, T-016) | sekarang | CI + kontrak ter-generate |
 | A2 | Platform DB (T-004..T-007, T-014) | setelah T-004 | dua DB lokal naik |
-| B1 | Account/auth (T-020..T-023, T-078) | setelah T-006d | gate R1 |
+| B1 | Account/auth (T-020..T-023, T-048, T-078, T-084) | setelah T-006d | gate R1 |
 | C1 | Session/share (T-024..T-027) | setelah T-006a & T-009 | gate R1 |
 | D1 | Rating (T-042..T-045) | setelah T-006b | parity poin lulus |
 | E1 | Tournament (T-050..T-052) | setelah T-006c | gate R3 |
@@ -211,7 +214,7 @@ Hanya **orchestrator** yang mengubah `api.yaml` di luar task kontrak T-016.
 
 | Requirement | Task |
 |---|---|
-| AUTH-01, AUTH-02 | T-021 |
+| AUTH-01, AUTH-02 | T-021, T-084 |
 | AUTH-03 | T-023, T-028, T-070 |
 | AUTH-04, AUTH-05 | T-022 |
 | AUTH-06 | T-061 |

@@ -141,8 +141,9 @@ timezone campur. Semuanya hanya bisa dibetulkan dengan mengubah bentuk tabel.
    `rating_deltas(event_id, side, player_id)`, `tournament_matches(pair_a_id)`,
    `tournament_matches(pair_b_id)`; hapus 6 pasang index duplikat.
 4. `session.links` (bukan `share_links` — satu nama): `id`, `session_id`,
-   `kind ('view'|'edit')`, `code_hash`, `created_at`, `revoked_at`,
-   `expires_at`; satu baris hidup per `kind`.
+   `code_hash`, `created_at`, `revoked_at`, `expires_at`. Satu tautan hidup per
+   sesi, read-only, bisa dicabut dan dirotasi. Tidak ada kolom `kind` karena tidak
+   ada tautan tulis (O-9).
 5. Kode akses **hash-only**, satu kunci bertipe per query; tidak ada
    `share_code = $1 OR id::text = $1`.
 6. Seed poin memakai `ON CONFLICT DO NOTHING` (menggantikan `000023` yang menimpa
@@ -207,28 +208,26 @@ client → server: {"type":"ping"} | {"type":"subscribe","lastSeq":N}
   perubahan role.
 - **Tidak ada** access/refresh token Google yang disimpan, tidak ada token di JS.
 
-### 7.2 Konflik yang harus diselesaikan sebelum R1
+### 7.2 Verifikasi ID token (ADR-009 diterima)
 
 Memo 01 menyimpulkan "nimcrypto tanpa RSA → validasi klaim saja lewat TLS".
-Memo 02 mensyaratkan "RS256 only, JWKS `kid`". Keduanya tidak bisa benar bersamaan.
+Memo 02 mensyaratkan "RS256 only, JWKS `kid`". Pemilik memilih yang kedua.
 
-**Resolusi yang diusulkan:** verifikasi tanda tangan RS256 lewat **OpenSSL `EVP_DigestVerify*`**.
+**Keputusan:** verifikasi tanda tangan RS256 lewat **OpenSSL `EVP_DigestVerify*`**.
 Catatan hasil verifikasi: wrapper bawaan Nim (`lib/wrappers/openssl.nim`)
 **hanya** mengekspos `EVP_DigestSignInit`/`EVP_DigestSignFinal` — tidak ada
 `EVP_DigestVerify*`, tidak ada `RSA_new`/`BN_bin2bn`/`EVP_PKEY_assign_RSA`.
-Jadi ini bukan "pakai yang sudah ada", melainkan **modul binding lokal ±80–120 baris**
-(`importc` ke `libcrypto`) plus test vektor dari Google JWKS. Itu tetap lebih murah
-daripada dependensi RSA baru dan tetap tanpa library tambahan, tapi harus
-diperlakukan sebagai spike, bukan asumsi.
-Jalur "klaim saja" hanya dipakai bila spike gagal **dan** token diterima langsung
-dari token endpoint over TLS — dicatat sebagai peringatan, bukan default.
+Jadi ini **modul binding lokal ±80–120 baris** (`importc` ke `libcrypto`) dengan
+test vektor dari JWKS Google, dimiliki task T-084.
+Bila `libcrypto` tidak tersedia di image runtime, build harus **gagal**, bukan
+diam-diam turun ke mode klaim-saja.
 
 ### 7.3 Otorisasi & kapabilitas
 
 | Kapabilitas | Siapa |
 |-------------|-------|
-| Baca sesi via tautan | pemegang `view_code` |
-| Tulis skor via tautan | pemegang `edit_code` (header `X-Edit-Code`) |
+| Baca sesi via tautan | pemegang `view_code` (read-only) |
+| Tulis skor | sesi login Google, peran `host`+ |
 | Buat sesi/turnamen | `host`+ |
 | Merge/rename/delete pemain, tier | `admin`+ |
 | Rebuild/revert/ingest | `admin`+ |
@@ -238,7 +237,7 @@ dari token endpoint over TLS — dicatat sebagai peringatan, bukan default.
 
 | Temuan | Ditutup oleh |
 |--------|--------------|
-| IDOR `share_code` | `view_code`/`edit_code` terpisah, hash-only, list tanpa kode, `edit_code` di header |
+| IDOR `share_code` | `view_code` read-only, hash-only, list tanpa kode; menulis wajib sesi login |
 | Pemalsuan poin | `POST` wajib `host`; ingest hanya sumber `approved`; lock tidak ingest |
 | Token admin di localStorage | sesi cookie `HttpOnly`; tidak ada token di JS |
 | CORS wildcard | origin allowlist; stream tidak lagi `*` |
@@ -252,17 +251,18 @@ dari token endpoint over TLS — dicatat sebagai peringatan, bukan default.
 
 ### 7.5 Selama P0 masih terbuka (v1 produksi)
 
-Keputusan pemilik: tidak ada hotfix Go. Kontrol kompensasi yang **tidak** menyentuh
-kode v1 (butuh aksi di host, jadi harus disetujui):
+**Keputusan pemilik (O-8): risiko diterima apa adanya.** Tidak ada hotfix Go dan
+**tidak ada kontrol kompensasi** di edge. Ini pilihan sadar, bukan kelalaian, dan
+dicatat di `ADR-011` beserta alasan serta cara mencabutnya bila berubah pikiran.
 
-- K2/K3: rate limit di edge + `404` untuk `/metrics`, `/version`, `/admin/verify`.
-- K4: access log 0600 + alarm lonjakan tulis per IP.
-- K5: dump forensik harian disimpan terpisah.
-- K6: `statement_timeout` pada role aplikasi.
-- K1 (opsional, berbiaya produk): freeze ingest poin lewat trigger DB.
+Konsekuensi yang harus diketahui:
 
-Yang **tidak bisa** ditutup di edge: enumerasi `GET /sessions` dan mutasi skor
-anonim. Keduanya baru benar-benar tertutup saat API Nim rilis.
+- `GET /sessions` dapat dienumerasi siapa pun sampai API Nim rilis.
+- Siapa pun yang memegang `share_code` dapat mengubah skor sesi draft.
+- Sesi anonim dapat memicu ingest poin lewat auto-lock.
+
+Tidak ada deteksi, tidak ada pembatasan, tidak ada pemantauan tambahan. Satu-satunya
+mitigasi adalah kecepatan rilis R1.
 
 ---
 
@@ -329,8 +329,10 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 1. R0–R3 berjalan lokal; v1 tetap di produksi tanpa perubahan.
 2. Rehearsal deploy di pod lokal: build, restart, health gagal, rollback.
 3. Cutover: deploy v2 berpasangan dengan v1 tetap tersedia sebagai `:prev`.
-4. Import data `bm` → `bm2` **setelah** v2 stabil, dengan rekonsiliasi
+   **v2 rilis dengan data kosong** (O-10) — cutover tidak menunggu ETL.
+4. Import data `bm` → `bm2` **setelah** v2 stabil dan dipakai, dengan rekonsiliasi
    (jumlah baris, checksum agregat, sampel acak), dan `platform.import_row_map`.
+   Impor boleh diulang dari snapshot baru sampai pemilik menyatakan final.
 5. Poin **dihitung ulang** dari event, bukan disalin; snapshot v1 dipakai sebagai
    fixture verifikasi.
 6. Rollback = kembali ke image `:prev`; skema `bm2` tidak dihapus.
@@ -360,8 +362,9 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 | ADR-003 | WebSocket, bukan SSE | diterima (memo 01/04) |
 | ADR-004 | Kontrak ditulis tangan + codegen | diterima (memo 04) |
 | ADR-005 | Binder SQL wajib | diterima (memo 01) |
-| ADR-006 | Google OIDC untuk host/admin, `edit_code` untuk guest | diterima (O-3) |
+| ADR-006 | Google OIDC untuk semua penulis; tautan hanya baca | diterima (O-3, O-9) |
 | ADR-007 | Parity harness + divergensi deklaratif | diterima (memo 06) |
 | ADR-008 | Tanpa shim Go, cutover berpasangan | diterima (memo 04) |
-| ADR-009 | Verifikasi RS256 via modul binding OpenSSL (`EVP_DigestVerify*` belum ada di wrapper Nim) | **terbuka** (§7.2) |
-| ADR-010 | Model `member` masuk R1 atau tidak | **terbuka** (PRD §9) |
+| ADR-009 | Verifikasi RS256 via modul binding OpenSSL (`EVP_DigestVerify*` belum ada di wrapper Nim) | diterima (O-12) |
+| ADR-010 | Peran `member` | diterima: R2 (O-11) |
+| ADR-011 | P0 diterima terbuka tanpa hotfix dan tanpa kontrol kompensasi | diterima (O-8), dengan konsekuensi tertulis di §7.5 |

@@ -22,7 +22,6 @@ menjaga alur lapangan tetap cepat.
 | Persona | Peran teknis | JTBD |
 |---------|--------------|------|
 | **Host** (admin lapangan) | `host` — login Google | Menyiapkan sesi, membagikan tautan, mengoreksi skor di lapangan dalam hitungan detik |
-| **Scorer tamu** | tanpa akun, memegang `edit_code` | Mengisi skor dari HP tanpa harus login, hanya untuk sesi yang dibagikan |
 | **Penonton** | tanpa akun, `view_code` | Melihat skor dan jadwal berjalan tanpa bisa mengubah apa pun |
 | **Pemain** | `member` (opsional) | Melihat poin, riwayat, badge; mempercayai bahwa poin tidak bisa dipalsukan |
 | **Owner** | `owner` | Menjalankan operasi admin: merge pemain, rebuild poin, hapus turnamen |
@@ -33,8 +32,8 @@ menjaga alur lapangan tetap cepat.
 | Rilis | Isi | Gate keluar |
 |-------|-----|-------------|
 | **R0 — Fondasi** | Kontrak v2, skeleton Nim, local DB, parity harness, CI | `./task check` hijau; corpus parity bisa direkam; DB lokal naik < 20 s |
-| **R1 — Auth & sesi** | OIDC Google, sesi/role, split `view_code`/`edit_code`, baca+tulis sesi, WebSocket live | Uji IDOR & eskalasi lulus; 3 sesi nyata berjalan di E2E |
-| **R2 — Pemain & poin** | Player CRUD/merge, papan poin, achievement, ingest/revert/rebuild | Parity poin identik dengan v1 pada fixture yang sama |
+| **R1 — Auth & sesi** | OIDC Google, sesi/role, tautan baca `view_code`, baca+tulis sesi (login-only), WebSocket live | Uji IDOR & eskalasi lulus; 3 sesi nyata berjalan di E2E |
+| **R2 — Pemain & poin** | Player CRUD/merge, papan poin, achievement, ingest/revert/rebuild, **peran `member` + klaim profil** | Parity poin identik dengan v1 pada fixture yang sama |
 | **R3 — Turnamen & ekspor** | Classic + team tournament, social export | Bracket & standings parity; export tervisualkan |
 | **R4 — Cutover** | Deploy rehearsal, rollback drill, migrasi data | Failure injection lulus; owner menyatakan siap |
 
@@ -64,10 +63,10 @@ sebagai kondisi yang bisa diuji otomatis.
 
 | ID | Pri | Requirement | Acceptance |
 |----|-----|-------------|------------|
-| SES-01 | M | `GET /sessions` tidak pernah memuat kode apa pun | Respons diuji: tidak ada field `share_code`/`edit_code`/`view_code` |
+| SES-01 | M | `GET /sessions` tidak pernah memuat kode apa pun | Respons diuji: tidak ada `share_code` maupun `view_code` |
 | SES-02 | M | Tautan baca (`view_code`) hanya untuk membaca | `GET` OK; semua `PATCH`/`PUT` dengan `view_code` → 403 |
-| SES-03 | M | Tautan tulis (`edit_code`) terpisah, bisa dicabut/rotasi | Rotasi membuat kode lama 403; satu kode hidup per sesi |
-| SES-04 | M | Kode dikirim via header, bukan query | `X-Edit-Code` diterima; kode di query string diabaikan dan dicatat |
+| SES-03 | M | Hanya ada tautan baca (`view_code`), bisa dicabut dan dirotasi | Rotasi membuat kode lama 404; satu kode hidup per sesi |
+| SES-04 | M | Menulis wajib sesi login; tautan tidak memberi hak tulis | `PATCH`/`PUT` tanpa sesi → 401; dengan `view_code` tetap 401 |
 | SES-05 | M | Buat sesi/turnamen wajib `host` | Anonim → 401; `member` → 403 |
 | SES-06 | M | Lock tidak lagi memicu ingest poin | Lock → status `locked`; tidak ada baris `rating_events` baru |
 | SES-07 | M | Ingest hanya untuk sumber `approved` | Sesi `locked` tanpa approval tidak menambah poin |
@@ -141,10 +140,10 @@ sebagai kondisi yang bisa diuji otomatis.
 
 1. **Login**: tombol "Sign in with Google" menggantikan password admin. Menu admin
    muncul berdasarkan role, bukan setelah memasukkan token.
-2. **Share**: dua tautan berbeda — "Lihat" (`view_code`) dan "Skor" (`edit_code`).
-   Kode tulis dikirim lewat header, tidak tampil di address bar setelah dipakai.
-3. **Host tanpa login**: tetap bisa scoring lewat `edit_code`. Jika `edit_code`
-   hilang, host harus login Google untuk membuat tautan baru.
+2. **Share**: satu tautan "Lihat" (`view_code`) yang murni read-only. Tidak ada
+   tautan tulis.
+3. **Menulis skor**: semua penulis wajib login Google. Tidak ada kode tulis, tidak
+   ada jalur anonim. Ini menghapus satu persona (scorer tamu) dengan sadar.
 4. **Daftar sesi**: butuh login. Halaman publik hanya lewat tautan langsung.
 5. **Papan peringkat**: tetap publik, tanpa login.
 
@@ -160,11 +159,16 @@ sebagai kondisi yang bisa diuji otomatis.
 Multi-community, undangan email, notifikasi push, billing, aplikasi native,
 perubahan formula poin, dan integrasi pihak ketiga selain Google.
 
-## 9. Pertanyaan terbuka
+## 9. Keputusan pemilik (2026-11-03)
 
-1. Apakah `member` perlu ada di R1, atau cukup `owner/admin/host` dulu?
-2. Apakah sesi lama (sebelum auth) harus tetap bisa diedit lewat `edit_code`
-   tanpa login setelah cutover, atau dipaksa login sekali untuk migrasi?
-3. Apakah papan peringkat perlu menampilkan pemain tanpa sesi (min_sessions=0)
-   atau mempertahankan ambang 3?
-4. Apakah ekspor sosial masuk R3 atau boleh digeser ke R4?
+| Pertanyaan | Jawaban |
+|---|---|
+| Jendela P0 terbuka | diterima apa adanya, tanpa kontrol tambahan |
+| Penonton menulis | tidak — `view_code` read-only |
+| Host tanpa login | tidak — semua penulis login Google, `edit_code` dihapus |
+| Impor data v1 | v2 rilis kosong, impor setelah stabil |
+| Verifikasi RS256 | modul binding OpenSSL (ADR-009 diterima) |
+| Peran `member` | R2 |
+
+Tidak ada pertanyaan terbuka yang tersisa; perubahan berikutnya harus lewat
+`contract-change.md` (T-016) bila menyentuh kontrak.

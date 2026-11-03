@@ -1,5 +1,11 @@
 # 02 — Security & Auth (rewrite Nim)
 
+> **Catatan status (2026-11-03):** memo ini ditulis sebelum keputusan pemilik O-9.
+> **`edit_code` dan host tanpa login DITOLAK** — semua penulis wajib login Google dan
+> tautan hanya read-only. Bagian 2.5, §3 (link), §6 (`X-Edit-Code`), dan tabel
+> otorisasi harus dibaca sebagai usulan, bukan keputusan. Kebenaran ada di `BRD.md`
+> (O-9), `TECH-SPEC.md` §7.3, dan `BACKLOG.md` T-024.
+
 - **Status:** draft untuk panel perencanaan. Read-only terhadap repo; tidak ada kode yang diubah.
 - **Pengambil keputusan:** owner. Auth = **Google OAuth / OIDC** (bukan magic link). Kontrak API boleh berubah; FE dirombak.
 - **Rujukan wajib:** `docs/audits/2026-11-03/05-security.md`, `02-backend.md`, `04-deploy-pipeline.md`.

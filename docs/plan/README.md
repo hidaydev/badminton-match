@@ -31,7 +31,7 @@ Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.
 |-----------|---------|----------------|
 | Lokasi rewrite | repo ini | majadu v2 tidak disentuh (O-1) |
 | Kontrak API | boleh berubah | FE ikut dikerjakan (O-2) |
-| Auth | Google OIDC + `edit_code` untuk guest | menghapus token admin statis (O-3) |
+| Auth | Google OIDC untuk **semua penulis**; tautan hanya baca | tidak ada jalur tulis anonim (O-3, O-9) |
 | P0 | diperbaiki sekali di Nim | keputusan pemilik (O-4) |
 | Skema | `bm2` baru, `bm` nol DDL | utang v1 tidak bisa dibetulkan di tempat |
 | Realtime | WebSocket | Mummy tidak bisa SSE |
@@ -63,14 +63,16 @@ Batas aman: **4 agen aktif**. Jalur kritis yang tidak boleh ditambah beban:
 
 ---
 
-## Yang belum diputuskan pemilik
+## Keputusan pemilik (2026-11-03)
 
-1. Berapa lama jendela P0-terbuka dapat diterima sebelum kontrol kompensasi dipasang?
-2. Apakah penonton boleh menulis skor, atau baca saja?
-3. Apakah host tanpa login tetap wajib ada setelah Google auth?
-4. Impor data v1 pada rilis pertama, atau mulai kosong?
-5. ADR-009: setuju menambah modul binding OpenSSL untuk verifikasi RS256?
-6. Model `member` masuk R1 atau ditunda?
+| Pertanyaan | Jawaban | Dampak dokumen |
+|---|---|---|
+| Jendela P0 terbuka | diterima apa adanya, tanpa kontrol tambahan | `TECH-SPEC` §7.5, `ADR-011` |
+| Penonton menulis | tidak, `view_code` read-only | `PRD` SES-02/03 |
+| Host tanpa login | tidak, semua penulis login Google | `edit_code` dihapus; `TECH-SPEC` §7.3, `BACKLOG` T-024/T-030 |
+| Impor data v1 | rilis kosong, impor setelah stabil | `TECH-SPEC` §10 |
+| Verifikasi RS256 | modul binding OpenSSL | `ADR-009` diterima, task T-084 |
+| Peran `member` | R2 | `PRD` R2, task T-048 |
 
-Jawaban atas enam hal ini mengubah isi `PRD.md` §4 dan `BACKLOG.md` §2–§3;
-sebelum dijawab, rencana tetap draft.
+Tidak ada pertanyaan terbuka. Perubahan berikutnya yang menyentuh kontrak harus
+lewat T-016 (`contract-change.md`).
