@@ -19,6 +19,7 @@ Targets:
   contract-gen generate Nim routes and the TypeScript client
   deps-check   verify installed dependencies against deps.lock
   mock-api     serve the contract as a mock API
+  r0-demo      boot the walking skeleton against the local database
   coverage     run coverage gates
   release      prepare a release (dry-run by default)
 

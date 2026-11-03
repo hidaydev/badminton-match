@@ -28,6 +28,7 @@ explicit `--nimcache` does not add a suffix.
 | `test` | unit + integration tests | integration only |
 | `verify <module>` | build and test one module | when it has integration tests |
 | `ci` | check + build + test + contract check | same as `test` |
+| `r0-demo` | walking skeleton over HTTP against `bm2_r0` | yes |
 
 ## Rules
 
