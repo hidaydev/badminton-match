@@ -1,7 +1,11 @@
 import std/[atomics, cpuinfo, os, posix]
 import mummy
+import app
 import build_info
+import db/db
 import server
+import account/infrastructure/oidc
+import share/crypto
 
 var shutdownRequested {.global.}: Atomic[bool]
 
@@ -25,10 +29,26 @@ proc shutdownWatcher(args: ShutdownArgs) {.thread.} =
   echo """{"level":"error","msg":"shutdown timed out"}"""
   quit(1)
 
+proc bootHandler(config: ServerConfig, threads: int): RequestHandler =
+  ## Wires the real application. Every dependency is required here so a
+  ## misconfigured process refuses to start instead of serving 500s.
+  let dsn = getEnv("MAJADU_PG_DSN")
+  if dsn.len == 0:
+    raise newException(ValueError, "MAJADU_PG_DSN is required")
+  let database = openDb(dsn, threads)
+  let oidc = loadOidcConfig()
+  let keyring = loadKeyring(getEnv("SHARE_CODE_KEYS"),
+    getEnv("SHARE_CODE_ACTIVE_KEY_ID"))
+  install(newApp(database, oidc, keyring))
+  result = handler()
+
 proc main() =
   let config = loadConfig()
   let threads = max(countProcessors(), 2)
-  let apiServer = newApiServer(config, threads)
+  let apiHandler =
+    if config.testRoutes: makeHandler(config.testRoutes)
+    else: bootHandler(config, threads)
+  let apiServer = newServer(apiHandler, workerThreads = threads)
 
   signal(SIGTERM, onSignal)
   signal(SIGINT, onSignal)
