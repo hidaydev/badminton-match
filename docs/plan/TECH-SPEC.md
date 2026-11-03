@@ -401,8 +401,10 @@ Semuanya di-scope `platform`; komunitas hanya boleh menurunkannya bila ada plafo
 ### 4B. Kontrak akses database (dipakai T-004, T-006, T-043)
 
 - **Placeholder selalu `$1..$n`.** Tidak ada rewriting `?` → `$n` sama sekali;
-  archlint menolak `?` di dalam string SQL. Ini menghapus satu parser dan seluruh
-  bug `jsonb ?` yang pernah muncul di v1.
+  SQL diteruskan apa adanya sehingga operator `jsonb ?` tetap bekerja. Ini
+  menghapus satu parser dan seluruh bug `jsonb ?` yang pernah muncul di v1.
+  (Koreksi pasca-beku: draft sebelumnya menyuruh archlint menolak semua `?`, yang
+  akan mematahkan operator jsonb dan bertentangan dengan acceptance T-004.)
 - Tipe parameter: `null | text | int64 | bool | uuid | timestamp` (timestamp
   selalu UTC). `NULL` dikirim sebagai parameter NULL dan dibaca lewat
   `pqgetisnull`; tidak pernah menjadi `""`.
