@@ -1,5 +1,6 @@
 import std/[atomics, cpuinfo, os, posix]
 import mummy
+import build_info
 import server
 
 var shutdownRequested {.global.}: Atomic[bool]
@@ -43,7 +44,8 @@ proc main() =
     ),
   )
 
-  echo """{"level":"info","msg":"listening","port":""" & $config.port.int & "}"
+  echo """{"level":"info","msg":"listening","port":""" & $config.port.int &
+    ""","build":""" & buildInfoJson(threads) & "}"
   try:
     apiServer.serve(config.port, "0.0.0.0")
   except MummyError as error:
