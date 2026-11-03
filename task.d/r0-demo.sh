@@ -108,6 +108,17 @@ session=$(curl -s -b "$JAR" -X POST -H 'Content-Type: application/json' \
   "$base/c/demo-club/sessions")
 session_id=$(printf '%s' "$session" | json "['id']")
 
+other=$(curl -s -b "$JAR" -X POST -H 'Content-Type: application/json' \
+  -d '{"slug":"demo-other","name":"Other Club"}' "$base/communities" | json "['id']")
+other_session=$(curl -s -b "$JAR" -X POST -H 'Content-Type: application/json' \
+  -d '{"title":"Foreign","date":"2026-11-03"}' "$base/c/demo-other/sessions" | json "['id']")
+[ "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" \
+  "$base/c/demo-club/sessions/$other_session")" = "404" ] ||
+  fail_step "foreign session must be 404"
+details=$(curl -s -b "$JAR" "$base/c/demo-club/sessions/$session_id")
+[ "$(printf '%s' "$details" | json "['version']")" = "1" ] || fail_step "session version"
+printf '%s' "$details" | grep -q 'shareCode\|viewCode' && fail_step "read leaks a code"
+
 share=$(curl -s -b "$JAR" -X POST "$base/c/demo-club/sessions/$session_id/share")
 code=$(printf '%s' "$share" | json "['code']")
 [ "${#code}" = "32" ] || fail_step "share code length"

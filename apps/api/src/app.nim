@@ -390,12 +390,13 @@ proc listSessions(request: Request, ctx: CommunityContext) =
   var items = newJArray()
   let limit = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
   for row in application.db.query(
-    """select id, title, session_date::text as session_date, status
+    """select id, title, session_date::text as session_date, status, version
        from session.sessions where community_id = $1
        order by session_date desc, updated_at desc limit $2""",
     @[textParam(ctx.communityId), intParam(limit.int64)]):
     items.add(%*{"id": row.get("id"), "title": row.get("title"),
-      "date": row.get("session_date"), "status": row.get("status")})
+      "date": row.get("session_date"), "status": row.get("status"),
+      "version": parseInt(row.get("version"))})
   jsonResponse(request, 200, %*{"items": items})
 
 proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -551,7 +552,7 @@ proc route(request: Request) =
         return
       if parts.len == 5 and verb == "GET":
         let row = application.db.queryOne(
-          """select id, title, session_date::text as session_date, status
+          """select id, title, session_date::text as session_date, status, version
              from session.sessions where id = $1 and community_id = $2""",
           @[textParam(parts[4]), textParam(ctx.get.communityId)])
         if row.isNone:
@@ -559,7 +560,10 @@ proc route(request: Request) =
           return
         jsonResponse(request, 200, %*{"id": row.get.get("id"),
           "title": row.get.get("title"), "date": row.get.get("session_date"),
-          "status": row.get.get("status")})
+          "status": row.get.get("status"),
+          "version": parseInt(row.get.get("version"))},
+          [("ETag", "\"" & row.get.get("version") & "\""),
+           ("Cache-Control", "no-store")])
         return
       if parts.len == 6 and parts[5] == "share":
         if verb == "POST":
