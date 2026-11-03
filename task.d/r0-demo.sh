@@ -37,6 +37,7 @@ sh "$REPO_ROOT/task.d/build.sh" >/dev/null
 
 export MAJADU_PG_DSN="postgresql://sachiel@127.0.0.1:5432/$DB"
 "$bin_dir/dbtools" migrate --dir "$REPO_ROOT/db/migrations" >/dev/null
+"$bin_dir/dbtools" seed --dir "$REPO_ROOT/db/seeds" >/dev/null
 
 OIDC_STUB_PORT=$STUB_PORT OIDC_STUB_ISSUER=http://127.0.0.1:$STUB_PORT \
   OIDC_STUB_CLIENT_ID=majadu-dev "$bin_dir/oidc-stub" >/tmp/r0-stub.log 2>&1 &
