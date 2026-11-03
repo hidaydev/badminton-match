@@ -23,6 +23,7 @@ create table platform.user (
   google_sub text not null,
   email_hash text not null,
   display_name text not null default '',
+  is_platform_owner boolean not null default false,
   created_at timestamptz not null default now(),
   constraint user_google_sub_unique unique (google_sub),
   constraint user_email_hash_unique unique (email_hash)
