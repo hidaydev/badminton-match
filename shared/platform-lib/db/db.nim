@@ -135,6 +135,19 @@ proc queryOne*(conn: DbConn, sql: string,
 proc execUpdate*(conn: DbConn, sql: string, params: seq[DbParam] = @[]): int =
   executeCommand(conn.conn, sql, params)
 
+
+proc execScript*(conn: DbConn, sql: string) =
+  ## Runs a multi-statement SQL file. Used by dbtools migrations and seeds;
+  ## regular application queries must use `query`/`execUpdate`.
+  let res = pqexec(conn.conn, sql.cstring)
+  if res == nil:
+    raise newException(DbError, $pqerrorMessage(conn.conn))
+  try:
+    if pqresultStatus(res) notin {PGRES_COMMAND_OK, PGRES_TUPLES_OK}:
+      raiseResultError(res)
+  finally:
+    pqclear(res)
+
 proc `[]`*(row: Row, name: string): Option[string] =
   for i, column in row.names:
     if column == name:
