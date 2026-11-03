@@ -62,7 +62,7 @@ Baca dulu: docs/plan/TECH-SPEC.md §<bagian>, BACKLOG.md baris T-xxx
 Acceptance (harus lulus): <kolom Acceptance>
 Larangan:
 - jangan menyentuh file di luar Owns
-- jangan mengubah packages/contracts/openapi/api.yaml (lewat T-016)
+- jangan mengubah packages/contracts/openapi/{core,community}.yaml (hanya T-008a/b, digerbang T-016)
 - jangan commit, jangan push
 - jangan menambah dependensi di luar yang dipin T-002
 Selesai bila: acceptance lulus + ./task check hijau + ./task verify <modul> hijau,
@@ -88,14 +88,50 @@ Aturan tambahan untuk agen backend:
 
 - `./task check` ≤ 60 s dari commit bersih.
 - `./task dev-db` membuat `bm2_dev` dari nol < 20 s; clone worker < 1 s.
-- `dbtools verify` bersih pada `0001`–`0004`.
+- `dbtools verify` bersih pada `0001`–`0005`.
 - `./task build` menghasilkan binary yang berjalan dan merespons `/healthz`.
 - `./task contract-gen` menghasilkan 59 operasi dan `git diff --exit-code` bersih.
 - `./task mock-api` melayani FE.
 - Definisi CI lolos parse + skema (dan `actionlint` bila terpasang — belum ada di mesin ini);
   `./task ci` hijau lokal.
 
-## 6. Jebakan yang sudah diketahui
+## 6. Operasional yang tidak boleh diimprovisasi
+
+### 6.1 Google OAuth (sebelum T-021)
+
+1. Buat project Google Cloud + OAuth consent screen (External, hanya scope
+   `openid email profile`).
+2. Credential: **Web application**. Authorized redirect URI:
+   `http://localhost:8080/auth/google/callback` (dev) dan
+   `https://api.qouver.com/auth/google/callback` (prod). Tidak ada origin JS.
+3. Simpan `GOOGLE_CLIENT_ID` dan `GOOGLE_CLIENT_SECRET` di
+   `/srv/qouver/apps/<app>/env/` mode `600`; repo hanya memuat `.example`.
+4. Rotasi: buat secret baru di console, deploy dengan secret baru, hapus yang lama
+   setelah 24 jam. Kunci sesi/cookie terpisah — menggantinya berarti semua user
+   logout, jadi lakukan bersamaan dengan deploy yang direncanakan.
+5. Uji: login berhasil, `state` salah → 400, `nonce` salah → 400, akun tanpa
+   `email_verified` → 403.
+
+### 6.2 Backup & restore (sebelum impor apa pun)
+
+- `ops/scripts/backup.sh` menjalankan `pg_dump -Fc` untuk `bm` dan `bm2`, retensi
+  7 hari, mode `600`, dan memverifikasi hasilnya dengan `pg_restore --list`.
+- Sebelum impor atau migrasi destruktif: dump tambahan + catat nama berkasnya.
+- `ops/scripts/restore.sh <dump> <database>` hanya menerima nama database berawalan
+  `bm2_` atau `bm_restore_`; tidak pernah menimpa `bm` produksi.
+- Latihan restore wajib di T-063; target < 30 menit dari dump terbaru.
+
+### 6.3 Deploy berpasangan (FE + API)
+
+Kontrak berubah, jadi tidak ada deploy API sendirian setelah R1:
+
+1. Build API dan FE dari commit yang sama.
+2. API naik dulu bila perubahannya aditif; FE naik setelah `/readyz` hijau.
+3. `index.html` `Cache-Control: no-store`; aset ber-hash dan `immutable`.
+4. Rollback mengembalikan **API dan FE** ke pasangan sebelumnya.
+5. Verifikasi pasca-deploy: login, satu sesi dibuka, satu skor disimpan.
+
+## 7. Jebakan yang sudah diketahui
 
 | Jebakan | Tindakan |
 |---|---|
@@ -104,7 +140,7 @@ Aturan tambahan untuk agen backend:
 | Mummy default `serverThreads` = core×10 | pool DB dihitung dari `serverThreads`, bukan angka tetap |
 | `db_connector` meng-escape, bukan bind, dan NULL jadi `""` | binder `PQexecParams` (T-004), termasuk NULL & operator jsonb `?` |
 | migrasi dijalankan dua agen bersamaan | hanya `tools/dbtools`; satu pemilik migrasi per waktu |
-| DB dev tercampur data uji antar agen | satu skema per worker + guard nama wajib `bm2_` |
+| DB dev tercampur data uji antar agen | satu **database** per worker (`bm2_<agent>`) + guard prefiks `bm2_` |
 | Mummy + ORC pernah SIGSEGV | `--mm:atomicArc` sejak hari pertama |
 | Waktu tidak deterministik | `MAJADU_NOW` sejak test pertama; kolom `now()` di DB dinormalisasi di parity |
 | Instance kosong tidak bisa boot | `T-103` bootstrap: platform_owner, komunitas pertama, seed config |

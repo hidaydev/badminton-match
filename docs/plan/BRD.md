@@ -5,6 +5,10 @@ Tanggal: 2026-11-03
 Pemilik: solo maintainer (Fredi)
 Repo: `badminton-match` (publik) — pekerjaan berjalan lokal, tanpa push sampai stabil
 
+> **Istilah.** `v1` = backend Go yang berjalan sekarang di repo ini. `v2` = backend
+> Nim penggantinya **di repo yang sama**. `majadu` adalah proyek terpisah dan
+> **tidak disentuh** (O-1).
+
 ---
 
 ## 1. Konteks bisnis
@@ -147,6 +151,9 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-18 | Semua parameter/aturan bisnis disimpan di DB, bukan di kode; nilai bisa diubah tanpa deploy |
 | O-19 | Parameter berlapis: default platform, lalu override per komunitas; komunitas tidak bisa melewati batas aman yang ditetapkan platform |
 | O-20 | Boleh membuat **database baru `bm2`** di instance PostgreSQL yang sama; arsitektur DB dirancang ulang, bukan diturunkan dari `bm` |
+| O-21 | Antarmuka berbahasa **Inggris**; kunci i18n disiapkan agar bahasa lain bisa ditambah tanpa mengubah komponen |
+| O-22 | FE `majadu.qouver.com` + API `api.qouver.com` — satu site, cookie `SameSite=Lax`, tanpa `SameSite=None` |
+| O-23 | Backup: `pg_dump` harian `bm` + `bm2`, retensi 7 hari, snapshot wajib sebelum impor, restore diuji |
 
 ### Keterlacakan: di mana tiap keputusan diwujudkan
 
@@ -172,6 +179,9 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-18 | Tidak ada konstanta bisnis di kode; `archcheck` memindai literal | T-096, T-098 |
 | O-19 | Resolusi `L2 → L1 → error`, plafon L1 divalidasi saat tulis | T-096, T-097 |
 | O-20 | Database `bm2` + role `bm2_app`; `bm` nol DDL | T-007, T-005 |
+| O-21 | Inggris sebagai bahasa UI; kunci i18n di kontrak dan komponen | T-028, T-029, T-030 |
+| O-22 | Konfigurasi Caddy dua host dalam satu site; `security.allowed_origins` | T-061, T-076 |
+| O-23 | Skrip dump harian + latihan restore + snapshot pra-impor | T-060, T-063, T-064 |
 
 ## 10. Jawaban pemilik (2026-11-03)
 

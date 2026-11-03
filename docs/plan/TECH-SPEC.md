@@ -4,6 +4,10 @@ Status: draft untuk review
 Tanggal: 2026-11-03
 Rujukan: `BRD.md`, `PRD.md`, `BACKLOG.md`, `memos/01..06`
 
+> **Istilah.** `v1` = backend Go yang berjalan sekarang di repo ini. `v2` = backend
+> Nim penggantinya **di repo yang sama**. `majadu` adalah proyek terpisah dan tidak
+> disentuh (O-1).
+
 ---
 
 ## 0. Prinsip
@@ -124,7 +128,7 @@ badminton-match/
 ├── ops/                        # dev/, caddy/, env/, scripts/, systemd/, webhook/
 ├── e2e/                        # Playwright: fungsional + a11y + visual
 ├── testdata/parity/            # korpus v1 dan v2
-└── docs/
+└── docs/                       # ops/ (runbook), handbook/, plan/, audits/
 ```
 
 **Aturan impor (dijaga `tools/archcheck`):**
@@ -337,6 +341,11 @@ client → server: {"type":"ping"} | {"type":"subscribe","lastSeq":N}
 - Sesi: cookie opaque 32 byte, hash-only di DB, `__Host-`, `HttpOnly`, `Secure`,
   `SameSite=Lax`; absolut 30 hari, idle 14 hari; revoke satu transaksi dengan
   perubahan role.
+- **Topologi (ADR-019, O-22):** FE `majadu.qouver.com`, API `api.qouver.com` — satu
+  site (eTLD+1 `qouver.com`), jadi `SameSite=Lax` cukup dan tidak perlu
+  `SameSite=None`. `__Host-` sah karena cookie di-set oleh API pada host API sendiri.
+  Daftar origin yang diizinkan disimpan di config `security.allowed_origins`
+  (bukan literal), dipakai T-076 dan CORS.
 - **Tidak ada** access/refresh token Google yang disimpan, tidak ada token di JS.
 
 ### 7.2 Verifikasi ID token (ADR-009 diterima)
@@ -444,6 +453,32 @@ gagal, `smoke.sh` + `rollback.sh` terpisah.
 **Observability:** `/healthz` (proses), `/readyz` (DB + versi skema), metrics di
 listener internal, log terstruktur tanpa PII, retensi 7 hari.
 
+Delapan metrik yang wajib ada (nama tetap, dipakai dashboard dan test):
+
+| Metrik | Tipe | Kenapa |
+|---|---|---|
+| `http_requests_total{route,method,status}` | counter | laju & tingkat error |
+| `http_request_duration_seconds{route}` | histogram | p95 |
+| `db_pool_in_use` / `db_pool_waiting` | gauge | pool < `serverThreads` terlihat langsung |
+| `ws_watchers{community}` | gauge | mendekati batas 50/sesi |
+| `ingest_lag_seconds` | gauge | ticker ingest macet |
+| `janitor_rows_deleted{table}` | counter | retensi benar-benar berjalan |
+| `build_info{version,commit}` | gauge | versi yang benar-benar hidup |
+| `db_size_bytes` | gauge | pertumbuhan tak wajar |
+
+Tanpa alert otomatis pada tahap ini: pembacaan manual lewat listener internal, dan
+`/readyz` dipakai deploy.
+
+**Backup & restore (O-23):** `pg_dump` harian untuk `bm` dan `bm2`, retensi 7 hari,
+disimpan di disk VPS dengan mode 600. Sebelum setiap impor atau migrasi destruktif,
+dump tambahan wajib dibuat dan diverifikasi bisa dibaca (`pg_restore --list`).
+Latihan restore masuk T-063 dengan target < 30 menit; hasilnya dicatat.
+
+**Deploy berpasangan (FE + API):** kontrak berubah, jadi FE dan API naik bersama.
+`index.html` dikirim `Cache-Control: no-store`; aset ber-hash dan immutable. Rollback
+mengembalikan **keduanya**, bukan hanya image API. Urutan dan perintahnya ada di
+`docs/ops/cutover.md` (T-065), dan skripnya tidak boleh mengubah satu sisi saja.
+
 ---
 
 ## 9. Testing
@@ -465,7 +500,7 @@ Divergensi sengaja dideklarasikan per kasus dan **harus tetap berbeda** — kala
 malah identik dengan v1 pada kasus IDOR, test gagal.
 
 Isolasi DB: `bm2_template` + `CREATE DATABASE … TEMPLATE` per worker (~300 ms),
-reset `TRUNCATE` urut FK, guard nama DB wajib `_test`/`_ci`.
+reset `TRUNCATE` urut FK, guard nama DB wajib berawalan `bm2_`.
 
 Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task ci` ≤ 20 min.
 
@@ -524,3 +559,5 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 | ADR-015 | Auth memakai Authorization Code + PKCE; tidak ada ID token yang dikirim dari JavaScript | diterima (§7.1) |
 | ADR-016 | Identitas publik = `id` UUIDv7; tidak ada `public_id` terpisah | diterima (memo 03 vs 04) |
 | ADR-017 | `view_code` unik global agar `/s/{code}` bisa diresolusi tanpa komunitas | diterima (§4 butir 8) |
+| ADR-018 | Akun dinonaktifkan + dianonimkan; riwayat rating dipertahankan (`ON DELETE RESTRICT` tetap) | diterima (AUTH-10) |
+| ADR-019 | FE dan API satu site (`majadu.qouver.com` + `api.qouver.com`); `SameSite=Lax` tanpa `SameSite=None` | diterima (O-22) |

@@ -79,6 +79,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | AUTH-07 | M | CSRF: perubahan state hanya dari origin sendiri | `Origin`/`Sec-Fetch-Site` asing → 403; cookie `SameSite=Lax` |
 | AUTH-08 | M | Rate limit per route + per IP, memakai proxy tepercaya | Melebihi batas → 429 dengan `Retry-After`; IP asli terbaca di belakang proxy |
 | AUTH-09 | M | `Idempotency-Key` disimpan bersama hash body | Reuse key dengan body berbeda → 409; key sama + body sama → hasil sama |
+| AUTH-10 | S | Akun bisa dinonaktifkan dan dianonimkan tanpa menghapus riwayat rating | Nama/email/identitas Google dihapus; baris rating tetap utuh; audit mencatat aktor; login berikutnya ditolak |
 
 ### 4.2 Sesi & share link
 
@@ -141,6 +142,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | OPS-03 | M | Log terstruktur tanpa PII, file 0600 | Log tidak memuat email/nama/kode; permission diuji |
 | OPS-04 | M | Deploy gagal → rollback otomatis & terverifikasi | Failure injection: build gagal, health gagal → `:prev` hidup |
 | OPS-05 | M | Rilis tidak pernah hilang senyap | Deploy kedua saat deploy berjalan → antre atau gagal berisik, tidak `exit 0` |
+| OPS-06 | M | Data sementara punya masa simpan dan dibersihkan otomatis | `auth.oauth_flows`, `idempotency_keys`, `outbox_events`, `session.links` kedaluwarsa, dan audit lama terhapus oleh janitor; jumlah baris terhapus terlihat di metrik |
 
 ### 4.8 Konfigurasi & parameter
 
@@ -172,6 +174,9 @@ band tier, ukuran turnamen, batas pagination, TTL, dan dimensi gambar dibaca dar
 | Keamanan | 0 P0/P1 terbuka; security suite lulus; **0 kebocoran lintas komunitas** |
 | Test | Domain ≥ 90%, total ≥ 75% (ratchet) |
 | Waktu check lokal | `./task check` ≤ 60 s |
+| Bahasa antarmuka | Inggris; semua teks lewat kunci i18n, tanpa string keras di komponen |
+| Backup | Dump harian, retensi 7 hari, snapshot sebelum impor; restore teruji < 30 menit |
+| Retensi data | Sesi kedaluwarsa, flow OAuth, idempotency key, dan audit lama dibersihkan otomatis |
 
 ## 6. Perubahan UX yang harus disepakati
 
@@ -186,6 +191,14 @@ band tier, ukuran turnamen, batas pagination, TTL, dan dimensi gambar dibaca dar
    ada jalur anonim. Ini menghapus satu persona (scorer tamu) dengan sadar.
 5. **Daftar sesi**: butuh login. Halaman publik hanya lewat tautan langsung.
 6. **Papan peringkat**: tetap publik di dalam komunitas, tanpa login.
+7. **Bahasa**: seluruh antarmuka berbahasa Inggris; teks diambil dari kunci i18n
+   sehingga bahasa lain bisa ditambah tanpa mengubah komponen.
+8. **Akun**: pengguna bisa meminta penonaktifan; nama dan identitas Google
+   dianonimkan, riwayat poin tetap ada dan tetap dihitung. Tidak ada tombol
+   "hapus semua data" yang akan merusak riwayat pemain lain.
+9. **Arah desain**: mengikuti `docs/design-system.md` (tipografi IBM Plex, token
+   warna `@theme` yang ada, kontras terhadap `--color-ground`). Halaman baru
+   (login, pemilih komunitas, pengaturan) memakai token yang sama, bukan palet baru.
 
 ## 7. Metrik produk
 
@@ -212,6 +225,10 @@ juga di luar lingkup** — React 19 + Vite + Tailwind 4 dibekukan (O-17).
 | Verifikasi RS256 | modul binding OpenSSL (ADR-009 diterima) |
 | Peran `member` | R2 |
 | Multi-komunitas | masuk repo ini; `community_id` + FK komposit; poin per komunitas; akun global dengan peran per komunitas |
+| Topologi origin | FE `majadu.qouver.com` dan API `api.qouver.com` — satu site, cookie `SameSite=Lax` |
+| Backup | Dump harian, retensi 7 hari, snapshot `bm` sebelum impor |
+| Bahasa antarmuka | Inggris saja; kunci i18n disiapkan sejak R1 |
+| Penghapusan akun | Nonaktifkan + anonimisasi, riwayat rating dipertahankan |
 
 Tidak ada pertanyaan terbuka yang tersisa; perubahan berikutnya harus lewat
 `contract-change.md` (T-016) bila menyentuh kontrak.

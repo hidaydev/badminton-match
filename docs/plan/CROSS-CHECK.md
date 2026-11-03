@@ -165,9 +165,9 @@ bukan pembacaan manual, supaya angka tidak bisa "kira-kira".
 
 | Pemeriksaan | Metode | Hasil |
 |---|---|---|
-| Integritas task | parse tabel backlog | **80 task**, 0 duplikat, 0 dependency menggantung |
+| Integritas task | parse tabel backlog | **82 task**, 0 duplikat, 0 dependency menggantung |
 | Kepemilikan file | kumpulan `Owns`, cari irisan | **0 bentrok** setelah pemisahan per file |
-| Traceability | 59 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
+| Traceability | 61 requirement PRD vs referensi backlog | **0 tidak terpetakan**, 0 referensi hantu |
 | Angka yang diklaim | grep `41`, `51`, `60`, `68`, `48 → 48`, `8 domain` | 5 klaim basi, semuanya diperbaiki |
 | Klaim v1 yang jadi dasar config | cek langsung ke kode | ticker `main.go:149`, pagination `granular.go:35`, papan `ratings.go:193`, band `rating_config.go:88-92`, 16 pair `tournament.go:61` — semua cocok |
 | Istilah terlarang | grep `Svelte`, `edit_code`, `multi-tenant di luar` | hanya muncul sebagai larangan/penjelasan, bukan desain |
@@ -218,7 +218,27 @@ Tiga reviewer dengan sudut berbeda membaca seluruh rencana. Ringkasan dan tindak
 | `reviews/adversarial.md` | pool 8 vs `serverThreads` 10× core; NULL→`""` dan `?` di jsonb; nimcache per nama file; FK komposit `MATCH SIMPLE`; share code per komunitas vs `/s/{code}`; bootstrap instance kosong; `libcrypto` dynlib | **semua diterima** → T-004 PQexecParams, T-018 nimcache, TECH-SPEC §4 butir 11, ADR-017, T-103, T-084 cek boot |
 
 Angka yang berubah: task **71 → 80**, permukaan API **59**, tabel v1 **27**.
-Requirement tetap **59** dan seluruhnya terpetakan.
+Requirement menjadi **61** (AUTH-10, OPS-06) dan seluruhnya terpetakan.
+
+---
+
+## Putaran 10 — keputusan interaktif pemilik (2026-11-03)
+
+| Topik | Keputusan | Wujud |
+|---|---|---|
+| Topologi origin | FE `majadu.qouver.com` + API `api.qouver.com`, satu site | ADR-019, O-22, T-061, T-076 |
+| Backup | `pg_dump` harian, retensi 7, snapshot pra-impor, restore diuji | O-23, T-060, T-063, T-064 |
+| Retensi data | Janitor otomatis | OPS-06, T-105 |
+| Google OAuth | Belum ada kredensial; runbook wajib | T-021, `docs/ops/google-oauth.md` |
+| Dekomisi Go | Setelah cutover + 14 hari observasi | T-082 |
+| Unit test FE | vitest | T-028, T-046, T-054 |
+| Cutover | Deploy berpasangan, HTML `no-store`, aset ber-hash | TECH-SPEC §8, T-065 |
+| Hapus akun | Nonaktifkan + anonimisasi, riwayat tetap | ADR-018, AUTH-10, T-106 |
+| Arah desain | `docs/design-system.md` yang ada | T-028, T-093 |
+| Bahasa UI | Inggris saja, kunci i18n disiapkan | O-21, T-028 |
+| Observability | 8 metrik inti, tanpa alert | TECH-SPEC §8, T-062 |
+
+Angka: task **80 → 82**, requirement **59 → 61**.
 
 ---
 
