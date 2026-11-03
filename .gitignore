@@ -78,3 +78,7 @@ RANKING_POIN_BWF_RANCANGAN.md
 # Nim build artefacts (T-018)
 .cache/
 nimcache/
+
+# Nim test binaries (must stay in .cache)
+apps/api/tests/server_test
+shared/platform-lib/tests/platform_lib_test

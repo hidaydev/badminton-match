@@ -27,12 +27,25 @@ nim_build() {
   nim c $CHECK_FLAGS $BUILD_FLAGS --nimcache:"$NIMCACHE_BUILD" "$@"
 }
 
+test_binary() {
+  _file=$1
+  _name=$(printf '%s' "$_file" | sed "s|$REPO_ROOT/||" | tr '/.' '__')
+  mkdir -p "$NIMCACHE_BUILD/bin"
+  printf '%s\n' "$NIMCACHE_BUILD/bin/$_name"
+}
+
 nim_run() {
-  nim c -r $CHECK_FLAGS --nimcache:"$NIMCACHE_BUILD" "$@"
+  _file=$1
+  shift
+  nim c -r $CHECK_FLAGS --nimcache:"$NIMCACHE_BUILD" \
+    -o:"$(test_binary "$_file")" "$_file" "$@"
 }
 
 nim_run_check() {
-  nim c -r $CHECK_FLAGS --nimcache:"$NIMCACHE_CHECK" "$@"
+  _file=$1
+  shift
+  nim c -r $CHECK_FLAGS --nimcache:"$NIMCACHE_CHECK" \
+    -o:"$(test_binary "$_file")" "$_file" "$@"
 }
 
 list_test_files() {
