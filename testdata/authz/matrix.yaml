@@ -1,0 +1,397 @@
+{
+  "_note": "Generated access matrix for every contract operation. A route without a row fails the test. Edit by hand only when the contract changes; `./task contract-check` keeps the specs and this file in sync.",
+  "operations": {
+    "acceptInvite": {
+      "auth": "session"
+    },
+    "createCommunity": {
+      "auth": "session",
+      "platformOwner": true
+    },
+    "createInvite": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "createJoinRequest": {
+      "auth": "session"
+    },
+    "createPlayer": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "createSession": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "createShareLink": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "createTournament": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "decideJoinRequest": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "deleteAuthSessions": {
+      "auth": "session"
+    },
+    "deleteOwnClaim": {
+      "auth": "session"
+    },
+    "deletePlayer": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "deleteSession": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "deleteSessionRating": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "deleteShareLink": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "deleteTournament": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "deleteTournamentRating": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "getAuthCallback": {
+      "auth": "public"
+    },
+    "getAuthMe": {
+      "auth": "session"
+    },
+    "getCommunityConfig": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "getDirectory": {
+      "auth": "session"
+    },
+    "getHealthz": {
+      "auth": "public"
+    },
+    "getPlayer": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "getPlayerAchievements": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "getPlayerStats": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "getRanking": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "getReadyz": {
+      "auth": "public"
+    },
+    "getSession": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "getSessionGame": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "getSettings": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "getShareLink": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "getSharedRanking": {
+      "auth": "public"
+    },
+    "getSharedSession": {
+      "auth": "public"
+    },
+    "getTournament": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "getVersion": {
+      "auth": "public"
+    },
+    "listAuthSessions": {
+      "auth": "session"
+    },
+    "listJoinRequests": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "listMembers": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "listMyCommunities": {
+      "auth": "session"
+    },
+    "listPlayerClaims": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "listPlayers": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "listRankings": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "listRatingSources": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "listSessions": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "listSharedRankings": {
+      "auth": "public"
+    },
+    "listTournaments": {
+      "auth": "session",
+      "roles": [
+        "member"
+      ]
+    },
+    "lockSession": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "patchMemberRole": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "patchPlayer": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "patchPlayerClaim": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "patchRatingSource": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "patchSession": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "patchSessionAbsent": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "patchSessionGame": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "patchSettings": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "patchTournamentMatch": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "postAuthLogout": {
+      "auth": "session"
+    },
+    "postAuthStart": {
+      "auth": "session"
+    },
+    "postPlayerClaim": {
+      "auth": "session"
+    },
+    "postPlayerMerge": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "postRatingsRebuild": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "postSessionRating": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "postSessionSwap": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "postSessionWsTicket": {
+      "auth": "session"
+    },
+    "postShareWsTicket": {
+      "auth": "public"
+    },
+    "postTournamentRating": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "putSessionSchedule": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "putTournament": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "removeMember": {
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
+    },
+    "skipSessionGame": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "unlockSession": {
+      "auth": "session",
+      "roles": [
+        "host",
+        "admin"
+      ]
+    },
+    "wsSession": {
+      "auth": "session"
+    },
+    "wsShare": {
+      "auth": "public"
+    }
+  }
+}
