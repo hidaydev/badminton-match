@@ -116,6 +116,12 @@ rotated=$(curl -s -b "$JAR" -X POST "$base/c/demo-club/sessions/$session_id/shar
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$base/s/$code")" = "404" ] ||
   fail_step "revoked share code must be 404"
 
+sessions=$(curl -s -b "$JAR" "$base/auth/sessions")
+[ "$(printf '%s' "$sessions" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["items"]))')" = "1" ] ||
+  fail_step "auth/sessions list"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X DELETE "$base/auth/sessions")" = "204" ] ||
+  fail_step "auth/sessions revoke-all"
+
 curl -s -o /dev/null -b "$JAR" -X POST "$base/auth/logout"
 [ "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$base/auth/me")" = "401" ] ||
   fail_step "logout"

@@ -4,8 +4,11 @@ import db/db
 import sha256
 import uuidv7
 import share/crypto
+import account/domain/audit
+import account/infrastructure/audit_store
 import account/infrastructure/jwt_rs256
 import account/infrastructure/oidc
+import account/infrastructure/session_store
 import platform/config/store
 
 type
@@ -52,6 +55,16 @@ proc b64url*(value: openArray[byte]): string =
     raw[index] = char(value[index])
   b64url(raw)
 
+proc audit(action: string, communityId: string, user: AuthUser,
+           targetKind: string, targetId: string,
+           after: JsonNode = newJObject()) =
+  ## Every privileged write leaves evidence. Field names outside the domain
+  ## allowlist are dropped inside the adapter, never written.
+  recordAudit(application.db, auditEvent(action, communityId,
+    actorId = user.id, actorRole = (if user.isOwner: "platform_owner" else: "admin"),
+    targetKind = targetKind, targetId = targetId, requestId = uuidv7()).withEvidence(
+      newJObject(), after))
+
 proc jsonResponse(request: Request, status: int, body: JsonNode,
                   extra: openArray[(string, string)] = []) =
   var headers = @[("Content-Type", "application/json")]
@@ -96,35 +109,22 @@ proc setSessionCookie(request: Request, token: string) =
   request.respond(204, @[("Set-Cookie", cookie)], "")
 
 proc createSessionToken(userId: string): string =
-  let token = randomHex(32)
   let days = configSnapshot().intValue(%*{}, keySessionAbsoluteDays)
-  discard application.db.execUpdate(
-    """insert into account.sessions
-       (user_id, token_hash, absolute_expires_at)
-       values ($1, decode($2, 'hex'), now() + make_interval(days => $3))""",
-    @[textParam(userId), textParam(sha256Hex(token)), intParam(days.int64)])
-  token
+  createSession(application.db, userId, days)
 
 proc currentUser(request: Request): Option[AuthUser] =
   let token = cookieValue(request, "majadu_session")
   if token.len == 0:
     return none(AuthUser)
-  let row = application.db.queryOne(
-    """select u.id, u.email_hash, u.display_name, u.is_platform_owner
-       from account.sessions s
-       join platform.user u on u.id = s.user_id
-       where s.token_hash = decode($1, 'hex')
-         and s.revoked_at is null
-         and s.absolute_expires_at > now()""",
-    @[textParam(sha256Hex(token))])
-  if row.isNone:
+  let idleDays = configSnapshot().intValue(%*{}, keySessionIdleDays)
+  let user = resolve(application.db, token, idleDays)
+  if user.isNone:
     return none(AuthUser)
-  let value = row.get
   some(AuthUser(
-    id: value.get("id"),
-    emailHash: value.get("email_hash"),
-    displayName: value.get("display_name"),
-    isOwner: value.get("is_platform_owner") == "t",
+    id: user.get.userId,
+    emailHash: user.get.emailHash,
+    displayName: user.get.displayName,
+    isOwner: user.get.isPlatformOwner,
   ))
 
 proc requireUser(request: Request): Option[AuthUser] =
@@ -258,6 +258,22 @@ proc finishAuth(request: Request) =
   request.respond(302,
     @[("Location", flow.get("return_to")), ("Set-Cookie", sessionCookie(token))], "")
 
+proc listAuthSessions(request: Request) =
+  let user = requireUser(request)
+  if user.isNone: return
+  let token = cookieValue(request, "majadu_session")
+  var items = newJArray()
+  for row in listSessions(application.db, user.get.id, token):
+    items.add(%*{"id": row.id, "createdAt": row.createdAt,
+      "lastSeenAt": row.lastSeenAt, "current": row.current})
+  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+
+proc revokeOtherSessions(request: Request) =
+  let user = requireUser(request)
+  if user.isNone: return
+  revokeOthers(application.db, user.get.id, cookieValue(request, "majadu_session"))
+  request.respond(204, @[("Cache-Control", "no-store")], "")
+
 proc me(request: Request) =
   let user = requireUser(request)
   if user.isNone: return
@@ -270,9 +286,7 @@ proc me(request: Request) =
 proc logout(request: Request) =
   let token = cookieValue(request, "majadu_session")
   if token.len > 0:
-    discard application.db.execUpdate(
-      "update account.sessions set revoked_at = now() where token_hash = decode($1,'hex')",
-      @[textParam(sha256Hex(token))])
+    revoke(application.db, token)
   request.respond(204, @[("Set-Cookie",
     "majadu_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")], "")
 
@@ -310,6 +324,8 @@ proc createCommunity(request: Request) =
     """insert into community.membership (community_id, user_id, role)
        values ($1, $2, 'admin')""",
     @[textParam(communityId), textParam(user.get.id)])
+  audit("community.create", communityId, user.get, "community", communityId,
+    %*{"slug": row.get.get("slug"), "name": row.get.get("name")})
   jsonResponse(request, 201, %*{
     "id": communityId,
     "slug": row.get.get("slug"),
@@ -350,6 +366,9 @@ proc createSession(request: Request, ctx: CommunityCtx, user: AuthUser) =
   if row.isNone:
     problem(request, 400, "INVALID_SESSION", "cannot create session")
     return
+  audit("session.create", ctx.id, user, "session", row.get.get("id"),
+    %*{"title": row.get.get("title"), "date": row.get.get("session_date"),
+        "status": row.get.get("status")})
   jsonResponse(request, 201, %*{
     "id": row.get.get("id"),
     "title": row.get.get("title"),
@@ -395,6 +414,8 @@ proc createShare(request: Request, ctx: CommunityCtx, user: AuthUser,
     @[textParam(linkId), textParam(ctx.id), textParam(sessionId),
       textParam(sha256Hex(code)), textParam(bytesHex(encrypted)),
       textParam(keyId), textParam(user.id)])
+  audit("share.issue", ctx.id, user, "session", sessionId,
+    %*{"sessionId": sessionId})
   jsonResponse(request, 201, %*{"code": code, "sessionId": sessionId})
 
 proc resolveShare(code: string): Option[JsonNode] =
@@ -486,6 +507,11 @@ proc route(request: Request) =
       return
     of "/auth/me":
       if verb == "GET": me(request) else: problem(request, 405, "METHOD", "")
+      return
+    of "/auth/sessions":
+      if verb == "GET": listAuthSessions(request)
+      elif verb == "DELETE": revokeOtherSessions(request)
+      else: problem(request, 405, "METHOD", "")
       return
     of "/communities":
       if verb == "POST": createCommunity(request)
