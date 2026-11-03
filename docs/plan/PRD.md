@@ -25,6 +25,9 @@ menjaga alur lapangan tetap cepat.
 | **Penonton** | tanpa akun, `view_code` | Melihat skor dan jadwal berjalan tanpa bisa mengubah apa pun |
 | **Pemain** | `member` (opsional) | Melihat poin, riwayat, badge; mempercayai bahwa poin tidak bisa dipalsukan |
 | **Owner** | `owner` | Menjalankan operasi admin: merge pemain, rebuild poin, hapus turnamen |
+| **Community owner/admin** | `owner`/`admin` per komunitas | Mengelola anggota, peran, pengaturan komunitas, undangan |
+| **Anggota multi-komunitas** | satu akun, banyak komunitas | Berpindah komunitas tanpa login ulang; poin tiap komunitas terpisah |
+| **Platform owner** | `platform_owner` | Membuat komunitas baru; tidak otomatis menjadi anggota komunitas itu |
 | **Maintainer** | — | Mengubah satu aturan tanpa menyentuh tiga bahasa |
 
 ## 3. Rencana rilis
@@ -32,7 +35,7 @@ menjaga alur lapangan tetap cepat.
 | Rilis | Isi | Gate keluar |
 |-------|-----|-------------|
 | **R0 — Fondasi** | Kontrak v2, skeleton Nim, local DB, parity harness, CI | `./task check` hijau; corpus parity bisa direkam; DB lokal naik < 20 s |
-| **R1 — Auth & sesi** | OIDC Google, sesi/role, tautan baca `view_code`, baca+tulis sesi (login-only), WebSocket live | Uji IDOR & eskalasi lulus; 3 sesi nyata berjalan di E2E |
+| **R1 — Auth, komunitas & sesi** | OIDC Google, sesi/role, komunitas + keanggotaan + routing `/c/{slug}`, tautan baca `view_code`, baca+tulis sesi (login-only), WebSocket live | Isolasi cross-tenant lulus; 3 sesi nyata berjalan di E2E |
 | **R2 — Pemain & poin** | Player CRUD/merge, papan poin, achievement, ingest/revert/rebuild, **peran `member` + klaim profil** | Parity poin identik dengan v1 pada fixture yang sama |
 | **R3 — Turnamen & ekspor** | Classic + team tournament, social export | Bracket & standings parity; export tervisualkan |
 | **R4 — Cutover** | Deploy rehearsal, rollback drill, migrasi data | Failure injection lulus; owner menyatakan siap |
@@ -45,13 +48,31 @@ Pekerjaan dalam satu rilis boleh paralel (lihat `BACKLOG.md`).
 Prioritas: **M** = must, **S** = should, **C** = could. Acceptance ditulis
 sebagai kondisi yang bisa diuji otomatis.
 
+### 4.0 Komunitas
+
+Komunitas adalah **batas data**, bukan sekadar label. Setiap sesi, pemain,
+turnamen, tautan, dan poin milik tepat satu komunitas.
+
+| ID | Pri | Requirement | Acceptance |
+|----|-----|-------------|------------|
+| COM-01 | M | Buat komunitas dengan slug unik | Slug bentrok → 409; slug tidak valid → 400 |
+| COM-02 | M | Bergabung lewat undangan sekali pakai, berbatas peran & waktu | Undangan dipakai dua kali → gagal; kedaluwarsa → gagal |
+| COM-03 | M | Peran berlaku per komunitas: `owner`/`admin`/`host`/`member` | Peran di komunitas A tidak memberi hak di komunitas B |
+| COM-04 | M | Isolasi data antar komunitas | Request lintas komunitas → **404**, bukan 403; query tanpa `community_id` ditolak |
+| COM-05 | M | Konteks komunitas di URL: web `/c/{slug}/…`, API `/c/{slug}/api/…` | Route komunitas tanpa slug → 404 |
+| COM-06 | M | Pengguna bisa berpindah komunitas tanpa login ulang | Daftar "komunitas saya"; pilihan tersimpan |
+| COM-07 | S | Pengaturan komunitas: nama, zona waktu, parameter poin, nama lapangan default | Perubahan berlaku tanpa deploy; tercatat di audit |
+| COM-08 | C | Direktori komunitas publik | Default mati; bila dinyalakan, hanya slug + nama yang tampil |
+| COM-09 | M | Satu akun Google untuk semua komunitas | Tidak ada akun ganda untuk orang yang sama |
+| COM-10 | S | Keluar/dikeluarkan dari komunitas mencabut akses seketika | Request berikutnya → 404/401, bukan cache lama |
+
 ### 4.1 Autentikasi & otorisasi
 
 | ID | Pri | Requirement | Acceptance |
 |----|-----|-------------|------------|
 | AUTH-01 | M | Login hanya lewat Google OIDC (Authorization Code + PKCE) | Login berhasil dengan akun Google; `state`/`nonce` salah ditolak 400 tanpa membuat sesi |
 | AUTH-02 | M | Tidak ada token di JavaScript | Cookie sesi `HttpOnly`; tidak ada access token di localStorage/sessionStorage |
-| AUTH-03 | M | Peran: `owner`, `admin`, `host`, `member` | Matriks route×role diuji; role rendah → 403, anonim → 401 |
+| AUTH-03 | M | Peran per komunitas: `owner`, `admin`, `host`, `member`; `platform_owner` global | Matriks route×role×komunitas diuji; role rendah → 403, anonim → 401, beda komunitas → 404 |
 | AUTH-04 | M | Sesi absolut 30 hari, idle 14 hari, bisa dicabut | Sesi dicabut langsung 401 pada request berikutnya |
 | AUTH-05 | M | Perubahan role tercatat di audit log | Setiap perubahan role punya baris aktor, target, waktu, alasan |
 | AUTH-06 | S | CLI ops memakai bearer token terpisah dari sesi web | Token CLI tidak berlaku di route web |
@@ -67,7 +88,7 @@ sebagai kondisi yang bisa diuji otomatis.
 | SES-02 | M | Tautan baca (`view_code`) hanya untuk membaca | `GET` OK; semua `PATCH`/`PUT` dengan `view_code` → 403 |
 | SES-03 | M | Hanya ada tautan baca (`view_code`), bisa dicabut dan dirotasi | Rotasi membuat kode lama 404; satu kode hidup per sesi |
 | SES-04 | M | Menulis wajib sesi login; tautan tidak memberi hak tulis | `PATCH`/`PUT` tanpa sesi → 401; dengan `view_code` tetap 401 |
-| SES-05 | M | Buat sesi/turnamen wajib `host` | Anonim → 401; `member` → 403 |
+| SES-05 | M | Buat sesi/turnamen wajib `host` **di komunitas itu** | Anonim → 401; `member` → 403; `host` di komunitas lain → 404 |
 | SES-06 | M | Lock tidak lagi memicu ingest poin | Lock → status `locked`; tidak ada baris `rating_events` baru |
 | SES-07 | M | Ingest hanya untuk sumber `approved` | Sesi `locked` tanpa approval tidak menambah poin |
 | SES-08 | S | Auto-lock tetap ada saat semua skor terisi | Skor terakhir → `locked`, tetap tanpa ingest implisit |
@@ -90,7 +111,7 @@ sebagai kondisi yang bisa diuji otomatis.
 | PLY-02 | M | Merge/rename/delete/tier hanya `admin`+ | Role rendah → 403 |
 | PLY-03 | M | Hapus pemain tidak menghapus riwayat pemain lain | Setelah delete, poin rekan/lawan tetap; `rebuild` menghasilkan angka sama |
 | RNK-01 | M | Poin = window 12 minggu, best 10, base 250, pengali lawan 0.5–1.5 | Parity dengan v1 pada fixture; properti: monoton naik saat menang, invarian jumlah |
-| RNK-02 | M | Papan top 200 + filter tier | Halaman `/rankings` menampilkan 200 baris, filter bekerja |
+| RNK-02 | M | Papan top 200 per komunitas + filter tier | Halaman `/c/{slug}/rankings` menampilkan 200 baris komunitas itu saja |
 | RNK-03 | S | Snapshot pergerakan (naik/turun) konsisten | Snapshot harian tidak drift terhadap perhitungan ulang |
 | ACH-01 | M | Badge dihitung dari riwayat pertandingan; `earned_at` tidak turun | Menambah pertandingan tidak menghapus badge |
 | ACH-02 | S | Backfill badge bisa dijalankan ulang, idempoten | Dua kali backfill → jumlah baris sama |
@@ -132,20 +153,23 @@ sebagai kondisi yang bisa diuji otomatis.
 | Availability deploy | Tanpa downtime; rollback < 60 s |
 | Aksesibilitas web | WCAG 2.2 AA untuk alur inti; 0 violation pada halaman yang diuji |
 | Mobile | Layar 360 px tanpa scroll horizontal; tap target ≥ 44 px |
-| Keamanan | 0 P0/P1 terbuka; security suite lulus |
+| Keamanan | 0 P0/P1 terbuka; security suite lulus; **0 kebocoran lintas komunitas** |
 | Test | Domain ≥ 90%, total ≥ 75% (ratchet) |
 | Waktu check lokal | `./task check` ≤ 60 s |
 
 ## 6. Perubahan UX yang harus disepakati
 
-1. **Login**: tombol "Sign in with Google" menggantikan password admin. Menu admin
-   muncul berdasarkan role, bukan setelah memasukkan token.
-2. **Share**: satu tautan "Lihat" (`view_code`) yang murni read-only. Tidak ada
+1. **Konteks komunitas**: semua halaman memakai `/c/{slug}/…`; ada pemilih komunitas
+   untuk akun yang tergabung di lebih dari satu. Tautan publik tetap `/s/{code}` dan
+   tidak menampilkan slug.
+2. **Login**: tombol "Sign in with Google" menggantikan password admin. Menu admin
+   muncul berdasarkan role **di komunitas aktif**, bukan role global.
+3. **Share**: satu tautan "Lihat" (`view_code`) yang murni read-only. Tidak ada
    tautan tulis.
-3. **Menulis skor**: semua penulis wajib login Google. Tidak ada kode tulis, tidak
+4. **Menulis skor**: semua penulis wajib login Google. Tidak ada kode tulis, tidak
    ada jalur anonim. Ini menghapus satu persona (scorer tamu) dengan sadar.
-4. **Daftar sesi**: butuh login. Halaman publik hanya lewat tautan langsung.
-5. **Papan peringkat**: tetap publik, tanpa login.
+5. **Daftar sesi**: butuh login. Halaman publik hanya lewat tautan langsung.
+6. **Papan peringkat**: tetap publik di dalam komunitas, tanpa login.
 
 ## 7. Metrik produk
 
@@ -156,8 +180,10 @@ sebagai kondisi yang bisa diuji otomatis.
 
 ## 8. Di luar ruang lingkup
 
-Multi-community, undangan email, notifikasi push, billing, aplikasi native,
-perubahan formula poin, dan integrasi pihak ketiga selain Google.
+Multi-community sudah masuk ruang lingkup (lihat §4.0). Yang tetap di luar:
+undangan email, notifikasi push, billing, aplikasi native, perubahan formula poin,
+dan integrasi pihak ketiga selain Google. **Mengganti stack frontend (mis. ke Svelte)
+juga di luar lingkup** — React 19 + Vite + Tailwind 4 dibekukan (O-17).
 
 ## 9. Keputusan pemilik (2026-11-03)
 
@@ -169,6 +195,7 @@ perubahan formula poin, dan integrasi pihak ketiga selain Google.
 | Impor data v1 | v2 rilis kosong, impor setelah stabil |
 | Verifikasi RS256 | modul binding OpenSSL (ADR-009 diterima) |
 | Peran `member` | R2 |
+| Multi-komunitas | masuk repo ini; `community_id` + FK komposit; poin per komunitas; akun global dengan peran per komunitas |
 
 Tidak ada pertanyaan terbuka yang tersisa; perubahan berikutnya harus lewat
 `contract-change.md` (T-016) bila menyentuh kontrak.

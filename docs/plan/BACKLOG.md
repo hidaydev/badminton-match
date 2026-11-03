@@ -55,10 +55,10 @@ sampai T-011 selesai.
 | T-003 | `platform-lib` inti: logger, metrics, clock, ids, errors | T-001 | `shared/platform-lib/*.nim` (kecuali `db/`) | Unit test; clock dipaksa `MAJADU_NOW` | ya (T-004) |
 | T-004 | DB layer: pool, tx, **binder parameter** | T-001 | `shared/platform-lib/db/*.nim` | Round-trip: `?` jadi bind nyata; lint melarang `dbQuote` di store | ya (T-003) |
 | T-005 | `tools/dbtools`: ledger, checksum, migrate/verify/seed | T-004 | `tools/dbtools/` | Migrasi dari nol < 20 s; checksum drift → exit ≠ 0 | tidak |
-| T-006a | Migrasi `bm2` inti: session, player, court, game, fix_match | T-005 | `db/migrations/0001_*.sql` | `dbtools verify` bersih; idempoten | tidak (blokir 006b–d) |
+| T-006a | Migrasi `bm2` inti: community, session, player, court, game, fix_match | T-005 | `db/migrations/0001_*.sql` | `dbtools verify` bersih; idempoten; semua tabel ber-`community_id` + FK komposit | tidak (blokir 006b–d) |
 | T-006b | Migrasi `bm2` rating & achievement | T-006a | `db/migrations/0002_*.sql` | Tabel + index + constraint sesuai TECH-SPEC §4 | ya (dengan 006c) |
 | T-006c | Migrasi `bm2` tournament | T-006a | `db/migrations/0003_*.sql` | Idem | ya (dengan 006b) |
-| T-006d | Migrasi `bm2` platform/account: `auth.oauth_flows`, `account.{users,roles,sessions,audit}`, `platform.idempotency_keys`, `outbox` | T-006a | `db/migrations/0004_*.sql` | Idem; **bukan** "26 tabel" — termasuk tabel baru | ya (dengan 006b/006c) |
+| T-006d | Migrasi `bm2` platform/account: `platform.{community,user,idempotency_keys}`, `community.{membership,invite,settings}`, `account.{sessions,audit}`, `auth.oauth_flows`, `outbox` | T-006a | `db/migrations/0004_*.sql` | Idem; **bukan** "26 tabel" — termasuk tabel baru; peran disimpan per keanggotaan | ya (dengan 006b/006c) |
 | T-007 | Dev environment: pod Podman, `postgres:18-alpine`, port 55432, template, reset | T-001 | `ops/dev/` | `./task dev-db` naik < 20 s; clone per-worker < 1 s | ya |
 | T-014 | Environment v1 lokal: restore dump ke pod terpisah + seed legacy | T-007 | `ops/dev/v1/`, `db/fixtures/v1/` | `./task dev-v1` naik; 48 route v1 merespons | ya |
 | T-008 | OpenAPI v2 di `packages/contracts/openapi/api.yaml` | T-001 | `packages/contracts/openapi/api.yaml` | 48 operasi, lint spec bersih | ya |
@@ -84,12 +84,17 @@ mock API jalan, CI definitions valid.
 | T-084 | Verifier RS256: binding OpenSSL `EVP_DigestVerify*` + cache JWKS | T-003 | `modules/account/infrastructure/jwt_rs256.nim` | Vektor uji dari JWKS Google lulus; build **gagal** bila `libcrypto` tidak ada | ya |
 | T-022 | Sesi cookie + store + revoke | T-020 | `modules/account/infrastructure/session_store.nim` | Expiry idle/absolut diuji; revoke langsung 401 | tidak (dengan T-021) |
 | T-078 | Route `/auth/*` (start, callback, logout) | T-021, T-022 | `apps/api/src/auth_routes.nim` | Tiga route hidup; callback menolak nonce salah | tidak |
-| T-023 | RBAC middleware + matriks route×role | T-078 | `apps/api/src/auth_middleware.nim`, `modules/account/domain/rbac.nim` | 401/403 sesuai matriks; test negatif per peran | tidak |
+| T-023 | RBAC middleware + matriks route×role×komunitas | T-078 | `apps/api/src/auth_middleware.nim`, `modules/account/domain/rbac.nim` | 401/403 sesuai matriks; beda komunitas → 404; test negatif per peran | tidak |
+| T-090 | Domain `community`: komunitas, slug, settings | T-006d | `modules/community/domain/` | Slug unik per instance; slug tidak valid ditolak | ya |
+| T-091 | Keanggotaan, undangan sekali pakai, peran per komunitas | T-090, T-020 | `modules/community/infrastructure/membership.nim`, `.../invite.nim` | Undangan dipakai 2× → gagal; peran di komunitas A tidak berlaku di B | ya |
+| T-092 | Middleware konteks komunitas: slug → `community_id`, 404 | T-090, T-023 | `apps/api/src/community_context.nim` | Slug asing / bukan anggota → 404; handler menerima ctx ber-community | tidak |
+| T-093 | FE rute komunitas + pemilih komunitas | T-028, T-092 | `apps/web/src/community/` | `/c/{slug}/…` jalan; pindah komunitas tanpa login ulang | tidak |
+| T-094 | Suite keamanan cross-tenant | T-092 | `apps/api/tests/tenant/` | Setiap resource: akses komunitas lain → 404; 0 kebocoran | ya |
 | T-075 | Rate limit per route/IP + `trusted_proxy` | T-003 | `apps/api/src/ratelimit.nim`, `apps/api/src/config.nim` | Melebihi batas → 429 + `Retry-After`; IP asli terbaca di belakang proxy | ya |
 | T-076 | Gerbang CSRF (`Origin`/`Sec-Fetch-Site`) + header keamanan | T-003 | `apps/api/src/security_headers.nim` | Origin asing → 403; CSP & HSTS terkirim | ya |
 | T-077 | Idempotency store (key + hash body) | T-006d | `modules/platform/idempotency.nim` | Key sama + body beda → 409; body sama → hasil sama | ya |
-| T-024 | Share links: `session.links`, satu `view_code` read-only per sesi, hash-only, rotasi | T-006a | `modules/share/` | Kode lama 404 setelah rotasi; satu tautan hidup per sesi; tidak ada kode tulis | ya (lane C) |
-| T-025 | Session read API (list tanpa kode, get by publicId/view_code) | T-009, T-024 | `modules/session/read*.nim` | SES-01/02 lulus; parity subset | tidak (blokir T-026) |
+| T-024 | Share links: `session.links`, satu `view_code` read-only per sesi, hash-only, rotasi | T-006a | `modules/share/` | Kode lama 404 setelah rotasi; kode unik per komunitas; tidak ada kode tulis | ya (lane C) |
+| T-025 | Session read API (list tanpa kode, get by publicId/view_code) | T-009, T-024, T-092 | `modules/session/read*.nim` | SES-01/02 lulus; hanya sesi komunitas aktif; parity subset | tidak (blokir T-026) |
 | T-026 | Session write API granular + OCC (412/428) + idempotency | T-025, T-077 | `modules/session/write*.nim` | Replay idempoten; versi basi 412; tidak ada delete+insert | tidak |
 | T-027 | WebSocket hub + batas watcher + heartbeat | T-009, T-025 | `apps/api/src/live.nim` | 51 watcher → `full`; reconnect → state konsisten | ya |
 | T-028 | FE auth: provider, login, menu berbasis role | T-008, T-015, T-078 | `apps/web/src/auth/`, `apps/web/src/App.tsx` | Login/logout; menu admin hanya untuk role | ya |
@@ -106,12 +111,12 @@ mock API jalan, CI definitions valid.
 |----|------|---------|------|------------|---------|
 | T-040 | Domain `player`: CRUD, alias, gender, tier sticky | T-006a | `modules/player/domain/`, `modules/player/infrastructure/` | Delete tidak menghapus delta orang lain | ya |
 | T-041 | API pemain + RBAC | T-040, T-009 | `modules/player/api.nim` | Matriks role lulus; parity | tidak (butuh T-040) |
-| T-042 | Domain `rating`: poin murni | T-003 | `modules/rating/domain/` | Property: monoton, invarian, clamp | ya |
+| T-042 | Domain `rating`: poin murni | T-003 | `modules/rating/domain/` | Property: monoton, invarian, clamp; window di dalam satu komunitas | ya |
 | T-043 | Ingest/revert/rebuild + approval sumber | T-042, T-006b | `modules/rating/infrastructure/` | Rebuild deterministik; lock tidak ingest | tidak |
 | T-044 | Papan peringkat + snapshot pergerakan | T-043 | `modules/rating/read*.nim` | p95 < 150 ms pada dataset fixture 1 tahun; filter tier | ya |
 | T-045 | Achievement: hitung, backfill idempoten | T-043, T-006b | `modules/achievement/` | Backfill 2× → baris sama; 6 kategori | ya |
-| T-048 | Peran `member` + klaim profil pemain | T-041, T-022 | `modules/account/domain/member.nim`, `apps/api/src/member_routes.nim` | Klaim profil idempoten; `member` tidak bisa menulis admin | ya |
-| T-046 | FE peringkat + filter | T-044, T-028 | `apps/web/src/pages/RankingsPage.tsx` | 200 baris, filter, a11y | ya |
+| T-048 | Peran `member` + klaim profil pemain (per komunitas) | T-041, T-022 | `modules/account/domain/member.nim`, `apps/api/src/member_routes.nim` | Klaim profil idempoten; `member` tidak bisa menulis admin; klaim hanya di komunitas terkait | ya |
+| T-046 | FE peringkat + filter | T-044, T-028, T-093 | `apps/web/src/pages/RankingsPage.tsx` | 200 baris per komunitas, filter, a11y | ya |
 | T-047 | FE detail pemain + badge | T-046, T-045 | `apps/web/src/pages/RatingPlayerPage.tsx` | Riwayat + badge; tanpa sparkline fiktif | ya |
 
 **Gate R2:** parity poin identik pada korpus; rebuild dari fixture = angka sama.
@@ -125,7 +130,7 @@ mock API jalan, CI definitions valid.
 | T-050 | Domain tournament classic | T-006c | `modules/tournament/classic*.nim` | Bracket & standings parity | ya |
 | T-051 | Domain tournament team | T-006c | `modules/tournament/team*.nim` | Skor per partai; champion benar | ya (T-050) |
 | T-052 | API turnamen + patch per match | T-050, T-051, T-009 | `modules/tournament/api.nim` | `PATCH .../matches/{id}` mengubah satu match | tidak |
-| T-053 | FE tournament classic & team | T-052, T-028 | `apps/web/src/pages/Tournament*.tsx` | Wizard, bracket, standings, skor | ya |
+| T-053 | FE tournament classic & team | T-052, T-028, T-093 | `apps/web/src/pages/Tournament*.tsx` | Wizard, bracket, standings, skor di bawah `/c/{slug}` | ya |
 | T-054 | Ekspor sosial | T-052 | `apps/web/src/utils/canvas*.ts` | Snapshot visual stabil | ya |
 
 **Gate R3:** E2E turnamen penuh; ekspor deterministik.
@@ -140,7 +145,8 @@ mock API jalan, CI definitions valid.
 | T-061 | Quadlet, Caddy, env example | T-060 | `ops/systemd/`, `ops/caddy/`, `ops/env/` | `NoNewPrivileges`, `DropCapability=ALL`, header keamanan | ya |
 | T-062 | Observability: `/healthz`, `/readyz` (versi skema), metrics internal, log 0600 | T-003 | `apps/api/src/health.nim`, `ops/scripts/rotate-log.sh` | DB mati → `/readyz` 503; metrics tak publik | ya |
 | T-063 | Rehearsal lokal: deploy + rollback + smoke + failure injection | T-060, T-061, T-062 | `tools/rehearsal/` | Skenario lulus dari nol < 15 menit | tidak |
-| T-064 | Import `bm` → `bm2` + rekonsiliasi + `import_row_map` | T-006b, T-006c, T-043 | `tools/import/` | Selisih rekonsiliasi = 0; bisa diulang | tidak |
+| T-064 | Import `bm` → `bm2` + rekonsiliasi + `import_row_map` | T-006b, T-006c, T-043, T-090 | `tools/import/etl.nim`, `tools/import/verify.nim` | Selisih rekonsiliasi = 0; bisa diulang; semua baris punya `community_id` | tidak |
+| T-095 | Pemetaan data v1 ke komunitas default | T-064, T-090 | `tools/import/community_map.nim` | Satu komunitas default; slug tercatat; idempoten | tidak |
 | T-065 | Runbook cutover + rollback | T-063, T-064 | `docs/ops/cutover.md` | Bisa diikuti orang lain tanpa bertanya | tidak |
 | T-082 | Dekomisi Go: hapus `apps/api/{cmd,internal}`, `apps/api/api/openapi.yaml`, generator FE lama | T-063 | `apps/api/cmd/`, `apps/api/internal/`, `apps/web/scripts/` | Tidak ada referensi Go tersisa; `grep` bersih | tidak |
 | T-083 | Catat ADR-011: P0 diterima, konsekuensi, dan cara mencabutnya | T-021 | `docs/plan/ADR-011.md` | Dokumen berisi kondisi, dampak, dan pemicu peninjauan ulang | ya |
@@ -184,6 +190,10 @@ T-001 ──┬─ T-002
                             └─ T-082
 T-042 ── T-043        (domain rating tidak menunggu skema)
 T-024 ── T-025 ── T-026 (butuh T-009)
+T-090 ── T-091        (komunitas)
+T-090 + T-023 ── T-092 ── T-093
+T-092 ── T-094
+T-090 + T-064 ── T-095
 ```
 
 Kritis: **T-004 → T-005 → T-006a**, **T-008 → T-009**, dan **T-020 → T-021 → T-022**.
@@ -204,6 +214,7 @@ Jangan menambah pekerjaan di jalur ini.
 | F1 | FE (T-028..T-030, T-046, T-047, T-053, T-054) | setelah T-015 | gate R3 |
 | I1 | Security plumbing (T-075..T-077) | setelah T-003 | suite T-070 hijau |
 | H1 | Quality (T-012, T-013, T-070..T-074) | setelah T-012 | korpus & suite hijau |
+| J1 | Community (T-090..T-093, T-095) | setelah T-006d | gate R1 |
 | G1 | Ops (T-060..T-065, T-082) | setelah T-011 | rehearsal lulus |
 
 Hanya **orchestrator** yang mengubah `api.yaml` di luar task kontrak T-016.
@@ -214,6 +225,15 @@ Hanya **orchestrator** yang mengubah `api.yaml` di luar task kontrak T-016.
 
 | Requirement | Task |
 |---|---|
+| COM-01 | T-090 |
+| COM-02 | T-091 |
+| COM-03 | T-091, T-023 |
+| COM-04, COM-05 | T-092, T-094 |
+| COM-06 | T-093 |
+| COM-07 | T-090 (settings) |
+| COM-08 | T-090 |
+| COM-09 | T-020, T-091 |
+| COM-10 | T-091, T-094 |
 | AUTH-01, AUTH-02 | T-021, T-084 |
 | AUTH-03 | T-023, T-028, T-070 |
 | AUTH-04, AUTH-05 | T-022 |

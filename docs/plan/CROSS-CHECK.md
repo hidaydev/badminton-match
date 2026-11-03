@@ -100,6 +100,26 @@ di dokumen, dan jumlah requirement PRD (41) tetap seluruhnya terpetakan.
 
 ---
 
+## Putaran 4 — perluasan lingkup: multi-komunitas + frontend dibekukan
+
+| Keputusan | Yang berubah | Berkas |
+|---|---|---|
+| Multi-komunitas masuk repo ini (O-13..O-16) | tujuan bisnis B7, requirement COM-01..10, skema ber-`community_id` + FK komposit, routing `/c/{slug}`, poin per komunitas, peran per komunitas | BRD §2/§4/§7/§9, PRD §3/§4.0/§6, TECH-SPEC §0/§3/§4/§5/§6/§7/§10/§12, BACKLOG T-090..T-095 + T-006a/d + T-025..T-053, traceability |
+| Frontend React dibekukan (O-17) | memo 01 salah menulis `web/ # Svelte`; diperbaiki, dan larangan rewrite dicatat eksplisit | BRD C7/O-17, PRD §8, TECH-SPEC §2/§3/§12 |
+
+**Cek konsistensi setelah perluasan:**
+
+| Yang diuji | Hasil |
+|---|---|
+| Sisa kata "Svelte" di dokumen hidup | hanya di memo 01 sebagai catatan yang sudah dikoreksi |
+| "Multi-community" masih disebut di luar lingkup | tidak ada |
+| Task ID baru (T-090..T-095) | tidak menggantung, semua `Depends` valid |
+| Requirement COM-01..10 | seluruhnya terpetakan ke task |
+| Kolom `community_id` di setiap tabel domain | disebut di TECH-SPEC §4 dan acceptance T-006a |
+| Tautan `view_code` | tidak ada sisa `edit_code` di dokumen hidup |
+
+---
+
 ## Yang sudah diputuskan (tidak lagi terbuka)
 
 | Pertanyaan | Keputusan |

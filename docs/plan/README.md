@@ -32,6 +32,8 @@ Bila hanya punya 10 menit: baca `BRD.md` §4–§9, lalu `BACKLOG.md` §0–§2.
 | Lokasi rewrite | repo ini | majadu v2 tidak disentuh (O-1) |
 | Kontrak API | boleh berubah | FE ikut dikerjakan (O-2) |
 | Auth | Google OIDC untuk **semua penulis**; tautan hanya baca | tidak ada jalur tulis anonim (O-3, O-9) |
+| Multi-komunitas | satu instance, `community_id` + FK komposit, poin per komunitas | skema, auth, routing berubah (O-13..O-16) |
+| Frontend | React 19 + Vite + Tailwind 4, **dibekukan** | tidak ada rewrite Svelte (O-17) |
 | P0 | diperbaiki sekali di Nim | keputusan pemilik (O-4) |
 | Skema | `bm2` baru, `bm` nol DDL | utang v1 tidak bisa dibetulkan di tempat |
 | Realtime | WebSocket | Mummy tidak bisa SSE |
@@ -73,6 +75,8 @@ Batas aman: **4 agen aktif**. Jalur kritis yang tidak boleh ditambah beban:
 | Impor data v1 | rilis kosong, impor setelah stabil | `TECH-SPEC` §10 |
 | Verifikasi RS256 | modul binding OpenSSL | `ADR-009` diterima, task T-084 |
 | Peran `member` | R2 | `PRD` R2, task T-048 |
+| Multi-komunitas | masuk repo ini: `community_id` + FK komposit, poin per komunitas, akun global | `TECH-SPEC` §4/§5, task T-090..T-095 |
+| Frontend | React 19 + Vite + Tailwind 4 dibekukan | tidak ada rewrite Svelte (O-17) |
 
 Tidak ada pertanyaan terbuka. Perubahan berikutnya yang menyentuh kontrak harus
 lewat T-016 (`contract-change.md`).

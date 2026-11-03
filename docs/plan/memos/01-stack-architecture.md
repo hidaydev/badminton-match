@@ -126,7 +126,7 @@ badminton-match/
 │   │   │   ├── account_routes.nim platform_routes.nim
 │   │   │   └── version_gen.nim   # dihasilkan ./task build dari VERSION
 │   │   └── tests/                # hit*.nim (HTTP), it*.nim (DB)
-│   └── web/                      # Svelte; dikerjakan paralel, tidak menyentuh Nim
+│   └── web/                      # React 19 + Vite + Tailwind 4 (STACK DIBEKUKAN)
 ├── modules/
 │   ├── session/{domain,infrastructure,migrations,tests}
 │   ├── player/…

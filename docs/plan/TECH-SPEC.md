@@ -16,6 +16,8 @@ Rujukan: `BRD.md`, `PRD.md`, `BACKLOG.md`, `memos/01..06`
    error setelah commit yang berubah jadi 5xx, tidak ada test yang di-skip tanpa jejak.
 4. **Divergensi dari v1 harus dinyatakan.** Parity harness bukan alat membekukan bug.
 5. **Repo publik = nol rahasia.** Tidak ada secret, IP asli, dump, atau data pribadi.
+6. **Komunitas adalah batas data.** Tidak ada query yang boleh berjalan tanpa
+   `community_id`; pelanggaran harus jadi error, bukan hasil kosong.
 
 ---
 
@@ -63,7 +65,7 @@ false positive. Mulai sekarang, klaim skema **wajib** diverifikasi ke dump.
 | Test | `std/unittest`, satu binary per modul, integrasi **gagal** tanpa DB | Menutup 56/74 test yang selalu skip | — |
 | Crypto | nimcrypto 0.7.3 + OpenSSL EVP untuk RSA | Lihat §7.1 | JWT library pihak ketiga |
 | Memory | `--mm:atomicArc` | Hindari ORC; YRC ditolak Mummy saat compile | ORC, refc |
-| Frontend | React 19 + Vite + Tailwind 4 (dipertahankan) | Sudah ada, timnya satu orang | rewrite FE (tidak perlu) |
+| Frontend | React 19 + Vite + Tailwind 4 (dibekukan) | Sudah ada, satu maintainer; O-17 | rewrite FE / Svelte (ditolak) |
 
 **Dependensi wajib dipin persis** (tanpa `nimble.lock`, dengan `deps-check` yang
 memverifikasi hash tree): `mummy 0.4.8`, `nimcrypto 0.7.3`, `zippy 0.10.20`,
@@ -79,14 +81,15 @@ badminton-match/
 ├── config.nims                 # path modul; dipakai nimsuggest & nim c polos
 ├── apps/
 │   ├── api/                    # entrypoint: main.nim, server.nim, routes_gen.nim
-│   └── web/                    # React (dipertahankan, dirework bertahap)
-├── modules/                    # 8 domain, tiap modul punya permukaan api.nim
+│   └── web/                    # React 19 + Vite + Tailwind 4 (stack dibekukan)
+├── modules/                    # 9 domain, tiap modul punya permukaan api.nim
 │   ├── session/                # domain/ infrastructure/ migrations/ tests/ api.nim
 │   ├── player/
 │   ├── rating/
 │   ├── tournament/
 │   ├── achievement/
 │   ├── share/
+│   ├── community/              # komunitas, anggota, undangan, pengaturan
 │   ├── platform/               # config, audit log, clock, id
 │   └── account/                # OIDC, sesi, role
 ├── packages/
@@ -119,6 +122,18 @@ Rumus poin **wajib** di `modules/rating/domain` — bukan di store seperti v1
 
 **Keputusan: skema baru `bm2` di instance PostgreSQL yang sama. `bm` nol DDL.**
 
+**Batas komunitas (O-13…O-16).** Setiap tabel domain punya `community_id NOT NULL`.
+PK tetap surrogate (`id`), tetapi setiap FK memakai pasangan komposit
+`(community_id, id)` sehingga baris **tidak bisa** merujuk entitas komunitas lain
+bahkan bila kode lupa memfilter. Setiap UNIQUE ikut di-scope: `(community_id, slug)`,
+`(community_id, alias_key)`, `(community_id, match_key)`, dan seterusnya.
+Index operasional selalu berawalan `community_id`.
+
+Tabel platform: `platform.community`, `platform.user` (global),
+`community.membership` (user × community × role), `community.invite`,
+`community.settings`. Peran disimpan per keanggotaan; `platform_owner` global
+hanya untuk membuat komunitas.
+
 | Kriteria | 1:1 `bm` | Evolve `bm` | **Redesign `bm2`** |
 |----------|----------|-------------|--------------------|
 | Risiko ke prod | rendah | tinggi | rendah |
@@ -150,6 +165,12 @@ timezone campur. Semuanya hanya bisa dibetulkan dengan mengubah bentuk tabel.
    tuning operator).
 7. Semua waktu: `timestamptz` UTC untuk instan, `date` WIB untuk tanggal kalender —
    satu konvensi, ditegakkan test.
+8. `share_code`/`view_code` unik **per komunitas**, bukan global; tautan lama
+   komunitas lain tidak bisa ditebak dari pola.
+9. Poin dihitung per komunitas: `rating_events`/`rating_deltas`/`rating_players`
+   membawa `community_id`; window dan best-N dievaluasi di dalam komunitas itu.
+10. Query builder menolak query tanpa predikat `community_id` pada tabel domain
+    (gagal di test, bukan menghasilkan daftar kosong).
 
 **Migrasi:** nomor urut, `schema_version` + checksum, dua fase untuk destruktif
 (`expand` → backfill → `contract`), DDL hanya lewat `tools/dbmigrate`. App
@@ -166,6 +187,11 @@ timezone campur. Semuanya hanya bisa dibetulkan dengan mengubah bentuk tabel.
 - Konvensi: camelCase, RFC 9457 `problem+json` dengan `code` + `i18nKey`,
   pagination cursor, `Idempotency-Key` + hash body, `ETag`/`If-Match`
   (**412** bila basi, 428 bila tidak dikirim), batas ukuran body per route.
+- **Semua route komunitas ber-prefix `/c/{slug}/api/…`.** Middleware me-resolve
+  slug → `community_id` **sebelum** handler; slug tidak dikenal atau user bukan
+  anggota → 404 (bukan 403, agar keberadaan komunitas tidak bocor). Tautan publik
+  `/s/{code}` tidak memakai slug: kode itu sendiri yang menentukan komunitas.
+  `Idempotency-Key` di-scope per komunitas.
 - OpenAPI **ditulis tangan** di `packages/contracts/openapi/api.yaml`; `./task
   contract-gen` menghasilkan kerangka route Nim + client TS. CI gagal bila hasil
   generate berbeda dari commit.
@@ -179,7 +205,8 @@ Detail per-route ada di `memos/04-api-contract.md`; ringkasan tabel final masuk
 
 ## 6. Realtime
 
-WebSocket di `/ws/sessions/{publicId}` dan `/ws/share/{viewCode}`.
+WebSocket di `/ws/c/{slug}/sessions/{publicId}` dan `/ws/share/{viewCode}`.
+Kanal sesi mewarisi `community_id` dari slug; kanal share mengambilnya dari kode.
 
 ```text
 server → client: {"type":"ready"} | {"type":"session.changed","seq":N}
@@ -231,7 +258,8 @@ diam-diam turun ke mode klaim-saja.
 | Buat sesi/turnamen | `host`+ |
 | Merge/rename/delete pemain, tier | `admin`+ |
 | Rebuild/revert/ingest | `admin`+ |
-| Kelola role | `owner` |
+| Kelola role | `owner` **di komunitas itu** |
+| Akses data lintas komunitas | tidak ada — 404 |
 
 ### 7.4 Remediasi P0/P1
 
@@ -248,6 +276,7 @@ diam-diam turun ke mode klaim-saja.
 | Turnamen anonim | `host`+ untuk semua tulis |
 | CSRF | cookie `SameSite=Lax` + gerbang `Origin`/`Sec-Fetch-Site` untuk semua metode non-GET |
 | Rate limit per route | limit per route + IP dari proxy tepercaya, 429 + `Retry-After` |
+| Kebocoran lintas komunitas | `community_id` wajib + FK komposit + 404 untuk entitas komunitas lain |
 
 ### 7.5 Selama P0 masih terbuka (v1 produksi)
 
@@ -335,6 +364,8 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
    Impor boleh diulang dari snapshot baru sampai pemilik menyatakan final.
 5. Poin **dihitung ulang** dari event, bukan disalin; snapshot v1 dipakai sebagai
    fixture verifikasi.
+6. Seluruh data v1 dipetakan ke **satu komunitas default**; slug-nya ditentukan saat
+   impor dan dicatat di `platform.import_row_map`.
 6. Rollback = kembali ke image `:prev`; skema `bm2` tidak dihapus.
 
 ---
@@ -368,3 +399,5 @@ Gate: `./task check` ≤ 60 s · `./task verify <module>` ≤ 5 min · `./task c
 | ADR-009 | Verifikasi RS256 via modul binding OpenSSL (`EVP_DigestVerify*` belum ada di wrapper Nim) | diterima (O-12) |
 | ADR-010 | Peran `member` | diterima: R2 (O-11) |
 | ADR-011 | P0 diterima terbuka tanpa hotfix dan tanpa kontrol kompensasi | diterima (O-8), dengan konsekuensi tertulis di §7.5 |
+| ADR-012 | Multi-komunitas: satu skema, `community_id` + FK komposit, poin per komunitas, akun global | diterima (O-13..O-16) |
+| ADR-013 | Frontend React 19 + Vite + Tailwind 4 dibekukan | diterima (O-17) |

@@ -29,6 +29,11 @@ Audit 2026-11-03 menemukan tiga hal yang menentukan arah bisnis:
 Keputusan pemilik: **rewrite backend ke Nim di repo ini**, kontrak boleh berubah,
 frontend ikut dikerjakan, autentikasi pindah ke Google.
 
+Keputusan pemilik berikutnya (2026-11-03): **produk menjadi multi-komunitas**.
+Satu instance melayani beberapa komunitas badminton, dengan data, anggota, dan papan
+poin yang terpisah per komunitas. Ini bukan fitur tambahan di akhir — ia mengubah
+bentuk skema, auth, routing, dan sebagian besar requirement.
+
 ## 2. Tujuan bisnis
 
 | # | Tujuan | Ukuran keberhasilan |
@@ -39,6 +44,7 @@ frontend ikut dikerjakan, autentikasi pindah ke Google.
 | B4 | Rilis bisa dipercaya | Deploy gagal selalu rollback otomatis; tidak ada rilis yang hilang senyap |
 | B5 | Perilaku tidak berubah tanpa sengaja | Parity harness Go↔Nim lulus dengan divergensi yang dideklarasikan eksplisit |
 | B6 | Maintainer tunggal tetap sanggup | `./task check` ≤ 60 s, `./task verify` ≤ 5 min, tanpa ritual manual |
+| B7 | Satu instance melayani banyak komunitas | Komunitas baru bisa dibuat tanpa deploy; data & poin tidak pernah tercampur |
 
 ## 3. Stakeholder
 
@@ -53,6 +59,8 @@ frontend ikut dikerjakan, autentikasi pindah ke Google.
 ## 4. Ruang lingkup
 
 **Termasuk**
+- **Multi-komunitas**: komunitas, keanggotaan, peran per komunitas, isolasi data,
+  routing `/c/{slug}`, papan poin per komunitas.
 - Rewrite backend ke Nim: 48 route v1 dipetakan ke permukaan v2 (keep/ubah/hapus/tambah).
 - Autentikasi Google (OIDC) + model peran; pemisahan tegas baca publik vs tulis terautentikasi.
 - Rework frontend yang terdampak perubahan kontrak dan auth.
@@ -62,7 +70,6 @@ frontend ikut dikerjakan, autentikasi pindah ke Google.
 - Dokumentasi: PRD/BRD/TECH-SPEC/BACKLOG, ADR, OpenAPI sebagai kontrak.
 
 **Tidak termasuk (fase ini)**
-- Multi-community / multi-tenant (itu domain majadu v2, bukan repo ini).
 - Billing, notifikasi email/push, aplikasi mobile native.
 - Mengganti v1 di produksi sebelum pemilik menyatakan stabil.
 - Perubahan aturan poin peringkat (model 12 minggu / best 10 dipertahankan).
@@ -85,6 +92,7 @@ frontend ikut dikerjakan, autentikasi pindah ke Google.
 | C4 | Nim 2.4.x | Pilihan library dan memory manager terbatas pada yang terbukti |
 | C5 | Satu instance API | Realtime boleh in-memory, tapi tidak boleh mengklaim durable |
 | C6 | Windows/macOS dev | Build & test harus jalan di macOS arm64 tanpa dependensi OS khusus |
+| C7 | **Frontend stack dibekukan**: React 19 + Vite + Tailwind 4 + React Query + Zustand + react-router | Tidak ada rewrite ke Svelte/framework lain; pekerjaan FE hanya menyesuaikan kontrak, auth, dan multi-komunitas |
 
 ## 7. Risiko bisnis
 
@@ -96,6 +104,9 @@ frontend ikut dikerjakan, autentikasi pindah ke Google.
 | R4 | Redesign skema menghilangkan data | Kehilangan riwayat pertandingan | Import hanya setelah verifikasi rekonsiliasi; `bm` tidak disentuh |
 | R5 | Rewrite menyalin bug v1 sebagai "spesifikasi" | Kerentanan ikut pindah | Divergensi wajib dideklarasikan di parity harness |
 | R6 | Deploy baru belum pernah gagal | Rollback tidak teruji | Failure injection wajib di rehearsal lokal |
+| R7 | Kebocoran data antar komunitas (query lupa filter `community_id`) | Kepercayaan hancur; data komunitas lain terlihat | FK komposit + context wajib + suite cross-tenant; query tanpa scope = error kompilasi/runtime |
+| R8 | Scope bertambah (auth + kontrak + FE + skema + multi-komunitas) | Rewrite tidak selesai | Rilis bertahap; multi-komunitas masuk R1, bukan ditunda |
+| R9 | Data v1 tidak punya konsep komunitas | Import ambigu | Semua data v1 dipetakan ke satu komunitas default saat impor |
 
 ## 8. Definisi sukses
 
@@ -126,6 +137,11 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | O-10 | v2 rilis dengan data kosong; impor v1 dijalankan setelah stabil |
 | O-11 | Peran `member` masuk R2, bukan R1 |
 | O-12 | Verifikasi ID token RS256 dibangun sebagai modul binding OpenSSL lokal (ADR-009 diterima) |
+| O-13 | Multi-komunitas masuk repo ini, bukan diserahkan ke majadu v2 |
+| O-14 | Isolasi data: satu skema `bm2`, kolom `community_id`, FK komposit |
+| O-15 | Papan poin dihitung per komunitas, bukan global |
+| O-16 | Akun global (satu Google untuk semua komunitas), peran berlaku per komunitas |
+| O-17 | Frontend tetap React 19 + Vite + Tailwind 4; **tidak ada rewrite ke Svelte** atau framework lain |
 
 ## 10. Jawaban pemilik (2026-11-03)
 
@@ -137,5 +153,6 @@ Rewrite dinyatakan selesai bila **semua** terpenuhi:
 | Impor data v1 | Kosong dulu, impor setelah stabil | Cutover tidak menunggu ETL; T-064 bisa berjalan pasca-rilis |
 | Verifikasi RS256 | Bangun modul binding OpenSSL | ADR-009 diterima; menambah satu task teknis |
 | Peran `member` | Masuk R2 | R1 hanya `owner`/`admin`/`host` |
+| Multi-komunitas | Masuk repo ini, `community_id` + FK komposit, poin per komunitas, akun global | Skema, auth, routing, dan backlog berubah (lihat §9 O-13..O-16) |
 
 Tidak ada pertanyaan terbuka yang tersisa untuk fase perencanaan.
