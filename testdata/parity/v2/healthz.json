@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "path": "/healthz",
+  "status": 200,
+  "body": {
+    "status": "ok"
+  }
+}
