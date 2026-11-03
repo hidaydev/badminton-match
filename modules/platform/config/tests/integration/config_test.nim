@@ -1,0 +1,86 @@
+import std/[json, options, os, strutils, tables, unittest]
+import db/db
+import ../../store
+import ../../registry
+
+proc dsn(): string =
+  getEnv("MAJADU_PG_DSN")
+
+proc seedPresent(db: Db): bool =
+  db.queryOne("select count(*) as total from platform.config").get.get("total") != "0"
+
+suite "platform config":
+  var db: Db
+  setup:
+    if dsn().len == 0:
+      raise newException(ValueError, "MAJADU_PG_DSN is required")
+    db = openDb(dsn(), 1)
+    if not seedPresent(db):
+      # Self-seeding keeps the suite runnable on a database that was only
+      # migrated; the seed file is the same one dbtools applies in production.
+      let seed = readFile("db/seeds/platform_config.sql")
+      discard db.tx(proc(conn: DbConn): int =
+        conn.execScript(seed)
+        1)
+
+  teardown:
+    db.close()
+
+  test "every registry key is present and valid":
+    let snapshot = loadSnapshot(db)
+    for entry in allKeys:
+      check snapshot.values.hasKey($entry.key)
+
+  test "missing key refuses to load":
+    discard db.execUpdate("delete from platform.config where key = $1",
+      @[textParam($keyWsTicketTtlSeconds)])
+    var caught = false
+    try:
+      discard loadSnapshot(db)
+    except ConfigError as error:
+      caught = true
+      check error.msg.contains("missing key")
+    discard db.execUpdate(
+      """insert into platform.config (key, value_type, value, scope)
+         values ('ws.ticket_ttl_seconds', 'int', '30', 'platform')""")
+    check caught
+
+  test "value outside bounds refuses to load":
+    discard db.execUpdate("update platform.config set value = '0' where key = $1",
+      @[textParam($keyWsTicketTtlSeconds)])
+    var caught = false
+    try:
+      discard loadSnapshot(db)
+    except ConfigError:
+      caught = true
+    discard db.execUpdate("update platform.config set value = '30' where key = $1",
+      @[textParam($keyWsTicketTtlSeconds)])
+    check caught
+
+  test "a bump of config_version reloads without restart":
+    let cache = newConfigCache(db)
+    let before = cache.snapshot(db).stringValue(%*{}, keyCommunityDefaultTimezone)
+    check before == "Asia/Jakarta"
+    discard db.tx(proc(conn: DbConn): int =
+      discard conn.execUpdate(
+        "update platform.config set value = '\"Asia/Makassar\"' where key = $1",
+        @[textParam($keyCommunityDefaultTimezone)])
+      discard conn.execUpdate("update platform.config_version set version = version + 1")
+      1)
+    let after = cache.snapshot(db).stringValue(%*{}, keyCommunityDefaultTimezone)
+    check after == "Asia/Makassar"
+    discard db.tx(proc(conn: DbConn): int =
+      discard conn.execUpdate(
+        "update platform.config set value = '\"Asia/Jakarta\"' where key = $1",
+        @[textParam($keyCommunityDefaultTimezone)])
+      discard conn.execUpdate("update platform.config_version set version = version + 1")
+      1)
+    check cache.snapshot(db).stringValue(%*{}, keyCommunityDefaultTimezone) == "Asia/Jakarta"
+
+  test "L2 override wins and cannot exceed the L1 ceiling":
+    let snapshot = loadSnapshot(db)
+    let settings = %*{"api.page_size_default": 25}
+    check snapshot.intValue(settings, keyApiPageSizeDefault) == 25
+    let tooBig = %*{"api.page_size_default": 5000}
+    expect ConfigError:
+      discard snapshot.intValue(tooBig, keyApiPageSizeDefault)
