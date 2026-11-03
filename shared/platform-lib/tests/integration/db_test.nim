@@ -31,6 +31,23 @@ suite "database layer":
     check row["note"].isNone
     check row.get("id") == "1"
 
+  test "keeps every bound string distinct":
+    # Regression: the cstring pointers must outlive PQexecParams, otherwise all
+    # parameters alias the last temporary and every column receives one value.
+    discard db.execUpdate(
+      "insert into t004_probe (id, note) values ($1, $2)",
+      @[intParam(9), textParam("alpha")])
+    discard db.execUpdate(
+      "insert into t004_probe (id, note) values ($1, $2)",
+      @[intParam(10), textParam("beta")])
+    let row = db.queryOne(
+      "select (select note from t004_probe where id = 9) as a," &
+      " (select note from t004_probe where id = 10) as b," &
+      " (select count(distinct note) from t004_probe) as distinct_notes").get
+    check row.get("a") == "alpha"
+    check row.get("b") == "beta"
+    check row.get("distinct_notes") == "2"
+
   test "jsonb question mark operator is untouched":
     discard db.execUpdate(
       "insert into t004_probe (id, doc) values ($1, $2::jsonb)",

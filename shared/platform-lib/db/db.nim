@@ -78,24 +78,35 @@ proc resultToRows(res: PPGresult): seq[Row] =
         row.values[c] = some($pqgetvalue(res, r, c))
     result[r] = row
 
-proc bindValues(params: seq[DbParam]): cstringArray =
-  result = cast[cstringArray](alloc0(params.len * sizeof(cstring)))
+type BoundParams = object
+  values: cstringArray
+  ## Owns the bytes every pointer in `values` refers to. libpq reads the
+  ## pointers during PQexecParams, so these strings must outlive the call.
+  backing: seq[string]
+
+proc bindValues(params: seq[DbParam]): BoundParams =
+  result.values = cast[cstringArray](alloc0(params.len * sizeof(cstring)))
+  result.backing = newSeq[string](params.len)
   for i, param in params:
     if param.kind != dpNull:
-      result[i] = param.asText.cstring
+      result.backing[i] = param.asText
+      result.values[i] = result.backing[i].cstring
 
-proc freeValues(values: cstringArray, count: int) =
+proc freeValues(bound: BoundParams) =
+  let count = bound.backing.len
   for i in 0 ..< count:
-    values[i] = nil
-  dealloc(values)
+    bound.values[i] = nil
+  dealloc(bound.values)
+  # Keep the backing storage alive past the libpq call explicitly.
+  discard bound.backing.len
 
 proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
   ## The SQL string is passed verbatim with $1..$n placeholders, so a jsonb `?`
   ## operator is never rewritten or rejected.
-  let values = bindValues(params)
+  let bound = bindValues(params)
   try:
     let res = pqexecParams(
-      conn, sql.cstring, params.len.int32, nil, values, nil, nil, 0)
+      conn, sql.cstring, params.len.int32, nil, bound.values, nil, nil, 0)
     if res == nil:
       raise newException(DbError, $pqerrorMessage(conn))
     try:
@@ -105,13 +116,13 @@ proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
     finally:
       pqclear(res)
   finally:
-    freeValues(values, params.len)
+    freeValues(bound)
 
 proc executeCommand(conn: PPGconn, sql: string, params: seq[DbParam]): int =
-  let values = bindValues(params)
+  let bound = bindValues(params)
   try:
     let res = pqexecParams(
-      conn, sql.cstring, params.len.int32, nil, values, nil, nil, 0)
+      conn, sql.cstring, params.len.int32, nil, bound.values, nil, nil, 0)
     if res == nil:
       raise newException(DbError, $pqerrorMessage(conn))
     try:
@@ -122,7 +133,7 @@ proc executeCommand(conn: PPGconn, sql: string, params: seq[DbParam]): int =
     finally:
       pqclear(res)
   finally:
-    freeValues(values, params.len)
+    freeValues(bound)
 
 proc query*(conn: DbConn, sql: string, params: seq[DbParam] = @[]): seq[Row] =
   executeRows(conn.conn, sql, params)
