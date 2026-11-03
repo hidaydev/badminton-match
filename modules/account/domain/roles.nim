@@ -50,7 +50,9 @@ proc can*(access: Access, principal: Principal): bool =
   if access.ownerOnly:
     return principal.isPlatformOwner
   if access.roles.len == 0:
-    return true
+    # No role list means "any membership", not "any caller": the community
+    # context still has to prove that a membership exists.
+    return principal.role.isSome
   if principal.role.isNone:
     return false
   principal.role.get in access.roles

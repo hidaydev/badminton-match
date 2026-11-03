@@ -7,6 +7,7 @@ import db/db
 import sha256
 import uuidv7
 import share/crypto
+import share/store as shareStore
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
@@ -151,7 +152,9 @@ proc actorOf(user: AuthUser, token: string): Actor =
   Actor(userId: user.id, isPlatformOwner: user.isOwner, sessionToken: token)
 
 proc readAccess(): Access =
-  Access(isSession: true, roles: @[rMember])
+  ## Any membership role can read; the community context already proved
+  ## membership, and roles decide writes only.
+  Access(isSession: true)
 
 proc writeAccess(): Access =
   Access(isSession: true, roles: @[rHost, rAdmin])
@@ -403,51 +406,50 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
   if session.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
-  let linkId = uuidv7()
-  let code = newShareCode()
-  let aad = ctx.communityId & "|" & linkId
-  let (keyId, encrypted) = encryptWith(application.keyring, code, aad)
-  discard application.db.execUpdate(
-    """update session.links set revoked_at = now()
-       where session_id = $1 and revoked_at is null""",
-    @[textParam(sessionId)])
-  discard application.db.execUpdate(
-    """insert into session.links
-       (id, community_id, session_id, code_hash, code_enc, key_id, created_by)
-       values ($1, $2, $3, decode($4,'hex'), decode($5,'hex'), $6, $7)""",
-    @[textParam(linkId), textParam(ctx.communityId), textParam(sessionId),
-      textParam(sha256Hex(code)), textParam(bytesHex(encrypted)),
-      textParam(keyId), textParam(user.id)])
+  let code = shareStore.issue(application.db, application.keyring,
+    ctx.communityId, sessionId, user.id)
   audit("share.issue", ctx.communityId, user, "session", sessionId,
     %*{"sessionId": sessionId})
   jsonResponse(request, 201, %*{"code": code, "sessionId": sessionId})
 
+proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
+                  sessionId: string) =
+  ## Re-display of the live code: host/admin only, and every read is audited.
+  let code = shareStore.currentCode(application.db, application.keyring,
+    ctx.communityId, sessionId)
+  if code.isNone:
+    problem(request, 404, "NOT_FOUND", "no live share link")
+    return
+  audit("share.redisplay", ctx.communityId, user, "session", sessionId,
+    %*{"sessionId": sessionId})
+  jsonResponse(request, 200, %*{"code": code.get, "sessionId": sessionId},
+    [("Cache-Control", "no-store")])
+
 proc resolveShare(code: string): Option[JsonNode] =
-  let row = application.db.queryOne(
-    """select l.id as link_id, l.community_id, l.key_id,
-              encode(l.code_enc,'hex') as code_enc,
-              s.id, s.title, s.session_date::text as session_date, s.status,
-              c.slug, c.name
-       from session.links l
-       join session.sessions s
-         on s.community_id = l.community_id and s.id = l.session_id
-       join platform.community c on c.id = l.community_id
-       where l.code_hash = decode($1,'hex') and l.revoked_at is null""",
-    @[textParam(sha256Hex(code))])
-  if row.isNone:
+  let found = shareStore.resolve(application.db, application.keyring, code)
+  if found.isNone:
     return none(JsonNode)
-  let value = row.get
-  # Verify the envelope is authentic for this row before serving it.
-  try:
-    discard decryptWith(application.keyring, value.get("key_id"),
-      hexBytes(value.get("code_enc")), value.get("community_id") & "|" & value.get("link_id"))
-  except ShareKeyError:
-    return none(JsonNode)
+  let value = found.get
+  var games = newJArray()
+  for row in application.db.query(
+    """select id, round_no, court_no, score_a, score_b, status
+       from session.games
+       where community_id = $1::uuid and session_id = $2::uuid
+       order by round_no, court_no""",
+    @[textParam(value.communityId), textParam(value.sessionId)]):
+    games.add(%*{
+      "id": row.get("id"),
+      "round": parseInt(row.get("round_no")),
+      "court": parseInt(row.get("court_no")),
+      "scoreA": if row["score_a"].isNone: newJNull() else: %parseInt(row.get("score_a")),
+      "scoreB": if row["score_b"].isNone: newJNull() else: %parseInt(row.get("score_b")),
+      "status": row.get("status"),
+    })
   some(%*{
-    "session": {"id": value.get("id"), "title": value.get("title"),
-                "date": value.get("session_date"), "status": value.get("status")},
-    "community": {"slug": value.get("slug"), "name": value.get("name")},
-    "games": newJArray(),
+    "session": {"id": value.sessionId, "title": value.title,
+                "date": value.sessionDate, "status": value.status},
+    "community": {"slug": value.slug, "name": value.communityName},
+    "games": games,
   })
 
 proc getShared(request: Request, code: string) =
@@ -475,18 +477,11 @@ proc rankings(request: Request, communityId: string) =
     [("Cache-Control", "no-store")])
 
 proc getSharedRankings(request: Request, code: string) =
-  let shared = resolveShare(code)
-  if shared.isNone:
+  let found = shareStore.resolve(application.db, application.keyring, code)
+  if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
-  let communityRow = application.db.queryOne(
-    """select l.community_id from session.links l
-       where l.code_hash = decode($1,'hex') and l.revoked_at is null""",
-    @[textParam(sha256Hex(code))])
-  if communityRow.isNone:
-    problem(request, 404, "NOT_FOUND", "link not found")
-    return
-  rankings(request, communityRow.get.get("community_id"))
+  rankings(request, found.get.communityId)
 
 proc route(request: Request) =
   try:
@@ -540,7 +535,10 @@ proc route(request: Request) =
         problem(request, 401, "UNAUTHENTICATED", "login required")
         return
       let token = cookieValue(request, "majadu_session")
-      let access = if verb == "GET": readAccess() else: writeAccess()
+      let access =
+        if parts.len == 6 and parts[5] == "share": writeAccess()
+        elif verb == "GET": readAccess()
+        else: writeAccess()
       let (decision, ctx) = decide(user.get, token, slug, access)
       if decision != gAllowed:
         respondGate(request, decision)
@@ -563,9 +561,13 @@ proc route(request: Request) =
           "title": row.get.get("title"), "date": row.get.get("session_date"),
           "status": row.get.get("status")})
         return
-      if parts.len == 6 and parts[5] == "share" and verb == "POST":
-        createShare(request, ctx.get, user.get, parts[4])
-        return
+      if parts.len == 6 and parts[5] == "share":
+        if verb == "POST":
+          createShare(request, ctx.get, user.get, parts[4])
+          return
+        if verb == "GET":
+          getShareLink(request, ctx.get, user.get, parts[4])
+          return
     # /c/{slug}/rankings
     if parts.len == 4 and parts[1] == "c" and parts[3] == "rankings":
       let user = currentUser(request)

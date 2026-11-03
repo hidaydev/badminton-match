@@ -1,4 +1,4 @@
-import std/[json, options, sets, strutils, unittest]
+import std/[json, options, sets, unittest]
 import api/src/routes_gen
 import ../domain/roles
 
@@ -52,9 +52,10 @@ suite "authorization matrix":
     check not createInvite.can(principal(role = some(rMember)))
     check not createInvite.can(principal(role = none(Role), owner = true))
 
-  test "members can read but not write sessions":
+  test "members and hosts can read, only hosts write sessions":
     let operations = loadMatrix()
     check parseAccess(operations["listSessions"]).can(principal(role = some(rMember)))
+    check parseAccess(operations["listSessions"]).can(principal(role = some(rHost)))
     check not parseAccess(operations["createSession"]).can(principal(role = some(rMember)))
     check parseAccess(operations["createSession"]).can(principal(role = some(rHost)))
 

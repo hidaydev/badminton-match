@@ -104,10 +104,7 @@
       "auth": "session"
     },
     "getCommunityConfig": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "getDirectory": {
       "auth": "session"
@@ -116,49 +113,28 @@
       "auth": "public"
     },
     "getPlayer": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "getPlayerAchievements": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "getPlayerStats": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "getRanking": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "getReadyz": {
       "auth": "public"
     },
     "getSession": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "getSessionGame": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "getSettings": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "getShareLink": {
       "auth": "session",
@@ -174,10 +150,7 @@
       "auth": "public"
     },
     "getTournament": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "getVersion": {
       "auth": "public"
@@ -186,58 +159,34 @@
       "auth": "session"
     },
     "listJoinRequests": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "listMembers": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "listMyCommunities": {
       "auth": "session"
     },
     "listPlayerClaims": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "listPlayers": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "listRankings": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "listRatingSources": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "listSessions": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "listSharedRankings": {
       "auth": "public"
     },
     "listTournaments": {
-      "auth": "session",
-      "roles": [
-        "member"
-      ]
+      "auth": "session"
     },
     "lockSession": {
       "auth": "session",

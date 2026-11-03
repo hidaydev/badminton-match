@@ -120,6 +120,9 @@ shared=$(curl -s "$base/s/$code")
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$base/s/00000000000000000000000000000000")" = "404" ] ||
   fail_step "unknown share code"
 
+redisplay=$(curl -s -b "$JAR" "$base/c/demo-club/sessions/$session_id/share")
+[ "$(printf '%s' "$redisplay" | json "['code']")" = "$code" ] || fail_step "share re-display"
+
 rotated=$(curl -s -b "$JAR" -X POST "$base/c/demo-club/sessions/$session_id/share")
 [ "$(printf '%s' "$rotated" | json "['code']")" != "$code" ] || fail_step "share rotation"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$base/s/$code")" = "404" ] ||
