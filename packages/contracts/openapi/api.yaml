@@ -1,0 +1,2834 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Majadu API",
+    "version": "2.0.0"
+  },
+  "x-generated": "tools/contract-gen; do not edit",
+  "servers": [
+    {
+      "url": "https://api.qouver.com",
+      "description": "production"
+    },
+    {
+      "url": "http://127.0.0.1:8080",
+      "description": "local"
+    }
+  ],
+  "paths": {
+    "/auth/callback": {
+      "get": {
+        "operationId": "getAuthCallback",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "postAuthLogout",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "getAuthMe",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    },
+    "/auth/sessions": {
+      "get": {
+        "operationId": "listAuthSessions",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAuthSessions",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    },
+    "/auth/start": {
+      "post": {
+        "operationId": "postAuthStart",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/c/{slug}/config": {
+      "get": {
+        "operationId": "getCommunityConfig",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/invites": {
+      "post": {
+        "operationId": "createInvite",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/join-requests": {
+      "get": {
+        "operationId": "listJoinRequests",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createJoinRequest",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/join-requests/{id}": {
+      "patch": {
+        "operationId": "decideJoinRequest",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/members": {
+      "get": {
+        "operationId": "listMembers",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/members/{userId}": {
+      "patch": {
+        "operationId": "patchMemberRole",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "removeMember",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/players": {
+      "get": {
+        "operationId": "listPlayers",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createPlayer",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/players/{playerId}": {
+      "get": {
+        "operationId": "getPlayer",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "patchPlayer",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deletePlayer",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/players/{playerId}/achievements": {
+      "get": {
+        "operationId": "getPlayerAchievements",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/players/{playerId}/claim": {
+      "delete": {
+        "operationId": "deleteOwnClaim",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/players/{playerId}/claims": {
+      "get": {
+        "operationId": "listPlayerClaims",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "postPlayerClaim",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/players/{playerId}/claims/{claimId}": {
+      "patch": {
+        "operationId": "patchPlayerClaim",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "claimId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/players/{playerId}/merge": {
+      "post": {
+        "operationId": "postPlayerMerge",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/players/{playerId}/stats": {
+      "get": {
+        "operationId": "getPlayerStats",
+        "tags": [
+          "players"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/rankings": {
+      "get": {
+        "operationId": "listRankings",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/rankings/{playerId}": {
+      "get": {
+        "operationId": "getRanking",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/rating-sources": {
+      "get": {
+        "operationId": "listRatingSources",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/rating-sources/{id}": {
+      "patch": {
+        "operationId": "patchRatingSource",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/ratings/rebuild": {
+      "post": {
+        "operationId": "postRatingsRebuild",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions": {
+      "get": {
+        "operationId": "listSessions",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createSession",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}": {
+      "get": {
+        "operationId": "getSession",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "patchSession",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteSession",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/absent": {
+      "patch": {
+        "operationId": "patchSessionAbsent",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/games/{gameKey}": {
+      "get": {
+        "operationId": "getSessionGame",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "gameKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "patchSessionGame",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "gameKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/games/{gameKey}/skip": {
+      "patch": {
+        "operationId": "skipSessionGame",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "gameKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/lock": {
+      "post": {
+        "operationId": "lockSession",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/rating": {
+      "post": {
+        "operationId": "postSessionRating",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteSessionRating",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/schedule": {
+      "put": {
+        "operationId": "putSessionSchedule",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/share": {
+      "get": {
+        "operationId": "getShareLink",
+        "tags": [
+          "share"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createShareLink",
+        "tags": [
+          "share"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteShareLink",
+        "tags": [
+          "share"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/swap": {
+      "post": {
+        "operationId": "postSessionSwap",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/unlock": {
+      "post": {
+        "operationId": "unlockSession",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/sessions/{id}/ws-ticket": {
+      "post": {
+        "operationId": "postSessionWsTicket",
+        "tags": [
+          "realtime"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/settings": {
+      "get": {
+        "operationId": "getSettings",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "patchSettings",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/tournaments": {
+      "get": {
+        "operationId": "listTournaments",
+        "tags": [
+          "tournaments"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createTournament",
+        "tags": [
+          "tournaments"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/tournaments/{id}": {
+      "get": {
+        "operationId": "getTournament",
+        "tags": [
+          "tournaments"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "putTournament",
+        "tags": [
+          "tournaments"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteTournament",
+        "tags": [
+          "tournaments"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/tournaments/{id}/matches/{matchId}": {
+      "patch": {
+        "operationId": "patchTournamentMatch",
+        "tags": [
+          "tournaments"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "matchId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/c/{slug}/tournaments/{id}/rating": {
+      "post": {
+        "operationId": "postTournamentRating",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteTournamentRating",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "204": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/communities": {
+      "get": {
+        "operationId": "listMyCommunities",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createCommunity",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/directory": {
+      "get": {
+        "operationId": "getDirectory",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "operationId": "getHealthz",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/invites/{token}/accept": {
+      "post": {
+        "operationId": "acceptInvite",
+        "tags": [
+          "community"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "getReadyz",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/s/{code}": {
+      "get": {
+        "operationId": "getSharedSession",
+        "tags": [
+          "share"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/s/{code}/rankings": {
+      "get": {
+        "operationId": "listSharedRankings",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/s/{code}/rankings/{playerId}": {
+      "get": {
+        "operationId": "getSharedRanking",
+        "tags": [
+          "rankings"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/s/{code}/ws-ticket": {
+      "post": {
+        "operationId": "postShareWsTicket",
+        "tags": [
+          "realtime"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "getVersion",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/ws/c/{slug}/sessions/{id}": {
+      "get": {
+        "operationId": "wsSession",
+        "tags": [
+          "realtime"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-websocket": true
+      }
+    },
+    "/ws/share/{code}": {
+      "get": {
+        "operationId": "wsShare",
+        "tags": [
+          "realtime"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-websocket": true
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "majadu_session"
+      }
+    }
+  }
+}
