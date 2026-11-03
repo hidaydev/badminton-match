@@ -1,0 +1,8 @@
+switch("path", thisDir() & "/shared")
+switch("path", thisDir() & "/modules")
+switch("path", thisDir() & "/apps")
+switch("path", thisDir() & "/tools")
+switch("threads", "on")
+switch("mm", "atomicArc")
+switch("stackTrace", "on")
+switch("lineTrace", "on")
