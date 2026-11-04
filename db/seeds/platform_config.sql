@@ -19,6 +19,8 @@ insert into platform.config (key, value_type, value, min_value, max_value, scope
   ('security.allowed_origins', 'json',
    '["http://127.0.0.1:5173","http://localhost:5173"]', null, null, 'platform',
    'Browser origins allowed to send state-changing requests'),
+  ('security.rate_limit_per_minute', 'int', '300', 1, 100000, 'platform',
+   'Requests per minute per route template and client address'),
   ('security.max_body_bytes', 'int', '1048576', 1024, 16777216, 'platform',
    'Largest accepted request body'),
   ('security.max_json_depth', 'int', '16', 1, 64, 'platform',

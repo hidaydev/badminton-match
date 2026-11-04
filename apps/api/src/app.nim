@@ -2,6 +2,9 @@ import std/[base64, json, options, os, strutils, sysrand, times, uri]
 import mummy
 import auth_middleware
 import community_context
+import config as edgeConfig
+import metrics
+import ratelimit
 import security_headers
 import db/db
 import sha256
@@ -24,6 +27,7 @@ type
     oidc*: OidcConfig
     keyring*: Keyring
     config*: ConfigCache
+    limiter*: Limiter
     cookieSecure*: bool
     bootstrapOwner*: string
 
@@ -584,6 +588,29 @@ proc route(request: Request) =
     if csrfCheck(request, snapshot) == csrfRejected:
       problem(request, 403, "CSRF_REJECTED", "origin is not allowed")
       return
+    let client = clientIp(request, trustedProxies())
+    let routeLabel = templateRoute(path)
+    let budget = application.limiter.hit(routeLabel & "|" & client,
+      snapshot.intValue(%*{}, keySecurityRateLimitPerMinute), epochTime())
+    if not budget.allowed:
+      send(request, 429,
+        @[("Content-Type", "application/json"), ("Cache-Control", "no-store"),
+          ("Retry-After", $budget.retryAfter)],
+        $ %*{"status": 429, "code": "RATE_LIMITED", "retryAfter": budget.retryAfter})
+      return
+    # Share links get their own ceiling per code, so a scraped code cannot be
+    # replayed from a pool of addresses.
+    if path.startsWith("/s/"):
+      let parts = path.split('/')
+      if parts.len >= 3:
+        let scrape = application.limiter.hit("share|" & parts[2],
+          snapshot.intValue(%*{}, keySecurityShareScrapeLimit), epochTime())
+        if not scrape.allowed:
+          send(request, 429,
+            @[("Content-Type", "application/json"), ("Cache-Control", "no-store"),
+              ("Retry-After", $scrape.retryAfter)],
+            $ %*{"status": 429, "code": "RATE_LIMITED", "retryAfter": scrape.retryAfter})
+          return
     if path == "/healthz":
       send(request, 200, """{"status":"ok"}""")
       return
@@ -697,6 +724,7 @@ proc route(request: Request) =
 proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring,
              config: ConfigCache): App =
   App(db: db, oidc: oidc, keyring: keyring, config: config,
+      limiter: newLimiter(),
       cookieSecure: getEnv("MAJADU_COOKIE_SECURE") == "1",
       bootstrapOwner: getEnv("MAJADU_BOOTSTRAP_OWNER_EMAIL"))
 
