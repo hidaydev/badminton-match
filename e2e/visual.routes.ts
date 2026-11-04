@@ -3,6 +3,8 @@ export type E2eState = {
   communitySlug: string
   tournamentId: string
   sessionId: string
+  /** One writable session per project: the specs mutate it, so they must not share. */
+  writableByProject: Record<string, string>
 }
 
 /**

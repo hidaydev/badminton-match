@@ -8,6 +8,7 @@ import {
   initKnockoutMatches,
 } from '../apps/web/src/tournament/classic/draw'
 import type { APIRequestContext } from 'playwright/test'
+import { projects } from './browsers'
 import type { E2eState } from './visual.routes'
 
 /**
@@ -23,6 +24,42 @@ export function state(): E2eState {
 }
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:5173'
+
+type Game = { round: number; court: number; sideA: string[]; sideB: string[] }
+
+/** Writes a schedule and returns the session version the server now holds. */
+async function putGames(
+  api: APIRequestContext,
+  sessionId: string,
+  games: Game[],
+  version: number,
+): Promise<number> {
+  const response = await api.put(`/api/c/e2e-club/sessions/${sessionId}/schedule`, {
+    headers: { 'If-Match': `"${version}"` },
+    data: { games },
+  })
+  if (response.status() !== 200) {
+    throw new Error(`schedule: ${response.status()} ${await response.text()}`)
+  }
+  return ((await response.json()) as { version: number }).version
+}
+
+async function playGame(
+  api: APIRequestContext,
+  sessionId: string,
+  key: string,
+  score: { scoreA: number; scoreB: number },
+  version: number,
+): Promise<number> {
+  const response = await api.patch(
+    `/api/c/e2e-club/sessions/${sessionId}/games/${key}`,
+    { headers: { 'If-Match': `"${version}"` }, data: score },
+  )
+  if (response.status() !== 200) {
+    throw new Error(`score: ${response.status()} ${await response.text()}`)
+  }
+  return ((await response.json()) as { version: number }).version
+}
 
 async function startLogin(api: APIRequestContext) {
   const start = await api.post('/api/auth/start', { data: { returnTo: '/' } })
@@ -51,11 +88,13 @@ export default async function globalSetup() {
     // at login, so a second pass through the stub is what grants admin.
     await startLogin(api)
 
+    const playerIds: string[] = []
     for (const name of ['Ani', 'Budi', 'Candra', 'Dewi']) {
       const player = await api.post('/api/c/e2e-club/players', { data: { name } })
       if (player.status() !== 201) {
         throw new Error(`players: ${player.status()} ${await player.text()}`)
       }
+      playerIds.push(((await player.json()) as { id: string }).id)
     }
 
     const session = await api.post('/api/c/e2e-club/sessions', {
@@ -65,6 +104,33 @@ export default async function globalSetup() {
       throw new Error(`sessions: ${session.status()} ${await session.text()}`)
     }
     const sessionId = ((await session.json()) as { id: string }).id
+    // The pinned session is what the visual baseline shows, so it carries the
+    // states worth looking at: a played game and one still scheduled.
+    let version = await putGames(api, sessionId, [
+      { round: 0, court: 0, sideA: [playerIds[0], playerIds[1]], sideB: [playerIds[2], playerIds[3]] },
+      { round: 0, court: 1, sideA: [playerIds[0], playerIds[2]], sideB: [playerIds[1], playerIds[3]] },
+    ], 1)
+    version = await playGame(api, sessionId, '0-0', { scoreA: 30, scoreB: 24 }, version)
+    if (version !== 3) throw new Error(`pinned session version: ${version}`)
+
+    // Writable sessions live beside the pinned one: the write specs change
+    // them, and two projects run in parallel, so each project gets its own.
+    const writableByProject: Record<string, string> = {}
+    for (const project of projects) {
+      const writable = await api.post('/api/c/e2e-club/sessions', {
+        // Named per project so the sessions list reads as a fixture, not as a
+        // duplicate someone forgot to delete.
+        data: { title: `E2E Writable ${project.name}`, date: '2026-11-05', startTime: '19:00' },
+      })
+      if (writable.status() !== 201) {
+        throw new Error(`writable session: ${writable.status()} ${await writable.text()}`)
+      }
+      const id = ((await writable.json()) as { id: string }).id
+      await putGames(api, id, [
+        { round: 0, court: 0, sideA: [playerIds[0], playerIds[1]], sideB: [playerIds[2], playerIds[3]] },
+      ], 1)
+      writableByProject[project.name] = id
+    }
 
     // The wizard's own draw, so the fixture is a tournament the app considers
     // valid instead of a hand-written shape that drifts from the rules.
@@ -105,7 +171,11 @@ export default async function globalSetup() {
     mkdirSync(here, { recursive: true })
     writeFileSync(
       statePath,
-      JSON.stringify({ communitySlug: 'e2e-club', tournamentId, sessionId }, null, 2) + '\n',
+      JSON.stringify(
+        { communitySlug: 'e2e-club', tournamentId, sessionId, writableByProject },
+        null,
+        2,
+      ) + '\n',
     )
   } finally {
     await api.dispose()
