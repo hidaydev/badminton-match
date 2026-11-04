@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import type { CommunityRole } from './auth/api'
 import type { MessageKey } from './i18n/en'
 import CommunityPage from './pages/CommunityPage'
+import ExportPage from './pages/ExportPage'
 import HomePage from './pages/HomePage'
 import PlaceholderPage from './pages/PlaceholderPage'
 import RankingsPage from './pages/RankingsPage'
@@ -112,6 +113,14 @@ export const routes: readonly RouteEntry[] = [
     element: createElement(TournamentTeamPage),
     requiresAuth: true,
     roles: STAFF_ROLES,
+  },
+  {
+    path: '/c/:slug/export',
+    labelKey: 'nav.export',
+    element: createElement(ExportPage),
+    requiresAuth: true,
+    roles: STAFF_ROLES,
+    navGroup: 'main',
   },
   {
     path: '/c/:slug/tournaments/team/:id',

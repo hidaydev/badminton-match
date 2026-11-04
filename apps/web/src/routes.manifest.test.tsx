@@ -26,8 +26,13 @@ describe('routes manifest', () => {
   it('filters nav by community role', () => {
     const member = ['nav.home', 'nav.sessions', 'nav.players', 'nav.rankings']
     expect(navKeys('member')).toEqual(member)
-    expect(navKeys('host')).toEqual([...member, 'nav.tournaments'])
-    expect(navKeys('admin')).toEqual([...member, 'nav.tournaments', 'nav.settings'])
+    expect(navKeys('host')).toEqual([...member, 'nav.tournaments', 'nav.export'])
+    expect(navKeys('admin')).toEqual([
+      ...member,
+      'nav.tournaments',
+      'nav.export',
+      'nav.settings',
+    ])
     expect(navKeys(null)).toEqual(['nav.home'])
   })
 
