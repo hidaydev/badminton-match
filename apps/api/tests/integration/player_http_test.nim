@@ -220,3 +220,61 @@ suite "player HTTP":
     let (wrongType, _) = call(HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Hana Three","aliases":"hana"}""")
     check wrongType == 400
+
+  test "an admin merges a duplicate into the target and moves its rows":
+    let (_, targetBody) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Iwan","gender":"M","aliases":["Iwan S"]}""")
+    let targetId = parseJson(targetBody)["id"].getStr()
+    let (_, sourceBody) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Iwan Setiawan","gender":"M","aliases":["Iwan Set","Iwan S2"]}""")
+    let sourceId = parseJson(sourceBody)["id"].getStr()
+    discard database.execUpdate(
+      """insert into rating.player_state (community_id, player_id, rating, games_played, wins, losses)
+         values ($1::uuid, $2::uuid, 1520, 2, 1, 1)""",
+      @[textParam(communityId), textParam(sourceId)])
+
+    let (byHost, _) = call(HttpPost, "/c/player-club/players/" & targetId & "/merge",
+      hostCookie, """{"sourcePlayerId":"""" & sourceId & """"}""")
+    check byHost == 403
+    let (byAdmin, merged) = call(HttpPost,
+      "/c/player-club/players/" & targetId & "/merge", adminCookie,
+      """{"sourcePlayerId":"""" & sourceId & """"}""")
+    check byAdmin == 200
+    let result = parseJson(merged)
+    check result["targetPlayerId"].getStr() == targetId
+    check result["sourcePlayerId"].getStr() == sourceId
+    check result["aliasesMoved"].getInt() == 2
+    check result["ratingStateMoved"].getInt() == 1
+
+    let (_, gotBody) = call(HttpGet, "/c/player-club/players/" & targetId, memberCookie)
+    let aliases = parseJson(gotBody)["aliases"]
+    check aliases.len == 3
+    let (gone, _) = call(HttpGet, "/c/player-club/players/" & sourceId, memberCookie)
+    check gone == 404
+    let logged = database.queryOne(
+      """select source_id, target_id, rows_moved from player.merge_log
+         where community_id = $1::uuid order by created_at desc limit 1""",
+      @[textParam(communityId)])
+    check logged.isSome
+    check logged.get.get("source_id") == sourceId
+    check logged.get.get("target_id") == targetId
+    check logged.get.get("rows_moved") == "3"
+    let audited = database.queryOne(
+      """select count(*)::int as n from account.audit
+         where community_id = $1::uuid and action = 'player.merge'""",
+      @[textParam(communityId)])
+    check audited.get.get("n") == "1"
+
+  test "merging the same player or an unknown player fails":
+    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Joko","gender":"M"}""")
+    let playerId = parseJson(body)["id"].getStr()
+    let (same, _) = call(HttpPost, "/c/player-club/players/" & playerId & "/merge",
+      adminCookie, """{"sourcePlayerId":"""" & playerId & """"}""")
+    check same == 400
+    let (unknown, _) = call(HttpPost, "/c/player-club/players/" & playerId & "/merge",
+      adminCookie, """{"sourcePlayerId":"00000000-0000-0000-0000-000000000000"}""")
+    check unknown == 404
+    let (noBody, _) = call(HttpPost, "/c/player-club/players/" & playerId & "/merge",
+      adminCookie, """{}""")
+    check noBody == 400

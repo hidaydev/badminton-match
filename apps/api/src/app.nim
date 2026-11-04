@@ -24,6 +24,7 @@ import platform/idempotency
 import player/domain/player as playerDomain
 import player/store as playerStore
 import player/claim as playerClaim
+import player/merge as playerMerge
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
@@ -918,6 +919,48 @@ proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   of psNotFound:
     problem(request, 404, "NOT_FOUND", "player not found")
 
+proc mergePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                        targetId: string) =
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  if not body.hasKey("sourcePlayerId") or body["sourcePlayerId"].kind != JString:
+    problem(request, 400, "INVALID_BODY", "sourcePlayerId is required")
+    return
+  let sourceId = body["sourcePlayerId"].getStr()
+  let outcome = playerMerge.merge(application.db, ctx.communityId, targetId,
+    sourceId, user.id)
+  case outcome.error
+  of playerMerge.meOk:
+    audit("player.merge", ctx.communityId, user, "player", targetId,
+      %*{"sourcePlayerId": sourceId,
+        "rowsMoved": outcome.result.aliasesMoved + outcome.result.claimsMoved +
+          outcome.result.deltasMoved + outcome.result.snapshotsMoved +
+          outcome.result.achievementsMoved + outcome.result.pairsMoved +
+          outcome.result.ratingStateMoved})
+    jsonResponse(request, 200, %*{
+      "targetPlayerId": outcome.result.targetPlayerId,
+      "sourcePlayerId": outcome.result.sourcePlayerId,
+      "aliasesMoved": outcome.result.aliasesMoved,
+      "claimsMoved": outcome.result.claimsMoved,
+      "deltasMoved": outcome.result.deltasMoved,
+      "snapshotsMoved": outcome.result.snapshotsMoved,
+      "achievementsMoved": outcome.result.achievementsMoved,
+      "pairsMoved": outcome.result.pairsMoved,
+      "ratingStateMoved": outcome.result.ratingStateMoved})
+  of playerMerge.mePlayerNotFound:
+    problem(request, 404, "NOT_FOUND", "player not found")
+  of playerMerge.meSamePlayer:
+    problem(request, 400, "SAME_PLAYER", "source and target must differ")
+  of playerMerge.mePairInUse:
+    problem(request, 409, "MERGE_CONFLICT",
+      "a tournament pair of both players is already used by a match")
+  of playerMerge.meConflict:
+    problem(request, 409, "MERGE_CONFLICT", "players cannot be merged")
+
 proc deletePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                        playerId: string) =
   if not playerStore.remove(application.db, ctx.communityId, playerId):
@@ -1294,6 +1337,11 @@ proc route(request: Request) =
         return
       if parts.len == 5 and verb == "DELETE":
         deletePlayerRoute(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 6 and parts[5] == "merge" and verb == "POST":
+        let admin = adminGate(request, parts[2])
+        if admin.isNone: return
+        mergePlayerRoute(request, admin.get[1], admin.get[0], parts[4])
         return
       if parts.len == 6 and parts[5] == "claims":
         if verb == "GET":
