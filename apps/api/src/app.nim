@@ -208,7 +208,12 @@ proc authorizeUrl(config: OidcConfig, state, nonce, challenge: string): string =
     "&code_challenge_method=S256"
 
 proc startAuth(request: Request) =
-  let body = bodyJson(request)
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
   let returnTo =
     if body.hasKey("returnTo"): body["returnTo"].getStr() else: "/"
   let safeReturn = safeReturnPath(returnTo)

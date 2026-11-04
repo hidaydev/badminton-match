@@ -98,6 +98,10 @@ suite "security: open redirect":
     check state.len > 0
     check storedReturnTo(state) == "/sessions/42"
 
+  test "a malformed start body is a 400, not a 500":
+    let response = call(baseUrl, HttpPost, "/auth/start", body = "{")
+    response.expectProblem(400, "INVALID_BODY")
+
   test "v1-red/v2-green: the legacy GET start route cannot start a flow":
     # v1 exposed GET /auth/google/start?return_to=...; v2's contract is
     # POST /auth/start with a JSON body, so neither shape can be abused.
