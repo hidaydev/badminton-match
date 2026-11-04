@@ -1210,6 +1210,50 @@ proc opsPing(request: Request) =
   jsonResponse(request, 200, %*{"ok": true, "token": name.get},
     [("Cache-Control", "no-store")])
 
+const requiredRelations = [
+  # One name per area the process cannot work without. `to_regclass` answers
+  # without touching the tables, so readiness never becomes a write path.
+  "platform.community", "platform.user", "platform.config",
+  "platform.cutover_state", "community.membership", "player.players",
+  "session.sessions", "session.games", "rating.events", "rating.deltas",
+  "rating.player_state", "auth.oauth_flows", "account.audit",
+  "dbtools.schema_migrations"]
+
+proc readyz(request: Request) =
+  ## Readiness answers "can this process serve traffic against this database":
+  ## reachable, migrated, and holding the snapshot the operator expects. A
+  ## process pointed at the wrong dump must not take traffic, so a recorded
+  ## snapshot that disagrees with CUTOVER_SNAPSHOT_SHA256 is a refusal.
+  var detail = ""
+  try:
+    let missing = application.db.queryOne(
+      """select count(*)::int as missing
+         from unnest($1::text[]) as wanted(name)
+         where to_regclass(wanted.name) is null""",
+      @[textParam("{" & requiredRelations.join(",") & "}")])
+    if parseInt(missing.get.get("missing")) > 0:
+      detail = "schema is not migrated"
+  except DbError:
+    detail = "database is unreachable"
+
+  if detail.len == 0:
+    let expected = getEnv("CUTOVER_SNAPSHOT_SHA256")
+    try:
+      let row = application.db.queryOne(
+        "select snapshot_sha256 from platform.cutover_state where id")
+      if row.isSome and expected.len > 0:
+        let recorded = row.get["snapshot_sha256"]
+        if recorded.isSome and recorded.get.len > 0 and recorded.get != expected:
+          detail = "database holds a different snapshot"
+    except DbError:
+      detail = "database is unreachable"
+
+  if detail.len == 0:
+    send(request, 200, """{"status":"ok"}""")
+  else:
+    jsonResponse(request, 503, %*{"status": 503, "code": "NOT_READY",
+      "detail": detail}, [("Cache-Control", "no-store")])
+
 proc ratingParamsFor(ctx: CommunityContext): ratingDomain.RatingParams =
   ratingParams.loadRatingParams(configSnapshot(),
     currentSettings(application.db, ctx.communityId))
@@ -1954,8 +1998,7 @@ proc route(request: Request) =
         problem(request, 405, "METHOD", "")
       return
     if path == "/readyz":
-      discard application.db.queryOne("select 1 as ok")
-      send(request, 200, """{"status":"ok"}""")
+      readyz(request)
       return
     if outdatedClient(request):
       jsonResponse(request, 410, %*{
