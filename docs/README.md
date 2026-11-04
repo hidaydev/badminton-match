@@ -30,6 +30,7 @@ Dokumentasi proyek, tiga lane:
 
 - [`operations.md`](ops/operations.md) — pemegang akses, format insiden lima bidang, pemeriksaan rutin
 - [`cutover.md`](ops/cutover.md) — runbook cutover v1 → v2, rehearsal D-3, rollback, dan konsekuensinya
+- [`pre-push.md`](ops/pre-push.md) — hook yang menolak `docs/audits` dan `docs/plan/reviews` kembali ke repo publik
 
 ### `privacy.md`
 

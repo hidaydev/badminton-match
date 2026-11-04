@@ -33,6 +33,7 @@ Targets:
   coverage     run coverage gates
   e2e          browser a11y, visual and compatibility regression (Playwright)
   release      prepare a release (dry-run by default)
+  hooks        install the repository hooks (core.hooksPath)
 
 Environment guaranteed to task.d/*.sh:
   REPO_ROOT, WORKTREE, NIMCACHE_CHECK, NIMCACHE_BUILD
