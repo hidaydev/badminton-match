@@ -38,7 +38,7 @@ var
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
 proc call(verb: HttpMethod, path, cookie = "", body = "",
-          ifMatch = ""): (int, string) =
+          ifMatch = "", apiVersion = ""): (int, string) =
   let client = newHttpClient(timeout = 5000)
   defer: client.close()
   var headers = newHttpHeaders()
@@ -49,6 +49,8 @@ proc call(verb: HttpMethod, path, cookie = "", body = "",
     headers["Content-Type"] = "application/json"
   if ifMatch.len > 0:
     headers["If-Match"] = ifMatch
+  if apiVersion.len > 0:
+    headers["X-API-Version"] = apiVersion
   let response = client.request(baseUrl & path, httpMethod = verb,
     headers = headers, body = body)
   (response.code.int, response.body)
@@ -332,3 +334,19 @@ suite "session schedule HTTP":
       "/c/sched-club/sessions/11111111-1111-1111-1111-111111111111/standings",
       memberCookie)
     check missing == 404
+
+  test "a bundle from an older major is told to reload":
+    let path = "/c/sched-club/players"
+    let (current, _) = call(HttpGet, path, memberCookie, apiVersion = "2")
+    check current == 200
+    let (older, olderBody) = call(HttpGet, path, memberCookie, apiVersion = "1")
+    check older == 410
+    check parseJson(olderBody)["code"].getStr() == "CLIENT_OUTDATED"
+    # No header is a CLI or a probe, never an old bundle.
+    let (noHeader, _) = call(HttpGet, path, memberCookie)
+    check noHeader == 200
+    # Health and version stay reachable so a broken tab can recover.
+    let (health, _) = call(HttpGet, "/healthz", apiVersion = "1")
+    check health == 200
+    let (version, _) = call(HttpGet, "/version", apiVersion = "1")
+    check version == 200

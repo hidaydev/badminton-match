@@ -1826,6 +1826,22 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
   of tournamentStore.ptStale:
     problem(request, 412, "STALE_VERSION", "tournament changed since If-Match")
 
+proc outdatedClient(request: Request): bool =
+  ## A bundle built for an older major speaks a contract this server no longer
+  ## serves, so it is told to reload instead of failing one request at a time.
+  ## No header (CLI, probes) and unparsable values pass: only a lower major is
+  ## evidence of an old bundle.
+  let header = request.headers["X-API-Version"].strip()
+  if header.len == 0:
+    return false
+  let client =
+    try: parseInt(header.split('.')[0])
+    except ValueError: return false
+  let server =
+    try: parseInt(appVersion.split('.')[0])
+    except ValueError: return false
+  client < server
+
 proc route(request: Request) =
   try:
     let path = request.path
@@ -1879,6 +1895,12 @@ proc route(request: Request) =
     if path == "/readyz":
       discard application.db.queryOne("select 1 as ok")
       send(request, 200, """{"status":"ok"}""")
+      return
+    if outdatedClient(request):
+      jsonResponse(request, 410, %*{
+        "status": 410, "code": "CLIENT_OUTDATED",
+        "detail": "this client speaks an older contract; reload the page",
+      }, [("Cache-Control", "no-store")])
       return
     case path
     of "/auth/start":
