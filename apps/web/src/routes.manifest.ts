@@ -7,6 +7,9 @@ import HomePage from './pages/HomePage'
 import PlaceholderPage from './pages/PlaceholderPage'
 import RankingsPage from './pages/RankingsPage'
 import RatingPlayerPage from './pages/RatingPlayerPage'
+import TournamentClassicPage from './pages/TournamentClassicPage'
+import TournamentTeamPage from './pages/TournamentTeamPage'
+import TournamentsPage from './pages/TournamentsPage'
 
 export type NavGroup = 'main' | 'admin' | 'owner'
 
@@ -84,10 +87,38 @@ export const routes: readonly RouteEntry[] = [
   {
     path: '/c/:slug/tournaments',
     labelKey: 'nav.tournaments',
-    element: placeholder('nav.tournaments'),
+    element: createElement(TournamentsPage),
     requiresAuth: true,
     roles: STAFF_ROLES,
     navGroup: 'main',
+  },
+  {
+    path: '/c/:slug/tournaments/classic/new',
+    labelKey: 'tournaments.newClassic',
+    element: createElement(TournamentClassicPage),
+    requiresAuth: true,
+    roles: STAFF_ROLES,
+  },
+  {
+    path: '/c/:slug/tournaments/classic/:id',
+    labelKey: 'tournaments.title',
+    element: createElement(TournamentClassicPage),
+    requiresAuth: true,
+    roles: STAFF_ROLES,
+  },
+  {
+    path: '/c/:slug/tournaments/team/new',
+    labelKey: 'tournaments.newTeam',
+    element: createElement(TournamentTeamPage),
+    requiresAuth: true,
+    roles: STAFF_ROLES,
+  },
+  {
+    path: '/c/:slug/tournaments/team/:id',
+    labelKey: 'tournaments.title',
+    element: createElement(TournamentTeamPage),
+    requiresAuth: true,
+    roles: STAFF_ROLES,
   },
   {
     path: '/c/:slug/settings',
