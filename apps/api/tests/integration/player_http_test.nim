@@ -50,6 +50,14 @@ proc call(verb: HttpMethod, path, cookie = "", body = ""): (int, string) =
 proc bootstrap() =
   database = openDb(dsn(), 1)
   discard database.execUpdate(
+    """delete from player.claims where community_id in
+         (select id from platform.community
+          where slug in ('player-club', 'player-other'))""")
+  discard database.execUpdate(
+    """delete from player.players where community_id in
+         (select id from platform.community
+          where slug in ('player-club', 'player-other'))""")
+  discard database.execUpdate(
     "delete from platform.community where slug in ('player-club', 'player-other')")
   discard database.execUpdate(
     "delete from platform.user where google_sub like 'player-%'")

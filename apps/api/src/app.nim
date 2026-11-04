@@ -23,6 +23,7 @@ import ws_ticket as wsTicket
 import platform/idempotency
 import player/domain/player as playerDomain
 import player/store as playerStore
+import player/claim as playerClaim
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
@@ -884,6 +885,109 @@ proc deletePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   audit("player.delete", ctx.communityId, user, "player", playerId)
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
+proc claimProblem(request: Request, error: playerClaim.ClaimError) =
+  case error
+  of cePlayerNotFound:
+    problem(request, 404, "NOT_FOUND", "player not found")
+  of ceAlreadyPending:
+    problem(request, 409, "CLAIM_PENDING", "a claim for this player is pending")
+  of ceAlreadyClaimed:
+    problem(request, 409, "CLAIMED", "this player already has an owner")
+  of ceClaimNotFound:
+    problem(request, 404, "NOT_FOUND", "claim not found")
+  of ceSelfDecision:
+    problem(request, 403, "SELF_DECISION", "you cannot decide your own claim")
+  of ceConflict:
+    problem(request, 409, "CLAIM_CONFLICT", "claim changed after it was read")
+  of ceOk:
+    discard
+
+proc listClaimsRoute(request: Request, ctx: CommunityContext, playerId: string) =
+  var items = newJArray()
+  for claim in playerClaim.list(application.db, ctx.communityId, playerId):
+    items.add(%*{
+      "id": claim.id,
+      "userId": claim.userId,
+      "status": claim.status,
+      "decidedBy": claim.decidedBy,
+      "decidedAt": claim.decidedAt,
+      "reason": claim.reason,
+      "createdAt": claim.createdAt,
+    })
+  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+
+proc submitClaim(request: Request, ctx: CommunityContext, user: AuthUser,
+                 playerId: string) =
+  let result = playerClaim.submit(application.db, ctx.communityId, playerId, user.id)
+  if result != ceOk:
+    claimProblem(request, result)
+    return
+  audit("player.claim.submitted", ctx.communityId, user, "player", playerId)
+  jsonResponse(request, 201, %*{"playerId": playerId, "status": "pending"})
+
+proc decideClaim(request: Request, ctx: CommunityContext, user: AuthUser,
+                 playerId, claimId: string) =
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  let action = if body.hasKey("action") and body["action"].kind == JString:
+    body["action"].getStr() else: ""
+  let reason = if body.hasKey("reason") and body["reason"].kind == JString:
+    body["reason"].getStr() else: ""
+
+  if action == "release":
+    if reason.strip().len == 0:
+      problem(request, 400, "REASON_REQUIRED", "releasing someone else needs a reason")
+      return
+    let subject = playerClaim.claimOwner(application.db, ctx.communityId, playerId,
+      claimId)
+    if subject.len == 0:
+      problem(request, 404, "NOT_FOUND", "claim not found")
+      return
+    let released = playerClaim.release(application.db, ctx.communityId, playerId,
+      user.id, claimId, subject, reason)
+    if released != ceOk:
+      claimProblem(request, released)
+      return
+    audit("player.claim.released", ctx.communityId, user, "claim", claimId,
+      %*{"playerId": playerId, "status": "released"})
+    jsonResponse(request, 200, %*{"claimId": claimId, "status": "released"})
+    return
+
+  let decision = if body.hasKey("decision") and body["decision"].kind == JString:
+    body["decision"].getStr() else: ""
+  if decision notin ["approve", "reject"]:
+    problem(request, 400, "INVALID_DECISION", "decision must be approve or reject")
+    return
+  let result = playerClaim.decide(application.db, ctx.communityId, playerId,
+    claimId, user.id, decision == "approve", reason)
+  if result != ceOk:
+    claimProblem(request, result)
+    return
+  audit(if decision == "approve": "player.claim.approved" else: "player.claim.rejected",
+    ctx.communityId, user, "claim", claimId, %*{"playerId": playerId})
+  jsonResponse(request, 200, %*{"claimId": claimId,
+    "status": if decision == "approve": "approved" else: "rejected"})
+
+proc releaseOwnClaim(request: Request, ctx: CommunityContext, user: AuthUser,
+                     playerId: string) =
+  let claimId = playerClaim.approvedClaimFor(application.db, ctx.communityId,
+    playerId, user.id)
+  if claimId.len == 0:
+    problem(request, 409, "CLAIM_CONFLICT", "you have no approved claim here")
+    return
+  let released = playerClaim.release(application.db, ctx.communityId, playerId,
+    user.id, claimId, user.id, "self_released")
+  if released != ceOk:
+    claimProblem(request, released)
+    return
+  audit("player.claim.released", ctx.communityId, user, "claim", claimId,
+    %*{"playerId": playerId, "status": "released"})
+  jsonResponse(request, 200, %*{"claimId": claimId, "status": "released"})
+
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
   ## Re-display of the live code: host/admin only, and every read is audited.
@@ -1103,7 +1207,8 @@ proc route(request: Request) =
         problem(request, 401, "UNAUTHENTICATED", "login required")
         return
       let access =
-        if verb == "GET": readAccess()
+        if parts.len >= 6: readAccess()
+        elif verb == "GET": readAccess()
         elif verb == "DELETE": Access(isSession: true, roles: @[rAdmin])
         else: writeAccess()
       let (decision, ctx) = decide(user.get,
@@ -1125,6 +1230,21 @@ proc route(request: Request) =
         return
       if parts.len == 5 and verb == "DELETE":
         deletePlayerRoute(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 6 and parts[5] == "claims":
+        if verb == "GET":
+          listClaimsRoute(request, ctx.get, parts[4])
+          return
+        if verb == "POST":
+          submitClaim(request, ctx.get, user.get, parts[4])
+          return
+      if parts.len == 7 and parts[5] == "claims" and verb == "PATCH":
+        let admin = adminGate(request, parts[2])
+        if admin.isNone: return
+        decideClaim(request, admin.get[1], admin.get[0], parts[4], parts[6])
+        return
+      if parts.len == 6 and parts[5] == "claim" and verb == "DELETE":
+        releaseOwnClaim(request, ctx.get, user.get, parts[4])
         return
     # /c/{slug}/sessions[/{id}[/share]]
     if parts.len >= 4 and parts[1] == "c" and parts[3] == "sessions":
