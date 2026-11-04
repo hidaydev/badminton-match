@@ -3,7 +3,7 @@ import db/db
 import sha256
 
 const
-  ledgerSchema = """
+  ledgerSchema* = """
 set client_min_messages to warning;
 create schema if not exists dbtools;
 create table if not exists dbtools.schema_migrations (

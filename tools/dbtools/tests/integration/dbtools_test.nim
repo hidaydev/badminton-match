@@ -10,14 +10,45 @@ suite "dbtools":
   const migrations = "tools/dbtools/tests/fixtures/migrations"
   const seeds = "tools/dbtools/tests/fixtures/seeds"
 
+  # The suite owns the whole ledger schema, so it must not run against the
+  # database the application uses: dropping `dbtools` would erase the real
+  # migration history. The rows are saved here and restored in teardown.
+  var savedMigrations: seq[(string, string)] = @[]
+  var savedSeeds: seq[(string, string)] = @[]
+
   setup:
     if dsn().len == 0:
       raise newException(ValueError, "MAJADU_PG_DSN is required")
+    savedMigrations.setLen(0)
+    savedSeeds.setLen(0)
     db = openDb(dsn(), 1)
+    if db.queryOne("""select 1 as ok from information_schema.tables
+                      where table_schema = 'dbtools'
+                        and table_name = 'schema_migrations'""").isSome:
+      for row in db.query("select version, checksum from dbtools.schema_migrations"):
+        savedMigrations.add((row.get("version"), row.get("checksum")))
+    if db.queryOne("""select 1 as ok from information_schema.tables
+                      where table_schema = 'dbtools'
+                        and table_name = 'seed_files'""").isSome:
+      for row in db.query("select name, checksum from dbtools.seed_files"):
+        savedSeeds.add((row.get("name"), row.get("checksum")))
     discard db.execUpdate("drop schema if exists dbtools cascade")
     discard db.execUpdate("drop table if exists probe cascade")
 
   teardown:
+    discard db.execUpdate("drop schema if exists dbtools cascade")
+    if savedMigrations.len > 0 or savedSeeds.len > 0:
+      discard db.tx(proc(conn: DbConn): int =
+        conn.execScript(ledgerSchema)
+        for (version, sum) in savedMigrations:
+          discard conn.execUpdate(
+            "insert into dbtools.schema_migrations (version, checksum) values ($1, $2)",
+            @[textParam(version), textParam(sum)])
+        for (name, sum) in savedSeeds:
+          discard conn.execUpdate(
+            "insert into dbtools.seed_files (name, checksum) values ($1, $2)",
+            @[textParam(name), textParam(sum)])
+        1)
     db.close()
 
   test "migrate is idempotent and records checksums":
