@@ -1,8 +1,9 @@
-# Maintenance site: writes are refused with 503 and Retry-After, so nothing
-# reaches a service whose database is being replaced. Reads get the same status
-# with a page the user can understand; there is no point pretending the API is
-# up while an import is running.
-api.qouver.com {
+# Maintenance handler: only the /majadu subtree is closed. The other handlers on
+# api.qouver.com (hooks, sds, skyward) keep working while the database is
+# replaced, which is exactly what a maintenance window should mean.
+#
+# Writes get 503 + Retry-After; reads get a page instead of a proxy error.
+handle /majadu/* {
 	header Retry-After 120
 	header Cache-Control "no-store"
 

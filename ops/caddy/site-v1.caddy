@@ -1,20 +1,11 @@
-# v1 site: the Go API on `bm`, in place before the cutover and again after a
-# rollback. The proxy rules are deliberately identical to site-v2.caddy so a
-# rollback changes the backend and nothing else.
-api.qouver.com {
-	encode zstd gzip
-
-	log {
-		output file /srv/qouver/apps/majadu/logs/caddy-access.log {
-			roll_size 10MiB
-			roll_keep 5
-		}
-		format json
-		skip_log @share
-	}
-
-	@share path /s/*
-
+# v1 handler: imported inside the existing api.qouver.com site block, where the
+# /hooks, /sds and /skyward handlers also live. It must stay a `handle`, never a
+# site block: replacing the site would take the other applications down with it.
+#
+# The /majadu prefix is preserved after the cutover, so the OIDC redirect URI,
+# PUBLIC_BASE_URL and the web client do not change.
+handle /majadu/* {
+	uri strip_prefix /majadu
 	reverse_proxy 127.0.0.1:8080 {
 		header_up X-Client-IP {http.request.remote.host}
 		header_up -X-Forwarded-For

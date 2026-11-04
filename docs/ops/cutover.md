@@ -46,9 +46,13 @@ langkah di sini belum teruji.
 └── logs/                      # deploy.log, cutover.log, caddy-access.log
 ```
 
-`/etc/caddy/Caddyfile` harus mengimpor
-`/srv/qouver/apps/majadu/caddy/active.caddy` (lihat
-`ops/caddy/Caddyfile.api.qouver.com`).
+`/etc/caddy/Caddyfile` mengimpor `/srv/qouver/apps/majadu/caddy/active.caddy`
+**di dalam** site `api.qouver.com`, menggantikan handler `/majadu/*` yang lama.
+Site itu juga melayani `/hooks`, `/sds`, dan `/skyward`; snippet majadu tidak
+boleh menggantikan seluruh site. Prefix `/majadu` dipertahankan setelah cutover,
+jadi redirect OIDC, `PUBLIC_BASE_URL`, dan web client tidak berubah. Langkah
+sekali-jalan (termasuk `skip_log` untuk `/majadu/s/*`) ada di
+`ops/caddy/Caddyfile.api.qouver.com`.
 
 ## 2. Checklist D-7
 
