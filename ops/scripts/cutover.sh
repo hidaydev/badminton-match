@@ -19,6 +19,14 @@
 #   MAJADU_OWNER_EMAIL   email of that account (optional)
 #   MAJADU_CUTOVER_NETWORK  podman network shared with Postgres (default: qouver)
 #   MAJADU_CADDY_CONFIG     main Caddyfile (default: /etc/caddy/Caddyfile)
+#   MAJADU_SYSTEMCTL_CMD    systemctl invocation (default: systemctl --user)
+#   MAJADU_CADDY_VALIDATE   Caddy check command (default: caddy validate)
+#   MAJADU_STAGING_DB       database the dump is restored into (default: bm_staging)
+#   MAJADU_BM2_DB           database the ETL writes to (default: bm2)
+#   MAJADU_STEP_LOG         per-step timing log (default: <app>/cutover/cutover.timings.tsv)
+#
+# The *_CMD/*_VALIDATE overrides exist for the rehearsal harness (T-063), which
+# runs the same sequence against a sandbox app dir and a rehearsal unit.
 set -euo pipefail
 
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
@@ -30,6 +38,10 @@ NETWORK="${MAJADU_CUTOVER_NETWORK:-qouver}"
 CADDY_CONFIG="${MAJADU_CADDY_CONFIG:-/etc/caddy/Caddyfile}"
 HEALTH_URL="${MAJADU_HEALTH_URL:-http://127.0.0.1:8080}"
 CADDY_RELOAD="${MAJADU_CADDY_RELOAD:-sudo systemctl reload caddy}"
+CADDY_VALIDATE="${MAJADU_CADDY_VALIDATE:-caddy validate}"
+SYSTEMCTL="${MAJADU_SYSTEMCTL_CMD:-systemctl --user}"
+STAGING_DB="${MAJADU_STAGING_DB:-bm_staging}"
+BM2_DB="${MAJADU_BM2_DB:-bm2}"
 CADDY_DIR="$APP_DIR/caddy"
 CADDY_ACTIVE="$CADDY_DIR/active.caddy"
 ENV_LINK="$APP_DIR/env/majadu-prod.env"
@@ -39,6 +51,7 @@ MONO_DIR="$APP_DIR/monorepo"
 CUTOVER_DIR="$APP_DIR/cutover"
 LOCK_FILE="$APP_DIR/.deploy.lock"
 STEP_FILE="$CUTOVER_DIR/cutover.step"
+STEP_LOG="${MAJADU_STEP_LOG:-$CUTOVER_DIR/cutover.timings.tsv}"
 LOG="$APP_DIR/logs/cutover.log"
 
 STEPS=(preflight preserve-v1 maintenance stop-v1 snapshot restore-staging
@@ -94,8 +107,12 @@ done
 [ "$valid_step" -eq 1 ] || { echo "cutover: unknown step '$FROM'" >&2; exit 2; }
 
 step_marker() {
-  printf '{"step":"%s","state":"%s","at":"%s"}\n' "$STEP" "$1" \
-    "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >"$STEP_FILE"
+  local at
+  at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  printf '{"step":"%s","state":"%s","at":"%s"}\n' "$STEP" "$1" "$at" >"$STEP_FILE"
+  # The rehearsal harness (T-063) reads durations from this plain log; an
+  # operator reads it when a step took longer than the runbook allows.
+  printf '%s\t%s\t%s\t%s\n' "$STEP" "$1" "$(date +%s)" "$at" >>"$STEP_LOG"
 }
 
 env_value() {
@@ -115,7 +132,7 @@ run_tool() {
 link_site() {
   local snippet="$1"
   ln -sfn "$CADDY_DIR/$snippet" "$CADDY_ACTIVE"
-  caddy validate --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null
+  $CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null
   $CADDY_RELOAD
   log "caddy now serves $snippet"
 }
@@ -226,9 +243,9 @@ step_maintenance() {
 }
 
 step_stop_v1() {
-  systemctl --user stop "$SERVICE"
+  $SYSTEMCTL stop "$SERVICE"
   # disable, not just stop: a reboot must not bring v1 back and write to bm.
-  systemctl --user disable "$SERVICE" >/dev/null 2>&1 || true
+  $SYSTEMCTL disable "$SERVICE" >/dev/null 2>&1 || true
   log "v1 is stopped and disabled"
 }
 
@@ -249,13 +266,13 @@ step_snapshot() {
 step_restore_staging() {
   local dump
   dump=$(cat "$CUTOVER_DIR/snapshot.path")
-  "$APP_DIR/scripts/restore.sh" --file "$dump" --target bm_staging \
+  "$APP_DIR/scripts/restore.sh" --file "$dump" --target "$STAGING_DB" \
     --dsn "$SOURCE_DSN" --recreate
 }
 
 step_prepare_bm2() {
   log "preparing bm2"
-  psql "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db=bm2 \
+  psql "$OWNER_DSN" -v ON_ERROR_STOP=1 -v db="$BM2_DB" \
     -f "$MONO_DIR/ops/db/roles.sql" >>"$LOG" 2>&1
 
   set_role_password() {
@@ -334,8 +351,8 @@ step_site() {
 
 step_start() {
   podman tag "$LOCAL_IMAGE:release" "$LOCAL_IMAGE:local"
-  systemctl --user enable "$SERVICE" >/dev/null 2>&1
-  systemctl --user restart "$SERVICE"
+  $SYSTEMCTL enable "$SERVICE" >/dev/null 2>&1
+  $SYSTEMCTL restart "$SERVICE"
 }
 
 step_readyz() {

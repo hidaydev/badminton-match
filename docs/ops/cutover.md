@@ -58,8 +58,9 @@ sekali-jalan (termasuk `skip_log` untuk `/majadu/s/*`) ada di
 
 - [ ] Tag rilis sudah terbit dan GitHub Release memuat digest
       `ghcr.io/hidaydev/badminton-match@sha256:…`.
-- [ ] Rehearsal lokal (T-063) lulus: ETL dari dump `bm` ke `bm2_rehearsal`,
-      `verify` 0 masalah, `smoke.sh` hijau.
+- [ ] Rehearsal T-063 lulus dan `./task rehearsal check` hijau
+      (`tools/rehearsal/timings.json` ≤ 30 menit, restore ≤ 15 menit, jendela
+      cutover ≤ 10 menit, `--from` terbukti).
 - [ ] `majadu-prod.env.v1` dan `.v2` ada, mode 600, dan `bm2` belum berisi data
       produksi.
 - [ ] `ghcr-token` (bila dipakai) mode 600 dan bisa `podman pull` digest rilis.
@@ -74,20 +75,21 @@ sekali-jalan (termasuk `skip_log` untuk `/majadu/s/*`) ada di
 ## 3. D-3 — rehearsal di VPS (maintenance window diumumkan)
 
 Dijalankan pada VPS sungguhan karena Quadlet dan Caddy tidak ada di mesin dev.
+Harness-nya `tools/rehearsal/`; baca README di sana sebelum menjalankan.
 
 1. Umumkan jendela maintenance (mulai + perkiraan selesai).
-2. Snapshot `bm` dan salin ke `bm_staging` (`backup.sh --tag cutover` lalu
+2. Pastikan `bm_staging` berisi salinan staging (`backup.sh --tag cutover` lalu
    `restore.sh --target bm_staging --recreate`).
-3. Buat database `bm2_rehearsal`; jalankan migrasi + seed + ETL + `verify`
-   terhadap `bm_staging`.
-4. Latih `rollback.sh` ber-stopwatch: tag `:v1-final`, hentikan v1, pulihkan,
-   pastikan `/healthz` v1 hijau lagi.
-5. Catat durasi tiap langkah ke `tools/rehearsal/timings.json` (format mengikuti
-   T-063). Gate: total ≤ 30 menit termasuk restore ≤ 15 menit; jendela cutover
-   ≤ 10 menit; rollback terbukti.
-6. Hapus `bm2_rehearsal` setelah selesai; jangan tinggalkan database setengah
-   jadi.
-7. Umumkan hasil rehearsal (durasi nyata) di channel yang sama.
+3. Siapkan dua env rehearsal (`v1.env`, `v2.env`, mode 600) dari template di
+   `ops/env/`. `bm2_rehearsal` dibuat ulang oleh harness, tidak perlu disiapkan.
+4. `./task rehearsal run --version v<rilis> --dry-run` — periksa sandbox, unit,
+   site Caddy, dan perintah yang akan dijalankan.
+5. `MAJADU_REHEARSAL_CONFIRM=yes ./task rehearsal run --version v<rilis>` —
+   harness menjalankan cutover, rollback, lalu membuktikan
+   `--from restore-staging`, dan menulis `tools/rehearsal/timings.json`.
+6. `./task rehearsal check` harus hijau; commit `timings.json`.
+7. `./task rehearsal clean --drop-databases`.
+8. Umumkan hasil rehearsal (durasi nyata) di channel yang sama.
 
 Kalau rehearsal gagal, cutover D-day **ditunda**; tidak ada "coba saja di
 produksi".

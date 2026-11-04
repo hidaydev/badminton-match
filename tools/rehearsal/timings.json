@@ -1,0 +1,18 @@
+{
+  "status": "not_run",
+  "recorded": "2026-11-04",
+  "recorded_epoch": 0,
+  "host": "",
+  "version": "",
+  "budget_total": 1800,
+  "budget_restore": 900,
+  "budget_window": 600,
+  "total_seconds": 0,
+  "restore_seconds": 0,
+  "window_seconds": 0,
+  "rollback_seconds": 0,
+  "resume_proof": false,
+  "resume_seconds": 0,
+  "steps": {},
+  "notes": "not executed: requires Podman, a systemd user session and an announced maintenance window (T-063); run tools/rehearsal/rehearse.sh on the VPS"
+}

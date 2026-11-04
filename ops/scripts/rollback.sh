@@ -12,6 +12,10 @@
 # `bm` is never written to: rollback does not restore it, because the cutover
 # only ever read it. The bm2 data written after the cutover is abandoned; pass
 # --drop-bm2 to delete the database instead of leaving it for inspection.
+#
+# Env (in addition to MAJADU_APP_DIR): MAJADU_SYSTEMCTL_CMD, MAJADU_CADDY_VALIDATE
+# and MAJADU_BM2_DB exist for the rehearsal harness (T-063), the same overrides
+# cutover.sh takes.
 set -euo pipefail
 
 APP_DIR="${MAJADU_APP_DIR:-/srv/qouver/apps/majadu}"
@@ -19,6 +23,9 @@ SERVICE="${MAJADU_SERVICE:-majadu-api}"
 LOCAL_IMAGE="${MAJADU_IMAGE:-localhost/majadu-api}"
 CADDY_CONFIG="${MAJADU_CADDY_CONFIG:-/etc/caddy/Caddyfile}"
 CADDY_RELOAD="${MAJADU_CADDY_RELOAD:-sudo systemctl reload caddy}"
+CADDY_VALIDATE="${MAJADU_CADDY_VALIDATE:-caddy validate}"
+SYSTEMCTL="${MAJADU_SYSTEMCTL_CMD:-systemctl --user}"
+BM2_DB="${MAJADU_BM2_DB:-bm2}"
 HEALTH_URL="${MAJADU_HEALTH_URL:-http://127.0.0.1:8080}"
 CADDY_DIR="$APP_DIR/caddy"
 CADDY_ACTIVE="$CADDY_DIR/active.caddy"
@@ -73,7 +80,7 @@ podman tag "$LOCAL_IMAGE:v1-final" "$LOCAL_IMAGE:local"
 if [ -f "$CUTOVER_DIR/$SERVICE.container.v1" ]; then
   install -m 644 "$CUTOVER_DIR/$SERVICE.container.v1" \
     "$HOME/.config/containers/systemd/$SERVICE.container"
-  systemctl --user daemon-reload
+  $SYSTEMCTL daemon-reload
   log "restored the v1 unit file"
 fi
 
@@ -90,13 +97,13 @@ fi
 # Caddy first, so the site is answered by the process that is about to start.
 # ---------------------------------------------------------------------------
 ln -sfn "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
-caddy validate --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null ||
+$CADDY_VALIDATE --config "$CADDY_CONFIG" --adapter caddyfile >/dev/null ||
   fail "Caddy rejected the v1 snippet"
 $CADDY_RELOAD
 log "caddy serves the v1 site again"
 
-systemctl --user enable "$SERVICE" >/dev/null 2>&1
-systemctl --user restart "$SERVICE"
+$SYSTEMCTL enable "$SERVICE" >/dev/null 2>&1
+$SYSTEMCTL restart "$SERVICE"
 log "v1 unit enabled and started"
 
 # ---------------------------------------------------------------------------
@@ -137,7 +144,7 @@ if [ -n "$OWNER_DSN" ] && command -v psql >/dev/null 2>&1; then
   fi
   if [ "$DROP_BM2" -eq 1 ]; then
     psql "$OWNER_DSN" -v ON_ERROR_STOP=1 \
-      -c "drop database if exists bm2 with (force)" >>"$LOG" 2>&1
+      -c "drop database if exists $BM2_DB with (force)" >>"$LOG" 2>&1
     log "bm2 dropped as requested"
   else
     log "bm2 left in place; its post-cutover data is abandoned (--drop-bm2 deletes it)"
