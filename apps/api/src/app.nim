@@ -26,6 +26,9 @@ import player/domain/player as playerDomain
 import player/store as playerStore
 import player/claim as playerClaim
 import player/merge as playerMerge
+import rating/domain/rating as ratingDomain
+import rating/infrastructure/ingest as ratingIngest
+import rating/infrastructure/params as ratingParams
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
@@ -1090,6 +1093,62 @@ proc opsPing(request: Request) =
   jsonResponse(request, 200, %*{"ok": true, "token": name.get},
     [("Cache-Control", "no-store")])
 
+proc ratingParamsFor(ctx: CommunityContext): ratingDomain.RatingParams =
+  ratingParams.loadRatingParams(configSnapshot(),
+    currentSettings(application.db, ctx.communityId))
+
+proc ingestSessionRating(request: Request, ctx: CommunityContext,
+                         sessionId: string) =
+  let result = ratingIngest.ingestSession(application.db, ctx.communityId,
+    sessionId, ratingParamsFor(ctx))
+  jsonResponse(request, 200, %*{"events": result.events,
+    "deltas": result.deltas}, [("Cache-Control", "no-store")])
+
+proc clearSessionRating(request: Request, ctx: CommunityContext,
+                        sessionId: string) =
+  let removed = ratingIngest.revertSource(application.db, ctx.communityId, sessionId)
+  let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId,
+    ratingParamsFor(ctx))
+  jsonResponse(request, 200, %*{"removedDeltas": removed,
+    "events": rebuilt.events, "deltas": rebuilt.deltas},
+    [("Cache-Control", "no-store")])
+
+proc rebuildRatings(request: Request, ctx: CommunityContext,
+                    user: AuthUser) =
+  let result = ratingIngest.rebuild(application.db, ctx.communityId,
+    ratingParamsFor(ctx))
+  audit("rating.rebuild", ctx.communityId, user, "community", ctx.communityId,
+    %*{"events": result.events, "deltas": result.deltas})
+  jsonResponse(request, 200, %*{"events": result.events,
+    "deltas": result.deltas}, [("Cache-Control", "no-store")])
+
+proc listRatingSources(request: Request, ctx: CommunityContext) =
+  var items = newJArray()
+  for row in application.db.query(
+    """select e.id, e.event_type, e.local_date::text as local_date,
+              coalesce(e.source_id::text, '') as source_id,
+              count(d.id)::int as deltas
+       from rating.events e
+       left join rating.deltas d on d.event_id = e.id
+       where e.community_id = $1::uuid
+       group by e.id order by e.local_date desc, e.created_at desc""",
+    @[textParam(ctx.communityId)]):
+    items.add(%*{"id": row.get("id"), "type": row.get("event_type"),
+      "date": row.get("local_date"), "sourceId": row.get("source_id"),
+      "deltas": parseInt(row.get("deltas"))})
+  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+
+proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
+                        eventId: string) =
+  let removed = ratingIngest.removeEvent(application.db, ctx.communityId, eventId)
+  let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId,
+    ratingParamsFor(ctx))
+  audit("rating.source.delete", ctx.communityId, user, "rating_event", eventId,
+    %*{"removedDeltas": removed})
+  jsonResponse(request, 200, %*{"removedDeltas": removed,
+    "events": rebuilt.events, "deltas": rebuilt.deltas},
+    [("Cache-Control", "no-store")])
+
 proc sessionVersionNow(communityId, sessionId: string): int =
   let row = application.db.queryOne(
     """select version from session.sessions
@@ -1529,6 +1588,15 @@ proc route(request: Request) =
       if parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
         issueSessionTicket(request, ctx.get, user.get, parts[4])
         return
+      if parts.len == 6 and parts[5] == "rating":
+        if verb in ["POST", "DELETE"]:
+          let admin = adminGate(request, parts[2])
+          if admin.isNone: return
+          if verb == "POST":
+            ingestSessionRating(request, admin.get[1], parts[4])
+          else:
+            clearSessionRating(request, admin.get[1], parts[4])
+          return
       if parts.len == 6 and parts[5] == "schedule" and verb == "PUT":
         putScheduleRoute(request, ctx.get, parts[4])
         return
@@ -1546,6 +1614,23 @@ proc route(request: Request) =
          verb == "PATCH":
         skipGameRoute(request, ctx.get, parts[4], parts[6])
         return
+    # /c/{slug}/ratings/rebuild and /c/{slug}/rating-sources[/{id}]
+    if parts.len >= 4 and parts[1] == "c" and
+       parts[3] in ["ratings", "rating-sources"]:
+      let admin = adminGate(request, parts[2])
+      if admin.isNone: return
+      if parts[3] == "ratings" and parts.len == 5 and parts[4] == "rebuild" and
+         verb == "POST":
+        rebuildRatings(request, admin.get[1], admin.get[0])
+        return
+      if parts[3] == "rating-sources" and parts.len == 4 and verb == "GET":
+        listRatingSources(request, admin.get[1])
+        return
+      if parts[3] == "rating-sources" and parts.len == 5 and verb == "DELETE":
+        removeRatingSource(request, admin.get[1], admin.get[0], parts[4])
+        return
+      problem(request, 404, "NOT_FOUND", "route not found")
+      return
     # /invites/{token}/accept
     if parts.len == 4 and parts[1] == "invites" and parts[3] == "accept":
       if verb == "POST": acceptInvite(request, parts[2])
