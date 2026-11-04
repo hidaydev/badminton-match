@@ -17,6 +17,8 @@ Targets:
   ci           check + build + test + contract check
   dev-db       create the local PostgreSQL databases and roles
   dev-v1       rebuild the local v1 database (captured schema + synthetic data)
+  janitor      purge expired temporary rows with the application role
+  audit-retention  prune audit rows with the owner role (MAJADU_AUDIT_DSN)
   contract-gen generate Nim routes and the TypeScript client
   contract-check verify the contract fingerprint and generated files
   deps-check   verify installed dependencies against deps.lock
