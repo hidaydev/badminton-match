@@ -19,6 +19,7 @@ import uuidv7
 import share/crypto
 import share/store as shareStore
 import session/write as sessionWrite
+import session/standings as sessionStandings
 import session/schedule as sessionSchedule
 import session/swap as sessionSwap
 import tournament/store as tournamentStore
@@ -1409,6 +1410,16 @@ proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
     sessionSchedule.skipGame(application.db, ctx.communityId, sessionId, gameKey,
       version.get))
 
+proc getSessionStandingsRoute(request: Request, ctx: CommunityContext,
+                              sessionId: string) =
+  ## Members read the same board the export draws; an unknown or foreign
+  ## session is a 404, never an empty board.
+  let board = sessionStandings.compute(application.db, ctx.communityId, sessionId)
+  if board.isNone:
+    problem(request, 404, "NOT_FOUND", "session not found")
+    return
+  jsonResponse(request, 200, board.get, [("Cache-Control", "no-store")])
+
 proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
                   gameKey: string) =
   let key = sessionSchedule.parseGameKey(gameKey)
@@ -1969,7 +1980,7 @@ proc route(request: Request) =
         return
       let token = cookieValue(request, "majadu_session")
       let access =
-        if parts.len == 6 and parts[5] == "ws-ticket": readAccess()
+        if parts.len == 6 and parts[5] in ["ws-ticket", "standings"]: readAccess()
         elif parts.len >= 6: writeAccess()
         elif verb == "GET": readAccess()
         else: writeAccess()
@@ -1991,6 +2002,9 @@ proc route(request: Request) =
         return
       if parts.len == 5 and verb == "DELETE":
         deleteSession(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 6 and parts[5] == "standings" and verb == "GET":
+        getSessionStandingsRoute(request, ctx.get, parts[4])
         return
       if parts.len == 5 and verb == "GET":
         let row = application.db.queryOne(

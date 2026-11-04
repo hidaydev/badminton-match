@@ -133,6 +133,9 @@
     "getSessionGame": {
       "auth": "session"
     },
+    "getSessionStandings": {
+      "auth": "session"
+    },
     "getSettings": {
       "auth": "session"
     },

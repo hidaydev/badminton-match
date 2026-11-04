@@ -297,3 +297,38 @@ suite "session schedule HTTP":
       """{"title":"Valid","date":"2026-11-04","startTime":"19:30","slotMinutes":45}""")
     check created == 201
     check parseJson(body)["date"].getStr() == "2026-11-04"
+
+  test "members read the standings and an unknown session is a 404":
+    let (created, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Board","date":"2026-11-04"}""")
+    check created == 201
+    let sessionId = parseJson(body)["id"].getStr()
+    for player in [players[0], players[1]]:
+      discard database.execUpdate(
+        """insert into session.participants
+             (community_id, session_id, player_id)
+           values ($1::uuid, $2::uuid, $3::uuid)""",
+        @[textParam(communityId), textParam(sessionId), textParam(player)])
+    discard database.execUpdate(
+      """insert into session.games
+           (community_id, session_id, round_no, court_no, score_a, score_b,
+            status, side_a1, side_b1)
+         values ($1::uuid, $2::uuid, 0, 0, 30, 20, 'played', $3::uuid, $4::uuid)""",
+      @[textParam(communityId), textParam(sessionId), textParam(players[0]),
+        textParam(players[1])])
+    let path = "/c/sched-club/sessions/" & sessionId & "/standings"
+    let (read, boardBody) = call(HttpGet, path, memberCookie)
+    check read == 200
+    let board = parseJson(boardBody)
+    check board["sessionId"].getStr() == sessionId
+    check board["items"].len == 2
+    check board["items"][0]["name"].getStr() == "Ani"
+    check board["items"][0]["wins"].getInt() == 1
+    check board["items"][0]["diff"].getInt() == 10
+    check board["items"][1]["wins"].getInt() == 0
+    let (anonymous, _) = call(HttpGet, path)
+    check anonymous == 401
+    let (missing, _) = call(HttpGet,
+      "/c/sched-club/sessions/11111111-1111-1111-1111-111111111111/standings",
+      memberCookie)
+    check missing == 404

@@ -435,6 +435,15 @@ const routes* = [
     isWebSocket: false,
   ),
   RouteSpec(
+    operationId: "getSessionStandings",
+    httpMethod: "GET",
+    path: "/c/{slug}/sessions/{id}/standings",
+    tag: "sessions",
+    pathParams: "slug,id",
+    hasBody: false,
+    isWebSocket: false,
+  ),
+  RouteSpec(
     operationId: "postSessionSwap",
     httpMethod: "POST",
     path: "/c/{slug}/sessions/{id}/swap",
@@ -670,7 +679,7 @@ const routes* = [
   ),
 ]
 
-const routeCount* = 73
+const routeCount* = 74
 
 import std/macros
 

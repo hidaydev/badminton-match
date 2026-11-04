@@ -437,6 +437,15 @@ export const routes: readonly RouteSpec[] = [
     isWebSocket: false,
   },
   {
+    operationId: "getSessionStandings",
+    httpMethod: "GET",
+    path: "/c/{slug}/sessions/{id}/standings",
+    tag: "sessions",
+    pathParams: ["slug", "id"],
+    hasBody: false,
+    isWebSocket: false,
+  },
+  {
     operationId: "postSessionSwap",
     httpMethod: "POST",
     path: "/c/{slug}/sessions/{id}/swap",

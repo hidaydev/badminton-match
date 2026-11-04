@@ -138,3 +138,4 @@ delete_session	deleteSession	DELETE	/c/parity/sessions/40000000-0000-4000-8000-0
 delete_auth_sessions	deleteAuthSessions	DELETE	/auth/sessions	Cookie: majadu_session=parity-owner-token; Origin: http://127.0.0.1:5173	-
 post_auth_logout	postAuthLogout	POST	/auth/logout	Cookie: majadu_session=parity-applicant-token; Origin: http://127.0.0.1:5173	-
 auth_me_after_logout	getAuthMe	GET	/auth/me	Cookie: majadu_session=parity-applicant-token	-
+session_standings	getSessionStandings	GET	/c/parity/sessions/40000000-0000-4000-8000-000000000001/standings	Cookie: majadu_session=parity-member-token	-

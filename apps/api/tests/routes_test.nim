@@ -3,8 +3,8 @@ import ../src/routes_gen
 
 suite "generated contract":
   test "contains every operation":
-    check routeCount == 73
-    check routes.len == 73
+    check routeCount == 74
+    check routes.len == 74
     check routeIndex("getHealthz") >= 0
     check routeIndex("getCommunityConfig") >= 0
     check routeIndex("nope") == -1
@@ -15,6 +15,7 @@ suite "generated contract":
       "postAuthLogout", "getAuthMe", "listAuthSessions", "deleteAuthSessions",
       "listSessions", "createSession", "getSession", "patchSession", "deleteSession",
       "lockSession", "unlockSession", "putSessionSchedule", "getSessionGame",
+      "getSessionStandings",
       "patchSessionGame", "skipSessionGame", "patchSessionAbsent", "postSessionSwap",
       "createShareLink", "deleteShareLink", "getShareLink", "getSharedSession",
       "wsSession", "wsShare", "postSessionWsTicket", "postShareWsTicket",

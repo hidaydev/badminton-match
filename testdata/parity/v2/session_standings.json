@@ -1,0 +1,56 @@
+{
+  "route": "getSessionStandings",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000001/standings",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "date": "2026-11-03",
+      "items": [
+        {
+          "diff": 5,
+          "losses": 0,
+          "name": "Alice",
+          "playerId": "{uuid}",
+          "pointsAgainst": 37,
+          "pointsFor": 42,
+          "wins": 2
+        },
+        {
+          "diff": 1,
+          "losses": 1,
+          "name": "Budi",
+          "playerId": "{uuid}",
+          "pointsAgainst": 39,
+          "pointsFor": 40,
+          "wins": 1
+        },
+        {
+          "diff": -1,
+          "losses": 1,
+          "name": "Candra",
+          "playerId": "{uuid}",
+          "pointsAgainst": 40,
+          "pointsFor": 39,
+          "wins": 1
+        },
+        {
+          "diff": -5,
+          "losses": 2,
+          "name": "Dewi",
+          "playerId": "{uuid}",
+          "pointsAgainst": 42,
+          "pointsFor": 37,
+          "wins": 0
+        }
+      ],
+      "sessionId": "{uuid}",
+      "title": "Tuesday Night"
+    }
+  }
+}

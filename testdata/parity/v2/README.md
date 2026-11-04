@@ -1,6 +1,6 @@
 # Parity corpus — v2 (Nim)
 
-One case per contract operation in `apps/api/src/routes_gen.nim` (73), recorded
+One case per contract operation in `apps/api/src/routes_gen.nim` (74), recorded
 against the real Nim server, plus a fixture-state fingerprint. Together they are
 the executable form of the frozen contract: a response that changes shape,
 status or the rows it leaves behind makes `./task parity v2 verify` fail.

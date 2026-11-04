@@ -1983,6 +1983,47 @@
         ]
       }
     },
+    "/c/{slug}/sessions/{id}/standings": {
+      "get": {
+        "operationId": "getSessionStandings",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
+          },
+          "403": {
+            "description": "forbidden"
+          },
+          "404": {
+            "description": "not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
     "/c/{slug}/sessions/{id}/swap": {
       "post": {
         "operationId": "postSessionSwap",
