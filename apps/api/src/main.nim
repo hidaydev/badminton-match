@@ -3,6 +3,7 @@ import mummy
 import app
 import build_info
 import db/db
+import live
 import server
 import account/infrastructure/oidc
 import platform/config/store
@@ -51,7 +52,7 @@ proc main() =
   let apiHandler =
     if config.testRoutes: makeHandler(config.testRoutes)
     else: bootHandler(config, threads)
-  let apiServer = newServer(apiHandler, workerThreads = threads)
+  let apiServer = newServer(apiHandler, websocketHandler(), workerThreads = threads)
 
   signal(SIGTERM, onSignal)
   signal(SIGINT, onSignal)

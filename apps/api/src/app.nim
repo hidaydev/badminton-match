@@ -4,6 +4,7 @@ import auth_middleware
 import community_context
 import config as edgeConfig
 import config_routes
+import live
 import metrics
 import ratelimit
 import security_headers
@@ -13,6 +14,7 @@ import uuidv7
 import share/crypto
 import share/store as shareStore
 import session/write as sessionWrite
+import ws_ticket as wsTicket
 import platform/idempotency
 import account/domain/audit
 import account/domain/roles
@@ -29,6 +31,7 @@ type
     keyring*: Keyring
     config*: ConfigCache
     limiter*: Limiter
+    hub*: LiveHub
     cookieSecure*: bool
     bootstrapOwner*: string
 
@@ -292,6 +295,7 @@ proc revokeOtherSessions(request: Request) =
   let user = requireUser(request)
   if user.isNone: return
   revokeOthers(application.db, user.get.id, cookieValue(request, "majadu_session"))
+  application.hub.revokePrincipal(user.get.id)
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
 proc me(request: Request) =
@@ -305,8 +309,12 @@ proc me(request: Request) =
 
 proc logout(request: Request) =
   let token = cookieValue(request, "majadu_session")
+  let user = currentUser(request)
   if token.len > 0:
     revoke(application.db, token)
+  # Sockets and every ticket of the principal close with the session.
+  if user.isSome:
+    application.hub.revokePrincipal(user.get.id)
   send(request, 204, @[("Set-Cookie",
     "majadu_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")], "")
 
@@ -414,11 +422,47 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
   if session.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
+  # Issuing a link revokes the previous one in the same transaction, so its
+  # watchers and their tickets go too.
+  let previous = application.db.queryOne(
+    """select id from session.links
+       where community_id = $1::uuid and session_id = $2::uuid
+         and revoked_at is null""",
+    @[textParam(ctx.communityId), textParam(sessionId)])
   let code = shareStore.issue(application.db, application.keyring,
     ctx.communityId, sessionId, user.id)
+  if previous.isSome:
+    application.hub.revokeShare(previous.get.get("id"))
   audit("share.issue", ctx.communityId, user, "session", sessionId,
     %*{"sessionId": sessionId})
   jsonResponse(request, 201, %*{"code": code, "sessionId": sessionId})
+
+proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
+                        sessionId: string) =
+  ## Read access is enough: any member may watch. The ticket is bound to the
+  ## session row, so a foreign-community id is a 404 before anything is issued.
+  let session = application.db.queryOne(
+    "select id from session.sessions where id = $1 and community_id = $2",
+    @[textParam(sessionId), textParam(ctx.communityId)])
+  if session.isNone:
+    problem(request, 404, "NOT_FOUND", "session not found")
+    return
+  let ttl = configSnapshot().intValue(%*{}, keyWsTicketTtlSeconds)
+  let ticket = wsTicket.issueSession(application.db, user.id, sessionId, ttl)
+  jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl},
+    [("Cache-Control", "no-store")])
+
+proc issueShareTicket(request: Request, code: string) =
+  ## Anonymous path: the share limiter has already run in `route`, before this
+  ## insert. Only a `share` channel ticket is ever minted here.
+  let found = shareStore.resolve(application.db, application.keyring, code)
+  if found.isNone:
+    problem(request, 404, "NOT_FOUND", "link not found")
+    return
+  let ttl = configSnapshot().intValue(%*{}, keyWsTicketTtlSeconds)
+  let ticket = wsTicket.issueShare(application.db, found.get.linkId, ttl)
+  jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl},
+    [("Cache-Control", "no-store"), ("X-Robots-Tag", "noindex")])
 
 proc ifMatch(request: Request): Option[int] =
   ## OCC precondition. Missing is 428, not 400: the client must opt in.
@@ -477,6 +521,7 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
     if key.len > 0:
       complete(application.db, user.id, scopedKey(ctx.communityId, key), 200,
         result.record)
+    application.hub.sessionChanged(sessionId, result.record["version"].getInt())
     jsonResponse(request, 200, result.record,
       [("ETag", "\"" & $result.record["version"].getInt() & "\""),
        ("Cache-Control", "no-store")])
@@ -506,6 +551,8 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 404, "NOT_FOUND", "session not found")
   of wsInvalid:
     problem(request, 400, "INVALID_PATCH", "cannot lock session")
+  if result.status == wsOk:
+    application.hub.sessionChanged(sessionId, result.record["version"].getInt())
 
 proc getCommunitySettings(request: Request, ctx: CommunityContext) =
   let settings = currentSettings(application.db, ctx.communityId)
@@ -608,6 +655,72 @@ proc getSharedRankings(request: Request, code: string) =
     return
   rankings(request, found.get.communityId)
 
+proc upgradeSocket(request: Request, snapshot: Snapshot, kind, channelId,
+                   clientAddress: string) =
+  ## Reached only after the origin check in `handleWebSocket`. The ticket is a
+  ## query parameter, so it is read here and never echoed: this process keeps no
+  ## access log and no log line below repeats the request path.
+  let ticket = request.queryParams["ticket"]
+  let consumed = wsTicket.consume(application.db, ticket, kind, channelId)
+  if consumed.isNone:
+    problem(request, 401, "UNAUTHENTICATED",
+      "ticket is invalid, expired or already used")
+    return
+  var socket: WebSocket
+  try:
+    socket = request.upgradeToWebSocket()
+  except MummyError:
+    problem(request, 400, "UPGRADE_REQUIRED", "websocket upgrade required")
+    return
+  let caps = WatcherCaps(
+    perSession: snapshot.intValue(%*{}, keyWsMaxWatchersPerSession),
+    perIp: snapshot.intValue(%*{}, keyWsMaxWatchersPerIp),
+    process: snapshot.intValue(%*{}, keyWsMaxWatchersProcess))
+  let userId =
+    if consumed.get.userId.isSome: consumed.get.userId.get else: ""
+  if not application.hub.admit(socket, kind & ":" & channelId, userId,
+      clientAddress, caps):
+    socket.send(fullFrame)
+    socket.close()
+    return
+  socket.send(readyFrame)
+
+proc handleWebSocket(request: Request, snapshot: Snapshot, parts: seq[string]) =
+  if request.httpMethod != "GET":
+    problem(request, 405, "METHOD", "")
+    return
+  # Origin is checked before anything else on both channels, so a browser
+  # handshake either comes from `security.allowed_origins` or never upgrades.
+  # Handshakes without Origin are not browser-driven and authenticate by ticket
+  # alone, matching the rule `csrfCheck` already applies to cookie requests.
+  let origin = request.headers["Origin"]
+  if origin.len > 0 and not originAllowed(snapshot, origin):
+    problem(request, 403, "ORIGIN_FORBIDDEN", "origin is not allowed")
+    return
+  let address = clientIp(request, trustedProxies())
+  if parts.len == 6 and parts[2] == "c" and parts[4] == "sessions":
+    # The ticket names the session, but the URL also names a community: refuse
+    # a handshake that combines a valid ticket with someone else's slug.
+    let session = application.db.queryOne(
+      """select 1 as ok from session.sessions s
+         join platform.community c on c.id = s.community_id
+         where s.id = $1::uuid and c.slug = $2""",
+      @[textParam(parts[5]), textParam(parts[3])])
+    if session.isNone:
+      problem(request, 404, "NOT_FOUND", "session not found")
+      return
+    upgradeSocket(request, snapshot, wsTicket.kindSession, parts[5], address)
+    return
+  if parts.len == 4 and parts[2] == "share":
+    let found = shareStore.resolve(application.db, application.keyring, parts[3])
+    if found.isNone:
+      problem(request, 401, "UNAUTHENTICATED",
+        "ticket is invalid, expired or already used")
+      return
+    upgradeSocket(request, snapshot, wsTicket.kindShare, found.get.linkId, address)
+    return
+  problem(request, 404, "NOT_FOUND", "route not found")
+
 proc route(request: Request) =
   try:
     let path = request.path
@@ -675,6 +788,10 @@ proc route(request: Request) =
     else: discard
 
     let parts = path.split('/')
+    # /ws/c/{slug}/sessions/{id} and /ws/share/{code}
+    if parts.len >= 3 and parts[1] == "ws":
+      handleWebSocket(request, snapshot, parts)
+      return
     # /c/{slug}/sessions[/{id}[/share]]
     if parts.len >= 4 and parts[1] == "c" and parts[3] == "sessions":
       let slug = parts[2]
@@ -684,7 +801,8 @@ proc route(request: Request) =
         return
       let token = cookieValue(request, "majadu_session")
       let access =
-        if parts.len >= 6: writeAccess()
+        if parts.len == 6 and parts[5] == "ws-ticket": readAccess()
+        elif parts.len >= 6: writeAccess()
         elif verb == "GET": readAccess()
         else: writeAccess()
       let (decision, ctx) = decide(user.get, token, slug, access)
@@ -725,6 +843,9 @@ proc route(request: Request) =
         if verb == "GET":
           getShareLink(request, ctx.get, user.get, parts[4])
           return
+      if parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
+        issueSessionTicket(request, ctx.get, user.get, parts[4])
+        return
     # /c/{slug}/settings
     if parts.len == 4 and parts[1] == "c" and parts[3] == "settings":
       let user = currentUser(request)
@@ -766,6 +887,9 @@ proc route(request: Request) =
       if parts.len == 4 and parts[3] == "rankings":
         getSharedRankings(request, code)
         return
+      if parts.len == 4 and parts[3] == "ws-ticket" and verb == "POST":
+        issueShareTicket(request, code)
+        return
     problem(request, 404, "NOT_FOUND", "route not found")
   except CatchableError as error:
     stderr.writeLine "app error: " & error.msg
@@ -775,11 +899,13 @@ proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring,
              config: ConfigCache): App =
   App(db: db, oidc: oidc, keyring: keyring, config: config,
       limiter: newLimiter(),
+      hub: newHub(db),
       cookieSecure: getEnv("MAJADU_COOKIE_SECURE") == "1",
       bootstrapOwner: getEnv("MAJADU_BOOTSTRAP_OWNER_EMAIL"))
 
 proc install*(app: App) =
   application = app
+  installHub(app.hub)
 
 proc handler*(): RequestHandler =
   ## The App lives in a process-wide ref shared by every worker thread. Mummy
