@@ -5,6 +5,9 @@
 /** API contract generation this bundle was built against (TECH-SPEC §9). */
 export const API_VERSION = 2
 
+/** Fired when the server says this bundle speaks a contract it no longer serves. */
+export const CLIENT_OUTDATED_EVENT = 'majadu:client-outdated'
+
 const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 export type ApiProblem = {
@@ -43,6 +46,9 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const problem = await response.json().catch(() => ({}))
+    if (response.status === 410 && problem.code === 'CLIENT_OUTDATED') {
+      window.dispatchEvent(new Event(CLIENT_OUTDATED_EVENT))
+    }
     throw new ApiError({
       status: response.status,
       code: typeof problem.code === 'string' ? problem.code : 'UNKNOWN',

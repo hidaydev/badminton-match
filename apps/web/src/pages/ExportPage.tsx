@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useCommunityConfig } from '../community/useCommunityConfig'
 import { t } from '../i18n'
@@ -320,16 +320,22 @@ export default function ExportPage() {
   const boardValue = board.key === sessionKey ? board.value : null
   const boardFailed = board.key === sessionKey && board.failed
 
-  const composition = parseChoice(choice)
-  const choices = snapshotValue === null ? [] : choicesFor(snapshotValue)
-  const scene: Scene | null =
-    source === 'session'
-      ? boardValue === null
-        ? null
-        : { kind: 'session', board: boardValue }
-      : snapshotValue === null || composition === null
-        ? null
-        : { kind: 'tournament', snapshot: snapshotValue, composition }
+  const composition = useMemo(() => parseChoice(choice), [choice])
+  const choices = useMemo(
+    () => (snapshotValue === null ? [] : choicesFor(snapshotValue)),
+    [snapshotValue],
+  )
+  const scene = useMemo<Scene | null>(
+    () =>
+      source === 'session'
+        ? boardValue === null
+          ? null
+          : { kind: 'session', board: boardValue }
+        : snapshotValue === null || composition === null
+          ? null
+          : { kind: 'tournament', snapshot: snapshotValue, composition },
+    [source, boardValue, snapshotValue, composition],
+  )
 
   useEffect(() => {
     const canvas = canvasRef.current

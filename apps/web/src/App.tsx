@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
+import ClientOutdatedBanner from './components/ClientOutdatedBanner'
 import AppNav from './components/AppNav'
 import { CommunityProvider } from './community/CommunityProvider'
 import { t } from './i18n'
@@ -29,6 +30,7 @@ function Shell() {
   const { user } = useAuth()
   return (
     <div className="min-h-screen bg-ground text-fg">
+      <ClientOutdatedBanner />
       {user && <AppNav />}
       <main>
         <Routes>

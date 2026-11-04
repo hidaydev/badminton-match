@@ -87,4 +87,18 @@ describe('App auth gate', () => {
     expect(window.localStorage.length).toBe(0)
     expect(window.sessionStorage.length).toBe(0)
   })
+
+  it('asks for a reload when the server says this bundle is outdated', async () => {
+    mockFetch({
+      'GET /api/auth/me': () => ({
+        status: 410,
+        body: { code: 'CLIENT_OUTDATED', detail: 'older contract' },
+      }),
+    })
+
+    render(<App />)
+
+    expect(await screen.findByText(t('app.outdated'))).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t('app.outdated.action') })).toBeInTheDocument()
+  })
 })

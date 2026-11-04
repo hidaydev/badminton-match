@@ -4,6 +4,8 @@
 export const en = {
   'app.name': 'Majadu',
   'app.loading': 'Loading…',
+  'app.outdated': 'This page is running an older version and can no longer talk to the server.',
+  'app.outdated.action': 'Reload',
 
   'nav.group.main': 'Main',
   'nav.group.admin': 'Administration',
