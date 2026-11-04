@@ -394,16 +394,9 @@ export default function ExportPage() {
         <div className="space-y-4">
           <fieldset>
             <legend className="text-sm font-semibold text-fg">{t('export.source')}</legend>
-            <div className="mt-1 flex gap-2">
+            <div className="mt-1 flex flex-wrap gap-x-6">
               {(['tournament', 'session'] as const).map((option) => (
-                <label
-                  key={option}
-                  className={`min-h-11 flex-1 cursor-pointer rounded-xl border px-3 py-2 text-center text-sm focus-within:ring-2 focus-within:ring-accent ${
-                    source === option
-                      ? 'border-accent bg-accent text-ground font-semibold'
-                      : 'border-border text-fg'
-                  }`}
-                >
+                <label key={option} className="flex min-h-11 items-center gap-2 text-sm text-fg">
                   <input
                     type="radio"
                     name="export-source"
@@ -413,7 +406,7 @@ export default function ExportPage() {
                       setSource(option)
                       setRenderFailed(false)
                     }}
-                    className="sr-only"
+                    className="h-4 w-4 rounded border-border bg-elevated text-accent focus-visible:ring-2 focus-visible:ring-accent"
                   />
                   {t(
                     option === 'tournament'
@@ -544,16 +537,9 @@ export default function ExportPage() {
 
           <fieldset>
             <legend className="text-sm font-semibold text-fg">{t('export.size')}</legend>
-            <div className="mt-1 flex gap-2">
+            <div className="mt-1 flex flex-wrap gap-x-6">
               {(['post', 'story'] as const).map((option) => (
-                <label
-                  key={option}
-                  className={`min-h-11 flex-1 cursor-pointer rounded-xl border px-3 py-2 text-center text-sm focus-within:ring-2 focus-within:ring-accent ${
-                    variant === option
-                      ? 'border-accent bg-accent text-ground font-semibold'
-                      : 'border-border text-fg'
-                  }`}
-                >
+                <label key={option} className="flex min-h-11 items-center gap-2 text-sm text-fg">
                   <input
                     type="radio"
                     name="export-size"
@@ -563,7 +549,7 @@ export default function ExportPage() {
                       setVariant(option)
                       setRenderFailed(false)
                     }}
-                    className="sr-only"
+                    className="h-4 w-4 rounded border-border bg-elevated text-accent focus-visible:ring-2 focus-visible:ring-accent"
                   />
                   {t(option === 'post' ? 'export.size.post' : 'export.size.story')}
                 </label>
