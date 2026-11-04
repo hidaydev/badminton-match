@@ -40,4 +40,5 @@ export const visualRoutes: readonly VisualRoute[] = [
     path: (state) => `/c/${state.communitySlug}/sessions/${state.sessionId}`,
   },
   { name: 'export', path: (state) => `/c/${state.communitySlug}/export` },
+  { name: 'settings', path: (state) => `/c/${state.communitySlug}/settings` },
 ]
