@@ -1,43 +1,53 @@
 # Roadmap
 
-Status per **2026-09-19**. Riwayat detail per perubahan ada di [`current-status.md`](current-status.md)
-dan git history.
+Status per **2026-11-04**. Riwayat perubahan ada di git history; rencana beku ada di
+[`../plan/`](../plan/README.md) dan **tidak** diubah oleh handbook ini.
 
-## ✅ Fase selesai
+## ✅ Sudah ada di kode
 
-- **Fase 1–6 (era Supabase/PostgREST)** — migrasi Apps Script → Supabase, parity, verifikasi
-  tournament, security hardening, regression, export boundary. Ditutup saat Supabase dipensiunkan
-  (2026-08-15).
-- **Fase 7 — migrasi backend Go** — write-path, read-path, dan tournament sudah 100% di Go
-  (2026-08-13 s/d 15), diverifikasi parity test live. Supabase di-drop; Postgres VPS jadi
-  satu-satunya backend.
-- **Granular live ops** — `scheduled_games` dengan OCC per baris, idempotency, outbox SSE
-  (migrasi `000013`). Rasionalnya di [`revamp-grand-plan.md`](revamp-grand-plan.md).
-- **Fase 8 — fitur produk** (2026-08 s/d 09), lihat [`current-status.md`](current-status.md):
-  - Menu tournament list + wizard classic/team; 8-tier system (D..A+) tersambung FE+BE
-  - Ratings & leaderboard Glicko-1-lite + season (diganti papan poin 2026-09-29)
-  - Admin restructure: Sessions, Players, Ratings, Tournaments (Seasons dihapus bersama
-    pensiun Glicko)
-  - Auto-lock saat save; skip per-game mempertahankan skor; absent tidak dapat delta
-  - Team tournament: penugasan tim manual, edit standings, champion banner, courts
-  - Pagination: leaderboard, recent matches, session list
-  - Migrasi prod `bm_dev` → `bm` (125 pemain, 27 sesi, 103 rated, 1 turnamen)
-  - Auto-deploy webhook; SSE auto-reconnect catch-up; PWA Workbox offline
-  - Achievements: skema, backfill, endpoint, badge UI (2026-09-13)
-  - Team tournament photo post (2026-09-12, PR #20)
-  - Nama pemain pakai canonical di read-path; snapshot nama tidak lagi dimutasi (2026-09-19)
+- **Backend v2 (Nim)** — modul `account`, `community`, `player`, `session`, `tournament`,
+  `rating`, `achievement`, `share`, `platform`; entrypoint `apps/api/src/main.nim`.
+- **Kontrak 74 operasi** — `core.yaml` + `community.yaml` → `api.yaml`,
+  `routes_gen.nim`, klien TS, fingerprint (`packages/contracts/openapi`).
+- **Skema v2** — 14 migrasi (`db/migrations/0001`–`0014`), seed config dan achievement.
+- **Auth & komunitas** — OIDC + cookie sesi, membership `member/host/admin`, invite,
+  join request, settings, audit append-only.
+- **Sesi** — API tulis (jadwal, skor, skip, absent, swap, lock/unlock, share) dengan
+  `If-Match` + `Idempotency-Key`; klasemen server; halaman daftar/detail baca-saja.
+- **Papan poin** — window 12 minggu / best 10 / minimal 3 game, filter tier, detail
+  pemain + achievement.
+- **Turnamen** — classic (16 pasangan, 4 grup, 32 match) dan team (6×6, 9 grup + final,
+  3 partai), editor FE + ingest rating admin.
+- **Ekspor** — post/story dari sesi atau turnamen, ukuran dari config.
+- **Realtime** — WebSocket ticket sekali pakai, fan-out in-memory.
+- **Gate** — `./task check`, `test`, `contract-check`, `pnpm check:web`, `./task e2e`
+  (iPhone 17 + POCO F5), CI 6 job + gate.
 
 ## ⏳ Berikutnya (urut prioritas)
 
-| # | Item | Status |
-|---|------|--------|
-| 1 | **Branch protection testing** — proteksi branch `main` belum ada (diverifikasi 2026-11-03: API proteksi → 404) | Belum |
-| 2 | **Auth** (ditunda): JWT/session middleware di Go, alur host tanpa friction | Ditunda |
-| 3 | **Hardening lanjutan** kalau scope meluas: monitoring/alert API, staging env | Opsional |
+| # | Item | Kenapa / bukti |
+|---|---|---|
+| 1 | **UI tulis sesi** — buat sesi, isi jadwal, skor, skip, absent, swap, lock, share | `SessionPage` hanya membaca; tidak ada pemanggilan `PATCH/PUT/POST` sesi di `apps/web/src` |
+| 2 | **Halaman players + admin** — daftar/klaim/merge pemain, anggota, settings | `/c/:slug/players` dan `/c/:slug/settings` masih `PlaceholderPage`; API-nya sudah ada |
+| 3 | **Halaman share publik `/s/:code`** | rute ada, elemen masih placeholder; API `GET /s/{code}` + ranking share sudah ada |
+| 4 | **Deployment v2** — env, unit quadlet, Caddy, cutover/backup/rollback | `ops/` masih memakai nama v1 (`bm`, `DATABASE_URL`, `/majadu`), bukan `MAJADU_PG_DSN`; lihat T-060/T-061/T-065 di `docs/plan/BACKLOG.md` |
+| 5 | **Dekomisi Go v1** — hapus `apps/api/cmd`, `internal`, `api`, `go.mod`, `go.sum` | masih ada di tree; T-082 |
+| 6 | **Halaman owner communities** | `/owner/communities` masih placeholder |
+| 7 | **Generator jadwal sesi** (bila diinginkan) | belum ada modul generator di v2; kontrak hanya menerima jadwal dari klien |
 
 ## Catatan operasional
 
-- Deploy: push `main` → GitHub webhook → `ops/scripts/deploy-vps.sh` (build lokal + restart)
-- Backup Postgres: timer harian 02:00 WIB
-- Test: `go test ./...` (`apps/api`) · `cd apps/web && pnpm check:regression` — angka hasil terbaru di [`current-status.md`](current-status.md)
-- Infrastruktur, DB, dan status test: [`current-status.md`](current-status.md)
+- Deploy (repo): push `main` → webhook → `ops/scripts/deploy-vps.sh` (build lokal,
+  restart quadlet, healthcheck, rollback `:prev`). **Belum** disesuaikan dengan env Nim.
+- Backup/restore/cutover: belum ada script di `ops/`; jangan menganggap prosedur v1
+  berlaku.
+- Test: `./task check` (tanpa DB) · `./task test` (dengan `MAJADU_PG_DSN`) ·
+  `./task e2e` · `pnpm check:web`.
+- Status & detail infrastruktur: [`current-status.md`](current-status.md).
+
+## Riwayat singkat
+
+- **v1** — backend Go + Postgres `bm`; kontrak snapshot/SSE; didokumentasikan di
+  [`backend-go-decision.md`](backend-go-decision.md) (historis).
+- **v2** — rewrite Nim di repo yang sama: kontrak OpenAPI, database `bm2`, multi-komunitas,
+  WebSocket, config registry. Semua kode dan dokumen aktif saat ini mengacu ke v2.

@@ -1,317 +1,266 @@
 # Features And Routes
 
-## Top-level routes
-
-Defined in:
+Dua peta terpisah: **rute web** (React Router) dan **operasi API** (kontrak OpenAPI).
+Keduanya berbeda: halaman `/c/{slug}/rankings` memanggil `GET /c/{slug}/rankings`.
+
+## 1. Rute web
+
+Sumber tunggal: `apps/web/src/routes.manifest.ts:44-165`. `App.tsx` tidak mendaftar rute
+satu per satu; ia memetakan manifest (`apps/web/src/App.tsx:21-45`).
+
+Kolom **Akses** = `requiresAuth` + `roles`/`platformOwner` di manifest. Entri tanpa
+`navGroup` tetap bisa dibuka lewat URL, tetapi tidak muncul di menu.
+
+| Path | Halaman | Akses | Nav | Status |
+|---|---|---|---|---|
+| `/` | `HomePage` | login | main | daftar komunitas; klik → sesi komunitas |
+| `/c/:slug` | `CommunityPage` | login, semua role | — | ringkasan + 4 setting efektif (baca-saja) |
+| `/c/:slug/sessions` | `SessionsPage` | login, semua role | main | daftar sesi komunitas |
+| `/c/:slug/sessions/:id` | `SessionPage` | login, semua role | — | detail sesi baca-saja: peserta, game, standings |
+| `/c/:slug/players` | `PlaceholderPage` | login, semua role | main | **placeholder** |
+| `/c/:slug/rankings` | `RankingsPage` | login, semua role | main | papan poin + filter tier |
+| `/c/:slug/rankings/:playerId` | `RatingPlayerPage` | login, semua role | — | baris papan, statistik, badge |
+| `/c/:slug/tournaments` | `TournamentsPage` | login, `admin`/`host` | main | daftar classic + team |
+| `/c/:slug/tournaments/classic/new` | `TournamentClassicPage` | login, `admin`/`host` | — | wizard draw classic |
+| `/c/:slug/tournaments/classic/:id` | `TournamentClassicPage` | login, `admin`/`host` | — | editor skor + klasemen |
+| `/c/:slug/tournaments/team/new` | `TournamentTeamPage` | login, `admin`/`host` | — | form 6 tim × 6 kelas |
+| `/c/:slug/tournaments/team/:id` | `TournamentTeamPage` | login, `admin`/`host` | — | editor partai + klasemen |
+| `/c/:slug/export` | `ExportPage` | login, `admin`/`host` | main | ekspor post/story |
+| `/c/:slug/settings` | `PlaceholderPage` | login, `admin` | admin | **placeholder** |
+| `/s/:code` | `PlaceholderPage` | publik | — | **placeholder** (halaman share belum ada) |
+| `/owner/communities` | `PlaceholderPage` | login, platform owner | owner | **placeholder** |
+
+Catatan:
+
+- `/c/:slug/sessions` dan `/c/:slug/sessions/:id` adalah **halaman baca-saja**. Belum
+  ada UI untuk membuat sesi, mengubah skor, swap, absent, lock, atau share.
+- `TournamentsPage` menautkan baris ke `/tournaments/{format}/{id}`, sehingga tombol
+  classic/team memakai editor yang sama dengan rute `new` (`apps/web/src/pages/TournamentsPage.tsx`).
+- Manifest membatasi turnamen & ekspor ke `host`/`admin`, sedangkan API mengizinkan
+  `member` membaca turnamen. Yang dibatasi manifest adalah **navigasi/UI**, bukan API.
+- Path `/ratings`, `/admin/*`, `/session/*`, `/instagram-post`, `/scoreboard`, `/view`
+  dari v1 **tidak ada** di manifest v2.
+
+## 2. Kapabilitas halaman
+
+### Home & komunitas
+
+- `HomePage`: jika tidak ada membership, tampilkan ajakan; jika ada, kartu per komunitas
+  yang mengarah ke `/c/{slug}/sessions` (`apps/web/src/pages/HomePage.tsx`).
+- `CommunityPage`: memuat `GET /c/{slug}/config`, menampilkan
+  `community.default_timezone`, `community.directory_enabled`,
+  `community.invite_ttl_days`, `community.join_requests_enabled` beserta sumbernya
+  (`platform` atau `community`). Tidak ada form edit.
+- `AppNav`: menu mengikuti role komunitas yang dipilih + status platform owner;
+  `CommunityPicker` berpindah komunitas (`apps/web/src/components/AppNav.tsx`).
+
+### Sesi
+
+- `SessionsPage`: `GET /c/{slug}/sessions`, keadaan kosong/error/loading eksplisit,
+  tautan ke detail.
+- `SessionPage`: satu permintaan `GET /c/{slug}/sessions/{id}` (header, peserta, game)
+  plus `GET /c/{slug}/sessions/{id}/standings`; menampilkan versi/status, pemain absen,
+  skor per game, dan klasemen. Semua baca-saja (`apps/web/src/sessions/hooks.ts`).
+
+### Ranking
+
+- Papan: `GET /c/{slug}/rankings?tier=…`; daftar tier dari `apps/web/src/rankings/api.ts`
+  (`D`…`A+`). Papan dibatasi server lewat `rank.board_limit` (200), bukan dipotong FE.
+- Detail: `GET /c/{slug}/rankings/{playerId}` + `GET /c/{slug}/players/{playerId}/stats`
+  + `GET /c/{slug}/players/{playerId}/achievements`. Badge dirender dari katalog
+  `achievement.definitions`.
+
+### Turnamen classic
+
+- 16 pasangan, grup A–D, 32 match: 24 grup + 4 QF + 2 SF + 1 perebutan juara 3 + 1 final
+  (`modules/tournament/domain/classic.nim:1-20`).
+- Wizard membuat draw deterministik dari seed di browser (`ClassicNewPage.tsx`), lalu
+  `POST /c/{slug}/tournaments`.
+- Editor: ubah metadata, skor per match (`PATCH …/matches/{matchId}` dengan `If-Match`),
+  klasemen grup, bracket. Admin mendapat alat rating: finalize source, ingest, revert,
+  dan hapus turnamen (`apps/web/src/tournament/classic/AdminTools.tsx`,
+  `apps/web/src/tournament/api.ts`).
+
+### Turnamen team
+
+- 6 tim × 6 kelas (`A+`…`C`), 9 match grup round-robin + 1 final, 3 partai per match
+  (`modules/tournament/domain/team.nim`, `db/migrations/0012_tournament_formats.sql`).
+- Editor menyunting skor partai dan tiga nama court per match; klasemen + juara
+  dihitung di FE dari aturan yang sama dengan domain
+  (`apps/web/src/tournament/team/rules.ts`).
+- Admin dapat finalize/ingest/revert rating dan menghapus turnamen.
+
+### Ekspor sosial
+
+- `ExportPage`: pilih sumber (sesi atau turnamen), komposisi (grup, bracket, klasemen,
+  final), lalu render `post` 1080×1350 atau `story` 1080×1920.
+- Ukuran berasal dari config `export.*`, bukan konstanta
+  (`apps/web/src/utils/canvas/dimensions.ts`, `ExportPage.tsx`).
+- Sumber data: `GET …/sessions/{id}/standings` untuk sesi; snapshot turnamen untuk
+  grup/bracket/team (`apps/web/src/tournament/export.ts`).
+
+## 3. Operasi API
+
+Sumber: `packages/contracts/openapi/core.yaml` + `community.yaml` → `api.yaml`;
+daftar hasil generate di `apps/api/src/routes_gen.nim:13-680`. Jumlah: **74**
+(`CONTRACT.sha256:7`, `apps/api/src/routes_gen.nim:682`).
+Base URL kontrak: `https://api.qouver.com` (tanpa prefix path) atau
+`http://127.0.0.1:8080` (`api.yaml`, `servers`).
 
-- `src/App.tsx`
-
-### Home shell routes
-
-- `/`
-  - home page (menu APP + section ADMIN saat login admin)
-- `/sessions`
-  - published session list
-- `/rankings`
-  - leaderboard poin 12 minggu (8-tier) — pemain history digabung di detail (Career)
-- `/rankings/:playerId`
-  - detail poin + career stats (bekas Player History)
-- `/ratings` · `/ratings/:playerId`
-  - alamat lama, hanya redirect ke `/rankings` / `/rankings/:playerId` (`App.tsx:112-114`)
-- `/tournaments`
-  - tournament list (classic + team)
-- `/tournaments/new` · `/tournaments/new/:format`
-  - wizard tournament
-- `/tournaments/:id`
-  - detail tournament (branch format)
-- `/admin`
-  - redirect ke `/admin/sessions`
-- `/admin/sessions`
-  - unlock & delete sesi
-- `/admin/players`
-  - tambah/rename/tier/merge/hapus pemain
-- `/admin/ratings`
-  - ingest, revert, rebuild rating (papan poin)
-- `/admin/tournaments`
-  - hapus turnamen
-- `/instagram-post`
-  - session and tournament media export
+Kolom **Akses** mengikuti `testdata/authz/matrix.yaml`; `sesi` berarti cookie
+`majadu_session` + membership komunitas (kecuali operasi non-komunitas).
 
-### Standalone route
+### `auth`
 
-- `/scoreboard`
-  - fullscreen/mobile-friendly scoring screen
-- `/dev/achievement-badges`
-  - preview semua badge achievement (dev)
-- `/dev/match-result-preview`
-  - preview kartu hasil pertandingan (dev)
-- `/dev/session-preview`
-  - preview halaman sesi (dev)
-
-### Guided session flow
-
-- `/session/new`
-  - setup
-- `/session/players`
-  - player entry
-- `/session/constraints`
-  - fixed matches
-- `/session/generate`
-  - schedule generation and publish
-
-### Shared/public routes
-
-- `/view`
-  - hash-based local shared-view mode
-- `/s/:sessionId`
-  - published shared session page
-
-## Session flow
-
-### Setup page
-
-File:
-
-- `src/pages/SetupPage.tsx`
-
-Key capabilities:
-
-- identity fields
-- court count and per-court hours
-- total game preview
-- lock/start session
-
-### Players page
-
-File:
-
-- `src/pages/PlayersPage.tsx`
-
-Key capabilities:
-
-- add/edit/remove players
-- bulk import from pasted text
-- tier grouping
-- completion gating to next step
-
-### Constraints page
-
-File:
-
-- `src/pages/ConstraintsPage.tsx`
-
-Key capabilities:
-
-- build fixed matches
-- validate impossible or overloaded constraints
-- prevent continuing with invalid constraint set
-- pinned matches: assign time and court to specific matches
-- flexible matches: generator decides placement
-
-### Generate page
-
-File:
-
-- `src/pages/GeneratePage.tsx`
-
-Key capabilities:
-
-- run generator
-- display quality summary
-- retry generation until a better result is found
-- publish/share session
-- open summary modal
-
-## Shared session flow
-
-File:
-
-- `src/pages/SharedSessionPage.tsx`
-
-Capabilities:
-
-- load cloud session snapshot
-- mutate scores and played flags
-- swap players
-- swap slots
-- swap teams
-- change one player in a specific game
-- mark absences
-- rename session-local players
-- delete session
-- lock session (prevents all mutations)
-
-The summary modal acts as the operations console for live session management.
-
-### Lock behavior
-
-When a session is locked:
-
-- all interactive elements are disabled (checkboxes, scores, actions)
-- server rejects setiap mutasi selama status bukan `draft` (write-path Go)
-- delete session is also blocked for locked sessions
-- unlock tersedia di admin UI — `AdminSessionsPage`, `POST /sessions/{id}/unlock`
-- unlock bumps the session version
-- auto-lock triggers on save when all scores are entered (save-path, no ticker)
-
-### Player stats in shared view
-
-The schedule tab in SummaryModal shows per-player stats:
-
-- play count (how many times each player plays)
-- sit count (how many times each player sits out)
-- unique partners
-- unique opponents
-
-In standalone mode (host view), the stats panel uses a 2-column grid layout without
-target/ideal plays. Absent players are greyed out with an absent badge and sorted
-to the bottom of the list. All players from the schedule are included (not just
-those in playerMap), supporting the Change Player flow.
-
-### Change player
-
-Change Player allows the host to swap one player in a specific game slot.
-Restricted to published sessions only (not available during schedule generation).
-
-- **Cross-slot conflict detection** — prevents assigning the same player to
-  multiple games in the same time slot across different courts
-- **Confirmation bar** — changes are staged and shown in a bottom confirm bar
-  (consistent with swap/absent patterns) before being committed
-- **Back-to-back warning** — the confirm bar shows a warning when the replacement
-  player would play back-to-back games
-
-## Player history flow (diserap ke Rankings — 2026-08-19)
-
-Files:
-
-- `src/pages/RatingPlayerPage.tsx` (section Career)
-- `src/components/ratings/CareerStats.tsx`
-
-Capabilities:
-
-- recent matches show "with teammate · vs opponent" format (BE fetches teammates/opponents via correlated subqueries on rating_deltas; `COALESCE(array_agg, '{}')` sehingga selalu array, tidak `null` saat partner absent/skipped — fix 2026-09-07)
-- career stats (W/L, points, sessions, top partners/opponents, tournament)
-  dirender di `/rankings/:playerId` — satu halaman, tanpa cross-link nested.
-- Route `/player-history*` dan halaman terpisah DIHAPUS (keputusan 2026-08-19).
-
-## Achievements
-
-Files:
-
-- `src/config/achievements.ts` (definisi & ambang)
-- `src/components/ratings/AchievementBadge.tsx`
-- `src/components/ratings/AchievementDetailModal.tsx`
-- `src/pages/AchievementBadgesPreviewPage.tsx` (route dev `/dev/achievement-badges`)
-
-Badge koleksi per pemain, dihitung backend dari riwayat pertandingan & tournament
-(`apps/api/internal/domain/achievements.go`, tabel `player_achievements` — migrasi `000016`).
-Ditampilkan di halaman detail ranking `/rankings/:playerId`.
-
-## Tournament flow
-
-### Classic Tournament
-
-Files:
-
-- `src/pages/TournamentPage.tsx`
-- `src/components/tournament/*`
-
-Capabilities:
-
-- assign pairs into numbered group slots
-- confirm groups
-- score group matches
-- compute standings
-- propagate quarterfinal/semifinal/final bracket
-- export group summaries and bracket media
-
-### Team Tournament
-
-Files:
-
-- `src/pages/TeamTournamentPage.tsx`
-- `src/pages/NewTournamentWizard.tsx` (TeamWizard)
-- `src/utils/teamTournament.ts`
-- `src/utils/teamTournamentPost.ts`
-
-Capabilities:
-
-- 36 players (6 classes × 6 teams) with manual team assignment in wizard
-- 9 group matches (round-robin) + 1 final
-- Editable team names in standings
-- Team member display under each team name
-- Champion banner with trophy decoration in final tab
-- Crown icon for rank 1 in standings
-- Instagram post export with dark gradient frame
-
-## Social export flow
-
-Files:
-
-- `src/pages/InstagramPostPage.tsx`
-- `src/utils/canvasPost.ts`
-- `src/utils/teamTournamentPost.ts`
-
-Capabilities:
-
-- compose branded images with uploaded or selected photos
-- render standings and tournament outputs to canvas
-- export share-ready assets
-- team tournament standings post (dark gradient frame)
-
-## API endpoints (backend `apps/api`)
-
-Sumber: `apps/api/cmd/server/main.go:184-259` — 48 rute terdaftar. Ini **API**, bukan
-halaman web: papan peringkat dibaca dari `GET /rankings`, sedangkan halaman web-nya
-`/rankings` (`src/App.tsx:110-111`). Di prod semua path ber-prefix base path `/majadu`.
-
-| Method | Path | Auth |
+| Method | Path | Akses |
 |---|---|---|
-| GET | `/healthz` | publik |
-| GET | `/readyz` | publik |
-| GET | `/version` | publik |
-| GET | `/admin/verify` | admin |
-| GET | `/metrics` | publik |
-| GET | `/sessions` | publik |
-| POST | `/sessions` | publik |
-| GET | `/sessions/{id}` | publik |
-| GET | `/sessions/{id}/watch` | publik (SSE) |
-| PUT | `/sessions/{id}` | publik |
-| PATCH | `/sessions/{id}` | publik |
-| DELETE | `/sessions/{id}` | admin |
-| POST | `/sessions/{id}/lock` | admin |
-| GET | `/sessions/{id}/games/{gameKey}` | publik |
-| PATCH | `/sessions/{id}/games/{gameKey}` | publik |
-| PATCH | `/sessions/{id}/games/{gameKey}/skip` | publik |
-| PATCH | `/sessions/{id}/absent` | publik |
-| POST | `/sessions/{id}/swap` | publik |
-| GET | `/sessions/{id}/events` | publik |
-| POST | `/sessions/{id}/unlock` | admin |
-| POST | `/sessions/{id}/delete` | admin |
-| GET | `/players` | publik |
-| POST | `/players` | publik |
-| GET | `/players/{name}/stats` | publik |
-| PATCH | `/players/{playerId}/tier` | admin |
-| PATCH | `/players/{playerId}/name` | admin |
-| DELETE | `/players/{playerId}` | admin |
-| POST | `/players/merge` | admin |
-| GET | `/tournaments` | publik |
-| POST | `/tournaments` | publik |
-| GET | `/tournaments/{id}` | publik |
-| PUT | `/tournaments/{id}` | publik |
-| PATCH | `/tournaments/{id}` | publik |
-| POST | `/tournaments/{id}/delete` | admin |
-| GET | `/rankings` | publik |
-| GET | `/rankings/players/{playerId}` | publik |
-| GET | `/ratings/players/{playerId}` | publik |
-| GET | `/ratings/players/{playerId}/achievements` | publik |
-| GET | `/ratings/sources` | publik |
-| POST | `/ratings/ingest-session` | admin |
-| POST | `/ratings/ingest-tournament` | admin |
-| POST | `/ratings/revert-session` | admin |
-| POST | `/ratings/revert-tournament` | admin |
-| POST | `/ratings/sources/{sourceId}/finalize` | admin |
-| POST | `/ratings/rebuild-all` | admin |
-| POST | `/ratings/replay-all` | admin |
-| POST | `/ratings/replay-source` | admin |
-| POST | `/ratings/achievements/backfill` | admin |
+| `POST` | `/auth/start` | publik* |
+| `GET` | `/auth/callback` | publik |
+| `POST` | `/auth/logout` | sesi |
+| `GET` | `/auth/me` | sesi |
+| `GET` | `/auth/sessions` | sesi |
+| `DELETE` | `/auth/sessions` | sesi |
+
+**Catatan:** Implementasi memanggil `startAuth` tanpa cek sesi; matrix menandainya `session`.
+Praktisnya ini titik masuk login, jadi harus bisa diakses tanpa cookie.
+
+### `system`
+
+| Method | Path | Akses |
+|---|---|---|
+| `GET` | `/healthz` | publik |
+| `GET` | `/readyz` | publik (cek DB) |
+| `GET` | `/version` | publik |
+
+### `community`
+
+| Method | Path | Akses |
+|---|---|---|
+| `GET` | `/communities` | sesi (daftar membership sendiri) |
+| `POST` | `/communities` | sesi + platform owner |
+| `GET` | `/directory` | publik* (entri yang opt-in; anggota melihat miliknya) |
+| `POST` | `/c/{slug}/join-requests` | publik* (selalu `202`, anti-enumerasi) |
+| `GET` | `/c/{slug}/join-requests` | sesi + admin |
+| `PATCH` | `/c/{slug}/join-requests/{id}` | sesi + admin |
+| `POST` | `/c/{slug}/invites` | sesi + admin |
+| `POST` | `/invites/{token}/accept` | sesi |
+| `GET` | `/c/{slug}/members` | sesi (anggota) |
+| `PATCH` | `/c/{slug}/members/{userId}` | sesi + admin |
+| `DELETE` | `/c/{slug}/members/{userId}` | sesi + admin |
+| `GET` | `/c/{slug}/settings` | sesi (anggota) |
+| `PATCH` | `/c/{slug}/settings` | sesi + admin |
+| `GET` | `/c/{slug}/config` | sesi (anggota) |
+
+**Catatan:** `GET /directory` dan `POST …/join-requests` memakai `currentUser` opsional; tanpa
+sesi keduanya tetap menjawab (daftar publik / `202`). Matrix menandainya `session`
+sebagai niat kontrak, bukan perilaku handler.
+
+### `players`
+
+| Method | Path | Akses |
+|---|---|---|
+| `GET` | `/c/{slug}/players` | sesi (anggota) |
+| `POST` | `/c/{slug}/players` | sesi + host/admin |
+| `GET` | `/c/{slug}/players/{playerId}` | sesi (anggota) |
+| `PATCH` | `/c/{slug}/players/{playerId}` | sesi + host/admin |
+| `DELETE` | `/c/{slug}/players/{playerId}` | sesi + admin* |
+| `GET` | `/c/{slug}/players/{playerId}/stats` | sesi (anggota) |
+| `GET` | `/c/{slug}/players/{playerId}/achievements` | sesi (anggota) |
+| `POST` | `/c/{slug}/players/{playerId}/claims` | sesi (anggota) |
+| `GET` | `/c/{slug}/players/{playerId}/claims` | sesi (anggota) |
+| `PATCH` | `/c/{slug}/players/{playerId}/claims/{claimId}` | sesi + admin* |
+| `DELETE` | `/c/{slug}/players/{playerId}/claim` | sesi (anggota) |
+| `POST` | `/c/{slug}/players/{playerId}/merge` | sesi + admin* |
+
+**Catatan:** `DELETE player`, `PATCH claim`, dan `POST merge` memakai `adminGate` (admin saja),
+walau matrix menulis `host,admin`. `createPlayer`/`PATCH player` tetap host/admin.
+
+### `sessions`
+
+| Method | Path | Akses |
+|---|---|---|
+| `GET` | `/c/{slug}/sessions` | sesi (anggota) |
+| `POST` | `/c/{slug}/sessions` | sesi + host/admin |
+| `GET` | `/c/{slug}/sessions/{id}` | sesi (anggota) |
+| `PATCH` | `/c/{slug}/sessions/{id}` | sesi + host/admin |
+| `DELETE` | `/c/{slug}/sessions/{id}` | sesi + host/admin |
+| `PUT` | `/c/{slug}/sessions/{id}/schedule` | sesi + host/admin |
+| `PATCH` | `/c/{slug}/sessions/{id}/absent` | sesi + host/admin |
+| `GET` | `/c/{slug}/sessions/{id}/games/{gameKey}` | sesi (anggota) |
+| `PATCH` | `/c/{slug}/sessions/{id}/games/{gameKey}` | sesi + host/admin |
+| `PATCH` | `/c/{slug}/sessions/{id}/games/{gameKey}/skip` | sesi + host/admin |
+| `POST` | `/c/{slug}/sessions/{id}/swap` | sesi + host/admin |
+| `POST` | `/c/{slug}/sessions/{id}/lock` | sesi + host/admin |
+| `POST` | `/c/{slug}/sessions/{id}/unlock` | sesi + host/admin |
+| `GET` | `/c/{slug}/sessions/{id}/standings` | sesi (anggota) |
+
+`gameKey` = `{round}-{court}` (0-based), sama dengan kunci unik di `session.games`
+(`modules/session/schedule.nim:23-31`). Mutasi memakai `If-Match` versi sesi; yang
+mendukung juga menerima `Idempotency-Key`.
+
+### `share`
+
+| Method | Path | Akses |
+|---|---|---|
+| `POST` | `/c/{slug}/sessions/{id}/share` | sesi + host/admin |
+| `GET` | `/c/{slug}/sessions/{id}/share` | sesi + host/admin |
+| `DELETE` | `/c/{slug}/sessions/{id}/share` | sesi + host/admin |
+| `GET` | `/s/{code}` | publik |
+
+### `rankings`
+
+| Method | Path | Akses |
+|---|---|---|
+| `GET` | `/c/{slug}/rankings` | sesi (anggota) |
+| `GET` | `/c/{slug}/rankings/{playerId}` | sesi (anggota) |
+| `GET` | `/c/{slug}/rating-sources` | sesi + admin* |
+| `PATCH` | `/c/{slug}/rating-sources/{id}` | sesi + admin |
+| `POST` | `/c/{slug}/ratings/rebuild` | sesi + admin |
+| `POST` | `/c/{slug}/sessions/{id}/rating` | sesi + admin |
+| `DELETE` | `/c/{slug}/sessions/{id}/rating` | sesi + admin |
+| `POST` | `/c/{slug}/tournaments/{id}/rating` | sesi + admin |
+| `DELETE` | `/c/{slug}/tournaments/{id}/rating` | sesi + admin |
+| `GET` | `/s/{code}/rankings` | publik |
+| `GET` | `/s/{code}/rankings/{playerId}` | publik |
+
+**Catatan:** Handler `rating-sources` hanya menerima admin (`adminGate`), walau matrix menulis
+`session`; lihat `apps/api/src/app.nim` cabang `ratings/rating-sources`.
+
+### `tournaments`
+
+| Method | Path | Akses |
+|---|---|---|
+| `GET` | `/c/{slug}/tournaments` | sesi (anggota) |
+| `POST` | `/c/{slug}/tournaments` | sesi + host/admin |
+| `GET` | `/c/{slug}/tournaments/{id}` | sesi (anggota) |
+| `PUT` | `/c/{slug}/tournaments/{id}` | sesi + host/admin |
+| `DELETE` | `/c/{slug}/tournaments/{id}` | sesi + host/admin |
+| `PATCH` | `/c/{slug}/tournaments/{id}/matches/{matchId}` | sesi + host/admin |
+
+`PUT` mengganti snapshot penuh dengan `If-Match`; `PATCH` hanya menyentuh satu match
+(`apps/api/src/app.nim:1780-1890`).
+
+### `realtime`
+
+| Method | Path | Akses |
+|---|---|---|
+| `POST` | `/c/{slug}/sessions/{id}/ws-ticket` | sesi (anggota) |
+| `POST` | `/s/{code}/ws-ticket` | publik |
+| `GET` | `/ws/c/{slug}/sessions/{id}` | sesi + ticket sekali pakai |
+| `GET` | `/ws/share/{code}` | publik + ticket sekali pakai |
+
+WebSocket **bukan** SSE. Ticket diterbitkan endpoint `ws-ticket`, lalu dipakai sebagai
+query `?ticket=…` saat upgrade; ticket hangus setelah dipakai
+(`apps/api/src/ws_ticket.nim`, `apps/api/src/app.nim:1676-1710`).
+
+## 4. Rute di luar kontrak
+
+Handler berikut ada di server tetapi tidak dipublikasikan di OpenAPI:
+
+| Method | Path | Akses | Sumber |
+|---|---|---|---|
+| `GET` | `/ops/ping` | bearer ops token | `apps/api/src/app.nim:1943-1946` |
+| `DELETE` | `/c/{slug}/rating-sources/{id}` | sesi + admin | `apps/api/src/app.nim` cabang `rating-sources` |
+
+Jangan menambahkannya ke klien publik tanpa memperbarui `core.yaml`/`community.yaml`
+lebih dulu; `./task contract-check` tidak akan melihatnya sampai spec berubah.

@@ -1,140 +1,129 @@
 # Product Overview
 
-## Purpose
+## Tujuan
 
-`badminton-match` (Majadu) is a badminton operations app. It is optimized for real
-session management, rank-point/leaderboard tracking, and tournament management.
+Majadu adalah aplikasi operasional badminton untuk satu atau banyak komunitas. Fokusnya:
 
-The app is designed to answer these operational questions:
+- menjalankan sesi main (peserta, jadwal, skor, klasemen),
+- mencatat hasil pertandingan dan turnamen,
+- menghitung papan poin pemain,
+- menyiapkan materi publikasi dari hasil sesi/turnamen.
 
-- How many courts and players do we have today?
-- How do we create a fair doubles schedule?
-- How do we preserve requested pairings or rivalries?
-- How do we run the session live and keep everyone aligned?
-- How do we present session outcomes and tournament results cleanly?
-- Who are the top players and how are they trending?
+Pertanyaan yang dijawab aplikasi:
 
-## Core product areas
+- Siapa yang main hari ini dan siapa yang absen?
+- Game apa saja yang dimainkan, di court mana, dan skornya berapa?
+- Siapa yang memimpin klasemen sesi dan papan poin komunitas?
+- Bagaimana hasil grup/bracket turnamen classic atau team?
+- Gambar publikasi apa yang bisa diunduh dari hasil itu?
 
-### 1. Session setup
+## Model komunitas & akses
 
-Users configure:
+- Satu instance melayani banyak komunitas. Setiap data operasional dimiliki satu
+  `community_id`.
+- Login memakai Google OIDC; tidak ada penulisan anonim. Cookie sesi `HttpOnly`.
+- Role per komunitas: `member` (baca), `host` (tulis sesi/turnamen), `admin` (anggota,
+  settings, rating, klaim). Platform owner hanya untuk manajemen platform.
+- Tautan share `/s/{code}` bersifat baca-saja dan tidak memberi akses tulis.
 
-- session title
-- date
-- number of courts
-- session start time
-- per-court availability
-- game duration
-- target player count
+## Area produk
 
-### 2. Player management
+### 1. Sesi
 
-Users can:
+Data sesi: judul, tanggal, jam mulai, durasi slot, court, peserta, dan game.
 
-- add players one by one
-- bulk import players from pasted text
-- edit names inline
-- assign gender (stored canonically in `players` table)
-- assign skill tier (8-tier: D, D+, C, C+, B, B+, A, A+)
-- tier is "first-set sticky" — canonical tier from backend, read-only for registered players
+- Jadwal disimpan relasional: satu baris `session.games` per `{round}-{court}`, dengan
+  hingga dua pemain per sisi (`session.participants`).
+- Skor satu game diubah lewat `PATCH …/games/{gameKey}`; skip game lewat
+  `…/games/{gameKey}/skip`. Skor harus 0–99 dan tidak boleh seri.
+- Absen ditandai per peserta; pemain absen tidak dihitung di klasemen dan tidak
+  mendapat poin.
+- Lock sesi mencatat siapa/waktu approve; unlock tersedia untuk host/admin.
+- Klasemen sesi dihitung server: menang, selisih poin, poin untuk, lalu nama
+  (`modules/session/standings.nim`).
 
-### 3. Constraints
+**Status UI:** daftar dan detail sesi sudah ada, tetapi baru **baca-saja**. Membuat sesi,
+mengisi jadwal, dan mengubah skor masih lewat API/klien lain.
 
-Users can define fixed matches such as:
+### 2. Pemain
 
-- specific partners together
-- specific opponents against each other
-- partial fixed matches with open slots
+- Identitas utama `canonical_name`; pencarian/import memakai `alias` yang
+  dinormalisasi dan unik per komunitas.
+- Tier 8 level: `D`, `D+`, `C`, `C+`, `B`, `B+`, `A`, `A+`; boleh kosong.
+- Gender `M`/`F`.
+- Klaim pemain oleh akun: satu klaim `pending` per pemain, satu pemain ber-owner per
+  akun per komunitas; keputusan klaim oleh admin.
+- Merge memindahkan alias, klaim, delta rating, snapshot, achievement, pair, dan state
+  rating ke pemain target, lalu menghapus sumber.
+- Statistik pemain dan badge tersedia lewat API; halaman players belum dibangun.
 
-### 4. Schedule generation
+### 3. Papan poin
 
-The app generates a doubles schedule that tries to balance:
+- Poin dihitung dari `rating.deltas` dalam window bergulir **12 minggu**, mengambil
+  **10 entri terbaik** per pemain; pemain dengan kurang dari **3 game** tidak masuk papan.
+- Nilai game = `session_base × (0.5 + 0.5 × clamp(margin/score_target, -1, 1))`.
+- Pengali kekuatan lawan = rasio rata-rata tier lawan terhadap populasi, dijepit
+  `0.5–1.5`.
+- Semua angka berasal dari config komunitas/platform (`rating.*`).
+- Papan komunitas dibatasi `rank.board_limit` (200 baris) dan bisa difilter tier.
+- Tidak ada rating absolut/Glicko dan tidak ada siklus musim.
+- Detail pemain: peringkat, poin, main/menang/kalah, statistik, dan badge.
+- Ingest hasil sesi/turnamen idempoten; sumber punya sign-off, dan revert menolak
+  sumber yang sudah finalized.
 
-- total play count
-- repeated partners
-- repeated opponents
-- team strength by tier
-- back-to-back fatigue
+### 4. Achievement
 
-### 5. Shared live session
+Badge dihitung backend dari riwayat pemain dan katalog di
+`achievement.definitions`:
 
-Once a session is published:
+- kategori: `attendance`, `volume`, `opponent`, `tournament`, `tier`, `rank`, `social`;
+- key menentukan metrik + ambang (mis. `sessions:10`, `games:25`, `rank:3`);
+- badge tampil di `/c/{slug}/rankings/{playerId}`;
+- key yang tidak ada di seed tidak bisa diterima (`achievement.earned` FK ke definisi).
 
-- a shared URL becomes the live source
-- scores and played flags can be updated
-- players can be swapped
-- slots can be swapped
-- teams can be swapped
-- one player in a specific game can be changed
-- absences can be recorded
-- player stats (play count, sit count, partners, opponents) are visible
-- session can be locked to prevent further changes
-- locked sessions reject all mutations at the server level
-- auto-lock: sessions lock automatically when all scores are entered (save-path)
+### 5. Turnamen
 
-### 6. Rank points & Leaderboard
+**Classic:** 16 pasangan → 4 grup (A–D) → round-robin → knockout. Satu turnamen punya
+32 match: 24 grup, 4 QF, 2 SF, 1 perebutan juara 3, 1 final. Draw dibuat di browser dari
+seed, lalu disimpan lewat API.
 
-The public board ranks players by **rank points** (poin peringkat). Glicko was retired
-2026-09-29; no rating engine remains.
+**Team:** 6 tim × 6 kelas (`A+`…`C`), 9 match grup round-robin + 1 final, 3 partai per
+match. Court per match bisa diedit; klasemen dan juara dihitung dari aturan domain yang
+sama.
 
-- rolling 12-week window, best 10 sessions counted
-- 250 base points per game, weighted by score margin and opponent strength (clamped 0.5–1.5)
-- 8-tier skill bands (D, D+, C, C+, B, B+, A, A+), sticky per player from `players.tier`
-- `absent_policy`: `skip_player` — absent/skipped player excluded from points, game counts for others
-- Leaderboard: top 200 players by points, with tier filter
-- Player detail: stat cards, recent matches (paginated, "with teammate · vs opponent" format), career stats, achievement badges
-- Auto-ingest locked sessions (backend ticker every 30 min)
+Admin bisa finalize source, ingest, revert rating, dan menghapus turnamen.
 
-### 7. Achievements
+### 6. Ekspor sosial
 
-Setiap pemain punya koleksi badge yang dihitung backend dari riwayat pertandingan & tournament
-(tabel `player_achievements`, migrasi `000016`):
+- Sumber: klasemen sesi, grup/bracket/final classic, atau klasemen/final team.
+- Dua varian: `post` (default 1080×1350) dan `story` (default 1080×1920).
+- Ukuran dibaca dari config `export.*`, bukan hardcode.
+- Render di canvas browser; hasil diunduh sebagai gambar.
 
-- kategori: `attendance`, `volume`, `opponent`, `tournament`, `social`, `rank`
-- medal bertingkat (Bronze–Onyx) untuk achievement tipe rekor; `earned_at` tetap walau rekor naik
-- tampil di halaman detail peringkat `/rankings/:playerId`
-- halaman preview semua badge di `/dev/achievement-badges`
+### 7. Komunitas & operasi
 
-### 8. Tournament
+- Undangan lewat email-hash + token; join request bisa dibuka/ditutup per komunitas.
+- Settings komunitas adalah override dari registry platform; override hanya boleh
+  mempersempit nilai platform.
+- Audit append-only mencatat aksi privileged (aktor, target, hasil, before/after),
+  dengan allowlist field agar kode share/email/IP tidak masuk bukti.
+- Operasi CLI: `./task bootstrap`, `ingest`, `ranksnapshot`, `janitor`, `opstoken`,
+  `audit-retention` (`task`).
 
-The tournament module supports two formats:
+## Realtime
 
-**Classic:**
-- 16 fixed pairs → 4 groups → round-robin → knockout bracket
-- Bracket visualization with connector lines
-- Group standings with head-to-head
+Perubahan sesi disiarkan lewat WebSocket dengan ticket sekali pakai. Frame
+`session.changed` hanya menandai bahwa state berubah (membawa `seq`), bukan mengirim
+delta; klien harus membaca ulang sesi. Tidak ada SSE dan tidak ada replay event.
+Frontend belum memakai WebSocket: halaman sesi memuat state saat dibuka.
 
-**Team:**
-- 36 players (6 classes × 6 teams) with manual team assignment
-- 9 group matches (round-robin) + 1 final
-- Editable team names in standings
-- Team member display under each team
-- Champion banner with trophy decoration
-- Instagram post export with dark gradient frame
+## Arsitektur ringkas
 
-### 9. Social export
+- **Frontend** — React 19, Vite, Tailwind 4, React Router 7 (`apps/web`).
+- **Backend** — Nim 2.4, Mummy HTTP + WebSocket, `db_connector` (`apps/api/src`).
+- **Database** — PostgreSQL 18, database `bm2`, skema per domain (`db/migrations`).
+- **Kontrak** — OpenAPI tulis tangan + codegen, 74 operasi
+  (`packages/contracts/openapi`).
 
-The app can render session and tournament visuals for sharing:
-
-- Instagram-style post assets (1080×1350 posts, 1080×1920 stories)
-- standings cards
-- bracket cover and result assets
-- team tournament standings post (dark gradient frame)
-
-### 10. Admin
-
-4 separate admin pages for managing the system:
-
-- **Sessions** — list, unlock, delete sessions
-- **Players** — list, rename, delete players, set tier
-- **Ratings** — ingest, revert, rebuild rank points
-- **Tournaments** — list, delete tournaments
-
-## Architecture
-
-- **Frontend**: React 19, Vite, Tailwind v4, TypeScript — [`apps/web`](../../apps/web/) (deployed on Vercel)
-- **Backend**: Go — [`apps/api`](../../apps/api/) (deployed on VPS via webhook → podman build lokal)
-- **Database**: PostgreSQL on VPS (schema `bm` — prod; instance dev `bm_dev` di-sunset)
-- **Rating engine**: proportional rank points (12-week window, best 10 sessions) with 8-tier sticky bands
-- Monorepo: `badminton-match` (lihat [`README.md`](../../README.md))
+Detail: [`architecture.md`](architecture.md) · [`data-model.md`](data-model.md) ·
+[`features-and-routes.md`](features-and-routes.md).

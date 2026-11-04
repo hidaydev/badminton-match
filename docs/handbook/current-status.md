@@ -1,99 +1,148 @@
 # Current Status
 
-Last updated: **2026-11-03** (sinkronisasi dokumen pasca-audit: papan poin BWF, migrasi `000013`–`000023`, route `/rankings`)
+Terakhir diperbarui: **2026-11-04** — disinkronkan dengan kode v2 (Nim, kontrak 74
+operasi, migrasi `0014`, E2E Playwright).
 
-File handover tercepat. Mulai dari sini, lalu baca dokumen terkait.
+Pintu masuk tercepat. Setelah ini: [`architecture.md`](architecture.md),
+[`data-model.md`](data-model.md), [`features-and-routes.md`](features-and-routes.md).
 
-## Repo & Branch
+## 1. Apa yang berjalan di repo ini
 
 ```text
-badminton-match (monorepo)
-├── apps/web (React 19 PWA, Vite 8, Tailwind v4) ──REST──▶ apps/api (Go 1.26, net/http+pgx) ──▶ Postgres VPS
-├── apps/scoreboard (PWA scoring standalone, ~650 LOC, Vercel terpisah — tidak ada job CI-nya)
-└── main (satu-satunya branch aktif)
+apps/web   React 19 · Vite 8 · Tailwind 4 · React Router 7
+   │        same-origin /api
+apps/api   Nim 2.4 · Mummy (HTTP + WebSocket) · db_connector
+   │
+Postgres 18 · database bm2 (dev/e2e: bm2_dev / bm2_e2e)
 ```
 
-- **Monorepo**: FE (`apps/web`) + BE (`apps/api`) + app scoring standalone (`apps/scoreboard`) dalam satu repo `hidaydev/badminton-match`.
-- **`main`** — satu-satunya branch aktif (production). Branch `dev` & instance dev di-sunset (2026-09-04).
-- **Web**: Vercel — Root Directory `apps/web`, auto-deploy dari push `main`.
-- **API**: GitHub webhook → build lokal di VPS (`podman build` image `localhost/majadu-api:local`) → restart quadlet `majadu-api`.
-- **API prod**: `https://api.qouver.com/majadu` (port 8080, schema `bm`).
+- **Backend aktif = Nim** di `apps/api/src/`, bukan Go. Dockerfile membangun
+  `apps/api/src/main.nim` (`apps/api/Dockerfile`).
+- Kode Go v1 masih ada di `apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`,
+  `go.mod`, `go.sum`; tidak dipakai build dan belum dihapus (T-082).
+- Alur kerja dokumen ini: branch `main` (branch lama masih ada di lokal/remote, tetapi
+  tidak dipakai oleh handbook ini).
 
----
+## 2. Kontrak & database
 
-## 🧪 Testing
+- **74 operasi** di kontrak: `packages/contracts/openapi/CONTRACT.sha256:7`,
+  `apps/api/src/routes_gen.nim:682`. Sumber tangan: `core.yaml` + `community.yaml`;
+  hasil generate: `api.yaml`, `routes_gen.nim`, `packages/web-client/src/api.ts`.
+- Setiap operasi punya handler (gagal kompilasi bila tidak:
+  `apps/api/src/routes_gen.nim:686-695`) dan baris otorisasi (`testdata/authz/matrix.yaml`).
+- **14 migrasi** di `db/migrations/`, terakhir `0014_fix_game_sides.sql`; seed:
+  `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
+- Skema dipisah per domain: `platform`, `community`, `player`, `session`, `tournament`,
+  `rating`, `achievement`, `auth`, `account` — lihat [`data-model.md`](data-model.md).
 
-| Suite | Command | Hasil |
-|-------|---------|-------|
-| Web regression | `pnpm check:regression` (`apps/web`) | **92 pass** |
-| Backend Go | `go test ./...` (`apps/api`) | **210 pass** (10 paket) |
-| Web build | `pnpm build:web` | PASS (PWA precache `dist/sw.js`) |
+## 3. Frontend hari ini
 
-Test backend yang butuh Postgres di-skip otomatis tanpa `MAJADU_TEST_DATABASE_URL`; integration test
-dijalankan terpisah terhadap database scratch.
+Halaman yang sudah nyata (bukan placeholder):
 
----
+- Login OIDC + shell komunitas (`/`, `/c/:slug`).
+- Daftar sesi + detail sesi **baca-saja** (`/c/:slug/sessions`, `…/sessions/:id`) —
+  peserta, jadwal, skor, standings.
+- Papan poin + detail pemain (`/c/:slug/rankings`, `…/rankings/:playerId`).
+- Daftar turnamen, editor classic, editor team, ekspor sosial
+  (`/c/:slug/tournaments*`, `/c/:slug/export`).
 
-## ✅ Baru selesai
+Masih placeholder (`PlaceholderPage`):
 
-### 2026-09-19 — Nama pemain dibaca dari canonical name
+- `/c/:slug/players`
+- `/c/:slug/settings`
+- `/s/:code` (halaman share publik)
+- `/owner/communities`
 
-- Read-path sesi & team tournament resolve nama dari `players.canonical_name`:
-  `COALESCE(p.canonical_name, sp.source_name)` di `store/session_read.go`, dan
-  `COALESCE(p.canonical_name, ttp.player_name)` di `store/team_tournament.go`.
-- `RenamePlayer` **tidak lagi** memutasi `session_players.source_name` /
-  `tournament_team_players.player_name` (2026-09-18, `63d3c63`). Snapshot nama sengaja
-  dibiarkan apa adanya supaya fingerprint (`SourceFingerprint` / `MatchKey`) stabil dan
-  `ErrSourceChanged` tidak muncul saat edit sesi lama. Propagasi `tournament_pairs.pair_name`
-  (classic tournament) tetap berjalan.
-- Efek di prod: 32 pasangan / 81 baris langsung tampil dengan nama canonical, tanpa mutasi data.
+Belum ada UI untuk: membuat sesi, mengubah skor/swap/absent/lock, share link, dan
+pengelolaan anggota/klaim pemain. API-nya sudah ada.
 
-### 2026-09-19 — Integration suite diperbaiki (`375bd9e`)
+Frontend memakai `fetch` + hook `useEffect`/`useState` per fitur; `@tanstack/react-query`
+masih terpasang di `package.json` tetapi tidak diimpor. Tidak ada service worker/Workbox di v2; yang ada hanya
+`apps/web/public/manifest.json` (metadata aplikasi).
 
-- Dari 5 pass / 24 fail → **32 pass**, idempoten (run kedua tanpa reset tetap 32 pass, 0 sesi bocor).
-- Akar masalah: tanggal hardcoded di masa lampau (memicu auto-lock), cleanup yang bocor pada sesi
-  locked, hardcode `bm_dev`, kontrak `skip_player`, dan mapping tier 8-level.
-- Helper baru di `store/rating_integration_test.go`: `testSessionDate`, `saveLock`, `cleanupSession`.
+## 4. Realtime
 
-### 2026-09-13 — Achievements
+- WebSocket, bukan SSE. Ticket sekali pakai lewat `POST …/ws-ticket`, lalu upgrade ke
+  `/ws/c/{slug}/sessions/{id}` atau `/ws/share/{code}`.
+- Frame `session.changed` hanya membawa `seq`; tidak ada replay. Klien harus membaca
+  ulang state (`GET /c/{slug}/sessions/{id}`) setelah menerima perubahan.
+- Hub fan-out in-memory per proses → **API harus satu instance**.
 
-- Migrasi `000016_player_achievements.sql`; engine `apps/api/internal/domain/achievements.go`;
-  definisi & badge di `apps/web/src/config/achievements.ts`,
-  `components/ratings/AchievementBadge.tsx`, `AchievementDetailModal.tsx`.
+Detail: [`architecture.md`](architecture.md) §8.
 
-### 2026-09-12 — Team tournament photo post (#20)
+## 5. Testing & gate
 
-- Export post Instagram per match & standings team tournament
-  (`apps/web/src/utils/teamTournamentPost.ts`, `drawTeamMatchPost` di `utils/canvasPost.ts`).
+| Suite | Command | Catatan |
+|---|---|---|
+| Unit API + `nim check` + archcheck | `./task check` | tanpa database |
+| Unit + integration API | `./task test` | butuh `MAJADU_PG_DSN`; suite integration butuh `INTEGRATION=1` (dipasang `task test`) |
+| Satu modul | `./task verify <modul|api>` | integration butuh DB |
+| Kontrak | `./task contract-check` | fingerprint + hasil generate |
+| Web | `pnpm check:web` | TypeScript, ESLint, Tailwind, Vitest |
+| Build web | `pnpm build:web` | Vite production build |
+| E2E | `./task e2e` | Playwright, DB `bm2_e2e`, API + OIDC stub + preview |
 
-### 2026-09-10 — Audit fullstack & performa
+E2E berjalan di dua perangkat: **iPhone 17** (WebKit, 402×874, DPR 3) dan **POCO F5**
+(Chromium, 393×873, DPR 2.75), dengan `maxDiffPixels: 0` (`e2e/browsers.ts:19-38`,
+`apps/web/playwright.config.ts`). Rute baseline: home, community, rankings, tournaments, classic editor, sessions,
+session, export (`e2e/visual.routes.ts:19-33`).
 
-- 9 isu security/performa + 13 bug diperbaiki: SSE single `SessionStore`, limit body JSON 10MB,
-  masking error DB, queueing debounced publish, eviction rate limiter, setelan pool pgx,
-  index `000015`, SSE catch-up via `/sessions/{id}/events` (broadcast `Watch` masih in-memory,
-  aman karena API satu instance), dan strategi offline PWA Workbox.
-- Dokumen audit (fullstack 09-10 & code-quality 09-18) **dihapus dari repo pada 2026-09-19**;
-  arsipnya ada di git history.
+Angka pass tidak ditulis di sini karena berubah setiap commit; jalankan perintahnya.
 
----
+## 6. CI
 
-## Infrastruktur
+`.github/workflows/ci.yml` menjalankan:
 
-- **VPS Host**: `user@<VPS_IP>`
-- **Containers**: `majadu-api` (prod:8080), `qouver-postgres` (5432)
-- **Quadlet Config**: `~/.config/containers/systemd/majadu-api.container`
-- **Deploy**: GitHub webhook → `ops/scripts/deploy-vps.sh` (build lokal + restart)
-- **Migrasi SQL**: `000001`–`000012` di VPS (tidak di repo), `000013`–`000023` di [`docs/backend/`](../backend/)
+- `api-check` (`./task check`)
+- `api-test` (Postgres 18.6 service, `./task dev-db` + `./task test`)
+- `contract` (`./task contract-check`)
+- `web` (`pnpm install --frozen-lockfile`, `pnpm check:web`, `pnpm build:web`)
+- `e2e` (Playwright + `./task deps-check`)
+- `image` (`docker build apps/api`)
+- `gate` (semua job harus sukses)
 
----
+`nightly.yml` menjalankan `./task ci` dengan database service.
 
-## Database
+## 7. Infrastruktur (apa yang benar-benar ada di repo)
 
-| Database | Status |
-|----------|--------|
-| `bm` (prod) | Live — satu-satunya instance (dev `bm_dev` di-drop 2026-09-04) |
+- `apps/api/Dockerfile` — multi-stage Nim 2.4.0 → `debian:bookworm-slim`, user uid 10001,
+  port 8080.
+- `ops/scripts/deploy-vps.sh` — webhook `refs/heads/main` saja, `flock`, build lokal,
+  tag `:local`/`:prev`, restart quadlet, healthcheck 30 dtk, rollback ke `:prev`.
+- `ops/systemd/majadu-api.container`, `ops/caddy/Caddyfile.api.qouver.com`,
+  `ops/env/prod.env.example`, `ops/webhook/webhook.json`.
 
-- Rating Config: `season_start 2026-05-23`, 8-tier ClassBands, `absent_policy=skip_player`.
-  Papan poin: `rank_window_weeks 12`, `rank_best_n 10`, `rank_min_sessions 3` (nilai seed
-  migrasi `000018`/`000022`). Glicko pensiun 2026-09-29 — tidak ada perhitungan rating.
-- Index tambahan: lihat [`data-model.md`](data-model.md) §Performance Indexes.
+**Peringatan konsistensi:** artefak `ops/` masih memakai nama v1 — schema `bm`,
+`DATABASE_URL`, `MAJADU_DB_SCHEMA`, dan Caddy prefix `/majadu`. Backend Nim membaca
+`MAJADU_PG_DSN`, `MAJADU_PORT`, `SHARE_CODE_KEYS`, dan seterusnya
+(`apps/api/src/main.nim:34-47`, `apps/api/src/server.nim:29-42`). Jadi `ops/` **belum**
+menjadi deployment v2 yang siap pakai; jangan menyalin nilainya sebagai konfigurasi
+produksi. Kredensial/alamat asli tidak ada di repo.
+
+## 8. Database
+
+Satu model data v2; tidak ada `bm_dev`/`bm` di dokumen ini. Nama database yang dipakai
+tooling: `bm2_dev` (CI/dev) dan `bm2_e2e` (E2E). Untuk produksi, konfigurasi berada di
+luar repo.
+
+- Registry config: 36 key, nilai awal di `db/seeds/platform_config.sql`; nilai bisnis
+  diubah lewat data, bukan deploy (`modules/platform/config/registry.nim`).
+- Papan poin: window 12 minggu, 10 entri terbaik, minimal 3 game; dihitung saat baca.
+- Tidak ada mesin Glicko, tabel musim, atau rating absolut.
+
+## 9. Utang yang terlihat dari kode
+
+1. **UI sesi belum bisa menulis** — halaman detail hanya membaca; mutasi skor/swap/lock
+   belum punya layar.
+2. **Halaman placeholder** — players, settings, share publik, owner communities.
+3. **Turnamen dibatasi manifest** ke `host`/`admin`, walau API mengizinkan `member`
+   membaca.
+4. **Generator jadwal sesi belum ada** di v2; kontrak hanya menyediakan
+   `PUT …/schedule` untuk klien yang sudah punya jadwal.
+5. **`ops/` masih v1-oriented** (lihat §7).
+6. **Kode Go v1 masih di tree** (T-082) dan beberapa dokumen lama masih merujuknya.
+7. **`platform.outbox` belum dipakai produsen event**; realtime masih fan-out in-memory.
+8. **Klien WebSocket belum ada di FE** — endpoint ticket/upgrade siap, tetapi halaman
+   sesi masih memuat state sekali saat dibuka.
+9. **`packages/contracts/openapi/README.md` menyebut 73 operasi**, sedangkan kontrak
+   aktual 74 (`CONTRACT.sha256:7`).

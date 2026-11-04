@@ -1,18 +1,28 @@
-# Grand Plan Revamp — Clean Break dari Snapshot Monolith
+# Grand Plan Revamp — Clean Break dari Snapshot Monolith (arsip v1)
 
-> **Status: IMPLEMENTED** (2026-08) — lihat kontrak aktual di [`apps/api/README.md`](../../apps/api/README.md); sisa item yang belum dicentang ada di §5.  
-> Dokumen ini rencana awal (DRAFT 2026-08-24); implementasi menghasilkan granular
-> live ops sebagai kontrak utama, sementara `PUT /sessions/{id}` (snapshot)
-> dipertahankan sebagai **legacy/deprecated** untuk fase setup/generate.
-> **Author:** Muse Spark (assessment FE+BE+DB VPS)  
-> **Keputusan:** Semua write live pindah ke granular REST + row-level OCC. Snapshot
-> tetap sebagai *read projection* (GET); kontrak write live = granular.
-> **Prinsip:** Ideal + best practice, tanpa kompromi solo-dev. Mengejar correctness,
-> concurrency, dan scalability untuk 60p + multi-admin live.
+> **ARSIP v1 — JANGAN DIPAKAI SEBAGAI PANDUAN v2.**
+> Dokumen ini ditulis 2026-08-24 untuk backend **Go** dan skema **`bm`**. Isinya
+> menggambarkan implementasi v1, bukan runtime hari ini.
 >
-> **Catatan (2026-09-19):** ini arsip keputusan, bukan dokumen operasional. Skema terkini ada di
-> [`data-model.md`](data-model.md) + [`../backend/`](../backend/README.md); status & infra terkini di
-> [`current-status.md`](current-status.md). Sebutan `bm_dev`, IP, dan path VPS di bawah sudah tidak berlaku.
+> Perbedaan yang membuatnya tidak berlaku:
+>
+> - Backend aktif adalah **Nim** (`apps/api/src`), bukan Go.
+> - Database v2 adalah **`bm2`** dengan migrasi `0001`–`0014`, bukan `bm`/`000012`.
+> - Tidak ada `PUT /sessions/{id}` snapshot. Jadwal ditulis lewat
+>   `PUT /c/{slug}/sessions/{id}/schedule`; live ops memakai endpoint granular.
+> - Realtime memakai **WebSocket + ticket**, bukan outbox/SSE.
+> - OCC memakai **versi sesi** (`session.sessions.version`), bukan versi per game.
+> - Auth bukan "ditunda": OIDC + cookie sesi + role komunitas sudah ada.
+> - Semua data berada dalam batas `community_id`.
+>
+> Untuk keadaan sekarang lihat [`architecture.md`](architecture.md),
+> [`current-status.md`](current-status.md), dan [`data-model.md`](data-model.md).
+> Rencana v2 yang beku ada di [`../plan/`](../plan/README.md).
+>
+> **Author asli:** Muse Spark (assessment FE+BE+DB VPS) · **Keputusan asli:** live write
+> pindah ke granular REST + row-level OCC; snapshot dipertahankan sebagai read
+> projection. **Prinsip asli:** correctness, concurrency, scalability untuk 60 pemain +
+> multi-admin live.
 
 ---
 
@@ -242,4 +252,4 @@ GET /sessions/{id}/watch -> SSE: event: patch {op, path, value, version} | event
 
 ---
 
-*Dokumen ini adalah grand plan clean break. Eksekusi dimulai dari DB migration 000012.*
+*Arsip: grand plan clean break v1. Jangan dipakai untuk v2 — lihat [`architecture.md`](architecture.md).*

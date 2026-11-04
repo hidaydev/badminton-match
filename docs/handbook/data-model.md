@@ -1,172 +1,201 @@
 # Data Model — Single Source of Truth
 
-Dokumen ini adalah **sumber kebenaran tunggal (*Single Source of Truth*)** untuk seluruh desain data model aplikasi Majadu, mencakup TypeScript domain types (Frontend) dan PostgreSQL relational schema (Backend `apps/api`).
+Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk data yang
+dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
+dump VPS atau skema v1.
 
-> **Batas verifikasi (2026-11-03).** Bagian TypeScript bersumber dari kode `apps/web`.
-> Untuk PostgreSQL: migrasi baseline `000001`–`000012` (tabel inti `sessions`, `players`,
-> `player_aliases`, `session_players`, `scheduled_games`, `scheduled_game_players`,
-> `rating_events`/`rating_deltas`/`rating_config`, termasuk PK/FK/UNIQUE/trigger)
-> **tidak ada di repo** — hanya diarsipkan di VPS. Karena itu isi §4 di bawah
-> terverifikasi dari migrasi `000013`–`000023` di [`docs/backend/`](../backend/) plus
-> query di `apps/api/internal/store/`; constraint baseline di §5 adalah asumsi yang
-> belum bisa diperiksa dari repo.
+- Migrasi: `db/migrations/0001_core.sql` … `0014_fix_game_sides.sql` (14 file; `0014`
+  adalah yang terakhir).
+- Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
+- Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
+  `dbtools.seed_files` (checksum per file).
+- Nama database `bm2_dev`/`bm2_e2e` berasal dari tooling, bukan dari SQL:
+  `.github/workflows/ci.yml`, `task.d/e2e.sh`.
 
----
+Tidak ada skema `bm`, tabel snapshot JSON, `scheduled_games`, atau `rating_events` v1 di
+v2. Nama-nama itu hanya ada di [`../backend/`](../backend/README.md) (arsip migrasi v1).
 
-## 📱 1. Core Session Model (Frontend TS Types)
+## 1. Aturan umum
 
-Main source: `apps/web/src/types/index.ts`
+1. **Tenancy di setiap baris.** Tabel milik komunitas menyimpan `community_id` dan
+   memakai FK komposit `(community_id, id)` ke induknya. Satu baris tidak bisa
+   menyeberang komunitas (`db/migrations/0001_core.sql:32-52`, `db/migrations/0003_tournament.sql:7-20`).
+2. **UUID dari database.** Sebagian besar PK memakai `gen_random_uuid()`. Pengecualian
+   yang disengaja: `session.links.id` diisi aplikasi karena dipakai sebagai AAD enkripsi
+   (`db/migrations/0001_core.sql:54-56`).
+3. **Waktu.** `timestamptz` untuk waktu proses; tanggal kalender memakai `date`
+   (`session_date`, `event_date`, `local_date`, `taken_on`).
+4. **Enum sebagai CHECK**, bukan tipe enum Postgres: status sesi, role, tier, kelas tim,
+   fase turnamen, dan hasil audit.
+5. **Grant least-privilege.** Aplikasi memakai role `bm2_app`, bukan owner. Tabel bukti
+   (`account.audit`, `player.merge_log`) hanya boleh `select`/`insert`
+   (`db/migrations/0001_core.sql:203-211`, `db/migrations/0004_platform.sql:131-138`).
 
-### Player
-Fields:
-- `id`: Local session-app player ID (mis. `"p1"`, `"p2"`)
-- `name`: Display name
-- `gender`: `'M'` | `'F'` (canonical)
-- `tier`: `1`–`8` (D=1, D+=2, C=3, C+=4, B=5, B+=6, A=7, A+=8 — 8-tier unified)
+## 2. Tabel per skema
 
-*Catatan:* `tier` bersifat "first-set sticky", disimpan secara kanonikal di tabel backend `players`.
+### `platform`
 
-### FixMatch (kode: `MatchConstraint`)
+| Tabel | Kolom/constraint penting | Migrasi |
+|---|---|---|
+| `platform.community` | `id`, `slug` unik global + format `^[a-z0-9]…$`, `name`, `timezone`, `created_at` | `0001:9-19` |
+| `platform.user` | `google_sub` unik, `email_hash` unik, `display_name`, `is_platform_owner` | `0001:21-30` |
+| `platform.config` | PK `key`; `value_type` (`int`/`decimal`/`bool`/`string`/`json`), `value` JSONB, `min_value`/`max_value`, `scope` (`platform`/`community`), `description`, `since_version` | `0004:6-18` |
+| `platform.config_version` | Singleton (`id boolean primary key default true`), `version bigint`; snapshot config di-cache per nilai ini dan reload saat berubah | `0004:20-25` |
+| `platform.idempotency_keys` | Unik `(user_id, key)`, `body_hash`, `status_code`, `response` JSONB, `expires_at` + index | `0004:27-39` |
+| `platform.import_row_map` | PK `(community_id, source_table, source_key)` → `target_id`; peta ETL v1→v2 | `0004:41-48` |
+| `platform.ws_ticket` | `token_hash` unik, `channel_kind` (`session`/`share`), `channel_id`, `user_id` nullable dengan CHECK: channel share boleh anonim, session wajib user; `expires_at`, `used_at` | `0004:50-64`, `0007` |
+| `platform.cutover_state` | Singleton; `snapshot_sha256`, `snapshot_taken_at`, `etl_completed_at`, `completed_at` | `0004:66-73` |
+| `platform.outbox` | `topic`, `payload` JSONB, `created_at`, `processed_at`; saat ini hanya dibersihkan janitor, belum ada produsen event | `0004:121-128` |
+| `platform.ops_token` | `name`, `token_hash` unik, `created_by`, `expires_at`, `revoked_at`, `last_used_at` | `0008:6-22` |
 
-Fields:
-- `id`: Constraint ID
-- `slots`: `[PlayerId, PlayerId, PlayerId, PlayerId]` (string kosong = bebas)
-- `mode`: `'flexible'` | `'pinned'`
-- `pinnedTime`: `TimeString` `HH:MM` (wajib untuk `mode: 'pinned'`)
-- `pinnedCourt`: Index lapangan (0-based, wajib untuk `mode: 'pinned'`)
+### `session`
 
-### ScheduleSlot & GameScore
-- `ScheduleSlot`: Atomic scheduled game unit (`slot`, `court`, `teamA: [p1, p2]`, `teamB: [p3, p4]`).
-- `GameScore`: Score object (`a: number`, `b: number`) di-key secara eksternal via `${slot}-${court}`.
+| Tabel | Kolom/constraint penting | Migrasi |
+|---|---|---|
+| `session.sessions` | `community_id`, `title`, `session_date`, `start_time`, `slot_minutes > 0`, `status` ∈ `draft/locked/published/completed/archived`, `source` ∈ `manual/generator/legacy_snapshot`, `version > 0`, `approved_at`, `approved_by` | `0001:32-52`, `0006` |
+| `session.links` | `id` diisi aplikasi, `code_hash` unik, `code_enc`, `key_id`, `created_by`, `revoked_at`, `expires_at`; index parsial menjamin satu link hidup per sesi | `0001:54-75` |
+| `session.courts` | `court_index >= 0`, unik `(session_id, court_index)`, `start_time < end_time` | `0001:77-93` |
+| `session.games` | Unik `(session_id, round_no, court_no)`; skor 0–99 dan tidak boleh seri saat `played`; status `scheduled/played/cancelled`; `version` dinaikkan trigger `session.bump_version()`; `side_a1/a2/b1/b2` (0010) dengan FK komposit ke `session.participants`; CHECK `games_distinct_sides` (0014) | `0001:95-134`, `0010:32-61`, `0014` |
+| `session.participants` | Unik `(session_id, player_id)`; `is_absent`; FK player `on delete restrict` | `0010:7-27` |
 
-### SessionConfig
-Fields:
-- `title`, `date`, `courts`, `sessionStart`, `slotMinutes`, `courtTimes`, `playerCount`, `courtNames`, `locked`
+Catatan: `session.games` adalah jadwal relasional, bukan blob. Empat kolom sisi berarti
+singles memakai satu slot per sisi; slot `NULL` adalah posisi kosong, bukan pemain.
 
----
+### `player`
 
-## ☁️ 2. Cloud & Shared Snapshot Models
+| Tabel | Kolom/constraint penting | Migrasi |
+|---|---|---|
+| `player.players` | `canonical_name`, `canonical_key` generated (trim + lower + collapse whitespace) unik per komunitas, `tier` nullable ∈ `D/D+/C/C+/B/B+/A/A+`, `gender` ∈ `M/F`, `user_id`; satu pemain ber-owner per user per komunitas | `0001:136-160` |
+| `player.claims` | `status` ∈ `pending/approved/rejected/released`; field keputusan konsisten dengan status; satu `pending` dan satu `approved` per pemain | `0001:162-188` |
+| `player.merge_log` | `source_id`, `target_id`, `rows_moved >= 0`, `actor_id`; append-only untuk aplikasi | `0001:190-201` |
+| `player.aliases` | `alias`, `alias_key` generated, unik `(community_id, alias_key)`, FK pemain cascade | `0009:7-25` |
 
-Main sources: `apps/web/src/types/index.ts` (definisi `CloudSnapshot`; di-re-export `apps/web/src/queries/types.ts`) & `apps/web/src/utils/shareUrl.ts`
+### `rating` & `achievement`
 
-### CloudSnapshot
-Payload operasional untuk publikasi & sinkronisasi sesi ke cloud:
-- `version`?: Optimistic concurrency version
-- `session`: `SessionConfig`
-- `players`: Array of `Player`
-- `fixMatches`: Array of `MatchConstraint`
-- `schedule`: Array of `ScheduleSlot`
-- `playedGames`: `string[]` — daftar key `${slot}-${court}` yang sudah dimainkan
-- `gameScores`: Record of `${slot}-${court}` -> `GameScore`
-- `absentPlayers`?: Array of player IDs (absent players)
-- `skippedPlayers`?: Record of `${slot}-${court}` -> array player ref yang di-skip
+| Tabel | Kolom/constraint penting | Migrasi |
+|---|---|---|
+| `rating.events` | `community_id`, `local_date`, `event_type` ∈ `session/tournament/manual`, `source_id` (id sesi/turnamen), index `(community_id, local_date desc)` | `0002:8-20` |
+| `rating.deltas` | `event_id`, `side` ∈ `a/b`, `player_id`, `delta` integer; unik `(event_id, side, player_id)` | `0002:22-40` |
+| `rating.player_state` | PK `(community_id, player_id)`, `rating`, `games_played`, `wins`, `losses`; CHECK `games_played = wins + losses` | `0002:42-54` |
+| `rating.snapshots` | PK `(community_id, player_id, taken_on)`, `rating`; dipakai `./task ranksnapshot` | `0002:56-67` |
+| `rating.sources` | PK `(community_id, source_id)`, `kind` ∈ `session/tournament`, `finalized`, `finalized_at`; sign-off bertahan melewati rebuild dan membuat revert ditolak | `0013:9-24` |
+| `achievement.definitions` | PK `key`, `category`, `threshold >= 0` | `0002:69-74` |
+| `achievement.earned` | PK `(community_id, player_id, achievement_key)`, FK ke definisi, `earned_at` | `0002:76-86` |
 
----
+Poin tidak disimpan sebagai kolom. Papan dihitung saat baca dari `rating.deltas` dalam
+window bergulir; `rating.player_state` hanya bookkeeping menang/kalah/main
+(`modules/rating/read.nim:24-62`).
 
-## 🏆 3. Tournament Models
+### `tournament`
 
-Main sources: `apps/web/src/utils/tournament.ts` & `apps/web/src/utils/teamTournament.ts`
+| Tabel | Kolom/constraint penting | Migrasi |
+|---|---|---|
+| `tournament.tournaments` | `name`, `status` ∈ `draft/active/completed/archived`, `event_date`, `version > 0`, `format` ∈ `classic/team` | `0003:7-20`, `0012:10-15` |
+| `tournament.pairs` | `display_name`, `player_a_id`/`player_b_id` (harus berbeda), unik `(community_id, id)` | `0003:22-41` |
+| `tournament.matches` | `round_no`, `pair_a_id`/`pair_b_id` nullable, `phase` ∈ `group/qf/sf/3rd/final`, `group_id` ∈ `A–D`, `pic_name`, `match_key` unik per turnamen, `match_order`, skor 0–99 tanpa seri saat `played` | `0003:43-76`, `0012:17-31` |
+| `tournament.groups` | PK `(tournament_id, group_id, position)`; `group_id` A–D, `position` 0–3 | `0012:34-50` |
+| `tournament.teams` | `seed` 1–6, `team_name`; unik seed dan nama per turnamen | `0012:54-70` |
+| `tournament.team_players` | `player_name` (snapshot), `player_id` nullable, `cls` ∈ `A+/A/B+/B/C+/C`; unik `(team_id, cls)` | `0012:72-89` |
+| `tournament.team_matches` | `phase` ∈ `group/final`, `match_order`, `match_key` unik, `team_a_id`/`team_b_id` nullable, `courts text[3]` (default `Court 12/13/14`) | `0012:91-113` |
+| `tournament.team_partai` | `partai_index` 0–2, skor 0–99, `(score_a is null) = (score_b is null)`; unik `(team_match_id, partai_index)` | `0012:115-132` |
 
-### Classic Tournament
-- `TournamentPair`: `id`, `name`
-- `TournamentMatch`: `id`, `phase`, `groupId`?, `pairAId`, `pairBId`, `scoreA`, `scoreB`, `picName`?
-- `TournamentSnapshot`: `name`, `date`, `pairs`, `groups`, `matches`
+### `community`
 
-### Team Tournament
-- `TeamInfo`: `id` (`t1`–`t6`), `name`, `players: TeamPlayer[]`
-- `TeamPlayer`: `name`, `cls: TeamClass` (`'A+'` | `'A'` | `'B+'` | `'B'` | `'C+'` | `'C'`)
-- `TeamMatch`: `id` (`"g-1"`–`"g-9"`, `"final"`), `phase`, `teamA`, `teamB`, `partai: TeamPartai[]` (3 doubles)
-- `TeamTournamentSnapshot`: `format: 'team'`, `name`, `date`, `teams`, `matches`
+| Tabel | Kolom/constraint penting | Migrasi |
+|---|---|---|
+| `community.membership` | PK `(community_id, user_id)`, `role` ∈ `member/host/admin`, index per user | `0005:5-14` |
+| `community.invite` | `token_hash` unik, `email_hash`, `role`, `created_by`, `expires_at`, `accepted_at` | `0005:16-30` |
+| `community.join_request` | `status` ∈ `pending/approved/rejected`; `decided_at` konsisten; satu `pending` per `(community, user)` | `0005:32-48` |
+| `community.settings` | PK `community_id`, `values` JSONB, `updated_at`; override per komunitas | `0005:50-55` |
 
----
+### `auth` & `account`
 
-## 🗄️ 4. Backend Persistence Model (PostgreSQL `bm`)
+| Tabel | Kolom/constraint penting | Migrasi |
+|---|---|---|
+| `auth.oauth_flows` | `state_hash` unik, `nonce_hash`, `code_verifier_enc`, `return_to`, `expires_at` + index | `0004:75-86` |
+| `account.sessions` | `user_id`, `token_hash` unik, `created_at`, `last_seen_at`, `absolute_expires_at`, `revoked_at` | `0004:88-99` |
+| `account.audit` | `occurred_at`, `actor_id`/`actor_role`, `community_id`, `action`, `target_kind`/`target_id`, `result` ∈ `allow/deny/error`, `request_id`, `before`/`after` JSONB; append-only | `0004:101-119` |
 
-Backend: Go (`majadu-api`) terhubung langsung ke PostgreSQL VPS pada schema `bm` (production).
+## 3. Constraint & aturan yang mudah salah
 
-### Resolusi Nama (snapshot vs canonical)
+- `session.games` tidak boleh seri saat `status = 'played'`; skor `NULL` berarti belum
+  dimainkan (`0001:111-117`).
+- `session.games` versi per baris dinaikkan trigger, tetapi **OCC API memakai versi
+  sesi** (`session.sessions.version`) — lihat [`architecture.md`](architecture.md) §9.
+- Pemain yang sama tidak boleh muncul dua kali dalam satu game, dan tidak boleh ada di
+  kedua sisi; CHECK `games_distinct_sides` versi `0014` memperbaiki `0010` yang menolak
+  game singles/kosong.
+- `player.players.canonical_key` dan `player.aliases.alias_key` memakai normalisasi yang
+  sama; alias unik per komunitas agar dua pemain tidak menjawab nama yang sama.
+- Nama di `tournament.team_players.player_name` adalah snapshot; `player_id` boleh
+  `NULL` untuk pemain yang belum terdaftar.
+- `rating.sources` adalah satu-satunya tempat sign-off; `rating.events` tidak lagi punya
+  kolom `finalized` (dipindah oleh `0013`).
+- `platform.ws_ticket` menyimpan hash, bukan token; channel `share` boleh tanpa user,
+  channel `session` tidak (`0004:50-64`).
 
-- `session_players.source_name` dan `tournament_team_players.player_name` adalah **snapshot** nama
-  saat sesi/turnamen dibuat. Nilainya ikut `SourceFingerprint` / `MatchKey`, jadi **tidak boleh
-  dimutasi** oleh rename — kalau berubah, sesi lama dianggap berubah sumbernya (`ErrSourceChanged`).
-- Nama yang ditampilkan di-resolve dari `players.canonical_name` bila pemain terdaftar:
-  `COALESCE(p.canonical_name, sp.source_name)` di read-path sesi, dan
-  `COALESCE(p.canonical_name, ttp.player_name)` di read-path team tournament.
-  Placeholder (pemain tanpa `player_id`) tetap memakai snapshot.
-- `RenamePlayer` hanya memperbarui `players.canonical_name`, `player_aliases`, dan
-  `tournament_pairs.pair_name` (classic tournament).
+## 4. Registry konfigurasi
 
-### Main Tables & Identity
+Semua angka bisnis dibaca dari `platform.config` + override `community.settings`.
+Defaults di `db/seeds/platform_config.sql`; kunci dan tipenya dikunci di
+`modules/platform/config/registry.nim:13-50`. Nilai hilang atau tipe salah membuat
+proses menolak start (`modules/platform/config/store.nim:50-72`).
 
-- `sessions`: Session aggregate metadata dengan `id` (UUID PK), `share_code` (`s+10alnum` UNIQUE), `version` (int), `status` (`'draft'` | `'locked'`), `session_date`.
-- `tournaments`: Tournament aggregate metadata dengan `id` (UUID PK), `share_code`, `name`, `event_date`, `format` (`'classic'` | `'team'`), `version`.
-- `players`: Canonical player records (UUID PK, `canonical_name` UNIQUE, `gender`, `tier` 1–8, `registered_at`).
-- `player_aliases`: Normalized `alias_name` (lowercase PK) -> `player_id` UUID FK untuk pencocokan nama fuzzy & TOCTOU-safe registration.
+| Kelompok | Key (default seed) |
+|---|---|
+| Komunitas | `community.join_requests_enabled` (`false`), `community.invite_ttl_days` (`7`), `community.directory_enabled` (`false`), `community.default_timezone` (`Asia/Jakarta`) |
+| Ingest & halaman | `ingest.ticker_minutes` (`30`), `api.page_size_default` (`100`), `rank.board_limit` (`200`) |
+| Poin | `rating.session_base` (`250`), `rating.score_target` (`21`), `rating.opponent_clamp` (`[0.5,1.5]`), `rating.window_weeks` (`12`), `rating.best_n` (`10`), `rating.thin_evidence_n` (`3`), `rating.tier_bands` (8 band, floor 0–2100) |
+| Turnamen | `tournament.classic.pair_count` (`16`) |
+| Ekspor | `export.post_width`/`post_height` (`1080×1350`), `export.story_width`/`story_height` (`1080×1920`) |
+| Keamanan | `security.allowed_origins`, `security.rate_limit_per_minute` (`300`), `security.max_body_bytes` (`1048576`), `security.max_json_depth` (`16`), `security.read_timeout_ms` (`15000`), `security.join_request_rate` (`5`), `security.share_scrape_limit` (`120`) |
+| Realtime | `ws.max_watchers_per_session` (`50`), `ws.max_watchers_per_ip` (`20`), `ws.max_watchers_process` (`500`), `ws.ticket_ttl_seconds` (`60`), `ws.session_ttl_minutes` (`60`) |
+| Sesi login | `session.absolute_days` (`30`), `session.idle_days` (`7`), `auth.flow_ttl_minutes` (`10`) |
+| Retensi | `janitor.retention_days` (`30`), `audit.retention_days` (`365`) |
 
-### Granular & Concurrency Tables (Migration `000013`)
+`rating.tier_bands` adalah **atribut tampilan/klasifikasi**, bukan hasil hitung poin:
+tier pemain disimpan di `player.players.tier` dan hanya berubah lewat `PATCH player`.
 
-- `scheduled_games`: Game unit per slot/court dengan `version` (BIGINT per-row OCC), `is_played`, `score_a`, `score_b`, `skipped_player_refs`.
-- `idempotency_keys`: `(session_id, key)` PK dengan `response` JSONB & `expires_at` TTL persistent.
-- `outbox_events`: Durable event log untuk SSE stream & event catch-up.
+## 5. Bentuk data di API vs tipe frontend
 
-### Player Achievements (Migration `000016`)
+Kontrak API adalah sumber bentuk payload (`packages/contracts/openapi/*.yaml`). Tipe
+TypeScript per fitur adalah proyeksi lokal, bukan SSOT:
 
-- `player_achievements`: satu baris = satu achievement per pemain. `achievement_key` UNIQUE per
-  `player_id` (identitas + idempotency); `kind` ∈ `attendance`, `volume`, `opponent`, `tournament`,
-  `tier`, `rating`, `rank`, `social`, `season` (CHECK `000016:24-27`). Yang benar-benar ditulis
-  kode hanya `attendance`/`volume`/`opponent`/`tournament`/`social`/`rank`
-  (`domain/achievements.go:48-58`, `store/achievement.go:577`); `tier`/`rating`/`season` tinggal
-  nilai CHECK yang tak pernah dipakai sejak Glicko pensiun;
-  `value` untuk achievement tipe rekor; `earned_at` tidak berubah walau rekor naik; `meta` JSONB.
-  Kolom `season_id` + FK-nya di-drop `000020`.
-- Index: `idx_player_achievements_player(player_id, earned_at DESC)`, `idx_player_achievements_kind(kind)`.
-- Definisi & ambang achievement: `apps/api/internal/domain/achievements.go` dan
-  `apps/web/src/config/achievements.ts`.
+- `apps/web/src/sessions/api.ts` — `SessionMeta`, `SessionDetail`, `SessionGame`,
+  `SessionParticipant`, `SessionBoard`.
+- `apps/web/src/rankings/api.ts` — `RankingRow`, `RankingsBoard`, `PlayerStats`,
+  `Achievement`.
+- `apps/web/src/tournament/types.ts` — `ClassicSnapshot`, `TeamSnapshot`,
+  `TournamentMeta`.
+- `apps/web/src/community/api.ts` — `CommunityConfig` (`value` + `source`
+  `platform`/`community`).
 
-### Performance Indexes (Migration `000015`)
+Contoh bentuk baca sesi (`GET /c/{slug}/sessions/{id}`):
 
-1. `idx_rating_players_active`: Partial index `rating_players(games_played, last_played_at) WHERE games_played > 0`
-2. `idx_rating_deltas_player_event`: Composite index `rating_deltas(player_id, event_id)`
-3. `idx_rating_events_sort_lookup`: Sort index `rating_events(id, date DESC, created_at DESC, source_id DESC, game_order DESC)`
-4. `idx_session_players_session_player`: Composite index `session_players(session_id, player_id)`
-5. `idx_scheduled_games_session`: Foreign key index `scheduled_games(session_id)`
+```json
+{
+  "id": "uuid", "title": "…", "date": "YYYY-MM-DD",
+  "startTime": "HH:MM", "slotMinutes": 30,
+  "status": "draft", "version": 1,
+  "participants": [{ "playerId": "uuid", "name": "…", "absent": false }],
+  "games": [{ "round": 0, "court": 0, "sideA": ["uuid"], "sideB": [],
+              "scoreA": null, "scoreB": null, "status": "scheduled" }]
+}
+```
 
-### Papan Poin Ranking (Migrasi `000018`–`000023`)
+Sumber: `apps/api/src/app.nim` (`getSessionDetail`), `apps/web/src/sessions/api.ts`.
 
-Mesin Glicko dipensiunkan 2026-09-29 (`000020_purge_glicko.sql`): tidak ada lagi
-perhitungan rating. Papan publik memakai **poin** — window bergulir 12 minggu, 10 entri
-terbaik — dan dihitung **saat baca** (tidak ada tabel materialized).
+## 6. Yang tidak ada di v2
 
-- `rating_config`: JSONB key-value. Key yang dibaca loader
-  (`apps/api/internal/store/rating_config.go`): `ingest_locked_only`, `auto_reconcile`,
-  `absent_policy`, `placeholder_promote_games`, `season_start`, `session_tier_init`,
-  `class_bands`, plus `rank_window_weeks`, `rank_best_n`, `rank_opponent_weight`,
-  `rank_opponent_clamp`, `rank_session_base`, `rank_thin_evidence_n`, `rank_min_sessions`.
-- `rating_players`: bookkeeping pertandingan — `games_played`, `wins`, `losses`,
-  `last_played_at` (`rating`, `rd`, `peak_rating`, `seed_*` di-drop `000020`).
-- `rating_events`: satu baris per pertandingan ter-ingest. Kolom yang dipakai kode:
-  `match_key` (UNIQUE), `kind`, `source_id` (share_code sesi/turnamen),
-  `source_fingerprint`, `stable_game_id`, `date`, `game_order`, `title`, `score_a`,
-  `score_b`, `target`, `phase`, `processed_at`.
-- `rating_deltas`: fakta per pemain — `event_id`, `player_id`, `team`, `outcome`.
-  Kolom angka Glicko (`expected`, `movm`, `delta`, `new_rating`) di-drop `000020`.
-- `rating_sources`: fingerprint sumber yang sudah ter-ingest — `source_id` (PK),
-  `source_kind`, `fingerprint`, `finalized`, `last_ingested_seq`, `ingested_at`.
-- `rank_point_levels` (`000018`): semua nilai poin di satu tabel — `kind` (PK: `session`,
-  `tournament_classic`, `tournament_team`), `champion_points`, `round_ratios` JSONB,
-  `enabled`.
-- `rank_snapshots` (`000019`): posisi papan per tanggal acuan — PK `(as_of, player_id)`,
-  `rank`, `points`, `captured_at`; dasar panah naik/turun di papan.
+Jangan membawa nama dari dokumen v1 ke sini:
 
-Tabel musim (`rating_seasons`, `season_player_snapshots`) sudah di-drop `000020`.
+| v1 | v2 |
+|---|---|
+| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0014` |
+| `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
+| `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.deltas`, `rating.player_state` |
+| `player_achievements` | `achievement.earned` + `achievement.definitions` |
+| snapshot JSON sesi/turnamen | kolom relasional per tabel |
+| Glicko/rating absolut | poin relatif yang dihitung saat baca |
 
----
-
-## 🔒 5. Key Constraints & Rules
-
-- `players.tier`: CHECK (tier BETWEEN 1 AND 8) — 8-tier unified (D..A+).
-- `players.gender`: CHECK (gender IN ('M', 'F')), NOT NULL, DEFAULT 'M'.
-- `player_aliases.alias_name`: LOWERCASE UNIQUE PK.
-- `session_players`: UNIQUE (session_id, player_id).
-- `player_achievements`: UNIQUE (player_id, achievement_key); `player_id` ON DELETE CASCADE.
-  (Kolom `season_id` + FK `ON DELETE SET NULL` di-drop `000020`.)
+Arsip SQL v1 (bukan skema aktif): [`../backend/`](../backend/README.md).

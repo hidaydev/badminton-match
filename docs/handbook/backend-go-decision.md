@@ -1,106 +1,67 @@
-# Keputusan Arsitektur: Backend Go (menggantikan PostgREST RPC)
+# Keputusan Arsitektur (historis): Backend Go v1
 
-> **Status:** Accepted — 2026-08-11 · **historis**
-> **Pemutus:** owner (diskusi sesi 2026-08-11)
-> **Tujuan dokumen:** pegangan antar sesi — konteks, keputusan, dan langkah tanpa kehilangan arah.
->
-> ⚠️ Dokumen ini merekam konteks saat keputusan diambil: Supabase/PostgREST masih hidup, repo
-> backend masih terpisah (`majadu-api`), dan ada instance dev `bm_dev`. Kondisi sekarang berbeda —
-> monorepo dengan Postgres `bm` tunggal; lihat [`current-status.md`](current-status.md).
-> Isi di bawah sengaja **tidak** diperbarui.
+> **Status: HISTORIS — sudah digantikan rewrite Nim (v2).**
+> Dokumen ini adalah catatan keputusan 2026-08-11, bukan panduan kerja. Backend yang
+> berlaku hari ini adalah Nim di `apps/api/src/` (lihat
+> [`architecture.md`](architecture.md)). Jangan menyalin path, skema, atau kontrak dari
+> sini ke kode baru.
 
----
+## Konteks saat keputusan diambil
 
-## 1. Konteks
+Awal Agustus 2026 aplikasi masih memakai **Supabase/PostgREST + RPC SQL**. Logika bisnis
+hidup di fungsi SQL `SECURITY DEFINER`, sementara frontend React memanggil RPC. Model itu
+sulit diuji, diaudit, dan diberi rate limit; RLS juga tidak masuk akal tanpa login.
 
-App Majadu (React 19 PWA) saat ini memakai **PostgREST + RPC functions** sebagai backend:
-- prod: Supabase (schema `bm`, RPC `bm.*`)
-- dev/staging: VPS `dev-api.example.com` (PostgREST + GoTrue + Postgres 18, schema `bm_dev`)
+Keputusan saat itu: bangun backend **Go** (`majadu-api`) sebagai satu-satunya backend,
+pindahkan logika dari SQL ke Go, lalu pensiunkan Supabase.
 
-Model ini bekerja, tapi:
-- Logika backend hidup di fungsi SQL (SECURITY DEFINER) — canggung untuk auth, logging, rate limiting, testing.
-- Akses anon dibatasi lewat grants + PUBLIC-revoke (sudah di-hardening, lihat baseline migrasi V2).
-- RLS "bener-bener" tidak masuk akal tanpa login, dan login via GoTrue + wiring RLS berat.
+## Isi keputusan (ringkas)
 
-**Keputusan:** bangun **backend Go** yang menjadi satu-satunya backend — dev/staging dulu
-sampai stabil, lalu **prod ikut migrasi** (Supabase ditinggalkan).
+| Topik | Keputusan v1 |
+|---|---|
+| Bahasa | Go 1.26, `net/http` + `pgx` |
+| Database | Postgres VPS, schema `bm` (dev `bm_dev`) |
+| Kontrak | Mirror snapshot lama; `PUT /sessions/{id}` dan `PUT /tournaments/{id}` sebagai bridge |
+| Auth | Ditunda; admin memakai bearer token |
+| Realtime | SSE (`/sessions/{id}/watch`) |
+| Repo | Backend terpisah `majadu-api`, branch `main`/`dev` |
+| Deploy | Build di VPS lewat webhook, quadlet, Caddy `/majadu` |
 
-## 2. Struktur repo & mapping branch
+Hasilnya berjalan di produksi v1: ±48 rute, migrasi `000013`–`000023`, rating poin
+menggantikan Glicko, dan SSE untuk sesi live.
 
-```
-badminton-match (frontend)         majadu-api (backend Go)
-├── main      → prod               ├── main   → prod
-└── dev       → dev                └── dev    → dev
-```
+## Kenapa digantikan
 
-- Branch frontend `dev` memakai backend Go branch `dev`.
-- Branch frontend `main` memakai backend Go branch `main` (setelah migrasi prod).
-- Nama branch frontend `dev` (dulu `ui-revamp`, di-rename 2026-08-15) — konsisten dengan backend.
+Pada 2026-11-03 diputuskan rewrite **Nim v2 di repo yang sama**. Alasan yang tercatat di
+`docs/plan/`:
 
-## 3. Topologi target
+- Kontrak perlu berubah untuk multi-komunitas, auth semua penulis, dan operasi granular.
+- Skema `bm` tidak boleh diubah lagi (utang v1); v2 memakai database baru `bm2`.
+- Mummy tidak menyediakan SSE → v2 memakai WebSocket.
+- Kontrak-dulu (OpenAPI tulis tangan + codegen) lebih murah dijaga daripada mirror
+  snapshot.
+- Satu bahasa untuk backend dan tooling, dengan config bisnis di database.
 
-```
-DEV/STAGING:  frontend (Vercel preview) ──▶ Go backend (VPS, branch dev)
-                                                 └──▶ Postgres VPS (bm_dev)
-PROD:         frontend (Vercel prod)    ──▶ Go backend (VPS, branch main)
-                                                 └──▶ Postgres VPS (bm — migrasi data dari Supabase)
-Supabase/PostgREST: dipensiunkan setelah prod stabil di Go backend.
-```
+Rencana lengkap dan beku: [`../plan/TECH-SPEC.md`](../plan/TECH-SPEC.md),
+[`../plan/BACKLOG.md`](../plan/BACKLOG.md).
 
-Mekanisme `__BACKEND_PROFILE__` (vite.config, mapping `VERCEL_GIT_COMMIT_REF`)
-berevolusi dari "schema profile" menjadi **branch → base URL Go backend**.
+## Yang masih tersisa di repo
 
-## 4. Keputusan detail
+Kode Go v1 **masih ada** di `apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`,
+`go.mod`, dan `go.sum`. Kode itu tidak dibangun Dockerfile v2 dan tidak menjadi acuan
+dokumen handbook. Penghapusannya tercatat sebagai T-082 (dekomisi Go) dan belum
+dikerjakan.
 
-| Topik | Keputusan | Catatan |
-|---|---|---|
-| **Data model** | Schema `bm`/`bm_dev` tetap source of truth | Baseline migrasi V2 (2026-08-11) sudah up-to-date dengan state VPS |
-| **Kontrak API** | ⏳ Belum diputuskan — rekomendasi: **mirror kontrak snapshot** yang ada (10 operasi, JSON sama) | App nyaris tak berubah (cukup ganti base URL di `endpoints.ts`); RESTful granular = opsi lebih bersih tapi rombak query layer |
-| **Auth/Login** | ⏳ Ditunda — jika butuh, middleware JWT/session di Go | Bukan RLS; pemain di venue tetap tanpa friction |
-| **RLS** | Default-deny + satu app role (Go = satu-satunya client DB) | Kerja grants/PUBLIC-revoke sekarang = safety net transisi |
-| **DB akses** | Go backend langsung ke Postgres (pgx) | — |
+## Pelajaran yang tetap berlaku
 
-## 5. Operasi yang harus di-reimplement di Go
+1. Server harus memegang invariant (skor, poin, otorisasi), bukan klien.
+2. Concurrency harus eksplisit (`If-Match`/versi), bukan last-write-wins.
+3. Satu aturan satu tempat; jangan menduplikasi validasi di FE dan BE.
+4. Migrasi dan kontrak harus punya checksum/gate agar perubahan terlihat di review.
 
-Kontrak saat ini (dari `src/queries/endpoints.ts`):
+## Rujukan yang berlaku
 
-- **Session:** get_session, publish_session, list_sessions, delete_session, unlock_session
-- **Player:** list_players, get_player_stats (termasuk tournamentStats), register_player
-- **Tournament:** get_tournament, publish_tournament
-- **Invariant:** version concurrency, lock enforcement (status ≠ draft → tolak write),
-  validasi snapshot, resolve player/alias, TOCTOU-safe register.
-
-Catatan: bracket propagation turnamen masih di TS app (mengirim snapshot hasil compute).
-
-## 6. Fase eksekusi
-
-1. **Dokumen ini** (2026-08-11) ✅
-2. **POC Go backend** — service HTTP (rekomendasi stdlib `net/http` + `pgx`, cost-conscious)
-   di VPS, konek `bm_dev`, implementasi 3 operasi: get_session, publish_session, list_sessions + smoke round-trip. ✅
-3. **Produksi-ready + REST** (2026-08-12) ✅ — endpoint REST penuh (sessions/players/tournaments),
-   OpenAPI spec, concurrency If-Match/ETag, audit hardening, `MAJADU_DB_SCHEMA` env-driven
-   (schema tidak hardcode — aman merge dev→main).
-4. **Integrasi frontend `dev`** (2026-08-12) ✅ — `endpoints.ts` di-rewrite jadi REST client
-   terhadap majadu-api; `__BACKEND_PROFILE__` → `__API_BASE_URL__` (branch mapping);
-   bridge `PUT /sessions/{id}` & `PUT /tournaments/{id}` (full snapshot replace, kontrak lama)
-   supaya alur frontend (publish snapshot + optimistic updates) tidak berubah. Verifikasi
-   end-to-end: create→get→update→list→players→tournament PASS.
-5. **Lengkapi operasi** — granular endpoints REST sudah ada (games/swaps/absent/lock);
-   migrasi logic SQL→Go bertahap (transform sudah di Go).
-6. **Stabilisasi** — smoke/writeflow E2E terhadap Go backend.
-7. **Migrasi prod** — backup data `bm` (Supabase) → restore ke Postgres VPS → deploy Go
-   backend main → arahkan frontend main (`__API_BASE_URL__` mapping) → pensiunkan Supabase/PostgREST.
-
-## 7. Pertanyaan terbuka
-
-- [x] Nama repo backend (saran: `majadu-backend`) → **diputuskan: `majadu-api`**
-- [x] Kontrak API: mirror snapshot vs RESTful granular → **diputuskan: mirror snapshot (bridge `PUT /sessions/{id}` & `PUT /tournaments/{id}`)**; granular mutation dihapus 2026-08-15
-- [ ] Timing auth (sebelum/bersamaan/sesudah migrasi prod) → **masih terbuka (roadmap #2, ditunda)**
-- [x] Subdomain Caddy untuk Go backend (mis. `api-dev.qouver.com` vs path di `mjd-api`) → **diputuskan: path-based di `api.qouver.com` (`/majadu` prod, `/majadu-dev` dev)**
-
-## 8. Referensi
-
-- Baseline migrasi V2: `/srv/qouver/majadu/migrations/000001_functions.sql` + `000002_schema.sql` (dulu `supabase/migrations/`, dipindah ke VPS 2026-08-15)
-- Data model V2: `docs/handbook/DATA-MODEL-V2.md` (arsip dari `vps-setup/docs/`, dihapus 2026-08-15)
-- Kontrak RPC app: `src/queries/endpoints.ts`
-- Audit RPC & utilisasi tabel: catatan sesi 2026-08-11 (HANDOFF + DATA_MODEL_V2_TASKS.md)
+- Arsitektur runtime: [`architecture.md`](architecture.md)
+- Status & infrastruktur: [`current-status.md`](current-status.md)
+- Skema data: [`data-model.md`](data-model.md)
+- Rute & operasi: [`features-and-routes.md`](features-and-routes.md)

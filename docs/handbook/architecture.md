@@ -1,314 +1,275 @@
 # Architecture
 
-## High-level shape
-
-The app is a client-heavy React application with three distinct layers:
-
-1. local operational state
-2. pure scheduling and tournament logic
-3. remote persistence/query layer
-
-## Frontend runtime
-
-### Entry
-
-- `src/main.tsx`
-- `src/App.tsx`
-
-`main.tsx` creates the React root and installs the React Query provider.
-
-`App.tsx`:
-
-- sets up routes
-- defines route guards
-- handles PWA update prompt
-- supports hash-based shared-view snapshots
-
-## State model
-
-### Domain types
-
-Shared domain types are in:
-
-- `src/types/index.ts`
-
-This module defines `Player`, `FixMatch`, `ScheduleSlot`, `GameScore`, `CourtTime`, `SessionConfig`, `Gender`, `Tier`, and `PLAYERS_PER_GAME`. Zero dependencies — imported by all layers.
-
-### Time utilities
-
-Pure time/scheduling functions are in:
-
-- `src/utils/time.ts`
-
-This module defines `todayWIB`, `timeToMinutes`, `minutesToTime`, `computeTimeSlots`, `courtsAtTime`, `timeToSlotIndex`, `computeSlotAllocation`, `formatMergedCourtTimes`. Imports only from `types/`.
-
-### Local app state: Zustand
-
-Primary local state is in:
-
-- `src/store/index.ts`
-
-This store imports types from `types/` and time utilities from `utils/time.ts`. It owns:
-
-- session config
-- players
-- fixed matches
-- last generated result
-- published schedule state
-- played games
-- game scores
-- cloud session id
-
-This is the operational in-progress session state.
-
-### Tournament state
-
-Tournament state is managed through React Query hooks rather than a local store.
-The previous `store/tournament.ts` was removed as dead code — TournamentPage uses
-the query layer directly.
-
-## Query layer
-
-Remote read/write access is wrapped in:
-
-- `src/queries/endpoints.ts` — raw REST fetch functions (retry method-aware) terhadap `majadu-api`
-- `src/queries/retry.ts` — retry policy murni (method-aware, testable)
-- `src/queries/sessions.ts` — session query hooks
-- `src/queries/players.ts` — player query hooks
-- `src/queries/tournament.ts` — tournament query hooks
-- `src/queries/types.ts` — CloudSnapshot, SessionMeta, PlayerSummary, PlayerStats types
-- `src/queries/errors.ts` — user-friendly error message mapper
-
-### Session query hooks
-
-| Hook | Purpose |
-|------|---------|
-| `useListSessions` | List all published sessions |
-| `useGetSession` | Fetch single session snapshot |
-| `usePublishSession` | Publish/update session to cloud |
-| `useTogglePlayed` | Toggle game played status |
-| `useSetScore` | Set game score |
-| `useSwapPlayers` | Swap two players between games |
-| `useSwapTeams` | Swap two teams between games |
-| `useSwapSlots` | Swap two game slots |
-| `useSetAbsent` | Mark/unmark players as absent |
-| `useReplacePlayer` | Replace player name in session |
-| `useDeleteSession` | Delete session (admin) |
-| `useSessionRealtime` | Subscribe to session SSE (`/sessions/{id}/watch`) |
-| `useSetGameSkipped` | Skip a player in one game |
-| `useChangePlayer` | Change one player in a specific game |
-| `useFetchSession` | Fetch session for imperative use |
-
-All mutations follow the optimistic update pattern: `onMutate` → `mutationFn` → `onSuccess`/`onError` with version mismatch retry. Error handling is rollback-first — `onError` rolls back the optimistic update before any refetch. `onSuccess` uses `fetchQuery` to refetch from the server rather than `setQueryData(server_response)`, preventing race conditions where a subsequent mutation's optimistic update gets overwritten by a stale response.
-
-Most session mutations use the `useOptimisticSessionMutation` factory (`queries/useOptimisticMutation.ts`) which encapsulates the shared onMutate/onError/onSuccess boilerplate. Each hook only needs to provide an `optimisticUpdate` function.
-
-The pages and components should depend on these query hooks rather than
-embedding storage details directly.
-
-GeneratePage debounces cloud publishes (300 ms trailing, 1s max delay) to coalesce rapid local mutations. The pending publish is flushed on component unmount as a fire-and-forget call.
-
-## Domain logic
-
-### Session generator
-
-Main file:
-
-- `src/generator/index.ts`
-
-This is the core scheduling engine. It imports domain types from `types/` and `timeToSlotIndex` from `utils/time.ts` — it has no dependency on the store.
-
-It tracks:
-
-- play counts
-- sit counts
-- repeated partners
-- repeated opponents
-
-And it uses those counts to score and place candidate games.
-
-### Tournament logic
-
-Main file:
-
-- `src/utils/tournament.ts`
-
-This file owns:
-
-- group match creation
-- standings computation
-- knockout bracket propagation
-- group PIC assignment
-
-### Shared config
-
-- `src/config/tiers.ts` — tier labels, colors, badge colors, and tier names shared across GeneratePage, PlayersPage, and ConstraintsPage
-- `src/config/generator.ts` — named constants for the generator algorithm (scoring weights, retry counts, candidate limits)
-- `src/config/canvas.ts` — canvas dimensions, font families, header/logo sizes
-
-### Operational mutations
-
-Utility files:
-
-- `src/utils/time.ts` — time/slot computation (`todayWIB`, `timeToMinutes`, `minutesToTime`, `computeTimeSlots`, `courtsAtTime`, `timeToSlotIndex`, `computeSlotAllocation`, `formatMergedCourtTimes`)
-- `src/utils/counter.ts` — shared symmetric co-occurrence counter (`bumpCoOccurrence`)
-- `src/utils/array.ts` — shared array utilities (`shuffle`)
-- `src/utils/quality.ts` — schedule quality analysis (`computeQuality`, `qualityScore`, `isGoodQuality`)
-- `src/utils/reconcilePlayers.ts` — player list rebuild from schedule (`rebuildPlayersFromSchedule`)
-- `src/utils/tally.ts` — shared match tallying logic (`initTallyRow`, `tallyMatch`, `computeDiff`, `standardStandingSort`)
-- `src/utils/share.ts` — iOS share / fallback download (`canvasToBlob`, `shareOrDownload`)
-- `src/utils/overlays.ts` — overlay image loading utility (`loadOverlayImages`)
-- `src/utils/swap.ts` — player swaps, team swaps, change player logic, conflict detection
-- `src/utils/slotSwap.ts` — game slot swaps
-- `src/utils/standings.ts` — standings computation for live session views
-- `src/utils/sessionSnapshot.ts` — snapshot mutation helpers (toggle played, set score, swap players/teams/slots, set absent, replace player name, change player)
-- `src/utils/playerStats.ts` — `computePlayerStats()` for play/sit/partner/opponent counts
-- `src/utils/ordinal.ts` — `ordinal()` helper (1st, 2nd, 3rd, etc.)
-
-These support:
-
-- player swaps
-- slot swaps
-- standings computation for live session views
-- player stats computation for shared session and generate page
-
-## Layout structure
-
-### Home shell
-
-- `src/components/HomeLayout.tsx`
-
-Used for:
-
-- landing/home (5 cards: Sessions, Rankings, Scoreboard, Tournament, Instagram Post)
-- admin section (4 cards: Unlock Session, Players, Ratings, Tournament — `/admin` me-redirect ke `/admin/sessions`)
-- tournament
-
-### Session shell
-
-- `src/components/SessionLayout.tsx`
-
-Used for the guided setup flow:
-
-1. setup
-2. players
-3. constraints
-4. generate
-
-### SummaryModal sub-components
-
-The SummaryModal is the operations console for live session management. It has been
-decomposed into focused sub-components:
-
-- `src/components/SummaryModal.tsx` — main modal
-- `src/components/summary/ConfirmBars.tsx` — fixed bottom confirm bars (swap, absent, change player, lock, share)
-- `src/components/summary/ActionsMenu.tsx` — actions dropdown with mode entry buttons
-- `src/components/summary/PlayerStatsPanel.tsx` — player stats display with standalone/generate branches
-- `src/components/summary/SlotGameCard.tsx` — individual game card in schedule grid
-- `src/components/summary/PlayerMatchDetailSheet.tsx` — player match detail bottom sheet
-- `src/components/generate/ScheduleComponents.tsx` — QualityBanner, PlayerChip, TierBalance, ScheduleView
-
-## Persistence model
-
-### Previous models
-
-1. Google Apps Script + Google Sheets (era 1) — JSON blobs per row, list/stats
-   dihitung dengan scanning dataset penuh.
-2. Supabase/PostgREST schema `bm` (era 2) — RPC functions SECURITY DEFINER.
-
-### Current runtime (era 3, 2026-08)
-
-Backend **Go (`majadu-api`)** menghubungkan frontend ke Postgres VPS langsung
-(pgx, tanpa PostgREST):
-
-- write-path session/tournament: transaksi + advisory lock + version concurrency
-- read-path: rebuild snapshot langsung di Go
-- schema `bm` (prod, satu-satunya — `bm_dev`/instance dev di-sunset 2026-09-04); migrasi `000001`–`000012` disimpan di VPS (tidak dipublikasikan), `000013`–`000023` di [`docs/backend/`](../backend/)
-- semua logika validasi/lock/resolve ada di Go — sisa fungsi SQL hanya
-  `normalize_player_name` (CHECK constraint) + utilitas
-
-Utang lapisan yang nyata: aturan poin papan (window 12 minggu, best-N, pengali
-kekuatan lawan, rasio fase turnamen) hidup di paket SQL
-`apps/api/internal/store/rank_points.go` (`gameValue`, `opponentMultiplier`,
-`tierStrength`, `tournResultKey`, `boardRowsFromEntries`) — bukan di `domain`.
-`domain` sendiri murni stdlib dan hanya menyimpan konfigurasinya
-(`domain/rating_config.go`).
-
-Ini menjaga kontrak snapshot tetap stabil sambil memindahkan logika backend ke
-satu bahasa (Go) yang teruji.
-
-## Design principle
-
-**Thick client untuk UX computation, server authoritative untuk state** (pola
-Google Docs/Figma — bukan "frontend kosong"):
-
-| Lapisan | Pemilik | Contoh |
+Dokumen ini menggambarkan **runtime v2**: backend Nim + frontend React yang ada di repo
+hari ini. Backend Go v1 masih tersimpan di tree (`apps/api/cmd/`, `apps/api/internal/`)
+sampai dekomisinya, tetapi bukan kode yang dijelaskan di sini — lihat §12.
+
+## 1. Bentuk sistem
+
+```text
+Browser (React 19 SPA)
+   │  same-origin /api  (dev: Vite proxy · prod: Vercel rewrite)
+   ▼
+apps/api (Nim 2.4, Mummy HTTP + WebSocket)
+   │  SQL langsung (db_connector, pool)
+   ▼
+PostgreSQL 18 — database bm2, skema per domain
+```
+
+- Frontend: React 19, Vite 8, Tailwind 4, React Router 7 (`apps/web/package.json`).
+- Backend: Nim `>= 2.4.0 & < 2.5.0`, Mummy 0.4.8, `db_connector` (commit pin), nimcrypto
+  (`majadu.nimble`, `deps.lock`).
+- Database: PostgreSQL 18; tooling memakai nama database `bm2_dev` / `bm2_e2e`
+  (`.github/workflows/ci.yml`, `task.d/e2e.sh`). Skema dan tabel di
+  [`data-model.md`](data-model.md).
+
+Tidak ada PostgREST, Supabase, SSE, service worker, atau store global (Zustand) di v2.
+
+## 2. Peta repo
+
+| Path | Isi |
+|---|---|
+| `apps/api/src/` | entrypoint, router, auth, realtime, config route |
+| `apps/api/tests/` | test HTTP + kontrak (unit; integration di `tests/integration/`) |
+| `modules/` | domain + infrastructure per bounded context |
+| `shared/platform-lib/` | logger, clock, sha256, uuidv7, metrics, build info |
+| `apps/web/src/` | shell React, halaman, klien API per fitur |
+| `packages/contracts/openapi/` | dua spec sumber + dokumen gabungan + fingerprint |
+| `packages/web-client/src/api.ts` | klien TypeScript hasil generate |
+| `db/migrations/`, `db/seeds/` | skema (`0001`–`0014`) dan seed konfigurasi |
+| `tools/` | dbtools, contract-gen, parity, CLI ops, OIDC stub |
+| `e2e/` | suite Playwright (a11y, visual, kompatibilitas) |
+| `task`, `task.d/` | satu-satunya command runner (`./task <target>`) |
+
+Sumber: `config.nims:1-8` (path modul), `task:13-34` (daftar target),
+`packages/contracts/openapi/README.md`.
+
+## 3. Boot & konfigurasi proses
+
+Entrypoint: `apps/api/src/main.nim`.
+
+1. `loadConfig()` mewajibkan `MAJADU_PORT` dan `MAJADU_DRAIN_MS`; `MAJADU_SHUTDOWN_TIMEOUT_MS`
+   default 30 dtk (`apps/api/src/server.nim:29-42`).
+2. `bootHandler` mewajibkan `MAJADU_PG_DSN`, memuat konfigurasi OIDC, keyring share code
+   (`SHARE_CODE_KEYS`, `SHARE_CODE_ACTIVE_KEY_ID`), lalu registry config dari database
+   (`apps/api/src/main.nim:34-47`). Nilai yang hilang membuat proses menolak start, bukan
+   menyajikan 500.
+3. `newApp()` + `install()` menyimpan satu `App` process-wide; handler Mummy memakai
+   cast `gcsafe` satu-satunya di boundary (`apps/api/src/app.nim:2303-2320`).
+4. Server berjalan dengan `max(countProcessors(), 2)` worker thread; SIGTERM/SIGINT
+   memicu drain lalu tutup (`apps/api/src/main.nim:49-74`).
+
+Konfigurasi bisnis **tidak** dibaca dari env. Semua angka ada di `platform.config`
+dengan registry bertipe di `modules/platform/config/registry.nim`; snapshot di-cache per
+`platform.config_version`; saat nilainya berubah cache memuat ulang tanpa restart
+(`modules/platform/config/store.nim:15-80`).
+
+## 4. Pipeline request
+
+`proc route` (`apps/api/src/app.nim:1906`) menjalankan urutan tetap:
+
+1. **Body limit** — `security.max_body_bytes` (`apps/api/src/app.nim:1911`).
+2. **CSRF** — method state-changing wajib origin yang diizinkan (atau `Sec-Fetch-Site`
+   `same-origin`/`none`); request ber-cookie tanpa Origin ditolak
+   (`apps/api/src/security_headers.nim:22-45`).
+3. **Rate limit** — bucket per template route + alamat klien; `/s/{code}` punya ceiling
+   tambahan per kode (`apps/api/src/app.nim:1917-1938`).
+4. **Rute sistem** — `/healthz`, `/readyz` (query `select 1`), `/version`, `/ops/*`
+   (`apps/api/src/app.nim:1940-1958`).
+5. **Client lama** — `X-API-Version` di bawah versi server dijawab `410 CLIENT_OUTDATED`
+   (`apps/api/src/app.nim:1890-1904`, `apps/api/src/app.nim:1960`).
+6. **Auth + otorisasi** — cookie sesi `majadu_session` (HttpOnly, SameSite=Lax) →
+   `currentUser` → `loadCommunity` → `gate` (`apps/api/src/app.nim:168-207`,
+   `apps/api/src/community_context.nim:15-30`, `apps/api/src/auth_middleware.nim:19-42`).
+7. **Dispatch** — cabang per prefix: `/c/{slug}/players`, `/sessions`, `/tournaments`,
+   `/ratings`, `/members`, `/settings`, `/ws/...`, `/s/...`.
+
+Semua respons melewati `send()` sehingga header keamanan tidak bisa terlewat
+(`apps/api/src/app.nim:110-120`, `apps/api/src/security_headers.nim:62-75`). Error memakai envelope
+`{"status", "code", "detail"}` (`apps/api/src/app.nim:129-130`). Log JSON meredaksi share code,
+ticket, cookie, email, dan IPv4 (`shared/platform-lib/logger.nim:11-32`).
+
+### Peran & batas data
+
+- `member` boleh membaca; `host`/`admin` boleh menulis data operasional; `admin`
+  mengelola anggota, settings, rating, dan klaim.
+- `platformOwner` hanya melewati rute manajemen platform (buat komunitas); di dalam
+  komunitas, role membership tetap menentukan (`modules/account/domain/roles.nim:43-61`).
+- Slug komunitas asing dan non-anggota sama-sama `404` supaya keberadaan komunitas tidak
+  bocor (`apps/api/src/community_context.nim:15-22`).
+- Setiap query data komunitas membawa `community_id`; tidak ada jalur lintas komunitas.
+
+Matriks otoritatif per operasi: `testdata/authz/matrix.yaml` (dibuat dari kontrak dan
+diuji oleh `apps/api/tests/`).
+
+## 5. Kontrak API & codegen
+
+Kontrak ditulis tangan di dua dokumen JSON-syntax:
+
+- `packages/contracts/openapi/core.yaml`
+- `packages/contracts/openapi/community.yaml`
+
+`tools/contract-gen` menggabungkannya menjadi `api.yaml`, menghasilkan
+`apps/api/src/routes_gen.nim` + `packages/web-client/src/api.ts`, dan menulis
+`CONTRACT.sha256`. Jumlah operasi saat ini **74** (`apps/api/src/routes_gen.nim:13-682`,
+`CONTRACT.sha256:7`). `./task contract-check` gagal bila spec, hasil generate, atau
+fingerprint berbeda.
+
+Kontrak bukan dokumentasi pasif: `verifyHandlers` gagal saat kompilasi bila satu
+operation tidak punya handler (`apps/api/src/routes_gen.nim:686-695`), dan `apps/api/tests/routes_test.nim`
+mengunci jumlah operasi.
+
+Rute implementasi yang **tidak** ada di kontrak (sengaja tidak dipromosikan):
+`GET /ops/ping` (bearer token ops, `apps/api/src/app.nim:1943-1946`) dan
+`DELETE /c/{slug}/rating-sources/{id}` (admin, dipakai pembersihan sumber rating).
+Anggap keduanya internal; klien publik memakai operasi di kontrak.
+
+## 6. Modul & aturan lapisan
+
+```text
+modules/
+├── account/       # role, audit, lifecycle, OIDC, sesi login, ops token
+├── achievement/   # katalog badge + backfill
+├── community/     # membership, invite, join request, settings
+├── platform/      # registry config, idempotency, janitor, audit retention
+├── player/        # domain pemain, klaim, merge, store
+├── rating/        # rumus poin, ingest/revert/rebuild, baca papan
+├── session/       # tulis sesi, schedule, swap, standings
+├── share/         # enkripsi kode share + lookup
+└── tournament/    # domain classic/team, draw, store
+```
+
+- `domain/` tidak menyentuh database atau env; `infrastructure/` memiliki SQL dan
+  adapter.
+- `tools/archcheck` menolak akses tabel domain dari lapisan yang salah dan pembacaan env
+  di luar edge proses (`tools/archcheck/rules.nim:1-10`); `./task check` menjalankannya.
+- Dependency antar modul mengalir lewat domain/store, bukan lewat handler HTTP.
+
+## 7. Database
+
+Database `bm2`, dipisah per skema: `platform`, `community`, `player`, `session`,
+`tournament`, `rating`, `achievement`, `auth`, `account` (ditambah ledger `dbtools`).
+Semua tabel anak memakai FK komposit `(community_id, id)` sehingga satu baris tidak bisa
+menyeberang komunitas.
+
+Migrasi dijalankan `tools/dbtools` dengan checksum dan ledger
+(`tools/dbtools/main.nim:6-16`); `./task bootstrap` menjalankan migrasi, seed, owner
+pertama, dan komunitas default. Detail tabel ada di [`data-model.md`](data-model.md).
+
+## 8. Realtime (WebSocket, bukan SSE)
+
+- Klien meminta **ticket sekali pakai**: `POST /c/{slug}/sessions/{id}/ws-ticket` atau
+  `POST /s/{code}/ws-ticket`. Ticket disimpan sebagai hash, kedaluwarsa
+  `ws.ticket_ttl_seconds`, dan dihapus saat dipakai (`apps/api/src/ws_ticket.nim:35-60`,
+  `apps/api/src/app.nim:557-588`).
+- Upgrade: `GET /ws/c/{slug}/sessions/{id}` atau `GET /ws/share/{code}`. Origin diperiksa
+  lebih dulu; URL komunitas harus cocok dengan ticket (`apps/api/src/app.nim:1676-1710`).
+- Hub fan-out **in-memory per proses** dengan cap per sesi, per IP, dan per proses dari
+  registry (`apps/api/src/live.nim:53-101`).
+- Frame yang dikirim server: `{"type":"ready"}`, `{"type":"session.changed","seq":N}`,
+  `{"type":"full"}` saat kapasitas penuh, `{"type":"revoked"}`, `{"type":"pong"}`.
+  `seq` hanya penanda gap — **tidak ada replay**; klien yang butuh state penuh membaca
+  ulang `GET /session` (`apps/api/src/live.nim:33-36`, `apps/api/src/live.nim:142-145`).
+- Klien boleh mengirim `ping`; `subscribe` diterima tetapi tidak menyimpan state
+  (`apps/api/src/live.nim:166-194`).
+
+Karena hub in-memory, API harus berjalan satu instance. Ini batasan yang disengaja,
+bukan fitur multi-node.
+
+## 9. Alur tulis sesi
+
+Semua mutasi jadwal memakai **optimistic concurrency di level sesi**:
+
+1. Klien mengirim `If-Match: "<version>"`; tanpa header → `428`
+   (`apps/api/src/app.nim:584-599`).
+2. Handler memanggil modul `session`; `UPDATE ... WHERE version = $n` menaikkan
+   `session.sessions.version` dalam transaksi yang sama
+   (`modules/session/write.nim:63-82`, `modules/session/schedule.nim:190-216`).
+3. Versi tidak cocok → `412 STALE_VERSION`; sesi tidak ada → `404`.
+4. Setelah commit, hub menyiarkan `session.changed` dengan versi baru
+   (`apps/api/src/app.nim:641`, `apps/api/src/app.nim:678`, `apps/api/src/app.nim:711`).
+5. Mutasi yang menyediakan `Idempotency-Key` menyimpan respons di
+   `platform.idempotency_keys`; replay dengan body sama mengembalikan respons lama,
+   body berbeda → `409 IDEMPOTENCY_CONFLICT` (`modules/platform/idempotency.nim:23-52`,
+   `apps/api/src/app.nim:599-617`).
+
+Jadwal disimpan relasional di `session.games` (bukan JSON snapshot): satu baris per
+`round_no`/`court_no`, dengan hingga dua pemain per sisi. `PUT .../schedule` hanya
+menyentuh game yang disebut, sehingga jadwal parsial tetap valid
+(`modules/session/schedule.nim:114-160`). Lock sesi mencatat `approved_at`/`approved_by`
+(`db/migrations/0006_session_approval.sql`).
+
+## 10. Rating & achievement
+
+- Poin dihitung **saat baca**: `rating.deltas` menyimpan fakta per pemain per event,
+  papan menjumlahkan `best_n` delta dalam window `window_weeks`
+  (`modules/rating/read.nim:24-62`).
+- Nilai satu game = `base * (0.5 + 0.5 * clamp(margin/target, -1, 1))`; pengali lawan =
+  `clamp(rata-rata tier lawan / rata-rata populasi, low, high)`
+  (`modules/rating/domain/rating.nim:24-38`, `modules/rating/domain/rating.nim:69-77`).
+- Semua parameter berasal dari registry: `rating.session_base`, `rating.score_target`,
+  `rating.opponent_clamp`, `rating.window_weeks`, `rating.best_n`,
+  `rating.thin_evidence_n`, `rating.tier_bands` (`modules/rating/infrastructure/params.nim:5-27`).
+- Ingest idempoten per sumber (sesi/turnamen): run kedua tidak menambah event/delta
+  (`modules/rating/infrastructure/ingest.nim:146-171`). Sign-off sumber disimpan di
+  `rating.sources`; `DELETE …/rating` menolak sumber yang finalized dan rebuild penuh
+  tidak mengubah baris sumber (`db/migrations/0013_rating_sources.sql`).
+- Badge dihitung dari fakta agregat dan katalog `achievement.definitions`; key yang tidak
+  ada di seed tidak mungkin diterima (`modules/achievement/domain/achievement.nim:65-100`,
+  `db/seeds/achievement_definitions.sql`).
+
+## 11. Frontend shell
+
+- `apps/web/src/main.tsx` membuat root; `App.tsx` memasang `AuthProvider` →
+  `BrowserRouter` → `CommunityProvider` → shell. `AppNav` hanya tampil setelah login
+  (`apps/web/src/App.tsx:21-58`).
+- Rute adalah daftar data di `apps/web/src/routes.manifest.ts:44-165`; setiap entri
+  menentukan `requiresAuth`, `roles`, `platformOwner`, dan `navGroup`. `visibleNav`
+  menyaring menu berdasarkan role komunitas yang sedang dipilih.
+- Login memakai OIDC lewat API; token tidak pernah masuk JavaScript. Semua panggilan
+  memakai cookie sesi (`credentials: 'include'`) dan header `X-API-Version: 2`
+  (`apps/web/src/auth/api.ts`).
+- Browser tidak memanggil domain API langsung: dev memakai proxy `/api` di
+  `vite.config.ts`, produksi memakai rewrite Vercel (`apps/web/vercel.json`).
+- Data fetching per fitur memakai `useEffect` + `useState` dengan request key (mis.
+  `useRankings`, `useSession`, `useCommunityConfig`), bukan cache global. Dependency
+  `@tanstack/react-query` masih terpasang tetapi tidak diimpor kode.
+- Semua teks UI ada di `apps/web/src/i18n/en.ts`; test menolak teks JSX hardcoded
+  (`apps/web/README.md`).
+
+## 12. Warisan v1 (Go) di tree
+
+`apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`, `go.mod`, dan `go.sum` adalah
+backend Go v1. Kode itu **tidak** dipakai Dockerfile v2
+(`apps/api/Dockerfile` membangun `apps/api/src/main.nim`), tetapi masih ada sampai task
+dekomisi (T-082 di `docs/plan/BACKLOG.md`). Jangan menambah rute atau aturan ke sana.
+
+`ops/` juga masih membawa artefak v1: unit quadlet `majadu-api.container`, Caddy
+`/majadu`, dan env example dengan `DATABASE_URL`/`MAJADU_DB_SCHEMA`. Nama env v2 adalah
+`MAJADU_PG_DSN` (dan kawan-kawan di §3), jadi artefak itu **belum** menjadi deployment
+v2. Lihat [`current-status.md`](current-status.md) §Infrastruktur.
+
+## 13. Testing & gate
+
+| Gate | Isi | Butuh DB |
 |---|---|---|
-| **Komputasi interaktif** | Frontend | generator schedule, bracket tournament, standings preview, optimistic mutation, quality score |
-| **Validasi + kebijakan** | Backend (majadu-api) | invariant snapshot (ValidateSnapshot/Tournament), version concurrency, lock, alias resolution, aturan skor (ValidateScore) |
-| **Persistensi + identity** | Backend | snapshot storage, career stats (get_player_stats), read-path rebuild |
+| `./task check` | `nim check`, unit test, archcheck | tidak |
+| `./task test` | unit + integration (`INTEGRATION=1`) | ya (`MAJADU_PG_DSN`) |
+| `./task verify <modul\\|api>` | test satu modul | bila ada integration |
+| `./task contract-check` | fingerprint + hasil generate | tidak |
+| `pnpm check:web` | TypeScript, ESLint, Tailwind, Vitest | tidak |
+| `./task e2e` | Playwright: a11y, visual, kompatibilitas | ya (DB `bm2_e2e`) |
 
-Aturan domain yang TIDAK boleh dobel: setiap rule satu source of truth.
-Parity test menjaga konsistensi lintas bahasa: `transform_test.go` ↔
-`scoreValidation.test.ts`, `stats.go` ↔ `standings.test.ts`.
+CI menjalankan job `api-check`, `api-test` (Postgres 18.6 service), `contract`, `web`,
+`e2e`, `image`, lalu `gate` yang menuntut semua job sukses
+(`.github/workflows/ci.yml`). E2E memakai dua perangkat nyata: `iphone-17` (WebKit,
+402×874, DPR 3) dan `poco-f5` (Chromium, 393×873, DPR 2.75)
+(`e2e/browsers.ts:19-38`).
 
-Yang TIDAK dipindahkan ke backend (sengaja): generator & bracket — single-client
-PWA butuh feedback instan + offline; server tetap jadi penjaga invariant.
+## 14. Prinsip
 
-- keep product behavior in the frontend
-- keep storage concerns behind the query layer
-- keep pure domain logic in generator and utility modules
-- avoid making `MDEF` shape the internal schema of `badminton-match`
-- treat `bm` as the runtime schema, diakses via backend Go (`apps/api`)
-
-## Clean Architecture (post-audit)
-
-After the clean code audit (Phase 1–12), the codebase follows a strict dependency flow:
-
-```
-src/
-├── types/              # Domain types (zero deps) — Player, FixMatch, ScheduleSlot, etc.
-├── config/             # Named constants — generator weights, canvas dims, tier config, tokens
-├── generator/          # Pure scheduling engine — zero imports from store/ or queries/
-├── utils/              # Pure utilities — time, quality, standings, swap, canvas, stats
-├── queries/            # React Query hooks + REST client (majadu-api)
-│   ├── endpoints.ts    # Raw REST fetch functions (retry method-aware)
-│   ├── retry.ts        # Retry policy murni (testable)
-│   ├── sessions.ts     # Session query hooks (15 hooks)
-│   ├── players.ts      # Player query hooks
-│   ├── tournament.ts   # Tournament query hooks
-│   ├── types.ts        # CloudSnapshot, SessionMeta, PlayerSummary types
-│   ├── errors.ts       # User-friendly error mapper + isVersionMismatch helper
-│   └── useOptimisticMutation.ts  # Factory hook for optimistic mutations
-├── store/              # Zustand slices (session, players, schedule, game, ui)
-├── hooks/              # Custom React hooks (useDebouncedPublish, etc.)
-├── components/         # UI components
-│   ├── summary/        # SummaryModal sub-components (ConfirmBars, ActionsMenu, etc.)
-│   ├── tournament/     # Tournament tab components
-│   └── generate/       # Schedule view components (QualityBanner, PlayerChip, etc.)
-├── pages/              # Route pages
-└── index.css           # Tailwind v4 @theme tokens
-```
-
-### Dependency rules
-
-| Layer | Can import from | Cannot import from |
-|-------|----------------|-------------------|
-| `types/` | nothing | everything else |
-| `config/` | `types/` | `store/`, `queries/`, `pages/` |
-| `generator/` | `types/`, `config/`, `utils/time` | `store/`, `queries/`, `pages/` |
-| `utils/` | `types/`, `config/` | `store/`, `queries/`, `pages/` |
-| `queries/` | `types/`, `config/`, `utils/` | `store/`, `pages/` |
-| `store/` | `types/`, `config/`, `utils/` | `queries/`, `pages/` |
-| `components/` | everything except `pages/` | `pages/` |
-| `pages/` | everything | — |
-
-### Key patterns
-
-- **Optimistic mutation factory** — `useOptimisticSessionMutation` eliminates boilerplate across 7+ mutation hooks. Each hook only provides an `optimisticUpdate` function.
-- **Snapshot-based persistence** — entire session state serialized as `CloudSnapshot` JSON. Publish is full replace with version concurrency.
-- **Debounced cloud publishing** — `useDebouncedPublish` batches rapid changes (300ms trailing, 1s max delay) with flush on unmount.
-- **Branded types** — `PlayerId`, `TimeString`, `GameKey` provide type safety without runtime overhead.
-- **Zustand sliced composition** — 5 slices with shared `SetState` type, persisted to localStorage with version migration.
-- **Computed selectors** — `selectSlotsPerCourt`, `selectTotalGames` derived from config, not stored.
-- **5-phase generator** — pinned placement → merge pairable → spread → flexible → greedy fill. Scoring weights injectable via config.
+1. **Kontrak dulu** — perubahan API dimulai dari spec, lalu generate.
+2. **Server authoritative** — validasi skor, poin, otorisasi, dan invariant ada di Nim.
+3. **Satu aturan satu tempat** — angka bisnis di registry, bukan duplikat di FE/BE.
+4. **Komunitas adalah batas data** — setiap baris dan query membawa `community_id`.
+5. **Gagal berisik** — konfigurasi hilang/tipe salah menolak start; error tidak ditelan.
