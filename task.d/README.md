@@ -32,6 +32,7 @@ explicit `--nimcache` does not add a suffix.
 | `ci` | check + build + test + contract check | same as `test` |
 | `bootstrap` | migrate, seed L1 config, create the first owner and a default community | yes |
 | `dev-v1` | rebuild `bm_v1_dev` from the captured v1 schema and seed | yes |
+| `ingest` | ingest approved sessions into rating events (tick, session, rebuild) | yes |
 | `ranksnapshot` | write today's ranking snapshot for every community | yes |
 | `opstoken` | issue, list or revoke CLI bearer tokens | yes |
 | `janitor` | purge expired OAuth flows, idempotency keys, outbox rows, revoked links and ws tickets | yes |

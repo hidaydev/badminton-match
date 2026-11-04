@@ -1,4 +1,4 @@
-import std/[math, options, strutils]
+import std/[options, strutils]
 import db/db
 import ../domain/rating
 
