@@ -10,15 +10,15 @@ type
 const
   approvedStatuses = "('locked', 'published', 'completed', 'archived')"
 
-proc populationAverage(conn: DbConn, communityId: string): float =
+proc populationAverage*(conn: DbConn, communityId: string): float =
   let row = conn.queryOne(
     """select coalesce(avg(rating), 0)::float8 as average
        from rating.player_state where community_id = $1::uuid""",
     @[textParam(communityId)])
   if row.isSome: parseFloat(row.get.get("average")) else: 0.0
 
-proc opponentAverage(conn: DbConn, communityId: string,
-                     players: seq[string]): float =
+proc opponentAverage*(conn: DbConn, communityId: string,
+                      players: seq[string]): float =
   if players.len == 0:
     return 0.0
   let row = conn.queryOne(
@@ -47,8 +47,8 @@ proc active(players, absent: seq[string]): seq[string] =
     if player notin absent:
       result.add(player)
 
-proc writeDelta(conn: DbConn, communityId, eventId, side, playerId: string,
-                delta: int) =
+proc writeDelta*(conn: DbConn, communityId, eventId, side, playerId: string,
+                 delta: int) =
   discard conn.execUpdate(
     """insert into rating.deltas
          (community_id, event_id, side, player_id, delta)
@@ -57,8 +57,8 @@ proc writeDelta(conn: DbConn, communityId, eventId, side, playerId: string,
     @[textParam(communityId), textParam(eventId), textParam(side),
       textParam(playerId), intParam(delta.int64)])
 
-proc upsertState(conn: DbConn, communityId, playerId: string, delta: int,
-                 won: bool) =
+proc upsertState*(conn: DbConn, communityId, playerId: string, delta: int,
+                  won: bool) =
   discard conn.execUpdate(
     """insert into rating.player_state
          (community_id, player_id, rating, games_played, wins, losses)
