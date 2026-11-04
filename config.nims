@@ -1,12 +1,22 @@
+# The compiler evaluates this file inside the NimScript VM, where switch(),
+# thisDir() and the filesystem helpers are built in. The import keeps the file
+# resolvable for editors.
+import std/os
+
 switch("path", thisDir() & "/shared")
 switch("path", thisDir() & "/shared/platform-lib")
 switch("path", thisDir() & "/modules")
 switch("path", thisDir() & "/apps")
 switch("path", thisDir() & "/tools")
-switch("threads", "on")
-switch("mm", "atomicArc")
-switch("stackTrace", "on")
-switch("lineTrace", "on")
+# `nim check config.nims` treats the config as the target project too, and
+# --mm:atomicArc makes the checker fail inside system.nim. When the target is the
+# config file itself the switches are skipped, so that check stays clean; every
+# real build still gets them.
+when projectName() != "config":
+  switch("threads", "on")
+  switch("mm", "atomicArc")
+  switch("stackTrace", "on")
+  switch("lineTrace", "on")
 
 # Local libpq resolution on macOS. Homebrew keeps libpq outside the default
 # dyld search path, and macOS strips DYLD_* from protected shells, so an rpath
@@ -26,6 +36,6 @@ when defined(macosx):
     if dirExists(opensslDir):
       switch("passL", "-Wl,-rpath," & opensslDir)
 # begin Nimble config (version 2)
-when withDir(thisDir(), system.fileExists("nimble.paths")):
+when fileExists(thisDir() & "/nimble.paths"):
   include "nimble.paths"
 # end Nimble config
