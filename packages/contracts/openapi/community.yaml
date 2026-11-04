@@ -23,8 +23,8 @@
           "community"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "201": {
+            "description": "created"
           },
           "400": {
             "description": "bad request"
@@ -37,6 +37,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "409": {
+            "description": "conflict"
           }
         },
         "requestBody": {
@@ -78,8 +81,8 @@
           "community"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "202": {
+            "description": "accepted"
           },
           "400": {
             "description": "bad request"
@@ -206,8 +209,8 @@
           "community"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "201": {
+            "description": "created"
           },
           "400": {
             "description": "bad request"
@@ -251,8 +254,8 @@
           "community"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "201": {
+            "description": "created"
           },
           "400": {
             "description": "bad request"
@@ -265,6 +268,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "410": {
+            "description": "gone"
           }
         },
         "parameters": [

@@ -77,6 +77,9 @@
         "responses": {
           "200": {
             "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
           }
         }
       }
@@ -204,8 +207,8 @@
           "sessions"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "201": {
+            "description": "created"
           },
           "400": {
             "description": "bad request"
@@ -301,6 +304,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "requestBody": {
@@ -381,6 +390,9 @@
           "sessions"
         ],
         "responses": {
+          "200": {
+            "description": "ok"
+          },
           "204": {
             "description": "ok"
           },
@@ -395,6 +407,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "parameters": [
@@ -424,6 +442,9 @@
           "sessions"
         ],
         "responses": {
+          "200": {
+            "description": "ok"
+          },
           "204": {
             "description": "ok"
           },
@@ -438,6 +459,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "parameters": [
@@ -481,6 +508,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "requestBody": {
@@ -522,6 +555,9 @@
         "responses": {
           "200": {
             "description": "ok"
+          },
+          "400": {
+            "description": "bad request"
           },
           "401": {
             "description": "unauthenticated"
@@ -580,6 +616,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "requestBody": {
@@ -627,6 +669,9 @@
           "sessions"
         ],
         "responses": {
+          "200": {
+            "description": "ok"
+          },
           "204": {
             "description": "ok"
           },
@@ -641,6 +686,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "requestBody": {
@@ -702,6 +753,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "requestBody": {
@@ -755,6 +812,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "requestBody": {
@@ -794,8 +857,8 @@
           "share"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "201": {
+            "description": "created"
           },
           "400": {
             "description": "bad request"
@@ -918,6 +981,9 @@
         "responses": {
           "200": {
             "description": "ok"
+          },
+          "404": {
+            "description": "not found"
           }
         },
         "parameters": [
@@ -982,6 +1048,9 @@
         "responses": {
           "200": {
             "description": "ok"
+          },
+          "401": {
+            "description": "unauthenticated"
           }
         },
         "parameters": [
@@ -1052,6 +1121,9 @@
           },
           "400": {
             "description": "bad request"
+          },
+          "404": {
+            "description": "not found"
           }
         },
         "parameters": [
@@ -1103,8 +1175,8 @@
           "players"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "201": {
+            "description": "created"
           },
           "400": {
             "description": "bad request"
@@ -1117,6 +1189,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "409": {
+            "description": "conflict"
           }
         },
         "requestBody": {
@@ -1413,8 +1488,8 @@
           "players"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "201": {
+            "description": "created"
           },
           "400": {
             "description": "bad request"
@@ -1555,6 +1630,9 @@
           "players"
         ],
         "responses": {
+          "200": {
+            "description": "ok"
+          },
           "204": {
             "description": "ok"
           },
@@ -1628,8 +1706,8 @@
           "tournaments"
         ],
         "responses": {
-          "200": {
-            "description": "ok"
+          "201": {
+            "description": "created"
           },
           "400": {
             "description": "bad request"
@@ -1725,6 +1803,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "requestBody": {
@@ -1819,6 +1903,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "412": {
+            "description": "precondition failed"
+          },
+          "428": {
+            "description": "precondition required"
           }
         },
         "requestBody": {
@@ -1940,6 +2030,9 @@
         "responses": {
           "200": {
             "description": "ok"
+          },
+          "404": {
+            "description": "not found"
           }
         },
         "parameters": [
@@ -1963,6 +2056,9 @@
         "responses": {
           "200": {
             "description": "ok"
+          },
+          "404": {
+            "description": "not found"
           }
         },
         "parameters": [
@@ -2075,6 +2171,9 @@
           "rankings"
         ],
         "responses": {
+          "200": {
+            "description": "ok"
+          },
           "204": {
             "description": "ok"
           },
