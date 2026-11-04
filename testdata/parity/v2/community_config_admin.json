@@ -39,6 +39,22 @@
           "source": "community",
           "value": true
         },
+        "export.post_height": {
+          "source": "platform",
+          "value": 1350
+        },
+        "export.post_width": {
+          "source": "platform",
+          "value": 1080
+        },
+        "export.story_height": {
+          "source": "platform",
+          "value": 1920
+        },
+        "export.story_width": {
+          "source": "platform",
+          "value": 1080
+        },
         "ingest.ticker_minutes": {
           "source": "platform",
           "value": 30
