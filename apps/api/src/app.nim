@@ -1588,15 +1588,32 @@ proc resolveShare(code: string): Option[JsonNode] =
   let value = found.get
   var games = newJArray()
   for row in application.db.query(
-    """select id, round_no, court_no, score_a, score_b, status
-       from session.games
-       where community_id = $1::uuid and session_id = $2::uuid
-       order by round_no, court_no""",
+    """select g.id, g.round_no, g.court_no, g.score_a, g.score_b, g.status,
+              coalesce(a1.canonical_name, '') as a1,
+              coalesce(a2.canonical_name, '') as a2,
+              coalesce(b1.canonical_name, '') as b1,
+              coalesce(b2.canonical_name, '') as b2
+       from session.games g
+       left join player.players a1 on a1.id = g.side_a1
+       left join player.players a2 on a2.id = g.side_a2
+       left join player.players b1 on b1.id = g.side_b1
+       left join player.players b2 on b2.id = g.side_b2
+       where g.community_id = $1::uuid and g.session_id = $2::uuid
+       order by g.round_no, g.court_no""",
     @[textParam(value.communityId), textParam(value.sessionId)]):
+    # Names, not ids: a spectator cannot resolve a uuid, and the share payload
+    # is the only read that has no session behind it.
+    var sideA = newJArray()
+    var sideB = newJArray()
+    for slot in ["a1", "a2"]:
+      if row.get(slot).len > 0: sideA.add(%row.get(slot))
+    for slot in ["b1", "b2"]:
+      if row.get(slot).len > 0: sideB.add(%row.get(slot))
     games.add(%*{
       "id": row.get("id"),
       "round": parseInt(row.get("round_no")),
       "court": parseInt(row.get("court_no")),
+      "sideA": sideA, "sideB": sideB,
       "scoreA": if row["score_a"].isNone: newJNull() else: %parseInt(row.get("score_a")),
       "scoreB": if row["score_b"].isNone: newJNull() else: %parseInt(row.get("score_b")),
       "status": row.get("status"),

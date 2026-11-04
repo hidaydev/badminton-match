@@ -18,6 +18,14 @@
           "round": 0,
           "scoreA": 21,
           "scoreB": 18,
+          "sideA": [
+            "Alice",
+            "Budi"
+          ],
+          "sideB": [
+            "Candra",
+            "Dewi"
+          ],
           "status": "played"
         },
         {
@@ -26,6 +34,14 @@
           "round": 0,
           "scoreA": null,
           "scoreB": null,
+          "sideA": [
+            "Alice",
+            "Candra"
+          ],
+          "sideB": [
+            "Budi",
+            "Dewi"
+          ],
           "status": "scheduled"
         }
       ],
