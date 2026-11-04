@@ -145,6 +145,20 @@ suite "session schedule HTTP":
     check parsed["sideA"].len == 2
     check parsed["sideA"][0].getStr() == players[0]
     check parsed["status"].getStr() == "scheduled"
+    # The detail read carries the schedule, because there is no read endpoint
+    # for the schedule itself and a page cannot guess the game keys.
+    let (detail, detailBody) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId, hostCookie)
+    check detail == 200
+    let session = parseJson(detailBody)
+    check session["version"].getInt() == 2
+    check session["startTime"].getStr() == "00:00"
+    check session["slotMinutes"].getInt() == 30
+    check session["games"].len == 1
+    check session["games"][0]["sideA"].len == 2
+    check session["games"][0]["court"].getInt() == 0
+    check session["participants"].len == 4
+    check session["participants"][0]["name"].getStr() == "Ani"
     let (stale, _) = call(HttpPut,
       "/c/sched-club/sessions/" & sessionId & "/schedule", hostCookie,
       schedule, ifMatch = "\"1\"")

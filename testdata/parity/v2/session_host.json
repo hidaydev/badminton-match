@@ -11,7 +11,63 @@
     "status": 200,
     "body": {
       "date": "2026-11-03",
+      "games": [
+        {
+          "court": 0,
+          "round": 0,
+          "scoreA": 21,
+          "scoreB": 18,
+          "sideA": [
+            "{uuid}",
+            "{uuid}"
+          ],
+          "sideB": [
+            "{uuid}",
+            "{uuid}"
+          ],
+          "status": "played"
+        },
+        {
+          "court": 1,
+          "round": 0,
+          "scoreA": null,
+          "scoreB": null,
+          "sideA": [
+            "{uuid}",
+            "{uuid}"
+          ],
+          "sideB": [
+            "{uuid}",
+            "{uuid}"
+          ],
+          "status": "scheduled"
+        }
+      ],
       "id": "{uuid}",
+      "participants": [
+        {
+          "absent": false,
+          "name": "Alice",
+          "playerId": "{uuid}"
+        },
+        {
+          "absent": false,
+          "name": "Budi",
+          "playerId": "{uuid}"
+        },
+        {
+          "absent": false,
+          "name": "Candra",
+          "playerId": "{uuid}"
+        },
+        {
+          "absent": false,
+          "name": "Dewi",
+          "playerId": "{uuid}"
+        }
+      ],
+      "slotMinutes": 30,
+      "startTime": "19:00",
       "status": "locked",
       "title": "Tuesday Night",
       "version": 1

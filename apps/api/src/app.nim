@@ -1420,6 +1420,67 @@ proc getSessionStandingsRoute(request: Request, ctx: CommunityContext,
     return
   jsonResponse(request, 200, board.get, [("Cache-Control", "no-store")])
 
+proc getSessionDetail(request: Request, ctx: CommunityContext,
+                      sessionId: string) =
+  ## The whole session in one read: header, who is playing and the games. The
+  ## schedule has a write endpoint but no read of its own, and a page cannot
+  ## render games it has no keys for.
+  let row = application.db.queryOne(
+    """select id, title, session_date::text as session_date,
+              to_char(start_time, 'HH24:MI') as start_time, slot_minutes,
+              status, version
+       from session.sessions where id = $1 and community_id = $2""",
+    @[textParam(sessionId), textParam(ctx.communityId)])
+  if row.isNone:
+    problem(request, 404, "NOT_FOUND", "session not found")
+    return
+  var participants = newJArray()
+  for entry in application.db.query(
+    """select p.player_id, pl.canonical_name as name, p.is_absent
+       from session.participants p
+       join player.players pl on pl.id = p.player_id
+       where p.community_id = $1::uuid and p.session_id = $2::uuid
+       order by pl.canonical_name""",
+    @[textParam(ctx.communityId), textParam(sessionId)]):
+    participants.add(%*{"playerId": entry.get("player_id"),
+      "name": entry.get("name"), "absent": entry.get("is_absent") == "t"})
+  var games = newJArray()
+  for entry in application.db.query(
+    """select round_no, court_no, score_a, score_b, status,
+              coalesce(side_a1::text, '') as side_a1,
+              coalesce(side_a2::text, '') as side_a2,
+              coalesce(side_b1::text, '') as side_b1,
+              coalesce(side_b2::text, '') as side_b2
+       from session.games
+       where community_id = $1::uuid and session_id = $2::uuid
+       order by round_no, court_no""",
+    @[textParam(ctx.communityId), textParam(sessionId)]):
+    var sideA = newJArray()
+    var sideB = newJArray()
+    for slot in ["side_a1", "side_a2"]:
+      if entry.get(slot).len > 0: sideA.add(%entry.get(slot))
+    for slot in ["side_b1", "side_b2"]:
+      if entry.get(slot).len > 0: sideB.add(%entry.get(slot))
+    games.add(%*{
+      "round": parseInt(entry.get("round_no")),
+      "court": parseInt(entry.get("court_no")),
+      "sideA": sideA, "sideB": sideB,
+      "scoreA": if entry["score_a"].isNone: newJNull() else: %parseInt(entry.get("score_a")),
+      "scoreB": if entry["score_b"].isNone: newJNull() else: %parseInt(entry.get("score_b")),
+      "status": entry.get("status")})
+  jsonResponse(request, 200, %*{
+    "id": row.get.get("id"),
+    "title": row.get.get("title"),
+    "date": row.get.get("session_date"),
+    "startTime": row.get.get("start_time"),
+    "slotMinutes": parseInt(row.get.get("slot_minutes")),
+    "status": row.get.get("status"),
+    "version": parseInt(row.get.get("version")),
+    "participants": participants,
+    "games": games},
+    [("ETag", "\"" & row.get.get("version") & "\""),
+     ("Cache-Control", "no-store")])
+
 proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
                   gameKey: string) =
   let key = sessionSchedule.parseGameKey(gameKey)
@@ -2029,19 +2090,7 @@ proc route(request: Request) =
         getSessionStandingsRoute(request, ctx.get, parts[4])
         return
       if parts.len == 5 and verb == "GET":
-        let row = application.db.queryOne(
-          """select id, title, session_date::text as session_date, status, version
-             from session.sessions where id = $1 and community_id = $2""",
-          @[textParam(parts[4]), textParam(ctx.get.communityId)])
-        if row.isNone:
-          problem(request, 404, "NOT_FOUND", "session not found")
-          return
-        jsonResponse(request, 200, %*{"id": row.get.get("id"),
-          "title": row.get.get("title"), "date": row.get.get("session_date"),
-          "status": row.get.get("status"),
-          "version": parseInt(row.get.get("version"))},
-          [("ETag", "\"" & row.get.get("version") & "\""),
-           ("Cache-Control", "no-store")])
+        getSessionDetail(request, ctx.get, parts[4])
         return
       if parts.len == 6 and parts[5] == "share":
         if verb == "POST":
