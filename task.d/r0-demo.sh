@@ -20,6 +20,14 @@ json() {
   python3 -c "import sys, json; print(json.loads(sys.stdin.read())$1)"
 }
 
+# The demo acts as a browser, and a browser sends Origin on state-changing
+# requests. Putting it in a temp curlrc keeps every call in this file honest
+# without repeating the header, and the deliberate CSRF probe opts out.
+CURL_HOME=$(mktemp -d)
+export CURL_HOME
+printf 'header = "Origin: http://127.0.0.1:5173"\n' > "$CURL_HOME/.curlrc"
+trap 'rm -rf "$CURL_HOME"' EXIT
+
 fail_step() {
   printf 'r0-demo: FAIL %s\n' "$*" >&2
   exit 1
@@ -111,7 +119,7 @@ relogin
 [ "$(curl -s -b "$JAR" "$base/c/demo-club/members" | json "['items'][0]['role']")" = "admin" ] ||
   fail_step "first admin membership"
 
-csrf=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X POST \
+csrf=$(curl -q -s -o /dev/null -w '%{http_code}' -b "$JAR" -X POST \
   -H 'Origin: https://evil.example' -H 'Content-Type: application/json' \
   -d '{"slug":"csrf","name":"CSRF"}' "$base/communities")
 [ "$csrf" = "403" ] || fail_step "foreign origin should be 403, got $csrf"
