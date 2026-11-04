@@ -21,9 +21,11 @@ proc originAllowed*(snapshot: Snapshot, origin: string): bool =
 
 proc csrfCheck*(request: Request, snapshot: Snapshot): CsrfVerdict =
   ## Browser requests must come from an allowed origin. `Sec-Fetch-Site` is
-  ## checked too because a cross-site form post can omit Origin. Requests that
-  ## carry neither header are not browser-driven (CLI, tests) and pass, so the
-  ## rule protects cookies without breaking automation.
+  ## checked too because a cross-site form post can omit Origin. A request that
+  ## carries the session cookie is browser-driven, and browsers always send
+  ## Origin on state-changing methods, so its absence is refused as well.
+  ## Requests with neither header nor the session cookie are not browser
+  ## sessions (CLI, health checks) and pass.
   if request.httpMethod notin stateChanging:
     return csrfOk
   let origin = request.headers["Origin"]
@@ -32,7 +34,30 @@ proc csrfCheck*(request: Request, snapshot: Snapshot): CsrfVerdict =
   let site = request.headers["Sec-Fetch-Site"]
   if site.len > 0 and site notin ["same-origin", "none"]:
     return csrfRejected
+  if request.headers["Cookie"].contains("majadu_session="):
+    return csrfRejected
   csrfOk
+
+const returnToChars = {
+  'A' .. 'Z', 'a' .. 'z', '0' .. '9', '/', '.', '_', '~', '!', '$', '&',
+  '\'', '(', ')', '*', '+', ',', ';', '=', ':', '@', '%', '-'}
+
+proc safeReturnPath*(value: string): string =
+  ## Only a same-origin absolute path may become a redirect after login. The
+  ## value is stored on `auth.oauth_flows` and reused as a `Location` header at
+  ## the callback, so both ends call this and anything else falls back to `/`.
+  if value.len == 0 or value[0] != '/':
+    return "/"
+  if value.contains("//") or value.contains('\\') or value.contains(".."):
+    return "/"
+  let lowered = value.toLowerAscii()
+  if lowered.contains("%2f") or lowered.contains("%5c") or
+     lowered.contains("%2e"):
+    return "/"
+  for character in value:
+    if character notin returnToChars:
+      return "/"
+  value
 
 proc securityHeaders*(secure: bool): seq[(string, string)] =
   result = @[

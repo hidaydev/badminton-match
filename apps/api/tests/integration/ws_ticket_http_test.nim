@@ -39,7 +39,7 @@ var
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
 proc call(verb: HttpMethod, path: string, cookie = "",
-          origin = ""): (int, string) =
+          origin = allowedOrigin): (int, string) =
   let client = newHttpClient(timeout = 5000)
   defer: client.close()
   var headers = newHttpHeaders()

@@ -211,7 +211,7 @@ proc startAuth(request: Request) =
   let body = bodyJson(request)
   let returnTo =
     if body.hasKey("returnTo"): body["returnTo"].getStr() else: "/"
-  let safeReturn = if returnTo.startsWith("/") and not returnTo.startsWith("//"): returnTo else: "/"
+  let safeReturn = safeReturnPath(returnTo)
   let state = randomHex(32)
   let nonce = randomHex(32)
   let verifier = randomHex(32)
@@ -308,7 +308,8 @@ proc finishAuth(request: Request) =
     userRow.get.get("id"), sha256Hex(email))
   let token = createSessionToken(userRow.get.get("id"))
   send(request, 302,
-    @[("Location", flow.get("return_to")), ("Set-Cookie", sessionCookie(token))], "")
+    @[("Location", safeReturnPath(flow.get("return_to"))),
+      ("Set-Cookie", sessionCookie(token))], "")
 
 proc listAuthSessions(request: Request) =
   let user = requireUser(request)
@@ -1742,20 +1743,22 @@ proc route(request: Request) =
       return
     # /c/{slug}/settings
     if parts.len == 4 and parts[1] == "c" and parts[3] == "settings":
-      let user = currentUser(request)
-      if user.isNone:
-        problem(request, 401, "UNAUTHENTICATED", "login required")
-        return
-      let (decision, ctx) = decide(user.get,
-        cookieValue(request, "majadu_session"), parts[2],
-        if verb == "GET": readAccess() else: writeAccess())
-      if decision != gAllowed:
-        respondGate(request, decision)
-        return
       if verb == "GET":
+        let user = currentUser(request)
+        if user.isNone:
+          problem(request, 401, "UNAUTHENTICATED", "login required")
+          return
+        let (decision, ctx) = decide(user.get,
+          cookieValue(request, "majadu_session"), parts[2], readAccess())
+        if decision != gAllowed:
+          respondGate(request, decision)
+          return
         getCommunitySettings(request, ctx.get)
       elif verb == "PATCH":
-        patchCommunitySettings(request, ctx.get, user.get)
+        # Settings are admin-only: a host raises scores, not the ceiling.
+        let admin = adminGate(request, parts[2])
+        if admin.isNone: return
+        patchCommunitySettings(request, admin.get[1], admin.get[0])
       else:
         problem(request, 405, "METHOD", "")
       return

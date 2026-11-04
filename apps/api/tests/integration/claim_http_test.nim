@@ -37,6 +37,7 @@ proc call(verb: HttpMethod, path, cookie = "", body = ""): (int, string) =
   let client = newHttpClient(timeout = 5000)
   defer: client.close()
   var headers = newHttpHeaders()
+  headers["Origin"] = "http://127.0.0.1:5173"
   if cookie.len > 0:
     headers["Cookie"] = "majadu_session=" & cookie
   if body.len > 0:
