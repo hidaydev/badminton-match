@@ -12,7 +12,7 @@
 ## ignored: a report that claims zero differences across the whole database
 ## while half of it stayed behind would be worse than no report.
 
-import std/[json, options, os, tables]
+import std/[json, options, os, sequtils, strutils, tables]
 import db/db
 import uuidv7
 import platform/config/registry
@@ -205,12 +205,294 @@ proc importAliases(source, target: Db, communityId: string,
     1)
   stats
 
+proc v2Source(v1Source: string): string =
+  ## v2 knows three origins: a hand-made session, the generator, and a snapshot
+  ## that arrived from elsewhere. v1 split the last one into `compat_publish`
+  ## and `legacy_snapshot`; both describe imported data.
+  if v1Source == "manual": "manual" else: "legacy_snapshot"
+
+proc timezoneOf*(db: Db, communityId: string): string =
+  let row = db.queryOne(
+    "select timezone from platform.community where id = $1::uuid",
+    @[textParam(communityId)])
+  if row.isNone: fail "community " & communityId & " does not exist"
+  row.get.get("timezone")
+
+proc calendarDate*(db: Db, instant, timezone: string): string =
+  ## A v1 timestamp is an instant; the community's calendar date is the day that
+  ## instant falls on *there*. 23:30 WIB is the same day in Jakarta and the next
+  ## day in UTC, so this conversion cannot be skipped.
+  let row = db.queryOne(
+    "select ($1::timestamptz at time zone $2)::date::text as day",
+    @[textParam(instant), textParam(timezone)])
+  row.get.get("day")
+
+proc importSessions(source, target: Db, communityId: string,
+                    dryRun: bool): Result =
+  var stats = Result()
+  discard target.tx(proc(conn: DbConn): int =
+    for row in source.query(
+      """select id::text as id, title, session_date::text as session_date,
+                session_start::text as start_time, slot_minutes, status, source,
+                created_at::text as created_at, updated_at::text as updated_at
+         from bm.sessions order by session_date, created_at, id"""):
+      let oldId = row.get("id")
+      # v1 recorded no approval timestamp. A session that was no longer a draft
+      # had been approved under v1's rules, and updated_at is the closest thing
+      # to the moment that happened.
+      let approvedAt =
+        if row.get("status") == "draft": "" else: row.get("updated_at")
+      if dryRun:
+        inc stats.created
+        continue
+      let mapped = mapLookup(conn, communityId, "session", oldId)
+      var newId = ""
+      if mapped.isSome:
+        newId = mapped.get
+        discard conn.execUpdate(
+          """update session.sessions
+             set title = $3, session_date = $4::date, start_time = $5::time,
+                 slot_minutes = $6::int, status = $7, source = $8,
+                 approved_at = nullif($9, '')::timestamptz,
+                 created_at = $10::timestamptz, updated_at = $11::timestamptz
+             where community_id = $1::uuid and id = $2::uuid""",
+          @[textParam(communityId), textParam(newId), textParam(row.get("title")),
+            textParam(row.get("session_date")), textParam(row.get("start_time")),
+            textParam(row.get("slot_minutes")), textParam(row.get("status")),
+            textParam(v2Source(row.get("source"))), textParam(approvedAt),
+            textParam(row.get("created_at")), textParam(row.get("updated_at"))])
+        inc stats.updated
+      else:
+        newId = uuidv7()
+        discard conn.execUpdate(
+          """insert into session.sessions
+               (id, community_id, title, session_date, start_time, slot_minutes,
+                status, source, approved_at, created_at, updated_at)
+             values ($1::uuid, $2::uuid, $3, $4::date, $5::time, $6::int,
+                     $7, $8, nullif($9, '')::timestamptz,
+                     $10::timestamptz, $11::timestamptz)""",
+          @[textParam(newId), textParam(communityId), textParam(row.get("title")),
+            textParam(row.get("session_date")), textParam(row.get("start_time")),
+            textParam(row.get("slot_minutes")), textParam(row.get("status")),
+            textParam(v2Source(row.get("source"))), textParam(approvedAt),
+            textParam(row.get("created_at")), textParam(row.get("updated_at"))])
+        inc stats.created
+      mapPut(conn, communityId, "session", oldId, newId)
+    1)
+  stats
+
+proc importCourts(source, target: Db, communityId: string,
+                  dryRun: bool): Result =
+  var stats = Result()
+  discard target.tx(proc(conn: DbConn): int =
+    for row in source.query(
+      """select internal_id::text as id, session_id::text as session_id,
+                court_index, court_name, start_time::text as start_time,
+                end_time::text as end_time
+         from bm.session_courts order by session_id, court_index"""):
+      let session = mapLookup(conn, communityId, "session", row.get("session_id"))
+      if session.isNone:
+        inc stats.skipped
+        continue
+      if dryRun:
+        inc stats.created
+        continue
+      let mapped = mapLookup(conn, communityId, "court", row.get("id"))
+      let newId = if mapped.isSome: mapped.get else: uuidv7()
+      discard conn.execUpdate(
+        """insert into session.courts
+             (id, community_id, session_id, court_index, court_name,
+              start_time, end_time)
+           values ($1::uuid, $2::uuid, $3::uuid, $4::int, $5, $6::time, $7::time)
+           on conflict (session_id, court_index) do update
+             set court_name = excluded.court_name,
+                 start_time = excluded.start_time,
+                 end_time = excluded.end_time""",
+        @[textParam(newId), textParam(communityId), textParam(session.get),
+          textParam(row.get("court_index")), textParam(row.get("court_name")),
+          textParam(row.get("start_time")), textParam(row.get("end_time"))])
+      mapPut(conn, communityId, "court", row.get("id"), newId)
+      if mapped.isSome: inc stats.updated else: inc stats.created
+    1)
+  stats
+
+proc importParticipants(source, target: Db, communityId: string,
+                        dryRun: bool): Result =
+  ## A v1 participant may be a placeholder with no `player_id`; v2 participants
+  ## are real players, so those rows are counted as skipped rather than turned
+  ## into somebody. The games that named them keep an empty side.
+  var stats = Result()
+  discard target.tx(proc(conn: DbConn): int =
+    for row in source.query(
+      """select internal_id::text as id, session_id::text as session_id,
+                coalesce(player_id::text, '') as player_id, is_absent
+         from bm.session_players order by session_id, sort_order, internal_id"""):
+      let session = mapLookup(conn, communityId, "session", row.get("session_id"))
+      if session.isNone:
+        inc stats.skipped
+        continue
+      if row.get("player_id").len == 0:
+        inc stats.skipped
+        continue
+      let player = mapLookup(conn, communityId, "player", row.get("player_id"))
+      if player.isNone:
+        inc stats.skipped
+        continue
+      if dryRun:
+        inc stats.created
+        continue
+      let existing = mapLookup(conn, communityId, "participant", row.get("id"))
+      if existing.isSome:
+        # The same v1 row was imported before, so this is an update, not a new
+        # participant. The absent flag only ever moves from false to true.
+        discard conn.execUpdate(
+          """update session.participants set is_absent = is_absent or $3::boolean
+             where community_id = $1::uuid and id = $2::uuid""",
+          @[textParam(communityId), textParam(existing.get),
+            textParam(if row.get("is_absent") == "t": "true" else: "false")])
+        mapPut(conn, communityId, "participant", row.get("id"), existing.get)
+        inc stats.updated
+        continue
+      var participantId = ""
+      let inserted = conn.queryOne(
+        """insert into session.participants
+             (community_id, session_id, player_id, is_absent)
+           values ($1::uuid, $2::uuid, $3::uuid, $4::boolean)
+           on conflict (session_id, player_id) do nothing
+           returning id::text as id""",
+        @[textParam(communityId), textParam(session.get), textParam(player.get),
+          textParam(if row.get("is_absent") == "t": "true" else: "false")])
+      if inserted.isSome:
+        participantId = inserted.get.get("id")
+        inc stats.created
+      else:
+        # v1 could list the same player under two refs; v2 has one participant
+        # per (session, player), so the second old id points at the first row.
+        let present = conn.queryOne(
+          """select id::text as id from session.participants
+             where session_id = $1::uuid and player_id = $2::uuid""",
+          @[textParam(session.get), textParam(player.get)])
+        participantId = present.get.get("id")
+        discard conn.execUpdate(
+          """update session.participants set is_absent = is_absent or $3::boolean
+             where community_id = $1::uuid and id = $2::uuid""",
+          @[textParam(communityId), textParam(participantId),
+            textParam(if row.get("is_absent") == "t": "true" else: "false")])
+        inc stats.collapsed
+      mapPut(conn, communityId, "participant", row.get("id"), participantId)
+    1)
+  stats
+
+proc importGames(source, target: Db, communityId: string,
+                 dryRun: bool): Result =
+  ## v1 keeps the sides in `scheduled_game_players`, one row per slot; v2 keeps
+  ## four columns on the game itself. The slot is the position, so the side is
+  ## `side_a1`, `side_a2`, `side_b1` or `side_b2`.
+  var stats = Result()
+  discard target.tx(proc(conn: DbConn): int =
+    for sessionRow in source.query(
+      "select id::text as id from bm.sessions order by session_date, id"):
+      let oldSessionId = sessionRow.get("id")
+      let session = mapLookup(conn, communityId, "session", oldSessionId)
+      if session.isNone:
+        continue
+      # Old participant id -> old player id, so a game slot resolves in memory
+      # instead of joining across two databases.
+      var participantPlayer = initTable[string, string]()
+      for row in source.query(
+        """select internal_id::text as id, coalesce(player_id::text, '') as player_id
+           from bm.session_players where session_id = $1::uuid""",
+        @[textParam(oldSessionId)]):
+        participantPlayer[row.get("id")] = row.get("player_id")
+
+      var sides = initTable[string, array[4, string]]()
+      for row in source.query(
+        """select scheduled_game_internal_id::text as game_id, team, position,
+                  session_player_internal_id::text as participant_id
+           from bm.scheduled_game_players gp
+           join bm.scheduled_games g
+             on g.internal_id = gp.scheduled_game_internal_id
+           where g.session_id = $1::uuid""",
+        @[textParam(oldSessionId)]):
+        let gameId = row.get("game_id")
+        if not sides.hasKey(gameId): sides[gameId] = ["", "", "", ""]
+        let slot = if row.get("team") == "A": 0 else: 2
+        let position = parseInt(row.get("position"))
+        if position >= 0 and position <= 1:
+          sides[gameId][slot + position] = participantPlayer.getOrDefault(
+            row.get("participant_id"))
+
+      for row in source.query(
+        """select internal_id::text as id, slot_index, court_index, status,
+                  is_played, coalesce(score_a, -1) as score_a,
+                  coalesce(score_b, -1) as score_b, created_at::text as created_at,
+                  updated_at::text as updated_at
+           from bm.scheduled_games where session_id = $1::uuid
+           order by slot_index, court_index""",
+        @[textParam(oldSessionId)]):
+        let oldId = row.get("id")
+        # v1 stored the flag and the status separately; v2 has only the status.
+        var status = row.get("status")
+        if status != "cancelled" and row.get("is_played") == "t":
+          status = "played"
+        if dryRun:
+          inc stats.created
+          continue
+        var values: array[4, string]
+        if sides.hasKey(oldId): values = sides[oldId]
+        var playerIds: array[4, string]
+        var unresolved = false
+        for index in 0 ..< 4:
+          if values[index].len == 0: continue
+          let mapped = mapLookup(conn, communityId, "player", values[index])
+          if mapped.isNone:
+            unresolved = true
+            continue
+          playerIds[index] = mapped.get
+        if unresolved: inc stats.skipped
+        let mapped = mapLookup(conn, communityId, "game", oldId)
+        let newId = if mapped.isSome: mapped.get else: uuidv7()
+        discard conn.execUpdate(
+          """insert into session.games
+               (id, community_id, session_id, round_no, court_no, score_a,
+                score_b, status, created_at, updated_at,
+                side_a1, side_a2, side_b1, side_b2)
+             values ($1::uuid, $2::uuid, $3::uuid, $4::int, $5::int,
+                     nullif($6, -1)::int, nullif($7, -1)::int, $8,
+                     $9::timestamptz, $10::timestamptz,
+                     nullif($11, '')::uuid, nullif($12, '')::uuid,
+                     nullif($13, '')::uuid, nullif($14, '')::uuid)
+             on conflict (session_id, round_no, court_no) do update
+               set score_a = excluded.score_a, score_b = excluded.score_b,
+                   status = excluded.status, side_a1 = excluded.side_a1,
+                   side_a2 = excluded.side_a2, side_b1 = excluded.side_b1,
+                   side_b2 = excluded.side_b2, updated_at = excluded.updated_at""",
+          @[textParam(newId), textParam(communityId), textParam(session.get),
+            textParam(row.get("slot_index")), textParam(row.get("court_index")),
+            textParam(row.get("score_a")), textParam(row.get("score_b")),
+            textParam(status), textParam(row.get("created_at")),
+            textParam(row.get("updated_at")),
+            textParam(playerIds[0]), textParam(playerIds[1]),
+            textParam(playerIds[2]), textParam(playerIds[3])])
+        mapPut(conn, communityId, "game", oldId, newId)
+        if mapped.isSome: inc stats.updated else: inc stats.created
+    1)
+  stats
+
 proc importEtl*(source, target: Db, slug, name, timezone: string,
-                dryRun: bool): tuple[players, aliases: Result] =
+                dryRun: bool): tuple[players, aliases, sessions, courts,
+                                     participants, games: Result] =
   let communityId = resolveCommunity(target, slug, name, timezone, dryRun)
   let players = importPlayers(source, target, communityId, dryRun)
   let aliases = importAliases(source, target, communityId, dryRun)
-  result = (players: players, aliases: aliases)
+  # Sessions before anything that points at them, and participants before games
+  # because the side columns are foreign keys into the participant set.
+  let sessions = importSessions(source, target, communityId, dryRun)
+  let courts = importCourts(source, target, communityId, dryRun)
+  let participants = importParticipants(source, target, communityId, dryRun)
+  let games = importGames(source, target, communityId, dryRun)
+  result = (players: players, aliases: aliases, sessions: sessions,
+            courts: courts, participants: participants, games: games)
   echo $(%*{
     "communityId": communityId,
     "dryRun": dryRun,
@@ -218,8 +500,16 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
                   "collapsed": players.collapsed},
     "aliases": %*{"created": aliases.created, "updated": aliases.updated,
                   "skipped": aliases.skipped},
-    "skippedDomains": %["sessions", "rating", "tournaments", "achievements",
-                        "snapshots"]})
+    "sessions": %*{"created": sessions.created, "updated": sessions.updated},
+    "courts": %*{"created": courts.created, "updated": courts.updated,
+                 "skipped": courts.skipped},
+    "participants": %*{"created": participants.created,
+                       "updated": participants.updated,
+                       "collapsed": participants.collapsed,
+                       "skipped": participants.skipped},
+    "games": %*{"created": games.created, "updated": games.updated,
+                "skipped": games.skipped},
+    "skippedDomains": %["rating", "tournaments", "achievements", "snapshots"]})
 
 proc verifyPlayers*(source, target: Db, communityId: string): seq[string] =
   ## Compares the mapped rows field by field. Counts alone would hide a rename
@@ -277,6 +567,153 @@ proc verifyAliases*(source, target: Db, communityId: string): seq[string] =
     if found.isNone:
       result.add "alias " & row.get("alias_name") & " did not reach v2"
 
+proc verifySessions*(source, target: Db, communityId: string): seq[string] =
+  var oldToNew = initTable[string, string]()
+  for row in target.query(
+    """select old_id, new_id::text as new_id from import.row_map
+       where community_id = $1::uuid and entity = 'session'""",
+    @[textParam(communityId)]):
+    oldToNew[row.get("old_id")] = row.get("new_id")
+  if oldToNew.len == 0:
+    return @["no session has been imported into this community"]
+
+  var byId = initTable[string, Row]()
+  for row in target.query(
+    """select id::text as id, title, session_date::text as session_date,
+              to_char(start_time, 'HH24:MI:SS') as start_time, slot_minutes,
+              status
+       from session.sessions where community_id = $1::uuid""",
+    @[textParam(communityId)]):
+    byId[row.get("id")] = row
+
+  for row in source.query(
+    """select id::text as id, title, session_date::text as session_date,
+              session_start::text as start_time, slot_minutes, status
+       from bm.sessions order by session_date, id"""):
+    let newId = oldToNew.getOrDefault(row.get("id"))
+    if newId.len == 0:
+      result.add "v1 session " & row.get("id") & " has no mapping"
+      continue
+    if not byId.hasKey(newId):
+      result.add "mapped session " & newId & " is missing from v2"
+      continue
+    let ours = byId[newId]
+    if ours.get("title") != row.get("title"):
+      result.add "title differs for v1 session " & row.get("id")
+    if ours.get("session_date") != row.get("session_date"):
+      result.add "date differs for v1 session " & row.get("id")
+    if ours.get("start_time")[0 .. 4] != row.get("start_time")[0 .. 4]:
+      result.add "start time differs for v1 session " & row.get("id")
+    if ours.get("slot_minutes") != row.get("slot_minutes"):
+      result.add "slot minutes differ for v1 session " & row.get("id")
+    if ours.get("status") != row.get("status"):
+      result.add "status differs for v1 session " & row.get("id")
+
+proc sideNames(row: Row, prefix: string): seq[string] =
+  for slot in ["1", "2"]:
+    let key = prefix & slot
+    if row.has(key) and row[key].isSome and row.get(key).len > 0:
+      result.add(row.get(key))
+
+proc verifyGames*(source, target: Db, communityId: string): seq[string] =
+  ## Games are compared by round and court inside each session, as names, since
+  ## the ids are new. A game that lost a side because its player was a v1
+  ## placeholder is reported rather than silently accepted.
+  var oldToNew = initTable[string, string]()
+  for row in target.query(
+    """select old_id, new_id::text as new_id from import.row_map
+       where community_id = $1::uuid and entity = 'session'""",
+    @[textParam(communityId)]):
+    oldToNew[row.get("old_id")] = row.get("new_id")
+
+  var checked = 0
+  for sessionRow in source.query(
+    "select id::text as id, share_code from bm.sessions order by session_date, id"):
+    let oldSessionId = sessionRow.get("id")
+    let newSessionId = oldToNew.getOrDefault(oldSessionId)
+    if newSessionId.len == 0:
+      result.add "v1 session " & oldSessionId & " has no mapping"
+      continue
+
+    var expected = initTable[string, Row]()
+    for row in source.query(
+      """select g.slot_index || '-' || g.court_index as key,
+                g.status, g.is_played, g.score_a, g.score_b,
+                coalesce(a.canonical_name, '') as a0,
+                coalesce(b.canonical_name, '') as a1,
+                coalesce(c.canonical_name, '') as b0,
+                coalesce(d.canonical_name, '') as b1
+         from bm.scheduled_games g
+         left join bm.session_players pa on pa.internal_id = (
+           select gp.session_player_internal_id from bm.scheduled_game_players gp
+           where gp.scheduled_game_internal_id = g.internal_id
+             and gp.team = 'A' and gp.position = 0)
+         left join bm.players a on a.id = pa.player_id
+         left join bm.session_players pb on pb.internal_id = (
+           select gp.session_player_internal_id from bm.scheduled_game_players gp
+           where gp.scheduled_game_internal_id = g.internal_id
+             and gp.team = 'A' and gp.position = 1)
+         left join bm.players b on b.id = pb.player_id
+         left join bm.session_players pc on pc.internal_id = (
+           select gp.session_player_internal_id from bm.scheduled_game_players gp
+           where gp.scheduled_game_internal_id = g.internal_id
+             and gp.team = 'B' and gp.position = 0)
+         left join bm.players c on c.id = pc.player_id
+         left join bm.session_players pd on pd.internal_id = (
+           select gp.session_player_internal_id from bm.scheduled_game_players gp
+           where gp.scheduled_game_internal_id = g.internal_id
+             and gp.team = 'B' and gp.position = 1)
+         left join bm.players d on d.id = pd.player_id
+         where g.session_id = $1::uuid""",
+      @[textParam(oldSessionId)]):
+      expected[row.get("key")] = row
+
+    var actual = initTable[string, Row]()
+    for row in target.query(
+      """select g.round_no || '-' || g.court_no as key, g.status, g.score_a,
+                g.score_b,
+                coalesce(a1.canonical_name, '') as a1,
+                coalesce(a2.canonical_name, '') as a2,
+                coalesce(b1.canonical_name, '') as b1,
+                coalesce(b2.canonical_name, '') as b2
+         from session.games g
+         left join player.players a1 on a1.id = g.side_a1
+         left join player.players a2 on a2.id = g.side_a2
+         left join player.players b1 on b1.id = g.side_b1
+         left join player.players b2 on b2.id = g.side_b2
+         where g.community_id = $1::uuid and g.session_id = $2::uuid""",
+      @[textParam(communityId), textParam(newSessionId)]):
+      actual[row.get("key")] = row
+
+    if expected.len != actual.len:
+      result.add "session " & sessionRow.get("share_code") & " has " &
+        $actual.len & " games in v2 but " & $expected.len & " in v1"
+    for key, source1 in expected:
+      if not actual.hasKey(key):
+        result.add "session " & sessionRow.get("share_code") &
+          " is missing game " & key
+        continue
+      let ours = actual[key]
+      inc checked
+      var wantStatus = source1.get("status")
+      if wantStatus != "cancelled" and source1.get("is_played") == "t":
+        wantStatus = "played"
+      if ours.get("status") != wantStatus:
+        result.add "game " & key & " of session " & sessionRow.get("share_code") &
+          " has status " & ours.get("status") & ", v1 says " & wantStatus
+      for slot in ["score_a", "score_b"]:
+        if ours[slot].isNone != source1[slot].isNone or
+           (ours[slot].isSome and ours.get(slot) != source1.get(slot)):
+          result.add "game " & key & " of session " &
+            sessionRow.get("share_code") & " has a different " & slot
+      let wantA = @[source1.get("a0"), source1.get("a1")].filterIt(it.len > 0)
+      let wantB = @[source1.get("b0"), source1.get("b1")].filterIt(it.len > 0)
+      if ours.sideNames("a") != wantA or ours.sideNames("b") != wantB:
+        result.add "game " & key & " of session " &
+          sessionRow.get("share_code") & " has different players"
+  if checked == 0 and result.len == 0:
+    result.add "no game has been imported into this community"
+
 proc verifyEtl(source, target: Db, slugArg: string) =
   let communityId = getEnv("MAJADU_IMPORT_COMMUNITY_ID")
   var resolved = communityId
@@ -292,15 +729,17 @@ proc verifyEtl(source, target: Db, slugArg: string) =
 
   var problems = verifyPlayers(source, target, resolved)
   problems.add verifyAliases(source, target, resolved)
+  problems.add verifySessions(source, target, resolved)
+  problems.add verifyGames(source, target, resolved)
   if problems.len > 0:
     for problem in problems:
       stderr.writeLine "import: " & problem
     echo $(%*{"communityId": resolved, "problems": problems.len})
     quit(1)
   echo $(%*{"communityId": resolved, "problems": 0,
-            "checkedDomains": %["players", "aliases"],
-            "uncheckedDomains": %["sessions", "rating", "tournaments",
-                                  "achievements", "snapshots"]})
+            "checkedDomains": %["players", "aliases", "sessions", "games"],
+            "uncheckedDomains": %["rating", "tournaments", "achievements",
+                                  "snapshots"]})
 
 proc main() =
   let args = parseArgs()

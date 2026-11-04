@@ -8,7 +8,9 @@ ETL sekali-jalan dari database v1 (`bm_staging`) ke v2. T-064.
 |---|---|---|---|
 | Pemain | `bm.players` | `player.players` | sudah |
 | Alias | `bm.player_aliases` | `player.aliases` | sudah |
-| Sesi + jadwal + skor | `bm.sessions`, `bm.session_players`, `bm.scheduled_games`, `bm.scheduled_game_players` | `session.*` | belum |
+| Sesi + lapangan | `bm.sessions`, `bm.session_courts` | `session.sessions`, `session.courts` | sudah |
+| Peserta | `bm.session_players` | `session.participants` | sudah |
+| Jadwal + skor | `bm.scheduled_games`, `bm.scheduled_game_players` | `session.games` | sudah |
 | Rating | `bm.rating_*` | `rating.*` | belum |
 | Turnamen | `bm.tournament_*` | `tournament.*` | belum |
 | Badge, snapshot | `bm.player_achievements`, `bm.rank_snapshots` | dihitung ulang | belum |
@@ -53,6 +55,12 @@ nim c -d:release -o:.cache/bin/majadu-import tools/import/main.nim
    menghitungnya — bukan dianggap selisih.
 4. **Tidak membuat keanggotaan atau tautan.** Import memindahkan data, bukan hak
    akses; user dan share link tidak dibawa (T-064).
+5. **Tanggal tetap tanggal komunitas.** `session_date` dan `local_date` disalin
+   sebagai tanggal, bukan dihitung dari UTC; `calendarDate` dipakai saat sebuah
+   instan harus diterjemahkan, dan batas hari WIB diuji.
+6. **Peserta placeholder dilewati.** v1 mengizinkan `session_players.player_id`
+   kosong; v2 mewajibkan pemain nyata. Baris seperti itu dihitung di `skipped`,
+   dan sisi game yang hanya berisi placeholder menjadi kosong.
 
 ## Uji
 
