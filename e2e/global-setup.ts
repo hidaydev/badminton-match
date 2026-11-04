@@ -172,7 +172,13 @@ export default async function globalSetup() {
     writeFileSync(
       statePath,
       JSON.stringify(
-        { communitySlug: 'e2e-club', tournamentId, sessionId, writableByProject },
+        {
+          communitySlug: 'e2e-club',
+          tournamentId,
+          sessionId,
+          playerId: playerIds[0],
+          writableByProject,
+        },
         null,
         2,
       ) + '\n',

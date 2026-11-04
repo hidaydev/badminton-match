@@ -3,6 +3,7 @@ export type E2eState = {
   communitySlug: string
   tournamentId: string
   sessionId: string
+  playerId: string
   /** One writable session per project: the specs mutate it, so they must not share. */
   writableByProject: Record<string, string>
 }
@@ -27,6 +28,13 @@ export const visualRoutes: readonly VisualRoute[] = [
     path: (state) => `/c/${state.communitySlug}/tournaments/classic/${state.tournamentId}`,
   },
   { name: 'sessions', path: (state) => `/c/${state.communitySlug}/sessions` },
+  // Filtered on purpose: the roster order is the server's to change, and a
+  // baseline cannot pin a list whose order the API never promised.
+  { name: 'players', path: (state) => `/c/${state.communitySlug}/players?q=Ani` },
+  {
+    name: 'player',
+    path: (state) => `/c/${state.communitySlug}/players/${state.playerId}`,
+  },
   {
     name: 'session',
     path: (state) => `/c/${state.communitySlug}/sessions/${state.sessionId}`,
