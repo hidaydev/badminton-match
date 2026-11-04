@@ -1,5 +1,6 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import CommunityPicker from '../community/CommunityPicker'
 import { t } from '../i18n'
 import { communitySlugFromPath, visibleNav } from '../routes.manifest'
 
@@ -18,6 +19,7 @@ export default function AppNav() {
     <header className="border-b border-border-subtle bg-surface">
       <div className="mx-auto max-w-5xl p-4 flex flex-wrap items-center gap-4">
         <span className="text-sm font-semibold text-accent">{t('app.name')}</span>
+        <CommunityPicker />
         <nav aria-label={t('nav.group.main')} className="flex flex-wrap items-center gap-2">
           {items.map((item) => (
             <NavLink

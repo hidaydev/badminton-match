@@ -9,6 +9,7 @@ export const en = {
   'nav.group.admin': 'Administration',
   'nav.group.owner': 'Platform',
   'nav.home': 'Home',
+  'nav.overview': 'Overview',
   'nav.sessions': 'Sessions',
   'nav.players': 'Players',
   'nav.rankings': 'Rankings',
@@ -30,6 +31,26 @@ export const en = {
   'home.emptyHint': 'Ask an administrator for an invitation, or create a community.',
 
   'shared.title': 'Shared session',
+
+  'community.label': 'Community',
+  'community.subtitle': 'Settings that apply to every member of this community.',
+  'community.role': 'Your role: {role}',
+  'community.settings': 'Effective settings',
+  'community.settingsEmpty': 'No settings were returned for this community.',
+  'community.setting.timezone': 'Default timezone',
+  'community.setting.directory': 'Public directory',
+  'community.setting.inviteTtl': 'Invite validity, days',
+  'community.setting.joinRequests': 'Join requests',
+  'community.value.enabled': 'Enabled',
+  'community.value.disabled': 'Disabled',
+  'community.source.community': 'Community',
+  'community.source.platform': 'Platform',
+  'community.error.notFound': 'You are not a member of this community.',
+  'community.error.load': 'Community settings could not be loaded. Try again.',
+
+  'role.admin': 'Admin',
+  'role.host': 'Host',
+  'role.member': 'Member',
 
   'placeholder.description': 'This screen is planned. The shell is in place; {feature} arrives in a later task.',
 

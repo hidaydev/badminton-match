@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import AppNav from './components/AppNav'
+import { CommunityProvider } from './community/CommunityProvider'
 import { t } from './i18n'
 import LoginPage from './pages/LoginPage'
 import { routes } from './routes.manifest'
@@ -49,7 +50,9 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Shell />
+        <CommunityProvider>
+          <Shell />
+        </CommunityProvider>
       </BrowserRouter>
     </AuthProvider>
   )

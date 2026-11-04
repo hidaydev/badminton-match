@@ -41,6 +41,11 @@ describe('routes manifest', () => {
       'nav.owner',
     ])
   })
+
+  it('routes the community overview without listing it in the nav', () => {
+    expect(routes.some((route) => route.path === '/c/:slug')).toBe(true)
+    expect(visibleNav('admin', false).map((entry) => entry.path)).not.toContain('/c/:slug')
+  })
 })
 
 describe('AppNav roles', () => {

@@ -2,6 +2,7 @@ import { createElement } from 'react'
 import type { ReactElement } from 'react'
 import type { CommunityRole } from './auth/api'
 import type { MessageKey } from './i18n/en'
+import CommunityPage from './pages/CommunityPage'
 import HomePage from './pages/HomePage'
 import PlaceholderPage from './pages/PlaceholderPage'
 
@@ -39,6 +40,13 @@ export const routes: readonly RouteEntry[] = [
     element: createElement(HomePage),
     requiresAuth: true,
     navGroup: 'main',
+  },
+  {
+    path: '/c/:slug',
+    labelKey: 'nav.overview',
+    element: createElement(CommunityPage),
+    requiresAuth: true,
+    roles: ALL_ROLES,
   },
   {
     path: '/c/:slug/sessions',
