@@ -1,0 +1,16 @@
+{
+  "route": "GET /sessions/{id}/watch",
+  "request": {
+    "method": "GET",
+    "path": "/sessions/nope/watch"
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "error": {
+        "code": "not_found",
+        "message": "session not found"
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "route": "PATCH /players/{playerId}/tier",
+  "request": {
+    "method": "PATCH",
+    "path": "/players/11111111-1111-1111-1111-111111111101/tier",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    },
+    "body": "{\"tier\":\"Z\"}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "validation failed: tier must be 8-tier (D..A+)"
+      }
+    }
+  }
+}

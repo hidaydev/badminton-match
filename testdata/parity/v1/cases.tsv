@@ -1,0 +1,72 @@
+# name	route	method	path	header	body  ("-" = absent)
+healthz	GET /healthz	GET	/healthz	-	-
+readyz	GET /readyz	GET	/readyz	-	-
+version	GET /version	GET	/version	-	-
+admin_verify_missing_token	GET /admin/verify	GET	/admin/verify	-	-
+admin_verify_ok	GET /admin/verify	GET	/admin/verify	Authorization: Bearer test-admin	-
+metrics	GET /metrics	GET	/metrics	-	-
+healthz_wrong_method	GET /healthz	POST	/healthz	-	-
+sessions_list	GET /sessions	GET	/sessions	-	-
+sessions_create_malformed	POST /sessions	POST	/sessions	-	{
+sessions_get	GET /sessions/{id}	GET	/sessions/v1demo0001	-	-
+sessions_get_draft	GET /sessions/{id}	GET	/sessions/v1demo0002	-	-
+sessions_get_unknown	GET /sessions/{id}	GET	/sessions/nope	-	-
+sessions_watch_unknown	GET /sessions/{id}/watch	GET	/sessions/nope/watch	-	-
+sessions_put_malformed	PUT /sessions/{id}	PUT	/sessions/v1demo0001	-	{
+sessions_patch_malformed	PATCH /sessions/{id}	PATCH	/sessions/v1demo0001	-	{
+sessions_delete_no_token	DELETE /sessions/{id}	DELETE	/sessions/v1demo0001	-	-
+sessions_lock_no_token	POST /sessions/{id}/lock	POST	/sessions/v1demo0001/lock	-	-
+sessions_lock_no_if_match	POST /sessions/{id}/lock	POST	/sessions/v1demo0001/lock	Authorization: Bearer test-admin	-
+sessions_get_game	GET /sessions/{id}/games/{gameKey}	GET	/sessions/v1demo0001/games/0-0	-	-
+sessions_get_game_bad_key	GET /sessions/{id}/games/{gameKey}	GET	/sessions/v1demo0001/games/0	-	-
+sessions_patch_game_malformed	PATCH /sessions/{id}/games/{gameKey}	PATCH	/sessions/v1demo0001/games/0-0	-	{
+sessions_patch_game_skip_malformed	PATCH /sessions/{id}/games/{gameKey}/skip	PATCH	/sessions/v1demo0001/games/0-0/skip	-	{
+sessions_absent_malformed	PATCH /sessions/{id}/absent	PATCH	/sessions/v1demo0001/absent	-	{
+sessions_swap_malformed	POST /sessions/{id}/swap	POST	/sessions/v1demo0001/swap	-	{
+sessions_events	GET /sessions/{id}/events	GET	/sessions/v1demo0001/events	-	-
+sessions_events_unknown	GET /sessions/{id}/events	GET	/sessions/nope/events	-	-
+sessions_unlock_no_token	POST /sessions/{id}/unlock	POST	/sessions/v1demo0001/unlock	-	-
+sessions_unlock_unknown	POST /sessions/{id}/unlock	POST	/sessions/nope/unlock	Authorization: Bearer test-admin	-
+sessions_delete_admin_no_token	POST /sessions/{id}/delete	POST	/sessions/v1demo0001/delete	-	-
+sessions_delete_admin_unknown	POST /sessions/{id}/delete	POST	/sessions/nope/delete	Authorization: Bearer test-admin	-
+players_list	GET /players	GET	/players	-	-
+players_create_malformed	POST /players	POST	/players	-	{
+players_create_no_name	POST /players	POST	/players	-	{"name":""}
+players_stats	GET /players/{name}/stats	GET	/players/Andi/stats	-	-
+players_tier_no_token	PATCH /players/{playerId}/tier	PATCH	/players/11111111-1111-1111-1111-111111111101/tier	-	{"tier":"B"}
+players_tier_bad_tier	PATCH /players/{playerId}/tier	PATCH	/players/11111111-1111-1111-1111-111111111101/tier	Authorization: Bearer test-admin	{"tier":"Z"}
+players_name_no_token	PATCH /players/{playerId}/name	PATCH	/players/11111111-1111-1111-1111-111111111101/name	-	{"name":"Andi"}
+players_name_empty	PATCH /players/{playerId}/name	PATCH	/players/11111111-1111-1111-1111-111111111101/name	Authorization: Bearer test-admin	{"name":""}
+players_delete_no_token	DELETE /players/{playerId}	DELETE	/players/11111111-1111-1111-1111-111111111101	-	-
+players_delete_unknown	DELETE /players/{playerId}	DELETE	/players/99999999-9999-9999-9999-999999999999	Authorization: Bearer test-admin	-
+players_merge_no_token	POST /players/merge	POST	/players/merge	-	{}
+players_merge_missing_fields	POST /players/merge	POST	/players/merge	Authorization: Bearer test-admin	{}
+tournaments_list	GET /tournaments	GET	/tournaments	-	-
+tournaments_get	GET /tournaments/{id}	GET	/tournaments/v1tour0001	-	-
+tournaments_get_unknown	GET /tournaments/{id}	GET	/tournaments/nope	-	-
+tournaments_create_malformed	POST /tournaments	POST	/tournaments	-	{
+tournaments_put_empty	PUT /tournaments/{id}	PUT	/tournaments/v1tour0001	-	{}
+tournaments_patch_malformed	PATCH /tournaments/{id}	PATCH	/tournaments/v1tour0001	-	{
+tournaments_delete_no_token	POST /tournaments/{id}/delete	POST	/tournaments/v1tour0001/delete	-	-
+tournaments_delete_unknown	POST /tournaments/{id}/delete	POST	/tournaments/nope/delete	Authorization: Bearer test-admin	-
+ratings_ingest_session_no_token	POST /ratings/ingest-session	POST	/ratings/ingest-session	-	{"sessionId":"nope"}
+ratings_ingest_tournament_no_token	POST /ratings/ingest-tournament	POST	/ratings/ingest-tournament	-	{"tournamentId":"nope"}
+ratings_revert_session_no_token	POST /ratings/revert-session	POST	/ratings/revert-session	-	{"sessionId":"nope"}
+ratings_revert_tournament_no_token	POST /ratings/revert-tournament	POST	/ratings/revert-tournament	-	{"tournamentId":"nope"}
+ratings_finalize_no_token	POST /ratings/sources/{sourceId}/finalize	POST	/ratings/sources/unknown/finalize	-	{"finalized":true}
+ratings_rebuild_all_no_token	POST /ratings/rebuild-all	POST	/ratings/rebuild-all	-	-
+ratings_replay_all_no_token	POST /ratings/replay-all	POST	/ratings/replay-all	-	-
+ratings_replay_source_no_token	POST /ratings/replay-source	POST	/ratings/replay-source	-	{"sourceId":"unknown"}
+ratings_achievements_backfill_no_token	POST /ratings/achievements/backfill	POST	/ratings/achievements/backfill	-	-
+ratings_ingest_session_missing_id	POST /ratings/ingest-session	POST	/ratings/ingest-session	Authorization: Bearer test-admin	{}
+ratings_ingest_tournament_missing_id	POST /ratings/ingest-tournament	POST	/ratings/ingest-tournament	Authorization: Bearer test-admin	{}
+ratings_revert_session_missing_id	POST /ratings/revert-session	POST	/ratings/revert-session	Authorization: Bearer test-admin	{}
+ratings_revert_tournament_missing_id	POST /ratings/revert-tournament	POST	/ratings/revert-tournament	Authorization: Bearer test-admin	{}
+ratings_finalize_missing_flag	POST /ratings/sources/{sourceId}/finalize	POST	/ratings/sources/unknown/finalize	Authorization: Bearer test-admin	{}
+ratings_replay_source_missing_id	POST /ratings/replay-source	POST	/ratings/replay-source	Authorization: Bearer test-admin	{}
+rankings	GET /rankings	GET	/rankings	-	-
+rankings_player	GET /rankings/players/{playerId}	GET	/rankings/players/11111111-1111-1111-1111-111111111101	-	-
+ratings_player	GET /ratings/players/{playerId}	GET	/ratings/players/11111111-1111-1111-1111-111111111101	-	-
+ratings_player_unknown	GET /ratings/players/{playerId}	GET	/ratings/players/99999999-9999-9999-9999-999999999999	-	-
+ratings_player_achievements	GET /ratings/players/{playerId}/achievements	GET	/ratings/players/11111111-1111-1111-1111-111111111101/achievements	-	-
+ratings_sources	GET /ratings/sources	GET	/ratings/sources	-	-

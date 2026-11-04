@@ -1,0 +1,16 @@
+{
+  "route": "DELETE /sessions/{id}",
+  "request": {
+    "method": "DELETE",
+    "path": "/sessions/v1demo0001"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

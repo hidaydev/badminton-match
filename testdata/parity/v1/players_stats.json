@@ -1,0 +1,30 @@
+{
+  "route": "GET /players/{name}/stats",
+  "request": {
+    "method": "GET",
+    "path": "/players/Andi/stats"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "gamesPlayed": 0,
+      "losses": 0,
+      "name": "Andi",
+      "playerId": "",
+      "pointsAgainst": 0,
+      "pointsFor": 0,
+      "sessions": [],
+      "topOpponents": [],
+      "topPartners": [],
+      "tournamentStats": {
+        "gamesPlayed": 0,
+        "losses": 0,
+        "topOpponents": [],
+        "topPartners": [],
+        "tournaments": [],
+        "wins": 0
+      },
+      "wins": 0
+    }
+  }
+}

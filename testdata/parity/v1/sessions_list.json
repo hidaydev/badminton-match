@@ -1,0 +1,28 @@
+{
+  "route": "GET /sessions",
+  "request": {
+    "method": "GET",
+    "path": "/sessions"
+  },
+  "expect": {
+    "status": 200,
+    "body": [
+      {
+        "date": "2026-10-29",
+        "id": "v1demo0002",
+        "locked": true,
+        "player_count": 0,
+        "title": "Thursday Night",
+        "total_games": 0
+      },
+      {
+        "date": "2026-10-27",
+        "id": "v1demo0001",
+        "locked": true,
+        "player_count": 8,
+        "title": "Tuesday Night",
+        "total_games": 3
+      }
+    ]
+  }
+}

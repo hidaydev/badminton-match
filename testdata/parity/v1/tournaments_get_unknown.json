@@ -1,0 +1,16 @@
+{
+  "route": "GET /tournaments/{id}",
+  "request": {
+    "method": "GET",
+    "path": "/tournaments/nope"
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "error": {
+        "code": "not_found",
+        "message": "tournament not found"
+      }
+    }
+  }
+}

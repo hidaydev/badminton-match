@@ -1,0 +1,11 @@
+{
+  "route": "GET /metrics",
+  "request": {
+    "method": "GET",
+    "path": "/metrics"
+  },
+  "expect": {
+    "status": 200,
+    "body": "# majadu granular metrics (in-memory, since process start)\nmajadu_granular_ops_total {number}\nmajadu_granular_conflicts_total {number}\nmajadu_auto_locks_total {number}\nmajadu_snapshot_puts_total {number}\nmajadu_outbox_events_total {number}\nmajadu_idempotency_hits_total {number}"
+  }
+}

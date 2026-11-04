@@ -1,0 +1,16 @@
+{
+  "route": "GET /admin/verify",
+  "request": {
+    "method": "GET",
+    "path": "/admin/verify",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "ok": true
+    }
+  }
+}

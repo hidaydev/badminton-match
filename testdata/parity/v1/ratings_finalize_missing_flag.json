@@ -1,0 +1,20 @@
+{
+  "route": "POST /ratings/sources/{sourceId}/finalize",
+  "request": {
+    "method": "POST",
+    "path": "/ratings/sources/unknown/finalize",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    },
+    "body": "{}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "finalized is required"
+      }
+    }
+  }
+}

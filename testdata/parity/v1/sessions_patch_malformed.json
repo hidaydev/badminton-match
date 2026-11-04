@@ -1,0 +1,17 @@
+{
+  "route": "PATCH /sessions/{id}",
+  "request": {
+    "method": "PATCH",
+    "path": "/sessions/v1demo0001",
+    "body": "{"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "invalid JSON body"
+      }
+    }
+  }
+}

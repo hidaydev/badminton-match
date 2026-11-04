@@ -1,0 +1,29 @@
+{
+  "route": "GET /sessions/{id}",
+  "request": {
+    "method": "GET",
+    "path": "/sessions/v1demo0002"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "fixMatches": [],
+      "gameScores": {},
+      "playedGames": [],
+      "players": [],
+      "schedule": [],
+      "session": {
+        "courtNames": null,
+        "courtTimes": null,
+        "courts": 0,
+        "date": "2026-10-29",
+        "locked": true,
+        "playerCount": 0,
+        "sessionStart": "19:30",
+        "slotMinutes": 30,
+        "title": "Thursday Night"
+      },
+      "version": 2
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "route": "GET /players",
+  "request": {
+    "method": "GET",
+    "path": "/players"
+  },
+  "expect": {
+    "status": 200,
+    "body": [
+      {
+        "gender": "M",
+        "name": "Andi",
+        "playerId": "{uuid}",
+        "tier": 3,
+        "tierInduk": "C"
+      },
+      {
+        "gender": "M",
+        "name": "Budi",
+        "playerId": "{uuid}",
+        "tier": 4,
+        "tierInduk": "C+"
+      },
+      {
+        "gender": "M",
+        "name": "Chandra",
+        "playerId": "{uuid}",
+        "tier": 5,
+        "tierInduk": "B"
+      },
+      {
+        "gender": "F",
+        "name": "Dewi",
+        "playerId": "{uuid}",
+        "tier": 6,
+        "tierInduk": "B+"
+      },
+      {
+        "gender": "F",
+        "name": "Eka",
+        "playerId": "{uuid}",
+        "tier": 3,
+        "tierInduk": "C"
+      },
+      {
+        "gender": "M",
+        "name": "Fajar",
+        "playerId": "{uuid}",
+        "tier": 2,
+        "tierInduk": "D+"
+      },
+      {
+        "gender": "F",
+        "name": "Gita",
+        "playerId": "{uuid}",
+        "tier": 7,
+        "tierInduk": "A"
+      },
+      {
+        "gender": "M",
+        "name": "Hadi",
+        "playerId": "{uuid}",
+        "tier": 8,
+        "tierInduk": "A+"
+      }
+    ]
+  }
+}

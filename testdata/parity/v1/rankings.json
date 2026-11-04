@@ -1,0 +1,17 @@
+{
+  "route": "GET /rankings",
+  "request": {
+    "method": "GET",
+    "path": "/rankings"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "as_of": "",
+      "best_n": 10,
+      "min_sessions": 0,
+      "rows": [],
+      "window_weeks": 12
+    }
+  }
+}

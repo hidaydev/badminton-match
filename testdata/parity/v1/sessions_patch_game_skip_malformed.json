@@ -1,0 +1,17 @@
+{
+  "route": "PATCH /sessions/{id}/games/{gameKey}/skip",
+  "request": {
+    "method": "PATCH",
+    "path": "/sessions/v1demo0001/games/0-0/skip",
+    "body": "{"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "invalid JSON body"
+      }
+    }
+  }
+}

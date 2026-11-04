@@ -1,0 +1,20 @@
+{
+  "route": "PATCH /players/{playerId}/name",
+  "request": {
+    "method": "PATCH",
+    "path": "/players/11111111-1111-1111-1111-111111111101/name",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    },
+    "body": "{\"name\":\"\"}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "name is required"
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "route": "GET /sessions/{id}/games/{gameKey}",
+  "request": {
+    "method": "GET",
+    "path": "/sessions/v1demo0001/games/0"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "invalid session state: validation failed: invalid gameKey \"0\""
+      }
+    }
+  }
+}

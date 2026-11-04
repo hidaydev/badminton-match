@@ -1,0 +1,17 @@
+{
+  "route": "POST /players",
+  "request": {
+    "method": "POST",
+    "path": "/players",
+    "body": "{"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "name is required"
+      }
+    }
+  }
+}

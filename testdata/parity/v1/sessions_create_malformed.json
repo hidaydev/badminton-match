@@ -1,0 +1,17 @@
+{
+  "route": "POST /sessions",
+  "request": {
+    "method": "POST",
+    "path": "/sessions",
+    "body": "{"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "invalid JSON body: unexpected end of JSON input"
+      }
+    }
+  }
+}

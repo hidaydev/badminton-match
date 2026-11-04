@@ -1,0 +1,139 @@
+{
+  "route": "GET /sessions/{id}",
+  "request": {
+    "method": "GET",
+    "path": "/sessions/v1demo0001"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "fixMatches": [],
+      "gameScores": {
+        "0-0": {
+          "a": 21,
+          "b": 18
+        },
+        "0-1": {
+          "a": 15,
+          "b": 21
+        }
+      },
+      "playedGames": [
+        "0-0",
+        "0-1"
+      ],
+      "players": [
+        {
+          "gender": "M",
+          "id": "p1",
+          "name": "Andi",
+          "tier": 3
+        },
+        {
+          "gender": "M",
+          "id": "p2",
+          "name": "Budi",
+          "tier": 4
+        },
+        {
+          "gender": "M",
+          "id": "p3",
+          "name": "Chandra",
+          "tier": 5
+        },
+        {
+          "gender": "F",
+          "id": "p4",
+          "name": "Dewi",
+          "tier": 6
+        },
+        {
+          "gender": "F",
+          "id": "p5",
+          "name": "Eka",
+          "tier": 3
+        },
+        {
+          "gender": "M",
+          "id": "p6",
+          "name": "Fajar",
+          "tier": 2
+        },
+        {
+          "gender": "F",
+          "id": "p7",
+          "name": "Gita",
+          "tier": 7
+        },
+        {
+          "gender": "M",
+          "id": "p8",
+          "name": "Hadi",
+          "tier": 8
+        }
+      ],
+      "schedule": [
+        {
+          "court": 0,
+          "slot": 0,
+          "teamA": [
+            "",
+            ""
+          ],
+          "teamB": [
+            "",
+            ""
+          ]
+        },
+        {
+          "court": 1,
+          "slot": 0,
+          "teamA": [
+            "",
+            ""
+          ],
+          "teamB": [
+            "",
+            ""
+          ]
+        },
+        {
+          "court": 0,
+          "slot": 1,
+          "teamA": [
+            "",
+            ""
+          ],
+          "teamB": [
+            "",
+            ""
+          ]
+        }
+      ],
+      "session": {
+        "courtNames": [
+          "Court 1",
+          "Court 2"
+        ],
+        "courtTimes": [
+          {
+            "end": "21:00",
+            "start": "19:00"
+          },
+          {
+            "end": "21:00",
+            "start": "19:00"
+          }
+        ],
+        "courts": 2,
+        "date": "2026-10-27",
+        "locked": true,
+        "playerCount": 8,
+        "sessionStart": "19:00",
+        "slotMinutes": 30,
+        "title": "Tuesday Night"
+      },
+      "version": 3
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "route": "GET /tournaments/{id}",
+  "request": {
+    "method": "GET",
+    "path": "/tournaments/v1tour0001"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "date": "2026-10-25",
+      "format": "classic",
+      "groups": {},
+      "matches": [
+        {
+          "id": "final-1",
+          "pairAId": "p1",
+          "pairBId": "p2",
+          "phase": "final",
+          "scoreA": 21,
+          "scoreB": 17
+        }
+      ],
+      "name": "Autumn Cup",
+      "pairs": [
+        {
+          "id": "p1",
+          "name": "Andi / Budi"
+        },
+        {
+          "id": "p2",
+          "name": "Chandra / Dewi"
+        }
+      ],
+      "version": 1
+    }
+  }
+}

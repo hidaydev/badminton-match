@@ -1,0 +1,16 @@
+{
+  "route": "POST /sessions/{id}/unlock",
+  "request": {
+    "method": "POST",
+    "path": "/sessions/v1demo0001/unlock"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

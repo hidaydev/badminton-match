@@ -1,0 +1,16 @@
+{
+  "route": "GET /ratings/players/{playerId}",
+  "request": {
+    "method": "GET",
+    "path": "/ratings/players/99999999-9999-9999-9999-999999999999"
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "error": {
+        "code": "not_found",
+        "message": "player not rated"
+      }
+    }
+  }
+}

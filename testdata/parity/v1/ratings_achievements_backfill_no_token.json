@@ -1,0 +1,16 @@
+{
+  "route": "POST /ratings/achievements/backfill",
+  "request": {
+    "method": "POST",
+    "path": "/ratings/achievements/backfill"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

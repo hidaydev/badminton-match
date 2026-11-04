@@ -1,0 +1,16 @@
+{
+  "route": "DELETE /players/{playerId}",
+  "request": {
+    "method": "DELETE",
+    "path": "/players/11111111-1111-1111-1111-111111111101"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

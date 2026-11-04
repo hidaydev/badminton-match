@@ -1,0 +1,20 @@
+{
+  "route": "POST /ratings/revert-tournament",
+  "request": {
+    "method": "POST",
+    "path": "/ratings/revert-tournament",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    },
+    "body": "{}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "tournamentId is required"
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "route": "GET /admin/verify",
+  "request": {
+    "method": "GET",
+    "path": "/admin/verify"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

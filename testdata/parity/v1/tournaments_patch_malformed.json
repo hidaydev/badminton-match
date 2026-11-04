@@ -1,0 +1,17 @@
+{
+  "route": "PATCH /tournaments/{id}",
+  "request": {
+    "method": "PATCH",
+    "path": "/tournaments/v1tour0001",
+    "body": "{"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "invalid JSON body"
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "route": "PATCH /players/{playerId}/name",
+  "request": {
+    "method": "PATCH",
+    "path": "/players/11111111-1111-1111-1111-111111111101/name",
+    "body": "{\"name\":\"Andi\"}"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

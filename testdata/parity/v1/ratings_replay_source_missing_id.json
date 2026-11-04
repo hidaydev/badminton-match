@@ -1,0 +1,20 @@
+{
+  "route": "POST /ratings/replay-source",
+  "request": {
+    "method": "POST",
+    "path": "/ratings/replay-source",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    },
+    "body": "{}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "error": {
+        "code": "validation_error",
+        "message": "sourceId is required"
+      }
+    }
+  }
+}

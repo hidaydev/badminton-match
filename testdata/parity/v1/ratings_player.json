@@ -1,0 +1,18 @@
+{
+  "route": "GET /ratings/players/{playerId}",
+  "request": {
+    "method": "GET",
+    "path": "/ratings/players/11111111-1111-1111-1111-111111111101"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "games": 2,
+      "history": [],
+      "losses": 1,
+      "name": "Andi",
+      "tier": "C",
+      "wins": 1
+    }
+  }
+}

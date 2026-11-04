@@ -1,0 +1,17 @@
+{
+  "route": "POST /players/merge",
+  "request": {
+    "method": "POST",
+    "path": "/players/merge",
+    "body": "{}"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

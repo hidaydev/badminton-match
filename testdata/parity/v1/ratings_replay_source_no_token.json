@@ -1,0 +1,17 @@
+{
+  "route": "POST /ratings/replay-source",
+  "request": {
+    "method": "POST",
+    "path": "/ratings/replay-source",
+    "body": "{\"sourceId\":\"unknown\"}"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "route": "POST /sessions/{id}/lock",
+  "request": {
+    "method": "POST",
+    "path": "/sessions/v1demo0001/lock",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    }
+  },
+  "expect": {
+    "status": 428,
+    "body": {
+      "error": {
+        "code": "precondition_required",
+        "message": "If-Match header is required for mutations"
+      }
+    }
+  }
+}

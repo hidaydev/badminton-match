@@ -1,0 +1,13 @@
+{
+  "route": "GET /ratings/players/{playerId}/achievements",
+  "request": {
+    "method": "GET",
+    "path": "/ratings/players/11111111-1111-1111-1111-111111111101/achievements"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "achievements": []
+    }
+  }
+}

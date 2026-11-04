@@ -1,0 +1,17 @@
+{
+  "route": "PUT /tournaments/{id}",
+  "request": {
+    "method": "PUT",
+    "path": "/tournaments/v1tour0001",
+    "body": "{}"
+  },
+  "expect": {
+    "status": 428,
+    "body": {
+      "error": {
+        "code": "precondition_required",
+        "message": "If-Match (or snapshot version) is required to update an existing tournament"
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "route": "POST /sessions/{id}/unlock",
+  "request": {
+    "method": "POST",
+    "path": "/sessions/nope/unlock",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    }
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "error": {
+        "code": "not_found",
+        "message": "session not found"
+      }
+    }
+  }
+}

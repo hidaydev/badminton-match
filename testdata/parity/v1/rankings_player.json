@@ -1,0 +1,14 @@
+{
+  "route": "GET /rankings/players/{playerId}",
+  "request": {
+    "method": "GET",
+    "path": "/rankings/players/11111111-1111-1111-1111-111111111101"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "found": false,
+      "min_sessions": 0
+    }
+  }
+}

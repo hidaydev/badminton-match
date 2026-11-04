@@ -1,0 +1,16 @@
+{
+  "route": "POST /tournaments/{id}/delete",
+  "request": {
+    "method": "POST",
+    "path": "/tournaments/v1tour0001/delete"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

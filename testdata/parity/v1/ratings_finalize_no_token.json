@@ -1,0 +1,17 @@
+{
+  "route": "POST /ratings/sources/{sourceId}/finalize",
+  "request": {
+    "method": "POST",
+    "path": "/ratings/sources/unknown/finalize",
+    "body": "{\"finalized\":true}"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "error": {
+        "code": "unauthorized",
+        "message": "missing Bearer token"
+      }
+    }
+  }
+}

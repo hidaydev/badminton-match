@@ -1,0 +1,19 @@
+{
+  "route": "GET /sessions/{id}/games/{gameKey}",
+  "request": {
+    "method": "GET",
+    "path": "/sessions/v1demo0001/games/0-0"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "court": 0,
+      "isPlayed": true,
+      "scoreA": 21,
+      "scoreB": 18,
+      "skippedRefs": [],
+      "slot": 0,
+      "version": 2
+    }
+  }
+}

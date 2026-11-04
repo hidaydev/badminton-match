@@ -1,0 +1,18 @@
+{
+  "route": "GET /tournaments",
+  "request": {
+    "method": "GET",
+    "path": "/tournaments"
+  },
+  "expect": {
+    "status": 200,
+    "body": [
+      {
+        "date": "2026-10-25",
+        "format": "classic",
+        "id": "v1tour0001",
+        "name": "Autumn Cup"
+      }
+    ]
+  }
+}

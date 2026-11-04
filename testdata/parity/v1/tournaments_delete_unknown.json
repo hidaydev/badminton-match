@@ -1,0 +1,19 @@
+{
+  "route": "POST /tournaments/{id}/delete",
+  "request": {
+    "method": "POST",
+    "path": "/tournaments/nope/delete",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    }
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "error": {
+        "code": "not_found",
+        "message": "tournament not found"
+      }
+    }
+  }
+}

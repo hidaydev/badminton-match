@@ -1,0 +1,15 @@
+{
+  "route": "GET /version",
+  "request": {
+    "method": "GET",
+    "path": "/version"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "commit": "none",
+      "date": "unknown",
+      "version": "dev"
+    }
+  }
+}

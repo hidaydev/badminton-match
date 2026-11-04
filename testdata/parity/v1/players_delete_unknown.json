@@ -1,0 +1,19 @@
+{
+  "route": "DELETE /players/{playerId}",
+  "request": {
+    "method": "DELETE",
+    "path": "/players/99999999-9999-9999-9999-999999999999",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    }
+  },
+  "expect": {
+    "status": 500,
+    "body": {
+      "error": {
+        "code": "database_error",
+        "message": "failed to delete player"
+      }
+    }
+  }
+}

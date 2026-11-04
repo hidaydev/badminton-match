@@ -1,0 +1,14 @@
+{
+  "route": "GET /sessions/{id}/events",
+  "request": {
+    "method": "GET",
+    "path": "/sessions/nope/events"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "events": null,
+      "nextSince": 0
+    }
+  }
+}

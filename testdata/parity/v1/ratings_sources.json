@@ -1,0 +1,13 @@
+{
+  "route": "GET /ratings/sources",
+  "request": {
+    "method": "GET",
+    "path": "/ratings/sources"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "sources": []
+    }
+  }
+}

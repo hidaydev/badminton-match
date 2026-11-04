@@ -1,0 +1,19 @@
+{
+  "route": "POST /sessions/{id}/delete",
+  "request": {
+    "method": "POST",
+    "path": "/sessions/nope/delete",
+    "headers": {
+      "Authorization": "Bearer test-admin"
+    }
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "error": {
+        "code": "not_found",
+        "message": "session not found"
+      }
+    }
+  }
+}

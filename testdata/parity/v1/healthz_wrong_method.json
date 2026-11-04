@@ -1,0 +1,11 @@
+{
+  "route": "GET /healthz",
+  "request": {
+    "method": "POST",
+    "path": "/healthz"
+  },
+  "expect": {
+    "status": 405,
+    "body": "Method Not Allowed\n"
+  }
+}
