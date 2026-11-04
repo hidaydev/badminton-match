@@ -131,7 +131,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: "Image: build"
-        run: docker build -t majadu-api:ci apps/api
+        run: docker build -f apps/api/Dockerfile -t majadu-api:ci .
 
   gate:
     name: "Gate"

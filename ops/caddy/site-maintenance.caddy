@@ -1,0 +1,8 @@
+# Maintenance site: everything answers 503 with Retry-After, so a write never
+# reaches a service whose database is being replaced. cutover.sh switches to
+# this before it stops v1, and away from it only after smoke passed.
+api.qouver.com {
+	header Retry-After 120
+	header Cache-Control "no-store"
+	respond "Majadu is being updated. Please reload in a few minutes." 503
+}

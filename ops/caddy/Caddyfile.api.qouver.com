@@ -1,14 +1,12 @@
-# Caddy site untuk majadu-api — tambahkan ke /etc/caddy/Caddyfile di VPS.
-# Syarat: DNS api.qouver.com → A → 198.51.100.10 (Cloudflare).
-# Setelah ditambah: systemctl reload caddy
+# Site file for api.qouver.com - copy to /etc/caddy/Caddyfile (or import it from
+# there) and reload Caddy.
+#
+# The active snippet is a symlink the operator never edits by hand:
+#   /srv/qouver/apps/majadu/caddy/active.caddy -> site-v1.caddy
+#                                              -> site-v2.caddy
+#                                              -> site-maintenance.caddy
+# cutover.sh, rollback.sh and deploy failure handling move that symlink and run
+# `caddy validate` before every reload, so a bad switch is refused instead of
+# taking the site down.
 
-api.qouver.com {
-	# prod instance (bm) — frontend branch main (dev /majadu-dev di-sunset 2026-09-04)
-	handle /majadu/* {
-		uri strip_prefix /majadu
-		reverse_proxy 127.0.0.1:8080
-	}
-	handle {
-		respond "not found" 404
-	}
-}
+import /srv/qouver/apps/majadu/caddy/active.caddy

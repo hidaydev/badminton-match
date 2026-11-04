@@ -1,0 +1,6 @@
+# v2 site: the Nim API on `bm2`. Same port as v1 because only one of the two
+# runs at a time; the health of the process, not the port, decides which one.
+api.qouver.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
+}

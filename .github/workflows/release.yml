@@ -108,7 +108,7 @@ jobs:
           TAG: ${{ github.ref_name }}
           IMAGE: ghcr.io/${{ github.repository }}
         run: |
-          docker build -t "$IMAGE:$TAG" apps/api
+          docker build -f apps/api/Dockerfile -t "$IMAGE:$TAG" .
           docker push "$IMAGE:$TAG"
           digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$TAG")
           digest=${digest#*@}

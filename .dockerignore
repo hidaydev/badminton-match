@@ -1,0 +1,11 @@
+# The image build needs shared/, apps/api/, db/ and tools/ only; everything else
+# would be sent to the daemon on every build for nothing.
+.git
+.cache
+node_modules
+apps/web
+e2e
+docs
+packages
+ops
+testdata

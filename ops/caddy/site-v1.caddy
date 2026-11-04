@@ -1,0 +1,6 @@
+# v1 site: the Go API, still running on `bm` before the cutover and again after
+# a rollback. cutover.sh and rollback.sh switch active.caddy to this file.
+api.qouver.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8080
+}
