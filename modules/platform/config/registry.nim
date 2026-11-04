@@ -19,6 +19,11 @@ type
     keyIngestTickerMinutes = "ingest.ticker_minutes"
     keyApiPageSizeDefault = "api.page_size_default"
     keyRankBoardLimit = "rank.board_limit"
+    keyRatingSessionBase = "rating.session_base"
+    keyRatingOpponentClamp = "rating.opponent_clamp"
+    keyRatingWindowWeeks = "rating.window_weeks"
+    keyRatingBestN = "rating.best_n"
+    keyRatingThinEvidenceN = "rating.thin_evidence_n"
     keyRatingTierBands = "rating.tier_bands"
     keyTournamentClassicPairCount = "tournament.classic.pair_count"
     keySecurityAllowedOrigins = "security.allowed_origins"
@@ -61,6 +66,11 @@ const allKeys* = [
   spec(keyIngestTickerMinutes, ctInt, 1, 1440, true),
   spec(keyApiPageSizeDefault, ctInt, 1, 1000, true),
   spec(keyRankBoardLimit, ctInt, 1, 10_000, true),
+  spec(keyRatingSessionBase, ctDecimal, 0, 100_000, true),
+  spec(keyRatingOpponentClamp, ctJson),
+  spec(keyRatingWindowWeeks, ctInt, 1, 520, true),
+  spec(keyRatingBestN, ctInt, 1, 100, true),
+  spec(keyRatingThinEvidenceN, ctInt, 0, 100, true),
   spec(keyRatingTierBands, ctJson),
   spec(keyTournamentClassicPairCount, ctInt, 2, 256, true),
   spec(keySecurityAllowedOrigins, ctJson),

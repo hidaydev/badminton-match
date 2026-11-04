@@ -111,6 +111,13 @@ proc intValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): int =
     return override.get.getInt()
   lookup(snapshot, key).getInt()
 
+proc decimalValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): float =
+  let override = communityValue(settings, key)
+  if override.isSome:
+    validateValue(specFor(key), override.get)
+    return override.get.getFloat()
+  lookup(snapshot, key).getFloat()
+
 proc stringValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): string =
   let override = communityValue(settings, key)
   if override.isSome:
