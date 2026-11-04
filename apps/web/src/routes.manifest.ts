@@ -7,6 +7,8 @@ import ExportPage from './pages/ExportPage'
 import HomePage from './pages/HomePage'
 import PlaceholderPage from './pages/PlaceholderPage'
 import RankingsPage from './pages/RankingsPage'
+import SessionPage from './pages/SessionPage'
+import SessionsPage from './pages/SessionsPage'
 import RatingPlayerPage from './pages/RatingPlayerPage'
 import TournamentClassicPage from './pages/TournamentClassicPage'
 import TournamentTeamPage from './pages/TournamentTeamPage'
@@ -57,10 +59,17 @@ export const routes: readonly RouteEntry[] = [
   {
     path: '/c/:slug/sessions',
     labelKey: 'nav.sessions',
-    element: placeholder('nav.sessions'),
+    element: createElement(SessionsPage),
     requiresAuth: true,
     roles: ALL_ROLES,
     navGroup: 'main',
+  },
+  {
+    path: '/c/:slug/sessions/:id',
+    labelKey: 'sessions.title',
+    element: createElement(SessionPage),
+    requiresAuth: true,
+    roles: ALL_ROLES,
   },
   {
     path: '/c/:slug/players',
