@@ -214,11 +214,17 @@ suite "community HTTP":
     check info["version"].getStr() == expectedVersion
     check info["commit"].getStr().len > 0
 
-  test "config exposes effective values to admins only":
+  test "config exposes effective values to every member":
+    # Every member screen reads this (export sizes, page limits). Making it
+    # admin-only left a plain member's community page broken with a 403.
     discard membership.add(database, clubId, memberId, "member")
-    let (memberStatus, _) = call(HttpGet, "/c/http-club/config", memberCookie)
-    check memberStatus == 403
+    let (memberStatus, memberBody) = call(HttpGet, "/c/http-club/config", memberCookie)
+    check memberStatus == 200
+    check parseJson(memberBody)["effective"]["api.page_size_default"]["source"].getStr() ==
+      "platform"
     let (adminStatus, body) = call(HttpGet, "/c/http-club/config", adminCookie)
     check adminStatus == 200
     check parseJson(body)["effective"]["api.page_size_default"]["source"].getStr() ==
       "platform"
+    let (anonymous, _) = call(HttpGet, "/c/http-club/config")
+    check anonymous == 401

@@ -82,3 +82,21 @@ suite "authorization matrix":
     for operationId in operations.keys:
       let access = parseAccess(operations[operationId])
       check access.describe().len > 0
+
+  test "the public doors are public":
+    # Login starts without a session, the directory is for outsiders, and a
+    # join request is accepted from someone who is not signed in yet.
+    let operations = loadMatrix()
+    for operationId in ["postAuthStart", "getDirectory", "createJoinRequest"]:
+      check parseAccess(operations[operationId]).isPublic
+
+  test "player administration is admin-only, not host":
+    # Hosts run the session; deleting a player, merging two or deciding a claim
+    # rewrites history, and the handlers use the admin gate for exactly that.
+    let operations = loadMatrix()
+    for operationId in ["deletePlayer", "postPlayerMerge", "patchPlayerClaim",
+                        "listRatingSources"]:
+      let access = parseAccess(operations[operationId])
+      check access.can(principal(role = some(rAdmin)))
+      check not access.can(principal(role = some(rHost)))
+      check not access.can(principal(role = some(rMember)))

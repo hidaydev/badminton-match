@@ -29,9 +29,13 @@ riwayat publik bersama `docs/audits`.
 |---|---|
 | Task | 88 (termasuk T-008a/T-008b) |
 | Requirement | 72 |
-| Operasi API v2 | 73 |
+| Operasi API v2 | 74 |
 | ADR | 31 (ADR-001..ADR-031) |
 | Keputusan pemilik | O-1..O-43 |
+
+Angka operasi dinaikkan 73 → 74 pada 2026-11-04 atas persetujuan pemilik
+(operasi `getSessionStandings` untuk halaman ekspor); alasannya di
+`CHANGELOG-frozen.md`. Dokumen beku lain tidak berubah dan hash di atas tetap.
 
 Kedua checker harus bersih sebelum dan sesudah setiap perubahan yang diizinkan:
 
@@ -60,7 +64,7 @@ R0 belum selesai sampai semua baris ini benar:
 
 - [x] `./task check` lulus, hangat ≤ 60 s, tanpa DB (14 s; 33 berkas archcheck).
 - [x] `./task dev-db` membuat `bm2_dev` + `bm2_template`; `dbtools verify` bersih.
-- [x] `./task contract-gen` menghasilkan tepat **73** operasi dan CI gagal bila
+- [x] `./task contract-gen` menghasilkan tepat **74** operasi dan CI gagal bila
       hasil generate berbeda dari commit (`--check`).
 - [x] Walking skeleton lewat HTTP: login stub → pilih komunitas → buat sesi →
       share → `GET /s/{code}` dan `GET /s/{code}/rankings`

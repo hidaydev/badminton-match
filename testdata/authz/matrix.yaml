@@ -15,7 +15,7 @@
       ]
     },
     "createJoinRequest": {
-      "auth": "session"
+      "auth": "public"
     },
     "createPlayer": {
       "auth": "session",
@@ -60,7 +60,6 @@
     "deletePlayer": {
       "auth": "session",
       "roles": [
-        "host",
         "admin"
       ]
     },
@@ -107,7 +106,7 @@
       "auth": "session"
     },
     "getDirectory": {
-      "auth": "session"
+      "auth": "public"
     },
     "getHealthz": {
       "auth": "public"
@@ -180,7 +179,10 @@
       "auth": "session"
     },
     "listRatingSources": {
-      "auth": "session"
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
     },
     "listSessions": {
       "auth": "session"
@@ -214,7 +216,6 @@
     "patchPlayerClaim": {
       "auth": "session",
       "roles": [
-        "host",
         "admin"
       ]
     },
@@ -262,7 +263,7 @@
       "auth": "session"
     },
     "postAuthStart": {
-      "auth": "session"
+      "auth": "public"
     },
     "postPlayerClaim": {
       "auth": "session"
@@ -270,7 +271,6 @@
     "postPlayerMerge": {
       "auth": "session",
       "roles": [
-        "host",
         "admin"
       ]
     },

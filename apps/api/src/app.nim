@@ -2220,6 +2220,19 @@ proc route(request: Request) =
           return
         listMembers(request, ctx.get)
         return
+      # The effective config is what a member's screen reads (export sizes,
+      # page limits). Community settings are readable by members too, so this
+      # cannot be admin-only without breaking every page a host opens.
+      if parts[3] == "config" and parts.len == 4 and verb == "GET":
+        let user = requireUser(request)
+        if user.isNone: return
+        let (decision, ctx) = decide(user.get,
+          cookieValue(request, "majadu_session"), parts[2], readAccess())
+        if decision != gAllowed:
+          respondGate(request, decision)
+          return
+        communityConfig(request, ctx.get)
+        return
       let admin = adminGate(request, parts[2])
       if admin.isNone: return
       let (user, ctx) = admin.get
@@ -2236,9 +2249,6 @@ proc route(request: Request) =
         return
       if parts[3] == "invites" and parts.len == 4 and verb == "POST":
         createInvite(request, ctx, user)
-        return
-      if parts[3] == "config" and parts.len == 4 and verb == "GET":
-        communityConfig(request, ctx)
         return
       problem(request, 404, "NOT_FOUND", "route not found")
       return
