@@ -29,6 +29,7 @@ import account/domain/roles
 import account/infrastructure/audit_store
 import account/infrastructure/jwt_rs256
 import account/infrastructure/oidc
+import account/infrastructure/ops_token as opsToken
 import account/infrastructure/session_store
 import platform/config/store
 
@@ -988,6 +989,23 @@ proc releaseOwnClaim(request: Request, ctx: CommunityContext, user: AuthUser,
     %*{"playerId": playerId, "status": "released"})
   jsonResponse(request, 200, %*{"claimId": claimId, "status": "released"})
 
+proc bearerToken(request: Request): string =
+  let header = request.headers["Authorization"]
+  if not header.startsWith("Bearer "):
+    return ""
+  header[7 .. ^1].strip()
+
+proc opsPing(request: Request) =
+  ## Ops routes accept only a bearer token. A valid browser cookie is not enough,
+  ## and the same token never authenticates a web route because those read only
+  ## the session cookie.
+  let name = opsToken.verify(application.db, bearerToken(request))
+  if name.isNone:
+    problem(request, 401, "UNAUTHENTICATED", "ops token required")
+    return
+  jsonResponse(request, 200, %*{"ok": true, "token": name.get},
+    [("Cache-Control", "no-store")])
+
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
   ## Re-display of the live code: host/admin only, and every read is audited.
@@ -1161,6 +1179,12 @@ proc route(request: Request) =
           return
     if path == "/healthz":
       send(request, 200, """{"status":"ok"}""")
+      return
+    if path.startsWith("/ops/"):
+      if path == "/ops/ping" and request.httpMethod == "GET":
+        opsPing(request)
+      else:
+        problem(request, 404, "NOT_FOUND", "route not found")
       return
     if path == "/readyz":
       discard application.db.queryOne("select 1 as ok")

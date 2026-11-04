@@ -18,6 +18,7 @@ Targets:
   bootstrap    migrate, seed config, first platform owner + default community
   dev-db       create the local PostgreSQL databases and roles
   dev-v1       rebuild the local v1 database (captured schema + synthetic data)
+  opstoken     issue, list or revoke CLI bearer tokens
   janitor      purge expired temporary rows with the application role
   audit-retention  prune audit rows with the owner role (MAJADU_AUDIT_DSN)
   contract-gen generate Nim routes and the TypeScript client
