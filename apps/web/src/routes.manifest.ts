@@ -9,6 +9,7 @@ import PlaceholderPage from './pages/PlaceholderPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
 import PlayersPage from './pages/PlayersPage'
 import SettingsPage from './pages/SettingsPage'
+import SetupPage from './pages/SetupPage'
 import RankingsPage from './pages/RankingsPage'
 import SessionPage from './pages/SessionPage'
 import SessionsPage from './pages/SessionsPage'
@@ -165,7 +166,7 @@ export const routes: readonly RouteEntry[] = [
   {
     path: '/owner/communities',
     labelKey: 'nav.owner',
-    element: placeholder('nav.owner'),
+    element: createElement(SetupPage),
     requiresAuth: true,
     platformOwner: true,
     navGroup: 'owner',
