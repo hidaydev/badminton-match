@@ -3,6 +3,8 @@
 -- data change, not a deploy. `dbtools seed` records this file by name+checksum.
 
 insert into platform.config (key, value_type, value, min_value, max_value, scope, description) values
+  ('community.directory_enabled', 'bool', 'false', null, null, 'community',
+   'Whether the community directory is visible to members'),
   ('community.default_timezone', 'string', '"Asia/Jakarta"', null, null, 'community',
    'Timezone used when a community does not set one'),
   ('ingest.ticker_minutes', 'int', '30', 1, 1440, 'platform',
