@@ -16,6 +16,9 @@ import std/[json, options, os, sequtils, strutils, tables]
 import db/db
 import uuidv7
 import platform/config/registry
+import platform/config/store
+import rating/infrastructure/ingest as ratingIngest
+import rating/infrastructure/params
 
 type
   Dsn* = object
@@ -479,6 +482,119 @@ proc importGames(source, target: Db, communityId: string,
     1)
   stats
 
+proc communitySettings(db: Db, communityId: string): JsonNode =
+  let row = db.queryOne(
+    """select values::text as values from community.settings
+       where community_id = $1::uuid""", @[textParam(communityId)])
+  if row.isSome: parseJson(row.get.get("values")) else: newJObject()
+
+proc sourceToken(v1SourceId: string): (string, string) =
+  ## v1 wrote the source id as the share code and the kind in a separate column;
+  ## some dumps carry a `session:` prefix. Both forms name the same row.
+  for prefix in ["session:", "tournament_classic:", "tournament_team:"]:
+    if v1SourceId.startsWith(prefix):
+      return (v1SourceId[prefix.len .. ^1], prefix[0 ..< prefix.len - 1])
+  (v1SourceId, "")
+
+proc importRatingSources*(source, target: Db, communityId: string,
+                          dryRun: bool): Result =
+  ## The ledger itself is not copied: v1 stored outcomes without point values, so
+  ## its numbers cannot be turned into v2 deltas. What is copied is the sign-off,
+  ## and v2 then recomputes the events from the sessions it just imported.
+  var stats = Result()
+  discard target.tx(proc(conn: DbConn): int =
+    for row in source.query(
+      """select source_id, source_kind, finalized, ingested_at::text as ingested_at
+         from bm.rating_sources order by source_id"""):
+      let (token, prefixKind) = sourceToken(row.get("source_id"))
+      let kind = if row.get("source_kind") == "session": "session" else: "tournament"
+      var newSource: Option[string]
+      if kind == "session":
+        let old = source.queryOne(
+          """select id::text as id from bm.sessions
+             where share_code = $1 or id::text = $1""", @[textParam(token)])
+        if old.isSome:
+          newSource = mapLookup(conn, communityId, "session", old.get.get("id"))
+      else:
+        newSource = mapLookup(conn, communityId, "tournament", token)
+      if newSource.isNone:
+        inc stats.skipped
+        continue
+      if dryRun:
+        inc stats.created
+        continue
+      discard conn.execUpdate(
+        """insert into rating.sources
+             (community_id, source_id, kind, finalized, finalized_at, created_at)
+           values ($1::uuid, $2::uuid, $3, $4::boolean, $5::timestamptz,
+                   $6::timestamptz)
+           on conflict (community_id, source_id) do update
+             set kind = excluded.kind, finalized = excluded.finalized,
+                 finalized_at = excluded.finalized_at""",
+        @[textParam(communityId), textParam(newSource.get), textParam(kind),
+          textParam(if row.get("finalized") == "t": "true" else: "false"),
+          textParam(if row.get("finalized") == "t": row.get("ingested_at") else: ""),
+          textParam(row.get("ingested_at"))])
+      inc stats.created
+    1)
+  stats
+
+proc rebuildRating*(target: Db, communityId: string): tuple[events, deltas: int] =
+  ## Deterministic: the caller may run this as often as it likes. The delta count
+  ## is the rows written, not the award operations: v2 keeps one row per player
+  ## per game side, and reporting participations would overstate the ledger.
+  let snapshot = loadSnapshot(target)
+  let params = loadRatingParams(snapshot, communitySettings(target, communityId))
+  let outcome = ratingIngest.rebuild(target, communityId, params)
+  let rows = target.queryOne(
+    "select count(*)::int as n from rating.deltas where community_id = $1::uuid",
+    @[textParam(communityId)])
+  (events: outcome.events,
+   deltas: if rows.isSome: parseInt(rows.get.get("n")) else: 0)
+
+proc verifyRating*(source, target: Db, communityId: string): seq[string] =
+  ## The point scales differ, so the tally is what can be compared: v1 counted
+  ## games, wins and losses per player, and v2 counts the same things. A
+  ## difference is reported, not smoothed over, because a v1 policy the import
+  ## does not reproduce is exactly what the operator needs to know.
+  var oldToNew = initTable[string, string]()
+  for row in target.query(
+    """select old_id, new_id::text as new_id from import.row_map
+       where community_id = $1::uuid and entity = 'player'""",
+    @[textParam(communityId)]):
+    oldToNew[row.get("old_id")] = row.get("new_id")
+
+  var state = initTable[string, Row]()
+  for row in target.query(
+    """select player_id::text as player_id, games_played, wins, losses
+       from rating.player_state where community_id = $1::uuid""",
+    @[textParam(communityId)]):
+    state[row.get("player_id")] = row
+
+  var compared = 0
+  for row in source.query(
+    """select player_id::text as player_id, games_played, wins, losses
+       from bm.rating_players order by player_id"""):
+    let newId = oldToNew.getOrDefault(row.get("player_id"))
+    if newId.len == 0:
+      result.add "v1 rating row " & row.get("player_id") & " has no mapped player"
+      continue
+    if not state.hasKey(newId):
+      # v1 kept a tally row for every player, including the ones who never
+      # played; v2 only creates state for a player with a game.
+      if row.get("games_played") != "0":
+        result.add "player " & row.get("player_id") &
+          " has v1 games but no state in v2"
+      continue
+    inc compared
+    let ours = state[newId]
+    for field in ["games_played", "wins", "losses"]:
+      if ours.get(field) != row.get(field):
+        result.add "player " & row.get("player_id") & " has " & field &
+          " " & ours.get(field) & " in v2 but " & row.get(field) & " in v1"
+  if compared == 0 and result.len == 0:
+    result.add "no player has a v1 rating tally to compare"
+
 proc importEtl*(source, target: Db, slug, name, timezone: string,
                 dryRun: bool): tuple[players, aliases, sessions, courts,
                                      participants, games: Result] =
@@ -491,6 +607,12 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
   let courts = importCourts(source, target, communityId, dryRun)
   let participants = importParticipants(source, target, communityId, dryRun)
   let games = importGames(source, target, communityId, dryRun)
+  # The sign-off is v1 data; the numbers are recomputed from the games above, so
+  # the ledger v2 serves is produced by v2's own formula.
+  let sources = importRatingSources(source, target, communityId, dryRun)
+  var rebuilt = (events: 0, deltas: 0)
+  if not dryRun:
+    rebuilt = rebuildRating(target, communityId)
   result = (players: players, aliases: aliases, sessions: sessions,
             courts: courts, participants: participants, games: games)
   echo $(%*{
@@ -509,7 +631,9 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
                        "skipped": participants.skipped},
     "games": %*{"created": games.created, "updated": games.updated,
                 "skipped": games.skipped},
-    "skippedDomains": %["rating", "tournaments", "achievements", "snapshots"]})
+    "ratingSources": %*{"created": sources.created, "skipped": sources.skipped},
+    "rating": %*{"events": rebuilt.events, "deltas": rebuilt.deltas},
+    "skippedDomains": %["tournaments", "achievements", "snapshots"]})
 
 proc verifyPlayers*(source, target: Db, communityId: string): seq[string] =
   ## Compares the mapped rows field by field. Counts alone would hide a rename
@@ -731,15 +855,16 @@ proc verifyEtl(source, target: Db, slugArg: string) =
   problems.add verifyAliases(source, target, resolved)
   problems.add verifySessions(source, target, resolved)
   problems.add verifyGames(source, target, resolved)
+  problems.add verifyRating(source, target, resolved)
   if problems.len > 0:
     for problem in problems:
       stderr.writeLine "import: " & problem
     echo $(%*{"communityId": resolved, "problems": problems.len})
     quit(1)
   echo $(%*{"communityId": resolved, "problems": 0,
-            "checkedDomains": %["players", "aliases", "sessions", "games"],
-            "uncheckedDomains": %["rating", "tournaments", "achievements",
-                                  "snapshots"]})
+            "checkedDomains": %["players", "aliases", "sessions", "games",
+                                "rating"],
+            "uncheckedDomains": %["tournaments", "achievements", "snapshots"]})
 
 proc main() =
   let args = parseArgs()

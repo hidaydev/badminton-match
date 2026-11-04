@@ -1,4 +1,4 @@
-import std/[options, os, unittest]
+import std/[options, os, strutils, unittest]
 import db/db
 import ../main
 
@@ -123,7 +123,7 @@ suite "v1 import":
       "select ('2026-11-04 00:30:00+07'::timestamptz at time zone 'UTC')::date::text as day").get
     check utc.get("day") == "2026-11-03"
 
-  test "a session and its game arrive once, sides included":
+  test "a draft session and its game arrive once, sides included":
     discard source.execUpdate(
       "delete from bm.sessions where share_code = 'import-session-1'")
     let session = source.queryOne(
@@ -131,7 +131,7 @@ suite "v1 import":
            (share_code, title, session_date, session_start, slot_minutes,
             status, source, created_at, updated_at)
          values ('import-session-1', 'Imported Night', '2026-11-03', '19:00', 30,
-                 'published', 'manual', '2026-11-04 00:30:00+07',
+                 'draft', 'manual', '2026-11-04 00:30:00+07',
                  '2026-11-04 00:30:00+07')
          returning id::text as id""").get.get("id")
     var participants: seq[string] = @[]
@@ -186,7 +186,9 @@ suite "v1 import":
          where s.community_id = $1::uuid and s.title = 'Imported Night'""",
       @[textParam(communityId)]).get
     check imported.get("session_date") == "2026-11-03"
-    check imported.get("approved") == "t"
+    # A draft was never approved in v1, and the import must not invent approval:
+    # an approved draft would enter the rating rebuild.
+    check imported.get("approved") == "f"
     check imported.get("status") == "played"
     check imported.get("score_a") == "21"
     check imported.get("side_a") == "Import One"
@@ -198,6 +200,31 @@ suite "v1 import":
 
     var problems = verifySessions(source, target, communityId)
     problems.add verifyGames(source, target, communityId)
+    for problem in problems:
+      checkpoint problem
+    check problems.len == 0
+
+  test "the published session feeds the ledger and keeps its sign-off":
+    let community = target.queryOne(
+      "select id::text as id from platform.community where slug = 'import-test'"
+      ).get.get("id")
+    # The fixture's v1 session was published and finalized; the draft above must
+    # not add a second event.
+    let events = target.queryOne(
+      """select count(*)::int as n from rating.events
+         where community_id = $1::uuid""", @[textParam(community)]).get
+    check events.get("n") == "1"
+    let state = target.queryOne(
+      """select count(*)::int as n from rating.player_state
+         where community_id = $1::uuid""", @[textParam(community)]).get
+    check parseInt(state.get("n")) > 0
+    let sources = target.queryOne(
+      """select count(*)::int as n from rating.sources
+         where community_id = $1::uuid and finalized""",
+      @[textParam(community)]).get
+    check sources.get("n") == "1"
+
+    var problems = verifyRating(source, target, community)
     for problem in problems:
       checkpoint problem
     check problems.len == 0

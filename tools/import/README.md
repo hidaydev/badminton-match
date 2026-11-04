@@ -11,7 +11,7 @@ ETL sekali-jalan dari database v1 (`bm_staging`) ke v2. T-064.
 | Sesi + lapangan | `bm.sessions`, `bm.session_courts` | `session.sessions`, `session.courts` | sudah |
 | Peserta | `bm.session_players` | `session.participants` | sudah |
 | Jadwal + skor | `bm.scheduled_games`, `bm.scheduled_game_players` | `session.games` | sudah |
-| Rating | `bm.rating_*` | `rating.*` | belum |
+| Rating | `bm.rating_sources` | `rating.sources` + hitung ulang dari sesi | sudah (angka recompute) |
 | Turnamen | `bm.tournament_*` | `tournament.*` | belum |
 | Badge, snapshot | `bm.player_achievements`, `bm.rank_snapshots` | dihitung ulang | belum |
 
@@ -58,7 +58,15 @@ nim c -d:release -o:.cache/bin/majadu-import tools/import/main.nim
 5. **Tanggal tetap tanggal komunitas.** `session_date` dan `local_date` disalin
    sebagai tanggal, bukan dihitung dari UTC; `calendarDate` dipakai saat sebuah
    instan harus diterjemahkan, dan batas hari WIB diuji.
-6. **Peserta placeholder dilewati.** v1 mengizinkan `session_players.player_id`
+6. **Rating dihitung ulang, bukan disalin.** v1 menyimpan `rating_deltas` tanpa
+   nilai poin (hanya tim dan menang/kalah), sedangkan v2 menyimpan poin per
+   pemain. Angka v1 karenanya tidak bisa diubah menjadi delta v2. Yang diimpor
+   hanya tanda tangan sumber (`rating.sources.finalized`); event, delta, dan
+   `player_state` dihitung ulang oleh rumus v2 dari sesi yang baru masuk, dan
+   `verify` membandingkan yang memang sebanding: jumlah game, menang, kalah per
+   pemain. Selisih karena kebijakan v1 (mis. pra-musim) dilaporkan, bukan
+   ditutupi.
+7. **Peserta placeholder dilewati.** v1 mengizinkan `session_players.player_id`
    kosong; v2 mewajibkan pemain nyata. Baris seperti itu dihitung di `skipped`,
    dan sisi game yang hanya berisi placeholder menjadi kosong.
 
