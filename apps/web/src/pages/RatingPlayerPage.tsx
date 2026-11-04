@@ -2,16 +2,12 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { usePlayerProfile } from '../rankings/usePlayerProfile'
+import { formatDay } from '../utils/day'
 
 function genderKey(gender: string | null): MessageKey {
   if (gender === 'M') return 'player.gender.male'
   if (gender === 'F') return 'player.gender.female'
   return 'player.gender.unknown'
-}
-
-/** The API sends a timestamp; the badge shelf only needs its calendar day. */
-function formatDay(value: string): string {
-  return /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : value
 }
 
 export default function RatingPlayerPage() {

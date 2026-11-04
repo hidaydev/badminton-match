@@ -8,6 +8,7 @@ import HomePage from './pages/HomePage'
 import PlaceholderPage from './pages/PlaceholderPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
 import PlayersPage from './pages/PlayersPage'
+import SettingsPage from './pages/SettingsPage'
 import RankingsPage from './pages/RankingsPage'
 import SessionPage from './pages/SessionPage'
 import SessionsPage from './pages/SessionsPage'
@@ -150,7 +151,7 @@ export const routes: readonly RouteEntry[] = [
   {
     path: '/c/:slug/settings',
     labelKey: 'nav.settings',
-    element: placeholder('nav.settings'),
+    element: createElement(SettingsPage),
     requiresAuth: true,
     roles: ['admin'],
     navGroup: 'admin',

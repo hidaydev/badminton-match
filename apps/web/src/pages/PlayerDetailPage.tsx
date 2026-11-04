@@ -15,6 +15,7 @@ import {
 import type { PlayerClaim } from '../players/api'
 import { usePlayerDetail, usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
+import { formatDay } from '../utils/day'
 
 type Run = (action: () => Promise<unknown>) => Promise<void>
 
@@ -293,7 +294,7 @@ function ClaimRow({ slug, playerId, claim, admin, own, busy, onRun }: ClaimRowPr
         <span className="font-mono text-xs text-fg-dim">{claim.userId}</span>
         <span className="text-xs text-fg-dim">{t(CLAIM_STATUS_KEY[claim.status])}</span>
       </p>
-      <p className="mt-1 font-mono text-[10px] text-fg-dim">{claim.createdAt}</p>
+      <p className="mt-1 font-mono text-[10px] text-fg-dim">{formatDay(claim.createdAt)}</p>
       {claim.reason !== '' && <p className="mt-1 text-xs text-fg-dim">{claim.reason}</p>}
 
       {admin && !own && claim.status === 'pending' && (
