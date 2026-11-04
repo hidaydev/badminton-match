@@ -1,0 +1,140 @@
+# name	route (operationId)	method	path	header(s, ';'-separated)	body ('-' = absent, '@file' = body file)
+healthz	getHealthz	GET	/healthz	-	-
+readyz	getReadyz	GET	/readyz	-	-
+version	getVersion	GET	/version	-	-
+auth_callback_missing	getAuthCallback	GET	/auth/callback	-	-
+auth_me_anonymous	getAuthMe	GET	/auth/me	-	-
+auth_start	postAuthStart	POST	/auth/start	-	{"returnTo":"/"}
+directory_anonymous	getDirectory	GET	/directory	-	-
+auth_me_owner	getAuthMe	GET	/auth/me	Cookie: majadu_session=parity-owner-token	-
+auth_sessions_owner	listAuthSessions	GET	/auth/sessions	Cookie: majadu_session=parity-owner-token	-
+communities_owner	listMyCommunities	GET	/communities	Cookie: majadu_session=parity-owner-token	-
+list_communities_anonymous	listMyCommunities	GET	/communities	-	-
+community_config_admin	getCommunityConfig	GET	/c/parity/config	Cookie: majadu_session=parity-admin-token	-
+community_config_anonymous	getCommunityConfig	GET	/c/parity/config	-	-
+members_owner	listMembers	GET	/c/parity/members	Cookie: majadu_session=parity-owner-token	-
+list_members_anonymous	listMembers	GET	/c/parity/members	-	-
+join_requests_admin	listJoinRequests	GET	/c/parity/join-requests	Cookie: majadu_session=parity-admin-token	-
+list_join_requests_anonymous	listJoinRequests	GET	/c/parity/join-requests	-	-
+players_member	listPlayers	GET	/c/parity/players	Cookie: majadu_session=parity-member-token	-
+players_anonymous	listPlayers	GET	/c/parity/players	-	-
+player_member	getPlayer	GET	/c/parity/players/30000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-member-token	-
+player_foreign_404	getPlayer	GET	/c/parity/players/30000000-0000-4000-8000-000000000007	Cookie: majadu_session=parity-member-token	-
+player_stats	getPlayerStats	GET	/c/parity/players/30000000-0000-4000-8000-000000000001/stats	Cookie: majadu_session=parity-member-token	-
+player_achievements	getPlayerAchievements	GET	/c/parity/players/30000000-0000-4000-8000-000000000001/achievements	Cookie: majadu_session=parity-member-token	-
+player_claims	listPlayerClaims	GET	/c/parity/players/30000000-0000-4000-8000-000000000001/claims	Cookie: majadu_session=parity-admin-token	-
+sessions_host	listSessions	GET	/c/parity/sessions	Cookie: majadu_session=parity-host-token	-
+sessions_anonymous	listSessions	GET	/c/parity/sessions	-	-
+session_host	getSession	GET	/c/parity/sessions/40000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-host-token	-
+session_anonymous	getSession	GET	/c/parity/sessions/40000000-0000-4000-8000-000000000001	-	-
+session_foreign_404	getSession	GET	/c/parity/sessions/40000000-0000-4000-8000-000000000004	Cookie: majadu_session=parity-host-token	-
+session_unknown_404	getSession	GET	/c/parity/sessions/40000000-0000-4000-8000-0000000000ff	Cookie: majadu_session=parity-host-token	-
+session_game	getSessionGame	GET	/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/0-0	Cookie: majadu_session=parity-host-token	-
+session_game_bad_key	getSessionGame	GET	/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/xx	Cookie: majadu_session=parity-host-token	-
+share_link_admin	getShareLink	GET	/c/parity/sessions/40000000-0000-4000-8000-000000000001/share	Cookie: majadu_session=parity-admin-token	-
+share_link_draft_404	getShareLink	GET	/c/parity/sessions/40000000-0000-4000-8000-000000000002/share	Cookie: majadu_session=parity-admin-token	-
+rankings_member	listRankings	GET	/c/parity/rankings	Cookie: majadu_session=parity-member-token	-
+rankings_anonymous	listRankings	GET	/c/parity/rankings	-	-
+ranking_member	getRanking	GET	/c/parity/rankings/30000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-member-token	-
+rating_sources_admin	listRatingSources	GET	/c/parity/rating-sources	Cookie: majadu_session=parity-admin-token	-
+rating_sources_anonymous	listRatingSources	GET	/c/parity/rating-sources	-	-
+tournaments_member	listTournaments	GET	/c/parity/tournaments	Cookie: majadu_session=parity-member-token	-
+list_tournaments_anonymous	listTournaments	GET	/c/parity/tournaments	-	-
+tournament_classic	getTournament	GET	/c/parity/tournaments/60000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-member-token	-
+tournament_unknown_404	getTournament	GET	/c/parity/tournaments/60000000-0000-4000-8000-0000000000ff	Cookie: majadu_session=parity-member-token	-
+settings_member	getSettings	GET	/c/parity/settings	Cookie: majadu_session=parity-member-token	-
+settings_anonymous	getSettings	GET	/c/parity/settings	-	-
+shared_session	getSharedSession	GET	/s/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a	-	-
+shared_rankings	listSharedRankings	GET	/s/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a/rankings	-	-
+shared_ranking	getSharedRanking	GET	/s/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a/rankings/30000000-0000-4000-8000-000000000001	-	-
+shared_session_unknown	getSharedSession	GET	/s/ffffffffffffffffffffffffffffffff	-	-
+shared_rankings_unknown	listSharedRankings	GET	/s/ffffffffffffffffffffffffffffffff/rankings	-	-
+shared_ranking_unknown	getSharedRanking	GET	/s/ffffffffffffffffffffffffffffffff/rankings/30000000-0000-4000-8000-000000000001	-	-
+share_ws_ticket	postShareWsTicket	POST	/s/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a/ws-ticket	-	-
+share_ws_ticket_unknown	postShareWsTicket	POST	/s/ffffffffffffffffffffffffffffffff/ws-ticket	-	-
+ws_session_no_ticket	wsSession	GET	/ws/c/parity/sessions/40000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-owner-token	-
+ws_share_no_ticket	wsShare	GET	/ws/share/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a	-	-
+create_player_member	createPlayer	POST	/c/parity/players	Cookie: majadu_session=parity-member-token; Origin: http://127.0.0.1:5173	{"name":"Nope"}
+patch_player_member	patchPlayer	PATCH	/c/parity/players/30000000-0000-4000-8000-000000000004	Cookie: majadu_session=parity-member-token; Origin: http://127.0.0.1:5173	{"tier":"C"}
+delete_player_host	deletePlayer	DELETE	/c/parity/players/30000000-0000-4000-8000-000000000008	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	-
+create_session_member	createSession	POST	/c/parity/sessions	Cookie: majadu_session=parity-member-token; Origin: http://127.0.0.1:5173	{"date":"2026-12-02"}
+patch_session_member	patchSession	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002	Cookie: majadu_session=parity-member-token; Origin: http://127.0.0.1:5173; If-Match: "1"	{"title":"Nope"}
+patch_settings_host	patchSettings	PATCH	/c/parity/settings	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	{"api.page_size_default":25}
+rating_sources_host	listRatingSources	GET	/c/parity/rating-sources	Cookie: majadu_session=parity-host-token	-
+ratings_rebuild_host	postRatingsRebuild	POST	/c/parity/ratings/rebuild	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	{}
+patch_member_role_host	patchMemberRole	PATCH	/c/parity/members/20000000-0000-4000-8000-000000000004	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	{"role":"host"}
+create_invite_host	createInvite	POST	/c/parity/invites	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	{"email":"invite@example.com"}
+remove_member_host	removeMember	DELETE	/c/parity/members/20000000-0000-4000-8000-000000000004	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	-
+decide_join_request_host	decideJoinRequest	PATCH	/c/parity/join-requests/72000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	{"decision":"approve"}
+patch_player_claim_host	patchPlayerClaim	PATCH	/c/parity/players/30000000-0000-4000-8000-000000000001/claims/70000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	{"decision":"approve"}
+post_player_merge_host	postPlayerMerge	POST	/c/parity/players/30000000-0000-4000-8000-000000000008/merge	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	{"sourcePlayerId":"30000000-0000-4000-8000-000000000009"}
+post_tournament_rating_host	postTournamentRating	POST	/c/parity/tournaments/60000000-0000-4000-8000-000000000002/rating	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	{}
+delete_tournament_rating_host	deleteTournamentRating	DELETE	/c/parity/tournaments/60000000-0000-4000-8000-000000000002/rating	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	-
+post_session_rating_member	postSessionRating	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/rating	Cookie: majadu_session=parity-member-token; Origin: http://127.0.0.1:5173	{}
+create_community_admin	createCommunity	POST	/communities	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"slug":"not-owner","name":"Nope","adminEmail":"x@example.com"}
+delete_auth_sessions_anonymous	deleteAuthSessions	DELETE	/auth/sessions	-	-
+post_player_claim_anonymous	postPlayerClaim	POST	/c/parity/players/30000000-0000-4000-8000-000000000002/claims	-	-
+create_share_link_unknown	createShareLink	POST	/c/parity/sessions/40000000-0000-4000-8000-0000000000ff/share	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+delete_share_link_draft	deleteShareLink	DELETE	/c/parity/sessions/40000000-0000-4000-8000-000000000002/share	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+accept_invite_unknown	acceptInvite	POST	/invites/nope/accept	Cookie: majadu_session=parity-outsider-token; Origin: http://127.0.0.1:5173	-
+delete_session_unknown	deleteSession	DELETE	/c/parity/sessions/40000000-0000-4000-8000-0000000000ff	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+patch_session_no_if_match	patchSession	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"title":"No precondition"}
+patch_session_stale	patchSession	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "99"	{"title":"Stale"}
+lock_session_no_if_match	lockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000002	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+unlock_session_stale	unlockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "99"	-
+put_schedule_no_if_match	putSessionSchedule	PUT	/c/parity/sessions/40000000-0000-4000-8000-000000000002/schedule	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"games":[]}
+absent_no_if_match	patchSessionAbsent	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002/absent	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"playerIds":[]}
+game_score_no_if_match	patchSessionGame	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/0-1	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"scoreA":21,"scoreB":19}
+skip_no_if_match	skipSessionGame	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002/games/0-0/skip	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+swap_no_if_match	postSessionSwap	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000002/swap	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"type":"player"}
+put_tournament_no_if_match	putTournament	PUT	/c/parity/tournaments/60000000-0000-4000-8000-000000000003	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{}
+patch_tournament_match_no_if_match	patchTournamentMatch	PATCH	/c/parity/tournaments/60000000-0000-4000-8000-000000000003/matches/group-A-0	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"scoreA":21,"scoreB":17}
+create_player_invalid	createPlayer	POST	/c/parity/players	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"name":"","gender":"M"}
+patch_player_invalid	patchPlayer	PATCH	/c/parity/players/30000000-0000-4000-8000-000000000004	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"tier":"Z"}
+patch_settings_ceiling	patchSettings	PATCH	/c/parity/settings	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"api.page_size_default":999999}
+decide_join_request_invalid	decideJoinRequest	PATCH	/c/parity/join-requests/72000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"decision":"maybe"}
+patch_rating_source_invalid	patchRatingSource	PATCH	/c/parity/rating-sources/80000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"finalized":"yes"}
+put_tournament_invalid	putTournament	PUT	/c/parity/tournaments/60000000-0000-4000-8000-000000000003	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "1"	{}
+patch_tournament_match_invalid	patchTournamentMatch	PATCH	/c/parity/tournaments/60000000-0000-4000-8000-000000000003/matches/group-A-0	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "1"	{"scoreA":100,"scoreB":1}
+create_invite_invalid	createInvite	POST	/c/parity/invites	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"email":"nope"}
+patch_rating_source	patchRatingSource	PATCH	/c/parity/rating-sources/80000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"finalized":true}
+merge_player	postPlayerMerge	POST	/c/parity/players/30000000-0000-4000-8000-000000000008/merge	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"sourcePlayerId":"30000000-0000-4000-8000-000000000009"}
+delete_player	deletePlayer	DELETE	/c/parity/players/30000000-0000-4000-8000-000000000008	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+patch_player	patchPlayer	PATCH	/c/parity/players/30000000-0000-4000-8000-000000000004	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"tier":"C"}
+create_player	createPlayer	POST	/c/parity/players	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"name":"Gita","gender":"F","tier":"B"}
+patch_settings	patchSettings	PATCH	/c/parity/settings	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"api.page_size_default":25}
+create_session	createSession	POST	/c/parity/sessions	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"title":"New Night","date":"2026-12-01","startTime":"18:00"}
+patch_session	patchSession	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "1"	{"title":"Draft Night A"}
+put_schedule	putSessionSchedule	PUT	/c/parity/sessions/40000000-0000-4000-8000-000000000002/schedule	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "2"	{"games":[{"round":0,"court":0,"sideA":["30000000-0000-4000-8000-000000000001","30000000-0000-4000-8000-000000000002"],"sideB":["30000000-0000-4000-8000-000000000003","30000000-0000-4000-8000-000000000004"]}]}
+patch_absent	patchSessionAbsent	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002/absent	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "3"	{"playerIds":["30000000-0000-4000-8000-000000000004"]}
+skip_game	skipSessionGame	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002/games/0-0/skip	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "4"	-
+swap_session	postSessionSwap	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000002/swap	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "5"	{"type":"player","a":{"team":"A","position":0,"playerId":"30000000-0000-4000-8000-000000000001"},"b":{"team":"B","position":0,"playerId":"30000000-0000-4000-8000-000000000003"}}
+unlock_session	unlockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/unlock	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "1"	-
+lock_session	lockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/lock	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "2"	-
+patch_session_game	patchSessionGame	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/0-1	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "3"	{"scoreA":21,"scoreB":19}
+session_ws_ticket	postSessionWsTicket	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/ws-ticket	Cookie: majadu_session=parity-owner-token; Origin: http://127.0.0.1:5173	-
+post_session_rating	postSessionRating	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/rating	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{}
+rebuild_ratings	postRatingsRebuild	POST	/c/parity/ratings/rebuild	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{}
+delete_session_rating	deleteSessionRating	DELETE	/c/parity/sessions/40000000-0000-4000-8000-000000000001/rating	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+create_invite	createInvite	POST	/c/parity/invites	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"email":"new@example.com","role":"host"}
+create_join_request	createJoinRequest	POST	/c/parity/join-requests	Cookie: majadu_session=parity-host-token; Origin: http://127.0.0.1:5173	{"note":"hello"}
+decide_join_request	decideJoinRequest	PATCH	/c/parity/join-requests/72000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"decision":"approve","role":"member"}
+patch_member_role	patchMemberRole	PATCH	/c/parity/members/20000000-0000-4000-8000-000000000006	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"role":"host"}
+remove_member	removeMember	DELETE	/c/parity/members/20000000-0000-4000-8000-000000000006	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+accept_invite	acceptInvite	POST	/invites/parity-invite-token/accept	Cookie: majadu_session=parity-outsider-token; Origin: http://127.0.0.1:5173	-
+post_player_claim	postPlayerClaim	POST	/c/parity/players/30000000-0000-4000-8000-000000000002/claims	Cookie: majadu_session=parity-member-token; Origin: http://127.0.0.1:5173	-
+patch_player_claim	patchPlayerClaim	PATCH	/c/parity/players/30000000-0000-4000-8000-000000000001/claims/70000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"decision":"approve"}
+delete_own_claim	deleteOwnClaim	DELETE	/c/parity/players/30000000-0000-4000-8000-000000000001/claim	Cookie: majadu_session=parity-member-token; Origin: http://127.0.0.1:5173	-
+create_community	createCommunity	POST	/communities	Cookie: majadu_session=parity-owner-token; Origin: http://127.0.0.1:5173	{"slug":"parity-cup","name":"Parity Cup","adminEmail":"cup@example.com"}
+create_tournament	createTournament	POST	/c/parity/tournaments	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	@bodies/tournament_create.json
+put_tournament	putTournament	PUT	/c/parity/tournaments/60000000-0000-4000-8000-000000000003	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "1"	@bodies/tournament_create.json
+patch_tournament_match	patchTournamentMatch	PATCH	/c/parity/tournaments/60000000-0000-4000-8000-000000000003/matches/group-A-0	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "2"	{"scoreA":21,"scoreB":17}
+delete_tournament_rating	deleteTournamentRating	DELETE	/c/parity/tournaments/60000000-0000-4000-8000-000000000003/rating	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+delete_tournament	deleteTournament	DELETE	/c/parity/tournaments/60000000-0000-4000-8000-000000000003	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+create_share_link	createShareLink	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/share	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+delete_share_link	deleteShareLink	DELETE	/c/parity/sessions/40000000-0000-4000-8000-000000000001/share	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+post_tournament_rating	postTournamentRating	POST	/c/parity/tournaments/60000000-0000-4000-8000-000000000002/rating	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{}
+delete_session	deleteSession	DELETE	/c/parity/sessions/40000000-0000-4000-8000-000000000003	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+delete_auth_sessions	deleteAuthSessions	DELETE	/auth/sessions	Cookie: majadu_session=parity-owner-token; Origin: http://127.0.0.1:5173	-
+post_auth_logout	postAuthLogout	POST	/auth/logout	Cookie: majadu_session=parity-applicant-token; Origin: http://127.0.0.1:5173	-
+auth_me_after_logout	getAuthMe	GET	/auth/me	Cookie: majadu_session=parity-applicant-token	-

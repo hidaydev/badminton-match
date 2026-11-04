@@ -1,0 +1,18 @@
+{
+  "route": "getSessionGame",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/xx",
+    "headers": {
+      "Cookie": "majadu_session=parity-host-token"
+    }
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "code": "INVALID_GAME_KEY",
+      "detail": "gameKey must be round-court",
+      "status": 400
+    }
+  }
+}

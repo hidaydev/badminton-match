@@ -1,0 +1,28 @@
+{
+  "route": "getSessionGame",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/0-0",
+    "headers": {
+      "Cookie": "majadu_session=parity-host-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "court": 0,
+      "round": 0,
+      "scoreA": 21,
+      "scoreB": 18,
+      "sideA": [
+        "{uuid}",
+        "{uuid}"
+      ],
+      "sideB": [
+        "{uuid}",
+        "{uuid}"
+      ],
+      "status": "played"
+    }
+  }
+}

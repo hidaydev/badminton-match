@@ -1,0 +1,20 @@
+{
+  "route": "createSession",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/sessions",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"date\":\"2026-12-02\"}"
+  },
+  "expect": {
+    "status": 403,
+    "body": {
+      "code": "FORBIDDEN",
+      "detail": "FORBIDDEN",
+      "status": 403
+    }
+  }
+}

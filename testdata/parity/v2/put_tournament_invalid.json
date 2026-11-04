@@ -1,0 +1,56 @@
+{
+  "route": "putTournament",
+  "request": {
+    "method": "PUT",
+    "path": "/c/parity/tournaments/60000000-0000-4000-8000-000000000003",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173",
+      "If-Match": "\"1\""
+    },
+    "body": "{}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "issues": [
+        {
+          "detail": "",
+          "kind": "blank_name"
+        },
+        {
+          "detail": "",
+          "kind": "blank_date"
+        },
+        {
+          "detail": "0",
+          "kind": "pair_count"
+        },
+        {
+          "detail": "0",
+          "kind": "match_count"
+        },
+        {
+          "detail": "group: 0",
+          "kind": "phase_count"
+        },
+        {
+          "detail": "qf: 0",
+          "kind": "phase_count"
+        },
+        {
+          "detail": "sf: 0",
+          "kind": "phase_count"
+        },
+        {
+          "detail": "3rd: 0",
+          "kind": "phase_count"
+        },
+        {
+          "detail": "final: 0",
+          "kind": "phase_count"
+        }
+      ]
+    }
+  }
+}

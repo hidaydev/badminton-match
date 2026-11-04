@@ -1,0 +1,25 @@
+{
+  "route": "patchPlayer",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/players/30000000-0000-4000-8000-000000000004",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"tier\":\"C\"}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "aliases": [],
+      "createdAt": "{timestamp}",
+      "gender": "F",
+      "id": "{uuid}",
+      "name": "Dewi",
+      "tier": "C",
+      "updatedAt": "{timestamp}",
+      "userId": null
+    }
+  }
+}

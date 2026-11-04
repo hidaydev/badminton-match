@@ -1,0 +1,15 @@
+{
+  "route": "listRatingSources",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/rating-sources"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

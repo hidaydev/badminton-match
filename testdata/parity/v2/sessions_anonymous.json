@@ -1,0 +1,15 @@
+{
+  "route": "listSessions",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/sessions"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

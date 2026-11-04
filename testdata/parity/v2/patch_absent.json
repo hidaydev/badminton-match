@@ -1,0 +1,19 @@
+{
+  "route": "patchSessionAbsent",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000002/absent",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173",
+      "If-Match": "\"3\""
+    },
+    "body": "{\"playerIds\":[\"30000000-0000-4000-8000-000000000004\"]}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "version": 4
+    }
+  }
+}

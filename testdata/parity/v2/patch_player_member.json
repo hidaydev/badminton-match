@@ -1,0 +1,20 @@
+{
+  "route": "patchPlayer",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/players/30000000-0000-4000-8000-000000000004",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"tier\":\"C\"}"
+  },
+  "expect": {
+    "status": 403,
+    "body": {
+      "code": "FORBIDDEN",
+      "detail": "FORBIDDEN",
+      "status": 403
+    }
+  }
+}

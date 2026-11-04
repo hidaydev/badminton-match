@@ -1,0 +1,41 @@
+{
+  "route": "listMembers",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/members",
+    "headers": {
+      "Cookie": "majadu_session=parity-owner-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "displayName": "Member",
+          "joinedAt": "{timestamp}",
+          "role": "member",
+          "userId": "{uuid}"
+        },
+        {
+          "displayName": "Host",
+          "joinedAt": "{timestamp}",
+          "role": "host",
+          "userId": "{uuid}"
+        },
+        {
+          "displayName": "Admin",
+          "joinedAt": "{timestamp}",
+          "role": "admin",
+          "userId": "{uuid}"
+        },
+        {
+          "displayName": "Owner",
+          "joinedAt": "{timestamp}",
+          "role": "admin",
+          "userId": "{uuid}"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "route": "patchSettings",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/settings",
+    "headers": {
+      "Cookie": "majadu_session=parity-host-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"api.page_size_default\":25}"
+  },
+  "expect": {
+    "status": 403,
+    "body": {
+      "code": "FORBIDDEN",
+      "detail": "FORBIDDEN",
+      "status": 403
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "route": "createInvite",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/invites",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"email\":\"nope\"}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "code": "INVALID_EMAIL",
+      "detail": "a valid email is required",
+      "status": 400
+    }
+  }
+}

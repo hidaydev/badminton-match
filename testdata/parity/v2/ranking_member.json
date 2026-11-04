@@ -1,0 +1,23 @@
+{
+  "route": "getRanking",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/rankings/30000000-0000-4000-8000-000000000001",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "games": 4,
+      "losses": 2,
+      "name": "Alice",
+      "playerId": "{uuid}",
+      "points": 0,
+      "rank": 1,
+      "tier": "B",
+      "wins": 2
+    }
+  }
+}

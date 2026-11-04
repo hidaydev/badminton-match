@@ -1,0 +1,16 @@
+{
+  "route": "postAuthLogout",
+  "request": {
+    "method": "POST",
+    "path": "/auth/logout",
+    "headers": {
+      "Cookie": "majadu_session=parity-applicant-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 204,
+    "body": "",
+    "emptyBody": true
+  }
+}

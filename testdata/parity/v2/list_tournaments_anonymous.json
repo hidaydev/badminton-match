@@ -1,0 +1,15 @@
+{
+  "route": "listTournaments",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/tournaments"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

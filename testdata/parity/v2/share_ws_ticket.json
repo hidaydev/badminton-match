@@ -1,0 +1,14 @@
+{
+  "route": "postShareWsTicket",
+  "request": {
+    "method": "POST",
+    "path": "/s/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a/ws-ticket"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "expiresIn": 60,
+      "ticket": "{ticket}"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "route": "createPlayer",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/players",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"name\":\"\",\"gender\":\"M\"}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "code": "INVALID_PLAYER",
+      "detail": "invalid_name",
+      "status": 400
+    }
+  }
+}

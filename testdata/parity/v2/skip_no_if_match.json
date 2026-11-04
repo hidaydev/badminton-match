@@ -1,0 +1,19 @@
+{
+  "route": "skipSessionGame",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000002/games/0-0/skip",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 428,
+    "body": {
+      "code": "PRECONDITION_REQUIRED",
+      "detail": "If-Match is required",
+      "status": 428
+    }
+  }
+}

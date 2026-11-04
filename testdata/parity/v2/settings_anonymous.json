@@ -1,0 +1,15 @@
+{
+  "route": "getSettings",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/settings"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "route": "getReadyz",
+  "request": {
+    "method": "GET",
+    "path": "/readyz"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "status": "ok"
+    }
+  }
+}

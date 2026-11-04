@@ -1,0 +1,18 @@
+{
+  "route": "decideJoinRequest",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/join-requests/72000000-0000-4000-8000-000000000001",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"decision\":\"approve\",\"role\":\"member\"}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "status": "approved"
+    }
+  }
+}

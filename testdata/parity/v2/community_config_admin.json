@@ -1,0 +1,184 @@
+{
+  "route": "getCommunityConfig",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/config",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "effective": {
+        "api.page_size_default": {
+          "source": "platform",
+          "value": 100
+        },
+        "audit.retention_days": {
+          "source": "platform",
+          "value": 365
+        },
+        "auth.flow_ttl_minutes": {
+          "source": "platform",
+          "value": 10
+        },
+        "community.default_timezone": {
+          "source": "platform",
+          "value": "Asia/Jakarta"
+        },
+        "community.directory_enabled": {
+          "source": "community",
+          "value": true
+        },
+        "community.invite_ttl_days": {
+          "source": "platform",
+          "value": 7
+        },
+        "community.join_requests_enabled": {
+          "source": "community",
+          "value": true
+        },
+        "ingest.ticker_minutes": {
+          "source": "platform",
+          "value": 30
+        },
+        "janitor.retention_days": {
+          "source": "platform",
+          "value": 30
+        },
+        "rank.board_limit": {
+          "source": "platform",
+          "value": 200
+        },
+        "rating.best_n": {
+          "source": "platform",
+          "value": 10
+        },
+        "rating.opponent_clamp": {
+          "source": "platform",
+          "value": [
+            0.5,
+            1.5
+          ]
+        },
+        "rating.score_target": {
+          "source": "platform",
+          "value": 21
+        },
+        "rating.session_base": {
+          "source": "platform",
+          "value": 250
+        },
+        "rating.thin_evidence_n": {
+          "source": "platform",
+          "value": 3
+        },
+        "rating.tier_bands": {
+          "source": "platform",
+          "value": [
+            {
+              "min": 0,
+              "tier": "D"
+            },
+            {
+              "min": 1000,
+              "tier": "D+"
+            },
+            {
+              "min": 1200,
+              "tier": "C"
+            },
+            {
+              "min": 1400,
+              "tier": "C+"
+            },
+            {
+              "min": 1600,
+              "tier": "B"
+            },
+            {
+              "min": 1800,
+              "tier": "B+"
+            },
+            {
+              "min": 2000,
+              "tier": "A"
+            },
+            {
+              "min": 2100,
+              "tier": "A+"
+            }
+          ]
+        },
+        "rating.window_weeks": {
+          "source": "platform",
+          "value": 12
+        },
+        "security.allowed_origins": {
+          "source": "platform",
+          "value": [
+            "http://127.0.0.1:5173",
+            "http://localhost:5173"
+          ]
+        },
+        "security.join_request_rate": {
+          "source": "platform",
+          "value": 5
+        },
+        "security.max_body_bytes": {
+          "source": "platform",
+          "value": 1048576
+        },
+        "security.max_json_depth": {
+          "source": "platform",
+          "value": 16
+        },
+        "security.rate_limit_per_minute": {
+          "source": "platform",
+          "value": 300
+        },
+        "security.read_timeout_ms": {
+          "source": "platform",
+          "value": 15000
+        },
+        "security.share_scrape_limit": {
+          "source": "platform",
+          "value": 120
+        },
+        "session.absolute_days": {
+          "source": "platform",
+          "value": 30
+        },
+        "session.idle_days": {
+          "source": "platform",
+          "value": 7
+        },
+        "tournament.classic.pair_count": {
+          "source": "platform",
+          "value": 16
+        },
+        "ws.max_watchers_per_ip": {
+          "source": "platform",
+          "value": 20
+        },
+        "ws.max_watchers_per_session": {
+          "source": "platform",
+          "value": 50
+        },
+        "ws.max_watchers_process": {
+          "source": "platform",
+          "value": 500
+        },
+        "ws.session_ttl_minutes": {
+          "source": "platform",
+          "value": 60
+        },
+        "ws.ticket_ttl_seconds": {
+          "source": "platform",
+          "value": 60
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "route": "listSessions",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/sessions",
+    "headers": {
+      "Cookie": "majadu_session=parity-host-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "date": "2026-11-17",
+          "id": "{uuid}",
+          "status": "draft",
+          "title": "Delete Me",
+          "version": 1
+        },
+        {
+          "date": "2026-11-10",
+          "id": "{uuid}",
+          "status": "draft",
+          "title": "Draft Night",
+          "version": 1
+        },
+        {
+          "date": "2026-11-03",
+          "id": "{uuid}",
+          "status": "locked",
+          "title": "Tuesday Night",
+          "version": 1
+        }
+      ]
+    }
+  }
+}

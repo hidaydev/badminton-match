@@ -1,9 +1,21 @@
 import std/[algorithm, httpclient, json, os, strutils]
 import normalizer
+import state as parityState
+import db/db
+import hex
+import share/crypto
 
 const
   defaultDir = "testdata/parity/v1"
   defaultBase = "http://127.0.0.1:8091"
+
+  # The v2 fixture (testdata/parity/v2/fixture.sql) fixes these ids; the share
+  # link is sealed here because its ciphertext needs the real keyring.
+  fixtureCommunity = "10000000-0000-4000-8000-000000000001"
+  fixtureSession = "40000000-0000-4000-8000-000000000001"
+  fixtureLink = "50000000-0000-4000-8000-000000000001"
+  fixtureAdmin = "20000000-0000-4000-8000-000000000002"
+  fixtureShareCode = "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
 
 proc fail(message: string) {.noreturn.} =
   stderr.writeLine "parity: " & message
@@ -11,7 +23,8 @@ proc fail(message: string) {.noreturn.} =
 
 type
   Options = object
-    command, base, dir, name, verb, path, body, bodyFile, route, spec, routes: string
+    command, base, dir, name, verb, path, body, bodyFile, route, spec, routes,
+      dsn: string
     headers: seq[(string, string)]
     names: seq[string]
 
@@ -26,7 +39,7 @@ proc parseArgs(): Options =
   result.dir = defaultDir
   result.base = defaultBase
   if paramCount() < 1:
-    fail "usage: parity record|lint|replay [options]"
+    fail "usage: parity record|lint|replay|reset|state-* [options]"
   result.command = paramStr(1)
   var index = 2
   while index <= paramCount():
@@ -51,6 +64,8 @@ proc parseArgs(): Options =
       index.inc; result.spec = paramStr(index)
     of "--routes":
       index.inc; result.routes = paramStr(index)
+    of "--dsn":
+      index.inc; result.dsn = paramStr(index)
     of "--header":
       index.inc; result.headers.add(parseHeader(paramStr(index)))
     else:
@@ -58,6 +73,15 @@ proc parseArgs(): Options =
         fail "unknown argument: " & paramStr(index)
       result.names.add(paramStr(index))
     index.inc
+
+proc openParityDb(options: Options): Db =
+  let dsn = if options.dsn.len > 0: options.dsn else: getEnv("MAJADU_PG_DSN")
+  if dsn.len == 0:
+    fail "MAJADU_PG_DSN or --dsn is required for this command"
+  try:
+    result = openDb(dsn, 1)
+  except DbError as error:
+    fail "cannot connect: " & error.msg
 
 proc casePath(dir, name: string): string = dir / (name & ".json")
 
@@ -69,7 +93,8 @@ proc requestBody(options: Options): string =
   else:
     result = options.body
 
-proc send(base, verbText, path, body: string, headers: seq[(string, string)]): (int, string) =
+proc send(base, verbText, path, body: string,
+          headers: seq[(string, string)]): (int, string) =
   var client = newHttpClient(timeout = 10000)
   defer: client.close()
   var requestHeaders = newHttpHeaders()
@@ -96,10 +121,21 @@ proc send(base, verbText, path, body: string, headers: seq[(string, string)]): (
 proc responseExpectation(status: int, body: string): JsonNode =
   result = newJObject()
   result["status"] = %status
-  try:
-    result["body"] = normalizeJson(parseJson(body))
-  except JsonParsingError:
-    result["body"] = %normalizePlainText(body)
+  if body.len == 0:
+    # A 204 carries no payload. The corpus says so explicitly so the lint can
+    # tell "empty on purpose" apart from an expectation that lost its body.
+    result["body"] = %""
+    result["emptyBody"] = %true
+  else:
+    try:
+      result["body"] = normalizeJson(parseJson(body))
+    except JsonParsingError:
+      result["body"] = %normalizePlainText(body)
+
+proc copyExtras(document, existing: JsonNode) =
+  for key in ["expectNim", "expectedDivergence"]:
+    if existing.hasKey(key):
+      document[key] = existing[key]
 
 proc recordOne(options: Options) =
   if options.name.len == 0:
@@ -108,16 +144,22 @@ proc recordOne(options: Options) =
     fail "--path is required for record"
   let verb = if options.verb.len > 0: options.verb.toUpperAscii() else: "GET"
   let body = requestBody(options)
-  let (status, responseBody) = send(options.base, verb, options.path, body, options.headers)
+  let (status, responseBody) = send(options.base, verb, options.path, body,
+    options.headers)
 
   var route = options.route
   let target = casePath(options.dir, options.name)
-  if route.len == 0 and fileExists(target):
-    # Keep the route template of an existing case when it is not repeated.
+  var existing = newJObject()
+  if fileExists(target):
     try:
-      route = parseFile(target)["route"].getStr()
-    except JsonParsingError, KeyError:
+      existing = parseFile(target)
+    except JsonParsingError:
       discard
+  if route.len == 0 and existing.hasKey("route"):
+    # Keep the route template of an existing case when it is not repeated.
+    route = existing["route"].getStr()
+  if options.spec.len > 0 and route.len == 0:
+    fail "route is required in the spec: " & options.name
 
   var document = newJObject()
   document["route"] = %route
@@ -133,14 +175,33 @@ proc recordOne(options: Options) =
     request["body"] = %body
   document["request"] = request
   document["expect"] = responseExpectation(status, responseBody)
+  copyExtras(document, existing)
 
   createDir(options.dir)
   writeFile(target, pretty(document, indent = 2) & "\n")
   echo "parity: recorded " & target & " (" & $status & ")"
 
+proc specHeaders(field: string): seq[(string, string)] =
+  ## Several headers share one TSV field, separated by `;`. A value never
+  ## contains `;` in this corpus (cookies and If-Match do not).
+  if field.strip() == "-":
+    return @[]
+  for part in field.split(';'):
+    if part.strip().len > 0:
+      result.add(parseHeader(part.strip()))
+
+proc specBody(field, specDir: string): (string, string) =
+  if field.strip() == "-":
+    return ("", "")
+  let value = field.strip()
+  if value.startsWith("@"):
+    return ("", specDir / value[1 .. ^1])
+  (value, "")
+
 proc recordSpec(options: Options) =
   if not fileExists(options.spec):
     fail "spec file not found: " & options.spec
+  let specDir = options.spec.parentDir
   var count = 0
   for line in readFile(options.spec).splitLines():
     let trimmed = line.strip()
@@ -155,16 +216,16 @@ proc recordSpec(options: Options) =
     single.route = fields[1].strip()
     single.verb = fields[2].strip()
     single.path = fields[3].strip()
-    single.headers = @[]
-    if fields[4].strip() != "-":
-      single.headers.add(parseHeader(fields[4].strip()))
-    single.bodyFile = ""
-    single.body = if fields[5].strip() == "-": "" else: fields[5]
+    single.headers = specHeaders(fields[4])
+    let (specBodyValue, specFileValue) = specBody(fields[5], specDir)
+    single.body = specBodyValue
+    single.bodyFile = specFileValue
     recordOne(single)
     count.inc
   echo "parity: recorded " & $count & " cases from " & options.spec
 
-proc caseRequest(node: JsonNode): tuple[verb, path, body: string, headers: seq[(string, string)]] =
+proc caseRequest(node: JsonNode):
+    tuple[verb, path, body: string, headers: seq[(string, string)]] =
   if not node.hasKey("request") or node["request"].kind != JObject:
     # T-012 cases stored method/path at the top level.
     result.verb = if node.hasKey("method"): node["method"].getStr() else: "GET"
@@ -228,18 +289,31 @@ proc listCases(dir: string): seq[string] =
   if not dirExists(dir):
     fail "cases directory not found: " & dir
   for kind, path in walkDir(dir):
-    if kind == pcFile and path.endsWith(".json"):
+    if kind == pcFile and path.endsWith(".json") and
+       path.extractFilename != "state.json":
       result.add(path.extractFilename[0 ..< path.extractFilename.len - 5])
+
+proc namesFromSpec(spec: string): seq[string] =
+  if not fileExists(spec):
+    fail "spec file not found: " & spec
+  for line in readFile(spec).splitLines():
+    let trimmed = line.strip()
+    if trimmed.len == 0 or trimmed.startsWith("#"):
+      continue
+    result.add(line.split('\t')[0].strip())
 
 proc replay(options: Options) =
   var names = options.names
   if options.name.len > 0:
     names.insert(options.name, 0)
+  if names.len == 0 and options.spec.len > 0:
+    # A stateful corpus must replay in the order it was recorded.
+    names = namesFromSpec(options.spec)
   if names.len == 0:
     names = listCases(options.dir)
+    names.sort()
   if names.len == 0:
     fail "no cases to replay in " & options.dir
-  names.sort()
   var failures = 0
   for name in names:
     if not replayOne(options, name):
@@ -263,12 +337,71 @@ proc routesFromSource(path: string): seq[string] =
       continue
     result.add(line[start ..< stop])
 
+proc operationsFromSource(path: string): seq[string] =
+  ## `routes_gen.nim` is keyed by operation id, which is the stable name for a
+  ## route whose path is a template.
+  if not fileExists(path):
+    return @[]
+  const marker = "operationId: \""
+  for line in readFile(path).splitLines():
+    let at = line.find(marker)
+    if at < 0:
+      continue
+    let start = at + marker.len
+    let stop = line.find('"', start)
+    if stop < 0:
+      continue
+    result.add(line[start ..< stop])
+
 proc isNonEmptyBody(node: JsonNode): bool =
   case node.kind
   of JNull: false
   of JString: node.getStr().len > 0
   of JObject, JArray: node.len > 0
   of JBool, JInt, JFloat: true
+
+proc lintCase(name: string, document: JsonNode,
+              problems: var seq[string], rejected: var int): string =
+  if not document.hasKey("expect"):
+    problems.add(name & ": missing expect")
+    return ""
+  let expect = document["expect"]
+  if not expect.hasKey("status") or expect["status"].kind != JInt:
+    problems.add(name & ": expect.status missing or not an integer")
+  elif expect["status"].getInt() >= 400:
+    rejected.inc
+  if not expect.hasKey("body"):
+    problems.add(name & ": expect.body missing")
+  elif not isNonEmptyBody(expect["body"]):
+    if not (expect.hasKey("emptyBody") and expect["emptyBody"].getBool()):
+      problems.add(name & ": expect.body is empty (set expect.emptyBody when 204)")
+  elif expect.hasKey("emptyBody") and expect["emptyBody"].getBool():
+    problems.add(name & ": expect.emptyBody is set but the body is not empty")
+  if document.hasKey("expectNim"):
+    if not document.hasKey("expectedDivergence"):
+      problems.add(name & ": expectNim without expectedDivergence")
+    else:
+      let divergence = document["expectedDivergence"]
+      if not divergence.hasKey("reason") or
+         divergence["reason"].getStr().strip().len == 0:
+        problems.add(name & ": expectedDivergence.reason is empty")
+      if not divergence.hasKey("owner") or
+         divergence["owner"].getStr().strip().len == 0:
+        problems.add(name & ": expectedDivergence.owner is empty")
+  elif document.hasKey("expectedDivergence"):
+    problems.add(name & ": expectedDivergence without expectNim")
+  if not document.hasKey("request"):
+    problems.add(name & ": missing request")
+  else:
+    let request = document["request"]
+    if not request.hasKey("method") or request["method"].getStr().len == 0:
+      problems.add(name & ": request.method missing")
+    if not request.hasKey("path") or request["path"].getStr().len == 0:
+      problems.add(name & ": request.path missing")
+  if document.hasKey("route") and document["route"].getStr().len > 0:
+    return document["route"].getStr()
+  problems.add(name & ": route missing")
+  ""
 
 proc lint(options: Options) =
   let names = listCases(options.dir)
@@ -285,30 +418,9 @@ proc lint(options: Options) =
     except JsonParsingError:
       problems.add(name & ": invalid JSON")
       continue
-    if not document.hasKey("expect"):
-      problems.add(name & ": missing expect")
-      continue
-    let expect = document["expect"]
-    if not expect.hasKey("status") or expect["status"].kind != JInt:
-      problems.add(name & ": expect.status missing or not an integer")
-    elif expect["status"].getInt() >= 400:
-      rejected.inc
-    if not expect.hasKey("body"):
-      problems.add(name & ": expect.body missing")
-    elif not isNonEmptyBody(expect["body"]):
-      problems.add(name & ": expect.body is empty")
-    if not document.hasKey("request"):
-      problems.add(name & ": missing request")
-    else:
-      let request = document["request"]
-      if not request.hasKey("method") or request["method"].getStr().len == 0:
-        problems.add(name & ": request.method missing")
-      if not request.hasKey("path") or request["path"].getStr().len == 0:
-        problems.add(name & ": request.path missing")
-    if document.hasKey("route") and document["route"].getStr().len > 0:
-      routesOfCases.add(document["route"].getStr())
-    else:
-      problems.add(name & ": route missing")
+    let route = lintCase(name, document, problems, rejected)
+    if route.len > 0:
+      routesOfCases.add(route)
 
   let rejectedPct = rejected.float / names.len.float * 100.0
   if rejectedPct < 40.0:
@@ -316,7 +428,12 @@ proc lint(options: Options) =
       "% of cases assert status >= 400 (minimum is 40%)")
 
   var covered = 0
-  let declared = routesFromSource(options.routes)
+  let declared =
+    if fileExists(options.routes) and
+       readFile(options.routes).contains("operationId"):
+      operationsFromSource(options.routes)
+    else:
+      routesFromSource(options.routes)
   if declared.len > 0:
     var missing: seq[string] = @[]
     for route in declared:
@@ -338,6 +455,62 @@ proc lint(options: Options) =
     quit(1)
   echo "parity: corpus ok"
 
+proc resetFixture(options: Options) =
+  let fixture = options.dir / "fixture.sql"
+  if not fileExists(fixture):
+    fail "fixture not found: " & fixture
+  let database = openParityDb(options)
+  defer: database.close()
+  discard database.tx(proc(conn: DbConn): int =
+    conn.execScript(readFile(fixture))
+    1)
+  let keyring = loadKeyring(getEnv("SHARE_CODE_KEYS"),
+    getEnv("SHARE_CODE_ACTIVE_KEY_ID"))
+  let (keyId, encrypted) = encryptWith(keyring, fixtureShareCode,
+    fixtureCommunity & "|" & fixtureLink)
+  discard database.execUpdate(
+    """insert into session.links
+         (id, community_id, session_id, code_hash, code_enc, key_id, created_by)
+       values ($1::uuid, $2::uuid, $3::uuid, sha256(convert_to($4,'utf8')),
+               decode($5,'hex'), $6, $7::uuid)""",
+    @[textParam(fixtureLink), textParam(fixtureCommunity),
+      textParam(fixtureSession), textParam(fixtureShareCode),
+      textParam(bytesHex(encrypted)), textParam(keyId),
+      textParam(fixtureAdmin)])
+  echo "parity: fixture reset (" & fixture & ")"
+
+proc statePath(options: Options): string = options.dir / "state.json"
+
+proc stateSnapshot(options: Options) =
+  var state = parityState.loadState(options.statePath)
+  let database = openParityDb(options)
+  defer: database.close()
+  parityState.snapshot(database, state)
+  parityState.save(state)
+  echo "parity: state snapshot written (" & $state.projections.len & " projections)"
+
+proc stateCheck(options: Options) =
+  let state = parityState.loadState(options.statePath)
+  let database = openParityDb(options)
+  defer: database.close()
+  let problems = parityState.digestProblems(database, state)
+  if problems.len > 0:
+    for problem in problems:
+      stderr.writeLine "parity: " & problem
+    quit(1)
+  echo "parity: state ok (" & $state.projections.len & " projections)"
+
+proc stateSelftest(options: Options) =
+  let state = parityState.loadState(options.statePath)
+  let database = openParityDb(options)
+  defer: database.close()
+  let problems = parityState.selftest(database, state)
+  if problems.len > 0:
+    for problem in problems:
+      stderr.writeLine "parity: " & problem
+    quit(1)
+  echo "parity: state selftest ok (mutation changes the hash and is rolled back)"
+
 proc main() =
   let options = parseArgs()
   case options.command
@@ -348,6 +521,10 @@ proc main() =
       recordOne(options)
   of "replay": replay(options)
   of "lint": lint(options)
+  of "reset": resetFixture(options)
+  of "state-snapshot": stateSnapshot(options)
+  of "state-check": stateCheck(options)
+  of "state-selftest": stateSelftest(options)
   else: fail "unknown command: " & options.command
 
 when isMainModule:

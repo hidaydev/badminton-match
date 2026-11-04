@@ -1,0 +1,18 @@
+{
+  "route": "getAuthMe",
+  "request": {
+    "method": "GET",
+    "path": "/auth/me",
+    "headers": {
+      "Cookie": "majadu_session=parity-applicant-token"
+    }
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "route": "createInvite",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/invites",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"email\":\"new@example.com\",\"role\":\"host\"}"
+  },
+  "expect": {
+    "status": 201,
+    "body": {
+      "expiresInDays": 7,
+      "role": "host",
+      "token": "{ticket}"
+    }
+  }
+}

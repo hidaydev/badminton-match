@@ -1,0 +1,19 @@
+{
+  "route": "patchPlayerClaim",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/players/30000000-0000-4000-8000-000000000001/claims/70000000-0000-4000-8000-000000000001",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"decision\":\"approve\"}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "claimId": "{uuid}",
+      "status": "approved"
+    }
+  }
+}

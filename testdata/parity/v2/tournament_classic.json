@@ -1,0 +1,49 @@
+{
+  "route": "getTournament",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/tournaments/60000000-0000-4000-8000-000000000001",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "date": "2026-10-25",
+      "format": "classic",
+      "groups": {
+        "A": [
+          "{uuid}",
+          "{uuid}"
+        ],
+        "B": [],
+        "C": [],
+        "D": []
+      },
+      "matches": [
+        {
+          "groupId": "A",
+          "id": "group-A-0",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": 21,
+          "scoreB": 15
+        }
+      ],
+      "name": "Parity Classic",
+      "pairs": [
+        {
+          "id": "{uuid}",
+          "name": "Alice/Budi"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Candra/Dewi"
+        }
+      ],
+      "version": 1
+    }
+  }
+}

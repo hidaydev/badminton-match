@@ -1,0 +1,15 @@
+{
+  "route": "listMembers",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/members"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

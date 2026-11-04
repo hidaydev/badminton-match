@@ -1,0 +1,405 @@
+{
+  "route": "putTournament",
+  "request": {
+    "method": "PUT",
+    "path": "/c/parity/tournaments/60000000-0000-4000-8000-000000000003",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173",
+      "If-Match": "\"1\""
+    },
+    "body": "{\n  \"name\": \"Parity Cup\",\n  \"date\": \"2026-12-05\",\n  \"format\": \"classic\",\n  \"pairs\": [\n    {\n      \"id\": \"p1\",\n      \"name\": \"Pair 1\"\n    },\n    {\n      \"id\": \"p2\",\n      \"name\": \"Pair 2\"\n    },\n    {\n      \"id\": \"p3\",\n      \"name\": \"Pair 3\"\n    },\n    {\n      \"id\": \"p4\",\n      \"name\": \"Pair 4\"\n    },\n    {\n      \"id\": \"p5\",\n      \"name\": \"Pair 5\"\n    },\n    {\n      \"id\": \"p6\",\n      \"name\": \"Pair 6\"\n    },\n    {\n      \"id\": \"p7\",\n      \"name\": \"Pair 7\"\n    },\n    {\n      \"id\": \"p8\",\n      \"name\": \"Pair 8\"\n    },\n    {\n      \"id\": \"p9\",\n      \"name\": \"Pair 9\"\n    },\n    {\n      \"id\": \"p10\",\n      \"name\": \"Pair 10\"\n    },\n    {\n      \"id\": \"p11\",\n      \"name\": \"Pair 11\"\n    },\n    {\n      \"id\": \"p12\",\n      \"name\": \"Pair 12\"\n    },\n    {\n      \"id\": \"p13\",\n      \"name\": \"Pair 13\"\n    },\n    {\n      \"id\": \"p14\",\n      \"name\": \"Pair 14\"\n    },\n    {\n      \"id\": \"p15\",\n      \"name\": \"Pair 15\"\n    },\n    {\n      \"id\": \"p16\",\n      \"name\": \"Pair 16\"\n    }\n  ],\n  \"groups\": {\n    \"A\": [\n      \"p1\",\n      \"p2\",\n      \"p3\",\n      \"p4\"\n    ],\n    \"B\": [\n      \"p5\",\n      \"p6\",\n      \"p7\",\n      \"p8\"\n    ],\n    \"C\": [\n      \"p9\",\n      \"p10\",\n      \"p11\",\n      \"p12\"\n    ],\n    \"D\": [\n      \"p13\",\n      \"p14\",\n      \"p15\",\n      \"p16\"\n    ]\n  },\n  \"matches\": [\n    {\n      \"id\": \"group-A-0\",\n      \"phase\": \"group\",\n      \"groupId\": \"A\",\n      \"pairAId\": \"p1\",\n      \"pairBId\": \"p2\"\n    },\n    {\n      \"id\": \"group-A-1\",\n      \"phase\": \"group\",\n      \"groupId\": \"A\",\n      \"pairAId\": \"p3\",\n      \"pairBId\": \"p4\"\n    },\n    {\n      \"id\": \"group-A-2\",\n      \"phase\": \"group\",\n      \"groupId\": \"A\",\n      \"pairAId\": \"p1\",\n      \"pairBId\": \"p3\"\n    },\n    {\n      \"id\": \"group-A-3\",\n      \"phase\": \"group\",\n      \"groupId\": \"A\",\n      \"pairAId\": \"p2\",\n      \"pairBId\": \"p4\"\n    },\n    {\n      \"id\": \"group-A-4\",\n      \"phase\": \"group\",\n      \"groupId\": \"A\",\n      \"pairAId\": \"p1\",\n      \"pairBId\": \"p4\"\n    },\n    {\n      \"id\": \"group-A-5\",\n      \"phase\": \"group\",\n      \"groupId\": \"A\",\n      \"pairAId\": \"p2\",\n      \"pairBId\": \"p3\"\n    },\n    {\n      \"id\": \"group-B-0\",\n      \"phase\": \"group\",\n      \"groupId\": \"B\",\n      \"pairAId\": \"p5\",\n      \"pairBId\": \"p6\"\n    },\n    {\n      \"id\": \"group-B-1\",\n      \"phase\": \"group\",\n      \"groupId\": \"B\",\n      \"pairAId\": \"p7\",\n      \"pairBId\": \"p8\"\n    },\n    {\n      \"id\": \"group-B-2\",\n      \"phase\": \"group\",\n      \"groupId\": \"B\",\n      \"pairAId\": \"p5\",\n      \"pairBId\": \"p7\"\n    },\n    {\n      \"id\": \"group-B-3\",\n      \"phase\": \"group\",\n      \"groupId\": \"B\",\n      \"pairAId\": \"p6\",\n      \"pairBId\": \"p8\"\n    },\n    {\n      \"id\": \"group-B-4\",\n      \"phase\": \"group\",\n      \"groupId\": \"B\",\n      \"pairAId\": \"p5\",\n      \"pairBId\": \"p8\"\n    },\n    {\n      \"id\": \"group-B-5\",\n      \"phase\": \"group\",\n      \"groupId\": \"B\",\n      \"pairAId\": \"p6\",\n      \"pairBId\": \"p7\"\n    },\n    {\n      \"id\": \"group-C-0\",\n      \"phase\": \"group\",\n      \"groupId\": \"C\",\n      \"pairAId\": \"p9\",\n      \"pairBId\": \"p10\"\n    },\n    {\n      \"id\": \"group-C-1\",\n      \"phase\": \"group\",\n      \"groupId\": \"C\",\n      \"pairAId\": \"p11\",\n      \"pairBId\": \"p12\"\n    },\n    {\n      \"id\": \"group-C-2\",\n      \"phase\": \"group\",\n      \"groupId\": \"C\",\n      \"pairAId\": \"p9\",\n      \"pairBId\": \"p11\"\n    },\n    {\n      \"id\": \"group-C-3\",\n      \"phase\": \"group\",\n      \"groupId\": \"C\",\n      \"pairAId\": \"p10\",\n      \"pairBId\": \"p12\"\n    },\n    {\n      \"id\": \"group-C-4\",\n      \"phase\": \"group\",\n      \"groupId\": \"C\",\n      \"pairAId\": \"p9\",\n      \"pairBId\": \"p12\"\n    },\n    {\n      \"id\": \"group-C-5\",\n      \"phase\": \"group\",\n      \"groupId\": \"C\",\n      \"pairAId\": \"p10\",\n      \"pairBId\": \"p11\"\n    },\n    {\n      \"id\": \"group-D-0\",\n      \"phase\": \"group\",\n      \"groupId\": \"D\",\n      \"pairAId\": \"p13\",\n      \"pairBId\": \"p14\"\n    },\n    {\n      \"id\": \"group-D-1\",\n      \"phase\": \"group\",\n      \"groupId\": \"D\",\n      \"pairAId\": \"p15\",\n      \"pairBId\": \"p16\"\n    },\n    {\n      \"id\": \"group-D-2\",\n      \"phase\": \"group\",\n      \"groupId\": \"D\",\n      \"pairAId\": \"p13\",\n      \"pairBId\": \"p15\"\n    },\n    {\n      \"id\": \"group-D-3\",\n      \"phase\": \"group\",\n      \"groupId\": \"D\",\n      \"pairAId\": \"p14\",\n      \"pairBId\": \"p16\"\n    },\n    {\n      \"id\": \"group-D-4\",\n      \"phase\": \"group\",\n      \"groupId\": \"D\",\n      \"pairAId\": \"p13\",\n      \"pairBId\": \"p16\"\n    },\n    {\n      \"id\": \"group-D-5\",\n      \"phase\": \"group\",\n      \"groupId\": \"D\",\n      \"pairAId\": \"p14\",\n      \"pairBId\": \"p15\"\n    },\n    {\n      \"id\": \"qf-1\",\n      \"phase\": \"qf\"\n    },\n    {\n      \"id\": \"qf-2\",\n      \"phase\": \"qf\"\n    },\n    {\n      \"id\": \"qf-3\",\n      \"phase\": \"qf\"\n    },\n    {\n      \"id\": \"qf-4\",\n      \"phase\": \"qf\"\n    },\n    {\n      \"id\": \"sf-1\",\n      \"phase\": \"sf\"\n    },\n    {\n      \"id\": \"sf-2\",\n      \"phase\": \"sf\"\n    },\n    {\n      \"id\": \"3rd-1\",\n      \"phase\": \"3rd\"\n    },\n    {\n      \"id\": \"final-1\",\n      \"phase\": \"final\"\n    }\n  ]\n}\n"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "date": "2026-12-05",
+      "format": "classic",
+      "groups": {
+        "A": [
+          "{uuid}",
+          "{uuid}",
+          "{uuid}",
+          "{uuid}"
+        ],
+        "B": [
+          "{uuid}",
+          "{uuid}",
+          "{uuid}",
+          "{uuid}"
+        ],
+        "C": [
+          "{uuid}",
+          "{uuid}",
+          "{uuid}",
+          "{uuid}"
+        ],
+        "D": [
+          "{uuid}",
+          "{uuid}",
+          "{uuid}",
+          "{uuid}"
+        ]
+      },
+      "id": "{uuid}",
+      "matches": [
+        {
+          "groupId": "A",
+          "id": "group-A-0",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "A",
+          "id": "group-A-1",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "A",
+          "id": "group-A-2",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "A",
+          "id": "group-A-3",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "A",
+          "id": "group-A-4",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "A",
+          "id": "group-A-5",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "B",
+          "id": "group-B-0",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "B",
+          "id": "group-B-1",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "B",
+          "id": "group-B-2",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "B",
+          "id": "group-B-3",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "B",
+          "id": "group-B-4",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "B",
+          "id": "group-B-5",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "C",
+          "id": "group-C-0",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "C",
+          "id": "group-C-1",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "C",
+          "id": "group-C-2",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "C",
+          "id": "group-C-3",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "C",
+          "id": "group-C-4",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "C",
+          "id": "group-C-5",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "D",
+          "id": "group-D-0",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "D",
+          "id": "group-D-1",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "D",
+          "id": "group-D-2",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "D",
+          "id": "group-D-3",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "D",
+          "id": "group-D-4",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": "D",
+          "id": "group-D-5",
+          "pairAId": "{uuid}",
+          "pairBId": "{uuid}",
+          "phase": "group",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": null,
+          "id": "qf-1",
+          "pairAId": null,
+          "pairBId": null,
+          "phase": "qf",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": null,
+          "id": "qf-2",
+          "pairAId": null,
+          "pairBId": null,
+          "phase": "qf",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": null,
+          "id": "qf-3",
+          "pairAId": null,
+          "pairBId": null,
+          "phase": "qf",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": null,
+          "id": "qf-4",
+          "pairAId": null,
+          "pairBId": null,
+          "phase": "qf",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": null,
+          "id": "sf-1",
+          "pairAId": null,
+          "pairBId": null,
+          "phase": "sf",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": null,
+          "id": "sf-2",
+          "pairAId": null,
+          "pairBId": null,
+          "phase": "sf",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": null,
+          "id": "3rd-1",
+          "pairAId": null,
+          "pairBId": null,
+          "phase": "3rd",
+          "scoreA": null,
+          "scoreB": null
+        },
+        {
+          "groupId": null,
+          "id": "final-1",
+          "pairAId": null,
+          "pairBId": null,
+          "phase": "final",
+          "scoreA": null,
+          "scoreB": null
+        }
+      ],
+      "name": "Parity Cup",
+      "pairs": [
+        {
+          "id": "{uuid}",
+          "name": "Pair 1"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 10"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 11"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 12"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 13"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 14"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 15"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 16"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 2"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 3"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 4"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 5"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 6"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 7"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 8"
+        },
+        {
+          "id": "{uuid}",
+          "name": "Pair 9"
+        }
+      ],
+      "version": 2
+    }
+  }
+}

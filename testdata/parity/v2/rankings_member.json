@@ -1,0 +1,58 @@
+{
+  "route": "listRankings",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/rankings",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "asOf": "{date}",
+      "items": [
+        {
+          "games": 4,
+          "losses": 2,
+          "name": "Alice",
+          "playerId": "{uuid}",
+          "points": 0,
+          "rank": 1,
+          "tier": "B",
+          "wins": 2
+        },
+        {
+          "games": 4,
+          "losses": 2,
+          "name": "Budi",
+          "playerId": "{uuid}",
+          "points": 0,
+          "rank": 2,
+          "tier": "C+",
+          "wins": 2
+        },
+        {
+          "games": 4,
+          "losses": 1,
+          "name": "Candra",
+          "playerId": "{uuid}",
+          "points": 0,
+          "rank": 3,
+          "tier": "C",
+          "wins": 3
+        },
+        {
+          "games": 4,
+          "losses": 3,
+          "name": "Dewi",
+          "playerId": "{uuid}",
+          "points": 0,
+          "rank": 4,
+          "tier": "D+",
+          "wins": 1
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "route": "postTournamentRating",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/tournaments/60000000-0000-4000-8000-000000000002/rating",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "deltas": 6,
+      "events": 1
+    }
+  }
+}

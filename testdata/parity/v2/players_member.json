@@ -1,0 +1,89 @@
+{
+  "route": "listPlayers",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/players",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "createdAt": "{timestamp}",
+          "gender": "F",
+          "id": "{uuid}",
+          "name": "Alice",
+          "tier": "B",
+          "updatedAt": "{timestamp}",
+          "userId": null
+        },
+        {
+          "createdAt": "{timestamp}",
+          "gender": "M",
+          "id": "{uuid}",
+          "name": "Budi",
+          "tier": "C+",
+          "updatedAt": "{timestamp}",
+          "userId": null
+        },
+        {
+          "createdAt": "{timestamp}",
+          "gender": "M",
+          "id": "{uuid}",
+          "name": "Candra",
+          "tier": "C",
+          "updatedAt": "{timestamp}",
+          "userId": null
+        },
+        {
+          "createdAt": "{timestamp}",
+          "gender": "F",
+          "id": "{uuid}",
+          "name": "Dewi",
+          "tier": "D+",
+          "updatedAt": "{timestamp}",
+          "userId": null
+        },
+        {
+          "createdAt": "{timestamp}",
+          "gender": "F",
+          "id": "{uuid}",
+          "name": "Eka",
+          "tier": "C",
+          "updatedAt": "{timestamp}",
+          "userId": null
+        },
+        {
+          "createdAt": "{timestamp}",
+          "gender": "M",
+          "id": "{uuid}",
+          "name": "Fajar",
+          "tier": "B",
+          "updatedAt": "{timestamp}",
+          "userId": null
+        },
+        {
+          "createdAt": "{timestamp}",
+          "gender": "M",
+          "id": "{uuid}",
+          "name": "Temp",
+          "tier": "D",
+          "updatedAt": "{timestamp}",
+          "userId": null
+        },
+        {
+          "createdAt": "{timestamp}",
+          "gender": "F",
+          "id": "{uuid}",
+          "name": "Merge Source",
+          "tier": "D",
+          "updatedAt": "{timestamp}",
+          "userId": null
+        }
+      ]
+    }
+  }
+}

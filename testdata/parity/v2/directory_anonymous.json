@@ -1,0 +1,18 @@
+{
+  "route": "getDirectory",
+  "request": {
+    "method": "GET",
+    "path": "/directory"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "name": "Parity Club",
+          "slug": "parity"
+        }
+      ]
+    }
+  }
+}

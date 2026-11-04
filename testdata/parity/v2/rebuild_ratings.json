@@ -1,0 +1,19 @@
+{
+  "route": "postRatingsRebuild",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/ratings/rebuild",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "deltas": 8,
+      "events": 1
+    }
+  }
+}

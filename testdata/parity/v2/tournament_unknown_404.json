@@ -1,0 +1,18 @@
+{
+  "route": "getTournament",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/tournaments/60000000-0000-4000-8000-0000000000ff",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token"
+    }
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "code": "NOT_FOUND",
+      "detail": "tournament not found",
+      "status": 404
+    }
+  }
+}

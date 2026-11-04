@@ -1,0 +1,18 @@
+{
+  "route": "acceptInvite",
+  "request": {
+    "method": "POST",
+    "path": "/invites/parity-invite-token/accept",
+    "headers": {
+      "Cookie": "majadu_session=parity-outsider-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 201,
+    "body": {
+      "communityId": "{uuid}",
+      "role": "member"
+    }
+  }
+}

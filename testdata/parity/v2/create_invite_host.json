@@ -1,0 +1,20 @@
+{
+  "route": "createInvite",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/invites",
+    "headers": {
+      "Cookie": "majadu_session=parity-host-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"email\":\"invite@example.com\"}"
+  },
+  "expect": {
+    "status": 403,
+    "body": {
+      "code": "FORBIDDEN",
+      "detail": "FORBIDDEN",
+      "status": 403
+    }
+  }
+}

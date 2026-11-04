@@ -1,0 +1,18 @@
+{
+  "route": "deleteOwnClaim",
+  "request": {
+    "method": "DELETE",
+    "path": "/c/parity/players/30000000-0000-4000-8000-000000000001/claim",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "claimId": "{uuid}",
+      "status": "released"
+    }
+  }
+}

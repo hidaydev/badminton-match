@@ -1,0 +1,23 @@
+{
+  "route": "listAuthSessions",
+  "request": {
+    "method": "GET",
+    "path": "/auth/sessions",
+    "headers": {
+      "Cookie": "majadu_session=parity-owner-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "createdAt": "{timestamp}",
+          "current": true,
+          "id": "{uuid}",
+          "lastSeenAt": "{timestamp}"
+        }
+      ]
+    }
+  }
+}

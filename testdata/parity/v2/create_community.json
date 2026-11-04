@@ -1,0 +1,21 @@
+{
+  "route": "createCommunity",
+  "request": {
+    "method": "POST",
+    "path": "/communities",
+    "headers": {
+      "Cookie": "majadu_session=parity-owner-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"slug\":\"parity-cup\",\"name\":\"Parity Cup\",\"adminEmail\":\"cup@example.com\"}"
+  },
+  "expect": {
+    "status": 201,
+    "body": {
+      "id": "{uuid}",
+      "name": "Parity Cup",
+      "slug": "parity-cup",
+      "timezone": "Asia/Jakarta"
+    }
+  }
+}

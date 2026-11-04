@@ -1,0 +1,15 @@
+{
+  "route": "getAuthCallback",
+  "request": {
+    "method": "GET",
+    "path": "/auth/callback"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "code": "INVALID_CALLBACK",
+      "detail": "code and state are required",
+      "status": 400
+    }
+  }
+}

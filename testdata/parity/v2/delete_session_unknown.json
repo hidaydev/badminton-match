@@ -1,0 +1,19 @@
+{
+  "route": "deleteSession",
+  "request": {
+    "method": "DELETE",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-0000000000ff",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "code": "NOT_FOUND",
+      "detail": "session not found",
+      "status": 404
+    }
+  }
+}

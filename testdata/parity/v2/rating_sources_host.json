@@ -1,0 +1,18 @@
+{
+  "route": "listRatingSources",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/rating-sources",
+    "headers": {
+      "Cookie": "majadu_session=parity-host-token"
+    }
+  },
+  "expect": {
+    "status": 403,
+    "body": {
+      "code": "FORBIDDEN",
+      "detail": "FORBIDDEN",
+      "status": 403
+    }
+  }
+}

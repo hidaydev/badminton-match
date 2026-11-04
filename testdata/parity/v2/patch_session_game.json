@@ -1,0 +1,19 @@
+{
+  "route": "patchSessionGame",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/0-1",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173",
+      "If-Match": "\"3\""
+    },
+    "body": "{\"scoreA\":21,\"scoreB\":19}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "version": 4
+    }
+  }
+}

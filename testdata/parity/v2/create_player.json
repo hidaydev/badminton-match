@@ -1,0 +1,25 @@
+{
+  "route": "createPlayer",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/players",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"name\":\"Gita\",\"gender\":\"F\",\"tier\":\"B\"}"
+  },
+  "expect": {
+    "status": 201,
+    "body": {
+      "aliases": [],
+      "createdAt": "{timestamp}",
+      "gender": "F",
+      "id": "{uuid}",
+      "name": "Gita",
+      "tier": "B",
+      "updatedAt": "{timestamp}",
+      "userId": null
+    }
+  }
+}

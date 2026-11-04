@@ -1,0 +1,23 @@
+{
+  "route": "getPlayer",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/players/30000000-0000-4000-8000-000000000001",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "aliases": [],
+      "createdAt": "{timestamp}",
+      "gender": "F",
+      "id": "{uuid}",
+      "name": "Alice",
+      "tier": "B",
+      "updatedAt": "{timestamp}",
+      "userId": null
+    }
+  }
+}

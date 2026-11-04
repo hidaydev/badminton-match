@@ -1,0 +1,26 @@
+{
+  "route": "patchSession",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000002",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173",
+      "If-Match": "\"1\""
+    },
+    "body": "{\"title\":\"Draft Night A\"}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "approvedAt": null,
+      "date": "2026-11-10",
+      "id": "{uuid}",
+      "slotMinutes": 30,
+      "startTime": "19:00:00",
+      "status": "draft",
+      "title": "Draft Night A",
+      "version": 2
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "route": "listJoinRequests",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/join-requests",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "createdAt": "{timestamp}",
+          "displayName": "Applicant",
+          "id": "{uuid}",
+          "userId": "{uuid}"
+        }
+      ]
+    }
+  }
+}

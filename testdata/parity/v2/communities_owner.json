@@ -1,0 +1,23 @@
+{
+  "route": "listMyCommunities",
+  "request": {
+    "method": "GET",
+    "path": "/communities",
+    "headers": {
+      "Cookie": "majadu_session=parity-owner-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "id": "{uuid}",
+          "name": "Parity Club",
+          "role": "admin",
+          "slug": "parity"
+        }
+      ]
+    }
+  }
+}

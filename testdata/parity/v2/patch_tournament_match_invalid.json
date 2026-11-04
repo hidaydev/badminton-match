@@ -1,0 +1,24 @@
+{
+  "route": "patchTournamentMatch",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/tournaments/60000000-0000-4000-8000-000000000003/matches/group-A-0",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173",
+      "If-Match": "\"1\""
+    },
+    "body": "{\"scoreA\":100,\"scoreB\":1}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "issues": [
+        {
+          "detail": "scores must be between 0 and 99",
+          "kind": "invalid_body"
+        }
+      ]
+    }
+  }
+}

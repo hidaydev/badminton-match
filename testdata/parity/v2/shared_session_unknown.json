@@ -1,0 +1,15 @@
+{
+  "route": "getSharedSession",
+  "request": {
+    "method": "GET",
+    "path": "/s/ffffffffffffffffffffffffffffffff"
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "code": "NOT_FOUND",
+      "detail": "link not found",
+      "status": 404
+    }
+  }
+}

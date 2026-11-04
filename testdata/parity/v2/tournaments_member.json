@@ -1,0 +1,41 @@
+{
+  "route": "listTournaments",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/tournaments",
+    "headers": {
+      "Cookie": "majadu_session=parity-member-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "date": "2026-11-20",
+          "format": "classic",
+          "id": "{uuid}",
+          "name": "Parity Draft",
+          "status": "draft",
+          "version": 1
+        },
+        {
+          "date": "2026-10-26",
+          "format": "team",
+          "id": "{uuid}",
+          "name": "Parity Team",
+          "status": "completed",
+          "version": 1
+        },
+        {
+          "date": "2026-10-25",
+          "format": "classic",
+          "id": "{uuid}",
+          "name": "Parity Classic",
+          "status": "completed",
+          "version": 1
+        }
+      ]
+    }
+  }
+}

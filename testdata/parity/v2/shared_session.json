@@ -1,0 +1,40 @@
+{
+  "route": "getSharedSession",
+  "request": {
+    "method": "GET",
+    "path": "/s/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "community": {
+        "name": "Parity Club",
+        "slug": "parity"
+      },
+      "games": [
+        {
+          "court": 0,
+          "id": "{uuid}",
+          "round": 0,
+          "scoreA": 21,
+          "scoreB": 18,
+          "status": "played"
+        },
+        {
+          "court": 1,
+          "id": "{uuid}",
+          "round": 0,
+          "scoreA": null,
+          "scoreB": null,
+          "status": "scheduled"
+        }
+      ],
+      "session": {
+        "date": "2026-11-03",
+        "id": "{uuid}",
+        "status": "locked",
+        "title": "Tuesday Night"
+      }
+    }
+  }
+}

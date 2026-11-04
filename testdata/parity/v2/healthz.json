@@ -1,8 +1,13 @@
 {
-  "method": "GET",
-  "path": "/healthz",
-  "status": 200,
-  "body": {
-    "status": "ok"
+  "route": "getHealthz",
+  "request": {
+    "method": "GET",
+    "path": "/healthz"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "status": "ok"
+    }
   }
 }

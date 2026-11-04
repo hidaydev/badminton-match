@@ -1,0 +1,16 @@
+{
+  "route": "deleteAuthSessions",
+  "request": {
+    "method": "DELETE",
+    "path": "/auth/sessions",
+    "headers": {
+      "Cookie": "majadu_session=parity-owner-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 204,
+    "body": "",
+    "emptyBody": true
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "route": "listRatingSources",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/rating-sources",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "date": "2026-10-25",
+          "deltas": 0,
+          "finalized": false,
+          "finalizedAt": null,
+          "id": "{uuid}",
+          "sourceId": "{uuid}",
+          "type": "tournament"
+        }
+      ]
+    }
+  }
+}

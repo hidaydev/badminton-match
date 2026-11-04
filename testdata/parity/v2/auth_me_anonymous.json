@@ -1,0 +1,15 @@
+{
+  "route": "getAuthMe",
+  "request": {
+    "method": "GET",
+    "path": "/auth/me"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

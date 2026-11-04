@@ -1,0 +1,18 @@
+{
+  "route": "createJoinRequest",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/join-requests",
+    "headers": {
+      "Cookie": "majadu_session=parity-host-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"note\":\"hello\"}"
+  },
+  "expect": {
+    "status": 202,
+    "body": {
+      "status": "accepted"
+    }
+  }
+}

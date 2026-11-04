@@ -1,0 +1,16 @@
+{
+  "route": "deletePlayer",
+  "request": {
+    "method": "DELETE",
+    "path": "/c/parity/players/30000000-0000-4000-8000-000000000008",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 204,
+    "body": "",
+    "emptyBody": true
+  }
+}

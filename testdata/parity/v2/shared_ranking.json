@@ -1,0 +1,20 @@
+{
+  "route": "getSharedRanking",
+  "request": {
+    "method": "GET",
+    "path": "/s/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a/rankings/30000000-0000-4000-8000-000000000001"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "games": 4,
+      "losses": 2,
+      "name": "Alice",
+      "playerId": "{uuid}",
+      "points": 0,
+      "rank": 1,
+      "tier": "B",
+      "wins": 2
+    }
+  }
+}

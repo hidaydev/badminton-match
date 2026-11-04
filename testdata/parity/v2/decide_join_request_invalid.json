@@ -1,0 +1,20 @@
+{
+  "route": "decideJoinRequest",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/join-requests/72000000-0000-4000-8000-000000000001",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"decision\":\"maybe\"}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "code": "INVALID_DECISION",
+      "detail": "decision must be approve or reject",
+      "status": 400
+    }
+  }
+}

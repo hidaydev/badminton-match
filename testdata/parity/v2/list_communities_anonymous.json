@@ -1,0 +1,15 @@
+{
+  "route": "listMyCommunities",
+  "request": {
+    "method": "GET",
+    "path": "/communities"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

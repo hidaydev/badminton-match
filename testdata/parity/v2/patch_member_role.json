@@ -1,0 +1,19 @@
+{
+  "route": "patchMemberRole",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/members/20000000-0000-4000-8000-000000000006",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"role\":\"host\"}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "role": "host",
+      "userId": "{uuid}"
+    }
+  }
+}

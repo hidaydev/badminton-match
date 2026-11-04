@@ -1,0 +1,19 @@
+{
+  "route": "putSessionSchedule",
+  "request": {
+    "method": "PUT",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000002/schedule",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173",
+      "If-Match": "\"2\""
+    },
+    "body": "{\"games\":[{\"round\":0,\"court\":0,\"sideA\":[\"30000000-0000-4000-8000-000000000001\",\"30000000-0000-4000-8000-000000000002\"],\"sideB\":[\"30000000-0000-4000-8000-000000000003\",\"30000000-0000-4000-8000-000000000004\"]}]}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "version": 3
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "route": "deleteTournamentRating",
+  "request": {
+    "method": "DELETE",
+    "path": "/c/parity/tournaments/60000000-0000-4000-8000-000000000002/rating",
+    "headers": {
+      "Cookie": "majadu_session=parity-host-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 403,
+    "body": {
+      "code": "FORBIDDEN",
+      "detail": "FORBIDDEN",
+      "status": 403
+    }
+  }
+}

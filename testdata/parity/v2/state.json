@@ -1,0 +1,282 @@
+{
+  "projections": [
+    {
+      "table": "platform.community",
+      "columns": [
+        "slug",
+        "name",
+        "timezone"
+      ],
+      "orderBy": [
+        "slug"
+      ],
+      "rows": 3,
+      "sha256": "2b5f25748bfb6e8284f412c91c6b7116e04964ba5af5e0a6db895cb1d099c1ff"
+    },
+    {
+      "table": "platform.user",
+      "columns": [
+        "display_name",
+        "is_platform_owner"
+      ],
+      "orderBy": [
+        "display_name"
+      ],
+      "rows": 6,
+      "sha256": "b3a6b712e8e2b4b35620bd397af724760d784e118901cc8a491efcd1e50ef5ac"
+    },
+    {
+      "table": "community.membership m join platform.community c on c.id = m.community_id join platform.user u on u.id = m.user_id",
+      "columns": [
+        "c.slug as community_slug",
+        "u.display_name as display_name",
+        "m.role as role"
+      ],
+      "orderBy": [
+        "c.slug",
+        "u.display_name"
+      ],
+      "rows": 6,
+      "sha256": "06b420a6b7f580a1d048f16d34b23d9facb33125d1ba0db15f6f32bc03d86fd8"
+    },
+    {
+      "table": "player.players",
+      "columns": [
+        "canonical_name",
+        "tier",
+        "gender"
+      ],
+      "orderBy": [
+        "canonical_name"
+      ],
+      "rows": 40,
+      "sha256": "091431a21ea43cbfaae84907a3d85b8ec22916f3eee48689a1b812fcf1d81236"
+    },
+    {
+      "table": "session.sessions",
+      "columns": [
+        "title",
+        "session_date::text as session_date",
+        "start_time::text as start_time",
+        "slot_minutes",
+        "status",
+        "version"
+      ],
+      "orderBy": [
+        "session_date",
+        "title"
+      ],
+      "rows": 4,
+      "sha256": "0ed6e13f1af10dadddb405fbdf04f795172fdec5dcaed74368fe71e04f6594b3"
+    },
+    {
+      "table": "session.participants p join session.sessions s on s.id = p.session_id join player.players pl on pl.id = p.player_id",
+      "columns": [
+        "s.title as session_title",
+        "pl.canonical_name as player_name"
+      ],
+      "orderBy": [
+        "s.title",
+        "pl.canonical_name"
+      ],
+      "rows": 8,
+      "sha256": "eea9be64e34fd9be46b60845d3890b92a1d4cd8117be951ca13d2f7a32f2175c"
+    },
+    {
+      "table": "session.games g join session.sessions s on s.id = g.session_id",
+      "columns": [
+        "s.title as session_title",
+        "g.round_no as round_no",
+        "g.court_no as court_no",
+        "g.score_a as score_a",
+        "g.score_b as score_b",
+        "g.status as status",
+        "g.side_a1::text as side_a1",
+        "g.side_a2::text as side_a2",
+        "g.side_b1::text as side_b1",
+        "g.side_b2::text as side_b2"
+      ],
+      "orderBy": [
+        "s.title",
+        "g.round_no",
+        "g.court_no"
+      ],
+      "rows": 3,
+      "sha256": "7723e5c4f6755fa3439fbd9e4c0eb358bc3fc94f387cf06fe2b9e8dca5ba9e4b"
+    },
+    {
+      "table": "session.links",
+      "columns": [
+        "key_id as key_id",
+        "(revoked_at is not null) as revoked"
+      ],
+      "orderBy": [
+        "key_id",
+        "revoked"
+      ],
+      "rows": 2,
+      "sha256": "b948adb0ef5a7710d9f2ff3d99df16c85c96650d5f9669c6d5810f086b131b38"
+    },
+    {
+      "table": "tournament.tournaments",
+      "columns": [
+        "name",
+        "status",
+        "event_date::text as event_date",
+        "version",
+        "format"
+      ],
+      "orderBy": [
+        "name"
+      ],
+      "rows": 3,
+      "sha256": "30fdfe50d8afcd5bd496fc97626945382fa447423f4b8696ebb38c16699dd54b"
+    },
+    {
+      "table": "tournament.pairs p join tournament.tournaments t on t.id = p.tournament_id",
+      "columns": [
+        "t.name as tournament_name",
+        "p.display_name as display_name"
+      ],
+      "orderBy": [
+        "t.name",
+        "p.display_name"
+      ],
+      "rows": 18,
+      "sha256": "b3c4424cf7d4a02524b76bdae08b24a9ef17e33b911b631d9caba807244e597e"
+    },
+    {
+      "table": "tournament.matches m join tournament.tournaments t on t.id = m.tournament_id",
+      "columns": [
+        "t.name as tournament_name",
+        "m.match_key as match_key",
+        "m.score_a as score_a",
+        "m.score_b as score_b",
+        "m.status as status"
+      ],
+      "orderBy": [
+        "t.name",
+        "m.match_key"
+      ],
+      "rows": 33,
+      "sha256": "f80db3ccd73d101b73de8295755349738592e12076c595759ed233fe2e9e3abc"
+    },
+    {
+      "table": "tournament.teams",
+      "columns": [
+        "team_name",
+        "seed"
+      ],
+      "orderBy": [
+        "seed"
+      ],
+      "rows": 6,
+      "sha256": "d650ae299eccaf56454c7e6059b82508328b5845ef402d75273319636d5d8bea"
+    },
+    {
+      "table": "tournament.team_players tp join tournament.teams t on t.id = tp.team_id",
+      "columns": [
+        "t.team_name as team_name",
+        "tp.player_name as player_name",
+        "tp.cls as cls"
+      ],
+      "orderBy": [
+        "t.team_name",
+        "tp.cls"
+      ],
+      "rows": 36,
+      "sha256": "fc77526081890032121f74f4107f4c316d74eb1a536d6bfda72504d4cf092d9d"
+    },
+    {
+      "table": "tournament.team_matches tm join tournament.tournaments t on t.id = tm.tournament_id",
+      "columns": [
+        "t.name as tournament_name",
+        "tm.match_key as match_key",
+        "tm.phase as phase"
+      ],
+      "orderBy": [
+        "t.name",
+        "tm.match_key"
+      ],
+      "rows": 2,
+      "sha256": "51f5e4274a31644940838483beccd35fb5104b883d641d5306428a7a273658f0"
+    },
+    {
+      "table": "tournament.team_partai tp join tournament.team_matches tm on tm.id = tp.team_match_id",
+      "columns": [
+        "tm.match_key as match_key",
+        "tp.partai_index as partai_index",
+        "tp.score_a as score_a",
+        "tp.score_b as score_b"
+      ],
+      "orderBy": [
+        "tm.match_key",
+        "tp.partai_index"
+      ],
+      "rows": 3,
+      "sha256": "caebf2cf2e76c629d8b9c2f14b0045a5ab5d94da29f6f313c955bcef4859f0d6"
+    },
+    {
+      "table": "rating.events",
+      "columns": [
+        "event_type",
+        "source_id::text as source_id",
+        "local_date::text as local_date"
+      ],
+      "orderBy": [
+        "event_type",
+        "source_id"
+      ],
+      "rows": 2,
+      "sha256": "1afbeaa9a55635f61e5cbf85b9953833eee2e87ac861d9a9a74d29a47859d61d"
+    },
+    {
+      "table": "rating.deltas d join rating.events e on e.id = d.event_id join player.players pl on pl.id = d.player_id",
+      "columns": [
+        "e.source_id::text as source_id",
+        "pl.canonical_name as player_name",
+        "d.side as side",
+        "d.delta as delta"
+      ],
+      "orderBy": [
+        "source_id",
+        "player_name",
+        "side"
+      ],
+      "rows": 12,
+      "sha256": "175355751c881957d1b823b283666295f6cb8840aa0ad4ffaa5bdeff25d0890a"
+    },
+    {
+      "table": "rating.sources",
+      "columns": [
+        "source_id::text as source_id",
+        "kind",
+        "finalized"
+      ],
+      "orderBy": [
+        "source_id"
+      ],
+      "rows": 2,
+      "sha256": "ebfc5578bca7752c908dfbfadfe1f16c87038a13805d720601ec86f121ccb0e1"
+    },
+    {
+      "table": "rating.player_state ps join player.players pl on pl.id = ps.player_id",
+      "columns": [
+        "pl.canonical_name as player_name",
+        "ps.rating as rating",
+        "ps.games_played as games_played",
+        "ps.wins as wins",
+        "ps.losses as losses"
+      ],
+      "orderBy": [
+        "player_name"
+      ],
+      "rows": 6,
+      "sha256": "a6e02000ce425a83bcda7c99b442817022a8ea5216be632baa91a2a8d1665cab"
+    }
+  ],
+  "selftest": {
+    "projection": "platform.community",
+    "sql": "update platform.community set name = name || ' (selftest)' where slug = 'parity'"
+  }
+}

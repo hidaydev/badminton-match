@@ -1,0 +1,26 @@
+{
+  "route": "postPlayerMerge",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/players/30000000-0000-4000-8000-000000000008/merge",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"sourcePlayerId\":\"30000000-0000-4000-8000-000000000009\"}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "achievementsMoved": 0,
+      "aliasesMoved": 0,
+      "claimsMoved": 0,
+      "deltasMoved": 0,
+      "pairsMoved": 0,
+      "ratingStateMoved": 0,
+      "snapshotsMoved": 0,
+      "sourcePlayerId": "{uuid}",
+      "targetPlayerId": "{uuid}"
+    }
+  }
+}

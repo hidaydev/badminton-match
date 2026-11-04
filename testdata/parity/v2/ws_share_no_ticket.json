@@ -1,0 +1,15 @@
+{
+  "route": "wsShare",
+  "request": {
+    "method": "GET",
+    "path": "/ws/share/5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "ticket is invalid, expired or already used",
+      "status": 401
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "route": "getSession",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000001",
+    "headers": {
+      "Cookie": "majadu_session=parity-host-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "date": "2026-11-03",
+      "id": "{uuid}",
+      "status": "locked",
+      "title": "Tuesday Night",
+      "version": 1
+    }
+  }
+}

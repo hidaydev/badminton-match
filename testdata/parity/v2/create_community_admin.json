@@ -1,0 +1,20 @@
+{
+  "route": "createCommunity",
+  "request": {
+    "method": "POST",
+    "path": "/communities",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"slug\":\"not-owner\",\"name\":\"Nope\",\"adminEmail\":\"x@example.com\"}"
+  },
+  "expect": {
+    "status": 403,
+    "body": {
+      "code": "FORBIDDEN",
+      "detail": "platform owner only",
+      "status": 403
+    }
+  }
+}

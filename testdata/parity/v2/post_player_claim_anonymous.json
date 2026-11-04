@@ -1,0 +1,15 @@
+{
+  "route": "postPlayerClaim",
+  "request": {
+    "method": "POST",
+    "path": "/c/parity/players/30000000-0000-4000-8000-000000000002/claims"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

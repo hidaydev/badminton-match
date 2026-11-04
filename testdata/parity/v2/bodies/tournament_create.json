@@ -1,0 +1,299 @@
+{
+  "name": "Parity Cup",
+  "date": "2026-12-05",
+  "format": "classic",
+  "pairs": [
+    {
+      "id": "p1",
+      "name": "Pair 1"
+    },
+    {
+      "id": "p2",
+      "name": "Pair 2"
+    },
+    {
+      "id": "p3",
+      "name": "Pair 3"
+    },
+    {
+      "id": "p4",
+      "name": "Pair 4"
+    },
+    {
+      "id": "p5",
+      "name": "Pair 5"
+    },
+    {
+      "id": "p6",
+      "name": "Pair 6"
+    },
+    {
+      "id": "p7",
+      "name": "Pair 7"
+    },
+    {
+      "id": "p8",
+      "name": "Pair 8"
+    },
+    {
+      "id": "p9",
+      "name": "Pair 9"
+    },
+    {
+      "id": "p10",
+      "name": "Pair 10"
+    },
+    {
+      "id": "p11",
+      "name": "Pair 11"
+    },
+    {
+      "id": "p12",
+      "name": "Pair 12"
+    },
+    {
+      "id": "p13",
+      "name": "Pair 13"
+    },
+    {
+      "id": "p14",
+      "name": "Pair 14"
+    },
+    {
+      "id": "p15",
+      "name": "Pair 15"
+    },
+    {
+      "id": "p16",
+      "name": "Pair 16"
+    }
+  ],
+  "groups": {
+    "A": [
+      "p1",
+      "p2",
+      "p3",
+      "p4"
+    ],
+    "B": [
+      "p5",
+      "p6",
+      "p7",
+      "p8"
+    ],
+    "C": [
+      "p9",
+      "p10",
+      "p11",
+      "p12"
+    ],
+    "D": [
+      "p13",
+      "p14",
+      "p15",
+      "p16"
+    ]
+  },
+  "matches": [
+    {
+      "id": "group-A-0",
+      "phase": "group",
+      "groupId": "A",
+      "pairAId": "p1",
+      "pairBId": "p2"
+    },
+    {
+      "id": "group-A-1",
+      "phase": "group",
+      "groupId": "A",
+      "pairAId": "p3",
+      "pairBId": "p4"
+    },
+    {
+      "id": "group-A-2",
+      "phase": "group",
+      "groupId": "A",
+      "pairAId": "p1",
+      "pairBId": "p3"
+    },
+    {
+      "id": "group-A-3",
+      "phase": "group",
+      "groupId": "A",
+      "pairAId": "p2",
+      "pairBId": "p4"
+    },
+    {
+      "id": "group-A-4",
+      "phase": "group",
+      "groupId": "A",
+      "pairAId": "p1",
+      "pairBId": "p4"
+    },
+    {
+      "id": "group-A-5",
+      "phase": "group",
+      "groupId": "A",
+      "pairAId": "p2",
+      "pairBId": "p3"
+    },
+    {
+      "id": "group-B-0",
+      "phase": "group",
+      "groupId": "B",
+      "pairAId": "p5",
+      "pairBId": "p6"
+    },
+    {
+      "id": "group-B-1",
+      "phase": "group",
+      "groupId": "B",
+      "pairAId": "p7",
+      "pairBId": "p8"
+    },
+    {
+      "id": "group-B-2",
+      "phase": "group",
+      "groupId": "B",
+      "pairAId": "p5",
+      "pairBId": "p7"
+    },
+    {
+      "id": "group-B-3",
+      "phase": "group",
+      "groupId": "B",
+      "pairAId": "p6",
+      "pairBId": "p8"
+    },
+    {
+      "id": "group-B-4",
+      "phase": "group",
+      "groupId": "B",
+      "pairAId": "p5",
+      "pairBId": "p8"
+    },
+    {
+      "id": "group-B-5",
+      "phase": "group",
+      "groupId": "B",
+      "pairAId": "p6",
+      "pairBId": "p7"
+    },
+    {
+      "id": "group-C-0",
+      "phase": "group",
+      "groupId": "C",
+      "pairAId": "p9",
+      "pairBId": "p10"
+    },
+    {
+      "id": "group-C-1",
+      "phase": "group",
+      "groupId": "C",
+      "pairAId": "p11",
+      "pairBId": "p12"
+    },
+    {
+      "id": "group-C-2",
+      "phase": "group",
+      "groupId": "C",
+      "pairAId": "p9",
+      "pairBId": "p11"
+    },
+    {
+      "id": "group-C-3",
+      "phase": "group",
+      "groupId": "C",
+      "pairAId": "p10",
+      "pairBId": "p12"
+    },
+    {
+      "id": "group-C-4",
+      "phase": "group",
+      "groupId": "C",
+      "pairAId": "p9",
+      "pairBId": "p12"
+    },
+    {
+      "id": "group-C-5",
+      "phase": "group",
+      "groupId": "C",
+      "pairAId": "p10",
+      "pairBId": "p11"
+    },
+    {
+      "id": "group-D-0",
+      "phase": "group",
+      "groupId": "D",
+      "pairAId": "p13",
+      "pairBId": "p14"
+    },
+    {
+      "id": "group-D-1",
+      "phase": "group",
+      "groupId": "D",
+      "pairAId": "p15",
+      "pairBId": "p16"
+    },
+    {
+      "id": "group-D-2",
+      "phase": "group",
+      "groupId": "D",
+      "pairAId": "p13",
+      "pairBId": "p15"
+    },
+    {
+      "id": "group-D-3",
+      "phase": "group",
+      "groupId": "D",
+      "pairAId": "p14",
+      "pairBId": "p16"
+    },
+    {
+      "id": "group-D-4",
+      "phase": "group",
+      "groupId": "D",
+      "pairAId": "p13",
+      "pairBId": "p16"
+    },
+    {
+      "id": "group-D-5",
+      "phase": "group",
+      "groupId": "D",
+      "pairAId": "p14",
+      "pairBId": "p15"
+    },
+    {
+      "id": "qf-1",
+      "phase": "qf"
+    },
+    {
+      "id": "qf-2",
+      "phase": "qf"
+    },
+    {
+      "id": "qf-3",
+      "phase": "qf"
+    },
+    {
+      "id": "qf-4",
+      "phase": "qf"
+    },
+    {
+      "id": "sf-1",
+      "phase": "sf"
+    },
+    {
+      "id": "sf-2",
+      "phase": "sf"
+    },
+    {
+      "id": "3rd-1",
+      "phase": "3rd"
+    },
+    {
+      "id": "final-1",
+      "phase": "final"
+    }
+  ]
+}

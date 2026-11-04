@@ -1,0 +1,18 @@
+{
+  "route": "getAuthMe",
+  "request": {
+    "method": "GET",
+    "path": "/auth/me",
+    "headers": {
+      "Cookie": "majadu_session=parity-owner-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "displayName": "Owner",
+      "id": "{uuid}",
+      "platformOwner": true
+    }
+  }
+}

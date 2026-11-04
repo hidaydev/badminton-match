@@ -1,0 +1,21 @@
+{
+  "route": "patchRatingSource",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/rating-sources/80000000-0000-4000-8000-000000000001",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"finalized\":true}"
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "finalized": true,
+      "finalizedAt": "{timestamp}",
+      "kind": "tournament",
+      "sourceId": "{uuid}"
+    }
+  }
+}

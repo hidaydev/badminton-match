@@ -1,0 +1,26 @@
+{
+  "route": "listPlayerClaims",
+  "request": {
+    "method": "GET",
+    "path": "/c/parity/players/30000000-0000-4000-8000-000000000001/claims",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token"
+    }
+  },
+  "expect": {
+    "status": 200,
+    "body": {
+      "items": [
+        {
+          "createdAt": "{timestamp}",
+          "decidedAt": "",
+          "decidedBy": "",
+          "id": "{uuid}",
+          "reason": "",
+          "status": "pending",
+          "userId": "{uuid}"
+        }
+      ]
+    }
+  }
+}

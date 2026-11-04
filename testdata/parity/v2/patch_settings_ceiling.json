@@ -1,0 +1,20 @@
+{
+  "route": "patchSettings",
+  "request": {
+    "method": "PATCH",
+    "path": "/c/parity/settings",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    },
+    "body": "{\"api.page_size_default\":999999}"
+  },
+  "expect": {
+    "status": 400,
+    "body": {
+      "code": "OVERRIDE_TOO_HIGH",
+      "detail": "override exceeds the platform value: api.page_size_default",
+      "status": 400
+    }
+  }
+}

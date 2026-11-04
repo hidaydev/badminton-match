@@ -1,0 +1,19 @@
+{
+  "route": "acceptInvite",
+  "request": {
+    "method": "POST",
+    "path": "/invites/nope/accept",
+    "headers": {
+      "Cookie": "majadu_session=parity-outsider-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "code": "INVITE_NOT_FOUND",
+      "detail": "invitation not found",
+      "status": 404
+    }
+  }
+}

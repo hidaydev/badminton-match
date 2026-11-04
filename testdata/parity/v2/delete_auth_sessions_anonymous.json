@@ -1,0 +1,15 @@
+{
+  "route": "deleteAuthSessions",
+  "request": {
+    "method": "DELETE",
+    "path": "/auth/sessions"
+  },
+  "expect": {
+    "status": 401,
+    "body": {
+      "code": "UNAUTHENTICATED",
+      "detail": "login required",
+      "status": 401
+    }
+  }
+}

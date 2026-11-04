@@ -1,0 +1,15 @@
+{
+  "route": "postShareWsTicket",
+  "request": {
+    "method": "POST",
+    "path": "/s/ffffffffffffffffffffffffffffffff/ws-ticket"
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "code": "NOT_FOUND",
+      "detail": "link not found",
+      "status": 404
+    }
+  }
+}

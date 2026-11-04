@@ -1,0 +1,15 @@
+{
+  "route": "getSharedRanking",
+  "request": {
+    "method": "GET",
+    "path": "/s/ffffffffffffffffffffffffffffffff/rankings/30000000-0000-4000-8000-000000000001"
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "code": "NOT_FOUND",
+      "detail": "link not found",
+      "status": 404
+    }
+  }
+}
