@@ -6,6 +6,7 @@ proc loadRatingParams*(snapshot: Snapshot, settings: JsonNode): RatingParams =
   ## Reads every number the point formula needs. A malformed clamp or band list
   ## is a configuration error, not something to paper over with a default.
   result.sessionBase = decimalValue(snapshot, settings, keyRatingSessionBase)
+  result.scoreTarget = intValue(snapshot, settings, keyRatingScoreTarget)
   result.windowWeeks = intValue(snapshot, settings, keyRatingWindowWeeks)
   result.bestN = intValue(snapshot, settings, keyRatingBestN)
   result.thinEvidenceN = intValue(snapshot, settings, keyRatingThinEvidenceN)

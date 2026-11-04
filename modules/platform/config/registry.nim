@@ -20,6 +20,7 @@ type
     keyApiPageSizeDefault = "api.page_size_default"
     keyRankBoardLimit = "rank.board_limit"
     keyRatingSessionBase = "rating.session_base"
+    keyRatingScoreTarget = "rating.score_target"
     keyRatingOpponentClamp = "rating.opponent_clamp"
     keyRatingWindowWeeks = "rating.window_weeks"
     keyRatingBestN = "rating.best_n"
@@ -67,6 +68,7 @@ const allKeys* = [
   spec(keyApiPageSizeDefault, ctInt, 1, 1000, true),
   spec(keyRankBoardLimit, ctInt, 1, 10_000, true),
   spec(keyRatingSessionBase, ctDecimal, 0, 100_000, true),
+  spec(keyRatingScoreTarget, ctInt, 1, 99, true, scope = csCommunity),
   spec(keyRatingOpponentClamp, ctJson),
   spec(keyRatingWindowWeeks, ctInt, 1, 520, true),
   spec(keyRatingBestN, ctInt, 1, 100, true),

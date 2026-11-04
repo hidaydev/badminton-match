@@ -8,6 +8,7 @@ type
   RatingParams* = object
     ## Business numbers arrive from the config registry; nothing here defaults.
     sessionBase*: float
+    scoreTarget*: int
     opponentClampLow*: float
     opponentClampHigh*: float
     windowWeeks*: int

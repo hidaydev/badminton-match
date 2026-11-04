@@ -19,6 +19,7 @@ import uuidv7
 import share/crypto
 import share/store as shareStore
 import session/write as sessionWrite
+import session/schedule as sessionSchedule
 import ws_ticket as wsTicket
 import platform/idempotency
 import player/domain/player as playerDomain
@@ -1089,6 +1090,122 @@ proc opsPing(request: Request) =
   jsonResponse(request, 200, %*{"ok": true, "token": name.get},
     [("Cache-Control", "no-store")])
 
+proc sessionVersionNow(communityId, sessionId: string): int =
+  let row = application.db.queryOne(
+    """select version from session.sessions
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(sessionId)])
+  if row.isSome: parseInt(row.get.get("version")) else: 0
+
+proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
+  case status
+  of sessionSchedule.ssOk:
+    discard
+  of sessionSchedule.ssNotFound:
+    problem(request, 404, "NOT_FOUND", "session or game not found")
+  of sessionSchedule.ssStale:
+    problem(request, 412, "STALE_VERSION", "session changed since If-Match")
+  of sessionSchedule.ssInvalid:
+    problem(request, 400, "INVALID_SCHEDULE", "schedule body is invalid")
+  of sessionSchedule.ssUnknownPlayer:
+    problem(request, 400, "UNKNOWN_PLAYER", "player is not in this community")
+
+proc scheduleDone(request: Request, ctx: CommunityContext, sessionId: string,
+                  status: sessionSchedule.ScheduleStatus) =
+  if status != sessionSchedule.ssOk:
+    scheduleProblem(request, status)
+    return
+  let version = sessionVersionNow(ctx.communityId, sessionId)
+  application.hub.sessionChanged(sessionId, version)
+  jsonResponse(request, 200, %*{"version": version},
+    [("ETag", "\"" & $version & "\""), ("Cache-Control", "no-store")])
+
+proc putScheduleRoute(request: Request, ctx: CommunityContext, sessionId: string) =
+  let version = requireIfMatch(request)
+  if version.isNone: return
+  var games: seq[sessionSchedule.GameSpec]
+  try:
+    games = sessionSchedule.parseSchedule(bodyJson(request))
+  except ValueError as error:
+    problem(request, 400, "INVALID_SCHEDULE", error.msg)
+    return
+  scheduleDone(request, ctx, sessionId,
+    sessionSchedule.putSchedule(application.db, ctx.communityId, sessionId,
+      version.get, games))
+
+proc setAbsentRoute(request: Request, ctx: CommunityContext, sessionId: string) =
+  let version = requireIfMatch(request)
+  if version.isNone: return
+  var playerIds: seq[string]
+  try:
+    playerIds = sessionSchedule.parsePlayerIds(bodyJson(request))
+  except ValueError as error:
+    problem(request, 400, "INVALID_SCHEDULE", error.msg)
+    return
+  scheduleDone(request, ctx, sessionId,
+    sessionSchedule.setAbsent(application.db, ctx.communityId, sessionId,
+      version.get, playerIds))
+
+proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
+                       gameKey: string) =
+  let version = requireIfMatch(request)
+  if version.isNone: return
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  if not body.hasKey("scoreA") or not body.hasKey("scoreB") or
+     body["scoreA"].kind != JInt or body["scoreB"].kind != JInt:
+    problem(request, 400, "INVALID_SCORE", "scoreA and scoreB are required")
+    return
+  scheduleDone(request, ctx, sessionId,
+    sessionSchedule.setScore(application.db, ctx.communityId, sessionId, gameKey,
+      version.get, body["scoreA"].getInt(), body["scoreB"].getInt()))
+
+proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
+                   gameKey: string) =
+  let version = requireIfMatch(request)
+  if version.isNone: return
+  scheduleDone(request, ctx, sessionId,
+    sessionSchedule.skipGame(application.db, ctx.communityId, sessionId, gameKey,
+      version.get))
+
+proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
+                  gameKey: string) =
+  let key = sessionSchedule.parseGameKey(gameKey)
+  if key.isNone:
+    problem(request, 400, "INVALID_GAME_KEY", "gameKey must be round-court")
+    return
+  let row = application.db.queryOne(
+    """select round_no, court_no, score_a, score_b, status,
+              coalesce(side_a1::text, '') as side_a1,
+              coalesce(side_a2::text, '') as side_a2,
+              coalesce(side_b1::text, '') as side_b1,
+              coalesce(side_b2::text, '') as side_b2
+       from session.games
+       where community_id = $1::uuid and session_id = $2::uuid
+         and round_no = $3 and court_no = $4""",
+    @[textParam(ctx.communityId), textParam(sessionId),
+      intParam(key.get[0].int64), intParam(key.get[1].int64)])
+  if row.isNone:
+    problem(request, 404, "NOT_FOUND", "game not found")
+    return
+  var sideA = newJArray()
+  var sideB = newJArray()
+  for slot in ["side_a1", "side_a2"]:
+    if row.get.get(slot).len > 0: sideA.add(%row.get.get(slot))
+  for slot in ["side_b1", "side_b2"]:
+    if row.get.get(slot).len > 0: sideB.add(%row.get.get(slot))
+  jsonResponse(request, 200, %*{
+    "round": parseInt(row.get.get("round_no")),
+    "court": parseInt(row.get.get("court_no")),
+    "sideA": sideA, "sideB": sideB,
+    "scoreA": if row.get["score_a"].isNone: newJNull() else: %parseInt(row.get.get("score_a")),
+    "scoreB": if row.get["score_b"].isNone: newJNull() else: %parseInt(row.get.get("score_b")),
+    "status": row.get.get("status")}, [("Cache-Control", "no-store")])
+
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
   ## Re-display of the live code: host/admin only, and every read is audited.
@@ -1411,6 +1528,23 @@ proc route(request: Request) =
           return
       if parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
         issueSessionTicket(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 6 and parts[5] == "schedule" and verb == "PUT":
+        putScheduleRoute(request, ctx.get, parts[4])
+        return
+      if parts.len == 6 and parts[5] == "absent" and verb == "PATCH":
+        setAbsentRoute(request, ctx.get, parts[4])
+        return
+      if parts.len == 7 and parts[5] == "games":
+        if verb == "GET":
+          getGameRoute(request, ctx.get, parts[4], parts[6])
+          return
+        if verb == "PATCH":
+          setGameScoreRoute(request, ctx.get, parts[4], parts[6])
+          return
+      if parts.len == 8 and parts[5] == "games" and parts[7] == "skip" and
+         verb == "PATCH":
+        skipGameRoute(request, ctx.get, parts[4], parts[6])
         return
     # /invites/{token}/accept
     if parts.len == 4 and parts[1] == "invites" and parts[3] == "accept":

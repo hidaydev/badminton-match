@@ -3,7 +3,7 @@ import ../domain/rating
 
 proc params(): RatingParams =
   ## Mirrors the seeded defaults; tests own these numbers, production reads them.
-  RatingParams(sessionBase: 250, opponentClampLow: 0.5, opponentClampHigh: 1.5,
+  RatingParams(sessionBase: 250, scoreTarget: 21, opponentClampLow: 0.5, opponentClampHigh: 1.5,
     windowWeeks: 12, bestN: 10, thinEvidenceN: 3,
     bands: @[
       TierBand(tier: "D", floor: 0), TierBand(tier: "D+", floor: 1000),

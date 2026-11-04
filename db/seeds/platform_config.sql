@@ -19,6 +19,8 @@ insert into platform.config (key, value_type, value, min_value, max_value, scope
    'Rows returned by the public ranking board'),
   ('rating.session_base', 'decimal', '250', 0, 100000, 'platform',
    'Base points for one session game'),
+  ('rating.score_target', 'int', '21', 1, 99, 'community',
+   'Score target a game is played to, used to scale the margin'),
   ('rating.opponent_clamp', 'json', '[0.5,1.5]', null, null, 'platform',
    'Lower and upper bound of the opponent strength multiplier'),
   ('rating.window_weeks', 'int', '12', 1, 520, 'platform',
