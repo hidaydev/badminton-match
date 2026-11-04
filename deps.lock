@@ -1,14 +1,14 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/plan/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 6c4ead98c8cd13ba5611cb49481c9a6c8f38a96ce8862eff1163ef311205c5dc
+tree b4964e0de52af61ca8880944fee4b55782028f403b298cd26c149d44e4e8a675
 
 # Nim toolchain
 nim 2.4.0 toolchain:nim -
 
-# Coverage gate prerequisites (T-109): recorded as absent, not invented.
-gcovr absent toolchain:gcovr -
-lcov absent toolchain:lcov -
+# Coverage gate prerequisites (T-109).
+gcovr 8.8 toolchain:gcovr -
+lcov 2.6 toolchain:lcov -
 
 # Nim packages under ~/.nimble/pkgs2 (sha256 of installed file content)
 crunchy 0.1.11 nimble:https://github.com/guzba/crunchy 897de1f35ef9fe22d56d9e28014350a5d9c5af281e998d613d8627c12a113355
