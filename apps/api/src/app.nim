@@ -1312,6 +1312,15 @@ proc listRatingSources(request: Request, ctx: CommunityContext) =
 
 proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
                         eventId: string) =
+  ## An id that names no event is a 404, not a silent success: the caller is
+  ## asking to undo something, and "there was nothing there" is the answer.
+  let known = application.db.queryOne(
+    """select 1 as ok from rating.events
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(ctx.communityId), textParam(eventId)])
+  if known.isNone:
+    problem(request, 404, "NOT_FOUND", "rating event not found")
+    return
   if ratingIngest.eventFinalized(application.db, ctx.communityId, eventId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return

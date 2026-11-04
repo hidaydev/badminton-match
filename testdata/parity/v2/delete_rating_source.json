@@ -1,0 +1,19 @@
+{
+  "route": "deleteRatingSource",
+  "request": {
+    "method": "DELETE",
+    "path": "/c/parity/rating-sources/80000000-0000-4000-8000-000000000001",
+    "headers": {
+      "Cookie": "majadu_session=parity-admin-token",
+      "Origin": "http://127.0.0.1:5173"
+    }
+  },
+  "expect": {
+    "status": 404,
+    "body": {
+      "code": "NOT_FOUND",
+      "detail": "rating event not found",
+      "status": 404
+    }
+  }
+}

@@ -275,6 +275,15 @@ export const routes: readonly RouteSpec[] = [
     isWebSocket: false,
   },
   {
+    operationId: "deleteRatingSource",
+    httpMethod: "DELETE",
+    path: "/c/{slug}/rating-sources/{id}",
+    tag: "rankings",
+    pathParams: ["slug", "id"],
+    hasBody: false,
+    isWebSocket: false,
+  },
+  {
     operationId: "patchRatingSource",
     httpMethod: "PATCH",
     path: "/c/{slug}/rating-sources/{id}",

@@ -4,9 +4,9 @@
 # requires regenerating this file in the same commit, so the contract change is
 # visible in review. Procedure: packages/contracts/openapi/README.md.
 format 1
-operations 74
+operations 75
 spec packages/contracts/openapi/community.yaml bd15d34cd9f410d3895ace75fde28234670728d7d17e71b60ca8b74598a7e12c
-spec packages/contracts/openapi/core.yaml 70f2cf3a4cd8e64bc6bb5025c8b2d67fd9b2c7b09ac423ef21bd6493074410a3
-generated apps/api/src/routes_gen.nim 9937ccd894c158908e4dd82fff0cefa46d2a8a9bb68dfe32f772941943dd3616
-generated packages/contracts/openapi/api.yaml 1a83d14be4a65616b395581f721d637c6b5c3880a5f9b99985df4aa456b52a4e
-generated packages/web-client/src/api.ts 463c15c9c1481a5e61b6c682f45db74e037477b2f8e3ede0527b9b6076b93a7e
+spec packages/contracts/openapi/core.yaml 9995d3a897390efa784a1b2a0e15d0a44ba7c3718f1f659ec89669dd43bc9e55
+generated apps/api/src/routes_gen.nim b1fb0b390c208b40dc27497bbbd154110b71731cc8a0f3a7e280d52034943c23
+generated packages/contracts/openapi/api.yaml 36623eaa6a2160e76425031c8fe919362680224ba70e233ff3683829b7b7c45c
+generated packages/web-client/src/api.ts b0f2aa38b5025c1463711e30a7ee7f8d2cbbba880d6de70dfad74a7511172c43

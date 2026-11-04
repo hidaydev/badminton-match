@@ -29,13 +29,14 @@ riwayat publik bersama `docs/audits`.
 |---|---|
 | Task | 88 (termasuk T-008a/T-008b) |
 | Requirement | 72 |
-| Operasi API v2 | 74 |
+| Operasi API v2 | 75 |
 | ADR | 31 (ADR-001..ADR-031) |
 | Keputusan pemilik | O-1..O-43 |
 
 Angka operasi dinaikkan 73 → 74 pada 2026-11-04 atas persetujuan pemilik
-(operasi `getSessionStandings` untuk halaman ekspor); alasannya di
-`CHANGELOG-frozen.md`. Dokumen beku lain tidak berubah dan hash di atas tetap.
+(operasi `getSessionStandings` untuk halaman ekspor), lalu 74 → 75 pada hari
+yang sama (operasi `deleteRatingSource`, handler yang sudah ada tetapi belum
+terdeklarasi); alasannya di `CHANGELOG-frozen.md`. Dokumen beku lain tidak berubah dan hash di atas tetap.
 
 Kedua checker harus bersih sebelum dan sesudah setiap perubahan yang diizinkan:
 

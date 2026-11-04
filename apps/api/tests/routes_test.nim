@@ -3,8 +3,8 @@ import ../src/routes_gen
 
 suite "generated contract":
   test "contains every operation":
-    check routeCount == 74
-    check routes.len == 74
+    check routeCount == 75
+    check routes.len == 75
     check routeIndex("getHealthz") >= 0
     check routeIndex("getCommunityConfig") >= 0
     check routeIndex("nope") == -1
@@ -26,6 +26,7 @@ suite "generated contract":
       "patchTournamentMatch", "listRankings", "getRanking", "listSharedRankings",
       "getSharedRanking", "listRatingSources", "postSessionRating", "deleteSessionRating",
       "postTournamentRating", "deleteTournamentRating", "patchRatingSource",
+      "deleteRatingSource",
       "postRatingsRebuild", "createCommunity", "listMyCommunities", "createJoinRequest",
       "listJoinRequests", "decideJoinRequest", "createInvite", "acceptInvite",
       "listMembers", "patchMemberRole", "removeMember", "getSettings", "patchSettings",

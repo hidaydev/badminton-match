@@ -273,6 +273,15 @@ const routes* = [
     isWebSocket: false,
   ),
   RouteSpec(
+    operationId: "deleteRatingSource",
+    httpMethod: "DELETE",
+    path: "/c/{slug}/rating-sources/{id}",
+    tag: "rankings",
+    pathParams: "slug,id",
+    hasBody: false,
+    isWebSocket: false,
+  ),
+  RouteSpec(
     operationId: "patchRatingSource",
     httpMethod: "PATCH",
     path: "/c/{slug}/rating-sources/{id}",
@@ -679,7 +688,7 @@ const routes* = [
   ),
 ]
 
-const routeCount* = 74
+const routeCount* = 75
 
 import std/macros
 
