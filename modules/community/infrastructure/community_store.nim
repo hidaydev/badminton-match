@@ -39,7 +39,7 @@ proc create*(db: Db, slug, name, adminEmail, timezone, actorId: string): CreateR
           textParam(communityId),
           textParam(sha256Hex(newToken())),
           textParam(sha256Hex(adminEmail.strip().toLowerAscii())),
-          textParam(actorId),
+          (if actorId.len == 0: nullParam() else: textParam(actorId)),
         ])
     1)
   if taken:

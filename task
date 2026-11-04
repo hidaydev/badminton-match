@@ -15,6 +15,7 @@ Targets:
   test         all tests (unit + integration when a database is present)
   verify       build and test one module: ./task verify <module>
   ci           check + build + test + contract check
+  bootstrap    migrate, seed config, first platform owner + default community
   dev-db       create the local PostgreSQL databases and roles
   dev-v1       rebuild the local v1 database (captured schema + synthetic data)
   janitor      purge expired temporary rows with the application role

@@ -30,6 +30,7 @@ explicit `--nimcache` does not add a suffix.
 | `contract-gen` | regenerate routes, client and fingerprint | no |
 | `contract-check` | fail when specs and generated files drift | no |
 | `ci` | check + build + test + contract check | same as `test` |
+| `bootstrap` | migrate, seed L1 config, create the first owner and a default community | yes |
 | `dev-v1` | rebuild `bm_v1_dev` from the captured v1 schema and seed | yes |
 | `janitor` | purge expired OAuth flows, idempotency keys, outbox rows, revoked links and ws tickets | yes |
 | `audit-retention` | prune `account.audit` beyond `audit.retention_days` as `bm2_owner` | yes |
