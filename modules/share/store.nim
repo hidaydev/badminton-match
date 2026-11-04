@@ -98,6 +98,18 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     status: value.get("status"),
   ))
 
+proc revokeLive*(db: Db, communityId, sessionId: string): seq[string] =
+  ## Revokes every live link for the session and returns their ids so the
+  ## caller can drop the watchers and their tickets. An empty result means
+  ## there was nothing to revoke.
+  for row in db.query(
+    """update session.links set revoked_at = now()
+       where community_id = $1::uuid and session_id = $2::uuid
+         and revoked_at is null
+       returning id""",
+    @[textParam(communityId), textParam(sessionId)]):
+    result.add(row.get("id"))
+
 proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string): int =
   ## Rotating the *key*: every live link still sealed with `fromKeyId` is
   ## re-encrypted under the active key with a fresh nonce. Rows already on the

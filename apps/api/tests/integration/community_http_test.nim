@@ -18,6 +18,7 @@ const
   ownerEmail = "http-owner@example.com"
   adminEmail = "http-admin@example.com"
   memberEmail = "http-member@example.com"
+  expectedVersion = staticRead("../../../../VERSION").strip()
 
 type
   ServeArgs = object
@@ -205,6 +206,13 @@ suite "community HTTP":
       adminCookie)
     check removed == 204
     check not membership.list(database, clubId).anyIt(it.userId == memberId)
+
+  test "version reports the build without a session":
+    let (status, body) = call(HttpGet, "/version")
+    check status == 200
+    let info = parseJson(body)
+    check info["version"].getStr() == expectedVersion
+    check info["commit"].getStr().len > 0
 
   test "config exposes effective values to admins only":
     discard membership.add(database, clubId, memberId, "member")

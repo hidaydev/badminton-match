@@ -36,15 +36,19 @@ var
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
-proc call(path, cookie = ""): (int, string) =
+proc send(verb: HttpMethod, path, cookie = ""): (int, string) =
   let client = newHttpClient(timeout = 5000)
   defer: client.close()
   var headers = newHttpHeaders()
   if cookie.len > 0:
     headers["Cookie"] = "majadu_session=" & cookie
-  let response = client.request(baseUrl & path, httpMethod = HttpGet,
+  if verb in {HttpPost, HttpPatch, HttpPut, HttpDelete}:
+    headers["Origin"] = "http://127.0.0.1:5173"
+  let response = client.request(baseUrl & path, httpMethod = verb,
     headers = headers)
   (response.code.int, response.body)
+
+proc call(path, cookie = ""): (int, string) = send(HttpGet, path, cookie)
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
@@ -180,3 +184,42 @@ suite "rankings HTTP":
     check parseJson(body)["items"].len == 3
     let (unknown, _) = call("/s/nope/rankings")
     check unknown == 404
+
+  test "the public player detail resolves through the same share code":
+    let ownerId = database.queryOne(
+      """select id from platform.user where google_sub = 'rank-owner'"""
+      ).get.get("id")
+    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId)
+    let (status, body) = call("/s/" & code & "/rankings/" & players[0])
+    check status == 200
+    check parseJson(body)["rank"].getInt() == 1
+    check parseJson(body)["playerId"].getStr() == players[0]
+    let (missing, _) = call("/s/" & code &
+      "/rankings/00000000-0000-0000-0000-000000000000")
+    check missing == 404
+    let (unknown, _) = call("/s/nope/rankings/" & players[0])
+    check unknown == 404
+
+  test "revoking the share link kills the public code":
+    let ownerId = database.queryOne(
+      """select id from platform.user where google_sub = 'rank-owner'"""
+      ).get.get("id")
+    let adminId = database.queryOne(
+      """insert into platform.user (google_sub, email_hash, display_name)
+         values ('rank-admin', $1, 'Rank Admin') returning id""",
+      @[textParam(sha256Hex("rank-admin@example.com"))]).get.get("id")
+    discard database.execUpdate(
+      """insert into community.membership (community_id, user_id, role)
+         values ($1::uuid, $2::uuid, 'admin')""",
+      @[textParam(communityId), textParam(adminId)])
+    let adminCookie = createSession(database, adminId, 30)
+    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId)
+    let (live, _) = call("/s/" & code)
+    check live == 200
+    let path = "/c/rank-club/sessions/" & sessionId & "/share"
+    let (revoked, _) = send(HttpDelete, path, adminCookie)
+    check revoked == 204
+    let (gone, _) = call("/s/" & code)
+    check gone == 404
+    let (again, _) = send(HttpDelete, path, adminCookie)
+    check again == 404

@@ -38,6 +38,12 @@ import account/infrastructure/audit_store
 import account/infrastructure/jwt_rs256
 import account/infrastructure/oidc
 import account/infrastructure/ops_token as opsToken
+
+# The running build reports its version from the repository VERSION file, so a
+# release and `GET /version` cannot drift. A build may override both values.
+const
+  appVersion* {.strdefine.} = staticRead("../../../VERSION").strip()
+  appCommit* {.strdefine.} = "none"
 import account/infrastructure/session_store
 import platform/config/store
 
@@ -492,6 +498,18 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
   audit("share.issue", ctx.communityId, user, "session", sessionId,
     %*{"sessionId": sessionId})
   jsonResponse(request, 201, %*{"code": code, "sessionId": sessionId})
+
+proc deleteShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
+                     sessionId: string) =
+  let revoked = shareStore.revokeLive(application.db, ctx.communityId, sessionId)
+  if revoked.len == 0:
+    problem(request, 404, "NOT_FOUND", "no live share link")
+    return
+  for linkId in revoked:
+    application.hub.revokeShare(linkId)
+  audit("share.revoke", ctx.communityId, user, "session", sessionId,
+    %*{"sessionId": sessionId})
+  send(request, 204, @[("Cache-Control", "no-store")], "")
 
 proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
                         sessionId: string) =
@@ -1358,12 +1376,14 @@ proc communityBoard(request: Request, communityId, timezone: string) =
   jsonResponse(request, 200, %*{"items": boardItems(rows),
     "asOf": communityToday(timezone)}, [("Cache-Control", "no-store")])
 
-proc rankingPlayer(request: Request, ctx: CommunityContext, playerId: string) =
-  let params = ratingParamsFor(ctx)
+proc rankingPlayer(request: Request, communityId, timezone,
+                   playerId: string) =
+  let params = ratingParams.loadRatingParams(configSnapshot(),
+    currentSettings(application.db, communityId))
   let limit = configSnapshot().intValue(
-    currentSettings(application.db, ctx.communityId), keyRankBoardLimit)
-  let query = ratingRead.BoardQuery(communityId: ctx.communityId,
-    asOf: communityToday(ctx.timezone), params: params, limit: limit, tier: "")
+    currentSettings(application.db, communityId), keyRankBoardLimit)
+  let query = ratingRead.BoardQuery(communityId: communityId,
+    asOf: communityToday(timezone), params: params, limit: limit, tier: "")
   let entry = ratingRead.boardEntry(application.db, query, playerId)
   if entry.isNone:
     problem(request, 404, "NOT_FOUND", "player is not on the board")
@@ -1391,6 +1411,15 @@ proc playerStats(request: Request, ctx: CommunityContext, playerId: string) =
     problem(request, 404, "NOT_FOUND", "player not found")
     return
   jsonResponse(request, 200, found.get, [("Cache-Control", "no-store")])
+
+proc getSharedRanking(request: Request, code, playerId: string) =
+  ## The share code names the community, so the public detail is the same row
+  ## the member page shows, minus anything the board does not already expose.
+  let found = shareStore.resolve(application.db, application.keyring, code)
+  if found.isNone:
+    problem(request, 404, "NOT_FOUND", "link not found")
+    return
+  rankingPlayer(request, found.get.communityId, found.get.timezone, playerId)
 
 proc getSharedRankings(request: Request, code: string) =
   let found = shareStore.resolve(application.db, application.keyring, code)
@@ -1507,6 +1536,13 @@ proc route(request: Request) =
         opsPing(request)
       else:
         problem(request, 404, "NOT_FOUND", "route not found")
+      return
+    if path == "/version":
+      if verb == "GET":
+        jsonResponse(request, 200, %*{"version": appVersion, "commit": appCommit},
+          [("Cache-Control", "no-store")])
+      else:
+        problem(request, 405, "METHOD", "")
       return
     if path == "/readyz":
       discard application.db.queryOne("select 1 as ok")
@@ -1654,6 +1690,9 @@ proc route(request: Request) =
         if verb == "GET":
           getShareLink(request, ctx.get, user.get, parts[4])
           return
+        if verb == "DELETE":
+          deleteShareLink(request, ctx.get, user.get, parts[4])
+          return
       if parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
         issueSessionTicket(request, ctx.get, user.get, parts[4])
         return
@@ -1781,7 +1820,8 @@ proc route(request: Request) =
       if parts.len == 4:
         communityBoard(request, ctx.get.communityId, ctx.get.timezone)
       else:
-        rankingPlayer(request, ctx.get, parts[4])
+        rankingPlayer(request, ctx.get.communityId, ctx.get.timezone,
+          parts[4])
       return
     # /s/{code} and /s/{code}/rankings
     if parts.len >= 3 and parts[1] == "s":
@@ -1791,6 +1831,9 @@ proc route(request: Request) =
         return
       if parts.len == 4 and parts[3] == "rankings":
         getSharedRankings(request, code)
+        return
+      if parts.len == 5 and parts[3] == "rankings":
+        getSharedRanking(request, code, parts[4])
         return
       if parts.len == 4 and parts[3] == "ws-ticket" and verb == "POST":
         issueShareTicket(request, code)
