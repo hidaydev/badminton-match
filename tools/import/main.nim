@@ -599,8 +599,12 @@ proc importClassicChildren(source: Db, conn: DbConn, communityId,
     pairIds[row.get("id")] = pairId
     if mapped.isSome: inc stats.updated else: inc stats.created
 
+  # v2 stores the group slot as 0..3 (groups_position_check). v1 rows are 1..4 in
+  # production but 0-based in the synthetic fixture, so the slot is normalised
+  # against the group minimum instead of assuming one convention.
   for row in source.query(
-    """select group_id, pair_id::text as pair_id, position
+    """select group_id, pair_id::text as pair_id,
+              position - min(position) over (partition by group_id) as position
        from bm.tournament_groups where tournament_id = $1::uuid""",
     @[textParam(oldTournamentId)]):
     let pairId = pairIds.getOrDefault(row.get("pair_id"))

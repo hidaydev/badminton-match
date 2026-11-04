@@ -286,6 +286,39 @@ suite "v1 import":
       checkpoint problem
     check problems.len == 0
 
+  test "v1 group slots stored 1-based become 0..3":
+    let community = target.queryOne(
+      "select id::text as id from platform.community where slug = 'import-test'"
+      ).get.get("id")
+    let oldId = source.queryOne(
+      """select id::text as id from bm.tournaments
+         where format = 'classic' order by id limit 1""").get.get("id")
+    # Production v1 rows use 1..4 while the synthetic fixture uses 0-based
+    # slots; a real import failed on that before the mapping normalised it.
+    # Two steps: a single +1 hits the unique (tournament, group, position) row
+    # that already occupies the next slot.
+    discard source.execUpdate(
+      """update bm.tournament_groups set position = position + 100
+         where tournament_id = $1::uuid""", @[textParam(oldId)])
+    discard source.execUpdate(
+      """update bm.tournament_groups set position = position - 99
+         where tournament_id = $1::uuid""", @[textParam(oldId)])
+    discard importEtl(source, target, "import-test", "Import Test", "", false)
+    let newId = target.queryOne(
+      """select new_id::text as id from import.row_map
+         where community_id = $1::uuid and entity = 'tournament'
+           and old_id = $2""",
+      @[textParam(community), textParam(oldId)]).get.get("id")
+    let slots = target.queryOne(
+      """select count(*)::int as n, min(position)::int as lo,
+                max(position)::int as hi
+         from tournament.groups
+         where community_id = $1::uuid and tournament_id = $2::uuid""",
+      @[textParam(community), textParam(newId)]).get
+    check slots.get("n") == "6"
+    check slots.get("lo") == "0"
+    check parseInt(slots.get("hi")) <= 3
+
   test "a v1 statistic becomes the thresholds it has passed":
     let community = target.queryOne(
       "select id::text as id from platform.community where slug = 'import-test'"
