@@ -440,12 +440,51 @@ proc listCommunities(request: Request) =
       "name": row.get("name"), "role": row.get("role")})
   jsonResponse(request, 200, %*{"items": items})
 
+proc validSessionDate(value: string): bool =
+  ## A real calendar day in YYYY-MM-DD; the round trip rejects 2026-02-30.
+  try:
+    parse(value, "yyyy-MM-dd", utc()).format("yyyy-MM-dd") == value
+  except TimeParseError:
+    false
+
+proc validClockTime(value: string): bool =
+  ## HH:MM with two-digit fields, so "9:00" is refused rather than guessed.
+  try:
+    parse(value, "HH:mm", utc()).format("HH:mm") == value
+  except TimeParseError:
+    false
+
 proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
-  let body = bodyJson(request)
-  let title = if body.hasKey("title"): body["title"].getStr() else: ""
-  let date = body["date"].getStr()
-  let startTime = if body.hasKey("startTime"): body["startTime"].getStr() else: "00:00"
-  let slot = if body.hasKey("slotMinutes"): body["slotMinutes"].getInt() else: 30
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  var title = ""
+  var date = ""
+  var startTime = "00:00"
+  var slot = 30
+  try:
+    if body.hasKey("title"): title = body["title"].getStr()
+    if body.hasKey("date"): date = body["date"].getStr()
+    if body.hasKey("startTime"): startTime = body["startTime"].getStr()
+    if body.hasKey("slotMinutes"): slot = body["slotMinutes"].getInt()
+  except ValueError:
+    problem(request, 400, "INVALID_BODY",
+      "title, date, startTime and slotMinutes must have the documented types")
+    return
+  # Without these checks the insert reached PostgreSQL and a bad date, time or
+  # slot became a 500. The contract already documents a 400 for this route.
+  if not validSessionDate(date):
+    problem(request, 400, "INVALID_BODY", "date must be a real YYYY-MM-DD day")
+    return
+  if not validClockTime(startTime):
+    problem(request, 400, "INVALID_BODY", "startTime must be HH:MM")
+    return
+  if slot < 1 or slot > 240:
+    problem(request, 400, "INVALID_BODY", "slotMinutes must be between 1 and 240")
+    return
   let row = application.db.queryOne(
     """insert into session.sessions
        (community_id, title, session_date, start_time, slot_minutes, status, source)

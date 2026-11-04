@@ -271,3 +271,29 @@ suite "session schedule HTTP":
     let (locked, _) = call(HttpPost, path, hostCookie, swapBody,
       ifMatch = "\"3\"")
     check locked == 403
+
+  test "creating a session rejects invalid input with a 400":
+    let path = "/c/sched-club/sessions"
+    let (missingDate, _) = call(HttpPost, path, hostCookie, """{"title":"x"}""")
+    check missingDate == 400
+    let (badDate, _) = call(HttpPost, path, hostCookie,
+      """{"date":"2026-02-30"}""")
+    check badDate == 400
+    let (badTime, _) = call(HttpPost, path, hostCookie,
+      """{"date":"2026-11-04","startTime":"9:00"}""")
+    check badTime == 400
+    let (badSlot, _) = call(HttpPost, path, hostCookie,
+      """{"date":"2026-11-04","slotMinutes":0}""")
+    check badSlot == 400
+    let (tooBig, _) = call(HttpPost, path, hostCookie,
+      """{"date":"2026-11-04","slotMinutes":241}""")
+    check tooBig == 400
+    let (badJson, _) = call(HttpPost, path, hostCookie, "{")
+    check badJson == 400
+    let (wrongType, _) = call(HttpPost, path, hostCookie,
+      """{"date":20261104}""")
+    check wrongType == 400
+    let (created, body) = call(HttpPost, path, hostCookie,
+      """{"title":"Valid","date":"2026-11-04","startTime":"19:30","slotMinutes":45}""")
+    check created == 201
+    check parseJson(body)["date"].getStr() == "2026-11-04"
