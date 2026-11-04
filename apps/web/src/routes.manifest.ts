@@ -6,6 +6,8 @@ import CommunityPage from './pages/CommunityPage'
 import ExportPage from './pages/ExportPage'
 import HomePage from './pages/HomePage'
 import PlaceholderPage from './pages/PlaceholderPage'
+import PlayerDetailPage from './pages/PlayerDetailPage'
+import PlayersPage from './pages/PlayersPage'
 import RankingsPage from './pages/RankingsPage'
 import SessionPage from './pages/SessionPage'
 import SessionsPage from './pages/SessionsPage'
@@ -74,10 +76,17 @@ export const routes: readonly RouteEntry[] = [
   {
     path: '/c/:slug/players',
     labelKey: 'nav.players',
-    element: placeholder('nav.players'),
+    element: createElement(PlayersPage),
     requiresAuth: true,
     roles: ALL_ROLES,
     navGroup: 'main',
+  },
+  {
+    path: '/c/:slug/players/:playerId',
+    labelKey: 'players.title',
+    element: createElement(PlayerDetailPage),
+    requiresAuth: true,
+    roles: ALL_ROLES,
   },
   {
     path: '/c/:slug/rankings',
