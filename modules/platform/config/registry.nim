@@ -27,6 +27,10 @@ type
     keyRatingThinEvidenceN = "rating.thin_evidence_n"
     keyRatingTierBands = "rating.tier_bands"
     keyTournamentClassicPairCount = "tournament.classic.pair_count"
+    keyExportPostWidth = "export.post_width"
+    keyExportPostHeight = "export.post_height"
+    keyExportStoryWidth = "export.story_width"
+    keyExportStoryHeight = "export.story_height"
     keySecurityAllowedOrigins = "security.allowed_origins"
     keySecurityRateLimitPerMinute = "security.rate_limit_per_minute"
     keySecurityMaxBodyBytes = "security.max_body_bytes"
@@ -75,6 +79,10 @@ const allKeys* = [
   spec(keyRatingThinEvidenceN, ctInt, 0, 100, true),
   spec(keyRatingTierBands, ctJson),
   spec(keyTournamentClassicPairCount, ctInt, 2, 256, true),
+  spec(keyExportPostWidth, ctInt, 320, 4096, true),
+  spec(keyExportPostHeight, ctInt, 320, 4096, true),
+  spec(keyExportStoryWidth, ctInt, 320, 4096, true),
+  spec(keyExportStoryHeight, ctInt, 320, 4096, true),
   spec(keySecurityAllowedOrigins, ctJson),
   spec(keySecurityRateLimitPerMinute, ctInt, 1, 100_000, true),
   spec(keySecurityMaxBodyBytes, ctInt, 1024, 16_777_216, true),
