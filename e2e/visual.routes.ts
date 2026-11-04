@@ -24,5 +24,10 @@ export const visualRoutes: readonly VisualRoute[] = [
     name: 'tournament-classic',
     path: (state) => `/c/${state.communitySlug}/tournaments/classic/${state.tournamentId}`,
   },
+  { name: 'sessions', path: (state) => `/c/${state.communitySlug}/sessions` },
+  {
+    name: 'session',
+    path: (state) => `/c/${state.communitySlug}/sessions/${state.sessionId}`,
+  },
   { name: 'export', path: (state) => `/c/${state.communitySlug}/export` },
 ]
