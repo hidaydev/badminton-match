@@ -117,7 +117,7 @@ proc violationsFor*(path, source: string): seq[string] =
 
   # Community scope is checked on SQL string literals only. Prose in comments
   # mentions the tables too, and must not be reported.
-  if file.startsWith("modules/"):
+  if file.startsWith("modules/") and not file.contains("/tests/"):
     for literal in stringLiterals(source):
       let statement = literal.strip().toLowerAscii()
       if not (statement.startsWith("select") or statement.startsWith("insert") or

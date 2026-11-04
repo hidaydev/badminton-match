@@ -8,6 +8,8 @@ import sha256
 import uuidv7
 import share/crypto
 import share/store as shareStore
+import session/write as sessionWrite
+import platform/idempotency
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
@@ -413,6 +415,93 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
     %*{"sessionId": sessionId})
   jsonResponse(request, 201, %*{"code": code, "sessionId": sessionId})
 
+proc ifMatch(request: Request): Option[int] =
+  ## OCC precondition. Missing is 428, not 400: the client must opt in.
+  let raw = request.headers["If-Match"].strip(chars = {'"', ' ', 'W', '/'})
+  if raw.len == 0:
+    return none(int)
+  try:
+    some(parseInt(raw))
+  except ValueError:
+    none(int)
+
+proc requireIfMatch(request: Request): Option[int] =
+  result = ifMatch(request)
+  if result.isNone:
+    problem(request, 428, "PRECONDITION_REQUIRED", "If-Match is required")
+
+proc idempotentWrite(request: Request, userId, communityId, key: string,
+                     body: string): Option[JsonNode] =
+  ## Returns the stored response for a replay, a 409 body for a conflict, and
+  ## none when the caller must do the work.
+  if key.len == 0:
+    return none(JsonNode)
+  let scoped = scopedKey(communityId, key)
+  let entry = claim(application.db, userId, scoped, bodyHash(body))
+  case entry.status
+  of idempotencyNew:
+    none(JsonNode)
+  of idempotencyReplay:
+    jsonResponse(request, entry.statusCode, entry.response)
+    some(entry.response)
+  of idempotencyConflict:
+    let body = %*{"status": 409, "code": "IDEMPOTENCY_CONFLICT",
+                  "detail": "this key was used with a different body"}
+    problem(request, 409, "IDEMPOTENCY_CONFLICT", "this key was used with a different body")
+    some(body)
+
+proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
+                  sessionId: string) =
+  let version = requireIfMatch(request)
+  if version.isNone: return
+  let key = request.headers["Idempotency-Key"]
+  if idempotentWrite(request, user.id, ctx.communityId, key, request.body).isSome:
+    return
+  var patchBody: SessionPatch
+  try:
+    patchBody = parsePatch(bodyJson(request))
+  except ValueError as error:
+    problem(request, 400, "INVALID_PATCH", error.msg)
+    return
+  let result = sessionWrite.patch(application.db, ctx.communityId, sessionId,
+    version.get, patchBody)
+  case result.status
+  of wsOk:
+    audit("session.patch", ctx.communityId, user, "session", sessionId,
+      result.record)
+    if key.len > 0:
+      complete(application.db, user.id, scopedKey(ctx.communityId, key), 200,
+        result.record)
+    jsonResponse(request, 200, result.record,
+      [("ETag", "\"" & $result.record["version"].getInt() & "\""),
+       ("Cache-Control", "no-store")])
+  of wsStale:
+    problem(request, 412, "STALE_VERSION", "session changed since If-Match")
+  of wsNotFound:
+    problem(request, 404, "NOT_FOUND", "session not found")
+  of wsInvalid:
+    problem(request, 400, "INVALID_PATCH", "cannot apply patch")
+
+proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
+                    sessionId: string, locked: bool) =
+  let version = requireIfMatch(request)
+  if version.isNone: return
+  let result = sessionWrite.setLock(application.db, ctx.communityId, sessionId,
+    user.id, version.get, locked)
+  case result.status
+  of wsOk:
+    audit(if locked: "session.lock" else: "session.unlock", ctx.communityId, user,
+      "session", sessionId, result.record)
+    jsonResponse(request, 200, result.record,
+      [("ETag", "\"" & $result.record["version"].getInt() & "\""),
+       ("Cache-Control", "no-store")])
+  of wsStale:
+    problem(request, 412, "STALE_VERSION", "session changed since If-Match")
+  of wsNotFound:
+    problem(request, 404, "NOT_FOUND", "session not found")
+  of wsInvalid:
+    problem(request, 400, "INVALID_PATCH", "cannot lock session")
+
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
   ## Re-display of the live code: host/admin only, and every read is audited.
@@ -537,7 +626,7 @@ proc route(request: Request) =
         return
       let token = cookieValue(request, "majadu_session")
       let access =
-        if parts.len == 6 and parts[5] == "share": writeAccess()
+        if parts.len >= 6: writeAccess()
         elif verb == "GET": readAccess()
         else: writeAccess()
       let (decision, ctx) = decide(user.get, token, slug, access)
@@ -549,6 +638,12 @@ proc route(request: Request) =
         return
       if parts.len == 4 and verb == "POST":
         createSession(request, ctx.get, user.get)
+        return
+      if parts.len == 5 and verb == "PATCH":
+        patchSession(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 6 and parts[5] in ["lock", "unlock"] and verb == "POST":
+        setSessionLock(request, ctx.get, user.get, parts[4], parts[5] == "lock")
         return
       if parts.len == 5 and verb == "GET":
         let row = application.db.queryOne(

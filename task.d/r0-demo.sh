@@ -119,6 +119,34 @@ details=$(curl -s -b "$JAR" "$base/c/demo-club/sessions/$session_id")
 [ "$(printf '%s' "$details" | json "['version']")" = "1" ] || fail_step "session version"
 printf '%s' "$details" | grep -q 'shareCode\|viewCode' && fail_step "read leaks a code"
 
+patched=$(curl -s -b "$JAR" -X PATCH -H 'If-Match: "1"' \
+  -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-patch' \
+  -d '{"title":"Tuesday Night A","slotMinutes":40}' \
+  "$base/c/demo-club/sessions/$session_id")
+[ "$(printf '%s' "$patched" | json "['version']")" = "2" ] || fail_step "patch version"
+[ "$(printf '%s' "$patched" | json "['title']")" = "Tuesday Night A" ] || fail_step "patch title"
+
+replay=$(curl -s -b "$JAR" -X PATCH -H 'If-Match: "1"' \
+  -H 'Content-Type: application/json' -H 'Idempotency-Key: demo-patch' \
+  -d '{"title":"Tuesday Night A","slotMinutes":40}' \
+  "$base/c/demo-club/sessions/$session_id")
+[ "$(printf '%s' "$replay" | json "['version']")" = "2" ] || fail_step "idempotent replay"
+
+stale=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X PATCH \
+  -H 'If-Match: "1"' -H 'Content-Type: application/json' \
+  -d '{"title":"Stale"}' "$base/c/demo-club/sessions/$session_id")
+[ "$stale" = "412" ] || fail_step "stale version should be 412, got $stale"
+
+missing=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X PATCH \
+  -H 'Content-Type: application/json' -d '{"title":"No precondition"}' \
+  "$base/c/demo-club/sessions/$session_id")
+[ "$missing" = "428" ] || fail_step "missing If-Match should be 428, got $missing"
+
+locked=$(curl -s -b "$JAR" -X POST -H 'If-Match: "2"' \
+  "$base/c/demo-club/sessions/$session_id/lock")
+[ "$(printf '%s' "$locked" | json "['status']")" = "locked" ] || fail_step "lock status"
+[ "$(printf '%s' "$locked" | json "['approvedAt']")" != "None" ] || fail_step "lock approval stamp"
+
 share=$(curl -s -b "$JAR" -X POST "$base/c/demo-club/sessions/$session_id/share")
 code=$(printf '%s' "$share" | json "['code']")
 [ "${#code}" = "32" ] || fail_step "share code length"
