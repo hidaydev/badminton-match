@@ -4,7 +4,7 @@ Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk dat
 dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
 dump VPS atau skema v1.
 
-- Migrasi: `db/migrations/0001_core.sql` … `0014_fix_game_sides.sql` (14 file; `0014`
+- Migrasi: `db/migrations/0001_core.sql` … `0015_import.sql` (15 file; `0015`
   adalah yang terakhir).
 - Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
