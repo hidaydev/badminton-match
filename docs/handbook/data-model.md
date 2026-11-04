@@ -4,8 +4,8 @@ Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk dat
 dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
 dump VPS atau skema v1.
 
-- Migrasi: `db/migrations/0001_core.sql` … `0015_import.sql` (15 file; `0015`
-  adalah yang terakhir).
+- Migrasi: `db/migrations/0001_core.sql` … `0016_cutover_probe.sql` (16 file;
+  `0016` adalah yang terakhir).
 - Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
   `dbtools.seed_files` (checksum per file).
@@ -44,7 +44,7 @@ v2. Nama-nama itu hanya ada di [`../backend/`](../backend/README.md) (arsip migr
 | `platform.idempotency_keys` | Unik `(user_id, key)`, `body_hash`, `status_code`, `response` JSONB, `expires_at` + index | `0004:27-39` |
 | `platform.import_row_map` | PK `(community_id, source_table, source_key)` → `target_id`; peta ETL v1→v2 | `0004:41-48` |
 | `platform.ws_ticket` | `token_hash` unik, `channel_kind` (`session`/`share`), `channel_id`, `user_id` nullable dengan CHECK: channel share boleh anonim, session wajib user; `expires_at`, `used_at` | `0004:50-64`, `0007` |
-| `platform.cutover_state` | Singleton; `snapshot_sha256`, `snapshot_taken_at`, `etl_completed_at`, `completed_at` | `0004:66-73` |
+| `platform.cutover_state` | Singleton; `snapshot_sha256`, `snapshot_taken_at`, `etl_completed_at`, `completed_at`, `app_version`, `rows_imported` (0016) | `0004:66-73`, `0016` |
 | `platform.outbox` | `topic`, `payload` JSONB, `created_at`, `processed_at`; saat ini hanya dibersihkan janitor, belum ada produsen event | `0004:121-128` |
 | `platform.ops_token` | `name`, `token_hash` unik, `created_by`, `expires_at`, `revoked_at`, `last_used_at` | `0008:6-22` |
 
@@ -191,7 +191,7 @@ Jangan membawa nama dari dokumen v1 ke sini:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0014` |
+| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0016` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.deltas`, `rating.player_state` |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |
