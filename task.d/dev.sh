@@ -39,6 +39,10 @@ export OIDC_ISSUER="http://127.0.0.1:$STUB_PORT"
 export OIDC_CLIENT_ID=majadu-dev
 export OIDC_REDIRECT_URI="http://localhost:5173/api/auth/callback"
 
+if ! psql "$DSN" -Atc "select 1" >/dev/null 2>&1; then
+  fail "cannot reach $DSN; run ./task dev-db first"
+fi
+
 nim_build -o:"$bin_dir/dbtools" "$REPO_ROOT/tools/dbtools/main.nim"
 nim_build -o:"$bin_dir/oidc-stub" "$REPO_ROOT/tools/oidc-stub/main.nim"
 
