@@ -1,7 +1,8 @@
-import std/[json, options, strutils, sysrand]
+import std/[json, options, strutils]
 import db/db
 import sha256
 import ../domain/community
+import ./tokens
 
 type
   CreateStatus* = enum
@@ -11,13 +12,6 @@ type
   CreateResult* = object
     status*: CreateStatus
     communityId*: string
-
-proc randomToken(): string =
-  var bytes = newSeq[byte](32)
-  if not urandom(bytes):
-    raise newException(IOError, "no entropy available")
-  for byte in bytes:
-    result.add(toHex(byte, 2).toLowerAscii())
 
 proc create*(db: Db, slug, name, adminEmail, timezone, actorId: string): CreateResult =
   ## Creates the community and the first admin invitation in one transaction:
@@ -43,7 +37,7 @@ proc create*(db: Db, slug, name, adminEmail, timezone, actorId: string): CreateR
            values ($1::uuid, decode($2,'hex'), $3, 'admin', $4::uuid)""",
         @[
           textParam(communityId),
-          textParam(sha256Hex(randomToken())),
+          textParam(sha256Hex(newToken())),
           textParam(sha256Hex(adminEmail.strip().toLowerAscii())),
           textParam(actorId),
         ])

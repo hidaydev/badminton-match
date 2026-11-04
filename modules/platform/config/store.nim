@@ -118,6 +118,13 @@ proc stringValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): strin
     return override.get.getStr()
   lookup(snapshot, key).getStr()
 
+proc boolValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): bool =
+  let override = communityValue(settings, key)
+  if override.isSome:
+    validateValue(specFor(key), override.get)
+    return override.get.getBool()
+  lookup(snapshot, key).getBool()
+
 proc jsonValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): JsonNode =
   let override = communityValue(settings, key)
   if override.isSome:

@@ -25,6 +25,21 @@ fail_step() {
   exit 1
 }
 
+# Completes the OIDC flow again. Membership granted by an email-bound
+# invitation only materialises at login, so this is also how the first admin
+# of a freshly created community gets in.
+relogin() {
+  _start=$(curl -s -X POST -H 'Content-Type: application/json' \
+    -d '{"returnTo":"/"}' "$base/auth/start")
+  _authorize=$(printf '%s' "$_start" | json "['authorizeUrl']")
+  _hint=$(printf '%s' "$OWNER_EMAIL" | python3 -c \
+    'import sys,urllib.parse;print(urllib.parse.quote(sys.stdin.read().strip(), safe=""))')
+  _location=$(curl -s -o /dev/null -D - "$_authorize&login_hint=$_hint" |
+    grep -i '^location:' | tr -d '\r' | cut -d' ' -f2)
+  [ -n "$_location" ] || fail_step "authorize redirect"
+  curl -s -o /dev/null -b "$JAR" -c "$JAR" "$_location" || fail_step "callback"
+}
+
 sh "$REPO_ROOT/ops/dev/reset.sh" r0 >/dev/null
 
 bin_dir="$REPO_ROOT/.cache/$WORKTREE/bin"
@@ -84,10 +99,17 @@ me=$(curl -s -b "$JAR" "$base/auth/me")
 [ "$(printf '%s' "$me" | json "['platformOwner']")" = "True" ] || fail_step "auth/me"
 
 community=$(curl -s -b "$JAR" -X POST -H 'Content-Type: application/json' \
-  -d '{"slug":"demo-club","name":"Demo Club"}' "$base/communities")
+  -d "{\"slug\":\"demo-club\",\"name\":\"Demo Club\",\"adminEmail\":\"$OWNER_EMAIL\"}" \
+  "$base/communities")
 [ "$(printf '%s' "$community" | json "['slug']")" = "demo-club" ] || fail_step "community"
 [ "$(printf '%s' "$community" | json "['timezone']")" = "Asia/Jakarta" ] ||
   fail_step "community timezone default"
+
+# The creator is not a member yet: the first-admin invitation is honoured when
+# that address logs in.
+relogin
+[ "$(curl -s -b "$JAR" "$base/c/demo-club/members" | json "['items'][0]['role']")" = "admin" ] ||
+  fail_step "first admin membership"
 
 csrf=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X POST \
   -H 'Origin: https://evil.example' -H 'Content-Type: application/json' \
@@ -99,7 +121,8 @@ grep -qi '^X-Content-Type-Options: nosniff' /tmp/r0-headers || fail_step "securi
 grep -qi '^Content-Security-Policy:' /tmp/r0-headers || fail_step "CSP header"
 
 duplicate=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X POST \
-  -H 'Content-Type: application/json' -d '{"slug":"demo-club","name":"Again"}' \
+  -H 'Content-Type: application/json' \
+  -d "{\"slug\":\"demo-club\",\"name\":\"Again\",\"adminEmail\":\"$OWNER_EMAIL\"}" \
   "$base/communities")
 [ "$duplicate" = "409" ] || fail_step "duplicate slug should be 409, got $duplicate"
 
@@ -109,7 +132,9 @@ session=$(curl -s -b "$JAR" -X POST -H 'Content-Type: application/json' \
 session_id=$(printf '%s' "$session" | json "['id']")
 
 other=$(curl -s -b "$JAR" -X POST -H 'Content-Type: application/json' \
-  -d '{"slug":"demo-other","name":"Other Club"}' "$base/communities" | json "['id']")
+  -d "{\"slug\":\"demo-other\",\"name\":\"Other Club\",\"adminEmail\":\"$OWNER_EMAIL\"}" \
+  "$base/communities" | json "['id']")
+relogin
 other_session=$(curl -s -b "$JAR" -X POST -H 'Content-Type: application/json' \
   -d '{"title":"Foreign","date":"2026-11-03"}' "$base/c/demo-other/sessions" | json "['id']")
 [ "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" \
@@ -177,7 +202,7 @@ rotated=$(curl -s -b "$JAR" -X POST "$base/c/demo-club/sessions/$session_id/shar
   fail_step "revoked share code must be 404"
 
 sessions=$(curl -s -b "$JAR" "$base/auth/sessions")
-[ "$(printf '%s' "$sessions" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["items"]))')" = "1" ] ||
+[ "$(printf '%s' "$sessions" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)["items"]))')" -ge 1 ] ||
   fail_step "auth/sessions list"
 [ "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X DELETE "$base/auth/sessions")" = "204" ] ||
   fail_step "auth/sessions revoke-all"

@@ -14,6 +14,8 @@ type
     ## Registry keys frozen in TECH-SPEC §4A. The enum value is the database key.
     keyCommunityDefaultTimezone = "community.default_timezone"
     keyCommunityDirectoryEnabled = "community.directory_enabled"
+    keyCommunityInviteTtlDays = "community.invite_ttl_days"
+    keyCommunityJoinRequestsEnabled = "community.join_requests_enabled"
     keyIngestTickerMinutes = "ingest.ticker_minutes"
     keyApiPageSizeDefault = "api.page_size_default"
     keyRankBoardLimit = "rank.board_limit"
@@ -54,6 +56,8 @@ proc spec(key: ConfigKey, kind: ConfigType, minValue = 0.0,
 const allKeys* = [
   spec(keyCommunityDefaultTimezone, ctString, scope = csCommunity),
   spec(keyCommunityDirectoryEnabled, ctBool, scope = csCommunity),
+  spec(keyCommunityInviteTtlDays, ctInt, 1, 365, true),
+  spec(keyCommunityJoinRequestsEnabled, ctBool, scope = csCommunity),
   spec(keyIngestTickerMinutes, ctInt, 1, 1440, true),
   spec(keyApiPageSizeDefault, ctInt, 1, 1000, true),
   spec(keyRankBoardLimit, ctInt, 1, 10_000, true),

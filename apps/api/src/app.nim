@@ -2,6 +2,11 @@ import std/[base64, json, options, os, strutils, sysrand, times, uri]
 import mummy
 import auth_middleware
 import community_context
+import community/domain/community as communityDomain
+import community/infrastructure/community_store
+import community/infrastructure/invite as inviteStore
+import community/infrastructure/join_request as joinRequestStore
+import community/infrastructure/membership as membershipStore
 import config as edgeConfig
 import config_routes
 import live
@@ -277,6 +282,10 @@ proc finishAuth(request: Request) =
   if userRow.isNone:
     problem(request, 500, "USER_UPSERT_FAILED", "cannot create user")
     return
+  # Invitations bound to this address (including the first-admin invite created
+  # with the community) are honoured at login.
+  discard inviteStore.acceptPendingForEmail(application.db,
+    userRow.get.get("id"), sha256Hex(email))
   let token = createSessionToken(userRow.get.get("id"))
   send(request, 302,
     @[("Location", flow.get("return_to")), ("Set-Cookie", sessionCookie(token))], "")
@@ -318,48 +327,69 @@ proc logout(request: Request) =
   send(request, 204, @[("Set-Cookie",
     "majadu_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")], "")
 
-proc createCommunity(request: Request) =
-  let user = requireUser(request)
-  if user.isNone: return
-  if not user.get.isOwner:
+proc ownerOnly(request: Request): Option[AuthUser] =
+  ## Platform-owner management routes: 401 before 403, never a community check.
+  result = requireUser(request)
+  if result.isNone:
+    return
+  if not result.get.isOwner:
     problem(request, 403, "FORBIDDEN", "platform owner only")
+    return none(AuthUser)
+
+proc adminGate(request: Request,
+               slug: string): Option[(AuthUser, CommunityContext)] =
+  ## Admin-only community management. A foreign slug stays a 404, so the role
+  ## check never confirms that a community exists.
+  let user = requireUser(request)
+  if user.isNone:
+    return none((AuthUser, CommunityContext))
+  let (decision, ctx) = decide(user.get, cookieValue(request, "majadu_session"),
+    slug, Access(isSession: true, roles: @[rAdmin]))
+  if decision != gAllowed:
+    respondGate(request, decision)
+    return none((AuthUser, CommunityContext))
+  some((user.get, ctx.get))
+
+proc createCommunity(request: Request) =
+  let user = ownerOnly(request)
+  if user.isNone:
     return
-  let body = bodyJson(request)
-  let slug = body["slug"].getStr()
-  let name = body["name"].getStr()
-  # No hidden default: a community without a timezone inherits the registry L1
-  # value, which the platform owner can change without a deploy.
-  let timezone =
-    if body.hasKey("timezone"): body["timezone"].getStr()
-    else: configSnapshot().stringValue(%*{}, keyCommunityDefaultTimezone)
-  var row: Option[Row]
+  var body: JsonNode
   try:
-    row = application.db.queryOne(
-      """insert into platform.community (slug, name, timezone)
-         values ($1, $2, $3) returning id, slug, name, timezone""",
-      @[textParam(slug), textParam(name), textParam(timezone)])
-  except DbError as error:
-    case error.sqlState
-    of "23505": problem(request, 409, "SLUG_TAKEN", "community slug already exists")
-    of "23514": problem(request, 400, "INVALID_SLUG", "slug or name is invalid")
-    else: problem(request, 400, "INVALID_COMMUNITY", "cannot create community")
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
     return
-  if row.isNone:
-    problem(request, 500, "CREATE_FAILED", "community was not created")
+  let slug = if body.hasKey("slug") and body["slug"].kind == JString:
+    body["slug"].getStr() else: ""
+  let name = if body.hasKey("name") and body["name"].kind == JString:
+    body["name"].getStr() else: ""
+  let adminEmail = if body.hasKey("adminEmail") and body["adminEmail"].kind == JString:
+    body["adminEmail"].getStr() else: ""
+  let timezone =
+    if body.hasKey("timezone") and body["timezone"].kind == JString:
+      some(body["timezone"].getStr())
+    else:
+      none(string)
+  let check = communityDomain.checkCreate(slug, name, adminEmail,
+    configSnapshot().stringValue(%*{}, keyCommunityDefaultTimezone), timezone)
+  if check.problems.len > 0:
+    problem(request, 400, "INVALID_COMMUNITY", $check.problems[0])
     return
-  let communityId = row.get.get("id")
-  discard application.db.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1, $2, 'admin')""",
-    @[textParam(communityId), textParam(user.get.id)])
-  audit("community.create", communityId, user.get, "community", communityId,
-    %*{"slug": row.get.get("slug"), "name": row.get.get("name")})
-  jsonResponse(request, 201, %*{
-    "id": communityId,
-    "slug": row.get.get("slug"),
-    "name": row.get.get("name"),
-    "timezone": row.get.get("timezone"),
-  })
+  let created = communityStore.create(application.db, check.slug, name.strip(),
+    adminEmail, check.timezone, user.get.id)
+  case created.status
+  of csSlugTaken:
+    problem(request, 409, "SLUG_TAKEN", "community slug already exists")
+  of csOk:
+    audit("community.create", created.communityId, user.get, "community",
+      created.communityId, %*{"slug": check.slug})
+    jsonResponse(request, 201, %*{
+      "id": created.communityId,
+      "slug": check.slug,
+      "name": name.strip(),
+      "timezone": check.timezone,
+    })
 
 proc listCommunities(request: Request) =
   let user = requireUser(request)
@@ -584,6 +614,188 @@ proc patchCommunitySettings(request: Request, ctx: CommunityContext,
   of soInvalidType:
     problem(request, 400, "INVALID_CONFIG_VALUE", result.detail & ": " & result.key)
 
+proc directory(request: Request) =
+  ## Public listing. Outsiders only see communities that opted in; a member also
+  ## sees their own. Entries carry the slug and the name, nothing else.
+  let user = currentUser(request)
+  let snapshot = configSnapshot()
+  let items = communityStore.directory(application.db,
+    (if user.isSome: some(user.get.id) else: none(string)),
+    snapshot.boolValue(%*{}, keyCommunityDirectoryEnabled),
+    $keyCommunityDirectoryEnabled)
+  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+
+proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser) =
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  let email = if body.hasKey("email") and body["email"].kind == JString:
+    body["email"].getStr() else: ""
+  if not communityDomain.validEmail(email):
+    problem(request, 400, "INVALID_EMAIL", "a valid email is required")
+    return
+  let role = if body.hasKey("role") and body["role"].kind == JString:
+    body["role"].getStr() else: "member"
+  var parsed: Role
+  try:
+    parsed = parseRole(role)
+  except ValueError:
+    problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
+    return
+  let ttl = configSnapshot().intValue(%*{}, keyCommunityInviteTtlDays)
+  let token = inviteStore.create(application.db, ctx.communityId,
+    sha256Hex(email.strip().toLowerAscii()), $parsed, user.id, ttl)
+  audit("community.invite", ctx.communityId, user, "community", ctx.communityId,
+    %*{"role": $parsed})
+  jsonResponse(request, 201, %*{"token": token, "expiresInDays": ttl, "role": $parsed},
+    [("Cache-Control", "no-store")])
+
+proc acceptInvite(request: Request, token: string) =
+  let user = requireUser(request)
+  if user.isNone:
+    return
+  let result = inviteStore.accept(application.db, token, user.get.id,
+    user.get.emailHash)
+  case result.outcome
+  of aoOk:
+    audit("community.join", result.communityId, user.get, "community",
+      result.communityId, %*{"role": result.role})
+    jsonResponse(request, 201, %*{"communityId": result.communityId,
+      "role": result.role})
+  of aoNotFound:
+    problem(request, 404, "INVITE_NOT_FOUND", "invitation not found")
+  of aoUsed:
+    problem(request, 410, "INVITE_USED", "invitation was already used")
+  of aoExpired:
+    problem(request, 410, "INVITE_EXPIRED", "invitation has expired")
+  of aoEmailMismatch:
+    problem(request, 403, "INVITE_EMAIL_MISMATCH",
+      "invitation belongs to another address")
+
+proc requestJoin(request: Request, slug: string) =
+  ## Anti-enumeration: an unknown slug, a community that is not accepting and an
+  ## already-pending request all return the same 202 body.
+  const accepted = """{"status":"accepted"}"""
+  let user = currentUser(request)
+  let row = if user.isSome:
+    application.db.queryOne(
+      """select c.id,
+                coalesce((s.values ->> $2)::boolean, $3) as enabled
+         from platform.community c
+         left join community.settings s on s.community_id = c.id
+         where c.slug = $1""",
+      @[textParam(slug),
+        textParam($keyCommunityJoinRequestsEnabled),
+        boolParam(configSnapshot().boolValue(%*{}, keyCommunityJoinRequestsEnabled))])
+    else:
+      none(Row)
+  if row.isSome and row.get.get("enabled") == "t":
+    discard joinRequestStore.request(application.db, row.get.get("id"), user.get.id)
+  send(request, 202, @[("Content-Type", "application/json"),
+    ("Cache-Control", "no-store")], accepted)
+
+proc listJoinRequests(request: Request, ctx: CommunityContext) =
+  var items = newJArray()
+  for entry in joinRequestStore.listPending(application.db, ctx.communityId):
+    items.add(%*{"id": entry.id, "userId": entry.userId,
+      "displayName": entry.displayName, "createdAt": entry.createdAt})
+  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+
+proc decideJoinRequest(request: Request, ctx: CommunityContext, user: AuthUser,
+                       requestId: string) =
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  let decision = if body.hasKey("decision") and body["decision"].kind == JString:
+    body["decision"].getStr() else: ""
+  if decision notin ["approve", "reject"]:
+    problem(request, 400, "INVALID_DECISION", "decision must be approve or reject")
+    return
+  let role = if body.hasKey("role") and body["role"].kind == JString:
+    body["role"].getStr() else: "member"
+  try:
+    discard parseRole(role)
+  except ValueError:
+    problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
+    return
+  let approve = decision == "approve"
+  if not joinRequestStore.decide(application.db, ctx.communityId, requestId,
+      user.id, role, approve):
+    problem(request, 404, "NOT_FOUND", "pending request not found")
+    return
+  audit(if approve: "community.join.approved" else: "community.join.rejected",
+    ctx.communityId, user, "join_request", requestId, %*{"role": role})
+  jsonResponse(request, 200, %*{"status": if approve: "approved" else: "rejected"})
+
+proc listMembers(request: Request, ctx: CommunityContext) =
+  var items = newJArray()
+  for member in membershipStore.list(application.db, ctx.communityId):
+    items.add(%*{"userId": member.userId, "displayName": member.displayName,
+      "role": member.role, "joinedAt": member.joinedAt})
+  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+
+proc soleAdmin(db: Db, communityId, userId: string): bool =
+  ## Removing or demoting the only admin would leave the community unmanageable.
+  let row = db.queryOne(
+    """select
+         (select count(*) from community.membership
+          where community_id = $1::uuid and role = 'admin') as admins,
+         (select role from community.membership
+          where community_id = $1::uuid and user_id = $2::uuid) as current""",
+    @[textParam(communityId), textParam(userId)])
+  row.isSome and row.get.get("admins") == "1" and row.get.get("current") == "admin"
+
+proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
+                     targetId: string) =
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  let role = if body.hasKey("role") and body["role"].kind == JString:
+    body["role"].getStr() else: ""
+  try:
+    discard parseRole(role)
+  except ValueError:
+    problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
+    return
+  if role != "admin" and soleAdmin(application.db, ctx.communityId, targetId):
+    problem(request, 409, "LAST_ADMIN", "promote another admin first")
+    return
+  if not membershipStore.setRole(application.db, ctx.communityId, targetId, role):
+    problem(request, 404, "NOT_FOUND", "member not found")
+    return
+  audit("community.member.role", ctx.communityId, user, "user", targetId,
+    %*{"role": role})
+  jsonResponse(request, 200, %*{"userId": targetId, "role": role})
+
+proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
+                  targetId: string) =
+  if soleAdmin(application.db, ctx.communityId, targetId):
+    problem(request, 409, "LAST_ADMIN", "promote another admin first")
+    return
+  if not membershipStore.remove(application.db, ctx.communityId, targetId):
+    problem(request, 404, "NOT_FOUND", "member not found")
+    return
+  # A removed member loses the sockets and tickets of that principal.
+  application.hub.revokePrincipal(targetId)
+  audit("community.member.remove", ctx.communityId, user, "user", targetId)
+  send(request, 204, @[("Cache-Control", "no-store")], "")
+
+proc communityConfig(request: Request, ctx: CommunityContext) =
+  ## Effective registry values for this community, with the source of each one.
+  jsonResponse(request, 200,
+    %*{"effective": effectiveConfig(configSnapshot(),
+      currentSettings(application.db, ctx.communityId))},
+    [("Cache-Control", "no-store")])
+
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
   ## Re-display of the live code: host/admin only, and every read is audited.
@@ -785,6 +997,10 @@ proc route(request: Request) =
       elif verb == "GET": listCommunities(request)
       else: problem(request, 405, "METHOD", "")
       return
+    of "/directory":
+      if verb == "GET": directory(request)
+      else: problem(request, 405, "METHOD", "")
+      return
     else: discard
 
     let parts = path.split('/')
@@ -846,6 +1062,52 @@ proc route(request: Request) =
       if parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
         issueSessionTicket(request, ctx.get, user.get, parts[4])
         return
+    # /invites/{token}/accept
+    if parts.len == 4 and parts[1] == "invites" and parts[3] == "accept":
+      if verb == "POST": acceptInvite(request, parts[2])
+      else: problem(request, 405, "METHOD", "")
+      return
+    # Anonymous join request: always the same 202, whatever the reason.
+    if parts.len == 4 and parts[1] == "c" and parts[3] == "join-requests" and
+       verb == "POST":
+      requestJoin(request, parts[2])
+      return
+    # /c/{slug}/members[/{userId}], /c/{slug}/join-requests[/{id}],
+    # /c/{slug}/invites, /c/{slug}/config
+    if parts.len >= 4 and parts[1] == "c" and
+       parts[3] in ["members", "join-requests", "invites", "config"]:
+      if parts[3] == "members" and parts.len == 4 and verb == "GET":
+        let user = requireUser(request)
+        if user.isNone: return
+        let (decision, ctx) = decide(user.get,
+          cookieValue(request, "majadu_session"), parts[2], readAccess())
+        if decision != gAllowed:
+          respondGate(request, decision)
+          return
+        listMembers(request, ctx.get)
+        return
+      let admin = adminGate(request, parts[2])
+      if admin.isNone: return
+      let (user, ctx) = admin.get
+      if parts[3] == "members" and parts.len == 5:
+        if verb == "PATCH": patchMemberRole(request, ctx, user, parts[4])
+        elif verb == "DELETE": removeMember(request, ctx, user, parts[4])
+        else: problem(request, 405, "METHOD", "")
+        return
+      if parts[3] == "join-requests" and parts.len == 4 and verb == "GET":
+        listJoinRequests(request, ctx)
+        return
+      if parts[3] == "join-requests" and parts.len == 5 and verb == "PATCH":
+        decideJoinRequest(request, ctx, user, parts[4])
+        return
+      if parts[3] == "invites" and parts.len == 4 and verb == "POST":
+        createInvite(request, ctx, user)
+        return
+      if parts[3] == "config" and parts.len == 4 and verb == "GET":
+        communityConfig(request, ctx)
+        return
+      problem(request, 404, "NOT_FOUND", "route not found")
+      return
     # /c/{slug}/settings
     if parts.len == 4 and parts[1] == "c" and parts[3] == "settings":
       let user = currentUser(request)
