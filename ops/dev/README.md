@@ -32,3 +32,23 @@ underscore, and `dev`/`template` are refused.
 
 The script never writes to `bm` and revokes `CONNECT`/`ALL` on it from the bm2
 roles when the archive database exists (O-41).
+
+## v1 environment (`ops/dev/v1`)
+
+```
+./task dev-v1        # rebuild bm_v1_dev from ops/dev/v1/schema.sql + seed.sql
+```
+
+`schema.sql` is the captured v1 schema; `seed.sql` adds eight players, two
+sessions with courts and played games, rating state and one tournament. All
+identifiers are fixed so parity recordings stay comparable between machines.
+The database is recreated on every run, so `bm_v1_dev` must never hold data you
+care about. The v1 Go server still lives in `apps/api/cmd` and reads:
+
+```
+DATABASE_URL=postgresql://$USER@127.0.0.1:5432/bm_v1_dev
+MAJADU_DB_SCHEMA=bm
+MAJADU_ENV=dev
+PORT=8091
+```
+

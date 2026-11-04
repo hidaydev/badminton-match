@@ -30,6 +30,7 @@ explicit `--nimcache` does not add a suffix.
 | `contract-gen` | regenerate routes, client and fingerprint | no |
 | `contract-check` | fail when specs and generated files drift | no |
 | `ci` | check + build + test + contract check | same as `test` |
+| `dev-v1` | rebuild `bm_v1_dev` from the captured v1 schema and seed | yes |
 | `r0-demo` | walking skeleton over HTTP against `bm2_r0` | yes |
 
 ## Rules

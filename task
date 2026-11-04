@@ -16,6 +16,7 @@ Targets:
   verify       build and test one module: ./task verify <module>
   ci           check + build + test + contract check
   dev-db       create the local PostgreSQL databases and roles
+  dev-v1       rebuild the local v1 database (captured schema + synthetic data)
   contract-gen generate Nim routes and the TypeScript client
   contract-check verify the contract fingerprint and generated files
   deps-check   verify installed dependencies against deps.lock
