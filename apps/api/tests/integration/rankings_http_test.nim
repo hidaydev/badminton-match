@@ -62,6 +62,8 @@ proc bootstrap() =
          (select id from platform.community where slug = 'rank-club')""",
     """delete from rating.player_state where community_id in
          (select id from platform.community where slug = 'rank-club')""",
+    """delete from rating.sources where community_id in
+         (select id from platform.community where slug = 'rank-club')""",
     """delete from session.links where community_id in
          (select id from platform.community where slug = 'rank-club')""",
     """delete from session.sessions where community_id in

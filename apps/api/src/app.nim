@@ -21,6 +21,7 @@ import share/store as shareStore
 import session/write as sessionWrite
 import session/schedule as sessionSchedule
 import session/swap as sessionSwap
+import tournament/store as tournamentStore
 import ws_ticket as wsTicket
 import platform/idempotency
 import player/domain/player as playerDomain
@@ -29,6 +30,7 @@ import player/claim as playerClaim
 import player/merge as playerMerge
 import rating/domain/rating as ratingDomain
 import rating/infrastructure/ingest as ratingIngest
+import rating/infrastructure/tournament as ratingTournament
 import rating/infrastructure/params as ratingParams
 import rating/read as ratingRead
 import achievement/infrastructure/backfill as achievementBackfill
@@ -1204,13 +1206,17 @@ proc listRatingSources(request: Request, ctx: CommunityContext) =
   var items = newJArray()
   for row in application.db.query(
     """select e.id, e.event_type, e.local_date::text as local_date,
-              coalesce(e.source_id::text, '') as source_id, e.finalized,
-              e.finalized_at::text as finalized_at,
+              coalesce(e.source_id::text, '') as source_id,
+              coalesce(s.finalized, false) as finalized,
+              s.finalized_at::text as finalized_at,
               count(d.id)::int as deltas
        from rating.events e
        left join rating.deltas d on d.event_id = e.id
+       left join rating.sources s
+         on s.community_id = e.community_id and s.source_id = e.source_id
        where e.community_id = $1::uuid
-       group by e.id order by e.local_date desc, e.created_at desc""",
+       group by e.id, s.finalized, s.finalized_at
+       order by e.local_date desc, e.created_at desc""",
     @[textParam(ctx.communityId)]):
     items.add(%*{"id": row.get("id"), "type": row.get("event_type"),
       "date": row.get("local_date"), "sourceId": row.get("source_id"),
@@ -1255,6 +1261,7 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
   if removed > 0:
     discard ratingIngest.rebuild(application.db, ctx.communityId,
       ratingParamsFor(ctx))
+  discard ratingIngest.dropSource(application.db, ctx.communityId, sessionId)
   audit("session.delete", ctx.communityId, user, "session", sessionId,
     %*{"removedDeltas": removed})
   send(request, 204, @[("Cache-Control", "no-store")], "")
@@ -1591,6 +1598,184 @@ proc handleWebSocket(request: Request, snapshot: Snapshot, parts: seq[string]) =
     return
   problem(request, 404, "NOT_FOUND", "route not found")
 
+proc sendSnapshot(request: Request, status: int, snapshot: JsonNode,
+                  extra: openArray[(string, string)] = []) =
+  var headers = @[("Cache-Control", "no-store")]
+  if snapshot.hasKey("version"):
+    headers.add(("ETag", "\"" & $snapshot["version"].getInt() & "\""))
+  for pair in extra:
+    headers.add(pair)
+  jsonResponse(request, status, snapshot, headers)
+
+proc saveFailure(request: Request, status: tournamentStore.SaveStatus) =
+  case status
+  of tournamentStore.svOk:
+    discard
+  of tournamentStore.svNotFound:
+    problem(request, 404, "NOT_FOUND", "tournament not found")
+  of tournamentStore.svStale:
+    problem(request, 412, "STALE_VERSION", "tournament changed since If-Match")
+  of tournamentStore.svInvalid:
+    problem(request, 400, "INVALID_TOURNAMENT", "tournament body is invalid")
+
+proc listTournamentsRoute(request: Request, ctx: CommunityContext) =
+  let limit = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
+  var offset = 0
+  let rawOffset = request.queryParams.getOrDefault("offset", "")
+  if rawOffset.len > 0:
+    try: offset = parseInt(rawOffset)
+    except ValueError: offset = 0
+  var items = newJArray()
+  for item in tournamentStore.list(application.db, ctx.communityId,
+      request.queryParams.getOrDefault("format", ""), limit, offset):
+    items.add(item)
+  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+
+proc createTournamentRoute(request: Request, ctx: CommunityContext,
+                           user: AuthUser) =
+  let key = request.headers["Idempotency-Key"]
+  if idempotentWrite(request, user.id, ctx.communityId, key,
+      request.body).isSome:
+    return
+  var body: JsonNode
+  try: body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  let (status, snapshot) = tournamentStore.create(application.db,
+    ctx.communityId, user.id, body)
+  if status == tournamentStore.svInvalid:
+    jsonResponse(request, 400, snapshot)
+    return
+  if status != tournamentStore.svOk:
+    saveFailure(request, status)
+    return
+  let id = snapshot["id"].getStr()
+  let record = %*{"id": id, "version": snapshot["version"]}
+  audit("tournament.create", ctx.communityId, user, "tournament", id, record)
+  if key.len > 0:
+    complete(application.db, user.id, scopedKey(ctx.communityId, key), 201,
+      snapshot)
+  sendSnapshot(request, 201, snapshot,
+    [("Location", "/c/" & ctx.slug & "/tournaments/" & id)])
+
+proc getTournamentRoute(request: Request, ctx: CommunityContext, id: string) =
+  let snapshot = tournamentStore.load(application.db, ctx.communityId, id)
+  if snapshot.isNone:
+    problem(request, 404, "NOT_FOUND", "tournament not found")
+    return
+  sendSnapshot(request, 200, snapshot.get)
+
+proc putTournamentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                        id: string) =
+  let version = requireIfMatch(request)
+  if version.isNone:
+    return
+  let key = request.headers["Idempotency-Key"]
+  if idempotentWrite(request, user.id, ctx.communityId, key,
+      request.body).isSome:
+    return
+  var body: JsonNode
+  try: body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  let (status, snapshot) = tournamentStore.replace(application.db,
+    ctx.communityId, id, user.id, body, version.get)
+  case status
+  of tournamentStore.svOk:
+    let record = %*{"id": id, "version": snapshot["version"]}
+    audit("tournament.update", ctx.communityId, user, "tournament", id, record)
+    if key.len > 0:
+      complete(application.db, user.id, scopedKey(ctx.communityId, key), 200,
+        snapshot)
+    sendSnapshot(request, 200, snapshot)
+  of tournamentStore.svInvalid:
+    jsonResponse(request, 400, snapshot)
+  else:
+    saveFailure(request, status)
+
+proc ingestTournamentRating(request: Request, ctx: CommunityContext,
+                           user: AuthUser, id: string) =
+  ## Admin-only. The source must be signed off first, which is the v1 gate and
+  ## the reason a running bracket cannot leak half a tournament into the board.
+  let result = ratingTournament.ingestTournament(application.db,
+    ctx.communityId, id, ratingParamsFor(ctx))
+  case result.status
+  of ratingTournament.tisOk:
+    audit("rating.tournament.ingest", ctx.communityId, user, "tournament", id,
+      %*{"events": result.events, "deltas": result.deltas})
+    jsonResponse(request, 200, %*{"events": result.events,
+      "deltas": result.deltas}, [("Cache-Control", "no-store")])
+  of ratingTournament.tisNotFinal:
+    problem(request, 400, "INVALID_STATE",
+      "tournament must be finalized before rating")
+  of ratingTournament.tisNotFound:
+    problem(request, 404, "NOT_FOUND", "tournament not found")
+
+proc clearTournamentRating(request: Request, ctx: CommunityContext,
+                           user: AuthUser, id: string) =
+  if ratingIngest.sourceFinalized(application.db, ctx.communityId, id):
+    problem(request, 403, "FORBIDDEN", "rating source is finalized")
+    return
+  let removed = ratingIngest.revertSource(application.db, ctx.communityId, id)
+  discard ratingIngest.rebuild(application.db, ctx.communityId,
+    ratingParamsFor(ctx))
+  audit("rating.tournament.revert", ctx.communityId, user, "tournament", id,
+    %*{"removedDeltas": removed})
+  send(request, 204, @[("Cache-Control", "no-store")], "")
+
+proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
+                           user: AuthUser, id: string) =
+  ## The Idempotency-Key is accepted but not persisted: a repeated delete is
+  ## already a 404, and a 204 must not carry a replay body.
+  if not tournamentStore.remove(application.db, ctx.communityId, id):
+    problem(request, 404, "NOT_FOUND", "tournament not found")
+    return
+  # The rating event named this tournament; deleting the tournament without it
+  # would leave points on the board for a bracket that no longer exists.
+  let removed = ratingIngest.revertSource(application.db, ctx.communityId, id)
+  if removed > 0:
+    discard ratingIngest.rebuild(application.db, ctx.communityId,
+      ratingParamsFor(ctx))
+  discard ratingIngest.dropSource(application.db, ctx.communityId, id)
+  audit("tournament.delete", ctx.communityId, user, "tournament", id,
+    %*{"id": id, "removedDeltas": removed})
+  send(request, 204, @[("Cache-Control", "no-store")], "")
+
+proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
+                               user: AuthUser, id, matchId: string) =
+  let version = requireIfMatch(request)
+  if version.isNone:
+    return
+  let key = request.headers["Idempotency-Key"]
+  if idempotentWrite(request, user.id, ctx.communityId, key,
+      request.body).isSome:
+    return
+  var body: JsonNode
+  try: body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  let (status, snapshot) = tournamentStore.patchMatch(application.db,
+    ctx.communityId, id, matchId, body, version.get)
+  case status
+  of tournamentStore.ptOk:
+    let record = %*{"id": id, "matchId": matchId,
+      "version": snapshot["version"]}
+    audit("tournament.match.patch", ctx.communityId, user, "tournament", id,
+      record)
+    if key.len > 0:
+      complete(application.db, user.id, scopedKey(ctx.communityId, key), 200,
+        snapshot)
+    sendSnapshot(request, 200, snapshot)
+  of tournamentStore.ptInvalid:
+    jsonResponse(request, 400, snapshot)
+  of tournamentStore.ptNotFound:
+    problem(request, 404, "NOT_FOUND", "tournament or match not found")
+  of tournamentStore.ptStale:
+    problem(request, 412, "STALE_VERSION", "tournament changed since If-Match")
+
 proc route(request: Request) =
   try:
     let path = request.path
@@ -1825,6 +2010,48 @@ proc route(request: Request) =
          verb == "PATCH":
         skipGameRoute(request, ctx.get, parts[4], parts[6])
         return
+    # /c/{slug}/tournaments[/{id}[/matches/{matchId}]]
+    if parts.len >= 4 and parts[1] == "c" and parts[3] == "tournaments":
+      let user = currentUser(request)
+      if user.isNone:
+        problem(request, 401, "UNAUTHENTICATED", "login required")
+        return
+      # matrix.yaml: reads are member, every write is host/admin.
+      let access = if verb == "GET": readAccess() else: writeAccess()
+      let (decision, ctx) = decide(user.get,
+        cookieValue(request, "majadu_session"), parts[2], access)
+      if decision != gAllowed:
+        respondGate(request, decision)
+        return
+      if parts.len == 4 and verb == "GET":
+        listTournamentsRoute(request, ctx.get)
+        return
+      if parts.len == 4 and verb == "POST":
+        createTournamentRoute(request, ctx.get, user.get)
+        return
+      if parts.len == 5 and verb == "GET":
+        getTournamentRoute(request, ctx.get, parts[4])
+        return
+      if parts.len == 5 and verb == "PUT":
+        putTournamentRoute(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 5 and verb == "DELETE":
+        deleteTournamentRoute(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 7 and parts[5] == "matches" and verb == "PATCH":
+        patchTournamentMatchRoute(request, ctx.get, user.get, parts[4], parts[6])
+        return
+      if parts.len == 6 and parts[5] == "rating" and verb in ["POST", "DELETE"]:
+        # matrix.yaml: both rating operations are admin-only.
+        let admin = adminGate(request, parts[2])
+        if admin.isNone: return
+        if verb == "POST":
+          ingestTournamentRating(request, admin.get[1], admin.get[0], parts[4])
+        else:
+          clearTournamentRating(request, admin.get[1], admin.get[0], parts[4])
+        return
+      problem(request, 404, "NOT_FOUND", "route not found")
+      return
     # /c/{slug}/ratings/rebuild and /c/{slug}/rating-sources[/{id}]
     if parts.len >= 4 and parts[1] == "c" and
        parts[3] in ["ratings", "rating-sources"]:
