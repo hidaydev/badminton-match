@@ -42,9 +42,9 @@ DESIGN_BACKLOG.md
 TOURNAMENT_BACKLOG.md
 
 dump/
-scripts/
-# apps/web/scripts berisi regression tests yang ke-track (check:regression)
-!apps/web/scripts/
+# Only the v1 root helper directory is local; ops/scripts and apps/web/scripts
+# are part of the repo.
+/scripts/
 
 .commandcode
 
