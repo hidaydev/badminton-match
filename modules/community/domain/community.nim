@@ -72,9 +72,9 @@ proc directoryEnabled*(platformDefault: bool, settings: JsonNode,
   platformDefault
 
 proc directoryVisible*(enabled, isMember: bool): bool =
-  ## A disabled directory is a 404 for everyone; an enabled one is still only
-  ## readable by members.
-  enabled and isMember
+  ## A disabled directory is a 404 for outsiders but stays readable for its own
+  ## members, so they can find each other before opting in.
+  enabled or isMember
 
 proc directoryEntry*(slug, name: string): JsonNode =
   ## The directory never exposes counts, owners or settings.

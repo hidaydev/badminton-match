@@ -35,10 +35,11 @@ suite "community domain":
     check not validEmail("admin@localhost")
     check not validEmail("a b@example.com")
 
-  test "the directory is opt-in and members-only":
-    check not directoryVisible(false, true)
-    check not directoryVisible(true, false)
+  test "the directory is opt-in for outsiders and always on for members":
+    check directoryVisible(false, true)
+    check directoryVisible(true, false)
     check directoryVisible(true, true)
+    check not directoryVisible(false, false)
     check not directoryEnabled(false, newJObject(), "community.directory_enabled")
     check directoryEnabled(false,
       %*{"community.directory_enabled": true}, "community.directory_enabled")
