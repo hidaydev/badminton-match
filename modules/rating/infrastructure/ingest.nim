@@ -1,4 +1,4 @@
-import std/[options, strutils]
+import std/[json, options, strutils]
 import db/db
 import ../domain/rating
 
@@ -151,6 +151,45 @@ proc ingestSession*(db: Db, communityId, sessionId: string,
     outcome = ingestSessionConn(conn, communityId, sessionId, params)
     1)
   outcome
+
+proc sourceFinalized*(db: Db, communityId, sourceId: string): bool =
+  ## True when the source already has a signed-off event. The incremental paths
+  ## (revert, ticker) must not touch it; only `rebuild` may, and it clears the
+  ## flag because it recomputes every source from scratch.
+  let row = db.queryOne(
+    """select 1 as ok from rating.events
+       where community_id = $1::uuid and source_id = $2::uuid and finalized""",
+    @[textParam(communityId), textParam(sourceId)])
+  row.isSome
+
+proc eventFinalized*(db: Db, communityId, eventId: string): bool =
+  let row = db.queryOne(
+    """select 1 as ok from rating.events
+       where community_id = $1::uuid and id = $2::uuid and finalized""",
+    @[textParam(communityId), textParam(eventId)])
+  row.isSome
+
+proc setFinalized*(db: Db, communityId, eventId: string,
+                   finalized: bool): Option[JsonNode] =
+  ## Marks one event. The caller audits the change; the row is returned in the
+  ## same shape as the rating-source list so the client can render it directly.
+  let row = db.queryOne(
+    """update rating.events
+       set finalized = $3,
+           finalized_at = case when $3 then now() else null end
+       where community_id = $1::uuid and id = $2::uuid
+       returning id, event_type, local_date::text as local_date,
+                 coalesce(source_id::text, '') as source_id, finalized,
+                 finalized_at::text as finalized_at""",
+    @[textParam(communityId), textParam(eventId), boolParam(finalized)])
+  if row.isNone:
+    return none(JsonNode)
+  let value = row.get
+  some(%*{"id": value.get("id"), "type": value.get("event_type"),
+    "date": value.get("local_date"), "sourceId": value.get("source_id"),
+    "finalized": value.get("finalized") == "t",
+    "finalizedAt": if value["finalized_at"].isSome:
+      %value.get("finalized_at") else: newJNull()})
 
 proc revertSource*(db: Db, communityId, sourceId: string): int =
   ## Drops one source's event and its deltas. The caller rebuilds the derived

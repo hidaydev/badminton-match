@@ -20,6 +20,7 @@ import share/crypto
 import share/store as shareStore
 import session/write as sessionWrite
 import session/schedule as sessionSchedule
+import session/swap as sessionSwap
 import ws_ticket as wsTicket
 import platform/idempotency
 import player/domain/player as playerDomain
@@ -606,6 +607,45 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
   of wsInvalid:
     problem(request, 400, "INVALID_PATCH", "cannot apply patch")
 
+proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
+                 sessionId: string) =
+  ## Session-level OCC: an If-Match version, one transaction, then the same
+  ## `session.changed` broadcast every other schedule write sends.
+  let version = requireIfMatch(request)
+  if version.isNone: return
+  let key = request.headers["Idempotency-Key"]
+  if idempotentWrite(request, user.id, ctx.communityId, key,
+      request.body).isSome:
+    return
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  let result = sessionSwap.swapMembers(application.db, ctx.communityId,
+    sessionId, version.get, sessionSwap.parseSwap(body))
+  case result.status
+  of sessionSwap.swOk:
+    let record = %*{"version": result.version, "status": result.sessionStatus}
+    audit("session.swap", ctx.communityId, user, "session", sessionId,
+      record)
+    if key.len > 0:
+      complete(application.db, user.id, scopedKey(ctx.communityId, key), 200,
+        record)
+    application.hub.sessionChanged(sessionId, result.version)
+    jsonResponse(request, 200, record,
+      [("ETag", "\"" & $result.version & "\""),
+       ("Cache-Control", "no-store")])
+  of sessionSwap.swInvalid:
+    problem(request, 400, "INVALID_SWAP", result.detail)
+  of sessionSwap.swStale:
+    problem(request, 412, "STALE_VERSION", "session changed since If-Match")
+  of sessionSwap.swNotFound:
+    problem(request, 404, "NOT_FOUND", "session not found")
+  of sessionSwap.swLocked:
+    problem(request, 403, "FORBIDDEN", "session is locked")
+
 proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
                     sessionId: string, locked: bool) =
   let version = requireIfMatch(request)
@@ -1141,6 +1181,9 @@ proc ingestSessionRating(request: Request, ctx: CommunityContext,
 
 proc clearSessionRating(request: Request, ctx: CommunityContext,
                         sessionId: string) =
+  if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
+    problem(request, 403, "FORBIDDEN", "rating source is finalized")
+    return
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, sessionId)
   let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId,
     ratingParamsFor(ctx))
@@ -1161,7 +1204,8 @@ proc listRatingSources(request: Request, ctx: CommunityContext) =
   var items = newJArray()
   for row in application.db.query(
     """select e.id, e.event_type, e.local_date::text as local_date,
-              coalesce(e.source_id::text, '') as source_id,
+              coalesce(e.source_id::text, '') as source_id, e.finalized,
+              e.finalized_at::text as finalized_at,
               count(d.id)::int as deltas
        from rating.events e
        left join rating.deltas d on d.event_id = e.id
@@ -1170,11 +1214,17 @@ proc listRatingSources(request: Request, ctx: CommunityContext) =
     @[textParam(ctx.communityId)]):
     items.add(%*{"id": row.get("id"), "type": row.get("event_type"),
       "date": row.get("local_date"), "sourceId": row.get("source_id"),
-      "deltas": parseInt(row.get("deltas"))})
+      "deltas": parseInt(row.get("deltas")),
+      "finalized": row.get("finalized") == "t",
+      "finalizedAt": if row["finalized_at"].isSome:
+        %row.get("finalized_at") else: newJNull()})
   jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
 
 proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
                         eventId: string) =
+  if ratingIngest.eventFinalized(application.db, ctx.communityId, eventId):
+    problem(request, 403, "FORBIDDEN", "rating source is finalized")
+    return
   let removed = ratingIngest.removeEvent(application.db, ctx.communityId, eventId)
   let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId,
     ratingParamsFor(ctx))
@@ -1183,6 +1233,53 @@ proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
   jsonResponse(request, 200, %*{"removedDeltas": removed,
     "events": rebuilt.events, "deltas": rebuilt.deltas},
     [("Cache-Control", "no-store")])
+
+proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
+                   sessionId: string) =
+  ## Drafts are deletable by the session's host, any status by an admin. The
+  ## rating event that named this session goes with it, then the derived state
+  ## is rebuilt so the board cannot keep points from a deleted session.
+  let outcome = sessionWrite.remove(application.db, ctx.communityId, sessionId,
+    ctx.role == rAdmin)
+  case outcome
+  of sessionWrite.dsNotFound:
+    problem(request, 404, "NOT_FOUND", "session not found")
+    return
+  of sessionWrite.dsNotDraft:
+    problem(request, 403, "FORBIDDEN", "only an admin can delete this session")
+    return
+  of sessionWrite.dsDeleted:
+    discard
+  let removed = ratingIngest.revertSource(application.db, ctx.communityId,
+    sessionId)
+  if removed > 0:
+    discard ratingIngest.rebuild(application.db, ctx.communityId,
+      ratingParamsFor(ctx))
+  audit("session.delete", ctx.communityId, user, "session", sessionId,
+    %*{"removedDeltas": removed})
+  send(request, 204, @[("Cache-Control", "no-store")], "")
+
+proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
+                       eventId: string) =
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  if body.kind != JObject or not body.hasKey("finalized") or
+     body["finalized"].kind != JBool:
+    problem(request, 400, "INVALID_BODY", "finalized must be a boolean")
+    return
+  let finalized = body["finalized"].getBool()
+  let updated = ratingIngest.setFinalized(application.db, ctx.communityId,
+    eventId, finalized)
+  if updated.isNone:
+    problem(request, 404, "NOT_FOUND", "rating source not found")
+    return
+  audit("rating.source.finalize", ctx.communityId, user, "rating_event",
+    eventId, %*{"finalized": finalized})
+  jsonResponse(request, 200, updated.get, [("Cache-Control", "no-store")])
 
 proc sessionVersionNow(communityId, sessionId: string): int =
   let row = application.db.queryOne(
@@ -1668,6 +1765,9 @@ proc route(request: Request) =
       if parts.len == 6 and parts[5] in ["lock", "unlock"] and verb == "POST":
         setSessionLock(request, ctx.get, user.get, parts[4], parts[5] == "lock")
         return
+      if parts.len == 5 and verb == "DELETE":
+        deleteSession(request, ctx.get, user.get, parts[4])
+        return
       if parts.len == 5 and verb == "GET":
         let row = application.db.queryOne(
           """select id, title, session_date::text as session_date, status, version
@@ -1693,6 +1793,9 @@ proc route(request: Request) =
         if verb == "DELETE":
           deleteShareLink(request, ctx.get, user.get, parts[4])
           return
+      if parts.len == 6 and parts[5] == "swap" and verb == "POST":
+        swapSession(request, ctx.get, user.get, parts[4])
+        return
       if parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
         issueSessionTicket(request, ctx.get, user.get, parts[4])
         return
@@ -1733,6 +1836,9 @@ proc route(request: Request) =
         return
       if parts[3] == "rating-sources" and parts.len == 4 and verb == "GET":
         listRatingSources(request, admin.get[1])
+        return
+      if parts[3] == "rating-sources" and parts.len == 5 and verb == "PATCH":
+        patchRatingSource(request, admin.get[1], admin.get[0], parts[4])
         return
       if parts[3] == "rating-sources" and parts.len == 5 and verb == "DELETE":
         removeRatingSource(request, admin.get[1], admin.get[0], parts[4])

@@ -36,7 +36,7 @@ var
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
-proc send(verb: HttpMethod, path, cookie = ""): (int, string) =
+proc send(verb: HttpMethod, path, cookie = "", body = ""): (int, string) =
   let client = newHttpClient(timeout = 5000)
   defer: client.close()
   var headers = newHttpHeaders()
@@ -44,8 +44,10 @@ proc send(verb: HttpMethod, path, cookie = ""): (int, string) =
     headers["Cookie"] = "majadu_session=" & cookie
   if verb in {HttpPost, HttpPatch, HttpPut, HttpDelete}:
     headers["Origin"] = "http://127.0.0.1:5173"
+  if body.len > 0:
+    headers["Content-Type"] = "application/json"
   let response = client.request(baseUrl & path, httpMethod = verb,
-    headers = headers)
+    headers = headers, body = body)
   (response.code.int, response.body)
 
 proc call(path, cookie = ""): (int, string) = send(HttpGet, path, cookie)
@@ -86,10 +88,15 @@ proc bootstrap() =
   memberCookie = createSession(database, memberId, 30)
   for name in ["Ani", "Budi", "Cakra"]:
     players.add(playerStore.create(database, communityId, name, "M", "").player["id"].getStr())
+  sessionId = database.queryOne(
+    """insert into session.sessions
+         (community_id, title, session_date, status, source, approved_at)
+       values ($1::uuid, 'Rank night', current_date, 'locked', 'manual', now())
+       returning id""", @[textParam(communityId)]).get.get("id")
   let eventId = database.queryOne(
-    """insert into rating.events (community_id, local_date, event_type)
-       values ($1::uuid, current_date, 'session') returning id""",
-    @[textParam(communityId)]).get.get("id")
+    """insert into rating.events (community_id, local_date, event_type, source_id)
+       values ($1::uuid, current_date, 'session', $2::uuid) returning id""",
+    @[textParam(communityId), textParam(sessionId)]).get.get("id")
   let points = [900, 600, 300]
   for index, player in players:
     discard database.execUpdate(
@@ -104,12 +111,6 @@ proc bootstrap() =
            (community_id, player_id, rating, games_played, wins, losses)
        values ($1::uuid, $2::uuid, 0, 4, 2, 2)""",
       @[textParam(communityId), textParam(player)])
-  sessionId = database.queryOne(
-    """insert into session.sessions
-         (community_id, title, session_date, status, source, approved_at)
-       values ($1::uuid, 'Rank night', current_date, 'locked', 'manual', now())
-       returning id""", @[textParam(communityId)]).get.get("id")
-
   install(newApp(database, OidcConfig(), keyring, newConfigCache(database)))
   let server = newServer(handler(), workerThreads = 4)
   var thread: Thread[ServeArgs]
@@ -223,3 +224,38 @@ suite "rankings HTTP":
     check gone == 404
     let (again, _) = send(HttpDelete, path, adminCookie)
     check again == 404
+
+  test "finalizing a rating source protects it from a revert":
+    let adminId = database.queryOne(
+      """select user_id from community.membership m
+         join platform.user u on u.id = m.user_id
+         where u.google_sub = 'rank-admin' limit 1""").get.get("user_id")
+    let adminCookie = createSession(database, adminId, 30)
+    let eventId = database.queryOne(
+      """select id from rating.events
+         where community_id = $1::uuid and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)]).get.get("id")
+    let path = "/c/rank-club/rating-sources/" & eventId
+    let (asMember, _) = call(path, memberCookie)
+    check asMember == 403
+    let (badBody, _) = send(HttpPatch, path, adminCookie,
+      """{"finalized":"yes"}""")
+    check badBody == 400
+    let (missing, _) = send(HttpPatch,
+      "/c/rank-club/rating-sources/00000000-0000-0000-0000-000000000000",
+      adminCookie, """{"finalized":true}""")
+    check missing == 404
+    let (finalized, finalizedBody) = send(HttpPatch, path, adminCookie,
+      """{"finalized":true}""")
+    check finalized == 200
+    check parseJson(finalizedBody)["finalized"].getBool()
+    let (refused, _) = send(HttpDelete,
+      "/c/rank-club/sessions/" & sessionId & "/rating", adminCookie)
+    check refused == 403
+    let (unfinalized, unfinalizedBody) = send(HttpPatch, path, adminCookie,
+      """{"finalized":false}""")
+    check unfinalized == 200
+    check not parseJson(unfinalizedBody)["finalized"].getBool()
+    let (reverted, _) = send(HttpDelete,
+      "/c/rank-club/sessions/" & sessionId & "/rating", adminCookie)
+    check reverted == 200

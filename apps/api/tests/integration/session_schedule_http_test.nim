@@ -32,7 +32,7 @@ proc serveThread(args: ServeArgs) {.thread.} =
 var
   database: Db
   communityId: string
-  hostCookie, memberCookie: string
+  hostCookie, adminCookie, memberCookie: string
   players: seq[string]
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
@@ -90,11 +90,12 @@ proc bootstrap() =
          values ($1::uuid, $2::uuid, $3)""",
       @[textParam(communityId), textParam(id), textParam(role)])
     id
-  discard member("sched-admin", adminEmail, "admin")
+  adminCookie = createSession(database,
+    member("sched-admin", adminEmail, "admin"), 30)
   hostCookie = createSession(database, member("sched-host", hostEmail, "host"), 30)
   memberCookie = createSession(database, member("sched-member", memberEmail, "member"),
     30)
-  for name in ["Ani", "Budi", "Cakra", "Dewi"]:
+  for name in ["Ani", "Budi", "Cakra", "Dewi", "Eka", "Fajar", "Gita", "Hadi"]:
     players.add(playerStore.create(database, communityId, name, "M", "").player["id"].getStr())
 
   install(newApp(database, OidcConfig(), loadKeyring(keysJson, "1"),
@@ -186,3 +187,87 @@ suite "session schedule HTTP":
       """{"games":[{"round":1,"court":0,"sideA":["00000000-0000-0000-0000-000000000000"]}]}""",
       ifMatch = "\"5\"")
     check unknown == 400
+
+  test "deleting a session is host-for-draft and admin-for-any":
+    let (created, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Draft to delete","date":"2026-11-06"}""")
+    check created == 201
+    let draftId = parseJson(body)["id"].getStr()
+    let (denied, _) = call(HttpDelete,
+      "/c/sched-club/sessions/" & draftId, memberCookie)
+    check denied == 403
+    let (deleted, _) = call(HttpDelete,
+      "/c/sched-club/sessions/" & draftId, hostCookie)
+    check deleted == 204
+    let (gone, _) = call(HttpGet,
+      "/c/sched-club/sessions/" & draftId, hostCookie)
+    check gone == 404
+
+    let (_, lockedBody) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Locked to delete","date":"2026-11-07"}""")
+    let lockedId = parseJson(lockedBody)["id"].getStr()
+    let schedule = """{"games":[{"round":0,"court":0,"sideA":["""" &
+      players[0] & """","""" & players[1] & """"],"sideB":["""" &
+      players[2] & """","""" & players[3] & """"]}]}"""
+    discard call(HttpPut, "/c/sched-club/sessions/" & lockedId & "/schedule",
+      hostCookie, schedule, ifMatch = "\"1\"")
+    discard database.execUpdate(
+      """update session.sessions set status = 'locked' where id = $1::uuid""",
+      @[textParam(lockedId)])
+    let (hostRefused, _) = call(HttpDelete,
+      "/c/sched-club/sessions/" & lockedId, hostCookie)
+    check hostRefused == 403
+    let (adminDeleted, _) = call(HttpDelete,
+      "/c/sched-club/sessions/" & lockedId, adminCookie)
+    check adminDeleted == 204
+    let games = database.queryOne(
+      """select count(*)::int as n from session.games where session_id = $1::uuid""",
+      @[textParam(lockedId)])
+    check games.get.get("n") == "0"
+    let (missing, _) = call(HttpDelete,
+      "/c/sched-club/sessions/" & lockedId, adminCookie)
+    check missing == 404
+
+  test "a swap exchanges players across games and bumps the version":
+    let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Swap night","date":"2026-11-08"}""")
+    let sessionId = parseJson(created)["id"].getStr()
+    let schedule = """{"games":[{"round":0,"court":0,"sideA":["""" &
+      players[0] & """","""" & players[1] & """"],"sideB":["""" &
+      players[2] & """","""" & players[3] & """"]},
+      {"round":0,"court":1,"sideA":["""" & players[4] & """","""" &
+      players[5] & """"],"sideB":["""" & players[6] & """","""" &
+      players[7] & """"]}]}"""
+    let (written, _) = call(HttpPut,
+      "/c/sched-club/sessions/" & sessionId & "/schedule", hostCookie, schedule,
+      ifMatch = "\"1\"")
+    check written == 200
+    let swapBody = """{"type":"player","a":{"slot":0,"court":0,"team":"A","position":0},"b":{"slot":0,"court":1,"team":"A","position":0}}"""
+    let path = "/c/sched-club/sessions/" & sessionId & "/swap"
+    let (noPrecondition, _) = call(HttpPost, path, hostCookie, swapBody)
+    check noPrecondition == 428
+    let (invalid, _) = call(HttpPost, path, hostCookie, """{"type":"nope"}""",
+      ifMatch = "\"2\"")
+    check invalid == 400
+    let (swapped, swappedBody) = call(HttpPost, path, hostCookie, swapBody,
+      ifMatch = "\"2\"")
+    check swapped == 200
+    check parseJson(swappedBody)["version"].getInt() == 3
+    let (_, firstGame) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie)
+    check parseJson(firstGame)["sideA"][0].getStr() == players[4]
+    let (_, secondGame) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-1", hostCookie)
+    check parseJson(secondGame)["sideA"][0].getStr() == players[0]
+    let (stale, _) = call(HttpPost, path, hostCookie, swapBody,
+      ifMatch = "\"2\"")
+    check stale == 412
+    let (memberDenied, _) = call(HttpPost, path, memberCookie, swapBody,
+      ifMatch = "\"3\"")
+    check memberDenied == 403
+    discard database.execUpdate(
+      """update session.sessions set status = 'locked' where id = $1::uuid""",
+      @[textParam(sessionId)])
+    let (locked, _) = call(HttpPost, path, hostCookie, swapBody,
+      ifMatch = "\"3\"")
+    check locked == 403
