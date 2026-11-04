@@ -20,6 +20,8 @@ export const en = {
 
   'nav.settings': 'Community settings',
   'nav.owner': 'All communities',
+  'nav.menu': 'Menu',
+  'nav.menu.close': 'Close',
   'nav.logout': 'Sign out',
   'nav.signedInAs': 'Signed in as {name}',
 

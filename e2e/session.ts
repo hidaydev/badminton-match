@@ -9,5 +9,7 @@ import { t } from '../apps/web/src/i18n'
 export async function signIn(page: Page): Promise<void> {
   await page.goto('/')
   await page.getByRole('button', { name: t('login.action') }).click()
-  await page.getByRole('navigation').waitFor()
+  // The header is the shell; the nav inside it is collapsed on a phone until
+  // the menu is opened, so this waits for the shell rather than the links.
+  await page.getByRole('banner').waitFor()
 }
