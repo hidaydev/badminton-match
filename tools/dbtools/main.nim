@@ -139,7 +139,10 @@ proc seed*(db: Db, dir: string) =
         continue
       conn.execScript(readFile(path))
       discard conn.execUpdate(
-        "insert into dbtools.seed_files (name, checksum) values ($1, $2)",
+        """insert into dbtools.seed_files (name, checksum, applied_at)
+           values ($1, $2, now())
+           on conflict (name) do update
+             set checksum = excluded.checksum, applied_at = excluded.applied_at""",
         @[textParam(name), textParam(sum)],
       )
     1
