@@ -3,6 +3,7 @@ import db/db
 import platform/config/store
 import rating/domain/rating
 import rating/infrastructure/ingest
+import achievement/infrastructure/backfill
 import rating/infrastructure/params
 
 const usage = """Usage: ratingingest <tick|session <id> --community <slug>|rebuild --community <slug>>
@@ -71,6 +72,7 @@ proc main() =
   var communities = 0
   var events = 0
   var deltas = 0
+  var awarded = 0
   case command
   of "tick":
     for row in db.query("select id from platform.community order by slug"):
@@ -80,6 +82,7 @@ proc main() =
         let result = ingestSession(db, communityId, id, params)
         events += result.events
         deltas += result.deltas
+      awarded += backfill(db, communityId).awarded
       inc communities
   of "session":
     if slug.len == 0 or sessionId.len == 0:
@@ -89,6 +92,7 @@ proc main() =
       planFor(db, snapshot, communityId))
     events += result.events
     deltas += result.deltas
+    awarded += backfill(db, communityId).awarded
     communities = 1
   of "rebuild":
     if slug.len == 0:
@@ -97,12 +101,14 @@ proc main() =
     let result = rebuild(db, communityId, planFor(db, snapshot, communityId))
     events += result.events
     deltas += result.deltas
+    awarded += backfill(db, communityId).awarded
     communities = 1
   else:
     echo usage
     quit(2)
 
-  echo $(%*{"communities": communities, "events": events, "deltas": deltas})
+  echo $(%*{"communities": communities, "events": events, "deltas": deltas,
+    "awarded": awarded})
 
 when isMainModule:
   main()

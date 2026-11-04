@@ -30,6 +30,7 @@ import rating/domain/rating as ratingDomain
 import rating/infrastructure/ingest as ratingIngest
 import rating/infrastructure/params as ratingParams
 import rating/read as ratingRead
+import achievement/infrastructure/backfill as achievementBackfill
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
@@ -1359,6 +1360,15 @@ proc rankingPlayer(request: Request, ctx: CommunityContext, playerId: string) =
     "wins": entry.get.wins, "losses": entry.get.losses},
     [("Cache-Control", "no-store")])
 
+proc playerAchievements(request: Request, ctx: CommunityContext,
+                        playerId: string) =
+  let items = achievementBackfill.listForPlayer(application.db,
+    ctx.communityId, playerId)
+  var body = newJArray()
+  for item in items:
+    body.add(item)
+  jsonResponse(request, 200, %*{"items": body}, [("Cache-Control", "no-store")])
+
 proc playerStats(request: Request, ctx: CommunityContext, playerId: string) =
   let found = ratingRead.stats(application.db, ctx.communityId, playerId)
   if found.isNone:
@@ -1550,6 +1560,9 @@ proc route(request: Request) =
         return
       if parts.len == 5 and verb == "DELETE":
         deletePlayerRoute(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 6 and parts[5] == "achievements" and verb == "GET":
+        playerAchievements(request, ctx.get, parts[4])
         return
       if parts.len == 6 and parts[5] == "stats" and verb == "GET":
         playerStats(request, ctx.get, parts[4])

@@ -278,3 +278,15 @@ suite "player HTTP":
     let (noBody, _) = call(HttpPost, "/c/player-club/players/" & playerId & "/merge",
       adminCookie, """{}""")
     check noBody == 400
+
+  test "members read a player's achievement shelf":
+    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Kiki","gender":"F"}""")
+    let playerId = parseJson(body)["id"].getStr()
+    let (status, shelf) = call(HttpGet,
+      "/c/player-club/players/" & playerId & "/achievements", memberCookie)
+    check status == 200
+    check parseJson(shelf)["items"].kind == JArray
+    let (missing, _) = call(HttpGet,
+      "/c/player-other/players/" & playerId & "/achievements", adminCookie)
+    check missing == 404
