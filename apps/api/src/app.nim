@@ -31,6 +31,7 @@ import rating/infrastructure/ingest as ratingIngest
 import rating/infrastructure/params as ratingParams
 import rating/read as ratingRead
 import achievement/infrastructure/backfill as achievementBackfill
+import account/domain/lifecycle as accountLifecycle
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
@@ -275,6 +276,14 @@ proc finishAuth(request: Request) =
   if sha256Hex(claims["nonce"].getStr()) != flow.get("nonce_hash"):
     problem(request, 401, "NONCE_MISMATCH", "nonce mismatch")
     return
+  let subject = claims["sub"].getStr()
+  let tombstone = application.db.queryOne(
+    """select id, email_hash from platform.user where google_sub = $1""",
+    @[textParam(sha256Hex(subject))])
+  if tombstone.isSome and accountLifecycle.isAnonymized(
+      tombstone.get.get("email_hash"), tombstone.get.get("id")):
+    problem(request, 403, "ACCOUNT_ANONYMIZED", "this account was deactivated")
+    return
   let email = claims["email"].getStr()
   let displayName =
     if claims.hasKey("name"): claims["name"].getStr() else: email
@@ -288,7 +297,7 @@ proc finishAuth(request: Request) =
              is_platform_owner = platform.user.is_platform_owner
                                  or excluded.is_platform_owner
        returning id""",
-    @[textParam(claims["sub"].getStr()), textParam(sha256Hex(email)),
+    @[textParam(subject), textParam(sha256Hex(email)),
       textParam(displayName), boolParam(owner)])
   if userRow.isNone:
     problem(request, 500, "USER_UPSERT_FAILED", "cannot create user")
