@@ -174,3 +174,49 @@ suite "player HTTP":
     let (delete, _) = call(HttpDelete, "/c/player-other/players/" & playerId,
       adminCookie)
     check delete == 404
+
+  test "aliases are stored, replaced and returned":
+    let (created, body) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Fajar","gender":"M","aliases":["  Fajar  A ","Fajar"]}""")
+    check created == 201
+    let player = parseJson(body)
+    check player["aliases"].len == 2
+    let playerId = player["id"].getStr()
+    let (_, gotBody) = call(HttpGet, "/c/player-club/players/" & playerId, memberCookie)
+    check parseJson(gotBody)["aliases"][0].getStr() == "Fajar"
+    let (patched, patchedBody) = call(HttpPatch,
+      "/c/player-club/players/" & playerId, hostCookie,
+      """{"aliases":["Fajar","F A"]}""")
+    check patched == 200
+    check parseJson(patchedBody)["aliases"].len == 2
+    let (emptied, emptiedBody) = call(HttpPatch,
+      "/c/player-club/players/" & playerId, hostCookie, """{"aliases":[]}""")
+    check emptied == 200
+    check parseJson(emptiedBody)["aliases"].len == 0
+
+  test "an alias cannot point at two players":
+    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Gita","gender":"F","aliases":["Gita G"]}""")
+    let playerId = parseJson(body)["id"].getStr()
+    let (taken, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Gita Two","gender":"F","aliases":["gita g"]}""")
+    check taken == 409
+    let (_, indraBody) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Indra","gender":"M","aliases":["Indra I"]}""")
+    check parseJson(indraBody)["aliases"][0].getStr() == "Indra I"
+    let (renameTaken, _) = call(HttpPatch, "/c/player-club/players/" & playerId,
+      hostCookie, """{"aliases":["Indra I"]}""")
+    check renameTaken == 409
+    let (_, afterBody) = call(HttpGet, "/c/player-club/players/" & playerId, memberCookie)
+    check parseJson(afterBody)["aliases"][0].getStr() == "Gita G"
+
+  test "a blank or repeated alias is rejected":
+    let (blank, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Hana","aliases":["   "]}""")
+    check blank == 400
+    let (repeated, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Hana Two","aliases":["Hana","hana"]}""")
+    check repeated == 400
+    let (wrongType, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Hana Three","aliases":"hana"}""")
+    check wrongType == 400

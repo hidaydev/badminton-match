@@ -110,6 +110,37 @@ proc patch*(db: Db, communityId, playerId: string,
   else:
     PatchResult(status: psNotFound)
 
+proc aliases*(db: Db, communityId, playerId: string): seq[string] =
+  for row in db.query(
+    """select alias from player.aliases
+       where community_id = $1::uuid and player_id = $2::uuid
+       order by alias_key""",
+    @[textParam(communityId), textParam(playerId)]):
+    result.add(row.get("alias"))
+
+proc setAliases*(db: Db, communityId, playerId: string,
+                 values: seq[string]): bool =
+  ## Replaces the set inside one transaction. A unique violation means another
+  ## player already answers to one of these names; the transaction rolls back,
+  ## so the previous set survives unchanged.
+  try:
+    discard db.tx(proc(conn: DbConn): int =
+      discard conn.execUpdate(
+        """delete from player.aliases
+           where community_id = $1::uuid and player_id = $2::uuid""",
+        @[textParam(communityId), textParam(playerId)])
+      for value in values:
+        discard conn.execUpdate(
+          """insert into player.aliases (community_id, player_id, alias)
+             values ($1::uuid, $2::uuid, $3)""",
+          @[textParam(communityId), textParam(playerId), textParam(value)])
+      1)
+    true
+  except DbError as error:
+    if error.sqlState == "23505":
+      return false
+    raise
+
 proc remove*(db: Db, communityId, playerId: string): bool =
   db.execUpdate(
     """delete from player.players

@@ -822,6 +822,13 @@ proc listPlayersRoute(request: Request, ctx: CommunityContext) =
     body.add(item)
   jsonResponse(request, 200, %*{"items": body}, [("Cache-Control", "no-store")])
 
+proc withAliases(player: JsonNode, aliases: seq[string]): JsonNode =
+  result = player
+  var list = newJArray()
+  for alias in aliases:
+    list.add(%alias)
+  result["aliases"] = list
+
 proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) =
   var body: JsonNode
   try:
@@ -839,6 +846,16 @@ proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) 
   if problems.len > 0:
     problem(request, 400, "INVALID_PLAYER", $problems[0])
     return
+  var aliases: seq[string] = @[]
+  if body.hasKey("aliases"):
+    try:
+      aliases = playerDomain.parseAliases(body["aliases"])
+    except ValueError as error:
+      problem(request, 400, "INVALID_PLAYER", error.msg)
+      return
+    if not playerDomain.aliasesValid(aliases):
+      problem(request, 400, "INVALID_ALIAS", "aliases must be distinct non-empty names")
+      return
   let result = playerStore.create(application.db, ctx.communityId,
     playerDomain.normalizeName(name), gender.toUpperAscii(),
     if tier.len > 0: $playerDomain.parseTier(tier) else: "")
@@ -848,16 +865,28 @@ proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) 
   of pcInvalid:
     problem(request, 400, "INVALID_PLAYER", "cannot create player")
   of pcOk:
-    audit("player.create", ctx.communityId, user, "player",
-      result.player["id"].getStr(), %*{"name": result.player["name"]})
-    jsonResponse(request, 201, result.player)
+    let playerId = result.player["id"].getStr()
+    if aliases.len > 0 and
+       not playerStore.setAliases(application.db, ctx.communityId, playerId, aliases):
+      # The player had no aliases yet, so undo the insert rather than leaving a
+      # half-created record behind.
+      discard playerStore.remove(application.db, ctx.communityId, playerId)
+      problem(request, 409, "ALIAS_TAKEN", "an alias is already used by another player")
+      return
+    audit("player.create", ctx.communityId, user, "player", playerId,
+      %*{"name": result.player["name"]})
+    jsonResponse(request, 201, withAliases(result.player,
+      playerStore.aliases(application.db, ctx.communityId, playerId)))
 
 proc getPlayerRoute(request: Request, ctx: CommunityContext, playerId: string) =
   let player = playerStore.get(application.db, ctx.communityId, playerId)
   if player.isNone:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
-  jsonResponse(request, 200, player.get, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200,
+    withAliases(player.get,
+      playerStore.aliases(application.db, ctx.communityId, playerId)),
+    [("Cache-Control", "no-store")])
 
 proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                       playerId: string) =
@@ -867,12 +896,23 @@ proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   except ValueError as error:
     problem(request, 400, "INVALID_PLAYER", error.msg)
     return
+  var aliases: seq[string] = @[]
+  if patch.aliases.isSome:
+    aliases = patch.aliases.get
+    if not playerDomain.aliasesValid(aliases):
+      problem(request, 400, "INVALID_ALIAS", "aliases must be distinct non-empty names")
+      return
   let result = playerStore.patch(application.db, ctx.communityId, playerId, patch)
   case result.status
   of psOk:
+    if patch.aliases.isSome and
+       not playerStore.setAliases(application.db, ctx.communityId, playerId, aliases):
+      problem(request, 409, "ALIAS_TAKEN", "an alias is already used by another player")
+      return
     audit("player.patch", ctx.communityId, user, "player", playerId,
       %*{"name": result.player["name"]})
-    jsonResponse(request, 200, result.player)
+    jsonResponse(request, 200, withAliases(result.player,
+      playerStore.aliases(application.db, ctx.communityId, playerId)))
   of psDuplicate:
     problem(request, 409, "PLAYER_EXISTS", "a player with this name already exists")
   of psNotFound:

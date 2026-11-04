@@ -20,6 +20,11 @@ type
     ppGender = "invalid_gender"
     ppTier = "invalid_tier"
 
+  AliasProblem* = enum
+    apBlank = "blank_alias"
+    apTooLong = "alias_too_long"
+    apDuplicate = "duplicate_alias"
+
   PlayerPatch* = object
     ## Only fields the caller actually sent are changed. `clearTier` exists
     ## because JSON null and "absent" cannot be told apart by `Option` alone.
@@ -27,6 +32,7 @@ type
     gender*: Option[Gender]
     tier*: Option[Tier]
     clearTier*: bool
+    aliases*: Option[seq[string]]
 
 const maxNameLength = 80
 
@@ -71,6 +77,27 @@ proc checkCreate*(name, gender, tier: string): seq[PlayerProblem] =
     except ValueError:
       result.add(ppTier)
 
+proc aliasesValid*(aliases: seq[string]): bool =
+  for alias in aliases:
+    let normalized = normalizeName(alias)
+    if normalized.len == 0 or normalized.len > maxNameLength:
+      return false
+  var seen: seq[string] = @[]
+  for alias in aliases:
+    let key = normalizeName(alias).toLowerAscii()
+    if key in seen:
+      return false
+    seen.add(key)
+  true
+
+proc parseAliases*(node: JsonNode): seq[string] =
+  if node.kind != JArray:
+    raise newException(ValueError, "aliases must be an array")
+  for entry in node:
+    if entry.kind != JString:
+      raise newException(ValueError, "aliases must be strings")
+    result.add(normalizeName(entry.getStr()))
+
 proc parsePatch*(body: JsonNode): PlayerPatch =
   ## `tier: null` clears it; an absent key leaves it untouched. That is the
   ## sticky behaviour: an update never drops a tier by accident.
@@ -85,3 +112,5 @@ proc parsePatch*(body: JsonNode): PlayerPatch =
       result.clearTier = true
     else:
       result.tier = some(parseTier(body["tier"].getStr()))
+  if body.hasKey("aliases"):
+    result.aliases = some(parseAliases(body["aliases"]))
