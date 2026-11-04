@@ -152,44 +152,93 @@ proc ingestSession*(db: Db, communityId, sessionId: string,
     1)
   outcome
 
+const finalizedSql = """select 1 as ok from rating.sources
+  where community_id = $1::uuid and source_id = $2::uuid and finalized"""
+
+proc sourceFinalizedConn*(conn: DbConn, communityId, sourceId: string): bool =
+  conn.queryOne(finalizedSql,
+    @[textParam(communityId), textParam(sourceId)]).isSome
+
 proc sourceFinalized*(db: Db, communityId, sourceId: string): bool =
-  ## True when the source already has a signed-off event. The incremental paths
-  ## (revert, ticker) must not touch it; only `rebuild` may, and it clears the
-  ## flag because it recomputes every source from scratch.
+  ## True when the source was signed off. The incremental paths (ingest,
+  ## revert, ticker) must respect it; a full rebuild leaves the row alone, so
+  ## the sign-off survives a recompute.
+  db.queryOne(finalizedSql,
+    @[textParam(communityId), textParam(sourceId)]).isSome
+
+proc eventSource(db: Db, communityId, eventId: string): Option[string] =
+  ## The source behind an event, so a route that names an event can still ask
+  ## about (and toggle) the source's sign-off. Events without a source (manual
+  ## adjustments) have nothing to report.
   let row = db.queryOne(
-    """select 1 as ok from rating.events
-       where community_id = $1::uuid and source_id = $2::uuid and finalized""",
-    @[textParam(communityId), textParam(sourceId)])
-  row.isSome
+    """select source_id::text as source_id from rating.events
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(eventId)])
+  if row.isNone or row.get["source_id"].isNone:
+    return none(string)
+  some(row.get.get("source_id"))
 
 proc eventFinalized*(db: Db, communityId, eventId: string): bool =
-  let row = db.queryOne(
-    """select 1 as ok from rating.events
-       where community_id = $1::uuid and id = $2::uuid and finalized""",
-    @[textParam(communityId), textParam(eventId)])
-  row.isSome
+  ## The delete route names an event, but the sign-off belongs to its source.
+  ## An event without a source (manual adjustment) is never final.
+  let source = eventSource(db, communityId, eventId)
+  source.isSome and sourceFinalized(db, communityId, source.get)
 
-proc setFinalized*(db: Db, communityId, eventId: string,
+proc sourceKind(db: Db, communityId, sourceId: string): Option[string] =
+  ## A source is a session or a tournament; the id itself says which table to
+  ## look in, and an unknown id stays unknown instead of being assumed.
+  if db.queryOne(
+      """select 1 as ok from session.sessions
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(communityId), textParam(sourceId)]).isSome:
+    return some("session")
+  if db.queryOne(
+      """select 1 as ok from tournament.tournaments
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(communityId), textParam(sourceId)]).isSome:
+    return some("tournament")
+  none(string)
+
+proc setFinalized*(db: Db, communityId, sourceId: string,
                    finalized: bool): Option[JsonNode] =
-  ## Marks one event. The caller audits the change; the row is returned in the
-  ## same shape as the rating-source list so the client can render it directly.
+  ## Signs a source off, or withdraws it. `sourceId` may also be an event id,
+  ## because the ledger the admin sees is the event list; the source is what
+  ## actually gets the flag. Returns the source row, or none when neither an
+  ## event, a session nor a tournament owns that id.
+  var source = sourceId
+  let fromEvent = eventSource(db, communityId, sourceId)
+  if fromEvent.isSome:
+    source = fromEvent.get
+  let kind = sourceKind(db, communityId, source)
+  if kind.isNone:
+    return none(JsonNode)
   let row = db.queryOne(
-    """update rating.events
-       set finalized = $3,
-           finalized_at = case when $3 then now() else null end
-       where community_id = $1::uuid and id = $2::uuid
-       returning id, event_type, local_date::text as local_date,
-                 coalesce(source_id::text, '') as source_id, finalized,
-                 finalized_at::text as finalized_at""",
-    @[textParam(communityId), textParam(eventId), boolParam(finalized)])
+    """insert into rating.sources as s
+         (community_id, source_id, kind, finalized, finalized_at)
+       values ($1::uuid, $2::uuid, $3, $4,
+               case when $4 then now() else null end)
+       on conflict (community_id, source_id) do update set
+         kind = excluded.kind,
+         finalized = excluded.finalized,
+         finalized_at = excluded.finalized_at
+       returning source_id, kind, finalized, finalized_at::text as finalized_at""",
+    @[textParam(communityId), textParam(source), textParam(kind.get),
+      boolParam(finalized)])
   if row.isNone:
     return none(JsonNode)
   let value = row.get
-  some(%*{"id": value.get("id"), "type": value.get("event_type"),
-    "date": value.get("local_date"), "sourceId": value.get("source_id"),
+  some(%*{"sourceId": value.get("source_id"), "kind": value.get("kind"),
     "finalized": value.get("finalized") == "t",
     "finalizedAt": if value["finalized_at"].isSome:
       %value.get("finalized_at") else: newJNull()})
+
+proc dropSource*(db: Db, communityId, sourceId: string): int =
+  ## Deletes the sign-off row for a source that itself is being deleted, so a
+  ## later source reusing the id cannot inherit an old decision.
+  db.execUpdate(
+    """delete from rating.sources
+       where community_id = $1::uuid and source_id = $2::uuid""",
+    @[textParam(communityId), textParam(sourceId)])
 
 proc revertSource*(db: Db, communityId, sourceId: string): int =
   ## Drops one source's event and its deltas. The caller rebuilds the derived

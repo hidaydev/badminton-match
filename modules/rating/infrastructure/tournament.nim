@@ -154,9 +154,8 @@ proc ingestTournamentGames(conn: DbConn, communityId, tournamentId,
 
 proc ingestTournament*(db: Db, communityId, tournamentId: string,
                        params: RatingParams): TournamentIngestResult =
-  ## One event per completed tournament. A tournament that is not finished is
-  ## refused rather than partially ingested, mirroring v1's "final" gate (v2
-  ## has no separate source row, so the status carries it).
+  ## One event per signed-off tournament. The gate is the source row's
+  ## `finalized`, exactly like v1 `rating_sources.finalized`.
   var outcome = TournamentIngestResult(status: tisOk)
   discard db.tx(proc(conn: DbConn): int =
     let header = conn.queryOne(
@@ -167,7 +166,9 @@ proc ingestTournament*(db: Db, communityId, tournamentId: string,
     if header.isNone:
       outcome.status = tisNotFound
       return 0
-    if header.get.get("status") notin ["completed", "archived"]:
+    # v1 gate: a tournament is only ingestable once its source is signed off,
+    # so a running bracket cannot leak half a tournament into the board.
+    if not sourceFinalizedConn(conn, communityId, tournamentId):
       outcome.status = tisNotFinal
       return 0
     let existing = conn.queryOne(

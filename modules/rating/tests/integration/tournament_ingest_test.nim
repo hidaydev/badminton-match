@@ -23,6 +23,8 @@ proc cleanup() =
          (select id from platform.community where slug = 'touring-club')""",
     """delete from rating.events where community_id in
          (select id from platform.community where slug = 'touring-club')""",
+    """delete from rating.sources where community_id in
+         (select id from platform.community where slug = 'touring-club')""",
     """delete from rating.player_state where community_id in
          (select id from platform.community where slug = 'touring-club')""",
     """delete from tournament.team_partai where community_id in
@@ -136,11 +138,12 @@ proc addTeamPlayer(teamId, playerId, name, cls: string) =
 bootstrap()
 
 suite "tournament ingest":
-  test "a completed classic tournament produces one event":
+  test "a signed-off classic tournament produces one event":
     let tournamentId = newTournament("classic", "completed")
     let pairA = newPair(tournamentId, "A", players[0], players[1])
     let pairB = newPair(tournamentId, "B", players[2], players[3])
     addMatch(tournamentId, pairA, pairB, "group-A-0", "group", 30, 20)
+    check setFinalized(database, communityId, tournamentId, true).isSome
     let first = ingestTournament(database, communityId, tournamentId, params())
     check first.status == tisOk
     check first.events == 1
@@ -150,7 +153,7 @@ suite "tournament ingest":
     check second.events == 0
     check playerDeltas(tournamentId) == 4
 
-  test "a tournament that is still running is refused":
+  test "a source that is not signed off is refused":
     let tournamentId = newTournament("classic", "draft")
     let pairA = newPair(tournamentId, "A", players[0], players[1])
     let pairB = newPair(tournamentId, "B", players[2], players[3])
@@ -159,11 +162,15 @@ suite "tournament ingest":
       params())
     check outcome.status == tisNotFinal
     check playerDeltas(tournamentId) == 0
+    check setFinalized(database, communityId, tournamentId, true).isSome
+    check ingestTournament(database, communityId, tournamentId,
+      params()).status == tisOk
     check ingestTournament(database, communityId,
       "00000000-0000-0000-0000-000000000000", params()).status == tisNotFound
 
   test "a team partai scores only the classes that play it":
     let tournamentId = newTournament("team", "completed")
+    check setFinalized(database, communityId, tournamentId, true).isSome
     let teamA = newTeam(tournamentId, "RED RAPTORS", 1)
     let teamB = newTeam(tournamentId, "WHITE FURY", 2)
     addTeamPlayer(teamA, players[0], "A0", "C+")
