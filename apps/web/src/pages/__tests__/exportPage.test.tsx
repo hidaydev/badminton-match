@@ -62,19 +62,20 @@ describe('ExportPage', () => {
         },
       }),
       'GET /api/c/acme/tournaments/t1': () => ({ body: tournament }),
+      'GET /api/c/acme/sessions': () => ({ body: { items: [] } }),
     })
 
     renderAt('/c/acme/export')
 
     expect(await screen.findByRole('heading', { name: t('export.title') })).toBeInTheDocument()
-    const select = await screen.findByLabelText(t('export.tournament'))
+    const select = await screen.findByRole('combobox', { name: t('export.tournament') })
     await waitFor(() =>
       expect(screen.getByRole('option', { name: /Classic Cup/ })).toBeInTheDocument(),
     )
 
     fireEvent.change(select, { target: { value: 't1' } })
 
-    const image = await screen.findByLabelText(t('export.image'))
+    const image = await screen.findByRole('combobox', { name: t('export.image') })
     await waitFor(() =>
       expect(screen.getByRole('option', { name: t('export.group', { group: 'D' }) })).toBeInTheDocument(),
     )
@@ -88,10 +89,65 @@ describe('ExportPage', () => {
       'GET /api/communities': () => ({ body: { items: [acme] } }),
       'GET /api/c/acme/config': () => ({ body: { effective: {} } }),
       'GET /api/c/acme/tournaments': () => ({ body: { items: [] } }),
+      'GET /api/c/acme/sessions': () => ({ body: { items: [] } }),
     })
 
     renderAt('/c/acme/export')
 
     expect(await screen.findByText(t('export.error.config'))).toBeInTheDocument()
+  })
+
+  it('renders the board of a chosen session as a standings card', async () => {
+    mockFetch({
+      'GET /api/auth/me': () => ({ body: sessionUser }),
+      'GET /api/communities': () => ({ body: { items: [acme] } }),
+      'GET /api/c/acme/config': () => ({ body: config }),
+      'GET /api/c/acme/tournaments': () => ({ body: { items: [] } }),
+      'GET /api/c/acme/sessions': () => ({
+        body: {
+          items: [
+            {
+              id: 's1',
+              title: 'Wednesday Night',
+              date: '2026-11-04',
+              status: 'locked',
+              version: 3,
+            },
+          ],
+        },
+      }),
+      'GET /api/c/acme/sessions/s1/standings': () => ({
+        body: {
+          sessionId: 's1',
+          title: 'Wednesday Night',
+          date: '2026-11-04',
+          items: [
+            {
+              playerId: 'p1',
+              name: 'Ani',
+              wins: 2,
+              losses: 0,
+              pointsFor: 60,
+              pointsAgainst: 42,
+              diff: 18,
+            },
+          ],
+        },
+      }),
+    })
+
+    renderAt('/c/acme/export')
+    await screen.findByRole('heading', { name: t('export.title') })
+
+    fireEvent.click(screen.getByRole('radio', { name: t('export.source.session') }))
+    const select = await screen.findByRole('combobox', { name: t('export.session') })
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: /Wednesday Night/ })).toBeInTheDocument(),
+    )
+
+    fireEvent.change(select, { target: { value: 's1' } })
+
+    const download = screen.getByRole('button', { name: t('export.download') })
+    await waitFor(() => expect(download).toBeEnabled())
   })
 })
