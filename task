@@ -16,6 +16,7 @@ Targets:
   verify       build and test one module: ./task verify <module>
   ci           check + build + test + contract check
   bootstrap    migrate, seed config, first platform owner + default community
+  dev          run the API against bm2_dev (+ --watch to rebuild on change)
   dev-db       create the local PostgreSQL databases and roles
   dev-v1       rebuild the local v1 database (captured schema + synthetic data)
   account      anonymise an account and close its claims
