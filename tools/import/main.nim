@@ -17,8 +17,10 @@ import db/db
 import uuidv7
 import platform/config/registry
 import platform/config/store
+import achievement/infrastructure/backfill as achievementBackfill
 import rating/infrastructure/ingest as ratingIngest
 import rating/infrastructure/params
+import rating/infrastructure/tournament as ratingTournament
 
 type
   Dsn* = object
@@ -482,6 +484,316 @@ proc importGames(source, target: Db, communityId: string,
     1)
   stats
 
+const classicRounds = {"group": 0, "qf": 1, "sf": 2, "3rd": 3, "final": 4}.toTable
+
+proc tournamentStatus(source: Db, oldId, format: string): string =
+  ## v1 had no status column: a tournament was whatever its matches said. A
+  ## bracket with no score is still being played, one with every score is done,
+  ## and one with no rows at all was never started.
+  let counts =
+    if format == "team":
+      source.queryOne(
+        """select count(*)::int as total,
+                  count(g.score_a)::int as scored
+           from bm.tournament_team_match_games g
+           join bm.tournament_team_matches m on m.id = g.team_match_id
+           where m.tournament_id = $1::uuid""", @[textParam(oldId)])
+    else:
+      source.queryOne(
+        """select count(*)::int as total, count(score_a)::int as scored
+           from bm.tournament_matches where tournament_id = $1::uuid""",
+        @[textParam(oldId)])
+  let total = parseInt(counts.get.get("total"))
+  let scored = parseInt(counts.get.get("scored"))
+  if total == 0: "draft"
+  elif scored == total: "completed"
+  else: "active"
+
+proc importTournamentHeaders(source, target: Db, communityId: string,
+                             dryRun: bool): Result =
+  var stats = Result()
+  discard target.tx(proc(conn: DbConn): int =
+    for row in source.query(
+      """select id::text as id, share_code, name, event_date::text as event_date,
+                format, version, created_at::text as created_at,
+                updated_at::text as updated_at
+         from bm.tournaments order by event_date, created_at, id"""):
+      let oldId = row.get("id")
+      let status = tournamentStatus(source, oldId, row.get("format"))
+      if dryRun:
+        inc stats.created
+        continue
+      let mapped = mapLookup(conn, communityId, "tournament", oldId)
+      var newId = ""
+      if mapped.isSome:
+        newId = mapped.get
+        discard conn.execUpdate(
+          """update tournament.tournaments
+             set name = $3, event_date = $4::date, format = $5, status = $6,
+                 version = $7::int, created_at = $8::timestamptz,
+                 updated_at = $9::timestamptz
+             where community_id = $1::uuid and id = $2::uuid""",
+          @[textParam(communityId), textParam(newId), textParam(row.get("name")),
+            textParam(row.get("event_date")), textParam(row.get("format")),
+            textParam(status), textParam(row.get("version")),
+            textParam(row.get("created_at")), textParam(row.get("updated_at"))])
+        inc stats.updated
+      else:
+        newId = uuidv7()
+        discard conn.execUpdate(
+          """insert into tournament.tournaments
+               (id, community_id, name, event_date, format, status, version,
+                created_at, updated_at)
+             values ($1::uuid, $2::uuid, $3, $4::date, $5, $6, $7::int,
+                     $8::timestamptz, $9::timestamptz)""",
+          @[textParam(newId), textParam(communityId), textParam(row.get("name")),
+            textParam(row.get("event_date")), textParam(row.get("format")),
+            textParam(status), textParam(row.get("version")),
+            textParam(row.get("created_at")), textParam(row.get("updated_at"))])
+        inc stats.created
+      mapPut(conn, communityId, "tournament", oldId, newId)
+      # The share code is how a v1 rating source named a tournament, so mapping
+      # it lets the source resolve without a second lookup table.
+      mapPut(conn, communityId, "tournament_code", row.get("share_code"), newId)
+    1)
+  stats
+
+proc importClassicChildren(source: Db, conn: DbConn, communityId,
+                           oldTournamentId, newTournamentId: string,
+                           dryRun: bool, stats: var Result) =
+  ## Pairs, groups and matches. A pair whose two v1 players could not both be
+  ## mapped cannot exist in v2 (both columns are required and distinct), so it
+  ## is counted and the matches that named it keep an empty side.
+  var pairIds = initTable[string, string]()
+  for row in source.query(
+    """select id::text as id, pair_name, seed from bm.tournament_pairs
+       where tournament_id = $1::uuid order by seed, id""",
+    @[textParam(oldTournamentId)]):
+    var players: seq[string] = @[]
+    for entry in source.query(
+      """select player_id::text as player_id from bm.tournament_pair_players
+         where pair_id = $1::uuid order by player_id""", @[textParam(row.get("id"))]):
+      let mapped = mapLookup(conn, communityId, "player", entry.get("player_id"))
+      if mapped.isSome and mapped.get notin players:
+        players.add(mapped.get)
+    if players.len != 2:
+      inc stats.skipped
+      continue
+    if dryRun:
+      inc stats.created
+      continue
+    let mapped = mapLookup(conn, communityId, "pair", row.get("id"))
+    let pairId = if mapped.isSome: mapped.get else: uuidv7()
+    discard conn.execUpdate(
+      """insert into tournament.pairs
+           (id, community_id, tournament_id, display_name, player_a_id, player_b_id)
+         values ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::uuid)
+         on conflict (community_id, id) do update
+           set display_name = excluded.display_name,
+               player_a_id = excluded.player_a_id,
+               player_b_id = excluded.player_b_id""",
+      @[textParam(pairId), textParam(communityId), textParam(newTournamentId),
+        textParam(row.get("pair_name")), textParam(players[0]),
+        textParam(players[1])])
+    mapPut(conn, communityId, "pair", row.get("id"), pairId)
+    pairIds[row.get("id")] = pairId
+    if mapped.isSome: inc stats.updated else: inc stats.created
+
+  for row in source.query(
+    """select group_id, pair_id::text as pair_id, position
+       from bm.tournament_groups where tournament_id = $1::uuid""",
+    @[textParam(oldTournamentId)]):
+    let pairId = pairIds.getOrDefault(row.get("pair_id"))
+    if pairId.len == 0 or dryRun: continue
+    let present = conn.queryOne(
+      """select 1 as ok from tournament.groups
+         where tournament_id = $1::uuid and group_id = $2 and position = $3::int""",
+      @[textParam(newTournamentId), textParam(row.get("group_id")),
+        textParam(row.get("position"))])
+    discard conn.execUpdate(
+      """insert into tournament.groups
+           (community_id, tournament_id, group_id, pair_id, position)
+         values ($1::uuid, $2::uuid, $3, $4::uuid, $5::int)
+         on conflict (tournament_id, group_id, position) do update
+           set pair_id = excluded.pair_id""",
+      @[textParam(communityId), textParam(newTournamentId),
+        textParam(row.get("group_id")), textParam(pairId),
+        textParam(row.get("position"))])
+    if present.isSome: inc stats.updated else: inc stats.created
+
+  for row in source.query(
+    """select m.id::text as id, m.phase, coalesce(m.group_id, '') as group_id,
+              coalesce(m.pair_a_id::text, '') as pair_a_id,
+              coalesce(m.pair_b_id::text, '') as pair_b_id,
+              coalesce(m.score_a, -1) as score_a, coalesce(m.score_b, -1) as score_b,
+              m.match_order, m.match_key, coalesce(p.canonical_name, '') as pic
+       from bm.tournament_matches m
+       left join bm.players p on p.id = m.pic_player_id
+       where m.tournament_id = $1::uuid order by m.match_order, m.match_key""",
+    @[textParam(oldTournamentId)]):
+    if dryRun:
+      inc stats.created
+      continue
+    let pairA = pairIds.getOrDefault(row.get("pair_a_id"))
+    let pairB = pairIds.getOrDefault(row.get("pair_b_id"))
+    let mapped = mapLookup(conn, communityId, "match", row.get("id"))
+    let matchId = if mapped.isSome: mapped.get else: uuidv7()
+    discard conn.execUpdate(
+      """insert into tournament.matches
+           (id, community_id, tournament_id, round_no, pair_a_id, pair_b_id,
+            score_a, score_b, status, phase, group_id, pic_name, match_key,
+            match_order)
+         values ($1::uuid, $2::uuid, $3::uuid, $4::int, nullif($5, '')::uuid,
+                 nullif($6, '')::uuid, nullif($7, -1)::int, nullif($8, -1)::int,
+                 $9, $10, nullif($11, '')::text, $12, $13, $14::int)
+         on conflict (community_id, tournament_id, match_key) do update
+           set round_no = excluded.round_no, pair_a_id = excluded.pair_a_id,
+               pair_b_id = excluded.pair_b_id, score_a = excluded.score_a,
+               score_b = excluded.score_b, status = excluded.status,
+               phase = excluded.phase, group_id = excluded.group_id,
+               pic_name = excluded.pic_name, match_order = excluded.match_order""",
+      @[textParam(matchId), textParam(communityId), textParam(newTournamentId),
+        textParam($classicRounds[row.get("phase")]), textParam(pairA),
+        textParam(pairB), textParam(row.get("score_a")),
+        textParam(row.get("score_b")),
+        textParam(if row.get("score_a") == "-1": "scheduled" else: "played"),
+        textParam(row.get("phase")), textParam(row.get("group_id")),
+        textParam(row.get("pic")), textParam(row.get("match_key")),
+        textParam(row.get("match_order"))])
+    mapPut(conn, communityId, "match", row.get("id"), matchId)
+    if mapped.isSome: inc stats.updated else: inc stats.created
+
+proc importTeamChildren(source: Db, conn: DbConn, communityId, oldTournamentId,
+                        newTournamentId: string, dryRun: bool,
+                        stats: var Result) =
+  var teamIds = initTable[string, string]()
+  for row in source.query(
+    """select id::text as id, seed, team_name from bm.tournament_teams
+       where tournament_id = $1::uuid order by seed""",
+    @[textParam(oldTournamentId)]):
+    if dryRun:
+      inc stats.created
+      continue
+    let mapped = mapLookup(conn, communityId, "team", row.get("id"))
+    let teamId = if mapped.isSome: mapped.get else: uuidv7()
+    discard conn.execUpdate(
+      """insert into tournament.teams
+           (id, community_id, tournament_id, seed, team_name)
+         values ($1::uuid, $2::uuid, $3::uuid, $4::int, $5)
+         on conflict (community_id, id) do update
+           set seed = excluded.seed, team_name = excluded.team_name""",
+      @[textParam(teamId), textParam(communityId), textParam(newTournamentId),
+        textParam(row.get("seed")), textParam(row.get("team_name"))])
+    mapPut(conn, communityId, "team", row.get("id"), teamId)
+    teamIds[row.get("id")] = teamId
+    if mapped.isSome: inc stats.updated else: inc stats.created
+
+  for row in source.query(
+    """select p.id::text as id, p.team_id::text as team_id, p.player_name,
+              p.cls, coalesce(p.player_id::text, '') as player_id
+       from bm.tournament_team_players p
+       join bm.tournament_teams t on t.id = p.team_id
+       where t.tournament_id = $1::uuid order by p.team_id, p.cls""",
+    @[textParam(oldTournamentId)]):
+    let teamId = teamIds.getOrDefault(row.get("team_id"))
+    if teamId.len == 0: continue
+    if dryRun:
+      inc stats.created
+      continue
+    let existing = mapLookup(conn, communityId, "team_player", row.get("id"))
+    let teamPlayerId = if existing.isSome: existing.get else: uuidv7()
+    var playerId = ""
+    if row.get("player_id").len > 0:
+      playerId = mapLookup(conn, communityId, "player", row.get("player_id")).get("")
+    # The roster is names plus classes; a name v1 never linked to a player stays
+    # unlinked, because inventing a player would change the roster.
+    discard conn.execUpdate(
+      """insert into tournament.team_players
+           (id, community_id, team_id, player_name, player_id, cls)
+         values ($1::uuid, $2::uuid, $3::uuid, $4, nullif($5, '')::uuid, $6)
+         on conflict (team_id, cls) do update
+           set player_name = excluded.player_name,
+               player_id = excluded.player_id""",
+      @[textParam(teamPlayerId), textParam(communityId), textParam(teamId),
+        textParam(row.get("player_name")), textParam(playerId),
+        textParam(row.get("cls"))])
+    mapPut(conn, communityId, "team_player", row.get("id"), teamPlayerId)
+    if existing.isSome: inc stats.updated else: inc stats.created
+
+  for row in source.query(
+    """select m.id::text as id, m.phase, m.match_order, m.match_key,
+              coalesce(m.team_a_id::text, '') as team_a_id,
+              coalesce(m.team_b_id::text, '') as team_b_id,
+              coalesce(m.courts::text, '{}') as courts
+       from bm.tournament_team_matches m
+       where m.tournament_id = $1::uuid order by m.match_order, m.match_key""",
+    @[textParam(oldTournamentId)]):
+    if dryRun:
+      inc stats.created
+      continue
+    let teamA = teamIds.getOrDefault(row.get("team_a_id"))
+    let teamB = teamIds.getOrDefault(row.get("team_b_id"))
+    let mapped = mapLookup(conn, communityId, "team_match", row.get("id"))
+    let matchId = if mapped.isSome: mapped.get else: uuidv7()
+    discard conn.execUpdate(
+      """insert into tournament.team_matches
+           (id, community_id, tournament_id, phase, match_order, match_key,
+            team_a_id, team_b_id, courts)
+         values ($1::uuid, $2::uuid, $3::uuid, $4, $5::int, $6,
+                 nullif($7, '')::uuid, nullif($8, '')::uuid, $9::text[])
+         on conflict (community_id, tournament_id, match_key) do update
+           set phase = excluded.phase, match_order = excluded.match_order,
+               team_a_id = excluded.team_a_id, team_b_id = excluded.team_b_id,
+               courts = excluded.courts""",
+      @[textParam(matchId), textParam(communityId), textParam(newTournamentId),
+        textParam(row.get("phase")), textParam(row.get("match_order")),
+        textParam(row.get("match_key")), textParam(teamA), textParam(teamB),
+        textParam(row.get("courts"))])
+    mapPut(conn, communityId, "team_match", row.get("id"), matchId)
+    if mapped.isSome: inc stats.updated else: inc stats.created
+
+    for game in source.query(
+      """select id::text as id, partai_index, coalesce(score_a, -1) as score_a,
+                coalesce(score_b, -1) as score_b
+         from bm.tournament_team_match_games
+         where team_match_id = $1::uuid order by partai_index""",
+      @[textParam(row.get("id"))]):
+      if dryRun: continue
+      let partaiMapped = mapLookup(conn, communityId, "partai", game.get("id"))
+      let partaiId = if partaiMapped.isSome: partaiMapped.get else: uuidv7()
+      discard conn.execUpdate(
+        """insert into tournament.team_partai
+             (id, community_id, team_match_id, partai_index, score_a, score_b)
+           values ($1::uuid, $2::uuid, $3::uuid, $4::int,
+                   nullif($5, -1)::int, nullif($6, -1)::int)
+           on conflict (team_match_id, partai_index) do update
+             set score_a = excluded.score_a, score_b = excluded.score_b""",
+        @[textParam(partaiId), textParam(communityId), textParam(matchId),
+          textParam(game.get("partai_index")), textParam(game.get("score_a")),
+          textParam(game.get("score_b"))])
+      mapPut(conn, communityId, "partai", game.get("id"), partaiId)
+      if partaiMapped.isSome: inc stats.updated else: inc stats.created
+
+proc importTournamentChildren(source, target: Db, communityId: string,
+                              dryRun: bool): Result =
+  var stats = Result()
+  var rows: seq[Row] = @[]
+  for row in source.query(
+    "select id::text as id, format from bm.tournaments order by event_date, id"):
+    rows.add(row)
+  discard target.tx(proc(conn: DbConn): int =
+    for row in rows:
+      let newId = mapLookup(conn, communityId, "tournament", row.get("id"))
+      if newId.isNone: continue
+      if row.get("format") == "team":
+        importTeamChildren(source, conn, communityId, row.get("id"), newId.get,
+          dryRun, stats)
+      else:
+        importClassicChildren(source, conn, communityId, row.get("id"),
+          newId.get, dryRun, stats)
+    1)
+  stats
+
 proc communitySettings(db: Db, communityId: string): JsonNode =
   let row = db.queryOne(
     """select values::text as values from community.settings
@@ -517,12 +829,18 @@ proc importRatingSources*(source, target: Db, communityId: string,
           newSource = mapLookup(conn, communityId, "session", old.get.get("id"))
       else:
         newSource = mapLookup(conn, communityId, "tournament", token)
+        if newSource.isNone:
+          newSource = mapLookup(conn, communityId, "tournament_code", token)
       if newSource.isNone:
         inc stats.skipped
         continue
       if dryRun:
         inc stats.created
         continue
+      let present = conn.queryOne(
+        """select 1 as ok from rating.sources
+           where community_id = $1::uuid and source_id = $2::uuid""",
+        @[textParam(communityId), textParam(newSource.get)])
       discard conn.execUpdate(
         """insert into rating.sources
              (community_id, source_id, kind, finalized, finalized_at, created_at)
@@ -535,7 +853,7 @@ proc importRatingSources*(source, target: Db, communityId: string,
           textParam(if row.get("finalized") == "t": "true" else: "false"),
           textParam(if row.get("finalized") == "t": row.get("ingested_at") else: ""),
           textParam(row.get("ingested_at"))])
-      inc stats.created
+      if present.isSome: inc stats.updated else: inc stats.created
     1)
   stats
 
@@ -551,6 +869,25 @@ proc rebuildRating*(target: Db, communityId: string): tuple[events, deltas: int]
     @[textParam(communityId)])
   (events: outcome.events,
    deltas: if rows.isSome: parseInt(rows.get.get("n")) else: 0)
+
+proc ingestFinalTournaments*(target: Db, communityId: string):
+    tuple[events, deltas: int] =
+  ## A tournament is only ingestable once its source is signed off, which is v1's
+  ## gate too. This runs after the rebuild because `rebuild` clears every event
+  ## in the community and recreates only the session ones.
+  let snapshot = loadSnapshot(target)
+  let params = loadRatingParams(snapshot, communitySettings(target, communityId))
+  for row in target.query(
+    """select t.id::text as id from tournament.tournaments t
+       join rating.sources s
+         on s.community_id = t.community_id and s.source_id = t.id
+       where t.community_id = $1::uuid and s.finalized
+       order by t.event_date, t.id""",
+    @[textParam(communityId)]):
+    let outcome = ratingTournament.ingestTournament(target, communityId,
+      row.get("id"), params)
+    result.events += outcome.events
+    result.deltas += outcome.deltas
 
 proc verifyRating*(source, target: Db, communityId: string): seq[string] =
   ## The point scales differ, so the tally is what can be compared: v1 counted
@@ -595,6 +932,114 @@ proc verifyRating*(source, target: Db, communityId: string): seq[string] =
   if compared == 0 and result.len == 0:
     result.add "no player has a v1 rating tally to compare"
 
+proc importAchievements*(source, target: Db, communityId: string,
+                         dryRun: bool): Result =
+  ## v1 stores a statistic per ladder (`medal:games` with value 57); v2 stores
+  ## one row per threshold crossed (`games:50`). The expansion is therefore
+  ## derived, not copied: every threshold the stored value has passed becomes a
+  ## row, with the v1 date. Event badges (`tournament:<id>`) have no v2
+  ## equivalent and are counted as skipped.
+  var stats = Result()
+  discard target.tx(proc(conn: DbConn): int =
+    for row in source.query(
+      """select pa.id::text as id, pa.player_id::text as player_id,
+                pa.achievement_key, pa.earned_at::text as earned_at,
+                coalesce(pa.value, 0) as value
+         from bm.player_achievements pa order by pa.earned_at, pa.id"""):
+      let player = mapLookup(conn, communityId, "player", row.get("player_id"))
+      if player.isNone:
+        inc stats.skipped
+        continue
+      let key = row.get("achievement_key")
+      if not key.startsWith("medal:"):
+        inc stats.skipped
+        continue
+      let unit = key["medal:".len .. ^1]
+      let value = parseInt(row.get("value"))
+      var awarded = 0
+      # `conn`, not `target`: the pool has one connection and it is inside this
+      # transaction, so asking the pool again would wait for itself.
+      for definition in conn.query(
+        """select key, threshold from achievement.definitions
+           where key like $1 order by threshold""",
+        @[textParam(unit & ":%")]):
+        let threshold = parseInt(definition.get("threshold"))
+        # A rank ladder counts down: #4 has earned #10 and #5, not #3.
+        let passed =
+          if unit == "rank": value > 0 and threshold >= value
+          else: threshold <= value
+        if not passed: continue
+        inc awarded
+        if dryRun:
+          inc stats.created
+          continue
+        let changed = conn.execUpdate(
+          """insert into achievement.earned
+               (community_id, player_id, achievement_key, earned_at)
+             values ($1::uuid, $2::uuid, $3, $4::timestamptz)
+             on conflict (community_id, player_id, achievement_key) do nothing""",
+          @[textParam(communityId), textParam(player.get),
+            textParam(definition.get("key")), textParam(row.get("earned_at"))])
+        if changed == 1: inc stats.created else: inc stats.updated
+      if awarded == 0:
+        inc stats.skipped
+    1)
+  stats
+
+proc backfillAchievements*(target: Db, communityId: string): Result =
+  ## Adds whatever the imported games qualify for and v1 did not record. v1
+  ## rows are written first and this uses `do nothing`, so a v1 date survives.
+  let outcome = achievementBackfill.backfill(target, communityId)
+  Result(created: outcome.awarded, updated: outcome.players)
+
+proc verifyAchievements*(source, target: Db, communityId: string): seq[string] =
+  ## Every threshold v1 implies must exist in v2. The reverse is not required:
+  ## v2 also awards what the imported games crossed even when v1 never stored it.
+  var oldToNew = initTable[string, string]()
+  for row in target.query(
+    """select old_id, new_id::text as new_id from import.row_map
+       where community_id = $1::uuid and entity = 'player'""",
+    @[textParam(communityId)]):
+    oldToNew[row.get("old_id")] = row.get("new_id")
+  var definitions = initTable[string, seq[int]]()
+  for row in target.query(
+    "select key, threshold from achievement.definitions order by threshold"):
+    let key = row.get("key")
+    let unit = key[0 ..< key.find(':')]
+    definitions.mgetOrPut(unit, @[]).add(parseInt(row.get("threshold")))
+
+  var checked = 0
+  for row in source.query(
+    """select player_id::text as player_id, achievement_key,
+              coalesce(value, 0) as value
+       from bm.player_achievements"""):
+    let key = row.get("achievement_key")
+    if not key.startsWith("medal:"): continue
+    let unit = key["medal:".len .. ^1]
+    if not definitions.hasKey(unit): continue
+    let newId = oldToNew.getOrDefault(row.get("player_id"))
+    if newId.len == 0:
+      result.add "v1 achievement player " & row.get("player_id") & " has no mapping"
+      continue
+    let value = parseInt(row.get("value"))
+    for threshold in definitions[unit]:
+      let passed =
+        if unit == "rank": value > 0 and threshold >= value
+        else: threshold <= value
+      if not passed: continue
+      inc checked
+      let found = target.queryOne(
+        """select 1 as ok from achievement.earned
+           where community_id = $1::uuid and player_id = $2::uuid
+             and achievement_key = $3""",
+        @[textParam(communityId), textParam(newId),
+          textParam(unit & ":" & $threshold)])
+      if found.isNone:
+        result.add "player " & row.get("player_id") & " is missing " &
+          unit & ":" & $threshold & " in v2"
+  if checked == 0 and result.len == 0:
+    result.add "no achievement has been imported into this community"
+
 proc importEtl*(source, target: Db, slug, name, timezone: string,
                 dryRun: bool): tuple[players, aliases, sessions, courts,
                                      participants, games: Result] =
@@ -607,12 +1052,23 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
   let courts = importCourts(source, target, communityId, dryRun)
   let participants = importParticipants(source, target, communityId, dryRun)
   let games = importGames(source, target, communityId, dryRun)
-  # The sign-off is v1 data; the numbers are recomputed from the games above, so
+  let tournaments = importTournamentHeaders(source, target, communityId, dryRun)
+  let tournamentChildren = importTournamentChildren(source, target, communityId,
+    dryRun)
+  # The sign-off is v1 data; the numbers are recomputed from the rows above, so
   # the ledger v2 serves is produced by v2's own formula.
   let sources = importRatingSources(source, target, communityId, dryRun)
   var rebuilt = (events: 0, deltas: 0)
+  var tournamentRating = (events: 0, deltas: 0)
   if not dryRun:
     rebuilt = rebuildRating(target, communityId)
+    tournamentRating = ingestFinalTournaments(target, communityId)
+  # v1 badges first, then the v2 backfill: the backfill does not overwrite an
+  # existing row, so a v1 date survives and only new crossings are added.
+  let achievements = importAchievements(source, target, communityId, dryRun)
+  var awarded = Result()
+  if not dryRun:
+    awarded = backfillAchievements(target, communityId)
   result = (players: players, aliases: aliases, sessions: sessions,
             courts: courts, participants: participants, games: games)
   echo $(%*{
@@ -631,9 +1087,20 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
                        "skipped": participants.skipped},
     "games": %*{"created": games.created, "updated": games.updated,
                 "skipped": games.skipped},
-    "ratingSources": %*{"created": sources.created, "skipped": sources.skipped},
-    "rating": %*{"events": rebuilt.events, "deltas": rebuilt.deltas},
-    "skippedDomains": %["tournaments", "achievements", "snapshots"]})
+    "ratingSources": %*{"created": sources.created, "updated": sources.updated,
+                        "skipped": sources.skipped},
+    "rating": %*{"events": rebuilt.events + tournamentRating.events,
+                 "deltas": rebuilt.deltas + tournamentRating.deltas},
+    "tournaments": %*{"created": tournaments.created,
+                      "updated": tournaments.updated},
+    "tournamentChildren": %*{"created": tournamentChildren.created,
+                             "updated": tournamentChildren.updated,
+                             "skipped": tournamentChildren.skipped},
+    "achievements": %*{"created": achievements.created,
+                       "updated": achievements.updated,
+                       "skipped": achievements.skipped,
+                       "backfilled": awarded.created},
+    "skippedDomains": %["snapshots"]})
 
 proc verifyPlayers*(source, target: Db, communityId: string): seq[string] =
   ## Compares the mapped rows field by field. Counts alone would hide a rename
@@ -838,6 +1305,146 @@ proc verifyGames*(source, target: Db, communityId: string): seq[string] =
   if checked == 0 and result.len == 0:
     result.add "no game has been imported into this community"
 
+proc verifyTournaments*(source, target: Db, communityId: string): seq[string] =
+  ## Classic tournaments are compared match by match through their stable match
+  ## key, with the pair sides as names; team tournaments through their seeds and
+  ## partai scores. A missing row is reported, not skipped.
+  var oldToNew = initTable[string, string]()
+  for row in target.query(
+    """select old_id, new_id::text as new_id from import.row_map
+       where community_id = $1::uuid and entity = 'tournament'""",
+    @[textParam(communityId)]):
+    oldToNew[row.get("old_id")] = row.get("new_id")
+  if oldToNew.len == 0:
+    return @["no tournament has been imported into this community"]
+
+  var checked = 0
+  for row in source.query(
+    """select id::text as id, share_code, name, event_date::text as event_date,
+              format, version
+       from bm.tournaments order by event_date, id"""):
+    let newId = oldToNew.getOrDefault(row.get("id"))
+    if newId.len == 0:
+      result.add "v1 tournament " & row.get("id") & " has no mapping"
+      continue
+    let header = target.queryOne(
+      """select name, event_date::text as event_date, format, version
+         from tournament.tournaments
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(communityId), textParam(newId)])
+    if header.isNone:
+      result.add "mapped tournament " & newId & " is missing from v2"
+      continue
+    let ours = header.get
+    for field in ["name", "event_date", "format", "version"]:
+      if ours.get(field) != row.get(field):
+        result.add "tournament " & row.get("share_code") & " has a different " & field
+
+    if row.get("format") == "team":
+      var teams = initTable[string, string]()
+      for entry in target.query(
+        """select seed, team_name from tournament.teams
+           where community_id = $1::uuid and tournament_id = $2::uuid""",
+        @[textParam(communityId), textParam(newId)]):
+        teams[entry.get("seed")] = entry.get("team_name")
+      for entry in source.query(
+        """select seed, team_name from bm.tournament_teams
+           where tournament_id = $1::uuid order by seed""",
+        @[textParam(row.get("id"))]):
+        if teams.getOrDefault(entry.get("seed")) != entry.get("team_name"):
+          result.add "tournament " & row.get("share_code") & " team seed " &
+            entry.get("seed") & " differs"
+      for entry in source.query(
+        """select t.team_name, p.cls, p.player_name
+           from bm.tournament_team_players p
+           join bm.tournament_teams t on t.id = p.team_id
+           where t.tournament_id = $1::uuid order by t.seed, p.cls""",
+        @[textParam(row.get("id"))]):
+        let roster = target.queryOne(
+          """select tp.player_name
+             from tournament.team_players tp
+             join tournament.teams t on t.id = tp.team_id
+             where t.community_id = $1::uuid and t.tournament_id = $2::uuid
+               and t.team_name = $3 and tp.cls = $4""",
+          @[textParam(communityId), textParam(newId), textParam(entry.get("team_name")),
+            textParam(entry.get("cls"))])
+        inc checked
+        if roster.isNone or roster.get.get("player_name") != entry.get("player_name"):
+          result.add "tournament " & row.get("share_code") & " roster " &
+            entry.get("team_name") & " " & entry.get("cls") & " differs"
+      for entry in source.query(
+        """select m.match_key, g.partai_index, coalesce(g.score_a, -1) as score_a,
+                  coalesce(g.score_b, -1) as score_b
+           from bm.tournament_team_match_games g
+           join bm.tournament_team_matches m on m.id = g.team_match_id
+           where m.tournament_id = $1::uuid""",
+        @[textParam(row.get("id"))]):
+        let partai = target.queryOne(
+          """select coalesce(p.score_a, -1) as score_a, coalesce(p.score_b, -1) as score_b
+             from tournament.team_partai p
+             join tournament.team_matches m on m.id = p.team_match_id
+             where m.community_id = $1::uuid and m.tournament_id = $2::uuid
+               and m.match_key = $3 and p.partai_index = $4::int""",
+          @[textParam(communityId), textParam(newId), textParam(entry.get("match_key")),
+            textParam(entry.get("partai_index"))])
+        inc checked
+        if partai.isNone or partai.get.get("score_a") != entry.get("score_a") or
+           partai.get.get("score_b") != entry.get("score_b"):
+          result.add "tournament " & row.get("share_code") & " partai " &
+            entry.get("match_key") & "-" & entry.get("partai_index") & " differs"
+      continue
+
+    var expected = initTable[string, Row]()
+    for entry in source.query(
+      """select m.match_key, m.phase, coalesce(m.score_a, -1) as score_a,
+                coalesce(m.score_b, -1) as score_b,
+                coalesce(pa.pair_name, '') as pair_a,
+                coalesce(pb.pair_name, '') as pair_b
+         from bm.tournament_matches m
+         left join bm.tournament_pairs pa on pa.id = m.pair_a_id
+         left join bm.tournament_pairs pb on pb.id = m.pair_b_id
+         where m.tournament_id = $1::uuid""",
+      @[textParam(row.get("id"))]):
+      expected[entry.get("match_key")] = entry
+    var actual = initTable[string, Row]()
+    for entry in target.query(
+      """select m.match_key, m.phase, coalesce(m.score_a, -1) as score_a,
+                coalesce(m.score_b, -1) as score_b,
+                coalesce(m.pair_a_id::text, '') as pair_a_id,
+                coalesce(m.pair_b_id::text, '') as pair_b_id
+         from tournament.matches m
+         where m.community_id = $1::uuid and m.tournament_id = $2::uuid""",
+      @[textParam(communityId), textParam(newId)]):
+      actual[entry.get("match_key")] = entry
+    if expected.len != actual.len:
+      result.add "tournament " & row.get("share_code") & " has " & $actual.len &
+        " matches in v2 but " & $expected.len & " in v1"
+    for key, source1 in expected:
+      if not actual.hasKey(key):
+        result.add "tournament " & row.get("share_code") & " is missing match " & key
+        continue
+      let ours2 = actual[key]
+      inc checked
+      for field in ["phase", "score_a", "score_b"]:
+        if ours2.get(field) != source1.get(field):
+          result.add "match " & key & " of " & row.get("share_code") &
+            " has a different " & field
+      for side in ["a", "b"]:
+        let want = source1.get("pair_" & side)
+        let pairId = ours2.get("pair_" & side & "_id")
+        var got = ""
+        if pairId.len > 0:
+          let pair = target.queryOne(
+            """select display_name from tournament.pairs
+               where community_id = $1::uuid and id = $2::uuid""",
+            @[textParam(communityId), textParam(pairId)])
+          if pair.isSome: got = pair.get.get("display_name")
+        if want != got:
+          result.add "match " & key & " of " & row.get("share_code") &
+            " has a different pair " & side
+  if checked == 0 and result.len == 0:
+    result.add "no tournament row has been imported into this community"
+
 proc verifyEtl(source, target: Db, slugArg: string) =
   let communityId = getEnv("MAJADU_IMPORT_COMMUNITY_ID")
   var resolved = communityId
@@ -856,6 +1463,8 @@ proc verifyEtl(source, target: Db, slugArg: string) =
   problems.add verifySessions(source, target, resolved)
   problems.add verifyGames(source, target, resolved)
   problems.add verifyRating(source, target, resolved)
+  problems.add verifyTournaments(source, target, resolved)
+  problems.add verifyAchievements(source, target, resolved)
   if problems.len > 0:
     for problem in problems:
       stderr.writeLine "import: " & problem
@@ -863,8 +1472,8 @@ proc verifyEtl(source, target: Db, slugArg: string) =
     quit(1)
   echo $(%*{"communityId": resolved, "problems": 0,
             "checkedDomains": %["players", "aliases", "sessions", "games",
-                                "rating"],
-            "uncheckedDomains": %["tournaments", "achievements", "snapshots"]})
+                                "rating", "tournaments", "achievements"],
+            "uncheckedDomains": %["snapshots"]})
 
 proc main() =
   let args = parseArgs()

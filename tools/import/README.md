@@ -11,9 +11,11 @@ ETL sekali-jalan dari database v1 (`bm_staging`) ke v2. T-064.
 | Sesi + lapangan | `bm.sessions`, `bm.session_courts` | `session.sessions`, `session.courts` | sudah |
 | Peserta | `bm.session_players` | `session.participants` | sudah |
 | Jadwal + skor | `bm.scheduled_games`, `bm.scheduled_game_players` | `session.games` | sudah |
-| Rating | `bm.rating_sources` | `rating.sources` + hitung ulang dari sesi | sudah (angka recompute) |
-| Turnamen | `bm.tournament_*` | `tournament.*` | belum |
-| Badge, snapshot | `bm.player_achievements`, `bm.rank_snapshots` | dihitung ulang | belum |
+| Rating | `bm.rating_sources` | `rating.sources` + hitung ulang dari sesi/turnamen | sudah (angka recompute) |
+| Turnamen klasik | `bm.tournaments`, `bm.tournament_pairs`, `bm.tournament_groups`, `bm.tournament_matches` | `tournament.*` | sudah |
+| Turnamen tim | `bm.tournament_teams`, `bm.tournament_team_players`, `bm.tournament_team_matches`, `bm.tournament_team_match_games` | `tournament.*` | sudah |
+| Badge | `bm.player_achievements` | `achievement.earned` + backfill | sudah |
+| Snapshot | `bm.rank_snapshots` | — | dilewati, lihat catatan 8 |
 
 Perintah `etl` mencetak `skippedDomains`; `verify` mencetak `uncheckedDomains`.
 Jangan membaca keluaran "problems: 0" sebagai "seluruh database sama" selama
@@ -69,6 +71,20 @@ nim c -d:release -o:.cache/bin/majadu-import tools/import/main.nim
 7. **Peserta placeholder dilewati.** v1 mengizinkan `session_players.player_id`
    kosong; v2 mewajibkan pemain nyata. Baris seperti itu dihitung di `skipped`,
    dan sisi game yang hanya berisi placeholder menjadi kosong.
+8. **Snapshot sengaja tidak diimpor.** Poin peringkat v1 memakai skala berbeda
+   dari rating v2, jadi baris `rank_snapshots` tidak bisa dibandingkan satu per
+   satu; `etl` melaporkannya di `skippedDomains` sebagai `snapshots` alih-alih
+   menyalin angka yang tidak berarti.
+9. **Status turnamen diturunkan.** v1 tidak punya kolom status: turnamen tanpa
+   baris match menjadi `draft`, yang semua skornya terisi `completed`, sisanya
+   `active`. `pic_player_id` menjadi `pic_name` karena v2 menyimpan nama, dan
+   `phase` menjadi `round_no` (group 0, qf 1, sf 2, 3rd 3, final 4).
+10. **Badge diperluas, bukan disalin.** v1 menyimpan satu baris per tangga
+    (`medal:games` dengan `value` 57); v2 menyimpan satu baris per ambang yang
+    sudah dilewati (`games:50`). Baris v1 ditulis lebih dulu, lalu `backfill`
+    menambah ambang lain dengan `do nothing`, sehingga tanggal v1 bertahan.
+    Badge event `tournament:<id>` tidak punya padanan v2; baris itu dihitung di
+    `skipped`.
 
 ## Uji
 
