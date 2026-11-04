@@ -1,0 +1,14 @@
+# Alert sink for a failed unit. Started as majadu-alert@<failed-unit>.service by
+# OnFailure= in the unit itself, and by deploy-vps.sh when a deploy fails.
+#
+# It writes one line to the journal (where the failure is already visible) and,
+# when MAJADU_ALERT_WEBHOOK is set in the optional env file, posts the same
+# sentence to that endpoint. No webhook means journal only: the unit never
+# pretends to have notified someone.
+[Unit]
+Description=Majadu alert for %i
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/srv/qouver/apps/majadu/env/alert.env
+ExecStart=/bin/sh -c 'echo "majadu alert: %i"; if [ -n "$${MAJADU_ALERT_WEBHOOK:-}" ]; then curl -fsS -m 5 -H "Content-Type: application/json" --data "{\"text\":\"majadu: %i failed\"}" "$${MAJADU_ALERT_WEBHOOK}"; fi'

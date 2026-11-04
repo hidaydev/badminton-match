@@ -157,7 +157,14 @@ log "cutover v$VERSION starting from step '$FROM'"
 # ---------------------------------------------------------------------------
 step_preflight() {
   log "checking the release image"
-  local auth=()
+  local auth=() token_mode
+  if [ -f "$APP_DIR/env/ghcr-token" ]; then
+    token_mode=$(stat -c '%a' "$APP_DIR/env/ghcr-token" 2>/dev/null || echo "?")
+    case "$token_mode" in
+      600|400) ;;
+      *) fail "$APP_DIR/env/ghcr-token must be mode 600 (found $token_mode)" ;;
+    esac
+  fi
   if [ -f "$APP_DIR/env/ghcr-token" ]; then
     auth=(-H "Authorization: Bearer $(cat "$APP_DIR/env/ghcr-token")")
   fi

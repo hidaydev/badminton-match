@@ -1,8 +1,14 @@
-# Maintenance site: everything answers 503 with Retry-After, so a write never
-# reaches a service whose database is being replaced. cutover.sh switches to
-# this before it stops v1, and away from it only after smoke passed.
+# Maintenance site: writes are refused with 503 and Retry-After, so nothing
+# reaches a service whose database is being replaced. Reads get the same status
+# with a page the user can understand; there is no point pretending the API is
+# up while an import is running.
 api.qouver.com {
 	header Retry-After 120
 	header Cache-Control "no-store"
-	respond "Majadu is being updated. Please reload in a few minutes." 503
+
+	@write not method GET HEAD
+	respond @write "Majadu is being updated. Please reload in a few minutes." 503
+
+	header Content-Type "text/html; charset=utf-8"
+	respond `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>Majadu maintenance</title><p>Majadu is being updated. Please reload in a few minutes.</p>` 503
 }

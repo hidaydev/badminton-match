@@ -77,9 +77,14 @@ lagi".
 Jujur soal lubang lebih berguna daripada runbook yang mengandaikan alat yang
 tidak ada:
 
-- `ops/scripts/{cutover,backup,restore}.sh` belum ada. Cutover v1 → v2 belum
-  bisa dijalankan; jangan menganggap prosedur v1 masih berlaku.
-- Belum ada alert otomatis. `readyz` adalah probe, bukan pemberitahu: yang
-  membaca hasilnya adalah load balancer atau operator.
+- `ops/scripts/{cutover,rollback,backup,restore,smoke}.sh` sudah ada di repo,
+  tetapi belum pernah dijalankan di VPS sungguhan. Rehearsal D-3 (T-063) yang
+  membuktikannya; sebelum itu jangan menganggap jalur rollback teruji.
+- Alert otomatis ada di level unit: `OnFailure=majadu-alert@%n.service` dan
+  `deploy-vps.sh` memanggil template yang sama saat deploy gagal. Tanpa
+  `/srv/qouver/apps/majadu/env/alert.env` (mode 600) pesannya hanya masuk
+  journal, tidak dikirim ke luar mesin.
+- `readyz` tetap probe, bukan pemberitahu: yang membacanya operator atau cron
+  pemeriksa, bukan dashboard.
 - Metrik internal (T-062) belum diekspos; `/ops/ping` hanya membuktikan token
   CLI hidup.

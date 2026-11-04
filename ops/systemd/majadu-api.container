@@ -1,11 +1,22 @@
-# Quadlet unit untuk majadu-api (PROD instance) — rootless podman + systemd user.
-# Pola webhook (sds-monorepo): image DIBANGUN LOKAL di VPS oleh deploy-vps.sh
-# (localhost/majadu-api:local, Pull=never, AutoUpdate=local) — bukan dari registry.
-# Unit server di-update otomatis oleh switch_local_image() saat deploy pertama.
+# Quadlet unit for majadu-api (PROD instance) - rootless podman + systemd user.
+#
+# The image is pulled by digest by deploy-vps.sh and tagged :local; Quadlet only
+# ever starts that tag (Pull=never), so a `systemctl restart` cannot fetch a
+# different build behind the operator's back.
+#
+# The environment file holds every secret and must stay mode 600
+# (deploy-vps.sh refuses to run when it can be read by anyone else).
 [Unit]
-Description=Majadu API (prod, schema bm)
+Description=Majadu API (prod, schema bm2 after the cutover)
 After=network-online.target
 Wants=network-online.target
+# A crash loop must page someone instead of filling the disk quietly. The limit
+# is on the unit, so Restart=on-failure stops retrying after five attempts in
+# five minutes instead of spinning forever.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+OnFailure=majadu-alert@%n.service
+
 [Container]
 Image=localhost/majadu-api:local
 ContainerName=majadu-api
@@ -16,8 +27,15 @@ EnvironmentFile=/srv/qouver/apps/majadu/env/majadu-prod.env
 Volume=/srv/qouver/apps/majadu/logs/main:/logs:Z
 AutoUpdate=local
 UserNS=keep-id:uid=10001
+NoNewPrivileges=true
+DropCapability=ALL
+
 [Service]
-Restart=always
+# on-failure, not always: a deliberate stop (cutover, rollback, maintenance) must
+# stay stopped. StartLimit* above bounds the crash case.
+Restart=on-failure
 RestartSec=3
+MemoryMax=512M
+
 [Install]
 WantedBy=default.target

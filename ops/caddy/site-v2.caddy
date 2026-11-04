@@ -1,6 +1,31 @@
-# v2 site: the Nim API on `bm2`. Same port as v1 because only one of the two
-# runs at a time; the health of the process, not the port, decides which one.
+# v2 site: the Nim API on `bm2`. Same port as v1 because only one of the two runs
+# at a time.
+#
+# Two things matter here beyond the proxy:
+#   - `X-Client-IP` is written from the real peer, and any client-supplied
+#     X-Forwarded-For/X-Real-IP is dropped. The API only reads X-Client-IP and
+#     only from a trusted peer, so a forged chain cannot reach it.
+#   - `/s/<code>` is not written to the access log at all. Redacting it would
+#     still leave the request line somewhere in a rotated file; skipping it keeps
+#     the share code out of logs by construction (TECH-SPEC 7.6).
+# skip_log needs Caddy 2.7 or newer.
 api.qouver.com {
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:8080
+
+	log {
+		output file /srv/qouver/apps/majadu/logs/caddy-access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+		skip_log @share
+	}
+
+	@share path /s/*
+
+	reverse_proxy 127.0.0.1:8080 {
+		header_up X-Client-IP {http.request.remote.host}
+		header_up -X-Forwarded-For
+		header_up -X-Real-IP
+	}
 }

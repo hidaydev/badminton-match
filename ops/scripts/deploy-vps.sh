@@ -39,9 +39,23 @@ log() {
 }
 
 alert() {
-  if systemctl --user list-unit-files majadu-alert.service >/dev/null 2>&1; then
-    systemctl --user start majadu-alert.service >/dev/null 2>&1 || true
+  if systemctl --user list-unit-files 'majadu-alert@.service' >/dev/null 2>&1; then
+    systemctl --user start majadu-alert@deploy.service >/dev/null 2>&1 || true
   fi
+}
+
+file_mode() {
+  stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1" 2>/dev/null || echo "?"
+}
+
+require_private_file() {
+  local path="$1" mode
+  [ -f "$path" ] || return 0
+  mode=$(file_mode "$path")
+  case "$mode" in
+    600|400) ;;
+    *) fail "$path must be mode 600 (found $mode)" ;;
+  esac
 }
 
 fail() {
@@ -161,6 +175,8 @@ fi
 # ---------------------------------------------------------------------------
 STEP="resolve-digest"
 TOKEN_FILE="$APP_DIR/env/ghcr-token"
+require_private_file "$ENV_FILE"
+require_private_file "$TOKEN_FILE"
 AUTH=()
 if [ -f "$TOKEN_FILE" ]; then
   AUTH=(-H "Authorization: Bearer $(cat "$TOKEN_FILE")")
@@ -215,16 +231,23 @@ fi
 # Units come from the repository, not from whatever was left on the VPS.
 # ---------------------------------------------------------------------------
 STEP="sync-units"
-UNIT_DEST="$HOME/.config/containers/systemd"
-mkdir -p "$UNIT_DEST"
-for SRC in "$MONO_DIR"/ops/systemd/*.container; do
-  [ -f "$SRC" ] || continue
-  NAME=$(basename "$SRC")
-  if ! cmp -s "$SRC" "$UNIT_DEST/$NAME"; then
-    [ -f "$UNIT_DEST/$NAME" ] && cp -f "$UNIT_DEST/$NAME" "$UNIT_DEST/$NAME.bak"
-    install -m 644 "$SRC" "$UNIT_DEST/$NAME"
-    log "unit $NAME updated from the repository"
+# Quadlet reads .container files; the alert template is a plain user service.
+for kind in container service; do
+  if [ "$kind" = "container" ]; then
+    UNIT_DEST="$HOME/.config/containers/systemd"
+  else
+    UNIT_DEST="$HOME/.config/systemd/user"
   fi
+  mkdir -p "$UNIT_DEST"
+  for SRC in "$MONO_DIR"/ops/systemd/*."$kind"; do
+    [ -f "$SRC" ] || continue
+    NAME=$(basename "$SRC")
+    if ! cmp -s "$SRC" "$UNIT_DEST/$NAME"; then
+      [ -f "$UNIT_DEST/$NAME" ] && cp -f "$UNIT_DEST/$NAME" "$UNIT_DEST/$NAME.bak"
+      install -m 644 "$SRC" "$UNIT_DEST/$NAME"
+      log "unit $NAME updated from the repository"
+    fi
+  done
 done
 service daemon-reload >/dev/null 2>&1 || true
 

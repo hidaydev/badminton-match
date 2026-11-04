@@ -1,6 +1,23 @@
-# v1 site: the Go API, still running on `bm` before the cutover and again after
-# a rollback. cutover.sh and rollback.sh switch active.caddy to this file.
+# v1 site: the Go API on `bm`, in place before the cutover and again after a
+# rollback. The proxy rules are deliberately identical to site-v2.caddy so a
+# rollback changes the backend and nothing else.
 api.qouver.com {
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:8080
+
+	log {
+		output file /srv/qouver/apps/majadu/logs/caddy-access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+		format json
+		skip_log @share
+	}
+
+	@share path /s/*
+
+	reverse_proxy 127.0.0.1:8080 {
+		header_up X-Client-IP {http.request.remote.host}
+		header_up -X-Forwarded-For
+		header_up -X-Real-IP
+	}
 }
