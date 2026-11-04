@@ -12,6 +12,7 @@
 
 IBM Plex Sans/Mono dimuat via Google Fonts (`display=swap`); Granesta & Edosz
 self-hosted lewat `@font-face` di `apps/web/index.html`. Body uses `var(--font-sans)`.
+Granesta dan Edosz adalah berkas pihak ketiga — lihat `THIRD-PARTY-NOTICES.md`.
 
 ## Color Tokens (Tailwind v4 `@theme`)
 

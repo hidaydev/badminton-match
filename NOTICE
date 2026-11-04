@@ -1,0 +1,21 @@
+Majadu
+Copyright (c) 2026 hidaydev
+
+This repository contains two kinds of material, and the MIT License in LICENSE
+does not apply to both in the same way.
+
+1. Source code and original artwork
+
+   Everything else in this repository is licensed under the MIT License in
+   LICENSE. That includes the source code under apps/, modules/, packages/,
+   shared/, tools/, db/, task and task.d/, and the original images and artwork
+   under apps/web/public/ that were created for this project.
+
+2. Third-party material
+
+   Files listed in THIRD-PARTY-NOTICES.md are not covered by the MIT License.
+   They remain under their own terms, and this repository grants no rights to
+   them. That file is the authoritative list; when a third-party file is added
+   or removed, update it in the same change.
+
+The MIT License grants rights to the material described in section 1 only.

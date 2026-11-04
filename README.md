@@ -92,4 +92,8 @@ make check-api    # or pnpm run check:api
 
 ## 📄 License
 
-[MIT License](LICENSE).
+The source code and the original artwork in `apps/web/public` are
+[MIT licensed](LICENSE). [NOTICE](NOTICE) states the exact split.
+
+The decorative fonts are third-party files with their own terms and are **not**
+covered by MIT — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
