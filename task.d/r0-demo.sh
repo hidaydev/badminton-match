@@ -147,6 +147,15 @@ locked=$(curl -s -b "$JAR" -X POST -H 'If-Match: "2"' \
 [ "$(printf '%s' "$locked" | json "['status']")" = "locked" ] || fail_step "lock status"
 [ "$(printf '%s' "$locked" | json "['approvedAt']")" != "None" ] || fail_step "lock approval stamp"
 
+settings=$(curl -s -b "$JAR" -X PATCH -H 'Content-Type: application/json' \
+  -d '{"api.page_size_default":25}' "$base/c/demo-club/settings")
+[ "$(printf '%s' "$settings" | json "['values']['api.page_size_default']")" = "25" ] ||
+  fail_step "settings override"
+over=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X PATCH \
+  -H 'Content-Type: application/json' -d '{"api.page_size_default":999999}' \
+  "$base/c/demo-club/settings")
+[ "$over" = "400" ] || fail_step "override above ceiling should be 400, got $over"
+
 share=$(curl -s -b "$JAR" -X POST "$base/c/demo-club/sessions/$session_id/share")
 code=$(printf '%s' "$share" | json "['code']")
 [ "${#code}" = "32" ] || fail_step "share code length"

@@ -35,6 +35,17 @@ const
   forbiddenKeys = ["code", "email", "ip", "token", "cookie", "ticket",
                    "password", "secret", "authorization"]
 
+proc configKeyLike(key: string): bool =
+  ## Registry keys are lowercase and dotted. They are allowed as evidence because
+  ## a settings change is meaningless without them, while the forbidden-substring
+  ## check below still blocks names such as `auth.token`.
+  if '.' notin key or key.len == 0:
+    return false
+  for c in key:
+    if c notin {'a'..'z', '0'..'9', '_', '.'}:
+      return false
+  true
+
 proc sanitizeEvidence*(node: JsonNode): JsonNode =
   ## Keeps allow-listed keys with scalar values. Nested objects and arrays are
   ## dropped because they can smuggle unlisted data into the row.
@@ -43,7 +54,7 @@ proc sanitizeEvidence*(node: JsonNode): JsonNode =
   result = newJObject()
   for key, value in node:
     let lowered = key.toLowerAscii()
-    if lowered notin evidenceAllowlist:
+    if lowered notin evidenceAllowlist and not configKeyLike(lowered):
       continue
     var forbidden = false
     for part in forbiddenKeys:

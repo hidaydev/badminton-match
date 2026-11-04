@@ -3,6 +3,7 @@ import mummy
 import auth_middleware
 import community_context
 import config as edgeConfig
+import config_routes
 import metrics
 import ratelimit
 import security_headers
@@ -506,6 +507,36 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
   of wsInvalid:
     problem(request, 400, "INVALID_PATCH", "cannot lock session")
 
+proc getCommunitySettings(request: Request, ctx: CommunityContext) =
+  let settings = currentSettings(application.db, ctx.communityId)
+  let snapshot = configSnapshot()
+  jsonResponse(request, 200, %*{
+    "values": settings,
+    "effective": effectiveConfig(snapshot, settings),
+  }, [("Cache-Control", "no-store")])
+
+proc patchCommunitySettings(request: Request, ctx: CommunityContext,
+                            user: AuthUser) =
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "settings patch must be JSON")
+    return
+  let result = applyPatch(application.db, configSnapshot(), ctx.communityId,
+    user.id, body)
+  case result.outcome
+  of soOk:
+    jsonResponse(request, 200,
+      %*{"values": currentSettings(application.db, ctx.communityId)},
+      [("Cache-Control", "no-store")])
+  of soUnknownKey:
+    problem(request, 400, "UNKNOWN_CONFIG_KEY", result.detail & ": " & result.key)
+  of soOutOfCeiling:
+    problem(request, 400, "OVERRIDE_TOO_HIGH", result.detail & ": " & result.key)
+  of soInvalidType:
+    problem(request, 400, "INVALID_CONFIG_VALUE", result.detail & ": " & result.key)
+
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
   ## Re-display of the live code: host/admin only, and every read is audited.
@@ -694,6 +725,25 @@ proc route(request: Request) =
         if verb == "GET":
           getShareLink(request, ctx.get, user.get, parts[4])
           return
+    # /c/{slug}/settings
+    if parts.len == 4 and parts[1] == "c" and parts[3] == "settings":
+      let user = currentUser(request)
+      if user.isNone:
+        problem(request, 401, "UNAUTHENTICATED", "login required")
+        return
+      let (decision, ctx) = decide(user.get,
+        cookieValue(request, "majadu_session"), parts[2],
+        if verb == "GET": readAccess() else: writeAccess())
+      if decision != gAllowed:
+        respondGate(request, decision)
+        return
+      if verb == "GET":
+        getCommunitySettings(request, ctx.get)
+      elif verb == "PATCH":
+        patchCommunitySettings(request, ctx.get, user.get)
+      else:
+        problem(request, 405, "METHOD", "")
+      return
     # /c/{slug}/rankings
     if parts.len == 4 and parts[1] == "c" and parts[3] == "rankings":
       let user = currentUser(request)
