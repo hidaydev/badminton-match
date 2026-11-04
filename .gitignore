@@ -75,6 +75,11 @@ BWF_World_Ranking_Mechanism_Research.md
 # Rancangan sistem poin ranking (working doc)
 RANKING_POIN_BWF_RANCANGAN.md
 
+# Playwright artefacts and e2e state (T-072)
+e2e/.state.json
+test-results/
+playwright-report/
+
 # Nim build artefacts (T-018)
 .cache/
 nimcache/

@@ -30,6 +30,7 @@ Targets:
   mock-api     serve the contract as a mock API
   r0-demo      boot the walking skeleton against the local database
   coverage     run coverage gates
+  e2e          browser a11y, visual and compatibility regression (Playwright)
   release      prepare a release (dry-run by default)
 
 Environment guaranteed to task.d/*.sh:

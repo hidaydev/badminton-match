@@ -1,7 +1,7 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/plan/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 9ea293ed4345e693c3cb8a1ed223b864712a1663f93cedf49c6bf201b81220a4
+tree 6c4ead98c8cd13ba5611cb49481c9a6c8f38a96ce8862eff1163ef311205c5dc
 
 # Nim toolchain
 nim 2.4.0 toolchain:nim -
@@ -22,6 +22,7 @@ db_connector 0.1.0 nimble:https://github.com/nim-lang/db_connector@29450a2063970
 
 # Frontend gate tools (T-072)
 playwright 1.64.1 npm:playwright -
+@axe-core/playwright 4.14.0 npm:@axe-core/playwright -
 
 # Playwright browser builds (revision directory names under the browser cache)
 chromium 1248 playwright-browser:chromium -

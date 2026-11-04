@@ -10,5 +10,9 @@
     "dev:api": "cd apps/api && go run ./cmd/server",
     "build:api": "cd apps/api && go build -o bin/majadu-api ./cmd/server",
     "check:api": "cd apps/api && make check"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "playwright": "^1.64.1"
   }
 }
