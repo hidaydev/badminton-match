@@ -1,0 +1,25 @@
+# Literals the constant scan lets through, one per line:
+#
+#   path:value   # why this one literal is not a business number
+#   path         # why the whole file is exempt
+#
+# Every entry is a judgement someone made; the scan runs again on every check,
+# so a new literal in the same file still fails.
+
+# The registry is where the keys and their bounds are declared; a bound that
+# equals a seeded default is the same decision written once, not a copy.
+modules/platform/config/registry.nim
+
+# The v1 fixture generator reproduces the frozen v1 schema and its data. Those
+# numbers describe v1, and changing them would change the fixture.
+tools/fixtures/main.nim
+
+# Wait windows, not product limits.
+apps/api/src/main.nim:50    # shutdown poll interval, milliseconds
+apps/api/src/ratelimit.nim:60  # one-minute window for the fixed-window limiter
+
+# Badge thresholds: games played, not a configurable business value.
+modules/achievement/domain/achievement.nim:50
+modules/achievement/domain/achievement.nim:60
+modules/achievement/domain/achievement.nim:96
+modules/achievement/domain/achievement.nim:97

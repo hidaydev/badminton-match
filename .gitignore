@@ -87,6 +87,8 @@ nimcache/
 # Nim test binaries (must stay in .cache)
 apps/api/tests/server_test
 shared/platform-lib/tests/platform_lib_test
+tools/archcheck/main
+tools/archcheck/tests/constants_test
 nimble.develop
 nimble.paths
 nimbledeps
