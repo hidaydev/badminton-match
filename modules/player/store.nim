@@ -1,0 +1,117 @@
+import std/[json, options, strutils]
+import db/db
+import ./domain/player
+
+type
+  CreateStatus* = enum
+    pcOk = "ok"
+    pcDuplicate = "duplicate"
+    pcInvalid = "invalid"
+
+  CreateResult* = object
+    status*: CreateStatus
+    player*: JsonNode
+
+  PatchStatus* = enum
+    psOk = "ok"
+    psNotFound = "not_found"
+    psDuplicate = "duplicate"
+
+  PatchResult* = object
+    status*: PatchStatus
+    player*: JsonNode
+
+const columns = """
+  id, canonical_name, gender, tier,
+  user_id, created_at::text as created_at, updated_at::text as updated_at"""
+
+proc node*(row: Row): JsonNode =
+  %*{
+    "id": row.get("id"),
+    "name": row.get("canonical_name"),
+    "gender": row.get("gender"),
+    "tier": if row["tier"].isNone: newJNull() else: %row.get("tier"),
+    "userId": if row["user_id"].isNone: newJNull() else: %row.get("user_id"),
+    "createdAt": row.get("created_at"),
+    "updatedAt": row.get("updated_at"),
+  }
+
+proc list*(db: Db, communityId: string, limit: int, cursor = "",
+           tier = "", search = ""): seq[JsonNode] =
+  ## Keyset pagination on the id keeps the page stable while players are added.
+  var params = @[textParam(communityId)]
+  var sql = "select " & columns & " from player.players where community_id = $1::uuid"
+  if tier.len > 0:
+    sql.add(" and tier = $" & $(params.len + 1))
+    params.add(textParam(tier))
+  if search.len > 0:
+    sql.add(" and canonical_name ilike $" & $(params.len + 1))
+    params.add(textParam("%" & search & "%"))
+  if cursor.len > 0:
+    sql.add(" and id > $" & $(params.len + 1) & "::uuid")
+    params.add(textParam(cursor))
+  sql.add(" order by id limit $" & $(params.len + 1))
+  params.add(intParam(limit.int64))
+  for row in db.query(sql, params):
+    result.add(node(row))
+
+proc get*(db: Db, communityId, playerId: string): Option[JsonNode] =
+  let row = db.queryOne(
+    "select " & columns & " from player.players where community_id = $1::uuid and id = $2::uuid",
+    @[textParam(communityId), textParam(playerId)])
+  if row.isSome: some(node(row.get)) else: none(JsonNode)
+
+proc create*(db: Db, communityId, name, gender: string, tier: string): CreateResult =
+  let row = db.queryOne(
+    """insert into player.players (community_id, canonical_name, gender, tier)
+       values ($1::uuid, $2, $3, nullif($4, '')::text)
+       on conflict (community_id, canonical_key) do nothing
+       returning""" & columns,
+    @[textParam(communityId), textParam(name), textParam(gender), textParam(tier)])
+  if row.isSome:
+    CreateResult(status: pcOk, player: node(row.get))
+  else:
+    CreateResult(status: pcDuplicate)
+
+proc patch*(db: Db, communityId, playerId: string,
+            patch: PlayerPatch): PatchResult =
+  ## One UPDATE with a fixed column list; `coalesce` keeps untouched fields and
+  ## the tier is only cleared when the caller explicitly sent null.
+  var row: Option[Row]
+  try:
+    row = db.queryOne(
+      """update player.players
+         set canonical_name = coalesce($3, canonical_name),
+             gender = coalesce($4, gender),
+             tier = case when $5 then null else coalesce($6, tier) end,
+             updated_at = now()
+         where community_id = $1::uuid and id = $2::uuid
+         returning""" & columns,
+      @[
+        textParam(communityId),
+        textParam(playerId),
+        (if patch.name.isSome: textParam(patch.name.get) else: nullParam()),
+        (if patch.gender.isSome: textParam($patch.gender.get) else: nullParam()),
+        boolParam(patch.clearTier),
+        (if patch.tier.isSome: textParam($patch.tier.get) else: nullParam()),
+      ])
+  except DbError as error:
+    if error.sqlState == "23505":
+      return PatchResult(status: psDuplicate)
+    raise
+  if row.isSome:
+    return PatchResult(status: psOk, player: node(row.get))
+  # A collision raises above; reaching this point means the row is gone.
+  let existing = db.queryOne(
+    "select id from player.players where community_id = $1::uuid and id = $2::uuid",
+    @[textParam(communityId), textParam(playerId)])
+  if existing.isSome:
+    PatchResult(status: psDuplicate)
+  else:
+    PatchResult(status: psNotFound)
+
+proc remove*(db: Db, communityId, playerId: string): bool =
+  db.execUpdate(
+    """delete from player.players
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(playerId)]) > 0

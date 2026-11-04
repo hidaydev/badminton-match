@@ -21,6 +21,8 @@ import share/store as shareStore
 import session/write as sessionWrite
 import ws_ticket as wsTicket
 import platform/idempotency
+import player/domain/player as playerDomain
+import player/store as playerStore
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
@@ -538,7 +540,7 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   var patchBody: SessionPatch
   try:
-    patchBody = parsePatch(bodyJson(request))
+    patchBody = sessionWrite.parsePatch(bodyJson(request))
   except ValueError as error:
     problem(request, 400, "INVALID_PATCH", error.msg)
     return
@@ -796,6 +798,92 @@ proc communityConfig(request: Request, ctx: CommunityContext) =
       currentSettings(application.db, ctx.communityId))},
     [("Cache-Control", "no-store")])
 
+proc playerLimit(request: Request): int =
+  let fallback = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
+  let raw = request.queryParams["limit"]
+  if raw.len == 0:
+    return fallback
+  try:
+    let value = parseInt(raw)
+    if value < 1 or value > 1000:
+      return fallback
+    value
+  except ValueError:
+    fallback
+
+proc listPlayersRoute(request: Request, ctx: CommunityContext) =
+  let items = playerStore.list(application.db, ctx.communityId,
+    playerLimit(request), request.queryParams["cursor"],
+    request.queryParams["tier"], request.queryParams["q"])
+  var body = newJArray()
+  for item in items:
+    body.add(item)
+  jsonResponse(request, 200, %*{"items": body}, [("Cache-Control", "no-store")])
+
+proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) =
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  let name = if body.hasKey("name") and body["name"].kind == JString:
+    body["name"].getStr() else: ""
+  let gender = if body.hasKey("gender") and body["gender"].kind == JString:
+    body["gender"].getStr() else: "M"
+  let tier = if body.hasKey("tier") and body["tier"].kind == JString:
+    body["tier"].getStr() else: ""
+  let problems = playerDomain.checkCreate(name, gender, tier)
+  if problems.len > 0:
+    problem(request, 400, "INVALID_PLAYER", $problems[0])
+    return
+  let result = playerStore.create(application.db, ctx.communityId,
+    playerDomain.normalizeName(name), gender.toUpperAscii(),
+    if tier.len > 0: $playerDomain.parseTier(tier) else: "")
+  case result.status
+  of pcDuplicate:
+    problem(request, 409, "PLAYER_EXISTS", "a player with this name already exists")
+  of pcInvalid:
+    problem(request, 400, "INVALID_PLAYER", "cannot create player")
+  of pcOk:
+    audit("player.create", ctx.communityId, user, "player",
+      result.player["id"].getStr(), %*{"name": result.player["name"]})
+    jsonResponse(request, 201, result.player)
+
+proc getPlayerRoute(request: Request, ctx: CommunityContext, playerId: string) =
+  let player = playerStore.get(application.db, ctx.communityId, playerId)
+  if player.isNone:
+    problem(request, 404, "NOT_FOUND", "player not found")
+    return
+  jsonResponse(request, 200, player.get, [("Cache-Control", "no-store")])
+
+proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                      playerId: string) =
+  var patch: playerDomain.PlayerPatch
+  try:
+    patch = playerDomain.parsePatch(bodyJson(request))
+  except ValueError as error:
+    problem(request, 400, "INVALID_PLAYER", error.msg)
+    return
+  let result = playerStore.patch(application.db, ctx.communityId, playerId, patch)
+  case result.status
+  of psOk:
+    audit("player.patch", ctx.communityId, user, "player", playerId,
+      %*{"name": result.player["name"]})
+    jsonResponse(request, 200, result.player)
+  of psDuplicate:
+    problem(request, 409, "PLAYER_EXISTS", "a player with this name already exists")
+  of psNotFound:
+    problem(request, 404, "NOT_FOUND", "player not found")
+
+proc deletePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                       playerId: string) =
+  if not playerStore.remove(application.db, ctx.communityId, playerId):
+    problem(request, 404, "NOT_FOUND", "player not found")
+    return
+  audit("player.delete", ctx.communityId, user, "player", playerId)
+  send(request, 204, @[("Cache-Control", "no-store")], "")
+
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
   ## Re-display of the live code: host/admin only, and every read is audited.
@@ -1008,6 +1096,36 @@ proc route(request: Request) =
     if parts.len >= 3 and parts[1] == "ws":
       handleWebSocket(request, snapshot, parts)
       return
+    # /c/{slug}/players[/{id}]
+    if parts.len >= 4 and parts[1] == "c" and parts[3] == "players":
+      let user = currentUser(request)
+      if user.isNone:
+        problem(request, 401, "UNAUTHENTICATED", "login required")
+        return
+      let access =
+        if verb == "GET": readAccess()
+        elif verb == "DELETE": Access(isSession: true, roles: @[rAdmin])
+        else: writeAccess()
+      let (decision, ctx) = decide(user.get,
+        cookieValue(request, "majadu_session"), parts[2], access)
+      if decision != gAllowed:
+        respondGate(request, decision)
+        return
+      if parts.len == 4 and verb == "GET":
+        listPlayersRoute(request, ctx.get)
+        return
+      if parts.len == 4 and verb == "POST":
+        createPlayerRoute(request, ctx.get, user.get)
+        return
+      if parts.len == 5 and verb == "GET":
+        getPlayerRoute(request, ctx.get, parts[4])
+        return
+      if parts.len == 5 and verb == "PATCH":
+        patchPlayerRoute(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 5 and verb == "DELETE":
+        deletePlayerRoute(request, ctx.get, user.get, parts[4])
+        return
     # /c/{slug}/sessions[/{id}[/share]]
     if parts.len >= 4 and parts[1] == "c" and parts[3] == "sessions":
       let slug = parts[2]
