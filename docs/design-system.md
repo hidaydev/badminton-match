@@ -8,11 +8,12 @@
 |------|------|--------|----------|-------|
 | Body | IBM Plex Sans | 400, 500, 600, 700 | `font-sans` | All UI text |
 | Monospace | IBM Plex Mono | 400, 500 | `font-mono` | Labels, metadata, timestamps |
-| Decorative | Granesta + Edosz | — | — | Instagram canvas date overlay only |
+| Decorative | Road Rage + Edosz | — | — | Instagram canvas date overlay only |
 
-IBM Plex Sans/Mono dimuat via Google Fonts (`display=swap`); Granesta & Edosz
+IBM Plex Sans/Mono dimuat via Google Fonts (`display=swap`); Road Rage & Edosz
 self-hosted lewat `@font-face` di `apps/web/index.html`. Body uses `var(--font-sans)`.
-Granesta dan Edosz adalah berkas pihak ketiga — lihat `THIRD-PARTY-NOTICES.md`.
+Road Rage diterapkan dengan skew −9° agar posturnya menyerupai Granesta v1.
+Keduanya berkas pihak ketiga — lihat `THIRD-PARTY-NOTICES.md`.
 
 ## Color Tokens (Tailwind v4 `@theme`)
 

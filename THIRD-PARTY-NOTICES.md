@@ -9,13 +9,15 @@ Both files are self-hosted from `apps/web/public/` and are used only to draw the
 date overlay on exported social images. They are loaded by the `@font-face`
 rules in `apps/web/index.html`.
 
-### Granesta — `apps/web/public/Granesta.ttf`
+### Road Rage — `apps/web/public/road-rage.ttf`
 
-Copyright 2021 Ahmad Ramzi Fahruddin (Arterfak Project). All rights reserved.
+Copyright 2010 The Road Rage Project Authors
+(<https://github.com/googlefonts/road-rage>).
 
-The author distributes this font as free for **personal use only**. Commercial
-use requires a separate license from <https://arterfakproject.com>. The font
-file is included here unchanged; no license to it is granted by this repository.
+Licensed under the SIL Open Font License, Version 1.1. The full license text is
+shipped next to the font as `apps/web/public/road-rage-OFL.txt`. Use,
+modification and redistribution are permitted under those terms. The repository
+does not modify the font file, so the reserved font name is not at issue.
 
 ### Edo SZ — `apps/web/public/edosz.ttf`
 

@@ -1,7 +1,7 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/plan/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree 045c62f915c5e6563a1ecedff545cb50a3999adebcb37a4f6feaa6c3ac334261
+tree 9ea293ed4345e693c3cb8a1ed223b864712a1663f93cedf49c6bf201b81220a4
 
 # Nim toolchain
 nim 2.4.0 toolchain:nim -
@@ -32,4 +32,4 @@ webkit 2370 playwright-browser:webkit -
 
 # Locally served fonts (sha256 of the file bytes)
 edosz - repo:apps/web/public/edosz.ttf bc67cf1c852c6d4ffbb7bc8fb4cd702d293ee49bda3de12c94e3635d80a4d55b
-granesta - repo:apps/web/public/Granesta.ttf 045304f997847a2bfe618377e234dd10a9367eacd6230f1ea215535f3df7eaeb
+road-rage - repo:apps/web/public/road-rage.ttf 7bd3beb9130ce3a0ffc7585eac37fa82e7f6892802c4dbb33f07b09c24f14b55
