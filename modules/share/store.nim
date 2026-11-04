@@ -12,6 +12,7 @@ type
     sessionId*: string
     slug*: string
     communityName*: string
+    timezone*: string
     title*: string
     sessionDate*: string
     status*: string
@@ -68,7 +69,7 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     """select l.id as link_id, l.community_id, l.key_id, l.session_id,
               encode(l.code_enc,'hex') as code_enc,
               s.title, s.session_date::text as session_date, s.status,
-              c.slug, c.name
+              c.slug, c.name, c.timezone
        from session.links l
        join session.sessions s
          on s.community_id = l.community_id and s.id = l.session_id
@@ -91,6 +92,7 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     sessionId: value.get("session_id"),
     slug: value.get("slug"),
     communityName: value.get("name"),
+    timezone: value.get("timezone"),
     title: value.get("title"),
     sessionDate: value.get("session_date"),
     status: value.get("status"),

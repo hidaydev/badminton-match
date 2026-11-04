@@ -29,6 +29,7 @@ import player/merge as playerMerge
 import rating/domain/rating as ratingDomain
 import rating/infrastructure/ingest as ratingIngest
 import rating/infrastructure/params as ratingParams
+import rating/read as ratingRead
 import account/domain/audit
 import account/domain/roles
 import account/infrastructure/audit_store
@@ -1313,28 +1314,64 @@ proc getShared(request: Request, code: string) =
   jsonResponse(request, 200, shared.get,
     [("Cache-Control", "no-store"), ("X-Robots-Tag", "noindex")])
 
-proc rankings(request: Request, communityId: string) =
+proc communityToday(timezone: string): string =
+  ## The board window is a calendar question, so "today" is the community's day,
+  ## not the server's.
+  let row = application.db.queryOne(
+    "select (now() at time zone $1)::date::text as today",
+    @[textParam(timezone)])
+  row.get.get("today")
+
+proc boardItems(rows: seq[ratingRead.BoardRow]): JsonNode =
   var items = newJArray()
-  let limit = configSnapshot().intValue(%*{}, keyRankBoardLimit)
-  for row in application.db.query(
-    """select p.id, p.canonical_name, coalesce(ps.rating, 0) as rating
-       from player.players p
-       left join rating.player_state ps
-         on ps.community_id = p.community_id and ps.player_id = p.id
-       where p.community_id = $1
-       order by rating desc, p.canonical_name limit $2""",
-    @[textParam(communityId), intParam(limit.int64)]):
-    items.add(%*{"playerId": row.get("id"), "name": row.get("canonical_name"),
-      "rating": parseInt(row.get("rating"))})
-  jsonResponse(request, 200, %*{"items": items},
+  for index, row in rows:
+    items.add(%*{"rank": index + 1, "playerId": row.playerId, "name": row.name,
+      "tier": if row.tier.len == 0: newJNull() else: %row.tier,
+      "points": row.points, "games": row.games, "wins": row.wins,
+      "losses": row.losses})
+  items
+
+proc communityBoard(request: Request, communityId, timezone: string) =
+  let settings = currentSettings(application.db, communityId)
+  let params = ratingParams.loadRatingParams(configSnapshot(), settings)
+  let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
+  let rows = ratingRead.board(application.db, communityId,
+    communityToday(timezone), params, limit)
+  jsonResponse(request, 200, %*{"items": boardItems(rows),
+    "asOf": communityToday(timezone)}, [("Cache-Control", "no-store")])
+
+proc rankingPlayer(request: Request, ctx: CommunityContext, playerId: string) =
+  let params = ratingParamsFor(ctx)
+  let limit = configSnapshot().intValue(
+    currentSettings(application.db, ctx.communityId), keyRankBoardLimit)
+  let asOf = communityToday(ctx.timezone)
+  let entry = ratingRead.boardEntry(application.db, ctx.communityId, playerId,
+    asOf, params, limit)
+  if entry.isNone:
+    problem(request, 404, "NOT_FOUND", "player is not on the board")
+    return
+  let rank = ratingRead.rankOf(application.db, ctx.communityId, playerId, asOf,
+    params, limit)
+  jsonResponse(request, 200, %*{"rank": rank, "playerId": entry.get.playerId,
+    "name": entry.get.name,
+    "tier": if entry.get.tier.len == 0: newJNull() else: %entry.get.tier,
+    "points": entry.get.points, "games": entry.get.games,
+    "wins": entry.get.wins, "losses": entry.get.losses},
     [("Cache-Control", "no-store")])
+
+proc playerStats(request: Request, ctx: CommunityContext, playerId: string) =
+  let found = ratingRead.stats(application.db, ctx.communityId, playerId)
+  if found.isNone:
+    problem(request, 404, "NOT_FOUND", "player not found")
+    return
+  jsonResponse(request, 200, found.get, [("Cache-Control", "no-store")])
 
 proc getSharedRankings(request: Request, code: string) =
   let found = shareStore.resolve(application.db, application.keyring, code)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
-  rankings(request, found.get.communityId)
+  communityBoard(request, found.get.communityId, found.get.timezone)
 
 proc upgradeSocket(request: Request, snapshot: Snapshot, kind, channelId,
                    clientAddress: string) =
@@ -1513,6 +1550,9 @@ proc route(request: Request) =
         return
       if parts.len == 5 and verb == "DELETE":
         deletePlayerRoute(request, ctx.get, user.get, parts[4])
+        return
+      if parts.len == 6 and parts[5] == "stats" and verb == "GET":
+        playerStats(request, ctx.get, parts[4])
         return
       if parts.len == 6 and parts[5] == "merge" and verb == "POST":
         let admin = adminGate(request, parts[2])
@@ -1696,8 +1736,8 @@ proc route(request: Request) =
       else:
         problem(request, 405, "METHOD", "")
       return
-    # /c/{slug}/rankings
-    if parts.len == 4 and parts[1] == "c" and parts[3] == "rankings":
+    # /c/{slug}/rankings[/{playerId}]
+    if parts.len in [4, 5] and parts[1] == "c" and parts[3] == "rankings":
       let user = currentUser(request)
       if user.isNone:
         problem(request, 401, "UNAUTHENTICATED", "login required")
@@ -1707,7 +1747,10 @@ proc route(request: Request) =
       if decision != gAllowed:
         respondGate(request, decision)
         return
-      rankings(request, ctx.get.communityId)
+      if parts.len == 4:
+        communityBoard(request, ctx.get.communityId, ctx.get.timezone)
+      else:
+        rankingPlayer(request, ctx.get, parts[4])
       return
     # /s/{code} and /s/{code}/rankings
     if parts.len >= 3 and parts[1] == "s":

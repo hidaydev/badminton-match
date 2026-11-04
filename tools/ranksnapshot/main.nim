@@ -1,0 +1,58 @@
+import std/[json, options, os, strutils, tables]
+import db/db
+import platform/config/store
+import rating/infrastructure/params
+import rating/read
+
+const usage = """Usage: ranksnapshot [--as-of YYYY-MM-DD]
+
+Writes one rating.snapshots row per player on today's board, for every
+community. Re-running on the same day overwrites instead of duplicating.
+
+Requires MAJADU_PG_DSN; the community timezone decides what "today" is."""
+
+proc fail(message: string) {.noreturn.} =
+  stderr.writeLine "ranksnapshot: " & message
+  quit(2)
+
+proc communitySettings(db: Db, communityId: string): JsonNode =
+  let row = db.queryOne(
+    """select values::text as values from community.settings
+       where community_id = $1::uuid""", @[textParam(communityId)])
+  if row.isSome: parseJson(row.get.get("values")) else: newJObject()
+
+proc today(db: Db, timezone: string): string =
+  let row = db.queryOne(
+    "select (now() at time zone $1)::date::text as today",
+    @[textParam(timezone)])
+  row.get.get("today")
+
+proc main() =
+  var asOf = ""
+  if paramCount() == 2 and paramStr(1) == "--as-of":
+    asOf = paramStr(2)
+  elif paramCount() > 0:
+    echo usage
+    quit(2)
+  let dsn = getEnv("MAJADU_PG_DSN")
+  if dsn.len == 0:
+    fail "MAJADU_PG_DSN is required"
+  let db = openDb(dsn, 1)
+  defer: db.close()
+
+  let snapshot = loadSnapshot(db)
+  let limit = snapshot.values[$keyRankBoardLimit].getInt()
+  var communities, players = 0
+  for row in db.query("select id, timezone from platform.community order by slug"):
+    let communityId = row.get("id")
+    let settings = communitySettings(db, communityId)
+    let params = loadRatingParams(snapshot, settings)
+    let day = if asOf.len > 0: asOf else: today(db, row.get("timezone"))
+    let rows = board(db, communityId, day, params, limit)
+    discard writeSnapshot(db, communityId, day, rows)
+    inc communities
+    players += rows.len
+  echo $(%*{"communities": communities, "rows": players})
+
+when isMainModule:
+  main()
