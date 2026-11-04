@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ApiError } from '../auth/api'
 import { getSession, getSessionStandings, listSessions } from './api'
 import type { SessionBoard, SessionDetail, SessionMeta } from './api'
@@ -31,10 +31,15 @@ export function useSession(
   board: SessionBoard | null
   loading: boolean
   error: SessionsError | null
+  reload: () => void
 } {
   const requestKey = slug === null || id === null ? null : requestKeyFor(slug, id)
   const [session, setSession] = useState<Settled<SessionDetail>>(unresolved)
   const [board, setBoard] = useState<Settled<SessionBoard>>(unresolved)
+  const [reloadCount, setReloadCount] = useState(0)
+  // Every write bumps the session version, so the page re-reads instead of
+  // guessing what the server now holds.
+  const reload = useCallback(() => setReloadCount((count) => count + 1), [])
 
   useEffect(() => {
     if (slug === null || id === null || requestKey === null) return
@@ -59,7 +64,7 @@ export function useSession(
     return () => {
       active = false
     }
-  }, [slug, id, requestKey])
+  }, [slug, id, requestKey, reloadCount])
 
   const sessionCurrent = requestKey !== null && session.requestKey === requestKey
   const boardCurrent = requestKey !== null && board.requestKey === requestKey
@@ -69,6 +74,7 @@ export function useSession(
     board: boardCurrent ? board.value : null,
     loading: requestKey !== null && !sessionCurrent,
     error: sessionCurrent ? session.error : null,
+    reload,
   }
 }
 

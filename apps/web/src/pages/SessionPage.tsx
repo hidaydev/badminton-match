@@ -1,11 +1,16 @@
 import { Link, useParams } from 'react-router-dom'
+import { useCommunity } from '../community/CommunityContext'
 import { t } from '../i18n'
+import SessionAdmin from '../sessions/SessionAdmin'
 import { useSession } from '../sessions/hooks'
 
 /** One session: who plays, the games and the board, in one read. */
 export default function SessionPage() {
   const { slug = '', id = '' } = useParams<{ slug: string; id: string }>()
-  const { session, board, loading, error } = useSession(
+  const { memberships } = useCommunity()
+  const role = memberships.find((candidate) => candidate.slug === slug)?.role ?? null
+  const canManage = role === 'host' || role === 'admin'
+  const { session, board, loading, error, reload } = useSession(
     slug === '' ? null : slug,
     id === '' ? null : id,
   )
@@ -174,6 +179,10 @@ export default function SessionPage() {
             </div>
           )}
         </>
+      )}
+
+      {canManage && session !== null && (
+        <SessionAdmin slug={slug} session={session} onChange={reload} />
       )}
     </section>
   )
