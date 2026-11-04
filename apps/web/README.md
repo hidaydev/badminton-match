@@ -1,283 +1,83 @@
-# 🏸 Majadu
-
-**Badminton session operations — from planning to podium.**
-
-<!-- vercel-build-trigger -->
-![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
-![Go](https://img.shields.io/badge/Backend-Go-00ADD8?style=flat-square&logo=go&logoColor=white)
-![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=flat-square)
-
----
-
-Majadu is a **mobile-first PWA** for running badminton sessions end-to-end. Configure courts and players, generate balanced doubles schedules with quality scoring, run live scoring with real-time sync, manage tournaments (classic & team), track **rank points on a rolling 12-week leaderboard (8-tier bands)**, and export branded social media content — all from one installable app.
-
----
-
-## ✨ Features
-
-### Session Lifecycle
-
-| Step | What happens |
-|------|-------------|
-| **Setup** | Configure title, date, courts (1–6), players (4–60), game duration, per-court time windows with visual timeline |
-| **Players** | Add individually or bulk-import from text. Gender (M/F), skill tier (**8-tier: D..A+**, sticky), inline rename, TBD slots |
-| **Constraints** | Define forced pairings — **flexible** (generator picks slot) or **pinned** (locked to time + court) |
-| **Generate** | 5-phase scheduling engine with quality analysis, retry logic, and 8-level tier balancing |
-
-### Live Session Management
-
-Publish and share via URL. Full operations console:
-
-- 📊 Toggle played status & enter scores
-- 🔄 Swap players, teams, or game slots
-- 👤 Change individual players with cross-slot conflict detection
-- 🚫 Mark absences (game still counts — absent player earns no points)
-- 📈 Per-player stats (play count, sit count, partners, opponents)
-- 🔒 Lock session to prevent edits (server-enforced; auto-locks on save when all scores entered)
-- 💾 Auto-save with debounced cloud sync and version-mismatch retry
-
-### Ratings & Leaderboard
-
-- **Rank points** engine (server-authoritative, idempotent, auditable): rolling 12-week window, best 10 sessions
-- **8-tier bands** (D, D+, C, C+, B, B+, A, A+) — assigned tier never demotes below its letter
-- Player detail: rank points, recent matches, and **career stats** (sessions, partners, opponents) in one place
-
-### Tournament Manager
-
-- **Classic**: 16 pairs → 4 groups → round-robin → knockout bracket (QF → SF → 3rd → Final)
-- **Team**: 36 players (6 classes × 6 teams), manual team assignment in wizard
-- 9 group matches + 1 final, 3 courts per match (editable court names)
-- Editable team names in standings, member display, champion banner with trophy
-- PIC (person-in-charge) assignment · standings with head-to-head tiebreakers
-
-### Admin Area
-
-- Login once (password) — admin menus appear right on the home page
-- Unlock/delete sessions · ingest/revert/rebuild ratings
-- Player management: add, rename, change tier, delete · delete tournaments
-
-### Social Export
-
-- Instagram post (1080×1350) and story (1080×1920) formats
-- Upload photos with drag-to-reposition and pinch-to-zoom
-- Leaderboard and tournament bracket visuals
-- Branded templates with custom fonts
-
-### Scoreboard
-
-- Standalone fullscreen scoreboard with landscape lock
-- Red/Blue sides with tap-to-increment
-- Usable as overlay within tournament scoring
-
----
-
-## 🛠 Tech Stack
-
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| **Framework** | React 19 + TypeScript 6 | Latest React with full type safety |
-| **Build** | Vite 8 | Instant HMR, optimized builds |
-| **Styling** | Tailwind CSS v4 | Semantic design tokens via `@theme` |
-| **Typography** | IBM Plex Sans | Clean, accessible, professional |
-| **Local State** | Zustand 5 (sliced) | Minimal boilerplate, persist middleware |
-| **Server State** | TanStack React Query 5 | Optimistic updates, smart caching |
-| **Routing** | React Router v7 | File-based route guards |
-| **Backend** | Go (`apps/api` — monorepo) | REST + Postgres, optimistic concurrency |
-| **PWA** | vite-plugin-pwa | Installable, offline-capable |
-| **DnD** | @dnd-kit/core | Accessible drag-and-drop |
-| **Testing** | node:test (regression) + Go tests | `pnpm run check` · `make check-api` (apps/api) |
-
----
-
-## 🚀 Quick Start
-
-```bash
-# 1. Install dependencies (from the monorepo root)
-pnpm install
-
-# 2. Configure environment (opsional — override API base URL)
-cp .env.local.example .env.local
-# Default: prod https://api.qouver.com/majadu (lihat vite.config.ts).
-# Override VITE_API_URL untuk local dev, mis. http://localhost:8080.
-
-# 3. Backend (opsional untuk full-stack local)
-# Jalankan apps/api dari root monorepo: make dev-api (butuh DATABASE_URL, schema bm).
-
-# 4. Start development
-pnpm run dev
-```
-
-The app runs at `http://localhost:5173` by default.
-
----
-
-## 📜 Scripts
-
-| Command | Description |
-|---------|-------------|
-| `pnpm run dev` | Start dev server with Vite HMR |
-| `pnpm run build` | Type-check + production build |
-| `pnpm run check` | Full validation: types + lint + tailwind + regression tests |
-| `pnpm run check:regression` | Regression tests only (node:test) |
-
----
-
-## 📁 Project Structure
-
-```
-src/
-├── types/              # Domain types (zero dependencies)
-├── config/             # Generator weights, canvas dims, 8-tier config, design tokens
-├── i18n/               # Skeleton i18n (typed en dict, t()/useT(), zero deps)
-├── generator/          # 5-phase schedule engine (pure TypeScript, zero store deps)
-├── utils/              # Pure utilities: time, quality, standings, swap, canvas, stats
-├── queries/            # React Query hooks + REST client (majadu-api)
-│   ├── endpoints.ts    # Raw REST fetch functions (retry method-aware)
-│   ├── retry.ts        # Retry policy murni (testable)
-│   ├── sessions.ts     # Session mutation/query hooks
-│   ├── ratings.ts      # Rank points / rating hooks
-│   ├── useOptimisticMutation.ts  # Factory hook for optimistic updates
-│   └── types.ts        # CloudSnapshot, SessionMeta, PlayerSummary types
-├── store/              # Zustand 5 slices (session, players, fixMatches, schedule, ui)
-├── hooks/              # Custom hooks (useDebouncedPublish, etc.)
-├── components/         # UI components
-│   ├── summary/        #   SummaryModal sub-components
-│   ├── tournament/     #   Tournament tab components
-│   ├── generate/       #   Schedule view components
-│   ├── ratings/        #   RatingTierBadge, CareerStats, achievements
-│   └── admin/          #   AdminMenuGrid (home)
-├── pages/              # Route pages
-└── index.css           # Tailwind v4 @theme tokens + global styles
-
-scripts/                # Build & dev tooling (canvas export, tailwind check, regression tests)
-../docs/                # Handbook + design system + spec archive (monorepo-level)
-```
-
-Migrasi SQL `000001`–`000012` disimpan di VPS (repo public tanpa SQL):
-`/srv/qouver/apps/majadu/migrations/`. Migrasi `000013`–`000023` di
-[`docs/backend/`](../../docs/backend/).
-
----
-
-## 🏗 Architecture
-
-```
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  Presentation    │     │  Domain Logic    │     │  Infrastructure  │
-│  (Pages / UI)    │────▶│  (Generator /    │────▶│  (Go backend via  │
-│                  │     │   Utils)         │     │   REST)           │
-└──────────────────┘     └──────────────────┘     └──────────────────┘
-        │                        │                        │
-   Zustand store           Pure functions           REST client
-   React Query             Zero store deps         Optimistic updates
-   Route guards            Injected config         Version concurrency
-```
-
-Backend: `apps/api` (Go, `net/http` + pgx). Spec `apps/api/api/openapi.yaml` bersifat
-parsial (16 dari 48 route); daftar lengkap ada di `apps/api/cmd/server/main.go`.
-
-**Dependency rules:**
-
-- `types/` → zero imports (leaf node)
-- `generator/` + `utils/` → import only from `types/` and `config/`
-- `queries/` → imports from `types/`, `config/`, `utils/` (never from `store/`)
-- `store/` → imports from `types/`, `config/`, `utils/` (never from `queries/`)
-- `pages/` → can import from anywhere
-
-**Key patterns:**
-
-- **Optimistic mutation factory** — `useOptimisticSessionMutation` eliminates boilerplate across 7+ hooks
-- **Snapshot-based persistence** — full session state as `CloudSnapshot` JSON, version concurrency control
-- **Debounced cloud publishing** — batches rapid changes (300ms trailing, 1s max delay)
-- **Branded types** — `PlayerId`, `TimeString`, `GameKey` for type safety without runtime overhead
-- **5-phase generator** — pinned → merge → spread → flexible → greedy fill with injectable scoring weights
-
----
-
-## 🎨 Design System
-
-Semantic design tokens defined in Tailwind v4 `@theme`:
-
-| Token | Hex | Role |
-|-------|-----|------|
-| `--color-ground` | `#0b0e13` | Page background |
-| `--color-surface` | `#14181f` | Cards, panels |
-| `--color-elevated` | `#1c212b` | Inputs, inner cards |
-| `--color-border` | `#2a313c` | Visible borders |
-| `--color-border-subtle` | `#22272f` | Dividers, card borders |
-| `--color-fg` | `#eef0f3` | Primary text |
-| `--color-fg-dim` | `#8b939c` | Secondary text |
-| `--color-accent` | `#e3b341` | Brand, CTA (gold) |
-| `--color-success` | `#43a57d` | Positive states |
-| `--color-error` | `#d65a5a` | Errors, destructive |
-
-Full reference: [docs/design-system.md](../../docs/design-system.md)
-
----
-
-## 🔒 Security Model
-
-| Endpoint | Access | Behavior |
-|----------|--------|----------|
-| `GET /sessions` · `GET /sessions/{id}` | anon | Read-only list / snapshot |
-| `PUT /sessions/{id}` | anon | Rejects writes when status ≠ 'draft' (lock) |
-| `DELETE /sessions/{id}` | **admin** | Draft sessions only |
-| `POST /sessions/{id}/lock` | **admin** | Lock a session (server-enforced) |
-| `POST /sessions/{id}/unlock` · `/delete` | **admin** | AdminGuard (Bearer `MAJADU_ADMIN_TOKEN`) |
-| `POST /tournaments/{id}/delete` | **admin** | Delete + rating cleanup + rebuild |
-| `POST /players` | anon | Register (TOCTOU-safe; optional 8-tier) |
-| `PATCH /players/{id}/tier` · `/name` · `DELETE /players/{id}` | **admin** | Tier change (+rebuild) · rename · delete |
-| `POST /ratings/*` (ingest/revert/finalize/rebuild/replay/backfill) | **admin** | Bearer token |
-| `GET /rankings` · `GET /ratings/*` | anon | Public read (rank points board, player, achievements, sources) |
-
-Concurrency: advisory locks (`pg_try_advisory_xact_lock` / `pg_advisory_xact_lock`) +
-`SELECT ... FOR UPDATE NOWAIT` + optimistic `If-Match`/ETag. Auth (JWT) is deferred —
-single shared admin token; see `docs/handbook/backend-go-decision.md`.
-
----
-
-## 📚 Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Handbook](../../docs/handbook/README.md) | Start here for project context |
-| [Current Status](../../docs/handbook/current-status.md) | Latest state + handover doc |
-| [Architecture](../../docs/handbook/architecture.md) | System design + clean architecture |
-| [Data Model](../../docs/handbook/data-model.md) | Schema & TypeScript types |
-| [Design System](../../docs/design-system.md) | Colors, typography, tokens, patterns |
-| [Features & Routes](../../docs/handbook/features-and-routes.md) | Feature map + route structure |
-| [Roadmap](../../docs/handbook/roadmap.md) | Phase plan and status |
-| [Backend](../../docs/handbook/backend-go-decision.md) | Keputusan arsitektur & fase migrasi Go |
-
----
-
-## 📱 PWA
-
-Majadu is installable as a Progressive Web App:
-
-- **Android/Desktop**: Browser shows install prompt automatically
-- **iOS**: Share → "Add to Home Screen"
-- **Updates**: Prompt-based update banner when new version is available
-- **Offline**: Workbox precaching + `navigateFallback` allows 100% offline session creation; automatic SSE catch-up refetch when network reconnects.
-
----
-
-## 🧪 Testing
-
-```bash
-# Type checking + linting + tailwind validation + regression tests
-pnpm run check
-
-# Backend checks live in apps/api — from repo root: make check-api
-# (go vet + fmt + unit test). Env-guarded integration tests butuh SSH tunnel
-# ke Postgres VPS (lihat apps/api/README.md).
-```
-
----
-
-## 📄 License
-
-MIT — see [LICENSE](../../LICENSE).
+# Majadu web (v2 shell)
+
+React 19 + Vite + Tailwind 4. This app is the **shell only**: authentication,
+community picker, route manifest, and i18n. Feature screens are placeholders
+(`src/pages/PlaceholderPage.tsx`) until their tasks land.
+
+## Scripts
+
+| Command | Purpose |
+|---------|---------|
+| `pnpm dev` | Vite dev server on port 5173 with the `/api` proxy |
+| `pnpm build` | Type-check (`tsc -b`) and build to `dist/` |
+| `pnpm check:types` | `tsc -b --pretty false` |
+| `pnpm check:lint` | ESLint |
+| `pnpm test` | Vitest (jsdom) |
+
+## Login flow
+
+1. `GET /api/auth/me` decides whether a session exists. `401` renders the login
+   screen; anything else renders the shell.
+2. `POST /api/auth/start` with `{ returnTo }` (current path, same origin) returns
+   `{ authorizeUrl }`; the browser navigates there.
+3. Google redirects to `GET /api/auth/callback`, the API exchanges the code
+   server-side and sets the session cookie.
+4. `POST /api/auth/logout` revokes the session and clears local state.
+
+The only session storage is the `__Host-` `HttpOnly` cookie. `src/auth/api.ts`
+sends `credentials: 'include'` on every call and never touches
+`localStorage`/`sessionStorage`. A test asserts both stores stay empty.
+
+The bundle also sends `X-API-Version: 2` (`API_VERSION` in `src/auth/api.ts`) so
+the API can reject outdated clients with `410 CLIENT_OUTDATED`. The header name
+is provisional until the generated contract pins it.
+
+## `/api` proxy
+
+The browser never calls `api.qouver.com` for HTTP (ADR-021), so the session
+cookie stays first-party:
+
+- dev: `vite.config.ts` proxies `/api` to `http://127.0.0.1:8080` and strips the
+  `/api` prefix (the API itself has no prefix).
+- prod/preview: `vercel.json` rewrites `/api/:path*` to
+  `https://api.qouver.com/:path*` **before** the SPA catch-all.
+
+Set `VITE_API_BASE` to bypass both (for example `https://api.qouver.com`). Unset,
+the client uses the same-origin `/api` path. Copy `.env.local.example` to
+`.env.local` for local overrides.
+
+## Vercel configuration
+
+- No environment variable is required for the shell; `VITE_API_BASE` is optional
+  and should stay unset on Vercel.
+- The API must allow this origin in `security.allowed_origins` and register
+  `<origin>/api/auth/callback` as the OIDC redirect URI.
+- `vercel.json` also sets `Cache-Control: no-store` for `/`, `/index.html`, and
+  `/s/*`, `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex` everywhere,
+  and immutable caching under `/assets/*`.
+
+### Not verifiable from this repo
+
+The `Set-Cookie` path through the Vercel proxy must be checked on a **staging
+alias that is registered as an OIDC redirect URI** — not on a random preview
+deployment, whose host differs from the authenticated origin. That verification
+is an operational step for whoever deploys; it cannot be proven by the tests
+here.
+
+## Layout
+
+- `src/App.tsx` — auth gate plus routes generated from the manifest. Later tasks
+  add pages there, not here.
+- `src/routes.manifest.ts` — single route list (`path`, `labelKey`, `element`,
+  `requiresAuth`, `roles`, `platformOwner`, `navGroup`). `visibleNav()` filters
+  nav entries by the role from `GET /communities`; the platform owner sees
+  owner-only entries but no community admin entry without an admin membership.
+- `src/i18n/` — every user-visible string lives in `en.ts`; `t(key, vars?)` is
+  typed by `MessageKey`. A test parses each `.tsx` file and fails on hardcoded
+  JSX text or literal `placeholder`/`aria-label`/`title`/`alt` values.
+
+## Visual direction
+
+The two shell screens (login, community picker) use only the tokens in
+`docs/design-system.md`. There is no product-level screen design for them yet, so
+they are kept plain: **draft without direction**.

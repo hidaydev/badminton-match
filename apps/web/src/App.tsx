@@ -1,147 +1,56 @@
-import { useState, useCallback, useMemo, Suspense } from 'react'
-import { safeLazy } from './utils/safeLazy'
-import { AdminProvider } from './context/AdminContext'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useRegisterSW } from 'virtual:pwa-register/react'
-import UpdateBanner from './components/UpdateBanner'
-import CelebrationOverlay from './components/CelebrationOverlay'
-import ErrorBoundary from './components/ErrorBoundary'
-import HomeLayout from './components/HomeLayout'
-import GlobalAmbiguousNames from './context/GlobalAmbiguousNames'
-import SessionLayout from './components/SessionLayout'
-import HomePage from './pages/HomePage'
-import SetupPage from './pages/SetupPage'
-import PlayersPage from './pages/PlayersPage'
-import ConstraintsPage from './pages/ConstraintsPage'
-import GeneratePage from './pages/GeneratePage'
-import SessionListPage from './pages/SessionListPage'
-import { useStore } from './store'
-import { decodeSnapshot, type SharedSnapshot } from './utils/shareUrl'
-import { SharedViewContext, useSharedView } from './sharedView'
-
-// Lazy-loaded heavy pages (code-split, wrapped with safeLazy for automatic reload on stale chunk)
-const ScoreboardPage = safeLazy(() => import('./pages/ScoreboardPage'))
-const InstagramPostPage = safeLazy(() => import('./pages/InstagramPostPage'))
-const TournamentPage = safeLazy(() => import('./pages/TournamentRouter'))
-const TournamentListPage = safeLazy(() => import('./pages/TournamentListPage'))
-const RankingsPage = safeLazy(() => import('./pages/RankingsPage'))
-const AdminSessionsPage = safeLazy(() => import('./pages/admin/AdminSessionsPage'))
-const AdminPlayersPage = safeLazy(() => import('./pages/admin/AdminPlayersPage'))
-const AdminRatingsPage = safeLazy(() => import('./pages/admin/AdminRatingsPage'))
-const AdminTournamentsPage = safeLazy(() => import('./pages/admin/AdminTournamentsPage'))
-const RatingPlayerPage = safeLazy(() => import('./pages/RatingPlayerPage'))
-const AchievementBadgesPreviewPage = safeLazy(() => import('./pages/AchievementBadgesPreviewPage'))
-const MatchResultPreview = safeLazy(() => import('./pages/MatchResultPreview'))
-const SessionPreviewPage = safeLazy(() => import('./pages/SessionPreviewPage'))
-const NewTournamentPage = safeLazy(() => import('./pages/NewTournamentPage'))
-const NewTournamentWizard = safeLazy(() => import('./pages/NewTournamentWizard'))
-const SharedSessionPage = safeLazy(() => import('./pages/SharedSessionPage'))
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from './auth/AuthProvider'
+import { useAuth } from './auth/AuthContext'
+import AppNav from './components/AppNav'
+import { t } from './i18n'
+import LoginPage from './pages/LoginPage'
+import { routes } from './routes.manifest'
+import type { RouteEntry } from './routes.manifest'
 
 function Loading() {
   return (
     <div className="min-h-screen bg-ground text-fg flex items-center justify-center">
-      <span className="text-fg-dim text-sm">Loading…</span>
+      <span className="text-sm text-fg-dim">{t('app.loading')}</span>
     </div>
   )
 }
 
-function RequireSession({ children }: { children: React.ReactNode }) {
-  const locked = useStore((s) => s.session.locked)
-  return locked ? <>{children}</> : <Navigate to="/session/new" replace />
+/** Public entries (shared session links) render outside the session gate. */
+function RouteElement({ route }: { route: RouteEntry }) {
+  const { user, loading } = useAuth()
+  if (!route.requiresAuth) return route.element
+  if (loading) return <Loading />
+  if (!user) return <LoginPage />
+  return route.element
 }
 
-function RequirePlayers({ children }: { children: React.ReactNode }) {
-  const locked = useStore((s) => s.session.locked)
-  const players = useStore((s) => s.players)
-  const required = useStore((s) => s.session.playerCount)
-  if (!locked) return <Navigate to="/session/new" replace />
-  // Guard against playerCount=0 (edge case) — treat as incomplete
-  if (required <= 0 || players.length !== required) return <Navigate to="/session/players" replace />
-  return <>{children}</>
-}
-
-function SharedViewPage() {
-  const { isSharedView } = useSharedView()
-  if (!isSharedView) return <Navigate to="/" replace />
-  return <GeneratePage />
+function Shell() {
+  const { user } = useAuth()
+  return (
+    <div className="min-h-screen bg-ground text-fg">
+      {user && <AppNav />}
+      <main>
+        <Routes>
+          {routes.map((route) => (
+            <Route
+              key={route.path}
+              path={route.path}
+              element={<RouteElement route={route} />}
+            />
+          ))}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+    </div>
+  )
 }
 
 export default function App() {
-  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW()
-  const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
-    decodeSnapshot(window.location.hash)
-  )
-  const [showCelebration, setShowCelebration] = useState(
-    () => !sessionStorage.getItem('celebration-shown')
-  )
-
-  const exitSharedView = useCallback(() => {
-    window.location.href = window.location.origin + '/'
-  }, [])
-
-  const sharedViewValue = useMemo(() => ({
-    snapshot: sharedSnapshot,
-    isSharedView: !!sharedSnapshot,
-    exitSharedView,
-  }), [sharedSnapshot, exitSharedView])
-
   return (
-    <ErrorBoundary routeName="app">
-    <SharedViewContext.Provider value={sharedViewValue}>
-      {showCelebration && (
-        <CelebrationOverlay onDismiss={() => { sessionStorage.setItem('celebration-shown', '1'); setShowCelebration(false) }} />
-      )}
-      {needRefresh && (
-        <UpdateBanner
-          onReload={() => updateServiceWorker(true)}
-          onDismiss={() => setNeedRefresh(false)}
-        />
-      )}
-      <AdminProvider><BrowserRouter>
-        {/* Badge "(i)" harus bekerja di SEMUA layar. Provider per-halaman hanya
-            dipasang di 3 tempat, sehingga nama ambigu tampil tanpa pembeda di
-            halaman lain (mis. dua "Arya" di papan ranking). Default global dari
-            seluruh populasi pemain; halaman boleh menimpanya. */}
-        <GlobalAmbiguousNames>
-        <Routes>
-          <Route element={<HomeLayout />}>
-            <Route index element={<HomePage />} />
-            <Route path="sessions" element={<SessionListPage />} />
-            <Route path="rankings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rankings"><RankingsPage /></ErrorBoundary></Suspense>} />
-            <Route path="rankings/:playerId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rankings-player"><RatingPlayerPage /></ErrorBoundary></Suspense>} />
-            {/* Tautan lama tetap hidup: /ratings adalah alamat yang sudah beredar. */}
-            <Route path="ratings" element={<Navigate to="/rankings" replace />} />
-            <Route path="ratings/:playerId" element={<Navigate to="/rankings" replace />} />
-            <Route path="dev/achievement-badges" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="achievement-badges-preview"><AchievementBadgesPreviewPage /></ErrorBoundary></Suspense>} />
-            <Route path="dev/match-result-preview" element={<Suspense fallback={<Loading />}><MatchResultPreview /></Suspense>} />
-            <Route path="dev/session-preview" element={<Suspense fallback={<Loading />}><SessionPreviewPage /></Suspense>} />
-            <Route path="tournament" element={<Navigate to="/tournaments" replace />} />
-            <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-list"><TournamentListPage /></ErrorBoundary></Suspense>} />
-            <Route path="tournaments/new" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-new"><NewTournamentPage /></ErrorBoundary></Suspense>} />
-            <Route path="tournaments/new/:format" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-wizard"><NewTournamentWizard /></ErrorBoundary></Suspense>} />
-            <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament"><TournamentPage /></ErrorBoundary></Suspense>} />
-            <Route path="instagram-post" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="instagram-post"><InstagramPostPage /></ErrorBoundary></Suspense>} />
-            <Route path="admin">
-              <Route index element={<Navigate to="/admin/sessions" replace />} />
-              <Route path="sessions" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-sessions"><AdminSessionsPage /></ErrorBoundary></Suspense>} />
-              <Route path="players" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-players"><AdminPlayersPage /></ErrorBoundary></Suspense>} />
-              <Route path="ratings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-ratings"><AdminRatingsPage /></ErrorBoundary></Suspense>} />
-              <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-tournaments"><AdminTournamentsPage /></ErrorBoundary></Suspense>} />
-            </Route>
-          </Route>
-          <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="scoreboard"><ScoreboardPage /></ErrorBoundary></Suspense>} />
-          <Route element={<SessionLayout />}>
-            <Route path="session/new" element={<SetupPage />} />
-            <Route path="session/players" element={<RequireSession><PlayersPage /></RequireSession>} />
-            <Route path="session/constraints" element={<RequirePlayers><ConstraintsPage /></RequirePlayers>} />
-            <Route path="session/generate" element={<RequirePlayers><GeneratePage /></RequirePlayers>} />
-            <Route path="view" element={<SharedViewPage />} />
-          </Route>
-          <Route path="s/:sessionId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="shared-session"><SharedSessionPage /></ErrorBoundary></Suspense>} />
-        </Routes>
-        </GlobalAmbiguousNames>
-      </BrowserRouter></AdminProvider>
-    </SharedViewContext.Provider>
-    </ErrorBoundary>
+    <AuthProvider>
+      <BrowserRouter>
+        <Shell />
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
