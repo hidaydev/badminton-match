@@ -14,6 +14,10 @@ proc params(): RatingParams =
   RatingParams(sessionBase: 250, scoreTarget: 21, opponentClampLow: 0.5,
     opponentClampHigh: 1.5, windowWeeks: 12, bestN: 10, thinEvidenceN: 3)
 
+proc query(tier = ""): BoardQuery =
+  BoardQuery(communityId: communityId, asOf: "2026-11-04", params: params(),
+    limit: 200, tier: tier)
+
 proc cleanup() =
   for statement in [
     """delete from rating.snapshots where community_id in
@@ -71,8 +75,7 @@ seed()
 
 suite "ranking read":
   test "the board is capped, ordered and only counts the window":
-    let rows = board(database, communityId, "2026-11-04", params(),
-      200)
+    let rows = board(database, query())
     check rows.len == 200
     for index in 1 ..< rows.len:
       check rows[index - 1].points >= rows[index].points
@@ -89,8 +92,7 @@ suite "ranking read":
            where d.community_id = $1::uuid and d.player_id = $2::uuid
              and e.local_date > current_date - 84""",
         @[textParam(communityId), textParam(oldest.get.get("player_id"))])
-      let entry = boardEntry(database, communityId,
-        oldest.get.get("player_id"), "2026-11-04", params(), 200)
+      let entry = boardEntry(database, query(), oldest.get.get("player_id"))
       check entry.isSome
       check entry.get.points == parseInt(points.get.get("points"))
 
@@ -115,14 +117,13 @@ suite "ranking read":
              and e.local_date > current_date - 84
            order by delta desc limit 10) best""",
       @[textParam(communityId), textParam(heavy)])
-    let entry = boardEntry(database, communityId, heavy, "2026-11-04",
-      params(), 200)
+    let entry = boardEntry(database, query(), heavy)
     check entry.isSome
     check entry.get.points == parseInt(expected.get.get("points"))
-    check rankOf(database, communityId, heavy, "2026-11-04", params(), 200) == 1
+    check rankOf(database, query(), heavy) == 1
 
   test "a snapshot matches the board on the same day":
-    let rows = board(database, communityId, "2026-11-04", params(), 200)
+    let rows = board(database, query())
     check writeSnapshot(database, communityId, "2026-11-04", rows) == rows.len
     check writeSnapshot(database, communityId, "2026-11-04", rows) == rows.len
     let snapshot = snapshotRows(database, communityId, "2026-11-04")
@@ -130,6 +131,14 @@ suite "ranking read":
     for index in 0 ..< rows.len:
       check snapshot[index].playerId == rows[index].playerId
       check snapshot[index].points == rows[index].points
+
+  test "a tier filter narrows the board in SQL":
+    let all = board(database, query())
+    let filtered = board(database, query("B"))
+    check filtered.len > 0
+    check filtered.len < all.len
+    for row in filtered:
+      check row.tier == "B"
 
   test "stats and unknown players":
     let found = stats(database, communityId, players[0])

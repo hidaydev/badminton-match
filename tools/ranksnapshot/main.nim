@@ -48,7 +48,8 @@ proc main() =
     let settings = communitySettings(db, communityId)
     let params = loadRatingParams(snapshot, settings)
     let day = if asOf.len > 0: asOf else: today(db, row.get("timezone"))
-    let rows = board(db, communityId, day, params, limit)
+    let rows = board(db, BoardQuery(communityId: communityId, asOf: day,
+      params: params, limit: limit, tier: ""))
     discard writeSnapshot(db, communityId, day, rows)
     inc communities
     players += rows.len

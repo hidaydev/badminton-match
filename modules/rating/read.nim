@@ -12,8 +12,16 @@ type
     wins*: int
     losses*: int
 
-proc boardRows(db: Db, communityId, asOf: string, params: RatingParams,
-               limit: int): seq[BoardRow] =
+  BoardQuery* = object
+    ## Everything a board read needs. The tier filter is optional and empty
+    ## means "no filter"; it is applied in SQL, never in the caller.
+    communityId*: string
+    asOf*: string
+    params*: RatingParams
+    limit*: int
+    tier*: string
+
+proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
   ## Points are the sum of the player's best entries inside the rolling window;
   ## only players with enough evidence reach the board, and the board is capped
   ## by `rank.board_limit`.
@@ -35,12 +43,15 @@ proc boardRows(db: Db, communityId, asOf: string, params: RatingParams,
          on s.community_id = p.community_id and s.player_id = p.id
        left join windowed w on w.player_id = p.id and w.rn <= $4
        where p.community_id = $1::uuid and s.games_played >= $5
+         and ($7::text = '' or coalesce(p.tier, '') = $7)
        group by p.id, p.canonical_name, p.tier, s.games_played, s.wins, s.losses
        order by points desc, p.canonical_name asc
        limit $6""",
-    @[textParam(communityId), textParam(asOf), intParam(params.windowWeeks.int64),
-      intParam(params.bestN.int64), intParam(params.thinEvidenceN.int64),
-      intParam(limit.int64)]):
+    @[textParam(query.communityId), textParam(query.asOf),
+      intParam(query.params.windowWeeks.int64),
+      intParam(query.params.bestN.int64),
+      intParam(query.params.thinEvidenceN.int64),
+      intParam(query.limit.int64), textParam(query.tier)]):
     result.add(BoardRow(
       playerId: row.get("player_id"),
       name: row.get("canonical_name"),
@@ -50,23 +61,21 @@ proc boardRows(db: Db, communityId, asOf: string, params: RatingParams,
       wins: parseInt(row.get("wins")),
       losses: parseInt(row.get("losses"))))
 
-proc board*(db: Db, communityId, asOf: string, params: RatingParams,
-            limit: int): seq[BoardRow] =
-  boardRows(db, communityId, asOf, params, limit)
+proc board*(db: Db, query: BoardQuery): seq[BoardRow] =
+  boardRows(db, query)
 
-proc boardEntry*(db: Db, communityId, playerId, asOf: string,
-                 params: RatingParams, limit: int): Option[BoardRow] =
+proc boardEntry*(db: Db, query: BoardQuery,
+                 playerId: string): Option[BoardRow] =
   ## One player's row plus its rank, resolved from the same board query so the
   ## detail view can never disagree with the list.
-  let rows = boardRows(db, communityId, asOf, params, limit)
+  let rows = boardRows(db, query)
   for index, row in rows:
     if row.playerId == playerId:
       return some(row)
   none(BoardRow)
 
-proc rankOf*(db: Db, communityId, playerId, asOf: string,
-             params: RatingParams, limit: int): int =
-  let rows = boardRows(db, communityId, asOf, params, limit)
+proc rankOf*(db: Db, query: BoardQuery, playerId: string): int =
+  let rows = boardRows(db, query)
   for index, row in rows:
     if row.playerId == playerId:
       return index + 1

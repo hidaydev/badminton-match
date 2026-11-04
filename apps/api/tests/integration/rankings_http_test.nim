@@ -139,6 +139,21 @@ suite "rankings HTTP":
     check detail == 200
     check parseJson(detailBody)["rank"].getInt() == 2
 
+  test "the tier filter is applied by the server":
+    let (status, body) = call("/c/rank-club/rankings?tier=B", memberCookie)
+    check status == 200
+    let items = parseJson(body)["items"]
+    check items.len == 0
+    discard database.execUpdate(
+      """update player.players set tier = 'B' where id = $1::uuid""",
+      @[textParam(players[0])])
+    let (filteredStatus, filteredBody) = call("/c/rank-club/rankings?tier=B",
+      memberCookie)
+    check filteredStatus == 200
+    let filtered = parseJson(filteredBody)["items"]
+    check filtered.len == 1
+    check filtered[0]["playerId"].getStr() == players[0]
+
   test "an unknown player or a non-member gets 404":
     let (missing, _) = call("/c/rank-club/rankings/00000000-0000-0000-0000-000000000000",
       memberCookie)

@@ -1345,8 +1345,10 @@ proc communityBoard(request: Request, communityId, timezone: string) =
   let settings = currentSettings(application.db, communityId)
   let params = ratingParams.loadRatingParams(configSnapshot(), settings)
   let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
-  let rows = ratingRead.board(application.db, communityId,
-    communityToday(timezone), params, limit)
+  let query = ratingRead.BoardQuery(communityId: communityId,
+    asOf: communityToday(timezone), params: params, limit: limit,
+    tier: request.queryParams["tier"])
+  let rows = ratingRead.board(application.db, query)
   jsonResponse(request, 200, %*{"items": boardItems(rows),
     "asOf": communityToday(timezone)}, [("Cache-Control", "no-store")])
 
@@ -1354,14 +1356,13 @@ proc rankingPlayer(request: Request, ctx: CommunityContext, playerId: string) =
   let params = ratingParamsFor(ctx)
   let limit = configSnapshot().intValue(
     currentSettings(application.db, ctx.communityId), keyRankBoardLimit)
-  let asOf = communityToday(ctx.timezone)
-  let entry = ratingRead.boardEntry(application.db, ctx.communityId, playerId,
-    asOf, params, limit)
+  let query = ratingRead.BoardQuery(communityId: ctx.communityId,
+    asOf: communityToday(ctx.timezone), params: params, limit: limit, tier: "")
+  let entry = ratingRead.boardEntry(application.db, query, playerId)
   if entry.isNone:
     problem(request, 404, "NOT_FOUND", "player is not on the board")
     return
-  let rank = ratingRead.rankOf(application.db, ctx.communityId, playerId, asOf,
-    params, limit)
+  let rank = ratingRead.rankOf(application.db, query, playerId)
   jsonResponse(request, 200, %*{"rank": rank, "playerId": entry.get.playerId,
     "name": entry.get.name,
     "tier": if entry.get.tier.len == 0: newJNull() else: %entry.get.tier,
