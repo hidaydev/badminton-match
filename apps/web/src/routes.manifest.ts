@@ -5,6 +5,8 @@ import type { MessageKey } from './i18n/en'
 import CommunityPage from './pages/CommunityPage'
 import HomePage from './pages/HomePage'
 import PlaceholderPage from './pages/PlaceholderPage'
+import RankingsPage from './pages/RankingsPage'
+import RatingPlayerPage from './pages/RatingPlayerPage'
 
 export type NavGroup = 'main' | 'admin' | 'owner'
 
@@ -67,10 +69,17 @@ export const routes: readonly RouteEntry[] = [
   {
     path: '/c/:slug/rankings',
     labelKey: 'nav.rankings',
-    element: placeholder('nav.rankings'),
+    element: createElement(RankingsPage),
     requiresAuth: true,
     roles: ALL_ROLES,
     navGroup: 'main',
+  },
+  {
+    path: '/c/:slug/rankings/:playerId',
+    labelKey: 'player.title',
+    element: createElement(RatingPlayerPage),
+    requiresAuth: true,
+    roles: ALL_ROLES,
   },
   {
     path: '/c/:slug/tournaments',
