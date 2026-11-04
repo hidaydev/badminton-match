@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a change or an addition to Majadu.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem being solved
+      description: Describe the situation or gap that motivates the request.
+      placeholder: Setting up a session for four courts takes several manual steps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you would like to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe other approaches or workarounds you considered.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the project does this affect?
+      options:
+        - Sessions
+        - Tournaments
+        - Ratings
+        - Web UI
+        - API
+        - Deployment
+    validations:
+      required: true

@@ -1,0 +1,73 @@
+name: Bug report
+description: Report a reproducible problem with Majadu.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        Do not report security vulnerabilities here. Use a
+        [private security advisory](https://github.com/hidaydev/badminton-match/security/advisories/new)
+        instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the actual behavior, including any error message you saw.
+      placeholder: When I opened the session page, the score stayed at 0-0 after saving.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: Describe the behavior you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest sequence that triggers the problem.
+      placeholder: |
+        1. Sign in as a community admin
+        2. Open a session with two courts
+        3. Save a score on court 1
+        4. Reload the page
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      description: Where did you see this?
+      options:
+        - Self-hosted
+        - Hosted instance
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser and version, operating system, and whether it was a phone or desktop.
+      placeholder: Firefox 141 on macOS 15, desktop
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and console output
+      description: Paste relevant server logs or browser console output. Redact secrets, session cookies, and personal data.
+      render: shell
+    validations:
+      required: false
