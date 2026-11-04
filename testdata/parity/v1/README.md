@@ -1,8 +1,8 @@
-# Parity corpus — v1 (Go)
+# Parity corpus — v1 (Go, retired)
 
-Golden HTTP captures of the v1 API, one case per route declared in
-`apps/api/cmd/server/main.go` (`registerRoutes`). The corpus is the executable
-specification the Nim rewrite is diffed against.
+Golden HTTP captures of the v1 API, one case per route it declared. The corpus
+is the executable specification the Nim rewrite was diffed against, and it stays
+frozen now that the Go tree is gone (T-082).
 
 ## Layout
 
@@ -11,6 +11,9 @@ specification the Nim rewrite is diffed against.
 - `cases.tsv` — the request table the corpus was recorded from. Tab-separated:
   `name`, `route template`, `method`, `path`, `header` (`-` for none), `body`
   (`-` for none). Lines starting with `#` are ignored.
+- `routes.txt` — the 48 route templates `registerRoutes` declared, frozen from
+  the Go source before it was removed. `./task parity verify` compares it with
+  the corpus; it is the file to edit if a route is ever added or dropped here.
 - `MANIFEST.sha256` — SHA-256 of every case, checked by `./task parity verify`.
 
 ## Commands
@@ -25,16 +28,20 @@ specification the Nim rewrite is diffed against.
 
 `PARITY_BASE` defaults to `http://127.0.0.1:8091`.
 
-Recording and replaying need the seeded v1 database and a running v1 server:
+`verify` needs nothing but the files and the Nim toolchain, so it runs anywhere.
+`record` and `replay` need a live v1 server; since the source is gone, use the
+archived image instead of rebuilding it:
 
 ```
 ./task dev-v1
-cd apps/api && DATABASE_URL=postgresql://$(whoami)@127.0.0.1:5432/bm_v1_dev \
-  MAJADU_DB_SCHEMA=bm MAJADU_ENV=dev PORT=8091 \
-  MAJADU_ADMIN_TOKEN=test-admin go run ./cmd/server
+docker run --rm -p 8091:8080 \
+  -e DATABASE_URL=postgresql://$(whoami)@host.docker.internal:5432/bm_v1_dev \
+  -e MAJADU_DB_SCHEMA=bm -e MAJADU_ENV=dev -e MAJADU_ADMIN_TOKEN=test-admin \
+  localhost/majadu-api:v1-final
 ```
 
-`test-admin` is the local development token only; it is not a secret.
+`test-admin` is the local development token only; it is not a secret. Podman
+works the same way with `--network=host` and `127.0.0.1` in the DSN.
 
 ## Determinism
 
@@ -51,5 +58,5 @@ Cases must produce the same bytes on every run:
   corpus is recorded after the server is up.
 
 `./task parity verify` fails if a case is added, removed or edited without
-re-recording, if a v1 route has no case, if any `expect` is empty, or if fewer
-than 40% of cases assert a status of 400 or above.
+re-recording, if a route in `routes.txt` has no case, if any `expect` is empty,
+or if fewer than 40% of cases assert a status of 400 or above.

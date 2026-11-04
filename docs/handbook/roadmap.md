@@ -31,9 +31,11 @@ Status per **2026-11-04**. Riwayat perubahan ada di git history; rencana beku ad
 | 2 | **Halaman players + admin** — daftar/klaim/merge pemain, anggota, settings | `/c/:slug/players` dan `/c/:slug/settings` masih `PlaceholderPage`; API-nya sudah ada |
 | 3 | **Halaman share publik `/s/:code`** | rute ada, elemen masih placeholder; API `GET /s/{code}` + ranking share sudah ada |
 | 4 | **Deployment v2** — env, unit quadlet, Caddy, cutover/backup/rollback | `ops/` masih memakai nama v1 (`bm`, `DATABASE_URL`, `/majadu`), bukan `MAJADU_PG_DSN`; lihat T-060/T-061/T-065 di `docs/plan/BACKLOG.md` |
-| 5 | **Dekomisi Go v1** — hapus `apps/api/cmd`, `internal`, `api`, `go.mod`, `go.sum` | masih ada di tree; T-082 |
-| 6 | **Halaman owner communities** | `/owner/communities` masih placeholder |
-| 7 | **Generator jadwal sesi** (bila diinginkan) | belum ada modul generator di v2; kontrak hanya menerima jadwal dari klien |
+| 5 | **Halaman owner communities** | `/owner/communities` masih placeholder |
+| 6 | **Generator jadwal sesi** (bila diinginkan) | belum ada modul generator di v2; kontrak hanya menerima jadwal dari klien |
+
+Dekomisi Go v1 (T-082) sudah selesai: source-nya dihapus, rollback memakai image
+`:v1-final`.
 
 ## Catatan operasional
 

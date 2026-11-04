@@ -32,6 +32,8 @@ psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$REPO_ROOT/ops/dev/v1/seed.sql" >/dev/nu
 players=$(psql -d "$DB" -tAc "select count(*) from bm.players")
 sessions=$(psql -d "$DB" -tAc "select count(*) from bm.sessions")
 printf 'v1 database ready: %s (players=%s sessions=%s)\n' "$DB" "$players" "$sessions"
-printf 'run v1 against it with:\n'
-printf '  (cd apps/api && DATABASE_URL=postgresql://%s@127.0.0.1:5432/%s MAJADU_DB_SCHEMA=bm MAJADU_ENV=dev PORT=8091 go run ./cmd/server)\n' \
+printf 'record or replay the v1 parity corpus against the archived image with:\n'
+printf '  docker run --rm -p 8091:8080 -e DATABASE_URL=postgresql://%s@host.docker.internal:5432/%s \\\n' \
   "$(whoami)" "$DB"
+printf '    -e MAJADU_DB_SCHEMA=bm -e MAJADU_ENV=dev -e MAJADU_ADMIN_TOKEN=test-admin \\\n'
+printf '    localhost/majadu-api:v1-final\n'

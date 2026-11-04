@@ -16,10 +16,11 @@ apps/api   Nim 2.4 · Mummy (HTTP + WebSocket) · db_connector
 Postgres 18 · database bm2 (dev/e2e: bm2_dev / bm2_e2e)
 ```
 
-- **Backend aktif = Nim** di `apps/api/src/`, bukan Go. Dockerfile membangun
-  `apps/api/src/main.nim` (`apps/api/Dockerfile`).
-- Kode Go v1 masih ada di `apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`,
-  `go.mod`, `go.sum`; tidak dipakai build dan belum dihapus (T-082).
+- **Backend aktif = Nim** di `apps/api/src/` (`apps/api/Dockerfile` membangun
+  `apps/api/src/main.nim`).
+- **Kode Go v1 sudah dihapus** di T-082. Rollback memakai image
+  `localhost/majadu-api:v1-final` (disimpan 30 hari), bukan source; kontrak v1
+  yang dibekukan ada di `testdata/parity/v1/`.
 - Alur kerja dokumen ini: branch `main` (branch lama masih ada di lokal/remote, tetapi
   tidak dipakai oleh handbook ini).
 

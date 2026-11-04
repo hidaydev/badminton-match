@@ -71,9 +71,13 @@ database, skema, dan snapshot, dan membalas `503` bila salah satunya tidak siap.
 `packages/contracts/openapi/{core,community}.yaml` adalah sumbernya; angka
 operasi yang dibekukan dicatat di `docs/plan/FROZEN.md`.
 
-## Sisa v1
+## v1 sudah dihapus
 
-`cmd/`, `internal/`, `go.mod`, `go.sum`, `api/openapi.yaml`, dan `Makefile` di
-folder ini adalah sumber Go v1 yang belum dihapus. Ia tidak dipakai build,
-kontrak, maupun deploy; penghapusannya menunggu cutover (T-060/T-065) supaya
-perbandingan v1 masih mungkin dilakukan.
+Sumber Go v1 (`cmd/`, `internal/`, `api/openapi.yaml`, `go.mod`, `go.sum`,
+`Makefile`) dihapus di T-082, setelah image `localhost/majadu-api:v1-final`
+menjadi jalur rollback. Konsekuensinya: v1 tidak bisa di-hotfix dari source lagi
+selama 30 hari masa simpan image; perbaikannya masuk ke v2 atau rollback memakai
+image apa adanya. Source-nya tetap bisa diambil dari riwayat git sebelum T-082.
+
+Kontrak v1 yang dibekukan ada di `testdata/parity/v1/` (lihat README-nya) dan
+tidak butuh source Go.

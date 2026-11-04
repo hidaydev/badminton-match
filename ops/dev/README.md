@@ -43,12 +43,13 @@ roles when the archive database exists (O-41).
 sessions with courts and played games, rating state and one tournament. All
 identifiers are fixed so parity recordings stay comparable between machines.
 The database is recreated on every run, so `bm_v1_dev` must never hold data you
-care about. The v1 Go server still lives in `apps/api/cmd` and reads:
+care about. The Go server that used to read it was removed in T-082; use the
+archived image to record or replay the v1 parity corpus:
 
 ```
-DATABASE_URL=postgresql://$USER@127.0.0.1:5432/bm_v1_dev
-MAJADU_DB_SCHEMA=bm
-MAJADU_ENV=dev
-PORT=8091
+docker run --rm -p 8091:8080 \
+  -e DATABASE_URL=postgresql://$USER@host.docker.internal:5432/bm_v1_dev \
+  -e MAJADU_DB_SCHEMA=bm -e MAJADU_ENV=dev -e MAJADU_ADMIN_TOKEN=test-admin \
+  localhost/majadu-api:v1-final
 ```
 

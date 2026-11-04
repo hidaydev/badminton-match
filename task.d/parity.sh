@@ -1,7 +1,10 @@
 #!/bin/sh
 # Parity corpora.
 #
-# v1 (the default) replays golden captures of the Go API against a live server.
+# v1 (the default) replays golden captures of the retired Go API against an
+# archived v1 server. Its corpus and route list are frozen: the Go tree that
+# declared those routes was removed in T-082, so verify reads
+# testdata/parity/v1/routes.txt instead of a source file.
 # v2 records and replays the Nim API per contract operation, and checks the
 # fixture-state fingerprint in testdata/parity/v2/state.json.
 . "$(dirname "$0")/lib.sh"
@@ -12,7 +15,7 @@ V1_MANIFEST="$V1_DIR/MANIFEST.sha256"
 V2_DIR="$REPO_ROOT/testdata/parity/v2"
 V2_BASE_DEFAULT="http://127.0.0.1:18092"
 V2_DB_DEFAULT="bm2_parity_v2"
-ROUTES_GO="$REPO_ROOT/apps/api/cmd/server/main.go"
+ROUTES_V1="$V1_DIR/routes.txt"
 ROUTES_NIM="$REPO_ROOT/apps/api/src/routes_gen.nim"
 BASE=${PARITY_BASE:-http://127.0.0.1:8091}
 # Local development key only; it is the same fixture key r0-demo uses.
@@ -28,7 +31,10 @@ v1:
                          --name N --path P [--method M] [--route R]
                          [--header "Name: value"] [--body B | --body-file F]
   replay [NAME...]       replay all cases (or the named ones) and diff
-  verify                 check MANIFEST.sha256 and corpus invariants
+  verify                 check MANIFEST.sha256, route coverage of routes.txt
+                         and the 4xx ratio
+  record and replay need a v1 server; the Go source is gone, so use the
+  archived image (localhost/majadu-api:v1-final) on the local v1 database.
 
 v2:
   reset                  rebuild the fixture in PARITY_V2_DSN
@@ -294,7 +300,7 @@ case "$subcommand" in
   verify)
     check_manifest "$V1_DIR" "$V1_MANIFEST"
     _binary=$(parity_bin)
-    "$_binary" lint --dir "$V1_DIR" --routes "$ROUTES_GO"
+    "$_binary" lint --dir "$V1_DIR" --routes "$ROUTES_V1"
     ;;
   -h|--help|help)
     usage

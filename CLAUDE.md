@@ -10,7 +10,7 @@ Run web commands from the monorepo root (root `package.json` proxies to `apps/we
 pnpm run dev            # Start dev server (Vite HMR) — root proxy ke apps/web
 pnpm run build:web      # Type-check then build for production (apps/web)
 pnpm run check:web      # Web: types + lint + tailwind + regression tests
-pnpm run check:api      # API: go vet + fmt + test (apps/api)
+pnpm run check:api      # API: ./task check (Nim, no database)
 # make equivalents: make dev · make dev-api · make build-web · make check-web · make check-api
 ```
 
@@ -22,11 +22,11 @@ pnpm run check              # Types + lint + tailwind + regression tests
 pnpm run check:regression   # Regression tests only (node:test)
 ```
 
-Backend lives in the same monorepo at `apps/api` (`go test ./...`; tests that need Postgres are skipped without `MAJADU_TEST_DATABASE_URL`). See `apps/api/README.md`.
+Backend lives in the same monorepo at `apps/api` (Nim, `mummy` HTTP; `./task test` runs the integration tests when `MAJADU_PG_DSN` is set). See `apps/api/README.md`.
 
 ## Architecture
 
-This is a mobile-first React PWA (React 19, Vite, Tailwind v4, TypeScript) in `apps/web` that generates optimised badminton match schedules for recreational sessions. It has grown to also include tournament management, session history, rankings (rank points), and admin tools. Backend is Go (`apps/api`, `net/http` + pgx) backed by Postgres on a VPS.
+This is a mobile-first React PWA (React 19, Vite, Tailwind v4, TypeScript) in `apps/web` that generates optimised badminton match schedules for recreational sessions. It has grown to also include tournament management, session history, rankings (rank points), and admin tools. Backend is Nim (`apps/api`, `mummy` + Postgres) on a VPS.
 
 ### Core Session Flow
 
@@ -90,7 +90,7 @@ Frontend:
 - `apps/web/src/queries/ratings.ts` — React Query hooks (`useRankings`, `usePlayerRankPoints`, `useRatingPlayer`, `useRatingPlayerAchievements`, `useRatingSources`)
 - `apps/web/src/components/ratings/` — `RatingTierBadge`, `CareerStats`, `AchievementBadge`, `AchievementDetailModal`, `MedalHoneycomb`
 - `apps/web/src/config/ratingTiers.ts` — 8-band rating tier colors
-- `apps/web/src/config/achievements.ts` + `apps/web/src/components/ratings/AchievementBadge.tsx` — koleksi badge pemain (backend: `apps/api/internal/domain/achievements.go`, tabel `player_achievements`, migrasi `000016`)
+- `apps/web/src/config/achievements.ts` + `apps/web/src/components/ratings/AchievementBadge.tsx` — koleksi badge pemain (backend: `modules/achievement/domain/achievement.nim`, tabel `achievement.earned`, migrasi `0002_rating.sql`)
 
 ### Tournament Components
 

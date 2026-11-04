@@ -237,17 +237,19 @@ menyentuh game yang disebut, sehingga jadwal parsial tetap valid
 - Semua teks UI ada di `apps/web/src/i18n/en.ts`; test menolak teks JSX hardcoded
   (`apps/web/README.md`).
 
-## 12. Warisan v1 (Go) di tree
+## 12. v1 (Go) yang sudah dihapus
 
-`apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`, `go.mod`, dan `go.sum` adalah
-backend Go v1. Kode itu **tidak** dipakai Dockerfile v2
-(`apps/api/Dockerfile` membangun `apps/api/src/main.nim`), tetapi masih ada sampai task
-dekomisi (T-082 di `docs/plan/BACKLOG.md`). Jangan menambah rute atau aturan ke sana.
+Sumber Go v1 (`apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`, `go.mod`,
+`go.sum`, `Makefile`) dihapus di T-082, setelah image
+`localhost/majadu-api:v1-final` dipertahankan sebagai jalur rollback. Konsekuensinya
+v1 tidak bisa di-hotfix dari source selama masa simpan image; source-nya hanya ada di
+riwayat git. Kontrak v1 yang dibekukan tinggal di `testdata/parity/v1/` (kasus,
+`cases.tsv`, dan `routes.txt`) dan tidak butuh source Go.
 
-`ops/` juga masih membawa artefak v1: unit quadlet `majadu-api.container`, Caddy
-`/majadu`, dan env example dengan `DATABASE_URL`/`MAJADU_DB_SCHEMA`. Nama env v2 adalah
-`MAJADU_PG_DSN` (dan kawan-kawan di §3), jadi artefak itu **belum** menjadi deployment
-v2. Lihat [`current-status.md`](current-status.md) §Infrastruktur.
+Docstring modul yang menyebut `*.go` adalah catatan asal semantik ("ported from"),
+bukan file yang masih ada di tree. `ops/` sudah memakai env v2 (`MAJADU_PG_DSN` dan
+kawan-kawan di §3); prefix `/majadu` dipertahankan setelah cutover, jadi itu bukan
+sisa v1.
 
 ## 13. Testing & gate
 

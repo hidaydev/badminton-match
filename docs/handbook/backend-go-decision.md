@@ -45,12 +45,13 @@ Pada 2026-11-03 diputuskan rewrite **Nim v2 di repo yang sama**. Alasan yang ter
 Rencana lengkap dan beku: [`../plan/TECH-SPEC.md`](../plan/TECH-SPEC.md),
 [`../plan/BACKLOG.md`](../plan/BACKLOG.md).
 
-## Yang masih tersisa di repo
+## Yang sudah dihapus
 
-Kode Go v1 **masih ada** di `apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`,
-`go.mod`, dan `go.sum`. Kode itu tidak dibangun Dockerfile v2 dan tidak menjadi acuan
-dokumen handbook. Penghapusannya tercatat sebagai T-082 (dekomisi Go) dan belum
-dikerjakan.
+Kode Go v1 (`apps/api/cmd/`, `apps/api/internal/`, `apps/api/api/`, `go.mod`,
+`go.sum`, `Makefile`) dihapus di T-082. Rollback memakai image
+`localhost/majadu-api:v1-final` selama masa simpannya; source-nya tetap bisa diambil
+dari riwayat git sebelum T-082. Kontrak v1 yang dibekukan ada di
+`testdata/parity/v1/`.
 
 ## Pelajaran yang tetap berlaku
 

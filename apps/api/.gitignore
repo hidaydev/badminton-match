@@ -14,3 +14,5 @@
 *.out
 *.test
 server
+# `nim c <file>_test.nim` without -o writes the binary next to the source
+*_test

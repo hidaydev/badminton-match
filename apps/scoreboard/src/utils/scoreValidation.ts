@@ -1,5 +1,5 @@
 // src/utils/scoreValidation.ts
-// Aturan skor game — MIRROR ValidateScore di majadu-api/internal/domain/transform.go.
+// Game score rule — mirrors modules/session/schedule.nim (setScore): 0..99, no ties.
 // Dua sisi harus selalu konsisten (lihat scripts/tests/scoreValidation.test.ts).
 export function validateScore(a: number, b: number): string | null {
   if (a === b) return 'Scores cannot be equal'

@@ -324,18 +324,16 @@ proc replay(options: Options) =
   echo "parity: " & $names.len & " cases ok"
 
 proc routesFromSource(path: string): seq[string] =
+  ## The declared routes of the v1 corpus, one "METHOD /path" per line. The Go
+  ## server that used to declare them is gone (T-082), so the list is frozen next
+  ## to the corpus instead of being parsed out of source that no longer exists.
   if not fileExists(path):
     return @[]
-  const marker = "mux.Handle(\""
   for line in readFile(path).splitLines():
-    let at = line.find(marker)
-    if at < 0:
+    let route = line.strip()
+    if route.len == 0 or route.startsWith("#"):
       continue
-    let start = at + marker.len
-    let stop = line.find('"', start)
-    if stop < 0:
-      continue
-    result.add(line[start ..< stop])
+    result.add(route)
 
 proc operationsFromSource(path: string): seq[string] =
   ## `routes_gen.nim` is keyed by operation id, which is the stable name for a
