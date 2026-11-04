@@ -1,4 +1,4 @@
-import std/[json, options, strutils]
+import std/[json, options]
 import db/db
 import ./domain/player
 
