@@ -1,28 +1,43 @@
-.PHONY: help dev dev-api build-web build-api check-web check-api
+.PHONY: help dev dev-api build-web build-api check-web check-api check test ci e2e
+
+# The source of truth is ./task. This file only keeps `make` muscle memory from
+# running the wrong thing: every backend target forwards, none of them guess.
 
 help:
-	@echo "Majadu monorepo commands:"
-	@echo "  make dev        - Run web dev server (Vite)"
-	@echo "  make dev-api    - Run Go backend API server"
-	@echo "  make build-web  - Build web for production"
-	@echo "  make build-api  - Build Go backend binary"
-	@echo "  make check-web  - Full web validation (types+lint+tailwind+regression)"
-	@echo "  make check-api  - Go vet + fmt + tests"
+	@echo "Majadu monorepo commands (./task has the full list):"
+	@echo "  make dev        - Web dev server (Vite)"
+	@echo "  make dev-api    - API on :8080 plus the OIDC stub"
+	@echo "  make build-web  - Build the web bundle"
+	@echo "  make build-api  - Build the Nim API binary"
+	@echo "  make check-web  - TypeScript, ESLint, Tailwind guard, Vitest"
+	@echo "  make check-api  - ./task check (no database)"
+	@echo "  make test       - ./task test (needs MAJADU_PG_DSN)"
+	@echo "  make ci         - ./task ci"
+	@echo "  make e2e        - ./task e2e"
 
 dev:
-	cd apps/web && npm run dev
+	pnpm dev
 
 dev-api:
-	cd apps/api && go run ./cmd/server
+	./task dev
 
 build-web:
-	cd apps/web && npm run build
+	pnpm build:web
 
 build-api:
-	cd apps/api && go build -o bin/majadu-api ./cmd/server
+	./task build
 
 check-web:
-	cd apps/web && npm run check
+	pnpm check:web
 
-check-api:
-	cd apps/api && make check
+check-api check:
+	./task check
+
+test:
+	./task test
+
+ci:
+	./task ci
+
+e2e:
+	./task e2e

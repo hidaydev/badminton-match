@@ -7,9 +7,9 @@
     "dev": "pnpm --filter badminton-pair-tmp dev",
     "build:web": "pnpm --filter badminton-pair-tmp build",
     "check:web": "pnpm --filter badminton-pair-tmp check",
-    "dev:api": "cd apps/api && go run ./cmd/server",
-    "build:api": "cd apps/api && go build -o bin/majadu-api ./cmd/server",
-    "check:api": "cd apps/api && make check"
+    "dev:api": "./task dev",
+    "build:api": "./task build",
+    "check:api": "./task check"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

@@ -1,168 +1,79 @@
-# apps/api — Majadu Backend (Go)
+# apps/api — Majadu API (Nim)
 
-Backend Go untuk Majadu — bagian dari monorepo `badminton-match` (lihat
-[`README.md`](../../README.md)). Menggantikan PostgREST RPC (Supabase) sebagai
-satu-satunya backend; keputusan arsitektur di
-`docs/handbook/backend-go-decision.md`.
+Backend Majadu versi v2. Menggantikan server Go v1; keputusan dan konsekuensinya
+di `docs/plan/ADR-011.md`. Kontrak HTTP-nya
+[`packages/contracts/openapi/`](../../packages/contracts/openapi/README.md),
+bukan dokumen terpisah di folder ini.
 
 ## Stack
 
-- Go 1.26, stdlib `net/http` (Go 1.22+ routing) — tanpa framework HTTP
-- `pgx/v5` untuk Postgres (schema `bm`)
-- Papan peringkat **rank points** (server-authoritative, idempotent, auditable)
-- Spesifikasi REST parsial di [`api/openapi.yaml`](api/openapi.yaml) — 16 dari 48
-  route terdaftar; daftar route lengkap ada di [`cmd/server/main.go`](cmd/server/main.go)
+- Nim 2.2, `mummy` sebagai server HTTP (thread pool, WebSocket)
+- PostgreSQL, skema `majadu_v2` (role `bm2_app` untuk runtime, `bm2_owner` untuk migrasi)
+- Satu cookie sesi `HttpOnly`; tidak ada token di klien
+- Route dihasilkan dari kontrak (`routes_gen.nim`); handler diverifikasi saat kompilasi
 
 ## Struktur
 
 ```
-cmd/server/              # entrypoint
-internal/config/         # env + godotenv (.env dev lokal) + validasi strict
-internal/db/             # koneksi pool pgx
-internal/domain/         # tipe + transform + validasi + ranking math (poin, 8-tier)
-internal/store/          # akses DB: write/read-path Go, rating ingest/revert/rebuild
-internal/handler/        # HTTP handlers (REST)
-internal/middleware/     # CORS, logging (slog), panic recovery, rate limit
-internal/httperr/        # error envelope JSON konsisten
-internal/build/          # versi binary (ldflags)
-api/openapi.yaml         # spec REST parsial (16 dari 48 route)
+src/main.nim            # entrypoint: baca env, buka db, pasang handler
+src/server.nim          # kontrak proses (port, drain, timeout) — tanpa default tersembunyi
+src/app.nim             # dispatch route, handler, audit
+src/routes_gen.nim      # DIBANGKITKAN dari kontrak; jangan diedit
+src/auth_middleware.nim # 401/403/404 sesuai matriks peran
+src/community_context.nim
+src/security_headers.nim
+src/live.nim            # hub WebSocket sesi & share
+src/ratelimit.nim
+tests/                  # unit + integration + security
 ```
 
-> **SQL migrations** — `000001`–`000012` TIDAK di repo GitHub (sengaja — kode repo
-> public). Tersimpan di VPS: `/srv/qouver/backups/archive/2026-09-03/majadu-migrations/`.
-> `000013`–`000023` didokumentasikan di [`docs/backend/`](../../docs/backend/).
+Modul domain ada di [`modules/`](../../modules), pustaka bersama di
+[`shared/platform-lib/`](../../shared/platform-lib), migrasi dan seed di
+[`db/`](../../db).
 
-## Endpoint (ringkas)
+## Environment
 
-Base path produksi: `https://api.qouver.com/majadu` (prefix di-strip Caddy —
-Go backend melihat path bersih tanpa prefix).
+Tanpa nilai default untuk hal yang menentukan perilaku: proses menolak start
+bila salah satu wajib tidak ada.
 
-| Method | Path | Fungsi |
+| Variabel | Wajib | Keterangan |
 |---|---|---|
-| `GET` | `/healthz` · `/readyz` · `/version` | liveness / readiness / build info |
-| `POST` / `GET` | `/sessions` | create / list |
-| `GET` / `PUT` / `PATCH` / `DELETE` | `/sessions/{id}` | get / full-snapshot update / patch / **admin** delete (draft only) |
-| `POST` | `/sessions/{id}/lock` | **admin** — kunci sesi |
-| `POST` | `/sessions/{id}/unlock` · `/delete` | **admin** — unlock / delete (status apa pun + rating cleanup + rebuild) |
-| `GET` / `POST` | `/players` | list / register (opsional tier 8) |
-| `GET` | `/players/{name}/stats` | statistik karier (session + classic + void-filtered) |
-| `PATCH` | `/players/{playerId}/tier` · `/name` | **admin** — ubah tier 8 (+rebuild) / rename (alias lama disimpan) |
-| `DELETE` | `/players/{playerId}` | **admin** — hapus pemain (+rebuild; `?force=true` bila ada riwayat) |
-| `GET` / `POST` | `/tournaments` | list / create (classic \| team) |
-| `GET` / `PUT` / `PATCH` | `/tournaments/{id}` | get / update snapshot |
-| `POST` | `/tournaments/{id}/delete` | **admin** — hapus + rating cleanup + rebuild |
-| `POST` | `/ratings/ingest-{session,tournament}` | **admin** — hitung & catat rating dari sumber |
-| `POST` | `/ratings/revert-{session,tournament}` | **admin** — cabut source + full rebuild |
-| `POST` | `/ratings/rebuild-all` · `/replay-all` · `/replay-source` | **admin** — recompute semua / replay massal / replay per sumber |
-| `POST` | `/ratings/sources/{sourceId}/finalize` | **admin** — gate ingest tournament |
-| `POST` | `/ratings/achievements/backfill` | **admin** — isi ulang badge |
-| `GET` | `/rankings` · `/rankings/players/{playerId}` · `/ratings/players/{playerId}` · `/ratings/players/{playerId}/achievements` · `/ratings/sources` | publik — read path 8-tier + papan poin |
+| `MAJADU_PG_DSN` | ya | DSN Postgres |
+| `MAJADU_PORT` | ya | port listen |
+| `MAJADU_DRAIN_MS` | ya | jendela drain saat SIGTERM (boleh 0) |
+| `MAJADU_SHUTDOWN_TIMEOUT_MS` | tidak | batas keras shutdown, bawaan 30000 |
+| `OIDC_{AUTHORIZE_URL,TOKEN_URL,JWKS_URL,ISSUER,CLIENT_ID,REDIRECT_URI}` | ya | penyedia identitas |
+| `SHARE_CODE_KEYS`, `SHARE_CODE_ACTIVE_KEY_ID` | ya | keyring tautan berbagi |
+| `MAJADU_BOOTSTRAP_OWNER_EMAIL` | tidak | pemilik platform pertama |
+| `CUTOVER_SNAPSHOT_SHA256` | tidak | snapshot yang diharapkan; `/readyz` menolak yang lain |
 
-**Live ops granular** (grand-revamp, kontrak utama untuk mutasi session):
-
-| Method | Path | Fungsi |
-|---|---|---|
-| `GET` / `PATCH` | `/sessions/{id}/games/{gameKey}` | read / ubah skor 1 game (row-level OCC + `If-Match` per game) |
-| `PATCH` | `/sessions/{id}/games/{gameKey}/skip` | skip per game (skor dipertahankan; pemain tidak dapat rating) |
-| `PATCH` | `/sessions/{id}/absent` | tandai pemain absent |
-| `POST` | `/sessions/{id}/swap` | swap pemain/tim/game slot |
-| `GET` | `/sessions/{id}/events` | replay event (outbox/SSE) |
-
-Semua endpoint **admin** memakai `Authorization: Bearer MAJADU_ADMIN_TOKEN`
-(middleware `AdminGuard`). Rating read path publik.
-
-> `PUT /sessions/{id}` (full snapshot) adalah kontrak **legacy/deprecated** untuk
-> live ops (`X-Snapshot-Deprecated: true`) — tetap dipakai fase setup/generate.
-> Logika mutasi live memakai granular di atas; server memvalidasi row-level.
-
-Concurrency: optimistic via header `If-Match: "v{n}"` / response `ETag`;
-advisory locks (`pg_advisory_xact_lock`) + `SELECT ... FOR UPDATE NOWAIT`.
+`MAJADU_TEST_ROUTES=1` hanya untuk suite, bukan untuk deployment.
 
 ## Menjalankan
 
-```bash
-cp .env.example .env   # isi DATABASE_URL + MAJADU_DB_SCHEMA
-go run ./cmd/server    # atau: make run
+```sh
+./task dev            # API :8080 + OIDC stub :19090, migrasi + seed bm2_dev
+./task dev --watch    # sama, rebuild + restart saat .nim berubah
+./task build          # binary release di .cache/<worktree>/bin/majadu-api
+./task test           # butuh MAJADU_PG_DSN
 ```
 
-Prod: env dari systemd/podman `EnvironmentFile` (mode 600), bukan `.env`.
+Health: `GET /healthz` hidup selama proses hidup; `GET /readyz` memeriksa
+database, skema, dan snapshot, dan membalas `503` bila salah satunya tidak siap.
 
-## Test
+## Kontrak
 
-```bash
-make check                 # vet + fmt + unit test
-# integration test (butuh tunnel ke Postgres VPS):
-MAJADU_TEST_DATABASE_URL="postgres://majadu_app:...@localhost:15432/bm_test" \
-  MAJADU_TEST_DB_SCHEMA=bm_test make test-integration
-# (buat DB scratch sendiri, mis. bm_test — jangan pakai bm prod)
+```sh
+./task contract-gen     # tulis ulang routes_gen.nim, client TS, fingerprint
+./task contract-check   # gagal bila spesifikasi dan hasil generate berbeda
 ```
 
-> **CI:** `go test ./...` di GitHub Actions **tidak** menjalankan integration test
-> (runner tidak punya DB ber-schema; migrasi privat tidak di repo). Job akan menampilkan
-> warning eksplisit saat `MAJADU_TEST_DATABASE_URL` kosong supaya CI hijau tidak
-> disalahartikan. Kalau secret `MAJADU_TEST_DATABASE_URL` (+ var `MAJADU_TEST_DB_SCHEMA`)
-> di-set, integration test otomatis ikut jalan.
+`packages/contracts/openapi/{core,community}.yaml` adalah sumbernya; angka
+operasi yang dibekukan dicatat di `docs/plan/FROZEN.md`.
 
-## DB role & schema
+## Sisa v1
 
-Akses DB memakai role khusus **`majadu_app`** (bukan superuser):
-- kredensial disimpan di VPS saja (file env mode 600, TIDAK pernah di repo ini)
-
-**Write-path session** dijalankan Go langsung ke tabel dalam satu transaksi
-(row-level OCC, granular) — butuh privilege tabel; GRANT di migration `000003`.
-
-**Read-path session/player juga Go** (rebuild snapshot, list sessions/players,
-player stats — diverifikasi identik via `TestIntegrationReadPathParity`):
-GRANT SELECT tabel tournament di `000004` (stats membaca tabel tournament
-langsung).
-
-**Tournament juga sudah Go** (write + read + register pemain — diverifikasi via
-`TestIntegrationTournamentParity`): GRANT DML di `000005`.
-
-**Sisa fungsi SQL**: hanya `normalize_player_name` (dipakai CHECK constraint
-`player_aliases`) + utilitas `delete_player` / trigger `set_updated_at`. Semua
-logika bisnis (session, player, tournament, **rating**) sudah 100% di Go.
-
-**Papan poin & bookkeeping**: `rating_deltas` menyimpan fakta pertandingan
-(`event_id`/`player_id`/`team`/`outcome`); `rating_players` hanya bookkeeping
-(`games_played`, `wins`, `losses`, `last_played_at`). Poin dihitung saat baca dari
-window bergulir 12 minggu (best 10 entri) dengan config `rank_*` di `rating_config`
-(`000018`, `000022`), snapshot gerakan papan di `rank_snapshots` (`000019`), dan tier
-sticky di `players.tier`. Mesin Glicko beserta tabel musim di-drop di `000020`
-(2026-09-29).
-
-**Schema via `MAJADU_DB_SCHEMA` (env), BUKAN hardcode di SQL.** Store memakai
-kueri tanpa prefix schema; `search_path` diarahkan per-koneksi. Hanya ada satu
-branch aktif (`main`) → `MAJADU_DB_SCHEMA=bm`.
-
-## Deploy
-
-**Arsitektur (webhook, pola sds-monorepo):** push ke `main` → GitHub webhook
-(`https://api.qouver.com/hooks/majadu-monorepo`) → `webhook.service` di VPS →
-`/srv/qouver/apps/majadu/scripts/deploy-vps.sh` → `podman build` image **lokal**
-(`localhost/majadu-api:local`) → restart quadlet `majadu-api` → Caddy TLS.
-
-```
-Vercel (frontend)                       VPS api.qouver.com (Caddy)
-main → apps/web (Root Directory)        main → https://api.qouver.com/majadu → 127.0.0.1:8080 (bm)
-```
-
-**Artefak di `ops/` (root monorepo):**
-- `systemd/majadu-api.container` — quadlet systemd unit (Image=localhost/majadu-api:local, Pull=never)
-- `scripts/deploy-vps.sh` — script deploy webhook (source of truth; server copy di `/srv/qouver/apps/majadu/scripts/`)
-- `webhook/webhook.json` — placeholder rule webhook (secret asli hanya di VPS, chmod 600)
-- `env/prod.env.example` — template env (secret diisi hanya di VPS)
-- `caddy/Caddyfile.api.qouver.com` — snippet Caddy (strip prefix `/majadu`)
-
-**Update:**
-- Push `main` → webhook trigger (HMAC-SHA256) → build lokal + restart. Deploy hanya
-  jika `apps/api/` berubah (guard `ref=refs/heads/main` di script).
-- Rollback: image lokal sebelumnya masih ter-cache sampai `podman image prune` (01:30).
-
-## Branch plan
-
-- `main` — satu-satunya branch aktif (prod, schema `bm`). Branch `dev` di-sunset.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+`cmd/`, `internal/`, `go.mod`, `go.sum`, `api/openapi.yaml`, dan `Makefile` di
+folder ini adalah sumber Go v1 yang belum dihapus. Ia tidak dipakai build,
+kontrak, maupun deploy; penghapusannya menunggu cutover (T-060/T-065) supaya
+perbandingan v1 masih mungkin dilakukan.
