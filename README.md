@@ -1,72 +1,89 @@
-# 🏸 Majadu — Badminton Session Operations
+<div align="center">
 
-**From planning to podium.** Majadu is a modern full-stack web application designed for running badminton sessions end-to-end: generate balanced doubles schedules, manage live scoring with real-time sync, run classic & team tournaments, track rank points on a rolling 12-week leaderboard, and export branded social media content.
+# 🏸 Majadu
 
+**Run a badminton club from one screen — sessions, scores, tournaments, and rank points.**
+
+[![CI](https://github.com/hidaydev/badminton-match/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hidaydev/badminton-match/actions/workflows/ci.yml)
+[![Coverage gate](https://github.com/hidaydev/badminton-match/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/hidaydev/badminton-match/actions/workflows/coverage.yml)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)
-![Nim](https://img.shields.io/badge/Nim-2.2-FFE953?style=flat-square&logo=nim&logoColor=black)
-![PostgreSQL](https://img.shields.io/badge/Postgres-18-4169E1?style=flat-square&logo=postgresql&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?style=flat-square&logo=tailwindcss&logoColor=white)
-![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=flat-square)
+![Nim](https://img.shields.io/badge/Nim-2.4-FFE953?style=flat-square&logo=nim&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38BDF8?style=flat-square&logo=tailwindcss&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square)
+
+</div>
+
+Majadu is a mobile-first multi-community app for recreational badminton: plan a
+session, play it, score it, and let the ranking take care of itself. It runs as a
+React PWA in front of a Nim API and one PostgreSQL database, with the HTTP
+contract generated from OpenAPI.
 
 ---
 
-## ✨ Key Features
+## ✨ What it does
 
-- ⚡ **Fair Schedule Generator**: Pure TS greedy scheduler algorithm scoring player repeats, tier spreads (8-tier D..A+), sit-out counts, and custom fix-match constraints.
-- 🔄 **Real-Time Live Scoring**: a WebSocket channel per session (and per share link) pushes scores, absences and swaps to every watcher.
-- 🏆 **Tournament Engine**: 
-  - **Classic Tournament**: 16 pairs → 4 groups round-robin → knockout bracket.
-  - **Team Tournament**: 36 players across 6 skill classes → 6 balanced teams with manual assignment.
-- 📈 **Rank Points Leaderboard**: BWF-style rolling 12-week window (best 10 sessions), 8-band skill tiers, and player career stats.
-- 🏅 **Player Achievements**: Badge collection computed from match & tournament history (attendance, volume, opponent, tournament, tier, rank, social).
-- 🎨 **Instagram Content Canvas**: Built-in HTML5 Canvas generator for exporting branded 1080×1350 posts and 1080×1920 stories.
+| Area | Capability |
+|---|---|
+| **Sessions** | Courts, participants, schedule, per-game scores, skip, absent, swap, lock/unlock. Writes carry `If-Match` (OCC) and `Idempotency-Key`. |
+| **Tournaments** | Classic (16 pairs → 4 groups → knockout) and team (6 teams × 6 tiers → groups + final, 3 rubbers per match), drawn and scored in the browser. |
+| **Rank points** | BWF-style rolling 12-week window, best 10 sessions, minimum 3 games, 8 skill tiers, computed on read. |
+| **Achievements** | Badge catalogue computed from match and tournament history, idempotent backfill. |
+| **Players** | Canonical names, aliases, gender, sticky tier, claim/release/merge with admin approval and audit. |
+| **Communities** | One deployment, many clubs: slug, memberships (`member`/`host`/`admin`), invites, join requests, per-club config overrides. |
+| **Sharing** | Sealed share links (hash + encrypted code), public session and ranking pages, share-code redaction in access logs. |
+| **Export** | Canvas-generated 1080×1350 posts and 1080×1920 stories for Instagram; sizes come from config, not code. |
+| **Live updates** | WebSocket ticket per session and per share link, `session.changed` frames. See [Status](#-status). |
+
+Everything security-sensitive lives on the server: the browser holds one
+`__Host-` `HttpOnly` cookie and never sees a token.
 
 ---
 
-## 🏗️ Repository Architecture
+## 🏗️ Repository layout
 
-One monorepo, decoupled deployment pipelines:
-
-| App | Location | Tech Stack | Deployment |
-|---|---|---|---|
-| **Web** | [`apps/web/`](apps/web/README.md) | React 19 · Vite 8 · TypeScript · Tailwind v4 · React Router · PWA | Vercel (`apps/web` root directory) |
-| **API** | [`apps/api/`](apps/api/README.md) | Nim 2.2 · mummy HTTP · Postgres (schema `majadu_v2`) · rank point engine | VPS container (Podman/Quadlet) via GitHub Webhook |
-| **Scoreboard** | [`apps/scoreboard/`](apps/scoreboard) | React 19 · Vite · Tailwind v4 · PWA (standalone courtside scoring) | Vercel (`apps/scoreboard` root directory) |
+One monorepo, three deployables (web, scoreboard, API) and one business-number
+registry in the database.
 
 ```text
 majadu/
 ├── apps/
-│   ├── web/                 — Mobile-first React 19 PWA
-│   ├── scoreboard/          — Standalone courtside scoreboard PWA
-│   └── api/                 — Nim REST API, contract-generated routes
-├── modules/                 — Domain modules (Clean Architecture, no delivery imports)
-├── shared/platform-lib/     — db, clock, logger, metrics, uuidv7, sha256
-├── packages/contracts/      — OpenAPI specs and the generated TS client
-├── db/                      — SQL migrations and config seeds
-├── ops/                     — Quadlet unit, deploy/smoke/rotate scripts, env template
-├── docs/                    — Handbook, design system, ops and privacy docs
-├── tools/                   — dbtools, contract-gen, archcheck, fixtures, soak, ETL
-├── task                     — Single command runner (`./task help`)
-└── package.json             — Monorepo root scripts proxy (`pnpm` workspace)
+│   ├── web/                 React 19 · Vite 8 · Tailwind 4 — the product
+│   ├── scoreboard/          Standalone courtside scoring PWA
+│   └── api/                 Nim 2.4 · mummy — REST + WebSocket
+├── modules/                 Domain: account, community, player, session,
+│                            tournament, rating, achievement, share, platform
+├── shared/platform-lib/     db binder, clock, logger, metrics, uuidv7, sha256
+├── packages/
+│   ├── contracts/openapi/   core.yaml + community.yaml → api.yaml + client
+│   └── web-client/          Generated TypeScript client
+├── db/                      migrations (0001–0016), seeds, platform config
+├── ops/                     Quadlet, Caddy, deploy/cutover/backup/restore/smoke
+├── tools/                   dbtools, contract-gen, archcheck, ETL, parity,
+│                            fixtures, mock-api, rehearsal
+├── e2e/                     Playwright: a11y, visual, compatibility
+├── testdata/                authz matrix, parity corpora (v1 frozen, v2 live)
+├── task                     Single command runner — `./task help`
+└── package.json             pnpm workspace root
 ```
+
+**Rules that keep it small:** modules never import delivery layers, every table
+carries `community_id`, every business number is read from
+`platform.config`/`community.settings`, and generated files are only written by
+their generator.
 
 ---
 
-## 🚀 Local Development
-
-### Quick Start Commands
-
-Everything backend goes through `./task`; the frontend keeps its own Vite
-scripts. `./task help` lists every target.
+## 🚀 Local development
 
 ```bash
-./task dev-db     # one-off: create the local roles and databases
-./task dev        # API on :8080 + OIDC stub on :19090 (add --watch to rebuild)
-pnpm dev          # Vite on http://localhost:5173, hot reload
+./task dev-db     # create roles + databases (one-off)
+./task dev        # API on :8080 + OIDC stub on :19090 (--watch to rebuild)
+pnpm dev          # web on http://localhost:5173
 ```
 
-One-time bootstrap (already done on this machine, needed on a fresh one):
+First run on a fresh database:
 
 ```bash
 ./task dev-db
@@ -74,47 +91,78 @@ MAJADU_PG_DSN=postgresql://$(whoami)@127.0.0.1:5432/bm2_dev \
   ./task bootstrap --sub stub-user-1 --email stub@example.com
 ```
 
-| Command | What it does |
+The frontend calls `/api`; Vite proxies and strips it in dev, and `vercel.json`
+rewrites it in production, so the session cookie stays first-party. Set
+`VITE_API_BASE` only to bypass both.
+
+| Command | What it checks |
 |---|---|
 | `./task check` | format, `nim check`, archcheck, unit tests — no database |
-| `./task test` | unit + integration tests (needs `MAJADU_PG_DSN`) |
-| `./task ci` | check + build + test + contract check |
-| `./task e2e` | Playwright a11y, visual and compatibility regression |
+| `./task test` | unit + integration (needs `MAJADU_PG_DSN`) |
+| `./task ci` | check + build + test + contract fingerprint |
+| `./task coverage` | line coverage per module, ratcheted against `coverage-baseline.json` |
+| `./task parity verify` | frozen v1 corpus (71 cases, 48 routes) and v2 corpus |
+| `./task e2e` | Playwright on iPhone 17 (WebKit) and POCO F5 (Chromium) |
 | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 
-> **API endpoint configuration:** the frontend calls `/api` and Vite proxies it
-> to the API, so no environment variable is needed for local work. A deployment
-> sets `VITE_API_BASE` instead.
->
-> **Hot reload:** Vite reloads the frontend. Nim has no hot reload; `./task dev
-> --watch` rebuilds and restarts the API when a `.nim` file changes.
+CI runs seven jobs (`api-check`, `api-test`, `contract`, `web`, `e2e`, `image`,
+`gate`), plus separate `coverage`, `nightly` and `release` workflows. Every job
+is capped at 15 minutes and caches its toolchain.
 
 ---
 
-## 🚢 Deployment Strategy
+## 🚢 Deployment
 
-- **Web (Frontend):** Vercel automatic builds triggered on `main` branch pushes.
-- **API (Backend):** container on the VPS, built by `ops/scripts/deploy-vps.sh` from a GitHub webhook on `refs/heads/main`, with a health gate and a `:prev` image for rollback.
+- **Web** — Vercel, built from `apps/web` on every push to `main`.
+- **API** — rootless Podman on a VPS, started by a Quadlet unit and fronted by
+  Caddy under `api.qouver.com/majadu/*`.
+
+The release workflow builds the image once and records its digest in the GitHub
+Release; `ops/scripts/deploy-vps.sh` pulls **by digest**, rotates `:local` to
+`:prev`, restarts the unit and gates on `/readyz`. A push to `main` does not
+deploy before the cutover: the script reads the production DSN and exits while it
+still points at the v1 database.
+
+The cutover from v1 (`bm`) to v2 (`bm2`) is manual, one-way, and scripted in
+`ops/scripts/cutover.sh` with a runbook in [`docs/ops/cutover.md`](docs/ops/cutover.md).
+Rollback is the `:v1-final` image, not source code.
 
 ---
 
-## 📚 Documentation Index
+## 📌 Status
 
-| Guide | Description |
+The v2 rewrite is complete: 75 contract operations, 16 migrations, backend and
+frontend features wired end to end. The v1 Go tree is gone.
+
+Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):
+
+- the web client does not consume the WebSocket yet — the session page reloads
+  on change;
+- no schedule generator; the contract accepts a schedule authored by the client;
+- `platform.outbox` has no producer, so realtime is in-memory and the API must
+  stay a single instance;
+- the cutover rehearsal and the VPS-side checks are prepared but not executed.
+
+---
+
+## 📚 Documentation
+
+| Guide | For |
 |---|---|
-| [`apps/web/README.md`](apps/web/README.md) | Frontend architecture, state management, components, scripts |
-| [`apps/api/README.md`](apps/api/README.md) | API layout, environment contract, database schema |
-| [`docs/handbook/`](docs/handbook/README.md) | Product overview, data model, routes, decisions |
+| [`docs/handbook/current-status.md`](docs/handbook/current-status.md) | What exists today: stack, contract, gates, infrastructure |
+| [`docs/handbook/architecture.md`](docs/handbook/architecture.md) | Request pipeline, modules, realtime, layers |
+| [`docs/handbook/data-model.md`](docs/handbook/data-model.md) | Schemas, tables, tenancy, config registry |
+| [`docs/handbook/features-and-routes.md`](docs/handbook/features-and-routes.md) | Web routes and the 75 API operations |
 | [`docs/ops/operations.md`](docs/ops/operations.md) | Access holders, incident format, routine checks |
-| [`docs/privacy.md`](docs/privacy.md) | What is stored, for how long, and what anonymisation keeps |
-| [`docs/design-system.md`](docs/design-system.md) | UI tokens, color palettes, typography, theme rules |
+| [`docs/ops/cutover.md`](docs/ops/cutover.md) | Cutover, rehearsal, rollback, consequences |
+| [`docs/privacy.md`](docs/privacy.md) | What is stored, for how long, what anonymisation keeps |
+| [`docs/design-system.md`](docs/design-system.md) | Tokens, typography, theme rules |
+| [`apps/api/README.md`](apps/api/README.md) · [`apps/web/README.md`](apps/web/README.md) | Per-app layout and environment |
 
 ---
 
 ## 📄 License
 
-The source code and the original artwork in `apps/web/public` are
-[MIT licensed](LICENSE). [NOTICE](NOTICE) states the exact split.
-
-The decorative fonts are third-party files with their own terms and are **not**
-covered by MIT — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Code and original artwork in `apps/web/public` are [MIT licensed](LICENSE);
+[NOTICE](NOTICE) states the split. Decorative fonts are third-party files under
+their own terms — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

@@ -7,8 +7,10 @@ bukan dokumen terpisah di folder ini.
 
 ## Stack
 
-- Nim 2.2, `mummy` sebagai server HTTP (thread pool, WebSocket)
-- PostgreSQL, skema `majadu_v2` (role `bm2_app` untuk runtime, `bm2_owner` untuk migrasi)
+- Nim 2.4.0, `mummy` sebagai server HTTP (thread pool, WebSocket)
+- PostgreSQL 18, skema per domain (`platform`, `community`, `player`, `session`,
+  `tournament`, `rating`, `achievement`, `auth`, `account`); role `bm2_app` untuk
+  runtime, `bm2_owner` untuk migrasi, `bm2_etl` untuk ETL
 - Satu cookie sesi `HttpOnly`; tidak ada token di klien
 - Route dihasilkan dari kontrak (`routes_gen.nim`); handler diverifikasi saat kompilasi
 
@@ -68,8 +70,21 @@ database, skema, dan snapshot, dan membalas `503` bila salah satunya tidak siap.
 ./task contract-check   # gagal bila spesifikasi dan hasil generate berbeda
 ```
 
-`packages/contracts/openapi/{core,community}.yaml` adalah sumbernya; angka
-operasi yang dibekukan dicatat di `docs/plan/FROZEN.md`.
+`packages/contracts/openapi/{core,community}.yaml` adalah sumbernya: **75 operasi**
+(lihat `CONTRACT.sha256`). Route hasil generate wajib punya handler; kompilasi
+gagal bila ada yang hilang.
+
+## Gate
+
+```sh
+./task check            # nim check, unit test, archcheck (tanpa database)
+./task test             # + integration (butuh MAJADU_PG_DSN)
+./task coverage         # baris per modul, ratchet terhadap coverage-baseline.json
+./task parity verify    # korpus v1 beku (71 kasus, 48 rute)
+```
+
+Migrasi: 16 berkas (`db/migrations/0001`–`0016`). Config bisnis: 36 key di
+`modules/platform/config/registry.nim`.
 
 ## v1 sudah dihapus
 

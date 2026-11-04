@@ -1,8 +1,9 @@
-# Majadu web (v2 shell)
+# Majadu web
 
-React 19 + Vite + Tailwind 4. This app is the **shell only**: authentication,
-community picker, route manifest, and i18n. Feature screens are placeholders
-(`src/pages/PlaceholderPage.tsx`) until their tasks land.
+React 19 + Vite 8 + Tailwind 4. Authentication shell, community picker, session
+play-by-play, rankings, tournaments, player admin, share pages, and export all
+live here. Every route in `src/routes.manifest.ts` renders a real page; there is no
+generic placeholder screen left.
 
 ## Scripts
 
@@ -12,7 +13,9 @@ community picker, route manifest, and i18n. Feature screens are placeholders
 | `pnpm build` | Type-check (`tsc -b`) and build to `dist/` |
 | `pnpm check:types` | `tsc -b --pretty false` |
 | `pnpm check:lint` | ESLint |
+| `pnpm check:tailwind` | rejects arbitrary Tailwind values |
 | `pnpm test` | Vitest (jsdom) |
+| `pnpm check` | all four, in order |
 
 ## Login flow
 
@@ -66,8 +69,8 @@ here.
 
 ## Layout
 
-- `src/App.tsx` — auth gate plus routes generated from the manifest. Later tasks
-  add pages there, not here.
+- `src/App.tsx` — auth gate plus routes generated from the manifest; new screens
+  join by editing the manifest, not `App.tsx`.
 - `src/routes.manifest.ts` — single route list (`path`, `labelKey`, `element`,
   `requiresAuth`, `roles`, `platformOwner`, `navGroup`). `visibleNav()` filters
   nav entries by the role from `GET /communities`; the platform owner sees
@@ -78,6 +81,6 @@ here.
 
 ## Visual direction
 
-The two shell screens (login, community picker) use only the tokens in
-`docs/design-system.md`. There is no product-level screen design for them yet, so
-they are kept plain: **draft without direction**.
+Every screen uses the tokens in `docs/design-system.md`; component and motion
+rules live there too. `pnpm check:tailwind` fails on arbitrary values so a one-off
+spacing or colour cannot sneak past the tokens.

@@ -1,149 +1,143 @@
 # Current Status
 
-Terakhir diperbarui: **2026-11-04** — disinkronkan dengan kode v2 (Nim, kontrak 74
-operasi, migrasi `0014`, E2E Playwright).
+Terakhir diperbarui: **2026-11-04**. Dokumen ini menjawab "apa yang benar-benar
+ada di repo hari ini", bukan "apa yang direncanakan". Rencana beku ada di
+[`../plan/`](../plan/README.md).
 
-Pintu masuk tercepat. Setelah ini: [`architecture.md`](architecture.md),
-[`data-model.md`](data-model.md), [`features-and-routes.md`](features-and-routes.md).
+Pintu masuk berikutnya: [`architecture.md`](architecture.md),
+[`data-model.md`](data-model.md), [`features-and-routes.md`](features-and-routes.md),
+[`roadmap.md`](roadmap.md).
 
-## 1. Apa yang berjalan di repo ini
+## 1. Runtime
 
 ```text
-apps/web   React 19 · Vite 8 · Tailwind 4 · React Router 7
-   │        same-origin /api
-apps/api   Nim 2.4 · Mummy (HTTP + WebSocket) · db_connector
+apps/web   React 19.2 · Vite 8 · TypeScript 6 · Tailwind 4 · React Router 7
+   │        browser → same-origin /api (Vite proxy di dev, vercel.json di prod)
+apps/api   Nim 2.4.0 · mummy (HTTP + WebSocket) · db connector
    │
-Postgres 18 · database bm2 (dev/e2e: bm2_dev / bm2_e2e)
+Postgres 18.6 · skema per domain (platform, community, player, session,
+              tournament, rating, achievement, auth, account)
 ```
 
-- **Backend aktif = Nim** di `apps/api/src/` (`apps/api/Dockerfile` membangun
-  `apps/api/src/main.nim`).
-- **Kode Go v1 sudah dihapus** di T-082. Rollback memakai image
-  `localhost/majadu-api:v1-final` (disimpan 30 hari), bukan source; kontrak v1
-  yang dibekukan ada di `testdata/parity/v1/`.
-- Alur kerja dokumen ini: branch `main` (branch lama masih ada di lokal/remote, tetapi
-  tidak dipakai oleh handbook ini).
+- **Backend = Nim** di `apps/api/src/`; `apps/api/Dockerfile` membangun
+  `apps/api/src/main.nim` (multi-stage Nim 2.4.0 → Debian bookworm-slim, uid 10001,
+  port 8080).
+- **Kode Go v1 sudah dihapus** (T-082). Rollback memakai image
+  `localhost/majadu-api:v1-final`, bukan source; kontrak v1 yang dibekukan ada di
+  `testdata/parity/v1/`.
+- **Scoreboard** (`apps/scoreboard`) adalah PWA terpisah untuk mencatat skor di
+  lapangan; tidak berbagi kode dengan `apps/web` selain aturan validasi skor.
 
 ## 2. Kontrak & database
 
-- **74 operasi** di kontrak: `packages/contracts/openapi/CONTRACT.sha256:7`,
-  `apps/api/src/routes_gen.nim:682`. Sumber tangan: `core.yaml` + `community.yaml`;
-  hasil generate: `api.yaml`, `routes_gen.nim`, `packages/web-client/src/api.ts`.
-- Setiap operasi punya handler (gagal kompilasi bila tidak:
-  `apps/api/src/routes_gen.nim:686-695`) dan baris otorisasi (`testdata/authz/matrix.yaml`).
-- **14 migrasi** di `db/migrations/`, terakhir `0014_fix_game_sides.sql`; seed:
-  `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
-- Skema dipisah per domain: `platform`, `community`, `player`, `session`, `tournament`,
-  `rating`, `achievement`, `auth`, `account` — lihat [`data-model.md`](data-model.md).
+- **75 operasi** di kontrak: `packages/contracts/openapi/CONTRACT.sha256`
+  (`operations 75`), hasil generate di `apps/api/src/routes_gen.nim`.
+  Sumber tangan: `core.yaml` + `community.yaml`; hasil generate: `api.yaml`,
+  `routes_gen.nim`, `packages/web-client/src/api.ts`.
+- Setiap operasi punya handler (gagal kompilasi bila tidak) dan baris otorisasi di
+  `testdata/authz/matrix.yaml`; `./task contract-check` menjaga fingerprint.
+- **16 migrasi** di `db/migrations/` (`0001`–`0016`, terakhir
+  `0016_cutover_probe.sql`); seed: `db/seeds/platform_config.sql`,
+  `db/seeds/achievement_definitions.sql`.
+- **36 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
+  override per komunitas di `community.settings` hanya boleh mempersempit platform.
+- Nama database: produksi `bm2` (arsip v1 `bm` read-only), lokal `bm2_dev`,
+  `bm2_ops`, `bm2_e2e`, `bm2_parity_v2`; cutover memakai `bm_staging`.
 
-## 3. Frontend hari ini
+## 3. Frontend
 
-Halaman yang sudah nyata (bukan placeholder):
+Semua rute di `apps/web/src/routes.manifest.ts` punya halaman nyata; tidak ada
+`PlaceholderPage` tersisa.
 
-- Login OIDC + shell komunitas (`/`, `/c/:slug`).
-- Daftar sesi + detail sesi **baca-saja** (`/c/:slug/sessions`, `…/sessions/:id`) —
-  peserta, jadwal, skor, standings.
-- Papan poin + detail pemain (`/c/:slug/rankings`, `…/rankings/:playerId`).
-- Daftar turnamen, editor classic, editor team, ekspor sosial
-  (`/c/:slug/tournaments*`, `/c/:slug/export`).
+- Login OIDC + shell komunitas (`/`, `/c/:slug`), pemilih komunitas, i18n.
+- **Sesi**: daftar, detail, dan panel host/admin untuk lock/unlock, share link,
+  skor per game, skip, absent, swap (`apps/web/src/sessions/SessionAdmin.tsx`).
+  Panel hanya tampil untuk `host`/`admin`.
+- **Share publik** `/s/:code`: sesi, skor, klasemen, dan papan poin penonton.
+- **Pemain**: daftar, detail, pengajuan/pelepasan klaim, antrean keputusan admin,
+  merge, unlink.
+- **Peringkat**: papan + filter tier, detail pemain + badge.
+- **Turnamen**: daftar, wizard/editor classic dan team, alat admin rating
+  (finalize/ingest/revert/hapus).
+- **Ekspor**: post 1080×1350 dan story 1080×1920 dari sesi atau turnamen.
+- **Settings komunitas**: anggota, peran, undangan, join request, override config.
+- **Owner**: `/owner/communities` untuk membuat komunitas dan melihat yang diikuti.
 
-Masih placeholder (`PlaceholderPage`):
-
-- `/c/:slug/players`
-- `/c/:slug/settings`
-- `/s/:code` (halaman share publik)
-- `/owner/communities`
-
-Belum ada UI untuk: membuat sesi, mengubah skor/swap/absent/lock, share link, dan
-pengelolaan anggota/klaim pemain. API-nya sudah ada.
-
-Frontend memakai `fetch` + hook `useEffect`/`useState` per fitur; `@tanstack/react-query`
-masih terpasang di `package.json` tetapi tidak diimpor. Tidak ada service worker/Workbox di v2; yang ada hanya
-`apps/web/public/manifest.json` (metadata aplikasi).
+Frontend memakai `fetch` + hook per fitur. `@tanstack/react-query` masih terpasang
+tetapi tidak diimpor; tidak ada service worker di `apps/web` (hanya
+`public/manifest.json`).
 
 ## 4. Realtime
 
-- WebSocket, bukan SSE. Ticket sekali pakai lewat `POST …/ws-ticket`, lalu upgrade ke
-  `/ws/c/{slug}/sessions/{id}` atau `/ws/share/{code}`.
-- Frame `session.changed` hanya membawa `seq`; tidak ada replay. Klien harus membaca
-  ulang state (`GET /c/{slug}/sessions/{id}`) setelah menerima perubahan.
-- Hub fan-out in-memory per proses → **API harus satu instance**.
+- WebSocket, bukan SSE. Tiket sekali pakai lewat `POST …/ws-ticket`, lalu upgrade
+  ke `/ws/c/{slug}/sessions/{id}` atau `/ws/share/{code}`.
+- Frame `session.changed` hanya membawa `seq`; klien harus membaca ulang state.
+- Hub fan-out in-memory per proses → **API harus satu instance**. `platform.outbox`
+  sudah ada dan dibersihkan janitor, tetapi belum ada produsen event.
+- **Klien web belum memakai WebSocket**: halaman sesi memuat state saat dibuka dan
+  setelah aksi lokal, bukan saat host lain mengubah.
 
-Detail: [`architecture.md`](architecture.md) §8.
+## 5. Gate
 
-## 5. Testing & gate
-
-| Suite | Command | Catatan |
+| Suite | Perintah | Catatan |
 |---|---|---|
-| Unit API + `nim check` + archcheck | `./task check` | tanpa database |
-| Unit + integration API | `./task test` | butuh `MAJADU_PG_DSN`; suite integration butuh `INTEGRATION=1` (dipasang `task test`) |
-| Satu modul | `./task verify <modul|api>` | integration butuh DB |
+| Format, `nim check`, archcheck, unit | `./task check` | tanpa database |
+| Unit + integration | `./task test` | butuh `MAJADU_PG_DSN` |
+| Satu modul | `./task verify <modul\|api>` | integration bila DB ada |
 | Kontrak | `./task contract-check` | fingerprint + hasil generate |
-| Web | `pnpm check:web` | TypeScript, ESLint, Tailwind, Vitest |
-| Build web | `pnpm build:web` | Vite production build |
-| E2E | `./task e2e` | Playwright, DB `bm2_e2e`, API + OIDC stub + preview |
+| Parity | `./task parity verify` / `./task parity v2 verify` | v1 beku 71 kasus/48 rute; v2 142 kasus |
+| Coverage | `./task coverage` | per modul, ratchet terhadap `coverage-baseline.json` (59,76% total, diukur dengan integration) |
+| Keamanan | bagian dari `./task test` | IDOR, eskalasi, CSRF, replay OIDC, rate limit, klaim |
+| Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
+| E2E | `./task e2e` | Playwright: a11y, visual, compatibility |
 
-E2E berjalan di dua perangkat: **iPhone 17** (WebKit, 402×874, DPR 3) dan **POCO F5**
-(Chromium, 393×873, DPR 2.75), dengan `maxDiffPixels: 0` (`e2e/browsers.ts:19-38`,
-`apps/web/playwright.config.ts`). Rute baseline: home, community, rankings, tournaments, classic editor, sessions,
-session, export (`e2e/visual.routes.ts:19-33`).
-
-Angka pass tidak ditulis di sini karena berubah setiap commit; jalankan perintahnya.
+E2E berjalan di dua perangkat: **iPhone 17** (WebKit, 402×874, DPR 3) dan
+**POCO F5** (Chromium, 393×873, DPR 2.75), `maxDiffPixels: 0`.
 
 ## 6. CI
 
-`.github/workflows/ci.yml` menjalankan:
+- `.github/workflows/ci.yml` — 7 job: `api-check`, `api-test` (Postgres 18.6),
+  `contract`, `web`, `e2e`, `image`, lalu `gate`.
+- `.github/workflows/coverage.yml` — instrumented build + ratchet, workflow
+  terpisah supaya cache tidak bercampur dengan gate cepat.
+- `.github/workflows/nightly.yml` — `./task ci` penuh dengan database service.
+- `.github/workflows/release.yml` — dipicu tag `v*`, membangun image sekali dan
+  menulis digest ke GitHub Release.
+- Semua job `timeout-minutes: 15`, memakai cache, dan tidak menginterpolasi
+  konteks GitHub langsung ke shell.
 
-- `api-check` (`./task check`)
-- `api-test` (Postgres 18.6 service, `./task dev-db` + `./task test`)
-- `contract` (`./task contract-check`)
-- `web` (`pnpm install --frozen-lockfile`, `pnpm check:web`, `pnpm build:web`)
-- `e2e` (Playwright + `./task deps-check`)
-- `image` (`docker build apps/api`)
-- `gate` (semua job harus sukses)
+## 7. Infrastruktur
 
-`nightly.yml` menjalankan `./task ci` dengan database service.
+- **Deploy** (`ops/scripts/deploy-vps.sh`): hanya `refs/heads/main`; `flock`;
+  `git fetch` + `reset --hard`; pull image **by digest**; rotasi `:local` → `:prev`;
+  restart unit; gate `/readyz`; rollback ke `:prev` bila gagal. **Cutover gate:**
+  selama env produksi masih menunjuk `bm`, script berhenti sebelum pull/restart.
+- **Cutover** (`ops/scripts/cutover.sh`): 12 langkah bernama dengan penanda resume
+  (`--from`), `:v1-final` ditag sebelum v1 dihentikan, maintenance Caddy, dump →
+  `bm_staging`, peran + migrasi + seed + owner, ETL + verify, `cutover_state`,
+  tukar env, tukar snippet Caddy, `/readyz`, smoke. Rollback: `rollback.sh`.
+- **Unit**: `ops/systemd/majadu-api.container` (rootless, `Pull=never`,
+  `MemoryMax=512M`, `StartLimit*`, `OnFailure=majadu-alert@%n.service`,
+  `NoNewPrivileges`, `DropCapability=ALL`) + `majadu-alert@.service`.
+- **Caddy**: `api.qouver.com` adalah satu site dengan banyak `handle`; snippet
+  majadu adalah **handler block** yang diimpor di dalam site itu, prefix `/majadu`
+  dipertahankan. Langkah sekali-jalan ada di `ops/caddy/Caddyfile.api.qouver.com`.
+- **Backup/restore/smoke**: `ops/scripts/{backup,restore,smoke}.sh`; dump diverifikasi
+  dengan `pg_restore --list` sebelum dipindah, file mode 600.
+- **Rehearsal**: `tools/rehearsal/` + `./task rehearsal check`; `timings.json` masih
+  `not_run` karena butuh Podman + jendela maintenance di VPS.
+- **Artefak** yang belum terbukti di VPS: `caddy validate` pada Caddyfile produksi,
+  parsing Quadlet, `podman pull` digest, dan rollback ber-stopwatch. Lihat
+  [`../ops/cutover.md`](../ops/cutover.md) §"belum terbukti".
 
-## 7. Infrastruktur (apa yang benar-benar ada di repo)
+## 8. Sisa pekerjaan
 
-- `apps/api/Dockerfile` — multi-stage Nim 2.4.0 → `debian:bookworm-slim`, user uid 10001,
-  port 8080.
-- `ops/scripts/deploy-vps.sh` — webhook `refs/heads/main` saja, `flock`, build lokal,
-  tag `:local`/`:prev`, restart quadlet, healthcheck 30 dtk, rollback ke `:prev`.
-- `ops/systemd/majadu-api.container`, `ops/caddy/Caddyfile.api.qouver.com`,
-  `ops/env/prod.env.example`, `ops/webhook/webhook.json`.
+Rencana 88 task: lihat [`roadmap.md`](roadmap.md). Ringkasnya:
 
-**Peringatan konsistensi:** artefak `ops/` masih memakai nama v1 — schema `bm`,
-`DATABASE_URL`, `MAJADU_DB_SCHEMA`, dan Caddy prefix `/majadu`. Backend Nim membaca
-`MAJADU_PG_DSN`, `MAJADU_PORT`, `SHARE_CODE_KEYS`, dan seterusnya
-(`apps/api/src/main.nim:34-47`, `apps/api/src/server.nim:29-42`). Jadi `ops/` **belum**
-menjadi deployment v2 yang siap pakai; jangan menyalin nilainya sebagai konfigurasi
-produksi. Kredensial/alamat asli tidak ada di repo.
-
-## 8. Database
-
-Satu model data v2; tidak ada `bm_dev`/`bm` di dokumen ini. Nama database yang dipakai
-tooling: `bm2_dev` (CI/dev) dan `bm2_e2e` (E2E). Untuk produksi, konfigurasi berada di
-luar repo.
-
-- Registry config: 36 key, nilai awal di `db/seeds/platform_config.sql`; nilai bisnis
-  diubah lewat data, bukan deploy (`modules/platform/config/registry.nim`).
-- Papan poin: window 12 minggu, 10 entri terbaik, minimal 3 game; dihitung saat baca.
-- Tidak ada mesin Glicko, tabel musim, atau rating absolut.
-
-## 9. Utang yang terlihat dari kode
-
-1. **UI sesi belum bisa menulis** — halaman detail hanya membaca; mutasi skor/swap/lock
-   belum punya layar.
-2. **Halaman placeholder** — players, settings, share publik, owner communities.
-3. **Turnamen dibatasi manifest** ke `host`/`admin`, walau API mengizinkan `member`
-   membaca.
-4. **Generator jadwal sesi belum ada** di v2; kontrak hanya menyediakan
-   `PUT …/schedule` untuk klien yang sudah punya jadwal.
-5. **`ops/` masih v1-oriented** (lihat §7).
-6. **Kode Go v1 masih di tree** (T-082) dan beberapa dokumen lama masih merujuknya.
-7. **`platform.outbox` belum dipakai produsen event**; realtime masih fan-out in-memory.
-8. **Klien WebSocket belum ada di FE** — endpoint ticket/upgrade siap, tetapi halaman
-   sesi masih memuat state sekali saat dibuka.
-9. **`packages/contracts/openapi/README.md` menyebut 73 operasi**, sedangkan kontrak
-   aktual 74 (`CONTRACT.sha256:7`).
+- **Operasional, menunggu VPS/waktu:** rehearsal T-063 (dan karenanya bukti
+  T-060/061/065), soak T-074, penghapusan `:v1-final` setelah 30 hari (T-082),
+  force-push T-108 yang ditunda atas keputusan pemilik.
+- **Celah di luar rencana:** klien WebSocket di FE, produsen `platform.outbox`,
+  generator jadwal sesi, pembatasan peran turnamen di manifest, dependency
+  `@tanstack/react-query` yang mati, dan kenaikan coverage di `modules/account`
+  (41,5%), `modules/share` (0%), `modules/tournament` (56,3%).

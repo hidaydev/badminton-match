@@ -1,55 +1,64 @@
 # Roadmap
 
-Status per **2026-11-04**. Riwayat perubahan ada di git history; rencana beku ada di
-[`../plan/`](../plan/README.md) dan **tidak** diubah oleh handbook ini.
+Status per **2026-11-04**. Riwayat perubahan ada di git history; rencana beku ada
+di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
 
-## ✅ Sudah ada di kode
+## ✅ Selesai
 
-- **Backend v2 (Nim)** — modul `account`, `community`, `player`, `session`, `tournament`,
-  `rating`, `achievement`, `share`, `platform`; entrypoint `apps/api/src/main.nim`.
-- **Kontrak 74 operasi** — `core.yaml` + `community.yaml` → `api.yaml`,
+- **Backend v2 (Nim 2.4)** — modul `account`, `community`, `player`, `session`,
+  `tournament`, `rating`, `achievement`, `share`, `platform`; entrypoint
+  `apps/api/src/main.nim`.
+- **Kontrak 75 operasi** — `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, klien TS, fingerprint (`packages/contracts/openapi`).
-- **Skema v2** — 14 migrasi (`db/migrations/0001`–`0014`), seed config dan achievement.
-- **Auth & komunitas** — OIDC + cookie sesi, membership `member/host/admin`, invite,
-  join request, settings, audit append-only.
-- **Sesi** — API tulis (jadwal, skor, skip, absent, swap, lock/unlock, share) dengan
-  `If-Match` + `Idempotency-Key`; klasemen server; halaman daftar/detail baca-saja.
+- **Skema v2** — 16 migrasi (`0001`–`0016`), 36 key config, seed config dan
+  achievement.
+- **Auth & komunitas** — OIDC + cookie sesi, membership `member`/`host`/`admin`,
+  invite, join request, settings, audit append-only, platform owner.
+- **Sesi** — API baca/tulis lengkap (jadwal, skor, skip, absent, swap, lock/unlock,
+  share) dengan `If-Match` + `Idempotency-Key`; klasemen dihitung server; UI host
+  dan halaman share publik sudah ada.
 - **Papan poin** — window 12 minggu / best 10 / minimal 3 game, filter tier, detail
   pemain + achievement.
-- **Turnamen** — classic (16 pasangan, 4 grup, 32 match) dan team (6×6, 9 grup + final,
-  3 partai), editor FE + ingest rating admin.
+- **Turnamen** — classic (16 pasangan, 4 grup, 32 match) dan team (6×6, 9 match grup
+  + final, 3 partai), editor FE + ingest rating admin.
 - **Ekspor** — post/story dari sesi atau turnamen, ukuran dari config.
-- **Realtime** — WebSocket ticket sekali pakai, fan-out in-memory.
-- **Gate** — `./task check`, `test`, `contract-check`, `pnpm check:web`, `./task e2e`
-  (iPhone 17 + POCO F5), CI 6 job + gate.
+- **Pemain** — daftar, klaim/lepas klaim, merge, antrean admin.
+- **Realtime** — WebSocket ticket sekali pakai, fan-out in-memory (API).
+- **Gate** — `check`, `test`, `contract-check`, `coverage`, `parity`, `pnpm
+  check:web`, `e2e` (iPhone 17 + POCO F5), CI 7 job + gate.
+- **Ops** — deploy/cutover/rollback/backup/restore/smoke, Quadlet hardened, Caddy
+  handler `/majadu`, alert unit, harness rehearsal.
+- **Rilis** — SemVer 2.0.0, CHANGELOG, tag SSH-signed, image sekali di CI, Release
+  ber-digest.
+- **Dekomisi Go v1** — source dihapus; rollback memakai `:v1-final`.
 
-## ⏳ Berikutnya (urut prioritas)
+## ⏳ Berikutnya (di luar 88 task)
 
-| # | Item | Kenapa / bukti |
+| # | Item | Kenapa |
 |---|---|---|
-| 1 | **UI tulis sesi** — buat sesi, isi jadwal, skor, skip, absent, swap, lock, share | `SessionPage` hanya membaca; tidak ada pemanggilan `PATCH/PUT/POST` sesi di `apps/web/src` |
-| 2 | **Halaman players + admin** — daftar/klaim/merge pemain, anggota, settings | `/c/:slug/players` dan `/c/:slug/settings` masih `PlaceholderPage`; API-nya sudah ada |
-| 3 | **Halaman share publik `/s/:code`** | rute ada, elemen masih placeholder; API `GET /s/{code}` + ranking share sudah ada |
-| 4 | **Deployment v2** — env, unit quadlet, Caddy, cutover/backup/rollback | `ops/` masih memakai nama v1 (`bm`, `DATABASE_URL`, `/majadu`), bukan `MAJADU_PG_DSN`; lihat T-060/T-061/T-065 di `docs/plan/BACKLOG.md` |
-| 5 | **Halaman owner communities** | `/owner/communities` masih placeholder |
-| 6 | **Generator jadwal sesi** (bila diinginkan) | belum ada modul generator di v2; kontrak hanya menerima jadwal dari klien |
+| 1 | **Klien WebSocket di FE** | Endpoint ticket + upgrade sudah siap, tetapi halaman sesi masih memuat state sekali; host lain tidak terlihat sampai refresh. |
+| 2 | **Produsen `platform.outbox`** | Realtime masih in-memory → API wajib satu instance; outbox sudah ada dan dibersihkan janitor, belum dipakai. |
+| 3 | **Peran turnamen di manifest** | `routes.manifest.ts` membatasi `host`/`admin`, padahal API mengizinkan `member` membaca. |
+| 4 | **Hapus `@tanstack/react-query`** | Terpasang, tidak diimpor di mana pun. |
+| 5 | **Generator jadwal sesi** (opsional) | v2 hanya menerima jadwal dari klien; generator lama tidak dibawa. |
+| 6 | **Naikkan coverage** | `modules/account` 41,5%, `modules/share` 0%, `modules/tournament` 56,3%; ratchet hanya menahan, tidak menaikkan. |
 
-Dekomisi Go v1 (T-082) sudah selesai: source-nya dihapus, rollback memakai image
-`:v1-final`.
+## 🚧 Operasional yang belum selesai
 
-## Catatan operasional
+- **T-063 rehearsal** — harness + gate siap, `timings.json` masih `not_run`;
+  butuh Podman dan jendela maintenance di VPS.
+- **Bukti VPS** (T-060/061/065) — `caddy validate` produksi, parsing Quadlet,
+  `podman pull` digest, rollback ber-stopwatch.
+- **T-074 soak** — 1 juta request + 50 watcher; ditunda pemilik, belum ada harness.
+- **T-082** — hapus image `:v1-final` setelah 30 hari observasi pasca-cutover.
+- **T-108** — force-push riwayat yang sudah di-rewrite **ditunda** atas keputusan
+  pemilik; hook lokal sudah menolak `docs/audits` dan `docs/plan/reviews` kembali.
 
-- Deploy (repo): push `main` → webhook → `ops/scripts/deploy-vps.sh` (build lokal,
-  restart quadlet, healthcheck, rollback `:prev`). **Belum** disesuaikan dengan env Nim.
-- Backup/restore/cutover: belum ada script di `ops/`; jangan menganggap prosedur v1
-  berlaku.
-- Test: `./task check` (tanpa DB) · `./task test` (dengan `MAJADU_PG_DSN`) ·
-  `./task e2e` · `pnpm check:web`.
-- Status & detail infrastruktur: [`current-status.md`](current-status.md).
+## Catatan
 
-## Riwayat singkat
-
-- **v1** — backend Go + Postgres `bm`; kontrak snapshot/SSE; didokumentasikan di
-  [`backend-go-decision.md`](backend-go-decision.md) (historis).
-- **v2** — rewrite Nim di repo yang sama: kontrak OpenAPI, database `bm2`, multi-komunitas,
-  WebSocket, config registry. Semua kode dan dokumen aktif saat ini mengacu ke v2.
+- Deploy: push `main` → webhook → `ops/scripts/deploy-vps.sh`. Selama env produksi
+  masih menunjuk `bm`, script berhenti sebelum menyentuh container (cutover gate).
+- Backup/restore/cutover/rollback sudah ada di `ops/scripts/` dan didokumentasikan
+  di [`../ops/cutover.md`](../ops/cutover.md); prosedurnya belum dieksekusi di VPS.
+- Test: `./task check` · `./task test` (dengan `MAJADU_PG_DSN`) · `./task coverage`
+  · `./task e2e` · `pnpm check:web`.

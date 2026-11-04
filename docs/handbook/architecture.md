@@ -1,8 +1,8 @@
 # Architecture
 
 Dokumen ini menggambarkan **runtime v2**: backend Nim + frontend React yang ada di repo
-hari ini. Backend Go v1 masih tersimpan di tree (`apps/api/cmd/`, `apps/api/internal/`)
-sampai dekomisinya, tetapi bukan kode yang dijelaskan di sini — lihat §12.
+hari ini. Backend Go v1 sudah dihapus dari tree (T-082); asal-usul semantik yang
+diport ditandai di docstring modul dan dijelaskan di §12.
 
 ## 1. Bentuk sistem
 
@@ -36,7 +36,7 @@ Tidak ada PostgREST, Supabase, SSE, service worker, atau store global (Zustand) 
 | `apps/web/src/` | shell React, halaman, klien API per fitur |
 | `packages/contracts/openapi/` | dua spec sumber + dokumen gabungan + fingerprint |
 | `packages/web-client/src/api.ts` | klien TypeScript hasil generate |
-| `db/migrations/`, `db/seeds/` | skema (`0001`–`0014`) dan seed konfigurasi |
+| `db/migrations/`, `db/seeds/` | skema (`0001`–`0016`) dan seed konfigurasi |
 | `tools/` | dbtools, contract-gen, parity, CLI ops, OIDC stub |
 | `e2e/` | suite Playwright (a11y, visual, kompatibilitas) |
 | `task`, `task.d/` | satu-satunya command runner (`./task <target>`) |
@@ -111,12 +111,12 @@ Kontrak ditulis tangan di dua dokumen JSON-syntax:
 
 `tools/contract-gen` menggabungkannya menjadi `api.yaml`, menghasilkan
 `apps/api/src/routes_gen.nim` + `packages/web-client/src/api.ts`, dan menulis
-`CONTRACT.sha256`. Jumlah operasi saat ini **74** (`apps/api/src/routes_gen.nim:13-682`,
-`CONTRACT.sha256:7`). `./task contract-check` gagal bila spec, hasil generate, atau
+`CONTRACT.sha256`. Jumlah operasi saat ini **75** (`CONTRACT.sha256`, baris
+`operations 75`). `./task contract-check` gagal bila spec, hasil generate, atau
 fingerprint berbeda.
 
 Kontrak bukan dokumentasi pasif: `verifyHandlers` gagal saat kompilasi bila satu
-operation tidak punya handler (`apps/api/src/routes_gen.nim:686-695`), dan `apps/api/tests/routes_test.nim`
+operation tidak punya handler (`verifyHandlers` di `apps/api/src/routes_gen.nim`), dan `apps/api/tests/routes_test.nim`
 mengunci jumlah operasi.
 
 Rute implementasi yang **tidak** ada di kontrak (sengaja tidak dipromosikan):
@@ -222,8 +222,8 @@ menyentuh game yang disebut, sehingga jadwal parsial tetap valid
 
 - `apps/web/src/main.tsx` membuat root; `App.tsx` memasang `AuthProvider` →
   `BrowserRouter` → `CommunityProvider` → shell. `AppNav` hanya tampil setelah login
-  (`apps/web/src/App.tsx:21-58`).
-- Rute adalah daftar data di `apps/web/src/routes.manifest.ts:44-165`; setiap entri
+  (`apps/web/src/App.tsx`).
+- Rute adalah daftar data di `apps/web/src/routes.manifest.ts`; setiap entri
   menentukan `requiresAuth`, `roles`, `platformOwner`, dan `navGroup`. `visibleNav`
   menyaring menu berdasarkan role komunitas yang sedang dipilih.
 - Login memakai OIDC lewat API; token tidak pernah masuk JavaScript. Semua panggilan
@@ -259,14 +259,17 @@ sisa v1.
 | `./task test` | unit + integration (`INTEGRATION=1`) | ya (`MAJADU_PG_DSN`) |
 | `./task verify <modul\\|api>` | test satu modul | bila ada integration |
 | `./task contract-check` | fingerprint + hasil generate | tidak |
+| `./task coverage` | baris per modul, ratchet baseline | ya (integration) |
+| `./task parity verify` | korpus v1 beku + v2 | tidak / v2: ya |
 | `pnpm check:web` | TypeScript, ESLint, Tailwind, Vitest | tidak |
 | `./task e2e` | Playwright: a11y, visual, kompatibilitas | ya (DB `bm2_e2e`) |
 
 CI menjalankan job `api-check`, `api-test` (Postgres 18.6 service), `contract`, `web`,
 `e2e`, `image`, lalu `gate` yang menuntut semua job sukses
-(`.github/workflows/ci.yml`). E2E memakai dua perangkat nyata: `iphone-17` (WebKit,
-402×874, DPR 3) dan `poco-f5` (Chromium, 393×873, DPR 2.75)
-(`e2e/browsers.ts:19-38`).
+(`.github/workflows/ci.yml`). Coverage punya workflow sendiri
+(`.github/workflows/coverage.yml`) supaya build terinstrumentasi tidak berbagi cache
+dengan gate cepat. E2E memakai dua perangkat nyata: `iphone-17` (WebKit, 402×874,
+DPR 3) dan `poco-f5` (Chromium, 393×873, DPR 2.75) (`e2e/browsers.ts`).
 
 ## 14. Prinsip
 

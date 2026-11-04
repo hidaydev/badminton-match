@@ -5,8 +5,8 @@ Keduanya berbeda: halaman `/c/{slug}/rankings` memanggil `GET /c/{slug}/rankings
 
 ## 1. Rute web
 
-Sumber tunggal: `apps/web/src/routes.manifest.ts:44-165`. `App.tsx` tidak mendaftar rute
-satu per satu; ia memetakan manifest (`apps/web/src/App.tsx:21-45`).
+Sumber tunggal: `apps/web/src/routes.manifest.ts`. `App.tsx` tidak mendaftar rute
+satu per satu; ia memetakan manifest.
 
 Kolom **Akses** = `requiresAuth` + `roles`/`platformOwner` di manifest. Entri tanpa
 `navGroup` tetap bisa dibuka lewat URL, tetapi tidak muncul di menu.
@@ -16,8 +16,8 @@ Kolom **Akses** = `requiresAuth` + `roles`/`platformOwner` di manifest. Entri ta
 | `/` | `HomePage` | login | main | daftar komunitas; klik → sesi komunitas |
 | `/c/:slug` | `CommunityPage` | login, semua role | — | ringkasan + 4 setting efektif (baca-saja) |
 | `/c/:slug/sessions` | `SessionsPage` | login, semua role | main | daftar sesi komunitas |
-| `/c/:slug/sessions/:id` | `SessionPage` | login, semua role | — | detail sesi baca-saja: peserta, game, standings |
-| `/c/:slug/players` | `PlaceholderPage` | login, semua role | main | **placeholder** |
+| `/c/:slug/sessions/:id` | `SessionPage` | login, semua role | — | detail sesi + panel host/admin (lock, share, skor, skip, absent, swap) |
+| `/c/:slug/players` | `PlayersPage` | login, semua role | main | daftar pemain, klaim/lepas klaim, merge oleh admin |
 | `/c/:slug/rankings` | `RankingsPage` | login, semua role | main | papan poin + filter tier |
 | `/c/:slug/rankings/:playerId` | `RatingPlayerPage` | login, semua role | — | baris papan, statistik, badge |
 | `/c/:slug/tournaments` | `TournamentsPage` | login, `admin`/`host` | main | daftar classic + team |
@@ -26,14 +26,15 @@ Kolom **Akses** = `requiresAuth` + `roles`/`platformOwner` di manifest. Entri ta
 | `/c/:slug/tournaments/team/new` | `TournamentTeamPage` | login, `admin`/`host` | — | form 6 tim × 6 kelas |
 | `/c/:slug/tournaments/team/:id` | `TournamentTeamPage` | login, `admin`/`host` | — | editor partai + klasemen |
 | `/c/:slug/export` | `ExportPage` | login, `admin`/`host` | main | ekspor post/story |
-| `/c/:slug/settings` | `PlaceholderPage` | login, `admin` | admin | **placeholder** |
-| `/s/:code` | `PlaceholderPage` | publik | — | **placeholder** (halaman share belum ada) |
-| `/owner/communities` | `PlaceholderPage` | login, platform owner | owner | **placeholder** |
+| `/c/:slug/settings` | `SettingsPage` | login, `admin` | admin | anggota, peran, undangan, join request, override config |
+| `/s/:code` | `SharedSessionPage` | publik | — | sesi, skor, klasemen, dan papan poin penonton |
+| `/owner/communities` | `SetupPage` | login, platform owner | owner | buat komunitas + daftar komunitas yang diikuti |
 
 Catatan:
 
-- `/c/:slug/sessions` dan `/c/:slug/sessions/:id` adalah **halaman baca-saja**. Belum
-  ada UI untuk membuat sesi, mengubah skor, swap, absent, lock, atau share.
+- `/c/:slug/sessions/:id` menampilkan panel host/admin untuk lock/unlock, share link,
+  skor per game, skip, absent, dan swap. Panel itu tidak dirender untuk `member`.
+  Membuat sesi baru belum punya wizard; sesi dibuat lewat API atau fixture E2E.
 - `TournamentsPage` menautkan baris ke `/tournaments/{format}/{id}`, sehingga tombol
   classic/team memakai editor yang sama dengan rute `new` (`apps/web/src/pages/TournamentsPage.tsx`).
 - Manifest membatasi turnamen & ekspor ke `host`/`admin`, sedangkan API mengizinkan
@@ -58,9 +59,30 @@ Catatan:
 
 - `SessionsPage`: `GET /c/{slug}/sessions`, keadaan kosong/error/loading eksplisit,
   tautan ke detail.
-- `SessionPage`: satu permintaan `GET /c/{slug}/sessions/{id}` (header, peserta, game)
-  plus `GET /c/{slug}/sessions/{id}/standings`; menampilkan versi/status, pemain absen,
-  skor per game, dan klasemen. Semua baca-saja (`apps/web/src/sessions/hooks.ts`).
+- `SessionPage`: `GET /c/{slug}/sessions/{id}` (header, peserta, game) plus
+  `GET /c/{slug}/sessions/{id}/standings`; menampilkan versi/status, pemain absen,
+  skor per game, dan klasemen (`apps/web/src/sessions/hooks.ts`).
+- `SessionAdmin` (hanya `host`/`admin`): lock/unlock, buat/putar share link, ubah
+  skor, skip game, tandai absen, dan swap. Setiap tulisan membawa `If-Match` dan
+  `Idempotency-Key`; sukses memicu muat ulang state, bukan update optimistis
+  (`apps/web/src/sessions/SessionAdmin.tsx`).
+
+### Pemain
+
+- `PlayersPage`: daftar pemain + pencarian; pengajuan klaim oleh pemilik akun,
+  pelepasan klaim, antrean keputusan `admin` dengan riwayat `released`, dan merge
+  (`apps/web/src/players/`).
+- `PlayerDetailPage`: profil, tier, statistik, dan badge; tautan ke riwayat
+  pertandingan dari papan poin.
+- `/s/:code` (`SharedSessionPage`): pintu penonton tanpa login — sesi, skor,
+  klasemen, dan papan poin share; kode tidak valid → 404 tanpa cache.
+
+### Settings & owner
+
+- `SettingsPage` (`admin`): anggota + peran, undangan, join request, dan override
+  config komunitas (hanya boleh mempersempit platform).
+- `/owner/communities` (`SetupPage`, platform owner): membuat komunitas baru dan
+  melihat komunitas yang diikuti.
 
 ### Ranking
 
@@ -74,7 +96,7 @@ Catatan:
 
 - 16 pasangan, grup A–D, 32 match: 24 grup + 4 QF + 2 SF + 1 perebutan juara 3 + 1 final
   (`modules/tournament/domain/classic.nim:1-20`).
-- Wizard membuat draw deterministik dari seed di browser (`ClassicNewPage.tsx`), lalu
+- Wizard membuat draw deterministik dari seed di browser (`TournamentClassicPage.tsx`), lalu
   `POST /c/{slug}/tournaments`.
 - Editor: ubah metadata, skor per match (`PATCH …/matches/{matchId}` dengan `If-Match`),
   klasemen grup, bracket. Admin mendapat alat rating: finalize source, ingest, revert,
@@ -102,8 +124,8 @@ Catatan:
 ## 3. Operasi API
 
 Sumber: `packages/contracts/openapi/core.yaml` + `community.yaml` → `api.yaml`;
-daftar hasil generate di `apps/api/src/routes_gen.nim:13-680`. Jumlah: **74**
-(`CONTRACT.sha256:7`, `apps/api/src/routes_gen.nim:682`).
+daftar hasil generate di `apps/api/src/routes_gen.nim`. Jumlah: **75**
+(`CONTRACT.sha256`, baris `operations 75`).
 Base URL kontrak: `https://api.qouver.com` (tanpa prefix path) atau
 `http://127.0.0.1:8080` (`api.yaml`, `servers`).
 

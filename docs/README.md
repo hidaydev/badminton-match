@@ -20,7 +20,7 @@ Dokumentasi proyek, tiga lane:
 - [`product-overview.md`](handbook/product-overview.md) — deskripsi produk & area fitur
 - [`architecture.md`](handbook/architecture.md) — arsitektur FE/BE, kanal WebSocket, PWA
 - [`data-model.md`](handbook/data-model.md) — skema Postgres v2, tenancy, migrasi
-- [`features-and-routes.md`](handbook/features-and-routes.md) — peta rute & kapabilitas halaman
+- [`features-and-routes.md`](handbook/features-and-routes.md) — peta rute web & 75 operasi API
 - [`current-status.md`](handbook/current-status.md) — status, infrastruktur, hasil test
 - [`roadmap.md`](handbook/roadmap.md) — fase selesai & prioritas berikutnya
 - [`backend-go-decision.md`](handbook/backend-go-decision.md) — ADR 2026-08-11: Go menggantikan PostgREST (historis, sudah digantikan Nim)
@@ -31,6 +31,7 @@ Dokumentasi proyek, tiga lane:
 - [`operations.md`](ops/operations.md) — pemegang akses, format insiden lima bidang, pemeriksaan rutin
 - [`cutover.md`](ops/cutover.md) — runbook cutover v1 → v2, rehearsal D-3, rollback, dan konsekuensinya
 - [`pre-push.md`](ops/pre-push.md) — hook yang menolak `docs/audits` dan `docs/plan/reviews` kembali ke repo publik
+- [`../tools/rehearsal/README.md`](../tools/rehearsal/README.md) — harness rehearsal cutover + gate `timings.json`
 
 ### `privacy.md`
 

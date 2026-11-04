@@ -42,8 +42,9 @@ Data sesi: judul, tanggal, jam mulai, durasi slot, court, peserta, dan game.
 - Klasemen sesi dihitung server: menang, selisih poin, poin untuk, lalu nama
   (`modules/session/standings.nim`).
 
-**Status UI:** daftar dan detail sesi sudah ada, tetapi baru **baca-saja**. Membuat sesi,
-mengisi jadwal, dan mengubah skor masih lewat API/klien lain.
+**Status UI:** daftar dan detail sesi sudah ada. Host/admin mendapat panel untuk
+lock/unlock, share link, skor, skip, absent, dan swap. Membuat sesi baru dan menyusun
+jadwal belum punya wizard; keduanya masih lewat API.
 
 ### 2. Pemain
 
@@ -55,7 +56,8 @@ mengisi jadwal, dan mengubah skor masih lewat API/klien lain.
   akun per komunitas; keputusan klaim oleh admin.
 - Merge memindahkan alias, klaim, delta rating, snapshot, achievement, pair, dan state
   rating ke pemain target, lalu menghapus sumber.
-- Statistik pemain dan badge tersedia lewat API; halaman players belum dibangun.
+- Statistik pemain dan badge tersedia lewat API; halaman daftar pemain, klaim, dan
+  antrean keputusan admin sudah dibangun (`apps/web/src/pages/PlayersPage.tsx`).
 
 ### 3. Papan poin
 
@@ -122,7 +124,7 @@ Frontend belum memakai WebSocket: halaman sesi memuat state saat dibuka.
 - **Frontend** — React 19, Vite, Tailwind 4, React Router 7 (`apps/web`).
 - **Backend** — Nim 2.4, Mummy HTTP + WebSocket, `db_connector` (`apps/api/src`).
 - **Database** — PostgreSQL 18, database `bm2`, skema per domain (`db/migrations`).
-- **Kontrak** — OpenAPI tulis tangan + codegen, 74 operasi
+- **Kontrak** — OpenAPI tulis tangan + codegen, 75 operasi
   (`packages/contracts/openapi`).
 
 Detail: [`architecture.md`](architecture.md) · [`data-model.md`](data-model.md) ·
