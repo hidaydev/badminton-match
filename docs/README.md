@@ -29,6 +29,7 @@ Dokumentasi proyek, tiga lane:
 ### `ops/`
 
 - [`operations.md`](ops/operations.md) — pemegang akses, format insiden lima bidang, pemeriksaan rutin
+- [`cutover.md`](ops/cutover.md) — runbook cutover v1 → v2, rehearsal D-3, rollback, dan konsekuensinya
 
 ### `privacy.md`
 
