@@ -1,4 +1,4 @@
-import std/[base64, json, os, osproc, strutils, times, uri]
+import std/[atomics, base64, json, os, osproc, strutils, times, uri]
 import mummy
 
 const
@@ -15,18 +15,29 @@ proc b64urlDecode(data: string): string =
     padded.add('=')
   decode(padded)
 
+var signCounter: Atomic[int]
+
 proc sign(input: string): string =
-  let dir = getTempDir() / ("oidc-stub-" & $getCurrentProcessId())
+  ## The stub serves requests on several threads, so each call gets its own
+  ## files: sharing one path let two token exchanges overwrite each other and
+  ## produced signatures for the wrong payload.
+  let dir = getTempDir() / ("oidc-stub-" & $getCurrentProcessId() & "-" &
+    $fetchAdd(signCounter, 1))
   createDir(dir)
   let dataPath = dir / "input"
   let sigPath = dir / "signature"
-  writeFile(dataPath, input)
-  let command = "openssl dgst -sha256 -sign " & quoteShell(keyPath) &
-    " -out " & quoteShell(sigPath) & " " & quoteShell(dataPath)
-  let (output, code) = execCmdEx(command)
-  if code != 0:
-    raise newException(IOError, "openssl signing failed: " & output)
-  b64url(readFile(sigPath))
+  try:
+    writeFile(dataPath, input)
+    let command = "openssl dgst -sha256 -sign " & quoteShell(keyPath) &
+      " -out " & quoteShell(sigPath) & " " & quoteShell(dataPath)
+    let (output, code) = execCmdEx(command)
+    if code != 0:
+      raise newException(IOError, "openssl signing failed: " & output)
+    result = b64url(readFile(sigPath))
+  finally:
+    removeFile(dataPath)
+    removeFile(sigPath)
+    removeDir(dir)
 
 proc issueToken(issuer, audience, subject, email, nonce: string): string =
   let now = epochTime().int64
