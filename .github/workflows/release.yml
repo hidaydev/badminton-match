@@ -1,0 +1,155 @@
+# Release pipeline: triggered by a `v*` tag created and signed by `./task release`.
+#
+# Required secrets: none beyond the built-in GITHUB_TOKEN.
+#   - packages: write (image job)    -> push ghcr.io/<owner>/<repo>:<tag>
+#   - contents: write (publish job)  -> create the GitHub Release
+# If the organisation blocks GITHUB_TOKEN writes to GHCR, add a classic PAT named
+# GHCR_TOKEN with `write:packages` and use it for GHCR_TOKEN in the image job.
+#
+# Ordering (TECH-SPEC 8.1): `./task release` pushes the tag first, waits for this
+# run to publish the image digest, and only then pushes `main`. A red run here
+# therefore leaves production untouched. This workflow never creates or moves a
+# tag; the tag always comes from the operator's signed `git tag -s`.
+#
+# pnpm caching is not used on purpose: the release path builds the API image from
+# apps/api and never builds the web bundle, so there is no pnpm store to restore.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  NIM_VERSION: "2.4.0"
+
+jobs:
+  verify:
+    name: "Release: verify tag"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      - name: "Release: tag is SSH-signed"
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f .github/allowed_signers ]; then
+            git config gpg.format ssh
+            git config gpg.ssh.allowedSignersFile "$PWD/.github/allowed_signers"
+            git verify-tag "$TAG"
+            echo "signature verified with .github/allowed_signers"
+            exit 0
+          fi
+          # No committed allowed_signers yet: GitHub verifies the SSH signature
+          # against the signing keys registered on the account.
+          sha=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')
+          verified=$(gh api "repos/$REPO/git/tags/$sha" --jq '.verification.verified')
+          reason=$(gh api "repos/$REPO/git/tags/$sha" --jq '.verification.reason')
+          signature=$(gh api "repos/$REPO/git/tags/$sha" --jq '.verification.signature // ""')
+          case "$signature" in
+            "-----BEGIN SSH SIGNATURE-----"*) ;;
+            *)
+              echo "::error::tag $TAG is not SSH-signed; create it with git tag -s"
+              exit 1
+              ;;
+          esac
+          if [ "$verified" != "true" ]; then
+            echo "::error::GitHub did not verify the tag signature (reason: $reason)"
+            echo "::error::register the signing key as an SSH signing key on the account"
+            exit 1
+          fi
+      - name: "Release: tag matches VERSION"
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(git show "$TAG:VERSION" | tr -d '[:space:]')
+          expected=${TAG#v}
+          if [ "$version" != "$expected" ]; then
+            echo "::error::VERSION is '$version' but the tag says '$expected'"
+            exit 1
+          fi
+      - name: "Release: gate"
+        run: ./task check
+
+  image:
+    name: "Release: image"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: verify
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: "Image: log in to GHCR"
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+      - name: "Image: build once and push"
+        id: push
+        env:
+          TAG: ${{ github.ref_name }}
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          docker build -t "$IMAGE:$TAG" apps/api
+          docker push "$IMAGE:$TAG"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          digest=${digest#*@}
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "published $IMAGE@$digest"
+
+  publish:
+    name: "Release: GitHub Release"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [verify, image]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: "Release: create or update"
+        env:
+          TAG: ${{ github.ref_name }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          notes=$(mktemp)
+          git tag -l --format='%(contents)' "$TAG" >"$notes"
+          {
+            echo
+            echo "## Container image"
+            echo
+            echo "- \`$IMAGE:$TAG\`"
+            echo "- digest: \`$DIGEST\`"
+            echo
+            echo "Pull exactly what was released:"
+            echo
+            echo '```sh'
+            echo "docker pull $IMAGE@$DIGEST"
+            echo '```'
+          } >>"$notes"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TAG" --notes-file "$notes"
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file "$notes" --verify-tag
+          fi

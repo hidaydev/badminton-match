@@ -39,6 +39,7 @@ explicit `--nimcache` does not add a suffix.
 | `janitor` | purge expired OAuth flows, idempotency keys, outbox rows, revoked links and ws tickets | yes |
 | `audit-retention` | prune `account.audit` beyond `audit.retention_days` as `bm2_owner` | yes |
 | `r0-demo` | walking skeleton over HTTP against `bm2_r0` | yes |
+| `release` | compute the next SemVer from Conventional Commits; `--apply` writes `VERSION` and `CHANGELOG.md` (dry run otherwise) | no |
 
 ## Rules
 
