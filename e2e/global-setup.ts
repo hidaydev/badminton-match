@@ -113,6 +113,13 @@ export default async function globalSetup() {
     version = await playGame(api, sessionId, '0-0', { scoreA: 30, scoreB: 24 }, version)
     if (version !== 3) throw new Error(`pinned session version: ${version}`)
 
+    // The spectator spec opens this without a login; nothing else writes it.
+    const share = await api.post(`/api/c/e2e-club/sessions/${sessionId}/share`)
+    if (share.status() !== 201) {
+      throw new Error(`share: ${share.status()} ${await share.text()}`)
+    }
+    const shareCode = ((await share.json()) as { code: string }).code
+
     // Writable sessions live beside the pinned one: the write specs change
     // them, and two projects run in parallel, so each project gets its own.
     const writableByProject: Record<string, string> = {}
@@ -177,6 +184,7 @@ export default async function globalSetup() {
           tournamentId,
           sessionId,
           playerId: playerIds[0],
+          shareCode,
           writableByProject,
         },
         null,

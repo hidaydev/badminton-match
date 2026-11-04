@@ -5,11 +5,11 @@ import type { MessageKey } from './i18n/en'
 import CommunityPage from './pages/CommunityPage'
 import ExportPage from './pages/ExportPage'
 import HomePage from './pages/HomePage'
-import PlaceholderPage from './pages/PlaceholderPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
 import PlayersPage from './pages/PlayersPage'
 import SettingsPage from './pages/SettingsPage'
 import SetupPage from './pages/SetupPage'
+import SharedSessionPage from './pages/SharedSessionPage'
 import RankingsPage from './pages/RankingsPage'
 import SessionPage from './pages/SessionPage'
 import SessionsPage from './pages/SessionsPage'
@@ -36,10 +36,6 @@ export type RouteEntry = {
 
 const ALL_ROLES = ['admin', 'host', 'member'] as const
 const STAFF_ROLES = ['admin', 'host'] as const
-
-function placeholder(labelKey: MessageKey): ReactElement {
-  return createElement(PlaceholderPage, { labelKey })
-}
 
 /**
  * Single source of truth for the shell. Later tasks replace a placeholder
@@ -160,7 +156,7 @@ export const routes: readonly RouteEntry[] = [
   {
     path: '/s/:code',
     labelKey: 'shared.title',
-    element: placeholder('shared.title'),
+    element: createElement(SharedSessionPage),
     requiresAuth: false,
   },
   {

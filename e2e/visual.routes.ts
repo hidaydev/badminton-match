@@ -4,6 +4,8 @@ export type E2eState = {
   tournamentId: string
   sessionId: string
   playerId: string
+  /** A live share link for the pinned session; read-only in every spec. */
+  shareCode: string
   /** One writable session per project: the specs mutate it, so they must not share. */
   writableByProject: Record<string, string>
 }

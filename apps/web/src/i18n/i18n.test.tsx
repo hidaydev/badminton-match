@@ -46,7 +46,7 @@ function sourceFiles(dir: string): string[] {
 describe('i18n', () => {
   it('fills named placeholders', () => {
     expect(t('nav.signedInAs', { name: 'Ada' })).toBe('Signed in as Ada')
-    expect(t('placeholder.description', { feature: 'Rankings' })).toContain('Rankings')
+    expect(t('session.game.key', { round: 2, court: 3 })).toContain('3')
   })
 
   it('keeps every dictionary value a non-empty string', () => {

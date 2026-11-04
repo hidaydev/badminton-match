@@ -37,6 +37,8 @@ export const en = {
   'home.emptyHint': 'Ask an administrator for an invitation, or create a community.',
 
   'shared.title': 'Shared session',
+  'shared.error.missing': 'This link is no longer valid. Ask for a new one.',
+  'shared.error.load': 'This session could not be loaded.',
 
   'community.label': 'Community',
   'community.subtitle': 'Settings that apply to every member of this community.',
@@ -363,8 +365,6 @@ export const en = {
   'role.admin': 'Admin',
   'role.host': 'Host',
   'role.member': 'Member',
-
-  'placeholder.description': 'This screen is planned. The shell is in place; {feature} arrives in a later task.',
 
   'error.load': 'Something went wrong while loading.',
 } as const
