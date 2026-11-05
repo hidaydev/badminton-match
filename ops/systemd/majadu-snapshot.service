@@ -12,6 +12,7 @@
 Description=Majadu daily rank snapshot
 Wants=network-online.target
 After=network-online.target majadu-api.service
+OnFailure=majadu-alert@%n.service
 
 [Service]
 Type=oneshot
