@@ -154,6 +154,11 @@ proc parseTeam(body: JsonNode): TeamTournament =
         for partai in entry["partai"]:
           let scoreA = optInt(partai, "scoreA")
           let scoreB = optInt(partai, "scoreB")
+          # A partai with one side only would reach `scoreB.get` below and
+          # raise a defect, which the route reports as a 500.
+          if scoreA.isNone != scoreB.isNone:
+            raise newException(ValueError,
+              "partai scoreA and scoreB must be sent together")
           if scoreA.isSome and (scoreA.get < 0 or scoreA.get > 99 or
               scoreB.get < 0 or scoreB.get > 99):
             raise newException(ValueError,

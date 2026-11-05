@@ -70,7 +70,8 @@ suite "community access":
 
   test "join requests are idempotent while pending":
     check join_request.request(db, communityId, outsiderId)
-    check join_request.request(db, communityId, outsiderId)
+    # The second call is a no-op, and says so instead of reporting a write.
+    check not join_request.request(db, communityId, outsiderId)
     check join_request.listPending(db, communityId).len == 1
 
   test "approving a request adds the member and cannot be repeated":

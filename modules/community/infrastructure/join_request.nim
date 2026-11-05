@@ -12,11 +12,13 @@ type
 proc request*(db: Db, communityId, userId: string): bool =
   ## Idempotent by construction: a second pending request is a no-op, which is
   ## also what keeps the response byte-identical for the anti-enumeration rule.
+  ## Returns whether this call created the row, so a caller can tell the two
+  ## cases apart; `execUpdate(...) >= 0` was always true and told it nothing.
   db.execUpdate(
     """insert into community.join_request (community_id, user_id)
        values ($1::uuid, $2::uuid)
        on conflict do nothing""",
-    @[textParam(communityId), textParam(userId)]) >= 0
+    @[textParam(communityId), textParam(userId)]) > 0
 
 proc listPending*(db: Db, communityId: string): seq[JoinRequest] =
   for row in db.query(
