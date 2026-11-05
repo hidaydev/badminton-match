@@ -38,7 +38,7 @@ var
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
 proc call(verb: HttpMethod, path, cookie = "", body = "",
-          ifMatch = "", apiVersion = ""): (int, string) =
+          ifMatch = "", apiVersion = "", idempotencyKey = ""): (int, string) =
   let client = newHttpClient(timeout = 5000)
   defer: client.close()
   var headers = newHttpHeaders()
@@ -51,6 +51,8 @@ proc call(verb: HttpMethod, path, cookie = "", body = "",
     headers["If-Match"] = ifMatch
   if apiVersion.len > 0:
     headers["X-API-Version"] = apiVersion
+  if idempotencyKey.len > 0:
+    headers["Idempotency-Key"] = idempotencyKey
   let response = client.request(baseUrl & path, httpMethod = verb,
     headers = headers, body = body)
   (response.code.int, response.body)
@@ -74,6 +76,9 @@ proc bootstrap() =
          (select id from platform.community where slug = 'sched-club')""")
   discard database.execUpdate(
     "delete from platform.community where slug = 'sched-club'")
+  discard database.execUpdate(
+    """delete from platform.idempotency_keys where user_id in
+         (select id from platform.user where google_sub like 'sched-%')""")
   discard database.execUpdate(
     "delete from platform.user where google_sub like 'sched-%'")
   let ownerId = database.queryOne(
@@ -341,6 +346,53 @@ suite "session schedule HTTP":
       """{"title":"Valid","date":"2026-11-04","startTime":"19:30","slotMinutes":45}""")
     check created == 201
     check parseJson(body)["date"].getStr() == "2026-11-04"
+
+  test "a malformed id is a 400 and never reaches the database":
+    # The route casts every id to uuid; PostgreSQL's 22P02 used to surface as a
+    # 500, which hid a caller mistake behind an internal error.
+    for path in ["/c/sched-club/sessions/not-a-uuid",
+                 "/c/sched-club/sessions/not-a-uuid/standings",
+                 "/c/sched-club/tournaments/not-a-uuid"]:
+      let (status, body) = call(HttpGet, path, hostCookie)
+      check status == 400
+      check parseJson(body)["code"].getStr() == "INVALID_INPUT"
+    # Body ids go through the same cast when the schedule names players.
+    let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Bad ids","date":"2026-11-11"}""")
+    let sessionId = parseJson(created)["id"].getStr()
+    let (badPlayer, _) = call(HttpPut,
+      "/c/sched-club/sessions/" & sessionId & "/schedule", hostCookie,
+      """{"games":[{"round":0,"court":0,"sideA":["not-a-uuid"]}]}""",
+      ifMatch = "\"1\"")
+    check badPlayer == 400
+
+  test "an idempotency key replays the first response, not the second write":
+    let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Idempotent","date":"2026-11-12"}""")
+    let sessionId = parseJson(created)["id"].getStr()
+    let path = "/c/sched-club/sessions/" & sessionId
+    let patch = """{"title":"Renamed once"}"""
+    let (first, firstBody) = call(HttpPatch, path, hostCookie, patch,
+      ifMatch = "\"1\"", idempotencyKey = "patch-once")
+    check first == 200
+    check parseJson(firstBody)["version"].getInt() == 2
+    # The same key and body replay the stored response even though If-Match is
+    # stale now, and the write must not run twice.
+    let (replay, replayBody) = call(HttpPatch, path, hostCookie, patch,
+      ifMatch = "\"1\"", idempotencyKey = "patch-once")
+    check replay == 200
+    # The stored response comes back as jsonb, so the keys may be reordered.
+    let replayed = parseJson(replayBody)
+    check replayed["version"].getInt() == 2
+    check replayed["title"].getStr() == "Renamed once"
+    check replayed["id"].getStr() == parseJson(firstBody)["id"].getStr()
+    let (conflict, _) = call(HttpPatch, path, hostCookie,
+      """{"title":"Different"}""", ifMatch = "\"1\"",
+      idempotencyKey = "patch-once")
+    check conflict == 409
+    let (_, after) = call(HttpGet, path, hostCookie)
+    check parseJson(after)["title"].getStr() == "Renamed once"
+    check parseJson(after)["version"].getInt() == 2
 
   test "members read the standings and an unknown session is a 404":
     let (created, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,

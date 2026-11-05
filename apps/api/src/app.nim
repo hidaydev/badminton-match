@@ -214,12 +214,6 @@ proc sessionCookie(token: string): string =
   if application.cookieSecure:
     result.add("; Secure")
 
-proc setSessionCookie(request: Request, token: string) =
-  var cookie = "majadu_session=" & token & "; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000"
-  if application.cookieSecure:
-    cookie.add("; Secure")
-  send(request, 204, @[("Set-Cookie", cookie)], "")
-
 proc authFlowCookie(state: string): string =
   ## Binds an OIDC flow to the browser that started it. Without it an attacker
   ## can start the flow themselves and hand the callback URL to a victim, who
@@ -436,11 +430,12 @@ proc revokeOtherSessions(request: Request) =
 proc me(request: Request) =
   let user = requireUser(request)
   if user.isNone: return
+  ## The body names the caller, so a shared cache must never hold it.
   jsonResponse(request, 200, %*{
     "id": user.get.id,
     "displayName": user.get.displayName,
     "platformOwner": user.get.isOwner,
-  })
+  }, [("Cache-Control", "no-store")])
 
 proc logout(request: Request) =
   let token = cookieValue(request, "majadu_session")
@@ -1268,16 +1263,22 @@ proc claimProblem(request: Request, error: playerClaim.ClaimError) =
   of ceOk:
     discard
 
-proc listClaimsRoute(request: Request, ctx: CommunityContext, playerId: string) =
+proc listClaimsRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                     playerId: string) =
+  ## Members see the claim trail but not who else applied or who decided:
+  ## only a member's own claim stays identifiable, so the page can still say
+  ## they are waiting. Hosts and admins need the full record to act on it.
+  let privileged = ctx.role in [rHost, rAdmin]
   var items = newJArray()
   for claim in playerClaim.list(application.db, ctx.communityId, playerId):
+    let reveal = privileged or claim.userId == user.id
     items.add(%*{
       "id": claim.id,
-      "userId": claim.userId,
+      "userId": (if reveal: claim.userId else: ""),
       "status": claim.status,
-      "decidedBy": claim.decidedBy,
-      "decidedAt": claim.decidedAt,
-      "reason": claim.reason,
+      "decidedBy": (if reveal: claim.decidedBy else: ""),
+      "decidedAt": (if reveal: claim.decidedAt else: ""),
+      "reason": (if reveal: claim.reason else: ""),
       "createdAt": claim.createdAt,
     })
   jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
@@ -2447,7 +2448,7 @@ proc route(request: Request) =
         return
       if parts.len == 6 and parts[5] == "claims":
         if verb == "GET":
-          listClaimsRoute(request, ctx.get, parts[4])
+          listClaimsRoute(request, ctx.get, user.get, parts[4])
           return
         if verb == "POST":
           submitClaim(request, ctx.get, user.get, parts[4])
@@ -2712,6 +2713,18 @@ proc route(request: Request) =
         issueShareTicket(request, code)
         return
     problem(request, 404, "NOT_FOUND", "route not found")
+  except DbError as error:
+    if error.sqlState == "22P02":
+      # A path segment or body value that cannot become the uuid (or date) the
+      # statement casts it to is the caller's mistake, not an internal fault.
+      # PostgreSQL raises it before a row is read, so one guard here turns every
+      # `$n::uuid` cast into a 400 instead of a 500.
+      problem(request, 400, "INVALID_INPUT", "a value has the wrong format")
+      return
+    # Driver messages echo input values; the logger redacts and emits one JSON
+    # line, so a crafted path cannot forge log rows or leak a share code.
+    logError("request failed", [("error", error.msg), ("path", request.path)])
+    problem(request, 500, "INTERNAL", "internal error")
   except CatchableError as error:
     # Driver messages echo input values; the logger redacts and emits one JSON
     # line, so a crafted path cannot forge log rows or leak a share code.

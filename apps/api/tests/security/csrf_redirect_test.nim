@@ -129,3 +129,10 @@ suite "security: open redirect":
       "/auth/google/start?return_to=//evil"), 404, "NOT_FOUND")
     expectProblem(call(baseUrl, HttpGet,
       "/auth/start?return_to=//evil"), 405, "METHOD")
+
+suite "security: response caching":
+  test "the identity response is never stored by a shared cache":
+    let session = cookieFor(database, userId)
+    let me = call(baseUrl, HttpGet, "/auth/me", session)
+    expectStatus(me, 200)
+    check header(me, "Cache-Control") == "no-store"

@@ -223,3 +223,36 @@ suite "claim HTTP":
       "/claims/" & claimId, adminCookie,
       """{"action":"release","reason":"again"}""")
     check twice == 409
+
+  test "a member sees the claim trail without another member's identity":
+    let playerId = player("Klaim Enam")
+    let applicant = freshMember("claim-enam-a")
+    let bystander = freshMember("claim-enam-b")
+    discard call(HttpPost, "/c/claim-club/players/" & playerId & "/claims",
+      applicant)
+    let (_, adminList) = call(HttpGet,
+      "/c/claim-club/players/" & playerId & "/claims", adminCookie)
+    let claimId = parseJson(adminList)["items"][0]["id"].getStr()
+    let (approved, _) = call(HttpPatch, "/c/claim-club/players/" & playerId &
+      "/claims/" & claimId, adminCookie,
+      """{"decision":"approve","reason":"verified at the club"}""")
+    check approved == 200
+
+    # The filing member still recognises their own decision and reason.
+    let (_, ownBody) = call(HttpGet,
+      "/c/claim-club/players/" & playerId & "/claims", applicant)
+    let own = parseJson(ownBody)["items"][0]
+    check own["userId"].getStr().len > 0
+    check own["decidedBy"].getStr().len > 0
+    check own["reason"].getStr() == "verified at the club"
+
+    # Anyone else sees that the player is claimed, not who claimed it.
+    let (otherStatus, otherBody) = call(HttpGet,
+      "/c/claim-club/players/" & playerId & "/claims", bystander)
+    check otherStatus == 200
+    let seen = parseJson(otherBody)["items"][0]
+    check seen["id"].getStr() == claimId
+    check seen["status"].getStr() == "approved"
+    check seen["userId"].getStr() == ""
+    check seen["decidedBy"].getStr() == ""
+    check seen["reason"].getStr() == ""
