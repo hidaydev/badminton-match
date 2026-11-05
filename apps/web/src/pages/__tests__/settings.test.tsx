@@ -34,12 +34,20 @@ function renderAt(path: string) {
   return render(<App />)
 }
 
+const effective = {
+  'community.default_timezone': { value: 'Asia/Jakarta', source: 'platform' },
+  'community.invite_ttl_days': { value: 7, source: 'platform' },
+  'community.directory_enabled': { value: false, source: 'platform' },
+  'community.join_requests_enabled': { value: false, source: 'platform' },
+}
+
 function base(extra: Record<string, () => { status?: number; body?: unknown }>) {
   return mockFetch({
     'GET /api/auth/me': () => ({ body: sessionUser }),
     'GET /api/communities': () => ({ body: { items: [admin] } }),
     'GET /api/c/acme/members': () => ({ body: members }),
     'GET /api/c/acme/join-requests': () => ({ body: requests }),
+    'GET /api/c/acme/config': () => ({ body: { effective } }),
     ...extra,
   })
 }
@@ -73,6 +81,39 @@ describe('community settings', () => {
       email: 'host@example.com',
       role: 'host',
     })
+  })
+
+  it('narrows an invite lifetime and sends only the changed key', async () => {
+    const fetchMock = base({
+      'PATCH /api/c/acme/config': () => ({
+        body: {
+          effective: {
+            ...effective,
+            'community.invite_ttl_days': { value: 3, source: 'community' },
+          },
+        },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    const input = await screen.findByLabelText(t('community.setting.inviteTtl'))
+    expect(input).toHaveValue(7)
+    fireEvent.change(input, { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: t('community.settings.save') }))
+
+    await waitFor(() => {
+      expect(screen.getByText(t('community.settings.saved'))).toBeInTheDocument()
+    })
+    const call = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url) === '/api/c/acme/config' &&
+        (init as RequestInit | undefined)?.method === 'PATCH',
+    )
+    expect(jsonBody((call as [string, RequestInit])[1])).toEqual({
+      'community.invite_ttl_days': 3,
+    })
+    expect(input).toHaveValue(3)
   })
 
   it('answers a join request', async () => {

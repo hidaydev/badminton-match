@@ -16,6 +16,7 @@ import type { PlayerClaim } from '../players/api'
 import { usePlayerDetail, usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { formatDay } from '../utils/day'
+import { LoadingState } from '../components/LoadingState'
 
 type Run = (action: () => Promise<unknown>) => Promise<void>
 
@@ -73,11 +74,7 @@ export default function PlayerDetailPage() {
         {t('players.back')}
       </Link>
 
-      {loading && (
-        <p role="status" className="mt-2 text-sm text-fg-dim">
-          {t('app.loading')}
-        </p>
-      )}
+      {loading && <LoadingState label={t('app.loading')} rows={1} />}
       {error === 'notFound' && (
         <p role="alert" className="mt-2 text-sm text-error">
           {t('playerAdmin.error.notFound')}

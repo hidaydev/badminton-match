@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { useCommunity } from '../../community/CommunityContext'
 import CommunityPicker from '../../community/CommunityPicker'
 import { t } from '../../i18n'
+import AccountSessions from './AccountSessions'
 
 export default function HomeLayout() {
   const location = useLocation()
@@ -15,6 +16,7 @@ export default function HomeLayout() {
   const { user, logout } = useAuth()
   const { memberships, current, select } = useCommunity()
   const [accountOpen, setAccountOpen] = useState(false)
+  const [sessionsOpen, setSessionsOpen] = useState(false)
 
   const roleLabel = user?.platformOwner === true
     ? t('role.owner')
@@ -157,6 +159,17 @@ export default function HomeLayout() {
                       type="button"
                       onClick={() => {
                         setAccountOpen(false)
+                        setSessionsOpen(true)
+                      }}
+                      className="rounded-lg px-3 py-2 text-left text-fg hover:bg-elevated"
+                    >
+                      {t('sessions.open')}
+                    </button>
+                    <button
+                      role="menuitem"
+                      type="button"
+                      onClick={() => {
+                        setAccountOpen(false)
                         void logout()
                       }}
                       className="rounded-lg px-3 py-2 text-left text-error/80 hover:bg-elevated hover:text-error"
@@ -173,6 +186,7 @@ export default function HomeLayout() {
       <main className="flex-1 max-w-3xl w-full mx-auto px-3 py-4 relative pb-[env(safe-area-inset-bottom)]">
         <Outlet />
       </main>
+      {sessionsOpen && <AccountSessions onClose={() => setSessionsOpen(false)} />}
     </div>
   )
 }

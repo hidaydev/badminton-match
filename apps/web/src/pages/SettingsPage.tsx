@@ -3,6 +3,9 @@ import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useCommunity } from '../community/CommunityContext'
+import { updateCommunityConfig } from '../community/api'
+import type { CommunityConfig } from '../community/api'
+import { useCommunityConfig } from '../community/useCommunityConfig'
 import {
   createInvite,
   decideJoinRequest,
@@ -15,6 +18,7 @@ import type { Invite, JoinRequest, Member } from '../community/adminApi'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatDay } from '../utils/day'
+import { LoadingState } from '../components/LoadingState'
 
 type Data = {
   slug: string
@@ -93,11 +97,7 @@ export default function SettingsPage() {
       <h1 className="text-xl font-bold text-fg sm:text-2xl">{t('admin.title')}</h1>
       <p className="mt-1 text-sm text-fg-dim">{membership?.name ?? slug}</p>
 
-      {loading && (
-        <p role="status" className="mt-4 text-sm text-fg-dim">
-          {t('app.loading')}
-        </p>
-      )}
+      {loading && <LoadingState label={t('app.loading')} rows={1} />}
       {error !== null && (
         <p role="alert" aria-live="polite" className="mt-4 text-sm text-error">
           {error}
@@ -118,8 +118,165 @@ export default function SettingsPage() {
             busy={busy}
             onRun={run}
           />
+          <CommunitySettings
+            key={slug}
+            slug={slug}
+            canEdit={membership?.role === 'admin'}
+          />
         </>
       )}
+    </section>
+  )
+}
+
+type ConfigField = {
+  key: string
+  label: MessageKey
+  kind: 'text' | 'number' | 'bool'
+}
+
+/** The values a community may narrow by hand. */
+const CONFIG_FIELDS: readonly ConfigField[] = [
+  { key: 'community.default_timezone', label: 'community.setting.timezone', kind: 'text' },
+  { key: 'community.invite_ttl_days', label: 'community.setting.inviteTtl', kind: 'number' },
+  { key: 'community.directory_enabled', label: 'community.setting.directory', kind: 'bool' },
+  { key: 'community.join_requests_enabled', label: 'community.setting.joinRequests', kind: 'bool' },
+]
+
+function asDraft(field: ConfigField, value: unknown): string | boolean {
+  if (field.kind === 'bool') return value === true
+  return value === undefined || value === null ? '' : String(value)
+}
+
+function fromDraft(field: ConfigField, raw: string | boolean | undefined): unknown {
+  if (field.kind === 'bool') return raw === true
+  if (field.kind === 'number') return Number(raw)
+  return String(raw ?? '').trim()
+}
+
+/**
+ * The values an admin can narrow. The server rejects anything above the platform
+ * value, so the screen shows the source of each one instead of pretending the
+ * community owns it.
+ */
+function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }) {
+  const { config, loading, error } = useCommunityConfig(slug)
+  const [saved, setSaved] = useState<CommunityConfig | null>(null)
+  const [edits, setEdits] = useState<Record<string, string | boolean>>({})
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  if (loading && config === null) {
+    return <LoadingState label={t('community.settings')} rows={2} />
+  }
+  if (error !== null && config === null) {
+    return (
+      <p role="alert" className="mt-4 text-sm text-error">
+        {t('community.error.load')}
+      </p>
+    )
+  }
+  if (config === null) return null
+
+  // A saved response replaces the loaded one; untouched fields still edit from
+  // the server value, so the form never lags behind a write.
+  const values = saved ?? config
+  const fieldValue = (field: ConfigField): string | boolean =>
+    field.key in edits ? edits[field.key] : asDraft(field, values[field.key]?.value)
+
+  const submit = async () => {
+    const patch: Record<string, unknown> = {}
+    for (const field of CONFIG_FIELDS) {
+      const next = fromDraft(field, fieldValue(field))
+      if (JSON.stringify(next) !== JSON.stringify(values[field.key]?.value)) {
+        patch[field.key] = next
+      }
+    }
+    if (Object.keys(patch).length === 0) {
+      setMessage(t('community.settings.saved'))
+      return
+    }
+    setBusy(true)
+    setMessage(null)
+    try {
+      const updated = await updateCommunityConfig(slug, patch)
+      setSaved(updated)
+      setEdits({})
+      setMessage(t('community.settings.saved'))
+    } catch (problem) {
+      setMessage(describe(problem))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-semibold text-fg">{t('community.settings')}</h2>
+      <p className="mt-1 text-xs text-fg-dim">{t('community.settingsHint')}</p>
+      <form
+        className="mt-3 space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void submit()
+        }}
+      >
+        {CONFIG_FIELDS.map((field) => {
+          const entry = values[field.key]
+          const id = `config-${field.key}`
+          return (
+            <div key={field.key} className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex items-baseline gap-2">
+                <label htmlFor={id} className="text-sm text-fg">
+                  {t(field.label)}
+                </label>
+                {entry !== undefined && (
+                  <span className="text-xs text-fg-dim">
+                    {t(entry.source === 'community' ? 'community.source.community' : 'community.source.platform')}
+                  </span>
+                )}
+              </span>
+              {field.kind === 'bool' ? (
+                <input
+                  id={id}
+                  type="checkbox"
+                  checked={fieldValue(field) === true}
+                  disabled={!canEdit || busy}
+                  onChange={(event) =>
+                    setEdits((current) => ({ ...current, [field.key]: event.target.checked }))
+                  }
+                  className="h-5 w-5 rounded border border-border bg-elevated text-accent focus-visible:ring-2 focus-visible:ring-accent"
+                />
+              ) : (
+                <input
+                  id={id}
+                  type={field.kind === 'number' ? 'number' : 'text'}
+                  value={String(fieldValue(field) ?? '')}
+                  disabled={!canEdit || busy}
+                  onChange={(event) =>
+                    setEdits((current) => ({ ...current, [field.key]: event.target.value }))
+                  }
+                  className="min-h-11 w-40 rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
+                />
+              )}
+            </div>
+          )
+        })}
+        {canEdit && (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="submit"
+              disabled={busy}
+              className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+            >
+              {t('community.settings.save')}
+            </button>
+            <span role="status" aria-live="polite" className="text-xs text-fg-dim">
+              {message ?? ''}
+            </span>
+          </div>
+        )}
+      </form>
     </section>
   )
 }

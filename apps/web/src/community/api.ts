@@ -18,3 +18,18 @@ export async function fetchCommunityConfig(slug: string): Promise<CommunityConfi
   )
   return body.effective
 }
+
+/**
+ * Narrow one or more community values. The server refuses anything above the
+ * platform value, so this is not an arbitrary write.
+ */
+export async function updateCommunityConfig(
+  slug: string,
+  patch: Record<string, unknown>,
+): Promise<CommunityConfig> {
+  const body = await request<{ effective: CommunityConfig }>(
+    `/c/${encodeURIComponent(slug)}/config`,
+    { method: 'PATCH', body: JSON.stringify(patch) },
+  )
+  return body.effective
+}

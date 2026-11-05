@@ -6,6 +6,7 @@ import { TIERS } from '../players/api'
 import { createPlayer } from '../players/api'
 import { usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
+import { LoadingState } from '../components/LoadingState'
 
 export default function PlayersPage() {
   const { slug = '' } = useParams<{ slug: string }>()
@@ -82,11 +83,7 @@ export default function PlayersPage() {
         </button>
       </form>
 
-      {loading && (
-        <p role="status" className="mt-4 text-sm text-fg-dim">
-          {t('app.loading')}
-        </p>
-      )}
+      {loading && <LoadingState label={t('app.loading')} rows={1} />}
       {error !== null && (
         <p role="alert" aria-live="polite" className="mt-4 text-sm text-error">
           {t('players.error.load')}

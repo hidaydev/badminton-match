@@ -86,3 +86,21 @@ export async function startLogin(returnTo: string): Promise<string> {
 export function endSession(): Promise<void> {
   return request<void>('/auth/logout', { method: 'POST' })
 }
+
+export type AuthSession = {
+  id: string
+  createdAt: string
+  lastSeenAt: string
+  current: boolean
+}
+
+/** One row per device signed in to this account. */
+export async function listAuthSessions(): Promise<AuthSession[]> {
+  const body = await request<{ items: AuthSession[] }>('/auth/sessions')
+  return body.items
+}
+
+/** Revokes every session except the one that made this call. */
+export function revokeOtherAuthSessions(): Promise<void> {
+  return request<void>('/auth/sessions', { method: 'DELETE' })
+}

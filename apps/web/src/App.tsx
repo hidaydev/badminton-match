@@ -4,6 +4,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-r
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import ClientOutdatedBanner from './components/ClientOutdatedBanner'
+import { LoadingState } from './components/LoadingState'
 import { CommunityProvider } from './community/CommunityProvider'
 import { useCommunity } from './community/CommunityContext'
 import { t } from './i18n'
@@ -67,8 +68,10 @@ const queryClient = new QueryClient({
 
 function Loading() {
   return (
-    <div className="min-h-screen bg-ground text-fg flex items-center justify-center">
-      <span className="text-fg-dim text-sm">{t('app.loading')}</span>
+    <div className="min-h-screen bg-ground text-fg flex items-center justify-center p-4">
+      <div className="w-full max-w-3xl">
+        <LoadingState label={t('app.loading')} />
+      </div>
     </div>
   )
 }

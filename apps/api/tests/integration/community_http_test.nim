@@ -228,3 +228,31 @@ suite "community HTTP":
       "platform"
     let (anonymous, _) = call(HttpGet, "/c/http-club/config")
     check anonymous == 401
+
+  test "an admin narrows a community setting, nobody widens it":
+    let (asMember, _) = call(HttpPatch, "/c/http-club/config", memberCookie,
+      """{"community.invite_ttl_days": 3}""")
+    check asMember == 403
+    let (unknown, _) = call(HttpPatch, "/c/http-club/config", adminCookie,
+      """{"nope.value": 1}""")
+    check unknown == 400
+    # The platform value is the ceiling: 365 is above the seeded 7.
+    let (wide, _) = call(HttpPatch, "/c/http-club/config", adminCookie,
+      """{"community.invite_ttl_days": 365}""")
+    check wide == 400
+    let (wrongType, _) = call(HttpPatch, "/c/http-club/config", adminCookie,
+      """{"community.invite_ttl_days": "three"}""")
+    check wrongType == 400
+    let (okStatus, okBody) = call(HttpPatch, "/c/http-club/config", adminCookie,
+      """{"community.invite_ttl_days": 3}""")
+    check okStatus == 200
+    let applied = parseJson(okBody)["effective"]["community.invite_ttl_days"]
+    check applied["value"].getInt() == 3
+    check applied["source"].getStr() == "community"
+    let (readStatus, readBody) = call(HttpGet, "/c/http-club/config", memberCookie)
+    check readStatus == 200
+    check parseJson(readBody)["effective"]["community.invite_ttl_days"]["value"].getInt() == 3
+    # Other tests expect the platform value.
+    discard database.execUpdate(
+      "delete from community.settings where community_id = $1::uuid",
+      @[textParam(clubId)])

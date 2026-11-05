@@ -2,13 +2,37 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import { t } from '../i18n'
+import type { MessageKey } from '../i18n/en'
 import { getSharedSession } from '../share/api'
 import type { SharedSession } from '../share/api'
+import { LoadingState } from '../components/LoadingState'
 
 type Settled = {
   code: string
   value: SharedSession | null
   error: 'notFound' | 'failed' | null
+}
+
+/** The share payload sends a machine value; the screen shows a word. */
+const STATUS_LABELS: Record<string, MessageKey> = {
+  draft: 'shared.status.draft',
+  locked: 'shared.status.locked',
+}
+
+function statusLabel(status: string): string {
+  const key = STATUS_LABELS[status]
+  return key === undefined ? status : t(key)
+}
+
+function formatSessionDate(date: string): string {
+  const parsed = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return date
+  return parsed.toLocaleDateString('en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 /** Spectators poll, but gently: the share limiter allows 120 reads/minute per code. */
@@ -115,11 +139,7 @@ export default function SharedSessionPage() {
         )}
       </header>
 
-      {loading && (
-        <p role="status" className="mt-4 text-sm text-fg-dim">
-          {t('app.loading')}
-        </p>
-      )}
+      {loading && <LoadingState label={t('app.loading')} rows={1} />}
       {current?.error === 'notFound' && (
         <p role="alert" className="mt-4 text-sm text-error">
           {t('shared.error.missing')}
@@ -136,8 +156,12 @@ export default function SharedSessionPage() {
           <h1 className="mt-2 text-xl font-bold text-fg sm:text-2xl">
             {session.session.title}
           </h1>
-          <p className="mt-1 font-mono text-xs text-fg-dim">
-            {session.session.date} · {session.session.status}
+          <p className="mt-1 text-xs text-fg-dim">
+            <time dateTime={session.session.date}>
+              {formatSessionDate(session.session.date)}
+            </time>
+            {' · '}
+            {statusLabel(session.session.status)}
           </p>
 
           <h2 className="mt-6 text-sm font-semibold text-fg">{t('session.games')}</h2>
