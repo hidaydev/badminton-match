@@ -220,7 +220,7 @@ proc quotedKeys(keys: seq[string]): string =
   quoted.join(", ")
 
 proc loadEarned(conn: DbConn, communityId: string,
-                keys: seq[string]): Table[string, HashSet[string]] =
+                keys: seq[string]): Table[string, seq[string]] =
   ## One read of the catalog rows actually on the shelf, so the reconciliation
   ## can tell what went stale instead of asking the database once per player.
   for row in conn.query(
@@ -229,14 +229,10 @@ proc loadEarned(conn: DbConn, communityId: string,
        where community_id = $1::uuid
          and achievement_key in (""" & quotedKeys(keys) & ")",
     @[textParam(communityId)]):
-    let playerId = row.get("player_id")
-    var shelf = result.mgetOrPut(playerId, initHashSet[string]())
-    shelf.incl(row.get("key"))
-    result[playerId] = shelf
+    result.mgetOrPut(row.get("player_id"), @[]).add(row.get("key"))
 
 proc revokeAwards(conn: DbConn, communityId: string,
-                  earned: Table[string, HashSet[string]],
-                  qualified: Table[string, HashSet[string]]): int =
+                  earned, qualified: Table[string, seq[string]]): int =
   ## A catalog key the player no longer qualifies for is revoked. Keys outside
   ## the catalog (`tournament:<uuid>` event medals and `rank_streak:*`) are not
   ## read here, so imported rows survive whatever the v2 rules say.
@@ -309,11 +305,11 @@ proc backfill*(db: Db, communityId, asOf: string,
     let facts = loadFacts(conn, communityId, ranks)
     let keys = catalogKeys()
     let earnedAt = utcNow().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
-    var qualified = initTable[string, HashSet[string]]()
+    var qualified = initTable[string, seq[string]]()
     var rows: seq[EarnRow] = @[]
     for item in facts:
       let awarded = awardedKeys(item)
-      qualified[item.playerId] = awarded.toHashSet
+      qualified[item.playerId] = awarded
       for key in awarded:
         rows.add(EarnRow(playerId: item.playerId, key: key))
     outcome.revoked = revokeAwards(conn, communityId,
