@@ -31,11 +31,25 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
+      # must install them before anything compiles.
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
       - name: "Database: provision"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
         run: ./task dev-db
+      # `dev-db` only creates empty databases; `./task ci` runs the integration
+      # suites, so they need the schema and the reference rows.
+      - name: "Database: migrate and seed"
+        env:
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_dev
+        run: |
+          mkdir -p .cache/ci
+          nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
+          .cache/ci/dbtools migrate --dir db/migrations
+          .cache/ci/dbtools seed --dir db/seeds
       - name: "Nightly: full"
         env:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_dev

@@ -3,12 +3,12 @@ import { join } from 'node:path'
 import { request } from 'playwright/test'
 import {
   GROUP_IDS,
-  drawGroups,
   generateGroupMatches,
   initKnockoutMatches,
-} from '../apps/web/src/tournament/classic/draw'
+} from '../apps/web/src/legacy/utils/tournament'
 import type { APIRequestContext } from 'playwright/test'
 import { projects } from './browsers'
+import { drawGroups } from './draw'
 import type { E2eState } from './visual.routes'
 
 /**
@@ -139,8 +139,10 @@ export default async function globalSetup() {
       writableByProject[project.name] = id
     }
 
-    // The wizard's own draw, so the fixture is a tournament the app considers
-    // valid instead of a hand-written shape that drifts from the rules.
+    // The draw uses the same round robin and bracket slots the app does (and
+    // its own copy of the group shuffle), so the fixture is a tournament the
+    // server accepts instead of a hand-written shape that drifts from the
+    // rules.
     const pairIds = Array.from({ length: 16 }, (_, index) => `p${index + 1}`)
     const pairs = pairIds.map((id, index) => ({
       id,

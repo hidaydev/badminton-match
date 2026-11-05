@@ -3,6 +3,15 @@ import { signIn } from './session'
 import { state } from './global-setup'
 import { visualRoutes } from './visual.routes'
 
+/**
+ * Pixel baselines are recorded per platform (`snapshotPathTemplate` carries
+ * `{platform}`) because text rasterisation differs between macOS and Linux.
+ * CI has no Linux baseline yet, so it sets `E2E_VISUAL=0` and keeps every other
+ * assertion running; `./task e2e --update-snapshots` records the missing set.
+ */
+const visualBaselines = process.env.E2E_VISUAL !== '0'
+test.skip(!visualBaselines, 'pixel baselines are recorded per platform')
+
 test.beforeEach(async ({ page }) => {
   await signIn(page)
 })

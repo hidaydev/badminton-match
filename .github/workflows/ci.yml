@@ -25,6 +25,10 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
+      # must install them before anything compiles.
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
       - name: "API: check"
         run: ./task check
 
@@ -50,11 +54,26 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
+      # must install them before anything compiles.
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
       - name: "Database: provision"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
         run: ./task dev-db
+      # `dev-db` only creates empty databases. The integration suites assume the
+      # schema and the reference rows exist, so they run against a migrated
+      # database, using the same dbtools path `./task dev` uses.
+      - name: "Database: migrate and seed"
+        env:
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_dev
+        run: |
+          mkdir -p .cache/ci
+          nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
+          .cache/ci/dbtools migrate --dir db/migrations
+          .cache/ci/dbtools seed --dir db/seeds
       - name: "API: test"
         env:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_dev
@@ -73,6 +92,10 @@ jobs:
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
+      # must install them before anything compiles.
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
       # Fails when the two source specs, the merged document, the generated Nim
       # routes, or the generated TS client no longer match
       # packages/contracts/openapi/CONTRACT.sha256. A spec edit must land with a
@@ -102,8 +125,30 @@ jobs:
     name: "E2E: browser"
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
+        with:
+          nim-version: ${{ env.NIM_VERSION }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nimble
+          key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
+      # The packages in deps.lock are not vendored: a cold `~/.nimble` cache
+      # must install them before anything compiles.
+      - name: "Dependencies: install pinned Nim packages"
+        run: ./task deps-install
       - uses: pnpm/action-setup@9bbca1e9dc2902adb87e8780fe5c98796985a62d # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -113,16 +158,30 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('deps.lock') }}
-      - name: "E2E: run when suite exists"
+      - name: "E2E: install"
+        run: pnpm install --frozen-lockfile
+      - name: "E2E: install browsers"
+        run: pnpm exec playwright install --with-deps
+      - name: "Database: provision"
+        env:
+          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
         run: |
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps
-          ./task deps-check
-          if [ ! -d e2e ]; then
-            echo "e2e suite not present yet (T-072); skipping"
-            exit 0
-          fi
-          pnpm exec playwright test
+          ./task dev-db
+          # `./task e2e` opens its database as the OS user, so the runner needs
+          # a role. `PGPASSWORD` (set on the run step) supplies the password the
+          # harness's passwordless DSN does not carry.
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE \"$(whoami)\" LOGIN SUPERUSER PASSWORD 'postgres'"
+      # `./task deps-check` is not run here: deps.lock also pins the coverage
+      # tools (lcov, gcovr), which only the coverage workflow installs.
+      - name: "E2E: run"
+        env:
+          PGPASSWORD: postgres
+          # Pixel baselines are recorded per platform (`{platform}` in the
+          # snapshot path) and the checked-in set is Darwin; the Linux job still
+          # runs every a11y, navigation, write and compatibility assertion.
+          E2E_VISUAL: "0"
+        run: ./task e2e
 
   image:
     name: "Image: build"

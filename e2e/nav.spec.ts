@@ -18,7 +18,10 @@ test('the phone menu opens, navigates and closes', async ({ page }) => {
     'aria-expanded',
     'true',
   )
-  await expect(page).toHaveScreenshot('nav-open.png')
+  // Same per-platform rule as `visual.spec.ts`; CI runs the navigation itself.
+  if (process.env.E2E_VISUAL !== '0') {
+    await expect(page).toHaveScreenshot('nav-open.png')
+  }
 
   await navigation.getByRole('link', { name: t('nav.sessions') }).first().click()
   await expect(page).toHaveURL(new RegExp(`/c/${state().communitySlug}/sessions$`))

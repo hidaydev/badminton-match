@@ -2,13 +2,13 @@ import { expect, test } from 'playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { signIn } from './session'
 import { state } from './global-setup'
-import { visualRoutes } from './visual.routes'
+import { a11yRoutes } from './visual.routes'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
 })
 
-for (const route of visualRoutes) {
+for (const route of a11yRoutes) {
   test(`${route.name} has no accessibility violations`, async ({ page }) => {
     await page.goto(route.path(state()))
     await page.waitForLoadState('networkidle')
