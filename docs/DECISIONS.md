@@ -201,57 +201,66 @@ pernyataan (mis. pagar terhadap rebuild bersamaan); saat itu pakai transaksi
 
 ---
 
-## ADR-009 · `breakdown` tetap dikirim untuk setiap baris papan
+## ADR-009 · `breakdown` di setiap baris papan bukan regresi v2
 
 **Tanggal:** 2026-11-05
 **Temuan audit:** BEP-07
-**Status:** Ditunda
+**Status:** Dicabut
 
-**Keputusan:** payload papan tidak diubah; `breakdown` tetap ada di setiap baris.
+**Keputusan:** tidak ada perubahan payload. Temuan ditutup, bukan dikerjakan.
 
-**Alasan:** `breakdown` adalah alasan angka terlihat masuk akal bagi pemain, dan
-memindahkannya ke `?include=` mengubah kontrak publik yang sudah dipakai klien
-lain. Biaya serialisasinya sudah terukur kecil setelah N+1 turnamen diperbaiki
-(BEP-02). Optimasi yang mengubah bentuk respons harus datang bersama kebutuhan
-yang nyata, bukan dari temuan hipotetis.
-
-**Pembuka ulang:** ada klien yang mengeluh ukuran payload, atau papan melewati
-batas waktu dengan `rank.board_limit` yang wajar.
+**Alasan:** v1 juga mengirim `breakdown` di setiap baris (`RankPointRow` di
+`.local/old-src/apps/web/src/queries/endpoints.ts`, endpoint hanya menerima
+`limit` dan `min_sessions`). Jadi v2 tidak menambah apa pun yang tidak sudah
+ada; ini optimasi payload yang belum ada yang meminta, bukan cacat parity.
+Klaim "regresi" di audit tidak terbukti.
 
 ---
 
-## ADR-010 · Dua pemilik state sesi tidak disatukan sekarang
+## ADR-010 · Dua pemilik state tetap ada; kebocoran yang nyata ditutup
 
 **Tanggal:** 2026-11-05
 **Temuan audit:** FE-13
-**Status:** Ditunda
+**Status:** Diterapkan (lingkup kebocoran, bukan penyatuan)
 
-**Keputusan:** state sesi tetap dimiliki Zustand (draft generator) dan query
-cache (snapshot server).
+**Keputusan:** Zustand tetap memegang draft generator dan query cache tetap
+memegang snapshot server. Yang diperbaiki adalah dua jalur yang membuat
+kepemilikan ganda itu merusak data:
 
-**Alasan:** keduanya menyimpan hal yang berbeda: draft yang belum dipublikasikan
-vs snapshot yang sudah ada di server. Menyatukannya adalah refactor lintas
-routing dan puluhan komponen, bukan perbaikan bug; bug yang nyata (versi basi,
-cache lintas komunitas) sudah diperbaiki di tempatnya.
+1. Tautan share tidak lagi menulis ke draft. Snapshot hasil decode adalah
+   pemilik tunggal layar penonton; semua handler berhenti sebelum menyentuh
+   store, dan modal ringkasan menerima `readOnly`.
+2. Versi dasar draft ikut disimpan (`cloudVersion`). Sebelumnya versi hanya ada
+   di query cache; setelah reload cache kosong, publish berikutnya memakai versi
+   server terbaru dan menimpa skor yang diubah host lain. Sekarang `If-Match`
+   memakai versi draft, dan publish yang bentrok tetap gagal sampai pengguna
+   memuat ulang.
+
+**Alasan:** menyatukan seluruh wizard ke query cache adalah refactor routing dan
+puluhan komponen dengan risiko regresi besar, sementara kerusakan yang
+dilaporkan berasal dari dua jalur sempit di atas dan bisa ditutup tanpa
+menyentuh alur generate.
 
 **Pembuka ulang:** draft offline dan snapshot server perlu digabung untuk fitur
-baru (mis. edit offline), atau muncul bug yang hanya bisa dijelaskan oleh dua
-pemilik itu.
+baru (mis. edit offline), atau muncul lagi jalur yang butuh satu sumber
+kebenaran.
 
 ---
 
-## ADR-011 · Beranda belum menampilkan sesi hari ini, peringkat, dan medali saya
+## ADR-011 · Beranda tetap seperti sekarang
 
 **Tanggal:** 2026-11-05
 **Temuan audit:** UX-03
-**Status:** Ditunda
+**Status:** Dicabut
 
-**Keputusan:** beranda tetap menampilkan pintasan dan sesi terakhir.
+**Keputusan:** beranda tidak diubah. Pemilik menolak proposal sesi hari ini +
+peringkat/medali saya.
 
-**Alasan:** "peringkat saya" dan "medali saya" membutuhkan tautan akun →
-pemain. Klaim pemain ada, tetapi tidak wajib, dan akun tanpa klaim tidak punya
-pemain untuk ditanyakan. Menampilkannya hanya untuk akun yang sudah mengklaim
-akan membuat beranda berbeda bentuk antar pengguna tanpa aturan yang jelas.
+**Alasan:** "peringkat saya" dan "medali saya" membutuhkan tautan akun → pemain
+yang tidak wajib diisi, jadi bentuk beranda akan berbeda antar akun tanpa aturan
+produk yang disetujui. Pintasan dan sesi terakhir sudah menjawab kebutuhan
+utama; menambah blok personal tanpa keputusan produk hanya memindahkan
+kompleksitas ke UI.
 
-**Pembuka ulang:** ada keputusan produk tentang beranda untuk akun tanpa klaim
-(mis. meminta klaim dulu, atau memilih pemain default).
+**Pembuka ulang:** pemilik memutuskan aturan untuk akun tanpa klaim (mis.
+meminta klaim dulu atau memilih pemain default).
