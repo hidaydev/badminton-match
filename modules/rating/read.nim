@@ -125,11 +125,15 @@ proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
 
 proc latestEventDate*(db: Db, communityId: string): string =
   ## The board is anchored on the last rated event, not on today: a quiet week
-  ## must not slide the window forward and silently drop old entries. Empty
-  ## means the community has nothing rated yet.
+  ## must not slide the window forward and silently drop old entries. The anchor
+  ## never passes today either, because one event dated in the future would move
+  ## the window with it and empty the board until that date arrives. Empty means
+  ## the community has nothing rated yet.
   let row = db.queryOne(
-    """select max(local_date)::text as day from rating.events
-       where community_id = $1::uuid""",
+    """select least(current_date, max(local_date))::text as day
+       from rating.events
+       where community_id = $1::uuid
+       having max(local_date) is not null""",
     @[textParam(communityId)])
   if row.isSome and row.get["day"].isSome: row.get.get("day") else: ""
 

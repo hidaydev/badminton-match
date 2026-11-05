@@ -1,5 +1,6 @@
 import std/[json, options, strutils]
 import db/db
+import skips
 
 type
   Slots = object
@@ -301,6 +302,9 @@ proc swapMembers*(db: Db, communityId, sessionId: string, expectedVersion: int,
       writeContent(conn, communityId, sessionId, a, left)
       if not same:
         writeContent(conn, communityId, sessionId, b, right)
+      # A skip stays on the slot, so a swap can leave one naming a player who
+      # moved away from that game.
+      discard clearStaleSkips(conn, communityId, sessionId)
       discard conn.execUpdate(
         """update session.sessions set version = version + 1, updated_at = now()
            where community_id = $1::uuid and id = $2::uuid""",

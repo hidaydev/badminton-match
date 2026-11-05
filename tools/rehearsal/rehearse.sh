@@ -373,7 +373,9 @@ fi
 printf 'rehearsal: running the rollback\n'
 rollback_started=$(date +%s)
 rollback_ok=0
-if env "${CUTOVER_ENV[@]}" "$REPO_ROOT/ops/scripts/rollback.sh"; then
+# --abandon-data: the sandbox rows written during the window are the thing this
+# rehearsal throws away on purpose.
+if env "${CUTOVER_ENV[@]}" "$REPO_ROOT/ops/scripts/rollback.sh" --abandon-data; then
   rollback_ok=1
 fi
 rollback_seconds=$(( $(date +%s) - rollback_started ))
@@ -391,7 +393,8 @@ if [ "$FROM_PROOF" -eq 1 ] && [ "$cutover_ok" -eq 1 ] && [ "$rollback_ok" -eq 1 
     --version "v$VERSION" --from restore-staging; then
     resume_proof=true
     # Leave the sandbox on v1 again so a second run starts from the same place.
-    env "${CUTOVER_ENV[@]}" "$REPO_ROOT/ops/scripts/rollback.sh" || resume_proof=false
+    env "${CUTOVER_ENV[@]}" "$REPO_ROOT/ops/scripts/rollback.sh" \
+      --abandon-data || resume_proof=false
   fi
   resume_seconds=$(( $(date +%s) - resume_started ))
 fi

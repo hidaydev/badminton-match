@@ -176,8 +176,14 @@ keadaan di disk masih sesuai (mis. `:v1-final` sudah ada dan benar).
 **B. Kembali ke v1:**
 
 ```sh
-sudo /srv/qouver/apps/majadu/scripts/rollback.sh
+sudo /srv/qouver/apps/majadu/scripts/rollback.sh --abandon-data
 ```
+
+Rollback menghitung dulu berapa baris bm2 yang ditulis setelah `completed_at`
+(sesi, game, pemain, turnamen, event rating) dan **menolak berjalan** bila ada
+tulisan tanpa `--abandon-data`; angka yang akan hilang dicetak di pesan error
+dan di log. Tambahkan `--drop-bm2` bila database bm2 ikut dihapus, bukan
+ditinggal untuk diperiksa.
 
 Rollback memulihkan `:v1-final`, unit dan env yang disimpan saat `preserve-v1`,
 mengembalikan Caddy ke `site-v1.caddy` (dengan `caddy validate`), `enable` +

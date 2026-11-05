@@ -9,3 +9,8 @@ docs
 packages
 ops
 testdata
+# Secrets and local state never belong in a build context: the context is
+# uploaded to the daemon before the Dockerfile decides what to copy.
+.env.local
+.local
+dist

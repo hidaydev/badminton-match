@@ -10,8 +10,10 @@
 # the env target and the Caddy snippet.
 #
 # `bm` is never written to: rollback does not restore it, because the cutover
-# only ever read it. The bm2 data written after the cutover is abandoned; pass
-# --drop-bm2 to delete the database instead of leaving it for inspection.
+# only ever read it. The bm2 data written after the cutover is abandoned, so the
+# script counts those rows first and refuses to run until that loss is confirmed
+# with --abandon-data. Pass --drop-bm2 to delete the database instead of leaving
+# it for inspection.
 #
 # Env (in addition to MAJADU_APP_DIR): MAJADU_SYSTEMCTL_CMD, MAJADU_CADDY_VALIDATE
 # and MAJADU_BM2_DB exist for the rehearsal harness (T-063), the same overrides
@@ -37,9 +39,7 @@ STEP_FILE="$CUTOVER_DIR/cutover.step"
 LOG="$APP_DIR/logs/rollback.log"
 
 DROP_BM2=0
-if [ "${1:-}" = "--drop-bm2" ]; then
-  DROP_BM2=1
-fi
+ABANDON_DATA=0
 
 mkdir -p "$CUTOVER_DIR" "$APP_DIR/logs"
 
@@ -51,6 +51,14 @@ fail() {
   log "ERROR: $1"
   exit 1
 }
+
+for arg in "$@"; do
+  case "$arg" in
+    --drop-bm2) DROP_BM2=1 ;;
+    --abandon-data) ABANDON_DATA=1 ;;
+    *) fail "unknown argument: $arg" ;;
+  esac
+done
 
 command -v podman >/dev/null 2>&1 || fail "podman is required"
 
@@ -66,6 +74,36 @@ read_env() {
   local file="$1" key="$2"
   sed -n "s/^$key=//p" "$file" 2>/dev/null | tail -1
 }
+
+OWNER_DSN=""
+if [ -f "$APP_DIR/env/majadu-prod.env.v2" ]; then
+  OWNER_DSN=$(read_env "$APP_DIR/env/majadu-prod.env.v2" MAJADU_OWNER_DSN)
+fi
+
+# ---------------------------------------------------------------------------
+# Guard: how much v2 work does this rollback throw away? The answer decides
+# whether the operator meant it, so it is asked before anything is changed.
+# ---------------------------------------------------------------------------
+if [ -n "$OWNER_DSN" ] && command -v psql >/dev/null 2>&1; then
+  abandoned=$(psql "$OWNER_DSN" -Atc "
+    select
+      (select count(*) from session.sessions where updated_at >= c.completed_at)
+    + (select count(*) from session.games where updated_at >= c.completed_at)
+    + (select count(*) from player.players where updated_at >= c.completed_at)
+    + (select count(*) from tournament.tournaments where updated_at >= c.completed_at)
+    + (select count(*) from rating.events where created_at >= c.completed_at)
+    from platform.cutover_state c
+    where c.id and c.completed_at is not null" 2>/dev/null || true)
+  case "$abandoned" in
+    ''|*[!0-9]*) abandoned="" ;;
+  esac
+  if [ -n "$abandoned" ] && [ "$abandoned" -gt 0 ]; then
+    if [ "$ABANDON_DATA" -ne 1 ]; then
+      fail "$abandoned row(s) were written to v2 since the cutover; rollback discards them. Re-run with --abandon-data to confirm that loss."
+    fi
+    log "WARNING: abandoning $abandoned row(s) written since the cutover"
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # Image: v1-final becomes :local. `:prev` is left alone; the next deploy
@@ -129,11 +167,6 @@ fi
 # bm2 holds the audit table, which is exactly the database being abandoned, so
 # the row also goes to a file next to the other cutover artefacts.
 # ---------------------------------------------------------------------------
-OWNER_DSN=""
-if [ -f "$APP_DIR/env/majadu-prod.env.v2" ]; then
-  OWNER_DSN=$(read_env "$APP_DIR/env/majadu-prod.env.v2" MAJADU_OWNER_DSN)
-fi
-
 if [ -n "$OWNER_DSN" ] && command -v psql >/dev/null 2>&1; then
   if psql "$OWNER_DSN" -Atc \
     "select row_to_json(c) from platform.cutover_state c where id" \

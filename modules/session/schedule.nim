@@ -1,5 +1,6 @@
 import std/[json, options, strutils]
 import db/db
+import skips
 
 type
   Side* = object
@@ -183,6 +184,9 @@ proc putSchedule*(db: Db, communityId, sessionId: string, expectedVersion: int,
             intParam(game.round.int64), intParam(game.court.int64),
             textParam(game.sideA.first), textParam(game.sideA.second),
             textParam(game.sideB.first), textParam(game.sideB.second)])
+      # Rewriting the sides can orphan a skip that named a player who is no
+      # longer in that game.
+      discard clearStaleSkips(conn, communityId, sessionId)
       1)
   except DbError as error:
     if error.sqlState.len >= 2 and error.sqlState[0 .. 1] == "23":
@@ -346,6 +350,7 @@ proc setSkips*(db: Db, communityId, sessionId, gameKey: string,
         @[textParam(communityId), textParam(sessionId),
           intParam(key.get[0].int64), intParam(key.get[1].int64),
           textParam(playerId)])
+    discard clearStaleSkips(conn, communityId, sessionId)
     1)
   if outcome != ssOk: return outcome
   ssOk
