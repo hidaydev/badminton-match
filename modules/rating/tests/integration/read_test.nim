@@ -296,6 +296,25 @@ suite "ranking read":
       check row.prevRank.isNone
       check row.rankDelta.isNone
 
+  test "a tied snapshot ranks both players the same":
+    let rows = board(database, query())
+    check rows.len > 1
+    # The same points for everyone: the previous board has one shared rank, not
+    # an arbitrary order, so nobody reads as having moved.
+    for row in rows:
+      discard database.execUpdate(
+        """insert into rating.snapshots
+             (community_id, player_id, taken_on, rating)
+           values ($1::uuid, $2::uuid, '2026-10-03', 500)
+           on conflict (community_id, player_id, taken_on) do update
+             set rating = excluded.rating""",
+        @[textParam(communityId), textParam(row.playerId)])
+    let tied = board(database, query())
+    check tied.len == rows.len
+    for row in tied:
+      check row.prevRank == some(1)
+      check row.rankDelta == some(1 - row.rank)
+
   test "a tier filter narrows the board":
     let all = board(database, query())
     let filtered = board(database, query("B"))

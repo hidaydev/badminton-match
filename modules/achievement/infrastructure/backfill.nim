@@ -139,6 +139,9 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
     result.tallySide(bSide, aSide, not aWon)
 
 proc loadTournaments(conn: DbConn, communityId: string): Table[string, int] =
+  ## Tournament appearances, classic pairs and team rosters alike: a team
+  ## tournament names its players in `tournament.team_players`, so reading
+  ## `pairs` alone would hide every team event from the tournament medals.
   for row in conn.query(
     """select entry.player_id as player_id,
               count(distinct entry.tournament_id)::int as played
@@ -148,7 +151,14 @@ proc loadTournaments(conn: DbConn, communityId: string): Table[string, int] =
          union all
          select player_b_id as player_id, tournament_id
          from tournament.pairs where community_id = $1::uuid
+         union all
+         select tp.player_id as player_id, t.tournament_id
+         from tournament.team_players tp
+         join tournament.teams t
+           on t.community_id = tp.community_id and t.id = tp.team_id
+         where tp.community_id = $1::uuid and tp.player_id is not null
        ) entry
+       where entry.player_id is not null
        group by entry.player_id""",
     @[textParam(communityId)]):
     result[row.get("player_id")] = parseInt(row.get("played"))

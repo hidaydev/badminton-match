@@ -106,7 +106,9 @@ proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
       result[index].rank = result[index - 1].rank
     else:
       result[index].rank = index + 1
-  # Movement against the most recent earlier snapshot that has rows.
+  # Movement against the most recent earlier snapshot that has rows. Ties share
+  # a rank here too (1, 2, 2, 4), the rule the board applies, so two players on
+  # the same points never read as movement in opposite directions.
   var previous = initTable[string, int]()
   for row in db.query(
     """with last as (
@@ -114,9 +116,7 @@ proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
          where community_id = $1::uuid and taken_on < $2::date
        )
        select s.player_id,
-              (row_number() over (order by s.rating desc,
-                                  p.canonical_name asc, s.player_id))::int
-                as prev_rank
+              (rank() over (order by s.rating desc))::int as prev_rank
        from rating.snapshots s
        join player.players p on p.id = s.player_id
        join last on s.taken_on = last.taken_on

@@ -60,10 +60,33 @@ proc classify(db: Db, communityId, sessionId: string): WriteStatus =
     @[textParam(communityId), textParam(sessionId)])
   if row.isNone: wsNotFound else: wsStale
 
+proc dateChangeBlocked(db: Db, communityId, sessionId: string,
+                       date: Option[string]): bool =
+  ## A rated session's date is part of the result: ingest copied it into
+  ## `rating.events.local_date`, and shifting it here would leave the board entry
+  ## on the old day. Unlock first (which withdraws the event), change the date,
+  ## then lock again.
+  ##
+  ## The read is a check before the versioned UPDATE, but it cannot go stale in
+  ## a harmful way: locking the session bumps its version in the same
+  ## transaction, so a concurrent lock makes the UPDATE itself fail as stale.
+  if date.isNone:
+    return false
+  let row = db.queryOne(
+    """select approved_at is not null as rated,
+              session_date::text as session_date
+       from session.sessions
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(sessionId)])
+  row.isSome and row.get.get("rated") == "t" and
+    row.get.get("session_date") != date.get
+
 proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
             patch: SessionPatch): WriteResult =
   ## One UPDATE with the version in the predicate: no read-modify-write window
   ## and no delete+insert, so row identity and child rows survive.
+  if dateChangeBlocked(db, communityId, sessionId, patch.date):
+    return WriteResult(status: wsInvalid)
   let row = db.queryOne(
     """update session.sessions
        set title = coalesce($3, title),

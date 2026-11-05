@@ -69,6 +69,12 @@ proc loadSnapshot*(db: Db): Snapshot =
   if problems.len > 0:
     raise newException(ConfigError, "invalid platform config: " & problems.join("; "))
 
+proc currentVersion(db: Db): int64 =
+  ## The counter alone. It is one cheap read, and it must happen outside the
+  ## cache lock: holding the lock across a database call is what would deadlock
+  ## if config were ever read from inside a `db.tx`.
+  parseInt(db.queryOne("select version from platform.config_version").get.get("version"))
+
 proc newConfigCache*(db: Db): ConfigCache =
   result = ConfigCache()
   initLock(result.lock)
@@ -76,12 +82,22 @@ proc newConfigCache*(db: Db): ConfigCache =
   result.loaded = true
 
 proc snapshot*(cache: ConfigCache, db: Db): Snapshot =
+  ## A snapshot for a version is immutable, so both the version probe and the
+  ## full load run outside the lock. Two readers may reload the same version
+  ## concurrently; the newest version wins and an older load never replaces a
+  ## newer one.
+  let version = currentVersion(db)
+  acquire(cache.lock)
+  let current = cache.current
+  let loaded = cache.loaded
+  release(cache.lock)
+  if loaded and current.version == version:
+    return current
+  let fresh = loadSnapshot(db)
   acquire(cache.lock)
   try:
-    let versionRow = db.queryOne("select version from platform.config_version").get
-    let version = parseInt(versionRow.get("version"))
-    if not cache.loaded or version != cache.current.version:
-      cache.current = loadSnapshot(db)
+    if not cache.loaded or fresh.version >= cache.current.version:
+      cache.current = fresh
       cache.loaded = true
       logInfo("config reloaded", [("version", $cache.current.version)])
     result = cache.current

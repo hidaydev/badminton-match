@@ -74,6 +74,29 @@ suite "session write":
          where community_id = $1::uuid""", @[textParam(communityId)]).get
     check events.get("total") == "0"
 
+  test "a rated session keeps its date until it is unlocked":
+    check setLock(db, communityId, sessionId, userId, 1, locked = true).status == wsOk
+    # The ledger copied the date at ingest, so a rated source may not move it.
+    let blocked = patch(db, communityId, sessionId, 2,
+      SessionPatch(date: some("2026-11-20")))
+    check blocked.status == wsInvalid
+    let kept = db.queryOne(
+      """select session_date::text as session_date, version
+         from session.sessions where id = $1::uuid""",
+      @[textParam(sessionId)]).get
+    check kept.get("session_date") == "2026-11-03"
+    check kept.get("version") == "2"
+    # Every other field stays editable while the session is rated.
+    check patch(db, communityId, sessionId, 2,
+      SessionPatch(title: some("Rated rename"))).status == wsOk
+    # Unlocking withdraws the event, so the date may move afterwards.
+    check setLock(db, communityId, sessionId, userId, 3,
+      locked = false).status == wsOk
+    let moved = patch(db, communityId, sessionId, 4,
+      SessionPatch(date: some("2026-11-20")))
+    check moved.status == wsOk
+    check moved.record["date"].getStr() == "2026-11-20"
+
   test "patch keeps the row identity and child rows":
     let gamesBefore = db.queryOne(
       "select count(*) as total from session.games where session_id = $1::uuid",

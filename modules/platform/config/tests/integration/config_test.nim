@@ -6,6 +6,34 @@ import ../../registry
 proc dsn(): string =
   getEnv("MAJADU_PG_DSN")
 
+type
+  SnapshotJob = object
+    dsn: string
+    cache: ConfigCache
+    timezone: string
+    failed: bool
+
+proc readSnapshot(job: ptr SnapshotJob) {.thread.} =
+  {.cast(gcsafe).}:
+    try:
+      let db = openDb(job.dsn, 1)
+      try:
+        job.timezone = job.cache.snapshot(db).stringValue(%*{},
+          keyCommunityDefaultTimezone)
+      finally:
+        db.close()
+    except CatchableError:
+      job.failed = true
+
+proc bumpTimezone(db: Db, value: string) =
+  discard db.tx(proc(conn: DbConn): int =
+    discard conn.execUpdate(
+      "update platform.config set value = $1 where key = $2",
+      @[textParam("\"" & value & "\""), textParam($keyCommunityDefaultTimezone)])
+    discard conn.execUpdate(
+      "update platform.config_version set version = version + 1")
+    1)
+
 proc seedPresent(db: Db): bool =
   db.queryOne("select count(*) as total from platform.config").get.get("total") != "0"
 
@@ -76,6 +104,26 @@ suite "platform config":
       discard conn.execUpdate("update platform.config_version set version = version + 1")
       1)
     check cache.snapshot(db).stringValue(%*{}, keyCommunityDefaultTimezone) == "Asia/Jakarta"
+
+  test "concurrent readers reload the bumped version and never downgrade":
+    let cache = newConfigCache(db)
+    bumpTimezone(db, "Asia/Jayapura")
+    var first = SnapshotJob(dsn: dsn(), cache: cache)
+    var second = SnapshotJob(dsn: dsn(), cache: cache)
+    var firstThread: Thread[ptr SnapshotJob]
+    var secondThread: Thread[ptr SnapshotJob]
+    createThread(firstThread, readSnapshot, addr first)
+    createThread(secondThread, readSnapshot, addr second)
+    joinThread(firstThread)
+    joinThread(secondThread)
+    check not first.failed
+    check not second.failed
+    check first.timezone == "Asia/Jayapura"
+    check second.timezone == "Asia/Jayapura"
+    # An older snapshot may not win just because it finished its load last.
+    check cache.snapshot(db).stringValue(%*{}, keyCommunityDefaultTimezone) ==
+      "Asia/Jayapura"
+    bumpTimezone(db, "Asia/Jakarta")
 
   test "L2 override wins and cannot exceed the L1 ceiling":
     let snapshot = loadSnapshot(db)

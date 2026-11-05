@@ -39,6 +39,14 @@ proc cleanup() =
   for statement in [
     """delete from achievement.earned where community_id in
          (select id from platform.community where slug = 'achievement-club')""",
+    """delete from tournament.team_partai where community_id in
+         (select id from platform.community where slug = 'achievement-club')""",
+    """delete from tournament.team_matches where community_id in
+         (select id from platform.community where slug = 'achievement-club')""",
+    """delete from tournament.team_players where community_id in
+         (select id from platform.community where slug = 'achievement-club')""",
+    """delete from tournament.teams where community_id in
+         (select id from platform.community where slug = 'achievement-club')""",
     """delete from tournament.matches where community_id in
          (select id from platform.community where slug = 'achievement-club')""",
     """delete from tournament.pairs where community_id in
@@ -380,6 +388,27 @@ suite "achievement backfill":
     discard award()
     check "rank:1" in keysOf(boardKing)
     check "rank:1" notin keysOf(ledgerKing)
+
+  test "a team roster counts the tournament":
+    ## A team event names its players in `team_players`; its `pairs` table is
+    ## empty, so the tournament ladder used to miss the whole event.
+    let rostered = newPlayer(36, "")
+    let tournamentId = database.queryOne(
+      """insert into tournament.tournaments (community_id, name, format)
+         values ($1::uuid, 'Team Cup', 'team') returning id""",
+      @[textParam(communityId)]).get.get("id")
+    let teamId = database.queryOne(
+      """insert into tournament.teams
+           (community_id, tournament_id, seed, team_name)
+         values ($1::uuid, $2::uuid, 1, 'Red') returning id""",
+      @[textParam(communityId), textParam(tournamentId)]).get.get("id")
+    discard database.execUpdate(
+      """insert into tournament.team_players
+           (community_id, team_id, player_name, player_id, cls)
+         values ($1::uuid, $2::uuid, 'Team Player', $3::uuid, 'A')""",
+      @[textParam(communityId), textParam(teamId), textParam(rostered)])
+    discard award()
+    check "tournaments:1" in keysOf(rostered)
 
   test "every rank badge the board implies is on the shelf":
     ## Awards are never revoked, so a player who slipped keeps an older badge;
