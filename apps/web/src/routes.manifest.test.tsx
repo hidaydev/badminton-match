@@ -53,9 +53,10 @@ describe('routes manifest', () => {
   })
 })
 
-describe('AppNav roles', () => {
+describe('home cards by role', () => {
   beforeEach(() => {
-    window.history.replaceState({}, '', '/c/acme/sessions')
+    window.localStorage.clear()
+    window.history.replaceState({}, '', '/c/acme')
   })
 
   const renderAs = (role: CommunityRole, platformOwner = false) => {
@@ -73,23 +74,23 @@ describe('AppNav roles', () => {
   it('hides administration entries from members', async () => {
     renderAs('member')
 
-    expect(await screen.findByRole('link', { name: en['nav.sessions'] })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: en['nav.settings'] })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: en['nav.tournaments'] })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: en['nav.owner'] })).not.toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: new RegExp(en['home.card.sessions']) })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: new RegExp(en['home.card.settings']) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: new RegExp(en['home.card.tournaments']) })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: new RegExp(en['nav.owner']) })).not.toBeInTheDocument()
   })
 
   it('shows administration entries to admins', async () => {
     renderAs('admin')
 
-    expect(await screen.findByRole('link', { name: en['nav.settings'] })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: en['nav.tournaments'] })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: new RegExp(en['home.card.settings']) })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: new RegExp(en['home.card.tournaments']) })).toBeInTheDocument()
   })
 
   it('shows the owner entry to a platform owner', async () => {
     renderAs('member', true)
 
-    expect(await screen.findByRole('link', { name: en['nav.owner'] })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: en['nav.settings'] })).not.toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: new RegExp(en['nav.owner']) })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: new RegExp(en['home.card.settings']) })).not.toBeInTheDocument()
   })
 })

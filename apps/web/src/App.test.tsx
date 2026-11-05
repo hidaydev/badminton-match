@@ -17,6 +17,8 @@ const sessionUser = {
 
 describe('App auth gate', () => {
   beforeEach(() => {
+    window.localStorage.clear()
+    window.sessionStorage.clear()
     window.history.replaceState({}, '', '/')
   })
 
@@ -64,13 +66,12 @@ describe('App auth gate', () => {
     })
 
     render(<App />)
-    expect(await screen.findByRole('heading', { name: t('home.title') })).toBeInTheDocument()
-    expect(screen.getByRole('navigation')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: t('home.newSession') })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: t('nav.logout') }))
 
     expect(await screen.findByRole('button', { name: t('login.action') })).toBeInTheDocument()
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('nav.logout') })).not.toBeInTheDocument()
     const logoutCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/auth/logout'))
     expect((logoutCall as [string, RequestInit])[1].credentials).toBe('include')
   })

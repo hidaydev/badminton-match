@@ -23,20 +23,6 @@ const sessionHandlers = (items: Membership[]) => ({
   'GET /api/communities': () => ({ body: { items } }),
 })
 
-const configHandlers = (timezone: Record<string, string>) =>
-  Object.fromEntries(
-    Object.entries(timezone).map(([slug, value]) => [
-      `GET /api/c/${slug}/config`,
-      () => ({
-        body: {
-          effective: {
-            'community.default_timezone': { value, source: 'platform' },
-          },
-        },
-      }),
-    ]),
-  )
-
 describe('CommunityPicker', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -68,44 +54,27 @@ describe('CommunityPicker', () => {
     ])
   })
 
-  it('switches community, reroutes and refetches without a login', async () => {
+  it('switches community and reroutes without a login', async () => {
     window.history.replaceState({}, '', '/c/acme')
-    const fetchMock = mockFetch({
-      ...sessionHandlers([acme, beta]),
-      ...configHandlers({ acme: 'Asia/Jakarta', beta: 'Europe/Amsterdam' }),
-    })
+    const fetchMock = mockFetch(sessionHandlers([acme, beta]))
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Acme' })).toBeInTheDocument()
-    expect(await screen.findByText('Asia/Jakarta')).toBeInTheDocument()
+    const picker = await screen.findByRole('combobox', { name: t('community.label') })
+    expect(picker).toHaveValue('acme')
 
-    fireEvent.change(await screen.findByRole('combobox', { name: t('community.label') }), {
-      target: { value: 'beta' },
-    })
+    fireEvent.change(picker, { target: { value: 'beta' } })
 
     await waitFor(() => expect(window.location.pathname).toBe('/c/beta'))
-    expect(await screen.findByRole('heading', { name: 'Beta' })).toBeInTheDocument()
-    expect(await screen.findByText('Europe/Amsterdam')).toBeInTheDocument()
+    expect(await screen.findByRole('combobox', { name: t('community.label') })).toHaveValue('beta')
     expect(window.localStorage.getItem(COMMUNITY_STORAGE_KEY)).toBe('beta')
 
     const urls = fetchMock.mock.calls.map(([url]) => String(url))
-    expect(urls).toEqual(
-      expect.arrayContaining(['/api/c/acme/config', '/api/c/beta/config']),
-    )
     expect(urls.some((url) => url.endsWith('/auth/start'))).toBe(false)
-
-    const betaCall = fetchMock.mock.calls.find(([url]) =>
-      String(url).endsWith('/api/c/beta/config'),
-    )
-    expect((betaCall?.[1] as RequestInit).credentials).toBe('include')
   })
 
   it('keeps the selection after a reload', async () => {
-    mockFetch({
-      ...sessionHandlers([acme, beta]),
-      ...configHandlers({ acme: 'Asia/Jakarta', beta: 'Europe/Amsterdam' }),
-    })
+    mockFetch(sessionHandlers([acme, beta]))
 
     const first = render(<App />)
 

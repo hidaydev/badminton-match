@@ -1,8 +1,10 @@
+import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCommunity } from '../community/CommunityContext'
 import { t } from '../i18n'
 import SessionAdmin from '../sessions/SessionAdmin'
 import { useSession } from '../sessions/hooks'
+import { writeLastSession } from '../sessions/lastSession'
 
 /** One session: who plays, the games and the board, in one read. */
 export default function SessionPage() {
@@ -16,6 +18,11 @@ export default function SessionPage() {
   )
   const names = new Map(session?.participants.map((entry) => [entry.playerId, entry.name]) ?? [])
   const nameOf = (playerId: string) => names.get(playerId) ?? playerId
+
+  useEffect(() => {
+    if (slug === '' || session === null) return
+    writeLastSession(slug, { id: session.id, title: session.title, date: session.date })
+  }, [slug, session])
 
   return (
     <section className="mx-auto max-w-3xl p-4">
