@@ -220,13 +220,15 @@ proc setSessionCookie(request: Request, token: string) =
     cookie.add("; Secure")
   send(request, 204, @[("Set-Cookie", cookie)], "")
 
-proc authFlowCookie(state: string, maxAge: int): string =
+proc authFlowCookie(state: string): string =
   ## Binds an OIDC flow to the browser that started it. Without it an attacker
   ## can start the flow themselves and hand the callback URL to a victim, who
   ## then ends up signed in as the attacker (login CSRF). The value is a hash of
   ## the state, so the cookie is useless on its own and a mismatch is cheap.
+  ## No Max-Age on purpose: this is a session cookie, and the flow row in the
+  ## database already carries the expiry.
   result = "majadu_auth_flow=" & sha256Hex(state) &
-    "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" & $maxAge
+    "; Path=/; HttpOnly; SameSite=Lax"
   if application.cookieSecure:
     result.add("; Secure")
 
@@ -312,7 +314,7 @@ proc startAuth(request: Request) =
   jsonResponse(request, 200, %*{
     "authorizeUrl": authorizeUrl(application.oidc, state, nonce, challenge),
     "keyId": keyId,
-  }, [("Set-Cookie", authFlowCookie(state, ttl * 60))])
+  }, [("Set-Cookie", authFlowCookie(state))])
 
 proc finishAuth(request: Request) =
   let code = request.queryParams["code"]

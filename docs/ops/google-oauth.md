@@ -52,7 +52,7 @@ Bukan `https://api.qouver.com/auth/callback`. Alasannya berlapis:
    (`ops/caddy/site-v2.caddy`); `https://api.qouver.com/auth/callback` tidak
    cocok dengan handler mana pun di site `api.qouver.com`.
 2. **Cookie.** Respons `/auth/start` menyetel `majadu_auth_flow` (hash state,
-   `Path=/`, `HttpOnly`, `SameSite=Lax`, umur = TTL flow), dan `/auth/callback`
+   `Path=/`, `HttpOnly`, `SameSite=Lax`, cookie sesi tanpa `Max-Age`), dan `/auth/callback`
    menolaknya bila cookie itu tidak ikut. Cookie tanpa `Domain` hanya dikirim ke
    host yang menyetelnya. Browser memulai flow dari `<origin>/api/auth/start`,
    jadi callback **harus** kembali ke origin yang sama; host lain membuat cookie
