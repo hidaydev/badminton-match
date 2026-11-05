@@ -44,6 +44,8 @@ describe('shared session', () => {
     expect(screen.getByText('Ani & Budi')).toBeInTheDocument()
     expect(screen.getByText('30–24')).toBeInTheDocument()
     expect(screen.getByText('Acme')).toBeInTheDocument()
+    // A phone-width day, not the long form that wraps next to the community.
+    expect(screen.getByText('Tue, 3 Nov 2026')).toBeInTheDocument()
     expect(screen.queryByRole('button')).toBeNull()
     expect(screen.queryByRole('textbox')).toBeNull()
   })

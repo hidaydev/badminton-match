@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
-import { formatLongDate } from '../utils/day'
+import { formatCompactDate } from '../utils/day'
 import { getSharedSession } from '../share/api'
 import type { SharedSession } from '../share/api'
 import { LoadingState } from '../components/LoadingState'
@@ -182,7 +182,7 @@ export default function SharedSessionPage() {
           </h1>
           <p className="mt-1 text-xs text-fg-dim">
             <time dateTime={session.session.date}>
-              {formatLongDate(session.session.date)}
+              {formatCompactDate(session.session.date)}
             </time>
             {' · '}
             {statusLabel(session.session.status)}
