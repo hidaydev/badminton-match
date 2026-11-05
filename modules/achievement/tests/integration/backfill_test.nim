@@ -39,6 +39,8 @@ proc cleanup() =
   for statement in [
     """delete from achievement.earned where community_id in
          (select id from platform.community where slug = 'achievement-club')""",
+    """delete from achievement.definitions
+         where key = 'tournament:11111111-1111-1111-1111-111111111111'""",
     """delete from tournament.team_partai where community_id in
          (select id from platform.community where slug = 'achievement-club')""",
     """delete from tournament.team_matches where community_id in
@@ -411,8 +413,9 @@ suite "achievement backfill":
     check "tournaments:1" in keysOf(rostered)
 
   test "every rank badge the board implies is on the shelf":
-    ## Awards are never revoked, so a player who slipped keeps an older badge;
-    ## the check is that the current rank never lacks its rungs.
+    ## A rank badge follows the current board: a player who slipped past a rung
+    ## loses it on the next reconciliation, and the check is that the current
+    ## rank never lacks its rungs.
     var ranks = initTable[string, int]()
     for row in board(database, BoardQuery(communityId: communityId, asOf: asOf,
       params: params(), limit: 0)):
@@ -423,3 +426,59 @@ suite "achievement backfill":
       for threshold in [10, 5, 3, 2, 1]:
         if rank <= threshold:
           check ("rank:" & $threshold) in keys
+
+  test "a reverted session revokes the catalog badge it earned":
+    ## The pass is a reconciliation, not insert-only: once the session and its
+    ## rating event are gone, a catalog key the player no longer crosses goes
+    ## with it. Imported rows outside the catalog stay on the shelf.
+    let solo = newPlayer(40, "")
+    let mate = newPlayer(41, "")
+    let rivals = [newPlayer(42, ""), newPlayer(43, "")]
+    var sessionIds: seq[string] = @[]
+    for day in 1 .. 5:
+      sessionIds.add(seedSession("2026-10-" & align($(day + 9), 2, '0'), @[
+        Game(a: [solo, mate], b: rivals, scoreA: 21, scoreB: 10)]))
+    discard award()
+    check "sessions:5" in keysOf(solo)
+    let eventKey = "tournament:11111111-1111-1111-1111-111111111111"
+    discard database.execUpdate(
+      """insert into achievement.definitions (key, category, threshold)
+         values ($1, 'tournament', 1) on conflict (key) do nothing""",
+      @[textParam(eventKey)])
+    discard database.execUpdate(
+      """insert into achievement.earned
+           (community_id, player_id, achievement_key, earned_at, meta)
+         values ($1::uuid, $2::uuid, $3, now(), '{}'::jsonb),
+                ($1::uuid, $2::uuid, 'rank_streak:11', now(), '{}'::jsonb)
+         on conflict do nothing""",
+      @[textParam(communityId), textParam(solo), textParam(eventKey)])
+    for sessionId in sessionIds:
+      discard database.execUpdate(
+        """delete from session.games
+           where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)])
+      discard database.execUpdate(
+        """delete from session.participants
+           where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)])
+      discard database.execUpdate(
+        """delete from session.sessions
+           where community_id = $1::uuid and id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)])
+      discard database.execUpdate(
+        """delete from rating.events
+           where community_id = $1::uuid and event_type = 'session'
+             and source_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)])
+    let result = award()
+    check result.revoked > 0
+    check "sessions:5" notin keysOf(solo)
+    check eventKey in keysOf(solo)
+    check "rank_streak:11" in keysOf(solo)
+    # Leave the shared definitions table as the fixture found it.
+    discard database.execUpdate(
+      "delete from achievement.earned where achievement_key = $1",
+      @[textParam(eventKey)])
+    discard database.execUpdate(
+      "delete from achievement.definitions where key = $1",
+      @[textParam(eventKey)])

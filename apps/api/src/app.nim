@@ -840,6 +840,15 @@ proc ratingParamsFor(ctx: CommunityContext): ratingDomain.RatingParams =
   ratingParams.loadRatingParams(configSnapshot(),
     currentSettings(application.db, ctx.communityId))
 
+proc reconcileAchievements(ctx: CommunityContext,
+                           params: ratingDomain.RatingParams) =
+  ## Badges are derived from the same sessions and tournaments the board reads,
+  ## so every path that moves the rating reconciles the shelf too: a reverted
+  ## result must take its badge with it. The board anchor is read the way the
+  ## CLI tick reads it.
+  discard achievementBackfill.backfill(application.db, ctx.communityId,
+    ratingRead.latestEventDate(application.db, ctx.communityId), params)
+
 proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
                     sessionId: string, locked: bool) =
   let version = requireIfMatch(request)
@@ -851,15 +860,16 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
     # Approval is the rating gate: locking rates the session now, unlocking
     # withdraws what it contributed. Without this the ledger keeps points from
     # a session that is no longer approved.
+    let params = ratingParamsFor(ctx)
     if locked:
       discard ratingIngest.ingestSession(application.db, ctx.communityId,
-        sessionId, ratingParamsFor(ctx))
+        sessionId, params)
     else:
       let removed = ratingIngest.revertSource(application.db, ctx.communityId,
         sessionId)
       if removed > 0:
-        discard ratingIngest.rebuild(application.db, ctx.communityId,
-          ratingParamsFor(ctx))
+        discard ratingIngest.rebuild(application.db, ctx.communityId, params)
+    reconcileAchievements(ctx, params)
     audit(if locked: "session.lock" else: "session.unlock", ctx, user,
       "session", sessionId, result.record)
     jsonResponse(request, 200, result.record,
@@ -1447,8 +1457,10 @@ proc ingestSessionRating(request: Request, ctx: CommunityContext,
   if sessionVersionNow(ctx.communityId, sessionId) == 0:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
+  let params = ratingParamsFor(ctx)
   let result = ratingIngest.ingestSession(application.db, ctx.communityId,
-    sessionId, ratingParamsFor(ctx))
+    sessionId, params)
+  reconcileAchievements(ctx, params)
   audit("rating.session.ingest", ctx, user, "session", sessionId,
     %*{"events": result.events, "deltas": result.deltas})
   jsonResponse(request, 200, %*{"events": result.events,
@@ -1462,9 +1474,10 @@ proc clearSessionRating(request: Request, ctx: CommunityContext,
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
+  let params = ratingParamsFor(ctx)
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, sessionId)
-  let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId,
-    ratingParamsFor(ctx))
+  let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId, params)
+  reconcileAchievements(ctx, params)
   audit("rating.session.revert", ctx, user, "session", sessionId,
     %*{"removedDeltas": removed})
   jsonResponse(request, 200, %*{"removedDeltas": removed,
@@ -1473,8 +1486,9 @@ proc clearSessionRating(request: Request, ctx: CommunityContext,
 
 proc rebuildRatings(request: Request, ctx: CommunityContext,
                     user: AuthUser) =
-  let result = ratingIngest.rebuild(application.db, ctx.communityId,
-    ratingParamsFor(ctx))
+  let params = ratingParamsFor(ctx)
+  let result = ratingIngest.rebuild(application.db, ctx.communityId, params)
+  reconcileAchievements(ctx, params)
   audit("rating.rebuild", ctx, user, "community", ctx.communityId,
     %*{"events": result.events, "deltas": result.deltas})
   jsonResponse(request, 200, %*{"events": result.events,
@@ -1540,9 +1554,10 @@ proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
   if ratingIngest.eventFinalized(application.db, ctx.communityId, eventId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
+  let params = ratingParamsFor(ctx)
   let removed = ratingIngest.removeEvent(application.db, ctx.communityId, eventId)
-  let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId,
-    ratingParamsFor(ctx))
+  let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId, params)
+  reconcileAchievements(ctx, params)
   audit("rating.source.delete", ctx, user, "rating_event", eventId,
     %*{"removedDeltas": removed})
   jsonResponse(request, 200, %*{"removedDeltas": removed,
@@ -1588,7 +1603,7 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 403, "FORBIDDEN", "only an admin can delete this session")
     return
   of sessionWrite.dsDeleted:
-    discard
+    reconcileAchievements(ctx, params)
   for linkId in links:
     application.hub.revokeShare(linkId)
   audit("session.delete", ctx, user, "session", sessionId,
@@ -2237,10 +2252,12 @@ proc ingestTournamentRating(request: Request, ctx: CommunityContext,
                            user: AuthUser, id: string) =
   ## Admin-only. The source must be signed off first, which is the v1 gate and
   ## the reason a running bracket cannot leak half a tournament into the board.
+  let params = ratingParamsFor(ctx)
   let result = ratingTournament.ingestTournament(application.db,
-    ctx.communityId, id, ratingParamsFor(ctx))
+    ctx.communityId, id, params)
   case result.status
   of ratingTournament.tisOk:
+    reconcileAchievements(ctx, params)
     audit("rating.tournament.ingest", ctx, user, "tournament", id,
       %*{"events": result.events, "deltas": result.deltas})
     jsonResponse(request, 200, %*{"events": result.events,
@@ -2266,9 +2283,10 @@ proc clearTournamentRating(request: Request, ctx: CommunityContext,
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, id):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
+  let params = ratingParamsFor(ctx)
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, id)
-  discard ratingIngest.rebuild(application.db, ctx.communityId,
-    ratingParamsFor(ctx))
+  discard ratingIngest.rebuild(application.db, ctx.communityId, params)
+  reconcileAchievements(ctx, params)
   audit("rating.tournament.revert", ctx, user, "tournament", id,
     %*{"removedDeltas": removed})
   send(request, 204, @[("Cache-Control", "no-store")], "")
@@ -2288,8 +2306,9 @@ proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
   # would leave points on the board for a bracket that no longer exists.
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, id)
   if removed > 0:
-    discard ratingIngest.rebuild(application.db, ctx.communityId,
-      ratingParamsFor(ctx))
+    let params = ratingParamsFor(ctx)
+    discard ratingIngest.rebuild(application.db, ctx.communityId, params)
+    reconcileAchievements(ctx, params)
   discard ratingIngest.dropSource(application.db, ctx.communityId, id)
   audit("tournament.delete", ctx, user, "tournament", id,
     %*{"id": id, "removedDeltas": removed})

@@ -473,6 +473,15 @@ suite "session schedule HTTP":
     check locked == 200
     check events() == "1"
 
+    # A badge on the shelf that this session does not support. The unlock path
+    # reconciles achievements after the revert, so the row must be gone.
+    discard database.execUpdate(
+      """insert into achievement.earned
+           (community_id, player_id, achievement_key, earned_at)
+         values ($1::uuid, $2::uuid, 'games:200', now())
+         on conflict do nothing""",
+      @[textParam(communityId), textParam(players[0])])
+
     # A finished session is read-only: the score has to be reopened first.
     let (writeRefused, _) = call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
@@ -484,6 +493,12 @@ suite "session schedule HTTP":
       ifMatch = "\"4\"")
     check reopened == 200
     check events() == "0"
+    let stale = database.queryOne(
+      """select 1 as ok from achievement.earned
+         where community_id = $1::uuid and player_id = $2::uuid
+           and achievement_key = 'games:200'""",
+      @[textParam(communityId), textParam(players[0])])
+    check stale.isNone
 
   test "a bundle from another major is told to reload":
     let path = "/c/sched-club/players"

@@ -10,9 +10,11 @@ import ../domain/achievement
 type
   BackfillResult* = object
     ## `players` is how many rosters were inspected; `awarded` counts rows the
-    ## run actually inserted, so a second identical run reports zero.
+    ## run actually inserted, so a second identical run reports zero; `revoked`
+    ## counts catalog rows the reconciliation removed.
     players*: int
     awarded*: int
+    revoked*: int
 
   EarnRow = object
     playerId: string
@@ -205,6 +207,63 @@ proc loadFacts(conn: DbConn, communityId: string,
       tierLevel: level,
       rank: ranks.getOrDefault(playerId)))
 
+proc catalogKeys(): seq[string] =
+  for badge in catalog():
+    result.add(badge.key)
+
+proc quotedKeys(keys: seq[string]): string =
+  ## The list comes from `catalog()`, a code constant of key strings, so a
+  ## quoted literal is fine here and avoids array-parameter plumbing.
+  var quoted: seq[string] = @[]
+  for key in keys:
+    quoted.add("'" & key & "'")
+  quoted.join(", ")
+
+proc loadEarned(conn: DbConn, communityId: string,
+                keys: seq[string]): Table[string, HashSet[string]] =
+  ## One read of the catalog rows actually on the shelf, so the reconciliation
+  ## can tell what went stale instead of asking the database once per player.
+  for row in conn.query(
+    """select player_id::text as player_id, achievement_key as key
+       from achievement.earned
+       where community_id = $1::uuid
+         and achievement_key in (""" & quotedKeys(keys) & ")",
+    @[textParam(communityId)]):
+    let playerId = row.get("player_id")
+    var shelf = result.mgetOrPut(playerId, initHashSet[string]())
+    shelf.incl(row.get("key"))
+    result[playerId] = shelf
+
+proc revokeAwards(conn: DbConn, communityId: string,
+                  earned: Table[string, HashSet[string]],
+                  qualified: Table[string, HashSet[string]]): int =
+  ## A catalog key the player no longer qualifies for is revoked. Keys outside
+  ## the catalog (`tournament:<uuid>` event medals and `rank_streak:*`) are not
+  ## read here, so imported rows survive whatever the v2 rules say.
+  var stale: seq[(string, string)] = @[]
+  for playerId, keys in earned:
+    let live = qualified.getOrDefault(playerId)
+    for key in keys:
+      if key notin live:
+        stale.add((playerId, key))
+  const chunk = 100
+  var start = 0
+  while start < stale.len:
+    let last = min(start + chunk, stale.len)
+    var params = @[textParam(communityId)]
+    var tuples: seq[string] = @[]
+    for index in start ..< last:
+      let base = params.len + 1
+      tuples.add("($" & $base & "::uuid, $" & $(base + 1) & ")")
+      params.add(textParam(stale[index][0]))
+      params.add(textParam(stale[index][1]))
+    result += conn.execUpdate(
+      """delete from achievement.earned
+         where community_id = $1::uuid
+           and (player_id, achievement_key) in (""" & tuples.join(", ") & ")",
+      params)
+    start = last
+
 proc writeAwards(conn: DbConn, communityId, earnedAt: string,
                  rows: seq[EarnRow]): int =
   ## Chunked multi-row insert. `on conflict do nothing` is what keeps
@@ -237,21 +296,28 @@ proc communitySettings(db: Db, communityId: string): JsonNode =
 
 proc backfill*(db: Db, communityId, asOf: string,
                params: RatingParams): BackfillResult =
-  ## Awards every threshold the current data qualifies for. Idempotent: a badge
-  ## that already exists keeps its original `earned_at`, and only the players
-  ## whose facts crossed a new threshold gain rows. `asOf` and `params` are the
-  ## board read's inputs, so `rank:N` is measured on the best-N window the
-  ## members see; the board is read before the transaction because the pool
-  ## hands this process a single connection.
+  ## Awards every threshold the current data qualifies for and revokes the
+  ## catalog keys it no longer does, so the shelf is reconciled with the same
+  ## facts the board reads. Idempotent: a badge that already exists keeps its
+  ## original `earned_at`, and only the players whose facts moved gain or lose
+  ## rows. `asOf` and `params` are the board read's inputs, so `rank:N` is
+  ## measured on the best-N window the members see; the board is read before the
+  ## transaction because the pool hands this process a single connection.
   var outcome: BackfillResult
   let ranks = loadRanks(db, communityId, asOf, params)
   discard db.tx(proc(conn: DbConn): int =
     let facts = loadFacts(conn, communityId, ranks)
+    let keys = catalogKeys()
     let earnedAt = utcNow().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    var qualified = initTable[string, HashSet[string]]()
     var rows: seq[EarnRow] = @[]
     for item in facts:
-      for key in awardedKeys(item):
+      let awarded = awardedKeys(item)
+      qualified[item.playerId] = awarded.toHashSet
+      for key in awarded:
         rows.add(EarnRow(playerId: item.playerId, key: key))
+    outcome.revoked = revokeAwards(conn, communityId,
+      loadEarned(conn, communityId, keys), qualified)
     outcome.players = facts.len
     outcome.awarded = writeAwards(conn, communityId, earnedAt, rows)
     1)
