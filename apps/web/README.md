@@ -83,12 +83,14 @@ here.
 
 ## Layout
 
-- `src/App.tsx` — auth gate plus routes generated from the manifest; new screens
-  join by editing the manifest, not `App.tsx`.
-- `src/routes.manifest.ts` — single route list (`path`, `labelKey`, `element`,
-  `requiresAuth`, `roles`, `platformOwner`, `navGroup`). `visibleNav()` filters
-  nav entries by the role from `GET /communities`; the platform owner sees
-  owner-only entries but no community admin entry without an admin membership.
+- `src/App.tsx` — the route table and the auth gate. `src/routes.manifest.ts`
+  holds only pathname helpers (`communitySlugFromPath`, `communityHref`) so
+  route *shapes* have one implementation; adding a screen still means editing
+  `App.tsx` and `e2e/visual.routes.ts`, and `src/legacy/routes.test.tsx` pins the
+  legacy routes.
+- `src/api/errors.ts` — the single `ApiError` class plus the
+  `CLIENT_OUTDATED`/`SESSION_EXPIRED` shell events; both HTTP transports throw
+  and signal through it.
 - `src/i18n/` — every user-visible string lives in `en.ts`; `t(key, vars?)` is
   typed by `MessageKey`. A test parses each `.tsx` file and fails on hardcoded
   JSX text or literal `placeholder`/`aria-label`/`title`/`alt` values.

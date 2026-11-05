@@ -6,6 +6,13 @@
 //     belum ter-apply) dan network failure sebelum request terkirim. 5xx tidak
 //     di-retry karena server mungkin sudah menulis data (bisa double-apply).
 
+import { ApiError } from '../../api/errors'
+
+// The class itself lives in `src/api/errors.ts` so the v2 screens and this
+// legacy transport throw one type; re-exported here because every legacy
+// caller imports it from the retry module.
+export { ApiError } from '../../api/errors'
+
 /** HTTP status yang dianggap transient dan boleh di-retry (level transport). */
 const RETRYABLE_HTTP_STATUS = new Set([429, 500, 503])
 
@@ -14,22 +21,6 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /** Maksimum nilai Retry-After (detik) yang dihormati — cegah menunggu terlalu lama. */
 export const MAX_RETRY_AFTER_SECONDS = 10
-
-/**
- * Error untuk kegagalan API.
- * `code`   = kode bisnis dari body error backend (mis. SQLSTATE '40001')
- * `status` = HTTP status asli respons (dipakai untuk keputusan retry)
- */
-export class ApiError extends Error {
-  code: string | null
-  status: number | null
-  constructor(message: string, code: string | null = null, status: number | null = null) {
-    super(message)
-    this.name = 'ApiError'
-    this.code = code
-    this.status = status
-  }
-}
 
 /** Apakah error retryable pada level transport (belum mempertimbangkan method). */
 export function isRetryableError(error: unknown): boolean {

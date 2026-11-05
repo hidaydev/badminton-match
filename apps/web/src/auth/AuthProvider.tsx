@@ -9,6 +9,7 @@ import {
   startLogin,
 } from './api'
 import type { Membership, SessionUser } from './api'
+import { SESSION_EXPIRED_EVENT } from '../api/errors'
 import { AuthContext } from './AuthContext'
 import type { AuthContextValue } from './AuthContext'
 import { redirectTo } from './redirect'
@@ -21,6 +22,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [loading, setLoading] = useState(true)
   const [loggingIn, setLoggingIn] = useState(false)
+
+  // The cookie can expire or be revoked while a tab stays open. Any request
+  // that comes back 401 says so; treat it like a logout from the shell's angle
+  // so the next screen is the login form instead of "Failed to load".
+  useEffect(() => {
+    const onExpired = () => {
+      setUser(null)
+      setMemberships([])
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired)
+  }, [])
 
   useEffect(() => {
     let active = true

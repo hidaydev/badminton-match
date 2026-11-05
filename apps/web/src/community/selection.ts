@@ -1,4 +1,5 @@
 import type { Membership } from '../auth/api'
+import { communityHref } from '../routes.manifest'
 
 /**
  * Resolve the community the shell shows: the slug in the URL wins when the user
@@ -20,8 +21,6 @@ export function resolveCommunity(
  * on `/c/acme/sessions` lands on `/c/beta/sessions`.
  */
 export function communityPath(pathname: string, slug: string): string {
-  const encoded = encodeURIComponent(slug)
   const suffix = pathname.replace(/^\/c\/[^/]+/, '')
-  if (suffix === pathname) return `/c/${encoded}`
-  return `/c/${encoded}${suffix}`
+  return communityHref(slug, suffix === pathname || suffix === '' ? '/' : suffix)
 }

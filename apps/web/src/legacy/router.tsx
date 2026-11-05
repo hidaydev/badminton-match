@@ -18,6 +18,7 @@ import type {
   NavigateProps,
   To,
 } from 'react-router-dom'
+import { communityHref } from '../routes.manifest'
 
 /**
  * The v1 tree speaks slug-less paths (`/sessions`, `/session/new`). The v2 app
@@ -35,18 +36,10 @@ export function useLegacySlug(): string {
   return useContext(LegacySlugContext)
 }
 
-function prefixPath(slug: string, pathname: string): string {
-  if (slug === '' || !pathname.startsWith('/')) return pathname
-  if (pathname === '/c' || pathname.startsWith('/c/')) return pathname
-  if (pathname === '/owner' || pathname.startsWith('/owner/')) return pathname
-  if (pathname === '/') return `/c/${encodeURIComponent(slug)}`
-  return `/c/${encodeURIComponent(slug)}${pathname}`
-}
-
 function prefixTo(slug: string, to: To): To {
-  if (typeof to === 'string') return prefixPath(slug, to)
+  if (typeof to === 'string') return communityHref(slug, to)
   if (to.pathname === undefined) return to
-  return { ...to, pathname: prefixPath(slug, to.pathname) }
+  return { ...to, pathname: communityHref(slug, to.pathname) }
 }
 
 export function Link({ to, ...props }: LinkProps) {

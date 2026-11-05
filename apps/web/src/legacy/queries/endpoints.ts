@@ -11,6 +11,7 @@ import type { GameKey, Gender, Player, Tier } from '../types'
 import type { CloudSnapshot, PlayerSummary, PlayerStats, SessionMeta } from './types'
 import type { AnyTournamentSnapshot } from '../utils/teamTournament'
 import { parseRetryAfter, ApiError, shouldRetry } from './retry'
+import { isClientOutdated, reportClientOutdated, reportSessionExpired } from '../../api/errors'
 
 export { ApiError } from './retry'
 
@@ -135,6 +136,11 @@ export async function request<T>(
           // keep HTTP status text
         }
         const err = new ApiError(message, code, res.status)
+        // A 410 means the contract moved and a 401 means the cookie is gone.
+        // Both are shell-level states, so signal them for every legacy caller
+        // instead of letting ~90% of traffic render a generic "Failed to load".
+        if (isClientOutdated(err)) reportClientOutdated()
+        if (res.status === 401) reportSessionExpired()
         if (shouldRetry(method, err, attempt, MAX_RETRIES)) {
           lastError = err
           const retryAfter = parseRetryAfter(res.headers.get('Retry-After'))
