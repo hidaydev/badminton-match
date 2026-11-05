@@ -2,6 +2,7 @@
 # the snippet a symlink points at; nothing outside this file changes.
 handle /majadu/* {
 	uri strip_prefix /majadu
+	encode zstd gzip
 	reverse_proxy 127.0.0.1:8080 {
 		header_up X-Client-IP {http.request.remote.host}
 		header_up -X-Forwarded-For

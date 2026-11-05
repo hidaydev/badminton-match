@@ -6,6 +6,7 @@
 # PUBLIC_BASE_URL and the web client do not change.
 handle /majadu/* {
 	uri strip_prefix /majadu
+	encode zstd gzip
 	reverse_proxy 127.0.0.1:8080 {
 		header_up X-Client-IP {http.request.remote.host}
 		header_up -X-Forwarded-For

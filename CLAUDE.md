@@ -38,7 +38,7 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 - **`packages/contracts/openapi`** is the hand-written source; `api.yaml`,
   `routes_gen.nim`, and `packages/web-client/src/api.ts` are generated. Never edit
   generated files; run `./task contract-gen`.
-- **`db/migrations`** is append-only (23 files today). Every table carries
+- **`db/migrations`** is append-only (24 files today). Every table carries
   `community_id`; queries must scope by it.
 - **Business numbers live in the database** (`platform.config` →
   `community.settings`), never as literals. `tools/archcheck` fails on violations.

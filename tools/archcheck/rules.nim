@@ -97,6 +97,13 @@ proc violationsFor*(path, source: string): seq[string] =
       if line.contains("apps/") or line.contains("mummy"):
         result.add(file & ":" & $lineNumber &
           ": modules must not import the delivery layer (apps/ or mummy)")
+      elif not file.contains("/tests/") and
+           (line.contains("api/") or line.contains("routes_gen")):
+        # `config.nims` puts `apps` on the path, so `import api/src/routes_gen`
+        # reaches the delivery layer without the `apps/` prefix. Tests may read
+        # the route table (the authz matrix does); product code may not.
+        result.add(file & ":" & $lineNumber &
+          ": modules must not import the delivery layer (api/)")
       if file.contains("/domain/") and
          (line.contains("db/db") or line.contains("db_connector")):
         result.add(file & ":" & $lineNumber &

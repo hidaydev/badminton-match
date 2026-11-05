@@ -11,6 +11,17 @@ suite "archcheck rules":
     check found.len == 1
     check found[0].contains("delivery layer")
 
+  test "module cannot reach the delivery layer by its path alias":
+    let found = violationsFor("modules/session/x.nim",
+      "import api/src/routes_gen\n")
+    check found.len == 1
+    check found[0].contains("delivery layer")
+
+  test "a module test may read the route table":
+    let found = violationsFor("modules/account/tests/x_test.nim",
+      "import api/src/routes_gen\n")
+    check found.len == 0
+
   test "domain cannot import the database":
     let found = violationsFor("modules/session/domain/x.nim", "import db/db\n")
     check found.len == 1
