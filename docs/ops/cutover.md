@@ -148,6 +148,10 @@ Semua perintah dijalankan dari SSH ke VPS sebagai pemilik app, dari
    - `curl -fsS https://api.qouver.com/version` → versi yang baru.
    - Login Google sebagai `platform_owner`, buka satu sesi, satu papan peringkat.
    - Satu share link baru bisa dibuka tanpa login; satu kode lama **tidak**
+   - `systemctl --user enable --now majadu-snapshot.timer`, lalu
+     `systemctl --user list-timers majadu-snapshot.timer` menunjukkan jadwal
+     berikutnya. Timer ini menulis panah pergerakan; jangan diaktifkan sebelum
+     `MAJADU_PG_DSN` menunjuk `bm2`.
      dipertahankan (lihat §7).
    - `psql "$OWNER_DSN" -c "select * from platform.cutover_state"` → satu baris,
      `completed_at` terisi, `rows_imported` cocok dengan hitungan `bm_staging`.
@@ -209,6 +213,9 @@ Kalau rollback sendiri gagal, jangan mengulang cutover: pulihkan manual dari
 - [ ] Tidak ada `majadu-alert@` di journal.
 - [ ] Backup harian `bm2` berjalan dan bisa dibaca (`pg_restore --list`).
 - [ ] Sesi pertama yang dibuat pengguna nyata tampil di papan peringkat.
+- [ ] `rating.snapshots` bertambah untuk tanggal kemarin
+      (`select max(taken_on) from rating.snapshots`), dan panah di papan
+      memakai snapshot itu.
 - [ ] Catat penyimpangan (angka, UI, login) di catatan insiden bila ada.
 
 ## 9. D+30

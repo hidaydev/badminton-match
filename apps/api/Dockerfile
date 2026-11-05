@@ -18,6 +18,9 @@ RUN nim c -d:release --opt:speed --threads:on --mm:atomicArc \
       --nimcache:/tmp/nimcache-import -o:/out/majadu-import tools/import/main.nim
 RUN nim c -d:release --opt:speed --threads:on --mm:atomicArc \
       --nimcache:/tmp/nimcache-owner -o:/out/ownerseed tools/ownerseed/main.nim
+# The daily rank snapshot runs from the same image as a systemd timer.
+RUN nim c -d:release --opt:speed --threads:on --mm:atomicArc \
+      --nimcache:/tmp/nimcache-snapshot -o:/out/ranksnapshot tools/ranksnapshot/main.nim
 
 FROM debian:bookworm-slim
 RUN apt-get update \
@@ -28,6 +31,7 @@ COPY --from=build /out/majadu-api /usr/local/bin/majadu-api
 COPY --from=build /out/dbtools /usr/local/bin/dbtools
 COPY --from=build /out/majadu-import /usr/local/bin/majadu-import
 COPY --from=build /out/ownerseed /usr/local/bin/ownerseed
+COPY --from=build /out/ranksnapshot /usr/local/bin/ranksnapshot
 COPY --from=build /src/db /app/db
 USER 10001
 EXPOSE 8080

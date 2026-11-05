@@ -1,0 +1,20 @@
+# Daily rank snapshot, started by majadu-snapshot.timer.
+#
+# The image ships ranksnapshot for the same reason it ships dbtools and
+# majadu-import: the VPS has no Nim toolchain, so the release runs its own code.
+# The timer is enabled only after the cutover; before it, the env file points at
+# the v1 database, which has no rating.snapshots table.
+#
+# The job writes the board anchored on the community's last rated event, so a
+# missed day is repaired by the next run; Persistent=true also runs a missed
+# timer at boot.
+[Unit]
+Description=Majadu daily rank snapshot
+Wants=network-online.target
+After=network-online.target majadu-api.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
+  --env-file=/srv/qouver/apps/majadu/env/majadu-prod.env \
+  localhost/majadu-api:local /usr/local/bin/ranksnapshot

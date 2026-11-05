@@ -1,0 +1,13 @@
+# Runs the rank snapshot once a day. The server clock decides the hour; the job
+# itself anchors on the last rated event, so a late run only refreshes the same
+# board instead of sliding the window.
+[Unit]
+Description=Run the Majadu rank snapshot daily
+
+[Timer]
+OnCalendar=*-*-* 00:15:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
