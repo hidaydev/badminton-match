@@ -281,7 +281,15 @@ fi
 # records a collapse still fails here instead of becoming the new normal.
 FLOOR_TOTAL=35
 
-awk -F'\t' -v floor="$FLOOR_TOTAL" '
+# gcov attributes inlined code to whichever object it landed in, so the same
+# source compiled twice can differ by a few hundredths of a point on the smaller
+# domains (observed: modules/share 66.91 then 66.88 with no change in between).
+# Without a tolerance the gate fails on that wobble alone, which teaches people
+# to re-run `--update` instead of reading the number. A tenth of a point is far
+# below any real regression worth catching, and the total keeps its own floor.
+TOLERANCE=0.1
+
+awk -F'\t' -v floor="$FLOOR_TOTAL" -v tolerance="$TOLERANCE" '
   FNR == NR {
     if ($0 ~ /^[[:space:]]*"[^"]+"/) {
       line = $0
@@ -303,7 +311,7 @@ awk -F'\t' -v floor="$FLOOR_TOTAL" '
     }
     current[$1] = pct
     if ($1 in baseline) {
-      if (pct + 0.005 < baseline[$1] + 0) {
+      if (pct + tolerance < baseline[$1] + 0) {
         printf "coverage: %s dropped from %.2f%% to %.2f%%\n", $1, baseline[$1], pct > "/dev/stderr"
         bad = 1
       }
