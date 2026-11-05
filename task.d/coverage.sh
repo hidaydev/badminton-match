@@ -14,6 +14,11 @@
 # line-by-line gcov view - which is enough for a module and total gate, and the
 # script says so in the report header.
 #
+# gcov is read after every binary rather than once at the end: the nimcache is
+# shared, so the next compile rewrites `.gcno` files whose old counters are
+# still on disk. gcov refuses such a pair and reports the file as 0%, which used
+# to wipe real coverage out of the report without a word.
+#
 # Generated routes and tests are excluded by explicit paths, never by a loose
 # pattern: a report that silently included generated code would move whenever the
 # contract generator ran.
@@ -21,6 +26,7 @@
 
 require_cmd nim
 require_cmd lcov
+require_cmd geninfo
 require_cmd awk
 
 BASELINE="$REPO_ROOT/coverage-baseline.json"
@@ -63,26 +69,46 @@ case "$(uname -s)" in
 esac
 
 printf 'coverage: building and running tests (integration=%s)\n' "$INTEGRATION"
+mkdir -p "$COV/parts"
 for file in $(list_test_files); do
   name=$(printf '%s' "$file" | sed "s|$REPO_ROOT/||" | tr '/.' '__')
+  : >"$COV/binary-start"
   if ! nim c -r --hints:off --nimcache:"$NIMCACHE_COV" \
     --passC:--coverage --passL:--coverage \
     -o:"$COV/bin/$name" "$file" >"$COV/last-test.log" 2>&1; then
     tail -20 "$COV/last-test.log" >&2
     fail "test failed under coverage instrumentation: ${file#$REPO_ROOT/}"
   fi
+  # Capture after every binary, before the next compile rewrites the `.gcno`
+  # files. One nimcache is shared by all of them, and a module recompiled by a
+  # later binary but not run by it keeps counters that no longer match its line
+  # table; gcov then rejects the pair and wrote the whole file down as 0%, so a
+  # tested module silently lost all of its coverage. Capturing here means every
+  # pair is read while it is still consistent.
+  #
+  # Only the data files this run touched are decoded: a module the binary did
+  # not execute keeps the counters that its own part already recorded, and
+  # reaching into the nimcache for all of them every time made the gate the
+  # slowest job in CI.
+  find "$NIMCACHE_COV" -name '*.gcda' -newer "$COV/binary-start" \
+    >"$COV/changed.list"
+  if [ -s "$COV/changed.list" ]; then
+    geninfo --output-filename "$COV/parts/$name.info" \
+      --rc branch_coverage=0 \
+      --ignore-errors gcov,source,unsupported,unused \
+      --gcov-tool "$gcov_tool" $(cat "$COV/changed.list") \
+      >>"$COV/lcov-capture.log" 2>&1 ||
+      { tail -10 "$COV/lcov-capture.log" >&2
+        fail "gcov capture failed after ${file#$REPO_ROOT/}"; }
+  fi
 done
 
-if ! ls "$NIMCACHE_COV"/*.gcda >/dev/null 2>&1; then
+if [ -z "$(ls "$COV"/parts/*.info 2>/dev/null)" ]; then
   fail "no gcov data was produced; the compiler did not accept --coverage"
 fi
 
 printf 'coverage: capturing gcov data\n'
-lcov --capture --directory "$NIMCACHE_COV" --gcov-tool "$gcov_tool" \
-  --rc branch_coverage=0 \
-  --ignore-errors mismatch,gcov,source,negative,unsupported,unused \
-  --output-file "$COV/raw.info" >"$COV/lcov-capture.log" 2>&1 ||
-  { tail -10 "$COV/lcov-capture.log" >&2; fail "lcov capture failed"; }
+cat "$COV"/parts/*.info >"$COV/raw.info"
 
 # generated C -> Nim source, keyed by cache file name.
 #

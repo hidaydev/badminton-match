@@ -99,7 +99,7 @@ communities) tetap dipakai; halaman v2 yang tidak pernah dipasang di router
 | Satu modul | `./task verify <modul\|api>` | integration bila DB ada |
 | Kontrak | `./task contract-check` | fingerprint + hasil generate |
 | Parity | `./task parity verify` / `./task parity v2 verify` | v1 beku 71 kasus/48 rute; v2 142 kasus |
-| Coverage | `./task coverage` | per modul, ratchet terhadap `coverage-baseline.json` (38,95% total, diukur dengan integration) |
+| Coverage | `./task coverage` | per modul, ratchet terhadap `coverage-baseline.json` (38,15% total, integration; gcov dibaca per binary, ~3,5 menit) |
 | Keamanan | bagian dari `./task test` | IDOR, eskalasi, CSRF, replay OIDC, rate limit, klaim |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 | E2E | `./task e2e` | Playwright: a11y, visual, compatibility |
@@ -122,9 +122,13 @@ E2E berjalan di dua perangkat: **iPhone 17** (WebKit, 402×874, DPR 3) dan
 ## 7. Infrastruktur
 
 - **Deploy** (`ops/scripts/deploy-vps.sh`): hanya `refs/heads/main`; `flock`;
-  `git fetch` + `reset --hard`; pull image **by digest**; rotasi `:local` → `:prev`;
-  restart unit; gate `/readyz`; rollback ke `:prev` bila gagal. **Cutover gate:**
-  selama env produksi masih menunjuk `bm`, script berhenti sebelum pull/restart.
+  `git fetch` + `reset --hard`; pull image **by digest**; **`dbtools migrate` +
+  `dbtools verify` dari digest itu sebelum rotasi tag** (gagal = rilis batal,
+  `:local`/`:prev` tak tersentuh; revisi skema dicatat di `last-release.json`);
+  rotasi `:local` → `:prev`; restart unit; gate `/readyz`; rollback ke `:prev`
+  bila gagal. Skema tidak ikut di-rollback, jadi migrasi wajib expand/contract.
+  **Cutover gate:** selama env produksi masih menunjuk `bm`, script berhenti
+  sebelum pull/restart.
 - **Cutover** (`ops/scripts/cutover.sh`): 12 langkah bernama dengan penanda resume
   (`--from`), `:v1-final` ditag sebelum v1 dihentikan, maintenance Caddy, dump →
   `bm_staging`, peran + migrasi + seed + owner, ETL + verify, `cutover_state`,
@@ -154,8 +158,11 @@ Rencana 88 task: lihat [`roadmap.md`](roadmap.md). Ringkasnya:
   T-060/061/065), soak T-074, penghapusan `:v1-final` setelah 30 hari (T-082),
   force-push T-108 yang ditunda atas keputusan pemilik.
 - **Celah di luar rencana:** produsen `platform.outbox` (realtime masih
-  per-proses), dan kenaikan coverage di `modules/account`, `modules/share`,
-  `modules/tournament`.
+  per-proses). Coverage sudah diukur ulang dengan harness yang benar (gcov
+  dibaca setelah setiap binary; sebelumnya `.gcda` basi membuat modul yang
+  teruji dilaporkan 0%), jadi baseline 38,15% adalah angka pertama yang bisa
+  dipercaya — bukan penurunan. Modul terendah: `apps/api` 14,79% dan `tools`
+  20,88%.
 - **Selisih data yang diketahui (diterima):** Salma, Youri, Zaid, dan Firda
   berbeda dari `bm.rank_snapshots` v1 karena ledger v1 untuk sesi 2026-10-31
   di-ingest sebelum sesi itu diedit. Keputusan pemilik: v2 mengikuti data
