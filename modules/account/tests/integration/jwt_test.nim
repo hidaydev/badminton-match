@@ -20,9 +20,13 @@ proc sign(input: string): string =
     raise newException(IOError, output)
   b64url(readFile(sigPath))
 
-proc makeToken(nonce: string, expires: int64): string =
+proc signClaims(claims: JsonNode): string =
   let header = %*{"alg": "RS256", "kid": "test-1", "typ": "JWT"}
-  let claims = %*{
+  let signingInput = b64url($header) & "." & b64url($claims)
+  signingInput & "." & sign(signingInput)
+
+proc makeToken(nonce: string, expires: int64): string =
+  signClaims(%*{
     "iss": "http://issuer.test",
     "aud": "majadu-dev",
     "sub": "user-1",
@@ -30,9 +34,7 @@ proc makeToken(nonce: string, expires: int64): string =
     "email_verified": true,
     "nonce": nonce,
     "exp": expires,
-  }
-  let signingInput = b64url($header) & "." & b64url($claims)
-  signingInput & "." & sign(signingInput)
+  })
 
 suite "RS256 verification":
   test "accepts a signed token and rejects tampering":
@@ -41,6 +43,40 @@ suite "RS256 verification":
     let claims = verifyIdToken(token, jwks, "http://issuer.test", "majadu-dev",
       "nonce-1", epochTime().int64)
     check claims["email"].getStr() == "test@example.com"
+
+  test "rejects an email the provider has not verified":
+    let jwks = parseJwks(parseFile(jwksPath))
+    let now = epochTime().int64
+    for claims in [
+      %*{"iss": "http://issuer.test", "aud": "majadu-dev", "sub": "user-1",
+         "email": "test@example.com", "email_verified": false,
+         "nonce": "nonce-1", "exp": now + 300},
+      %*{"iss": "http://issuer.test", "aud": "majadu-dev", "sub": "user-1",
+         "email": "test@example.com", "nonce": "nonce-1", "exp": now + 300},
+      %*{"iss": "http://issuer.test", "aud": "majadu-dev", "sub": "user-1",
+         "email": "test@example.com", "email_verified": "true",
+         "nonce": "nonce-1", "exp": now + 300},
+    ]:
+      expect JwtError:
+        discard verifyIdToken(signClaims(claims), jwks, "http://issuer.test",
+          "majadu-dev", "nonce-1", now)
+
+  test "rejects a token minted for another client of the same issuer":
+    let jwks = parseJwks(parseFile(jwksPath))
+    let now = epochTime().int64
+    let claims = %*{"iss": "http://issuer.test", "aud": "majadu-dev",
+      "azp": "some-other-client", "sub": "user-1",
+      "email": "test@example.com", "email_verified": true,
+      "nonce": "nonce-1", "exp": now + 300}
+    expect JwtError:
+      discard verifyIdToken(signClaims(claims), jwks, "http://issuer.test",
+        "majadu-dev", "nonce-1", now)
+    # A token that names this client is accepted.
+    let ours = %*{"iss": "http://issuer.test", "aud": "majadu-dev",
+      "azp": "majadu-dev", "sub": "user-1", "email": "test@example.com",
+      "email_verified": true, "nonce": "nonce-1", "exp": now + 300}
+    check verifyIdToken(signClaims(ours), jwks, "http://issuer.test",
+      "majadu-dev", "nonce-1", now)["sub"].getStr() == "user-1"
 
   test "rejects a wrong nonce":
     let jwks = parseJwks(parseFile(jwksPath))

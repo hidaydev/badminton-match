@@ -91,6 +91,33 @@ suite "share links":
     let secondPass = rotateKeys(db, keyring, "1", "2")
     check secondPass == 0
 
+  test "a v1 style session id resolves while the session has a live link":
+    discard issue(db, keyring, communityId, sessionId, userId)
+    # `/s/{sessionId}` is what version one handed out; the row is still live, so
+    # the id answers for it and links already in a group chat keep working.
+    let byId = resolve(db, keyring, sessionId)
+    check byId.isSome
+    check byId.get.sessionId == sessionId
+    # A 36-character string that is not an id must not reach a `::uuid` cast.
+    check resolve(db, keyring, "00000000-0000-0000-0000-00000000000z").isNone
+    check resolve(db, keyring, "not-a-link").isNone
+
+  test "a revoked session answers no longer answers by its id":
+    let code = issue(db, keyring, communityId, sessionId, userId)
+    check resolve(db, keyring, sessionId).isSome
+    check revokeLive(db, communityId, sessionId).len == 1
+    check resolve(db, keyring, sessionId).isNone
+    check resolve(db, keyring, code).isNone
+
+  test "liveLinks lists only the live rows":
+    discard issue(db, keyring, communityId, sessionId, userId)
+    let live = liveLinks(db, communityId, sessionId)
+    check live.len == 1
+    discard revokeLive(db, communityId, sessionId)
+    check liveLinks(db, communityId, sessionId).len == 0
+    # A session in another community is never listed.
+    check liveLinks(db, otherCommunityId, sessionId).len == 0
+
   test "100000 generated codes are distinct":
     var seen = initHashSet[string]()
     for _ in 0 ..< 100_000:
