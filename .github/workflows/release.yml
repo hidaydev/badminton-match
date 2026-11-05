@@ -82,6 +82,8 @@ jobs:
             echo "::error::VERSION is '$version' but the tag says '$expected'"
             exit 1
           fi
+      - name: "Release: install pinned deps"
+        run: ./task deps-install
       - name: "Release: gate"
         run: ./task check
 
