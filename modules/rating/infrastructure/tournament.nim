@@ -128,7 +128,7 @@ proc gamesFor*(conn: DbConn, communityId, tournamentId,
 
 proc awardTournamentSide(conn: DbConn, communityId, eventId: string,
                          game: TournamentGame, teamA: bool, params: RatingParams,
-                         population: float): int =
+                         population: float, deltas: var seq[DeltaRow]): int =
   let players = if teamA: game.sideA else: game.sideB
   if players.len == 0:
     return 0
@@ -141,9 +141,11 @@ proc awardTournamentSide(conn: DbConn, communityId, eventId: string,
   let delta = roundPoints(points)
   let letter = if teamA: "a" else: "b"
   for playerId in players:
-    writeDelta(conn, communityId, eventId, letter, playerId, game.key, delta)
-    upsertState(conn, communityId, playerId, delta, won = margin > 0)
-    inc result
+    deltas.add(DeltaRow(side: letter, playerId: playerId, gameKey: game.key,
+      delta: delta))
+  # Between the two sides, so the other side's average sees this update.
+  addState(conn, communityId, players, delta, won = margin > 0)
+  players.len
 
 proc ingestTournamentGames(conn: DbConn, communityId, tournamentId,
                            tournamentDate, format: string,
@@ -160,11 +162,14 @@ proc ingestTournamentGames(conn: DbConn, communityId, tournamentId,
   let eventId = event.get.get("id")
   result.events = 1
   let population = populationAverage(conn, communityId)
+  var deltas: seq[DeltaRow] = @[]
   for game in games:
     result.deltas += awardTournamentSide(conn, communityId, eventId, game, true,
-      params, population)
+      params, population, deltas)
     result.deltas += awardTournamentSide(conn, communityId, eventId, game, false,
-      params, population)
+      params, population, deltas)
+  # Deltas never feed a replay read, so the whole event is appended at once.
+  writeDeltas(conn, communityId, eventId, deltas)
 
 proc ingestTournamentConn*(conn: DbConn, communityId, tournamentId: string,
                            params: RatingParams): TournamentIngestResult =

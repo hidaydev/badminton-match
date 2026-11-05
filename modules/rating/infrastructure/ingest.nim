@@ -33,7 +33,7 @@ proc active(players, absent, skipped: seq[string]): seq[string] =
 proc awardSide(conn: DbConn, communityId, eventId, gameKey: string,
                side, letter: string, margin: int, otherSide: string,
                row: Row, absent, skipped: seq[string], population: float,
-               params: RatingParams): int =
+               params: RatingParams, deltas: var seq[DeltaRow]): int =
   let players = sidePlayers(row, side)
   let activePlayers = active(players, absent, skipped)
   if activePlayers.len == 0:
@@ -46,13 +46,16 @@ proc awardSide(conn: DbConn, communityId, eventId, gameKey: string,
     params.scoreTarget.float) * multiplier
   let delta = roundPoints(points)
   for playerId in activePlayers:
-    writeDelta(conn, communityId, eventId, letter, playerId, gameKey, delta)
-    upsertState(conn, communityId, playerId, delta, won = margin > 0)
-    inc result
+    deltas.add(DeltaRow(side: letter, playerId: playerId, gameKey: gameKey,
+      delta: delta))
+  # The state write stays here, between the two sides: the other side's
+  # opponent average must see this side's updated ratings.
+  addState(conn, communityId, activePlayers, delta, won = margin > 0)
+  activePlayers.len
 
 proc ingestGame(conn: DbConn, communityId, eventId: string, params: RatingParams,
                 row: Row, absent, skipped: seq[string],
-                population: float): int =
+                population: float, deltas: var seq[DeltaRow]): int =
   ## v1's gate: a game needs a real present player on both sides, but a side
   ## whose players were all substituted still keeps the game alive for the
   ## other side. Skipped players are present; absent ones are not.
@@ -66,9 +69,9 @@ proc ingestGame(conn: DbConn, communityId, eventId: string, params: RatingParams
   let scoreB = parseInt(row.get("score_b"))
   let gameKey = row.get("round_no") & "-" & row.get("court_no")
   result += awardSide(conn, communityId, eventId, gameKey, "side_a", "a",
-    scoreA - scoreB, "side_b", row, absent, skipped, population, params)
+    scoreA - scoreB, "side_b", row, absent, skipped, population, params, deltas)
   result += awardSide(conn, communityId, eventId, gameKey, "side_b", "b",
-    scoreB - scoreA, "side_a", row, absent, skipped, population, params)
+    scoreB - scoreA, "side_a", row, absent, skipped, population, params, deltas)
 
 proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
                        params: RatingParams): IngestResult =
@@ -109,6 +112,7 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
     skipRows.mgetOrPut(entry.get("round_no") & "-" & entry.get("court_no"),
       @[]).add(entry.get("player_id"))
   let population = populationAverage(conn, communityId)
+  var deltas: seq[DeltaRow] = @[]
   for row in conn.query(
     """select round_no, court_no, score_a, score_b,
               coalesce(side_a1::text, '') as side_a1,
@@ -123,7 +127,9 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
     let skipped = skipRows.getOrDefault(
       row.get("round_no") & "-" & row.get("court_no"))
     result.deltas += ingestGame(conn, communityId, eventId, params, row, absent,
-      skipped, population)
+      skipped, population, deltas)
+  # Deltas never feed a replay read, so the whole event is appended at once.
+  writeDeltas(conn, communityId, eventId, deltas)
 
 proc ingestSession*(db: Db, communityId, sessionId: string,
                     params: RatingParams): IngestResult =
