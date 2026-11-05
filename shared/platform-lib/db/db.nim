@@ -67,16 +67,18 @@ proc raiseResultError(res: PPGresult) {.noreturn.} =
 proc resultToRows(res: PPGresult): seq[Row] =
   let columns = pqnfields(res)
   let rows = pqntuples(res)
+  # Every row of a result shares the same column names, so they are read once
+  # and handed to each row instead of being re-read and re-allocated per row.
+  var names = newSeq[string](columns)
+  for c in 0 ..< columns:
+    names[c] = $pqfname(res, c)
   result = newSeq[Row](rows)
   for r in 0 ..< rows:
-    var row: Row
-    row.names = newSeq[string](columns)
-    row.values = newSeq[Option[string]](columns)
+    var values = newSeq[Option[string]](columns)
     for c in 0 ..< columns:
-      row.names[c] = $pqfname(res, c)
       if pqgetisnull(res, r, c) == 0:
-        row.values[c] = some($pqgetvalue(res, r, c))
-    result[r] = row
+        values[c] = some($pqgetvalue(res, r, c))
+    result[r] = Row(names: names, values: values)
 
 type BoundParams = object
   values: cstringArray
