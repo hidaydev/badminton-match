@@ -298,18 +298,32 @@ proc loadEarned(conn: DbConn, communityId: string,
     @[textParam(communityId)]):
     result.mgetOrPut(row.get("player_id"), @[]).add(row.get("key"))
 
+proc loadImported(conn: DbConn, communityId: string): HashSet[string] =
+  ## Rows a v1 import wrote, keyed by player and badge. They are history, not a
+  ## fact this pass computed, so the reconciliation leaves them alone: the games
+  ## behind a v1 badge may not all have survived the import, and dropping the
+  ## badge would erase what the members already earned.
+  for row in conn.query(
+    """select player_id::text as player_id, achievement_key as key
+       from achievement.earned
+       where community_id = $1::uuid and meta->>'source' = 'v1'""",
+    @[textParam(communityId)]):
+    result.incl(row.get("player_id") & "|" & row.get("key"))
+
 proc revokeAwards(conn: DbConn, communityId: string,
-                  earned, qualified: Table[string, seq[string]]): int =
+                  earned, qualified: Table[string, seq[string]],
+                  imported: HashSet[string]): int =
   ## A key the player no longer qualifies for is revoked, the rank-streak
   ## family included: its qualified set holds the single highest run, so the
   ## lower milestones of the same family are cleared. Imported
   ## `tournament:<uuid>` event medals are not read here, so they survive
-  ## whatever the v2 rules say.
+  ## whatever the v2 rules say; catalog badges a v1 import wrote are skipped for
+  ## the same reason.
   var stale: seq[(string, string)] = @[]
   for playerId, keys in earned:
     let live = qualified.getOrDefault(playerId)
     for key in keys:
-      if key notin live:
+      if key notin live and (playerId & "|" & key) notin imported:
         stale.add((playerId, key))
   const chunk = 100
   var start = 0
@@ -377,6 +391,7 @@ proc backfill*(db: Db, communityId, asOf: string,
     let keys = catalogKeys()
     let earnedAt = utcNow().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
     let earned = loadEarned(conn, communityId, keys)
+    let imported = loadImported(conn, communityId)
     var qualified = initTable[string, seq[string]]()
     var rows: seq[EarnRow] = @[]
     for item in facts:
@@ -400,7 +415,8 @@ proc backfill*(db: Db, communityId, asOf: string,
       qualified[item.playerId] = awarded
       for key in awarded:
         rows.add(EarnRow(playerId: item.playerId, key: key))
-    outcome.revoked = revokeAwards(conn, communityId, earned, qualified)
+    outcome.revoked = revokeAwards(conn, communityId, earned, qualified,
+      imported)
     outcome.players = facts.len
     outcome.awarded = writeAwards(conn, communityId, earnedAt, rows)
     1)

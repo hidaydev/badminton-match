@@ -253,7 +253,8 @@ proc importSessions(source, target: Db, communityId: string,
                 s.updated_at::text as updated_at,
                 exists (
                   select 1 from bm.rating_sources r
-                  where r.source_id = s.share_code or r.source_id = s.id::text
+                  where r.source_id in (s.share_code, s.id::text,
+                    'session:' || s.share_code, 'session:' || s.id::text)
                 ) as rated
          from bm.sessions s order by s.session_date, s.created_at, s.id"""):
       let oldId = row.get("id")
@@ -1024,6 +1025,10 @@ proc importAchievements*(source, target: Db, communityId: string,
   ## row, with the v1 date. Event medals keep their `tournament:<id>` key and
   ## the stored name; the rank-streak badge keeps its value as the threshold.
   var stats = Result()
+  # Provenance, so the v2 reconciliation (BE-31) revokes only the rows it could
+  # have written itself. A v1 badge is history: the games behind it may not all
+  # have survived into v2, and losing the badge would erase what the members earned.
+  const importedMeta = """{"source":"v1"}"""
   discard target.tx(proc(conn: DbConn): int =
     for row in source.query(
       """select pa.id::text as id, pa.player_id::text as player_id,
@@ -1056,11 +1061,12 @@ proc importAchievements*(source, target: Db, communityId: string,
           continue
         let changed = conn.execUpdate(
           """insert into achievement.earned
-               (community_id, player_id, achievement_key, earned_at)
-             values ($1::uuid, $2::uuid, $3, $4::timestamptz)
+               (community_id, player_id, achievement_key, earned_at, meta)
+             values ($1::uuid, $2::uuid, $3, $4::timestamptz, $5::jsonb)
              on conflict (community_id, player_id, achievement_key) do nothing""",
           @[textParam(communityId), textParam(player.get),
-            textParam("rank_streak:" & row.get("value")), textParam(earnedAt)])
+            textParam("rank_streak:" & row.get("value")), textParam(earnedAt),
+            textParam(importedMeta)])
         if changed == 1: inc stats.created else: inc stats.updated
         continue
       if not key.startsWith("medal:"):
@@ -1087,11 +1093,12 @@ proc importAchievements*(source, target: Db, communityId: string,
           continue
         let changed = conn.execUpdate(
           """insert into achievement.earned
-               (community_id, player_id, achievement_key, earned_at)
-             values ($1::uuid, $2::uuid, $3, $4::timestamptz)
+               (community_id, player_id, achievement_key, earned_at, meta)
+             values ($1::uuid, $2::uuid, $3, $4::timestamptz, $5::jsonb)
              on conflict (community_id, player_id, achievement_key) do nothing""",
           @[textParam(communityId), textParam(player.get),
-            textParam(definition.get("key")), textParam(row.get("earned_at"))])
+            textParam(definition.get("key")), textParam(row.get("earned_at")),
+            textParam(importedMeta)])
         if changed == 1: inc stats.created else: inc stats.updated
       if awarded == 0:
         inc stats.skipped
