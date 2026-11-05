@@ -6,9 +6,11 @@
 #
 # How it works: every test binary is compiled with `--coverage` (gcov), the
 # generated C in the nimcache is measured, and each generated file is attributed
-# back to the Nim module that produced it. Nim does not emit #line directives, so
-# the mapping comes from the `nimlf_("<line>", "<file>")` marker the compiler puts
-# in every generated C file. The result is line counts per Nim module, not a
+# back to the Nim module that produced it. The module name comes from the mangled
+# C file name (`@m`, `@p`, `@d`, `@s`), not from the `nimlf_` markers inside it:
+# those markers also cover the standard-library and generic code the compiler
+# inlined, and crediting the first one reported a tested module as 0% while
+# silently hiding untested ones. The result is line counts per Nim module, not a
 # line-by-line gcov view - which is enough for a module and total gate, and the
 # script says so in the report header.
 #
@@ -82,11 +84,27 @@ lcov --capture --directory "$NIMCACHE_COV" --gcov-tool "$gcov_tool" \
   --output-file "$COV/raw.info" >"$COV/lcov-capture.log" 2>&1 ||
   { tail -10 "$COV/lcov-capture.log" >&2; fail "lcov capture failed"; }
 
-# generated C -> Nim source, keyed by cache file name
+# generated C -> Nim source, keyed by cache file name.
+#
+# The C file name is Nim's mangled module path: `@m` marks the module root, `@p`
+# a parent directory, `@d` a search-path directory and `@s` the separator. That
+# name identifies the module exactly.
+#
+# The paths written inside the file do not: `nimlf_` markers also cover the
+# generic and standard-library code the compiler inlined, and taking the first
+# one credited `share/crypto.nim` to the system's `arc.nim`, which is why a
+# tested module could report 0%. Instead, turn the C name into a relative path
+# and keep the repository marker that ends with it. A file with no such marker
+# stays unmapped rather than being credited to a module it may not own.
 : >"$COV/map.tsv"
 for c in "$NIMCACHE_COV"/*.c; do
   [ -f "$c" ] || continue
-  src=$(grep -m1 -o '"/[^"]*\.nim"' "$c" | head -1 | tr -d '"')
+  rel=$(printf '%s' "${c##*/}" |
+    sed -e 's/\.c$//' -e 's/@s/\//g' -e 's/@[mdp]//g' -e 's|//*|/|g' -e 's|^/||')
+  [ -n "$rel" ] || continue
+  src=$(grep -o '"[^"]*\.nim"' "$c" | tr -d '"' |
+    awk -v suffix="/$rel" \
+      'substr($0, length($0) - length(suffix) + 1) == suffix { print; exit }')
   [ -n "$src" ] && printf '%s\t%s\n' "${c##*/}" "$src" >>"$COV/map.tsv"
 done
 
