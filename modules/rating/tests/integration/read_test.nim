@@ -257,6 +257,16 @@ suite "ranking read":
     for index in 0 ..< rows.len:
       check snapshot[index].playerId == rows[index].playerId
       check snapshot[index].points == rows[index].points
+      # The placement travels with the points, so a later rank-streak pass can
+      # trust the stored history instead of re-deriving a board that has moved.
+      let stored = database.queryOne(
+        """select rank::text as rank from rating.snapshots
+           where community_id = $1::uuid and player_id = $2::uuid
+             and taken_on = $3::date""",
+        @[textParam(communityId), textParam(rows[index].playerId),
+          textParam(asOf)])
+      check stored.isSome
+      check stored.get.get("rank") == $rows[index].rank
 
   test "every row reports its window evidence and breakdown":
     let rows = board(database, query())

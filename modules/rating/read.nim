@@ -166,18 +166,20 @@ proc rankOf*(db: Db, query: BoardQuery, playerId: string): int =
 proc writeSnapshot*(db: Db, communityId, asOf: string,
                     rows: seq[BoardRow]): int =
   ## Daily snapshot of the board. Re-running on the same day overwrites the same
-  ## rows instead of duplicating them.
+  ## rows instead of duplicating them, and the rank moves with the points so the
+  ## stored placement can never disagree with the board it came from. A rank of
+  ## zero means the caller had none to give, so the column stays NULL.
   var written = 0
   discard db.tx(proc(conn: DbConn): int =
     for row in rows:
       written += conn.execUpdate(
         """insert into rating.snapshots
-             (community_id, player_id, taken_on, rating)
-           values ($1::uuid, $2::uuid, $3::date, $4)
+             (community_id, player_id, taken_on, rating, rank)
+           values ($1::uuid, $2::uuid, $3::date, $4, nullif($5, 0))
            on conflict (community_id, player_id, taken_on) do update
-             set rating = excluded.rating""",
+             set rating = excluded.rating, rank = excluded.rank""",
         @[textParam(communityId), textParam(row.playerId), textParam(asOf),
-          intParam(row.points.int64)])
+          intParam(row.points.int64), intParam(row.rank.int64)])
     1)
   written
 

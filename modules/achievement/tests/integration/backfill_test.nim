@@ -19,6 +19,7 @@ var
   database: Db
   communityId: string
   players: array[12, string]
+  streakPlayer: string
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
@@ -150,6 +151,23 @@ proc seedTournament(name, playerA, playerB: string) =
        values ($1::uuid, $2::uuid, 'Pair', $3::uuid, $4::uuid)""",
     @[textParam(communityId), textParam(tournamentId), textParam(playerA),
       textParam(playerB)])
+
+proc seedEventDate(date: string) =
+  ## An event date with no session behind it: the rank streak walks the
+  ## community's distinct event dates, so the date is all the fixture needs.
+  discard database.execUpdate(
+    """insert into rating.events (community_id, local_date, event_type)
+       values ($1::uuid, $2::date, 'manual')""",
+    @[textParam(communityId), textParam(date)])
+
+proc seedRankSnapshot(playerId, date: string, rank: int) =
+  ## The streak reads only the recorded rank, never the points beside it.
+  discard database.execUpdate(
+    """insert into rating.snapshots
+         (community_id, player_id, taken_on, rating, rank)
+       values ($1::uuid, $2::uuid, $3::date, 1500, $4)""",
+    @[textParam(communityId), textParam(playerId), textParam(date),
+      intParam(rank.int64)])
 
 proc allRows(): seq[string] =
   ## Ordered snapshot; the checksum of the shelf has to survive a re-run.
@@ -474,7 +492,74 @@ suite "achievement backfill":
     check result.revoked > 0
     check "sessions:5" notin keysOf(solo)
     check eventKey in keysOf(solo)
+    # The imported run came from v1's own board history, which v2 cannot
+    # recompute, so the badge stays even though this pass has no rank history.
     check "rank_streak:11" in keysOf(solo)
+    # Leave the shared definitions table as the fixture found it.
+    discard database.execUpdate(
+      "delete from achievement.earned where achievement_key = $1",
+      @[textParam(eventKey)])
+    discard database.execUpdate(
+      "delete from achievement.definitions where key = $1",
+      @[textParam(eventKey)])
+
+  test "the rank streak is the longest run of event dates at rank 3 or better":
+    ## Two dates at #2, one at #4 that breaks the run, then five at #1, so the
+    ## longest qualifying run is 5. The run counts event dates, not calendar
+    ## days, and the badge stores that number rather than the rung below it.
+    streakPlayer = newPlayer(50, "")
+    let ranks = [2, 2, 4, 1, 1, 1, 1, 1]
+    for index, rank in ranks:
+      let day = "2025-03-" & align($(index + 1), 2, '0')
+      seedEventDate(day)
+      seedRankSnapshot(streakPlayer, day, rank)
+    discard award()
+    check "rank_streak:5" in keysOf(streakPlayer)
+    check "rank_streak:3" notin keysOf(streakPlayer)
+    var streakKeys = 0
+    for key in keysOf(streakPlayer):
+      if key.startsWith("rank_streak:"):
+        inc streakKeys
+    check streakKeys == 1
+
+  test "re-awarding the rank streak changes nothing":
+    let before = allRows()
+    let result = award()
+    check result.awarded == 0
+    check allRows() == before
+    check "rank_streak:5" in keysOf(streakPlayer)
+
+  test "a recorded rank streak outlives the snapshots behind it":
+    ## An earned badge is never taken back: a run that a later pass can no
+    ## longer see is still a run the player had, and v2 cannot tell its own row
+    ## from an imported one. The tournament medal beside it stays too.
+    let eventKey = "tournament:22222222-2222-2222-2222-222222222222"
+    discard database.execUpdate(
+      """insert into achievement.definitions (key, category, threshold)
+         values ($1, 'tournament', 1) on conflict (key) do nothing""",
+      @[textParam(eventKey)])
+    discard database.execUpdate(
+      """insert into achievement.earned
+           (community_id, player_id, achievement_key, earned_at)
+         values ($1::uuid, $2::uuid, $3, now())
+         on conflict do nothing""",
+      @[textParam(communityId), textParam(streakPlayer), textParam(eventKey)])
+    discard database.execUpdate(
+      """delete from rating.snapshots
+         where community_id = $1::uuid and player_id = $2::uuid""",
+      @[textParam(communityId), textParam(streakPlayer)])
+    discard award()
+    check "rank_streak:5" in keysOf(streakPlayer)
+    check eventKey in keysOf(streakPlayer)
+
+  test "a tournament medal survives every later pass":
+    let eventKey = "tournament:22222222-2222-2222-2222-222222222222"
+    let before = allRows()
+    let result = award()
+    check result.awarded == 0
+    check allRows() == before
+    check eventKey in keysOf(streakPlayer)
+    check "rank_streak:5" in keysOf(streakPlayer)
     # Leave the shared definitions table as the fixture found it.
     discard database.execUpdate(
       "delete from achievement.earned where achievement_key = $1",

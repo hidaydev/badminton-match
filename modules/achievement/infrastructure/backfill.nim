@@ -11,7 +11,8 @@ type
   BackfillResult* = object
     ## `players` is how many rosters were inspected; `awarded` counts rows the
     ## run actually inserted, so a second identical run reports zero; `revoked`
-    ## counts catalog rows the reconciliation removed.
+    ## counts stale rows the reconciliation removed, the v2-owned rank-streak
+    ## family included.
     players*: int
     awarded*: int
     revoked*: int
@@ -31,7 +32,19 @@ type
     partners: HashSet[string]
     opponents: HashSet[string]
 
+  RankStreak = object
+    ## `best` is the longest run counted so far; `endedOn` is the event date
+    ## that closed it, so a later pass can tell the run apart from the shelf.
+    best: int
+    endedOn: string
+
 const playedSessions = "('locked', 'published', 'completed', 'archived')"
+
+## A rank-streak run counts a date where the player sat at this rank or better,
+## and a run shorter than the first rung of the v1 ladder earns nothing.
+const streakRankThreshold = 3
+const streakMinLength = 3
+const rankStreakPrefix = "rank_streak:"
 
 proc loadAttendance(conn: DbConn, communityId: string): Table[string, Attendance] =
   ## Chronological participants: an attended session extends the current run,
@@ -184,6 +197,52 @@ proc loadRanks(db: Db, communityId, asOf: string,
     params: params, limit: 0)):
     result[row.playerId] = row.rank
 
+proc loadRankStreaks(conn: DbConn,
+                     communityId: string): Table[string, RankStreak] =
+  ## The v1 `rank_streak` medal: the longest run of consecutive event dates on
+  ## which the player sat at rank 3 or better. The sequence is the community's
+  ## distinct event dates, not calendar days, so a week without a match neither
+  ## extends nor breaks a run, and a date with no snapshot row for the player
+  ## breaks it: an unrecorded rank is not evidence of staying on top. Only rows
+  ## carrying a rank count, which is why the history starts when `ranksnapshot`
+  ## began writing the column rather than with the earliest event.
+  var dates: seq[string] = @[]
+  for row in conn.query(
+    """select distinct local_date::text as day from rating.events
+       where community_id = $1::uuid order by 1""",
+    @[textParam(communityId)]):
+    dates.add(row.get("day"))
+  var placed = initTable[string, Table[string, int]]()
+  for row in conn.query(
+    """select s.player_id::text as player_id, s.taken_on::text as day,
+              s.rank as rank
+       from rating.snapshots s
+       where s.community_id = $1::uuid and s.rank is not null
+         and s.taken_on in (
+           select local_date from rating.events where community_id = $1::uuid)""",
+    @[textParam(communityId)]):
+    placed.mgetOrPut(row.get("day"), initTable[string, int]())[
+      row.get("player_id")] = parseInt(row.get("rank"))
+  var run = initTable[string, int]()
+  for day in dates:
+    let today = placed.getOrDefault(day)
+    # A player with no row today had an unknown rank, so the run stops instead
+    # of continuing on the assumption that they were still near the top.
+    var broken: seq[string] = @[]
+    for playerId in run.keys:
+      if not today.hasKey(playerId):
+        broken.add(playerId)
+    for playerId in broken:
+      run.del(playerId)
+    for playerId, rank in today:
+      if rank <= 0 or rank > streakRankThreshold:
+        run.del(playerId)
+        continue
+      let length = run.getOrDefault(playerId) + 1
+      run[playerId] = length
+      if length > result.getOrDefault(playerId).best:
+        result[playerId] = RankStreak(best: length, endedOn: day)
+
 proc loadFacts(conn: DbConn, communityId: string,
                ranks: Table[string, int]): seq[Facts] =
   ## The roster drives the loop, so a player with no sessions still appears
@@ -192,9 +251,11 @@ proc loadFacts(conn: DbConn, communityId: string,
   let games = loadGames(conn, communityId)
   let tournaments = loadTournaments(conn, communityId)
   let tiers = loadTiers(conn, communityId)
+  let streaks = loadRankStreaks(conn, communityId)
   for playerId, level in tiers:
     let attended = attendance.getOrDefault(playerId)
     let tally = games.getOrDefault(playerId)
+    let streak = streaks.getOrDefault(playerId)
     result.add(Facts(
       playerId: playerId,
       sessions: attended.sessions,
@@ -205,7 +266,9 @@ proc loadFacts(conn: DbConn, communityId: string,
       partners: tally.partners.len,
       tournaments: tournaments.getOrDefault(playerId),
       tierLevel: level,
-      rank: ranks.getOrDefault(playerId)))
+      rank: ranks.getOrDefault(playerId),
+      rankStreak: streak.best,
+      rankStreakEnd: streak.endedOn))
 
 proc catalogKeys(): seq[string] =
   for badge in catalog():
@@ -221,21 +284,27 @@ proc quotedKeys(keys: seq[string]): string =
 
 proc loadEarned(conn: DbConn, communityId: string,
                 keys: seq[string]): Table[string, seq[string]] =
-  ## One read of the catalog rows actually on the shelf, so the reconciliation
-  ## can tell what went stale instead of asking the database once per player.
+  ## One read of the rows actually on the shelf, so the reconciliation can tell
+  ## what went stale instead of asking the database once per player. The
+  ## `rank_streak:*` family is read alongside the catalog because the writer
+  ## keeps one row per player and needs the value already recorded; imported
+  ## `tournament:<uuid>` rows stay outside this set and are never revoked.
   for row in conn.query(
     """select player_id::text as player_id, achievement_key as key
        from achievement.earned
        where community_id = $1::uuid
-         and achievement_key in (""" & quotedKeys(keys) & ")",
+         and (achievement_key in (""" & quotedKeys(keys) & """)
+              or left(achievement_key, 12) = 'rank_streak:')""",
     @[textParam(communityId)]):
     result.mgetOrPut(row.get("player_id"), @[]).add(row.get("key"))
 
 proc revokeAwards(conn: DbConn, communityId: string,
                   earned, qualified: Table[string, seq[string]]): int =
-  ## A catalog key the player no longer qualifies for is revoked. Keys outside
-  ## the catalog (`tournament:<uuid>` event medals and `rank_streak:*`) are not
-  ## read here, so imported rows survive whatever the v2 rules say.
+  ## A key the player no longer qualifies for is revoked, the rank-streak
+  ## family included: its qualified set holds the single highest run, so the
+  ## lower milestones of the same family are cleared. Imported
+  ## `tournament:<uuid>` event medals are not read here, so they survive
+  ## whatever the v2 rules say.
   var stale: seq[(string, string)] = @[]
   for playerId, keys in earned:
     let live = qualified.getOrDefault(playerId)
@@ -294,26 +363,44 @@ proc backfill*(db: Db, communityId, asOf: string,
                params: RatingParams): BackfillResult =
   ## Awards every threshold the current data qualifies for and revokes the
   ## catalog keys it no longer does, so the shelf is reconciled with the same
-  ## facts the board reads. Idempotent: a badge that already exists keeps its
-  ## original `earned_at`, and only the players whose facts moved gain or lose
-  ## rows. `asOf` and `params` are the board read's inputs, so `rank:N` is
-  ## measured on the best-N window the members see; the board is read before the
-  ## transaction because the pool hands this process a single connection.
+  ## facts the board reads. The rank-streak family is reconciled too, since v2
+  ## owns it; a player's best run yields exactly one row. Idempotent: a badge
+  ## that already exists keeps its original `earned_at`, and only the players
+  ## whose facts moved gain or lose rows. `asOf` and `params` are the board
+  ## read's inputs, so `rank:N` is measured on the best-N window the members
+  ## see; the board is read before the transaction because the pool hands this
+  ## process a single connection.
   var outcome: BackfillResult
   let ranks = loadRanks(db, communityId, asOf, params)
   discard db.tx(proc(conn: DbConn): int =
     let facts = loadFacts(conn, communityId, ranks)
     let keys = catalogKeys()
     let earnedAt = utcNow().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    let earned = loadEarned(conn, communityId, keys)
     var qualified = initTable[string, seq[string]]()
     var rows: seq[EarnRow] = @[]
     for item in facts:
-      let awarded = awardedKeys(item)
+      var awarded = awardedKeys(item)
+      # `rank_streak` stays out of the catalog on purpose: the catalog holds
+      # rungs (3/5/8/12/16) while the row stores the player's best run, which
+      # may sit between rungs. The definition rows only feed the ladder the
+      # shelf renders, so the family is appended here instead of being measured
+      # by `qualifies`.
+      #
+      # The recorded rows count towards the best: a v1 import stored the run
+      # the old board measured, and v2 starts its own history at the migration,
+      # so a fresh run must not report less than the badge already on the
+      # shelf. Keeping the maximum also leaves exactly one row per player.
+      var best = item.rankStreak
+      for key in earned.getOrDefault(item.playerId):
+        if key.startsWith(rankStreakPrefix):
+          best = max(best, parseInt(key[rankStreakPrefix.len .. ^1]))
+      if best >= streakMinLength:
+        awarded.add(rankStreakPrefix & $best)
       qualified[item.playerId] = awarded
       for key in awarded:
         rows.add(EarnRow(playerId: item.playerId, key: key))
-    outcome.revoked = revokeAwards(conn, communityId,
-      loadEarned(conn, communityId, keys), qualified)
+    outcome.revoked = revokeAwards(conn, communityId, earned, qualified)
     outcome.players = facts.len
     outcome.awarded = writeAwards(conn, communityId, earnedAt, rows)
     1)

@@ -40,6 +40,10 @@ type
     tournaments*: int
     tierLevel*: int
     rank*: int
+    ## Longest run of event dates spent at rank 3 or better, and the date that
+    ## run ended. Zero means no run; the writer turns it into `rank_streak:<n>`.
+    rankStreak*: int
+    rankStreakEnd*: string
 
 const tierClasses = [("D", 1), ("D+", 2), ("C", 3), ("C+", 4),
                      ("B", 5), ("B+", 6), ("A", 7), ("A+", 8)]

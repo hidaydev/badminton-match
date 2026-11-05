@@ -14,25 +14,36 @@ Pembuka ulang.
 
 ---
 
-## ADR-001 · Medali `rank_streak` tidak ditulis v2
+## ADR-001 · Medali `rank_streak` mulai direkam v2, bukan direplay
 
 **Tanggal:** 2026-11-05
 **Temuan audit:** BE-10
-**Status:** Ditunda
+**Status:** Diterapkan
 
-**Keputusan:** `achievement.earned` tetap menerima baris `rank_streak:*` hanya
-dari impor v1. v2 tidak menghitungnya.
+**Keputusan:** v2 mulai menulis `rank_streak:<run>` dari riwayat peringkat yang
+direkam sejak migration `0025`, tanpa mereplay masa lalu. Pemilik memilih
+"sumber data ke depan", bukan rekonstruksi papan per tanggal sesi.
 
-**Alasan:** `rank_streak` adalah "berapa kali berturut-turut pemain berada di
-peringkat teratas" — perlu riwayat peringkat per sesi, bukan hanya papan hari
-ini. Sumbernya `rating.snapshots`, yang ditulis `./task ranksnapshot` dan baru
-berisi data sejak snapshot pertama dijalankan. Menghitungnya dari data yang
-belum lengkap akan memberi medali yang salah, dan medali lebih mahal untuk
-dicabut daripada ditunda. Katalog `catalog()` sengaja tidak memuatnya, jadi
-rekonsiliasi (ADR-002) tidak pernah menghapus baris impor.
+**Bentuk:** `rating.snapshots` mendapat kolom `rank` (nullable — baris lama
+tidak punya peringkat, dan mengarang satu berarti mengklaim posisi yang tidak
+pernah ditampilkan). `./task ranksnapshot` menulis kolom itu bersama poin.
+`backfill` berjalan atas tanggal event komunitas; setiap tanggal tanpa baris
+snapshot memutus run (peringkat tak terekam bukan bukti tetap di atas), dan run
+terpanjang dengan peringkat ≤ 3 menjadi satu baris `rank_streak:<n>`.
 
-**Pembuka ulang:** ada minimal 12 minggu `rating.snapshots` berturut-turut, atau
-`ranksnapshot` dijadwalkan sebagai timer produksi.
+**Alasan:** run hanya bisa diukur dari peringkat yang benar-benar dicatat;
+merekonstruksi papan "as-of" tiap tanggal sesi berarti satu pass atas seluruh
+riwayat dan tetap menebak window yang berlaku saat itu.
+
+**Nilai yang sudah ada dipertahankan:** baris `rank_streak:*` hasil impor v1
+memuat run yang diukur papan v1 dan tidak bisa dihitung ulang oleh v2. Karena
+itu penulis mengambil nilai maksimum antara run baru dan baris yang sudah ada,
+sehingga tidak ada medali yang turun dan tiap pemain tetap punya satu baris.
+`tournament:<uuid>` tetap tidak disentuh rekonsiliasi (ADR-002).
+
+**Pembuka ulang:** `ranksnapshot` berjalan sebagai timer produksi minimal 12
+minggu, lalu run bisa dianggap lengkap dan aturan maksimum bisa diganti
+rekonsiliasi penuh.
 
 ---
 
