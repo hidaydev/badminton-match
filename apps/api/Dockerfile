@@ -7,7 +7,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends libssl-dev \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-COPY config.nims deps.lock majadu.nimble ./
+COPY config.nims deps.lock majadu.nimble VERSION ./
 COPY task.d/deps-install.sh ./task.d/deps-install.sh
 # The base image starts with an empty ~/.nimble and nimble.paths is not part of
 # the build, so the exact packages pinned in deps.lock are installed first.
@@ -16,8 +16,15 @@ COPY shared ./shared
 COPY apps/api ./apps/api
 COPY db ./db
 COPY tools ./tools
-RUN nim c -d:release --opt:speed --stackTrace:on --lineTrace:on \
+# `appVersion` is read from the VERSION file at compile time; the commit only
+# exists in the build arguments, which is what `/version` reports back and what
+# makes a running container traceable to a revision.
+ARG APP_VERSION=""
+ARG APP_COMMIT="unknown"
+RUN APP_VERSION="${APP_VERSION:-$(cat VERSION)}" && \
+    nim c -d:release --opt:speed --stackTrace:on --lineTrace:on \
       --threads:on --mm:atomicArc -d:ssl \
+      -d:appVersion="$APP_VERSION" -d:appCommit="$APP_COMMIT" \
       --nimcache:/tmp/nimcache -o:/out/majadu-api apps/api/src/main.nim
 # The cutover runs on the VPS, which has no Nim toolchain: migrations, the ETL
 # and the first-owner seed therefore ship in the same image as the API, so the

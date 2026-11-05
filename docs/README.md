@@ -29,6 +29,8 @@ Dokumentasi proyek, tiga lane:
 ### `ops/`
 
 - [`operations.md`](ops/operations.md) — pemegang akses, format insiden lima bidang, pemeriksaan rutin
+- [`release.md`](ops/release.md) — urutan rilis, kriteria keluar, aturan expand/contract, rollback `:prev`
+- [`google-oauth.md`](ops/google-oauth.md) — client Google, redirect URI, secret, rotasi, dan uji login
 - [`cutover.md`](ops/cutover.md) — runbook cutover v1 → v2, rehearsal D-3, rollback, dan konsekuensinya
 - [`pre-push.md`](ops/pre-push.md) — hook yang menolak `docs/audits` dan `docs/plan/reviews` kembali ke repo publik
 - [`../tools/rehearsal/README.md`](../tools/rehearsal/README.md) — harness rehearsal cutover + gate `timings.json`
