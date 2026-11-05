@@ -27,6 +27,7 @@ proc makeToken(nonce: string, expires: int64): string =
     "aud": "majadu-dev",
     "sub": "user-1",
     "email": "test@example.com",
+    "email_verified": true,
     "nonce": nonce,
     "exp": expires,
   }

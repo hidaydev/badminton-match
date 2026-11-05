@@ -1,4 +1,4 @@
-import std/[json, strutils]
+import std/[json, os, strutils]
 import mummy
 import platform/config/store
 
@@ -11,8 +11,15 @@ const
   stateChanging = ["POST", "PUT", "PATCH", "DELETE"]
 
 proc allowedOrigins*(snapshot: Snapshot): seq[string] =
+  ## The seeded config is the per-deployment list the operator can edit without
+  ## a restart; `CORS_ALLOWED_ORIGINS` is what provisioning sets. Both are
+  ## explicit allowlists, so the check stays fail-closed.
   for value in snapshot.jsonValue(%*{}, keySecurityAllowedOrigins):
     result.add(value.getStr())
+  for part in getEnv("CORS_ALLOWED_ORIGINS").split(','):
+    let origin = part.strip()
+    if origin.len > 0 and origin notin result:
+      result.add(origin)
 
 proc originAllowed*(snapshot: Snapshot, origin: string): bool =
   if origin.len == 0:

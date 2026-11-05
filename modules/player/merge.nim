@@ -51,6 +51,27 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
         outcome.error = mePlayerNotFound
         return 0
 
+      # A pair naming both merged players becomes a self-pair. It can only be
+      # dropped while no match refers to it; otherwise the merge is refused.
+      # The check must run before the first write: returning from inside `tx`
+      # commits, so a late refusal would leave rows already moved.
+      let selfPairs = conn.query(
+        """select id from tournament.pairs
+           where community_id = $1::uuid
+             and ((player_a_id = $2::uuid and player_b_id = $3::uuid)
+               or (player_a_id = $3::uuid and player_b_id = $2::uuid))
+           for update""",
+        @[textParam(communityId), textParam(sourceId), textParam(targetId)])
+      for pair in selfPairs:
+        let used = conn.queryOne(
+          """select 1 as found from tournament.matches
+             where community_id = $1::uuid
+               and (pair_a_id = $2::uuid or pair_b_id = $2::uuid) limit 1""",
+          @[textParam(communityId), textParam(pair.get("id"))])
+        if used.isSome:
+          outcome.error = mePairInUse
+          return 0
+
       outcome.result.targetPlayerId = targetId
       outcome.result.sourcePlayerId = sourceId
 
@@ -142,23 +163,9 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
            where community_id = $1::uuid and player_id = $3::uuid""",
         @[textParam(communityId), textParam(targetId), textParam(sourceId)])
 
-      # A pair naming both merged players becomes a self-pair. It can only be
-      # dropped while no match refers to it; otherwise the merge is refused.
-      let selfPairs = conn.query(
-        """select id from tournament.pairs
-           where community_id = $1::uuid
-             and ((player_a_id = $2::uuid and player_b_id = $3::uuid)
-               or (player_a_id = $3::uuid and player_b_id = $2::uuid))""",
-        @[textParam(communityId), textParam(sourceId), textParam(targetId)])
+      # The self-pairs were checked above; they hold no matches, so dropping
+      # them cannot violate a match reference.
       for pair in selfPairs:
-        let used = conn.queryOne(
-          """select 1 as found from tournament.matches
-             where community_id = $1::uuid
-               and (pair_a_id = $2::uuid or pair_b_id = $2::uuid) limit 1""",
-          @[textParam(communityId), textParam(pair.get("id"))])
-        if used.isSome:
-          outcome.error = mePairInUse
-          return 0
         discard conn.execUpdate(
           """delete from tournament.pairs
              where community_id = $1::uuid and id = $2::uuid""",

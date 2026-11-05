@@ -10,6 +10,7 @@ import community/infrastructure/membership as membershipStore
 import config as edgeConfig
 import config_routes
 import live
+import logger
 import metrics
 import ratelimit
 import security_headers
@@ -99,13 +100,23 @@ proc b64url*(value: openArray[byte]): string =
 
 proc audit(action: string, communityId: string, user: AuthUser,
            targetKind: string, targetId: string,
-           after: JsonNode = newJObject()) =
+           after: JsonNode = newJObject(), role = "") =
   ## Every privileged write leaves evidence. Field names outside the domain
-  ## allowlist are dropped inside the adapter, never written.
+  ## allowlist are dropped inside the adapter, never written. The role is what
+  ## the membership actually granted, so a host write does not read as admin.
   recordAudit(application.db, auditEvent(action, communityId,
-    actorId = user.id, actorRole = (if user.isOwner: "platform_owner" else: "admin"),
+    actorId = user.id,
+    actorRole = (if user.isOwner: "platform_owner"
+                 elif role.len > 0: role
+                 else: "admin"),
     targetKind = targetKind, targetId = targetId, requestId = uuidv7()).withEvidence(
       newJObject(), after))
+
+proc audit(action: string, ctx: CommunityContext, user: AuthUser,
+           targetKind: string, targetId: string,
+           after: JsonNode = newJObject()) =
+  ## Community route overload: the membership role is already resolved.
+  audit(action, ctx.communityId, user, targetKind, targetId, after, $ctx.role)
 
 proc send(request: Request, status: int,
           headers: openArray[(string, string)], body: string) =
@@ -299,7 +310,10 @@ proc finishAuth(request: Request) =
       tombstone.get.get("email_hash"), tombstone.get.get("id")):
     problem(request, 403, "ACCOUNT_ANONYMIZED", "this account was deactivated")
     return
-  let email = claims["email"].getStr()
+  # One normalization for the whole flow: invites are stored lowercased, so a
+  # provider that echoes the address with different capitals would otherwise
+  # never match its pending row.
+  let email = claims["email"].getStr().strip().toLowerAscii()
   let displayName =
     if claims.hasKey("name"): claims["name"].getStr() else: email
   let owner = application.bootstrapOwner.len > 0 and email == application.bootstrapOwner
@@ -496,7 +510,7 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   if row.isNone:
     problem(request, 400, "INVALID_SESSION", "cannot create session")
     return
-  audit("session.create", ctx.communityId, user, "session", row.get.get("id"),
+  audit("session.create", ctx, user, "session", row.get.get("id"),
     %*{"title": row.get.get("title"), "date": row.get.get("session_date"),
         "status": row.get.get("status")})
   jsonResponse(request, 201, %*{
@@ -507,8 +521,30 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   })
 
 proc listSessions(request: Request, ctx: CommunityContext) =
+  ## One page, never a silently truncated history: the caller pages with
+  ## `offset` and filters on the server, so a search is not limited to the
+  ## newest page.
+  let configured = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
+  var limit = configured
+  let rawLimit = request.queryParams["limit"]
+  if rawLimit.len > 0:
+    try:
+      limit = parseInt(rawLimit)
+    except ValueError:
+      limit = configured
+  limit = max(1, min(limit, 500))
+  var offset = 0
+  let rawOffset = request.queryParams["offset"]
+  if rawOffset.len > 0:
+    try:
+      offset = max(0, parseInt(rawOffset))
+    except ValueError:
+      offset = 0
+  var date = request.queryParams["date"]
+  if date.len > 0 and not validSessionDate(date):
+    date = ""
+  let q = request.queryParams["q"].strip()
   var items = newJArray()
-  let limit = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
   for row in application.db.query(
     """select s.id, s.title, s.session_date::text as session_date, s.status,
               s.version,
@@ -518,15 +554,30 @@ proc listSessions(request: Request, ctx: CommunityContext) =
               (select count(*) from session.games g
                 where g.community_id = s.community_id
                   and g.session_id = s.id)::int as total_games
-       from session.sessions s where s.community_id = $1::uuid
-       order by s.session_date desc, s.updated_at desc limit $2""",
-    @[textParam(ctx.communityId), intParam(limit.int64)]):
+       from session.sessions s
+       where s.community_id = $1::uuid
+         and ($2 = '' or s.session_date = nullif($2, '')::date)
+         and ($3 = '' or s.title ilike '%' || $3 || '%')
+       order by s.session_date desc, s.updated_at desc
+       limit $4 offset $5""",
+    @[textParam(ctx.communityId), textParam(date), textParam(q),
+      intParam(limit.int64), intParam(offset.int64)]):
     items.add(%*{"id": row.get("id"), "title": row.get("title"),
       "date": row.get("session_date"), "status": row.get("status"),
       "version": parseInt(row.get("version")),
       "playerCount": parseInt(row.get("player_count")),
       "totalGames": parseInt(row.get("total_games"))})
-  jsonResponse(request, 200, %*{"items": items})
+  let totalRow = application.db.queryOne(
+    """select count(*)::int as total from session.sessions s
+       where s.community_id = $1::uuid
+         and ($2 = '' or s.session_date = nullif($2, '')::date)
+         and ($3 = '' or s.title ilike '%' || $3 || '%')""",
+    @[textParam(ctx.communityId), textParam(date), textParam(q)])
+  let total = if totalRow.isSome: parseInt(totalRow.get.get("total")) else: 0
+  let nextCursor =
+    if offset + items.len < total: $(offset + limit) else: ""
+  jsonResponse(request, 200, %*{"items": items, "total": total,
+    "nextCursor": nextCursor})
 
 proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
                  sessionId: string) =
@@ -547,7 +598,7 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
     ctx.communityId, sessionId, user.id)
   if previous.isSome:
     application.hub.revokeShare(previous.get.get("id"))
-  audit("share.issue", ctx.communityId, user, "session", sessionId,
+  audit("share.issue", ctx, user, "session", sessionId,
     %*{"sessionId": sessionId})
   jsonResponse(request, 201, %*{"code": code, "sessionId": sessionId})
 
@@ -559,7 +610,7 @@ proc deleteShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   for linkId in revoked:
     application.hub.revokeShare(linkId)
-  audit("share.revoke", ctx.communityId, user, "session", sessionId,
+  audit("share.revoke", ctx, user, "session", sessionId,
     %*{"sessionId": sessionId})
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
@@ -642,7 +693,7 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
     version.get, patchBody)
   case result.status
   of wsOk:
-    audit("session.patch", ctx.communityId, user, "session", sessionId,
+    audit("session.patch", ctx, user, "session", sessionId,
       result.record)
     if key.len > 0:
       complete(application.db, user.id, scopedKey(ctx.communityId, key), 200,
@@ -679,7 +730,7 @@ proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
   case result.status
   of sessionSwap.swOk:
     let record = %*{"version": result.version, "status": result.sessionStatus}
-    audit("session.swap", ctx.communityId, user, "session", sessionId,
+    audit("session.swap", ctx, user, "session", sessionId,
       record)
     if key.len > 0:
       complete(application.db, user.id, scopedKey(ctx.communityId, key), 200,
@@ -697,6 +748,10 @@ proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
   of sessionSwap.swLocked:
     problem(request, 403, "FORBIDDEN", "session is locked")
 
+proc ratingParamsFor(ctx: CommunityContext): ratingDomain.RatingParams =
+  ratingParams.loadRatingParams(configSnapshot(),
+    currentSettings(application.db, ctx.communityId))
+
 proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
                     sessionId: string, locked: bool) =
   let version = requireIfMatch(request)
@@ -705,7 +760,19 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
     user.id, version.get, locked)
   case result.status
   of wsOk:
-    audit(if locked: "session.lock" else: "session.unlock", ctx.communityId, user,
+    # Approval is the rating gate: locking rates the session now, unlocking
+    # withdraws what it contributed. Without this the ledger keeps points from
+    # a session that is no longer approved.
+    if locked:
+      discard ratingIngest.ingestSession(application.db, ctx.communityId,
+        sessionId, ratingParamsFor(ctx))
+    else:
+      let removed = ratingIngest.revertSource(application.db, ctx.communityId,
+        sessionId)
+      if removed > 0:
+        discard ratingIngest.rebuild(application.db, ctx.communityId,
+          ratingParamsFor(ctx))
+    audit(if locked: "session.lock" else: "session.unlock", ctx, user,
       "session", sessionId, result.record)
     jsonResponse(request, 200, result.record,
       [("ETag", "\"" & $result.record["version"].getInt() & "\""),
@@ -783,7 +850,7 @@ proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser) =
   let ttl = configSnapshot().intValue(%*{}, keyCommunityInviteTtlDays)
   let token = inviteStore.create(application.db, ctx.communityId,
     sha256Hex(email.strip().toLowerAscii()), $parsed, user.id, ttl)
-  audit("community.invite", ctx.communityId, user, "community", ctx.communityId,
+  audit("community.invite", ctx, user, "community", ctx.communityId,
     %*{"role": $parsed})
   jsonResponse(request, 201, %*{"token": token, "expiresInDays": ttl, "role": $parsed},
     [("Cache-Control", "no-store")])
@@ -907,7 +974,7 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
   if not membershipStore.setRole(application.db, ctx.communityId, targetId, role):
     problem(request, 404, "NOT_FOUND", "member not found")
     return
-  audit("community.member.role", ctx.communityId, user, "user", targetId,
+  audit("community.member.role", ctx, user, "user", targetId,
     %*{"role": role})
   jsonResponse(request, 200, %*{"userId": targetId, "role": role})
 
@@ -921,7 +988,7 @@ proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   # A removed member loses the sockets and tickets of that principal.
   application.hub.revokePrincipal(targetId)
-  audit("community.member.remove", ctx.communityId, user, "user", targetId)
+  audit("community.member.remove", ctx, user, "user", targetId)
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
 proc communityConfig(request: Request, ctx: CommunityContext) =
@@ -1004,7 +1071,7 @@ proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) 
       discard playerStore.remove(application.db, ctx.communityId, playerId)
       problem(request, 409, "ALIAS_TAKEN", "an alias is already used by another player")
       return
-    audit("player.create", ctx.communityId, user, "player", playerId,
+    audit("player.create", ctx, user, "player", playerId,
       %*{"name": result.player["name"]})
     jsonResponse(request, 201, withAliases(result.player,
       playerStore.aliases(application.db, ctx.communityId, playerId)))
@@ -1040,7 +1107,7 @@ proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
        not playerStore.setAliases(application.db, ctx.communityId, playerId, aliases):
       problem(request, 409, "ALIAS_TAKEN", "an alias is already used by another player")
       return
-    audit("player.patch", ctx.communityId, user, "player", playerId,
+    audit("player.patch", ctx, user, "player", playerId,
       %*{"name": result.player["name"]})
     jsonResponse(request, 200, withAliases(result.player,
       playerStore.aliases(application.db, ctx.communityId, playerId)))
@@ -1065,7 +1132,7 @@ proc mergePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
     sourceId, user.id)
   case outcome.error
   of playerMerge.meOk:
-    audit("player.merge", ctx.communityId, user, "player", targetId,
+    audit("player.merge", ctx, user, "player", targetId,
       %*{"sourcePlayerId": sourceId,
         "rowsMoved": outcome.result.aliasesMoved + outcome.result.claimsMoved +
           outcome.result.deltasMoved + outcome.result.snapshotsMoved +
@@ -1096,7 +1163,7 @@ proc deletePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   if not playerStore.remove(application.db, ctx.communityId, playerId):
     problem(request, 404, "NOT_FOUND", "player not found")
     return
-  audit("player.delete", ctx.communityId, user, "player", playerId)
+  audit("player.delete", ctx, user, "player", playerId)
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
 proc claimProblem(request: Request, error: playerClaim.ClaimError) =
@@ -1136,7 +1203,7 @@ proc submitClaim(request: Request, ctx: CommunityContext, user: AuthUser,
   if result != ceOk:
     claimProblem(request, result)
     return
-  audit("player.claim.submitted", ctx.communityId, user, "player", playerId)
+  audit("player.claim.submitted", ctx, user, "player", playerId)
   jsonResponse(request, 201, %*{"playerId": playerId, "status": "pending"})
 
 proc decideClaim(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -1166,7 +1233,7 @@ proc decideClaim(request: Request, ctx: CommunityContext, user: AuthUser,
     if released != ceOk:
       claimProblem(request, released)
       return
-    audit("player.claim.released", ctx.communityId, user, "claim", claimId,
+    audit("player.claim.released", ctx, user, "claim", claimId,
       %*{"playerId": playerId, "status": "released"})
     jsonResponse(request, 200, %*{"claimId": claimId, "status": "released"})
     return
@@ -1198,7 +1265,7 @@ proc releaseOwnClaim(request: Request, ctx: CommunityContext, user: AuthUser,
   if released != ceOk:
     claimProblem(request, released)
     return
-  audit("player.claim.released", ctx.communityId, user, "claim", claimId,
+  audit("player.claim.released", ctx, user, "claim", claimId,
     %*{"playerId": playerId, "status": "released"})
   jsonResponse(request, 200, %*{"claimId": claimId, "status": "released"})
 
@@ -1218,6 +1285,11 @@ proc opsPing(request: Request) =
     return
   jsonResponse(request, 200, %*{"ok": true, "token": name.get},
     [("Cache-Control", "no-store")])
+
+const
+  ## The per-code ceiling is the per-viewer one times this factor: everyone
+  ## watching the same link shares one budget instead of competing for it.
+  shareGlobalFactor = 10
 
 const requiredRelations = [
   # One name per area the process cannot work without. `to_regclass` answers
@@ -1263,25 +1335,40 @@ proc readyz(request: Request) =
     jsonResponse(request, 503, %*{"status": 503, "code": "NOT_READY",
       "detail": detail}, [("Cache-Control", "no-store")])
 
-proc ratingParamsFor(ctx: CommunityContext): ratingDomain.RatingParams =
-  ratingParams.loadRatingParams(configSnapshot(),
-    currentSettings(application.db, ctx.communityId))
+proc sessionVersionNow(communityId, sessionId: string): int =
+  let row = application.db.queryOne(
+    """select version from session.sessions
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(sessionId)])
+  if row.isSome: parseInt(row.get.get("version")) else: 0
 
 proc ingestSessionRating(request: Request, ctx: CommunityContext,
-                         sessionId: string) =
+                         user: AuthUser, sessionId: string) =
+  ## A session id that names nothing in this community is a 404, not a silent
+  ## ingest of zero rows that the caller cannot tell apart from a no-op.
+  if sessionVersionNow(ctx.communityId, sessionId) == 0:
+    problem(request, 404, "NOT_FOUND", "session not found")
+    return
   let result = ratingIngest.ingestSession(application.db, ctx.communityId,
     sessionId, ratingParamsFor(ctx))
+  audit("rating.session.ingest", ctx, user, "session", sessionId,
+    %*{"events": result.events, "deltas": result.deltas})
   jsonResponse(request, 200, %*{"events": result.events,
     "deltas": result.deltas}, [("Cache-Control", "no-store")])
 
 proc clearSessionRating(request: Request, ctx: CommunityContext,
-                        sessionId: string) =
+                        user: AuthUser, sessionId: string) =
+  if sessionVersionNow(ctx.communityId, sessionId) == 0:
+    problem(request, 404, "NOT_FOUND", "session not found")
+    return
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, sessionId)
   let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId,
     ratingParamsFor(ctx))
+  audit("rating.session.revert", ctx, user, "session", sessionId,
+    %*{"removedDeltas": removed})
   jsonResponse(request, 200, %*{"removedDeltas": removed,
     "events": rebuilt.events, "deltas": rebuilt.deltas},
     [("Cache-Control", "no-store")])
@@ -1290,7 +1377,7 @@ proc rebuildRatings(request: Request, ctx: CommunityContext,
                     user: AuthUser) =
   let result = ratingIngest.rebuild(application.db, ctx.communityId,
     ratingParamsFor(ctx))
-  audit("rating.rebuild", ctx.communityId, user, "community", ctx.communityId,
+  audit("rating.rebuild", ctx, user, "community", ctx.communityId,
     %*{"events": result.events, "deltas": result.deltas})
   jsonResponse(request, 200, %*{"events": result.events,
     "deltas": result.deltas}, [("Cache-Control", "no-store")])
@@ -1317,6 +1404,28 @@ proc listRatingSources(request: Request, ctx: CommunityContext) =
       "finalized": row.get("finalized") == "t",
       "finalizedAt": if row["finalized_at"].isSome:
         %row.get("finalized_at") else: newJNull()})
+  # A tournament that was never ingested has no event row, so a list built from
+  # events would hide it from the admin who has to sign it off.
+  for row in application.db.query(
+    """select t.id, t.event_date::text as local_date,
+              coalesce(s.finalized, false) as finalized,
+              s.finalized_at::text as finalized_at
+       from tournament.tournaments t
+       left join rating.sources s
+         on s.community_id = t.community_id and s.source_id = t.id
+       where t.community_id = $1::uuid
+         and not exists (
+           select 1 from rating.events e
+           where e.community_id = t.community_id
+             and e.event_type = 'tournament' and e.source_id = t.id)
+       order by t.event_date desc""",
+    @[textParam(ctx.communityId)]):
+    items.add(%*{"id": row.get("id"), "type": "tournament",
+      "date": row.get("local_date"), "sourceId": row.get("id"),
+      "deltas": 0,
+      "finalized": row.get("finalized") == "t",
+      "finalizedAt": if row["finalized_at"].isSome:
+        %row.get("finalized_at") else: newJNull()})
   jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
 
 proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -1336,7 +1445,7 @@ proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
   let removed = ratingIngest.removeEvent(application.db, ctx.communityId, eventId)
   let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId,
     ratingParamsFor(ctx))
-  audit("rating.source.delete", ctx.communityId, user, "rating_event", eventId,
+  audit("rating.source.delete", ctx, user, "rating_event", eventId,
     %*{"removedDeltas": removed})
   jsonResponse(request, 200, %*{"removedDeltas": removed,
     "events": rebuilt.events, "deltas": rebuilt.deltas},
@@ -1346,7 +1455,12 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
                    sessionId: string) =
   ## Drafts are deletable by the session's host, any status by an admin. The
   ## rating event that named this session goes with it, then the derived state
-  ## is rebuilt so the board cannot keep points from a deleted session.
+  ## is rebuilt so the board cannot keep points from a deleted session. A
+  ## signed-off source must be reverted first: deleting it would erase a
+  ## decision the ledger is supposed to keep.
+  if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
+    problem(request, 403, "FORBIDDEN", "rating source is finalized")
+    return
   let outcome = sessionWrite.remove(application.db, ctx.communityId, sessionId,
     ctx.role == rAdmin)
   case outcome
@@ -1364,7 +1478,7 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
     discard ratingIngest.rebuild(application.db, ctx.communityId,
       ratingParamsFor(ctx))
   discard ratingIngest.dropSource(application.db, ctx.communityId, sessionId)
-  audit("session.delete", ctx.communityId, user, "session", sessionId,
+  audit("session.delete", ctx, user, "session", sessionId,
     %*{"removedDeltas": removed})
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
@@ -1386,16 +1500,9 @@ proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
   if updated.isNone:
     problem(request, 404, "NOT_FOUND", "rating source not found")
     return
-  audit("rating.source.finalize", ctx.communityId, user, "rating_event",
+  audit("rating.source.finalize", ctx, user, "rating_event",
     eventId, %*{"finalized": finalized})
   jsonResponse(request, 200, updated.get, [("Cache-Control", "no-store")])
-
-proc sessionVersionNow(communityId, sessionId: string): int =
-  let row = application.db.queryOne(
-    """select version from session.sessions
-       where community_id = $1::uuid and id = $2::uuid""",
-    @[textParam(communityId), textParam(sessionId)])
-  if row.isSome: parseInt(row.get.get("version")) else: 0
 
 proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
   case status
@@ -1407,6 +1514,8 @@ proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
     problem(request, 412, "STALE_VERSION", "session changed since If-Match")
   of sessionSchedule.ssInvalid:
     problem(request, 400, "INVALID_SCHEDULE", "schedule body is invalid")
+  of sessionSchedule.ssLocked:
+    problem(request, 403, "FORBIDDEN", "session is locked")
   of sessionSchedule.ssUnknownPlayer:
     problem(request, 400, "UNKNOWN_PLAYER", "player is not in this community")
 
@@ -1626,7 +1735,7 @@ proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
   if code.isNone:
     problem(request, 404, "NOT_FOUND", "no live share link")
     return
-  audit("share.redisplay", ctx.communityId, user, "session", sessionId,
+  audit("share.redisplay", ctx, user, "session", sessionId,
     %*{"sessionId": sessionId})
   jsonResponse(request, 200, %*{"code": code.get, "sessionId": sessionId},
     [("Cache-Control", "no-store")])
@@ -1834,8 +1943,14 @@ proc upgradeSocket(request: Request, snapshot: Snapshot, kind, channelId,
     process: snapshot.intValue(%*{}, keyWsMaxWatchersProcess))
   let userId =
     if consumed.get.userId.isSome: consumed.get.userId.get else: ""
+  # The per-address watcher cap would become a platform-wide cap behind the CDN
+  # edge, so a signed-in watcher is bucketed by user id. Shared links have no
+  # user, and their per-channel cap already applies.
+  let watcherBucket =
+    if userId.len > 0: "user:" & userId
+    else: clientAddress
   if not application.hub.admit(socket, kind & ":" & channelId, userId,
-      clientAddress, caps):
+      watcherBucket, caps):
     socket.send(fullFrame)
     socket.close()
     return
@@ -1896,6 +2011,8 @@ proc saveFailure(request: Request, status: tournamentStore.SaveStatus) =
     problem(request, 412, "STALE_VERSION", "tournament changed since If-Match")
   of tournamentStore.svInvalid:
     problem(request, 400, "INVALID_TOURNAMENT", "tournament body is invalid")
+  of tournamentStore.svLocked:
+    problem(request, 403, "FORBIDDEN", "rating source is finalized")
 
 proc listTournamentsRoute(request: Request, ctx: CommunityContext) =
   let limit = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
@@ -1931,7 +2048,7 @@ proc createTournamentRoute(request: Request, ctx: CommunityContext,
     return
   let id = snapshot["id"].getStr()
   let record = %*{"id": id, "version": snapshot["version"]}
-  audit("tournament.create", ctx.communityId, user, "tournament", id, record)
+  audit("tournament.create", ctx, user, "tournament", id, record)
   if key.len > 0:
     complete(application.db, user.id, scopedKey(ctx.communityId, key), 201,
       snapshot)
@@ -1964,7 +2081,7 @@ proc putTournamentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   case status
   of tournamentStore.svOk:
     let record = %*{"id": id, "version": snapshot["version"]}
-    audit("tournament.update", ctx.communityId, user, "tournament", id, record)
+    audit("tournament.update", ctx, user, "tournament", id, record)
     if key.len > 0:
       complete(application.db, user.id, scopedKey(ctx.communityId, key), 200,
         snapshot)
@@ -1982,7 +2099,7 @@ proc ingestTournamentRating(request: Request, ctx: CommunityContext,
     ctx.communityId, id, ratingParamsFor(ctx))
   case result.status
   of ratingTournament.tisOk:
-    audit("rating.tournament.ingest", ctx.communityId, user, "tournament", id,
+    audit("rating.tournament.ingest", ctx, user, "tournament", id,
       %*{"events": result.events, "deltas": result.deltas})
     jsonResponse(request, 200, %*{"events": result.events,
       "deltas": result.deltas}, [("Cache-Control", "no-store")])
@@ -2000,14 +2117,18 @@ proc clearTournamentRating(request: Request, ctx: CommunityContext,
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, id)
   discard ratingIngest.rebuild(application.db, ctx.communityId,
     ratingParamsFor(ctx))
-  audit("rating.tournament.revert", ctx.communityId, user, "tournament", id,
+  audit("rating.tournament.revert", ctx, user, "tournament", id,
     %*{"removedDeltas": removed})
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
 proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
                            user: AuthUser, id: string) =
   ## The Idempotency-Key is accepted but not persisted: a repeated delete is
-  ## already a 404, and a 204 must not carry a replay body.
+  ## already a 404, and a 204 must not carry a replay body. A signed-off source
+  ## has to be reverted first: deleting it would erase a ledger decision.
+  if ratingIngest.sourceFinalized(application.db, ctx.communityId, id):
+    problem(request, 403, "FORBIDDEN", "rating source is finalized")
+    return
   if not tournamentStore.remove(application.db, ctx.communityId, id):
     problem(request, 404, "NOT_FOUND", "tournament not found")
     return
@@ -2018,7 +2139,7 @@ proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
     discard ratingIngest.rebuild(application.db, ctx.communityId,
       ratingParamsFor(ctx))
   discard ratingIngest.dropSource(application.db, ctx.communityId, id)
-  audit("tournament.delete", ctx.communityId, user, "tournament", id,
+  audit("tournament.delete", ctx, user, "tournament", id,
     %*{"id": id, "removedDeltas": removed})
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
@@ -2042,7 +2163,7 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
   of tournamentStore.ptOk:
     let record = %*{"id": id, "matchId": matchId,
       "version": snapshot["version"]}
-    audit("tournament.match.patch", ctx.communityId, user, "tournament", id,
+    audit("tournament.match.patch", ctx, user, "tournament", id,
       record)
     if key.len > 0:
       complete(application.db, user.id, scopedKey(ctx.communityId, key), 200,
@@ -2054,6 +2175,8 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
     problem(request, 404, "NOT_FOUND", "tournament or match not found")
   of tournamentStore.ptStale:
     problem(request, 412, "STALE_VERSION", "tournament changed since If-Match")
+  of tournamentStore.ptLocked:
+    problem(request, 403, "FORBIDDEN", "rating source is finalized")
 
 proc outdatedClient(request: Request): bool =
   ## A bundle built for an older major speaks a contract this server no longer
@@ -2083,8 +2206,17 @@ proc route(request: Request) =
       problem(request, 403, "CSRF_REJECTED", "origin is not allowed")
       return
     let client = clientIp(request, trustedProxies())
+    # Production sits behind a CDN edge, so the TCP-derived address is the same
+    # for everyone and a per-address quota would be a platform-wide quota. A
+    # browser with a session cookie is keyed by a hash of that cookie; an
+    # anonymous caller keeps the address. The table is memory-only, so the token
+    # itself is never stored.
+    let token = cookieValue(request, "majadu_session")
+    let identity =
+      if token.len > 0: "session:" & sha256Hex(token)[0 .. 15]
+      else: client
     let routeLabel = templateRoute(path)
-    let budget = application.limiter.hit(routeLabel & "|" & client,
+    let budget = application.limiter.hit(routeLabel & "|" & identity,
       snapshot.intValue(%*{}, keySecurityRateLimitPerMinute), epochTime())
     if not budget.allowed:
       send(request, 429,
@@ -2092,18 +2224,26 @@ proc route(request: Request) =
           ("Retry-After", $budget.retryAfter)],
         $ %*{"status": 429, "code": "RATE_LIMITED", "retryAfter": budget.retryAfter})
       return
-    # Share links get their own ceiling per code, so a scraped code cannot be
-    # replayed from a pool of addresses.
+    # Share links are limited per viewer, so one scraper cannot exhaust the
+    # budget of the group that holds the link, and per code at a looser ceiling
+    # so a pool of addresses still cannot replay a scraped code without bound.
     if path.startsWith("/s/"):
       let parts = path.split('/')
       if parts.len >= 3:
-        let scrape = application.limiter.hit("share|" & parts[2],
-          snapshot.intValue(%*{}, keySecurityShareScrapeLimit), epochTime())
-        if not scrape.allowed:
+        let codeKey = sha256Hex(parts[2])[0 .. 15]
+        let limit = snapshot.intValue(%*{}, keySecurityShareScrapeLimit)
+        let now = epochTime()
+        let global = application.limiter.hit("share|" & codeKey,
+          limit * shareGlobalFactor, now)
+        let viewer = application.limiter.hit("share|" & codeKey & "|" & identity,
+          limit, now)
+        let refused = if not global.allowed: global else: viewer
+        if not refused.allowed:
           send(request, 429,
             @[("Content-Type", "application/json"), ("Cache-Control", "no-store"),
-              ("Retry-After", $scrape.retryAfter)],
-            $ %*{"status": 429, "code": "RATE_LIMITED", "retryAfter": scrape.retryAfter})
+              ("Retry-After", $refused.retryAfter)],
+            $ %*{"status": 429, "code": "RATE_LIMITED",
+                 "retryAfter": refused.retryAfter})
           return
     if path == "/healthz":
       send(request, 200, """{"status":"ok"}""")
@@ -2280,9 +2420,9 @@ proc route(request: Request) =
           let admin = adminGate(request, parts[2])
           if admin.isNone: return
           if verb == "POST":
-            ingestSessionRating(request, admin.get[1], parts[4])
+            ingestSessionRating(request, admin.get[1], admin.get[0], parts[4])
           else:
-            clearSessionRating(request, admin.get[1], parts[4])
+            clearSessionRating(request, admin.get[1], admin.get[0], parts[4])
           return
       if parts.len == 6 and parts[5] == "schedule" and verb == "PUT":
         putScheduleRoute(request, ctx.get, parts[4])
@@ -2474,16 +2614,34 @@ proc route(request: Request) =
         return
     problem(request, 404, "NOT_FOUND", "route not found")
   except CatchableError as error:
-    stderr.writeLine "app error: " & error.msg
+    # Driver messages echo input values; the logger redacts and emits one JSON
+    # line, so a crafted path cannot forge log rows or leak a share code.
+    logError("request failed", [("error", error.msg), ("path", request.path)])
     problem(request, 500, "INTERNAL", "internal error")
+
+proc secureCookies(oidc: OidcConfig): bool =
+  ## An explicit flag wins, but it cannot contradict the deployment: a public
+  ## https redirect URI served with a plain cookie leaks the session, so that
+  ## combination refuses to start. Without the flag the redirect URI decides,
+  ## which makes a new production deployment secure by default.
+  case getEnv("MAJADU_COOKIE_SECURE").strip()
+  of "1":
+    true
+  of "0":
+    if oidc.redirectUri.startsWith("https://"):
+      raise newException(ValueError,
+        "MAJADU_COOKIE_SECURE=0 cannot serve an https redirect URI")
+    false
+  else:
+    oidc.redirectUri.startsWith("https://")
 
 proc newApp*(db: Db, oidc: OidcConfig, keyring: Keyring,
              config: ConfigCache): App =
   App(db: db, oidc: oidc, keyring: keyring, config: config,
       limiter: newLimiter(),
       hub: newHub(db),
-      cookieSecure: getEnv("MAJADU_COOKIE_SECURE") == "1",
-      bootstrapOwner: getEnv("MAJADU_BOOTSTRAP_OWNER_EMAIL"))
+      cookieSecure: secureCookies(oidc),
+      bootstrapOwner: getEnv("MAJADU_BOOTSTRAP_OWNER_EMAIL").strip().toLowerAscii())
 
 proc install*(app: App) =
   application = app

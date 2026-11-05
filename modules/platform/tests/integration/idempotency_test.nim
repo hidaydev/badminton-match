@@ -1,8 +1,21 @@
-import std/[json, options, os, unittest]
+import std/[json, options, os, sequtils, unittest]
 import db/db
 import ../../idempotency
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
+
+type
+  ClaimJob = object
+    dsn, userId, key, digest: string
+    status: IdempotencyStatus
+
+proc claimInThread(job: ptr ClaimJob) {.thread.} =
+  {.cast(gcsafe).}:
+    var db = openDb(job.dsn, 1)
+    try:
+      job.status = claim(db, job.userId, job.key, job.digest).status
+    finally:
+      db.close()
 
 suite "idempotency":
   var db: Db
@@ -47,10 +60,45 @@ suite "idempotency":
     check claim(db, userId, scopedKey("c1", "same"), digest).status == idempotencyNew
     check claim(db, userId, scopedKey("c2", "same"), digest).status == idempotencyNew
 
-  test "an expired key can be claimed again":
+  test "an in-flight claim is a conflict, not a crash":
+    let key = scopedKey("c1", "in-flight")
+    let digest = bodyHash("""{"a":1}""")
+    check claim(db, userId, key, digest).status == idempotencyNew
+    check claim(db, userId, key, digest).status == idempotencyConflict
+
+  test "an expired key is replaced and replays the new response":
     let key = scopedKey("c1", "expired")
-    discard claim(db, userId, key, bodyHash("""{"a":1}"""))
+    let oldDigest = bodyHash("""{"a":1}""")
+    let newDigest = bodyHash("""{"a":2}""")
+    discard claim(db, userId, key, oldDigest)
+    complete(db, userId, key, 201, %*{"id": "old"})
     discard db.execUpdate(
       "update platform.idempotency_keys set expires_at = now() - interval '1 hour' where key = $1",
       @[textParam(key)])
-    check claim(db, userId, key, bodyHash("""{"a":2}""")).status == idempotencyNew
+
+    check claim(db, userId, key, newDigest).status == idempotencyNew
+    complete(db, userId, key, 202, %*{"id": "new"})
+    let replay = claim(db, userId, key, newDigest)
+    check replay.status == idempotencyReplay
+    check replay.statusCode == 202
+    check replay.response["id"].getStr() == "new"
+
+    let stored = db.queryOne(
+      """select body_hash, expires_at > now() as live
+         from platform.idempotency_keys where user_id = $1::uuid and key = $2""",
+      @[textParam(userId), textParam(key)]).get
+    check stored.get("body_hash") == newDigest
+    check stored.get("live") == "t"
+
+  test "two parallel claims let exactly one through":
+    let key = scopedKey("c1", "parallel")
+    let digest = bodyHash("""{"a":1}""")
+    var first = ClaimJob(dsn: dsn(), userId: userId, key: key, digest: digest)
+    var second = ClaimJob(dsn: dsn(), userId: userId, key: key, digest: digest)
+    var firstThread: Thread[ptr ClaimJob]
+    var secondThread: Thread[ptr ClaimJob]
+    createThread(firstThread, claimInThread, addr first)
+    createThread(secondThread, claimInThread, addr second)
+    joinThread(firstThread)
+    joinThread(secondThread)
+    check @[first.status, second.status].count(idempotencyNew) == 1

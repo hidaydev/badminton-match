@@ -131,4 +131,14 @@ proc verifyIdToken*(token: string, jwks: seq[Jwk], issuer, audience,
     raise newException(JwtError, "JWT expired")
   if nonce.len > 0 and claims["nonce"].getStr() != nonce:
     raise newException(JwtError, "nonce mismatch")
+  # Email is the identity that invites and the bootstrap owner are matched on,
+  # so an address the provider has not verified must never become one.
+  if not claims.hasKey("email_verified") or
+     claims["email_verified"].kind != JBool or
+     not claims["email_verified"].getBool():
+    raise newException(JwtError, "email is not verified")
+  # A token minted for another client of the same issuer is not ours.
+  if claims.hasKey("azp") and claims["azp"].kind == JString and
+     claims["azp"].getStr() != audience:
+    raise newException(JwtError, "unexpected authorized party")
   claims

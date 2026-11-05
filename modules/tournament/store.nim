@@ -19,12 +19,14 @@ type
     svNotFound = "not_found"
     svStale = "stale"
     svInvalid = "invalid"
+    svLocked = "locked"
 
   PatchStatus* = enum
     ptOk = "ok"
     ptNotFound = "not_found"
     ptStale = "stale"
     ptInvalid = "invalid"
+    ptLocked = "locked"
 
   Owned = object
     ## Child row ids already belonging to this tournament. A replace reuses
@@ -492,13 +494,20 @@ proc create*(db: Db, communityId, actorId: string,
 proc lockHeader(conn: DbConn, communityId, id, name, date: string,
                 expectedVersion: int): SaveStatus =
   ## Row lock, optimistic check and header update. Children are cleared by the
-  ## caller after it has captured their ids for reuse.
+  ## caller after it has captured their ids for reuse. A finalized source is
+  ## signed off for the ledger, so editing it would leave the board rating a
+  ## bracket nobody can see any more.
   let header = conn.queryOne(
-    """select version from tournament.tournaments
-       where community_id = $1::uuid and id = $2::uuid for update""",
+    """select t.version, coalesce(s.finalized, false) as finalized
+       from tournament.tournaments t
+       left join rating.sources s
+         on s.community_id = t.community_id and s.source_id = t.id
+       where t.community_id = $1::uuid and t.id = $2::uuid for update of t""",
     @[textParam(communityId), textParam(id)])
   if header.isNone:
     return svNotFound
+  if header.get.get("finalized") == "t":
+    return svLocked
   if parseInt(header.get.get("version")) != expectedVersion:
     return svStale
   discard conn.execUpdate(
@@ -657,11 +666,17 @@ proc patchMatch*(db: Db, communityId, id, matchId: string, body: JsonNode,
   var detail = newJObject()
   discard db.tx(proc(conn: DbConn): int =
     let header = conn.queryOne(
-      """select format, version from tournament.tournaments
-         where community_id = $1::uuid and id = $2::uuid for update""",
+      """select t.format, t.version, coalesce(s.finalized, false) as finalized
+         from tournament.tournaments t
+         left join rating.sources s
+           on s.community_id = t.community_id and s.source_id = t.id
+         where t.community_id = $1::uuid and t.id = $2::uuid for update of t""",
       @[textParam(communityId), textParam(id)])
     if header.isNone:
       status = ptNotFound
+      return 0
+    if header.get.get("finalized") == "t":
+      status = ptLocked
       return 0
     if parseInt(header.get.get("version")) != expectedVersion:
       status = ptStale

@@ -24,7 +24,8 @@ proc aadFor(communityId, linkId: string): string =
 proc issue*(db: Db, keyring: Keyring, communityId, sessionId,
             createdBy: string): string =
   ## Rotating the *link*: the previous live code stops resolving in the same
-  ## transaction because a partial unique index allows only one live row.
+  ## transaction because a partial unique index allows only one live row. Links
+  ## expire: a code forwarded in a group chat should not resolve forever.
   let linkId = uuidv7()
   let code = newShareCode()
   let (keyId, encrypted) = encryptWith(keyring, code, aadFor(communityId, linkId))
@@ -36,9 +37,10 @@ proc issue*(db: Db, keyring: Keyring, communityId, sessionId,
       @[textParam(sessionId), textParam(communityId)])
     discard conn.execUpdate(
       """insert into session.links
-           (id, community_id, session_id, code_hash, code_enc, key_id, created_by)
+           (id, community_id, session_id, code_hash, code_enc, key_id, created_by,
+            expires_at)
          values ($1::uuid, $2::uuid, $3::uuid, decode($4,'hex'), decode($5,'hex'),
-                 $6, $7::uuid)""",
+                 $6, $7::uuid, now() + interval '30 days')""",
       @[textParam(linkId), textParam(communityId), textParam(sessionId),
         textParam(sha256Hex(code)), textParam(bytesHex(encrypted)),
         textParam(keyId), textParam(createdBy)])
@@ -53,7 +55,8 @@ proc currentCode*(db: Db, keyring: Keyring, communityId,
     """select id, key_id, encode(code_enc,'hex') as code_enc
        from session.links
        where community_id = $1::uuid and session_id = $2::uuid
-         and revoked_at is null""",
+         and revoked_at is null
+         and (expires_at is null or expires_at > now())""",
     @[textParam(communityId), textParam(sessionId)])
   if row.isNone:
     return none(string)
@@ -64,18 +67,47 @@ proc currentCode*(db: Db, keyring: Keyring, communityId,
   except ShareKeyError:
     none(string)
 
-proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
-  let row = db.queryOne(
-    """select l.id as link_id, l.community_id, l.key_id, l.session_id,
-              encode(l.code_enc,'hex') as code_enc,
-              s.title, s.session_date::text as session_date, s.status,
-              c.slug, c.name, c.timezone
+const shareLookupFrom = """
        from session.links l
        join session.sessions s
          on s.community_id = l.community_id and s.id = l.session_id
        join platform.community c on c.id = l.community_id
-       where l.code_hash = decode($1,'hex') and l.revoked_at is null""",
+       where """
+
+const shareLookupColumns = """select l.id as link_id, l.community_id, l.key_id,
+              l.session_id, encode(l.code_enc,'hex') as code_enc,
+              s.title, s.session_date::text as session_date, s.status,
+              c.slug, c.name, c.timezone
+       """
+
+proc looksLikeUuid(value: string): bool =
+  ## Version one shared a session by its id. Only that exact shape is treated as
+  ## an id, so a mistyped code never reaches a `::uuid` cast.
+  if value.len != 36:
+    return false
+  for index, character in value:
+    if index in [8, 13, 18, 23]:
+      if character != '-':
+        return false
+    elif character notin {'0'..'9', 'a'..'f', 'A'..'F'}:
+      return false
+  true
+
+proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
+  var row = db.queryOne(
+    shareLookupColumns & shareLookupFrom &
+    """l.code_hash = decode($1,'hex') and l.revoked_at is null
+         and (l.expires_at is null or l.expires_at > now())""",
     @[textParam(sha256Hex(code))])
+  if row.isNone and looksLikeUuid(code):
+    # A link minted before the code era was `/s/{sessionId}`. While that session
+    # still has a live link, its id answers for it, so links already in a group
+    # chat keep working instead of turning into a 404.
+    row = db.queryOne(
+      shareLookupColumns & shareLookupFrom &
+      """l.session_id = $1::uuid and l.revoked_at is null
+         and (l.expires_at is null or l.expires_at > now())""",
+      @[textParam(code)])
   if row.isNone:
     return none(ShareLookup)
   let value = row.get

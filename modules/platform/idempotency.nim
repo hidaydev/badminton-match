@@ -28,28 +28,44 @@ proc claim*(db: Db, userId, key, bodyDigest: string,
   ## Returns `idempotencyNew` when the caller owns the key and must do the work.
   ## A replay of the same body returns the stored response; the same key with a
   ## different body is a conflict (409) and never overwrites the first result.
-  let row = db.queryOne(
-    """select body_hash, status_code, response::text as response
-       from platform.idempotency_keys
-       where user_id = $1::uuid and key = $2 and expires_at > now()""",
-    @[textParam(userId), textParam(key)])
-  if row.isSome:
-    let value = row.get
-    if value.get("body_hash") != bodyDigest:
-      return IdempotencyEntry(status: idempotencyConflict)
-    return IdempotencyEntry(
-      status: idempotencyReplay,
-      statusCode: parseInt(value.get("status_code")),
-      response: parseJson(value.get("response")),
-    )
-  discard db.execUpdate(
+  ##
+  ## The claim is one statement so parallel requests cannot both win: the insert
+  ## only replaces an expired row, and a live row is left untouched.
+  let claimed = db.queryOne(
     """insert into platform.idempotency_keys
          (user_id, key, body_hash, expires_at)
        values ($1::uuid, $2, $3, now() + make_interval(hours => $4))
-       on conflict (user_id, key) do nothing""",
+       on conflict (user_id, key) do update
+         set body_hash = excluded.body_hash,
+             status_code = null,
+             response = null,
+             expires_at = excluded.expires_at
+         where platform.idempotency_keys.expires_at <= now()
+       returning body_hash, status_code, response::text as response""",
     @[textParam(userId), textParam(key), textParam(bodyDigest),
       intParam(ttlHours.int64)])
-  IdempotencyEntry(status: idempotencyNew)
+  if claimed.isSome:
+    return IdempotencyEntry(status: idempotencyNew)
+
+  # The insert conflicted with a live row. Reading it is safe: the row cannot
+  # expire between the conflict and this statement without another claim first
+  # replacing it, and that claim owns the key.
+  let live = db.queryOne(
+    """select body_hash, status_code, response::text as response
+       from platform.idempotency_keys
+       where user_id = $1::uuid and key = $2""",
+    @[textParam(userId), textParam(key)])
+  if live.isNone or live.get.get("body_hash") != bodyDigest:
+    return IdempotencyEntry(status: idempotencyConflict)
+  let value = live.get
+  if value["status_code"].isNone or value["response"].isNone:
+    # Another request claimed the key but has not finished yet.
+    return IdempotencyEntry(status: idempotencyConflict)
+  IdempotencyEntry(
+    status: idempotencyReplay,
+    statusCode: parseInt(value.get("status_code")),
+    response: parseJson(value.get("response")),
+  )
 
 proc complete*(db: Db, userId, key: string, statusCode: int,
                response: JsonNode) =

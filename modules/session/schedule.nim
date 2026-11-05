@@ -19,6 +19,7 @@ type
     ssStale = "stale"
     ssInvalid = "invalid"
     ssUnknownPlayer = "unknown_player"
+    ssLocked = "locked"
 
 proc parseGameKey*(key: string): Option[(int, int)] =
   ## The contract calls a game `{round}-{court}`, the same pair the unique index
@@ -91,6 +92,32 @@ proc classify(db: Db, communityId, sessionId: string,
   elif version.get != expectedVersion: ssStale
   else: ssStale
 
+proc gate(conn: DbConn, communityId, sessionId: string,
+          expectedVersion: int): ScheduleStatus =
+  ## One predicate for every write: a session edits only while it is a draft.
+  ## Locking approves and rates it, so a change after that has to unlock first,
+  ## which also withdraws what the session contributed to the board.
+  let row = conn.queryOne(
+    """select version, status from session.sessions
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(sessionId)])
+  if row.isNone:
+    return ssNotFound
+  if parseInt(row.get.get("version")) != expectedVersion:
+    return ssStale
+  if row.get.get("status") != "draft":
+    return ssLocked
+  ssOk
+
+proc gameExists(conn: DbConn, communityId, sessionId: string,
+                key: (int, int)): bool =
+  conn.queryOne(
+    """select 1 as ok from session.games
+       where community_id = $1::uuid and session_id = $2::uuid
+         and round_no = $3 and court_no = $4""",
+    @[textParam(communityId), textParam(sessionId),
+      intParam(key[0].int64), intParam(key[1].int64)]).isSome
+
 proc bump(conn: DbConn, communityId, sessionId: string,
           expectedVersion: int): bool =
   conn.execUpdate(
@@ -128,6 +155,10 @@ proc putSchedule*(db: Db, communityId, sessionId: string, expectedVersion: int,
   var outcome = ssOk
   try:
     discard db.tx(proc(conn: DbConn): int =
+      let allowed = gate(conn, communityId, sessionId, expectedVersion)
+      if allowed != ssOk:
+        outcome = allowed
+        return 0
       if not bump(conn, communityId, sessionId, expectedVersion):
         outcome = ssStale
         return 0
@@ -171,6 +202,10 @@ proc setAbsent*(db: Db, communityId, sessionId: string, expectedVersion: int,
     return ssUnknownPlayer
   var outcome = ssOk
   discard db.tx(proc(conn: DbConn): int =
+    let allowed = gate(conn, communityId, sessionId, expectedVersion)
+    if allowed != ssOk:
+      outcome = allowed
+      return 0
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return 0
@@ -197,6 +232,13 @@ proc setScore*(db: Db, communityId, sessionId, gameKey: string,
     return ssInvalid
   var outcome = ssOk
   discard db.tx(proc(conn: DbConn): int =
+    if not gameExists(conn, communityId, sessionId, key.get):
+      outcome = ssNotFound
+      return 0
+    let allowed = gate(conn, communityId, sessionId, expectedVersion)
+    if allowed != ssOk:
+      outcome = allowed
+      return 0
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return 0
@@ -224,6 +266,13 @@ proc setPlayed*(db: Db, communityId, sessionId, gameKey: string,
     return ssInvalid
   var outcome = ssOk
   discard db.tx(proc(conn: DbConn): int =
+    if not gameExists(conn, communityId, sessionId, key.get):
+      outcome = ssNotFound
+      return 0
+    let allowed = gate(conn, communityId, sessionId, expectedVersion)
+    if allowed != ssOk:
+      outcome = allowed
+      return 0
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return 0
@@ -275,6 +324,10 @@ proc setSkips*(db: Db, communityId, sessionId, gameKey: string,
       if participant.isNone:
         outcome = ssUnknownPlayer
         return 0
+    let allowed = gate(conn, communityId, sessionId, expectedVersion)
+    if allowed != ssOk:
+      outcome = allowed
+      return 0
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return 0
@@ -304,6 +357,13 @@ proc skipGame*(db: Db, communityId, sessionId, gameKey: string,
     return ssInvalid
   var outcome = ssOk
   discard db.tx(proc(conn: DbConn): int =
+    if not gameExists(conn, communityId, sessionId, key.get):
+      outcome = ssNotFound
+      return 0
+    let allowed = gate(conn, communityId, sessionId, expectedVersion)
+    if allowed != ssOk:
+      outcome = allowed
+      return 0
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return 0
