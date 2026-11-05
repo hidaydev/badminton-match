@@ -25,6 +25,7 @@ export default function ShareButton() {
   const gameScores = useStore((s) => s.gameScores)
   const cloudSessionId = useStore((s) => s.cloudSessionId)
   const setCloudSessionId = useStore((s) => s.setCloudSessionId)
+  const setCloudVersion = useStore((s) => s.setCloudVersion)
   const updatePlayer = useStore((s) => s.updatePlayer)
 
   const [confirming, setConfirming] = useState(false)
@@ -82,7 +83,8 @@ export default function ShareButton() {
       })
       // Don't lock on publish — host needs to input scores after publishing
       snapshot.session = { ...snapshot.session, locked: false }
-      await publishSession(id, snapshot)
+      const published = await publishSession(id, snapshot)
+      setCloudVersion(published.version ?? null)
       const code = await ensureSessionShareLink(id)
       setShareUrl(`${window.location.origin}/s/${code}`)
     } catch (err) {

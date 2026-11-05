@@ -35,6 +35,7 @@ type PersistedDraft = {
   gameScores: AppState['gameScores']
   absentPlayers: AppState['absentPlayers']
   cloudSessionId: AppState['cloudSessionId']
+  cloudVersion: AppState['cloudVersion']
 }
 
 /** Before the legacy shell renders, the URL is the only source of the slug. */
@@ -71,6 +72,7 @@ function createEmptyDraft(): PersistedDraft {
     gameScores: initial.gameScores,
     absentPlayers: initial.absentPlayers,
     cloudSessionId: initial.cloudSessionId,
+    cloudVersion: initial.cloudVersion,
   }
 }
 
@@ -94,6 +96,7 @@ export const useStore = create<AppState>()(
         gameScores: state.gameScores,
         absentPlayers: state.absentPlayers,
         cloudSessionId: state.cloudSessionId,
+        cloudVersion: state.cloudVersion,
       }),
       merge: (persistedState, currentState) => {
         const saved = persistedState as PersistedDraft | undefined

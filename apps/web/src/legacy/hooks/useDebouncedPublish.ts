@@ -62,14 +62,24 @@ export function useDebouncedPublish(
       existingAbsentPlayers: state.absentPlayers,
     })
 
+    // The draft's own basis wins over the cache. After a failed publish the
+    // cache holds the server's newer version; using it here would retry the
+    // same stale draft against the new version and overwrite the other editor.
     const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
-    if (cached?.version != null) snap.version = cached.version
+    if (state.cloudVersion != null) snap.version = state.cloudVersion
+    else if (cached?.version != null) snap.version = cached.version
 
     inFlightRef.current = true
     pendingDirtyRef.current = false
     setIsPendingQueue(false)
 
     publishRef.current.mutate(snap, {
+      onSuccess: (updated) => {
+        // The next publish starts from the version this one produced.
+        if (useStore.getState().cloudSessionId === cloudSessionId) {
+          useStore.getState().setCloudVersion(updated?.version ?? null)
+        }
+      },
       onError: async (err) => {
         onErrorRef.current?.(getSaveErrorMessage(err))
         if (cloudSessionId) {

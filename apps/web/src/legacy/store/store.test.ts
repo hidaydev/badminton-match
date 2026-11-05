@@ -62,6 +62,23 @@ describe('legacy store persistence', () => {
     expect(forB.state.communitySlug).toBe('b')
   })
 
+  it('persists the version basis so a reload cannot silently overwrite', async () => {
+    const { useStore } = await loadStore()
+
+    useStore.getState().setCloudSessionId('sess-1')
+    useStore.getState().setCloudVersion(7)
+
+    const raw = JSON.parse(window.localStorage.getItem('badminton-store')!) as {
+      state: { cloudSessionId: string; cloudVersion: number | null }
+    }
+    expect(raw.state.cloudSessionId).toBe('sess-1')
+    expect(raw.state.cloudVersion).toBe(7)
+
+    // A different session cannot inherit the previous basis.
+    useStore.getState().setCloudSessionId('sess-2')
+    expect(useStore.getState().cloudVersion).toBeNull()
+  })
+
   it('clears the persisted draft on logout', async () => {
     const { useStore, prepareCommunityDraft, clearStoreDraft } = await loadStore()
     prepareCommunityDraft('a')

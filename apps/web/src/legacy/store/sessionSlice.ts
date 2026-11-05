@@ -156,6 +156,7 @@ export const createSessionSlice = (
       fixMatches: [],
       ...RESET_GENERATED,
       cloudSessionId: null,
+      cloudVersion: null,
       absentPlayers: [],
     })),
 })
