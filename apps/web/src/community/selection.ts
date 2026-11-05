@@ -2,8 +2,11 @@ import type { Membership } from '../auth/api'
 import { communityHref } from '../routes.manifest'
 
 /**
- * Resolve the community the shell shows: the slug in the URL wins when the user
- * belongs to it, then the stored slug, then the first membership.
+ * Resolve the community the shell shows. A slug in the URL is an explicit
+ * request for that community, so it is resolved on its own: when the account
+ * is not a member, the answer is `null` and the shell says so instead of
+ * quietly showing a different one. Without a URL slug the stored choice wins,
+ * then the first membership.
  */
 export function resolveCommunity(
   memberships: Membership[],
@@ -13,7 +16,8 @@ export function resolveCommunity(
   const find = (slug: string | null) =>
     slug === null ? null : memberships.find((membership) => membership.slug === slug) ?? null
 
-  return find(pathSlug) ?? find(storedSlug) ?? memberships[0] ?? null
+  if (pathSlug !== null) return find(pathSlug)
+  return find(storedSlug) ?? memberships[0] ?? null
 }
 
 /**

@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import ClientOutdatedBanner from './components/ClientOutdatedBanner'
@@ -114,8 +114,13 @@ function SharedViewPage() {
  */
 function LegacyShell() {
   const { slug = '' } = useParams<{ slug: string }>()
+  const { memberships } = useCommunity()
   const queryClient = useQueryClient()
   const previousSlug = useRef(slug)
+  // A slug outside the account's memberships is a link to someone else's
+  // community, not a preference to fall back from. Rendering the usual tree
+  // would query that slug (the adapter reads the URL) with this account's role.
+  const isMember = memberships.some((membership) => membership.slug === slug)
 
   // A community switch must not reuse the previous slug's cache or draft.
   // `prepareCommunityDraft` only applies a persisted draft tagged with `slug`.
@@ -123,13 +128,16 @@ function LegacyShell() {
   // discarded concurrent render from changing the module state; the data
   // adapter reads the slug from the URL itself.
   useEffect(() => {
+    if (!isMember) return
     setCommunitySlug(slug)
     if (previousSlug.current !== slug) {
       queryClient.removeQueries({ queryKey: [previousSlug.current] })
       previousSlug.current = slug
     }
     prepareCommunityDraft(slug)
-  }, [slug, queryClient])
+  }, [slug, isMember, queryClient])
+
+  if (!isMember) return <CommunityNotFound />
 
   return (
     <LegacySlugProvider key={slug} slug={slug}>
@@ -145,6 +153,20 @@ function LegacyShell() {
 function LegacySessionRedirect() {
   const { id = '' } = useParams<{ id: string }>()
   return <LegacyNavigate to={`/s/${id}`} replace />
+}
+
+function CommunityNotFound() {
+  return (
+    <section className="mx-auto max-w-2xl p-4">
+      <h1 className="text-xl font-bold text-fg sm:text-2xl">{t('community.error.notFound')}</h1>
+      <Link
+        to="/"
+        className="mt-4 inline-flex min-h-11 items-center rounded-xl text-sm text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        {t('nav.home')}
+      </Link>
+    </section>
+  )
 }
 
 function RootRedirect() {

@@ -73,6 +73,21 @@ describe('CommunityPicker', () => {
     expect(urls.some((url) => url.endsWith('/auth/start'))).toBe(false)
   })
 
+  it('refuses a slug the account does not belong to instead of showing another community', async () => {
+    window.history.replaceState({}, '', '/c/ghost/sessions')
+    const fetchMock = mockFetch(sessionHandlers([acme, beta]))
+
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { name: t('community.error.notFound') }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t('nav.home') })).toHaveAttribute('href', '/')
+    const urls = fetchMock.mock.calls.map(([url]) => String(url))
+    expect(urls.some((url) => url.includes('/api/c/ghost'))).toBe(false)
+    expect(urls.some((url) => url.includes('/api/c/acme') || url.includes('/api/c/beta'))).toBe(false)
+  })
+
   it('keeps the selection after a reload', async () => {
     mockFetch(sessionHandlers([acme, beta]))
 

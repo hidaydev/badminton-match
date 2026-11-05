@@ -28,6 +28,7 @@ export default function GeneratePage() {
   const setStoreResult = useStore((s) => s.setResult)
   const updateSchedule = useStore((s) => s.updateSchedule)
   const swapSlotsWithScores = useStore((s) => s.swapSlotsWithScores)
+  const updateRosterPlayer = useStore((s) => s.updatePlayer)
 
   const players = useMemo(
     () => (isSharedView ? (snapshot?.players ?? []) : storePlayers),
@@ -116,11 +117,26 @@ export default function GeneratePage() {
   function handleReplacePlayer(playerId: string, newName: string) {
     if (!result) return
     const pid = toPlayerId(playerId)
-    const newNameId = toPlayerId(newName)
+    const name = newName.trim()
+    let nextId = toPlayerId(name)
+    if (!isSharedView && name !== '') {
+      const existing = storePlayers.find(
+        (player) => player.name.trim().toLowerCase() === name.toLowerCase(),
+      )
+      if (existing !== undefined) {
+        nextId = existing.id
+      } else {
+        // Publish resolves names through `players`; a name that only exists in
+        // the schedule would be sent raw and rejected as an unknown player.
+        // The slot keeps its id, so the roster entry is renamed in place.
+        updateRosterPlayer(pid, { name })
+        nextId = pid
+      }
+    }
     const newSchedule = result.schedule.map(slot => ({
       ...slot,
-      teamA: slot.teamA.map(id => id === pid ? newNameId : id) as [PlayerId, PlayerId],
-      teamB: slot.teamB.map(id => id === pid ? newNameId : id) as [PlayerId, PlayerId],
+      teamA: slot.teamA.map(id => id === pid ? nextId : id) as [PlayerId, PlayerId],
+      teamB: slot.teamB.map(id => id === pid ? nextId : id) as [PlayerId, PlayerId],
     }))
     updateSchedule(newSchedule)
     if (isSharedView) setSharedResult({ ...result, schedule: newSchedule })

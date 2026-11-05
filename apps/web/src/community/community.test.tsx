@@ -52,8 +52,12 @@ describe('community selection', () => {
     expect(resolveCommunity([acme, beta], 'beta', 'acme')).toEqual(beta)
     expect(resolveCommunity([acme, beta], null, 'beta')).toEqual(beta)
     expect(resolveCommunity([acme, beta], null, null)).toEqual(acme)
-    expect(resolveCommunity([acme, beta], 'ghost', 'beta')).toEqual(beta)
     expect(resolveCommunity([], 'acme', 'beta')).toBeNull()
+  })
+
+  it('never falls back to another membership for an unknown URL slug', () => {
+    expect(resolveCommunity([acme, beta], 'ghost', 'beta')).toBeNull()
+    expect(resolveCommunity([acme, beta], 'ghost', null)).toBeNull()
   })
 
   it('rewrites only the community segment', () => {

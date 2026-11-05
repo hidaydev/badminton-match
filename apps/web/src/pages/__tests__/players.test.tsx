@@ -68,6 +68,37 @@ describe('players', () => {
     expect(screen.queryByRole('button', { name: t('players.add.submit') })).toBeNull()
   })
 
+  it('an admin can page past the first 50 players when picking a merge source', async () => {
+    const roster = Array.from({ length: 50 }, (_, index) => ({
+      ...ani,
+      id: `p${index + 1}`,
+      name: `Player ${index + 1}`,
+    }))
+    const extra = { ...ani, id: 'p51', name: 'Player 51' }
+    const fetchMock = mockFetch({
+      'GET /api/auth/me': () => ({ body: sessionUser }),
+      'GET /api/communities': () => ({ body: { items: [membership('admin')] } }),
+      'GET /api/c/acme/players?limit=50': () => ({ body: { items: roster } }),
+      'GET /api/c/acme/players?cursor=p50&limit=50': () => ({ body: { items: [extra] } }),
+      'GET /api/c/acme/players/p1': () => ({ body: roster[0] }),
+      'GET /api/c/acme/players/p1/claims': () => ({ body: { items: [] } }),
+    })
+
+    renderAt('/c/acme/players/p1')
+
+    expect(await screen.findByRole('option', { name: 'Player 50' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Player 51' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: t('players.loadMore') }))
+
+    expect(await screen.findByRole('option', { name: 'Player 51' })).toBeInTheDocument()
+    expect(
+      fetchMock.mock.calls.some(([url]) =>
+        String(url).includes('/players?cursor=p50&limit=50'),
+      ),
+    ).toBe(true)
+  })
+
   it('a host adds a player with its grade and aliases', async () => {
     const fetchMock = mockFetch({
       'GET /api/auth/me': () => ({ body: sessionUser }),

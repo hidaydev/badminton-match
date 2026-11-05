@@ -174,6 +174,9 @@ export default function PlayerDetailPage() {
                 playerId={player.id}
                 playerName={player.name}
                 candidates={candidates.items ?? []}
+                hasMore={candidates.hasMore}
+                loadingMore={candidates.loadingMore}
+                onLoadMore={candidates.loadMore}
                 busy={busy}
                 onRun={run}
               />
@@ -359,11 +362,24 @@ type MergeProps = {
   playerId: string
   playerName: string
   candidates: { id: string; name: string }[]
+  hasMore: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
   busy: boolean
   onRun: Run
 }
 
-function MergePanel({ slug, playerId, playerName, candidates, busy, onRun }: MergeProps) {
+function MergePanel({
+  slug,
+  playerId,
+  playerName,
+  candidates,
+  hasMore,
+  loadingMore,
+  onLoadMore,
+  busy,
+  onRun,
+}: MergeProps) {
   const [source, setSource] = useState('')
   const others = candidates.filter((candidate) => candidate.id !== playerId)
 
@@ -404,6 +420,16 @@ function MergePanel({ slug, playerId, playerName, candidates, busy, onRun }: Mer
           {t('playerAdmin.merge.submit')}
         </button>
       </div>
+      {hasMore && (
+        <button
+          type="button"
+          disabled={loadingMore}
+          onClick={onLoadMore}
+          className="mt-2 min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+        >
+          {loadingMore ? t('players.loadingMore') : t('players.loadMore')}
+        </button>
+      )}
     </details>
   )
 }
