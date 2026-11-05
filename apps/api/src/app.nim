@@ -2288,10 +2288,14 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
 
 proc outdatedClient(request: Request): bool =
-  ## A bundle built for an older major speaks a contract this server no longer
-  ## serves, so it is told to reload instead of failing one request at a time.
-  ## No header (CLI, probes) and unparsable values pass: only a lower major is
-  ## evidence of an old bundle.
+  ## A bundle built for a different major speaks a contract this server does not
+  ## serve, so it is told to reload instead of failing one request at a time.
+  ## No header (CLI, probes) and unparsable values pass: only a different major
+  ## is evidence of a bundle that must be reloaded.
+  ##
+  ## The newer-than-server case is what a rollback looks like: the image went
+  ## back, the tab is still running the newer bundle, and without this it would
+  ## keep talking to a server that cannot answer it.
   let header = request.headers["X-API-Version"].strip()
   if header.len == 0:
     return false
@@ -2301,7 +2305,7 @@ proc outdatedClient(request: Request): bool =
   let server =
     try: parseInt(appVersion.split('.')[0])
     except ValueError: return false
-  client < server
+  client != server
 
 proc route(request: Request) =
   try:

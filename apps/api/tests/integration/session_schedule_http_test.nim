@@ -420,13 +420,17 @@ suite "session schedule HTTP":
     check reopened == 200
     check events() == "0"
 
-  test "a bundle from an older major is told to reload":
+  test "a bundle from another major is told to reload":
     let path = "/c/sched-club/players"
     let (current, _) = call(HttpGet, path, memberCookie, apiVersion = "2")
     check current == 200
     let (older, olderBody) = call(HttpGet, path, memberCookie, apiVersion = "1")
     check older == 410
     check parseJson(olderBody)["code"].getStr() == "CLIENT_OUTDATED"
+    # After a rollback the tab is newer than the server, and it is just as
+    # unable to talk to it.
+    let (newer, _) = call(HttpGet, path, memberCookie, apiVersion = "3")
+    check newer == 410
     # No header is a CLI or a probe, never an old bundle.
     let (noHeader, _) = call(HttpGet, path, memberCookie)
     check noHeader == 200
