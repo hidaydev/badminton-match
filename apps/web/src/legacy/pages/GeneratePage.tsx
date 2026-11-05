@@ -81,12 +81,17 @@ export default function GeneratePage() {
 
   const { publishToCloud, isSaving } = useDebouncedPublish(cloudSessionId, (msg) => setSaveError(msg))
 
+  // A shared link is a spectator view: the snapshot it decoded is the only
+  // owner of the session, so an edit must never reach the draft store (another
+  // community's draft could be sitting there) nor the publish queue.
   function handleTogglePlayed(key: string) {
+    if (isSharedView) return
     togglePlayedGame(key)
     publishToCloud()
   }
 
   function handleSetScore(key: string, a: number, b: number) {
+    if (isSharedView) return
     setGameScore(key, a, b)
     publishToCloud()
   }
@@ -94,23 +99,32 @@ export default function GeneratePage() {
   function handleSwapPlayers(t1: SwapTarget, t2: SwapTarget) {
     if (!result) return
     const newSchedule = applySwap(result.schedule, t1, t2)
+    if (isSharedView) {
+      setSharedResult({ ...result, schedule: newSchedule })
+      return
+    }
     updateSchedule(newSchedule)
-    if (isSharedView) setSharedResult({ ...result, schedule: newSchedule })
     publishToCloud()
   }
 
   function handleSwapTeams(t1: TeamSwapTarget, t2: TeamSwapTarget) {
     if (!result) return
     const newSchedule = applyTeamSwap(result.schedule, t1, t2)
+    if (isSharedView) {
+      setSharedResult({ ...result, schedule: newSchedule })
+      return
+    }
     updateSchedule(newSchedule)
-    if (isSharedView) setSharedResult({ ...result, schedule: newSchedule })
     publishToCloud()
   }
 
   function handleSwapSlots(g1: SlotSwapTarget, g2: SlotSwapTarget) {
     if (!result) return
+    if (isSharedView) {
+      setSharedResult({ ...result, schedule: applySlotSwap(result.schedule, g1, g2) })
+      return
+    }
     swapSlotsWithScores(g1, g2)
-    if (isSharedView) setSharedResult({ ...result, schedule: applySlotSwap(result.schedule, g1, g2) })
     publishToCloud()
   }
 
@@ -138,12 +152,16 @@ export default function GeneratePage() {
       teamA: slot.teamA.map(id => id === pid ? nextId : id) as [PlayerId, PlayerId],
       teamB: slot.teamB.map(id => id === pid ? nextId : id) as [PlayerId, PlayerId],
     }))
+    if (isSharedView) {
+      setSharedResult({ ...result, schedule: newSchedule })
+      return
+    }
     updateSchedule(newSchedule)
-    if (isSharedView) setSharedResult({ ...result, schedule: newSchedule })
     publishToCloud()
   }
 
   function handleSetAbsent(nextAbsent: string[]) {
+    if (isSharedView) return
     setAbsentPlayers(nextAbsent)
     publishToCloud()
   }
@@ -313,6 +331,7 @@ export default function GeneratePage() {
           gameScores={gameScores}
           onTogglePlayedGame={handleTogglePlayed}
           onSetGameScore={handleSetScore}
+          readOnly={isSharedView}
           onClose={() => setShowSummary(false)}
           title={session.title}
           date={session.date}
