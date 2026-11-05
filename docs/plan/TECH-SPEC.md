@@ -381,7 +381,7 @@ menaikkan plafon; `admin` komunitas tidak.
 | pagination granular 100 | `apps/api/internal/handler/granular.go:35` | `api.page_size_default` |
 | papan peringkat 200 | `apps/api/internal/handler/ratings.go:193` | `rank.board_limit` |
 | band 8-tier (1000–2100+) | `apps/api/internal/domain/rating_config.go:88-92` | `rating.tier_bands` |
-| turnamen tepat 16 pair | `apps/api/internal/domain/tournament.go:61` | `tournament.classic.pair_count` |
+| turnamen tepat 16 pair | `apps/api/internal/domain/tournament.go:61` | konstanta domain (`modules/tournament/domain/classic.nim`), bukan config |
 | window 12 minggu, best 10, base 250 | seed `000018` | sudah config; pindahkan ke registry |
 
 **Penegakan:** `tools/archcheck` memindai literal numerik di `modules/*/domain` dan
@@ -393,7 +393,7 @@ kalau tidak, nilainya akan menjadi konstanta tersembunyi di kode:
 `security.max_body_bytes`, `security.max_json_depth`, `security.read_timeout_ms`,
 `security.join_request_rate`, `security.share_scrape_limit`,
 `ws.max_watchers_per_session`, `ws.max_watchers_per_ip`, `ws.max_watchers_process`,
-`ws.ticket_ttl_seconds`, `ws.session_ttl_minutes`, `session.absolute_days`,
+`ws.ticket_ttl_seconds`, `session.absolute_days`,
 `session.idle_days`, `auth.flow_ttl_minutes`, `janitor.retention_days`,
 `audit.retention_days`.
 Semuanya di-scope `platform`; komunitas hanya boleh menurunkannya bila ada plafon.

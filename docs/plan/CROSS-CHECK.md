@@ -133,7 +133,7 @@ Angka v1 yang wajib pindah, semuanya diverifikasi di kode:
 | pagination granular 100 | `handler/granular.go:35` | `api.page_size_default` |
 | papan 200 | `handler/ratings.go:193` | `rank.board_limit` |
 | band tier 1000–2100+ | `domain/rating_config.go:88-92` | `rating.tier_bands` |
-| tepat 16 pair | `domain/tournament.go:61` | `tournament.classic.pair_count` |
+| tepat 16 pair | `domain/tournament.go:61` | konstanta domain, bukan config |
 
 Konsekuensi desain yang sudah masuk dokumen: tabel `platform.config` +
 `platform.config_version`, registry bertipe, cache dengan invalidasi, tolak-start bila

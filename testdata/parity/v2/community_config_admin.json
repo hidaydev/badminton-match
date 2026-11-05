@@ -174,10 +174,6 @@
           "source": "platform",
           "value": 7
         },
-        "tournament.classic.pair_count": {
-          "source": "platform",
-          "value": 16
-        },
         "ws.max_watchers_per_ip": {
           "source": "platform",
           "value": 20
@@ -189,10 +185,6 @@
         "ws.max_watchers_process": {
           "source": "platform",
           "value": 500
-        },
-        "ws.session_ttl_minutes": {
-          "source": "platform",
-          "value": 60
         },
         "ws.ticket_ttl_seconds": {
           "source": "platform",

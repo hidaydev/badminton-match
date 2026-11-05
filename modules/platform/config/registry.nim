@@ -27,7 +27,6 @@ type
     keyRatingBestN = "rating.best_n"
     keyRatingThinEvidenceN = "rating.thin_evidence_n"
     keyRatingTierBands = "rating.tier_bands"
-    keyTournamentClassicPairCount = "tournament.classic.pair_count"
     keyExportPostWidth = "export.post_width"
     keyExportPostHeight = "export.post_height"
     keyExportStoryWidth = "export.story_width"
@@ -43,7 +42,6 @@ type
     keyWsMaxWatchersPerIp = "ws.max_watchers_per_ip"
     keyWsMaxWatchersProcess = "ws.max_watchers_process"
     keyWsTicketTtlSeconds = "ws.ticket_ttl_seconds"
-    keyWsSessionTtlMinutes = "ws.session_ttl_minutes"
     keySessionAbsoluteDays = "session.absolute_days"
     keySessionIdleDays = "session.idle_days"
     keyAuthFlowTtlMinutes = "auth.flow_ttl_minutes"
@@ -80,7 +78,6 @@ const allKeys* = [
   spec(keyRatingBestN, ctInt, 1, 100, true),
   spec(keyRatingThinEvidenceN, ctInt, 0, 100, true),
   spec(keyRatingTierBands, ctJson),
-  spec(keyTournamentClassicPairCount, ctInt, 2, 256, true),
   spec(keyExportPostWidth, ctInt, 320, 4096, true),
   spec(keyExportPostHeight, ctInt, 320, 4096, true),
   spec(keyExportStoryWidth, ctInt, 320, 4096, true),
@@ -96,7 +93,6 @@ const allKeys* = [
   spec(keyWsMaxWatchersPerIp, ctInt, 1, 100_000, true),
   spec(keyWsMaxWatchersProcess, ctInt, 1, 1_000_000, true),
   spec(keyWsTicketTtlSeconds, ctInt, 5, 3600, true),
-  spec(keyWsSessionTtlMinutes, ctInt, 1, 1440, true),
   spec(keySessionAbsoluteDays, ctInt, 1, 365, true),
   spec(keySessionIdleDays, ctInt, 1, 90, true),
   spec(keyAuthFlowTtlMinutes, ctInt, 1, 60, true),
