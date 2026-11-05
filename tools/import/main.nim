@@ -2,8 +2,10 @@
 ##
 ## Run once at cutover and again if it fails halfway: every row written here has
 ## an entry in `import.row_map`, and a rerun reads that map instead of minting a
-## second set of ids. The target write happens in one transaction; the source is
-## only ever read.
+## second set of ids. Each stage commits on its own, so a stage that fails leaves
+## the stages before it committed and a rerun resumes from the map; the source is
+## only ever read. Once the cutover has completed the target is refused, because
+## a rerun would write v1 names, tiers, statuses and versions over v2.
 ##
 ##   import etl    --source <v1 dsn> --target <v2 dsn> --slug majadu --name Majadu
 ##   import verify --source <v1 dsn> --target <v2 dsn>
@@ -84,6 +86,13 @@ proc configString(db: Db, key: string): Option[string] =
     "select value #>> '{}' as value from platform.config where key = $1",
     @[textParam(key)])
   if row.isSome: some(row.get.get("value")) else: none(string)
+
+proc cutoverCompleted(db: Db): bool =
+  ## True once v2 is the live database. The import is a migration tool, not a
+  ## refresh tool: after this point the v2 rows are the source of truth.
+  let row = db.queryOne(
+    "select completed_at from platform.cutover_state where id")
+  row.isSome and row.get["completed_at"].isSome
 
 proc resolveCommunity(db: Db, slug, name, timezone: string,
                       dryRun: bool): string =
@@ -1228,6 +1237,10 @@ proc verifySnapshots(source, target: Db, communityId: string): seq[string] =
 proc importEtl*(source, target: Db, slug, name, timezone: string,
                 dryRun: bool): tuple[players, aliases, sessions, courts,
                                      participants, games: Result] =
+  if not dryRun and getEnv("MAJADU_IMPORT_ALLOW_POST_CUTOVER") != "1" and
+      cutoverCompleted(target):
+    fail "the cutover has completed; a run would overwrite v2 rows with v1 " &
+      "values. Set MAJADU_IMPORT_ALLOW_POST_CUTOVER=1 if that is intended."
   let communityId = resolveCommunity(target, slug, name, timezone, dryRun)
   let players = importPlayers(source, target, communityId, dryRun)
   let aliases = importAliases(source, target, communityId, dryRun)
