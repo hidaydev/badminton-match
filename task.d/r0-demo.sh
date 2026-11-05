@@ -23,10 +23,26 @@ json() {
 # The demo acts as a browser, and a browser sends Origin on state-changing
 # requests. Putting it in a temp curlrc keeps every call in this file honest
 # without repeating the header, and the deliberate CSRF probe opts out.
-CURL_HOME=$(mktemp -d)
+#
+# Everything the run writes (curlrc, cookie jar, response headers, the two
+# server logs) lives in one private temp dir, so a run never leaves files in
+# /tmp and two runs cannot overwrite each other.
+demo_dir=$(mktemp -d)
+CURL_HOME="$demo_dir/curl"
+mkdir -p "$CURL_HOME"
 export CURL_HOME
 printf 'header = "Origin: http://127.0.0.1:5173"\n' > "$CURL_HOME/.curlrc"
-trap 'rm -rf "$CURL_HOME"' EXIT
+JAR="$demo_dir/cookies.txt"
+HEADERS="$demo_dir/headers"
+
+API_PID=""
+STUB_PID=""
+cleanup() {
+  [ -n "$API_PID" ] && kill "$API_PID" 2>/dev/null || true
+  [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null || true
+  rm -rf "$demo_dir"
+}
+trap cleanup EXIT INT TERM
 
 fail_step() {
   printf 'r0-demo: FAIL %s\n' "$*" >&2
@@ -58,12 +74,12 @@ nim c $CHECK_FLAGS --nimcache:"$NIMCACHE_CHECK" -o:"$bin_dir/oidc-stub" \
   "$REPO_ROOT/tools/oidc-stub/main.nim"
 sh "$REPO_ROOT/task.d/build.sh" >/dev/null
 
-export MAJADU_PG_DSN="postgresql://sachiel@127.0.0.1:5432/$DB"
+export MAJADU_PG_DSN="${MAJADU_DEMO_DSN:-postgresql://$(whoami)@127.0.0.1:5432/$DB}"
 "$bin_dir/dbtools" migrate --dir "$REPO_ROOT/db/migrations" >/dev/null
 "$bin_dir/dbtools" seed --dir "$REPO_ROOT/db/seeds" >/dev/null
 
 OIDC_STUB_PORT=$STUB_PORT OIDC_STUB_ISSUER=http://127.0.0.1:$STUB_PORT \
-  OIDC_STUB_CLIENT_ID=majadu-dev "$bin_dir/oidc-stub" >/tmp/r0-stub.log 2>&1 &
+  OIDC_STUB_CLIENT_ID=majadu-dev "$bin_dir/oidc-stub" >"$demo_dir/stub.log" 2>&1 &
 STUB_PID=$!
 
 export MAJADU_PORT=$PORT
@@ -77,17 +93,10 @@ export OIDC_ISSUER=http://127.0.0.1:$STUB_PORT
 export OIDC_CLIENT_ID=majadu-dev
 export OIDC_REDIRECT_URI=http://127.0.0.1:$PORT/auth/callback
 export MAJADU_BOOTSTRAP_OWNER_EMAIL=$OWNER_EMAIL
-export MAJADU_DEFAULT_TIMEZONE=Asia/Jakarta
 
-"$bin_dir/majadu-api" >/tmp/r0-api.log 2>&1 &
+"$bin_dir/majadu-api" >"$demo_dir/api.log" 2>&1 &
 API_PID=$!
-JAR=/tmp/r0-demo-cookies.txt
-rm -f "$JAR"
 
-cleanup() {
-  kill "$API_PID" "$STUB_PID" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
 sleep 1
 
 base="http://127.0.0.1:$PORT"
@@ -124,9 +133,9 @@ csrf=$(curl -q -s -o /dev/null -w '%{http_code}' -b "$JAR" -X POST \
   -d '{"slug":"csrf","name":"CSRF"}' "$base/communities")
 [ "$csrf" = "403" ] || fail_step "foreign origin should be 403, got $csrf"
 
-curl -s -D /tmp/r0-headers -o /dev/null "$base/healthz"
-grep -qi '^X-Content-Type-Options: nosniff' /tmp/r0-headers || fail_step "security headers"
-grep -qi '^Content-Security-Policy:' /tmp/r0-headers || fail_step "CSP header"
+curl -s -D "$HEADERS" -o /dev/null "$base/healthz"
+grep -qi '^X-Content-Type-Options: nosniff' "$HEADERS" || fail_step "security headers"
+grep -qi '^Content-Security-Policy:' "$HEADERS" || fail_step "CSP header"
 
 duplicate=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -X POST \
   -H 'Content-Type: application/json' \

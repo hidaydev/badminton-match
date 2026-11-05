@@ -135,7 +135,7 @@ Semua perintah dijalankan dari SSH ke VPS sebagai pemilik app, dari
    | `stop-v1` | `systemctl --user stop` + `disable` | unit v1 `inactive (dead)` dan `disabled` |
    | `snapshot` | `backup.sh --tag cutover`, sha256 dicatat | `backups/bm-cutover-*.dump` |
    | `restore-staging` | dump → `bm_staging` | `restore: done` |
-   | `prepare-bm2` | roles, migrasi, seed, `ownerseed` | `dbtools: migrated 16 file(s)` |
+   | `prepare-bm2` | roles, migrasi, seed, `ownerseed` | `dbtools: migrated 23 file(s)` |
    | `import` | ETL + `verify` | `problems: 0` |
    | `state` | isi `cutover_state`, tukar env ke `.v2` | `env now points at v2` |
    | `start` | `:release` → `:local`, enable + start v2 | unit `active (running)` |
@@ -148,14 +148,22 @@ Semua perintah dijalankan dari SSH ke VPS sebagai pemilik app, dari
    - `curl -fsS https://api.qouver.com/readyz` → 200.
    - `curl -fsS https://api.qouver.com/version` → versi yang baru.
    - Login Google sebagai `platform_owner`, buka satu sesi, satu papan peringkat.
-   - Satu share link baru bisa dibuka tanpa login. Tautan v1 `/s/{sessionId}`
-     tetap resolve selama sesi itu masih punya link hidup (lihat §7).
+   - Satu share link **baru** (`/s/{kode}`) bisa dibuka tanpa login. Tautan v1
+     yang sudah tersebar (`/s/{sessionId}`) tetap resolve selama sesi itu masih
+     punya link hidup: `modules/share/store.nim:102-110` menerima UUID sebagai
+     pengganti kode. Tautan itu ikut mati bila link-nya dicabut; konsekuensi
+     rollback ada di §7.
    - Aktifkan timer **setelah** `MAJADU_PG_DSN` menunjuk `bm2`, satu per satu:
      `systemctl --user enable --now majadu-snapshot.timer majadu-ingest.timer
-     majadu-janitor.timer`, lalu `systemctl --user list-timers` harus
-     menampilkan keempatnya. `majadu-audit-retention.timer` membaca
-     `MAJADU_AUDIT_DSN` dari env file dan berjalan bulanan; `majadu-ingest.timer`
-     merating sesi yang di-approve tiap 30 menit.
+     majadu-janitor.timer majadu-readyz.timer majadu-rotate-log.timer`, lalu
+     `systemctl --user list-timers` harus menampilkan keenamnya. Deploy hanya
+     memasang berkas unit, tidak pernah meng-enable timer.
+     `majadu-audit-retention.timer` membaca `MAJADU_AUDIT_DSN` dari env file dan
+     berjalan bulanan; `majadu-ingest.timer` merating sesi yang di-approve tiap
+     30 menit; `majadu-readyz.timer` menembak `/readyz` tiap 5 menit dan
+     `majadu-rotate-log.timer` merotasi log tiap jam. Keduanya hanya bergantung
+     pada host (bukan skema), tetapi `majadu-readyz` sengaja baru diaktifkan di
+     sini: sebelum cutover port 8080 milik v1.
    - `psql "$OWNER_DSN" -c "select * from platform.cutover_state"` → satu baris,
      `completed_at` terisi, `rows_imported` cocok dengan hitungan `bm_staging`.
 

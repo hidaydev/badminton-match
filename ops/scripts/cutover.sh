@@ -67,6 +67,17 @@ log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
 }
 
+# The same sink deploy-vps.sh uses, so a cutover that stops halfway pages
+# someone instead of waiting for the operator to notice. Silent when the
+# template is not installed (a dev box or a rehearsal host without it) and it
+# never blocks the failure path.
+alert() {
+  local unit="${MAJADU_ALERT_UNIT:-$(basename "$0" .sh)}"
+  if $SYSTEMCTL list-unit-files 'majadu-alert@.service' >/dev/null 2>&1; then
+    $SYSTEMCTL start "majadu-alert@$unit.service" >/dev/null 2>&1 || true
+  fi
+}
+
 fail() {
   log "ERROR: $1 (step: $STEP)"
   printf '{"step":"%s","state":"failed","at":"%s"}\n' "$STEP" \
@@ -74,6 +85,7 @@ fail() {
   log "last step: $STEP"
   log "resume with: $0 --version v$VERSION --from $STEP"
   log "or return to v1 with: $APP_DIR/scripts/rollback.sh"
+  alert
   exit 1
 }
 trap 'fail "command failed at line $LINENO"' ERR

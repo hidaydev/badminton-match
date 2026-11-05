@@ -4,8 +4,8 @@ Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk dat
 dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
 dump VPS atau skema v1.
 
-- Migrasi: `db/migrations/0001_core.sql` … `0022_rank_streak_ladder.sql` (22 file;
-  `0022` adalah yang terakhir).
+- Migrasi: `db/migrations/0001_core.sql` … `0023_rating_source_once.sql` (23 file;
+  `0023` adalah yang terakhir).
 - Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
   `dbtools.seed_files` (checksum per file).
@@ -195,7 +195,7 @@ Jangan membawa nama dari dokumen v1 ke sini:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0022` |
+| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0023` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.deltas`, `rating.player_state` |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |

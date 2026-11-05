@@ -28,8 +28,20 @@ revoke connect on database :"db" from public;
 grant connect on database :"db" to bm2_app, bm2_etl;
 
 alter schema public owner to bm2_owner;
-grant usage, create on schema public to bm2_app;
+-- The application role reads and writes rows, never DDL: 0001_core.sql says
+-- "the owner runs migrations; the app never gets DDL". CREATE on `public` would
+-- let bm2_app create objects (and therefore bypass the owner's schema grants),
+-- so it is revoked explicitly for hosts that ran an older copy of this file.
+revoke create on schema public from bm2_app;
+grant usage on schema public to bm2_app;
 grant usage on schema public to bm2_etl;
+
+do $$
+begin
+  if has_schema_privilege('bm2_app', 'public', 'CREATE') then
+    raise exception 'bm2_app can still create objects in schema public';
+  end if;
+end $$;
 
 -- The archive may not exist on a fresh machine, so the revokes are generated
 -- only when it does.

@@ -1,0 +1,16 @@
+# One log rotation, started by majadu-rotate-log.timer.
+#
+# The deploy log records request paths and a share link is a request path, so
+# the rotation is a unit instead of a line in someone's crontab: it either runs
+# on schedule or shows up as a failed unit (and therefore an alert).
+#
+# No database and no image: this is the operator script from
+# /srv/qouver/apps/majadu/scripts/, which deploy-vps.sh keeps in sync with the
+# repository.
+[Unit]
+Description=Majadu log rotation
+OnFailure=majadu-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /srv/qouver/apps/majadu/scripts/rotate-log.sh

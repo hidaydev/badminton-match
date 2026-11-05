@@ -73,9 +73,13 @@ dump_one() {
   if [ -z "$TAG" ]; then
     local keep="$KEEP_DAYS"
     [ "$legacy" = "1" ] && keep="$KEEP_BM_DAYS"
-    find "$BACKUP_DIR" -maxdepth 1 -name "$name-*.dump" \
-      -not -name "*-$TAG-*" -type f -mtime "+$keep" -print -delete \
-      | while read -r old; do log "removed $old (older than $keep days)"; done
+    # Only the timestamped names (`<db>-YYYYmmdd-HHMMSS.dump`) rotate. A dump
+    # made with `--tag` carries an extra segment and is evidence an operator
+    # asked to keep, so it is never pruned -- matching on the timestamp instead
+    # of excluding "*-$TAG-*" (empty here, i.e. `*--*`) is what makes that true.
+    find "$BACKUP_DIR" -maxdepth 1 -type f -mtime "+$keep" \
+      -name "$name-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9].dump" \
+      -print -delete | while read -r old; do log "removed $old (older than $keep days)"; done
   fi
 }
 

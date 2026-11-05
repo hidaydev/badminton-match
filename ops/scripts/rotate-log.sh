@@ -4,7 +4,7 @@
 # Why this exists at all: the deploy log records request paths, and a share link
 # is a request path. Logs stay 0600 and never reach a world-readable directory.
 #
-#   /srv/qouver/apps/majadu/scripts/rotate-log.sh        # by cron, hourly
+#   /srv/qouver/apps/majadu/scripts/rotate-log.sh        # by majadu-rotate-log.timer, hourly
 #   KEEP_DAYS=30 rotate-log.sh                           # longer history
 set -euo pipefail
 

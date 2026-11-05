@@ -73,7 +73,7 @@ turnamen, tautan, dan poin milik tepat satu komunitas.
 | AUTH-01 | M | Login hanya lewat Google OIDC (Authorization Code + PKCE) | Login berhasil dengan akun Google; `state`/`nonce` salah ditolak 400 tanpa membuat sesi |
 | AUTH-02 | M | Tidak ada token di JavaScript | Cookie sesi `HttpOnly`; tidak ada access token di localStorage/sessionStorage |
 | AUTH-03 | M | Peran per komunitas: `admin`, `host`, `member`; `platform_owner` global dengan bypass teraudit | Matriks route×role×komunitas diuji; belum login → 401, peran kurang → 403, beda komunitas → 404 |
-| AUTH-04 | M | Sesi absolut 30 hari, idle 14 hari, bisa dicabut (logout) atau dicabut semuanya | Sesi dicabut langsung 401; `DELETE /auth/sessions` mencabut semua sesi lain dan menutup socket-nya |
+| AUTH-04 | M | Sesi absolut 30 hari, idle 7 hari (`session.idle_days`), bisa dicabut (logout) atau dicabut semuanya | Sesi dicabut langsung 401; `DELETE /auth/sessions` mencabut semua sesi lain dan menutup socket-nya |
 | AUTH-05 | M | Perubahan role tercatat di audit log | Setiap perubahan role punya baris aktor, target, waktu; kolom alasan wajib diisi pada form, bukan opsional |
 | AUTH-06 | S | CLI ops memakai bearer token terpisah dari sesi web | Token CLI tidak berlaku di route web |
 | AUTH-07 | M | CSRF: perubahan state hanya dari origin yang diizinkan | `Origin` di luar `security.allowed_origins` → 403; cookie first-party `SameSite=Lax` lewat proxy |

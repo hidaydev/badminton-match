@@ -47,7 +47,24 @@ log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$LOG"
 }
 
+# Same sink as deploy-vps.sh and cutover.sh: a rollback that fails leaves the
+# site in maintenance, which must page someone. No-op when the alert template
+# is not installed.
+alert() {
+  local unit="${MAJADU_ALERT_UNIT:-$(basename "$0" .sh)}"
+  if $SYSTEMCTL list-unit-files 'majadu-alert@.service' >/dev/null 2>&1; then
+    $SYSTEMCTL start "majadu-alert@$unit.service" >/dev/null 2>&1 || true
+  fi
+}
+
 fail() {
+  log "ERROR: $1"
+  alert
+  exit 1
+}
+
+# A mistyped flag is not an incident: log it and exit without paging.
+usage_fail() {
   log "ERROR: $1"
   exit 1
 }
@@ -56,7 +73,7 @@ for arg in "$@"; do
   case "$arg" in
     --drop-bm2) DROP_BM2=1 ;;
     --abandon-data) ABANDON_DATA=1 ;;
-    *) fail "unknown argument: $arg" ;;
+    *) usage_fail "unknown argument: $arg" ;;
   esac
 done
 

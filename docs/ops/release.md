@@ -62,7 +62,10 @@ Setelah gate cutover (`MAJADU_PG_DSN` menunjuk `bm2`) dan cek versi, urutannya:
 5. Sinkron unit systemd dan skrip operator dari repo.
 6. Restart unit, tunggu `/readyz` (60 detik). Gagal → `:prev` dijadikan `:local`
    dan di-restart.
-7. Pastikan container benar-benar memakai image `:local`, lalu tulis
+7. Jalankan `scripts/smoke.sh <health_url> <versi>`, yang mengunci `/version` ke
+   versi yang baru ditarik. Gagal → rilis tidak dicatat, jadi push berikutnya
+   mengulang versi yang sama.
+8. Pastikan container benar-benar memakai image `:local`, lalu tulis
    `deploy/deployed-version` dan `deploy/last-release.json`
    (`version`, `commit`, `digest`, `schema`, `at`).
 
@@ -76,9 +79,10 @@ Rilis belum selesai sampai keenamnya benar:
    `podman image inspect --format '{{.Id}}' localhost/majadu-api:local`
    (deploy sudah memeriksa pasangan terakhir ini di langkah `verify-image`).
 2. **Versi cocok.** `curl -fsS http://127.0.0.1:8080/version` melaporkan versi
-   yang dirilis. Field `commit` **belum bisa dipakai** sebagai bukti: nilainya
-   `"none"` selama image tidak dibangun dengan `-d:appCommit=…`, dan Dockerfile
-   hari ini tidak mengirimkannya (`apps/api/src/app.nim:50-51`). Pakai digest.
+   **dan** commit yang dirilis (`-d:appVersion`/`-d:appCommit` dari
+   `apps/api/Dockerfile`, `--build-arg` dari `release.yml`). Deploy sendiri
+   sudah menjalankan `smoke.sh` yang memeriksa versinya; periksa manual hanya
+   bila gate itu dilewati.
 3. **24 jam tanpa restart loop.**
    `systemctl --user show majadu-api -p NRestarts` tetap 0 dan journal tidak
    memuat `StartLimit`/`Scheduled restart`.
@@ -88,8 +92,9 @@ Rilis belum selesai sampai keenamnya benar:
 5. **Smoke produksi lulus.**
    `ops/scripts/smoke.sh http://127.0.0.1:8080 <versi>` — `/version`,
    `/healthz`, `/readyz`, `/metrics` 404, share code asing 404, `/auth/me` 401.
-   Deploy **tidak** memanggil skrip ini; yang menjalankannya operator setelah
-   deploy (celah yang tercatat di audit OPS-08).
+   Deploy menjalankannya sendiri setelah `/readyz` hijau (langkah 7 §3); bila
+   gate itu gagal, `deploy/deployed-version` tidak ditulis dan rilis dicoba lagi
+   pada push berikutnya.
 6. **`:v1-final` punya tanggal hapus dan digest yang diarsipkan.** Tag itu tidak
    pernah dihapus oleh deploy (`podman image prune -f` hanya membuang image tanpa
    tag); hapus manual setelah tanggal itu, dengan digest tercatat di catatan
@@ -147,7 +152,5 @@ readiness, bukan diam-diam menulis data salah.
   dengan `bash -n`, pembacaan kode, dan uji rehearsal T-063 — bukan produksi.
 - `dbtools migrate` di dalam container memakai jaringan `qouver` dan role
   `bm2_owner`; kombinasi itu belum pernah dijalankan di VPS.
-- `/version` belum mengikat commit (butuh `ARG appCommit` di
-  `apps/api/Dockerfile` dan `--build-arg` di `release.yml`).
 - Dua antrean rilis serentak belum diuji; `flock` menahan yang kedua sampai 900
   detik lalu menyerah.

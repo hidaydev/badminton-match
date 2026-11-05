@@ -20,6 +20,9 @@
 # A failure there leaves the running release and the tags untouched. Migrations
 # must therefore stay expand/contract: `:prev` has to keep serving on the new
 # schema, because that is what the readiness rollback starts.
+#
+# After readiness, `scripts/smoke.sh` asserts that `/version` reports the release
+# that was just pulled, not just that a process is up.
 set -euo pipefail
 
 REPO_NAME="${1:-badminton-match}"
@@ -276,8 +279,11 @@ podman tag "$REGISTRY_IMAGE@$DIGEST" "$LOCAL_IMAGE:local"
 # Units come from the repository, not from whatever was left on the VPS.
 # ---------------------------------------------------------------------------
 STEP="sync-units"
-# Quadlet reads .container files; the alert template is a plain user service.
-for kind in container service; do
+# Quadlet reads .container files; services and timers are plain user units.
+# Timers are installed but never enabled here: enabling is the operator's step
+# in docs/ops/cutover.md, so a deploy cannot start a timer the runbook has not
+# cleared yet.
+for kind in container service timer; do
   if [ "$kind" = "container" ]; then
     UNIT_DEST="$HOME/.config/containers/systemd"
   else
@@ -355,6 +361,15 @@ if ! wait_ready; then
     log "ERROR: no :prev image to roll back to"
   fi
   fail "readiness gate failed for v$VERSION"
+fi
+
+STEP="smoke"
+# `/readyz` only proves the process is willing to serve. The smoke test proves
+# the thing that was released is the thing answering: `/version` must report
+# $VERSION, because a stale container that passed readiness would otherwise be
+# recorded as this release.
+if ! "$SCRIPTS_DIR/smoke.sh" "$HEALTH_URL" "$VERSION" >>"$LOG" 2>&1; then
+  fail "smoke test failed for v$VERSION; see $LOG (the release is not recorded, so the next push retries it)"
 fi
 
 STEP="verify-image"

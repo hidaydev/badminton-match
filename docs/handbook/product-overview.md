@@ -121,7 +121,8 @@ Admin bisa finalize source, ingest, revert rating, dan menghapus turnamen.
 Perubahan sesi disiarkan lewat WebSocket dengan ticket sekali pakai. Frame
 `session.changed` hanya menandai bahwa state berubah (membawa `seq`), bukan mengirim
 delta; klien harus membaca ulang sesi. Tidak ada SSE dan tidak ada replay event.
-Frontend belum memakai WebSocket: halaman sesi memuat state saat dibuka.
+Frontend memakai WebSocket di layar share (`useSessionRealtime`); layar sesi
+editor masih memuat ulang state tiap 5 detik.
 
 ## Arsitektur ringkas
 

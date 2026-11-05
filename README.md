@@ -58,7 +58,7 @@ majadu/
 ├── packages/
 │   ├── contracts/openapi/   core.yaml + community.yaml → api.yaml + client
 │   └── web-client/          Generated TypeScript client
-├── db/                      migrations (0001–0022), seeds, platform config
+├── db/                      migrations (0001–0023), seeds, platform config
 ├── ops/                     Quadlet, Caddy, deploy/cutover/backup/restore/smoke
 ├── tools/                   dbtools, contract-gen, archcheck, ETL, parity,
 │                            fixtures, mock-api, rehearsal

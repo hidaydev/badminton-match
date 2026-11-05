@@ -25,11 +25,14 @@ Catatan:
 
 - Nomor **`000001`–`000012` tidak ada di repo ini** — disimpan di VPS dan tidak dipublikasikan.
   `000012` adalah `merge_players`; granular live ada di `000013`.
-- File di folder ini adalah sumber kebenaran untuk migrasi `000013`+; deskripsi skema lengkapnya
-  ada di [`../handbook/data-model.md`](../handbook/data-model.md).
-- Apply manual via `psql` ke schema `bm`. Tidak ada instance dev terpisah — `bm` adalah satu-satunya DB.
+- Folder ini **arsip**, bukan sumber kebenaran. Skema v2 hanya ada di
+  [`../../db/migrations`](../../db/migrations); deskripsi lengkapnya di
+  [`../handbook/data-model.md`](../handbook/data-model.md).
+- Isinya memakai role v1 (`majadu_app`) yang tidak ada di v2. **Jangan apply apa pun dari
+  folder ini**, baik ke `bm` maupun `bm2`: `bm` sudah dibekukan sebagai arsip read-only, dan
+  `bm2` dimigrasi oleh `dbtools` dari `db/migrations`.
 
-## Peringatan operasional
+## Peringatan operasional (sejarah v1, tidak berlaku untuk v2)
 
 **000020 memerlukan deploy kode bersamaan.** Setelah dijalankan, API versi
 lama akan gagal (masih membaca/menulis kolom yang di-drop). Jalankan migration

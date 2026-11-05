@@ -64,6 +64,8 @@ Aturan pengisian:
 | Kapan | Apa | Perintah |
 |---|---|---|
 | Setiap deploy | Kesehatan proses; migrasi dijalankan `deploy-vps.sh` sebelum restart | `curl -fsS http://127.0.0.1:8080/readyz` |
+| Tiap 5 menit | `/readyz` dijaga `majadu-readyz.timer`; kegagalan memicu `majadu-alert@` | `systemctl --user list-timers majadu-readyz.timer` |
+| Tiap jam | Log dirotasi `majadu-rotate-log.timer` (rename + hapus >14 hari) | `ls -l /srv/qouver/apps/majadu/logs` |
 | Harian | Log deploy membesar tanpa rotasi | `ls -l /srv/qouver/apps/majadu/logs` |
 | Bulanan | Migrasi dan seed masih cocok dengan skema | `./task ci` di mesin dev dengan `MAJADU_PG_DSN` |
 | Tahunan | Daftar akses di atas masih akurat | tinjau manual, cabut yang tidak dipakai |
@@ -87,11 +89,12 @@ tidak ada:
 - `ops/scripts/{cutover,rollback,backup,restore,smoke}.sh` sudah ada di repo,
   tetapi belum pernah dijalankan di VPS sungguhan. Rehearsal D-3 (T-063) yang
   membuktikannya; sebelum itu jangan menganggap jalur rollback teruji.
-- Alert otomatis ada di level unit: `OnFailure=majadu-alert@%n.service` dan
-  `deploy-vps.sh` memanggil template yang sama saat deploy gagal. Tanpa
-  `/srv/qouver/apps/majadu/env/alert.env` (mode 600) pesannya hanya masuk
-  journal, tidak dikirim ke luar mesin.
-- `readyz` tetap probe, bukan pemberitahu: yang membacanya operator atau cron
-  pemeriksa, bukan dashboard.
-- Metrik internal (T-062) belum diekspos; `/ops/ping` hanya membuktikan token
-  CLI hidup.
+- Alert otomatis ada di level unit: `OnFailure=majadu-alert@%n.service` pada
+  setiap unit, dan `deploy-vps.sh`, `cutover.sh`, serta `rollback.sh` memanggil
+  template yang sama saat gagal. Tanpa `/srv/qouver/apps/majadu/env/alert.env`
+  (mode 600) pesannya hanya masuk journal, tidak dikirim ke luar mesin.
+  Retensi journal dan pengiriman journal ke luar host belum dikonfigurasi; itu
+  langkah VPS, bukan berkas di repo ini.
+- `readyz` dulu hanya probe; sekarang `majadu-readyz.timer` menembaknya tiap 5
+  menit dan kegagalan menjadi alert. Metrik internal (T-062) tetap belum
+  diekspos — `/ops/ping` hanya membuktikan token CLI hidup.

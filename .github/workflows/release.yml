@@ -30,6 +30,22 @@ jobs:
     name: "Release: verify tag"
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The gate is `./task ci`, not `./task check`: a release must also pass the
+    # integration suites and the contract fingerprint, and those need a
+    # database. The same service and provisioning steps as `ci.yml`. The
+    # 15-minute cap is the repository's contract; a tag that cannot finish
+    # inside it fails closed (the image is never built, `main` is not pushed).
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -84,8 +100,24 @@ jobs:
           fi
       - name: "Release: install pinned deps"
         run: ./task deps-install
+      - name: "Release: database"
+        env:
+          MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
+        run: ./task dev-db
+      # `dev-db` creates empty databases; the integration suites assume the
+      # schema and the reference rows exist.
+      - name: "Release: migrate and seed"
+        env:
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_dev
+        run: |
+          mkdir -p .cache/ci
+          nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
+          .cache/ci/dbtools migrate --dir db/migrations
+          .cache/ci/dbtools seed --dir db/seeds
       - name: "Release: gate"
-        run: ./task check
+        env:
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_dev
+        run: ./task ci
 
   image:
     name: "Release: image"

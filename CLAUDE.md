@@ -26,8 +26,11 @@ Web scripts proxy to `apps/web`: `pnpm dev`, `pnpm build:web`, `pnpm check:web`.
 Mobile-first React 19 PWA (`apps/web`) over a Nim 2.4 API (`apps/api`), one
 PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 
-- **Modules** (`modules/<domain>/{domain,application,infrastructure}`) hold
-  business rules and SQL. They must not import HTTP, React, or `apps/*`.
+- **Modules** (`modules/<domain>/`) hold business rules and SQL. `domain/` is pure
+  logic and `infrastructure/` holds the SQL stores where a module has more than
+  one (`account`, `achievement`, `community`, `rating`); `player`, `session`,
+  `share`, and `tournament` keep their stores at the module root, and
+  `platform` keeps `config/`. Modules must not import HTTP, React, or `apps/*`.
 - **`apps/api/src`** is delivery only: routing, auth middleware, community
   context, WebSocket hub. Routes are generated from the OpenAPI contract.
 - **`shared/platform-lib`** holds the DB binder, clock, logger, metrics, uuidv7,
@@ -62,9 +65,8 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 | `modules/community` | Slug, membership, invites, join requests, settings |
 | `modules/account` | Users, roles, sessions, audit, lifecycle |
 | `modules/share` | Sealed share codes and link reads |
-| `apps/web/src/pages` | One component per route; routes live in `routes.manifest.ts` |
-| `apps/web/src/sessions` | Session hooks and the host/admin control panel |
-| `apps/web/src/tournament` | Draw, scoring, export, admin rating tools |
+| `apps/web/src/pages` | v2-native screens (login, players, settings, setup, shared session) |
+| `apps/web/src/legacy` | The v1 screens kept in use: session pages and host panel, tournaments, rankings, share view, plus their queries and store |
 
 ## Testing
 
@@ -76,8 +78,9 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 
 ## Known limits
 
-- The web client does not consume the WebSocket yet; session pages reload on
-  change. Realtime is in-memory, so the API must stay a single instance.
+- The shared session view consumes the WebSocket (`useSessionRealtime`); the
+  session editor still refetches every 5 s. Realtime is in-memory, so the API
+  must stay a single instance.
 - There is no schedule generator; the contract accepts a schedule authored by the
   client.
 - Cutover rehearsal and VPS-side checks are prepared but not executed; see

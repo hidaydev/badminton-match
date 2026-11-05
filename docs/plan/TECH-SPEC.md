@@ -592,7 +592,7 @@ client → server: {"type":"ping"} | {"type":"subscribe","lastSeq":N}
   cookie hanya `flow_id` (`__Host-bm_oauth`, 10 menit).
 - ID token: `iss`/`aud`/`azp`/`exp`/`nonce`/`email_verified`, `sub` = kunci akun.
 - Sesi: cookie opaque 32 byte, hash-only di DB, `__Host-`, `HttpOnly`, `Secure`,
-  `SameSite=Lax`; absolut 30 hari, idle 14 hari; revoke satu transaksi dengan
+  `SameSite=Lax`; absolut 30 hari, idle 7 hari (`session.idle_days`); revoke satu transaksi dengan
   perubahan role; `GET /auth/sessions` menampilkan sesi aktif (perangkat, IP
   terakhir, waktu), `DELETE /auth/sessions` mencabut semua sesi lain sekaligus.
 - **Tanpa step-up** (O-37). Aksi sensitif (tampilkan tautan, ubah peran, merge,

@@ -1,0 +1,13 @@
+# Probes /readyz every five minutes and alerts through majadu-alert@ on failure.
+#
+# Enabled by the operator after the cutover: before it, port 8080 belongs to v1
+# and the expected answer is not this unit's business. See docs/ops/cutover.md.
+[Unit]
+Description=Probe Majadu readiness every five minutes
+
+[Timer]
+OnCalendar=*:0/5
+RandomizedDelaySec=30s
+
+[Install]
+WantedBy=timers.target

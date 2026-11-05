@@ -247,6 +247,9 @@ CUTOVER_ENV=(
   "MAJADU_BM2_DB=$BM2_DB"
   "MAJADU_CUTOVER_V1_DSN=postgresql:///$V1_DB"
   "MAJADU_OWNER_SUB=${MAJADU_OWNER_SUB:-rehearsal-owner}"
+  # A failed rehearsal still pages someone, but the alert must not read as a
+  # failed production cutover (cutover.sh defaults the unit to its own name).
+  "MAJADU_ALERT_UNIT=rehearsal"
 )
 
 if [ "$DRY_RUN" -eq 1 ]; then

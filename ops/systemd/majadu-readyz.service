@@ -1,0 +1,19 @@
+# Readiness probe, started by majadu-readyz.timer.
+#
+# There is no internal metrics endpoint yet (see docs/ops/operations.md), so the
+# only thing that notices a stuck API between deploys is something that asks it.
+# curl exits non-zero on a 503 or a connection failure, which makes this a unit
+# failure, which makes OnFailure fire majadu-alert@.
+#
+# A deliberate stop (cutover, rollback, maintenance) also fails this probe: that
+# is the intended signal, not noise to be filtered out.
+[Unit]
+Description=Majadu readiness probe
+Wants=network-online.target
+After=network-online.target majadu-api.service
+OnFailure=majadu-alert@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl --fail --silent --show-error --max-time 10 \
+  http://127.0.0.1:8080/readyz
