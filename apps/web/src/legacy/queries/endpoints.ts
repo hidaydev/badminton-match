@@ -261,6 +261,11 @@ function toPlayerSummary(player: V2Player): PlayerSummary {
 
 // ── Session mapping ───────────────────────────────────────────────────────
 
+// Last ETag seen per `community:session`, so a poll can ask "still the same?"
+// instead of downloading the snapshot again. Kept per community because the
+// same id under another community is a different resource.
+const sessionEtags = new Map<string, string>()
+
 type V2Game = {
   round: number
   court: number
@@ -372,18 +377,42 @@ function toCloudSnapshot(detail: V2SessionDetail): CloudSnapshot {
   }
 }
 
-async function fetchSessionDetail(id: string, signal?: AbortSignal): Promise<V2SessionDetail | null> {
+const NOT_MODIFIED = Symbol('not-modified')
+
+// `etag` is only sent by the polling read. Every other caller wants the body, so
+// asking "still the same?" there would only turn a 200 into a rejected promise.
+async function readSessionDetail(
+  id: string,
+  signal: AbortSignal | undefined,
+  etag: string | undefined,
+): Promise<V2SessionDetail | null | typeof NOT_MODIFIED> {
+  const key = `${activeCommunitySlug()}:${id}`
   try {
-    return await request<V2SessionDetail>(
+    const result = (await request<V2SessionDetail>(
       'GET',
       communityPath(`/sessions/${enc(id)}`),
       undefined,
       signal,
-    )
+      etag ? { 'If-None-Match': etag } : undefined,
+      true,
+    )) as { data: V2SessionDetail; headers: Headers }
+    const next = result.headers.get('ETag')
+    if (next) sessionEtags.set(key, next)
+    return result.data
   } catch (error) {
+    if (error instanceof ApiError && error.status === 304) return NOT_MODIFIED
     if (isNotFound(error)) return null
     throw error
   }
+}
+
+async function fetchSessionDetail(id: string, signal?: AbortSignal): Promise<V2SessionDetail | null> {
+  const detail = await readSessionDetail(id, signal, undefined)
+  if (detail === null) return null
+  if (detail === NOT_MODIFIED) {
+    throw new ApiError('unexpected 304 from a read without If-None-Match', 'NOT_MODIFIED', 304)
+  }
+  return detail
 }
 
 async function sessionSnapshot(id: string): Promise<CloudSnapshot> {
@@ -394,10 +423,20 @@ async function sessionSnapshot(id: string): Promise<CloudSnapshot> {
 
 // ── Sessions ──────────────────────────────────────────────────────────────
 
-export async function getSession(id: string, signal?: AbortSignal): Promise<CloudSnapshot | null> {
+export async function getSession(
+  id: string,
+  signal?: AbortSignal,
+  previous?: () => CloudSnapshot | null | undefined,
+): Promise<CloudSnapshot | null> {
   // The player table is only needed to join gender/tier onto the snapshot, so
   // it is read alongside the session instead of before it.
-  const detailPromise = fetchSessionDetail(id, signal)
+  // Polling re-reads the same session every few seconds; the API answers 304
+  // when nothing changed, and the cached snapshot is kept.
+  const detailPromise = readSessionDetail(
+    id,
+    signal,
+    previous === undefined ? undefined : sessionEtags.get(`${activeCommunitySlug()}:${id}`),
+  )
   if (cachedPlayers() === null) {
     try {
       await listPlayers(signal)
@@ -407,6 +446,15 @@ export async function getSession(id: string, signal?: AbortSignal): Promise<Clou
     }
   }
   const detail = await detailPromise
+  if (detail === NOT_MODIFIED) {
+    // The cached snapshot is still current. A 304 without a cached value would
+    // be a stale ETag with nothing to show, so that one read goes unconditioned.
+    const cached = previous?.()
+    if (cached != null) return cached
+    const fresh = await fetchSessionDetail(id, signal)
+    if (fresh === null) return null
+    return toCloudSnapshot(fresh)
+  }
   if (detail === null) return null
   return toCloudSnapshot(detail)
 }

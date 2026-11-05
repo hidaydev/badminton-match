@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 
-export type Reply = { status?: number; body?: unknown }
+export type Reply = { status?: number; body?: unknown; headers?: Record<string, string> }
 export type Handler = (init: RequestInit | undefined) => Reply
 
 /**
@@ -13,10 +13,11 @@ export function mockFetch(handlers: Record<string, Handler>) {
     const key = `${init?.method ?? 'GET'} ${url}`
     const handler = handlers[key]
     if (!handler) throw new Error(`unexpected request: ${key}`)
-    const { status = 200, body } = handler(init)
+    const { status = 200, body, headers } = handler(init)
     return {
-      ok: status < 400,
+      ok: status >= 200 && status < 300,
       status,
+      headers: new Headers(headers),
       json: async () => body ?? {},
     } as Response
   })

@@ -180,9 +180,17 @@ export function useGetSession(
   sessionId: string | undefined,
   options?: { refetchInterval?: number | false; refetchOnWindowFocus?: boolean },
 ) {
+  const queryClient = useQueryClient()
+  const queryKey = communityQueryKey('session', sessionId)
   return useQuery<CloudSnapshot | null>({
-    queryKey: communityQueryKey('session', sessionId),
-    queryFn: ({ signal }) => getSession(sessionId!, signal),
+    queryKey,
+    // The poll asks the API "still version N?" and keeps the cached snapshot on
+    // a 304, so a five-second interval does not re-download and re-render the
+    // whole session when nothing changed.
+    queryFn: ({ signal }) =>
+      getSession(sessionId!, signal, () =>
+        queryClient.getQueryData<CloudSnapshot | null>(queryKey),
+      ),
     enabled: !!sessionId,
     refetchInterval: options?.refetchInterval,
     refetchOnWindowFocus: options?.refetchOnWindowFocus,
