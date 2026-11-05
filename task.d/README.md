@@ -36,6 +36,7 @@ explicit `--nimcache` does not add a suffix.
 | `account` | anonymise an account: close claims, unlink players, drop sessions | yes |
 | `ingest` | ingest approved sessions into rating events (tick, session, rebuild) | yes |
 | `ranksnapshot` | write today's ranking snapshot for every community | yes |
+| `levels` | read or write the tournament point ladder in `rating.levels` | yes |
 | `opstoken` | issue, list or revoke CLI bearer tokens | yes |
 | `janitor` | purge expired OAuth flows, idempotency keys, outbox rows, revoked links and ws tickets | yes |
 | `audit-retention` | prune `account.audit` beyond `audit.retention_days` as `bm2_owner` | yes |

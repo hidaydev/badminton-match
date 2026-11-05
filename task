@@ -22,6 +22,7 @@ Targets:
   account      anonymise an account and close its claims
   ingest       ingest approved sessions into rating events
   ranksnapshot write today's ranking snapshot for every community
+  levels       read or write the tournament point ladder (rating.levels)
   opstoken     issue, list or revoke CLI bearer tokens
   janitor      purge expired temporary rows with the application role
   audit-retention  prune audit rows with the owner role (MAJADU_AUDIT_DSN)

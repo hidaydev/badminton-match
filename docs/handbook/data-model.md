@@ -159,7 +159,9 @@ proses menolak start (`modules/platform/config/store.nim:50-72`).
 tier pemain disimpan di `player.players.tier` dan hanya berubah lewat `PATCH player`.
 Band memakai rentang kelas v1 dengan `max` (mis. D 1000–1199, A+ 2100–terbuka); titik
 tengah band dipakai sebagai kekuatan tier pada pengali lawan. Ladder turnamen
-(`champion_points` dan `round_ratios`) disimpan di `rating.levels`, bukan di config.
+(`champion_points` dan `round_ratios`) disimpan di `rating.levels`, bukan di config:
+itu data yang diisi operator lewat `./task levels` (list/set/clear), dan komunitas
+yang tidak punya baris untuk sebuah format memakai rumus per-game.
 
 ## 5. Bentuk data di API vs tipe frontend
 
