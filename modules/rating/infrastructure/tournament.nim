@@ -9,7 +9,7 @@
 import std/[options, strutils]
 import db/db
 import ../domain/rating
-import ./ingest
+import ./ledger
 
 type
   TournamentIngestStatus* = enum
@@ -132,9 +132,10 @@ proc awardTournamentSide(conn: DbConn, communityId, eventId: string,
   let players = if teamA: game.sideA else: game.sideB
   if players.len == 0:
     return 0
+  let opponents = if teamA: game.sideB else: game.sideA
   let margin = if teamA: game.scoreA - game.scoreB else: game.scoreB - game.scoreA
   let multiplier = opponentMultiplier(params,
-    opponentAverage(conn, communityId, players), population)
+    opponentAverage(conn, communityId, opponents), population)
   let points = gameValue(params.sessionBase, margin.float, game.target.float) *
     multiplier
   let delta = roundPoints(points)
@@ -165,35 +166,61 @@ proc ingestTournamentGames(conn: DbConn, communityId, tournamentId,
     result.deltas += awardTournamentSide(conn, communityId, eventId, game, false,
       params, population)
 
+proc ingestTournamentConn*(conn: DbConn, communityId, tournamentId: string,
+                           params: RatingParams): TournamentIngestResult =
+  ## One event per signed-off tournament, inside the caller's transaction.
+  ## The gate is the source row's `finalized`, exactly like v1
+  ## `rating_sources.finalized`.
+  result.status = tisOk
+  let header = conn.queryOne(
+    """select status, format, event_date::text as event_date
+       from tournament.tournaments
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(tournamentId)])
+  if header.isNone:
+    result.status = tisNotFound
+    return
+  # v1 gate: a tournament is only ingestable once its source is signed off,
+  # so a running bracket cannot leak half a tournament into the board.
+  if not sourceFinalizedConn(conn, communityId, tournamentId):
+    result.status = tisNotFinal
+    return
+  let existing = conn.queryOne(
+    """select id from rating.events
+       where community_id = $1::uuid and event_type = 'tournament'
+         and source_id = $2::uuid limit 1""",
+    @[textParam(communityId), textParam(tournamentId)])
+  if existing.isSome:
+    return
+  let part = ingestTournamentGames(conn, communityId, tournamentId,
+    header.get.get("event_date"), header.get.get("format"), params)
+  result.events = part.events
+  result.deltas = part.deltas
+
+proc ingestFinalTournamentsConn*(conn: DbConn, communityId: string,
+                                 params: RatingParams):
+    tuple[events, deltas: int] =
+  ## Replays every signed-off tournament inside the caller's transaction. The
+  ## rebuild clears the ledger first, so this is what keeps tournament points
+  ## from disappearing on a full recompute.
+  for row in conn.query(
+    """select t.id::text as id from tournament.tournaments t
+       join rating.sources s
+         on s.community_id = t.community_id and s.source_id = t.id
+       where t.community_id = $1::uuid and s.finalized
+       order by t.event_date, t.id""",
+    @[textParam(communityId)]):
+    let part = ingestTournamentConn(conn, communityId, row.get("id"), params)
+    result.events += part.events
+    result.deltas += part.deltas
+
 proc ingestTournament*(db: Db, communityId, tournamentId: string,
                        params: RatingParams): TournamentIngestResult =
-  ## One event per signed-off tournament. The gate is the source row's
-  ## `finalized`, exactly like v1 `rating_sources.finalized`.
+  ## One event per signed-off tournament, serialised with every other rating
+  ## write for the community.
   var outcome = TournamentIngestResult(status: tisOk)
   discard db.tx(proc(conn: DbConn): int =
-    let header = conn.queryOne(
-      """select status, format, event_date::text as event_date
-         from tournament.tournaments
-         where community_id = $1::uuid and id = $2::uuid""",
-      @[textParam(communityId), textParam(tournamentId)])
-    if header.isNone:
-      outcome.status = tisNotFound
-      return 0
-    # v1 gate: a tournament is only ingestable once its source is signed off,
-    # so a running bracket cannot leak half a tournament into the board.
-    if not sourceFinalizedConn(conn, communityId, tournamentId):
-      outcome.status = tisNotFinal
-      return 0
-    let existing = conn.queryOne(
-      """select id from rating.events
-         where community_id = $1::uuid and event_type = 'tournament'
-           and source_id = $2::uuid limit 1""",
-      @[textParam(communityId), textParam(tournamentId)])
-    if existing.isSome:
-      return 0
-    let part = ingestTournamentGames(conn, communityId, tournamentId,
-      header.get.get("event_date"), header.get.get("format"), params)
-    outcome.events = part.events
-    outcome.deltas = part.deltas
+    lockCommunity(conn, communityId)
+    outcome = ingestTournamentConn(conn, communityId, tournamentId, params)
     1)
   outcome

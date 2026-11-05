@@ -191,9 +191,12 @@ proc sessionEntries(conn: DbConn, communityId, asOf: string,
        from rating.events e
        join session.games g
          on g.community_id = e.community_id and g.session_id = e.source_id
+       join session.sessions s
+         on s.community_id = e.community_id and s.id = e.source_id
        where e.community_id = $1::uuid and e.event_type = 'session'
          and e.local_date >= $2::date - ($3::int * 7)
          and e.local_date <= $2::date
+         and s.approved_at is not null
          and g.status = 'played'
          and g.score_a is not null and g.score_b is not null
        order by e.local_date, g.round_no, g.court_no""",

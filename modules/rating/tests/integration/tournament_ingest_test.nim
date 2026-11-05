@@ -102,6 +102,81 @@ proc deltasFor(sourceId, playerId: string): int =
     @[textParam(communityId), textParam(sourceId), textParam(playerId)])
   if row.isSome: parseInt(row.get.get("total")) else: 0
 
+proc deltaSum(sourceId, playerId: string): int =
+  let row = database.queryOne(
+    """select coalesce(sum(d.delta), 0)::int as total from rating.deltas d
+       join rating.events e on e.id = d.event_id
+       where d.community_id = $1::uuid and e.source_id = $2::uuid
+         and d.player_id = $3::uuid""",
+    @[textParam(communityId), textParam(sourceId), textParam(playerId)])
+  if row.isSome: parseInt(row.get.get("total")) else: 0
+
+proc totalDelta(playerId: string): int =
+  let row = database.queryOne(
+    """select coalesce(sum(delta), 0)::int as total from rating.deltas
+       where community_id = $1::uuid and player_id = $2::uuid""",
+    @[textParam(communityId), textParam(playerId)])
+  if row.isSome: parseInt(row.get.get("total")) else: 0
+
+proc playerRating(playerId: string): int =
+  let row = database.queryOne(
+    """select rating from rating.player_state
+       where community_id = $1::uuid and player_id = $2::uuid""",
+    @[textParam(communityId), textParam(playerId)])
+  if row.isSome: parseInt(row.get.get("rating")) else: 0
+
+proc eventCount(): int =
+  let row = database.queryOne(
+    """select count(*)::int as total from rating.events
+       where community_id = $1::uuid""", @[textParam(communityId)])
+  if row.isSome: parseInt(row.get.get("total")) else: 0
+
+proc eventsFor(sourceId: string): int =
+  let row = database.queryOne(
+    """select count(*)::int as total from rating.events
+       where community_id = $1::uuid and source_id = $2::uuid""",
+    @[textParam(communityId), textParam(sourceId)])
+  if row.isSome: parseInt(row.get.get("total")) else: 0
+
+proc seedRating(playerId: string, rating: int) =
+  discard database.execUpdate(
+    """insert into rating.player_state (community_id, player_id, rating)
+       values ($1::uuid, $2::uuid, $3)
+       on conflict (community_id, player_id) do update set
+         rating = excluded.rating, games_played = 0, wins = 0, losses = 0""",
+    @[textParam(communityId), textParam(playerId), intParam(rating.int64)])
+
+proc addPlayer(name: string): string =
+  database.queryOne(
+    """insert into player.players (community_id, canonical_name, gender)
+       values ($1::uuid, $2, 'M') returning id""",
+    @[textParam(communityId), textParam(name)]).get.get("id")
+
+proc newSession(sessionPlayers: seq[string]): string =
+  let id = database.queryOne(
+    """insert into session.sessions
+         (community_id, title, session_date, status, source, version,
+          approved_at, approved_by)
+       values ($1::uuid, 'Tour night', '2026-11-02', 'locked', 'manual', 1,
+               now(), null)
+       returning id""",
+    @[textParam(communityId)]).get.get("id")
+  for player in sessionPlayers:
+    discard database.execUpdate(
+      """insert into session.participants (community_id, session_id, player_id)
+         values ($1::uuid, $2::uuid, $3::uuid)""",
+      @[textParam(communityId), textParam(id), textParam(player)])
+  discard database.execUpdate(
+    """insert into session.games
+         (community_id, session_id, round_no, court_no, score_a, score_b,
+          status, side_a1, side_a2, side_b1, side_b2)
+       values ($1::uuid, $2::uuid, 0, 0, 21, 15, 'played',
+               $3::uuid, $4::uuid, $5::uuid, $6::uuid)""",
+    @[textParam(communityId), textParam(id), textParam(sessionPlayers[0]),
+      textParam(sessionPlayers[1]), textParam(sessionPlayers[2]),
+      textParam(sessionPlayers[3])])
+  id
+
 proc bootstrap() =
   database = openDb(dsn(), 1)
   cleanup()
@@ -203,3 +278,60 @@ suite "tournament ingest":
     # A+ and A sit out this partai, so they gain nothing from it.
     check deltasFor(tournamentId, players[2]) == 0
     check deltasFor(tournamentId, players[6]) == 0
+
+  test "opponent strength comes from the other side":
+    discard database.execUpdate(
+      """delete from rating.player_state where community_id = $1::uuid""",
+      @[textParam(communityId)])
+    for index in 0 .. 1: seedRating(players[index], 300)
+    for index in 2 .. 3: seedRating(players[index], 100)
+    let tournamentId = newTournament("classic", "completed", "2026-11-03")
+    let strong = newPair(tournamentId, "Strong", players[0], players[1])
+    let weak = newPair(tournamentId, "Weak", players[2], players[3])
+    addMatch(tournamentId, strong, weak, "group-A-0", "group", 30, 20)
+    check setFinalized(database, communityId, tournamentId, true).isSome
+    check ingestTournament(database, communityId, tournamentId,
+      params()).status == tisOk
+    # Population is 200. The strong side faces 100 (clamped to 0.5) and the
+    # weak side faces the strong side's updated 303 (303/200). Using each
+    # side's own average would award 10 and 2 instead.
+    check deltaSum(tournamentId, players[0]) == 3
+    check deltaSum(tournamentId, players[2]) == 5
+
+  test "rebuild replays approved sessions and signed-off tournaments":
+    let sessionPlayers = @[addPlayer("Rebuild S0"), addPlayer("Rebuild S1"),
+      addPlayer("Rebuild S2"), addPlayer("Rebuild S3")]
+    let sessionId = newSession(sessionPlayers)
+    check ingestSession(database, communityId, sessionId,
+      params()).events == 1
+    let tournamentId = newTournament("classic", "completed", "2027-01-01")
+    let pairA = newPair(tournamentId, "A", sessionPlayers[0],
+      sessionPlayers[1])
+    let pairB = newPair(tournamentId, "B", sessionPlayers[2],
+      sessionPlayers[3])
+    addMatch(tournamentId, pairA, pairB, "final-0", "final", 42, 35)
+    check setFinalized(database, communityId, tournamentId, true).isSome
+    check ingestTournament(database, communityId, tournamentId,
+      params()).status == tisOk
+    let before = eventCount()
+    check eventsFor(sessionId) == 1
+    check eventsFor(tournamentId) == 1
+    let sessionDelta = deltaSum(sessionId, sessionPlayers[0])
+    let tournamentDelta = deltaSum(tournamentId, sessionPlayers[0])
+    check sessionDelta > 0
+    check tournamentDelta > 0
+
+    let rebuilt = rebuild(database, communityId, params())
+    # Every approved session and signed-off tournament returns; the tournament
+    # event is not silently dropped by the recompute.
+    check rebuilt.events == before
+    check eventCount() == before
+    check eventsFor(sessionId) == 1
+    check eventsFor(tournamentId) == 1
+    check playerDeltas(sessionId) == 4
+    check playerDeltas(tournamentId) == 4
+    check deltaSum(sessionId, sessionPlayers[0]) > 0
+    check deltaSum(tournamentId, sessionPlayers[0]) > 0
+    # Player state is the ledger: the rating equals the deltas it survived on.
+    for player in sessionPlayers:
+      check playerRating(player) == totalDelta(player)

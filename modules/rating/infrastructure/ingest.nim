@@ -1,6 +1,8 @@
 import std/[json, options, strutils, tables]
 import db/db
 import ../domain/rating
+import ./ledger
+import ./tournament
 
 type
   IngestResult* = object
@@ -9,25 +11,6 @@ type
 
 const
   approvedStatuses = "('locked', 'published', 'completed', 'archived')"
-
-proc populationAverage*(conn: DbConn, communityId: string): float =
-  let row = conn.queryOne(
-    """select coalesce(avg(rating), 0)::float8 as average
-       from rating.player_state where community_id = $1::uuid""",
-    @[textParam(communityId)])
-  if row.isSome: parseFloat(row.get.get("average")) else: 0.0
-
-proc opponentAverage*(conn: DbConn, communityId: string,
-                      players: seq[string]): float =
-  if players.len == 0:
-    return 0.0
-  let row = conn.queryOne(
-    """select coalesce(avg(rating), 0)::float8 as average
-       from rating.player_state
-       where community_id = $1::uuid and player_id = any($2::uuid[])""",
-    @[textParam(communityId),
-      textParam("{" & players.join(",") & "}")])
-  if row.isSome: parseFloat(row.get.get("average")) else: 0.0
 
 proc absentPlayers(conn: DbConn, communityId, sessionId: string): seq[string] =
   for row in conn.query(
@@ -46,31 +29,6 @@ proc active(players, absent, skipped: seq[string]): seq[string] =
   for player in players:
     if player notin absent and player notin skipped:
       result.add(player)
-
-proc writeDelta*(conn: DbConn, communityId, eventId, side, playerId, gameKey: string,
-                 delta: int) =
-  discard conn.execUpdate(
-    """insert into rating.deltas
-         (community_id, event_id, side, player_id, game_key, delta)
-       values ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6)
-       on conflict (event_id, side, player_id, game_key) do nothing""",
-    @[textParam(communityId), textParam(eventId), textParam(side),
-      textParam(playerId), textParam(gameKey), intParam(delta.int64)])
-
-proc upsertState*(conn: DbConn, communityId, playerId: string, delta: int,
-                  won: bool) =
-  discard conn.execUpdate(
-    """insert into rating.player_state
-         (community_id, player_id, rating, games_played, wins, losses)
-       values ($1::uuid, $2::uuid, $3, 1, $4, $5)
-       on conflict (community_id, player_id) do update set
-         rating = rating.player_state.rating + excluded.rating,
-         games_played = rating.player_state.games_played + 1,
-         wins = rating.player_state.wins + excluded.wins,
-         losses = rating.player_state.losses + excluded.losses,
-         updated_at = now()""",
-    @[textParam(communityId), textParam(playerId), intParam(delta.int64),
-      intParam(if won: 1 else: 0), intParam(if won: 0 else: 1)])
 
 proc awardSide(conn: DbConn, communityId, eventId, gameKey: string,
                side, letter: string, margin: int, otherSide: string,
@@ -172,16 +130,10 @@ proc ingestSession*(db: Db, communityId, sessionId: string,
   ## Exactly one event per approved session; a second run is a no-op.
   var outcome: IngestResult
   discard db.tx(proc(conn: DbConn): int =
+    lockCommunity(conn, communityId)
     outcome = ingestSessionConn(conn, communityId, sessionId, params)
     1)
   outcome
-
-const finalizedSql = """select 1 as ok from rating.sources
-  where community_id = $1::uuid and source_id = $2::uuid and finalized"""
-
-proc sourceFinalizedConn*(conn: DbConn, communityId, sourceId: string): bool =
-  conn.queryOne(finalizedSql,
-    @[textParam(communityId), textParam(sourceId)]).isSome
 
 proc sourceFinalized*(db: Db, communityId, sourceId: string): bool =
   ## True when the source was signed off. The incremental paths (ingest,
@@ -289,9 +241,12 @@ proc revertSource*(db: Db, communityId, sourceId: string): int =
 
 proc rebuild*(db: Db, communityId: string, params: RatingParams): IngestResult =
   ## Deterministic: the state is thrown away and recomputed from the approved
-  ## sessions in date order, so two runs always end at the same numbers.
+  ## sessions, then from the signed-off tournaments, so two runs always end at
+  ## the same numbers. A rebuild must not erase a tournament that was ingested
+  ## incrementally, so both source kinds are replayed here.
   var outcome: IngestResult
   discard db.tx(proc(conn: DbConn): int =
+    lockCommunity(conn, communityId)
     discard conn.execUpdate(
       """delete from rating.deltas where community_id = $1::uuid""",
       @[textParam(communityId)])
@@ -313,6 +268,9 @@ proc rebuild*(db: Db, communityId: string, params: RatingParams): IngestResult =
       let part = ingestSessionConn(conn, communityId, sessionId, params)
       outcome.events += part.events
       outcome.deltas += part.deltas
+    let tournaments = ingestFinalTournamentsConn(conn, communityId, params)
+    outcome.events += tournaments.events
+    outcome.deltas += tournaments.deltas
     1)
   outcome
 
