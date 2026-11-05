@@ -189,8 +189,8 @@ function AuthedRoutes() {
           <Route path="dev/session-preview" element={<Suspense fallback={<Loading />}><SharedSessionPreviewPage /></Suspense>} />
           <Route path="tournament" element={<LegacyNavigate to="/tournaments" replace />} />
           <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-list"><TournamentListPage /></ErrorBoundary></Suspense>} />
-          <Route path="tournaments/new" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-new"><NewTournamentPage /></ErrorBoundary></Suspense>} />
-          <Route path="tournaments/new/:format" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-wizard"><NewTournamentWizard /></ErrorBoundary></Suspense>} />
+          <Route path="tournaments/new" element={<RequireStaff><Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-new"><NewTournamentPage /></ErrorBoundary></Suspense></RequireStaff>} />
+          <Route path="tournaments/new/:format" element={<RequireStaff><Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-wizard"><NewTournamentWizard /></ErrorBoundary></Suspense></RequireStaff>} />
           <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament"><TournamentRouter /></ErrorBoundary></Suspense>} />
           <Route path="instagram-post" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="instagram-post"><InstagramPostPage /></ErrorBoundary></Suspense>} />
 

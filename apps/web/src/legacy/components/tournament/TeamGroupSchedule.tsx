@@ -13,6 +13,7 @@ import { shareOrDownload } from '../../utils/share'
 interface TeamGroupScheduleProps {
   teams: TeamInfo[]
   matches: TeamMatch[]
+  canEdit: boolean
   saving: boolean
   overlays: Record<string, HTMLImageElement | undefined>
   partaiPhotos: Record<string, HTMLImageElement>
@@ -29,6 +30,7 @@ interface TeamGroupScheduleProps {
 export default function TeamGroupSchedule({
   teams,
   matches,
+  canEdit,
   saving,
   overlays,
   partaiPhotos,
@@ -75,7 +77,7 @@ export default function TeamGroupSchedule({
 
   return (
     <div className="flex flex-col gap-4">
-      {groupMatches.length === 0 && (
+      {canEdit && groupMatches.length === 0 && (
         <button
           onClick={onDraw}
           disabled={saving}
@@ -94,6 +96,7 @@ export default function TeamGroupSchedule({
             key={m.id}
             match={m}
             teams={teams}
+            canEdit={canEdit}
             saving={saving}
             matchIdx={matchIdx}
             dirty={dirtyByMatchId[m.id] ?? false}

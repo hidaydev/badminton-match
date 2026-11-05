@@ -13,13 +13,14 @@ interface GroupMatchesProps {
   pairs: TournamentPair[]
   groups: Record<GroupId, string[]>
   matches: TournamentMatch[]
+  canEdit: boolean
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
   onOpenModal: () => void
   isFetching: boolean
   refetch: () => Promise<unknown>
 }
 
-export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: GroupMatchesProps) {
+export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMatchScore, onOpenModal, isFetching, refetch }: GroupMatchesProps) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
   const [postModeGroups, setPostModeGroups] = useState<Record<string, boolean>>({})
@@ -116,7 +117,8 @@ export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, 
                 <div key={m.id} className="relative flex items-center divide-y-0">
                   <button
                     onClick={() => { onOpenModal(); setActiveMatchId(m.id) }}
-                    className="flex-1 flex flex-col px-4 pt-3 pb-2.5 hover:bg-elevated/60 active:bg-elevated active:scale-98 transition-transform duration-75 gap-1.5"
+                    disabled={!canEdit}
+                    className="flex-1 flex flex-col px-4 pt-3 pb-2.5 hover:bg-elevated/60 active:bg-elevated active:scale-98 transition-transform duration-75 gap-1.5 disabled:cursor-default disabled:hover:bg-transparent disabled:active:bg-transparent disabled:active:scale-100"
                   >
                     <div className="flex items-center gap-2 w-full">
                       <span className="text-xs text-fg flex-1 truncate text-left">{getPairName(m.pairAId)}</span>

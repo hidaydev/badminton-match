@@ -13,7 +13,7 @@ export default function HomeLayout() {
   const isHome = location.pathname === '/'
   const { isAdminRole } = useAdmin()
   const { user, logout } = useAuth()
-  const { current } = useCommunity()
+  const { memberships, current, select } = useCommunity()
   const [accountOpen, setAccountOpen] = useState(false)
 
   const roleLabel = user?.platformOwner === true
@@ -92,6 +92,45 @@ export default function HomeLayout() {
                       {current !== null ? ` · ${current.name}` : ''}
                     </p>
                   </div>
+                  {/* The header picker is desktop-only; on phones the same
+                      switch lives in this menu so members of several
+                      communities can reach it. */}
+                  {memberships.length > 1 && (
+                    <div
+                      role="group"
+                      aria-label={t('community.label')}
+                      className="border-b border-border-subtle p-1.5 sm:hidden"
+                    >
+                      <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-dim">
+                        {t('community.label')}
+                      </p>
+                      {memberships.map((membership) => {
+                        const selected = membership.slug === current?.slug
+                        return (
+                          <button
+                            key={membership.id}
+                            role="menuitemradio"
+                            aria-checked={selected}
+                            type="button"
+                            onClick={() => {
+                              setAccountOpen(false)
+                              select(membership.slug)
+                            }}
+                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${
+                              selected ? 'font-semibold text-accent' : 'text-fg hover:bg-elevated'
+                            }`}
+                          >
+                            <span className="flex-1 truncate">{membership.name}</span>
+                            {selected && (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                   <div className="flex flex-col p-1.5 text-sm">
                     {isAdminRole && (
                       <Link

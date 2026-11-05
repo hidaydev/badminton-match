@@ -20,6 +20,7 @@ import {
 import TeamMatchCard from '../components/tournament/TeamMatchCard'
 import TeamGroupSchedule from '../components/tournament/TeamGroupSchedule'
 import Icon from '../components/Icon'
+import { useAdmin } from '../context/AdminContext'
 import ErrorBanner from '../components/ErrorBanner'
 import { useImageUploadMap } from '../hooks/useImageUploadMap'
 import { useAutoDismiss } from '../hooks/useAutoDismiss'
@@ -38,6 +39,10 @@ const namedIdx = (name: string, fallback: number): number => {
 /** Halaman tournament format TIM: klasemen, undian, jadwal skor partai, final. */
 export default function TeamTournamentPage() {
   const { id = '' } = useParams()
+  // The server only accepts tournament writes from a host or admin, so a member
+  // gets the same screen with the draw and score editors turned off.
+  const { isAdmin } = useAdmin()
+  const canEdit = isAdmin
   const { data, isFetching } = useGetTournament(id)
   const snap = data && data.format === 'team' ? data : null
 
@@ -320,31 +325,37 @@ export default function TeamTournamentPage() {
                   return (
                     <div key={name} className="flex items-center gap-3 px-4 py-2 border-b border-border-subtle last:border-0">
                       <span className="flex-1 text-sm text-fg truncate">{name}</span>
-                      <select
-                        value={String(slot)}
-                        onChange={(e) => assignDrawSlot(k, Number(e.target.value))}
-                        className="w-28 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer"
-                        aria-label={`Slot for ${name}`}
-                      >
-                        {TEAM_NAMES.map((_, si) => (
-                          <option key={si} value={si}>Team {si + 1}</option>
-                        ))}
-                      </select>
+                      {canEdit ? (
+                        <select
+                          value={String(slot)}
+                          onChange={(e) => assignDrawSlot(k, Number(e.target.value))}
+                          className="w-28 bg-elevated border border-border rounded-md px-2 py-1.5 text-sm text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer"
+                          aria-label={`Slot for ${name}`}
+                        >
+                          {TEAM_NAMES.map((_, si) => (
+                            <option key={si} value={si}>Team {si + 1}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-sm text-fg-dim">Team {slot + 1}</span>
+                      )}
                     </div>
                   )
                 })}
-                <div className="p-3">
-                  <button
-                    onClick={handleUndian}
-                    disabled={publish.isPending}
-                    className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
-                  >
-                    Group Draw (match day)
-                  </button>
-                </div>
+                {canEdit && (
+                  <div className="p-3">
+                    <button
+                      onClick={handleUndian}
+                      disabled={publish.isPending}
+                      className="w-full py-3 rounded-lg bg-accent text-slate-950 font-bold text-sm disabled:opacity-40"
+                    >
+                      Group Draw (match day)
+                    </button>
+                  </div>
+                )}
               </div>
             )}
-            {groupComplete && !hasFinal && (
+            {canEdit && groupComplete && !hasFinal && (
               <button
                 onClick={handleBuatFinal}
                 disabled={publish.isPending}
@@ -363,6 +374,7 @@ export default function TeamTournamentPage() {
           <TeamGroupSchedule
             teams={teams}
             matches={matches}
+            canEdit={canEdit}
             saving={publish.isPending}
             overlays={overlays}
             partaiPhotos={schedulePartaiPhotos}
@@ -395,6 +407,7 @@ export default function TeamTournamentPage() {
                   key={finalMatch.id}
                   match={finalMatch}
                   teams={teams}
+                  canEdit={canEdit}
                   saving={publish.isPending}
                   dirty={dirtyByMatchId[finalMatch.id] ?? false}
                   onChange={(_, pi, patch) => updatePartai((localMatches ?? snap.matches).findIndex((x) => x.id === finalMatch.id), pi, patch)}

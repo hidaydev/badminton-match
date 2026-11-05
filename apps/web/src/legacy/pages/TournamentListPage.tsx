@@ -2,12 +2,15 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from '../router'
 import { useListTournaments } from '../queries'
+import { useAdmin } from '../context/AdminContext'
 import { t } from '../i18n'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
 export default function TournamentListPage() {
   const navigate = useNavigate()
+  // Only a host or admin may create a tournament; members browse the list.
+  const { isAdmin } = useAdmin()
   const [selectedFormat, setSelectedFormat] = useState<'all' | 'team' | 'classic'>('all')
   const { data: tournaments = [], isLoading, isError } = useListTournaments()
 
@@ -26,12 +29,14 @@ export default function TournamentListPage() {
             {filtered.length} {t('common.total')}
           </span>
         </div>
-        <button
-          onClick={() => navigate('/tournaments/new')}
-          className="px-3.5 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold hover:brightness-110 active:scale-[0.98] transition-all shadow-sm"
-        >
-          {t('tournaments.newButton')}
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => navigate('/tournaments/new')}
+            className="px-3.5 py-1.5 rounded-lg bg-accent text-slate-950 text-xs font-bold hover:brightness-110 active:scale-[0.98] transition-all shadow-sm"
+          >
+            {t('tournaments.newButton')}
+          </button>
+        )}
       </div>
 
       {/* Filter Format Chips */}

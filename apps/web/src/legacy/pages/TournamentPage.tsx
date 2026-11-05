@@ -10,6 +10,7 @@ import { communityQueryKey } from '../queries/keys'
 import { GROUP_IDS, EMPTY_GROUPS, type GroupId } from '../utils/tournament'
 import { todayWIB } from '../utils/time'
 import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
+import { useAdmin } from '../context/AdminContext'
 import ErrorBanner from '../components/ErrorBanner'
 import GroupAssignment from '../components/tournament/GroupAssignment'
 import GroupMatches from '../components/tournament/GroupMatches'
@@ -53,6 +54,10 @@ function GroupLoadingSkeleton() {
 
 export default function TournamentPage() {
   const { id = '' } = useParams()
+  // The server only accepts tournament writes from a host or admin, so a member
+  // gets the same screen with the score and group editors turned off.
+  const { isAdmin } = useAdmin()
+  const canEdit = isAdmin
   const [tab, setTab] = useState<Tab>('groups')
   const [localGroups, setLocalGroups] = useState<Record<GroupId, (string | null)[]>>(
     () => ({ A: [null, null, null, null], B: [null, null, null, null], C: [null, null, null, null], D: [null, null, null, null] })
@@ -186,24 +191,32 @@ export default function TournamentPage() {
                   pairs={pairs}
                   groups={committedGroups}
                   matches={matches}
+                  canEdit={canEdit}
                   onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, mutationToastHandlers(setSaveError))}
                   onOpenModal={handleOpenModal}
                   isFetching={isFetching}
                   refetch={refetch}
                 />
-              : <GroupAssignment
-                  pairs={pairs}
-                  groups={localGroups}
-                  onAddPairToGroup={addPairToGroup}
-                  onRemovePairFromGroup={removePairFromGroup}
-                  onConfirmGroups={() => confirmGroups({ localGroups: (Object.fromEntries(GROUP_IDS.map(g => [g, localGroups[g].filter((id): id is string => id !== null)])) as Record<GroupId, string[]>), name, date, pairs }, mutationToastHandlers(setSaveError))}
-                  isLoading={confirmPending || isFetching}
-                />
+              : canEdit
+                ? <GroupAssignment
+                    pairs={pairs}
+                    groups={localGroups}
+                    onAddPairToGroup={addPairToGroup}
+                    onRemovePairFromGroup={removePairFromGroup}
+                    onConfirmGroups={() => confirmGroups({ localGroups: (Object.fromEntries(GROUP_IDS.map(g => [g, localGroups[g].filter((id): id is string => id !== null)])) as Record<GroupId, string[]>), name, date, pairs }, mutationToastHandlers(setSaveError))}
+                    isLoading={confirmPending || isFetching}
+                  />
+                : (
+                  <p className="text-fg-dim text-sm text-center py-16">
+                    Groups have not been drawn yet. A host or admin assigns them.
+                  </p>
+                )
         )}
         {tab === 'bracket' && (
           <BracketTab
             pairs={pairs}
             matches={matches}
+            canEdit={canEdit}
             onSetMatchScore={(id, a, b) => setTournamentScore({ matchId: id, scoreA: a, scoreB: b }, mutationToastHandlers(setSaveError))}
             onOpenModal={handleOpenModal}
             isFetching={isFetching}

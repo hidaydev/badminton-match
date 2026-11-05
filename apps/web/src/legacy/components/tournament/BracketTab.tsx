@@ -11,6 +11,7 @@ import ScoreModal from './ScoreModal'
 interface BracketTabProps {
   pairs: TournamentPair[]
   matches: TournamentMatch[]
+  canEdit: boolean
   onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
   onOpenModal: () => void
   isFetching: boolean
@@ -23,6 +24,7 @@ function MatchCard({
   borderColor,
   labelColor,
   getPairName,
+  canEdit,
   onSelect,
   showPostIcon,
   hasPhoto,
@@ -33,13 +35,14 @@ function MatchCard({
   borderColor: string
   labelColor: string
   getPairName: (id: string | null) => string
+  canEdit: boolean
   onSelect: (match: TournamentMatch) => void
   showPostIcon?: boolean
   hasPhoto?: boolean
   onUploadPhoto?: () => void
 }) {
   if (!match) return <div className="h-16 bg-surface/40 border border-border-subtle/50 rounded-lg" />
-  const canEnter = !!(match.pairAId && match.pairBId)
+  const canEnter = canEdit && !!(match.pairAId && match.pairBId)
   const scored = match.scoreA !== null
   return (
     <div className={`w-full bg-surface rounded-lg border-l-2 ${borderColor} border-t border-r border-b border-border-subtle overflow-hidden shadow-xs`}>
@@ -87,7 +90,7 @@ function Connector() {
   )
 }
 
-export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: BracketTabProps) {
+export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, onOpenModal, isFetching, refetch }: BracketTabProps) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const [postModeRounds, setPostModeRounds] = useState<Record<string, boolean>>({})
   const { images: bracketPhotos, fileInputRef: bracketFileInputRef, openUpload: openBracketUpload, onFileChange: onBracketFileChange } = useImageUploadMap()
@@ -270,32 +273,32 @@ export default function BracketTab({ pairs, matches, onSetMatchScore, onOpenModa
           {/* Upper half: QF1+QF2 → SF1 → Final */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center mb-3">
             <div className="flex flex-col gap-3">
-              <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
+              <MatchCard match={qf1} label="QF 1 · A1 vs B2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
                 showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[0]]} onUploadPhoto={openUpload(QF_IDS[0])} />
-              <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
+              <MatchCard match={qf2} label="QF 2 · C2 vs D1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
                 showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[1]]} onUploadPhoto={openUpload(QF_IDS[1])} />
             </div>
             <Connector />
-            <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
+            <MatchCard match={sf1} label="SEMI 1" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos[SF_IDS[0]]} onUploadPhoto={openUpload(SF_IDS[0])} />
             <Connector />
-            <MatchCard match={final} label="FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} onSelect={handleSelect}
+            <MatchCard match={final} label="FINAL" borderColor="border-yellow-500" labelColor="text-yellow-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
               showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos[FINAL_ID]} onUploadPhoto={openUpload(FINAL_ID)} />
           </div>
 
           {/* Lower half: QF3+QF4 → SF2 | 3RD PLACE (no connector) */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] items-center">
             <div className="flex flex-col gap-3">
-              <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
+              <MatchCard match={qf3} label="QF 3 · C1 vs D2" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
                 showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[2]]} onUploadPhoto={openUpload(QF_IDS[2])} />
-              <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} onSelect={handleSelect}
+              <MatchCard match={qf4} label="QF 4 · A2 vs B1" borderColor="border-sky-500" labelColor="text-sky-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
                 showPostIcon={postModeRounds.qf} hasPhoto={!!bracketPhotos[QF_IDS[3]]} onUploadPhoto={openUpload(QF_IDS[3])} />
             </div>
             <Connector />
-            <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} onSelect={handleSelect}
+            <MatchCard match={sf2} label="SEMI 2" borderColor="border-violet-500" labelColor="text-violet-400" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
               showPostIcon={postModeRounds.sf} hasPhoto={!!bracketPhotos[SF_IDS[1]]} onUploadPhoto={openUpload(SF_IDS[1])} />
             <span /> {/* no connector to 3rd place */}
-            <MatchCard match={third} label="3RD" borderColor="border-border" labelColor="text-fg-dim" getPairName={getPairName} onSelect={handleSelect}
+            <MatchCard match={third} label="3RD" borderColor="border-border" labelColor="text-fg-dim" getPairName={getPairName} canEdit={canEdit} onSelect={handleSelect}
               showPostIcon={postModeRounds.final} hasPhoto={!!bracketPhotos[THIRD_PLACE_ID]} onUploadPhoto={openUpload(THIRD_PLACE_ID)} />
           </div>
         </div>
