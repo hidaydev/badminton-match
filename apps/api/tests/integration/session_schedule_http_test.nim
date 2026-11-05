@@ -377,6 +377,49 @@ suite "session schedule HTTP":
       memberCookie)
     check missing == 404
 
+  test "finishing a session rates it, reopens it and withdraws the rating":
+    let (_, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Finish night","date":"2026-11-10"}""")
+    let sessionId = parseJson(body)["id"].getStr()
+    let schedule = """{"games":[{"round":0,"court":0,"sideA":["""" &
+      players[0] & """","""" & players[1] & """"],"sideB":["""" &
+      players[2] & """","""" & players[3] & """"]}]}"""
+    discard call(HttpPut, "/c/sched-club/sessions/" & sessionId & "/schedule",
+      hostCookie, schedule, ifMatch = "\"1\"")
+    let (scored, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"scoreA":21,"scoreB":15}""", ifMatch = "\"2\"")
+    check scored == 200
+    let events = proc(): string =
+      let row = database.queryOne(
+        """select count(*)::int as n from rating.events
+           where community_id = $1::uuid and event_type = 'session'
+             and source_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)])
+      row.get.get("n")
+    check events() == "0"
+
+    # Finishing is the rating gate: approval ingests the session in the same call.
+    let lockPath = "/c/sched-club/sessions/" & sessionId & "/lock"
+    let (memberRefused, _) = call(HttpPost, lockPath, memberCookie,
+      ifMatch = "\"3\"")
+    check memberRefused == 403
+    let (locked, _) = call(HttpPost, lockPath, hostCookie, ifMatch = "\"3\"")
+    check locked == 200
+    check events() == "1"
+
+    # A finished session is read-only: the score has to be reopened first.
+    let (writeRefused, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"scoreA":21,"scoreB":18}""", ifMatch = "\"4\"")
+    check writeRefused == 403
+
+    let (reopened, _) = call(HttpPost,
+      "/c/sched-club/sessions/" & sessionId & "/unlock", hostCookie,
+      ifMatch = "\"4\"")
+    check reopened == 200
+    check events() == "0"
+
   test "a bundle from an older major is told to reload":
     let path = "/c/sched-club/players"
     let (current, _) = call(HttpGet, path, memberCookie, apiVersion = "2")
