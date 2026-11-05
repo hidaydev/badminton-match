@@ -147,23 +147,34 @@ menjadi `en.ts` + `id.ts` dan `t()` memilih kamus.
 
 ---
 
-## ADR-007 · Metrik tidak diekspos; observability lewat `/readyz`
+## ADR-007 · Metrik hidup di listener internal, bukan di port publik
 
 **Tanggal:** 2026-11-05
 **Temuan audit:** OPS-09
-**Status:** Ditunda
+**Status:** Diterapkan
 
-**Keputusan:** tidak ada endpoint `/metrics` publik. Kesiapan dilaporkan
-`/readyz`; `smoke.sh` tetap memastikan `/metrics` tidak terbuka.
+**Keputusan:** `/metrics` tetap tidak ada di port publik (`smoke.sh` menjaga
+404). Registry counter permintaan di-increment di jalur respons tunggal dan
+dirender oleh listener kedua yang hanya mengikat `127.0.0.1`, diaktifkan lewat
+`MAJADU_METRICS_PORT` (kosong/0 = mati). Setiap respons juga menulis satu baris
+log akses terstruktur (`method`, `route` template, `status`) lewat logger yang
+sudah meredaksi nilai sensitif.
 
-**Alasan:** proses ini berjalan di belakang Caddy dan tidak punya listener
-internal terpisah; mengekspos `/metrics` di host yang sama dengan API publik
-berarti menambah permukaan yang harus diamankan, sementara belum ada yang
-mengumpulkannya (tidak ada Prometheus di VPS). Menambah collector sebelum ada
-yang membaca hanya menambah beban tanpa nilai.
+**Alasan:** counter yang tidak pernah di-increment/di-render bukan
+observability. Listener loopback tidak menambah permukaan publik, dan label
+memakai template route supaya kode share, slug, dan id tidak menjadi series;
+path yang tak cocok digabung ke satu bucket agar pemindai tidak menumbuhkan
+registry tanpa batas.
 
-**Pembuka ulang:** ada Prometheus/collector di VPS dan listener internal
-terpisah; saat itu `/metrics` lahir di listener itu, bukan di port publik.
+**Bukti di VPS** (image tidak memuat `curl`):
+
+```bash
+podman exec majadu-api bash -c \
+  'exec 3<>/dev/tcp/127.0.0.1/9090; printf "GET /metrics HTTP/1.0\r\n\r\n" >&3; cat <&3'
+```
+
+**Pembuka ulang:** ada collector di VPS; saat itu cukup menambah publikasi port
+atau scrape config, bukan mengubah kode.
 
 ---
 

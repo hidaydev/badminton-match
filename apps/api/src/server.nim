@@ -1,5 +1,7 @@
-import std/[os, strutils]
+import std/[locks, os, strutils]
 import mummy
+import logger
+import metrics
 
 type
   ServerConfig* = object
@@ -7,6 +9,8 @@ type
     drainMs*: int
     shutdownTimeoutMs*: int
     testRoutes*: bool
+    ## Zero keeps the internal metrics listener off.
+    metricsPort*: int
 
   RouteResult* = object
     status*: int
@@ -26,6 +30,19 @@ proc requirePositiveInt(name: string, allowZero = false): int =
   if result < 0 or (result == 0 and not allowZero):
     raise newException(ValueError, name & " must be positive")
 
+proc loadMetricsPort*(): int =
+  ## The listener is optional, but a value that cannot be a port refusal to
+  ## start is better than a typo that silently hides every metric.
+  let raw = getEnv("MAJADU_METRICS_PORT").strip()
+  if raw.len == 0:
+    return 0
+  try:
+    result = parseInt(raw)
+  except ValueError:
+    raise newException(ValueError, "MAJADU_METRICS_PORT must be an integer")
+  if result < 1 or result > 65535:
+    raise newException(ValueError, "MAJADU_METRICS_PORT must be 1..65535")
+
 proc loadConfig*(): ServerConfig =
   ## Reads the process contract from the environment. No hidden defaults for
   ## the listen port and the drain window: a missing value refuses startup.
@@ -40,6 +57,45 @@ proc loadConfig*(): ServerConfig =
   else:
     result.shutdownTimeoutMs = requirePositiveInt("MAJADU_SHUTDOWN_TIMEOUT_MS")
   result.testRoutes = getEnv("MAJADU_TEST_ROUTES") == "1"
+  result.metricsPort = loadMetricsPort()
+
+var
+  registryLock: Lock
+  registry: Metrics
+
+initLock(registryLock)
+
+proc recordResponse*(verb, path: string, status: int) =
+  ## One counter and one access-log line per answer. The label is the route
+  ## template, never the raw path, so a share code, slug or id cannot become a
+  ## series. Unmatched paths share one bucket: a scanner would otherwise mint a
+  ## new series per request and grow the registry without bound.
+  let label = if status == 404: "unmatched" else: templateRoute(path)
+  withLock registryLock:
+    registry.inc("http_requests_total",
+      [("method", verb), ("route", label), ("status", $status)])
+  logInfo("request",
+    [("method", verb), ("route", label), ("status", $status)])
+
+proc metricsText*(): string {.gcsafe.} =
+  ## Prometheus text exposition for the internal listener. The registry holds a
+  ## table, which Nim refuses to call gcsafe for a global; the cast is sound
+  ## because every read and write happens under `registryLock`, so a scrape
+  ## never observes a half-written table.
+  {.cast(gcsafe).}:
+    withLock registryLock:
+      result = registry.render()
+
+proc metricsHandler*(): RequestHandler =
+  ## `/metrics` and nothing else. Bind this server to loopback; the public
+  ## socket must never carry it.
+  result = proc(request: Request) {.gcsafe.} =
+    if request.httpMethod == "GET" and request.path == "/metrics":
+      request.respond(200, @[("Content-Type", "text/plain; version=0.0.4")],
+        metricsText())
+    else:
+      request.respond(404, @[("Content-Type", "application/json")],
+        """{"error":"not_found"}""")
 
 proc route*(path: string, testRoutes: bool): RouteResult =
   case path

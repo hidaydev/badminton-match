@@ -1,7 +1,8 @@
-import std/[atomics, cpuinfo, os, posix]
+import std/[atomics, cpuinfo, net, os, posix]
 import mummy
 import app
 import build_info
+import logger
 import db/db
 import live
 import server
@@ -30,6 +31,22 @@ proc shutdownWatcher(args: ShutdownArgs) {.thread.} =
   sleep(args.timeoutMs)
   echo """{"level":"error","msg":"shutdown timed out"}"""
   quit(1)
+
+type
+  MetricsArgs = object
+    server: Server
+    port: Port
+
+proc serveMetrics(args: MetricsArgs) {.thread.} =
+  ## The registry answers on loopback only, so the public socket stays free of
+  ## it and no proxy needs a rule pointing here.
+  try:
+    args.server.serve(args.port, "127.0.0.1")
+  except MummyError as error:
+    # A failed bind must be visible: the process keeps serving the public API
+    # without metrics, and only this line says why.
+    {.cast(gcsafe).}:
+      logError("metrics listener stopped", [("detail", error.msg)])
 
 proc bootHandler(config: ServerConfig, threads: int): RequestHandler =
   ## Wires the real application. Every dependency is required here so a
@@ -60,6 +77,14 @@ proc main() =
     else: bootHandler(config, threads)
   let apiServer = newServer(apiHandler, websocketHandler(), workerThreads = threads)
 
+  var metricsWorker: Thread[MetricsArgs]
+  if config.metricsPort > 0:
+    createThread(metricsWorker, serveMetrics,
+      MetricsArgs(
+        server: newServer(metricsHandler(), workerThreads = 1),
+        port: Port(config.metricsPort),
+      ))
+
   signal(SIGTERM, onSignal)
   signal(SIGINT, onSignal)
 
@@ -75,6 +100,7 @@ proc main() =
   )
 
   echo """{"level":"info","msg":"listening","port":""" & $config.port.int &
+    ""","metricsPort":""" & $config.metricsPort &
     ""","build":""" & buildInfoJson(threads) & "}"
   try:
     apiServer.serve(config.port, "0.0.0.0")

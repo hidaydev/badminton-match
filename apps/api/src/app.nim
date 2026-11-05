@@ -16,6 +16,7 @@ import logger
 import metrics
 import ratelimit
 import security_headers
+import server
 import db/db
 import sha256
 import uuidv7
@@ -147,6 +148,7 @@ proc send(request: Request, status: int,
   for pair in securityHeaders(application.cookieSecure):
     merged.add(pair)
   request.respond(status, merged, body)
+  recordResponse(request.httpMethod, request.path, status)
 
 proc send(request: Request, status: int, body: string) =
   send(request, status, @[("Content-Type", "application/json")], body)

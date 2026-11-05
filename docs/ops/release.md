@@ -86,9 +86,10 @@ Rilis belum selesai sampai keenamnya benar:
 3. **24 jam tanpa restart loop.**
    `systemctl --user show majadu-api -p NRestarts` tetap 0 dan journal tidak
    memuat `StartLimit`/`Scheduled restart`.
-4. **Tidak ada 5xx baru.** Belum ada endpoint metrik (`/metrics` sengaja 404),
-   jadi ini dibaca manual dari journal unit dan access log Caddy untuk
-   `/majadu/*`.
+4. **Tidak ada 5xx baru.** Counter ada di listener internal loopback
+   (`MAJADU_METRICS_PORT`, tidak dipublikasikan); setelah 24 jam, baca
+   `http_requests_total` dari dalam container dan log akses terstruktur unit
+   (`"msg":"request"`) untuk route/status yang berubah.
 5. **Smoke produksi lulus.**
    `ops/scripts/smoke.sh http://127.0.0.1:8080 <versi>` — `/version`,
    `/healthz`, `/readyz`, `/metrics` 404, share code asing 404, `/auth/me` 401.
