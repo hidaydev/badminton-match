@@ -148,12 +148,14 @@ Semua perintah dijalankan dari SSH ke VPS sebagai pemilik app, dari
    - `curl -fsS https://api.qouver.com/readyz` → 200.
    - `curl -fsS https://api.qouver.com/version` → versi yang baru.
    - Login Google sebagai `platform_owner`, buka satu sesi, satu papan peringkat.
-   - Satu share link baru bisa dibuka tanpa login; satu kode lama **tidak**
-   - `systemctl --user enable --now majadu-snapshot.timer`, lalu
-     `systemctl --user list-timers majadu-snapshot.timer` menunjukkan jadwal
-     berikutnya. Timer ini menulis panah pergerakan; jangan diaktifkan sebelum
-     `MAJADU_PG_DSN` menunjuk `bm2`.
-     dipertahankan (lihat §7).
+   - Satu share link baru bisa dibuka tanpa login. Tautan v1 `/s/{sessionId}`
+     tetap resolve selama sesi itu masih punya link hidup (lihat §7).
+   - Aktifkan timer **setelah** `MAJADU_PG_DSN` menunjuk `bm2`, satu per satu:
+     `systemctl --user enable --now majadu-snapshot.timer majadu-ingest.timer
+     majadu-janitor.timer`, lalu `systemctl --user list-timers` harus
+     menampilkan keempatnya. `majadu-audit-retention.timer` membaca
+     `MAJADU_AUDIT_DSN` dari env file dan berjalan bulanan; `majadu-ingest.timer`
+     merating sesi yang di-approve tiap 30 menit.
    - `psql "$OWNER_DSN" -c "select * from platform.cutover_state"` → satu baris,
      `completed_at` terisi, `rows_imported` cocok dengan hitungan `bm_staging`.
 
