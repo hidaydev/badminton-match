@@ -7,7 +7,7 @@ import RatingTierBadge from '../components/ratings/RatingTierBadge'
 import { ALL_RATING_TIERS } from '../config/ratingTiers'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
-import { t, en } from '../i18n'
+import { t } from '../../i18n'
 
 const LIMIT = 200
 
@@ -118,18 +118,18 @@ export default function RankingsPage() {
         <p className="text-xs font-sans text-fg-dim">
           {selectedTier === 'all'
             ? t('rankings.allSubtitle')
-            : en.rankings.tierSubtitle(selectedTier)}
+            : t('rankings.tierSubtitle', { tier: selectedTier })}
         </p>
 
         {/* Search Input */}
         <label htmlFor={searchId} className="sr-only">
-          {selectedTier === 'all' ? t('rankings.searchAll') : en.rankings.searchTier(selectedTier)}
+          {selectedTier === 'all' ? t('rankings.searchAll') : t('rankings.searchTier', { tier: selectedTier })}
         </label>
         <input
           id={searchId}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={selectedTier === 'all' ? t('rankings.searchAll') : en.rankings.searchTier(selectedTier)}
+          placeholder={selectedTier === 'all' ? t('rankings.searchAll') : t('rankings.searchTier', { tier: selectedTier })}
           className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
         />
 
@@ -202,12 +202,12 @@ export default function RankingsPage() {
                         ) : r.rank_delta > 0 ? (
                           <>
                             <span className="text-green-400" aria-hidden="true">▲</span>
-                            <span className="sr-only">{en.rankings.deltaUp(r.rank_delta)}</span>
+                            <span className="sr-only">{t('rankings.deltaUp', { n: r.rank_delta })}</span>
                           </>
                         ) : (
                           <>
                             <span className="text-red-400" aria-hidden="true">▼</span>
-                            <span className="sr-only">{en.rankings.deltaDown(-r.rank_delta)}</span>
+                            <span className="sr-only">{t('rankings.deltaDown', { n: -r.rank_delta })}</span>
                           </>
                         )}
                       </span>
@@ -237,9 +237,9 @@ export default function RankingsPage() {
         {!isError && !isLoading && filtered.length === 0 && (
           <p className="text-fg-dim text-xs font-sans text-center py-8">
             {query
-              ? en.rankings.noMatchesQuery(query)
+              ? t('rankings.noMatchesQuery', { query })
               : selectedTier !== 'all'
-                ? en.rankings.noPlayersInTier(selectedTier)
+                ? t('rankings.noPlayersInTier', { tier: selectedTier })
                 : t('rankings.noPlayers')}
           </p>
         )}

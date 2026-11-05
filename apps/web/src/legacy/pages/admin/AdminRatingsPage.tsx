@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRatingSources } from '../../queries/ratings'
 import { communityQueryKey } from '../../queries/keys'
 import { adminRequest } from '../../queries/admin'
-import { t, en } from '../../i18n'
+import { t } from '../../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
 import Pager from '../../components/admin/Pager'
@@ -27,7 +27,7 @@ export default function AdminRatingsPage() {
 
   const runRebuild = async () => {
     if (rebuilding) return
-    if (!window.confirm(en.admin.rebuildConfirm)) return
+    if (!window.confirm(t('admin.rebuildConfirm'))) return
     setRebuilding(true)
     setRebuildMsg(null)
     try {
@@ -87,7 +87,7 @@ export default function AdminRatingsPage() {
                         Ingest
                       </ActionButton>
                       <ActionButton tone="red" onClick={() => {
-                        if (window.confirm(en.admin.revertConfirm(src.source_name, isT))) {
+                        if (window.confirm(t('admin.revertConfirm', { name: src.source_name, kind: t(isT ? 'admin.revertKind.tournament' : 'admin.revertKind.session') }))) {
                           run(
                             () => adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
                               isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useListTournaments } from '../../queries'
 import { adminRequest } from '../../queries/admin'
-import { t, en } from '../../i18n'
+import { t } from '../../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
 import Pager from '../../components/admin/Pager'
@@ -43,7 +43,7 @@ export default function AdminTournamentsPage() {
                     <ActionButton
                       tone="red"
                       onClick={() => {
-                        if (window.confirm(en.admin.tournamentDeleteConfirm(t2.name || 'Untitled Tournament'))) {
+                        if (window.confirm(t('admin.tournamentDeleteConfirm', { name: t2.name || 'Untitled Tournament' }))) {
                           run(
                             () => adminRequest('POST', `/tournaments/${t2.id}/delete`),
                             t('admin.tournamentDeleted'),

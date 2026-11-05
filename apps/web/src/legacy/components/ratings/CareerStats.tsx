@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { PlayerStats } from '../../queries/types'
-import { t } from '../../i18n'
+import { t } from '../../../i18n'
 
 const SESSIONS_PER_PAGE = 5
 

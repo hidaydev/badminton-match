@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { listAuthSessions, revokeOtherAuthSessions } from '../../auth/api'
 import type { AuthSession } from '../../auth/api'
-import { t } from '../i18n'
+import { t } from '../../i18n'
 
 type Props = {
   onClose: () => void

@@ -1,6 +1,6 @@
 // src/components/admin/Pager.tsx — Pagination kontrol untuk admin pages.
 import { useEffect } from 'react'
-import { t } from '../../i18n'
+import { t } from '../../../i18n'
 
 const PAGE = 10
 

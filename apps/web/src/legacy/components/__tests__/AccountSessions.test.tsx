@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { t } from '../../i18n'
+import { t } from '../../../i18n'
 import { mockFetch } from '../../../test/fetchMock'
 import AccountSessions from '../AccountSessions'
 

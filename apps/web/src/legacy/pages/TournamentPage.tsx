@@ -9,6 +9,7 @@ import {
 import { communityQueryKey } from '../queries/keys'
 import { GROUP_IDS, EMPTY_GROUPS, type GroupId } from '../utils/tournament'
 import { todayWIB } from '../utils/time'
+import { formatLongDate } from '../../utils/day'
 import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
 import { useAdmin } from '../context/AdminContext'
 import ErrorBanner from '../components/ErrorBanner'
@@ -157,11 +158,7 @@ export default function TournamentPage() {
           )}
         </div>
         <p className="text-xs text-fg-dim mt-0.5 mb-3">
-          {new Date(date).toLocaleDateString('en-US', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}{' '}
+          {formatLongDate(date, false)}{' '}
           · 16 pairs · 4 groups
         </p>
         <div className="flex">

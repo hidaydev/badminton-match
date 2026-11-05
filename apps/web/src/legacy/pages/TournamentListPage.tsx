@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from '../router'
 import { useListTournaments } from '../queries'
 import { useAdmin } from '../context/AdminContext'
-import { t } from '../i18n'
+import { t } from '../../i18n'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 

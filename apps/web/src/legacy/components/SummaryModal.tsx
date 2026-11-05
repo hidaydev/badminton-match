@@ -6,9 +6,11 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
+import { t } from '../../i18n'
 import type { GeneratorResult } from '../generator'
 import type { Player, GameScore, CourtTime } from '../types'
 import { formatMergedCourtTimes } from '../utils/time'
+import { formatLongDate } from '../../utils/day'
 import { courtLabel } from '../utils/courtLabel'
 import type { SwapTarget, TeamSwapTarget } from '../utils/swap'
 import { validateChangeName } from '../utils/swap'
@@ -245,11 +247,11 @@ export default function SummaryModal({
   const playedCount = played.size
 
   return (
-    <div ref={dialogRef} tabIndex={-1} className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-50 bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label="Session summary">
+    <div ref={dialogRef} tabIndex={-1} className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-50 bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label={t('summary.title')}>
       {/* Toolbar — wraps instead of clipping on a 390px screen. */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex gap-1" role="tablist" aria-label="Session summary tabs">
+          <div className="flex gap-1" role="tablist" aria-label={t('summary.tabs')}>
             <button
               role="tab"
               aria-selected={activeTab === 'schedule'}
@@ -257,7 +259,7 @@ export default function SummaryModal({
               onClick={() => { setActiveTab('schedule'); exitCurrentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              Schedule
+              {t('summary.tab.schedule')}
             </button>
             <button
               role="tab"
@@ -266,19 +268,19 @@ export default function SummaryModal({
               onClick={() => { setActiveTab('standings'); exitCurrentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              Standings
+              {t('summary.tab.standings')}
             </button>
           </div>
           {playedCount > 0 && (
             <span className="text-xs text-slate-400">
-              {playedCount}/{totalGames} played
+              {t('summary.played', { played: playedCount, total: totalGames })}
             </span>
           )}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
           {locked && !onSetLocked && (
             <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-900/40 border border-amber-700 text-amber-400">
-              🔒<span className="hidden sm:inline"> Locked</span>
+              🔒<span className="hidden sm:inline"> {t('summary.locked')}</span>
             </span>
           )}
           {/* Finishing is the rating gate, so it is never one careless click. */}
@@ -292,15 +294,13 @@ export default function SummaryModal({
                   : 'bg-emerald-900/40 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60'
               }`}
             >
-              {locked ? 'Reopen session' : 'Finish session'}
+              {locked ? t('summary.reopen') : t('summary.finish')}
             </button>
           )}
           {onSetLocked && lockConfirm && (
             <>
               <span className="text-xs text-slate-400 hidden sm:inline max-w-xs">
-                {locked
-                  ? 'Reopen? Its points are withdrawn until it is finished again.'
-                  : 'Finish? The session becomes read-only and its results count toward the rankings.'}
+                {locked ? t('summary.reopenConfirm') : t('summary.finishConfirm')}
               </span>
               <button
                 onClick={async () => {
@@ -312,7 +312,11 @@ export default function SummaryModal({
                   locked ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
                 }`}
               >
-                {lockBusy ? 'Saving…' : locked ? 'Yes, reopen' : 'Yes, finish'}
+                {lockBusy
+                  ? t('summary.saving')
+                  : locked
+                    ? t('summary.reopenYes')
+                    : t('summary.finishYes')}
               </button>
               <button
                 onClick={() => setLockConfirm(false)}
@@ -328,7 +332,7 @@ export default function SummaryModal({
                 onClick={() => { exitCurrentMode(); setActionsOpen(false) }}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
-                ✕<span className="hidden sm:inline"> Cancel</span>
+                ✕<span className="hidden sm:inline"> {t('summary.cancel')}</span>
               </button>
             ) : (
               <ActionsMenu
@@ -357,7 +361,7 @@ export default function SummaryModal({
             <button
               onClick={() => setDeleteConfirm(true)}
               className="text-slate-400 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors text-sm"
-              title="Delete session"
+              title={t('summary.delete')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
@@ -371,7 +375,7 @@ export default function SummaryModal({
               className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
               {deleteLoading && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-              {deleteLoading ? 'Deleting…' : 'Confirm delete'}
+              {deleteLoading ? t('summary.deleting') : t('summary.deleteConfirm')}
             </button>
           )}
           {deleteConfirm && (
@@ -388,7 +392,7 @@ export default function SummaryModal({
               onClick={onClose}
               className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
             >
-              Close
+              {t('summary.close')}
             </button>
           )}
         </div>
@@ -401,12 +405,7 @@ export default function SummaryModal({
             {title && <p className="text-white font-bold text-[1rem] leading-tight">{title}</p>}
             {date && (
               <p className="text-slate-400 text-xs mt-0.5">
-                {new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}
+                {formatLongDate(date)}
                 {courtTimes.length > 0 && (
                   <span className="text-slate-400"> · {formatMergedCourtTimes(courtTimes)}</span>
                 )}
@@ -418,7 +417,7 @@ export default function SummaryModal({
               onClick={onRefetch}
               disabled={isRefetching}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 active:scale-90 transition-all disabled:opacity-40 shrink-0"
-              aria-label="Reload session"
+              aria-label={t('summary.reload')}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -441,13 +440,11 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div id={panelId} role="tabpanel" aria-label={activeTab === 'standings' ? 'Standings' : 'Schedule'} className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || skipChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
+      <div id={panelId} role="tabpanel" aria-label={activeTab === 'standings' ? t('summary.tab.standings') : t('summary.tab.schedule')} className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || skipChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
         {mode === 'swap' && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">
-              {swapSelected
-                ? '1 of 2 selected — tap another player to swap'
-                : 'Select two players to swap'}
+              {t(swapSelected ? 'summary.swapOne' : 'summary.swapStart')}
             </span>
             {swapError && (
               <span className="text-[11px] text-red-400">{swapError}</span>
@@ -458,10 +455,12 @@ export default function SummaryModal({
           <div className="mb-3 rounded-lg bg-red-950/30 border border-red-900/40 px-3 py-2 flex flex-col gap-2">
             <span className="text-xs text-red-300 font-medium">
               {absentPending.size > 0
-                ? `${absentPending.size} player${absentPending.size === 1 ? '' : 's'} marked absent — tap to toggle`
-                : 'Tap players to mark absent'}
+                ? t('summary.absentSome', { count: absentPending.size })
+                : t('summary.absentNone')}
             </span>
-            <span className="text-[11px] text-red-400/70">whole session — {totalGames} games</span>
+            <span className="text-[11px] text-red-400/70">
+              {t('summary.absentScope', { games: totalGames })}
+            </span>
             <div className="flex flex-wrap gap-1.5">
               {[...playerMap.values()].map((p) => {
                 const isSelected = absentPending.has(p.id)
@@ -493,10 +492,10 @@ export default function SummaryModal({
           <div className="mb-3 rounded-lg bg-amber-950/30 border border-amber-900/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-amber-300 font-medium">
               {flatSkippedCount > 0
-                ? `${flatSkippedCount} skipped — tap chip in a game to toggle (excludes from rating)`
-                : 'Tap a player chip inside a game to skip them for THAT game only'}
+                ? t('summary.skipSome', { count: flatSkippedCount })
+                : t('summary.skipNone')}
             </span>
-            <span className="text-[11px] text-amber-400/70">one game only — player excluded from rating</span>
+            <span className="text-[11px] text-amber-400/70">{t('summary.skipScope')}</span>
             {skipChanged && (
               <span className="text-[10px] text-amber-300">
                 {[...skipPending.entries()].map(([k, s]) => `${k}: ${[...s].map(id => playerMap.get(id)?.name ?? id).join(', ')}`).join(' · ')}
@@ -507,11 +506,11 @@ export default function SummaryModal({
         {mode === 'replace' && (
           <div className="mb-3 rounded-lg bg-emerald-950/30 border border-emerald-900/40 px-3 py-2 flex flex-col gap-2">
             {replaceTarget === null ? (
-              <span className="text-xs text-emerald-300 font-medium">Tap a player to replace</span>
+              <span className="text-xs text-emerald-300 font-medium">{t('summary.replacePrompt')}</span>
             ) : (
               <>
                 <span className="text-xs text-emerald-300 font-medium">
-                  Replace <strong>{playerMap.get(replaceTarget)?.name}</strong> with:
+                  {t('summary.replaceWith', { name: playerMap.get(replaceTarget)?.name ?? '' })}
                 </span>
                 <div className="flex gap-2 items-center">
                   <input
@@ -524,7 +523,7 @@ export default function SummaryModal({
                         exitCurrentMode()
                       }
                     }}
-                    placeholder="New name…"
+                    placeholder={t('summary.namePlaceholder')}
                     autoFocus
                     className="flex-1 bg-slate-900 border border-emerald-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                   />
@@ -566,7 +565,7 @@ export default function SummaryModal({
         {mode === 'change' && (
           <div className="mb-3 rounded-lg bg-sky-950/30 border border-sky-900/40 px-3 py-2 flex flex-col gap-2">
             {changeTarget === null ? (
-              <span className="text-xs text-sky-300 font-medium">Tap a player to change them out</span>
+              <span className="text-xs text-sky-300 font-medium">{t('summary.changePrompt')}</span>
             ) : (
               <>
                 <span className="text-xs text-sky-300 font-medium">
@@ -585,7 +584,7 @@ export default function SummaryModal({
                         setPendingChange({ target: changeTarget, newName: name, b2b: validation.b2b })
                       }
                     }}
-                    placeholder="New name…"
+                    placeholder={t('summary.namePlaceholder')}
                     autoFocus
                     className="flex-1 bg-slate-900 border border-sky-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/50"
                   />
@@ -600,7 +599,7 @@ export default function SummaryModal({
                     disabled={!changeName.trim() || saving}
                     className="text-xs font-bold px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-600 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                   >
-                    Next
+                    {t('summary.next')}
                   </button>
                 </div>
                 {changeError && (

@@ -15,7 +15,7 @@ import type { AchievementRow } from '../queries/endpoints'
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { AmbiguousNamesProvider, combineAmbiguous, useAmbiguousNames } from '../context/AmbiguousNamesContext'
-import { t, en } from '../i18n'
+import { t } from '../../i18n'
 
 const MATCHES_PER_PAGE = 5
 
@@ -154,7 +154,7 @@ export default function RatingPlayerPage() {
             {rankRow && (
               <div className="text-left sm:text-right">
                 <p className="text-xs font-sans text-fg-dim">
-                  {en.player.countedSessions(rankRow.counted_entries, rankRow.entries_available)}
+                  {t(rankRow.entries_available > rankRow.counted_entries ? 'player.countedSessionsOf' : 'player.countedSessions', { counted: rankRow.counted_entries, total: rankRow.entries_available })}
                 </p>
                 {rankRow.thin_evidence && (
                   <span className="inline-block mt-1 text-[10px] font-sans text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20 font-medium">

@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useListSessions } from '../../queries'
 import { adminRequest } from '../../queries/admin'
-import { t, en } from '../../i18n'
+import { t } from '../../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
 import Pager from '../../components/admin/Pager'
@@ -47,7 +47,7 @@ export default function AdminSessionsPage() {
                   <div className="flex items-center gap-1.5 shrink-0">
                     {s.locked && unlockConfirmId !== s.id && (
                       <ActionButton tone="amber" onClick={() => setUnlockConfirmId(s.id)}>
-                        Unlock
+                        {t('admin.unlock')}
                       </ActionButton>
                     )}
                     {s.locked && unlockConfirmId === s.id && (
@@ -63,17 +63,17 @@ export default function AdminSessionsPage() {
                             )
                           }}
                         >
-                          Confirm unlock
+                          {t('admin.unlockConfirm')}
                         </ActionButton>
                         <ActionButton tone="neutral" onClick={() => setUnlockConfirmId(null)}>
-                          Cancel
+                          {t('admin.cancel')}
                         </ActionButton>
                       </>
                     )}
                     <ActionButton
                       tone="red"
                       onClick={() => {
-                        if (window.confirm(en.admin.sessionDeleteConfirm(s.title || 'Untitled', s.date))) {
+                        if (window.confirm(t('admin.sessionDeleteConfirm', { title: s.title || 'Untitled', date: s.date }))) {
                           run(
                             () => adminRequest('POST', `/sessions/${s.id}/delete`),
                             t('admin.sessionDeleted'),

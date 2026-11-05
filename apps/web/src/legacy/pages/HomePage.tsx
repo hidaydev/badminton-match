@@ -7,16 +7,23 @@ import { useAdmin } from '../context/AdminContext'
 import InstallModal from '../components/InstallModal'
 import Icon, { type IconName } from '../components/Icon'
 import AdminMenuGrid from '../components/admin/AdminMenuGrid'
-import { t } from '../i18n'
+import { t } from '../../i18n'
 
-const secondary: { icon: IconName; label: string; description: string; to: string }[] = [
-  { icon: 'sessions', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
-  { icon: 'players', label: 'Players', description: 'Roster, claims and aliases', to: '/players' },
-  { icon: 'ratings', label: 'Rankings', description: 'Rating points, past 12 weeks', to: '/rankings' },
-  { icon: 'scoreboard', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
-  { icon: 'tournament', label: 'Tournament', description: 'Brackets and final standings', to: '/tournaments' },
-  { icon: 'post', label: 'Instagram Post', description: 'Create a post', to: '/instagram-post' },
-] as const
+type MessageKey = Parameters<typeof t>[0]
+
+const secondary: {
+  icon: IconName
+  label: MessageKey
+  description: MessageKey
+  to: string
+}[] = [
+  { icon: 'sessions', label: 'home.card.sessions', description: 'home.card.sessions.hint', to: '/sessions' },
+  { icon: 'players', label: 'home.card.players', description: 'home.card.players.hint', to: '/players' },
+  { icon: 'ratings', label: 'home.card.rankings', description: 'home.card.rankings.hint', to: '/rankings' },
+  { icon: 'scoreboard', label: 'home.card.scoreboard', description: 'home.card.scoreboard.hint', to: '/scoreboard' },
+  { icon: 'tournament', label: 'home.card.tournament', description: 'home.card.tournament.hint', to: '/tournaments' },
+  { icon: 'post', label: 'home.card.post', description: 'home.card.post.hint', to: '/instagram-post' },
+]
 
 async function openScoreboard(navigate: (path: string) => void) {
   try { await document.documentElement.requestFullscreen() } catch (_error) { void _error }
@@ -126,8 +133,8 @@ export default function HomePage() {
                 <Icon name={item.icon} size={18} />
               </div>
               <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-sm font-semibold text-fg leading-tight">{item.label}</span>
-                <span className="text-[11px] text-fg-dim leading-snug">{item.description}</span>
+                <span className="text-sm font-semibold text-fg leading-tight">{t(item.label)}</span>
+                <span className="text-[11px] text-fg-dim leading-snug">{t(item.description)}</span>
               </div>
             </button>
           ))}

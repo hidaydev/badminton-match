@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useNavigate } from '../router'
 import { useListSessions } from '../queries'
-import { t } from '../i18n'
+import { t } from '../../i18n'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
