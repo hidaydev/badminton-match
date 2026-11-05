@@ -2,6 +2,8 @@ import std/[json, options, os, sets, strutils, tables, unittest]
 import db/db
 import ../../domain/achievement
 import ../../infrastructure/backfill
+import rating/domain/rating
+import rating/read
 
 type
   Game = object
@@ -11,12 +13,27 @@ type
     scoreA: int
     scoreB: int
 
+const asOf = "2026-12-31"
+
 var
   database: Db
   communityId: string
   players: array[12, string]
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
+
+proc params(): RatingParams =
+  ## The registry values, spelled out so the test owns the board it asserts on.
+  RatingParams(sessionBase: 250, scoreTarget: 21, opponentClampLow: 0.5,
+    opponentClampHigh: 1.5, windowWeeks: 12, bestN: 10, thinEvidenceN: 3,
+    bands: @[
+      TierBand(tier: "D", floor: 1000, ceiling: some(1199.0)),
+      TierBand(tier: "C", floor: 1300, ceiling: some(1499.0)),
+      TierBand(tier: "B", floor: 1600, ceiling: some(1799.0)),
+      TierBand(tier: "A+", floor: 2100, ceiling: none(float))])
+
+proc award(): BackfillResult =
+  backfill(database, communityId, asOf, params())
 
 proc cleanup() =
   for statement in [
@@ -75,6 +92,14 @@ proc addGame(sessionId: string, roundNo: int, game: Game) =
       textParam(game.a[0]), textParam(game.a[1]), textParam(game.b[0]),
       textParam(game.b[1])])
 
+proc skipGame(sessionId: string, roundNo: int, playerId: string) =
+  discard database.execUpdate(
+    """insert into session.game_skips
+         (community_id, session_id, round_no, court_no, player_id)
+       values ($1::uuid, $2::uuid, $3, $3, $4::uuid)""",
+    @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
+      textParam(playerId)])
+
 proc seedSession(date: string, games: seq[Game]): string =
   let sessionId = database.queryOne(
     """insert into session.sessions
@@ -96,6 +121,12 @@ proc seedSession(date: string, games: seq[Game]): string =
       @[textParam(communityId), textParam(sessionId), textParam(player)])
   for roundNo, game in games:
     addGame(sessionId, roundNo, game)
+  # The ticker writes one event per approved session, and the board reads them;
+  # a medal rank comes from that board, not from `rating.player_state`.
+  discard database.execUpdate(
+    """insert into rating.events (community_id, local_date, event_type, source_id)
+       values ($1::uuid, $2::date, 'session', $3::uuid)""",
+    @[textParam(communityId), textParam(date), textParam(sessionId)])
   sessionId
 
 proc seedTournament(name, playerA, playerB: string) =
@@ -152,7 +183,8 @@ proc setup() =
        returning id""").get.get("id")
   for index in 0 ..< 12:
     players[index] = newPlayer(index, if index == 0: "C" else: "")
-  # Player 0 sits on top of the board; everyone else only needs a rank.
+  # The ledger is seeded too, because production has it; it must not decide a
+  # rank badge. Player 0 still lands on top, this time from the games.
   for index in 0 ..< 12:
     let rating = if index == 0: 2000 else: 100 * (12 - index)
     seedState(players[index], rating, wins = 1, losses = 1)
@@ -187,7 +219,7 @@ suite "achievement backfill":
         check parseInt(row.get.get("threshold")) == badge.threshold
 
   test "the fixture earns at least one badge per seeded category":
-    let result = backfill(database, communityId)
+    let result = award()
     check result.players == 12
     check result.awarded > 0
     var seeded = initHashSet[string]()
@@ -206,17 +238,21 @@ suite "achievement backfill":
 
   test "a second run changes nothing":
     let before = allRows()
-    let result = backfill(database, communityId)
+    let result = award()
     check result.awarded == 0
     check allRows() == before
+    # The config-resolving entry point the v1 import uses reads the same roster.
+    check backfill(database, communityId).players == result.players
 
   test "a new session adds only the badges it unlocks":
     let before = allRows()
     let beforeKeys = keysOf(players[0])
-    discard seedSession("2026-11-06", @[
+    # Dated past the board anchor on purpose: the extra games count, while the
+    # rank table the run reads stays exactly where the fixture left it.
+    discard seedSession("2027-01-05", @[
       Game(a: [players[0], players[2]], b: [players[3], players[4]],
         scoreA: 21, scoreB: 12)])
-    let result = backfill(database, communityId)
+    let result = award()
     check result.awarded == 1
     check allRows().len == before.len + 1
     let added = keysOf(players[0]) - beforeKeys
@@ -296,6 +332,65 @@ suite "achievement backfill":
         """update session.participants set is_absent = true
            where community_id = $1::uuid and session_id = $2::uuid""",
         @[textParam(communityId), textParam(sessionId)])
-    check backfill(database, communityId).awarded == 0
+    check award().awarded == 0
     for player in [sideA[0], sideA[1], sideB[0], sideB[1]]:
       check keysOf(player).len == 0
+
+  test "a skipped game leaves no trace in the tallies":
+    ## The slots still name them and they are on the roster, but they sat the
+    ## game out: no game, no win, and no partner or opponent named for anyone.
+    let sitter = newPlayer(16, "")
+    let mate = newPlayer(17, "")
+    let rivals = [newPlayer(18, ""), newPlayer(19, "")]
+    for day in 1 .. 10:
+      let sessionId = seedSession("2026-11-" & align($(day + 9), 2, '0'), @[
+        Game(a: [sitter, mate], b: rivals, scoreA: 21, scoreB: 5)])
+      skipGame(sessionId, roundNo = 0, playerId = sitter)
+    discard award()
+    check "games:10" notin keysOf(sitter)
+    check "wins:5" notin keysOf(sitter)
+    check "games:10" in keysOf(mate)
+
+  test "a skipped opponent is not someone the other side faced":
+    ## `rival` meets ten different players in five sessions; one of the ten sat
+    ## a game out, so nine were actually faced and the ladder stops at #10.
+    let rival = [newPlayer(20, ""), newPlayer(21, "")]
+    for day in 1 .. 5:
+      let pair = [newPlayer(20 + 2 * day, ""), newPlayer(21 + 2 * day, "")]
+      let sessionId = seedSession("2026-11-" & align($(day + 9), 2, '0'), @[
+        Game(a: pair, b: rival, scoreA: 21, scoreB: 15)])
+      if day == 1:
+        skipGame(sessionId, roundNo = 0, playerId = pair[0])
+    discard award()
+    check "opponents:10" notin keysOf(rival[0])
+
+  test "a rank badge follows the board, not the ledger":
+    ## `rating.player_state.rating` is an all-time accumulator. Here it puts one
+    ## player far ahead while the best-N board puts another first, and the badge
+    ## has to agree with the list the members read.
+    let ledgerKing = newPlayer(32, "")
+    let boardKing = newPlayer(33, "")
+    seedState(ledgerKing, 99999, wins = 1, losses = 1)
+    seedState(boardKing, 1, wins = 1, losses = 1)
+    let extra = [newPlayer(34, ""), newPlayer(35, "")]
+    for day in 1 .. 10:
+      discard seedSession("2026-11-" & align($day, 2, '0'), @[
+        Game(a: [boardKing, extra[0]], b: [extra[1], ledgerKing],
+          scoreA: 21, scoreB: 2)])
+    discard award()
+    check "rank:1" in keysOf(boardKing)
+    check "rank:1" notin keysOf(ledgerKing)
+
+  test "every rank badge the board implies is on the shelf":
+    ## Awards are never revoked, so a player who slipped keeps an older badge;
+    ## the check is that the current rank never lacks its rungs.
+    var ranks = initTable[string, int]()
+    for row in board(database, BoardQuery(communityId: communityId, asOf: asOf,
+      params: params(), limit: 0)):
+      ranks[row.playerId] = row.rank
+    check ranks.len > 0
+    for playerId, rank in ranks:
+      let keys = keysOf(playerId)
+      for threshold in [10, 5, 3, 2, 1]:
+        if rank <= threshold:
+          check ("rank:" & $threshold) in keys

@@ -5,10 +5,11 @@ import rating/domain/rating
 import rating/infrastructure/ingest
 import achievement/infrastructure/backfill
 import rating/infrastructure/params
+import rating/read
 
 const usage = """Usage: ratingingest <tick|session <id> --community <slug>|rebuild --community <slug>>
 
-  tick                          ingest every approved session of every community
+  tick                          ingest every new approved session, then award badges
   session <id> --community <s>  ingest one session
   rebuild --community <slug>    wipe and replay that community's rating
 
@@ -34,12 +35,22 @@ proc communityIdOf(db: Db, slug: string): string =
 proc planFor(db: Db, snapshot: Snapshot, communityId: string): RatingParams =
   loadRatingParams(snapshot, communitySettings(db, communityId))
 
-proc approvedSessions(db: Db, communityId: string): seq[string] =
+proc pendingSessions*(db: Db, communityId: string): seq[string] =
+  ## Only the approved sessions the ledger has not seen yet. A tick asks once
+  ## instead of walking every session and paying three round-trips per no-op.
+  ## The order is approval order, the order a rebuild replays: an event's deltas
+  ## are computed from the state the events before it left, so session-date
+  ## order would award a different multiplier.
   for row in db.query(
-    """select id from session.sessions
-       where community_id = $1::uuid and approved_at is not null
-         and status in ('locked', 'published', 'completed', 'archived')
-       order by session_date, id""", @[textParam(communityId)]):
+    """select s.id
+       from session.sessions s
+       where s.community_id = $1::uuid and s.approved_at is not null
+         and s.status in ('locked', 'published', 'completed', 'archived')
+         and not exists (
+           select 1 from rating.events e
+           where e.community_id = s.community_id
+             and e.event_type = 'session' and e.source_id = s.id)
+       order by s.approved_at, s.id""", @[textParam(communityId)]):
     result.add(row.get("id"))
 
 proc main() =
@@ -78,30 +89,34 @@ proc main() =
     for row in db.query("select id from platform.community order by slug"):
       let communityId = row.get("id")
       let params = planFor(db, snapshot, communityId)
-      for id in approvedSessions(db, communityId):
+      for id in pendingSessions(db, communityId):
         let result = ingestSession(db, communityId, id, params)
         events += result.events
         deltas += result.deltas
-      awarded += backfill(db, communityId).awarded
+      awarded += backfill(db, communityId,
+        latestEventDate(db, communityId), params).awarded
       inc communities
   of "session":
     if slug.len == 0 or sessionId.len == 0:
       fail "session needs an id and --community <slug>"
     let communityId = communityIdOf(db, slug)
-    let result = ingestSession(db, communityId, sessionId,
-      planFor(db, snapshot, communityId))
+    let params = planFor(db, snapshot, communityId)
+    let result = ingestSession(db, communityId, sessionId, params)
     events += result.events
     deltas += result.deltas
-    awarded += backfill(db, communityId).awarded
+    awarded += backfill(db, communityId,
+      latestEventDate(db, communityId), params).awarded
     communities = 1
   of "rebuild":
     if slug.len == 0:
       fail "rebuild needs --community <slug>"
     let communityId = communityIdOf(db, slug)
-    let result = rebuild(db, communityId, planFor(db, snapshot, communityId))
+    let params = planFor(db, snapshot, communityId)
+    let result = rebuild(db, communityId, params)
     events += result.events
     deltas += result.deltas
-    awarded += backfill(db, communityId).awarded
+    awarded += backfill(db, communityId,
+      latestEventDate(db, communityId), params).awarded
     communities = 1
   else:
     echo usage

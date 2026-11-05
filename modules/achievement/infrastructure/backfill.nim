@@ -1,6 +1,10 @@
 import std/[json, options, sets, strutils, tables, times]
 import db/db
 import clock
+import platform/config/store
+import rating/domain/rating
+import rating/infrastructure/params
+import rating/read
 import ../domain/achievement
 
 type
@@ -60,11 +64,29 @@ proc loadAbsent(conn: DbConn, communityId: string): HashSet[string] =
     @[textParam(communityId)]):
     result.incl(row.get("session_id") & "|" & row.get("player_id"))
 
-proc sidePlayers(row: Row, side, sessionId: string,
-                 absent: HashSet[string]): seq[string] =
+proc loadSkips(conn: DbConn, communityId: string): HashSet[string] =
+  ## A skipped player was at the session but sat this game out, so the game is
+  ## neither theirs nor a partner or opponent of anyone else in it.
+  for row in conn.query(
+    """select session_id::text as session_id, round_no, court_no,
+              player_id::text as player_id
+       from session.game_skips
+       where community_id = $1::uuid""",
+    @[textParam(communityId)]):
+    result.incl(row.get("session_id") & "|" & row.get("round_no") & "-" &
+      row.get("court_no") & "|" & row.get("player_id"))
+
+proc presentPlayers(row: Row, side, sessionId: string,
+                    absent: HashSet[string]): seq[string] =
   for slot in ["1", "2"]:
     let playerId = row.get(side & slot)
     if playerId.len > 0 and (sessionId & "|" & playerId) notin absent:
+      result.add(playerId)
+
+proc withoutSkips(players: seq[string], sessionId, gameKey: string,
+                  skipped: HashSet[string]): seq[string] =
+  for playerId in players:
+    if (sessionId & "|" & gameKey & "|" & playerId) notin skipped:
       result.add(playerId)
 
 proc tallySide(result: var Table[string, GameTally], side, other: seq[string],
@@ -83,10 +105,14 @@ proc tallySide(result: var Table[string, GameTally], side, other: seq[string],
 
 proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
   ## Played games of approved sessions. Each side is tallied separately so wins
-  ## and the distinct partner/opponent sets come from one pass.
+  ## and the distinct partner/opponent sets come from one pass. The gate is the
+  ## rating gate: a game needs a present player on both sides, and a skipped
+  ## player takes no part in it, not even as a partner or an opponent.
   let absent = loadAbsent(conn, communityId)
+  let skipped = loadSkips(conn, communityId)
   for row in conn.query(
     """select g.session_id::text as session_id,
+              g.round_no as round_no, g.court_no as court_no,
               g.score_a as score_a, g.score_b as score_b,
               coalesce(g.side_a1::text, '') as a1,
               coalesce(g.side_a2::text, '') as a2,
@@ -97,11 +123,17 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
          on s.community_id = g.community_id and s.id = g.session_id
        where g.community_id = $1::uuid and g.status = 'played'
          and g.score_a is not null and g.score_b is not null
+         and s.approved_at is not null
          and s.status in """ & playedSessions,
     @[textParam(communityId)]):
     let sessionId = row.get("session_id")
-    let aSide = sidePlayers(row, "a", sessionId, absent)
-    let bSide = sidePlayers(row, "b", sessionId, absent)
+    let gameKey = row.get("round_no") & "-" & row.get("court_no")
+    let presentA = presentPlayers(row, "a", sessionId, absent)
+    let presentB = presentPlayers(row, "b", sessionId, absent)
+    if presentA.len == 0 or presentB.len == 0:
+      continue
+    let aSide = withoutSkips(presentA, sessionId, gameKey, skipped)
+    let bSide = withoutSkips(presentB, sessionId, gameKey, skipped)
     let aWon = parseInt(row.get("score_a")) > parseInt(row.get("score_b"))
     result.tallySide(aSide, bSide, aWon)
     result.tallySide(bSide, aSide, not aWon)
@@ -128,25 +160,26 @@ proc loadTiers(conn: DbConn, communityId: string): Table[string, int] =
     @[textParam(communityId)]):
     result[row.get("id")] = tierLevel(row.get("tier"))
 
-proc loadRanks(conn: DbConn, communityId: string): Table[string, int] =
-  ## Current standing on the points board; only players with evidence are
-  ## ranked, so a newcomer has no rank badge.
-  for row in conn.query(
-    """select player_id,
-              (rank() over (order by rating desc, player_id))::int as position
-       from rating.player_state
-       where community_id = $1::uuid and games_played > 0""",
-    @[textParam(communityId)]):
-    result[row.get("player_id")] = parseInt(row.get("position"))
+proc loadRanks(db: Db, communityId, asOf: string,
+               params: RatingParams): Table[string, int] =
+  ## Current standing read from the same board query the member page uses, so a
+  ## rank badge can never disagree with the ranked list. Only players with an
+  ## entry inside the window are ranked, so a newcomer has no rank badge, and a
+  ## community with nothing rated yet has no board at all.
+  if asOf.len == 0:
+    return
+  for row in board(db, BoardQuery(communityId: communityId, asOf: asOf,
+    params: params, limit: 0)):
+    result[row.playerId] = row.rank
 
-proc loadFacts(conn: DbConn, communityId: string): seq[Facts] =
+proc loadFacts(conn: DbConn, communityId: string,
+               ranks: Table[string, int]): seq[Facts] =
   ## The roster drives the loop, so a player with no sessions still appears
   ## (and earns nothing).
   let attendance = loadAttendance(conn, communityId)
   let games = loadGames(conn, communityId)
   let tournaments = loadTournaments(conn, communityId)
   let tiers = loadTiers(conn, communityId)
-  let ranks = loadRanks(conn, communityId)
   for playerId, level in tiers:
     let attended = attendance.getOrDefault(playerId)
     let tally = games.getOrDefault(playerId)
@@ -185,13 +218,25 @@ proc writeAwards(conn: DbConn, communityId, earnedAt: string,
       params)
     start = last
 
-proc backfill*(db: Db, communityId: string): BackfillResult =
+proc communitySettings(db: Db, communityId: string): JsonNode =
+  ## L2 overrides, read the way the API and the ticker read them.
+  let row = db.queryOne(
+    """select values::text as values from community.settings
+       where community_id = $1::uuid""", @[textParam(communityId)])
+  if row.isSome: parseJson(row.get.get("values")) else: newJObject()
+
+proc backfill*(db: Db, communityId, asOf: string,
+               params: RatingParams): BackfillResult =
   ## Awards every threshold the current data qualifies for. Idempotent: a badge
   ## that already exists keeps its original `earned_at`, and only the players
-  ## whose facts crossed a new threshold gain rows.
+  ## whose facts crossed a new threshold gain rows. `asOf` and `params` are the
+  ## board read's inputs, so `rank:N` is measured on the best-N window the
+  ## members see; the board is read before the transaction because the pool
+  ## hands this process a single connection.
   var outcome: BackfillResult
+  let ranks = loadRanks(db, communityId, asOf, params)
   discard db.tx(proc(conn: DbConn): int =
-    let facts = loadFacts(conn, communityId)
+    let facts = loadFacts(conn, communityId, ranks)
     let earnedAt = utcNow().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
     var rows: seq[EarnRow] = @[]
     for item in facts:
@@ -201,6 +246,13 @@ proc backfill*(db: Db, communityId: string): BackfillResult =
     outcome.awarded = writeAwards(conn, communityId, earnedAt, rows)
     1)
   outcome
+
+proc backfill*(db: Db, communityId: string): BackfillResult =
+  ## Resolves the board inputs from the config registry for callers that have
+  ## none at hand (the v1 import). The ticker passes the params it already
+  ## loaded, so a tick does not read the registry twice.
+  backfill(db, communityId, latestEventDate(db, communityId),
+    loadRatingParams(loadSnapshot(db), communitySettings(db, communityId)))
 
 proc suffixThreshold(key: string): int =
   try:
