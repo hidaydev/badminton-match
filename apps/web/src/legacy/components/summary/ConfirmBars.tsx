@@ -36,7 +36,7 @@ function ConfirmActionBar({
 }) {
   const c = COLOR_MAP[color]
   return (
-    <div className={`fixed bottom-0 left-0 right-0 z-50 bg-ground border-t ${c.border} px-4 py-3`}>
+    <div className={`fixed bottom-0 left-0 right-0 z-50 bg-ground border-t ${c.border} px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]`}>
       <div className="max-w-xl mx-auto">
         <div className={`${c.bg} border rounded-xl px-3 py-2.5`}>
           {children}

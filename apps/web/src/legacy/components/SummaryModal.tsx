@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
+  KeyboardSensor,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -198,32 +199,74 @@ export default function SummaryModal({
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [lockConfirm, setLockConfirm] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const panelId = useId()
+
+  // Modal focus: move focus into the dialog, keep Tab inside it, and hand
+  // focus back to the trigger when it closes. Full-page use is left alone.
+  useEffect(() => {
+    if (standalone) return
+    const node = dialogRef.current
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    node?.focus()
+
+    function handleTab(event: KeyboardEvent) {
+      if (event.key !== 'Tab' || !node) return
+      const focusable = node.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    node?.addEventListener('keydown', handleTab)
+    return () => {
+      node?.removeEventListener('keydown', handleTab)
+      if (previous && document.contains(previous)) previous.focus()
+    }
+  }, [standalone])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    // Keyboard alternative for slot swapping (drag is not the only way in).
+    useSensor(KeyboardSensor),
   )
 
   const totalGames = result.schedule.length
   const playedCount = played.size
 
   return (
-    <div className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-50 bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label="Session summary">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1">
+    <div ref={dialogRef} tabIndex={-1} className={standalone ? 'flex-1 flex flex-col bg-ground overflow-hidden' : 'fixed inset-0 z-50 bg-ground flex flex-col overflow-hidden'} role="dialog" aria-modal={!standalone} aria-label="Session summary">
+      {/* Toolbar — wraps instead of clipping on a 390px screen. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b border-slate-800 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex gap-1" role="tablist" aria-label="Session summary tabs">
             <button
+              role="tab"
+              aria-selected={activeTab === 'schedule'}
+              aria-controls={panelId}
               onClick={() => { setActiveTab('schedule'); exitCurrentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Schedule
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === 'standings'}
+              aria-controls={panelId}
               onClick={() => { setActiveTab('standings'); exitCurrentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              Leaderboard
+              Standings
             </button>
           </div>
           {playedCount > 0 && (
@@ -232,7 +275,7 @@ export default function SummaryModal({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
           {locked && !onSetLocked && (
             <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-900/40 border border-amber-700 text-amber-400">
               🔒<span className="hidden sm:inline"> Locked</span>
@@ -398,7 +441,7 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || skipChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
+      <div id={panelId} role="tabpanel" aria-label={activeTab === 'standings' ? 'Standings' : 'Schedule'} className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || skipChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
         {mode === 'swap' && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">

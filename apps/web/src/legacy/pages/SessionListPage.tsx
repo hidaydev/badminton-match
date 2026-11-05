@@ -22,6 +22,7 @@ export default function SessionListPage() {
     hasMore,
     loadMore,
     isLoadingMore,
+    refetch,
   } = useListSessions({
     q: query.trim() || undefined,
     date: dateFilter || undefined,
@@ -43,6 +44,7 @@ export default function SessionListPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('sessions.searchPlaceholder')}
+          aria-label={t('sessions.searchPlaceholder')}
           className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
         />
         <div className="flex items-center gap-1.5 shrink-0">
@@ -50,6 +52,7 @@ export default function SessionListPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
+            aria-label="Filter by date"
             className="bg-elevated border border-border rounded-lg px-2.5 py-2 text-xs font-mono text-fg scheme-dark focus:border-accent focus:outline-none"
           />
           {dateFilter && (
@@ -63,7 +66,18 @@ export default function SessionListPage() {
         </div>
       </div>
 
-      {isError && <p className="text-error text-sm">{t('sessions.loadFailed')}</p>}
+      {isError && (
+        <div className="flex items-center gap-3">
+          <p className="text-error text-sm">{t('sessions.loadFailed')}</p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="text-xs font-medium text-accent hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {!isError && isLoading && (
         <div className="bg-surface border border-border-subtle rounded-xl overflow-hidden divide-y divide-border-subtle animate-pulse">

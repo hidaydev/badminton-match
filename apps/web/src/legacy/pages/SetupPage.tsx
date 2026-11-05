@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { useStore } from '../store'
 import { selectTotalGames } from '../store/selectors'
 import { PLAYERS_PER_GAME } from '../types'
@@ -50,10 +51,11 @@ function NumInput({
   disabled: boolean
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-slate-400">{label}</label>
+    <div className="flex flex-col gap-1" role="group" aria-label={label}>
+      <span className="text-xs text-slate-400">{label}</span>
       <div className="flex items-center gap-2">
         <button
+          aria-label={`Decrease ${label.toLowerCase()}`}
           disabled={disabled || value <= min}
           onClick={() => onChange(Math.max(min, value - 1))}
           className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
@@ -62,6 +64,7 @@ function NumInput({
         </button>
         <span className="w-10 text-center text-white font-semibold text-lg">{value}</span>
         <button
+          aria-label={`Increase ${label.toLowerCase()}`}
           disabled={disabled || value >= max}
           onClick={() => onChange(Math.min(max, value + 1))}
           className="w-8 h-8 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold transition-colors"
@@ -78,17 +81,20 @@ function TimeSelect({
   options,
   onChange,
   disabled,
+  label,
 }: {
   value: string
   options: string[]
   onChange: (v: string) => void
   disabled: boolean
+  label: string
 }) {
   return (
     <select
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
+      aria-label={label}
       className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
     >
       {options.map((o) => (
@@ -187,6 +193,9 @@ export default function SetupPage() {
   const lockSession = useStore((s) => s.lockSession)
   const resetSession = useStore((s) => s.resetSession)
   const navigate = useNavigate()
+  const titleId = useId()
+  const dateId = useId()
+  const durationId = useId()
 
   // No auto-reset on mount: coming back here from the Players step used to
   // wipe the roster, schedule and scores. "Reset All" stays explicit below.
@@ -221,8 +230,9 @@ export default function SetupPage() {
         {/* Block 0: Session identity */}
         <div className="flex flex-wrap gap-4">
           <div className="flex flex-col gap-1 flex-1 min-w-45">
-            <label className="text-xs text-slate-400">Session title</label>
+            <label htmlFor={titleId} className="text-xs text-slate-400">Session title</label>
             <input
+              id={titleId}
               type="text"
               value={session.title}
               onChange={(e) => setTitle(e.target.value)}
@@ -232,8 +242,9 @@ export default function SetupPage() {
             />
           </div>
           <div className="flex flex-col gap-1 min-w-35">
-            <label className="text-xs text-slate-400">Date</label>
+            <label htmlFor={dateId} className="text-xs text-slate-400">Date</label>
             <input
+              id={dateId}
               type="date"
               value={session.date}
               onChange={(e) => setDate(e.target.value)}
@@ -262,17 +273,19 @@ export default function SetupPage() {
             disabled={session.locked}
           />
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-slate-400">Session start</label>
+            <span className="text-xs text-slate-400">Session start</span>
             <TimeSelect
               value={session.sessionStart}
               options={startOpts}
               onChange={setSessionStart}
               disabled={session.locked}
+              label="Session start time"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-slate-400">Game duration</label>
+            <label htmlFor={durationId} className="text-xs text-slate-400">Game duration</label>
             <select
+              id={durationId}
               value={session.slotMinutes}
               disabled={session.locked}
               onChange={(e) => setSlotMinutes(Number(e.target.value))}
@@ -299,6 +312,7 @@ export default function SetupPage() {
                     value={session.courtNames?.[i] ?? ''}
                     onChange={(e) => setCourtName(i, e.target.value)}
                     placeholder={courtLabel(session.courtNames, i)}
+                    aria-label={`Court ${i + 1} name`}
                     className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-400 focus:outline-none focus:text-white focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus-visible:rounded-lg"
                   />
                   <TimeSelect
@@ -306,6 +320,7 @@ export default function SetupPage() {
                     options={courtStartOpts}
                     onChange={(v) => setCourtTime(i, v, ct.end)}
                     disabled={session.locked}
+                    label={`Court ${i + 1} start time`}
                   />
                   <span className="text-slate-400 text-xs">→</span>
                   <TimeSelect
@@ -313,6 +328,7 @@ export default function SetupPage() {
                     options={endOpts}
                     onChange={(v) => setCourtTime(i, ct.start, v)}
                     disabled={session.locked}
+                    label={`Court ${i + 1} end time`}
                   />
                   <span className="text-xs text-slate-400 ml-auto">
                     {slots} game{slots !== 1 ? 's' : ''}

@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { drawMatchPost, drawBracketRoundCover, drawPositionPost } from '../../utils/canvasPost'
 import type { TournamentMatch, TournamentPair } from '../../utils/tournament'
 import { QF_IDS, SF_IDS, FINAL_ID, THIRD_PLACE_ID } from '../../utils/tournament'
@@ -90,28 +90,29 @@ function Connector() {
   )
 }
 
+const OVERLAY_PATHS = {
+  logo: '/instagram-logo.png',
+  badge: '/tournament-badge.png',
+  chevrons: '/chevrons.png',
+  sponsor: '/sponsor-logo.png',
+  summaryBg: '/summary-bg.png',
+} as const
+
+type Overlays = Awaited<ReturnType<typeof loadOverlayImages>>
+
 export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, onOpenModal, isFetching, refetch }: BracketTabProps) {
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
   const [postModeRounds, setPostModeRounds] = useState<Record<string, boolean>>({})
   const { images: bracketPhotos, fileInputRef: bracketFileInputRef, openUpload: openBracketUpload, onFileChange: onBracketFileChange } = useImageUploadMap()
-  const [overlays, setOverlays] = useState<{
-    logo?: HTMLImageElement
-    badge?: HTMLImageElement
-    chevrons?: HTMLImageElement
-    sponsor?: HTMLImageElement
-    summaryBg?: HTMLImageElement
-  }>({})
+
+  const overlaysPromise = useRef<Promise<Overlays> | null>(null)
   const { images: podiumPhotos, fileInputRef: podiumFileInputRef, openUpload: openPodiumUpload, onFileChange: onPodiumFileChange } = useImageUploadMap()
 
-  useEffect(() => {
-    loadOverlayImages({
-      logo: '/instagram-logo.png',
-      badge: '/tournament-badge.png',
-      chevrons: '/chevrons.png',
-      sponsor: '/sponsor-logo.png',
-      summaryBg: '/summary-bg.png',
-    }).then(setOverlays)
-  }, [])
+  /** Export-only artwork (≈2 MB) loads on the first export, not when the tab opens. */
+  const ensureOverlays = () => {
+    overlaysPromise.current ??= loadOverlayImages(OVERLAY_PATHS)
+    return overlaysPromise.current
+  }
 
   const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
 
@@ -179,8 +180,9 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
   const handleDownloadPosition = async (pos: string, positionLabel: string, name: string) => {
     const photo = podiumPhotos[pos]
     if (!photo) return
+    const ov = await ensureOverlays()
     const c = document.createElement('canvas')
-    drawPositionPost({ canvas: c, photo, positionLabel, name, logo: overlays.logo, chevrons: overlays.chevrons, sponsor: overlays.sponsor, badge: overlays.badge })
+    drawPositionPost({ canvas: c, photo, positionLabel, name, logo: ov.logo, chevrons: ov.chevrons, sponsor: ov.sponsor, badge: ov.badge })
     const blob = await canvasToBlob(c)
     if (!blob) return
     const file = new File([blob], `bracket-${pos}.jpg`, { type: 'image/jpeg' })
@@ -190,6 +192,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
   const handleDownloadRound = async (roundMatchIds: readonly string[], roundTitle: string) => {
     const roundSlug = roundTitle.toLowerCase().replace(/\s+/g, '-')
     const files: File[] = []
+    const ov = await ensureOverlays()
 
     // Cover card — always included
     const coverRows = roundMatchIds.map(id => {
@@ -203,7 +206,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
       }
     })
     const coverCanvas = document.createElement('canvas')
-    drawBracketRoundCover({ canvas: coverCanvas, roundTitle, matchRows: coverRows, summaryBg: overlays.summaryBg, logo: overlays.logo, sponsor: overlays.sponsor })
+    drawBracketRoundCover({ canvas: coverCanvas, roundTitle, matchRows: coverRows, summaryBg: ov.summaryBg, logo: ov.logo, sponsor: ov.sponsor })
     const coverBlob = await canvasToBlob(coverCanvas)
     if (coverBlob) files.push(new File([coverBlob], `bracket-${roundSlug}-cover.jpg`, { type: 'image/jpeg' }))
 
@@ -221,10 +224,10 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
         scoreA: match.scoreA,
         scoreB: match.scoreB,
         subtitle: bracketSubtitle(id),
-        logo: overlays.logo,
-        badge: overlays.badge,
-        chevrons: overlays.chevrons,
-        sponsor: overlays.sponsor,
+        logo: ov.logo,
+        badge: ov.badge,
+        chevrons: ov.chevrons,
+        sponsor: ov.sponsor,
       })
       const blob = await canvasToBlob(c)
       if (blob) files.push(new File([blob], `bracket-${id}.jpg`, { type: 'image/jpeg' }))

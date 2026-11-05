@@ -1,5 +1,5 @@
 // src/pages/RankingsPage.tsx: public leaderboard based on rolling 12-week points.
-import { useState, useMemo } from 'react'
+import { useId, useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from '../router'
 import { useRankings } from '../queries/ratings'
 import AnnotatedPlayerName from '../components/AnnotatedPlayerName'
@@ -29,7 +29,8 @@ export default function RankingsPage() {
   }
 
   // Fetch all active players in 12-week window (min_sessions=0).
-  const { data, isLoading, isError } = useRankings(LIMIT, 0)
+  const { data, isLoading, isError, refetch } = useRankings(LIMIT, 0)
+  const searchId = useId()
   const rawRows = useMemo(() => data?.rows ?? [], [data])
 
   // Count players per tier
@@ -121,14 +122,29 @@ export default function RankingsPage() {
         </p>
 
         {/* Search Input */}
+        <label htmlFor={searchId} className="sr-only">
+          {selectedTier === 'all' ? t('rankings.searchAll') : en.rankings.searchTier(selectedTier)}
+        </label>
         <input
+          id={searchId}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={selectedTier === 'all' ? t('rankings.searchAll') : en.rankings.searchTier(selectedTier)}
           className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim/60 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
         />
 
-        {isError && <p className="text-error text-sm">{t('rankings.loadFailed')}</p>}
+        {isError && (
+          <div className="flex items-center gap-3">
+            <p className="text-error text-sm">{t('rankings.loadFailed')}</p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="text-xs font-medium text-accent hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {!isError && isLoading && (
           <div className="bg-surface border border-border-subtle rounded-lg overflow-hidden animate-pulse">

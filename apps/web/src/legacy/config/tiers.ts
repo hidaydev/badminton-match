@@ -31,14 +31,17 @@ export const TIER_BADGE_COLORS: Record<number, string> = {
   8: 'bg-red-500/20 text-red-300 border-red-500',
 }
 
+// Selected/active pill: dark text on every band. White fails AA on the lighter
+// bands (green-500 3.04:1, orange-500 2.80:1, red-500 3.84:1); slate-900 clears
+// 4.5:1 on all eight (5.03:1 worst case, red-500).
 export const TIER_ACTIVE: Record<number, string> = {
-  1: 'bg-green-500 text-white',
+  1: 'bg-green-500 text-slate-900',
   2: 'bg-green-400 text-slate-900',
   3: 'bg-yellow-500 text-slate-900',
   4: 'bg-yellow-400 text-slate-900',
-  5: 'bg-orange-500 text-white',
+  5: 'bg-orange-500 text-slate-900',
   6: 'bg-orange-400 text-slate-900',
-  7: 'bg-red-500 text-white',
+  7: 'bg-red-500 text-slate-900',
   8: 'bg-red-400 text-slate-900',
 }
 

@@ -82,6 +82,7 @@ export default function ActionsMenu({
                 role="menuitem"
               >
                 ↔ Replace player
+                <span className="block text-[10px] text-slate-500 font-normal">new name for this slot</span>
               </button>
             )}
             {hasChangePlayer && (
@@ -90,7 +91,8 @@ export default function ActionsMenu({
                 className="w-full text-left px-4 py-2.5 text-xs font-medium text-sky-400 hover:bg-slate-800 transition-colors border-t border-slate-800"
                 role="menuitem"
               >
-                🔄 Change player
+                ⇄ Change player
+                <span className="block text-[10px] text-slate-500 font-normal">swap with a registered player</span>
               </button>
             )}
             {hasSwapSlots && (

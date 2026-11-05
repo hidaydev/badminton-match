@@ -1,4 +1,4 @@
-import { Component, type ReactNode, type ErrorInfo } from 'react'
+import { Component, Fragment, type ReactNode, type ErrorInfo } from 'react'
 import { isChunkLoadError } from '../utils/safeLazy'
 
 interface Props {
@@ -11,6 +11,8 @@ interface Props {
 
 interface State {
   error: Error | null
+  /** Bumped on retry so the subtree remounts instead of re-throwing the same error. */
+  attempt: number
 }
 
 /**
@@ -26,10 +28,10 @@ interface State {
 export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
-    this.state = { error: null }
+    this.state = { error: null, attempt: 0 }
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { error }
   }
 
@@ -39,7 +41,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReset = () => {
-    this.setState({ error: null })
+    this.setState((prev) => ({ error: null, attempt: prev.attempt + 1 }))
   }
 
   render() {
@@ -81,6 +83,6 @@ export default class ErrorBoundary extends Component<Props, State> {
       )
     }
 
-    return this.props.children
+    return <Fragment key={this.state.attempt}>{this.props.children}</Fragment>
   }
 }

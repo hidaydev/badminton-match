@@ -150,9 +150,15 @@ body {
   outline-offset: 2px;
 }
 
-/* Prevent iOS Safari from auto-zooming on input focus */
-input, select, textarea {
-  font-size: max(16px, 1em);
+/* Prevent iOS Safari from auto-zooming on input focus. Touch devices only, and
+   kept in `base` so utility classes (text-xs, text-lg) still win on pointer
+   devices instead of every control rendering at 16px. */
+@layer base {
+  @media (pointer: coarse) {
+    input, select, textarea {
+      font-size: max(16px, 1em);
+    }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -167,11 +173,6 @@ input, select, textarea {
 @keyframes slideUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
-}
-
-/* Prevent iOS Safari from auto-zooming on input focus */
-input, select, textarea {
-  font-size: max(16px, 1em);
 }
 
 /* -- Reduced Motion -------------------------------------------------------- */

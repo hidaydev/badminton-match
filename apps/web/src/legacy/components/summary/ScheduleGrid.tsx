@@ -155,7 +155,7 @@ export default function ScheduleGrid({
                       <button
                         onClick={() => !pendingTeamSwap && handleTeamClick(tgt)}
                         disabled={!!pendingTeamSwap}
-                        className={`flex items-center justify-center gap-1 min-w-0 px-1.5 py-0.5 rounded-md border transition-colors ${
+                        className={`flex items-center justify-center gap-1 min-w-0 min-h-6 px-1.5 py-0.5 rounded-md border transition-colors ${
                           teamIsSelected ? 'border-amber-400 bg-amber-500/20' : 'bg-slate-800/40 border-slate-700 hover:border-violet-400'
                         } ${teamIsDimmed ? 'opacity-30' : ''}`}
                       >
@@ -233,13 +233,17 @@ export default function ScheduleGrid({
                         : 'hover:bg-slate-800/40'
                       } ${isDimmed ? 'opacity-25' : ''} ${glowClass}`}
                     >
-                      {/* Played checkbox */}
-                      <div
-                        className={`w-4 h-4 shrink-0 rounded border flex items-center justify-center transition-colors ${locked || mode !== 'idle' ? 'cursor-not-allowed opacity-25' : saving ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                      {/* Played toggle — real button, 24px target, keyboard operable */}
+                      <button
+                        type="button"
                         onClick={() => { if (!locked && !saving && mode === 'idle') onTogglePlayedGame?.(key) }}
+                        disabled={locked || saving || mode !== 'idle' || !onTogglePlayedGame}
+                        aria-pressed={done}
+                        aria-label={`Played: ${teamANames} vs ${teamBNames}`}
+                        className={`w-6 h-6 shrink-0 rounded border flex items-center justify-center transition-colors disabled:cursor-not-allowed ${locked || mode !== 'idle' ? 'opacity-25' : saving ? 'opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
                       >
                         {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
-                      </div>
+                      </button>
                       {/* Teams — 4-column precision grid: Court label (compact fixed), Team A, vs (centered lurus), Team B */}
                       <div
                         className="grid items-center gap-1 flex-1 min-w-0"
@@ -256,7 +260,7 @@ export default function ScheduleGrid({
                       {mode === 'idle' && (savedScore && !isOpen ? (
                         <button
                           onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) } }}
-                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap ${locked ? 'text-slate-400 cursor-default' : 'text-emerald-400 hover:text-emerald-300'}`}
+                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 ${locked ? 'text-slate-400 cursor-default' : 'text-emerald-400 hover:text-emerald-300'}`}
                         >
                           {savedScore.a}–{savedScore.b}
                         </button>
@@ -266,7 +270,7 @@ export default function ScheduleGrid({
                             if (isOpen) { setExpandedScore(null); setScoreError(null) }
                             else { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draft })) }
                           }}
-                          className="text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap transition-colors"
+                          className="text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap min-h-6 px-1 transition-colors"
                         >
                           {isOpen ? '▲ score' : '+ score'}
                         </button>
@@ -310,7 +314,7 @@ export default function ScheduleGrid({
                           <button
                             onClick={() => handleScoreSave(key)}
                             disabled={saving}
-                            className="px-6 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                            className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                           >
                             {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
                             {saving ? 'Saving…' : '✓ Save'}

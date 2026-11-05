@@ -9,20 +9,17 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
   useEscapeKey(onDismiss)
 
   return (
+    // Non-blocking: a bottom sheet without a full-screen scrim, so the live
+    // score stays readable until the user acts on it.
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      onClick={onDismiss}
+      className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none"
       role="dialog"
-      aria-modal="true"
       aria-label="Update available"
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-
       <div
-        className="relative w-full max-w-lg bg-slate-900 rounded-t-3xl flex flex-col overflow-hidden
+        className="relative w-full max-w-lg mx-3 mb-3 pointer-events-auto bg-slate-900 rounded-3xl border border-border flex flex-col overflow-hidden
           animate-[slideUp_0.3s_ease-out]"
-        onClick={(e) => e.stopPropagation()}
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 24px)' }}
+        style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 24px))' }}
       >
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">

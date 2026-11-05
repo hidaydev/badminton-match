@@ -12,9 +12,9 @@ import { t } from '../i18n'
 const secondary: { icon: IconName; label: string; description: string; to: string }[] = [
   { icon: 'sessions', label: 'Sessions', description: 'Browse past sessions', to: '/sessions' },
   { icon: 'players', label: 'Players', description: 'Roster, claims and aliases', to: '/players' },
-  { icon: 'ratings', label: 'Rankings', description: 'Past 12 weeks leaderboard', to: '/rankings' },
+  { icon: 'ratings', label: 'Rankings', description: 'Rating points, past 12 weeks', to: '/rankings' },
   { icon: 'scoreboard', label: 'Scoreboard', description: 'Live match scoring', to: '/scoreboard' },
-  { icon: 'tournament', label: 'Tournament', description: 'Leaderboard & cup', to: '/tournaments' },
+  { icon: 'tournament', label: 'Tournament', description: 'Brackets and final standings', to: '/tournaments' },
   { icon: 'post', label: 'Instagram Post', description: 'Create a post', to: '/instagram-post' },
 ] as const
 

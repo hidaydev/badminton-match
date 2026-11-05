@@ -131,14 +131,14 @@ export default function TournamentPage() {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'groups', label: 'Groups' },
     { id: 'bracket', label: 'Bracket' },
-    { id: 'standings', label: 'Leaderboard' },
+    { id: 'standings', label: 'Standings' },
   ]
 
   const handleTabChange = (newTab: Tab) => setTab(newTab)
 
   return (
     <div className="flex flex-col gap-0 -mx-3 -mt-4">
-      {saveError && <ErrorBanner message={saveError} ariaLive="polite" />}
+      {saveError && <ErrorBanner message={saveError} />}
       {/* Header */}
       <div className="bg-surface px-4 pt-3 pb-0 border-b border-border">
         <div className="flex items-center gap-2">

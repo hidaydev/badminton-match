@@ -148,7 +148,7 @@ export default function SharedSessionPage() {
     <AmbiguousNamesProvider value={ambiguousNames}>
     <main className="min-h-screen bg-ground text-fg flex flex-col">
       {header}
-      {saveError && <ErrorBanner message={saveError} ariaLive="polite" />}
+      {saveError && <ErrorBanner message={saveError} />}
       <SummaryModal
         result={result!}
         playerMap={playerMap}

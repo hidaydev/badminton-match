@@ -150,6 +150,18 @@ export default function ShareButton() {
     }
   }
 
+  // Native share sheet (WhatsApp, Messages, …) where the browser offers it.
+  async function handleNativeShare() {
+    if (!shareUrl) return
+    try {
+      await navigator.share({ title: session.title || 'Majadu session', url: shareUrl })
+    } catch {
+      // Dismissing the sheet is not an error.
+    }
+  }
+
+  const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+
   return (
     <>
       {error && (
@@ -205,6 +217,14 @@ export default function ShareButton() {
       {shareUrl ? (
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-elevated border border-border">
           <span className="text-xs text-slate-400 truncate max-w-50">{shareUrl}</span>
+          {canNativeShare && (
+            <button
+              onClick={handleNativeShare}
+              className="text-xs font-semibold shrink-0 text-indigo-400 hover:text-white transition-colors"
+            >
+              Share…
+            </button>
+          )}
           <button
             onClick={handleCopy}
             className={`text-xs font-semibold shrink-0 transition-colors ${copied ? 'text-emerald-400' : 'text-indigo-400 hover:text-white'}`}

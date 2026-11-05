@@ -1,10 +1,11 @@
 /**
- * Toast error yang dipakai di beberapa halaman. `ariaLive` opsional supaya
- * halaman yang sebelumnya tanpa aria-live tetap identik.
+ * Toast error yang dipakai di beberapa halaman. `role="alert"` sudah membawa
+ * `aria-live="assertive"` implisit; menambahkan aria-live lain membuat
+ * pembacaan kontradiktif di beberapa screen reader.
  */
-export default function ErrorBanner({ message, ariaLive }: { message: string; ariaLive?: 'polite' | 'assertive' | 'off' }) {
+export default function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg" role="alert" aria-live={ariaLive}>
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-60 bg-red-900/90 border border-red-700 text-red-200 text-xs px-4 py-2 rounded-lg" role="alert">
       {message}
     </div>
   )

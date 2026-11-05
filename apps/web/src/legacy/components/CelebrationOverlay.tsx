@@ -48,6 +48,13 @@ const PARTICLES = Array.from({ length: 60 }, (_, i) => ({
 const SLIDES = [WINNER, RUNNER_UP]
 
 export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProps) {
+  // Public share links are read-only screens for anonymous visitors, and App
+  // mounts this overlay globally: never let a celebration cover them.
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/s/')) return null
+  return <CelebrationSlides onDismiss={onDismiss} />
+}
+
+function CelebrationSlides({ onDismiss }: CelebrationOverlayProps) {
   const [idx, setIdx] = useState(0)
   const [visible, setVisible] = useState(true)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -171,10 +178,14 @@ export default function CelebrationOverlay({ onDismiss }: CelebrationOverlayProp
         </div>
       </div>
 
-      {/* Dismiss hint */}
-      <p className="absolute bottom-6 text-[11px] text-fg-dim/50 z-10 tracking-wide pointer-events-none">
-        tap anywhere to close
-      </p>
+      {/* Explicit close — the whole overlay also dismisses on tap/Escape. */}
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="absolute bottom-6 right-4 z-20 rounded-lg border border-fg-dim/30 px-3 py-1.5 text-xs font-semibold text-fg/80 hover:text-fg hover:border-fg-dim/60 transition-colors"
+      >
+        Close
+      </button>
     </div>
   )
 }

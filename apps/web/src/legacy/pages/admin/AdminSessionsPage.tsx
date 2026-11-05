@@ -11,6 +11,8 @@ const PAGE = 10
 
 export default function AdminSessionsPage() {
   const [page, setPage] = useState(0)
+  // Unlock withdraws the session's approval, so it takes a second, explicit tap.
+  const [unlockConfirmId, setUnlockConfirmId] = useState<string | null>(null)
   // The admin pager slices in the browser, so it asks for the whole list in one
   // request (the server caps a page at 500) instead of paging behind its back.
   const { data: sessions, total, refetch } = useListSessions({ limit: 500 })
@@ -43,14 +45,30 @@ export default function AdminSessionsPage() {
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {s.locked && (
-                      <ActionButton tone="amber" onClick={() => run(
-                        () => adminRequest('POST', `/sessions/${s.id}/unlock`),
-                        t('admin.unlocked'),
-                        () => refetch(),
-                      )}>
+                    {s.locked && unlockConfirmId !== s.id && (
+                      <ActionButton tone="amber" onClick={() => setUnlockConfirmId(s.id)}>
                         Unlock
                       </ActionButton>
+                    )}
+                    {s.locked && unlockConfirmId === s.id && (
+                      <>
+                        <ActionButton
+                          tone="amber"
+                          onClick={() => {
+                            setUnlockConfirmId(null)
+                            run(
+                              () => adminRequest('POST', `/sessions/${s.id}/unlock`),
+                              t('admin.unlocked'),
+                              () => refetch(),
+                            )
+                          }}
+                        >
+                          Confirm unlock
+                        </ActionButton>
+                        <ActionButton tone="neutral" onClick={() => setUnlockConfirmId(null)}>
+                          Cancel
+                        </ActionButton>
+                      </>
                     )}
                     <ActionButton
                       tone="red"
