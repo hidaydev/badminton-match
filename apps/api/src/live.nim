@@ -70,9 +70,7 @@ proc socketIndex(hub: LiveHub, ws: WebSocket): int =
       return index
   -1
 
-proc forget(hub: LiveHub, index: int) =
-  let entry = hub.sockets[index]
-  hub.sockets.delete(index)
+proc countOut(hub: LiveHub, entry: SocketEntry) =
   let channelCount = hub.perChannel.getOrDefault(entry.channel) - 1
   if channelCount <= 0:
     hub.perChannel.del(entry.channel)
@@ -83,6 +81,10 @@ proc forget(hub: LiveHub, index: int) =
     hub.perIp.del(entry.ip)
   else:
     hub.perIp[entry.ip] = ipCount
+
+proc forget(hub: LiveHub, index: int) =
+  hub.countOut(hub.sockets[index])
+  hub.sockets.delete(index)
 
 proc admit*(hub: LiveHub, ws: WebSocket, channel, userId, ip: string,
             caps: WatcherCaps): bool =
@@ -116,10 +118,17 @@ proc closeWhere(hub: LiveHub, match: proc(entry: SocketEntry): bool {.closure.},
   acquire(hub.lock)
   try:
     if match != nil:
-      for index in countdown(hub.sockets.len - 1, 0):
-        if match(hub.sockets[index]):
-          doomed.add(hub.sockets[index].ws)
-          hub.forget(index)
+      # One pass with a survivor list: deleting from the middle of the sequence
+      # once per match made closing N sockets quadratic.
+      var kept: seq[SocketEntry] = @[]
+      for entry in hub.sockets:
+        if match(entry):
+          doomed.add(entry.ws)
+          hub.countOut(entry)
+        else:
+          kept.add(entry)
+      if doomed.len > 0:
+        hub.sockets = kept
   finally:
     release(hub.lock)
   for ws in doomed:

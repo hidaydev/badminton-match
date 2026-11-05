@@ -52,6 +52,14 @@ else
 fi
 export INTEGRATION
 
+# A baseline measured without integration is not the same measurement as the one
+# the gate compares against: it is lower, and writing it would silently lower
+# every floor. Refuse before spending the run instead of recording a number that
+# means something else.
+if [ "$update" -eq 1 ] && [ "$INTEGRATION" -ne 1 ]; then
+  fail "refusing --update without MAJADU_PG_DSN: the baseline is an integration measurement"
+fi
+
 # A fresh nimcache per run: stale .gcda from an earlier build would be merged
 # into this run and inflate the numbers.
 rm -rf "$COV"
