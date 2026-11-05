@@ -94,3 +94,17 @@ suite "community access":
     check not membership.setRole(db, communityId, "11111111-1111-1111-1111-111111111111", "host")
     check membership.remove(db, communityId, outsiderId)
     check not membership.remove(db, communityId, outsiderId)
+
+  test "a guarded role change names why it was refused":
+    discard membership.add(db, communityId, outsiderId, "member")
+    discard membership.add(db, communityId, adminId, "admin")
+    check membership.setRoleChecked(db, communityId, outsiderId, "host") == mwOk
+    check membership.list(db, communityId).anyIt(it.userId == outsiderId and it.role == "host")
+    check membership.setRoleChecked(db, communityId,
+      "11111111-1111-1111-1111-111111111111", "host") == mwNotFound
+    # The only admin cannot be demoted, and re-setting the same role is allowed.
+    check membership.setRoleChecked(db, communityId, adminId, "member") == mwLastAdmin
+    check membership.setRoleChecked(db, communityId, adminId, "admin") == mwOk
+    check membership.removeChecked(db, communityId, adminId) == mwLastAdmin
+    check membership.removeChecked(db, communityId, outsiderId) == mwOk
+    check membership.removeChecked(db, communityId, outsiderId) == mwNotFound
