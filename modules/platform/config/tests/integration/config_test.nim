@@ -85,6 +85,18 @@ suite "platform config":
       @[textParam($keyWsTicketTtlSeconds)])
     check caught
 
+  test "writing the registry bumps the version by itself":
+    # The cache watches `config_version`, and the trigger is what makes an
+    # operator's `update platform.config` visible without a manual bump.
+    let before = parseInt(db.queryOne(
+      "select version from platform.config_version").get.get("version"))
+    discard db.execUpdate(
+      "update platform.config set value = value where key = $1",
+      @[textParam($keyCommunityDefaultTimezone)])
+    let after = parseInt(db.queryOne(
+      "select version from platform.config_version").get.get("version"))
+    check after > before
+
   test "a bump of config_version reloads without restart":
     let cache = newConfigCache(db)
     let before = cache.snapshot(db).stringValue(%*{}, keyCommunityDefaultTimezone)
