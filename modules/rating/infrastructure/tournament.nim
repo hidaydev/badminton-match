@@ -167,25 +167,13 @@ proc gamesFor*(conn: DbConn, communityId, tournamentId,
   if format == "team": teamGames(conn, communityId, tournamentId)
   else: classicGames(conn, communityId, tournamentId)
 
-proc awardTournamentSide(conn: DbConn, communityId, eventId: string,
-                         game: TournamentGame, teamA: bool, params: RatingParams,
-                         population: float, deltas: var seq[DeltaRow]): int =
+proc awardTournamentSide(conn: DbConn, communityId: string,
+                         game: TournamentGame, teamA: bool): int =
   let players = if teamA: game.sideA else: game.sideB
   if players.len == 0:
     return 0
-  let opponents = if teamA: game.sideB else: game.sideA
   let margin = if teamA: game.scoreA - game.scoreB else: game.scoreB - game.scoreA
-  let multiplier = opponentMultiplier(params,
-    opponentAverage(conn, communityId, opponents), population)
-  let points = gameValue(params.sessionBase, margin.float, game.target.float) *
-    multiplier
-  let delta = roundPoints(points)
-  let letter = if teamA: "a" else: "b"
-  for playerId in players:
-    deltas.add(DeltaRow(side: letter, playerId: playerId, gameKey: game.key,
-      delta: delta))
-  # Between the two sides, so the other side's average sees this update.
-  addState(conn, communityId, players, delta, won = margin > 0)
+  addState(conn, communityId, players, won = margin > 0)
   players.len
 
 proc ingestTournamentGames(conn: DbConn, communityId, tournamentId,
@@ -202,15 +190,14 @@ proc ingestTournamentGames(conn: DbConn, communityId, tournamentId,
     return
   let eventId = event.get.get("id")
   result.events = 1
-  let population = populationAverage(conn, communityId)
-  var deltas: seq[DeltaRow] = @[]
   for game in games:
-    result.deltas += awardTournamentSide(conn, communityId, eventId, game, true,
-      params, population, deltas)
-    result.deltas += awardTournamentSide(conn, communityId, eventId, game, false,
-      params, population, deltas)
-  # Deltas never feed a replay read, so the whole event is appended at once.
-  writeDeltas(conn, communityId, eventId, deltas)
+    result.deltas += awardTournamentSide(conn, communityId, game, true)
+    result.deltas += awardTournamentSide(conn, communityId, game, false)
+  discard conn.execUpdate(
+    """update rating.events set point_entries = $3::int
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(eventId),
+      intParam(result.deltas.int64)])
 
 proc ingestTournamentConn*(conn: DbConn, communityId, tournamentId: string,
                            params: RatingParams): TournamentIngestResult =

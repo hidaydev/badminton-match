@@ -32,8 +32,8 @@ proc totalRows(values: MergeResult): int =
 proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutcome =
   ## Moves every row that names the source player onto the target and deletes the
   ## source. Where both players already own a row in the same slot the target
-  ## wins: the duplicate source row is dropped (aliases, rating, achievements) or
-  ## closed (claims), so nothing is silently double counted.
+  ## wins: the duplicate source row is dropped (aliases, snapshots, achievements)
+  ## or closed (claims), so nothing is silently double counted.
   result.error = meOk
   if targetId == sourceId:
     result.error = meSamePlayer
@@ -122,21 +122,9 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
            where community_id = $1::uuid and player_id = $3::uuid""",
         @[textParam(communityId), textParam(targetId), textParam(sourceId)])
 
-      # Rating deltas, snapshots and achievements share a uniqueness key with the
-      # player id, so a target row in the same slot wins over the source row.
-      discard conn.execUpdate(
-        """delete from rating.deltas s
-           where s.community_id = $1::uuid and s.player_id = $2::uuid
-             and exists (select 1 from rating.deltas t
-                         where t.community_id = $1::uuid
-                           and t.event_id = s.event_id and t.side = s.side
-                           and t.player_id = $3::uuid)""",
-        @[textParam(communityId), textParam(sourceId), textParam(targetId)])
-      outcome.result.deltasMoved = conn.execUpdate(
-        """update rating.deltas set player_id = $2::uuid
-           where community_id = $1::uuid and player_id = $3::uuid""",
-        @[textParam(communityId), textParam(targetId), textParam(sourceId)])
-
+      # Snapshots and achievements share a uniqueness key with the player id,
+      # so a target row in the same slot wins over the source row. The rating
+      # ledger is gone, so there is no per-game row left to move.
       discard conn.execUpdate(
         """delete from rating.snapshots s
            where s.community_id = $1::uuid and s.player_id = $2::uuid

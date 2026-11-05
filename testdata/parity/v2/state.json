@@ -67,7 +67,7 @@
         "title"
       ],
       "rows": 4,
-      "sha256": "0ed6e13f1af10dadddb405fbdf04f795172fdec5dcaed74368fe71e04f6594b3"
+      "sha256": "08b2724b38964e579ee3eab8f02b0f2d57db74c1884dd7f782c0f684baf89f10"
     },
     {
       "table": "session.participants p join session.sessions s on s.id = p.session_id join player.players pl on pl.id = p.player_id",
@@ -102,7 +102,7 @@
         "g.court_no"
       ],
       "rows": 3,
-      "sha256": "7723e5c4f6755fa3439fbd9e4c0eb358bc3fc94f387cf06fe2b9e8dca5ba9e4b"
+      "sha256": "3f70188719dfb51f9f781dc6b9a7a21eaab3af9272447c4e3f4235243d67b961"
     },
     {
       "table": "session.links",
@@ -221,30 +221,15 @@
       "columns": [
         "event_type",
         "source_id::text as source_id",
-        "local_date::text as local_date"
+        "local_date::text as local_date",
+        "point_entries::int as point_entries"
       ],
       "orderBy": [
         "event_type",
         "source_id"
       ],
-      "rows": 2,
-      "sha256": "1afbeaa9a55635f61e5cbf85b9953833eee2e87ac861d9a9a74d29a47859d61d"
-    },
-    {
-      "table": "rating.deltas d join rating.events e on e.id = d.event_id join player.players pl on pl.id = d.player_id",
-      "columns": [
-        "e.source_id::text as source_id",
-        "pl.canonical_name as player_name",
-        "d.side as side",
-        "d.delta as delta"
-      ],
-      "orderBy": [
-        "source_id",
-        "player_name",
-        "side"
-      ],
-      "rows": 12,
-      "sha256": "175355751c881957d1b823b283666295f6cb8840aa0ad4ffaa5bdeff25d0890a"
+      "rows": 3,
+      "sha256": "3c820deb656a0b56499c1c7cf215d16580f996b854ea540a466eb687823c5303"
     },
     {
       "table": "rating.sources",
@@ -263,7 +248,6 @@
       "table": "rating.player_state ps join player.players pl on pl.id = ps.player_id",
       "columns": [
         "pl.canonical_name as player_name",
-        "ps.rating as rating",
         "ps.games_played as games_played",
         "ps.wins as wins",
         "ps.losses as losses"
@@ -272,7 +256,7 @@
         "player_name"
       ],
       "rows": 6,
-      "sha256": "a6e02000ce425a83bcda7c99b442817022a8ea5216be632baa91a2a8d1665cab"
+      "sha256": "262d1bd6b693c4d1219ad1b253306b561df85ff5038c25056748a1e9bd673508"
     }
   ],
   "selftest": {

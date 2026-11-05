@@ -4,19 +4,19 @@ import ../../infrastructure/ledger
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
-suite "rating ledger writes":
+suite "rating ledger counters":
   var db: Db
-  var communityId, eventId, first, second: string
+  var communityId, first, second: string
 
   setup:
     if dsn().len == 0:
       raise newException(ValueError, "MAJADU_PG_DSN is required")
     db = openDb(dsn(), 1)
     discard db.execUpdate(
-      """delete from rating.deltas where community_id in
+      """delete from rating.events where community_id in
            (select id from platform.community where slug = 'ledger-test')""")
     discard db.execUpdate(
-      """delete from rating.events where community_id in
+      """delete from rating.sources where community_id in
            (select id from platform.community where slug = 'ledger-test')""")
     discard db.execUpdate(
       """delete from rating.player_state where community_id in
@@ -43,76 +43,53 @@ suite "rating ledger writes":
     second = ""
     for row in players:
       if first.len == 0: first = row.get("id") else: second = row.get("id")
-    eventId = db.queryOne(
-      """insert into rating.events (community_id, local_date, event_type)
-         values ($1::uuid, '2026-11-01', 'session') returning id""",
-      @[textParam(communityId)]).get.get("id")
 
   teardown:
     db.close()
 
-  proc deltaCount(): int =
-    parseInt(db.queryOne(
-      """select count(*)::int as n from rating.deltas where event_id = $1::uuid""",
-      @[textParam(eventId)]).get.get("n"))
+  proc counters(player: string): tuple[games, wins, losses: int] =
+    let row = db.queryOne(
+      """select games_played, wins, losses from rating.player_state
+         where community_id = $1::uuid and player_id = $2::uuid""",
+      @[textParam(communityId), textParam(player)]).get
+    (parseInt(row.get("games_played")), parseInt(row.get("wins")),
+     parseInt(row.get("losses")))
 
-  test "one statement writes a whole event, and a replay adds no second row":
-    let rows = @[
-      DeltaRow(side: "a", playerId: first, gameKey: "0-0", delta: 10),
-      DeltaRow(side: "a", playerId: second, gameKey: "0-0", delta: 10),
-      DeltaRow(side: "b", playerId: first, gameKey: "0-0", delta: -4),
-    ]
+  test "a side is counted once per listed player, repeats included":
+    # A roster that names one player twice counts twice: the write folds the
+    # repeat into a multiplicity instead of a second conflicting row.
     discard db.tx(proc(conn: DbConn): int =
-      writeDeltas(conn, communityId, eventId, rows)
+      lockCommunity(conn, communityId)
+      addState(conn, communityId, @[first, first], won = true)
       1)
-    check deltaCount() == 3
-    # Replaying the same event must not double the ledger.
+    check counters(first) == (2, 2, 0)
+    # A later game accumulates on top of the first one.
     discard db.tx(proc(conn: DbConn): int =
-      writeDeltas(conn, communityId, eventId, rows)
+      addState(conn, communityId, @[first, second], won = false)
       1)
-    check deltaCount() == 3
+    check counters(first) == (3, 2, 1)
+    check counters(second) == (1, 0, 1)
 
-  test "a game key carrying a comma, a brace or a quote survives the batch":
-    # The batch passes arrays as text literals; a match key is free text, so the
-    # quoting has to hold or one key would split the literal into two players.
-    let odd = "r1,\"c2\"{x}"
+  test "an empty side writes nothing":
     discard db.tx(proc(conn: DbConn): int =
-      writeDeltas(conn, communityId, eventId, @[
-        DeltaRow(side: "a", playerId: first, gameKey: odd, delta: 7),
-      ])
+      addState(conn, communityId, @[], won = true)
       1)
     let row = db.queryOne(
-      """select game_key, delta from rating.deltas
-         where event_id = $1::uuid and player_id = $2::uuid and side = 'a'""",
-      @[textParam(eventId), textParam(first)])
-    check row.get.get("game_key") == odd
-    check row.get.get("delta") == "7"
+      """select count(*)::int as n from rating.player_state
+         where community_id = $1::uuid""", @[textParam(communityId)])
+    check row.get.get("n") == "0"
 
-  test "a roster that names one player twice counts twice":
-    discard db.tx(proc(conn: DbConn): int =
-      addState(conn, communityId, @[first, first], 5, true)
-      1)
-    var state = db.queryOne(
-      """select rating, games_played, wins, losses from rating.player_state
-         where community_id = $1::uuid and player_id = $2::uuid""",
-      @[textParam(communityId), textParam(first)]).get
-    check state.get("rating") == "10"
-    check state.get("games_played") == "2"
-    check state.get("wins") == "2"
-    check state.get("losses") == "0"
-    # The second write accumulates on top of the first.
-    discard db.tx(proc(conn: DbConn): int =
-      addState(conn, communityId, @[first], -3, false)
-      1)
-    state = db.queryOne(
-      """select rating, games_played, wins, losses from rating.player_state
-         where community_id = $1::uuid and player_id = $2::uuid""",
-      @[textParam(communityId), textParam(first)]).get
-    check state.get("rating") == "7"
-    check state.get("games_played") == "3"
-    check state.get("losses") == "1"
-    # An empty side is a no-op, not an error.
-    discard db.tx(proc(conn: DbConn): int =
-      addState(conn, communityId, @[], 1, true)
-      1)
-    check state.get("rating") == "7"
+  test "finalisation is read back from the source row":
+    let sourceId = "11111111-1111-4111-8111-111111111111"
+    discard db.execUpdate(
+      """insert into rating.sources (community_id, source_id, kind, finalized)
+         values ($1::uuid, $2::uuid, 'session', false)""",
+      @[textParam(communityId), textParam(sourceId)])
+    check db.tx(proc(conn: DbConn): bool =
+      sourceFinalizedConn(conn, communityId, sourceId)) == false
+    discard db.execUpdate(
+      """update rating.sources set finalized = true
+         where community_id = $1::uuid and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(sourceId)])
+    check db.tx(proc(conn: DbConn): bool =
+      sourceFinalizedConn(conn, communityId, sourceId))

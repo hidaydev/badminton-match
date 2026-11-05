@@ -20,7 +20,6 @@ var
 
 proc cleanup() =
   for statement in [
-    "delete from rating.deltas where community_id = $1::uuid",
     "delete from rating.events where community_id = $1::uuid",
     "delete from rating.player_state where community_id = $1::uuid",
     "delete from session.game_skips where community_id = $1::uuid",

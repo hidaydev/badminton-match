@@ -135,7 +135,7 @@ Semua perintah dijalankan dari SSH ke VPS sebagai pemilik app, dari
    | `stop-v1` | `systemctl --user stop` + `disable` | unit v1 `inactive (dead)` dan `disabled` |
    | `snapshot` | `backup.sh --tag cutover`, sha256 dicatat | `backups/bm-cutover-*.dump` |
    | `restore-staging` | dump → `bm_staging` | `restore: done` |
-   | `prepare-bm2` | roles, migrasi, seed, `ownerseed` | `dbtools: migrated 25 file(s)` |
+   | `prepare-bm2` | roles, migrasi, seed, `ownerseed` | `dbtools: migrated 26 file(s)` |
    | `import` | ETL + `verify` | `problems: 0` |
    | `state` | isi `cutover_state`, tukar env ke `.v2` | `env now points at v2` |
    | `start` | `:release` → `:local`, enable + start v2 | unit `active (running)` |

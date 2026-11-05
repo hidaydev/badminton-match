@@ -33,8 +33,6 @@ suite "player merge":
            (select id from platform.community where slug = 'merge-test')""",
       """delete from achievement.earned where community_id in
            (select id from platform.community where slug = 'merge-test')""",
-      """delete from rating.deltas where community_id in
-           (select id from platform.community where slug = 'merge-test')""",
       """delete from rating.events where community_id in
            (select id from platform.community where slug = 'merge-test')""",
       """delete from rating.snapshots where community_id in
@@ -82,11 +80,6 @@ suite "player merge":
          values ($1::uuid, '2026-11-01', 'manual') returning id""",
       @[textParam(communityId)]).get.get("id")
     discard db.execUpdate(
-      """insert into rating.deltas
-           (community_id, event_id, side, player_id, delta)
-         values ($1::uuid, $2::uuid, 'a', $3::uuid, 10)""",
-      @[textParam(communityId), textParam(eventId), textParam(sourceId)])
-    discard db.execUpdate(
       """insert into rating.snapshots
            (community_id, player_id, taken_on, rating)
          values ($1::uuid, $2::uuid, '2026-11-01', 1500)""",
@@ -128,7 +121,6 @@ suite "player merge":
         textParam(otherPair)])
 
     aliasBefore = countRows(db, communityId, "player.aliases")
-    deltaBefore = countRows(db, communityId, "rating.deltas")
     snapshotBefore = countRows(db, communityId, "rating.snapshots")
     earnedBefore = countRows(db, communityId, "achievement.earned")
 
@@ -141,7 +133,6 @@ suite "player merge":
     check outcome.error == mePairInUse
 
     check countRows(db, communityId, "player.aliases") == aliasBefore
-    check countRows(db, communityId, "rating.deltas") == deltaBefore
     check countRows(db, communityId, "rating.snapshots") == snapshotBefore
     check countRows(db, communityId, "achievement.earned") == earnedBefore
     check countRows(db, communityId, "player.merge_log") == "0"

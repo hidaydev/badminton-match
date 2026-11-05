@@ -27,8 +27,6 @@ var
 proc cleanup() =
   ## FK-safe order for every row this suite may leave behind.
   for statement in [
-    """delete from rating.deltas where community_id in
-         (select id from platform.community where slug = 'swap-club')""",
     """delete from rating.events where community_id in
          (select id from platform.community where slug = 'swap-club')""",
     """delete from rating.player_state where community_id in

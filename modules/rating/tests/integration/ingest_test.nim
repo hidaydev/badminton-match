@@ -16,8 +16,6 @@ proc params(): RatingParams =
 
 proc cleanup() =
   for statement in [
-    """delete from rating.deltas where community_id in
-         (select id from platform.community where slug = 'ingest-club')""",
     """delete from rating.events where community_id in
          (select id from platform.community where slug = 'ingest-club')""",
     """delete from rating.player_state where community_id in
@@ -67,15 +65,21 @@ proc seedSession(approved: bool, sessionDate = "2026-11-04",
       intParam(scoreA.int64), intParam(scoreB.int64)])
   id
 
-proc state(player: string): tuple[rating: int, games: int, wins: int, losses: int] =
+proc state(player: string): tuple[games: int, wins: int, losses: int] =
   let row = database.queryOne(
-    """select rating, games_played, wins, losses from rating.player_state
+    """select games_played, wins, losses from rating.player_state
        where community_id = $1::uuid and player_id = $2::uuid""",
     @[textParam(communityId), textParam(player)])
   if row.isNone:
-    return (0, 0, 0, 0)
-  (parseInt(row.get.get("rating")), parseInt(row.get.get("games_played")),
-   parseInt(row.get.get("wins")), parseInt(row.get.get("losses")))
+    return (0, 0, 0)
+  (parseInt(row.get.get("games_played")), parseInt(row.get.get("wins")),
+   parseInt(row.get.get("losses")))
+
+proc pointEntries(): int =
+  let row = database.queryOne(
+    """select coalesce(sum(point_entries), 0)::int as n from rating.events
+       where community_id = $1::uuid""", @[textParam(communityId)])
+  parseInt(row.get.get("n"))
 
 proc eventCount(): int =
   let row = database.queryOne(
@@ -101,25 +105,25 @@ suite "rating ingest":
     check ingestSession(database, communityId, draft, params()).events == 0
     check eventCount() == 0
 
-  test "a locked session creates one event and one delta per player":
+  test "a locked session creates one event and counts every player":
     sessionId = seedSession(approved = true)
     let result = ingestSession(database, communityId, sessionId, params())
     check result.events == 1
     check result.deltas == 4
+    check pointEntries() == 4
     check eventCount() == 1
     let winners = state(players[0])
     let losers = state(players[2])
     check winners.games == 1
     check winners.wins == 1
     check losers.losses == 1
-    check winners.rating > losers.rating
 
   test "ingesting the same session twice adds nothing":
     check ingestSession(database, communityId, sessionId, params()).events == 0
     check eventCount() == 1
     check state(players[0]).games == 1
 
-  test "an absent player earns no delta and no games":
+  test "an absent player is not counted and earns no game":
     discard database.execUpdate(
       """update session.participants set is_absent = true
          where community_id = $1::uuid and session_id = $2::uuid
@@ -129,11 +133,7 @@ suite "rating ingest":
     discard rebuild(database, communityId, params())
     check state(players[3]).games == 0
     check state(players[0]).games == 1
-    let deltas = database.queryOne(
-      """select count(*)::int as n from rating.deltas
-         where community_id = $1::uuid and player_id = $2::uuid""",
-      @[textParam(communityId), textParam(players[3])])
-    check deltas.get.get("n") == "0"
+    check pointEntries() == 3
     discard database.execUpdate(
       """update session.participants set is_absent = false
          where community_id = $1::uuid and session_id = $2::uuid""",
@@ -145,20 +145,16 @@ suite "rating ingest":
     let removed = revertSource(database, communityId, sessionId)
     check removed == 4
     check eventCount() == 0
-    let stale = database.queryOne(
-      """select count(*)::int as n from rating.deltas
-         where community_id = $1::uuid""", @[textParam(communityId)])
-    check stale.get.get("n") == "0"
+    check pointEntries() == 0
     let rebuilt = rebuild(database, communityId, params())
     check rebuilt.events == 1
-    check state(players[0]).rating == before.rating
     check eventCount() == 1
 
     let twice = rebuild(database, communityId, params())
     check twice.events == 1
     check state(players[0]) == before
 
-  test "a skipped player earns no delta in that game":
+  test "a skipped player is not counted in that game":
     discard database.execUpdate(
       """insert into session.game_skips
            (community_id, session_id, round_no, court_no, player_id)
@@ -167,11 +163,7 @@ suite "rating ingest":
     discard rebuild(database, communityId, params())
     check state(players[3]).games == 0
     check state(players[0]).games == 1
-    let deltas = database.queryOne(
-      """select count(*)::int as n from rating.deltas
-         where community_id = $1::uuid and player_id = $2::uuid""",
-      @[textParam(communityId), textParam(players[3])])
-    check deltas.get.get("n") == "0"
+    check pointEntries() == 3
     discard database.execUpdate(
       """delete from session.game_skips
          where community_id = $1::uuid and session_id = $2::uuid""",
@@ -179,18 +171,14 @@ suite "rating ingest":
     discard rebuild(database, communityId, params())
     check state(players[3]).games == 1
 
-  test "a rebuild replays the sessions in the order they were approved":
-    ## An event's deltas are computed from the state built by the events before
-    ## it, so the ledger holds the numbers of the order it was written in. The
-    ## sessions below were approved newest first; replaying them by date would
-    ## recompute a different state.
+  test "a rebuild replays every approved session, and only once":
     let later = seedSession(approved = true, sessionDate = "2026-10-20",
       scoreA = 21, scoreB = 8)
     discard ingestSession(database, communityId, later, params())
     let earlier = seedSession(approved = true, sessionDate = "2026-10-10",
       scoreA = 21, scoreB = 20)
     discard ingestSession(database, communityId, earlier, params())
-    var before: array[4, tuple[rating: int, games: int, wins: int, losses: int]]
+    var before: array[4, tuple[games: int, wins: int, losses: int]]
     for index in 0 ..< 4:
       before[index] = state(players[index])
     discard rebuild(database, communityId, params())

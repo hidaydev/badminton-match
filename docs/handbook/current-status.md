@@ -36,8 +36,8 @@ Postgres 18.6 · skema per domain (platform, community, player, session,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Setiap operasi punya handler (gagal kompilasi bila tidak) dan baris otorisasi di
   `testdata/authz/matrix.yaml`; `./task contract-check` menjaga fingerprint.
-- **25 migrasi** di `db/migrations/` (`0001`–`0025`, terakhir
-  `0025_snapshot_rank.sql`); seed: `db/seeds/platform_config.sql`,
+- **26 migrasi** di `db/migrations/` (`0001`–`0026`, terakhir
+  `0026_drop_rating_ledger.sql`); seed: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
 - **36 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
   override per komunitas di `community.settings` hanya boleh mempersempit platform.

@@ -93,14 +93,15 @@ rute + perubahan kontrak.
 
 **Tanggal:** 2026-11-06
 **Temuan audit:** BEP-10
-**Status:** Diterapkan (tahap 1 — tanpa mengubah angka tersimpan)
+**Status:** Diterapkan (tahap 1 + tahap 2)
 
 **Keputusan:** API hanya mengekspos **satu** angka poin: baris papan
 (proyeksi tier). `GET .../players/{id}/stats` tidak lagi membaca
 `rating.player_state.rating`; `points` diisi dari `boardEntry` yang sama dengan
-papan, dan pemain tanpa entri di window mendapat 0. `rating.deltas` /
-`player_state.rating` tetap ada sebagai ledger internal untuk bobot lawan di
-ingest, dan tidak pernah menjadi angka yang dilihat pengguna.
+papan, dan pemain tanpa entri di window mendapat 0. Saat itu `rating.deltas` /
+`player_state.rating` dibiarkan sebagai ledger internal untuk bobot lawan di
+ingest, dan tidak pernah menjadi angka yang dilihat pengguna (tahap 2 kemudian
+menghapusnya — lihat di bawah).
 
 **Alasan:** dua angka untuk pemain yang sama adalah cacat yang terlihat (beda
 median 756 poin di data dev; 31% pemain bergeser >10 peringkat). Tapi
@@ -109,13 +110,24 @@ komunitas dan membatalkan pembandingan impor v1 — risiko tinggi tanpa manfaat
 yang terlihat. Menutup jalur eksposurnya menghilangkan inkonsistensi tanpa
 menyentuh satu angka tersimpan.
 
-**Yang belum dikerjakan (tahap 2):** menghapus `rating.deltas` dan
-`player_state.rating` setelah tidak ada pembaca internal yang tersisa
-(ingest, merge, import). Drop tabel + rebuild penuh adalah migrasi destruktif
-dan butuh maintenance window.
+**Tahap 2 (diterapkan):** `rating.deltas` dihapus dan `player_state.rating`
+dibuang oleh migrasi `0026_drop_rating_ledger.sql`. Sebelum drop, migrasi
+mem-backfill `rating.events.point_entries` dari jumlah baris delta tiap event —
+satu-satunya hal yang masih dipakai (layar sumber rating, laporan revert/rebuild,
+`deltas` di respons API). Ingest, turnamen, dan import kini hanya menulis counter
+lewat `addState`; merge tidak lagi memindahkan baris delta; readiness tidak
+memeriksa tabel yang sudah tidak ada. Angka yang terlihat tidak berubah: papan
+tetap proyeksi, dan `deltasMoved` tetap dilaporkan 0.
 
-**Pembuka ulang:** tahap 2 dijadwalkan, atau muncul kebutuhan yang memang
-membutuhkan akumulasi rating mentah (mis. seeding turnamen).
+**Alasan:** setelah tahap 1, satu-satunya pembaca `player_state.rating` adalah
+ingest sendiri (bobot lawan), dan itu pun sudah dihitung ulang per rebuild.
+Menyimpan nilai yang hanya dipakai penulisnya sendiri memaksa rebuild mereplay
+event dalam urutan approval demi mereproduksi angka yang tidak dibaca — biaya
+dan sumber selisih tanpa manfaat.
+
+**Pembuka ulang:** muncul kebutuhan yang memang membutuhkan akumulasi rating
+mentah per game (mis. seeding turnamen), sehingga ledger perlu dihidupkan lagi
+sebagai tabel baru dengan pembaca yang jelas.
 
 ---
 

@@ -13,8 +13,6 @@ proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
 proc cleanup() =
   for statement in [
-    """delete from rating.deltas where community_id in
-         (select id from platform.community where slug = 'lifeclub')""",
     """delete from rating.events where community_id in
          (select id from platform.community where slug = 'lifeclub')""",
     """delete from rating.player_state where community_id in
@@ -71,17 +69,13 @@ proc seed() =
       textParam(actorId)])
   discard database.execUpdate(
     """insert into rating.player_state
-         (community_id, player_id, rating, games_played, wins, losses)
-       values ($1::uuid, $2::uuid, 900, 3, 2, 1)""",
+         (community_id, player_id, games_played, wins, losses)
+       values ($1::uuid, $2::uuid, 3, 2, 1)""",
     @[textParam(communityId), textParam(playerId)])
-  let eventId = database.queryOne(
+  discard database.queryOne(
     """insert into rating.events (community_id, local_date, event_type)
        values ($1::uuid, current_date, 'session') returning id""",
-    @[textParam(communityId)]).get.get("id")
-  discard database.execUpdate(
-    """insert into rating.deltas (community_id, event_id, side, player_id, delta)
-       values ($1::uuid, $2::uuid, 'a', $3::uuid, 120)""",
-    @[textParam(communityId), textParam(eventId), textParam(playerId)])
+    @[textParam(communityId)])
   discard createSession(database, userId, 30)
 
 proc count(sql: string): int =
@@ -117,7 +111,7 @@ suite "account lifecycle":
     check count("""select count(*)::int as n from community.membership
                    where user_id = '""" & userId & """'""") == 0
 
-    check count("""select count(*)::int as n from rating.deltas
+    check count("""select count(*)::int as n from rating.events
                    where community_id = '""" & communityId & """'""") == 1
     check count("""select count(*)::int as n from rating.player_state
                    where community_id = '""" & communityId & """'""") == 1

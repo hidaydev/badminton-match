@@ -36,7 +36,6 @@ proc bootstrap() =
     # Every reference to a player and to a tournament is `on delete restrict`, so
     # the rows go children first and the community last.
     for statement in [
-        "delete from rating.deltas where community_id = $1::uuid",
         "delete from rating.events where community_id = $1::uuid",
         "delete from rating.player_state where community_id = $1::uuid",
         "delete from rating.sources where community_id = $1::uuid",

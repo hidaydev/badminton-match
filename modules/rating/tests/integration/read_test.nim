@@ -50,8 +50,6 @@ proc cleanup() =
          (select id from platform.community where slug = 'read-club')""",
     """delete from rating.levels where community_id in
          (select id from platform.community where slug = 'read-club')""",
-    """delete from rating.deltas where community_id in
-         (select id from platform.community where slug = 'read-club')""",
     """delete from rating.events where community_id in
          (select id from platform.community where slug = 'read-club')""",
     """delete from session.games where community_id in
@@ -128,8 +126,8 @@ proc seed() =
   for player in players:
     discard database.execUpdate(
       """insert into rating.player_state
-           (community_id, player_id, rating, games_played, wins, losses)
-       values ($1::uuid, $2::uuid, 1200, 5, 3, 2)
+           (community_id, player_id, games_played, wins, losses)
+       values ($1::uuid, $2::uuid, 5, 3, 2)
        on conflict (community_id, player_id) do nothing""",
       @[textParam(communityId), textParam(player)])
 

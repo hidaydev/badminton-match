@@ -230,8 +230,9 @@ suite "player HTTP":
       """{"name":"Iwan Setiawan","gender":"M","aliases":["Iwan Set","Iwan S2"]}""")
     let sourceId = parseJson(sourceBody)["id"].getStr()
     discard database.execUpdate(
-      """insert into rating.player_state (community_id, player_id, rating, games_played, wins, losses)
-         values ($1::uuid, $2::uuid, 1520, 2, 1, 1)""",
+      """insert into rating.player_state
+           (community_id, player_id, games_played, wins, losses)
+         values ($1::uuid, $2::uuid, 2, 1, 1)""",
       @[textParam(communityId), textParam(sourceId)])
 
     let (byHost, _) = call(HttpPost, "/c/player-club/players/" & targetId & "/merge",

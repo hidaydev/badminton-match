@@ -62,8 +62,6 @@ proc cleanup() =
          (select id from platform.community where slug = 'achievement-club')""",
     """delete from session.sessions where community_id in
          (select id from platform.community where slug = 'achievement-club')""",
-    """delete from rating.deltas where community_id in
-         (select id from platform.community where slug = 'achievement-club')""",
     """delete from rating.events where community_id in
          (select id from platform.community where slug = 'achievement-club')""",
     """delete from rating.player_state where community_id in
@@ -81,12 +79,12 @@ proc newPlayer(index: int, tier: string): string =
     @[textParam(communityId), textParam("Achiever " & $index),
       textParam(tier)]).get.get("id")
 
-proc seedState(player: string, rating, wins, losses: int) =
+proc seedState(player: string, wins, losses: int) =
   discard database.execUpdate(
     """insert into rating.player_state
-         (community_id, player_id, rating, games_played, wins, losses)
-       values ($1::uuid, $2::uuid, $3, $4, $5, $6)""",
-    @[textParam(communityId), textParam(player), intParam(rating.int64),
+         (community_id, player_id, games_played, wins, losses)
+       values ($1::uuid, $2::uuid, $3, $4, $5)""",
+    @[textParam(communityId), textParam(player),
       intParam((wins + losses).int64), intParam(wins.int64),
       intParam(losses.int64)])
 
@@ -211,11 +209,10 @@ proc setup() =
        returning id""").get.get("id")
   for index in 0 ..< 12:
     players[index] = newPlayer(index, if index == 0: "C" else: "")
-  # The ledger is seeded too, because production has it; it must not decide a
-  # rank badge. Player 0 still lands on top, this time from the games.
+  # The counters are seeded too, because production has them; they feed the
+  # board's games/wins and must not decide a rank badge.
   for index in 0 ..< 12:
-    let rating = if index == 0: 2000 else: 100 * (12 - index)
-    seedState(players[index], rating, wins = 1, losses = 1)
+    seedState(players[index], wins = 1, losses = 1)
 
 proc seedFirstPhase() =
   ## 9 games for player 0: five sessions, the first one singles. Wins 9,
@@ -392,22 +389,19 @@ suite "achievement backfill":
     discard award()
     check "opponents:10" notin keysOf(rival[0])
 
-  test "a rank badge follows the board, not the ledger":
-    ## `rating.player_state.rating` is an all-time accumulator. Here it puts one
-    ## player far ahead while the best-N board puts another first, and the badge
-    ## has to agree with the list the members read.
-    let ledgerKing = newPlayer(32, "")
-    let boardKing = newPlayer(33, "")
-    seedState(ledgerKing, 99999, wins = 1, losses = 1)
-    seedState(boardKing, 1, wins = 1, losses = 1)
+  test "a rank badge follows the board":
+    ## The badge has to agree with the list the members read: the best-N board,
+    ## never a separate accumulator.
+    let boardKing = newPlayer(32, "")
+    let chaser = newPlayer(33, "")
     let extra = [newPlayer(34, ""), newPlayer(35, "")]
     for day in 1 .. 10:
       discard seedSession("2026-11-" & align($day, 2, '0'), @[
-        Game(a: [boardKing, extra[0]], b: [extra[1], ledgerKing],
+        Game(a: [boardKing, extra[0]], b: [extra[1], chaser],
           scoreA: 21, scoreB: 2)])
     discard award()
     check "rank:1" in keysOf(boardKing)
-    check "rank:1" notin keysOf(ledgerKing)
+    check "rank:1" notin keysOf(chaser)
 
   test "a team roster counts the tournament":
     ## A team event names its players in `team_players`; its `pairs` table is

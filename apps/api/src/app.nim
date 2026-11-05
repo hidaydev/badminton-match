@@ -1406,7 +1406,7 @@ const requiredRelations = [
   # without touching the tables, so readiness never becomes a write path.
   "platform.community", "platform.user", "platform.config",
   "platform.cutover_state", "community.membership", "player.players",
-  "session.sessions", "session.games", "rating.events", "rating.deltas",
+  "session.sessions", "session.games", "rating.events",
   "rating.player_state", "auth.oauth_flows", "account.audit",
   "dbtools.schema_migrations"]
 
@@ -1503,13 +1503,11 @@ proc listRatingSources(request: Request, ctx: CommunityContext) =
               coalesce(e.source_id::text, '') as source_id,
               coalesce(s.finalized, false) as finalized,
               s.finalized_at::text as finalized_at,
-              count(d.id)::int as deltas
+              e.point_entries::int as deltas
        from rating.events e
-       left join rating.deltas d on d.event_id = e.id
        left join rating.sources s
          on s.community_id = e.community_id and s.source_id = e.source_id
        where e.community_id = $1::uuid
-       group by e.id, s.finalized, s.finalized_at
        order by e.local_date desc, e.created_at desc""",
     @[textParam(ctx.communityId)]):
     items.add(%*{"id": row.get("id"), "type": row.get("event_type"),

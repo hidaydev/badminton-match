@@ -115,7 +115,7 @@ proc newTestApp*(db: Db): App =
 proc cleanupCommunity*(db: Db, slug: string) =
   ## FK-safe order for every row a security test may create.
   const tables = [
-    "rating.deltas", "rating.events", "rating.player_state", "rating.snapshots",
+    "rating.events", "rating.player_state", "rating.snapshots",
     "tournament.matches", "tournament.pairs", "tournament.tournaments",
     "session.games", "session.participants", "session.courts",
     "session.links", "session.sessions",

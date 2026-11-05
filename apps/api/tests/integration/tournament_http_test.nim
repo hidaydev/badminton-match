@@ -130,8 +130,6 @@ proc call(verb: HttpMethod, path, cookie = "", body = "",
 
 proc cleanup(database: Db) =
   const statements = [
-    """delete from rating.deltas where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
     """delete from rating.events where community_id in
          (select id from platform.community where slug in ($1, $2))""",
     """delete from rating.player_state where community_id in

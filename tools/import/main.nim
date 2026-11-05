@@ -946,17 +946,13 @@ proc importRatingLevels*(source, target: Db, communityId: string,
   stats
 
 proc rebuildRating*(target: Db, communityId: string): tuple[events, deltas: int] =
-  ## Deterministic: the caller may run this as often as it likes. The delta count
-  ## is the rows written, not the award operations: v2 keeps one row per player
-  ## per game side, and reporting participations would overstate the ledger.
+  ## Deterministic: the caller may run this as often as it likes. `deltas` is
+  ## the number of player-game entries the replay counted, the same number the
+  ## ledger used to store as rows.
   let snapshot = loadSnapshot(target)
   let params = loadRatingParams(snapshot, communitySettings(target, communityId))
   let outcome = ratingIngest.rebuild(target, communityId, params)
-  let rows = target.queryOne(
-    "select count(*)::int as n from rating.deltas where community_id = $1::uuid",
-    @[textParam(communityId)])
-  (events: outcome.events,
-   deltas: if rows.isSome: parseInt(rows.get.get("n")) else: 0)
+  (events: outcome.events, deltas: outcome.deltas)
 
 proc ingestFinalTournaments*(target: Db, communityId: string):
     tuple[events, deltas: int] =

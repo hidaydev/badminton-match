@@ -30,32 +30,16 @@ proc active(players, absent, skipped: seq[string]): seq[string] =
     if player notin absent and player notin skipped:
       result.add(player)
 
-proc awardSide(conn: DbConn, communityId, eventId, gameKey: string,
-               side, letter: string, margin: int, otherSide: string,
-               row: Row, absent, skipped: seq[string], population: float,
-               params: RatingParams, deltas: var seq[DeltaRow]): int =
-  let players = sidePlayers(row, side)
-  let activePlayers = active(players, absent, skipped)
+proc awardSide(conn: DbConn, communityId: string, side: string, margin: int,
+               row: Row, absent, skipped: seq[string]): int =
+  let activePlayers = active(sidePlayers(row, side), absent, skipped)
   if activePlayers.len == 0:
     return 0
-  let multiplier = opponentMultiplier(params,
-    opponentAverage(conn, communityId,
-      active(sidePlayers(row, otherSide), absent, skipped)),
-    population)
-  let points = gameValue(params.sessionBase, margin.float,
-    params.scoreTarget.float) * multiplier
-  let delta = roundPoints(points)
-  for playerId in activePlayers:
-    deltas.add(DeltaRow(side: letter, playerId: playerId, gameKey: gameKey,
-      delta: delta))
-  # The state write stays here, between the two sides: the other side's
-  # opponent average must see this side's updated ratings.
-  addState(conn, communityId, activePlayers, delta, won = margin > 0)
+  addState(conn, communityId, activePlayers, won = margin > 0)
   activePlayers.len
 
-proc ingestGame(conn: DbConn, communityId, eventId: string, params: RatingParams,
-                row: Row, absent, skipped: seq[string],
-                population: float, deltas: var seq[DeltaRow]): int =
+proc ingestGame(conn: DbConn, communityId: string, row: Row,
+                absent, skipped: seq[string]): int =
   ## v1's gate: a game needs a real present player on both sides, but a side
   ## whose players were all substituted still keeps the game alive for the
   ## other side. Skipped players are present; absent ones are not.
@@ -67,11 +51,10 @@ proc ingestGame(conn: DbConn, communityId, eventId: string, params: RatingParams
     return 0
   let scoreA = parseInt(row.get("score_a"))
   let scoreB = parseInt(row.get("score_b"))
-  let gameKey = row.get("round_no") & "-" & row.get("court_no")
-  result += awardSide(conn, communityId, eventId, gameKey, "side_a", "a",
-    scoreA - scoreB, "side_b", row, absent, skipped, population, params, deltas)
-  result += awardSide(conn, communityId, eventId, gameKey, "side_b", "b",
-    scoreB - scoreA, "side_a", row, absent, skipped, population, params, deltas)
+  result += awardSide(conn, communityId, "side_a", scoreA - scoreB, row,
+    absent, skipped)
+  result += awardSide(conn, communityId, "side_b", scoreB - scoreA, row,
+    absent, skipped)
 
 proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
                        params: RatingParams): IngestResult =
@@ -111,8 +94,7 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
     @[textParam(communityId), textParam(sessionId)]):
     skipRows.mgetOrPut(entry.get("round_no") & "-" & entry.get("court_no"),
       @[]).add(entry.get("player_id"))
-  let population = populationAverage(conn, communityId)
-  var deltas: seq[DeltaRow] = @[]
+  var entries = 0
   for row in conn.query(
     """select round_no, court_no, score_a, score_b,
               coalesce(side_a1::text, '') as side_a1,
@@ -126,10 +108,12 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
     @[textParam(communityId), textParam(sessionId)]):
     let skipped = skipRows.getOrDefault(
       row.get("round_no") & "-" & row.get("court_no"))
-    result.deltas += ingestGame(conn, communityId, eventId, params, row, absent,
-      skipped, population, deltas)
-  # Deltas never feed a replay read, so the whole event is appended at once.
-  writeDeltas(conn, communityId, eventId, deltas)
+    entries += ingestGame(conn, communityId, row, absent, skipped)
+  result.deltas = entries
+  discard conn.execUpdate(
+    """update rating.events set point_entries = $3::int
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(eventId), intParam(entries.int64)])
 
 proc ingestSession*(db: Db, communityId, sessionId: string,
                     params: RatingParams): IngestResult =
@@ -230,23 +214,20 @@ proc dropSource*(db: Db, communityId, sourceId: string): int =
   removed
 
 proc revertSourceConn*(conn: DbConn, communityId, sourceId: string): int =
-  ## Drops one source's event and its deltas. The caller rebuilds the derived
-  ## state, because wins and losses cannot be recomputed from deltas alone.
+  ## Drops one source's event and returns the point entries it carried. The
+  ## caller rebuilds the derived counters, because they cannot be recomputed
+  ## once the event that produced them is gone.
   let event = conn.queryOne(
-    """select id from rating.events
+    """select id, point_entries from rating.events
        where community_id = $1::uuid and source_id = $2::uuid""",
     @[textParam(communityId), textParam(sourceId)])
   if event.isNone:
     return 0
-  let eventId = event.get.get("id")
-  result = conn.execUpdate(
-    """delete from rating.deltas
-       where community_id = $1::uuid and event_id = $2::uuid""",
-    @[textParam(communityId), textParam(eventId)])
+  result = parseInt(event.get.get("point_entries"))
   discard conn.execUpdate(
     """delete from rating.events
        where community_id = $1::uuid and id = $2::uuid""",
-    @[textParam(communityId), textParam(eventId)])
+    @[textParam(communityId), textParam(event.get.get("id"))])
 
 proc revertSource*(db: Db, communityId, sourceId: string): int =
   var removed = 0
@@ -257,19 +238,11 @@ proc revertSource*(db: Db, communityId, sourceId: string): int =
 
 proc rebuildConn*(conn: DbConn, communityId: string,
                   params: RatingParams): IngestResult =
-  ## Deterministic: the state is thrown away and recomputed from the approved
-  ## sessions, then from the signed-off tournaments, so two runs always end at
-  ## the same numbers. A rebuild must not erase a tournament that was ingested
-  ## incrementally, so both source kinds are replayed here.
-  ##
-  ## Sessions replay in approval order, the order the ledger was written in: an
-  ## event's deltas are computed from the state the events before it left, so a
-  ## replay by session date would award a different multiplier and the board
-  ## numbers would move on every rebuild.
+  ## Deterministic: events and counters are thrown away and recomputed from the
+  ## approved sessions, then from the signed-off tournaments, so two runs always
+  ## end at the same numbers. A rebuild must not erase a tournament that was
+  ## ingested incrementally, so both source kinds are replayed here.
   lockCommunity(conn, communityId)
-  discard conn.execUpdate(
-    """delete from rating.deltas where community_id = $1::uuid""",
-    @[textParam(communityId)])
   discard conn.execUpdate(
     """delete from rating.events where community_id = $1::uuid""",
     @[textParam(communityId)])
@@ -305,10 +278,13 @@ proc removeEvent*(db: Db, communityId, eventId: string): int =
   ## Deletes one event by id, leaving the caller to rebuild derived state.
   var removed = 0
   discard db.tx(proc(conn: DbConn): int =
-    removed = conn.execUpdate(
-      """delete from rating.deltas
-         where community_id = $1::uuid and event_id = $2::uuid""",
+    let event = conn.queryOne(
+      """select point_entries from rating.events
+         where community_id = $1::uuid and id = $2::uuid""",
       @[textParam(communityId), textParam(eventId)])
+    if event.isNone:
+      return 0
+    removed = parseInt(event.get.get("point_entries"))
     discard conn.execUpdate(
       """delete from rating.events
          where community_id = $1::uuid and id = $2::uuid""",

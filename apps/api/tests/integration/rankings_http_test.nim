@@ -66,8 +66,6 @@ proc bootstrap() =
          (select id from platform.community where slug = 'rank-club')""",
     """delete from rating.snapshots where community_id in
          (select id from platform.community where slug = 'rank-club')""",
-    """delete from rating.deltas where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
     """delete from rating.events where community_id in
          (select id from platform.community where slug = 'rank-club')""",
     """delete from rating.player_state where community_id in
@@ -132,18 +130,10 @@ proc bootstrap() =
                $5::uuid)""",
     @[textParam(communityId), textParam(sessionId), textParam(players[0]),
       textParam(players[1]), textParam(players[2])])
-  let eventId = database.queryOne(
+  discard database.queryOne(
     """insert into rating.events (community_id, local_date, event_type, source_id)
        values ($1::uuid, current_date, 'session', $2::uuid) returning id""",
-    @[textParam(communityId), textParam(sessionId)]).get.get("id")
-  let points = [900, 600, 300, 150]
-  for index, player in players:
-    discard database.execUpdate(
-      """insert into rating.deltas (community_id, event_id, side, player_id, delta)
-         values ($1::uuid, $2::uuid, $3, $4::uuid, $5)""",
-      @[textParam(communityId), textParam(eventId),
-        textParam(if index mod 2 == 0: "a" else: "b"), textParam(player),
-        intParam(points[index].int64)])
+    @[textParam(communityId), textParam(sessionId)])
   # Yesterday's snapshot is deliberately in a different order, so rank
   # movement has something to report.
   let previous = [100, 500, 300, 50]
@@ -157,8 +147,8 @@ proc bootstrap() =
   for player in players:
     discard database.execUpdate(
       """insert into rating.player_state
-           (community_id, player_id, rating, games_played, wins, losses)
-       values ($1::uuid, $2::uuid, 0, 4, 2, 2)""",
+           (community_id, player_id, games_played, wins, losses)
+       values ($1::uuid, $2::uuid, 4, 2, 2)""",
       @[textParam(communityId), textParam(player)])
   let tournamentId = database.queryOne(
     """insert into tournament.tournaments

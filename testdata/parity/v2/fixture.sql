@@ -16,7 +16,7 @@ truncate
   tournament.teams, tournament.groups, tournament.matches, tournament.pairs,
   tournament.tournaments,
   player.claims, player.merge_log, player.aliases, player.players,
-  rating.deltas, rating.events, rating.player_state, rating.snapshots,
+  rating.events, rating.player_state, rating.snapshots,
   rating.sources, achievement.earned,
   community.join_request, community.invite, community.settings,
   community.membership,
@@ -79,11 +79,11 @@ insert into player.players (id, community_id, canonical_name, tier, gender) valu
   ('30000000-0000-4000-8000-000000000009', '10000000-0000-4000-8000-000000000001', 'Merge Source', 'D', 'F');
 
 insert into rating.player_state
-  (community_id, player_id, rating, games_played, wins, losses) values
-  ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 1250, 4, 2, 2),
-  ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002', 1180, 4, 2, 2),
-  ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000003', 1310, 4, 3, 1),
-  ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000004', 1100, 4, 1, 3);
+  (community_id, player_id, games_played, wins, losses) values
+  ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 4, 2, 2),
+  ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002', 4, 2, 2),
+  ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000003', 4, 3, 1),
+  ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000004', 4, 1, 3);
 
 insert into rating.snapshots (community_id, player_id, taken_on, rating) values
   ('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', '2026-10-27', 1250),
@@ -252,9 +252,10 @@ insert into community.invite
    '20000000-0000-4000-8000-000000000002', now() + interval '7 days');
 
 -- A fixed rating event so the corpus can address it with PATCH .../rating-sources.
-insert into rating.events (id, community_id, local_date, event_type, source_id) values
+insert into rating.events
+  (id, community_id, local_date, event_type, source_id, point_entries) values
   ('80000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001',
-   '2026-10-25', 'tournament', '60000000-0000-4000-8000-000000000001');
+   '2026-10-25', 'tournament', '60000000-0000-4000-8000-000000000001', 4);
 
 insert into rating.sources (community_id, source_id, kind, finalized, finalized_at) values
   ('10000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000002',

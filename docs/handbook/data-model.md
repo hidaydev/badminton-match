@@ -4,8 +4,8 @@ Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk dat
 dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
 dump VPS atau skema v1.
 
-- Migrasi: `db/migrations/0001_core.sql` … `0025_snapshot_rank.sql` (25 file;
-  `0025` adalah yang terakhir).
+- Migrasi: `db/migrations/0001_core.sql` … `0026_drop_rating_ledger.sql` (26 file;
+  `0026` adalah yang terakhir).
 - Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
   `dbtools.seed_files` (checksum per file).
@@ -74,9 +74,8 @@ singles memakai satu slot per sisi; slot `NULL` adalah posisi kosong, bukan pema
 
 | Tabel | Kolom/constraint penting | Migrasi |
 |---|---|---|
-| `rating.events` | `community_id`, `local_date`, `event_type` ∈ `session/tournament/manual`, `source_id` (id sesi/turnamen), index `(community_id, local_date desc)` | `0002:8-20` |
-| `rating.deltas` | `event_id`, `side` ∈ `a/b`, `player_id`, `game_key` (round-court), `delta` integer; unik `(event_id, side, player_id, game_key)` | `0002:22-40`, `0018` |
-| `rating.player_state` | PK `(community_id, player_id)`, `rating`, `games_played`, `wins`, `losses`; CHECK `games_played = wins + losses` | `0002:42-54` |
+| `rating.events` | `community_id`, `local_date`, `event_type` ∈ `session/tournament/manual`, `source_id` (id sesi/turnamen), `point_entries` (jumlah entri pemain-game yang dihitung event itu), index `(community_id, local_date desc)` | `0002:8-20`, `0026` |
+| `rating.player_state` | PK `(community_id, player_id)`, `games_played`, `wins`, `losses`; CHECK `games_played = wins + losses` | `0002:42-54`, `0026` |
 | `rating.snapshots` | PK `(community_id, player_id, taken_on)`, `rating`, `rank` (nullable); poin dan peringkat per tanggal, diisi ETL (riwayat v1) dan `./task ranksnapshot`; sumber panah pergerakan dan run `rank_streak` | `0002:56-67`, `0025` |
 | `rating.sources` | PK `(community_id, source_id)`, `kind` ∈ `session/tournament`, `finalized`, `finalized_at`; sign-off bertahan melewati rebuild dan membuat revert ditolak | `0013:9-24` |
 | `rating.levels` | PK `(community_id, kind)`, `champion_points`, `round_ratios` JSONB (`qf/sf/final/group/runner_up/participant`), `enabled`; kind `session/tournament_classic/tournament_team` | `0020` |
@@ -85,11 +84,14 @@ singles memakai satu slot per sisi; slot `NULL` adalah posisi kosong, bukan pema
 
 Poin tidak disimpan sebagai kolom. Papan dihitung saat baca dari game sesi dan match
 turnamen dalam window bergulir (proyeksi v1: satu entri per sumber, `best_n` terbaik);
-itu **satu-satunya** angka poin yang diekspos API. `rating.deltas` adalah ledger integer
-per game, dan `rating.player_state` menyimpan counter menang/kalah/main plus `rating`
-internal yang hanya dipakai ingest untuk bobot lawan. Halaman pemain mengambil `points`
-dari baris papan, bukan dari `player_state` (`modules/rating/projection.nim`,
-`modules/rating/read.nim`, `apps/api/src/app.nim`).
+itu **satu-satunya** angka poin yang diekspos API. Ledger per game (`rating.deltas`)
+dan skor tersimpan (`player_state.rating`) dihapus di `0026`: nilai keduanya hanya
+dipakai ingest sendiri, dan menyimpannya memaksa rebuild mereplay event demi
+mereproduksi angka yang tidak dibaca siapa pun. `rating.player_state` tinggal counter
+main/menang/kalah, sedangkan `rating.events.point_entries` menyimpan berapa entri
+pemain-game yang dihitung satu event (dipakai layar sumber rating dan laporan
+revert/rebuild). Halaman pemain mengambil `points` dari baris papan
+(`modules/rating/projection.nim`, `modules/rating/read.nim`, `apps/api/src/app.nim`).
 
 ### `tournament`
 
@@ -202,7 +204,7 @@ Jangan membawa nama dari dokumen v1 ke sini:
 |---|---|
 | schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0023` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
-| `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.deltas`, `rating.player_state` |
+| `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (ledger delta tidak punya padanan) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |
 | snapshot JSON sesi/turnamen | kolom relasional per tabel |
 | Glicko/rating absolut | poin relatif yang dihitung saat baca |

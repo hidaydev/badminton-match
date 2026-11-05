@@ -214,12 +214,13 @@ menyentuh game yang disebut, sehingga jadwal parsial tetap valid
 - Satu game butuh pemain hadir di kedua sisi; pemain `absent` tidak dihitung dan
   `session.game_skips` mengeluarkan pemain dari game itu saja. Papan dijangkar pada
   `local_date` event terakhir, bukan hari ini (`modules/rating/read.nim`).
-- `rating.deltas` tetap disimpan sebagai ledger integer per game untuk bookkeeping dan
-  riwayat pemain; angka papan tidak dibaca dari delta.
+- Ledger per game sudah tidak disimpan (`0026`); yang tersisa hanya counter
+  main/menang/kalah dan `rating.events.point_entries`. Angka papan tidak pernah dibaca
+  dari baris tersimpan.
 - Semua parameter berasal dari registry: `rating.session_base`, `rating.score_target`,
   `rating.opponent_clamp`, `rating.window_weeks`, `rating.best_n`,
   `rating.thin_evidence_n`, `rating.tier_bands` (`modules/rating/infrastructure/params.nim:5-27`).
-- Ingest idempoten per sumber (sesi/turnamen): run kedua tidak menambah event/delta
+- Ingest idempoten per sumber (sesi/turnamen): run kedua tidak menambah event/entri
   (`modules/rating/infrastructure/ingest.nim:146-171`). Sign-off sumber disimpan di
   `rating.sources`; `DELETE …/rating` menolak sumber yang finalized dan rebuild penuh
   tidak mengubah baris sumber (`db/migrations/0013_rating_sources.sql`).
