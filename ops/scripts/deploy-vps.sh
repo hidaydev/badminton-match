@@ -158,7 +158,7 @@ fi
 # a release.
 # ---------------------------------------------------------------------------
 exec 9>"$LOCK_FILE"
-if ! flock -w 900 9; then
+if ! flock -w 1200 9; then
   log "another deploy still holds the lock after 900s; giving up"
   exit 1
 fi
