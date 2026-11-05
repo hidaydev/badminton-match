@@ -276,7 +276,12 @@ fi
 
 [ -f "$BASELINE" ] || fail "missing coverage-baseline.json; run ./task coverage --update first"
 
-awk -F'\t' '
+# The ratchet only says "not less than last time", so a baseline rewritten low
+# passes forever. This absolute floor is the second lock: a `--update` that
+# records a collapse still fails here instead of becoming the new normal.
+FLOOR_TOTAL=35
+
+awk -F'\t' -v floor="$FLOOR_TOTAL" '
   FNR == NR {
     if ($0 ~ /^[[:space:]]*"[^"]+"/) {
       line = $0
@@ -292,6 +297,10 @@ awk -F'\t' '
   }
   {
     pct = ($2 == 0) ? 0 : ($3 * 100 / $2)
+    if ($1 == "total" && pct < floor) {
+      printf "coverage: total %.2f%% is below the %.0f%% floor\n", pct, floor > "/dev/stderr"
+      bad = 1
+    }
     current[$1] = pct
     if ($1 in baseline) {
       if (pct + 0.005 < baseline[$1] + 0) {
