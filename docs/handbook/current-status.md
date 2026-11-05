@@ -53,8 +53,10 @@ API v2. Semua rute lama tetap ada, kini ber-prefix `/c/:slug`. Lapisan data lama
 diterjemahkan di `legacy/queries/admin.ts`.
 
 - Login OIDC + shell komunitas (`/`, `/c/:slug`), pemilih komunitas, i18n.
-- **Sesi**: daftar, live session (`/c/:slug/s/:id`), scoreboard, wizard 4 langkah
-  + generator 5 fase, share code v2 (`/s/:code` untuk publik).
+- **Sesi**: daftar berhalaman (filter dan `load more` dari server), live session
+  (`/c/:slug/s/:id`), scoreboard, wizard 4 langkah + generator 5 fase, aksi
+  "Finish session" di ringkasan (lock → ingest rating, buka lagi → revert),
+  share code v2 (`/s/:code` untuk publik, memperbarui tiap 10 detik).
 - **Pemain**: roster v2 (klaim, merge, alias, edit, tier, hapus) di
   `/c/:slug/players`; halaman admin pemain lama sudah dipensiunkan dan
   `/admin/players` dialihkan ke roster.
@@ -151,10 +153,9 @@ Rencana 88 task: lihat [`roadmap.md`](roadmap.md). Ringkasnya:
 - **Operasional, menunggu VPS/waktu:** rehearsal T-063 (dan karenanya bukti
   T-060/061/065), soak T-074, penghapusan `:v1-final` setelah 30 hari (T-082),
   force-push T-108 yang ditunda atas keputusan pemilik.
-- **Celah di luar rencana:** klien WebSocket di FE (masih polling 5 detik),
-  produsen `platform.outbox`, tautan share v1 `/s/{sessionId}` tidak lagi valid
-  karena v2 memakai kode acak, dan kenaikan coverage di `modules/account`,
-  `modules/share`, `modules/tournament`.
+- **Celah di luar rencana:** produsen `platform.outbox` (realtime masih
+  per-proses), dan kenaikan coverage di `modules/account`, `modules/share`,
+  `modules/tournament`.
 - **Selisih data yang diketahui (diterima):** Salma, Youri, Zaid, dan Firda
   berbeda dari `bm.rank_snapshots` v1 karena ledger v1 untuk sesi 2026-10-31
   di-ingest sebelum sesi itu diedit. Keputusan pemilik: v2 mengikuti data

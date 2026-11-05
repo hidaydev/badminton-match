@@ -23,7 +23,9 @@ PostgreSQL 18 — database bm2, skema per domain
   (`.github/workflows/ci.yml`, `task.d/e2e.sh`). Skema dan tabel di
   [`data-model.md`](data-model.md).
 
-Tidak ada PostgREST, Supabase, SSE, service worker, atau store global (Zustand) di v2.
+Tidak ada PostgREST, Supabase, atau SSE di v2. Frontend memang PWA: service
+worker (VitePWA) mem-precache app shell, dan state klien memakai TanStack Query
+untuk data server serta Zustand untuk draft wizard.
 
 ## 2. Peta repo
 
@@ -72,10 +74,11 @@ dengan registry bertipe di `modules/platform/config/registry.nim`; snapshot di-c
 2. **CSRF** — method state-changing wajib origin yang diizinkan (atau `Sec-Fetch-Site`
    `same-origin`/`none`); request ber-cookie tanpa Origin ditolak
    (`apps/api/src/security_headers.nim:22-45`).
-3. **Rate limit** — bucket per template route + alamat klien; `/s/{code}` punya ceiling
-   tambahan per kode (`apps/api/src/app.nim:1917-1938`).
-4. **Rute sistem** — `/healthz`, `/readyz` (query `select 1`), `/version`, `/ops/*`
-   (`apps/api/src/app.nim:1940-1958`).
+3. **Rate limit** — bucket per template route + identitas (hash cookie sesi bila ada,
+   selain itu alamat klien); `/s/{code}` punya ceiling per pemirsa dan ceiling lebih
+   longgar per kode (`apps/api/src/app.nim`, `apps/api/src/ratelimit.nim`).
+4. **Rute sistem** — `/healthz`, `/readyz` (memeriksa tabel wajib via `to_regclass` dan
+   snapshot `cutover_state`), `/version`, `/ops/*`.
 5. **Client lama** — `X-API-Version` di bawah versi server dijawab `410 CLIENT_OUTDATED`
    (`apps/api/src/app.nim:1890-1904`, `apps/api/src/app.nim:1960`).
 6. **Auth + otorisasi** — cookie sesi `majadu_session` (HttpOnly, SameSite=Lax) →

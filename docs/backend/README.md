@@ -1,4 +1,9 @@
-# Backend Migrations
+# Backend Migrations (arsip v1)
+
+> **JANGAN DITERAPKAN KE v2.** Folder ini milik backend v1: schema `bm`, nomor
+> `000001`–`000023` yang tidak berurutan dengan `db/migrations/` v2. Skema v2 ada
+> di [`../../db/migrations`](../../db/migrations) dan deskripsinya di
+> [`../handbook/data-model.md`](../handbook/data-model.md).
 
 SQL migrasi untuk schema PostgreSQL `bm`.
 

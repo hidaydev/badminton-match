@@ -131,13 +131,11 @@ Rollback is the `:v1-final` image, not source code.
 
 ## 📌 Status
 
-The v2 rewrite is complete: 75 contract operations, 22 migrations, backend and
+The v2 rewrite is complete: 75 contract operations, 23 migrations, backend and
 frontend features wired end to end. The v1 Go tree is gone.
 
 Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):
 
-- the web client does not consume the WebSocket yet — the session page reloads
-  on change;
 - `platform.outbox` has no producer, so realtime is in-memory and the API must
   stay a single instance;
 - the cutover rehearsal and the VPS-side checks are prepared but not executed.
