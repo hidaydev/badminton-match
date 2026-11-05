@@ -13,7 +13,13 @@
 #
 # Overridable for rehearsal (T-063): MAJADU_APP_DIR, MAJADU_SERVICE,
 # MAJADU_IMAGE, MAJADU_REGISTRY_IMAGE, MAJADU_SERVICE_CMD, MAJADU_SKIP_GIT_SYNC,
-# MAJADU_HEALTH_URL.
+# MAJADU_HEALTH_URL, MAJADU_CUTOVER_NETWORK.
+#
+# Before restarting, the migrations shipped in the pulled image are applied and
+# verified (`dbtools migrate` + `dbtools verify`, both against MAJADU_OWNER_DSN).
+# A failure there leaves the running release and the tags untouched. Migrations
+# must therefore stay expand/contract: `:prev` has to keep serving on the new
+# schema, because that is what the readiness rollback starts.
 set -euo pipefail
 
 REPO_NAME="${1:-badminton-match}"
@@ -25,6 +31,9 @@ LOCAL_IMAGE="${MAJADU_IMAGE:-localhost/majadu-api}"
 REGISTRY_IMAGE="${MAJADU_REGISTRY_IMAGE:-ghcr.io/hidaydev/badminton-match}"
 GITHUB_REPO="${MAJADU_GITHUB_REPO:-hidaydev/badminton-match}"
 HEALTH_URL="${MAJADU_HEALTH_URL:-http://127.0.0.1:8080}"
+# The database lives on the `qouver` podman network, so a one-shot tool
+# container needs the same network the API unit declares.
+NETWORK="${MAJADU_CUTOVER_NETWORK:-qouver}"
 MONO_DIR="$APP_DIR/monorepo"
 ENV_FILE="$APP_DIR/env/majadu-prod.env"
 STATE_DIR="$APP_DIR/deploy"
@@ -32,6 +41,7 @@ LOG="$APP_DIR/logs/deploy.log"
 LOCK_FILE="$APP_DIR/.deploy.lock"
 
 STEP="start"
+SCHEMA=""
 mkdir -p "$APP_DIR/logs" "$STATE_DIR"
 
 log() {
@@ -76,6 +86,15 @@ service() {
   else
     systemctl --user "$@"
   fi
+}
+
+# One-shot tool from the image that was just pulled, not from :local: :local may
+# still be the previous release until the rotation step runs.
+run_tool() {
+  local entry="$1" dsn="$2"
+  shift 2
+  podman run --rm --network "$NETWORK" -e MAJADU_PG_DSN="$dsn" \
+    --entrypoint "$entry" "$REGISTRY_IMAGE@$DIGEST" "$@"
 }
 
 # Fail closed: anything that is not a push to main must not deploy. An empty ref
@@ -215,6 +234,31 @@ if ! podman pull "$REGISTRY_IMAGE@$DIGEST" >>"$LOG" 2>&1; then
 fi
 log "pulled $REGISTRY_IMAGE@$DIGEST"
 
+# ---------------------------------------------------------------------------
+# Schema first, service second. The image carries db/migrations and dbtools, so
+# the release that is about to run also migrates the database. `migrate` is a
+# single transaction with an advisory lock, and `verify` then proves the ledger
+# matches the committed files; either failure aborts here, while :local and
+# :prev still point at the release that is running. The owner DSN is required
+# because DDL needs bm2_owner, not the application role.
+# ---------------------------------------------------------------------------
+STEP="migrate"
+OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$ENV_FILE" | tail -1)
+if [ -z "$OWNER_DSN" ]; then
+  fail "MAJADU_OWNER_DSN is missing from $ENV_FILE; cannot migrate"
+fi
+if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+  migrate --dir /app/db/migrations >>"$LOG" 2>&1; then
+  fail "dbtools migrate failed; v$VERSION is not deployed and the running release was left alone"
+fi
+STEP="verify-schema"
+if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+  verify --dir /app/db/migrations >>"$LOG" 2>&1; then
+  fail "dbtools verify failed; the database is not at the committed schema, v$VERSION is not deployed"
+fi
+SCHEMA=$(basename "$(ls "$MONO_DIR"/db/migrations/*.sql | tail -1)" .sql)
+log "schema verified at $SCHEMA"
+
 STEP="rotate"
 PULLED_ID=$(podman image inspect --format '{{.Id}}' "$REGISTRY_IMAGE@$DIGEST")
 CURRENT_ID=""
@@ -298,7 +342,7 @@ service restart "$SERVICE" >>"$LOG" 2>&1
 
 STEP="readiness"
 if ! wait_ready; then
-  log "readiness gate failed; rolling back to :prev"
+  log "readiness gate failed; rolling back to :prev on schema $SCHEMA (the schema is not rolled back, so :prev must still serve it)"
   if podman image exists "$LOCAL_IMAGE:prev"; then
     podman tag "$LOCAL_IMAGE:prev" "$LOCAL_IMAGE:local"
     service restart "$SERVICE" >>"$LOG" 2>&1 || true
@@ -321,8 +365,8 @@ if [ -n "$CONTAINER_IMAGE" ] && [ "$CONTAINER_IMAGE" != "$LOCAL_ID" ]; then
 fi
 
 printf '%s\n' "$VERSION" >"$STATE_DIR/deployed-version"
-printf '{"version":"%s","commit":"%s","digest":"%s","at":"%s"}\n' \
-  "$VERSION" "$NEW_REV" "$DIGEST" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+printf '{"version":"%s","commit":"%s","digest":"%s","schema":"%s","at":"%s"}\n' \
+  "$VERSION" "$NEW_REV" "$DIGEST" "$SCHEMA" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
   >"$STATE_DIR/last-release.json"
 
 # Retention: :local and :prev stay tagged, :v1-final is never touched, and

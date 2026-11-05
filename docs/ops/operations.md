@@ -2,7 +2,8 @@
 
 Dokumen ini menjawab dua hal yang tidak boleh dicari saat insiden sedang terjadi:
 siapa yang memegang akses, dan format catatan insidennya. Prosedur cutover punya
-dokumen sendiri (`docs/ops/cutover.md`).
+dokumen sendiri (`docs/ops/cutover.md`), begitu juga rilis
+(`docs/ops/release.md`) dan login Google (`docs/ops/google-oauth.md`).
 
 ## 1. Pemegang akses
 
@@ -62,15 +63,21 @@ Aturan pengisian:
 
 | Kapan | Apa | Perintah |
 |---|---|---|
-| Setiap deploy | Kesehatan proses dan skema | `curl -fsS http://127.0.0.1:8080/readyz` |
+| Setiap deploy | Kesehatan proses; migrasi dijalankan `deploy-vps.sh` sebelum restart | `curl -fsS http://127.0.0.1:8080/readyz` |
 | Harian | Log deploy membesar tanpa rotasi | `ls -l /srv/qouver/apps/majadu/logs` |
 | Bulanan | Migrasi dan seed masih cocok dengan skema | `./task ci` di mesin dev dengan `MAJADU_PG_DSN` |
 | Tahunan | Daftar akses di atas masih akurat | tinjau manual, cabut yang tidak dipakai |
 
-`/readyz` sengaja membalas `503` bila database tidak terjangkau, skema belum
-dimigrasi, atau snapshot di `platform.cutover_state` tidak cocok dengan
-`CUTOVER_SNAPSHOT_SHA256`. `503` berarti "jangan kirim trafik", bukan "coba
-lagi".
+`deploy-vps.sh` menjalankan `dbtools migrate` lalu `dbtools verify` dari image
+yang baru ditarik, memakai `MAJADU_OWNER_DSN`, sebelum unit di-restart.
+Kegagalan di situ membatalkan deploy dan membiarkan rilis lama jalan; `:local`
+dan `:prev` tidak disentuh.
+
+`/readyz` sendiri hanya membalas `503` bila database tidak terjangkau, relasi
+wajib belum ada (`to_regclass`), atau snapshot di `platform.cutover_state` tidak
+cocok dengan `CUTOVER_SNAPSHOT_SHA256`. Kolom atau seed yang belum masuk tidak
+terdeteksi di situ — yang membuktikan skema adalah `dbtools verify` di langkah
+deploy. `503` berarti "jangan kirim trafik", bukan "coba lagi".
 
 ## 4. Yang belum ada
 
