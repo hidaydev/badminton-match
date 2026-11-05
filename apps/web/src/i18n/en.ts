@@ -41,6 +41,9 @@ export const en = {
   'shared.error.load': 'This session could not be loaded.',
   'shared.status.draft': 'Draft',
   'shared.status.locked': 'Locked',
+  'shared.gameStatus.played': 'Played',
+  'shared.gameStatus.scheduled': 'Not played',
+  'shared.gameStatus.cancelled': 'Cancelled',
 
   'community.label': 'Community',
   'community.subtitle': 'Settings that apply to every member of this community.',

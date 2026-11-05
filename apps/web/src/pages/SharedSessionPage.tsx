@@ -35,6 +35,39 @@ function formatSessionDate(date: string): string {
   })
 }
 
+type Standing = { name: string; games: number; wins: number; losses: number }
+
+/** Only a played game with both scores is a result; a cancelled one is not. */
+function standingsFrom(games: SharedSession['games']): Standing[] {
+  const rows = new Map<string, Standing>()
+  const row = (name: string): Standing => {
+    const existing = rows.get(name)
+    if (existing !== undefined) return existing
+    const created = { name, games: 0, wins: 0, losses: 0 }
+    rows.set(name, created)
+    return created
+  }
+  for (const game of games) {
+    if (game.status !== 'played' || game.scoreA === null || game.scoreB === null) continue
+    if (game.scoreA === game.scoreB) continue
+    const winners = game.scoreA > game.scoreB ? game.sideA : game.sideB
+    const losers = game.scoreA > game.scoreB ? game.sideB : game.sideA
+    for (const name of winners) {
+      const entry = row(name)
+      entry.games += 1
+      entry.wins += 1
+    }
+    for (const name of losers) {
+      const entry = row(name)
+      entry.games += 1
+      entry.losses += 1
+    }
+  }
+  return [...rows.values()].sort(
+    (a, b) => b.wins - a.wins || b.games - a.games || a.name.localeCompare(b.name),
+  )
+}
+
 /** Spectators poll, but gently: the share limiter allows 120 reads/minute per code. */
 const REFRESH_MS = 10_000
 /** Backoff cap after a failure or a `429`. */
@@ -129,6 +162,7 @@ export default function SharedSessionPage() {
   const current = settled !== null && settled.code === code ? settled : null
   const loading = code !== '' && current === null
   const session = current?.value ?? null
+  const standings = session === null ? [] : standingsFrom(session.games)
 
   return (
     <section className="mx-auto max-w-3xl p-4">
@@ -215,13 +249,65 @@ export default function SharedSessionPage() {
                           : `${game.scoreA}–${game.scoreB}`}
                       </td>
                       <td className="px-3 py-2 text-right text-xs text-fg-dim">
-                        {game.status}
+                        {t(
+                          game.status === 'played'
+                            ? 'shared.gameStatus.played'
+                            : game.status === 'cancelled'
+                              ? 'shared.gameStatus.cancelled'
+                              : 'shared.gameStatus.scheduled',
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+
+          {standings.length > 0 && (
+            <>
+              <h2 className="mt-6 text-sm font-semibold text-fg">{t('session.standings')}</h2>
+              <div className="mt-2 overflow-x-auto rounded-2xl border border-border-subtle bg-surface">
+                <table className="w-full border-collapse text-sm">
+                  <caption className="sr-only">{t('session.standings')}</caption>
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs text-fg-dim">
+                      <th scope="col" className="px-3 py-2 font-semibold">
+                        {t('rankings.column.player')}
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right font-semibold">
+                        {t('rankings.column.games')}
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right font-semibold">
+                        {t('rankings.column.wins')}
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-right font-semibold">
+                        {t('rankings.column.losses')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {standings.map((row) => (
+                      <tr
+                        key={row.name}
+                        className="border-b border-border-subtle last:border-b-0"
+                      >
+                        <td className="px-3 py-2 text-fg">{row.name}</td>
+                        <td className="px-3 py-2 text-right font-mono text-fg-dim">
+                          {row.games}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-fg">
+                          {row.wins}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-fg-dim">
+                          {row.losses}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       )}
