@@ -510,13 +510,22 @@ proc listSessions(request: Request, ctx: CommunityContext) =
   var items = newJArray()
   let limit = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
   for row in application.db.query(
-    """select id, title, session_date::text as session_date, status, version
-       from session.sessions where community_id = $1
-       order by session_date desc, updated_at desc limit $2""",
+    """select s.id, s.title, s.session_date::text as session_date, s.status,
+              s.version,
+              (select count(*) from session.participants p
+                where p.community_id = s.community_id
+                  and p.session_id = s.id)::int as player_count,
+              (select count(*) from session.games g
+                where g.community_id = s.community_id
+                  and g.session_id = s.id)::int as total_games
+       from session.sessions s where s.community_id = $1::uuid
+       order by s.session_date desc, s.updated_at desc limit $2""",
     @[textParam(ctx.communityId), intParam(limit.int64)]):
     items.add(%*{"id": row.get("id"), "title": row.get("title"),
       "date": row.get("session_date"), "status": row.get("status"),
-      "version": parseInt(row.get("version"))})
+      "version": parseInt(row.get("version")),
+      "playerCount": parseInt(row.get("player_count")),
+      "totalGames": parseInt(row.get("total_games"))})
   jsonResponse(request, 200, %*{"items": items})
 
 proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
@@ -1447,6 +1456,14 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
   except ValueError:
     problem(request, 400, "INVALID_BODY", "body must be JSON")
     return
+  if body.hasKey("played"):
+    if body["played"].kind != JBool:
+      problem(request, 400, "INVALID_BODY", "played must be a boolean")
+      return
+    scheduleDone(request, ctx, sessionId,
+      sessionSchedule.setPlayed(application.db, ctx.communityId, sessionId,
+        gameKey, version.get, body["played"].getBool()))
+    return
   if not body.hasKey("scoreA") or not body.hasKey("scoreB") or
      body["scoreA"].kind != JInt or body["scoreB"].kind != JInt:
     problem(request, 400, "INVALID_SCORE", "scoreA and scoreB are required")
@@ -1459,6 +1476,27 @@ proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
                    gameKey: string) =
   let version = requireIfMatch(request)
   if version.isNone: return
+  var body: JsonNode
+  try:
+    body = bodyJson(request)
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    return
+  if body.kind == JObject and body.hasKey("playerIds"):
+    if body["playerIds"].kind != JArray:
+      problem(request, 400, "INVALID_SCHEDULE", "playerIds must be an array")
+      return
+    var playerIds: seq[string] = @[]
+    for item in body["playerIds"]:
+      if item.kind != JString:
+        problem(request, 400, "INVALID_SCHEDULE",
+          "playerIds must hold strings")
+        return
+      playerIds.add(item.getStr())
+    scheduleDone(request, ctx, sessionId,
+      sessionSchedule.setSkips(application.db, ctx.communityId, sessionId,
+        gameKey, version.get, playerIds))
+    return
   scheduleDone(request, ctx, sessionId,
     sessionSchedule.skipGame(application.db, ctx.communityId, sessionId, gameKey,
       version.get))
@@ -1521,6 +1559,17 @@ proc getSessionDetail(request: Request, ctx: CommunityContext,
       "scoreA": if entry["score_a"].isNone: newJNull() else: %parseInt(entry.get("score_a")),
       "scoreB": if entry["score_b"].isNone: newJNull() else: %parseInt(entry.get("score_b")),
       "status": entry.get("status")})
+  var skipped = newJObject()
+  for entry in application.db.query(
+    """select round_no, court_no, player_id::text as player_id
+       from session.game_skips
+       where community_id = $1::uuid and session_id = $2::uuid
+       order by round_no, court_no, player_id""",
+    @[textParam(ctx.communityId), textParam(sessionId)]):
+    let gameKey = entry.get("round_no") & "-" & entry.get("court_no")
+    if not skipped.hasKey(gameKey):
+      skipped[gameKey] = newJArray()
+    skipped[gameKey].add(%entry.get("player_id"))
   jsonResponse(request, 200, %*{
     "id": row.get.get("id"),
     "title": row.get.get("title"),
@@ -1530,7 +1579,8 @@ proc getSessionDetail(request: Request, ctx: CommunityContext,
     "status": row.get.get("status"),
     "version": parseInt(row.get.get("version")),
     "participants": participants,
-    "games": games},
+    "games": games,
+    "skippedPlayers": skipped},
     [("ETag", "\"" & row.get.get("version") & "\""),
      ("Cache-Control", "no-store")])
 
@@ -1641,45 +1691,93 @@ proc communityToday(timezone: string): string =
     @[textParam(timezone)])
   row.get.get("today")
 
+proc optInt(value: Option[int]): JsonNode =
+  if value.isSome: %value.get else: newJNull()
+
+proc breakdownJson(entries: seq[ratingRead.BreakdownEntry]): JsonNode =
+  var items = newJArray()
+  for entry in entries:
+    items.add(%*{
+      "sourceId": if entry.sourceId.isSome: %entry.sourceId.get else: newJNull(),
+      "date": entry.date,
+      "kind": entry.kind,
+      "points": entry.points,
+      "games": entry.games})
+  items
+
+proc boardRowJson(rank: int, row: ratingRead.BoardRow): JsonNode =
+  ## The rank is positional, so the caller passes it; every other field comes
+  ## from the same board read.
+  %*{"rank": rank, "playerId": row.playerId, "name": row.name,
+    "tier": if row.tier.len == 0: newJNull() else: %row.tier,
+    "points": row.points, "games": row.games, "wins": row.wins,
+    "losses": row.losses,
+    "prevRank": optInt(row.prevRank),
+    "rankDelta": optInt(row.rankDelta),
+    "countedEntries": row.countedEntries,
+    "entriesAvailable": row.entriesAvailable,
+    "thinEvidence": row.thinEvidence,
+    "breakdown": breakdownJson(row.breakdown)}
+
 proc boardItems(rows: seq[ratingRead.BoardRow]): JsonNode =
   var items = newJArray()
-  for index, row in rows:
-    items.add(%*{"rank": index + 1, "playerId": row.playerId, "name": row.name,
-      "tier": if row.tier.len == 0: newJNull() else: %row.tier,
-      "points": row.points, "games": row.games, "wins": row.wins,
-      "losses": row.losses})
+  for row in rows:
+    items.add(boardRowJson(row.rank, row))
   items
+
+proc minSessionsParam(request: Request): int =
+  ## v1's default is zero: the board shows every player with an entry in the
+  ## window. A malformed value falls back to it instead of failing the read.
+  let raw = request.queryParams["min_sessions"]
+  if raw.len == 0:
+    return 0
+  try:
+    max(parseInt(raw), 0)
+  except ValueError:
+    0
 
 proc communityBoard(request: Request, communityId, timezone: string) =
   let settings = currentSettings(application.db, communityId)
   let params = ratingParams.loadRatingParams(configSnapshot(), settings)
   let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
+  let minSessions = minSessionsParam(request)
+  let latest = ratingRead.latestEventDate(application.db, communityId)
+  let asOf = if latest.len > 0: latest else: communityToday(timezone)
   let query = ratingRead.BoardQuery(communityId: communityId,
-    asOf: communityToday(timezone), params: params, limit: limit,
-    tier: request.queryParams["tier"])
+    asOf: asOf, params: params, limit: limit,
+    tier: request.queryParams["tier"], minSessions: minSessions)
   let rows = ratingRead.board(application.db, query)
   jsonResponse(request, 200, %*{"items": boardItems(rows),
-    "asOf": communityToday(timezone)}, [("Cache-Control", "no-store")])
+    "asOf": asOf,
+    "windowWeeks": params.windowWeeks, "bestN": params.bestN,
+    "minSessions": minSessions}, [("Cache-Control", "no-store")])
 
 proc rankingPlayer(request: Request, communityId, timezone,
                    playerId: string) =
-  let params = ratingParams.loadRatingParams(configSnapshot(),
-    currentSettings(application.db, communityId))
-  let limit = configSnapshot().intValue(
-    currentSettings(application.db, communityId), keyRankBoardLimit)
+  let settings = currentSettings(application.db, communityId)
+  let params = ratingParams.loadRatingParams(configSnapshot(), settings)
+  let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
+  let latest = ratingRead.latestEventDate(application.db, communityId)
+  let asOf = if latest.len > 0: latest else: communityToday(timezone)
   let query = ratingRead.BoardQuery(communityId: communityId,
-    asOf: communityToday(timezone), params: params, limit: limit, tier: "")
-  let entry = ratingRead.boardEntry(application.db, query, playerId)
-  if entry.isNone:
+    asOf: asOf, params: params, limit: limit, tier: "")
+  let rows = ratingRead.board(application.db, query)
+  var found = false
+  var item: JsonNode
+  for row in rows:
+    if row.playerId == playerId:
+      item = boardRowJson(row.rank, row)
+      found = true
+      break
+  if not found:
     problem(request, 404, "NOT_FOUND", "player is not on the board")
     return
-  let rank = ratingRead.rankOf(application.db, query, playerId)
-  jsonResponse(request, 200, %*{"rank": rank, "playerId": entry.get.playerId,
-    "name": entry.get.name,
-    "tier": if entry.get.tier.len == 0: newJNull() else: %entry.get.tier,
-    "points": entry.get.points, "games": entry.get.games,
-    "wins": entry.get.wins, "losses": entry.get.losses},
-    [("Cache-Control", "no-store")])
+  # The v1 detail view explained why a player could be missing, so it got the
+  # same window numbers as the board.
+  item["windowWeeks"] = %params.windowWeeks
+  item["bestN"] = %params.bestN
+  item["minSessions"] = %params.thinEvidenceN
+  jsonResponse(request, 200, item, [("Cache-Control", "no-store")])
 
 proc playerAchievements(request: Request, ctx: CommunityContext,
                         playerId: string) =

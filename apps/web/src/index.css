@@ -163,3 +163,142 @@ input, select, textarea {
     scroll-behavior: auto !important;
   }
 }
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* Prevent iOS Safari from auto-zooming on input focus */
+input, select, textarea {
+  font-size: max(16px, 1em);
+}
+
+/* -- Reduced Motion -------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Team player highlight shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* Rotating border glow for team players when highlighted */
+@property --glow-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes glowSpin { to { --glow-angle: 360deg; } }
+
+/* Medal & Achievement tactile micro-interactions */
+.medal-badge-btn {
+  position: relative;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease-out;
+  will-change: transform, filter;
+}
+.medal-badge-btn:hover {
+  transform: scale(1.08) translateY(-1px);
+  filter: drop-shadow(0 6px 16px var(--medal-glow, rgba(227, 179, 65, 0.35)));
+  z-index: 10;
+}
+.medal-badge-btn:active {
+  transform: scale(0.96) translateY(0);
+  transition-duration: 0.1s;
+}
+.medal-badge-btn:focus-visible {
+  outline: none;
+  filter: drop-shadow(0 0 12px var(--medal-glow, rgba(227, 179, 65, 0.5)));
+  z-index: 10;
+}
+
+.row-glow-g, .row-glow-b {
+  position: relative;
+}
+.row-glow-g::before, .row-glow-b::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 9px;
+  padding: 2px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: glowSpin 2s linear infinite;
+  pointer-events: none;
+}
+.row-glow-g::before {
+  background: conic-gradient(from var(--glow-angle), transparent 50%, #52c987 72%, #c8fff0 82%, #52c987 92%, transparent 100%);
+}
+.row-glow-b::before {
+  background: conic-gradient(from var(--glow-angle), transparent 50%, #5baee8 72%, #c8e8ff 82%, #5baee8 92%, transparent 100%);
+}
+
+/* Celebration overlay — confetti particle fall */
+@keyframes confettiFall {
+  0%   { transform: translateY(-10vh) rotate(0deg);   opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Anniversary banner — remove bleed margins on desktop */
+@media (min-width: 768px) {
+  .anniv-left  { margin-left: 0 !important; }
+  .anniv-right { margin-right: 0 !important; }
+}
+
+@keyframes annivBlink {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 1; }
+}
+
+/* Anniversary banner overlay animations */
+@keyframes annivSlideInLeft {
+  from { transform: translateX(-110%); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+@keyframes annivSlideInRight {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes annivSlideInTop {
+  from { transform: translateY(-60px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+@keyframes annivFadeInUp {
+  from { transform: translateY(30px) scale(0.92); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+
+@keyframes annivRaySpin {
+  from { transform: translateX(-50%) rotate(0deg); }
+  to   { transform: translateX(-50%) rotate(360deg); }
+}
+
+@keyframes annivFireworkBurst {
+  0%   { transform: translate(0, 0) scale(0); opacity: 0; }
+  15%  { transform: translate(0, 0) scale(1); opacity: 1; }
+  70%  { opacity: 0.8; }
+  100% { transform: translate(var(--fw-tx), var(--fw-ty)) scale(0); opacity: 0; }
+}
+
+@keyframes annivFireworkFlash {
+  0%   { transform: scale(0); opacity: 0; }
+  25%  { transform: scale(2); opacity: 1; }
+  100% { transform: scale(0); opacity: 0; }
+}

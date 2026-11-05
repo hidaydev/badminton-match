@@ -61,9 +61,13 @@ jadwal belum punya wizard; keduanya masih lewat API.
 
 ### 3. Papan poin
 
-- Poin dihitung dari `rating.deltas` dalam window bergulir **12 minggu**, mengambil
-  **10 entri terbaik** per pemain; pemain dengan kurang dari **3 game** tidak masuk papan.
+- Poin dihitung dari game sesi dan match turnamen dalam window bergulir **12 minggu**,
+  mengambil **10 entri terbaik** per pemain (satu entri per sesi/turnamen).
+  `min_sessions` menyaring papan; di bawah `rating.thin_evidence_n` pemain ditandai
+  bukti tipis, bukan disembunyikan.
 - Nilai game = `session_base × (0.5 + 0.5 × clamp(margin/score_target, -1, 1))`.
+- Turnamen dengan ladder aktif (`rating.levels`) memakai
+  `champion_points × round_ratio(placement)`; tanpa ladder, rumus game dipakai.
 - Pengali kekuatan lawan = rasio rata-rata tier lawan terhadap populasi, dijepit
   `0.5–1.5`.
 - Semua angka berasal dari config komunitas/platform (`rating.*`).

@@ -22,13 +22,16 @@ type
     events*: int
     deltas*: int
 
-  TournamentGame = object
+  TournamentGame* = object
     ## One scored match (classic) or one scored partai (team) reduced to what
     ## the formula needs. The rally target comes from the phase, not from
-    ## `rating.score_target`, exactly like v1.
-    target: int
-    scoreA, scoreB: int
-    sideA, sideB: seq[string]
+    ## `rating.score_target`, exactly like v1. `key` keeps every game distinct
+    ## inside the tournament's single rating event.
+    key*: string
+    phase*: string
+    target*: int
+    scoreA*, scoreB*: int
+    sideA*, sideB*: seq[string]
 
 proc classicTarget(phase: string): int =
   if phase in ["sf", "3rd", "final"]: 42 else: 30
@@ -56,6 +59,8 @@ proc classicGames(conn: DbConn, communityId, tournamentId: string):
        order by m.match_order, m.match_key""",
     @[textParam(communityId), textParam(tournamentId)]):
     result.add(TournamentGame(
+      key: row.get("match_key"),
+      phase: row.get("phase"),
       target: classicTarget(row.get("phase")),
       scoreA: parseInt(row.get("score_a")),
       scoreB: parseInt(row.get("score_b")),
@@ -105,11 +110,21 @@ proc teamGames(conn: DbConn, communityId, tournamentId: string):
         textParam(match.get("match_key"))]):
       let index = parseInt(partai.get("partai_index"))
       result.add(TournamentGame(
+        key: match.get("match_key") & ":" & $index,
+        phase: match.get("phase"),
         target: teamTarget(match.get("phase")),
         scoreA: parseInt(partai.get("score_a")),
         scoreB: parseInt(partai.get("score_b")),
         sideA: teamSide(conn, communityId, match.get("team_a_id"), index),
         sideB: teamSide(conn, communityId, match.get("team_b_id"), index)))
+
+proc gamesFor*(conn: DbConn, communityId, tournamentId,
+               format: string): seq[TournamentGame] =
+  ## The scored games of one tournament, in bracket order. Ingest and the board
+  ## share this, so a point can never come from a different game list than the
+  ## ledger.
+  if format == "team": teamGames(conn, communityId, tournamentId)
+  else: classicGames(conn, communityId, tournamentId)
 
 proc awardTournamentSide(conn: DbConn, communityId, eventId: string,
                          game: TournamentGame, teamA: bool, params: RatingParams,
@@ -125,16 +140,14 @@ proc awardTournamentSide(conn: DbConn, communityId, eventId: string,
   let delta = roundPoints(points)
   let letter = if teamA: "a" else: "b"
   for playerId in players:
-    writeDelta(conn, communityId, eventId, letter, playerId, delta)
+    writeDelta(conn, communityId, eventId, letter, playerId, game.key, delta)
     upsertState(conn, communityId, playerId, delta, won = margin > 0)
     inc result
 
 proc ingestTournamentGames(conn: DbConn, communityId, tournamentId,
                            tournamentDate, format: string,
                            params: RatingParams): TournamentIngestResult =
-  let games =
-    if format == "team": teamGames(conn, communityId, tournamentId)
-    else: classicGames(conn, communityId, tournamentId)
+  let games = gamesFor(conn, communityId, tournamentId, format)
   let event = conn.queryOne(
     """insert into rating.events (community_id, local_date, event_type, source_id)
        values ($1::uuid, $2::date, 'tournament', $3::uuid)

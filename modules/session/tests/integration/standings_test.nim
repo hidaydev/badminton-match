@@ -124,3 +124,47 @@ suite "session standings":
   test "a session from another community is not found":
     check compute(db, communityId,
       "11111111-1111-1111-1111-111111111111").isNone
+
+  test "a skipped player is left out of only that game":
+    addGame(0, 0, 21, 18, "played", players[0], players[1], players[2], players[3])
+    addGame(0, 1, 21, 18, "played", players[0], players[1], players[2], players[3])
+    discard db.execUpdate(
+      """insert into session.game_skips
+           (community_id, session_id, round_no, court_no, player_id)
+         values ($1::uuid, $2::uuid, 0, 0, $3::uuid)""",
+      @[textParam(communityId), textParam(sessionId), textParam(players[2])])
+
+    let items = compute(db, communityId, sessionId).get["items"]
+    check items[0]["name"].getStr() == "Alice"
+    check items[0]["wins"].getInt() == 2
+    check items[1]["name"].getStr() == "Budi"
+    check items[1]["wins"].getInt() == 2
+
+    var candra = 0
+    var dewi = 0
+    for item in items:
+      if item["name"].getStr() == "Candra": candra = item["losses"].getInt()
+      if item["name"].getStr() == "Dewi": dewi = item["losses"].getInt()
+    check candra == 1
+    check dewi == 2
+
+  test "a fully skipped side still gives the other side the result":
+    addGame(0, 0, 18, 21, "played", players[0], players[1], players[2], players[3])
+    for id in [players[0], players[1]]:
+      discard db.execUpdate(
+        """insert into session.game_skips
+             (community_id, session_id, round_no, court_no, player_id)
+           values ($1::uuid, $2::uuid, 0, 0, $3::uuid)""",
+        @[textParam(communityId), textParam(sessionId), textParam(id)])
+
+    let items = compute(db, communityId, sessionId).get["items"]
+    var alice, candra, dewi: int
+    for item in items:
+      case item["name"].getStr()
+      of "Alice": alice = item["losses"].getInt()
+      of "Candra": candra = item["wins"].getInt()
+      of "Dewi": dewi = item["wins"].getInt()
+      else: discard
+    check alice == 0
+    check candra == 1
+    check dewi == 1

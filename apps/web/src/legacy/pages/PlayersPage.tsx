@@ -1,0 +1,483 @@
+import { useState, useRef, useEffect, useMemo } from 'react'
+import type { Gender, Tier, Player } from '../types'
+import { useStore } from '../store'
+import { useNavigate } from '../router'
+import { isPlaceholderName } from '../utils/placeholders'
+import { useListPlayers } from '../queries'
+
+function parsePlayerList(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/[\u200B-\u200D\uFEFF\u2060]/g, '')
+        .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+        .replace(/[\u2000-\u206F]/gu, '')
+        .replace(/[\u2700-\u27BF]/gu, '')
+        .replace(/^\s*\d+\s*[.)]\s*/, '')
+        .replace(/(?:✅|✔|☑️|\s)+$/gu, '')
+        .trim()
+    )
+    .filter((name) => name.length > 0)
+}
+
+import { TIER_LABELS, TIER_BADGE_COLORS, TIER_ACTIVE, TIER_NAMES, TIERS } from '../config/tiers'
+
+// Convert canonical tier string (D..A+) to numeric (1..8)
+function tierStringToNumber(tier: string): Tier {
+  const map: Record<string, Tier> = { 'D': 1, 'D+': 2, 'C': 3, 'C+': 4, 'B': 5, 'B+': 6, 'A': 7, 'A+': 8 }
+  return map[tier.toUpperCase()] ?? 2
+}
+
+function TierBadge({ tier }: { tier: Tier }) {
+  return (
+    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md border text-xs font-bold ${TIER_BADGE_COLORS[tier] ?? TIER_BADGE_COLORS[3]}`}>
+      {TIER_LABELS[tier] ?? tier}
+    </span>
+  )
+}
+
+// ── Shared pickers ────────────────────────────────────────────────────────────
+// `type` is forwarded so callers inside a <form> can opt into type="button"
+// without forcing the attribute on standalone usages.
+function GenderToggle({ value, onChange, type }: { value: Gender; onChange: (g: Gender) => void; type?: 'button' }) {
+  return (
+    <div className="flex rounded-lg overflow-hidden border border-slate-700">
+      {(['M', 'F'] as Gender[]).map((g) => (
+        <button
+          key={g}
+          type={type}
+          onClick={() => onChange(g)}
+          className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
+            value === g
+              ? g === 'M' ? 'bg-blue-600 text-white' : 'bg-pink-600 text-white'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          {g}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function TierToggle({ value, onChange, type }: { value: Tier; onChange: (t: Tier) => void; type?: 'button' }) {
+  return (
+    <div className="flex rounded-lg overflow-hidden border border-slate-700">
+      {TIERS.map((t) => (
+        <button
+          key={t}
+          type={type}
+          onClick={() => onChange(t)}
+          className={`min-w-8 h-8 text-xs font-bold transition-colors ${
+            value === t ? TIER_ACTIVE[t] : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          {TIER_LABELS[t]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Inline editable row ───────────────────────────────────────────────────────
+function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: { 
+  player: Player; 
+  onRemove: () => void;
+  isRegistered: boolean;
+  ambiguousMatches?: Array<{ name: string; gender: Gender; tier: Tier }>;
+}) {
+  const updatePlayer = useStore((s) => s.updatePlayer)
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(player.name)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus()
+  }, [editing])
+
+  function save() {
+    const trimmed = name.trim()
+    if (trimmed) updatePlayer(player.id, { name: trimmed })
+    else setName(player.name)
+    setEditing(false)
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5 sm:gap-2 bg-surface border border-border-subtle hover:border-slate-700 rounded-xl px-2.5 py-2 group transition-colors">
+        {/* Avatar */}
+        <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 shrink-0">
+          {player.name[0].toUpperCase()}
+        </div>
+
+        {/* Name — click to edit */}
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={save}
+            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setName(player.name); setEditing(false) } }}
+            className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+          />
+        ) : (
+          <span
+            onClick={() => setEditing(true)}
+            className="flex-1 text-white font-medium text-sm cursor-text hover:text-indigo-300 transition-colors"
+          >
+            {player.name}
+            {isPlaceholderName(player.name) && (
+              <span className="ml-2 text-[9px] font-bold text-amber-400/90 bg-amber-900/40 border border-amber-700/50 rounded px-1 py-0.5 uppercase tracking-wider">
+                tbd
+              </span>
+            )}
+          </span>
+        )}
+
+        {/* Gender picker */}
+        <GenderToggle value={player.gender} onChange={(g) => updatePlayer(player.id, { gender: g })} />
+
+        {/* Tier — read-only badge untuk registered player, picker untuk new player */}
+        {isRegistered ? (
+          <span className={`inline-flex items-center justify-center min-w-8 h-8 text-xs font-bold rounded-lg ${TIER_ACTIVE[player.tier]}`}>
+            {TIER_LABELS[player.tier]}
+          </span>
+        ) : (
+          <TierToggle value={player.tier} onChange={(t) => updatePlayer(player.id, { tier: t })} />
+        )}
+
+        {/* Delete */}
+        <button
+          onClick={onRemove}
+          className="text-slate-400 hover:text-red-400 active:text-red-400 text-sm transition-colors shrink-0 p-2"
+          aria-label="Remove player"
+        >
+          ✕
+        </button>
+      </div>
+
+      {ambiguousMatches && ambiguousMatches.length > 0 && (
+        <div className="bg-amber-950/70 border border-amber-600/70 rounded-xl p-2.5 flex flex-col gap-1.5 text-xs ml-1 mr-1">
+          <span className="text-amber-300 font-semibold flex items-center gap-1">
+            ⚠️ Name &ldquo;{player.name}&rdquo; is ambiguous ({ambiguousMatches.length} registered players found):
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {ambiguousMatches.map((m) => (
+              <button
+                key={m.name}
+                type="button"
+                onClick={() => {
+                  updatePlayer(player.id, { name: m.name, gender: m.gender, tier: m.tier })
+                  setName(m.name)
+                }}
+                className="bg-amber-900/90 hover:bg-amber-800 text-amber-100 border border-amber-500/60 font-medium px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                <span>{m.name}</span>
+                <span className="text-[10px] opacity-80">({TIER_LABELS[m.tier]} · {m.gender})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Add player row ────────────────────────────────────────────────────────────
+function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: { 
+  onAdd: (name: string, gender: Gender, tier: Tier) => void; 
+  onCancel: () => void;
+  canonicalPlayers: Map<string, { gender: Gender; tier: Tier }>;
+}) {
+  const [name, setName] = useState('')
+  const [gender, setGender] = useState<Gender>('M')
+  const [tier, setTier] = useState<Tier>(2)
+
+  // Auto-fill gender & tier when name matches a canonical player
+  function handleNameChange(value: string) {
+    setName(value)
+    const normalized = value.trim().toLowerCase()
+    const match = canonicalPlayers.get(normalized)
+    if (match) {
+      setGender(match.gender)
+      setTier(match.tier)
+    }
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) return
+    onAdd(trimmed, gender, tier)
+  }
+
+  return (
+    <form onSubmit={submit} className="flex items-center gap-2 bg-slate-900 border border-indigo-600 rounded-xl px-3 py-2">
+      <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-slate-400 text-xs shrink-0">
+        ?
+      </div>
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => handleNameChange(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
+        placeholder="Player name"
+        className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+      />
+      {/* Gender picker */}
+      <GenderToggle value={gender} onChange={setGender} type="button" />
+      {/* Tier picker */}
+      <TierToggle value={tier} onChange={setTier} type="button" />
+      <button
+        type="submit"
+        disabled={!name.trim()}
+        className="text-indigo-400 hover:text-indigo-300 disabled:opacity-30 text-sm font-medium transition-colors"
+      >
+        Add
+      </button>
+      <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-200 text-sm transition-colors" aria-label="Cancel add player">
+        ✕
+      </button>
+    </form>
+  )
+}
+
+// ── Bulk import ───────────────────────────────────────────────────────────────
+function BulkImport({ onClose, existingCount, max, canonicalPlayers }: { 
+  onClose: () => void; 
+  existingCount: number; 
+  max: number;
+  canonicalPlayers: Map<string, { gender: Gender; tier: Tier }>;
+}) {
+  const addPlayers = useStore((s) => s.addPlayers)
+  const [text, setText] = useState('')
+
+  const parsed = parsePlayerList(text)
+  const available = max - existingCount
+  const preview = parsed.slice(0, available)
+  const overflow = parsed.length - preview.length
+
+  function handleImport() {
+    if (preview.length === 0) return
+    addPlayers(preview.map((name) => {
+      const match = canonicalPlayers.get(name.toLowerCase())
+      return { 
+        name, 
+        gender: match?.gender ?? 'M', 
+        tier: match?.tier ?? 2 
+      }
+    }))
+    onClose()
+  }
+
+  return (
+    <div className="bg-elevated border border-border rounded-xl p-4 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-white">Paste player list</span>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-sm" aria-label="Close bulk import">✕</button>
+      </div>
+      <textarea
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={"1. Rakha ✅\n2. Vina ✅\n3. Fakhri ✅"}
+        rows={6}
+        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm font-sans focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 resize-none"
+      />
+      {preview.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">
+            {preview.length} player{preview.length > 1 ? 's' : ''} detected
+            {overflow > 0 ? ` (${overflow} skipped — limit reached)` : ''}:
+          </span>
+          <div className="flex flex-wrap gap-1">
+            {preview.map((name) => (
+              <span key={name} className="text-xs bg-slate-700 text-slate-200 px-2 py-0.5 rounded-full">{name}</span>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mt-1">Gender defaults to M, Tier to D+ — click to change after import.</p>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button
+          disabled={preview.length === 0}
+          onClick={handleImport}
+          className="flex-1 py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 text-sm font-semibold rounded-lg transition-colors"
+        >
+          Import {preview.length > 0 ? preview.length : ''} Players
+        </button>
+        <button onClick={onClose} className="px-4 py-2 text-slate-400 hover:text-slate-200 text-sm rounded-lg hover:bg-slate-700 transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+export default function PlayersPage() {
+  const players = useStore((s) => s.players)
+  const session = useStore((s) => s.session)
+  const addPlayer = useStore((s) => s.addPlayer)
+  const removePlayer = useStore((s) => s.removePlayer)
+  const [showForm, setShowForm] = useState(false)
+  const [showBulk, setShowBulk] = useState(false)
+  const navigate = useNavigate()
+  // Canonical players for auto-fill — via react-query (sama seperti AdminPlayersPage).
+  const { data: canonicalRows } = useListPlayers()
+  const { canonicalPlayers, canonicalList } = useMemo(() => {
+    const map = new Map<string, { gender: Gender; tier: Tier }>()
+    const list: Array<{ name: string; gender: Gender; tier: Tier }> = []
+    for (const row of canonicalRows ?? []) {
+      // Use tierInduk (canonical tier) if available, fallback to tier (display)
+      const canonicalTier = row.tierInduk ? tierStringToNumber(row.tierInduk) : (row.tier || 2)
+      const entry = { gender: row.gender as Gender, tier: canonicalTier as Tier }
+      map.set(row.name.toLowerCase(), entry)
+      list.push({ name: row.name, ...entry })
+    }
+    return { canonicalPlayers: map, canonicalList: list }
+  }, [canonicalRows])
+
+  const required = session.playerCount
+  const isComplete = players.length === required
+
+  function findAmbiguousMatches(name: string, isRegistered: boolean) {
+    if (isRegistered) return []
+    const norm = name.trim().toLowerCase()
+    if (!norm || isPlaceholderName(norm)) return []
+    return canonicalList.filter((c) => {
+      const cNorm = c.name.toLowerCase()
+      return cNorm.startsWith(norm + ' ') || cNorm.startsWith(norm + '(')
+    })
+  }
+
+  const hasAmbiguous = players.some((p) => findAmbiguousMatches(p.name, canonicalPlayers.has(p.name.toLowerCase())).length > 0)
+
+  function handleAdd(name: string, gender: Gender, tier: Tier) {
+    addPlayer({ name, gender, tier })
+    setShowForm(false)
+  }
+
+  const tierGroups = TIERS.map((t) => ({
+    tier: t,
+    players: players.filter((p) => p.tier === t),
+  }))
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-bold text-fg mb-0.5">Players</h2>
+          <p className="text-slate-400 text-sm">Click name to rename · Click badge to toggle gender/tier.</p>
+        </div>
+        <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${
+          isComplete
+            ? 'text-emerald-400 border-emerald-700 bg-emerald-900/30'
+            : players.length > required
+            ? 'text-red-400 border-red-700 bg-red-900/30'
+            : 'text-slate-300 border-slate-700 bg-slate-800'
+        }`}>
+          {players.length}/{required}
+        </span>
+      </div>
+
+      {/* Bulk import panel */}
+      {showBulk && (
+        <BulkImport onClose={() => setShowBulk(false)} existingCount={players.length} max={required} canonicalPlayers={canonicalPlayers} />
+      )}
+
+      {/* Player list grouped by tier */}
+      {players.length > 0 && (
+        <div className="flex flex-col gap-4">
+          {tierGroups.map(({ tier, players: group }) =>
+            group.length === 0 ? null : (
+              <div key={tier}>
+                <div className="flex items-center gap-2 mb-2">
+                  <TierBadge tier={tier} />
+                  <span className="text-xs text-slate-400">{TIER_NAMES[tier]}</span>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {group.map((player) => {
+                    const isReg = canonicalPlayers.has(player.name.toLowerCase())
+                    const amb = findAmbiguousMatches(player.name, isReg)
+                    return (
+                      <PlayerRow 
+                        key={player.id} 
+                        player={player} 
+                        onRemove={() => removePlayer(player.id)}
+                        isRegistered={isReg}
+                        ambiguousMatches={amb}
+                      />
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {/* Add row */}
+      {showForm ? (
+        <AddPlayerRow onAdd={handleAdd} onCancel={() => setShowForm(false)} canonicalPlayers={canonicalPlayers} />
+      ) : (
+        <div className="flex gap-2">
+          <button
+            disabled={players.length >= required}
+            onClick={() => setShowForm(true)}
+            className="flex-1 py-2.5 border-2 border-dashed border-slate-700 hover:border-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-indigo-400 rounded-xl text-sm font-medium transition-colors"
+          >
+            + Add Player
+          </button>
+          <button
+            disabled={players.length >= required}
+            onClick={() => handleAdd('tbd', 'M', 2)}
+            className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-amber-400 rounded-xl text-sm font-medium transition-colors"
+            title="Add a TBD slot — replace with a real player before play (games involving it are void)"
+          >
+            + TBD
+          </button>
+          <button
+            disabled={players.length >= required}
+            onClick={() => setShowBulk((v) => !v)}
+            className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors"
+            title="Bulk import from text"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg> Bulk
+          </button>
+        </div>
+      )}
+
+      {players.length === 0 && !showForm && !showBulk && (
+        <div className="text-center py-12 text-slate-400">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3 text-slate-400"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>
+          <p>No players yet. Add {required} players to continue.</p>
+        </div>
+      )}
+
+      {/* Progress hint */}
+      {players.length > 0 && !isComplete && (
+        <p className="text-xs text-center text-slate-400">
+          {players.length < required
+            ? `${required - players.length} more player${required - players.length > 1 ? 's' : ''} needed`
+            : `${players.length - required} too many — remove ${players.length - required} to match session`}
+        </p>
+      )}
+
+      <button
+        disabled={!isComplete || !session.locked || hasAmbiguous}
+        onClick={() => navigate('/session/constraints')}
+        className="w-full py-2.5 bg-indigo-400 hover:bg-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-semibold rounded-xl transition-colors mt-2"
+      >
+        {!session.locked
+          ? 'Go to Setup to start session'
+          : hasAmbiguous
+          ? 'Select official player for ambiguous names ⚠️'
+          : isComplete
+          ? 'Next: Constraints →'
+          : `Add players (${players.length}/${required})`}
+      </button>
+    </div>
+  )
+}

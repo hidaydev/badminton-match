@@ -215,6 +215,88 @@ proc setScore*(db: Db, communityId, sessionId, gameKey: string,
   if outcome != ssOk: return outcome
   ssOk
 
+proc setPlayed*(db: Db, communityId, sessionId, gameKey: string,
+                expectedVersion: int, played: bool): ScheduleStatus =
+  ## v1 kept a played flag apart from the score: a host can mark a game played
+  ## before entering the score. The status carries it; scores stay cleared.
+  let key = parseGameKey(gameKey)
+  if key.isNone:
+    return ssInvalid
+  var outcome = ssOk
+  discard db.tx(proc(conn: DbConn): int =
+    if not bump(conn, communityId, sessionId, expectedVersion):
+      outcome = ssStale
+      return 0
+    let status = if played: "played" else: "scheduled"
+    let updated = conn.execUpdate(
+      """update session.games
+         set status = $3, score_a = null, score_b = null
+         where community_id = $1::uuid and session_id = $2::uuid
+           and round_no = $4 and court_no = $5""",
+      @[textParam(communityId), textParam(sessionId), textParam(status),
+        intParam(key.get[0].int64), intParam(key.get[1].int64)])
+    if updated == 0:
+      outcome = ssNotFound
+      return 0
+    1)
+  if outcome != ssOk: return outcome
+  ssOk
+
+proc setSkips*(db: Db, communityId, sessionId, gameKey: string,
+               expectedVersion: int, playerIds: seq[string]): ScheduleStatus =
+  ## Per-player skip: the game stays scheduled/played, only the named players
+  ## are excluded from that game's tally. An empty list clears the skips.
+  let key = parseGameKey(gameKey)
+  if key.isNone:
+    return ssInvalid
+  var unique: seq[string] = @[]
+  for playerId in playerIds:
+    if playerId notin unique:
+      unique.add(playerId)
+  if countKnownPlayers(db, communityId, unique) != unique.len:
+    return ssUnknownPlayer
+  var outcome = ssOk
+  discard db.tx(proc(conn: DbConn): int =
+    let game = conn.queryOne(
+      """select 1 as ok from session.games
+         where community_id = $1::uuid and session_id = $2::uuid
+           and round_no = $3 and court_no = $4""",
+      @[textParam(communityId), textParam(sessionId),
+        intParam(key.get[0].int64), intParam(key.get[1].int64)])
+    if game.isNone:
+      outcome = ssNotFound
+      return 0
+    for playerId in unique:
+      let participant = conn.queryOne(
+        """select 1 as ok from session.participants
+           where community_id = $1::uuid and session_id = $2::uuid
+             and player_id = $3::uuid""",
+        @[textParam(communityId), textParam(sessionId), textParam(playerId)])
+      if participant.isNone:
+        outcome = ssUnknownPlayer
+        return 0
+    if not bump(conn, communityId, sessionId, expectedVersion):
+      outcome = ssStale
+      return 0
+    discard conn.execUpdate(
+      """delete from session.game_skips
+         where community_id = $1::uuid and session_id = $2::uuid
+           and round_no = $3 and court_no = $4""",
+      @[textParam(communityId), textParam(sessionId),
+        intParam(key.get[0].int64), intParam(key.get[1].int64)])
+    for playerId in unique:
+      discard conn.execUpdate(
+        """insert into session.game_skips
+             (community_id, session_id, round_no, court_no, player_id)
+           values ($1::uuid, $2::uuid, $3, $4, $5::uuid)
+           on conflict do nothing""",
+        @[textParam(communityId), textParam(sessionId),
+          intParam(key.get[0].int64), intParam(key.get[1].int64),
+          textParam(playerId)])
+    1)
+  if outcome != ssOk: return outcome
+  ssOk
+
 proc skipGame*(db: Db, communityId, sessionId, gameKey: string,
                expectedVersion: int): ScheduleStatus =
   let key = parseGameKey(gameKey)

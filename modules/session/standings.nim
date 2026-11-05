@@ -23,6 +23,11 @@ proc sidePlayers(row: Row, side: string): seq[string] =
     if row[key].isSome and row.get(key).len > 0:
       result.add(row.get(key))
 
+proc without(players, skipped: seq[string]): seq[string] =
+  for player in players:
+    if player notin skipped:
+      result.add(player)
+
 proc hasReal(players: seq[string], rows: Table[string, Tally]): bool =
   for player in players:
     if rows.hasKey(player):
@@ -54,23 +59,42 @@ proc compute*(db: Db, communityId, sessionId: string): Option[JsonNode] =
     rows[playerId] = Tally(playerId: playerId, name: row.get("name"))
     order.add(playerId)
 
+  var skips = initTable[string, seq[string]]()
+  for row in db.query(
+    """select round_no, court_no, player_id::text as player_id
+       from session.game_skips
+       where community_id = $1::uuid and session_id = $2::uuid""",
+    @[textParam(communityId), textParam(sessionId)]):
+    let key = row.get("round_no") & "-" & row.get("court_no")
+    skips.mgetOrPut(key, @[]).add(row.get("player_id"))
+
   for game in db.query(
-    """select score_a, score_b,
+    """select round_no, court_no, score_a, score_b,
               coalesce(side_a1::text, '') as side_a1,
               coalesce(side_a2::text, '') as side_a2,
               coalesce(side_b1::text, '') as side_b1,
               coalesce(side_b2::text, '') as side_b2
        from session.games
        where community_id = $1::uuid and session_id = $2::uuid
-         and status = 'played' and score_a is not null and score_b is not null""",
+         and status = 'played' and score_a is not null and score_b is not null
+       order by round_no, court_no""",
     @[textParam(communityId), textParam(sessionId)]):
+    let key = game.get("round_no") & "-" & game.get("court_no")
+    let skipped = skips.getOrDefault(key)
     let sideA = sidePlayers(game, "side_a")
     let sideB = sidePlayers(game, "side_b")
+    # Absence removes the game: a side with no present participant has no one
+    # to tally. A per-game skip only removes those players from the tally, so
+    # the opposing side still gets the result unless both sides end up empty.
     if not sideA.hasReal(rows) or not sideB.hasReal(rows):
+      continue
+    let activeA = without(sideA, skipped)
+    let activeB = without(sideB, skipped)
+    if activeA.len == 0 and activeB.len == 0:
       continue
     let scoreA = parseInt(game.get("score_a"))
     let scoreB = parseInt(game.get("score_b"))
-    for playerId in sideA:
+    for playerId in activeA:
       if not rows.hasKey(playerId):
         continue
       var tally = rows[playerId]
@@ -78,7 +102,7 @@ proc compute*(db: Db, communityId, sessionId: string): Option[JsonNode] =
       tally.pointsFor += scoreA
       tally.pointsAgainst += scoreB
       rows[playerId] = tally
-    for playerId in sideB:
+    for playerId in activeB:
       if not rows.hasKey(playerId):
         continue
       var tally = rows[playerId]

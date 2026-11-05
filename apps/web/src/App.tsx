@@ -1,38 +1,126 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { Suspense, useCallback, useMemo, useState } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import ClientOutdatedBanner from './components/ClientOutdatedBanner'
-import HomeLayout from './components/HomeLayout'
-import SessionLayout from './components/SessionLayout'
 import { CommunityProvider } from './community/CommunityProvider'
 import { useCommunity } from './community/CommunityContext'
 import { t } from './i18n'
-import ExportPage from './pages/ExportPage'
-import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
 import PlayersPage from './pages/PlayersPage'
-import RankingsPage from './pages/RankingsPage'
-import RatingPlayerPage from './pages/RatingPlayerPage'
-import SessionPage from './pages/SessionPage'
-import SessionsPage from './pages/SessionsPage'
 import SettingsPage from './pages/SettingsPage'
 import OwnerSetupPage from './pages/SetupPage'
 import SharedSessionPage from './pages/SharedSessionPage'
-import TournamentClassicPage from './pages/TournamentClassicPage'
-import TournamentTeamPage from './pages/TournamentTeamPage'
-import TournamentsPage from './pages/TournamentsPage'
-import ConstraintsPage from './wizard/pages/ConstraintsPage'
-import GeneratePage from './wizard/pages/GeneratePage'
-import PlayersWizardPage from './wizard/pages/PlayersPage'
-import SetupPage from './wizard/pages/SetupPage'
+import { useRegisterSW } from 'virtual:pwa-register/react'
+
+// Restored v1 tree. Everything under `legacy/` is the pre-rewrite frontend,
+// rewired through `legacy/router` and `legacy/queries/endpoints`.
+import { AdminProvider, useAdmin } from './legacy/context/AdminContext'
+import HomeLayout from './legacy/components/HomeLayout'
+import SessionLayout from './legacy/components/SessionLayout'
+import GlobalAmbiguousNames from './legacy/context/GlobalAmbiguousNames'
+import CelebrationOverlay from './legacy/components/CelebrationOverlay'
+import UpdateBanner from './legacy/components/UpdateBanner'
+import ErrorBoundary from './legacy/components/ErrorBoundary'
+import HomePage from './legacy/pages/HomePage'
+import SetupPage from './legacy/pages/SetupPage'
+import PlayersWizardPage from './legacy/pages/PlayersPage'
+import ConstraintsPage from './legacy/pages/ConstraintsPage'
+import GeneratePage from './legacy/pages/GeneratePage'
+import SessionListPage from './legacy/pages/SessionListPage'
+import SharedSessionPreviewPage from './legacy/pages/SessionPreviewPage'
+import { LegacySlugProvider, Navigate as LegacyNavigate, Outlet as LegacyOutlet } from './legacy/router'
+import { setCommunitySlug } from './legacy/queries/endpoints'
+import { useStore } from './legacy/store'
+import { decodeSnapshot, type SharedSnapshot } from './legacy/utils/shareUrl'
+import { SharedViewContext, useSharedView } from './legacy/sharedView'
+import { safeLazy } from './legacy/utils/safeLazy'
+
+const ScoreboardPage = safeLazy(() => import('./legacy/pages/ScoreboardPage'))
+const InstagramPostPage = safeLazy(() => import('./legacy/pages/InstagramPostPage'))
+const TournamentRouter = safeLazy(() => import('./legacy/pages/TournamentRouter'))
+const TournamentListPage = safeLazy(() => import('./legacy/pages/TournamentListPage'))
+const RankingsPage = safeLazy(() => import('./legacy/pages/RankingsPage'))
+const AdminSessionsPage = safeLazy(() => import('./legacy/pages/admin/AdminSessionsPage'))
+const AdminRatingsPage = safeLazy(() => import('./legacy/pages/admin/AdminRatingsPage'))
+const AdminTournamentsPage = safeLazy(() => import('./legacy/pages/admin/AdminTournamentsPage'))
+const RatingPlayerPage = safeLazy(() => import('./legacy/pages/RatingPlayerPage'))
+const AchievementBadgesPreviewPage = safeLazy(() => import('./legacy/pages/AchievementBadgesPreviewPage'))
+const MatchResultPreview = safeLazy(() => import('./legacy/pages/MatchResultPreview'))
+const NewTournamentPage = safeLazy(() => import('./legacy/pages/NewTournamentPage'))
+const NewTournamentWizard = safeLazy(() => import('./legacy/pages/NewTournamentWizard'))
+const LegacySharedSessionPage = safeLazy(() => import('./legacy/pages/SharedSessionPage'))
+
+// The restored v1 screens use TanStack Query; the v2 screens keep their own
+// hooks, so one provider at the root serves both.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, refetchOnWindowFocus: false },
+  },
+})
 
 function Loading() {
   return (
     <div className="min-h-screen bg-ground text-fg flex items-center justify-center">
-      <span className="text-sm text-fg-dim">{t('app.loading')}</span>
+      <span className="text-fg-dim text-sm">{t('app.loading')}</span>
     </div>
   )
+}
+
+function RequireSession({ children }: { children: React.ReactNode }) {
+  const locked = useStore((s) => s.session.locked)
+  return locked ? <>{children}</> : <LegacyNavigate to="/session/new" replace />
+}
+
+function RequireStaff({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useAdmin()
+  return isAdmin ? <>{children}</> : <LegacyNavigate to="/" replace />
+}
+
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { isAdminRole } = useAdmin()
+  return isAdminRole ? <>{children}</> : <LegacyNavigate to="/" replace />
+}
+
+function RequirePlayers({ children }: { children: React.ReactNode }) {
+  const locked = useStore((s) => s.session.locked)
+  const players = useStore((s) => s.players)
+  const required = useStore((s) => s.session.playerCount)
+  if (!locked) return <LegacyNavigate to="/session/new" replace />
+  if (required <= 0 || players.length !== required) return <LegacyNavigate to="/session/players" replace />
+  return <>{children}</>
+}
+
+function SharedViewPage() {
+  const { isSharedView } = useSharedView()
+  if (!isSharedView) return <LegacyNavigate to="/" replace />
+  return <GeneratePage />
+}
+
+/**
+ * Every legacy route lives under `/c/:slug`. This shell publishes the slug to
+ * the data adapter and to the path-prefixing router, then renders the same
+ * layout tree the pre-rewrite app had.
+ */
+function LegacyShell() {
+  const { slug = '' } = useParams<{ slug: string }>()
+  setCommunitySlug(slug)
+  return (
+    <LegacySlugProvider slug={slug}>
+      <AdminProvider>
+        <GlobalAmbiguousNames>
+          <LegacyOutlet />
+        </GlobalAmbiguousNames>
+      </AdminProvider>
+    </LegacySlugProvider>
+  )
+}
+
+function LegacySessionRedirect() {
+  const { id = '' } = useParams<{ id: string }>()
+  return <LegacyNavigate to={`/s/${id}`} replace />
 }
 
 function RootRedirect() {
@@ -74,29 +162,51 @@ function AuthedRoutes() {
         }
       />
 
-      <Route path="/c/:slug" element={<HomeLayout />}>
-        <Route index element={<HomePage />} />
-        <Route path="sessions" element={<SessionsPage />} />
-        <Route path="sessions/:id" element={<SessionPage />} />
-        <Route path="players" element={<PlayersPage />} />
-        <Route path="players/:playerId" element={<PlayerDetailPage />} />
-        <Route path="rankings" element={<RankingsPage />} />
-        <Route path="rankings/:playerId" element={<RatingPlayerPage />} />
-        <Route path="tournaments" element={<TournamentsPage />} />
-        <Route path="tournaments/classic/new" element={<TournamentClassicPage />} />
-        <Route path="tournaments/classic/:id" element={<TournamentClassicPage />} />
-        <Route path="tournaments/team/new" element={<TournamentTeamPage />} />
-        <Route path="tournaments/team/:id" element={<TournamentTeamPage />} />
-        <Route path="export" element={<ExportPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-      </Route>
+      <Route path="/c/:slug" element={<LegacyShell />}>
+        <Route element={<HomeLayout />}>
+          <Route index element={<HomePage />} />
+          <Route path="sessions" element={<SessionListPage />} />
+          <Route path="sessions/:id" element={<LegacySessionRedirect />} />
+          <Route path="rankings" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rankings"><RankingsPage /></ErrorBoundary></Suspense>} />
+          <Route path="rankings/:playerId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rankings-player"><RatingPlayerPage /></ErrorBoundary></Suspense>} />
+          <Route path="ratings" element={<LegacyNavigate to="/rankings" replace />} />
+          <Route path="ratings/:playerId" element={<LegacyNavigate to="/rankings" replace />} />
+          <Route path="dev/achievement-badges" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="achievement-badges-preview"><AchievementBadgesPreviewPage /></ErrorBoundary></Suspense>} />
+          <Route path="dev/match-result-preview" element={<Suspense fallback={<Loading />}><MatchResultPreview /></Suspense>} />
+          <Route path="dev/session-preview" element={<Suspense fallback={<Loading />}><SharedSessionPreviewPage /></Suspense>} />
+          <Route path="tournament" element={<LegacyNavigate to="/tournaments" replace />} />
+          <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-list"><TournamentListPage /></ErrorBoundary></Suspense>} />
+          <Route path="tournaments/new" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-new"><NewTournamentPage /></ErrorBoundary></Suspense>} />
+          <Route path="tournaments/new/:format" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-wizard"><NewTournamentWizard /></ErrorBoundary></Suspense>} />
+          <Route path="tournaments/:id" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament"><TournamentRouter /></ErrorBoundary></Suspense>} />
+          <Route path="instagram-post" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="instagram-post"><InstagramPostPage /></ErrorBoundary></Suspense>} />
 
-      <Route path="/c/:slug/session" element={<SessionLayout />}>
-        <Route index element={<Navigate to="new" replace />} />
-        <Route path="new" element={<SetupPage />} />
-        <Route path="players" element={<PlayersWizardPage />} />
-        <Route path="constraints" element={<ConstraintsPage />} />
-        <Route path="generate" element={<GeneratePage />} />
+          {/* v2-only screens: settings and player claims did not exist before. */}
+          <Route path="settings" element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+          <Route path="players" element={<PlayersPage />} />
+          <Route path="players/:playerId" element={<PlayerDetailPage />} />
+          {/* The old export screen is gone; its URL now points at the post editor. */}
+          <Route path="export" element={<LegacyNavigate to="/instagram-post" replace />} />
+
+          <Route path="admin">
+            <Route index element={<LegacyNavigate to="/admin/sessions" replace />} />
+            <Route path="sessions" element={<RequireStaff><Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-sessions"><AdminSessionsPage /></ErrorBoundary></Suspense></RequireStaff>} />
+            <Route path="players" element={<LegacyNavigate to="/players" replace />} />
+            <Route path="ratings" element={<RequireAdmin><Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-ratings"><AdminRatingsPage /></ErrorBoundary></Suspense></RequireAdmin>} />
+            <Route path="tournaments" element={<RequireStaff><Suspense fallback={<Loading />}><ErrorBoundary routeName="admin-tournaments"><AdminTournamentsPage /></ErrorBoundary></Suspense></RequireStaff>} />
+          </Route>
+        </Route>
+
+        <Route element={<SessionLayout />}>
+          <Route path="session/new" element={<RequireStaff><SetupPage /></RequireStaff>} />
+          <Route path="session/players" element={<RequireStaff><RequireSession><PlayersWizardPage /></RequireSession></RequireStaff>} />
+          <Route path="session/constraints" element={<RequireStaff><RequirePlayers><ConstraintsPage /></RequirePlayers></RequireStaff>} />
+          <Route path="session/generate" element={<RequireStaff><RequirePlayers><GeneratePage /></RequirePlayers></RequireStaff>} />
+          <Route path="view" element={<SharedViewPage />} />
+        </Route>
+
+        <Route path="s/:sessionId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="shared-session"><LegacySharedSessionPage /></ErrorBoundary></Suspense>} />
+        <Route path="scoreboard" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="scoreboard"><ScoreboardPage /></ErrorBoundary></Suspense>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -105,24 +215,65 @@ function AuthedRoutes() {
 }
 
 export default function App() {
+  const { needRefresh: [needRefresh, setNeedRefresh], updateServiceWorker } = useRegisterSW()
+  const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
+    decodeSnapshot(window.location.hash),
+  )
+  const [showCelebration, setShowCelebration] = useState(
+    () => !sessionStorage.getItem('celebration-shown'),
+  )
+
+  const exitSharedView = useCallback(() => {
+    window.location.href = `${window.location.origin}/`
+  }, [])
+
+  const sharedViewValue = useMemo(
+    () => ({
+      snapshot: sharedSnapshot,
+      isSharedView: !!sharedSnapshot,
+      exitSharedView,
+    }),
+    [sharedSnapshot, exitSharedView],
+  )
+
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <CommunityProvider>
-          <ClientOutdatedBanner />
-          <Routes>
-            <Route path="/s/:code" element={<SharedSessionPage />} />
-            <Route
-              path="*"
-              element={
-                <Protected>
-                  <AuthedRoutes />
-                </Protected>
-              }
-            />
-          </Routes>
-        </CommunityProvider>
-      </BrowserRouter>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+    <ErrorBoundary routeName="app">
+      <SharedViewContext.Provider value={sharedViewValue}>
+        {showCelebration && (
+          <CelebrationOverlay
+            onDismiss={() => {
+              sessionStorage.setItem('celebration-shown', '1')
+              setShowCelebration(false)
+            }}
+          />
+        )}
+        {needRefresh && (
+          <UpdateBanner
+            onReload={() => void updateServiceWorker(true)}
+            onDismiss={() => setNeedRefresh(false)}
+          />
+        )}
+        <AuthProvider>
+          <BrowserRouter>
+            <CommunityProvider>
+              <ClientOutdatedBanner />
+              <Routes>
+                <Route path="/s/:code" element={<SharedSessionPage />} />
+                <Route
+                  path="*"
+                  element={
+                    <Protected>
+                      <AuthedRoutes />
+                    </Protected>
+                  }
+                />
+              </Routes>
+            </CommunityProvider>
+          </BrowserRouter>
+        </AuthProvider>
+      </SharedViewContext.Provider>
+    </ErrorBoundary>
+    </QueryClientProvider>
   )
 }

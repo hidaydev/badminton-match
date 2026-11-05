@@ -23,3 +23,6 @@ modules/achievement/domain/achievement.nim:50
 modules/achievement/domain/achievement.nim:60
 modules/achievement/domain/achievement.nim:96
 modules/achievement/domain/achievement.nim:97
+
+# Player history page cap; a response-size choice, not a business number.
+modules/rating/read.nim:50

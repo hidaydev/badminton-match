@@ -6,6 +6,8 @@
 ## `games:25`, `rank:3`. Tier badges read better with the class name in the key
 ## (`tier:C`) while their threshold stays the numeric class level.
 
+import std/[algorithm, options, strutils]
+
 type
   Category* = enum
     acAttendance = "attendance"
@@ -104,3 +106,84 @@ proc awardedKeys*(facts: Facts): seq[string] =
   for badge in catalog():
     if badge.qualifies(facts):
       result.add(badge.key)
+
+const medalTierNames* = ["Bronze", "Silver", "Gold", "Platinum", "Onyx"]
+
+proc keyMetric*(key: string): string =
+  ## The family prefix before the colon: `sessions:10` -> `sessions`.
+  let colon = key.find(':')
+  if colon < 0: key else: key[0 ..< colon]
+
+proc keySuffix*(key: string): string =
+  let colon = key.find(':')
+  if colon < 0 or colon + 1 >= key.len: "" else: key[colon + 1 .. ^1]
+
+proc ladderFor*(metric: string, thresholds: seq[int]): seq[int] =
+  ## Medal ladder order. Rank improves downward (10 is the loosest rung, 1 the
+  ## best); every other metric climbs.
+  result = thresholds
+  result.sort(proc(a, b: int): int = cmp(a, b))
+  if metric == "rank":
+    result.reverse
+
+proc ladderLevel*(metric: string, threshold: int, ladder: seq[int]): int =
+  ## 1-based rung on the five-name ladder, or 0 when the family has no ladder.
+  ## Tier keys carry their level in the key suffix, so they stay unlevelled.
+  ## A rank-streak row stores the best run, not the rung, so it counts every
+  ## rung the run has passed.
+  if metric == "tier" or ladder.len < 2 or ladder.len > medalTierNames.len:
+    return 0
+  if metric == "rank_streak":
+    for index, value in ladder:
+      if threshold >= value: result = index + 1
+    return
+  for index, value in ladder:
+    if value == threshold:
+      return index + 1
+  0
+
+proc nextTarget*(metric: string, threshold: int, ladder: seq[int]): Option[int] =
+  ## The next rung in ladder order, or none at the top of the family.
+  if metric == "tier" or ladder.len < 2:
+    return none(int)
+  if metric == "rank_streak":
+    for value in ladder:
+      if value > threshold: return some(value)
+    return none(int)
+  for index, value in ladder:
+    if value == threshold and index + 1 < ladder.len:
+      return some(ladder[index + 1])
+  none(int)
+
+proc achievementTitle*(key, category: string, threshold: int): string =
+  ## Deterministic English copy derived from the key; no lore is invented.
+  let metric = keyMetric(key)
+  let suffix = keySuffix(key)
+  case metric
+  of "sessions": "Sessions " & $threshold
+  of "streak": "Streak " & $threshold
+  of "games": "Games " & $threshold
+  of "wins": "Wins " & $threshold
+  of "opponents": "Opponents " & $threshold
+  of "partners": "Partners " & $threshold
+  of "tournaments": "Tournaments " & $threshold
+  of "rank": "Rank Top " & $threshold
+  of "rank_streak": "Rank streak " & $threshold
+  of "tier": "Tier " & suffix
+  else: capitalizeAscii(category) & " " & $threshold
+
+proc achievementDetail*(key, category: string, threshold: int): string =
+  let metric = keyMetric(key)
+  let suffix = keySuffix(key)
+  case metric
+  of "sessions": "Attend " & $threshold & " sessions."
+  of "streak": "Attend " & $threshold & " sessions in a row."
+  of "games": "Play " & $threshold & " games."
+  of "wins": "Win " & $threshold & " games."
+  of "opponents": "Face " & $threshold & " different opponents."
+  of "partners": "Partner with " & $threshold & " different players."
+  of "tournaments": "Join " & $threshold & " tournaments."
+  of "rank": "Reach rank " & $threshold & " or better."
+  of "rank_streak": "Hold a ranked position for " & $threshold & " sessions in a row."
+  of "tier": "Reach tier " & suffix & "."
+  else: "Reach " & $threshold & " " & category & "."

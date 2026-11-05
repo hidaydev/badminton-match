@@ -161,8 +161,9 @@ suite "v1 import":
     let game = source.queryOne(
       """insert into bm.scheduled_games
            (slot_index, court_index, status, source, session_id, is_played,
-            score_a, score_b)
-         values (0, 0, 'played', 'manual', $1::uuid, true, 21, 18)
+            score_a, score_b, skipped_player_refs)
+         values (0, 0, 'played', 'manual', $1::uuid, true, 21, 18,
+                 array['p1'])
          returning internal_id::text as id""",
       @[textParam(session)]).get.get("id")
     for index, participant in participants:
@@ -199,6 +200,17 @@ suite "v1 import":
     check imported.get("score_a") == "21"
     check imported.get("side_a") == "Import One"
     check imported.get("side_b") == "Import Two"
+
+    let skipped = target.queryOne(
+      """select p.canonical_name as name
+         from session.game_skips gs
+         join player.players p on p.id = gs.player_id
+         where gs.community_id = $1::uuid
+           and gs.session_id = (select id from session.sessions
+             where community_id = $1::uuid and title = 'Imported Night')""",
+      @[textParam(communityId)])
+    check skipped.isSome
+    check skipped.get.get("name") == "Import One"
 
     let second = importEtl(source, target, "import-test", "Import Test", "", false)
     check second.sessions.created == 0

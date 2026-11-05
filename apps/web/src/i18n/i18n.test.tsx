@@ -35,10 +35,14 @@ export function findHardcodedStrings(source: string, fileName = 'example.tsx'): 
   return found
 }
 
+// `src/legacy` is the restored pre-rewrite tree. It predates the i18n rule and
+// is intentionally not rewritten, so it is not scanned here.
+const SKIP_DIRS = new Set(['legacy'])
+
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name)
-    if (entry.isDirectory()) return sourceFiles(path)
+    if (entry.isDirectory()) return SKIP_DIRS.has(entry.name) ? [] : sourceFiles(path)
     return entry.name.endsWith('.tsx') && !entry.name.endsWith('.test.tsx') ? [path] : []
   })
 }

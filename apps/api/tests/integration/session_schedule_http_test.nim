@@ -204,6 +204,34 @@ suite "session schedule HTTP":
       ifMatch = "\"5\"")
     check unknown == 400
 
+  test "a per-player skip keeps the game and reports the skipped players":
+    let (_, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Partial skip","date":"2026-11-08"}""")
+    let sessionId = parseJson(body)["id"].getStr()
+    let schedule = """{"games":[{"round":0,"court":0,"sideA":["""" &
+      players[0] & """","""" & players[1] & """"],"sideB":["""" &
+      players[2] & """","""" & players[3] & """"]}]}"""
+    discard call(HttpPut, "/c/sched-club/sessions/" & sessionId & "/schedule",
+      hostCookie, schedule, ifMatch = "\"1\"")
+    let (skipped, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0/skip", hostCookie,
+      """{"playerIds":["""" & players[0] & """"]}""", ifMatch = "\"2\"")
+    check skipped == 200
+    let (_, detailBody) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId, hostCookie)
+    let detail = parseJson(detailBody)
+    check detail["version"].getInt() == 3
+    check detail["games"][0]["status"].getStr() == "scheduled"
+    check detail["skippedPlayers"]["0-0"][0].getStr() == players[0]
+
+    let (cleared, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0/skip", hostCookie,
+      """{"playerIds":[]}""", ifMatch = "\"3\"")
+    check cleared == 200
+    let (_, afterBody) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId, hostCookie)
+    check parseJson(afterBody)["skippedPlayers"].len == 0
+
   test "deleting a session is host-for-draft and admin-for-any":
     let (created, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
       """{"title":"Draft to delete","date":"2026-11-06"}""")

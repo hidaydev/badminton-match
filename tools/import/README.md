@@ -11,6 +11,7 @@ ETL sekali-jalan dari database v1 (`bm_staging`) ke v2. T-064.
 | Sesi + lapangan | `bm.sessions`, `bm.session_courts` | `session.sessions`, `session.courts` | sudah |
 | Peserta | `bm.session_players` | `session.participants` | sudah |
 | Jadwal + skor | `bm.scheduled_games`, `bm.scheduled_game_players` | `session.games` | sudah |
+| Skip per pemain | `bm.scheduled_games.skipped_player_refs` | `session.game_skips` | sudah |
 | Rating | `bm.rating_sources` | `rating.sources` + hitung ulang dari sesi/turnamen | sudah (angka recompute) |
 | Turnamen klasik | `bm.tournaments`, `bm.tournament_pairs`, `bm.tournament_groups`, `bm.tournament_matches` | `tournament.*` | sudah |
 | Turnamen tim | `bm.tournament_teams`, `bm.tournament_team_players`, `bm.tournament_team_matches`, `bm.tournament_team_match_games` | `tournament.*` | sudah |

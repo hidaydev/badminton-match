@@ -2,8 +2,11 @@ import std/[math, options, strutils]
 
 type
   TierBand* = object
+    ## A tier's rating range. The upper bound is optional: the top band is open
+    ## ended, and its strength stretches above the floor.
     tier*: string
     floor*: float
+    ceiling*: Option[float]
 
   RatingParams* = object
     ## Business numbers arrive from the config registry; nothing here defaults.
@@ -42,15 +45,16 @@ proc roundPoints*(value: float): int =
   int(floor(value + 0.5))
 
 proc tierStrength*(params: RatingParams, tier: string): Option[float] =
-  ## Midpoint of the tier's band, derived from the ascending floors. The highest
-  ## band is open ended, so it stretches 100 points above its floor.
+  ## Midpoint of the tier's band. The top band is open ended, so it stretches
+  ## 100 points above its floor. A tier outside the ladder has no strength, and
+  ## the caller treats it as absent rather than as zero.
   if tier.len == 0 or params.bands.len == 0:
     return none(float)
-  for index, band in params.bands:
+  for band in params.bands:
     if cmpIgnoreCase(band.tier, tier) != 0:
       continue
-    if index + 1 < params.bands.len:
-      return some((band.floor + params.bands[index + 1].floor) / 2)
+    if band.ceiling.isSome:
+      return some((band.floor + band.ceiling.get) / 2)
     return some(band.floor + 100)
   none(float)
 

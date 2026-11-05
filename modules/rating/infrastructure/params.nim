@@ -1,4 +1,4 @@
-import std/json
+import std/[json, options]
 import platform/config/store
 import ../domain/rating
 
@@ -23,5 +23,11 @@ proc loadRatingParams*(snapshot: Snapshot, settings: JsonNode): RatingParams =
   for band in jsonValue(snapshot, settings, keyRatingTierBands):
     if band.kind != JObject or not band.hasKey("tier") or not band.hasKey("min"):
       raise newException(ConfigError, "rating.tier_bands entries need tier and min")
+    var ceiling = none(float)
+    if band.hasKey("max") and band["max"].kind != JNull:
+      ceiling = some(band["max"].getFloat())
+      if ceiling.get <= band["min"].getFloat():
+        raise newException(ConfigError,
+          "rating.tier_bands max must be above min")
     result.bands.add(TierBand(tier: band["tier"].getStr(),
-      floor: band["min"].getFloat()))
+      floor: band["min"].getFloat(), ceiling: ceiling))

@@ -8,14 +8,10 @@ import {
   decideJoinRequest,
   listJoinRequests,
   listMembers,
-  listRatingSources,
-  rebuildRatings,
   removeMember,
-  removeRatingSource,
   setMemberRole,
-  setSourceFinalized,
 } from '../community/adminApi'
-import type { Invite, JoinRequest, Member, RatingSource } from '../community/adminApi'
+import type { Invite, JoinRequest, Member } from '../community/adminApi'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatDay } from '../utils/day'
@@ -24,7 +20,6 @@ type Data = {
   slug: string
   members: Member[]
   requests: JoinRequest[]
-  sources: RatingSource[]
 }
 
 function describe(error: unknown): string {
@@ -58,11 +53,11 @@ export default function SettingsPage() {
   useEffect(() => {
     if (slug === '') return
     let active = true
-    Promise.all([listMembers(slug), listJoinRequests(slug), listRatingSources(slug)])
-      .then(([members, requests, sources]) => {
+    Promise.all([listMembers(slug), listJoinRequests(slug)])
+      .then(([members, requests]) => {
         if (!active) return
         setFailure(null)
-        setData({ slug, members, requests, sources })
+        setData({ slug, members, requests })
       })
       .catch((problem: unknown) => {
         if (active) setFailure({ key: slug, message: describe(problem) })
@@ -120,12 +115,6 @@ export default function SettingsPage() {
           <JoinRequests
             slug={slug}
             requests={current.requests}
-            busy={busy}
-            onRun={run}
-          />
-          <RatingSources
-            slug={slug}
-            sources={current.sources}
             busy={busy}
             onRun={run}
           />
@@ -372,99 +361,6 @@ function JoinRequests({
             </li>
           ))}
         </ul>
-      )}
-    </section>
-  )
-}
-
-function RatingSources({
-  slug,
-  sources,
-  busy,
-  onRun,
-}: {
-  slug: string
-  sources: RatingSource[]
-  busy: boolean
-  onRun: Run
-}) {
-  return (
-    <section className="mt-8">
-      <h2 className="text-sm font-semibold text-fg">{t('admin.sources')}</h2>
-      <p className="mt-1 text-xs text-fg-dim">{t('admin.sources.hint')}</p>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void onRun(() => rebuildRatings(slug))}
-        className="mt-2 min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-      >
-        {t('admin.sources.rebuild')}
-      </button>
-
-      {sources.length === 0 ? (
-        <p className="mt-3 text-sm text-fg-dim">{t('admin.sources.empty')}</p>
-      ) : (
-        <div className="mt-3 overflow-x-auto rounded-2xl border border-border-subtle bg-surface">
-          <table className="w-full border-collapse text-sm">
-            <caption className="sr-only">{t('admin.sources')}</caption>
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-fg-dim">
-                <th scope="col" className="px-3 py-2 font-semibold">
-                  {t('admin.sources.type')}
-                </th>
-                <th scope="col" className="px-3 py-2 font-semibold">
-                  {t('admin.sources.date')}
-                </th>
-                <th scope="col" className="px-3 py-2 text-right font-semibold">
-                  {t('admin.sources.deltas')}
-                </th>
-                <th scope="col" className="px-3 py-2 text-right font-semibold">
-                  {t('admin.sources.state')}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sources.map((source) => (
-                <tr
-                  key={source.id}
-                  className="border-b border-border-subtle last:border-b-0"
-                >
-                  <td className="px-3 py-2 text-fg">{source.type}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-fg-dim">{source.date}</td>
-                  <td className="px-3 py-2 text-right font-mono text-fg-dim">
-                    {source.deltas}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void onRun(() =>
-                            setSourceFinalized(slug, source.id, !source.finalized),
-                          )
-                        }
-                        className="min-h-11 rounded-xl border border-border px-3 text-xs text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-                      >
-                        {source.finalized
-                          ? t('admin.sources.unfinalize')
-                          : t('admin.sources.finalize')}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void onRun(() => removeRatingSource(slug, source.id))}
-                        className="min-h-11 rounded-xl border border-border px-3 text-xs text-error hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-                      >
-                        {t('admin.sources.remove')}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
     </section>
   )

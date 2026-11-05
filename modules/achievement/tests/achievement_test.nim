@@ -1,4 +1,4 @@
-import std/[os, sets, strutils, unittest]
+import std/[options, os, sets, strutils, unittest]
 import ../domain/achievement
 
 proc seedPath(): string =
@@ -52,6 +52,15 @@ suite "achievement catalog":
     check tierLevel("A+") == 8
     check tierLevel("") == 0
     check tierLevel("Z") == 0
+
+  test "a rank-streak run counts the rungs it has passed":
+    let ladder = @[3, 5, 8, 12, 16]
+    check ladderLevel("rank_streak", 2, ladder) == 0
+    check ladderLevel("rank_streak", 3, ladder) == 1
+    check ladderLevel("rank_streak", 11, ladder) == 3
+    check ladderLevel("rank_streak", 16, ladder) == 5
+    check nextTarget("rank_streak", 11, ladder) == some(12)
+    check nextTarget("rank_streak", 16, ladder).isNone
 
 suite "achievement rules":
   test "a threshold is inclusive":

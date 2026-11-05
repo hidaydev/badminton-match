@@ -33,7 +33,7 @@ contract generated from OpenAPI.
 | **Players** | Canonical names, aliases, gender, sticky tier, claim/release/merge with admin approval and audit. |
 | **Communities** | One deployment, many clubs: slug, memberships (`member`/`host`/`admin`), invites, join requests, per-club config overrides. |
 | **Sharing** | Sealed share links (hash + encrypted code), public session and ranking pages, share-code redaction in access logs. |
-| **Export** | Canvas-generated 1080×1350 posts and 1080×1920 stories for Instagram; sizes come from config, not code. |
+| **Instagram posts** | Canvas-generated 1080×1350 posts and 1080×1920 stories for sessions and tournaments; sizes come from config, not code. |
 | **Live updates** | WebSocket ticket per session and per share link, `session.changed` frames. See [Status](#-status). |
 
 Everything security-sensitive lives on the server: the browser holds one

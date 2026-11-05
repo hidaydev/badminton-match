@@ -1,4 +1,4 @@
-import std/[json, sets, strutils, tables, times]
+import std/[json, options, sets, strutils, tables, times]
 import db/db
 import clock
 import ../domain/achievement
@@ -202,19 +202,78 @@ proc backfill*(db: Db, communityId: string): BackfillResult =
     1)
   outcome
 
+proc suffixThreshold(key: string): int =
+  try:
+    parseInt(keySuffix(key))
+  except ValueError:
+    0
+
 proc listForPlayer*(db: Db, communityId, playerId: string): seq[JsonNode] =
   ## Newest first; the key breaks ties so the order is stable within a run.
+  ## Catalog keys read their ladder from `achievement.definitions`; imported v1
+  ## event medals (`tournament:<id>`) and the rank-streak badge have no
+  ## definition row, so they fall back to the key and the stored meta.
+  var ladders = initTable[string, seq[int]]()
+  for row in db.query(
+    """select key, threshold from achievement.definitions order by key"""):
+    ladders.mgetOrPut(keyMetric(row.get("key")), @[]).add(
+      parseInt(row.get("threshold")))
   for row in db.query(
     """select e.achievement_key as key, d.category as category,
-              d.threshold as threshold, e.earned_at::text as earned_at
+              d.threshold as threshold, e.earned_at::text as earned_at,
+              e.meta::text as meta
        from achievement.earned e
-       join achievement.definitions d on d.key = e.achievement_key
+       left join achievement.definitions d on d.key = e.achievement_key
        where e.community_id = $1::uuid and e.player_id = $2::uuid
        order by e.earned_at desc, e.achievement_key asc""",
     @[textParam(communityId), textParam(playerId)]):
+    let key = row.get("key")
+    let metric = keyMetric(key)
+    let category =
+      if row["category"].isSome: row.get("category")
+      elif metric == "tournament": "tournament"
+      elif metric == "rank_streak": "rank"
+      else: metric
+    let threshold =
+      if row["threshold"].isSome: parseInt(row.get("threshold"))
+      else: suffixThreshold(key)
+    let ladder =
+      if metric == "tier": @[threshold]
+      else: ladderFor(metric, ladders.getOrDefault(metric))
+    let level = ladderLevel(metric, threshold, ladder)
+    let target = nextTarget(metric, threshold, ladder)
+    let nextNode = if target.isSome: %target.get else: newJNull()
+    var meta =
+      if row["meta"].isSome and row.get("meta").len > 0:
+        parseJson(row.get("meta"))
+      else:
+        newJObject()
+    if meta.kind != JObject:
+      meta = newJObject()
+    meta["metric"] = %metric
+    if metric == "tier":
+      meta["tier"] = %keySuffix(key)
+    let title =
+      if metric == "tournament" and meta.hasKey("name"):
+        meta["name"].getStr()
+      else:
+        achievementTitle(key, category, threshold)
+    let detail =
+      if metric == "tournament": "Tournament medal"
+      else: achievementDetail(key, category, threshold)
     result.add(%*{
-      "key": row.get("key"),
-      "category": row.get("category"),
-      "threshold": parseInt(row.get("threshold")),
+      "key": key,
+      "category": category,
+      "threshold": threshold,
       "earnedAt": row.get("earned_at"),
+      "kind": category,
+      "title": title,
+      "detail": detail,
+      "note": "",
+      "value": threshold,
+      "tierLevel": if level > 0: %level else: newJNull(),
+      "tierName": if level > 0: %medalTierNames[level - 1] else: newJNull(),
+      "nextTarget": nextNode,
+      "thresholds": %ladder,
+      "meta": meta,
     })

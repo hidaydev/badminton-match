@@ -1,9 +1,21 @@
-import std/[json, options, strutils]
+import std/[algorithm, json, options, strutils, tables]
 import db/db
 import ./domain/rating
+import ./projection
 
 type
+  BreakdownEntry* = object
+    ## One counted entry behind a board row: a session or a tournament. The
+    ## points are the unrounded entry value, because the board rounds only the
+    ## total it shows.
+    sourceId*: Option[string]
+    date*: string
+    kind*: string
+    points*: float
+    games*: int
+
   BoardRow* = object
+    rank*: int
     playerId*: string
     name*: string
     tier*: string
@@ -11,6 +23,12 @@ type
     games*: int
     wins*: int
     losses*: int
+    prevRank*: Option[int]
+    rankDelta*: Option[int]
+    countedEntries*: int
+    entriesAvailable*: int
+    thinEvidence*: bool
+    breakdown*: seq[BreakdownEntry]
 
   BoardQuery* = object
     ## Everything a board read needs. The tier filter is optional and empty
@@ -20,46 +38,100 @@ type
     params*: RatingParams
     limit*: int
     tier*: string
+    ## Evidence floor; zero shows every player with an entry in the window.
+    minSessions*: int
+
+proc uuidArray(ids: seq[string]): string =
+  "{" & ids.join(",") & "}"
 
 proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
   ## Points are the sum of the player's best entries inside the rolling window;
-  ## only players with enough evidence reach the board, and the board is capped
-  ## by `rank.board_limit`.
+  ## every entry is one source, and the projection is the same one the player
+  ## page reads, so a row can never disagree with its own detail. Players with
+  ## no entry in the window are not on the board, exactly like v1.
+  let projections = projection.project(db, query.communityId, query.asOf,
+    query.params)
   for row in db.query(
-    """with windowed as (
-         select d.player_id, d.delta,
-                row_number() over (partition by d.player_id
-                                   order by d.delta desc, d.id) as rn
-         from rating.deltas d
-         join rating.events e on e.id = d.event_id
-         where d.community_id = $1::uuid
-           and e.local_date > $2::date - ($3::int * 7)
-       )
-       select p.id as player_id, p.canonical_name, coalesce(p.tier, '') as tier,
-              coalesce(sum(w.delta), 0)::int as points,
-              s.games_played, s.wins, s.losses
+    """select p.id as player_id, p.canonical_name, coalesce(p.tier, '') as tier,
+              coalesce(s.games_played, 0) as games_played,
+              coalesce(s.wins, 0) as wins, coalesce(s.losses, 0) as losses
        from player.players p
-       join rating.player_state s
+       left join rating.player_state s
          on s.community_id = p.community_id and s.player_id = p.id
-       left join windowed w on w.player_id = p.id and w.rn <= $4
-       where p.community_id = $1::uuid and s.games_played >= $5
-         and ($7::text = '' or coalesce(p.tier, '') = $7)
-       group by p.id, p.canonical_name, p.tier, s.games_played, s.wins, s.losses
-       order by points desc, p.canonical_name asc
-       limit $6""",
-    @[textParam(query.communityId), textParam(query.asOf),
-      intParam(query.params.windowWeeks.int64),
-      intParam(query.params.bestN.int64),
-      intParam(query.params.thinEvidenceN.int64),
-      intParam(query.limit.int64), textParam(query.tier)]):
+       where p.community_id = $1::uuid
+         and ($2::text = '' or coalesce(p.tier, '') = $2)""",
+    @[textParam(query.communityId), textParam(query.tier)]):
+    let playerId = row.get("player_id")
+    if not projections.hasKey(playerId):
+      continue
+    let projected = projections[playerId]
+    if projected.available < query.minSessions:
+      continue
+    var breakdown: seq[BreakdownEntry] = @[]
+    for entry in projected.entries[0 ..< projected.counted]:
+      breakdown.add(BreakdownEntry(sourceId: some(entry.sourceId),
+        date: entry.date, kind: entry.kind, points: entry.points,
+        games: entry.games))
     result.add(BoardRow(
-      playerId: row.get("player_id"),
+      playerId: playerId,
       name: row.get("canonical_name"),
       tier: row.get("tier"),
-      points: parseInt(row.get("points")),
+      points: projected.points,
       games: parseInt(row.get("games_played")),
       wins: parseInt(row.get("wins")),
-      losses: parseInt(row.get("losses"))))
+      losses: parseInt(row.get("losses")),
+      countedEntries: projected.counted,
+      entriesAvailable: projected.available,
+      thinEvidence: projected.thinEvidence,
+      breakdown: breakdown))
+  if result.len == 0:
+    return
+  result.sort(proc(a, b: BoardRow): int =
+    if a.points != b.points: cmp(b.points, a.points)
+    elif a.entriesAvailable != b.entriesAvailable:
+      cmp(b.entriesAvailable, a.entriesAvailable)
+    elif a.name != b.name: cmp(a.name, b.name)
+    else: cmp(a.playerId, b.playerId))
+  if query.limit > 0 and result.len > query.limit:
+    result.setLen(query.limit)
+  # Ties share a rank (1, 2, 2, 4), the same rule the v1 board used.
+  for index in 0 ..< result.len:
+    if index > 0 and result[index].points == result[index - 1].points:
+      result[index].rank = result[index - 1].rank
+    else:
+      result[index].rank = index + 1
+  # Movement against the most recent earlier snapshot that has rows.
+  var previous = initTable[string, int]()
+  for row in db.query(
+    """with last as (
+         select max(taken_on) as taken_on from rating.snapshots
+         where community_id = $1::uuid and taken_on < $2::date
+       )
+       select s.player_id,
+              (row_number() over (order by s.rating desc,
+                                  p.canonical_name asc, s.player_id))::int
+                as prev_rank
+       from rating.snapshots s
+       join player.players p on p.id = s.player_id
+       join last on s.taken_on = last.taken_on
+       where s.community_id = $1::uuid""",
+    @[textParam(query.communityId), textParam(query.asOf)]):
+    previous[row.get("player_id")] = parseInt(row.get("prev_rank"))
+  for row in result.mitems:
+    if previous.hasKey(row.playerId):
+      let before = previous[row.playerId]
+      row.prevRank = some(before)
+      row.rankDelta = some(before - row.rank)
+
+proc latestEventDate*(db: Db, communityId: string): string =
+  ## The board is anchored on the last rated event, not on today: a quiet week
+  ## must not slide the window forward and silently drop old entries. Empty
+  ## means the community has nothing rated yet.
+  let row = db.queryOne(
+    """select max(local_date)::text as day from rating.events
+       where community_id = $1::uuid""",
+    @[textParam(communityId)])
+  if row.isSome and row.get["day"].isSome: row.get.get("day") else: ""
 
 proc board*(db: Db, query: BoardQuery): seq[BoardRow] =
   boardRows(db, query)
@@ -69,16 +141,16 @@ proc boardEntry*(db: Db, query: BoardQuery,
   ## One player's row plus its rank, resolved from the same board query so the
   ## detail view can never disagree with the list.
   let rows = boardRows(db, query)
-  for index, row in rows:
+  for row in rows:
     if row.playerId == playerId:
       return some(row)
   none(BoardRow)
 
 proc rankOf*(db: Db, query: BoardQuery, playerId: string): int =
   let rows = boardRows(db, query)
-  for index, row in rows:
+  for row in rows:
     if row.playerId == playerId:
-      return index + 1
+      return row.rank
   0
 
 proc writeSnapshot*(db: Db, communityId, asOf: string,
@@ -111,9 +183,330 @@ proc snapshotRows*(db: Db, communityId, asOf: string): seq[BoardRow] =
     result.add(BoardRow(playerId: row.get("player_id"), name: row.get("canonical_name"),
       tier: row.get("tier"), points: parseInt(row.get("points"))))
 
+const playedGameFilter =
+  """g.score_a is not null and g.score_b is not null
+     and g.status <> 'cancelled'"""
+
+proc playerHistory(db: Db, communityId, playerId: string,
+                   limit = 50): JsonNode =
+  ## Recent played session games, newest first. A game with both scores is the
+  ## record of a result; the session approval is not required for a score to
+  ## be real.
+  result = newJArray()
+  for row in db.query(
+    """select s.session_date::text as session_date, s.title,
+              g.round_no, g.court_no, g.score_a, g.score_b,
+              coalesce(g.side_a1::text, '') as a1,
+              coalesce(g.side_a2::text, '') as a2,
+              coalesce(g.side_b1::text, '') as b1,
+              coalesce(g.side_b2::text, '') as b2,
+              coalesce(pa1.canonical_name, '') as a1_name,
+              coalesce(pa2.canonical_name, '') as a2_name,
+              coalesce(pb1.canonical_name, '') as b1_name,
+              coalesce(pb2.canonical_name, '') as b2_name
+       from session.games g
+       join session.sessions s
+         on s.community_id = g.community_id and s.id = g.session_id
+       left join player.players pa1 on pa1.id = g.side_a1
+         and pa1.community_id = g.community_id
+       left join player.players pa2 on pa2.id = g.side_a2
+         and pa2.community_id = g.community_id
+       left join player.players pb1 on pb1.id = g.side_b1
+         and pb1.community_id = g.community_id
+       left join player.players pb2 on pb2.id = g.side_b2
+         and pb2.community_id = g.community_id
+       where g.community_id = $1::uuid
+         and (g.side_a1 = $2::uuid or g.side_a2 = $2::uuid
+              or g.side_b1 = $2::uuid or g.side_b2 = $2::uuid)
+         and """ & playedGameFilter & """
+       order by s.session_date desc, s.id desc, g.round_no desc, g.court_no desc
+       limit $3""",
+    @[textParam(communityId), textParam(playerId), intParam(limit.int64)]):
+    var teammates = newJArray()
+    var opponents = newJArray()
+    var onA = false
+    if row.get("a1") == playerId or row.get("a2") == playerId:
+      onA = true
+      if row.get("a1") == playerId:
+        if row.get("a2_name").len > 0: teammates.add(%row.get("a2_name"))
+      else:
+        if row.get("a1_name").len > 0: teammates.add(%row.get("a1_name"))
+      for name in [row.get("b1_name"), row.get("b2_name")]:
+        if name.len > 0: opponents.add(%name)
+    else:
+      if row.get("b1") == playerId:
+        if row.get("b2_name").len > 0: teammates.add(%row.get("b2_name"))
+      else:
+        if row.get("b1_name").len > 0: teammates.add(%row.get("b1_name"))
+      for name in [row.get("a1_name"), row.get("a2_name")]:
+        if name.len > 0: opponents.add(%name)
+    let scoreA = parseInt(row.get("score_a"))
+    let scoreB = parseInt(row.get("score_b"))
+    let won = if onA: scoreA > scoreB else: scoreB > scoreA
+    result.add(%*{
+      "date": row.get("session_date"),
+      "title": row.get("title"),
+      "gameRef": row.get("round_no") & "-" & row.get("court_no"),
+      "outcome": if won: "W" else: "L",
+      "scoreA": scoreA,
+      "scoreB": scoreB,
+      "teammates": teammates,
+      "opponents": opponents,
+    })
+
+proc playerSessions(db: Db, communityId, playerId: string): JsonNode =
+  result = newJArray()
+  for row in db.query(
+    """select s.id, s.session_date::text as session_date, s.title, p.is_absent
+       from session.participants p
+       join session.sessions s
+         on s.community_id = p.community_id and s.id = p.session_id
+       where p.community_id = $1::uuid and p.player_id = $2::uuid
+       order by s.session_date desc, s.id desc""",
+    @[textParam(communityId), textParam(playerId)]):
+    result.add(%*{
+      "id": row.get("id"),
+      "date": row.get("session_date"),
+      "title": row.get("title"),
+      "absent": row.get("is_absent") == "t",
+    })
+
+proc playerSocial(db: Db, communityId, playerId: string,
+                  opponentsOnly: bool): JsonNode =
+  ## Partner and opponent counts over played session games. The player's side
+  ## decides both the teammate and the win flag.
+  result = newJArray()
+  let gamesCte =
+    """with games as (
+         select g.id,
+                (g.side_a1 = $2::uuid or g.side_a2 = $2::uuid) as on_a,
+                (g.score_a > g.score_b) as a_won,
+                case when g.side_a1 = $2::uuid then g.side_a2
+                     when g.side_a2 = $2::uuid then g.side_a1
+                     else null end as mate,
+                case when g.side_a1 = $2::uuid or g.side_a2 = $2::uuid
+                     then array[g.side_b1, g.side_b2]
+                     else array[g.side_a1, g.side_a2] end as opps
+         from session.games g
+         join session.sessions s
+           on s.community_id = g.community_id and s.id = g.session_id
+         where g.community_id = $1::uuid
+           and (g.side_a1 = $2::uuid or g.side_a2 = $2::uuid
+                or g.side_b1 = $2::uuid or g.side_b2 = $2::uuid)
+           and """ & playedGameFilter & """
+           and s.status in ('locked', 'published', 'completed', 'archived')
+       )"""
+  let sql =
+    if opponentsOnly:
+      gamesCte & """
+       select p.canonical_name as name, count(*)::int as count,
+              count(*) filter (where case when games.on_a then games.a_won
+                                          else not games.a_won end)::int
+                as wins,
+              count(*) filter (where case when games.on_a then not games.a_won
+                                          else games.a_won end)::int
+                as losses
+       from games
+       cross join lateral unnest(games.opps) as opp(player_id)
+       join player.players p on p.id = opp.player_id
+         and p.community_id = $1::uuid
+       group by p.canonical_name
+       order by count desc, p.canonical_name asc
+       limit 5"""
+    else:
+      gamesCte & """
+       select p.canonical_name as name, count(*)::int as count,
+              count(*) filter (where case when games.on_a then games.a_won
+                                          else not games.a_won end)::int
+                as wins,
+              count(*) filter (where case when games.on_a then not games.a_won
+                                          else games.a_won end)::int
+                as losses
+       from games
+       join player.players p on p.id = games.mate
+         and p.community_id = $1::uuid
+       where games.mate is not null
+       group by p.canonical_name
+       order by count desc, p.canonical_name asc
+       limit 5"""
+  for row in db.query(sql, @[textParam(communityId), textParam(playerId)]):
+    result.add(%*{
+      "name": row.get("name"),
+      "count": parseInt(row.get("count")),
+      "wins": parseInt(row.get("wins")),
+      "losses": parseInt(row.get("losses")),
+    })
+
+proc tournamentPartners(db: Db, communityId, playerId: string,
+                        opponentsOnly: bool): JsonNode =
+  ## Classic tournament pairs only. A team-format partner depends on the
+  ## partai class mapping, which lives in the tournament domain; rather than
+  ## duplicate it in SQL this read returns no team social rows.
+  result = newJArray()
+  let classicCte =
+    """with classic as (
+         select case when pa.player_a_id = $2::uuid then pa.player_b_id
+                     when pa.player_b_id = $2::uuid then pa.player_a_id
+                     else null end as mate,
+                (pa.player_a_id = $2::uuid or pa.player_b_id = $2::uuid)
+                  as on_a,
+                (m.score_a > m.score_b) as a_won,
+                case when pa.player_a_id = $2::uuid
+                       or pa.player_b_id = $2::uuid
+                     then array[pb.player_a_id, pb.player_b_id]
+                     else array[pa.player_a_id, pa.player_b_id] end as opps
+         from tournament.matches m
+         join tournament.pairs pa on pa.community_id = m.community_id
+                                  and pa.id = m.pair_a_id
+         join tournament.pairs pb on pb.community_id = m.community_id
+                                  and pb.id = m.pair_b_id
+         where m.community_id = $1::uuid
+           and (pa.player_a_id = $2::uuid or pa.player_b_id = $2::uuid
+                or pb.player_a_id = $2::uuid or pb.player_b_id = $2::uuid)
+           and m.score_a is not null and m.score_b is not null
+       )"""
+  let sql =
+    if opponentsOnly:
+      classicCte & """
+       select p.canonical_name as name, count(*)::int as count,
+              count(*) filter (where case when classic.on_a then classic.a_won
+                                          else not classic.a_won end)::int
+                as wins
+       from classic
+       cross join lateral unnest(classic.opps) as opp(player_id)
+       join player.players p on p.id = opp.player_id
+         and p.community_id = $1::uuid
+       group by p.canonical_name
+       order by count desc, p.canonical_name asc
+       limit 5"""
+    else:
+      classicCte & """
+       select p.canonical_name as name, count(*)::int as count,
+              count(*) filter (where case when classic.on_a then classic.a_won
+                                          else not classic.a_won end)::int
+                as wins
+       from classic
+       join player.players p on p.id = classic.mate
+         and p.community_id = $1::uuid
+       where classic.mate is not null
+       group by p.canonical_name
+       order by count desc, p.canonical_name asc
+       limit 5"""
+  for row in db.query(sql, @[textParam(communityId), textParam(playerId)]):
+    result.add(%*{
+      "name": row.get("name"),
+      "count": parseInt(row.get("count")),
+      "wins": parseInt(row.get("wins")),
+    })
+
+proc tournamentStats(db: Db, communityId, playerId: string): JsonNode =
+  ## Games and wins per tournament from played classic matches and team
+  ## team-matches. A team match counts once for a rostered player, with the win
+  ## going to the team that took more scored partai.
+  var games = initTable[string, int]()
+  var wins = initTable[string, int]()
+  for row in db.query(
+    """with classic as (
+         select m.tournament_id::text as tournament_id,
+                case when pa.player_a_id = $2::uuid
+                       or pa.player_b_id = $2::uuid
+                     then m.score_a > m.score_b
+                     else m.score_b > m.score_a end as won
+         from tournament.matches m
+         join tournament.pairs pa on pa.community_id = m.community_id
+                                  and pa.id = m.pair_a_id
+         join tournament.pairs pb on pb.community_id = m.community_id
+                                  and pb.id = m.pair_b_id
+         where m.community_id = $1::uuid
+           and (pa.player_a_id = $2::uuid or pa.player_b_id = $2::uuid
+                or pb.player_a_id = $2::uuid or pb.player_b_id = $2::uuid)
+           and m.score_a is not null and m.score_b is not null
+       )
+       select tournament_id, count(*)::int as games,
+              count(*) filter (where won)::int as wins
+       from classic group by tournament_id""",
+    @[textParam(communityId), textParam(playerId)]):
+    let id = row.get("tournament_id")
+    games[id] = parseInt(row.get("games"))
+    wins[id] = parseInt(row.get("wins"))
+  for row in db.query(
+    """with team_matches as (
+         select distinct tm.id, tm.community_id, tm.tournament_id,
+                         tm.team_a_id, tm.team_b_id
+         from tournament.team_matches tm
+         join tournament.team_players tp on tp.community_id = tm.community_id
+           and (tp.team_id = tm.team_a_id or tp.team_id = tm.team_b_id)
+         where tm.community_id = $1::uuid and tp.player_id = $2::uuid
+           and tm.team_a_id is not null and tm.team_b_id is not null
+       ),
+       scored as (
+         select tm.tournament_id, tm.id,
+                (tp.team_id = tm.team_a_id) as on_a,
+                (select count(*) from tournament.team_partai part
+                  where part.community_id = tm.community_id
+                    and part.team_match_id = tm.id
+                    and part.score_a is not null and part.score_b is not null
+                    and part.score_a > part.score_b)::int as a_wins,
+                (select count(*) from tournament.team_partai part
+                  where part.community_id = tm.community_id
+                    and part.team_match_id = tm.id
+                    and part.score_a is not null and part.score_b is not null
+                    and part.score_b > part.score_a)::int as b_wins
+         from team_matches tm
+         join tournament.team_players tp on tp.community_id = tm.community_id
+           and (tp.team_id = tm.team_a_id or tp.team_id = tm.team_b_id)
+         where tp.player_id = $2::uuid
+       )
+       select tournament_id::text as tournament_id, count(*)::int as games,
+              count(*) filter (where (on_a and a_wins > b_wins)
+                                  or (not on_a and b_wins > a_wins))::int
+                as wins
+       from scored
+       where a_wins + b_wins > 0
+       group by tournament_id""",
+    @[textParam(communityId), textParam(playerId)]):
+    let id = row.get("tournament_id")
+    games[id] = games.getOrDefault(id) + parseInt(row.get("games"))
+    wins[id] = wins.getOrDefault(id) + parseInt(row.get("wins"))
+  var items = newJArray()
+  var totalGames = 0
+  var totalWins = 0
+  for id, count in games:
+    totalGames += count
+    totalWins += wins.getOrDefault(id)
+  if games.len > 0:
+    var ids: seq[string] = @[]
+    for id in games.keys: ids.add(id)
+    for row in db.query(
+      """select id::text as id, name, event_date::text as event_date
+         from tournament.tournaments
+         where community_id = $1::uuid and id = any($2::uuid[])
+         order by event_date desc, name asc""",
+      @[textParam(communityId), textParam(uuidArray(ids))]):
+      let id = row.get("id")
+      let count = games.getOrDefault(id)
+      let won = wins.getOrDefault(id)
+      items.add(%*{
+        "id": id,
+        "name": row.get("name"),
+        "date": row.get("event_date"),
+        "games": count,
+        "wins": won,
+        "losses": count - won,
+      })
+  %*{
+    "gamesPlayed": totalGames,
+    "wins": totalWins,
+    "losses": totalGames - totalWins,
+    "tournaments": items,
+    "topPartners": tournamentPartners(db, communityId, playerId, false),
+    "topOpponents": tournamentPartners(db, communityId, playerId, true),
+  }
+
 proc stats*(db: Db, communityId, playerId: string): Option[JsonNode] =
   ## Career numbers stay on player_state; the achievements list is a separate
-  ## route so this stays one row.
+  ## route. History, sessions and social tallies are read here because they
+  ## share the player identity and are always requested together.
   let row = db.queryOne(
     """select p.id, p.canonical_name, p.tier, p.gender,
               coalesce(s.games_played, 0) as games_played,
@@ -135,4 +528,9 @@ proc stats*(db: Db, communityId, playerId: string): Option[JsonNode] =
     "games": parseInt(row.get.get("games_played")),
     "wins": parseInt(row.get.get("wins")),
     "losses": parseInt(row.get.get("losses")),
+    "history": playerHistory(db, communityId, playerId),
+    "sessions": playerSessions(db, communityId, playerId),
+    "topPartners": playerSocial(db, communityId, playerId, false),
+    "topOpponents": playerSocial(db, communityId, playerId, true),
+    "tournamentStats": tournamentStats(db, communityId, playerId),
   })

@@ -1,0 +1,222 @@
+import { useState, useEffect } from 'react'
+import { computeGroupStandings, GROUP_IDS } from '../../utils/tournament'
+import { GROUP_COURTS } from '../../config/tournament'
+import type { GroupId, TournamentMatch, TournamentPair } from '../../utils/tournament'
+import { useImageUploadMap } from '../../hooks/useImageUploadMap'
+import Icon from '../Icon'
+import ScoreModal from './ScoreModal'
+import { drawMatchPost, drawGroupSummary } from '../../utils/canvasPost'
+import { canvasToBlob, shareOrDownload } from '../../utils/share'
+import { loadOverlayImages } from '../../utils/overlays'
+
+interface GroupMatchesProps {
+  pairs: TournamentPair[]
+  groups: Record<GroupId, string[]>
+  matches: TournamentMatch[]
+  onSetMatchScore: (matchId: string, scoreA: number, scoreB: number) => void
+  onOpenModal: () => void
+  isFetching: boolean
+  refetch: () => Promise<unknown>
+}
+
+export default function GroupMatches({ pairs, groups, matches, onSetMatchScore, onOpenModal, isFetching, refetch }: GroupMatchesProps) {
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(null)
+  const activeMatch = activeMatchId ? (matches.find((m) => m.id === activeMatchId) ?? null) : null
+  const [postModeGroups, setPostModeGroups] = useState<Record<string, boolean>>({})
+  const { images: matchPhotos, fileInputRef: matchFileInputRef, openUpload: openMatchUpload, onFileChange: onMatchFileChange } = useImageUploadMap()
+
+  const [overlays, setOverlays] = useState<{ logo?: HTMLImageElement; badge?: HTMLImageElement; storyBg?: HTMLImageElement; summaryBg?: HTMLImageElement; chevrons?: HTMLImageElement; sponsor?: HTMLImageElement }>({})
+
+  useEffect(() => {
+    loadOverlayImages({
+      logo: '/instagram-logo.png',
+      badge: '/tournament-badge.png',
+      storyBg: '/story-bg.png',
+      summaryBg: '/summary-bg.png',
+      chevrons: '/chevrons.png',
+      sponsor: '/sponsor-logo.png',
+    }).then(setOverlays)
+  }, [])
+
+  const getPairName = (id: string | null) =>
+    id ? (pairs.find((p) => p.id === id)?.name ?? id) : 'TBD'
+
+  const handleDownloadGroup = async (
+    g: GroupId,
+    groupMatches: TournamentMatch[],
+    pairIds: string[],
+    allMatches: TournamentMatch[],
+  ) => {
+    const groupSlug = `group-${g.toLowerCase()}`
+
+    const files: File[] = []
+
+    // Generate match posts for matches with photos
+    let matchIndex = 1
+    for (const m of groupMatches) {
+      const photo = matchPhotos[m.id]
+      if (!photo || m.scoreA === null || m.scoreB === null) { matchIndex++; continue }
+      const matchCanvas = document.createElement('canvas')
+      drawMatchPost({
+        canvas: matchCanvas,
+        photo,
+        pairAName: getPairName(m.pairAId),
+        pairBName: getPairName(m.pairBId),
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        subtitle: `GROUP ${g} · MATCH ${matchIndex}`,
+        logo: overlays.logo,
+        badge: overlays.badge,
+        chevrons: overlays.chevrons,
+        sponsor: overlays.sponsor,
+      })
+      const matchBlob = await canvasToBlob(matchCanvas)
+      if (matchBlob) files.push(new File([matchBlob], `${groupSlug}-match-${matchIndex}.jpg`, { type: 'image/jpeg' }))
+      matchIndex++
+    }
+
+    // Generate group summary
+    const standings = computeGroupStandings(g, pairIds, allMatches)
+    const summaryCanvas = document.createElement('canvas')
+    drawGroupSummary({ canvas: summaryCanvas, groupId: g, standings, getPairName, summaryBg: overlays.summaryBg, sponsor: overlays.sponsor, logo: overlays.logo })
+    const summaryBlob = await canvasToBlob(summaryCanvas)
+    if (summaryBlob) files.push(new File([summaryBlob], `${groupSlug}-summary.jpg`, { type: 'image/jpeg' }))
+
+    if (files.length === 0) return
+    await shareOrDownload(files, `Group ${g} Photos`)
+  }
+
+  return (
+    <div className="space-y-4">
+      {GROUP_IDS.map((g) => {
+        const groupMatches = matches.filter((m) => m.phase === 'group' && m.groupId === g)
+        const standings = computeGroupStandings(g, groups[g], matches)
+
+        return (
+          <div key={g} className="bg-surface rounded-xl overflow-hidden border border-border-subtle shadow-xs">
+            {/* Group header */}
+            <div className="px-4 py-2 flex justify-between items-center border-b border-border-subtle">
+              <span className="text-accent font-bold text-sm">GROUP {g}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-accent/80 text-xs">Court {GROUP_COURTS[g]}</span>
+                <button
+                  onClick={() => setPostModeGroups(prev => ({ ...prev, [g]: !prev[g] }))}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                    postModeGroups[g] ? 'bg-accent active:bg-accent/80' : 'bg-black/50 active:bg-black/70'
+                  }`}
+                >
+                  <Icon name="camera" size={15} stroke={postModeGroups[g] ? 'black' : 'white'} strokeWidth={2.2} />
+                </button>
+              </div>
+            </div>
+
+            {/* Match rows */}
+            <div className="divide-y divide-border-subtle">
+              {groupMatches.map((m) => (
+                <div key={m.id} className="relative flex items-center divide-y-0">
+                  <button
+                    onClick={() => { onOpenModal(); setActiveMatchId(m.id) }}
+                    className="flex-1 flex flex-col px-4 pt-3 pb-2.5 hover:bg-elevated/60 active:bg-elevated active:scale-98 transition-transform duration-75 gap-1.5"
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <span className="text-xs text-fg flex-1 truncate text-left">{getPairName(m.pairAId)}</span>
+                      <span className="text-xs font-bold font-mono text-accent shrink-0 min-w-14 text-center bg-elevated border border-border-subtle rounded-md px-2 py-1">
+                        {m.scoreA !== null ? `${m.scoreA}–${m.scoreB}` : '—'}
+                      </span>
+                      <span className="text-xs text-fg flex-1 text-right truncate">{getPairName(m.pairBId)}</span>
+                    </div>
+                    {m.picName && (
+                      <span className="text-[9px] text-fg-dim leading-none text-center w-full">{m.picName}</span>
+                    )}
+                  </button>
+
+                  {postModeGroups[g] && (
+                    <div className="relative pr-3 shrink-0">
+                      <button
+                        aria-label={`Upload photo for match ${getPairName(m.pairAId)} vs ${getPairName(m.pairBId)}`}
+                        onClick={() => openMatchUpload(m.id)}
+                        className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
+                      >
+                        <Icon name="camera" size={13} stroke="white" strokeWidth={2.2} />
+                      </button>
+                      {matchPhotos[m.id] && (
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-success border border-surface" />
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Download bar */}
+            {postModeGroups[g] && (
+              <div className="px-4 py-2.5 flex items-center justify-between bg-elevated/50 border-t border-border-subtle">
+                <span className="text-xs text-fg-dim">
+                  {Object.keys(matchPhotos).filter(id => groupMatches.some(m => m.id === id)).length} of {groupMatches.length} photos
+                </span>
+                <button
+                  aria-label={`Download posts for Group ${g}`}
+                  onClick={() => handleDownloadGroup(g, groupMatches, groups[g], matches)}
+                  className="w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            {/* Mini standings */}
+            <div className="border-t border-border-subtle px-4 py-2">
+              <div className="grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] text-[10px] text-fg-dim mb-1 px-1 gap-x-2">
+                <span>#</span><span></span>
+                <span className="text-center">W</span>
+                <span className="text-center">L</span>
+                <span className="text-center">+/-</span>
+                <span></span>
+              </div>
+              {standings.map((row, i) => (
+                <div
+                  key={row.pairId}
+                  className={`grid grid-cols-[1.5rem_1fr_1.5rem_1.5rem_2.5rem_0.75rem] items-center py-1 px-1 rounded gap-x-2 text-xs ${i < 2 ? 'bg-accent/5' : ''}`}
+                >
+                  <span className={`font-bold font-mono ${i < 2 ? 'text-accent' : 'text-fg-dim'}`}>{i + 1}</span>
+                  <span className={`truncate font-medium ${i < 2 ? 'text-fg' : 'text-fg-dim'}`}>{getPairName(row.pairId)}</span>
+                  <span className={`text-center font-mono ${i < 2 ? 'text-fg' : 'text-fg-dim'}`}>{row.wins}</span>
+                  <span className={`text-center font-mono ${i < 2 ? 'text-fg' : 'text-fg-dim'}`}>{row.losses}</span>
+                  <span className={`text-center font-mono font-medium ${row.diff > 0 ? 'text-success' : row.diff < 0 ? 'text-error' : 'text-fg-dim'}`}>
+                    {row.diff > 0 ? `+${row.diff}` : row.diff === 0 ? '—' : row.diff}
+                  </span>
+                  <span className={`w-1.5 h-1.5 rounded-full mx-auto ${i < 2 ? 'bg-accent' : ''}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        ref={matchFileInputRef}
+        onChange={onMatchFileChange}
+      />
+
+      {activeMatch && (
+        <ScoreModal
+          key={`${activeMatch.id}:${activeMatch.scoreA ?? 'na'}:${activeMatch.scoreB ?? 'na'}:${isFetching ? 'loading' : 'ready'}`}
+          match={activeMatch}
+          pairAName={getPairName(activeMatch.pairAId)}
+          pairBName={getPairName(activeMatch.pairBId)}
+          onConfirm={(a, b) => { onSetMatchScore(activeMatch.id, a, b); setActiveMatchId(null) }}
+          onClose={() => setActiveMatchId(null)}
+          isFetching={isFetching}
+          refetch={refetch}
+        />
+      )}
+    </div>
+  )
+}

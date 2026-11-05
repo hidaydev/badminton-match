@@ -1,96 +1,20 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import App from './App'
-import { en } from './i18n/en'
-import type { CommunityRole } from './auth/api'
-import { routes, visibleNav } from './routes.manifest'
-import { mockFetch } from './test/fetchMock'
+import { describe, expect, it } from 'vitest'
+import { communitySlugFromPath } from './routes.manifest'
 
-const navKeys = (role: CommunityRole | null, platformOwner = false) =>
-  visibleNav(role, platformOwner).map((entry) => entry.labelKey)
-
-describe('routes manifest', () => {
-  it('declares unique paths', () => {
-    const paths = routes.map((route) => route.path)
-    expect(new Set(paths).size).toBe(paths.length)
+describe('communitySlugFromPath', () => {
+  it('reads the community slug from a community path', () => {
+    expect(communitySlugFromPath('/c/acme')).toBe('acme')
+    expect(communitySlugFromPath('/c/acme/sessions')).toBe('acme')
+    expect(communitySlugFromPath('/c/acme/players/p1')).toBe('acme')
   })
 
-  it('labels every entry through the dictionary', () => {
-    for (const route of routes) {
-      expect(Object.keys(en)).toContain(route.labelKey)
-      expect(route.element).toBeTruthy()
-      expect(typeof route.requiresAuth).toBe('boolean')
-    }
+  it('decodes an encoded slug', () => {
+    expect(communitySlugFromPath('/c/my%20club')).toBe('my club')
   })
 
-  it('filters nav by community role', () => {
-    const member = ['nav.home', 'nav.sessions', 'nav.players', 'nav.rankings']
-    expect(navKeys('member')).toEqual(member)
-    expect(navKeys('host')).toEqual([...member, 'nav.tournaments', 'nav.export'])
-    expect(navKeys('admin')).toEqual([
-      ...member,
-      'nav.tournaments',
-      'nav.export',
-      'nav.settings',
-    ])
-    expect(navKeys(null)).toEqual(['nav.home'])
-  })
-
-  it('shows the owner-only entry to platform owners only', () => {
-    expect(navKeys(null, true)).toEqual(['nav.home', 'nav.owner'])
-    expect(navKeys('member', true)).toEqual([
-      'nav.home',
-      'nav.sessions',
-      'nav.players',
-      'nav.rankings',
-      'nav.owner',
-    ])
-  })
-
-  it('routes the community overview without listing it in the nav', () => {
-    expect(routes.some((route) => route.path === '/c/:slug')).toBe(true)
-    expect(visibleNav('admin', false).map((entry) => entry.path)).not.toContain('/c/:slug')
-  })
-})
-
-describe('home cards by role', () => {
-  beforeEach(() => {
-    window.localStorage.clear()
-    window.history.replaceState({}, '', '/c/acme')
-  })
-
-  const renderAs = (role: CommunityRole, platformOwner = false) => {
-    mockFetch({
-      'GET /api/auth/me': () => ({
-        body: { id: 'u1', displayName: 'Ada', platformOwner },
-      }),
-      'GET /api/communities': () => ({
-        body: { items: [{ id: 'c1', slug: 'acme', name: 'Acme', role }] },
-      }),
-    })
-    return render(<App />)
-  }
-
-  it('hides administration entries from members', async () => {
-    renderAs('member')
-
-    expect(await screen.findByRole('link', { name: new RegExp(en['home.card.sessions']) })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: new RegExp(en['home.card.settings']) })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: new RegExp(en['home.card.tournaments']) })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: new RegExp(en['nav.owner']) })).not.toBeInTheDocument()
-  })
-
-  it('shows administration entries to admins', async () => {
-    renderAs('admin')
-
-    expect(await screen.findByRole('link', { name: new RegExp(en['home.card.settings']) })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: new RegExp(en['home.card.tournaments']) })).toBeInTheDocument()
-  })
-
-  it('shows the owner entry to a platform owner', async () => {
-    renderAs('member', true)
-
-    expect(await screen.findByRole('link', { name: new RegExp(en['nav.owner']) })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: new RegExp(en['home.card.settings']) })).not.toBeInTheDocument()
+  it('returns null outside a community path', () => {
+    expect(communitySlugFromPath('/')).toBeNull()
+    expect(communitySlugFromPath('/s/code')).toBeNull()
+    expect(communitySlugFromPath('/owner/communities')).toBeNull()
   })
 })

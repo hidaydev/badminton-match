@@ -5,122 +5,112 @@ Keduanya berbeda: halaman `/c/{slug}/rankings` memanggil `GET /c/{slug}/rankings
 
 ## 1. Rute web
 
-Sumber tunggal: `apps/web/src/routes.manifest.ts`. `App.tsx` tidak mendaftar rute
-satu per satu; ia memetakan manifest.
+Sumber tunggal: `apps/web/src/App.tsx`. `apps/web/src/routes.manifest.ts` hanya
+menyediakan `communitySlugFromPath` untuk `CommunityProvider`; file itu tidak
+lagi memetakan rute atau menu.
 
-Kolom **Akses** = `requiresAuth` + `roles`/`platformOwner` di manifest. Entri tanpa
-`navGroup` tetap bisa dibuka lewat URL, tetapi tidak muncul di menu.
+Semua layar lama berada di bawah `/c/:slug` lewat `LegacyShell`; URL publik
+`/s/:code` berada di luar shell itu.
 
-| Path | Halaman | Akses | Nav | Status |
-|---|---|---|---|---|
-| `/` | `HomePage` | login | main | daftar komunitas; klik → sesi komunitas |
-| `/c/:slug` | `CommunityPage` | login, semua role | — | ringkasan + 4 setting efektif (baca-saja) |
-| `/c/:slug/sessions` | `SessionsPage` | login, semua role | main | daftar sesi komunitas |
-| `/c/:slug/sessions/:id` | `SessionPage` | login, semua role | — | detail sesi + panel host/admin (lock, share, skor, skip, absent, swap) |
-| `/c/:slug/players` | `PlayersPage` | login, semua role | main | daftar pemain, klaim/lepas klaim, merge oleh admin |
-| `/c/:slug/rankings` | `RankingsPage` | login, semua role | main | papan poin + filter tier |
-| `/c/:slug/rankings/:playerId` | `RatingPlayerPage` | login, semua role | — | baris papan, statistik, badge |
-| `/c/:slug/tournaments` | `TournamentsPage` | login, `admin`/`host` | main | daftar classic + team |
-| `/c/:slug/tournaments/classic/new` | `TournamentClassicPage` | login, `admin`/`host` | — | wizard draw classic |
-| `/c/:slug/tournaments/classic/:id` | `TournamentClassicPage` | login, `admin`/`host` | — | editor skor + klasemen |
-| `/c/:slug/tournaments/team/new` | `TournamentTeamPage` | login, `admin`/`host` | — | form 6 tim × 6 kelas |
-| `/c/:slug/tournaments/team/:id` | `TournamentTeamPage` | login, `admin`/`host` | — | editor partai + klasemen |
-| `/c/:slug/export` | `ExportPage` | login, `admin`/`host` | main | ekspor post/story |
-| `/c/:slug/settings` | `SettingsPage` | login, `admin` | admin | anggota, peran, undangan, join request, override config |
-| `/s/:code` | `SharedSessionPage` | publik | — | sesi, skor, klasemen, dan papan poin penonton |
-| `/owner/communities` | `SetupPage` | login, platform owner | owner | buat komunitas + daftar komunitas yang diikuti |
+| Path | Halaman | Akses | Catatan |
+|---|---|---|---|
+| `/` | `RootRedirect` | login | arahkan ke komunitas aktif |
+| `/owner/communities` | `OwnerSetupPage` (`pages/SetupPage.tsx`) | platform owner | buat komunitas + daftar komunitas |
+| `/c/:slug` | legacy `HomePage` | login | hub: sesi baru, lanjut sesi, kartu navigasi, grid admin |
+| `/c/:slug/sessions` | legacy `SessionListPage` | login | daftar sesi |
+| `/c/:slug/sessions/:id` | redirect | login | dialihkan ke `/c/:slug/s/:id` |
+| `/c/:slug/s/:sessionId` | legacy `SharedSessionPage` | login | halaman sesi penuh: skor, swap, absent, skip |
+| `/c/:slug/rankings` | legacy `RankingsPage` | login | papan poin + filter tier |
+| `/c/:slug/rankings/:playerId` | legacy `RatingPlayerPage` | login | detail rating, riwayat, badge |
+| `/c/:slug/ratings`, `/ratings/:playerId` | redirect | login | dialihkan ke `/rankings` |
+| `/c/:slug/tournaments` | legacy `TournamentListPage` | login | daftar classic + team |
+| `/c/:slug/tournaments/new` | legacy `NewTournamentPage` | admin/host | pilih format |
+| `/c/:slug/tournaments/new/:format` | legacy `NewTournamentWizard` | admin/host | wizard classic/team |
+| `/c/:slug/tournaments/:id` | legacy `TournamentRouter` | login | editor skor + klasemen/bracket |
+| `/c/:slug/instagram-post` | legacy `InstagramPostPage` | admin/host | post 1080×1350 dan story 1080×1920 |
+| `/c/:slug/export` | redirect | admin/host | dialihkan ke `/instagram-post` |
+| `/c/:slug/settings` | `SettingsPage` | admin | anggota, peran, undangan, join request |
+| `/c/:slug/players` | `PlayersPage` | login | roster v2, tambah pemain, klaim |
+| `/c/:slug/players/:playerId` | `PlayerDetailPage` | login | detail, edit, merge, hapus, klaim |
+| `/c/:slug/admin` | redirect | admin/host | dialihkan ke `/admin/sessions` |
+| `/c/:slug/admin/sessions` | legacy `AdminSessionsPage` | admin/host | unlock dan hapus sesi |
+| `/c/:slug/admin/ratings` | legacy `AdminRatingsPage` | admin | sumber rating, ingest, revert, rebuild |
+| `/c/:slug/admin/players` | redirect | admin/host | dialihkan ke `/players` |
+| `/c/:slug/admin/tournaments` | legacy `AdminTournamentsPage` | admin/host | hapus turnamen |
+| `/c/:slug/session/new` | legacy `SetupPage` | admin/host | wizard sesi: setup |
+| `/c/:slug/session/players` | legacy `PlayersWizardPage` | admin/host | wizard sesi: pemain |
+| `/c/:slug/session/constraints` | legacy `ConstraintsPage` | admin/host | wizard sesi: constraint |
+| `/c/:slug/session/generate` | legacy `GeneratePage` | admin/host | wizard sesi: generate + publish |
+| `/c/:slug/view` | `SharedViewPage` | login | buka snapshot share lama (kompatibilitas) |
+| `/c/:slug/dev/achievement-badges` | preview | login | hanya pengembangan |
+| `/c/:slug/dev/match-result-preview` | preview | login | hanya pengembangan |
+| `/c/:slug/dev/session-preview` | preview | login | hanya pengembangan |
+| `/s/:code` | `SharedSessionPage` | publik | sesi read-only dari share code |
 
 Catatan:
 
-- `/c/:slug/sessions/:id` menampilkan panel host/admin untuk lock/unlock, share link,
-  skor per game, skip, absent, dan swap. Panel itu tidak dirender untuk `member`.
-  Membuat sesi baru belum punya wizard; sesi dibuat lewat API atau fixture E2E.
-- `TournamentsPage` menautkan baris ke `/tournaments/{format}/{id}`, sehingga tombol
-  classic/team memakai editor yang sama dengan rute `new` (`apps/web/src/pages/TournamentsPage.tsx`).
-- Manifest membatasi turnamen & ekspor ke `host`/`admin`, sedangkan API mengizinkan
-  `member` membaca turnamen. Yang dibatasi manifest adalah **navigasi/UI**, bukan API.
-- Path `/ratings`, `/admin/*`, `/session/*`, `/instagram-post`, `/scoreboard`, `/view`
-  dari v1 **tidak ada** di manifest v2.
+- Navigasi tidak memakai menu global. `HomeLayout` memuat picker komunitas,
+  refresh, dan menu akun. Menu akun hanya berisi identitas + role komunitas,
+  `Community settings` (admin), `All communities` (platform owner), dan
+  `Sign out`; tidak ada tautan Admin di dalamnya. Perpindahan layar lewat kartu
+  di home.
+- `HomePage` hanya menampilkan CTA New Session dan grid admin untuk staf
+  (`isAdmin` = host atau admin). Grid memuat Unlock Session dan Tournament untuk
+  staf, plus Ratings dan Settings khusus admin komunitas (`isAdminRole`).
+- Matriks akses: `member` hanya halaman baca; `host` menambah sesi/turnamen
+  (wizard, admin sessions/tournaments, post editor); `admin` menambah Settings,
+  Ratings, dan pengelolaan anggota. Platform owner mengelola komunitas lewat
+  `/owner/communities`.
+- Rute v2 yang tidak pernah dipasang di router (home, sessions, rankings,
+  tournaments, export) sudah dihapus beserta renderer canvas dan editor
+  turnamen v2. Editor turnamen aktif adalah milik legacy.
+- `/c/:slug/s/:sessionId` adalah halaman sesi yang bisa diedit dan hanya untuk
+  anggota login. `/s/:code` adalah tampilan publik read-only.
 
 ## 2. Kapabilitas halaman
 
 ### Home & komunitas
 
-- `HomePage`: jika tidak ada membership, tampilkan ajakan; jika ada, kartu per komunitas
-  yang mengarah ke `/c/{slug}/sessions` (`apps/web/src/pages/HomePage.tsx`).
-- `CommunityPage`: memuat `GET /c/{slug}/config`, menampilkan
-  `community.default_timezone`, `community.directory_enabled`,
-  `community.invite_ttl_days`, `community.join_requests_enabled` beserta sumbernya
-  (`platform` atau `community`). Tidak ada form edit.
-- `AppNav`: menu mengikuti role komunitas yang dipilih + status platform owner;
-  `CommunityPicker` berpindah komunitas (`apps/web/src/components/AppNav.tsx`).
+- Home legacy: tombol sesi baru, kartu lanjut sesi terakhir, kartu Sessions,
+  Players, Rankings, Scoreboard, Tournament, Instagram Post, dan entry
+  `All communities` untuk platform owner.
+- `SettingsPage` (v2): anggota, perubahan peran, undangan, dan join request.
+  Ledger rating tidak lagi di sini; gunakan `/admin/ratings`.
+- `OwnerSetupPage`: membuat komunitas dan menampilkan komunitas yang diikuti.
 
 ### Sesi
 
-- `SessionsPage`: `GET /c/{slug}/sessions`, keadaan kosong/error/loading eksplisit,
-  tautan ke detail.
-- `SessionPage`: `GET /c/{slug}/sessions/{id}` (header, peserta, game) plus
-  `GET /c/{slug}/sessions/{id}/standings`; menampilkan versi/status, pemain absen,
-  skor per game, dan klasemen (`apps/web/src/sessions/hooks.ts`).
-- `SessionAdmin` (hanya `host`/`admin`): lock/unlock, buat/putar share link, ubah
-  skor, skip game, tandai absen, dan swap. Setiap tulisan membawa `If-Match` dan
-  `Idempotency-Key`; sukses memicu muat ulang state, bukan update optimistis
-  (`apps/web/src/sessions/SessionAdmin.tsx`).
+- `SessionListPage`: daftar sesi dengan jumlah pemain dan game.
+- `SharedSessionPage` legacy: skor per game, tandai played, swap pemain/slot/tim,
+  absent, dan skip per pemain; data lewat adapter `legacy/queries`.
+- `SharedSessionPage` publik: read-only berdasarkan share code.
+- Scoreboard legacy tetap tersedia di `/c/:slug/scoreboard`.
 
 ### Pemain
 
-- `PlayersPage`: daftar pemain + pencarian; pengajuan klaim oleh pemilik akun,
-  pelepasan klaim, antrean keputusan `admin` dengan riwayat `released`, dan merge
-  (`apps/web/src/players/`).
-- `PlayerDetailPage`: profil, tier, statistik, dan badge; tautan ke riwayat
-  pertandingan dari papan poin.
-- `/s/:code` (`SharedSessionPage`): pintu penonton tanpa login — sesi, skor,
-  klasemen, dan papan poin share; kode tidak valid → 404 tanpa cache.
-
-### Settings & owner
-
-- `SettingsPage` (`admin`): anggota + peran, undangan, join request, dan override
-  config komunitas (hanya boleh mempersempit platform).
-- `/owner/communities` (`SetupPage`, platform owner): membuat komunitas baru dan
-  melihat komunitas yang diikuti.
+- `/players`: roster v2, pencarian, tambah pemain, dan klaim.
+- `/players/:playerId`: detail, edit nama/gender/tier/alias, merge, hapus, dan
+  keputusan klaim. Ini satu-satunya permukaan manajemen pemain; admin lama
+  `/admin/players` dialihkan ke sini.
 
 ### Ranking
 
-- Papan: `GET /c/{slug}/rankings?tier=…`; daftar tier dari `apps/web/src/rankings/api.ts`
-  (`D`…`A+`). Papan dibatasi server lewat `rank.board_limit` (200), bukan dipotong FE.
-- Detail: `GET /c/{slug}/rankings/{playerId}` + `GET /c/{slug}/players/{playerId}/stats`
-  + `GET /c/{slug}/players/{playerId}/achievements`. Badge dirender dari katalog
-  `achievement.definitions`.
+- `RankingsPage` legacy: papan poin + filter tier.
+- `RatingPlayerPage` legacy: baris papan, statistik, riwayat, dan badge.
 
-### Turnamen classic
+### Turnamen
 
-- 16 pasangan, grup A–D, 32 match: 24 grup + 4 QF + 2 SF + 1 perebutan juara 3 + 1 final
-  (`modules/tournament/domain/classic.nim:1-20`).
-- Wizard membuat draw deterministik dari seed di browser (`TournamentClassicPage.tsx`), lalu
-  `POST /c/{slug}/tournaments`.
-- Editor: ubah metadata, skor per match (`PATCH …/matches/{matchId}` dengan `If-Match`),
-  klasemen grup, bracket. Admin mendapat alat rating: finalize source, ingest, revert,
-  dan hapus turnamen (`apps/web/src/tournament/classic/AdminTools.tsx`,
-  `apps/web/src/tournament/api.ts`).
+- `TournamentListPage` + `TournamentRouter`: daftar, editor classic dan team,
+  klasemen/bracket.
+- `AdminTournamentsPage`: hapus turnamen.
+- Rating turnamen tetap lewat `/admin/ratings`.
 
-### Turnamen team
+### Post
 
-- 6 tim × 6 kelas (`A+`…`C`), 9 match grup round-robin + 1 final, 3 partai per match
-  (`modules/tournament/domain/team.nim`, `db/migrations/0012_tournament_formats.sql`).
-- Editor menyunting skor partai dan tiga nama court per match; klasemen + juara
-  dihitung di FE dari aturan yang sama dengan domain
-  (`apps/web/src/tournament/team/rules.ts`).
-- Admin dapat finalize/ingest/revert rating dan menghapus turnamen.
-
-### Ekspor sosial
-
-- `ExportPage`: pilih sumber (sesi atau turnamen), komposisi (grup, bracket, klasemen,
-  final), lalu render `post` 1080×1350 atau `story` 1080×1920.
-- Ukuran berasal dari config `export.*`, bukan konstanta
-  (`apps/web/src/utils/canvas/dimensions.ts`, `ExportPage.tsx`).
-- Sumber data: `GET …/sessions/{id}/standings` untuk sesi; snapshot turnamen untuk
-  grup/bracket/team (`apps/web/src/tournament/export.ts`).
-
+- `InstagramPostPage`: memilih sesi atau turnamen, lalu merender post atau story
+  dengan template legacy (`legacy/utils/canvasPost.ts` dan
+  `legacy/config/instagramTemplates.ts`).
+- Ukuran dan konfigurasi tetap berasal dari config komunitas, bukan konstanta.
 ## 3. Operasi API
 
 Sumber: `packages/contracts/openapi/core.yaml` + `community.yaml` → `api.yaml`;

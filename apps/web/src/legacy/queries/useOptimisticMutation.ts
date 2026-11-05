@@ -1,0 +1,202 @@
+// src/queries/useOptimisticMutation.ts
+// Factory hook untuk mutations dengan optimistic updates — generik untuk
+// session & tournament (dua-duanya pakai pola: read cache → optimistic set →
+// publish snapshot → refetch/invalidate → rollback + version-mismatch refetch).
+
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { getSession, publishSession, getTournament, publishTournament } from './endpoints'
+import type { CloudSnapshot, TournamentSnapshot } from './types'
+import type { TeamTournamentSnapshot } from '../utils/teamTournament'
+import { isVersionMismatch, isLockedError, isContentionError } from './errors'
+
+/** Snapshot yang di-publish — session atau tournament (classic & team). */
+type Snapshot = CloudSnapshot | TournamentSnapshot | TeamTournamentSnapshot
+
+interface OptimisticMutationOptions<TData extends Snapshot, TVars> {
+  /** Query key snapshot (['session', id] atau ['tournament', id]). */
+  queryKey: readonly unknown[]
+  /**
+   * Ambil snapshot terbaru dari server.
+   * Dipakai untuk onSuccess refetch & version-mismatch refetch.
+   */
+  fetchSnapshot: (id: string) => Promise<TData | null>
+  /** Publish snapshot ke server. */
+  publish: (id: string, snap: TData) => Promise<TData>
+  /**
+   * Optimistic update — terima snapshot cache + vars, kembalikan versi optimis.
+   * Bisa juga MEMBANGUN snapshot baru dari vars (mode "build") — dalam hal ini
+   * snapshot cache dipakai hanya untuk ambil version.
+   *
+   * Set `applyOptimistic` ke false untuk mutasi non-deterministik (mis. random
+   * shuffle) — onMutate hanya cancel query, tanpa setQueryData; throw di sini
+   * hanya terjadi di mutationFn (bersih).
+   */
+  optimisticUpdate: (old: TData | null, vars: TVars) => TData | null
+  /** Default true. false = tanpa optimistic set (hanya cancel + publish). */
+  applyOptimistic?: boolean
+  /** Optional callback setelah publish sukses (mis. invalidasi extra). */
+  onSuccessCallback?: () => Promise<void>
+  /**
+   * Refetch snapshot setelah error apa pun (bukan hanya OCC/lock). Dipakai
+   * pemanggil yang butuh editor selalu selaras server saat save gagal
+   * (perilaku lama TeamTournamentPage). Default false agar mutation lain
+   * tetap hanya refetch pada konflik versi/lock.
+   */
+  refetchOnAnyError?: boolean
+}
+
+/**
+ * Generic optimistic mutation factory.
+ *
+ * Alur:
+ *  1. onMutate: cancel query → simpan previous → set optimistic update
+ *  2. mutationFn: publish snapshot dari cache (membawa version → race-safe)
+ *  3. onError: rollback → kalau version mismatch, refetch dari server
+ *  4. onSuccess: refetch dari server (bukan setQueryData — hindari race)
+ *
+ * Catatan TOCTOU: semua publish memakai snapshot dari CACHE yang membawa
+ * `version` fetch terakhir — dicek server (40001). Jangan pernah publish
+ * hasil fresh-get terpisah (open race window).
+ */
+export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
+  id: string,
+  options: OptimisticMutationOptions<TData, TVars>,
+) {
+  const queryClient = useQueryClient()
+  const { queryKey, fetchSnapshot, publish, optimisticUpdate, applyOptimistic = true, onSuccessCallback, refetchOnAnyError = false } = options
+
+  return useMutation({
+    mutationFn: async (vars: TVars) => {
+      // Read dari cache (sudah di-update oleh onMutate) — JANGAN apply optimistic lagi!
+      const current = queryClient.getQueryData<TData>(queryKey)
+      if (!current) throw new Error('no data')
+      // Store vars for potential retry in onError
+      void vars
+      return await publish(id, current)
+    },
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<TData>(queryKey)
+      if (applyOptimistic) {
+        queryClient.setQueryData<TData | null>(queryKey, (old) => optimisticUpdate(old ?? null, vars))
+      }
+      return { previous, vars }
+    },
+    onError: async (_err, _vars, context) => {
+      // Version mismatch / contention → rebase intent user ke snapshot server
+      // TERBARU lalu retry (versi benar, perubahan penulis lain tetap utuh).
+      // JANGAN retry dari cache optimis: cache itu dibangun dari state stale,
+      // jadi retry akan menimpa tulisan penulis lain (lost update, audit 2026-09-12).
+      if (isVersionMismatch(_err) || isContentionError(_err)) {
+        try {
+          const fresh = await fetchSnapshot(id)
+          if (fresh && context?.vars !== undefined) {
+            // Recompute dari fresh — sumber kebenaran terbaru, bukan cache.
+            const retried = optimisticUpdate(fresh, context.vars)
+            if (retried) {
+              queryClient.setQueryData(queryKey, retried)
+              try {
+                const out = await publish(id, retried)
+                if (out) {
+                  queryClient.setQueryData(queryKey, out)
+                } else {
+                  try {
+                    await queryClient.fetchQuery<TData | null>({
+                      queryKey,
+                      queryFn: () => fetchSnapshot(id),
+                    })
+                  } catch { /* ignore */ }
+                }
+                if (onSuccessCallback) await onSuccessCallback()
+                return // Success — no rollback
+              } catch {
+                // Retry failed — fall through to rollback
+              }
+            }
+          }
+        } catch {
+          // ignore fetch errors
+        }
+      }
+      // Rollback on failure
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(queryKey, context.previous)
+      }
+      // Refetch on version mismatch / contention / lock
+      if (refetchOnAnyError || isVersionMismatch(_err) || isContentionError(_err) || isLockedError(_err)) {
+        try {
+          await queryClient.fetchQuery<TData | null>({
+            queryKey,
+            queryFn: () => fetchSnapshot(id),
+          })
+        } catch {
+          // ignore — stale cache is better than nothing
+        }
+      }
+    },
+    onSuccess: async (data) => {
+      // Commit response dari server (berisi version + 1 terbaru) secara sinkron ke cache
+      // untuk mencegah race window saat mutasi berurutan / cepat.
+      if (data) {
+        queryClient.setQueryData(queryKey, data)
+      } else {
+        await queryClient.fetchQuery<TData | null>({
+          queryKey,
+          queryFn: () => fetchSnapshot(id),
+        })
+      }
+      if (onSuccessCallback) await onSuccessCallback()
+    },
+  })
+}
+
+// ── Session-specific wrapper (backward compatible) ─────────────────────────
+// Mempertahankan API useOptimisticSessionMutation yang sudah dipakai banyak hook.
+
+export function useOptimisticSessionMutation(
+  sessionId: string,
+  optimisticUpdate: (old: CloudSnapshot, vars: unknown) => CloudSnapshot,
+  onSuccessCallback?: () => Promise<void>,
+) {
+  return useOptimisticMutation<CloudSnapshot, unknown>(
+    sessionId,
+    {
+      queryKey: ['session', sessionId],
+      fetchSnapshot: (id) => getSession(id),
+      publish: (id, snap) => publishSession(id, snap),
+      optimisticUpdate: (old, vars) => {
+        if (!old) throw new Error('no data')
+        return optimisticUpdate(old, vars)
+      },
+      onSuccessCallback,
+    },
+  )
+}
+
+// ── Tournament-specific wrapper (CLASSIC format) ────────────────────────────
+
+export function useOptimisticTournamentMutation<TVars = unknown>(
+  tournamentId: string,
+  optimisticUpdate: (old: TournamentSnapshot | null, vars: TVars) => TournamentSnapshot | null,
+  onSuccessCallback?: () => Promise<void>,
+  applyOptimistic = true,
+) {
+  return useOptimisticMutation<TournamentSnapshot, TVars>(
+    tournamentId,
+    {
+      queryKey: ['tournament', tournamentId],
+      // Narrow ke classic — format team memakai mutation terpisah (Fase 5).
+      fetchSnapshot: async (id) => {
+        const s = await getTournament(id)
+        return s && s.format !== 'team' ? s : null
+      },
+      publish: async (id, snap) => {
+        const out = await publishTournament(id, snap)
+        return out.format !== 'team' ? out : snap
+      },
+      optimisticUpdate,
+      onSuccessCallback,
+      applyOptimistic,
+    },
+  )
+}

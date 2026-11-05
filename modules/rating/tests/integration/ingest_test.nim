@@ -154,3 +154,24 @@ suite "rating ingest":
     let twice = rebuild(database, communityId, params())
     check twice.events == 1
     check state(players[0]) == before
+
+  test "a skipped player earns no delta in that game":
+    discard database.execUpdate(
+      """insert into session.game_skips
+           (community_id, session_id, round_no, court_no, player_id)
+         values ($1::uuid, $2::uuid, 0, 0, $3::uuid)""",
+      @[textParam(communityId), textParam(sessionId), textParam(players[3])])
+    discard rebuild(database, communityId, params())
+    check state(players[3]).games == 0
+    check state(players[0]).games == 1
+    let deltas = database.queryOne(
+      """select count(*)::int as n from rating.deltas
+         where community_id = $1::uuid and player_id = $2::uuid""",
+      @[textParam(communityId), textParam(players[3])])
+    check deltas.get.get("n") == "0"
+    discard database.execUpdate(
+      """delete from session.game_skips
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    discard rebuild(database, communityId, params())
+    check state(players[3]).games == 1

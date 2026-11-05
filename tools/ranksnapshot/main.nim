@@ -47,7 +47,11 @@ proc main() =
     let communityId = row.get("id")
     let settings = communitySettings(db, communityId)
     let params = loadRatingParams(snapshot, settings)
-    let day = if asOf.len > 0: asOf else: today(db, row.get("timezone"))
+    let latest = latestEventDate(db, communityId)
+    let day =
+      if asOf.len > 0: asOf
+      elif latest.len > 0: latest
+      else: today(db, row.get("timezone"))
     let rows = board(db, BoardQuery(communityId: communityId, asOf: day,
       params: params, limit: limit, tier: ""))
     discard writeSnapshot(db, communityId, day, rows)

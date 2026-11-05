@@ -1,4 +1,4 @@
-import std/[json, options, strutils]
+import std/[json, options, strutils, tables]
 import db/db
 import ../domain/rating
 
@@ -42,20 +42,20 @@ proc sidePlayers(row: Row, side: string): seq[string] =
     if row[key].isSome and row.get(key).len > 0:
       result.add(row.get(key))
 
-proc active(players, absent: seq[string]): seq[string] =
+proc active(players, absent, skipped: seq[string]): seq[string] =
   for player in players:
-    if player notin absent:
+    if player notin absent and player notin skipped:
       result.add(player)
 
-proc writeDelta*(conn: DbConn, communityId, eventId, side, playerId: string,
+proc writeDelta*(conn: DbConn, communityId, eventId, side, playerId, gameKey: string,
                  delta: int) =
   discard conn.execUpdate(
     """insert into rating.deltas
-         (community_id, event_id, side, player_id, delta)
-       values ($1::uuid, $2::uuid, $3, $4::uuid, $5)
-       on conflict (event_id, side, player_id) do nothing""",
+         (community_id, event_id, side, player_id, game_key, delta)
+       values ($1::uuid, $2::uuid, $3, $4::uuid, $5, $6)
+       on conflict (event_id, side, player_id, game_key) do nothing""",
     @[textParam(communityId), textParam(eventId), textParam(side),
-      textParam(playerId), intParam(delta.int64)])
+      textParam(playerId), textParam(gameKey), intParam(delta.int64)])
 
 proc upsertState*(conn: DbConn, communityId, playerId: string, delta: int,
                   won: bool) =
@@ -72,31 +72,45 @@ proc upsertState*(conn: DbConn, communityId, playerId: string, delta: int,
     @[textParam(communityId), textParam(playerId), intParam(delta.int64),
       intParam(if won: 1 else: 0), intParam(if won: 0 else: 1)])
 
-proc awardSide(conn: DbConn, communityId, eventId: string, side, letter: string,
-               margin: int, row: Row, absent: seq[string],
-               population: float, params: RatingParams): int =
+proc awardSide(conn: DbConn, communityId, eventId, gameKey: string,
+               side, letter: string, margin: int, otherSide: string,
+               row: Row, absent, skipped: seq[string], population: float,
+               params: RatingParams): int =
   let players = sidePlayers(row, side)
-  let activePlayers = active(players, absent)
+  let activePlayers = active(players, absent, skipped)
   if activePlayers.len == 0:
     return 0
   let multiplier = opponentMultiplier(params,
-    opponentAverage(conn, communityId, activePlayers), population)
+    opponentAverage(conn, communityId,
+      active(sidePlayers(row, otherSide), absent, skipped)),
+    population)
   let points = gameValue(params.sessionBase, margin.float,
     params.scoreTarget.float) * multiplier
   let delta = roundPoints(points)
   for playerId in activePlayers:
-    writeDelta(conn, communityId, eventId, letter, playerId, delta)
+    writeDelta(conn, communityId, eventId, letter, playerId, gameKey, delta)
     upsertState(conn, communityId, playerId, delta, won = margin > 0)
     inc result
 
 proc ingestGame(conn: DbConn, communityId, eventId: string, params: RatingParams,
-                row: Row, absent: seq[string], population: float): int =
+                row: Row, absent, skipped: seq[string],
+                population: float): int =
+  ## v1's gate: a game needs a real present player on both sides, but a side
+  ## whose players were all substituted still keeps the game alive for the
+  ## other side. Skipped players are present; absent ones are not.
+  let sideA = sidePlayers(row, "side_a")
+  let sideB = sidePlayers(row, "side_b")
+  let presentA = active(sideA, absent, newSeq[string]())
+  let presentB = active(sideB, absent, newSeq[string]())
+  if presentA.len == 0 or presentB.len == 0:
+    return 0
   let scoreA = parseInt(row.get("score_a"))
   let scoreB = parseInt(row.get("score_b"))
-  result += awardSide(conn, communityId, eventId, "side_a", "a",
-    scoreA - scoreB, row, absent, population, params)
-  result += awardSide(conn, communityId, eventId, "side_b", "b",
-    scoreB - scoreA, row, absent, population, params)
+  let gameKey = row.get("round_no") & "-" & row.get("court_no")
+  result += awardSide(conn, communityId, eventId, gameKey, "side_a", "a",
+    scoreA - scoreB, "side_b", row, absent, skipped, population, params)
+  result += awardSide(conn, communityId, eventId, gameKey, "side_b", "b",
+    scoreB - scoreA, "side_a", row, absent, skipped, population, params)
 
 proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
                        params: RatingParams): IngestResult =
@@ -128,9 +142,17 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
   let eventId = event.get.get("id")
   result.events = 1
   let absent = absentPlayers(conn, communityId, sessionId)
+  var skipRows = initTable[string, seq[string]]()
+  for entry in conn.query(
+    """select round_no, court_no, player_id::text as player_id
+       from session.game_skips
+       where community_id = $1::uuid and session_id = $2::uuid""",
+    @[textParam(communityId), textParam(sessionId)]):
+    skipRows.mgetOrPut(entry.get("round_no") & "-" & entry.get("court_no"),
+      @[]).add(entry.get("player_id"))
   let population = populationAverage(conn, communityId)
   for row in conn.query(
-    """select score_a, score_b,
+    """select round_no, court_no, score_a, score_b,
               coalesce(side_a1::text, '') as side_a1,
               coalesce(side_a2::text, '') as side_a2,
               coalesce(side_b1::text, '') as side_b1,
@@ -140,8 +162,10 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
          and status = 'played' and score_a is not null and score_b is not null
        order by round_no, court_no""",
     @[textParam(communityId), textParam(sessionId)]):
+    let skipped = skipRows.getOrDefault(
+      row.get("round_no") & "-" & row.get("court_no"))
     result.deltas += ingestGame(conn, communityId, eventId, params, row, absent,
-      population)
+      skipped, population)
 
 proc ingestSession*(db: Db, communityId, sessionId: string,
                     params: RatingParams): IngestResult =

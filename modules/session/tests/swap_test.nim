@@ -1,5 +1,6 @@
 import std/[json, options, os, strutils, unittest]
 import db/db
+import ../schedule
 import ../swap
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
@@ -216,6 +217,27 @@ suite "session swap":
     check second.scoreB == some(15)
     check second.status == "played"
 
+  test "marking a game played keeps it scoreless":
+    let outcome = setPlayed(database, communityId, sessionId, "0-0", 1, true)
+    check outcome == ssOk
+    let played = readGame(sessionId, 0, 0)
+    check played.status == "played"
+    check played.scoreA.isNone
+    check played.scoreB.isNone
+
+  test "unmarking a game restores scheduled and clears an old score":
+    discard database.execUpdate(
+      """update session.games set score_a = 21, score_b = 15, status = 'played'
+         where community_id = $1::uuid and session_id = $2::uuid
+           and round_no = 0 and court_no = 0""",
+      @[textParam(communityId), textParam(sessionId)])
+    let outcome = setPlayed(database, communityId, sessionId, "0-0", 1, false)
+    check outcome == ssOk
+    let cleared = readGame(sessionId, 0, 0)
+    check cleared.status == "scheduled"
+    check cleared.scoreA.isNone
+    check cleared.scoreB.isNone
+
   test "a stale version changes nothing":
     let patch = parseSwap(%*{"type": "player",
       "a": {"slot": 0, "court": 0, "team": "A", "position": 0},
@@ -293,3 +315,50 @@ suite "session swap":
       [players[0], players[1], players[2], players[3]]
     check readGame(sessionId, 1, 0).sides ==
       [players[4], players[5], players[0], players[7]]
+
+  test "skipping named players keeps the game and bumps the session":
+    let outcome = setSkips(database, communityId, sessionId, "0-0", 1,
+      @[players[0], players[2]])
+    check outcome == ssOk
+    check sessionVersion(sessionId) == 2
+    let rows = database.query(
+      """select player_id::text as player_id from session.game_skips
+         where community_id = $1::uuid and session_id = $2::uuid
+           and round_no = 0 and court_no = 0 order by player_id""",
+      @[textParam(communityId), textParam(sessionId)])
+    var stored: seq[string] = @[]
+    for row in rows: stored.add(row.get("player_id"))
+    check stored.len == 2
+    check players[0] in stored
+    check players[2] in stored
+    check readGame(sessionId, 0, 0).status == "scheduled"
+
+  test "an empty skip list clears the game's skips":
+    check setSkips(database, communityId, sessionId, "0-0", 1,
+      @[players[0]]) == ssOk
+    check setSkips(database, communityId, sessionId, "0-0", 2,
+      @[]) == ssOk
+    check database.queryOne(
+      """select 1 as ok from session.game_skips
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)]).isNone
+
+  test "skipping a non-participant changes nothing and keeps the version":
+    let outsider = addPlayer(97)
+    let outcome = setSkips(database, communityId, sessionId, "0-0", 1,
+      @[outsider])
+    check outcome == ssUnknownPlayer
+    check sessionVersion(sessionId) == 1
+
+  test "a stale skip is rejected without writing":
+    check setSkips(database, communityId, sessionId, "0-0", 1,
+      @[players[1]]) == ssOk
+    let stale = setSkips(database, communityId, sessionId, "0-0", 1,
+      @[players[3]])
+    check stale == ssStale
+    check sessionVersion(sessionId) == 2
+    check database.queryOne(
+      """select 1 as ok from session.game_skips
+         where community_id = $1::uuid and session_id = $2::uuid
+           and player_id = $3::uuid""",
+      @[textParam(communityId), textParam(sessionId), textParam(players[3])]).isNone

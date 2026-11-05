@@ -201,12 +201,18 @@ menyentuh game yang disebut, sehingga jadwal parsial tetap valid
 
 ## 10. Rating & achievement
 
-- Poin dihitung **saat baca**: `rating.deltas` menyimpan fakta per pemain per event,
-  papan menjumlahkan `best_n` delta dalam window `window_weeks`
-  (`modules/rating/read.nim:24-62`).
+- Poin dihitung **saat baca** dengan aturan v1: satu entri per pemain per sumber
+  (sesi = jumlah semua game; turnamen = `champion_points × round_ratio` bila kind
+  punya baris `rating.levels` yang aktif), lalu `best_n` entri terbaik dalam window
+  `window_weeks` dijumlahkan dan dibulatkan sekali (`modules/rating/projection.nim`).
 - Nilai satu game = `base * (0.5 + 0.5 * clamp(margin/target, -1, 1))`; pengali lawan =
-  `clamp(rata-rata tier lawan / rata-rata populasi, low, high)`
-  (`modules/rating/domain/rating.nim:24-38`, `modules/rating/domain/rating.nim:69-77`).
+  `clamp(rata-rata tier lawan / rata-rata populasi, low, high)`, dengan kekuatan tier =
+  titik tengah band (`modules/rating/domain/rating.nim`).
+- Satu game butuh pemain hadir di kedua sisi; pemain `absent` tidak dihitung dan
+  `session.game_skips` mengeluarkan pemain dari game itu saja. Papan dijangkar pada
+  `local_date` event terakhir, bukan hari ini (`modules/rating/read.nim`).
+- `rating.deltas` tetap disimpan sebagai ledger integer per game untuk bookkeeping dan
+  riwayat pemain; angka papan tidak dibaca dari delta.
 - Semua parameter berasal dari registry: `rating.session_base`, `rating.score_target`,
   `rating.opponent_clamp`, `rating.window_weeks`, `rating.best_n`,
   `rating.thin_evidence_n`, `rating.tier_bands` (`modules/rating/infrastructure/params.nim:5-27`).

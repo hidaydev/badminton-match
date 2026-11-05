@@ -29,20 +29,6 @@ const requests = {
   ],
 }
 
-const sources = {
-  items: [
-    {
-      id: 'e1',
-      type: 'session',
-      date: '2026-11-03',
-      sourceId: 's1',
-      deltas: 8,
-      finalized: false,
-      finalizedAt: null,
-    },
-  ],
-}
-
 function renderAt(path: string) {
   window.history.replaceState({}, '', path)
   return render(<App />)
@@ -54,7 +40,6 @@ function base(extra: Record<string, () => { status?: number; body?: unknown }>) 
     'GET /api/communities': () => ({ body: { items: [admin] } }),
     'GET /api/c/acme/members': () => ({ body: members }),
     'GET /api/c/acme/join-requests': () => ({ body: requests }),
-    'GET /api/c/acme/rating-sources': () => ({ body: sources }),
     ...extra,
   })
 }
@@ -90,12 +75,9 @@ describe('community settings', () => {
     })
   })
 
-  it('answers a join request and finalizes a rating source', async () => {
+  it('answers a join request', async () => {
     const fetchMock = base({
       'PATCH /api/c/acme/join-requests/r1': () => ({ body: { status: 'approved' } }),
-      'PATCH /api/c/acme/rating-sources/e1': () => ({
-        body: { sourceId: 's1', kind: 'session', finalized: true },
-      }),
     })
 
     renderAt('/c/acme/settings')
@@ -109,16 +91,6 @@ describe('community settings', () => {
             (init as RequestInit | undefined)?.method === 'PATCH',
         ),
       ).toBe(true)
-    })
-
-    fireEvent.click(await screen.findByRole('button', { name: t('admin.sources.finalize') }))
-    await waitFor(() => {
-      const call = fetchMock.mock.calls.find(
-        ([url, init]) =>
-          String(url) === '/api/c/acme/rating-sources/e1' &&
-          (init as RequestInit | undefined)?.method === 'PATCH',
-      )
-      expect(jsonBody((call as [string, RequestInit])[1])).toEqual({ finalized: true })
     })
   })
 })

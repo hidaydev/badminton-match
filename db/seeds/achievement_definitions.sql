@@ -1,6 +1,7 @@
 -- Badge catalog. Mirrors modules/achievement/domain/achievement.nim row for
--- row; a key that is absent here can never be earned, because
--- achievement.earned references achievement.definitions.
+-- row, plus the rank-streak rungs that only shape how v1's imported
+-- `rank_streak:<best run>` rows render. A key that is absent here can never be
+-- earned by the backfill, because it only awards catalog keys.
 --
 -- Thresholds follow the v1 medal ladder. Categories v1 had but v2 cannot
 -- reach are deliberately absent: `rating` (v2 keeps relative points, not an
@@ -45,6 +46,13 @@ insert into achievement.definitions (key, category, threshold) values
   ('rank:3',        'rank', 3),
   ('rank:2',        'rank', 2),
   ('rank:1',        'rank', 1),
+  -- v1's rank-streak badge stores the best run, so its rungs only shape the
+  -- shelf display; the key suffix carries the player's own value.
+  ('rank_streak:3',  'rank', 3),
+  ('rank_streak:5',  'rank', 5),
+  ('rank_streak:8',  'rank', 8),
+  ('rank_streak:12', 'rank', 12),
+  ('rank_streak:16', 'rank', 16),
   ('tier:C',        'tier', 3),
   ('tier:C+',       'tier', 4),
   ('tier:B',        'tier', 5),

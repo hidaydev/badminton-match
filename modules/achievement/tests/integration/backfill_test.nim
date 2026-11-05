@@ -1,4 +1,4 @@
-import std/[json, options, os, sets, strutils, unittest]
+import std/[json, options, os, sets, strutils, tables, unittest]
 import db/db
 import ../../domain/achievement
 import ../../infrastructure/backfill
@@ -231,9 +231,59 @@ suite "achievement backfill":
       check entry.hasKey("threshold")
       check entry.hasKey("earnedAt")
 
+  test "the shelf carries catalog labels and the medal ladder":
+    var byKey = initTable[string, JsonNode]()
+    for entry in listForPlayer(database, communityId, players[0]):
+      byKey[entry["key"].getStr()] = entry
+    let sessions = byKey["sessions:5"]
+    check sessions["kind"].getStr() == "attendance"
+    check sessions["title"].getStr() == "Sessions 5"
+    check sessions["detail"].getStr() == "Attend 5 sessions."
+    check sessions["note"].getStr() == ""
+    check sessions["value"].getInt() == 5
+    check sessions["thresholds"].len == 5
+    check sessions["tierLevel"].getInt() == 1
+    check sessions["tierName"].getStr() == "Bronze"
+    check sessions["nextTarget"].getInt() == 10
+    check sessions["meta"]["metric"].getStr() == "sessions"
+    # Rank improves downward: the ladder starts at #10 and ends at #1.
+    let rank = byKey["rank:1"]
+    check rank["thresholds"][0].getInt() == 10
+    check rank["tierLevel"].getInt() == 5
+    check rank["tierName"].getStr() == "Onyx"
+    check rank["nextTarget"].kind == JNull
+    # Tier keys encode their level in the key, so they stay off the ladder.
+    let tier = byKey["tier:C"]
+    check tier["title"].getStr() == "Tier C"
+    check tier["tierLevel"].kind == JNull
+    check tier["tierName"].kind == JNull
+    check tier["nextTarget"].kind == JNull
+    check tier["thresholds"].len == 1
+    check tier["meta"]["tier"].getStr() == "C"
+
   test "a player with no badges gets an empty array":
     let stranger = "00000000-0000-0000-0000-000000000000"
     check listForPlayer(database, communityId, stranger).len == 0
+
+  test "an imported rank-streak row carries the v1 ladder":
+    discard database.execUpdate(
+      """insert into achievement.earned
+           (community_id, player_id, achievement_key, earned_at, meta)
+         values ($1::uuid, $2::uuid, 'rank_streak:11', now(), '{}'::jsonb)
+         on conflict do nothing""",
+      @[textParam(communityId), textParam(players[0])])
+    var found = newJObject()
+    for entry in listForPlayer(database, communityId, players[0]):
+      if entry["key"].getStr() == "rank_streak:11":
+        found = entry
+    check found["title"].getStr() == "Rank streak 11"
+    check found["category"].getStr() == "rank"
+    check found["value"].getInt() == 11
+    check found["thresholds"].len == 5
+    check found["tierLevel"].getInt() == 3
+    check found["tierName"].getStr() == "Gold"
+    check found["nextTarget"].getInt() == 12
+    check found["meta"]["metric"].getStr() == "rank_streak"
 
   test "an absent player earns nothing from games":
     ## The slots still name them, but the game did not happen for them.

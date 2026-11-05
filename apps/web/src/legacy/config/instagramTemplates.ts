@@ -1,0 +1,38 @@
+// src/config/instagramTemplates.ts
+
+interface PostTemplate {
+  id: string
+  label: string
+  width: number
+  height: number
+  logo?: string         // center logo drawn in the header band
+  footer?: string       // absolute URL path to PNG asset
+  brushStroke?: string  // brush stroke texture behind year text
+  chevrons?: string     // chevron ornament PNG
+  storyBg?: string      // story background PNG
+  badge?: string        // bottom-center badge overlay PNG
+}
+
+export const instagramTemplates: PostTemplate[] = [
+  {
+    id: 'portrait-v1',
+    label: 'Portrait 4:5',
+    width: 1080,
+    height: 1350,
+    logo: '/instagram-logo.png',
+    footer: '/instagram-footer.png',
+    brushStroke: '/brush-stroke.webp',
+    chevrons: '/chevrons.png',
+    storyBg: '/story-bg.png',
+  },
+  {
+    id: 'portrait-v2',
+    label: 'Dark Frame',
+    width: 1080,
+    height: 1350,
+    footer: '/instagram-post-v2-frame.png',
+    brushStroke: '/brush-stroke.webp',
+    storyBg: '/story-bg-v2.png',
+    badge: '/main-aja-dulu.png',
+  },
+]

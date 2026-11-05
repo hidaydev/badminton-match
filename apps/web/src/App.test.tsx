@@ -66,12 +66,16 @@ describe('App auth gate', () => {
     })
 
     render(<App />)
-    expect(await screen.findByRole('link', { name: t('home.newSession') })).toBeInTheDocument()
+    // A member has no New Session CTA; the account menu is the only header
+    // surface that signs out.
+    expect(await screen.findByRole('button', { name: 'Account menu' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('home.newSession') })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: t('nav.logout') }))
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: t('nav.logout') }))
 
     expect(await screen.findByRole('button', { name: t('login.action') })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: t('nav.logout') })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: t('nav.logout') })).not.toBeInTheDocument()
     const logoutCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/auth/logout'))
     expect((logoutCall as [string, RequestInit])[1].credentials).toBe('include')
   })

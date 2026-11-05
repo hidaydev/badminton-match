@@ -237,16 +237,26 @@ proc importSessions(source, target: Db, communityId: string,
   var stats = Result()
   discard target.tx(proc(conn: DbConn): int =
     for row in source.query(
-      """select id::text as id, title, session_date::text as session_date,
-                session_start::text as start_time, slot_minutes, status, source,
-                created_at::text as created_at, updated_at::text as updated_at
-         from bm.sessions order by session_date, created_at, id"""):
+      """select s.id::text as id, s.title,
+                s.session_date::text as session_date,
+                s.session_start::text as start_time, s.slot_minutes, s.status,
+                s.source, s.created_at::text as created_at,
+                s.updated_at::text as updated_at,
+                exists (
+                  select 1 from bm.rating_sources r
+                  where r.source_id = s.share_code or r.source_id = s.id::text
+                ) as rated
+         from bm.sessions s order by s.session_date, s.created_at, s.id"""):
       let oldId = row.get("id")
-      # v1 recorded no approval timestamp. A session that was no longer a draft
-      # had been approved under v1's rules, and updated_at is the closest thing
-      # to the moment that happened.
+      # v1 recorded no approval timestamp; `updated_at` is the closest thing to
+      # the moment a session left draft. More importantly, v1 only rated the
+      # sessions its rating pipeline saw, and seven early sessions were locked
+      # before it existed. `approved_at` is the rating gate in v2, so those
+      # sessions stay unapproved here: otherwise they would earn points that
+      # production never awarded.
       let approvedAt =
-        if row.get("status") == "draft": "" else: row.get("updated_at")
+        if row.get("status") == "draft" or row.get("rated") != "t": ""
+        else: row.get("updated_at")
       if dryRun:
         inc stats.created
         continue
@@ -404,11 +414,14 @@ proc importGames(source, target: Db, communityId: string,
       # Old participant id -> old player id, so a game slot resolves in memory
       # instead of joining across two databases.
       var participantPlayer = initTable[string, string]()
+      var refPlayer = initTable[string, string]()
       for row in source.query(
-        """select internal_id::text as id, coalesce(player_id::text, '') as player_id
+        """select internal_id::text as id, player_ref,
+                  coalesce(player_id::text, '') as player_id
            from bm.session_players where session_id = $1::uuid""",
         @[textParam(oldSessionId)]):
         participantPlayer[row.get("id")] = row.get("player_id")
+        refPlayer[row.get("player_ref")] = row.get("player_id")
 
       var sides = initTable[string, array[4, string]]()
       for row in source.query(
@@ -431,7 +444,9 @@ proc importGames(source, target: Db, communityId: string,
         """select internal_id::text as id, slot_index, court_index, status,
                   is_played, coalesce(score_a, -1) as score_a,
                   coalesce(score_b, -1) as score_b, created_at::text as created_at,
-                  updated_at::text as updated_at
+                  updated_at::text as updated_at,
+                  coalesce(array_to_string(skipped_player_refs, ','), '')
+                    as skipped_refs
            from bm.scheduled_games where session_id = $1::uuid
            order by slot_index, court_index""",
         @[textParam(oldSessionId)]):
@@ -481,6 +496,31 @@ proc importGames(source, target: Db, communityId: string,
             textParam(playerIds[2]), textParam(playerIds[3])])
         mapPut(conn, communityId, "game", oldId, newId)
         if mapped.isSome: inc stats.updated else: inc stats.created
+        # Per-player skip: v1 kept short player refs on the game, v2 keeps one
+        # row per skipped player. Rewrite the set so a rerun stays idempotent.
+        discard conn.execUpdate(
+          """delete from session.game_skips
+             where community_id = $1::uuid and session_id = $2::uuid
+               and round_no = $3 and court_no = $4""",
+          @[textParam(communityId), textParam(session.get),
+            textParam(row.get("slot_index")), textParam(row.get("court_index"))])
+        let skippedRefs = row.get("skipped_refs")
+        if skippedRefs.len > 0:
+          for playerRef in skippedRefs.split(','):
+            let oldPlayer = refPlayer.getOrDefault(playerRef)
+            if oldPlayer.len == 0: continue
+            let mappedPlayer = mapLookup(conn, communityId, "player", oldPlayer)
+            if mappedPlayer.isNone:
+              inc stats.skipped
+              continue
+            discard conn.execUpdate(
+              """insert into session.game_skips
+                   (community_id, session_id, round_no, court_no, player_id)
+                 values ($1::uuid, $2::uuid, $3, $4, $5::uuid)
+                 on conflict do nothing""",
+              @[textParam(communityId), textParam(session.get),
+                textParam(row.get("slot_index")), textParam(row.get("court_index")),
+                textParam(mappedPlayer.get)])
     1)
   stats
 
@@ -861,6 +901,41 @@ proc importRatingSources*(source, target: Db, communityId: string,
     1)
   stats
 
+proc importRatingLevels*(source, target: Db, communityId: string,
+                         dryRun: bool): Result =
+  ## v1 kept the tournament ladder in a table: the champion's points per
+  ## format and the ratio of every place. The board multiplies the two, so the
+  ## ladder is copied row for row instead of being folded into deltas.
+  var stats = Result()
+  discard target.tx(proc(conn: DbConn): int =
+    for row in source.query(
+      """select kind, champion_points::text as champion,
+                coalesce(round_ratios::text, '{}') as ratios, enabled
+         from bm.rank_point_levels order by kind"""):
+      if dryRun:
+        inc stats.created
+        continue
+      let present = conn.queryOne(
+        """select 1 as ok from rating.levels
+           where community_id = $1::uuid and kind = $2""",
+        @[textParam(communityId), textParam(row.get("kind"))])
+      discard conn.execUpdate(
+        """insert into rating.levels
+             (community_id, kind, champion_points, round_ratios, enabled,
+              updated_at)
+           values ($1::uuid, $2, $3::numeric, $4::jsonb, $5::boolean, now())
+           on conflict (community_id, kind) do update
+             set champion_points = excluded.champion_points,
+                 round_ratios = excluded.round_ratios,
+                 enabled = excluded.enabled,
+                 updated_at = now()""",
+        @[textParam(communityId), textParam(row.get("kind")),
+          textParam(row.get("champion")), textParam(row.get("ratios")),
+          textParam(if row.get("enabled") == "t": "true" else: "false")])
+      if present.isSome: inc stats.updated else: inc stats.created
+    1)
+  stats
+
 proc rebuildRating*(target: Db, communityId: string): tuple[events, deltas: int] =
   ## Deterministic: the caller may run this as often as it likes. The delta count
   ## is the rows written, not the award operations: v2 keeps one row per player
@@ -941,20 +1016,48 @@ proc importAchievements*(source, target: Db, communityId: string,
   ## v1 stores a statistic per ladder (`medal:games` with value 57); v2 stores
   ## one row per threshold crossed (`games:50`). The expansion is therefore
   ## derived, not copied: every threshold the stored value has passed becomes a
-  ## row, with the v1 date. Event badges (`tournament:<id>`) have no v2
-  ## equivalent and are counted as skipped.
+  ## row, with the v1 date. Event medals keep their `tournament:<id>` key and
+  ## the stored name; the rank-streak badge keeps its value as the threshold.
   var stats = Result()
   discard target.tx(proc(conn: DbConn): int =
     for row in source.query(
       """select pa.id::text as id, pa.player_id::text as player_id,
                 pa.achievement_key, pa.earned_at::text as earned_at,
-                coalesce(pa.value, 0) as value
+                coalesce(pa.value, 0) as value,
+                coalesce(pa.meta::text, '{}') as meta
          from bm.player_achievements pa order by pa.earned_at, pa.id"""):
       let player = mapLookup(conn, communityId, "player", row.get("player_id"))
       if player.isNone:
         inc stats.skipped
         continue
       let key = row.get("achievement_key")
+      let earnedAt = row.get("earned_at")
+      if key.startsWith("tournament:"):
+        if dryRun:
+          inc stats.created
+          continue
+        let changed = conn.execUpdate(
+          """insert into achievement.earned
+               (community_id, player_id, achievement_key, earned_at, meta)
+             values ($1::uuid, $2::uuid, $3, $4::timestamptz, $5::jsonb)
+             on conflict (community_id, player_id, achievement_key) do nothing""",
+          @[textParam(communityId), textParam(player.get), textParam(key),
+            textParam(earnedAt), textParam(row.get("meta"))])
+        if changed == 1: inc stats.created else: inc stats.updated
+        continue
+      if key == "medal:rank_streak":
+        if dryRun:
+          inc stats.created
+          continue
+        let changed = conn.execUpdate(
+          """insert into achievement.earned
+               (community_id, player_id, achievement_key, earned_at)
+             values ($1::uuid, $2::uuid, $3, $4::timestamptz)
+             on conflict (community_id, player_id, achievement_key) do nothing""",
+          @[textParam(communityId), textParam(player.get),
+            textParam("rank_streak:" & row.get("value")), textParam(earnedAt)])
+        if changed == 1: inc stats.created else: inc stats.updated
+        continue
       if not key.startsWith("medal:"):
         inc stats.skipped
         continue
@@ -1062,6 +1165,7 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
   # The sign-off is v1 data; the numbers are recomputed from the rows above, so
   # the ledger v2 serves is produced by v2's own formula.
   let sources = importRatingSources(source, target, communityId, dryRun)
+  let levels = importRatingLevels(source, target, communityId, dryRun)
   var rebuilt = (events: 0, deltas: 0)
   var tournamentRating = (events: 0, deltas: 0)
   if not dryRun:
@@ -1095,6 +1199,8 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
                         "skipped": sources.skipped},
     "rating": %*{"events": rebuilt.events + tournamentRating.events,
                  "deltas": rebuilt.deltas + tournamentRating.deltas},
+    "ratingLevels": %*{"created": levels.created,
+                       "updated": levels.updated},
     "tournaments": %*{"created": tournaments.created,
                       "updated": tournaments.updated},
     "tournamentChildren": %*{"created": tournamentChildren.created,

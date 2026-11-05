@@ -1,6 +1,6 @@
 # Current Status
 
-Terakhir diperbarui: **2026-11-04**. Dokumen ini menjawab "apa yang benar-benar
+Terakhir diperbarui: **2026-11-05**. Dokumen ini menjawab "apa yang benar-benar
 ada di repo hari ini", bukan "apa yang direncanakan". Rencana beku ada di
 [`../plan/`](../plan/README.md).
 
@@ -46,26 +46,29 @@ Postgres 18.6 · skema per domain (platform, community, player, session,
 
 ## 3. Frontend
 
-Semua rute di `apps/web/src/routes.manifest.ts` punya halaman nyata; tidak ada
-`PlaceholderPage` tersisa.
+Frontend v1 dipulihkan penuh di `apps/web/src/legacy/` (tree pra-rewrite) di atas
+API v2. Semua rute lama tetap ada, kini ber-prefix `/c/:slug`. Lapisan data lama
+(`legacy/queries/endpoints.ts`) menjadi adapter: `CloudSnapshot` dirakit dari
+`GET /sessions/{id}`, tulis granular memakai endpoint v2, dan path admin lama
+diterjemahkan di `legacy/queries/admin.ts`.
 
 - Login OIDC + shell komunitas (`/`, `/c/:slug`), pemilih komunitas, i18n.
-- **Sesi**: daftar, detail, dan panel host/admin untuk lock/unlock, share link,
-  skor per game, skip, absent, swap (`apps/web/src/sessions/SessionAdmin.tsx`).
-  Panel hanya tampil untuk `host`/`admin`.
-- **Share publik** `/s/:code`: sesi, skor, klasemen, dan papan poin penonton.
-- **Pemain**: daftar, detail, pengajuan/pelepasan klaim, antrean keputusan admin,
-  merge, unlink.
-- **Peringkat**: papan + filter tier, detail pemain + badge.
-- **Turnamen**: daftar, wizard/editor classic dan team, alat admin rating
-  (finalize/ingest/revert/hapus).
-- **Ekspor**: post 1080×1350 dan story 1080×1920 dari sesi atau turnamen.
+- **Sesi**: daftar, live session (`/c/:slug/s/:id`), scoreboard, wizard 4 langkah
+  + generator 5 fase, share code v2 (`/s/:code` untuk publik).
+- **Pemain**: roster v2 (klaim, merge, alias, edit, tier, hapus) di
+  `/c/:slug/players`; halaman admin pemain lama sudah dipensiunkan dan
+  `/admin/players` dialihkan ke roster.
+- **Peringkat**: papan + filter tier, detail pemain + badge + riwayat match.
+- **Turnamen**: daftar, editor classic dan team, klasemen/bracket, admin rating.
+- **Post**: editor Instagram Post (post dan story) dari sesi atau turnamen.
 - **Settings komunitas**: anggota, peran, undangan, join request, override config.
 - **Owner**: `/owner/communities` untuk membuat komunitas dan melihat yang diikuti.
 
-Frontend memakai `fetch` + hook per fitur. `@tanstack/react-query` masih terpasang
-tetapi tidak diimpor; tidak ada service worker di `apps/web` (hanya
-`public/manifest.json`).
+State klien memakai Zustand (wizard) dan TanStack Query (data server). Service
+worker/PWA dipulihkan lewat `vite-plugin-pwa` (install/update banner lama hidup
+lagi). Kode v2-only yang tidak ada di v1 (Settings, roster/klaim pemain, owner
+communities) tetap dipakai; halaman v2 yang tidak pernah dipasang di router
+(home, sessions, rankings, tournaments, export) sudah dihapus.
 
 ## 4. Realtime
 
@@ -74,8 +77,9 @@ tetapi tidak diimpor; tidak ada service worker di `apps/web` (hanya
 - Frame `session.changed` hanya membawa `seq`; klien harus membaca ulang state.
 - Hub fan-out in-memory per proses → **API harus satu instance**. `platform.outbox`
   sudah ada dan dibersihkan janitor, tetapi belum ada produsen event.
-- **Klien web belum memakai WebSocket**: halaman sesi memuat state saat dibuka dan
-  setelah aksi lokal, bukan saat host lain mengubah.
+- **Klien web belum memakai WebSocket**: halaman sesi memuat state saat dibuka,
+  setelah aksi lokal, dan polling 5 detik selama tab terbuka. Hook realtime lama
+  (SSE) sudah dinonaktifkan; upgrade ke WS belum dikerjakan.
 
 ## 5. Gate
 
@@ -137,7 +141,7 @@ Rencana 88 task: lihat [`roadmap.md`](roadmap.md). Ringkasnya:
 - **Operasional, menunggu VPS/waktu:** rehearsal T-063 (dan karenanya bukti
   T-060/061/065), soak T-074, penghapusan `:v1-final` setelah 30 hari (T-082),
   force-push T-108 yang ditunda atas keputusan pemilik.
-- **Celah di luar rencana:** klien WebSocket di FE, produsen `platform.outbox`,
-  generator jadwal sesi, pembatasan peran turnamen di manifest, dependency
-  `@tanstack/react-query` yang mati, dan kenaikan coverage di `modules/account`
+- **Celah di luar rencana:** klien WebSocket di FE (masih polling 5 detik),
+  produsen `platform.outbox`, tautan share v1 `/s/{sessionId}` tidak lagi valid
+  karena v2 memakai kode acak, dan kenaikan coverage di `modules/account`
   (41,5%), `modules/share` (0%), `modules/tournament` (56,3%).

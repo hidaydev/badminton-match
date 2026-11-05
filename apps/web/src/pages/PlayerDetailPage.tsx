@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useCommunity } from '../community/CommunityContext'
 import { t } from '../i18n'
-import { TIERS } from '../rankings/api'
+import { TIERS } from '../players/api'
 import {
   claimPlayer,
   decideClaim,

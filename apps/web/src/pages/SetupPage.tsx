@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
@@ -26,6 +26,7 @@ function describe(error: unknown): string {
 /** Platform owner: open a new community and see the ones this account is in. */
 export default function SetupPage() {
   const { user, memberships } = useAuth()
+  const navigate = useNavigate()
   const [slug, setSlug] = useState('')
   const [name, setName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
@@ -58,7 +59,25 @@ export default function SetupPage() {
   }
 
   return (
-    <section className="mx-auto max-w-3xl p-4">
+    <>
+      <header className="sticky top-0 z-10 border-b border-border-subtle bg-surface pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex max-w-3xl items-center gap-2 px-3 py-2.5">
+          <button
+            onClick={() => navigate(-1)}
+            className="-ml-1.5 shrink-0 rounded-lg p-1.5 text-fg-dim transition-all hover:text-fg active:scale-90"
+            aria-label={t('shell.back')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/logo-192.png" alt="" className="h-6 w-6 shrink-0 object-contain" />
+            <span className="text-sm font-bold tracking-tight text-fg">{t('shell.brand')}</span>
+          </Link>
+        </div>
+      </header>
+      <section className="mx-auto max-w-3xl p-4">
       <h1 className="text-xl font-bold text-fg sm:text-2xl">{t('setup.title')}</h1>
       <p className="mt-1 text-sm text-fg-dim">{t('setup.subtitle')}</p>
 
@@ -155,5 +174,6 @@ export default function SetupPage() {
         </form>
       )}
     </section>
+    </>
   )
 }

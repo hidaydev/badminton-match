@@ -1,4 +1,4 @@
-import std/[math, options, random, unittest]
+import std/[options, random, unittest]
 import ../domain/rating
 
 proc params(): RatingParams =
@@ -6,10 +6,14 @@ proc params(): RatingParams =
   RatingParams(sessionBase: 250, scoreTarget: 21, opponentClampLow: 0.5, opponentClampHigh: 1.5,
     windowWeeks: 12, bestN: 10, thinEvidenceN: 3,
     bands: @[
-      TierBand(tier: "D", floor: 0), TierBand(tier: "D+", floor: 1000),
-      TierBand(tier: "C", floor: 1200), TierBand(tier: "C+", floor: 1400),
-      TierBand(tier: "B", floor: 1600), TierBand(tier: "B+", floor: 1800),
-      TierBand(tier: "A", floor: 2000), TierBand(tier: "A+", floor: 2100)])
+      TierBand(tier: "D", floor: 1000, ceiling: some(1199.0)),
+      TierBand(tier: "D+", floor: 1200, ceiling: some(1299.0)),
+      TierBand(tier: "C", floor: 1300, ceiling: some(1499.0)),
+      TierBand(tier: "C+", floor: 1500, ceiling: some(1599.0)),
+      TierBand(tier: "B", floor: 1600, ceiling: some(1799.0)),
+      TierBand(tier: "B+", floor: 1800, ceiling: some(1899.0)),
+      TierBand(tier: "A", floor: 1900, ceiling: some(2099.0)),
+      TierBand(tier: "A+", floor: 2100, ceiling: none(float))])
 
 suite "rating domain":
   test "a game is worth between zero and twice half the base":
@@ -46,17 +50,17 @@ suite "rating domain":
 
   test "tier strength is the band midpoint and the top band stays open":
     let p = params()
-    check tierStrength(p, "D").get == 500.0
-    check tierStrength(p, "C").get == 1300.0
-    check tierStrength(p, "A").get == 2050.0
+    check tierStrength(p, "D").get == 1099.5
+    check tierStrength(p, "C").get == 1399.5
+    check tierStrength(p, "A").get == 1999.5
     check tierStrength(p, "A+").get == 2200.0
-    check tierStrength(p, "d").get == 500.0
+    check tierStrength(p, "d").get == 1099.5
     check tierStrength(p, "").isNone
     check tierStrength(p, "Z").isNone
 
   test "the average skips unknown tiers instead of dragging it down":
     let p = params()
-    check averageTierStrength(p, @["C", "Z", ""]) == 1300.0
+    check averageTierStrength(p, @["C", "Z", ""]) == 1399.5
     check averageTierStrength(p, @["", "Z"]) == 0.0
 
   test "points are rounded once and the multiplier applies to the total":

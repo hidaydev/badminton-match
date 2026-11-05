@@ -167,3 +167,6 @@ export function mergePlayers(
     { method: 'POST', body: JSON.stringify({ sourcePlayerId }) },
   )
 }
+
+/** Player tiers, shared by the roster and player forms. */
+export const TIERS: readonly string[] = ['D', 'D+', 'C', 'C+', 'B', 'B+', 'A', 'A+']
