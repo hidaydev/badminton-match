@@ -1,0 +1,19 @@
+# Janitor run, started by majadu-janitor.timer.
+#
+# The janitor deletes expired temporary rows (OAuth flows, idempotency keys,
+# outbox entries, revoked links, ws tickets) with the application role. It never
+# touches account.audit; that table belongs to majadu-audit-retention.service,
+# which runs as the owner.
+[Unit]
+Description=Majadu janitor (expired temporary rows)
+Wants=network-online.target
+After=network-online.target
+OnFailure=majadu-alert@%n.service
+
+[Service]
+Type=oneshot
+# --entrypoint selects the tool: the image ENTRYPOINT is the API.
+ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
+  --env-file=/srv/qouver/apps/majadu/env/majadu-prod.env \
+  --entrypoint /usr/local/bin/janitorcli \
+  localhost/majadu-api:local

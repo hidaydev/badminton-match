@@ -15,6 +15,9 @@ After=network-online.target majadu-api.service
 
 [Service]
 Type=oneshot
+# The image ENTRYPOINT is the API, so the tool is selected with --entrypoint;
+# an argument after the image name would start a second API instance instead.
 ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
   --env-file=/srv/qouver/apps/majadu/env/majadu-prod.env \
-  localhost/majadu-api:local /usr/local/bin/ranksnapshot
+  --entrypoint /usr/local/bin/ranksnapshot \
+  localhost/majadu-api:local

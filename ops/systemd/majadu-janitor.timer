@@ -1,0 +1,13 @@
+# Runs the janitor once a day. The retention window comes from the community
+# settings, so the schedule only has to be frequent enough to keep expired rows
+# from piling up; Persistent=true catches up after downtime.
+[Unit]
+Description=Run the Majadu janitor daily
+
+[Timer]
+OnCalendar=*-*-* 03:45:00
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

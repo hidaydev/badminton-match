@@ -147,7 +147,11 @@ fi
 # still names `bm`, this repository's image (already v2) must not run there.
 # ---------------------------------------------------------------------------
 STEP="cutover-gate"
-PROD_DSN=$(sed -n 's/^MAJADU_PG_DSN=//p' "$ENV_FILE" 2>/dev/null | tail -1)
+# A missing env file is not "the cutover has not happened": it means the deploy
+# cannot tell which database it is about to serve, so it fails instead of
+# reporting success.
+[ -f "$ENV_FILE" ] || fail "prod env file $ENV_FILE is missing"
+PROD_DSN=$(sed -n 's/^MAJADU_PG_DSN=//p' "$ENV_FILE" | tail -1)
 case "$PROD_DSN" in
   */bm2|*/bm2\?*|*/bm2\"*) ;;
   *)
@@ -200,32 +204,29 @@ else
 fi
 
 STEP="pull"
-PULLED=0
-if podman pull "$REGISTRY_IMAGE@$DIGEST" >>"$LOG" 2>&1; then
-  PULLED=1
-  log "pulled $REGISTRY_IMAGE@$DIGEST"
-else
-  log "registry unreachable; keeping :prev instead of the release image"
+# A failed pull is a failed deploy. Falling back to :prev used to keep the old
+# image running while the state files below recorded the release as deployed,
+# and the version check then skipped every later push for that version. The
+# service is left on :local instead, and the state files are not written.
+if ! podman pull "$REGISTRY_IMAGE@$DIGEST" >>"$LOG" 2>&1; then
+  log "ERROR: could not pull $REGISTRY_IMAGE@$DIGEST; v$VERSION is not deployed and :local was left untouched (step: $STEP)"
+  alert
+  exit 1
 fi
+log "pulled $REGISTRY_IMAGE@$DIGEST"
 
 STEP="rotate"
-if [ "$PULLED" -eq 1 ]; then
-  PULLED_ID=$(podman image inspect --format '{{.Id}}' "$REGISTRY_IMAGE@$DIGEST")
-  CURRENT_ID=""
-  if podman image exists "$LOCAL_IMAGE:local"; then
-    CURRENT_ID=$(podman image inspect --format '{{.Id}}' "$LOCAL_IMAGE:local")
-  fi
-  # A redeploy of the same digest must not rotate :prev onto the image it is
-  # meant to replace.
-  if [ "$PULLED_ID" != "$CURRENT_ID" ] && [ -n "$CURRENT_ID" ]; then
-    podman tag "$LOCAL_IMAGE:local" "$LOCAL_IMAGE:prev"
-  fi
-  podman tag "$REGISTRY_IMAGE@$DIGEST" "$LOCAL_IMAGE:local"
-elif ! podman image exists "$LOCAL_IMAGE:prev"; then
-  fail "registry unreachable and no :prev image to fall back to"
-else
-  podman tag "$LOCAL_IMAGE:prev" "$LOCAL_IMAGE:local"
+PULLED_ID=$(podman image inspect --format '{{.Id}}' "$REGISTRY_IMAGE@$DIGEST")
+CURRENT_ID=""
+if podman image exists "$LOCAL_IMAGE:local"; then
+  CURRENT_ID=$(podman image inspect --format '{{.Id}}' "$LOCAL_IMAGE:local")
 fi
+# A redeploy of the same digest must not rotate :prev onto the image it is
+# meant to replace.
+if [ "$PULLED_ID" != "$CURRENT_ID" ] && [ -n "$CURRENT_ID" ]; then
+  podman tag "$LOCAL_IMAGE:local" "$LOCAL_IMAGE:prev"
+fi
+podman tag "$REGISTRY_IMAGE@$DIGEST" "$LOCAL_IMAGE:local"
 
 # ---------------------------------------------------------------------------
 # Units come from the repository, not from whatever was left on the VPS.
@@ -250,6 +251,36 @@ for kind in container service; do
   done
 done
 service daemon-reload >/dev/null 2>&1 || true
+
+# ---------------------------------------------------------------------------
+# Operator scripts come from the repository too: cutover.sh calls backup.sh,
+# restore.sh and smoke.sh from $APP_DIR/scripts/, so a fix that only lands in
+# the checkout never reaches the VPS. Each file is syntax-checked before the
+# move, and the swap is a rename, so a script is never half-written in place.
+# ---------------------------------------------------------------------------
+STEP="sync-scripts"
+SCRIPTS_DIR="$APP_DIR/scripts"
+mkdir -p "$SCRIPTS_DIR"
+for SRC in "$MONO_DIR"/ops/scripts/*.sh; do
+  [ -f "$SRC" ] || continue
+  NAME=$(basename "$SRC")
+  if cmp -s "$SRC" "$SCRIPTS_DIR/$NAME"; then
+    continue
+  fi
+  # `sh -n` is the first gate. These scripts use `#!/usr/bin/env bash` and
+  # arrays/local, which dash rejects even though they are valid for the shebang
+  # interpreter, so bash is the fallback for a bash shebang. Neither passing
+  # means nothing is moved.
+  if ! sh -n "$SRC" 2>/dev/null; then
+    if ! head -n 1 "$SRC" | grep -q 'bash' || ! bash -n "$SRC" 2>/dev/null; then
+      fail "$NAME does not pass a syntax check"
+    fi
+  fi
+  TMP="$SCRIPTS_DIR/$NAME.new.$$"
+  install -m 755 "$SRC" "$TMP"
+  mv -f "$TMP" "$SCRIPTS_DIR/$NAME"
+  log "script $NAME updated from the repository"
+done
 
 wait_ready() {
   local deadline=$((SECONDS + 60))

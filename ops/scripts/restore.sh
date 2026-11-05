@@ -2,7 +2,8 @@
 # Restore a custom-format dump into a database.
 #
 #   ./ops/scripts/restore.sh --file backups/bm2-20261104-0300.dump --target bm2
-#   ./ops/scripts/restore.sh --file dump --target bm_staging --recreate
+#   ./ops/scripts/restore.sh --file dump --target bm_staging --recreate \
+#     --dsn postgres://bm2_owner@qouver-postgres:5432/bm_staging
 #
 # The target guard is an allow-list, not a deny-list: `bm`, `bm2`, `bm_staging`,
 # anything starting with `bm2_`, and rehearsal targets starting with
@@ -63,9 +64,47 @@ if [ -z "$DSN" ]; then
   DSN="postgresql:///${TARGET}"
 fi
 
+# Derive the maintenance connection from the target DSN: same host, port and
+# role, but the `postgres` database, because the target cannot be dropped from a
+# connection to itself. A unix-socket DSN (`postgresql:///db`) carries no host,
+# so --recreate refuses it instead of silently dropping a database on whatever
+# server the local socket happens to point at.
+maintenance_dsn() {
+  local dsn=$1 scheme rest authority path query hostport host
+  case "$dsn" in
+    postgres://*) scheme="postgres" ;;
+    postgresql://*) scheme="postgresql" ;;
+    *) return 1 ;;
+  esac
+  rest=${dsn#*://}
+  case "$rest" in
+    */*) authority=${rest%%/*}; path=/${rest#*/} ;;
+    *) authority=$rest; path="" ;;
+  esac
+  [ -n "$authority" ] || return 1
+  query=""
+  case "$path" in
+    *\?*) query="?${path#*\?}"; path=${path%%\?*} ;;
+  esac
+  hostport=${authority##*@}
+  case "$hostport" in
+    \[*\]:*) host=${hostport%]:*}"]" ;;
+    \[*\]) host=$hostport ;;
+    *:*) host=${hostport%%:*} ;;
+    *) host=$hostport ;;
+  esac
+  [ -n "$host" ] || return 1
+  printf '%s://%s/postgres%s\n' "$scheme" "$authority" "$query"
+}
+
 if [ "$RECREATE" -eq 1 ]; then
+  MAINT_DSN=$(maintenance_dsn "$DSN") || {
+    echo "restore: --recreate needs a host in --dsn; refusing to drop '$TARGET' on an unknown server" >&2
+    echo "restore: pass --dsn postgres://<user>@<host>:<port>/<database>" >&2
+    exit 2
+  }
   echo "restore: recreating $TARGET"
-  psql "postgresql:///postgres" -v ON_ERROR_STOP=1 \
+  psql "$MAINT_DSN" -v ON_ERROR_STOP=1 \
     -c "drop database if exists \"$TARGET\" with (force)" \
     -c "create database \"$TARGET\""
 fi

@@ -1,0 +1,13 @@
+# Runs the rating ingest tick every 30 minutes. RandomizedDelaySec spreads the
+# start of the run so a reboot does not fire every timer in the same second;
+# Persistent=true catches up after downtime instead of silently skipping it.
+[Unit]
+Description=Run the Majadu rating ingest tick every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:0/30:00
+RandomizedDelaySec=5m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

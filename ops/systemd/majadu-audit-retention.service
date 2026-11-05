@@ -1,0 +1,20 @@
+# Audit retention, started by majadu-audit-retention.timer.
+#
+# Pruning account.audit needs the owner role, so this unit reads
+# MAJADU_AUDIT_DSN from the env file; the application DSN would either fail the
+# privilege check or work by accident on a host where the roles are wrong. The
+# variable is commented out in ops/env/prod.env.example until the timer is
+# enabled, and the tool refuses to run without it.
+[Unit]
+Description=Majadu audit retention (owner role)
+Wants=network-online.target
+After=network-online.target
+OnFailure=majadu-alert@%n.service
+
+[Service]
+Type=oneshot
+# --entrypoint selects the tool: the image ENTRYPOINT is the API.
+ExecStart=/usr/bin/podman run --rm --pull=never --network=qouver \
+  --env-file=/srv/qouver/apps/majadu/env/majadu-prod.env \
+  --entrypoint /usr/local/bin/auditretention \
+  localhost/majadu-api:local
