@@ -20,10 +20,15 @@ type
   PatchResult* = object
     status*: PatchStatus
     player*: JsonNode
+    aliasTaken*: bool
+      ## Set when the patch asked for aliases that another player already owns.
+      ## The whole update was rolled back, so `player` is not what is stored.
 
 const columns = """
   id, canonical_name, gender, tier,
   user_id, created_at::text as created_at, updated_at::text as updated_at"""
+
+const aliasUniqueConstraint = "aliases_key_unique"
 
 proc node*(row: Row): JsonNode =
   %*{
@@ -73,42 +78,67 @@ proc create*(db: Db, communityId, name, gender: string, tier: string): CreateRes
   else:
     CreateResult(status: pcDuplicate)
 
+proc replaceAliases(conn: DbConn, communityId, playerId: string,
+                    values: seq[string]) =
+  discard conn.execUpdate(
+    """delete from player.aliases
+       where community_id = $1::uuid and player_id = $2::uuid""",
+    @[textParam(communityId), textParam(playerId)])
+  for value in values:
+    discard conn.execUpdate(
+      """insert into player.aliases (community_id, player_id, alias)
+         values ($1::uuid, $2::uuid, $3)""",
+      @[textParam(communityId), textParam(playerId), textParam(value)])
+
+proc updatePlayer(conn: DbConn, communityId, playerId: string,
+                  patch: PlayerPatch): Option[Row] =
+  conn.queryOne(
+    """update player.players
+       set canonical_name = coalesce($3, canonical_name),
+           gender = coalesce($4, gender),
+           tier = case when $5 then null else coalesce($6, tier) end,
+           updated_at = now()
+       where community_id = $1::uuid and id = $2::uuid
+       returning""" & columns,
+    @[
+      textParam(communityId),
+      textParam(playerId),
+      (if patch.name.isSome: textParam(patch.name.get) else: nullParam()),
+      (if patch.gender.isSome: textParam($patch.gender.get) else: nullParam()),
+      boolParam(patch.clearTier),
+      (if patch.tier.isSome: textParam($patch.tier.get) else: nullParam()),
+    ])
+
 proc patch*(db: Db, communityId, playerId: string,
             patch: PlayerPatch): PatchResult =
   ## One UPDATE with a fixed column list; `coalesce` keeps untouched fields and
-  ## the tier is only cleared when the caller explicitly sent null.
-  var row: Option[Row]
+  ## the tier is only cleared when the caller explicitly sent null. Aliases
+  ## travel with the row: a patch that names a taken alias rolls the whole
+  ## update back instead of leaving a renamed player behind a 409.
+  var outcome = PatchResult(status: psNotFound)
   try:
-    row = db.queryOne(
-      """update player.players
-         set canonical_name = coalesce($3, canonical_name),
-             gender = coalesce($4, gender),
-             tier = case when $5 then null else coalesce($6, tier) end,
-             updated_at = now()
-         where community_id = $1::uuid and id = $2::uuid
-         returning""" & columns,
-      @[
-        textParam(communityId),
-        textParam(playerId),
-        (if patch.name.isSome: textParam(patch.name.get) else: nullParam()),
-        (if patch.gender.isSome: textParam($patch.gender.get) else: nullParam()),
-        boolParam(patch.clearTier),
-        (if patch.tier.isSome: textParam($patch.tier.get) else: nullParam()),
-      ])
+    discard db.tx(proc(conn: DbConn): int =
+      let row = updatePlayer(conn, communityId, playerId, patch)
+      if row.isNone:
+        # A name collision raises above; reaching this point means the row is
+        # gone, unless it was replaced after this transaction started.
+        let existing = conn.queryOne(
+          """select id from player.players
+             where community_id = $1::uuid and id = $2::uuid""",
+          @[textParam(communityId), textParam(playerId)])
+        outcome.status = if existing.isSome: psDuplicate else: psNotFound
+        return 0
+      outcome = PatchResult(status: psOk, player: node(row.get))
+      if patch.aliases.isSome:
+        replaceAliases(conn, communityId, playerId, patch.aliases.get)
+      1)
   except DbError as error:
     if error.sqlState == "23505":
+      if error.constraint == aliasUniqueConstraint:
+        return PatchResult(status: psOk, aliasTaken: true)
       return PatchResult(status: psDuplicate)
     raise
-  if row.isSome:
-    return PatchResult(status: psOk, player: node(row.get))
-  # A collision raises above; reaching this point means the row is gone.
-  let existing = db.queryOne(
-    "select id from player.players where community_id = $1::uuid and id = $2::uuid",
-    @[textParam(communityId), textParam(playerId)])
-  if existing.isSome:
-    PatchResult(status: psDuplicate)
-  else:
-    PatchResult(status: psNotFound)
+  outcome
 
 proc aliases*(db: Db, communityId, playerId: string): seq[string] =
   for row in db.query(
@@ -125,15 +155,7 @@ proc setAliases*(db: Db, communityId, playerId: string,
   ## so the previous set survives unchanged.
   try:
     discard db.tx(proc(conn: DbConn): int =
-      discard conn.execUpdate(
-        """delete from player.aliases
-           where community_id = $1::uuid and player_id = $2::uuid""",
-        @[textParam(communityId), textParam(playerId)])
-      for value in values:
-        discard conn.execUpdate(
-          """insert into player.aliases (community_id, player_id, alias)
-             values ($1::uuid, $2::uuid, $3)""",
-          @[textParam(communityId), textParam(playerId), textParam(value)])
+      replaceAliases(conn, communityId, playerId, values)
       1)
     true
   except DbError as error:

@@ -1168,8 +1168,7 @@ proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   let result = playerStore.patch(application.db, ctx.communityId, playerId, patch)
   case result.status
   of psOk:
-    if patch.aliases.isSome and
-       not playerStore.setAliases(application.db, ctx.communityId, playerId, aliases):
+    if result.aliasTaken:
       problem(request, 409, "ALIAS_TAKEN", "an alias is already used by another player")
       return
     audit("player.patch", ctx, user, "player", playerId,
