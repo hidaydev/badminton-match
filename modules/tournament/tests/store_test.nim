@@ -215,5 +215,38 @@ suite "tournament store":
 
     check remove(database, communityId, id)
 
+  test "a partai with only one score is refused, not written":
+    let body = teamJson(teamSnapshot())
+    let (created, snapshot) = create(database, communityId, "", body)
+    check created == svOk
+    let id = snapshot["id"].getStr()
+    let target = snapshot["matches"][0]["id"].getStr()
+
+    # A full replace carries the whole partai list, so it goes through the same
+    # parser as a create: one side only must not reach `scoreB.get`.
+    let stored = load(database, communityId, id).get
+    var broken = stored
+    var firstMatch = broken["matches"][0]
+    firstMatch["partai"] = %*[{"scoreA": 21}]
+    let (replaced, replacedDetail) = replace(database, communityId, id, "", broken, 1)
+    check replaced == svInvalid
+    check replacedDetail["issues"][0]["detail"].getStr().contains("together")
+
+    # The one-partai patch has its own validator, which demands both keys.
+    let (patched, patchDetail) = patchMatch(database, communityId, id, target,
+      %*{"partai": [
+        {"scoreA": 21},
+        {"scoreA": 30, "scoreB": 21},
+        {"scoreA": 30, "scoreB": 22}]}, 1)
+    check patched == ptInvalid
+    check patchDetail["issues"][0]["detail"].getStr().contains("scoreA and scoreB")
+
+    # Neither rejected write changed the stored partai.
+    let after = load(database, communityId, id).get
+    for match in after["matches"]:
+      if match["id"].getStr() == target:
+        check match["partai"][0]["scoreA"].kind == JNull
+    check remove(database, communityId, id)
+
 cleanup(database)
 database.close()
