@@ -64,7 +64,9 @@ client uses the same-origin `/api` path. Copy `.env.local.example` to
   upgrade, so the session socket has to reach the API host directly (the same
   `/majadu` prefix applies). Without it `socketBase()` falls back to the page
   origin, where `/ws/...` is a static asset: the socket never connects and the
-  session page silently degrades to its 5 s poll.
+  session page silently degrades to its 5 s poll. The CSP in `vercel.json`
+  allows `wss://api.qouver.com`; pointing `VITE_WS_BASE` at another host also
+  means adding that host to `connect-src` there.
 - The API must allow this origin in `security.allowed_origins` and register
   `<origin>/api/auth/callback` as the OIDC redirect URI.
 - `vercel.json` also sets `Cache-Control: no-store` for `/`, `/index.html`, and
