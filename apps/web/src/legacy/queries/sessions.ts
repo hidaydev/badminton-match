@@ -1,7 +1,7 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, listSessions, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers, patchGameSkipped, swapMembers } from './endpoints'
+import { getSession, publishSession, listSessions, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers, patchGameSkipped, swapMembers, issueSessionTicket, currentCommunitySlug } from './endpoints'
 import type { GranularSwapTarget } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import { isVersionMismatch, isLockedError, isContentionError } from './errors'
@@ -156,13 +156,97 @@ export function useGetSession(
 
 /**
  * v1 streamed snapshots over SSE. v2 publishes `session.changed` on a
- * WebSocket, and the page already refetches every 5s while this reports
- * `connected: false`, so the rest of the screen keeps working unchanged.
+ * WebSocket; the page keeps its 5s refetch while this reports
+ * `connected: false`, so a dropped socket degrades instead of breaking.
+ *
+ * The URL is built from `VITE_WS_BASE` (or the API base when that is absolute),
+ * because in production the socket lives on the API origin: a Vercel rewrite
+ * cannot carry an upgrade.
  */
-export function useSessionRealtime(_sessionId: string | undefined, _enabled = true) {
-  void _sessionId
-  void _enabled
-  return { connected: false, reconnecting: false }
+export function useSessionRealtime(sessionId: string | undefined, enabled = true) {
+  const queryClient = useQueryClient()
+  const [connected, setConnected] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
+
+  useEffect(() => {
+    // The cleanup below already resets the flags, so a disabled hook is a no-op.
+    if (!sessionId || !enabled) return
+    let active = true
+    let socket: WebSocket | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let attempt = 0
+
+    const retry = () => {
+      if (!active) return
+      setReconnecting(true)
+      const delay = Math.min(30_000, 1_000 * 2 ** attempt)
+      attempt += 1
+      timer = setTimeout(() => { void connect() }, delay)
+    }
+
+    const connect = async () => {
+      try {
+        const { ticket } = await issueSessionTicket(sessionId)
+        if (!active) return
+        const slug = currentCommunitySlug()
+        socket = new WebSocket(
+          `${socketBase()}/ws/c/${encodeURIComponent(slug)}` +
+          `/sessions/${encodeURIComponent(sessionId)}` +
+          `?ticket=${encodeURIComponent(ticket)}`,
+        )
+        socket.onopen = () => {
+          attempt = 0
+          setConnected(true)
+          setReconnecting(false)
+          socket?.send(JSON.stringify({ type: 'subscribe', lastSeq: 0 }))
+        }
+        socket.onmessage = (event) => {
+          let frame: { type?: string }
+          try {
+            frame = JSON.parse(String(event.data)) as { type?: string }
+          } catch {
+            return
+          }
+          if (frame.type === 'session.changed') {
+            void queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+          }
+          if (frame.type === 'full' || frame.type === 'revoked') {
+            // The link is gone or this process is full; stop reconnecting and
+            // let the polling path keep the screen correct.
+            active = false
+            socket?.close()
+          }
+        }
+        socket.onclose = () => {
+          setConnected(false)
+          retry()
+        }
+        socket.onerror = () => socket?.close()
+      } catch {
+        retry()
+      }
+    }
+
+    void connect()
+    return () => {
+      active = false
+      if (timer !== null) clearTimeout(timer)
+      socket?.close()
+      setConnected(false)
+      setReconnecting(false)
+    }
+  }, [sessionId, enabled, queryClient])
+
+  return { connected, reconnecting }
+}
+
+function socketBase(): string {
+  const configured = import.meta.env.VITE_WS_BASE as string | undefined
+  if (configured) return configured.replace(/\/+$/, '')
+  const api = import.meta.env.VITE_API_BASE as string | undefined
+  if (api && /^https?:/.test(api)) return api.replace(/^http/, 'ws').replace(/\/+$/, '')
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${scheme}://${window.location.host}`
 }
 
 export function usePublishSession(sessionId: string | undefined) {

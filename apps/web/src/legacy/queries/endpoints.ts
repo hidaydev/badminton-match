@@ -30,6 +30,20 @@ export function setCommunitySlug(slug: string) {
   communitySlug = slug
 }
 
+/** The slug the shell last set; the socket path needs it. */
+export function currentCommunitySlug(): string {
+  return communitySlug
+}
+
+/** A one-use ticket for the session socket; it expires in seconds. */
+export async function issueSessionTicket(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<{ ticket: string; expiresIn: number }> {
+  return await request('POST',
+    communityPath(`/sessions/${enc(sessionId)}/ws-ticket`), undefined, signal)
+}
+
 function communityPath(path: string): string {
   if (communitySlug === '') {
     throw new ApiError('community slug is not set')

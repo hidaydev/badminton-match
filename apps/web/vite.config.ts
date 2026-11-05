@@ -19,6 +19,13 @@ const proxy = {
     changeOrigin: true,
     rewrite: (path: string) => path.replace(/^\/api/, ''),
   },
+  // The session socket upgrades on the API origin; in dev the proxy keeps it
+  // on the same port as the rest of the app.
+  '/ws': {
+    target: apiProxy,
+    changeOrigin: true,
+    ws: true,
+  },
 }
 
 export default defineConfig({
