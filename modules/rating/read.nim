@@ -40,6 +40,10 @@ type
     tier*: string
     ## Evidence floor; zero shows every player with an entry in the window.
     minSessions*: int
+    ## Restricts the board to these players; empty means the whole community.
+    ## A share link sets it so a forwarded code publishes one session, not the
+    ## community's whole board.
+    playerIds*: seq[string]
 
 proc uuidArray(ids: seq[string]): string =
   "{" & ids.join(",") & "}"
@@ -59,8 +63,10 @@ proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
        left join rating.player_state s
          on s.community_id = p.community_id and s.player_id = p.id
        where p.community_id = $1::uuid
-         and ($2::text = '' or coalesce(p.tier, '') = $2)""",
-    @[textParam(query.communityId), textParam(query.tier)]):
+         and ($2::text = '' or coalesce(p.tier, '') = $2)
+         and (cardinality($3::uuid[]) = 0 or p.id = any($3::uuid[]))""",
+    @[textParam(query.communityId), textParam(query.tier),
+      textParam(uuidArray(query.playerIds))]):
     let playerId = row.get("player_id")
     if not projections.hasKey(playerId):
       continue

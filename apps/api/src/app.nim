@@ -118,6 +118,25 @@ proc audit(action: string, ctx: CommunityContext, user: AuthUser,
   ## Community route overload: the membership role is already resolved.
   audit(action, ctx.communityId, user, targetKind, targetId, after, $ctx.role)
 
+proc authAudit(action: string, user: AuthUser, outcome = arAllow,
+               reason = "") =
+  ## Auth events belong to no community, so the row carries none. The role is
+  ## the platform one, because a lesson learned here is about a person's
+  ## sessions, not about a membership.
+  recordAudit(application.db, auditEvent(action, communityId = "",
+    actorId = user.id,
+    actorRole = (if user.isOwner: "platform_owner" else: "member"),
+    outcome = outcome, targetKind = "user", targetId = user.id,
+    reason = reason, requestId = uuidv7()))
+
+proc authRejected(action, reason: string, userId = "") =
+  ## A rejected attempt before any session exists: who is unknown unless the
+  ## account was already resolved. Only the reason is kept, never the token.
+  recordAudit(application.db, auditEvent(action, communityId = "",
+    actorId = userId, actorRole = "anonymous", outcome = arDeny,
+    targetKind = (if userId.len > 0: "user" else: ""), targetId = userId,
+    reason = reason, requestId = uuidv7()))
+
 proc send(request: Request, status: int,
           headers: openArray[(string, string)], body: string) =
   ## Single response path: every response carries the security headers, so a new
@@ -140,14 +159,6 @@ proc jsonResponse(request: Request, status: int, body: JsonNode,
 proc problem(request: Request, status: int, code, detail: string) =
   send(request, status, $ %*{"status": status, "code": code, "detail": detail})
 
-proc bodyJson(request: Request): JsonNode =
-  if request.body.len == 0:
-    return %*{}
-  try:
-    parseJson(request.body)
-  except JsonParsingError:
-    raise newException(ValueError, "invalid JSON body")
-
 proc cookieValue(request: Request, name: string): string =
   let header = request.headers["Cookie"]
   for part in header.split(';'):
@@ -158,6 +169,43 @@ proc cookieValue(request: Request, name: string): string =
 
 proc configSnapshot(): Snapshot =
   application.config.snapshot(application.db)
+
+proc bodyJson(request: Request): JsonNode =
+  if request.body.len == 0:
+    return %*{}
+  # Refused before parsing: `parseJson` walks the nesting, so the depth can only
+  # be checked on the raw text. `/auth/start` is unauthenticated and parses
+  # before anything else, which is why this door enforces the limit.
+  if jsonTooDeep(request.body,
+      configSnapshot().intValue(%*{}, keySecurityMaxJsonDepth)):
+    raise newException(ValueError, "body is nested too deeply")
+  let parsed =
+    try:
+      parseJson(request.body)
+    except JsonParsingError:
+      raise newException(ValueError, "invalid JSON body")
+  # Every route reads the body as an object. A valid scalar or array would reach
+  # `hasKey` and raise a defect, which the handler reports as a 500.
+  if parsed.kind != JObject:
+    raise newException(ValueError, "body must be a JSON object")
+  parsed
+
+proc requestIdentity(request: Request): string =
+  ## Production sits behind a CDN edge, so the TCP-derived address is the same
+  ## for everyone and a per-address quota would be a platform-wide quota. A
+  ## browser with a session cookie is keyed by a hash of that cookie; an
+  ## anonymous caller keeps the address. The table is memory-only, so the token
+  ## itself is never stored.
+  let token = cookieValue(request, "majadu_session")
+  if token.len > 0: "session:" & sha256Hex(token)[0 .. 15]
+  else: clientIp(request, trustedProxies())
+
+proc rateLimited(request: Request, decision: Decision) =
+  send(request, 429,
+    @[("Content-Type", "application/json"), ("Cache-Control", "no-store"),
+      ("Retry-After", $decision.retryAfter)],
+    $ %*{"status": 429, "code": "RATE_LIMITED",
+         "retryAfter": decision.retryAfter})
 
 proc sessionCookie(token: string): string =
   let days = configSnapshot().intValue(%*{}, keySessionAbsoluteDays)
@@ -297,9 +345,11 @@ proc finishAuth(request: Request) =
       application.oidc.issuer, application.oidc.clientId, "",
       epochTime().int64)
   except CatchableError as error:
+    authRejected("auth.login.rejected", "invalid id token")
     problem(request, 401, "INVALID_ID_TOKEN", error.msg)
     return
   if sha256Hex(claims["nonce"].getStr()) != flow.get("nonce_hash"):
+    authRejected("auth.login.rejected", "nonce mismatch")
     problem(request, 401, "NONCE_MISMATCH", "nonce mismatch")
     return
   let subject = claims["sub"].getStr()
@@ -308,6 +358,8 @@ proc finishAuth(request: Request) =
     @[textParam(sha256Hex(subject))])
   if tombstone.isSome and accountLifecycle.isAnonymized(
       tombstone.get.get("email_hash"), tombstone.get.get("id")):
+    authRejected("auth.login.rejected", "account anonymized",
+      tombstone.get.get("id"))
     problem(request, 403, "ACCOUNT_ANONYMIZED", "this account was deactivated")
     return
   # One normalization for the whole flow: invites are stored lowercased, so a
@@ -325,7 +377,7 @@ proc finishAuth(request: Request) =
          set display_name = excluded.display_name,
              is_platform_owner = platform.user.is_platform_owner
                                  or excluded.is_platform_owner
-       returning id""",
+       returning id, is_platform_owner""",
     @[textParam(subject), textParam(sha256Hex(email)),
       textParam(displayName), boolParam(owner)])
   if userRow.isNone:
@@ -336,6 +388,8 @@ proc finishAuth(request: Request) =
   discard inviteStore.acceptPendingForEmail(application.db,
     userRow.get.get("id"), sha256Hex(email))
   let token = createSessionToken(userRow.get.get("id"))
+  authAudit("auth.login", AuthUser(id: userRow.get.get("id"),
+    isOwner: userRow.get.get("is_platform_owner") == "t"))
   send(request, 302,
     @[("Location", safeReturnPath(flow.get("return_to"))),
       ("Set-Cookie", sessionCookie(token))], "")
@@ -355,6 +409,7 @@ proc revokeOtherSessions(request: Request) =
   if user.isNone: return
   revokeOthers(application.db, user.get.id, cookieValue(request, "majadu_session"))
   application.hub.revokePrincipal(user.get.id)
+  authAudit("auth.sessions.revoke_others", user.get)
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
 proc me(request: Request) =
@@ -374,6 +429,7 @@ proc logout(request: Request) =
   # Sockets and every ticket of the principal close with the session.
   if user.isSome:
     application.hub.revokePrincipal(user.get.id)
+    authAudit("auth.logout", user.get)
   send(request, 204, @[("Set-Cookie",
     "majadu_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")], "")
 
@@ -882,6 +938,15 @@ proc requestJoin(request: Request, slug: string) =
   ## already-pending request all return the same 202 body.
   const accepted = """{"status":"accepted"}"""
   let user = currentUser(request)
+  if user.isSome:
+    # Per account per window: a repeated submission is a script, not a person,
+    # and the anonymous path never reaches the store anyway.
+    let rate = configSnapshot().intValue(%*{}, keySecurityJoinRequestRate)
+    let budget = application.limiter.hit("join|" & requestIdentity(request),
+      rate, epochTime())
+    if not budget.allowed:
+      rateLimited(request, budget)
+      return
   let row = if user.isSome:
     application.db.queryOne(
       """select c.id,
@@ -1850,7 +1915,10 @@ proc minSessionsParam(request: Request): int =
   except ValueError:
     0
 
-proc communityBoard(request: Request, communityId, timezone: string) =
+proc communityBoard(request: Request, communityId, timezone: string,
+                    playerIds: seq[string] = @[]) =
+  ## The member page reads the whole community board; a share link passes the
+  ## session's participants so the public copy is one session, not the ladder.
   let settings = currentSettings(application.db, communityId)
   let params = ratingParams.loadRatingParams(configSnapshot(), settings)
   let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
@@ -1859,22 +1927,24 @@ proc communityBoard(request: Request, communityId, timezone: string) =
   let asOf = if latest.len > 0: latest else: communityToday(timezone)
   let query = ratingRead.BoardQuery(communityId: communityId,
     asOf: asOf, params: params, limit: limit,
-    tier: request.queryParams["tier"], minSessions: minSessions)
+    tier: request.queryParams["tier"], minSessions: minSessions,
+    playerIds: playerIds)
   let rows = ratingRead.board(application.db, query)
   jsonResponse(request, 200, %*{"items": boardItems(rows),
     "asOf": asOf,
     "windowWeeks": params.windowWeeks, "bestN": params.bestN,
     "minSessions": minSessions}, [("Cache-Control", "no-store")])
 
-proc rankingPlayer(request: Request, communityId, timezone,
-                   playerId: string) =
+proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
+                   playerIds: seq[string] = @[]) =
   let settings = currentSettings(application.db, communityId)
   let params = ratingParams.loadRatingParams(configSnapshot(), settings)
   let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
   let latest = ratingRead.latestEventDate(application.db, communityId)
   let asOf = if latest.len > 0: latest else: communityToday(timezone)
   let query = ratingRead.BoardQuery(communityId: communityId,
-    asOf: asOf, params: params, limit: limit, tier: "")
+    asOf: asOf, params: params, limit: limit, tier: "",
+    playerIds: playerIds)
   let rows = ratingRead.board(application.db, query)
   var found = false
   var item: JsonNode
@@ -1909,21 +1979,37 @@ proc playerStats(request: Request, ctx: CommunityContext, playerId: string) =
     return
   jsonResponse(request, 200, found.get, [("Cache-Control", "no-store")])
 
+proc sessionPlayerIds(communityId, sessionId: string): seq[string] =
+  ## The players who took part in one session. A share code opens that session,
+  ## so the public board it serves is this set and never the whole community.
+  for row in application.db.query(
+    """select player_id from session.participants
+       where community_id = $1::uuid and session_id = $2::uuid""",
+    @[textParam(communityId), textParam(sessionId)]):
+    result.add(row.get("player_id"))
+
 proc getSharedRanking(request: Request, code, playerId: string) =
-  ## The share code names the community, so the public detail is the same row
-  ## the member page shows, minus anything the board does not already expose.
+  ## The share code names one session, so the public detail is that player's row
+  ## on the shared board. Anyone who did not play in the session is a 404, even
+  ## if they sit high on the community ladder.
   let found = shareStore.resolve(application.db, application.keyring, code)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
-  rankingPlayer(request, found.get.communityId, found.get.timezone, playerId)
+  let playerIds = sessionPlayerIds(found.get.communityId, found.get.sessionId)
+  if playerId notin playerIds:
+    problem(request, 404, "NOT_FOUND", "player is not on the board")
+    return
+  rankingPlayer(request, found.get.communityId, found.get.timezone, playerId,
+    playerIds)
 
 proc getSharedRankings(request: Request, code: string) =
   let found = shareStore.resolve(application.db, application.keyring, code)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
-  communityBoard(request, found.get.communityId, found.get.timezone)
+  communityBoard(request, found.get.communityId, found.get.timezone,
+    sessionPlayerIds(found.get.communityId, found.get.sessionId))
 
 proc upgradeSocket(request: Request, snapshot: Snapshot, kind, channelId,
                    clientAddress: string) =
@@ -2210,24 +2296,12 @@ proc route(request: Request) =
     if csrfCheck(request, snapshot) == csrfRejected:
       problem(request, 403, "CSRF_REJECTED", "origin is not allowed")
       return
-    let client = clientIp(request, trustedProxies())
-    # Production sits behind a CDN edge, so the TCP-derived address is the same
-    # for everyone and a per-address quota would be a platform-wide quota. A
-    # browser with a session cookie is keyed by a hash of that cookie; an
-    # anonymous caller keeps the address. The table is memory-only, so the token
-    # itself is never stored.
-    let token = cookieValue(request, "majadu_session")
-    let identity =
-      if token.len > 0: "session:" & sha256Hex(token)[0 .. 15]
-      else: client
+    let identity = requestIdentity(request)
     let routeLabel = templateRoute(path)
     let budget = application.limiter.hit(routeLabel & "|" & identity,
       snapshot.intValue(%*{}, keySecurityRateLimitPerMinute), epochTime())
     if not budget.allowed:
-      send(request, 429,
-        @[("Content-Type", "application/json"), ("Cache-Control", "no-store"),
-          ("Retry-After", $budget.retryAfter)],
-        $ %*{"status": 429, "code": "RATE_LIMITED", "retryAfter": budget.retryAfter})
+      rateLimited(request, budget)
       return
     # Share links are limited per viewer, so one scraper cannot exhaust the
     # budget of the group that holds the link, and per code at a looser ceiling
@@ -2244,11 +2318,7 @@ proc route(request: Request) =
           limit, now)
         let refused = if not global.allowed: global else: viewer
         if not refused.allowed:
-          send(request, 429,
-            @[("Content-Type", "application/json"), ("Cache-Control", "no-store"),
-              ("Retry-After", $refused.retryAfter)],
-            $ %*{"status": 429, "code": "RATE_LIMITED",
-                 "retryAfter": refused.retryAfter})
+          rateLimited(request, refused)
           return
     if path == "/healthz":
       send(request, 200, """{"status":"ok"}""")

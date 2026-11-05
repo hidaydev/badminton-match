@@ -467,3 +467,52 @@ suite "rankings HTTP":
     let (reverted, _) = send(HttpDelete,
       "/c/rank-club/sessions/" & sessionId & "/rating", adminCookie)
     check reverted == 200
+
+  test "a share code publishes only the players of its session":
+    # A second session puts one more player on the community board, so the
+    # public copy and the member page can be told apart.
+    let outsider = playerStore.create(database, communityId, "Eka", "F",
+      "").player["id"].getStr()
+    let otherSession = database.queryOne(
+      """insert into session.sessions
+           (community_id, title, session_date, status, source, approved_at)
+         values ($1::uuid, 'Second night', current_date, 'locked', 'manual', now())
+         returning id""", @[textParam(communityId)]).get.get("id")
+    for player in [players[1], outsider]:
+      discard database.execUpdate(
+        """insert into session.participants
+             (community_id, session_id, player_id)
+           values ($1::uuid, $2::uuid, $3::uuid)""",
+        @[textParam(communityId), textParam(otherSession), textParam(player)])
+    discard database.execUpdate(
+      """insert into session.games
+           (community_id, session_id, round_no, court_no, score_a, score_b,
+            status, side_a1, side_b1)
+         values ($1::uuid, $2::uuid, 1, 1, 21, 10, 'played', $3::uuid, $4::uuid)""",
+      @[textParam(communityId), textParam(otherSession), textParam(outsider),
+        textParam(players[1])])
+    discard database.execUpdate(
+      """insert into rating.events (community_id, local_date, event_type, source_id)
+         values ($1::uuid, current_date, 'session', $2::uuid)""",
+      @[textParam(communityId), textParam(otherSession)])
+    let (memberStatus, memberBody) = call("/c/rank-club/rankings", memberCookie)
+    check memberStatus == 200
+    check parseJson(memberBody)["items"].len == 4
+    let ownerId = database.queryOne(
+      """select id from platform.user where google_sub = 'rank-owner'"""
+      ).get.get("id")
+    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId)
+    let (status, body) = call("/s/" & code & "/rankings")
+    check status == 200
+    let items = parseJson(body)["items"]
+    check items.len == 3
+    for item in items:
+      check item["playerId"].getStr() in players[0 .. 2]
+      check item["playerId"].getStr() != outsider
+    # The outsider is on the community board, not behind a forwarded code.
+    let (outsiderDetail, _) = call("/s/" & code & "/rankings/" & outsider)
+    check outsiderDetail == 404
+    let (memberDetail, memberDetailBody) = call("/s/" & code & "/rankings/" &
+      players[0])
+    check memberDetail == 200
+    check parseJson(memberDetailBody)["playerId"].getStr() == players[0]

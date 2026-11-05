@@ -187,3 +187,47 @@ suite "security: OIDC replay":
     let response = callback(state, code)
     expectStatus(response, 302)
     check response.header("Location") == "/sessions/42"
+
+proc auditCount(action: string): int =
+  parseInt(database.queryOne(
+    """select count(*)::int as n from account.audit where action = $1""",
+    @[textParam(action)]).get.get("n"))
+
+suite "security: auth audit":
+  test "a successful login leaves exactly one audit row":
+    let (state, nonce) = startFlow("/sessions")
+    let code = stubCode(state, nonce, "t070-audit-1",
+      "t070-audit-1@example.com")
+    let before = auditCount("auth.login")
+    expectStatus(callback(state, code), 302)
+    check auditCount("auth.login") == before + 1
+    let row = database.queryOne(
+      """select a.actor_id::text as actor_id, a.community_id,
+                a.actor_role, a.result
+         from account.audit a
+         join platform.user u on u.id = a.actor_id
+         where u.google_sub = 't070-audit-1' and a.action = 'auth.login'
+         order by a.occurred_at desc limit 1""")
+    check row.isSome
+    check row.get.get("result") == "allow"
+    check row.get.get("actor_role") == "member"
+    # A login belongs to no community, so the row carries none.
+    check row.get["community_id"].isNone
+
+  test "a rejected id token leaves exactly one audit row":
+    let (state, nonce) = startFlow("/sessions")
+    let code = stubCode(state, "not-the-flow-nonce", "t070-audit-2",
+      "t070-audit-2@example.com")
+    let before = auditCount("auth.login.rejected")
+    expectProblem(callback(state, code), 401, "NONCE_MISMATCH")
+    check auditCount("auth.login.rejected") == before + 1
+    let row = database.queryOne(
+      """select actor_id, reason, target_kind, target_id
+         from account.audit where action = 'auth.login.rejected'
+         order by occurred_at desc limit 1""")
+    check row.isSome
+    # The caller is unknown and the row keeps no token, nonce or address.
+    check row.get["actor_id"].isNone
+    check row.get.get("reason") == "nonce mismatch"
+    check row.get.get("target_kind") == ""
+    check row.get.get("target_id") == ""

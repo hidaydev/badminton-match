@@ -14,3 +14,18 @@ suite "security headers":
     check rendered.contains("X-Content-Type-Options: nosniff")
     check rendered.contains("X-Frame-Options: DENY")
     check rendered.contains("Strict-Transport-Security")
+
+  test "nesting beyond the limit is detected before parsing":
+    check not jsonTooDeep("""{"a":1}""", 1)
+    check not jsonTooDeep("{}", 1)
+    check jsonTooDeep("{}", 0)
+    check jsonTooDeep("""{"a":{"b":{}}}""", 2)
+    check not jsonTooDeep("""{"a":{"b":{}}}""", 3)
+    check jsonTooDeep("[[[[]]]]", 3)
+    check not jsonTooDeep("[[[[]]]]", 4)
+
+  test "braces inside a string are text, not nesting":
+    check not jsonTooDeep("""{"a":"[[[["}""", 1)
+    check not jsonTooDeep(r"""{"a":"\"[[["}""", 1)
+    # An unclosed quote swallows the rest: the body fails parsing anyway.
+    check not jsonTooDeep("""{"a":"[[[[}""", 1)

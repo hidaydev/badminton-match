@@ -81,6 +81,32 @@ proc bodyTooLarge*(request: Request, snapshot: Snapshot): bool =
   let limit = snapshot.intValue(%*{}, keySecurityMaxBodyBytes)
   request.body.len > limit
 
+proc jsonTooDeep*(body: string, limit: int): bool =
+  ## Counts nesting without parsing, so an over-deep body is refused before
+  ## `parseJson` can recurse into it and exhaust the stack. Braces inside a
+  ## string are text, not nesting, so quotes and escapes are tracked.
+  var depth = 0
+  var inString = false
+  var escaped = false
+  for character in body:
+    if inString:
+      if escaped:
+        escaped = false
+      elif character == '\\':
+        escaped = true
+      elif character == '"':
+        inString = false
+      continue
+    case character
+    of '"': inString = true
+    of '{', '[':
+      inc depth
+      if depth > limit:
+        return true
+    of '}', ']': dec depth
+    else: discard
+  false
+
 proc renderHeaders*(headers: seq[(string, string)]): string =
   ## Debug helper used by tests to assert the header set without a socket.
   var lines: seq[string] = @[]
