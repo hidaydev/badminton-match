@@ -89,22 +89,33 @@ rute + perubahan kontrak.
 
 ---
 
-## ADR-004 · Dua model rating (tier vs state) tidak disatukan
+## ADR-004 · Satu angka poin yang diekspos; ledger tetap internal
 
-**Tanggal:** 2026-11-05
+**Tanggal:** 2026-11-06
 **Temuan audit:** BEP-10
-**Status:** Ditunda
+**Status:** Diterapkan (tahap 1 — tanpa mengubah angka tersimpan)
 
-**Keputusan:** `player.tier` dan `rating_players` tetap berdampingan.
+**Keputusan:** API hanya mengekspos **satu** angka poin: baris papan
+(proyeksi tier). `GET .../players/{id}/stats` tidak lagi membaca
+`rating.player_state.rating`; `points` diisi dari `boardEntry` yang sama dengan
+papan, dan pemain tanpa entri di window mendapat 0. `rating.deltas` /
+`player_state.rating` tetap ada sebagai ledger internal untuk bobot lawan di
+ingest, dan tidak pernah menjadi angka yang dilihat pengguna.
 
-**Alasan:** menyatukan keduanya mengubah poin tersimpan untuk semua komunitas
-dan membuat hasil impor v1 tidak bisa dibandingkan lagi. Keduanya menjawab
-pertanyaan berbeda: tier adalah kelas yang dipakai untuk bagan, state adalah
-akumulasi poin 12 minggu. Yang bisa diperbaiki tanpa mengubah angka sudah
-diperbaiki (sumber tunggal untuk papan: `rating/read.nim`).
+**Alasan:** dua angka untuk pemain yang sama adalah cacat yang terlihat (beda
+median 756 poin di data dev; 31% pemain bergeser >10 peringkat). Tapi
+menyeragamkan *rumus* berarti menghitung ulang seluruh delta/state semua
+komunitas dan membatalkan pembandingan impor v1 — risiko tinggi tanpa manfaat
+yang terlihat. Menutup jalur eksposurnya menghilangkan inkonsistensi tanpa
+menyentuh satu angka tersimpan.
 
-**Pembuka ulang:** ada migrasi yang memetakan tier ke state dengan persetujuan
-pemilik data dan pengujian ulang seluruh riwayat.
+**Yang belum dikerjakan (tahap 2):** menghapus `rating.deltas` dan
+`player_state.rating` setelah tidak ada pembaca internal yang tersisa
+(ingest, merge, import). Drop tabel + rebuild penuh adalah migrasi destruktif
+dan butuh maintenance window.
+
+**Pembuka ulang:** tahap 2 dijadwalkan, atau muncul kebutuhan yang memang
+membutuhkan akumulasi rating mentah (mis. seeding turnamen).
 
 ---
 

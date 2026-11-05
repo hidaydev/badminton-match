@@ -275,14 +275,21 @@ suite "rankings HTTP":
     let (foreign, _) = call("/c/rank-club/rankings")
     check foreign == 401
 
-  test "stats come from player_state":
+  test "stats show the board's points, not a second rating":
     let (status, body) = call("/c/rank-club/players/" & players[0] & "/stats",
       memberCookie)
     check status == 200
     let stats = parseJson(body)
     check stats["name"].getStr() == "Ani"
+    # Counters are counts and stay on the ledger.
     check stats["games"].getInt() == 4
     check stats["wins"].getInt() == 2
+    # The detail number and the leaderboard row must be the same read, so a
+    # player never sees two different scores for themselves.
+    let (rankStatus, rankBody) = call(
+      "/c/rank-club/rankings/" & players[0], memberCookie)
+    check rankStatus == 200
+    check stats["points"].getInt() == parseJson(rankBody)["points"].getInt()
 
   test "stats carry history, sessions and social tallies":
     let (status, body) = call("/c/rank-club/players/" & players[0] & "/stats",

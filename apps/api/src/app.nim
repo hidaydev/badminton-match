@@ -2040,12 +2040,29 @@ proc playerAchievements(request: Request, ctx: CommunityContext,
     body.add(item)
   jsonResponse(request, 200, %*{"items": body}, [("Cache-Control", "no-store")])
 
+proc boardPoints(communityId, timezone, playerId: string): int =
+  ## The one points number the API exposes: the player's row on today's board,
+  ## resolved the same way the leaderboard resolves it. A player with no entry
+  ## in the window has no row, so the page shows zero instead of a career total
+  ## no board ever displayed.
+  let settings = currentSettings(application.db, communityId)
+  let params = ratingParams.loadRatingParams(configSnapshot(), settings)
+  let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
+  let latest = ratingRead.latestEventDate(application.db, communityId)
+  let asOf = if latest.len > 0: latest else: communityToday(timezone)
+  let row = ratingRead.boardEntry(application.db, ratingRead.BoardQuery(
+    communityId: communityId, asOf: asOf, params: params, limit: limit,
+    tier: ""), playerId)
+  if row.isSome: row.get.points else: 0
+
 proc playerStats(request: Request, ctx: CommunityContext, playerId: string) =
   let found = ratingRead.stats(application.db, ctx.communityId, playerId)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
-  jsonResponse(request, 200, found.get, [("Cache-Control", "no-store")])
+  var body = found.get
+  body["points"] = %boardPoints(ctx.communityId, ctx.timezone, playerId)
+  jsonResponse(request, 200, body, [("Cache-Control", "no-store")])
 
 proc sessionPlayerIds(communityId, sessionId: string): seq[string] =
   ## The players who took part in one session. A share code opens that session,

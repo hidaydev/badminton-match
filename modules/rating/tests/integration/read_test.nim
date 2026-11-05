@@ -337,6 +337,9 @@ suite "ranking read":
     let found = stats(database, communityId, players[0])
     check found.isSome
     check found.get["games"].getInt() == 5
+    # The score is not part of this read: the API injects the board row, so a
+    # stored rating can never become a second, disagreeing number.
+    check not found.get.hasKey("points")
     check stats(database, communityId,
       "00000000-0000-0000-0000-000000000000").isNone
 

@@ -552,14 +552,16 @@ proc tournamentStats(db: Db, communityId, playerId: string): JsonNode =
   }
 
 proc stats*(db: Db, communityId, playerId: string): Option[JsonNode] =
-  ## Career numbers stay on player_state; the achievements list is a separate
-  ## route. History, sessions and social tallies are read here because they
-  ## share the player identity and are always requested together.
+  ## The counters (`games`, `wins`, `losses`) stay on player_state because they
+  ## are counts, not a score. `points` is deliberately absent: the only points
+  ## number the API exposes is the board row, so the caller injects it from
+  ## `boardEntry` instead of letting a second, accumulated rating disagree with
+  ## the leaderboard. History, sessions and social tallies are read here because
+  ## they share the player identity and are always requested together.
   let row = db.queryOne(
     """select p.id, p.canonical_name, p.tier, p.gender,
               coalesce(s.games_played, 0) as games_played,
-              coalesce(s.wins, 0) as wins, coalesce(s.losses, 0) as losses,
-              coalesce(s.rating, 0) as rating
+              coalesce(s.wins, 0) as wins, coalesce(s.losses, 0) as losses
        from player.players p
        left join rating.player_state s
          on s.community_id = p.community_id and s.player_id = p.id
@@ -572,7 +574,6 @@ proc stats*(db: Db, communityId, playerId: string): Option[JsonNode] =
     "name": row.get.get("canonical_name"),
     "tier": if row.get["tier"].isNone: newJNull() else: %row.get.get("tier"),
     "gender": row.get.get("gender"),
-    "points": parseInt(row.get.get("rating")),
     "games": parseInt(row.get.get("games_played")),
     "wins": parseInt(row.get.get("wins")),
     "losses": parseInt(row.get.get("losses")),

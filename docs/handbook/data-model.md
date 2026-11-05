@@ -85,8 +85,11 @@ singles memakai satu slot per sisi; slot `NULL` adalah posisi kosong, bukan pema
 
 Poin tidak disimpan sebagai kolom. Papan dihitung saat baca dari game sesi dan match
 turnamen dalam window bergulir (proyeksi v1: satu entri per sumber, `best_n` terbaik);
-`rating.deltas` adalah ledger integer per game dan `rating.player_state` hanya
-bookkeeping menang/kalah/main (`modules/rating/projection.nim`, `modules/rating/read.nim`).
+itu **satu-satunya** angka poin yang diekspos API. `rating.deltas` adalah ledger integer
+per game, dan `rating.player_state` menyimpan counter menang/kalah/main plus `rating`
+internal yang hanya dipakai ingest untuk bobot lawan. Halaman pemain mengambil `points`
+dari baris papan, bukan dari `player_state` (`modules/rating/projection.nim`,
+`modules/rating/read.nim`, `apps/api/src/app.nim`).
 
 ### `tournament`
 

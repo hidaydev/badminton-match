@@ -12,11 +12,100 @@
     "body": {
       "games": 4,
       "gender": "F",
+      "history": [
+        {
+          "date": "2026-11-03",
+          "gameRef": "0-0",
+          "opponents": [
+            "Candra",
+            "Dewi"
+          ],
+          "outcome": "W",
+          "scoreA": 21,
+          "scoreB": 18,
+          "teammates": [
+            "Budi"
+          ],
+          "title": "Tuesday Night"
+        }
+      ],
       "losses": 2,
       "name": "Alice",
       "playerId": "{uuid}",
-      "points": 1250,
+      "points": 142,
+      "sessions": [
+        {
+          "absent": false,
+          "date": "2026-11-03",
+          "id": "{uuid}",
+          "title": "Tuesday Night"
+        }
+      ],
       "tier": "B",
+      "topOpponents": [
+        {
+          "count": 1,
+          "losses": 0,
+          "name": "Candra",
+          "wins": 1
+        },
+        {
+          "count": 1,
+          "losses": 0,
+          "name": "Dewi",
+          "wins": 1
+        }
+      ],
+      "topPartners": [
+        {
+          "count": 1,
+          "losses": 0,
+          "name": "Budi",
+          "wins": 1
+        }
+      ],
+      "tournamentStats": {
+        "gamesPlayed": 2,
+        "losses": 0,
+        "topOpponents": [
+          {
+            "count": 1,
+            "name": "Candra",
+            "wins": 1
+          },
+          {
+            "count": 1,
+            "name": "Dewi",
+            "wins": 1
+          }
+        ],
+        "topPartners": [
+          {
+            "count": 1,
+            "name": "Budi",
+            "wins": 1
+          }
+        ],
+        "tournaments": [
+          {
+            "date": "2026-10-26",
+            "games": 1,
+            "id": "{uuid}",
+            "losses": 0,
+            "name": "Parity Team",
+            "wins": 1
+          },
+          {
+            "date": "2026-10-25",
+            "games": 1,
+            "id": "{uuid}",
+            "losses": 0,
+            "name": "Parity Classic",
+            "wins": 1
+          }
+        ],
+        "wins": 2
+      },
       "wins": 2
     }
   }
