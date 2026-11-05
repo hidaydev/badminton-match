@@ -197,11 +197,14 @@ const playedGameFilter =
   """g.score_a is not null and g.score_b is not null
      and g.status <> 'cancelled'"""
 
+const approvedSessionFilter =
+  """s.approved_at is not null
+     and s.status in ('locked', 'published', 'completed', 'archived')"""
+
 proc playerHistory(db: Db, communityId, playerId: string,
                    limit = 50): JsonNode =
-  ## Recent played session games, newest first. A game with both scores is the
-  ## record of a result; the session approval is not required for a score to
-  ## be real.
+  ## Recent played session games, newest first. Only an approved session is a
+  ## record of a result, and a game the player skipped is not theirs at all.
   result = newJArray()
   for row in db.query(
     """select s.session_date::text as session_date, s.title,
@@ -229,6 +232,13 @@ proc playerHistory(db: Db, communityId, playerId: string,
          and (g.side_a1 = $2::uuid or g.side_a2 = $2::uuid
               or g.side_b1 = $2::uuid or g.side_b2 = $2::uuid)
          and """ & playedGameFilter & """
+         and """ & approvedSessionFilter & """
+         and not exists (
+           select 1 from session.game_skips k
+           where k.community_id = g.community_id
+             and k.session_id = g.session_id
+             and k.round_no = g.round_no and k.court_no = g.court_no
+             and k.player_id = $2::uuid)
        order by s.session_date desc, s.id desc, g.round_no desc, g.court_no desc
        limit $3""",
     @[textParam(communityId), textParam(playerId), intParam(limit.int64)]):
@@ -264,7 +274,10 @@ proc playerHistory(db: Db, communityId, playerId: string,
       "opponents": opponents,
     })
 
-proc playerSessions(db: Db, communityId, playerId: string): JsonNode =
+proc playerSessions(db: Db, communityId, playerId: string,
+                    limit = 100): JsonNode =
+  ## The player's sessions, newest first. A player can have years of history,
+  ## so the list is bounded rather than returned in full.
   result = newJArray()
   for row in db.query(
     """select s.id, s.session_date::text as session_date, s.title, p.is_absent
@@ -272,8 +285,9 @@ proc playerSessions(db: Db, communityId, playerId: string): JsonNode =
        join session.sessions s
          on s.community_id = p.community_id and s.id = p.session_id
        where p.community_id = $1::uuid and p.player_id = $2::uuid
-       order by s.session_date desc, s.id desc""",
-    @[textParam(communityId), textParam(playerId)]):
+       order by s.session_date desc, s.id desc
+       limit $3""",
+    @[textParam(communityId), textParam(playerId), intParam(limit.int64)]):
     result.add(%*{
       "id": row.get("id"),
       "date": row.get("session_date"),
@@ -284,15 +298,19 @@ proc playerSessions(db: Db, communityId, playerId: string): JsonNode =
 proc playerSocial(db: Db, communityId, playerId: string,
                   opponentsOnly: bool): JsonNode =
   ## Partner and opponent counts over played session games. The player's side
-  ## decides both the teammate and the win flag.
+  ## decides both the teammate and the win flag. A player who skipped a game sat
+  ## that game out, so it is neither theirs nor a partner or opponent of anyone
+  ## else in it.
   result = newJArray()
   let gamesCte =
     """with games as (
-         select g.id,
+         select g.id, g.community_id, g.session_id, g.round_no, g.court_no,
                 (g.side_a1 = $2::uuid or g.side_a2 = $2::uuid) as on_a,
                 (g.score_a > g.score_b) as a_won,
                 case when g.side_a1 = $2::uuid then g.side_a2
                      when g.side_a2 = $2::uuid then g.side_a1
+                     when g.side_b1 = $2::uuid then g.side_b2
+                     when g.side_b2 = $2::uuid then g.side_b1
                      else null end as mate,
                 case when g.side_a1 = $2::uuid or g.side_a2 = $2::uuid
                      then array[g.side_b1, g.side_b2]
@@ -304,7 +322,13 @@ proc playerSocial(db: Db, communityId, playerId: string,
            and (g.side_a1 = $2::uuid or g.side_a2 = $2::uuid
                 or g.side_b1 = $2::uuid or g.side_b2 = $2::uuid)
            and """ & playedGameFilter & """
-           and s.status in ('locked', 'published', 'completed', 'archived')
+           and """ & approvedSessionFilter & """
+           and not exists (
+             select 1 from session.game_skips k
+             where k.community_id = g.community_id
+               and k.session_id = g.session_id
+               and k.round_no = g.round_no and k.court_no = g.court_no
+               and k.player_id = $2::uuid)
        )"""
   let sql =
     if opponentsOnly:
@@ -320,6 +344,12 @@ proc playerSocial(db: Db, communityId, playerId: string,
        cross join lateral unnest(games.opps) as opp(player_id)
        join player.players p on p.id = opp.player_id
          and p.community_id = $1::uuid
+       where not exists (
+         select 1 from session.game_skips k
+         where k.community_id = games.community_id
+           and k.session_id = games.session_id
+           and k.round_no = games.round_no and k.court_no = games.court_no
+           and k.player_id = opp.player_id)
        group by p.canonical_name
        order by count desc, p.canonical_name asc
        limit 5"""
@@ -336,6 +366,12 @@ proc playerSocial(db: Db, communityId, playerId: string,
        join player.players p on p.id = games.mate
          and p.community_id = $1::uuid
        where games.mate is not null
+         and not exists (
+           select 1 from session.game_skips k
+           where k.community_id = games.community_id
+             and k.session_id = games.session_id
+             and k.round_no = games.round_no and k.court_no = games.court_no
+             and k.player_id = games.mate)
        group by p.canonical_name
        order by count desc, p.canonical_name asc
        limit 5"""

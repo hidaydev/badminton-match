@@ -140,6 +140,39 @@ proc newPlayer(name: string): string =
        values ($1::uuid, $2, 'M', null) returning id""",
     @[textParam(communityId), textParam(name)]).get.get("id")
 
+proc socialCount(rows: JsonNode, name: string): int =
+  for entry in rows:
+    if entry["name"].getStr() == name:
+      return entry["count"].getInt()
+  0
+
+proc addEmptySession(playerId: string, age: int) =
+  ## A session with no games: enough for the player's session list.
+  let id = database.queryOne(
+    """insert into session.sessions
+         (community_id, title, session_date, status, source)
+       values ($1::uuid, 'Session list', $2::date - $3::int, 'draft',
+               'generator')
+       returning id""",
+    @[textParam(communityId), textParam(asOf), intParam(age.int64)])
+    .get.get("id")
+  discard database.execUpdate(
+    """insert into session.participants (community_id, session_id, player_id)
+       values ($1::uuid, $2::uuid, $3::uuid)""",
+    @[textParam(communityId), textParam(id), textParam(playerId)])
+
+proc skipRoundZero(playerId: string) =
+  ## Marks one player as sitting out round 0 of every session they played.
+  discard database.execUpdate(
+    """insert into session.game_skips
+         (community_id, session_id, round_no, court_no, player_id)
+       select $1::uuid, g.session_id, g.round_no, g.court_no, $2::uuid
+       from session.games g
+       where g.community_id = $1::uuid and g.round_no = 0
+         and (g.side_a1 = $2::uuid or g.side_a2 = $2::uuid
+              or g.side_b1 = $2::uuid or g.side_b2 = $2::uuid)""",
+    @[textParam(communityId), textParam(playerId)])
+
 proc addClassicTournament(age: int, withLevel: bool, winnerScore,
                           loserScore: int, sideA, sideB: seq[string]): string =
   ## One completed classic bracket: a single final between two pairs. The
@@ -343,3 +376,85 @@ suite "ranking read":
     check boardEntry(database, queryAll(), inside[0]).isSome
     check boardEntry(database, queryAll(), outside[0]).isNone
     check latestEventDate(database, communityId) == asOf
+
+  test "history leaves out unapproved sessions and skipped games":
+    let roster = @[newPlayer("Hist A"), newPlayer("Hist B"),
+      newPlayer("Hist C"), newPlayer("Hist D")]
+    addSession(5, roster)
+    check stats(database, communityId, roster[0]).get["history"].len == 2
+    skipRoundZero(roster[0])
+    let afterSkip = stats(database, communityId, roster[0]).get["history"]
+    check afterSkip.len == 1
+    check afterSkip[0]["gameRef"].getStr() == "1-0"
+    # A draft session has no approved_at, so its score is not a result yet.
+    let draft = database.queryOne(
+      """insert into session.sessions
+           (community_id, title, session_date, status, source)
+         values ($1::uuid, 'Draft night', $2::date, 'draft', 'generator')
+         returning id""",
+      @[textParam(communityId), textParam(asOf)]).get.get("id")
+    for player in roster:
+      discard database.execUpdate(
+        """insert into session.participants
+             (community_id, session_id, player_id)
+           values ($1::uuid, $2::uuid, $3::uuid)""",
+        @[textParam(communityId), textParam(draft), textParam(player)])
+    discard database.execUpdate(
+      """insert into session.games
+           (community_id, session_id, round_no, court_no, score_a, score_b,
+            status, side_a1, side_a2, side_b1, side_b2)
+         values ($1::uuid, $2::uuid, 3, 0, 21, 10, 'played',
+                 $3::uuid, $4::uuid, $5::uuid, $6::uuid)""",
+      @[textParam(communityId), textParam(draft), textParam(roster[0]),
+        textParam(roster[1]), textParam(roster[2]), textParam(roster[3])])
+    check stats(database, communityId, roster[0]).get["history"].len == 1
+
+  test "a skipped player is not an opponent and loses that game":
+    let roster = @[newPlayer("Soc A"), newPlayer("Soc B"),
+      newPlayer("Soc C"), newPlayer("Soc D")]
+    addSession(6, roster)
+    check socialCount(stats(database, communityId,
+      roster[0]).get["topOpponents"], "Soc C") == 2
+    skipRoundZero(roster[2])
+    let first = stats(database, communityId, roster[0]).get
+    # Their own games stay: only the skipped player sat that one out.
+    check first["history"].len == 2
+    check socialCount(first["topPartners"], "Soc B") == 2
+    # The skipped opponent was not on the other side of that game.
+    check socialCount(first["topOpponents"], "Soc C") == 1
+    check socialCount(first["topOpponents"], "Soc D") == 2
+    let partner = stats(database, communityId, roster[1]).get
+    check socialCount(partner["topOpponents"], "Soc C") == 1
+    check stats(database, communityId, roster[2]).get["history"].len == 1
+
+  test "a skipped partner does not count":
+    let roster = @[newPlayer("Soc E"), newPlayer("Soc F"),
+      newPlayer("Soc G"), newPlayer("Soc H")]
+    addSession(7, roster)
+    check socialCount(stats(database, communityId,
+      roster[0]).get["topPartners"], "Soc F") == 2
+    skipRoundZero(roster[1])
+    let first = stats(database, communityId, roster[0]).get
+    check first["history"].len == 2
+    check socialCount(first["topPartners"], "Soc F") == 1
+    check stats(database, communityId, roster[1]).get["history"].len == 1
+
+  test "a player on side B sees their partner and their opponents":
+    let roster = @[newPlayer("Soc I"), newPlayer("Soc J"),
+      newPlayer("Soc K"), newPlayer("Soc L")]
+    addSession(8, roster)
+    # The partner used to be derived from side A only, so a side-B player had an
+    # empty partner list even though the games were theirs.
+    let sideB = stats(database, communityId, roster[2]).get
+    check socialCount(sideB["topPartners"], "Soc L") == 2
+    check socialCount(sideB["topOpponents"], "Soc I") == 2
+
+  test "the session list is capped at the newest hundred":
+    let player = newPlayer("List Guy")
+    for age in 0 ..< 101:
+      addEmptySession(player, age)
+    let sessions = stats(database, communityId, player).get["sessions"]
+    check sessions.len == 100
+    for index in 1 ..< sessions.len:
+      check sessions[index - 1]["date"].getStr() >=
+        sessions[index]["date"].getStr()

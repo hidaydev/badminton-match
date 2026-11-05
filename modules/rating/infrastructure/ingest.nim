@@ -250,6 +250,11 @@ proc rebuild*(db: Db, communityId: string, params: RatingParams): IngestResult =
   ## sessions, then from the signed-off tournaments, so two runs always end at
   ## the same numbers. A rebuild must not erase a tournament that was ingested
   ## incrementally, so both source kinds are replayed here.
+  ##
+  ## Sessions replay in approval order, the order the ledger was written in: an
+  ## event's deltas are computed from the state the events before it left, so a
+  ## replay by session date would award a different multiplier and the board
+  ## numbers would move on every rebuild.
   var outcome: IngestResult
   discard db.tx(proc(conn: DbConn): int =
     lockCommunity(conn, communityId)
@@ -267,7 +272,7 @@ proc rebuild*(db: Db, communityId: string, params: RatingParams): IngestResult =
       """select id from session.sessions
          where community_id = $1::uuid and approved_at is not null
            and status in """ & approvedStatuses & """
-         order by session_date, id""",
+         order by approved_at, id""",
       @[textParam(communityId)]):
       ids.add(row.get("id"))
     for sessionId in ids:

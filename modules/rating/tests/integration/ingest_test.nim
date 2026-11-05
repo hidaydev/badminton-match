@@ -39,16 +39,18 @@ proc playerId(index: int): string =
        values ($1::uuid, $2, 'M') returning id""",
     @[textParam(communityId), textParam("Ingest " & $index)]).get.get("id")
 
-proc seedSession(approved: bool): string =
+proc seedSession(approved: bool, sessionDate = "2026-11-04",
+                 scoreA = 21, scoreB = 15): string =
   let id = database.queryOne(
     """insert into session.sessions
          (community_id, title, session_date, status, source, version,
           approved_at, approved_by)
-       values ($1::uuid, 'Ingest night', '2026-11-04',
+       values ($1::uuid, 'Ingest night', $3::date,
                case when $2 then 'locked' else 'draft' end, 'manual', 1,
                case when $2 then now() else null end, null)
        returning id""",
-    @[textParam(communityId), boolParam(approved)]).get.get("id")
+    @[textParam(communityId), boolParam(approved), textParam(sessionDate)])
+    .get.get("id")
   for player in players:
     discard database.execUpdate(
       """insert into session.participants (community_id, session_id, player_id)
@@ -58,10 +60,11 @@ proc seedSession(approved: bool): string =
     """insert into session.games
          (community_id, session_id, round_no, court_no, score_a, score_b, status,
           side_a1, side_a2, side_b1, side_b2)
-       values ($1::uuid, $2::uuid, 0, 0, 21, 15, 'played',
+       values ($1::uuid, $2::uuid, 0, 0, $7::int, $8::int, 'played',
                $3::uuid, $4::uuid, $5::uuid, $6::uuid)""",
     @[textParam(communityId), textParam(id), textParam(players[0]),
-      textParam(players[1]), textParam(players[2]), textParam(players[3])])
+      textParam(players[1]), textParam(players[2]), textParam(players[3]),
+      intParam(scoreA.int64), intParam(scoreB.int64)])
   id
 
 proc state(player: string): tuple[rating: int, games: int, wins: int, losses: int] =
@@ -175,3 +178,23 @@ suite "rating ingest":
       @[textParam(communityId), textParam(sessionId)])
     discard rebuild(database, communityId, params())
     check state(players[3]).games == 1
+
+  test "a rebuild replays the sessions in the order they were approved":
+    ## An event's deltas are computed from the state built by the events before
+    ## it, so the ledger holds the numbers of the order it was written in. The
+    ## sessions below were approved newest first; replaying them by date would
+    ## recompute a different state.
+    let later = seedSession(approved = true, sessionDate = "2026-10-20",
+      scoreA = 21, scoreB = 8)
+    discard ingestSession(database, communityId, later, params())
+    let earlier = seedSession(approved = true, sessionDate = "2026-10-10",
+      scoreA = 21, scoreB = 20)
+    discard ingestSession(database, communityId, earlier, params())
+    var before: array[4, tuple[rating: int, games: int, wins: int, losses: int]]
+    for index in 0 ..< 4:
+      before[index] = state(players[index])
+    discard rebuild(database, communityId, params())
+    for index in 0 ..< 4:
+      check state(players[index]) == before[index]
+    # The replay really covers both sources, not just the first one.
+    check eventCount() == 3

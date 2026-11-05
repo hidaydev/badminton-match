@@ -298,6 +298,54 @@ suite "tournament ingest":
     check deltaSum(tournamentId, players[0]) == 3
     check deltaSum(tournamentId, players[2]) == 5
 
+  test "a tournament with several matches keeps every pair":
+    let tournamentId = newTournament("classic", "completed", "2026-11-04")
+    let first = newPair(tournamentId, "01", players[0], players[1])
+    let second = newPair(tournamentId, "23", players[2], players[3])
+    let third = newPair(tournamentId, "45", players[4], players[5])
+    addMatch(tournamentId, first, second, "group-A-0", "group", 30, 20)
+    addMatch(tournamentId, first, third, "group-A-1", "group", 30, 25)
+    addMatch(tournamentId, second, third, "group-A-2", "group", 21, 30)
+    check setFinalized(database, communityId, tournamentId, true).isSome
+    check ingestTournament(database, communityId, tournamentId,
+      params()).deltas == 12
+    # Every pair is read once and reused, so each player scores both games.
+    for player in players[0 .. 5]:
+      check deltasFor(tournamentId, player) == 2
+
+  test "every partai of every team match finds its own class":
+    let tournamentId = newTournament("team", "completed", "2026-11-04")
+    check setFinalized(database, communityId, tournamentId, true).isSome
+    let teamA = newTeam(tournamentId, "RED RAPTORS", 1)
+    let teamB = newTeam(tournamentId, "WHITE FURY", 2)
+    addTeamPlayer(teamA, players[0], "A0", "C+")
+    addTeamPlayer(teamA, players[1], "A1", "A+")
+    addTeamPlayer(teamB, players[2], "B0", "C+")
+    addTeamPlayer(teamB, players[3], "B1", "A+")
+    for matchIndex in 0 .. 1:
+      let matchId = database.queryOne(
+        """insert into tournament.team_matches
+             (community_id, tournament_id, phase, match_order, match_key,
+              team_a_id, team_b_id)
+           values ($1::uuid, $2::uuid, 'group', $3::int, $4, $5::uuid, $6::uuid)
+           returning id""",
+        @[textParam(communityId), textParam(tournamentId),
+          intParam(matchIndex.int64), textParam("g-" & $matchIndex),
+          textParam(teamA), textParam(teamB)]).get.get("id")
+      for partaiIndex in 0 .. 1:
+        discard database.execUpdate(
+          """insert into tournament.team_partai
+               (community_id, team_match_id, partai_index, score_a, score_b)
+             values ($1::uuid, $2::uuid, $3::int, 30, 20)""",
+          @[textParam(communityId), textParam(matchId),
+            intParam(partaiIndex.int64)])
+    let outcome = ingestTournament(database, communityId, tournamentId,
+      params())
+    check outcome.deltas == 8
+    # C+ plays partai 0 and A+ partai 1, on both sides of both matches.
+    for index in 0 .. 3:
+      check deltasFor(tournamentId, players[index]) == 2
+
   test "rebuild replays approved sessions and signed-off tournaments":
     let sessionPlayers = @[addPlayer("Rebuild S0"), addPlayer("Rebuild S1"),
       addPlayer("Rebuild S2"), addPlayer("Rebuild S3")]

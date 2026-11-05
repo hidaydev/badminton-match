@@ -6,7 +6,7 @@
 ## target follows the phase (30 in the group, 42 from the semifinal on), not
 ## `rating.score_target`, exactly like the v1 extractor.
 
-import std/[options, strutils]
+import std/[options, strutils, tables]
 import db/db
 import ../domain/rating
 import ./ledger
@@ -33,23 +33,36 @@ type
     scoreA*, scoreB*: int
     sideA*, sideB*: seq[string]
 
+  TeamPlayer = object
+    ## One team roster slot: the class it plays and who fills it.
+    cls: string
+    playerId: string
+
 proc classicTarget(phase: string): int =
   if phase in ["sf", "3rd", "final"]: 42 else: 30
 
 proc teamTarget(phase: string): int =
   if phase == "final": 42 else: 30
 
-proc pairPlayers(conn: DbConn, communityId, pairId: string): seq[string] =
-  let row = conn.queryOne(
-    """select player_a_id::text as a, player_b_id::text as b
-       from tournament.pairs where community_id = $1::uuid and id = $2::uuid""",
-    @[textParam(communityId), textParam(pairId)])
-  if row.isSome:
-    result.add(row.get.get("a"))
-    result.add(row.get.get("b"))
+proc pairPlayers(conn: DbConn, communityId: string,
+                 pairIds: seq[string]): Table[string, seq[string]] =
+  ## Every pair the tournament names, in one query: the board reads the games
+  ## of a whole tournament, and a pair lookup per match made that linear in
+  ## matches.
+  if pairIds.len == 0:
+    return
+  for row in conn.query(
+    """select id::text as id, coalesce(player_a_id::text, '') as a,
+              coalesce(player_b_id::text, '') as b
+       from tournament.pairs
+       where community_id = $1::uuid and id = any($2::uuid[])""",
+    @[textParam(communityId), textParam("{" & pairIds.join(",") & "}")]):
+    result[row.get("id")] = @[row.get("a"), row.get("b")]
 
 proc classicGames(conn: DbConn, communityId, tournamentId: string):
     seq[TournamentGame] =
+  var rows: seq[Row] = @[]
+  var pairIds: seq[string] = @[]
   for row in conn.query(
     """select m.match_key, m.phase, m.score_a, m.score_b, m.pair_a_id, m.pair_b_id
        from tournament.matches m
@@ -58,14 +71,21 @@ proc classicGames(conn: DbConn, communityId, tournamentId: string):
          and m.pair_a_id is not null and m.pair_b_id is not null
        order by m.match_order, m.match_key""",
     @[textParam(communityId), textParam(tournamentId)]):
+    rows.add(row)
+    for column in ["pair_a_id", "pair_b_id"]:
+      let pairId = row.get(column)
+      if pairId notin pairIds:
+        pairIds.add(pairId)
+  let pairs = pairPlayers(conn, communityId, pairIds)
+  for row in rows:
     result.add(TournamentGame(
       key: row.get("match_key"),
       phase: row.get("phase"),
       target: classicTarget(row.get("phase")),
       scoreA: parseInt(row.get("score_a")),
       scoreB: parseInt(row.get("score_b")),
-      sideA: pairPlayers(conn, communityId, row.get("pair_a_id")),
-      sideB: pairPlayers(conn, communityId, row.get("pair_b_id"))))
+      sideA: pairs.getOrDefault(row.get("pair_a_id")),
+      sideB: pairs.getOrDefault(row.get("pair_b_id"))))
 
 proc partaiClasses(index: int): seq[string] =
   case index
@@ -74,40 +94,61 @@ proc partaiClasses(index: int): seq[string] =
   of 2: @["B+", "B"]
   else: @[]
 
-proc teamSide(conn: DbConn, communityId, teamId: string,
+proc teamPlayers(conn: DbConn, communityId: string,
+                 teamIds: seq[string]): Table[string, seq[TeamPlayer]] =
+  ## Every roster of the tournament in one query. A roster slot with no
+  ## registered player contributes nothing; the other side keeps its points
+  ## rather than voiding the partai.
+  if teamIds.len == 0:
+    return
+  for row in conn.query(
+    """select team_id::text as team_id, cls, player_id::text as player_id
+       from tournament.team_players
+       where community_id = $1::uuid and team_id = any($2::uuid[])
+         and player_id is not null
+       order by team_id, cls""",
+    @[textParam(communityId), textParam("{" & teamIds.join(",") & "}")]):
+    result.mgetOrPut(row.get("team_id"), @[]).add(
+      TeamPlayer(cls: row.get("cls"), playerId: row.get("player_id")))
+
+proc teamSide(rosters: Table[string, seq[TeamPlayer]], teamId: string,
               partaiIndex: int): seq[string] =
-  ## A roster slot with no registered player contributes nothing; the other
-  ## side keeps its points rather than voiding the partai.
   let classes = partaiClasses(partaiIndex)
   if classes.len == 0:
     return
-  for row in conn.query(
-    """select player_id::text as player_id from tournament.team_players
-       where community_id = $1::uuid and team_id = $2::uuid and cls = any($3::text[])
-       order by cls""",
-    @[textParam(communityId), textParam(teamId),
-      textParam("{" & classes.join(",") & "}")]):
-    if row["player_id"].isSome:
-      result.add(row.get("player_id"))
+  for entry in rosters.getOrDefault(teamId):
+    if entry.cls in classes:
+      result.add(entry.playerId)
 
 proc teamGames(conn: DbConn, communityId, tournamentId: string):
     seq[TournamentGame] =
+  var matches: seq[Row] = @[]
+  var teamIds: seq[string] = @[]
   for match in conn.query(
     """select match_key, phase, team_a_id, team_b_id from tournament.team_matches
        where community_id = $1::uuid and tournament_id = $2::uuid
          and team_a_id is not null and team_b_id is not null
        order by match_order, match_key""",
     @[textParam(communityId), textParam(tournamentId)]):
-    for partai in conn.query(
-      """select partai_index, score_a, score_b from tournament.team_partai
-         where community_id = $1::uuid and team_match_id = (
-           select id from tournament.team_matches
-           where community_id = $1::uuid and tournament_id = $2::uuid
-             and match_key = $3)
-           and score_a is not null and score_b is not null
-         order by partai_index""",
-      @[textParam(communityId), textParam(tournamentId),
-        textParam(match.get("match_key"))]):
+    matches.add(match)
+    for column in ["team_a_id", "team_b_id"]:
+      let teamId = match.get(column)
+      if teamId notin teamIds:
+        teamIds.add(teamId)
+  let teams = teamPlayers(conn, communityId, teamIds)
+  var partais = initTable[string, seq[Row]]()
+  for partai in conn.query(
+    """select tm.match_key as match_key, p.partai_index, p.score_a, p.score_b
+       from tournament.team_partai p
+       join tournament.team_matches tm
+         on tm.community_id = p.community_id and tm.id = p.team_match_id
+       where p.community_id = $1::uuid and tm.tournament_id = $2::uuid
+         and p.score_a is not null and p.score_b is not null
+       order by tm.match_order, tm.match_key, p.partai_index""",
+    @[textParam(communityId), textParam(tournamentId)]):
+    partais.mgetOrPut(partai.get("match_key"), @[]).add(partai)
+  for match in matches:
+    for partai in partais.getOrDefault(match.get("match_key")):
       let index = parseInt(partai.get("partai_index"))
       result.add(TournamentGame(
         key: match.get("match_key") & ":" & $index,
@@ -115,8 +156,8 @@ proc teamGames(conn: DbConn, communityId, tournamentId: string):
         target: teamTarget(match.get("phase")),
         scoreA: parseInt(partai.get("score_a")),
         scoreB: parseInt(partai.get("score_b")),
-        sideA: teamSide(conn, communityId, match.get("team_a_id"), index),
-        sideB: teamSide(conn, communityId, match.get("team_b_id"), index)))
+        sideA: teamSide(teams, match.get("team_a_id"), index),
+        sideB: teamSide(teams, match.get("team_b_id"), index)))
 
 proc gamesFor*(conn: DbConn, communityId, tournamentId,
                format: string): seq[TournamentGame] =
