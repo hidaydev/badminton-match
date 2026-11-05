@@ -393,6 +393,12 @@ async function resolveSnapshotPlayers(players: Player[]): Promise<Map<string, st
  * Full-snapshot save kept for the two legacy callers (share button and the
  * debounced wizard publish). v2 has no snapshot write, so the pieces are
  * replayed in order and the resulting session is read back.
+ *
+ * If-Match starts from the version carried by `data` — the snapshot the caller
+ * holds — not from the record read below. Reading the session is only there to
+ * prove it still exists and to diff the games; taking its version instead would
+ * mean two writers with stale snapshots both "win", and stale scores would be
+ * re-PATCHed over a newer state.
  */
 export async function publishSession(id: string, data: CloudSnapshot): Promise<CloudSnapshot> {
   const current = await fetchSessionDetail(id)
@@ -400,7 +406,7 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
   const playerIds = await resolveSnapshotPlayers(data.players)
   const serverId = (localId: string): string => playerIds.get(localId) ?? localId
 
-  let version = current.version
+  let version = data.version ?? current.version
   const patchRecord = await request<{ version?: number }>(
     'PATCH',
     communityPath(`/sessions/${enc(id)}`),
@@ -590,12 +596,28 @@ export async function swapMembers(
   return sessionSnapshot(id)
 }
 
+export interface SessionPage {
+  items: SessionMeta[]
+  total: number
+  nextOffset: number | null
+}
+
 export async function listSessions(options?: {
   date?: string
   q?: string
   limit?: number
+  offset?: number
   signal?: AbortSignal
-}): Promise<SessionMeta[]> {
+}): Promise<SessionPage> {
+  // The server pages and filters, so a search covers the whole history instead
+  // of whatever page happened to be loaded.
+  const params = new URLSearchParams()
+  if (options?.limit !== undefined) params.set('limit', String(options.limit))
+  if (options?.offset !== undefined && options.offset > 0) params.set('offset', String(options.offset))
+  if (options?.date) params.set('date', options.date)
+  if (options?.q?.trim()) params.set('q', options.q.trim())
+  const query = params.size > 0 ? `?${params.toString()}` : ''
+
   const body = await request<{ items: Array<{
     id: string
     title: string
@@ -604,30 +626,43 @@ export async function listSessions(options?: {
     version: number
     playerCount?: number
     totalGames?: number
-  }> }>('GET', communityPath('/sessions'), undefined, options?.signal)
+  }>, total?: number, nextCursor?: string }>(
+    'GET', communityPath('/sessions') + query, undefined, options?.signal)
 
   if (!Array.isArray(body?.items)) {
     console.warn('[listSessions] response is not an array:', body)
     throw new ApiError('Invalid session list received from server')
   }
 
-  // v2 lists the whole community page; the old filter bar expects narrowing.
-  const query = options?.q?.trim().toLowerCase()
-  return body.items
-    .map((row) => ({
-      id: row.id,
-      title: row.title,
-      date: row.date,
-      playerCount: row.playerCount ?? 0,
-      totalGames: row.totalGames ?? 0,
-      locked: row.status === 'locked',
-    }))
-    .filter((row) => {
-      if (options?.date && row.date !== options.date) return false
-      if (query && !row.title.toLowerCase().includes(query)) return false
-      return true
-    })
-    .slice(0, options?.limit ?? Number.POSITIVE_INFINITY)
+  const items = body.items.map((row) => ({
+    id: row.id,
+    title: row.title,
+    date: row.date,
+    playerCount: row.playerCount ?? 0,
+    totalGames: row.totalGames ?? 0,
+    locked: row.status === 'locked',
+  }))
+
+  const total = typeof body.total === 'number' ? body.total : items.length
+  const nextOffset = Number(body.nextCursor)
+  return {
+    items,
+    total,
+    nextOffset: Number.isFinite(nextOffset) && nextOffset > (options?.offset ?? 0)
+      ? nextOffset
+      : null,
+  }
+}
+
+/** Finishing a session approves it and rates it; reopening withdraws the rating. */
+export async function setSessionLock(
+  sessionId: string,
+  locked: boolean,
+  expectedVersion: number,
+): Promise<void> {
+  await request<unknown>('POST',
+    communityPath(`/sessions/${enc(sessionId)}/${locked ? 'lock' : 'unlock'}`),
+    undefined, undefined, ifMatch(expectedVersion))
 }
 
 export async function deleteSession(lookup: string): Promise<{ deleted: boolean; sessionId: string }> {

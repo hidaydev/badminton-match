@@ -11,6 +11,11 @@ type Settled = {
   error: 'notFound' | 'failed' | null
 }
 
+/** Spectators poll, but gently: the share limiter allows 120 reads/minute per code. */
+const REFRESH_MS = 10_000
+/** Backoff cap after a failure or a `429`. */
+const MAX_REFRESH_MS = 60_000
+
 /**
  * The spectator screen. It renders outside the auth gate, so it must not assume
  * a user, a community or a board: everything it shows comes from the code.
@@ -22,17 +27,78 @@ export default function SharedSessionPage() {
   useEffect(() => {
     if (code === '') return
     let active = true
-    getSharedSession(code)
-      .then((value) => {
-        if (active) setSettled({ code, value, error: null })
-      })
-      .catch((problem: unknown) => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let failures = 0
+    let inFlight = false
+
+    const stop = () => {
+      if (timer !== null) {
+        clearTimeout(timer)
+        timer = null
+      }
+    }
+
+    // A hidden tab costs nothing; the next focus refetches anyway.
+    const schedule = (delay: number) => {
+      stop()
+      if (!active || document.hidden) return
+      timer = setTimeout(() => { void load() }, delay)
+    }
+
+    async function load(): Promise<void> {
+      // One read at a time: a focus event during a poll joins that read.
+      if (!active || inFlight) return
+      inFlight = true
+      try {
+        const value = await getSharedSession(code)
+        if (!active) return
+        failures = 0
+        setSettled({ code, value, error: null })
+        schedule(REFRESH_MS)
+      } catch (problem) {
         if (!active) return
         const missing = problem instanceof ApiError && problem.status === 404
-        setSettled({ code, value: null, error: missing ? 'notFound' : 'failed' })
-      })
+        if (missing) {
+          // A rotated or deleted link never comes back — stop polling.
+          setSettled({ code, value: null, error: 'notFound' })
+          return
+        }
+        // Keep the games already on screen: a failed refresh should not blank
+        // a page the spectator can still read.
+        setSettled((previous) =>
+          previous !== null && previous.code === code && previous.value !== null
+            ? previous
+            : { code, value: null, error: 'failed' },
+        )
+        failures += 1
+        schedule(Math.min(MAX_REFRESH_MS, REFRESH_MS * 2 ** failures))
+      } finally {
+        inFlight = false
+      }
+    }
+
+    const refreshNow = () => {
+      if (document.hidden) {
+        stop()
+        return
+      }
+      failures = 0
+      void load()
+    }
+
+    const onVisibility = () => {
+      if (document.hidden) stop()
+      else refreshNow()
+    }
+
+    void load()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', refreshNow)
     return () => {
       active = false
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', refreshNow)
     }
   }, [code])
 

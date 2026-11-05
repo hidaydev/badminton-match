@@ -172,6 +172,7 @@ export default function PlayerDetailPage() {
               <MergePanel
                 slug={slug}
                 playerId={player.id}
+                playerName={player.name}
                 candidates={candidates.items ?? []}
                 busy={busy}
                 onRun={run}
@@ -356,12 +357,13 @@ function ClaimRow({ slug, playerId, claim, admin, own, busy, onRun }: ClaimRowPr
 type MergeProps = {
   slug: string
   playerId: string
+  playerName: string
   candidates: { id: string; name: string }[]
   busy: boolean
   onRun: Run
 }
 
-function MergePanel({ slug, playerId, candidates, busy, onRun }: MergeProps) {
+function MergePanel({ slug, playerId, playerName, candidates, busy, onRun }: MergeProps) {
   const [source, setSource] = useState('')
   const others = candidates.filter((candidate) => candidate.id !== playerId)
 
@@ -390,7 +392,13 @@ function MergePanel({ slug, playerId, candidates, busy, onRun }: MergeProps) {
         <button
           type="button"
           disabled={busy || source === ''}
-          onClick={() => void onRun(() => mergePlayers(slug, playerId, source))}
+          onClick={() => {
+            const sourceName = others.find((candidate) => candidate.id === source)?.name ?? source
+            const confirmed = window.confirm(
+              t('playerAdmin.merge.confirm', { source: sourceName, target: playerName }),
+            )
+            if (confirmed) void onRun(() => mergePlayers(slug, playerId, source))
+          }}
           className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
         >
           {t('playerAdmin.merge.submit')}

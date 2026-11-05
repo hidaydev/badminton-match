@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetSession,
   useSessionRealtime,
+  useSetSessionLock,
   useTogglePlayed,
   useSetScore,
   useSwapPlayers,
@@ -24,6 +25,7 @@ import type { SlotSwapTarget } from '../utils/slotSwap'
 import type { TeamSwapTarget, SwapTarget } from '../utils/swap'
 import SummaryModal from '../components/SummaryModal'
 import ErrorBanner from '../components/ErrorBanner'
+import { useAdmin } from '../context/AdminContext'
 import { useLastSession } from '../hooks/useLastSession'
 import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
 import { getSaveErrorMessage } from '../queries/errors'
@@ -35,6 +37,10 @@ export default function SharedSessionPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   // Hook wajib sebelum early return di bawah.
   const globalAmbiguous = useAmbiguousNames()
+  // The server only accepts session writes from a host or admin, so a member
+  // gets the same screen without any edit affordance.
+  const { isAdmin } = useAdmin()
+  const canEdit = isAdmin
 
   // Auto-dismiss error toast after 3 seconds (keputusan poin 4)
   useAutoDismiss(saveError, setSaveError, 3000)
@@ -43,15 +49,16 @@ export default function SharedSessionPage() {
   const { mutate: setScore, isPending: setScorePending } = useSetScore(sessionId!)
   const { mutate: swapPlayers, isPending: swapPlayersPending } = useSwapPlayers(sessionId!)
   const { mutate: setAbsent, isPending: setAbsentPending } = useSetAbsent(sessionId!)
-  const { mutate: setSkipped, isPending: setSkippedPending } = useSetGameSkipped(sessionId!)
+  const { mutateAsync: setSkippedAsync, isPending: setSkippedPending } = useSetGameSkipped(sessionId!)
   const { mutate: replacePlayer, isPending: replacePlayerPending } = useReplacePlayer(sessionId!)
   const { mutate: swapSlots, isPending: swapSlotsPending } = useSwapSlots(sessionId!)
   const { mutate: swapTeams, isPending: swapTeamsPending } = useSwapTeams(sessionId!)
   const { mutate: changePlayer, isPending: changePlayerPending } = useChangePlayer(sessionId!)
+  const { mutateAsync: setSessionLocked, isPending: lockPending } = useSetSessionLock(sessionId!)
 
   const isSaving = togglePlayedPending || setScorePending || swapPlayersPending || setAbsentPending || setSkippedPending || replacePlayerPending || swapSlotsPending || swapTeamsPending || changePlayerPending
 
-  const { connected: realtimeConnected, reconnecting: realtimeReconnecting } = useSessionRealtime(sessionId, !isSaving)
+  const { connected: realtimeConnected, reconnecting: realtimeReconnecting } = useSessionRealtime(sessionId)
 
   const { data: snapshot, isLoading, isError, refetch, isFetching } = useGetSession(sessionId, {
     refetchInterval: realtimeConnected ? false : isSaving ? false : 5_000,
@@ -164,7 +171,10 @@ export default function SharedSessionPage() {
         absentPlayers={snapshot.absentPlayers ?? []}
         skippedPlayers={snapshot.skippedPlayers ?? {}}
         onSetAbsent={(nextAbsent) => setAbsent({ nextAbsent }, mutationToastHandlers(setSaveError))}
-        onSetGameSkipped={(key, playerIds) => setSkipped({ key, playerIds }, mutationToastHandlers(setSaveError))}
+        onSetGameSkipped={async (key, playerIds) => {
+          // Resolves per game so the confirm handler can stop on the first failure.
+          await setSkippedAsync({ key, playerIds }, mutationToastHandlers(setSaveError))
+        }}
         onReplacePlayer={async (playerId, newName) => {
           try {
             await registerPlayer(newName)
@@ -194,6 +204,20 @@ export default function SharedSessionPage() {
         onRefetch={() => refetch()}
         isRefetching={isFetching}
         locked={!!snapshot?.session?.locked}
+        readOnly={!canEdit || !!snapshot?.session?.locked}
+        onSetLocked={canEdit ? async (nextLocked) => {
+          const version = snapshot.version
+          if (version == null) {
+            setSaveError('Session version is not loaded. Reload and try again.')
+            return
+          }
+          try {
+            await setSessionLocked({ locked: nextLocked, version })
+          } catch (err) {
+            setSaveError(getSaveErrorMessage(err))
+          }
+        } : undefined}
+        lockBusy={lockPending}
       />
     </main>
     </AmbiguousNamesProvider>

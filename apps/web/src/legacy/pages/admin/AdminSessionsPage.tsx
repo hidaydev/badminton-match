@@ -11,7 +11,9 @@ const PAGE = 10
 
 export default function AdminSessionsPage() {
   const [page, setPage] = useState(0)
-  const { data: sessions, refetch } = useListSessions()
+  // The admin pager slices in the browser, so it asks for the whole list in one
+  // request (the server caps a page at 500) instead of paging behind its back.
+  const { data: sessions, total, refetch } = useListSessions({ limit: 500 })
 
   const slice = (sessions ?? []).slice(page * PAGE, page * PAGE + PAGE)
 
@@ -22,7 +24,7 @@ export default function AdminSessionsPage() {
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between px-0.5">
               <p className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionSession')}</p>
-              <span className="text-xs font-mono text-fg-dim">{(sessions ?? []).length} sessions</span>
+              <span className="text-xs font-mono text-fg-dim">{total} sessions</span>
             </div>
 
             <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">

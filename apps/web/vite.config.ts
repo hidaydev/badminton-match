@@ -34,11 +34,19 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
+      // The logo icons come from `globPatterns`; letting the plugin add them a
+      // second time only duplicates the precache entries.
+      includeManifestIcons: false,
       workbox: {
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        // Precaching is the app shell only. Anything heavier than this (the
+        // social-export backgrounds, team photos) is fetched on demand by the
+        // runtime rules below instead of on the first install.
+        maximumFileSizeToCacheInBytes: 200 * 1024,
         navigateFallback: '/index.html',
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2,webmanifest}'],
-        globIgnores: ['team-winner.png', 'anniv-*.png'],
+        globPatterns: ['**/*.{js,css,html,ico,svg,webmanifest}', 'logo-*.png'],
+        // The manifest body is injected by vite-plugin-pwa itself; ignoring it
+        // here keeps one precache entry instead of two.
+        globIgnores: ['team-winner.png', 'anniv-*.png', 'manifest.webmanifest'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -75,4 +83,18 @@ export default defineConfig({
   ],
   server: { proxy },
   preview: { port: 4174, strictPort: true, proxy },
+  build: {
+    // The service worker only precaches chunks under 200 KB (see the PWA
+    // config above), so dependencies are split out of the app entry.
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'vendor', test: /[\\/]node_modules[\\/]/, maxSize: 180 * 1024 },
+            { name: 'legacy', test: /[\\/]src[\\/]legacy[\\/]/, maxSize: 180 * 1024 },
+          ],
+        },
+      },
+    },
+  },
 })

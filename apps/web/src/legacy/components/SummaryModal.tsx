@@ -36,6 +36,8 @@ interface SummaryModalBaseProps {
   courtTimes: CourtTime[]
   standalone?: boolean
   locked?: boolean
+  /** The viewer may read but not edit (e.g. a community member). */
+  readOnly?: boolean
   absentPlayers?: string[]
   skippedPlayers?: Record<string, string[]>
 }
@@ -46,13 +48,16 @@ interface SummaryModalEditProps {
   onSetGameScore?: (key: string, a: number, b: number) => void
   onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
   onSetAbsent?: (nextAbsent: string[]) => void
-  onSetGameSkipped?: (key: string, playerIds: string[]) => void
+  onSetGameSkipped?: (key: string, playerIds: string[]) => void | Promise<void>
   onReplacePlayer?: (playerId: string, newName: string) => void
   onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
   onSwapTeams?: (t1: TeamSwapTarget, t2: TeamSwapTarget) => void
   onChangePlayer?: (target: SwapTarget, newName: string) => void
   onRefetch?: () => void
   isRefetching?: boolean
+  /** Approve and rate the session, or withdraw that approval. */
+  onSetLocked?: (locked: boolean) => void | Promise<void>
+  lockBusy?: boolean
   onDelete?: () => void
   deleteLoading?: boolean
   onClose?: () => void
@@ -94,9 +99,12 @@ export default function SummaryModal({
   onChangePlayer,
   onRefetch,
   isRefetching = false,
+  onSetLocked,
+  lockBusy = false,
   onDelete,
   deleteLoading = false,
   locked = false,
+  readOnly = false,
 }: SummaryModalProps) {
   const played = new Set(playedArr)
 
@@ -189,6 +197,7 @@ export default function SummaryModal({
 
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [lockConfirm, setLockConfirm] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -224,12 +233,53 @@ export default function SummaryModal({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {locked && (
+          {locked && !onSetLocked && (
             <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-900/40 border border-amber-700 text-amber-400">
               🔒<span className="hidden sm:inline"> Locked</span>
             </span>
           )}
-          {!locked && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onSetGameSkipped || onReplacePlayer || onSwapSlots || onSwapTeams) && (
+          {/* Finishing is the rating gate, so it is never one careless click. */}
+          {onSetLocked && !lockConfirm && (
+            <button
+              onClick={() => setLockConfirm(true)}
+              disabled={lockBusy}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                locked
+                  ? 'bg-slate-800 border-slate-600 text-slate-300 hover:text-white'
+                  : 'bg-emerald-900/40 border-emerald-700 text-emerald-300 hover:bg-emerald-900/60'
+              }`}
+            >
+              {locked ? 'Reopen session' : 'Finish session'}
+            </button>
+          )}
+          {onSetLocked && lockConfirm && (
+            <>
+              <span className="text-xs text-slate-400 hidden sm:inline max-w-xs">
+                {locked
+                  ? 'Reopen? Its points are withdrawn until it is finished again.'
+                  : 'Finish? The session becomes read-only and its results count toward the rankings.'}
+              </span>
+              <button
+                onClick={async () => {
+                  setLockConfirm(false)
+                  await onSetLocked(!locked)
+                }}
+                disabled={lockBusy}
+                className={`text-xs font-bold px-3 py-1.5 rounded-lg text-white transition-colors disabled:opacity-50 ${
+                  locked ? 'bg-amber-600 hover:bg-amber-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                }`}
+              >
+                {lockBusy ? 'Saving…' : locked ? 'Yes, reopen' : 'Yes, finish'}
+              </button>
+              <button
+                onClick={() => setLockConfirm(false)}
+                className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
+              >
+                ✕
+              </button>
+            </>
+          )}
+          {!locked && !readOnly && activeTab === 'schedule' && (onSwapPlayers || onSetAbsent || onSetGameSkipped || onReplacePlayer || onSwapSlots || onSwapTeams) && (
             mode !== 'idle' ? (
               <button
                 onClick={() => { exitCurrentMode(); setActionsOpen(false) }}
@@ -533,7 +583,7 @@ export default function SummaryModal({
             sessionStart={sessionStart}
             slotMinutes={slotMinutes}
             mode={mode}
-            locked={locked}
+            locked={locked || readOnly}
             saving={saving}
             playerMap={playerMap}
             playedGames={playedArr}

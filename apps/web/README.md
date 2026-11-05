@@ -45,16 +45,26 @@ cookie stays first-party:
 - dev: `vite.config.ts` proxies `/api` to `http://127.0.0.1:8080` and strips the
   `/api` prefix (the API itself has no prefix).
 - prod/preview: `vercel.json` rewrites `/api/:path*` to
-  `https://api.qouver.com/:path*` **before** the SPA catch-all.
+  `https://api.qouver.com/majadu/:path*` **before** the SPA catch-all. The
+  `/majadu` segment is required: Caddy serves the API only under `/majadu/*`
+  and strips the prefix before proxying (`ops/caddy/site-v2.caddy`), so a
+  rewrite to the bare host reaches nothing.
 
-Set `VITE_API_BASE` to bypass both (for example `https://api.qouver.com`). Unset,
-the client uses the same-origin `/api` path. Copy `.env.local.example` to
+Set `VITE_API_BASE` to bypass both. It must carry the same prefix, for example
+`https://api.qouver.com/majadu`; without `/majadu` every call 404s. Unset, the
+client uses the same-origin `/api` path. Copy `.env.local.example` to
 `.env.local` for local overrides.
 
 ## Vercel configuration
 
-- No environment variable is required for the shell; `VITE_API_BASE` is optional
-  and should stay unset on Vercel.
+- `VITE_API_BASE` should stay unset: the rewrite already keeps HTTP traffic
+  same-origin, which is what keeps the session cookie first-party.
+- **`VITE_WS_BASE` must be set in production**, to
+  `wss://api.qouver.com/majadu`. A Vercel rewrite cannot carry a WebSocket
+  upgrade, so the session socket has to reach the API host directly (the same
+  `/majadu` prefix applies). Without it `socketBase()` falls back to the page
+  origin, where `/ws/...` is a static asset: the socket never connects and the
+  session page silently degrades to its 5 s poll.
 - The API must allow this origin in `security.allowed_origins` and register
   `<origin>/api/auth/callback` as the OIDC redirect URI.
 - `vercel.json` also sets `Cache-Control: no-store` for `/`, `/index.html`, and

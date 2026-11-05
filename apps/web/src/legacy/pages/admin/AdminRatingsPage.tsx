@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRatingSources } from '../../queries/ratings'
 import { adminRequest } from '../../queries/admin'
-import { t } from '../../i18n'
+import { t, en } from '../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
 import Pager from '../../components/admin/Pager'
@@ -26,6 +26,7 @@ export default function AdminRatingsPage() {
 
   const runRebuild = async () => {
     if (rebuilding) return
+    if (!window.confirm(en.admin.rebuildConfirm)) return
     setRebuilding(true)
     setRebuildMsg(null)
     try {
@@ -84,12 +85,16 @@ export default function AdminRatingsPage() {
                       )}>
                         Ingest
                       </ActionButton>
-                      <ActionButton tone="red" onClick={() => run(
-                        () => adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
-                          isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
-                        'Reverted',
-                        refreshRatingData,
-                      )}>
+                      <ActionButton tone="red" onClick={() => {
+                        if (window.confirm(en.admin.revertConfirm(src.source_name, isT))) {
+                          run(
+                            () => adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
+                              isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
+                            'Reverted',
+                            refreshRatingData,
+                          )
+                        }
+                      }}>
                         Revert
                       </ActionButton>
                     </div>

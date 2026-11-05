@@ -82,6 +82,7 @@ export const en = {
     locked: 'Locked · Rated',
     active: 'In Progress',
     clear: 'Clear',
+    loadMore: 'Load more sessions',
   },
   tournaments: {
     title: 'Tournaments',
@@ -134,6 +135,10 @@ export const en = {
     // Second confirmation: player referenced in past sessions (needs force delete).
     playerDeleteForceConfirm: (name: string) =>
       `"${name}" is already referenced in past sessions.\n\nDelete anyway? This player will be removed from past session rosters (their session history remains). This cannot be undone.`,
+    revertConfirm: (name: string, tournament: boolean) =>
+      `Revert the ratings of "${name}"?\n\nEvery rating event from this ${tournament ? 'tournament' : 'session'} is removed and all ratings are rebuilt without it. This cannot be undone.`,
+    rebuildConfirm:
+      'Rebuild every rating from the stored events?\n\nAny rating that only exists as a manual value is overwritten. This cannot be undone.',
     nameRequired: 'Name is required',
     newPlayerName: 'Player name',
     tierInduk: 'Tier',

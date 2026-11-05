@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, listSessions, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers, patchGameSkipped, swapMembers, issueSessionTicket, currentCommunitySlug } from './endpoints'
+import { getSession, publishSession, listSessions, setSessionLock, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers, patchGameSkipped, swapMembers, issueSessionTicket, currentCommunitySlug } from './endpoints'
 import type { GranularSwapTarget } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import { isVersionMismatch, isLockedError, isContentionError } from './errors'
@@ -122,22 +122,53 @@ async function withSnapshotVersionRetry<T>(
   throw new Error('unreachable')
 }
 
+const SESSION_PAGE_SIZE = 100
+
 export function useListSessions(options?: {
   date?: string
   q?: string
   limit?: number
   enabled?: boolean
 }) {
-  return useQuery<SessionMeta[]>({
+  const query = useInfiniteQuery({
     queryKey: ['sessions', options?.date, options?.q, options?.limit],
-    queryFn: ({ signal }) =>
+    queryFn: ({ pageParam, signal }) =>
       listSessions({
         date: options?.date,
         q: options?.q,
-        limit: options?.limit,
+        limit: options?.limit ?? SESSION_PAGE_SIZE,
+        offset: pageParam,
         signal,
       }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.nextOffset,
     enabled: options?.enabled ?? true,
+  })
+
+  const sessions: SessionMeta[] = query.data?.pages.flatMap((page) => page.items) ?? []
+  // `total` is the server's count for the current filter, not the loaded slice:
+  // the header must not claim "12 total" because only 12 arrived.
+  const total = query.data?.pages[0]?.total ?? sessions.length
+
+  return {
+    ...query,
+    data: sessions,
+    total,
+    hasMore: query.hasNextPage,
+    loadMore: query.fetchNextPage,
+    isLoadingMore: query.isFetchingNextPage,
+  }
+}
+
+export function useSetSessionLock(sessionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ locked, version }: { locked: boolean; version: number }) =>
+      setSessionLock(sessionId, locked, version),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    },
   })
 }
 
@@ -154,10 +185,18 @@ export function useGetSession(
   })
 }
 
+/** The server answers `{"type":"ping"}` with `{"type":"pong"}`. */
+const PING_MS = 25_000
+
 /**
  * v1 streamed snapshots over SSE. v2 publishes `session.changed` on a
  * WebSocket; the page keeps its 5s refetch while this reports
  * `connected: false`, so a dropped socket degrades instead of breaking.
+ *
+ * The socket stays open for the whole page visit: closing it on every save
+ * would burn a ticket and drop `session.changed` frames from other editors.
+ * The server has no replay buffer, so the first open after a reconnect
+ * refetches the snapshot once to catch up with what was missed.
  *
  * The URL is built from `VITE_WS_BASE` (or the API base when that is absolute),
  * because in production the socket lives on the API origin: a Vercel rewrite
@@ -174,7 +213,21 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
     let active = true
     let socket: WebSocket | null = null
     let timer: ReturnType<typeof setTimeout> | null = null
+    let pingTimer: ReturnType<typeof setInterval> | null = null
     let attempt = 0
+    let opened = false
+
+    const stopPing = () => {
+      if (pingTimer !== null) {
+        clearInterval(pingTimer)
+        pingTimer = null
+      }
+    }
+
+    const send = (frame: Record<string, unknown>) => {
+      // Anything but `ping`/`subscribe` makes the server drop the socket.
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(frame))
+    }
 
     const retry = () => {
       if (!active) return
@@ -198,7 +251,16 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
           attempt = 0
           setConnected(true)
           setReconnecting(false)
-          socket?.send(JSON.stringify({ type: 'subscribe', lastSeq: 0 }))
+          send({ type: 'subscribe', lastSeq: 0 })
+          // Deltas published while the socket was down are gone for good, so a
+          // reconnect needs one refetch. The very first open rides the fetch
+          // the page already issued on mount.
+          if (opened) {
+            void queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+          }
+          opened = true
+          stopPing()
+          pingTimer = setInterval(() => send({ type: 'ping' }), PING_MS)
         }
         socket.onmessage = (event) => {
           let frame: { type?: string }
@@ -214,10 +276,12 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
             // The link is gone or this process is full; stop reconnecting and
             // let the polling path keep the screen correct.
             active = false
+            stopPing()
             socket?.close()
           }
         }
         socket.onclose = () => {
+          stopPing()
           setConnected(false)
           retry()
         }
@@ -231,6 +295,7 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
     return () => {
       active = false
       if (timer !== null) clearTimeout(timer)
+      stopPing()
       socket?.close()
       setConnected(false)
       setReconnecting(false)

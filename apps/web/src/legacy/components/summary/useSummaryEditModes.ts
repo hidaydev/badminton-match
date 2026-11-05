@@ -21,7 +21,8 @@ interface Params {
   onExitExtra: () => void
   onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
   onSetAbsent?: (next: string[]) => void
-  onSetGameSkipped?: (key: string, playerIds: string[]) => void
+  /** May be async: skips are applied game by game, one request at a time. */
+  onSetGameSkipped?: (key: string, playerIds: string[]) => void | Promise<void>
   onSwapSlots?: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
   onSwapTeams?: (t1: TeamSwapTarget, t2: TeamSwapTarget) => void
   onChangePlayer?: (target: SwapTarget, newName: string) => void
@@ -320,14 +321,21 @@ export function useSummaryEditModes({
     exitCurrentMode()
   }, [absentPending, onSetAbsent, exitCurrentMode])
 
-  const handleConfirmSkip = useCallback(() => {
-    // Send per-game PATCH sequentially (row-level OCC, low contention)
-    for (const [key, set] of skipPending) {
-      onSetGameSkipped?.(key, [...set])
-    }
-    // Also clear games that were skipped before but now empty
+  const handleConfirmSkip = useCallback(async () => {
+    // One PATCH at a time. Every game carries the same session version, so
+    // firing them together makes all but the first fail with 412.
+    const changes: [string, string[]][] = [...skipPending].map(([key, set]) => [key, [...set]])
     for (const k of Object.keys(skippedPlayers)) {
-      if (!skipPending.has(k)) onSetGameSkipped?.(k, [])
+      if (!skipPending.has(k)) changes.push([k, []])
+    }
+    try {
+      for (const [key, playerIds] of changes) {
+        await onSetGameSkipped?.(key, playerIds)
+      }
+    } catch {
+      // The failed game already rolled back its optimistic edit and raised the
+      // toast; keep the pending selection so the host can retry.
+      return
     }
     exitCurrentMode()
   }, [skipPending, skippedPlayers, onSetGameSkipped, exitCurrentMode])

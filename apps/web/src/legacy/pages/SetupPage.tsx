@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { useStore } from '../store'
 import { selectTotalGames } from '../store/selectors'
 import { PLAYERS_PER_GAME } from '../types'
@@ -189,10 +188,8 @@ export default function SetupPage() {
   const resetSession = useStore((s) => s.resetSession)
   const navigate = useNavigate()
 
-  // Auto-reset if session is locked (stale state from previous session)
-  useEffect(() => {
-    if (session.locked) resetSession()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // No auto-reset on mount: coming back here from the Players step used to
+  // wipe the roster, schedule and scores. "Reset All" stays explicit below.
 
   const sessionStartMin = timeToMinutes(session.sessionStart)
   const startOpts = timeOptions(6 * 60, 22 * 60)

@@ -316,6 +316,7 @@ export const en = {
   'playerAdmin.decide.release': 'Release',
   'playerAdmin.merge': 'Merge another player',
   'playerAdmin.merge.hint': 'The source player disappears and everything it owns moves here.',
+  'playerAdmin.merge.confirm': 'Merge {source} into {target}? {source} is deleted for good and every result, claim and rating event it owns moves to {target}. This cannot be undone.',
   'playerAdmin.merge.source': 'Source player',
   'playerAdmin.merge.pick': 'Pick a player',
   'playerAdmin.merge.submit': 'Merge',

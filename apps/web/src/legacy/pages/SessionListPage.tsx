@@ -1,5 +1,5 @@
 // src/pages/SessionListPage.tsx: logbook of past and active match sessions.
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useNavigate } from '../router'
 import { useListSessions } from '../queries'
 import { t } from '../i18n'
@@ -12,20 +12,20 @@ export default function SessionListPage() {
   const [dateFilter, setDateFilter] = useState('')
 
   const hasFilter = Boolean(query.trim() || dateFilter)
-  // The API lists all sessions when no filter is given; the filter bar only
-  // narrows the view client-side, so the logbook is browsable without typing.
-  const { data: sessions = [], isLoading, isError } = useListSessions({
+  // Server-side search and paging: the query covers the whole logbook, and
+  // "load more" asks for the next page instead of the list stopping at 100.
+  const {
+    data: filtered = [],
+    total,
+    isLoading,
+    isError,
+    hasMore,
+    loadMore,
+    isLoadingMore,
+  } = useListSessions({
     q: query.trim() || undefined,
     date: dateFilter || undefined,
   })
-
-  const filtered = useMemo(() => {
-    return sessions.filter((s) => {
-      if (dateFilter && s.date !== dateFilter) return false
-      if (query && !(s.title || '').toLowerCase().includes(query.toLowerCase())) return false
-      return true
-    })
-  }, [sessions, dateFilter, query])
 
   return (
     <div className="flex flex-col gap-3">
@@ -33,7 +33,7 @@ export default function SessionListPage() {
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-lg font-bold text-fg">{t('sessions.title')}</h2>
         <span className="text-xs font-mono text-fg-dim font-medium">
-          {filtered.length} {t('common.total')}
+          {hasFilter ? `${filtered.length} / ${total}` : total} {t('common.total')}
         </span>
       </div>
 
@@ -161,6 +161,16 @@ export default function SessionListPage() {
             )
           })}
         </div>
+      )}
+
+      {!isError && !isLoading && hasMore && (
+        <button
+          onClick={() => loadMore()}
+          disabled={isLoadingMore}
+          className="self-center text-xs font-mono text-fg-dim hover:text-fg border border-border rounded-lg px-3 py-2 transition-colors active:scale-95 disabled:opacity-50"
+        >
+          {isLoadingMore ? '…' : t('sessions.loadMore')}
+        </button>
       )}
     </div>
   )
