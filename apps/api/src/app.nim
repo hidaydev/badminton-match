@@ -1461,6 +1461,9 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
+  # The links go with the session, so their watchers have to be told before the
+  # rows they point at are gone.
+  let links = shareStore.liveLinks(application.db, ctx.communityId, sessionId)
   let outcome = sessionWrite.remove(application.db, ctx.communityId, sessionId,
     ctx.role == rAdmin)
   case outcome
@@ -1478,6 +1481,8 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
     discard ratingIngest.rebuild(application.db, ctx.communityId,
       ratingParamsFor(ctx))
   discard ratingIngest.dropSource(application.db, ctx.communityId, sessionId)
+  for linkId in links:
+    application.hub.revokeShare(linkId)
   audit("session.delete", ctx, user, "session", sessionId,
     %*{"removedDeltas": removed})
   send(request, 204, @[("Cache-Control", "no-store")], "")

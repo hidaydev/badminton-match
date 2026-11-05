@@ -130,6 +130,16 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     status: value.get("status"),
   ))
 
+proc liveLinks*(db: Db, communityId, sessionId: string): seq[string] =
+  ## Ids of the links a delete is about to take with it, so their watchers can be
+  ## closed without revoking anything first.
+  for row in db.query(
+    """select id from session.links
+       where community_id = $1::uuid and session_id = $2::uuid
+         and revoked_at is null""",
+    @[textParam(communityId), textParam(sessionId)]):
+    result.add(row.get("id"))
+
 proc revokeLive*(db: Db, communityId, sessionId: string): seq[string] =
   ## Revokes every live link for the session and returns their ids so the
   ## caller can drop the watchers and their tickets. An empty result means
