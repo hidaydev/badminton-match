@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   endSession,
   fetchMe,
@@ -11,8 +12,11 @@ import type { Membership, SessionUser } from './api'
 import { AuthContext } from './AuthContext'
 import type { AuthContextValue } from './AuthContext'
 import { redirectTo } from './redirect'
+import { clearStoreDraft } from '../legacy/store'
+import { setCommunitySlug } from '../legacy/queries/endpoints'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient()
   const [user, setUser] = useState<SessionUser | null>(null)
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [loading, setLoading] = useState(true)
@@ -54,9 +58,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await endSession()
+    // The next account on this device must not inherit cached community data.
+    queryClient.clear()
+    clearStoreDraft()
+    // Clears the adapter's module caches (player names) as well as the slug.
+    setCommunitySlug('')
     setUser(null)
     setMemberships([])
-  }, [])
+  }, [queryClient])
 
   const value = useMemo<AuthContextValue>(
     () => ({ user, memberships, loading, loggingIn, login, logout }),

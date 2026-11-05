@@ -1,5 +1,5 @@
-import { Suspense, useCallback, useMemo, useState } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
@@ -33,7 +33,7 @@ import SessionListPage from './legacy/pages/SessionListPage'
 import SharedSessionPreviewPage from './legacy/pages/SessionPreviewPage'
 import { LegacySlugProvider, Navigate as LegacyNavigate, Outlet as LegacyOutlet } from './legacy/router'
 import { setCommunitySlug } from './legacy/queries/endpoints'
-import { useStore } from './legacy/store'
+import { useStore, prepareCommunityDraft } from './legacy/store'
 import { decodeSnapshot, type SharedSnapshot } from './legacy/utils/shareUrl'
 import { SharedViewContext, useSharedView } from './legacy/sharedView'
 import { safeLazy } from './legacy/utils/safeLazy'
@@ -106,9 +106,22 @@ function SharedViewPage() {
  */
 function LegacyShell() {
   const { slug = '' } = useParams<{ slug: string }>()
+  const queryClient = useQueryClient()
+  const previousSlug = useRef(slug)
   setCommunitySlug(slug)
+
+  // A community switch must not reuse the previous slug's cache or draft.
+  // `prepareCommunityDraft` only applies a persisted draft tagged with `slug`.
+  useEffect(() => {
+    if (previousSlug.current !== slug) {
+      queryClient.removeQueries({ queryKey: [previousSlug.current] })
+      previousSlug.current = slug
+    }
+    prepareCommunityDraft(slug)
+  }, [slug, queryClient])
+
   return (
-    <LegacySlugProvider slug={slug}>
+    <LegacySlugProvider key={slug} slug={slug}>
       <AdminProvider>
         <GlobalAmbiguousNames>
           <LegacyOutlet />

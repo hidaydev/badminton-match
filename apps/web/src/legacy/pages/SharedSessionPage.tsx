@@ -29,6 +29,7 @@ import { useAdmin } from '../context/AdminContext'
 import { useLastSession } from '../hooks/useLastSession'
 import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
 import { getSaveErrorMessage } from '../queries/errors'
+import { communityQueryKey } from '../queries/keys'
 
 export default function SharedSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -156,7 +157,7 @@ export default function SharedSessionPage() {
         playedGames={snapshot.playedGames}
         gameScores={snapshot.gameScores}
         onTogglePlayedGame={(key) => {
-          const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+          const current = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', sessionId))
           const willBePlayed = !current?.playedGames.includes(key)
           togglePlayed({ key, nextPlayed: willBePlayed }, mutationToastHandlers(setSaveError))
         }}

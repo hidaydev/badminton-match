@@ -27,7 +27,11 @@ let communitySlug = ''
 
 /** The legacy shell calls this before rendering community screens. */
 export function setCommunitySlug(slug: string) {
+  if (slug === communitySlug) return
   communitySlug = slug
+  // Player names/ids belong to the community that was active when they were
+  // read; keeping them would join the wrong gender/tier onto the next one.
+  playerCache = null
 }
 
 /** The slug the shell last set; the socket path needs it. */

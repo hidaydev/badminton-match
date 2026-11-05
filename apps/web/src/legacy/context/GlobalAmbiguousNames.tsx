@@ -18,10 +18,11 @@ import { useQuery } from '@tanstack/react-query'
 import { AmbiguousNamesProvider } from '../context/AmbiguousNamesContext'
 import { collectAmbiguousBaseNames } from '../utils/nameParser'
 import { listPlayers } from '../queries/endpoints'
+import { communityQueryKey } from '../queries/keys'
 
 export default function GlobalAmbiguousNames({ children }: { children: React.ReactNode }) {
   const { data } = useQuery({
-    queryKey: ['players', 'all'],
+    queryKey: communityQueryKey('players', 'all'),
     queryFn: ({ signal }) => listPlayers(signal),
     staleTime: 5 * 60 * 1000,
   })

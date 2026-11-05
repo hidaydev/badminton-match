@@ -2,11 +2,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { getRatingPlayer, getPlayerAchievements, getRankings, getPlayerRankPoints, request, communityApiPath } from './endpoints'
 import type { RatingPlayer, AchievementRow, RankPointsBoard, PlayerRankPoints } from './endpoints'
+import { communityQueryKey } from './keys'
 
 // useRankings — papan poin publik (window bergulir, N entri terbaik).
 export function useRankings(limit = 200, minSessions?: number) {
   return useQuery<RankPointsBoard>({
-    queryKey: ['rankings', limit, minSessions],
+    queryKey: communityQueryKey('rankings', limit, minSessions),
     queryFn: ({ signal }) => getRankings(limit, minSessions, signal),
     staleTime: 1000 * 60,
   })
@@ -15,7 +16,7 @@ export function useRankings(limit = 200, minSessions?: number) {
 // usePlayerRankPoints — poin ranking satu pemain (halaman detail publik).
 export function usePlayerRankPoints(playerId: string | undefined) {
   return useQuery<PlayerRankPoints>({
-    queryKey: ['rankings', 'player', playerId],
+    queryKey: communityQueryKey('rankings', 'player', playerId),
     queryFn: ({ signal }) => getPlayerRankPoints(playerId!, signal),
     enabled: !!playerId,
     staleTime: 1000 * 60,
@@ -24,7 +25,7 @@ export function usePlayerRankPoints(playerId: string | undefined) {
 
 export function useRatingPlayer(playerId: string | undefined) {
   return useQuery<RatingPlayer>({
-    queryKey: ['ratings', 'player', playerId],
+    queryKey: communityQueryKey('ratings', 'player', playerId),
     queryFn: ({ signal }) => getRatingPlayer(playerId!, signal),
     enabled: !!playerId,
     staleTime: 1000 * 60,
@@ -33,7 +34,7 @@ export function useRatingPlayer(playerId: string | undefined) {
 
 export function useRatingPlayerAchievements(playerId: string | undefined) {
   return useQuery<AchievementRow[]>({
-    queryKey: ['ratings', 'player', playerId, 'achievements'],
+    queryKey: communityQueryKey('ratings', 'player', playerId, 'achievements'),
     queryFn: ({ signal }) => getPlayerAchievements(playerId!, signal),
     enabled: !!playerId,
     staleTime: 1000 * 60,
@@ -62,7 +63,7 @@ type V2RatingEvent = {
 
 export function useRatingSources() {
   return useQuery<RatingSourceRow[]>({
-    queryKey: ['ratings', 'sources'],
+    queryKey: communityQueryKey('ratings', 'sources'),
     queryFn: async ({ signal }) => {
       const data = await request<{ items: V2RatingEvent[] }>(
         'GET',

@@ -6,6 +6,7 @@ import {
   useConfirmGroups,
   useSetTournamentScore,
 } from '../queries'
+import { communityQueryKey } from '../queries/keys'
 import { GROUP_IDS, EMPTY_GROUPS, type GroupId } from '../utils/tournament'
 import { todayWIB } from '../utils/time'
 import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
@@ -68,7 +69,7 @@ export default function TournamentPage() {
   const classic = snapshot && snapshot.format !== 'team' ? snapshot : null
 
   const handleOpenModal = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['tournament', id] })
+    await queryClient.invalidateQueries({ queryKey: communityQueryKey('tournament', id) })
   }
 
   const pairs = classic?.pairs ?? []

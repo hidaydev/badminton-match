@@ -20,17 +20,18 @@ import {
   swapTeamsInSnapshot,
 } from '../utils/sessionSnapshot'
 import { useOptimisticSessionMutation } from './useOptimisticMutation'
+import { communityQueryKey } from './keys'
 
 async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  await queryClient.invalidateQueries({ queryKey: ['sessions'] })
+  await queryClient.invalidateQueries({ queryKey: communityQueryKey('sessions') })
 }
 
 async function invalidateAllQueries(queryClient: ReturnType<typeof useQueryClient>) {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ['sessions'] }),
-    queryClient.invalidateQueries({ queryKey: ['players'] }),
-    queryClient.invalidateQueries({ queryKey: ['player'] }),
-    queryClient.invalidateQueries({ queryKey: ['ratings'] }),
+    queryClient.invalidateQueries({ queryKey: communityQueryKey('sessions') }),
+    queryClient.invalidateQueries({ queryKey: communityQueryKey('players') }),
+    queryClient.invalidateQueries({ queryKey: communityQueryKey('player') }),
+    queryClient.invalidateQueries({ queryKey: communityQueryKey('ratings') }),
   ])
 }
 
@@ -46,27 +47,27 @@ function withGranularOptimisticLifecycle<TVars>(
 ) {
   return {
     onMutate: async (vars: TVars) => {
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      await queryClient.cancelQueries({ queryKey: communityQueryKey('session', sessionId) })
+      const previous = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', sessionId))
       if (previous) {
         const next = optimisticUpdate(previous, vars)
-        if (next) queryClient.setQueryData(['session', sessionId], next)
+        if (next) queryClient.setQueryData(communityQueryKey('session', sessionId), next)
       }
       return { previous }
     },
     onError: async (error: unknown, _vars: TVars, ctx: { previous?: CloudSnapshot } | undefined) => {
-      if (ctx?.previous !== undefined) queryClient.setQueryData(['session', sessionId], ctx.previous)
+      if (ctx?.previous !== undefined) queryClient.setQueryData(communityQueryKey('session', sessionId), ctx.previous)
       if (isVersionMismatch(error) || isLockedError(error) || isContentionError(error)) {
         try {
           await queryClient.fetchQuery<CloudSnapshot | null>({
-            queryKey: ['session', sessionId],
+            queryKey: communityQueryKey('session', sessionId),
             queryFn: () => getSession(sessionId),
           })
         } catch { /* ignore */ }
       }
     },
     onSuccess: (snap: CloudSnapshot) => {
-      queryClient.setQueryData(['session', sessionId], snap)
+      queryClient.setQueryData(communityQueryKey('session', sessionId), snap)
       void invalidate()
     },
   }
@@ -101,7 +102,7 @@ async function withSnapshotVersionRetry<T>(
   opts?: { requireFreshVersion?: boolean },
 ): Promise<T> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+    const current = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', sessionId))
     const ver = current?.version
     if (ver == null) throw new Error('session version not loaded')
     try {
@@ -110,7 +111,7 @@ async function withSnapshotVersionRetry<T>(
       if (attempt === 0 && isVersionMismatch(err)) {
         try {
           const fresh = await queryClient.fetchQuery<CloudSnapshot | null>({
-            queryKey: ['session', sessionId],
+            queryKey: communityQueryKey('session', sessionId),
             queryFn: () => getSession(sessionId),
           })
           if (!opts?.requireFreshVersion || fresh?.version != null) continue
@@ -131,7 +132,7 @@ export function useListSessions(options?: {
   enabled?: boolean
 }) {
   const query = useInfiniteQuery({
-    queryKey: ['sessions', options?.date, options?.q, options?.limit],
+    queryKey: communityQueryKey('sessions', options?.date, options?.q, options?.limit),
     queryFn: ({ pageParam, signal }) =>
       listSessions({
         date: options?.date,
@@ -166,8 +167,8 @@ export function useSetSessionLock(sessionId: string) {
     mutationFn: ({ locked, version }: { locked: boolean; version: number }) =>
       setSessionLock(sessionId, locked, version),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
-      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      queryClient.invalidateQueries({ queryKey: communityQueryKey('session', sessionId) })
+      queryClient.invalidateQueries({ queryKey: communityQueryKey('sessions') })
     },
   })
 }
@@ -177,7 +178,7 @@ export function useGetSession(
   options?: { refetchInterval?: number | false; refetchOnWindowFocus?: boolean },
 ) {
   return useQuery<CloudSnapshot | null>({
-    queryKey: ['session', sessionId],
+    queryKey: communityQueryKey('session', sessionId),
     queryFn: ({ signal }) => getSession(sessionId!, signal),
     enabled: !!sessionId,
     refetchInterval: options?.refetchInterval,
@@ -256,7 +257,7 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
           // reconnect needs one refetch. The very first open rides the fetch
           // the page already issued on mount.
           if (opened) {
-            void queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+            void queryClient.invalidateQueries({ queryKey: communityQueryKey('session', sessionId) })
           }
           opened = true
           stopPing()
@@ -270,7 +271,7 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
             return
           }
           if (frame.type === 'session.changed') {
-            void queryClient.invalidateQueries({ queryKey: ['session', sessionId] })
+            void queryClient.invalidateQueries({ queryKey: communityQueryKey('session', sessionId) })
           }
           if (frame.type === 'full' || frame.type === 'revoked') {
             // The link is gone or this process is full; stop reconnecting and
@@ -318,7 +319,7 @@ export function usePublishSession(sessionId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (snap: CloudSnapshot) => {
-      const current = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      const current = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', sessionId))
       const next: CloudSnapshot = {
         ...snap,
         version: snap.version ?? current?.version,
@@ -328,17 +329,17 @@ export function usePublishSession(sessionId: string | undefined) {
     },
     onMutate: async () => {
       if (!sessionId) return undefined
-      await queryClient.cancelQueries({ queryKey: ['session', sessionId] })
-      const previous = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+      await queryClient.cancelQueries({ queryKey: communityQueryKey('session', sessionId) })
+      const previous = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', sessionId))
       return { previous }
     },
     onSuccess: async (snap) => {
       if (!sessionId) return
       if (snap) {
-        queryClient.setQueryData(['session', sessionId], snap)
+        queryClient.setQueryData(communityQueryKey('session', sessionId), snap)
       }
       await queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', sessionId],
+        queryKey: communityQueryKey('session', sessionId),
         queryFn: () => getSession(sessionId),
       })
       await invalidateSessionQueries(queryClient)
@@ -347,14 +348,14 @@ export function usePublishSession(sessionId: string | undefined) {
       if (!sessionId) return
       // Rollback to previous snapshot
       if (context?.previous !== undefined) {
-        queryClient.setQueryData(['session', sessionId], context.previous)
+        queryClient.setQueryData(communityQueryKey('session', sessionId), context.previous)
       }
       // On version mismatch, refetch the latest snapshot so the user can retry
       // without manually reloading the page.
       if (isVersionMismatch(error)) {
         try {
           await queryClient.fetchQuery<CloudSnapshot | null>({
-            queryKey: ['session', sessionId],
+            queryKey: communityQueryKey('session', sessionId),
             queryFn: () => getSession(sessionId),
           })
         } catch {
@@ -378,7 +379,7 @@ export function useTogglePlayed(sessionId: string) {
         // Legacy toggle caller (tanpa nextPlayed): onMutate sudah set intent absolut
         // ke cache — baca dari sana (bukan invert dari post-mutate cache, yang
         // akan membalik intent karena onMutate sudah mengubahnya).
-        const cur = queryClient.getQueryData<CloudSnapshot>(['session', sessionId])
+        const cur = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', sessionId))
         nextPlayed = (cur?.playedGames ?? []).includes(key)
       }
       const resolvedNextPlayed = nextPlayed
@@ -548,7 +549,7 @@ function useGranularSwap<TVars = Record<string, unknown>>(
       (previous, vars) => optimisticUpdate(previous, vars),
       () => {
         void invalidateSessionQueries(queryClient)
-        void queryClient.invalidateQueries({ queryKey: ['ratings'] })
+        void queryClient.invalidateQueries({ queryKey: communityQueryKey('ratings') })
       },
     ),
   })
@@ -559,7 +560,7 @@ export function useFetchSession() {
   return useCallback(
     (id: string) =>
       queryClient.fetchQuery<CloudSnapshot | null>({
-        queryKey: ['session', id],
+        queryKey: communityQueryKey('session', id),
         queryFn: () => getSession(id),
       }),
     [queryClient],

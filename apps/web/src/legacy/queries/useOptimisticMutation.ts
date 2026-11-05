@@ -8,12 +8,13 @@ import { getSession, publishSession, getTournament, publishTournament } from './
 import type { CloudSnapshot, TournamentSnapshot } from './types'
 import type { TeamTournamentSnapshot } from '../utils/teamTournament'
 import { isVersionMismatch, isLockedError, isContentionError } from './errors'
+import { communityQueryKey } from './keys'
 
 /** Snapshot yang di-publish — session atau tournament (classic & team). */
 type Snapshot = CloudSnapshot | TournamentSnapshot | TeamTournamentSnapshot
 
 interface OptimisticMutationOptions<TData extends Snapshot, TVars> {
-  /** Query key snapshot (['session', id] atau ['tournament', id]). */
+  /** Query key snapshot (`communityQueryKey('session', id)` atau `('tournament', id)`). */
   queryKey: readonly unknown[]
   /**
    * Ambil snapshot terbaru dari server.
@@ -161,7 +162,7 @@ export function useOptimisticSessionMutation(
   return useOptimisticMutation<CloudSnapshot, unknown>(
     sessionId,
     {
-      queryKey: ['session', sessionId],
+      queryKey: communityQueryKey('session', sessionId),
       fetchSnapshot: (id) => getSession(id),
       publish: (id, snap) => publishSession(id, snap),
       optimisticUpdate: (old, vars) => {
@@ -184,7 +185,7 @@ export function useOptimisticTournamentMutation<TVars = unknown>(
   return useOptimisticMutation<TournamentSnapshot, TVars>(
     tournamentId,
     {
-      queryKey: ['tournament', tournamentId],
+      queryKey: communityQueryKey('tournament', tournamentId),
       // Narrow ke classic — format team memakai mutation terpisah (Fase 5).
       fetchSnapshot: async (id) => {
         const s = await getTournament(id)

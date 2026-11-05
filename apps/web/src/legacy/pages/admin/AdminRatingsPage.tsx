@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRatingSources } from '../../queries/ratings'
+import { communityQueryKey } from '../../queries/keys'
 import { adminRequest } from '../../queries/admin'
 import { t, en } from '../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
@@ -19,7 +20,7 @@ export default function AdminRatingsPage() {
 
   const refreshRatingData = () => {
     void refetch()
-    void queryClient.invalidateQueries({ queryKey: ['ratings'] })
+    void queryClient.invalidateQueries({ queryKey: communityQueryKey('ratings') })
   }
 
   const slice = (sources ?? []).slice(page * PAGE, page * PAGE + PAGE)

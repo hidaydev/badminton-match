@@ -10,6 +10,7 @@ import { useStore } from '../store'
 import { usePublishSession } from '../queries'
 import { publishSession, getSession } from '../queries/endpoints'
 import { getSaveErrorMessage } from '../queries/errors'
+import { communityQueryKey } from '../queries/keys'
 import { buildPublishableSessionSnapshot } from '../utils/sessionSnapshot'
 import type { CloudSnapshot } from '../queries/types'
 
@@ -61,7 +62,7 @@ export function useDebouncedPublish(
       existingAbsentPlayers: state.absentPlayers,
     })
 
-    const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
+    const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
     if (cached?.version != null) snap.version = cached.version
 
     inFlightRef.current = true
@@ -74,7 +75,7 @@ export function useDebouncedPublish(
         if (cloudSessionId) {
           try {
             await queryClient.fetchQuery({
-              queryKey: ['session', cloudSessionId],
+              queryKey: communityQueryKey('session', cloudSessionId),
               queryFn: () => getSession(cloudSessionId),
             })
           } catch {
@@ -142,10 +143,10 @@ export function useDebouncedPublish(
               schedule: state.schedule, playedGames: state.playedGames, gameScores: state.gameScores,
               existingAbsentPlayers: state.absentPlayers,
             })
-            const cached = queryClient.getQueryData<CloudSnapshot>(['session', cloudSessionId])
+            const cached = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', cloudSessionId))
             if (cached?.version != null) snap.version = cached.version
             publishSession(cloudSessionId, snap).then(() => {
-              queryClient.invalidateQueries({ queryKey: ['session', cloudSessionId] })
+              queryClient.invalidateQueries({ queryKey: communityQueryKey('session', cloudSessionId) })
             }).catch((err) => {
               console.warn('Unmount flush failed:', err)
               onErrorRef.current?.(getSaveErrorMessage(err))

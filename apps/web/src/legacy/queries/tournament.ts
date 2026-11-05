@@ -17,18 +17,19 @@ import {
   assignGroupPics,
 } from '../utils/tournament'
 import { useOptimisticMutation, useOptimisticTournamentMutation } from './useOptimisticMutation'
+import { communityQueryKey } from './keys'
 
 /** Daftar tournament (metadata) untuk halaman list. */
 export function useListTournaments() {
   return useQuery<TournamentMeta[]>({
-    queryKey: ['tournaments'],
+    queryKey: communityQueryKey('tournaments'),
     queryFn: ({ signal }) => listTournaments(signal),
   })
 }
 
 export function useGetTournament(id: string) {
   return useQuery<AnyTournamentSnapshot | null>({
-    queryKey: ['tournament', id],
+    queryKey: communityQueryKey('tournament', id),
     queryFn: ({ signal }) => getTournament(id, signal),
     enabled: !!id,
     staleTime: 1000 * 60,
@@ -42,7 +43,7 @@ export function useCreateTournament() {
   return useMutation({
     mutationFn: (snap: AnyTournamentSnapshot) => createTournament(snap),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['tournaments'] })
+      await queryClient.invalidateQueries({ queryKey: communityQueryKey('tournaments') })
     },
   })
 }
@@ -136,7 +137,7 @@ export function usePublishTeamTournament(id: string) {
   return useOptimisticMutation<TeamTournamentSnapshot, TeamTournamentPatch>(
     id,
     {
-      queryKey: ['tournament', id],
+      queryKey: communityQueryKey('tournament', id),
       fetchSnapshot: async (tournamentId) => {
         const snap = await getTournament(tournamentId)
         return snap && snap.format === 'team' ? snap : null
