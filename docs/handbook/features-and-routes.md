@@ -66,6 +66,8 @@ Catatan:
   turnamen v2. Editor turnamen aktif adalah milik legacy.
 - `/c/:slug/s/:sessionId` adalah halaman sesi yang bisa diedit dan hanya untuk
   anggota login. `/s/:code` adalah tampilan publik read-only.
+- Tautan publik hanya `/s/:code` yang dibuat tombol Share; URL anggota
+  `/c/:slug/s/:sessionId` selalu meminta login dan bukan tautan untuk dibagikan.
 
 ## 2. Kapabilitas halaman
 

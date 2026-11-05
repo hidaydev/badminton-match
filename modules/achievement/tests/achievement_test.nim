@@ -59,8 +59,45 @@ suite "achievement catalog":
     check ladderLevel("rank_streak", 3, ladder) == 1
     check ladderLevel("rank_streak", 11, ladder) == 3
     check ladderLevel("rank_streak", 16, ladder) == 5
+    check ladderLevel("rank_streak", 99, ladder) == 5
     check nextTarget("rank_streak", 11, ladder) == some(12)
     check nextTarget("rank_streak", 16, ladder).isNone
+    check nextTarget("rank_streak", 99, ladder).isNone
+
+  test "rungs are matched exactly outside a streak":
+    check ladderLevel("sessions", 8, @[5, 10, 15]) == 0
+    check ladderLevel("sessions", 10, @[5, 10, 15]) == 2
+    check ladderLevel("tier", 5, @[3, 4, 5]) == 0
+    check nextTarget("sessions", 5, @[5, 10, 15]) == some(10)
+    check nextTarget("sessions", 15, @[5, 10, 15]).isNone
+    check nextTarget("sessions", 7, @[5, 10, 15]).isNone
+    # Rank runs downward, so the ladder is reversed before the next rung.
+    check ladderFor("rank", @[1, 5, 10]) == @[10, 5, 1]
+    check nextTarget("rank", 5, @[10, 5, 1]) == some(1)
+    check ladderFor("rank_streak", @[16, 3, 12]) == @[3, 12, 16]
+
+  test "every catalogue row reads as English copy":
+    ## Walks every switch arm in the title/detail copy, so a new key cannot
+    ## ship without words.
+    for badge in catalog():
+      check achievementTitle(badge.key, $badge.category,
+        badge.threshold).len > 0
+      check achievementDetail(badge.key, $badge.category,
+        badge.threshold).len > 0
+
+  test "rank-streak copy and short ladders":
+    check achievementTitle("rank_streak:11", "rank", 11) == "Rank streak 11"
+    check achievementDetail("rank_streak:11", "rank", 11) ==
+      "Hold a ranked position for 11 sessions in a row."
+    check ladderLevel("sessions", 5, @[5]) == 0
+    check nextTarget("sessions", 5, @[5]).isNone
+    check nextTarget("tier", 3, @[3, 4]).isNone
+
+  test "an unknown family still gets readable copy":
+    check keyMetric("mystery") == "mystery"
+    check keySuffix("mystery") == ""
+    check achievementTitle("mystery:3", "social", 3) == "Social 3"
+    check achievementDetail("mystery:3", "social", 3) == "Reach 3 social."
 
 suite "achievement rules":
   test "a threshold is inclusive":

@@ -16,11 +16,11 @@ ETL sekali-jalan dari database v1 (`bm_staging`) ke v2. T-064.
 | Turnamen klasik | `bm.tournaments`, `bm.tournament_pairs`, `bm.tournament_groups`, `bm.tournament_matches` | `tournament.*` | sudah |
 | Turnamen tim | `bm.tournament_teams`, `bm.tournament_team_players`, `bm.tournament_team_matches`, `bm.tournament_team_match_games` | `tournament.*` | sudah |
 | Badge | `bm.player_achievements` | `achievement.earned` + backfill | sudah |
-| Snapshot | `bm.rank_snapshots` | — | dilewati, lihat catatan 8 |
+| Snapshot | `bm.rank_snapshots` | `rating.snapshots` (poin v1) | sudah, untuk panah pergerakan |
 
-Perintah `etl` mencetak `skippedDomains`; `verify` mencetak `uncheckedDomains`.
-Jangan membaca keluaran "problems: 0" sebagai "seluruh database sama" selama
-daftar itu belum kosong.
+Perintah `etl` mencetak `skippedDomains` (kini kosong) dan `verify` mencetak
+`checkedDomains`. Jangan membaca keluaran "problems: 0" sebagai "seluruh
+database sama" selama masih ada domain yang tidak diperiksa.
 
 ## Jalankan
 
@@ -72,10 +72,12 @@ nim c -d:release -o:.cache/bin/majadu-import tools/import/main.nim
 7. **Peserta placeholder dilewati.** v1 mengizinkan `session_players.player_id`
    kosong; v2 mewajibkan pemain nyata. Baris seperti itu dihitung di `skipped`,
    dan sisi game yang hanya berisi placeholder menjadi kosong.
-8. **Snapshot sengaja tidak diimpor.** Poin peringkat v1 memakai skala berbeda
-   dari rating v2, jadi baris `rank_snapshots` tidak bisa dibandingkan satu per
-   satu; `etl` melaporkannya di `skippedDomains` sebagai `snapshots` alih-alih
-   menyalin angka yang tidak berarti.
+8. **Snapshot diimpor sebagai riwayat pergerakan, bukan sumber papan.** Papan
+   v2 selalu dihitung ulang dari game; baris `rating.snapshots` hanya menyimpan
+   poin v1 per tanggal supaya panah naik/turun punya pembanding di hari
+   sebelumnya. Setelah cutover, snapshot harian tetap harus ditulis (mis.
+   `./task ranksnapshot`); tanpa itu panah membandingkan ke snapshot terakhir
+   yang diimpor.
 9. **Status turnamen diturunkan.** v1 tidak punya kolom status: turnamen tanpa
    baris match menjadi `draft`, yang semua skornya terisi `completed`, sisanya
    `active`. `pic_player_id` menjadi `pic_name` karena v2 menyimpan nama, dan

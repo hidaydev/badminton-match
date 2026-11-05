@@ -1,9 +1,11 @@
 # Majadu web
 
 React 19 + Vite 8 + Tailwind 4. Authentication shell, community picker, session
-play-by-play, rankings, tournaments, player admin, share pages, and export all
-live here. Every route in `src/routes.manifest.ts` renders a real page; there is no
-generic placeholder screen left.
+play-by-play, rankings, tournaments, player admin, share pages, and the post
+editor all live here. The restored v1 screens sit under `src/legacy/`; the v2
+screens that stayed (settings, roster, owner setup) sit under `src/pages/`.
+`src/App.tsx` mounts every route, and `src/routes.manifest.ts` only tells which
+community a pathname belongs to.
 
 ## Scripts
 

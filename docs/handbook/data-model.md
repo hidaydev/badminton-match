@@ -4,8 +4,8 @@ Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk dat
 dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
 dump VPS atau skema v1.
 
-- Migrasi: `db/migrations/0001_core.sql` … `0016_cutover_probe.sql` (16 file;
-  `0016` adalah yang terakhir).
+- Migrasi: `db/migrations/0001_core.sql` … `0022_rank_streak_ladder.sql` (22 file;
+  `0022` adalah yang terakhir).
 - Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
   `dbtools.seed_files` (checksum per file).
@@ -77,7 +77,7 @@ singles memakai satu slot per sisi; slot `NULL` adalah posisi kosong, bukan pema
 | `rating.events` | `community_id`, `local_date`, `event_type` ∈ `session/tournament/manual`, `source_id` (id sesi/turnamen), index `(community_id, local_date desc)` | `0002:8-20` |
 | `rating.deltas` | `event_id`, `side` ∈ `a/b`, `player_id`, `game_key` (round-court), `delta` integer; unik `(event_id, side, player_id, game_key)` | `0002:22-40`, `0018` |
 | `rating.player_state` | PK `(community_id, player_id)`, `rating`, `games_played`, `wins`, `losses`; CHECK `games_played = wins + losses` | `0002:42-54` |
-| `rating.snapshots` | PK `(community_id, player_id, taken_on)`, `rating`; dipakai `./task ranksnapshot` | `0002:56-67` |
+| `rating.snapshots` | PK `(community_id, player_id, taken_on)`, `rating`; poin per tanggal, diisi ETL (riwayat v1) dan `./task ranksnapshot`; sumber panah pergerakan | `0002:56-67` |
 | `rating.sources` | PK `(community_id, source_id)`, `kind` ∈ `session/tournament`, `finalized`, `finalized_at`; sign-off bertahan melewati rebuild dan membuat revert ditolak | `0013:9-24` |
 | `rating.levels` | PK `(community_id, kind)`, `champion_points`, `round_ratios` JSONB (`qf/sf/final/group/runner_up/participant`), `enabled`; kind `session/tournament_classic/tournament_team` | `0020` |
 | `achievement.definitions` | PK `key`, `category`, `threshold >= 0`; sertakan rung `rank_streak` untuk tampilan medali v1 | `0002:69-74`, `0022` |
@@ -166,12 +166,10 @@ tengah band dipakai sebagai kekuatan tier pada pengali lawan. Ladder turnamen
 Kontrak API adalah sumber bentuk payload (`packages/contracts/openapi/*.yaml`). Tipe
 TypeScript per fitur adalah proyeksi lokal, bukan SSOT:
 
-- `apps/web/src/sessions/api.ts` — `SessionMeta`, `SessionDetail`, `SessionGame`,
-  `SessionParticipant`, `SessionBoard`.
-- `apps/web/src/rankings/api.ts` — `RankingRow`, `RankingsBoard`, `PlayerStats`,
-  `Achievement`.
-- `apps/web/src/tournament/types.ts` — `ClassicSnapshot`, `TeamSnapshot`,
-  `TournamentMeta`.
+- `apps/web/src/legacy/queries/types.ts` — `SessionMeta`, `PlayerStats`, dan
+  re-export `CloudSnapshot`.
+- `apps/web/src/legacy/queries/endpoints.ts` — adapter payload v1: `GameRow`,
+  `TournamentMeta`, `RatingPlayer`, `RankPointsBoard`, `AchievementRow`.
 - `apps/web/src/community/api.ts` — `CommunityConfig` (`value` + `source`
   `platform`/`community`).
 
@@ -188,7 +186,8 @@ Contoh bentuk baca sesi (`GET /c/{slug}/sessions/{id}`):
 }
 ```
 
-Sumber: `apps/api/src/app.nim` (`getSessionDetail`), `apps/web/src/sessions/api.ts`.
+Sumber: `apps/api/src/app.nim` (`getSessionDetail`),
+`apps/web/src/legacy/queries/endpoints.ts`.
 
 ## 6. Yang tidak ada di v2
 
@@ -196,7 +195,7 @@ Jangan membawa nama dari dokumen v1 ke sini:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0016` |
+| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0022` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.deltas`, `rating.player_state` |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |

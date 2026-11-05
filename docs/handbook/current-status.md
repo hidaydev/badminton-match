@@ -36,8 +36,8 @@ Postgres 18.6 · skema per domain (platform, community, player, session,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Setiap operasi punya handler (gagal kompilasi bila tidak) dan baris otorisasi di
   `testdata/authz/matrix.yaml`; `./task contract-check` menjaga fingerprint.
-- **16 migrasi** di `db/migrations/` (`0001`–`0016`, terakhir
-  `0016_cutover_probe.sql`); seed: `db/seeds/platform_config.sql`,
+- **22 migrasi** di `db/migrations/` (`0001`–`0022`, terakhir
+  `0022_rank_streak_ladder.sql`); seed: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
 - **36 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
   override per komunitas di `community.settings` hanya boleh mempersempit platform.
@@ -143,5 +143,8 @@ Rencana 88 task: lihat [`roadmap.md`](roadmap.md). Ringkasnya:
   force-push T-108 yang ditunda atas keputusan pemilik.
 - **Celah di luar rencana:** klien WebSocket di FE (masih polling 5 detik),
   produsen `platform.outbox`, tautan share v1 `/s/{sessionId}` tidak lagi valid
-  karena v2 memakai kode acak, dan kenaikan coverage di `modules/account`
-  (41,5%), `modules/share` (0%), `modules/tournament` (56,3%).
+  karena v2 memakai kode acak, dan kenaikan coverage di `modules/account`,
+  `modules/share`, `modules/tournament`.
+- **Selisih data yang diketahui:** Salma, Youri, Zaid, dan Firda berbeda dari
+  `bm.rank_snapshots` v1 karena ledger v1 untuk sesi 2026-10-31 di-ingest
+  sebelum sesi itu diedit (100 dari 104 pemain tetap persis sama).

@@ -1129,6 +1129,19 @@ proc verifyAchievements*(source, target: Db, communityId: string): seq[string] =
       result.add "v1 achievement player " & row.get("player_id") & " has no mapping"
       continue
     let value = parseInt(row.get("value"))
+    if unit == "rank_streak":
+      # v1 kept one row carrying the best run; the rungs only shape its shelf.
+      inc checked
+      let found = target.queryOne(
+        """select 1 as ok from achievement.earned
+           where community_id = $1::uuid and player_id = $2::uuid
+             and achievement_key = $3""",
+        @[textParam(communityId), textParam(newId),
+          textParam("rank_streak:" & $value)])
+      if found.isNone:
+        result.add "player " & row.get("player_id") & " is missing " &
+          "rank_streak:" & $value & " in v2"
+      continue
     for threshold in definitions[unit]:
       let passed =
         if unit == "rank": value > 0 and threshold >= value
@@ -1146,6 +1159,71 @@ proc verifyAchievements*(source, target: Db, communityId: string): seq[string] =
           unit & ":" & $threshold & " in v2"
   if checked == 0 and result.len == 0:
     result.add "no achievement has been imported into this community"
+
+proc importSnapshots(source, target: Db, communityId: string,
+                     dryRun: bool): Result =
+  ## v1 took one snapshot per capture date; the board's movement arrow reads
+  ## the most recent snapshot older than its anchor. The stored number is the
+  ## points total, which is what v2's `rating.snapshots.rating` carries.
+  var stats = Result()
+  discard target.tx(proc(conn: DbConn): int =
+    for row in source.query(
+      """select as_of::text as as_of, player_id::text as player_id,
+                points::int as points
+         from bm.rank_snapshots order by as_of, player_id"""):
+      let player = mapLookup(conn, communityId, "player", row.get("player_id"))
+      if player.isNone:
+        inc stats.skipped
+        continue
+      if dryRun:
+        inc stats.created
+        continue
+      let existed = conn.queryOne(
+        """select 1 as ok from rating.snapshots
+           where community_id = $1::uuid and player_id = $2::uuid
+             and taken_on = $3::date""",
+        @[textParam(communityId), textParam(player.get),
+          textParam(row.get("as_of"))])
+      discard conn.execUpdate(
+        """insert into rating.snapshots
+             (community_id, player_id, taken_on, rating)
+           values ($1::uuid, $2::uuid, $3::date, $4::int)
+           on conflict (community_id, player_id, taken_on) do update
+             set rating = excluded.rating""",
+        @[textParam(communityId), textParam(player.get),
+          textParam(row.get("as_of")), intParam(parseInt(row.get("points")))])
+      if existed.isSome: inc stats.updated else: inc stats.created
+    1)
+  stats
+
+proc verifySnapshots(source, target: Db, communityId: string): seq[string] =
+  var mapped, missing, different = 0
+  for row in source.query(
+    """select as_of::text as as_of, player_id::text as player_id,
+              points::int as points
+       from bm.rank_snapshots"""):
+    let player = target.queryOne(
+      """select new_id::text as new_id from import.row_map
+         where community_id = $1::uuid and entity = 'player' and old_id = $2""",
+      @[textParam(communityId), textParam(row.get("player_id"))])
+    if player.isNone:
+      continue
+    inc mapped
+    let found = target.queryOne(
+      """select rating::text as rating from rating.snapshots
+         where community_id = $1::uuid and player_id = $2::uuid
+           and taken_on = $3::date""",
+      @[textParam(communityId), textParam(player.get.get("new_id")),
+        textParam(row.get("as_of"))])
+    if found.isNone:
+      inc missing
+    elif parseInt(found.get.get("rating")) != parseInt(row.get("points")):
+      inc different
+  if missing + different > 0:
+    result.add "snapshots: " & $missing & " missing, " & $different &
+      " with different points"
+  elif mapped == 0:
+    result.add "no rank snapshot has been imported into this community"
 
 proc importEtl*(source, target: Db, slug, name, timezone: string,
                 dryRun: bool): tuple[players, aliases, sessions, courts,
@@ -1174,6 +1252,7 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
   # v1 badges first, then the v2 backfill: the backfill does not overwrite an
   # existing row, so a v1 date survives and only new crossings are added.
   let achievements = importAchievements(source, target, communityId, dryRun)
+  let snapshots = importSnapshots(source, target, communityId, dryRun)
   var awarded = Result()
   if not dryRun:
     awarded = backfillAchievements(target, communityId)
@@ -1210,7 +1289,10 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
                        "updated": achievements.updated,
                        "skipped": achievements.skipped,
                        "backfilled": awarded.created},
-    "skippedDomains": %["snapshots"]})
+    "snapshots": %*{"created": snapshots.created,
+                    "updated": snapshots.updated,
+                    "skipped": snapshots.skipped},
+    "skippedDomains": %[]})
 
 proc verifyPlayers*(source, target: Db, communityId: string): seq[string] =
   ## Compares the mapped rows field by field. Counts alone would hide a rename
@@ -1575,6 +1657,7 @@ proc verifyEtl(source, target: Db, slugArg: string) =
   problems.add verifyRating(source, target, resolved)
   problems.add verifyTournaments(source, target, resolved)
   problems.add verifyAchievements(source, target, resolved)
+  problems.add verifySnapshots(source, target, resolved)
   if problems.len > 0:
     for problem in problems:
       stderr.writeLine "import: " & problem
@@ -1582,8 +1665,8 @@ proc verifyEtl(source, target: Db, slugArg: string) =
     quit(1)
   echo $(%*{"communityId": resolved, "problems": 0,
             "checkedDomains": %["players", "aliases", "sessions", "games",
-                                "rating", "tournaments", "achievements"],
-            "uncheckedDomains": %["snapshots"]})
+                                "rating", "tournaments", "achievements",
+                                "snapshots"]})
 
 proc main() =
   let args = parseArgs()

@@ -28,7 +28,7 @@ contract generated from OpenAPI.
 |---|---|
 | **Sessions** | Courts, participants, schedule, per-game scores, skip, absent, swap, lock/unlock. Writes carry `If-Match` (OCC) and `Idempotency-Key`. |
 | **Tournaments** | Classic (16 pairs → 4 groups → knockout) and team (6 teams × 6 tiers → groups + final, 3 rubbers per match), drawn and scored in the browser. |
-| **Rank points** | BWF-style rolling 12-week window, best 10 sessions, minimum 3 games, 8 skill tiers, computed on read. |
+| **Rank points** | v1's rolling 12-week window: best 10 entries per player, one entry per session or tournament, opponent strength from 8 sticky tiers, computed on read. |
 | **Achievements** | Badge catalogue computed from match and tournament history, idempotent backfill. |
 | **Players** | Canonical names, aliases, gender, sticky tier, claim/release/merge with admin approval and audit. |
 | **Communities** | One deployment, many clubs: slug, memberships (`member`/`host`/`admin`), invites, join requests, per-club config overrides. |
@@ -58,7 +58,7 @@ majadu/
 ├── packages/
 │   ├── contracts/openapi/   core.yaml + community.yaml → api.yaml + client
 │   └── web-client/          Generated TypeScript client
-├── db/                      migrations (0001–0016), seeds, platform config
+├── db/                      migrations (0001–0022), seeds, platform config
 ├── ops/                     Quadlet, Caddy, deploy/cutover/backup/restore/smoke
 ├── tools/                   dbtools, contract-gen, archcheck, ETL, parity,
 │                            fixtures, mock-api, rehearsal
@@ -131,14 +131,13 @@ Rollback is the `:v1-final` image, not source code.
 
 ## 📌 Status
 
-The v2 rewrite is complete: 75 contract operations, 16 migrations, backend and
+The v2 rewrite is complete: 75 contract operations, 22 migrations, backend and
 frontend features wired end to end. The v1 Go tree is gone.
 
 Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):
 
 - the web client does not consume the WebSocket yet — the session page reloads
   on change;
-- no schedule generator; the contract accepts a schedule authored by the client;
 - `platform.outbox` has no producer, so realtime is in-memory and the API must
   stay a single instance;
 - the cutover rehearsal and the VPS-side checks are prepared but not executed.

@@ -36,7 +36,7 @@ Tidak ada PostgREST, Supabase, SSE, service worker, atau store global (Zustand) 
 | `apps/web/src/` | shell React, halaman, klien API per fitur |
 | `packages/contracts/openapi/` | dua spec sumber + dokumen gabungan + fingerprint |
 | `packages/web-client/src/api.ts` | klien TypeScript hasil generate |
-| `db/migrations/`, `db/seeds/` | skema (`0001`–`0016`) dan seed konfigurasi |
+| `db/migrations/`, `db/seeds/` | skema (`0001`–`0022`) dan seed konfigurasi |
 | `tools/` | dbtools, contract-gen, parity, CLI ops, OIDC stub |
 | `e2e/` | suite Playwright (a11y, visual, kompatibilitas) |
 | `task`, `task.d/` | satu-satunya command runner (`./task <target>`) |

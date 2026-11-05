@@ -25,8 +25,27 @@ proc query(tier = ""): BoardQuery =
   BoardQuery(communityId: communityId, asOf: asOf, params: params(),
     limit: 200, tier: tier)
 
+proc queryAll(): BoardQuery =
+  ## No board cap, so a test can see a player the production limit would cut.
+  BoardQuery(communityId: communityId, asOf: asOf, params: params(),
+    limit: 0, tier: "")
+
 proc cleanup() =
   for statement in [
+    """delete from tournament.team_partai where community_id in
+         (select id from platform.community where slug = 'read-club')""",
+    """delete from tournament.team_matches where community_id in
+         (select id from platform.community where slug = 'read-club')""",
+    """delete from tournament.team_players where community_id in
+         (select id from platform.community where slug = 'read-club')""",
+    """delete from tournament.teams where community_id in
+         (select id from platform.community where slug = 'read-club')""",
+    """delete from tournament.matches where community_id in
+         (select id from platform.community where slug = 'read-club')""",
+    """delete from tournament.pairs where community_id in
+         (select id from platform.community where slug = 'read-club')""",
+    """delete from tournament.tournaments where community_id in
+         (select id from platform.community where slug = 'read-club')""",
     """delete from rating.snapshots where community_id in
          (select id from platform.community where slug = 'read-club')""",
     """delete from rating.levels where community_id in
@@ -113,6 +132,59 @@ proc seed() =
        values ($1::uuid, $2::uuid, 1200, 5, 3, 2)
        on conflict (community_id, player_id) do nothing""",
       @[textParam(communityId), textParam(player)])
+
+proc newPlayer(name: string): string =
+  ## A player with no sessions yet, so a test sees only the entries it adds.
+  database.queryOne(
+    """insert into player.players (community_id, canonical_name, gender, tier)
+       values ($1::uuid, $2, 'M', null) returning id""",
+    @[textParam(communityId), textParam(name)]).get.get("id")
+
+proc addClassicTournament(age: int, withLevel: bool, winnerScore,
+                          loserScore: int, sideA, sideB: seq[string]): string =
+  ## One completed classic bracket: a single final between two pairs. The
+  ## rating event points at the tournament, exactly like the ETL writes it.
+  let tournamentId = database.queryOne(
+    """insert into tournament.tournaments
+         (community_id, name, status, format, event_date)
+       values ($1::uuid, 'Read Cup', 'completed', 'classic', $2::date - $3::int)
+       returning id""",
+    @[textParam(communityId), textParam(asOf), intParam(age.int64)]).get.get("id")
+  let pairA = database.queryOne(
+    """insert into tournament.pairs
+         (community_id, tournament_id, display_name, player_a_id, player_b_id)
+       values ($1::uuid, $2::uuid, 'A/B', $3::uuid, $4::uuid) returning id""",
+    @[textParam(communityId), textParam(tournamentId), textParam(sideA[0]),
+      textParam(sideA[1])]).get.get("id")
+  let pairB = database.queryOne(
+    """insert into tournament.pairs
+         (community_id, tournament_id, display_name, player_a_id, player_b_id)
+       values ($1::uuid, $2::uuid, 'C/D', $3::uuid, $4::uuid) returning id""",
+    @[textParam(communityId), textParam(tournamentId), textParam(sideB[0]),
+      textParam(sideB[1])]).get.get("id")
+  discard database.execUpdate(
+    """insert into tournament.matches
+         (community_id, tournament_id, round_no, phase, pair_a_id, pair_b_id,
+          score_a, score_b, status, match_key)
+       values ($1::uuid, $2::uuid, 0, 'final', $3::uuid, $4::uuid, $5::int,
+               $6::int, 'played', 'final-1')""",
+    @[textParam(communityId), textParam(tournamentId), textParam(pairA),
+      textParam(pairB), textParam($winnerScore), textParam($loserScore)])
+  discard database.execUpdate(
+    """insert into rating.events (community_id, local_date, event_type, source_id)
+       values ($1::uuid, $2::date - $3::int, 'tournament', $4::uuid)""",
+    @[textParam(communityId), textParam(asOf), intParam(age.int64),
+      textParam(tournamentId)])
+  if withLevel:
+    discard database.execUpdate(
+      """insert into rating.levels
+           (community_id, kind, champion_points, round_ratios, enabled)
+         values ($1::uuid, 'tournament_classic', 2500,
+                 '{"final":1.0,"runner_up":0.85,"sf":0.7,"qf":0.55,"group":0.4,"participant":0.2}'::jsonb,
+                 true)
+         on conflict (community_id, kind) do nothing""",
+      @[textParam(communityId)])
+  tournamentId
 
 database = openDb(dsn(), 1)
 cleanup()
@@ -205,3 +277,69 @@ suite "ranking read":
     check found.get["games"].getInt() == 5
     check stats(database, communityId,
       "00000000-0000-0000-0000-000000000000").isNone
+
+  test "a tournament with a ladder pays the champion and the placement":
+    let sideA = @[newPlayer("Cup A1"), newPlayer("Cup A2")]
+    let sideB = @[newPlayer("Cup B1"), newPlayer("Cup B2")]
+    discard addClassicTournament(2, withLevel = true, winnerScore = 21,
+      loserScore = 10, sideA, sideB)
+    let champion = boardEntry(database, queryAll(), sideA[0])
+    check champion.isSome
+    check champion.get.entriesAvailable == 1
+    check champion.get.points == 2500
+    check champion.get.breakdown[0].kind == "tournament_classic"
+    check champion.get.breakdown[0].points == 2500.0
+    # A finalist that won nothing is a participant, the loosest rung.
+    let finalist = boardEntry(database, queryAll(), sideB[0])
+    check finalist.isSome
+    check finalist.get.points == 500
+
+  test "a tournament without a ladder falls back to the game formula":
+    discard database.execUpdate(
+      """update rating.levels set enabled = false
+         where community_id = $1::uuid""", @[textParam(communityId)])
+    let sideA = @[newPlayer("Fallback A1"), newPlayer("Fallback A2")]
+    let sideB = @[newPlayer("Fallback B1"), newPlayer("Fallback B2")]
+    discard addClassicTournament(3, withLevel = false, winnerScore = 21,
+      loserScore = 10, sideA, sideB)
+    let entry = boardEntry(database, queryAll(), sideA[0])
+    check entry.isSome
+    # The final target is 42, not the session target, so an 11-point margin is
+    # worth 250 * (0.5 + 0.5 * 11/42), rounded once at the edge.
+    check entry.get.points == int(round(250.0 * (0.5 + 0.5 * 11.0 / 42.0)))
+
+  test "a skipped or absent player does not score that game":
+    let roster = @[newPlayer("Skip A1"), newPlayer("Skip A2"),
+      newPlayer("Skip B1"), newPlayer("Skip B2")]
+    addSession(4, roster)
+    discard database.execUpdate(
+      """update session.participants set is_absent = true
+         where community_id = $1::uuid and player_id = $2::uuid""",
+      @[textParam(communityId), textParam(roster[0])])
+    discard database.execUpdate(
+      """insert into session.game_skips
+           (community_id, session_id, round_no, court_no, player_id)
+         select $1::uuid, g.session_id, g.round_no, g.court_no, $2::uuid
+         from session.games g
+         where g.community_id = $1::uuid and g.round_no = 0
+           and (g.side_a1 = $2::uuid or g.side_a2 = $2::uuid
+                or g.side_b1 = $2::uuid or g.side_b2 = $2::uuid)""",
+      @[textParam(communityId), textParam(roster[1])])
+    check boardEntry(database, queryAll(), roster[0]).isNone
+    let skipped = boardEntry(database, queryAll(), roster[1])
+    check skipped.isSome
+    check skipped.get.breakdown[0].games == 1
+    let teammate = boardEntry(database, queryAll(), roster[2])
+    check teammate.isSome
+    check teammate.get.breakdown[0].games == 2
+
+  test "the window edge is inclusive and the board knows its last day":
+    let inside = @[newPlayer("Edge In 1"), newPlayer("Edge In 2"),
+      newPlayer("Edge In 3"), newPlayer("Edge In 4")]
+    let outside = @[newPlayer("Edge Out 1"), newPlayer("Edge Out 2"),
+      newPlayer("Edge Out 3"), newPlayer("Edge Out 4")]
+    addSession(84, inside)
+    addSession(85, outside)
+    check boardEntry(database, queryAll(), inside[0]).isSome
+    check boardEntry(database, queryAll(), outside[0]).isNone
+    check latestEventDate(database, communityId) == asOf

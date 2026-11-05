@@ -1,6 +1,6 @@
 # Roadmap
 
-Status per **2026-11-04**. Riwayat perubahan ada di git history; rencana beku ada
+Status per **2026-11-05**. Riwayat perubahan ada di git history; rencana beku ada
 di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
 
 ## ✅ Selesai
@@ -10,15 +10,19 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
   `apps/api/src/main.nim`.
 - **Kontrak 75 operasi** — `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, klien TS, fingerprint (`packages/contracts/openapi`).
-- **Skema v2** — 16 migrasi (`0001`–`0016`), 36 key config, seed config dan
+- **Skema v2** — 22 migrasi (`0001`–`0022`), 36 key config, seed config dan
   achievement.
 - **Auth & komunitas** — OIDC + cookie sesi, membership `member`/`host`/`admin`,
   invite, join request, settings, audit append-only, platform owner.
 - **Sesi** — API baca/tulis lengkap (jadwal, skor, skip, absent, swap, lock/unlock,
   share) dengan `If-Match` + `Idempotency-Key`; klasemen dihitung server; UI host
   dan halaman share publik sudah ada.
-- **Papan poin** — window 12 minggu / best 10 / minimal 3 game, filter tier, detail
-  pemain + achievement.
+- **Papan poin** — proyeksi v1 dari game: window 12 minggu, best 10 entri
+  (satu per sesi/turnamen), pengali tier, filter tier, detail pemain +
+  achievement. `min_sessions` menyaring papan dan bukti tipis hanya ditandai.
+- **Pengalaman v1 di atas API v2** — tree legacy dipulihkan di
+  `apps/web/src/legacy/`, akses berbasis role (`member`/`host`/`admin`), skip
+  per pemain per game, dan medali event v1 + rank-streak di rak pemain.
 - **Turnamen** — classic (16 pasangan, 4 grup, 32 match) dan team (6×6, 9 match grup
   + final, 3 partai), editor FE + ingest rating admin.
 - **Ekspor** — post/story dari sesi atau turnamen, ukuran dari config.
@@ -38,10 +42,9 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
 |---|---|---|
 | 1 | **Klien WebSocket di FE** | Endpoint ticket + upgrade sudah siap, tetapi halaman sesi masih memuat state sekali; host lain tidak terlihat sampai refresh. |
 | 2 | **Produsen `platform.outbox`** | Realtime masih in-memory → API wajib satu instance; outbox sudah ada dan dibersihkan janitor, belum dipakai. |
-| 3 | **Peran turnamen di manifest** | `routes.manifest.ts` membatasi `host`/`admin`, padahal API mengizinkan `member` membaca. |
-| 4 | **Hapus `@tanstack/react-query`** | Terpasang, tidak diimpor di mana pun. |
-| 5 | **Generator jadwal sesi** (opsional) | v2 hanya menerima jadwal dari klien; generator lama tidak dibawa. |
-| 6 | **Naikkan coverage** | `modules/account` 41,5%, `modules/share` 0%, `modules/tournament` 56,3%; ratchet hanya menahan, tidak menaikkan. |
+| 3 | **Snapshot harian** | `rating.snapshots` hanya ditulis manual; panah pergerakan butuh snapshot baru setiap hari seperti job v1. |
+| 4 | **Naikkan coverage** | Lihat `coverage-baseline.json`; ratchet hanya menahan, tidak menaikkan. |
+| 5 | **Putuskan selisih 4 pemain** | Salma, Youri, Zaid, Firda beda dari snapshot v1 karena ledger v1 sesi 2026-10-31 basi; v2 menghitung dari game terkini. Perlu keputusan produk (ikuti v1 atau data terkini). |
 
 ## 🚧 Operasional yang belum selesai
 
