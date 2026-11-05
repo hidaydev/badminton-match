@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="apple-touch-icon" href="/logo-192.png">
-    <link rel="manifest" href="/manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#0b0e13">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -23,6 +22,8 @@
       @font-face { font-family: 'Road Rage'; src: url('/road-rage.ttf') format('truetype'); font-display: swap; }
       @font-face { font-family: 'Edosz'; src: url('/edosz.ttf') format('truetype'); font-display: swap; }
     </style>
+    <!-- The PWA plugin injects the only manifest (`/manifest.webmanifest`); a
+         second hand-written one would let the two drift apart. -->
   </head>
   <body>
     <div id="root"></div>

@@ -57,6 +57,17 @@ export default defineConfig({
             },
           },
           {
+            // The CSS above only names the faces; the woff2 files come from
+            // gstatic, and without this rule an offline start falls back to the
+            // system font (FE-30).
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'gstatic-fonts-cache',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+          {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
             handler: 'StaleWhileRevalidate',
             options: {
@@ -70,8 +81,13 @@ export default defineConfig({
         name: 'Majadu App',
         short_name: 'Majadu',
         description: 'Badminton scheduler & tournament manager',
-        theme_color: '#020617',
-        background_color: '#020617',
+        // Same ground as `--color-ground` in index.css and the `<meta
+        // name="theme-color">` in index.html: installers and the browser chrome
+        // must not disagree with the app behind them.
+        lang: 'en',
+        scope: '/',
+        theme_color: '#0b0e13',
+        background_color: '#0b0e13',
         display: 'standalone',
         start_url: '/',
         icons: [
@@ -85,13 +101,15 @@ export default defineConfig({
   preview: { port: 4174, strictPort: true, proxy },
   build: {
     // The service worker only precaches chunks under 200 KB (see the PWA
-    // config above), so dependencies are split out of the app entry.
+    // config above), so the dependencies get their own chunks. Only vendor
+    // code is grouped: a size-split group for `src/legacy` mixed eagerly and
+    // lazily imported modules into one chunk, which dragged the summary modal
+    // (and dnd-kit with it) back into the first load.
     rolldownOptions: {
       output: {
         codeSplitting: {
           groups: [
             { name: 'vendor', test: /[\\/]node_modules[\\/]/, maxSize: 180 * 1024 },
-            { name: 'legacy', test: /[\\/]src[\\/]legacy[\\/]/, maxSize: 180 * 1024 },
           ],
         },
       },

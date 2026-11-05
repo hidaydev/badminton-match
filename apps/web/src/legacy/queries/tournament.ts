@@ -10,7 +10,6 @@ import {
 import type { GroupId, TournamentPair } from '../utils/tournament'
 import {
   GROUP_IDS,
-  EMPTY_GROUPS,
   generateGroupMatches,
   initKnockoutMatches,
   propagateBracket,
@@ -84,41 +83,6 @@ export function useSetTournamentScore(id: string) {
       const propagated = propagateBracket(updated, current.groups)
       return { ...current, matches: propagated }
     },
-  )
-}
-
-export function useResetTournament(id: string) {
-  return useOptimisticTournamentMutation<{
-    name: string
-    date: string
-    pairs: TournamentPair[]
-  }>(
-    id,
-    (current, { name, date, pairs }) => ({
-      version: current?.version,
-      name,
-      date,
-      pairs,
-      groups: EMPTY_GROUPS,
-      matches: [],
-    }),
-  )
-}
-
-export function useRegeneratePics(id: string) {
-  // no optimistic update — result is non-deterministic (random shuffle);
-  // applyOptimistic=false → onMutate hanya cancel, throw hanya di mutationFn.
-  return useOptimisticTournamentMutation<undefined>(
-    id,
-    (current) => {
-      if (!current) return null
-      const newMatches = assignGroupPics(current.pairs, current.groups, current.matches)
-      const unassigned = newMatches.some((m) => m.phase === 'group' && !m.picName)
-      if (unassigned) throw new Error('Could not assign all PICs — please try again')
-      return { ...current, matches: newMatches }
-    },
-    undefined,
-    false,
   )
 }
 

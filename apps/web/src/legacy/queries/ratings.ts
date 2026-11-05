@@ -1,7 +1,7 @@
 // src/queries/ratings.ts — hooks rating (plan RATINGS_FRONTEND_PLAN.md §6.3)
 import { useQuery } from '@tanstack/react-query'
-import { getRatingPlayer, getPlayerAchievements, getRankings, getPlayerRankPoints, request, communityApiPath } from './endpoints'
-import type { RatingPlayer, AchievementRow, RankPointsBoard, PlayerRankPoints } from './endpoints'
+import { getPlayerAchievements, getRankings, getPlayerRankPoints, getPlayerStatsRaw, request, communityApiPath, toRatingPlayer } from './endpoints'
+import type { V2PlayerStats, RatingPlayer, AchievementRow, RankPointsBoard, PlayerRankPoints } from './endpoints'
 import { communityQueryKey } from './keys'
 
 // useRankings — papan poin publik (window bergulir, N entri terbaik).
@@ -24,9 +24,11 @@ export function usePlayerRankPoints(playerId: string | undefined) {
 }
 
 export function useRatingPlayer(playerId: string | undefined) {
-  return useQuery<RatingPlayer>({
-    queryKey: communityQueryKey('ratings', 'player', playerId),
-    queryFn: ({ signal }) => getRatingPlayer(playerId!, signal),
+  // Same key as the career card: one `/players/{id}/stats` read serves both.
+  return useQuery<V2PlayerStats, Error, RatingPlayer>({
+    queryKey: communityQueryKey('playerStats', playerId ?? ''),
+    queryFn: ({ signal }) => getPlayerStatsRaw(playerId!, signal),
+    select: toRatingPlayer,
     enabled: !!playerId,
     staleTime: 1000 * 60,
   })

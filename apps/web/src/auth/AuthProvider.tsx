@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  ApiError,
   endSession,
   fetchMe,
   fetchMemberships,
@@ -15,6 +16,9 @@ import type { AuthContextValue } from './AuthContext'
 import { redirectTo } from './redirect'
 import { clearStoreDraft } from '../legacy/store'
 import { setCommunitySlug } from '../legacy/queries/endpoints'
+
+/** Boot backoff before a transport failure is allowed to look like "signed out". */
+const BOOT_RETRY_MS = [1_000, 3_000, 8_000]
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
@@ -37,25 +41,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
-    const load = async () => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let awaitingNetwork = false
+
+    const clearTimer = () => {
+      if (timer !== null) {
+        clearTimeout(timer)
+        timer = null
+      }
+    }
+
+    // A dropped connection is not "signed out": the cookie may still be valid
+    // and the installed app cannot sign in offline. Only a definitive answer
+    // (401, 410, another 4xx) ends the session; anything else is retried while
+    // the shell keeps showing its loading state (FE-49).
+    const shouldRetry = (error: unknown) =>
+      !(error instanceof ApiError) ||
+      error.status === null ||
+      error.status >= 500 ||
+      error.status === 429
+
+    const load = async (attempt: number): Promise<void> => {
       try {
+        // Both requests need only the cookie, so they run together; the
+        // membership answer is read after /auth/me has decided whether there is
+        // a session at all.
+        const membershipsPromise = fetchMemberships()
+        membershipsPromise.catch(() => {})
         const session = await fetchMe()
-        const joined = await fetchMemberships()
+        const joined = await membershipsPromise
         if (!active) return
         setUser(session)
         setMemberships(joined)
+        setLoading(false)
       } catch (error) {
         if (!active) return
+        if (shouldRetry(error) && attempt < BOOT_RETRY_MS.length) {
+          awaitingNetwork = true
+          timer = setTimeout(() => {
+            timer = null
+            awaitingNetwork = false
+            void load(attempt + 1)
+          }, BOOT_RETRY_MS[attempt])
+          return
+        }
         if (!isUnauthenticated(error)) console.error('auth bootstrap failed', error)
         setUser(null)
         setMemberships([])
-      } finally {
-        if (active) setLoading(false)
+        setLoading(false)
       }
     }
-    void load()
+
+    // A browser that comes back online should re-decide immediately instead of
+    // waiting for the next backoff step.
+    const onOnline = () => {
+      if (!awaitingNetwork) return
+      clearTimer()
+      awaitingNetwork = false
+      void load(0)
+    }
+    window.addEventListener('online', onOnline)
+
+    void load(0)
     return () => {
       active = false
+      clearTimer()
+      window.removeEventListener('online', onOnline)
     }
   }, [])
 

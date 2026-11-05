@@ -27,10 +27,7 @@ import ErrorBoundary from './legacy/components/ErrorBoundary'
 import HomePage from './legacy/pages/HomePage'
 import SetupPage from './legacy/pages/SetupPage'
 import PlayersWizardPage from './legacy/pages/PlayersPage'
-import ConstraintsPage from './legacy/pages/ConstraintsPage'
-import GeneratePage from './legacy/pages/GeneratePage'
 import SessionListPage from './legacy/pages/SessionListPage'
-import SharedSessionPreviewPage from './legacy/pages/SessionPreviewPage'
 import { LegacySlugProvider, Navigate as LegacyNavigate, Outlet as LegacyOutlet } from './legacy/router'
 import { setCommunitySlug } from './legacy/queries/endpoints'
 import { useStore, prepareCommunityDraft } from './legacy/store'
@@ -40,6 +37,13 @@ import { safeLazy } from './legacy/utils/safeLazy'
 
 const ScoreboardPage = safeLazy(() => import('./legacy/pages/ScoreboardPage'))
 const InstagramPostPage = safeLazy(() => import('./legacy/pages/InstagramPostPage'))
+// The wizard's last two steps pull in the summary modal (and dnd-kit), so they
+// load when the step is entered instead of with the first byte of the app.
+const ConstraintsPage = safeLazy(() => import('./legacy/pages/ConstraintsPage'))
+const GeneratePage = safeLazy(() => import('./legacy/pages/GeneratePage'))
+// The dev preview mounts the summary grid, which is the only other entry point
+// to dnd-kit; keeping it lazy keeps the drag library out of the first load.
+const SharedSessionPreviewPage = safeLazy(() => import('./legacy/pages/SessionPreviewPage'))
 const TournamentRouter = safeLazy(() => import('./legacy/pages/TournamentRouter'))
 const TournamentListPage = safeLazy(() => import('./legacy/pages/TournamentListPage'))
 const RankingsPage = safeLazy(() => import('./legacy/pages/RankingsPage'))
@@ -96,7 +100,11 @@ function RequirePlayers({ children }: { children: React.ReactNode }) {
 function SharedViewPage() {
   const { isSharedView } = useSharedView()
   if (!isSharedView) return <LegacyNavigate to="/" replace />
-  return <GeneratePage />
+  return (
+    <Suspense fallback={<Loading />}>
+      <GeneratePage />
+    </Suspense>
+  )
 }
 
 /**
@@ -108,11 +116,14 @@ function LegacyShell() {
   const { slug = '' } = useParams<{ slug: string }>()
   const queryClient = useQueryClient()
   const previousSlug = useRef(slug)
-  setCommunitySlug(slug)
 
   // A community switch must not reuse the previous slug's cache or draft.
   // `prepareCommunityDraft` only applies a persisted draft tagged with `slug`.
+  // Publishing the slug from an effect (not from the render body) keeps a
+  // discarded concurrent render from changing the module state; the data
+  // adapter reads the slug from the URL itself.
   useEffect(() => {
+    setCommunitySlug(slug)
     if (previousSlug.current !== slug) {
       queryClient.removeQueries({ queryKey: [previousSlug.current] })
       previousSlug.current = slug
@@ -213,8 +224,8 @@ function AuthedRoutes() {
         <Route element={<SessionLayout />}>
           <Route path="session/new" element={<RequireStaff><SetupPage /></RequireStaff>} />
           <Route path="session/players" element={<RequireStaff><RequireSession><PlayersWizardPage /></RequireSession></RequireStaff>} />
-          <Route path="session/constraints" element={<RequireStaff><RequirePlayers><ConstraintsPage /></RequirePlayers></RequireStaff>} />
-          <Route path="session/generate" element={<RequireStaff><RequirePlayers><GeneratePage /></RequirePlayers></RequireStaff>} />
+          <Route path="session/constraints" element={<RequireStaff><RequirePlayers><Suspense fallback={<Loading />}><ConstraintsPage /></Suspense></RequirePlayers></RequireStaff>} />
+          <Route path="session/generate" element={<RequireStaff><RequirePlayers><Suspense fallback={<Loading />}><GeneratePage /></Suspense></RequirePlayers></RequireStaff>} />
           <Route path="view" element={<SharedViewPage />} />
         </Route>
 

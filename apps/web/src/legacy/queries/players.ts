@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { listPlayers, getPlayerStats } from './endpoints'
+import { listPlayers, getPlayerStatsRaw, knownPlayerId, toPlayerStats } from './endpoints'
+import type { V2PlayerStats } from './endpoints'
 import type { PlayerSummary, PlayerStats } from './types'
 import { communityQueryKey } from './keys'
 
@@ -10,10 +11,22 @@ export function useListPlayers() {
   })
 }
 
-export function useGetPlayerStats(name: string | undefined) {
-  return useQuery<PlayerStats>({
-    queryKey: communityQueryKey('player', name),
-    queryFn: ({ signal }) => getPlayerStats(decodeURIComponent(name!), signal),
-    enabled: !!name,
+/**
+ * One stats read per player, keyed by the id: the rating card and the career
+ * card both mount it on the same page, and a second key would make the same
+ * `/players/{id}/stats` request twice.
+ */
+export function useGetPlayerStats(nameOrId: string | undefined) {
+  const playerId =
+    nameOrId === undefined || nameOrId === ''
+      ? null
+      : knownPlayerId(nameOrId) ?? nameOrId
+
+  return useQuery<V2PlayerStats, Error, PlayerStats>({
+    queryKey: communityQueryKey('playerStats', playerId ?? ''),
+    queryFn: ({ signal }) => getPlayerStatsRaw(playerId!, signal),
+    select: toPlayerStats,
+    enabled: playerId !== null,
+    staleTime: 1000 * 60,
   })
 }

@@ -33,11 +33,28 @@ export function setCommunitySlug(slug: string) {
   // Player names/ids belong to the community that was active when they were
   // read; keeping them would join the wrong gender/tier onto the next one.
   playerCache = null
+  playerCacheSlug = ''
+  playerIdByName.clear()
 }
 
-/** The slug the shell last set; the socket path needs it. */
+/**
+ * The slug the shell last set; the socket path and the persisted draft need it.
+ * Request paths and cache keys use `activeCommunitySlug` instead.
+ */
 export function currentCommunitySlug(): string {
   return communitySlug
+}
+
+/**
+ * The community the browser is actually showing. The pathname wins over the
+ * module variable: React may render a community shell and throw the render
+ * away, so a request or cache key built afterwards must not inherit that
+ * discarded slug (FE-40). Tests and non-community paths fall back to the value
+ * the shell published.
+ */
+export function activeCommunitySlug(): string {
+  const match = /^\/c\/([^/]+)/.exec(window.location.pathname)
+  return match ? decodeURIComponent(match[1]) : communitySlug
 }
 
 /** A one-use ticket for the session socket; it expires in seconds. */
@@ -50,10 +67,11 @@ export async function issueSessionTicket(
 }
 
 function communityPath(path: string): string {
-  if (communitySlug === '') {
+  const slug = activeCommunitySlug()
+  if (slug === '') {
     throw new ApiError('community slug is not set')
   }
-  return `/c/${encodeURIComponent(communitySlug)}${path}`
+  return `/c/${encodeURIComponent(slug)}${path}`
 }
 
 /** v2 path for callers that build their own request (admin screens). */
@@ -193,8 +211,17 @@ function isNotFound(error: unknown): boolean {
 // ── Player cache ──────────────────────────────────────────────────────────
 // Session reads do not carry gender/tier, so the snapshot joins this cache.
 // `listPlayers` fills it; a session load fills it once if it is still empty.
+// The rows are stamped with the community they came from: a stale entry must
+// never join one community's gender/tier onto another's session.
 
 let playerCache: PlayerSummary[] | null = null
+let playerCacheSlug = ''
+/** name → id learned from a stats read, so a second read is not a lookup. */
+const playerIdByName = new Map<string, string>()
+
+function cachedPlayers(): PlayerSummary[] | null {
+  return playerCacheSlug === activeCommunitySlug() ? playerCache : null
+}
 
 const TIER_NUMBER: Record<string, Tier> = {
   D: 1,
@@ -274,7 +301,7 @@ function gameKey(game: V2Game): GameKey {
 }
 
 function sessionPlayerMap(participants: V2SessionDetail['participants']): Map<string, Player> {
-  const cached = new Map((playerCache ?? []).map((player) => [player.playerId ?? '', player]))
+  const cached = new Map((cachedPlayers() ?? []).map((player) => [player.playerId ?? '', player]))
   const out = new Map<string, Player>()
   for (const participant of participants) {
     const known = cached.get(participant.playerId)
@@ -368,14 +395,18 @@ async function sessionSnapshot(id: string): Promise<CloudSnapshot> {
 // ── Sessions ──────────────────────────────────────────────────────────────
 
 export async function getSession(id: string, signal?: AbortSignal): Promise<CloudSnapshot | null> {
-  if (playerCache === null) {
+  // The player table is only needed to join gender/tier onto the snapshot, so
+  // it is read alongside the session instead of before it.
+  const detailPromise = fetchSessionDetail(id, signal)
+  if (cachedPlayers() === null) {
     try {
       await listPlayers(signal)
     } catch {
       playerCache = []
+      playerCacheSlug = activeCommunitySlug()
     }
   }
-  const detail = await fetchSessionDetail(id, signal)
+  const detail = await detailPromise
   if (detail === null) return null
   return toCloudSnapshot(detail)
 }
@@ -495,36 +526,6 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
   // `session.locked` in the v1 store means "setup finished", not "server
   // locked": mapping it to v2 lock would make every later score write fail.
   return sessionSnapshot(id)
-}
-
-export interface GameRow {
-  slot: number
-  court: number
-  scoreA: number | null
-  scoreB: number | null
-  isPlayed: boolean
-  version: number
-  skippedRefs?: string[]
-}
-
-/** v2 exposes a version per session, not per game; the row keeps the shape. */
-export async function getGame(id: string, key: string): Promise<GameRow | null> {
-  const detail = await fetchSessionDetail(id)
-  if (detail === null) return null
-  const [slotPart, courtPart] = key.split('-')
-  const slot = Number.parseInt(slotPart, 10)
-  const court = Number.parseInt(courtPart, 10)
-  const game = detail.games.find((entry) => entry.round === slot && entry.court === court)
-  if (game === undefined) return null
-  return {
-    slot: game.round,
-    court: game.court,
-    scoreA: game.scoreA,
-    scoreB: game.scoreB,
-    isPlayed: game.status === 'played',
-    version: detail.version,
-    skippedRefs: detail.skippedPlayers?.[key],
-  }
 }
 
 export async function patchGameScore(
@@ -735,6 +736,7 @@ export async function listPlayers(signal?: AbortSignal): Promise<PlayerSummary[]
   const rows = body?.items ?? []
   const summaries = rows.map(toPlayerSummary)
   playerCache = summaries
+  playerCacheSlug = activeCommunitySlug()
   return summaries
 }
 
@@ -753,7 +755,7 @@ async function resolvePlayerId(nameOrId: string, signal?: AbortSignal): Promise<
   return match.id
 }
 
-type V2PlayerStats = {
+export type V2PlayerStats = {
   playerId: string
   name: string
   tier: string | null
@@ -778,7 +780,35 @@ type V2PlayerStats = {
   tournamentStats?: PlayerStats['tournamentStats']
 }
 
-function toPlayerStats(data: V2PlayerStats): PlayerStats {
+async function fetchPlayerStats(playerId: string, signal?: AbortSignal): Promise<V2PlayerStats> {
+  return request<V2PlayerStats>(
+    'GET',
+    communityPath(`/players/${enc(playerId)}/stats`),
+    undefined,
+    signal,
+  )
+}
+
+/** Stats in the wire shape, by id or by name. */
+export async function getPlayerStatsRaw(
+  nameOrId: string,
+  signal?: AbortSignal,
+): Promise<V2PlayerStats> {
+  const playerId = await resolvePlayerId(nameOrId, signal)
+  const stats = await fetchPlayerStats(playerId, signal)
+  // One stats read teaches the name → id mapping, so the next reader of the
+  // same player does not pay for a name lookup.
+  if (stats.name) playerIdByName.set(stats.name.toLowerCase(), playerId)
+  return stats
+}
+
+/** The id behind a name, when an earlier read already resolved it. */
+export function knownPlayerId(nameOrId: string): string | null {
+  if (/^[0-9a-f-]{36}$/i.test(nameOrId)) return nameOrId
+  return playerIdByName.get(nameOrId.toLowerCase()) ?? null
+}
+
+export function toPlayerStats(data: V2PlayerStats): PlayerStats {
   return {
     name: data.name,
     playerId: data.playerId,
@@ -812,18 +842,8 @@ function toPlayerStats(data: V2PlayerStats): PlayerStats {
   }
 }
 
-async function fetchPlayerStats(playerId: string, signal?: AbortSignal): Promise<V2PlayerStats> {
-  return request<V2PlayerStats>(
-    'GET',
-    communityPath(`/players/${enc(playerId)}/stats`),
-    undefined,
-    signal,
-  )
-}
-
 export async function getPlayerStats(name: string, signal?: AbortSignal): Promise<PlayerStats> {
-  const playerId = await resolvePlayerId(name, signal)
-  return toPlayerStats(await fetchPlayerStats(playerId, signal))
+  return toPlayerStats(await getPlayerStatsRaw(name, signal))
 }
 
 export async function registerPlayer(
@@ -841,14 +861,23 @@ export async function registerPlayer(
     )
     const aliases = [...new Set([...(player.aliases ?? []), name])]
     await request<V2Player>('PATCH', communityPath(`/players/${enc(playerId)}`), { aliases })
-    playerCache = null
+    // An alias is not part of the summary the snapshot joins, so the cached
+    // rows stay valid.
     return { playerId }
   }
   const player = await request<V2Player>('POST', communityPath('/players'), {
     name,
     gender: gender ?? undefined,
-  })
-  playerCache = null
+  }, undefined, { 'Idempotency-Key': makeIdempotencyKey() })
+  // A new player joins the cache instead of emptying it: the next screen
+  // should not re-read the whole roster because one row appeared.
+  const cached = cachedPlayers()
+  if (cached !== null) {
+    const summary = toPlayerSummary(player)
+    playerCache = [...cached.filter((row) => row.playerId !== summary.playerId), summary]
+    playerCacheSlug = activeCommunitySlug()
+  }
+  playerIdByName.set(String(player.name).toLowerCase(), player.id)
   return { playerId: player.id }
 }
 
@@ -943,8 +972,8 @@ export interface RatingPlayer {
   history: RatingHistoryRow[]
 }
 
-export async function getRatingPlayer(playerId: string, signal?: AbortSignal): Promise<RatingPlayer> {
-  const stats = await fetchPlayerStats(playerId, signal)
+/** The rating card's view of the same stats payload the career card reads. */
+export function toRatingPlayer(stats: V2PlayerStats): RatingPlayer {
   return {
     name: stats.name,
     tier: stats.tier ?? '',
@@ -962,6 +991,10 @@ export async function getRatingPlayer(playerId: string, signal?: AbortSignal): P
       opponents: row.opponents,
     })),
   }
+}
+
+export async function getRatingPlayer(playerId: string, signal?: AbortSignal): Promise<RatingPlayer> {
+  return toRatingPlayer(await getPlayerStatsRaw(playerId, signal))
 }
 
 export interface AchievementRow {

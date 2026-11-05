@@ -71,9 +71,25 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
       // Read dari cache (sudah di-update oleh onMutate) — JANGAN apply optimistic lagi!
       const current = queryClient.getQueryData<TData>(queryKey)
       if (!current) throw new Error('no data')
-      // Store vars for potential retry in onError
-      void vars
-      return await publish(id, current)
+      try {
+        return await publish(id, current)
+      } catch (error) {
+        // Version mismatch / contention → rebase intent user ke snapshot server
+        // TERBARU lalu retry (versi benar, perubahan penulis lain tetap utuh).
+        // JANGAN retry dari cache optimis: cache itu dibangun dari state stale,
+        // jadi retry akan menimpa tulisan penulis lain (lost update, audit 2026-09-12).
+        //
+        // The retry lives here, not in onError: a publish that succeeds on the
+        // second try must leave the mutation in `success`, otherwise the caller
+        // reports "Failed to save" for a save that worked (FE-44).
+        if (!isVersionMismatch(error) && !isContentionError(error)) throw error
+        const fresh = await fetchSnapshot(id)
+        if (!fresh) throw error
+        const retried = optimisticUpdate(fresh, vars)
+        if (!retried) throw error
+        queryClient.setQueryData(queryKey, retried)
+        return await publish(id, retried)
+      }
     },
     onMutate: async (vars) => {
       await queryClient.cancelQueries({ queryKey })
@@ -84,41 +100,6 @@ export function useOptimisticMutation<TData extends Snapshot, TVars = unknown>(
       return { previous, vars }
     },
     onError: async (_err, _vars, context) => {
-      // Version mismatch / contention → rebase intent user ke snapshot server
-      // TERBARU lalu retry (versi benar, perubahan penulis lain tetap utuh).
-      // JANGAN retry dari cache optimis: cache itu dibangun dari state stale,
-      // jadi retry akan menimpa tulisan penulis lain (lost update, audit 2026-09-12).
-      if (isVersionMismatch(_err) || isContentionError(_err)) {
-        try {
-          const fresh = await fetchSnapshot(id)
-          if (fresh && context?.vars !== undefined) {
-            // Recompute dari fresh — sumber kebenaran terbaru, bukan cache.
-            const retried = optimisticUpdate(fresh, context.vars)
-            if (retried) {
-              queryClient.setQueryData(queryKey, retried)
-              try {
-                const out = await publish(id, retried)
-                if (out) {
-                  queryClient.setQueryData(queryKey, out)
-                } else {
-                  try {
-                    await queryClient.fetchQuery<TData | null>({
-                      queryKey,
-                      queryFn: () => fetchSnapshot(id),
-                    })
-                  } catch { /* ignore */ }
-                }
-                if (onSuccessCallback) await onSuccessCallback()
-                return // Success — no rollback
-              } catch {
-                // Retry failed — fall through to rollback
-              }
-            }
-          }
-        } catch {
-          // ignore fetch errors
-        }
-      }
       // Rollback on failure
       if (context?.previous !== undefined) {
         queryClient.setQueryData(queryKey, context.previous)

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import type { QueryClient } from '@tanstack/react-query'
-import { getSession, publishSession, listSessions, setSessionLock, deleteSession, getGame, patchGameScore, patchGamePlayed, patchAbsentPlayers, patchGameSkipped, swapMembers, issueSessionTicket, currentCommunitySlug } from './endpoints'
+import { getSession, publishSession, listSessions, setSessionLock, patchGameScore, patchGamePlayed, patchAbsentPlayers, patchGameSkipped, swapMembers, issueSessionTicket, activeCommunitySlug } from './endpoints'
 import type { GranularSwapTarget } from './endpoints'
 import type { CloudSnapshot, SessionMeta } from './types'
 import { isVersionMismatch, isLockedError, isContentionError } from './errors'
@@ -24,15 +24,6 @@ import { communityQueryKey } from './keys'
 
 async function invalidateSessionQueries(queryClient: ReturnType<typeof useQueryClient>) {
   await queryClient.invalidateQueries({ queryKey: communityQueryKey('sessions') })
-}
-
-async function invalidateAllQueries(queryClient: ReturnType<typeof useQueryClient>) {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: communityQueryKey('sessions') }),
-    queryClient.invalidateQueries({ queryKey: communityQueryKey('players') }),
-    queryClient.invalidateQueries({ queryKey: communityQueryKey('player') }),
-    queryClient.invalidateQueries({ queryKey: communityQueryKey('ratings') }),
-  ])
 }
 
 // ── Granular optimistic lifecycle (shared) ───────────────────────────────────
@@ -73,24 +64,9 @@ function withGranularOptimisticLifecycle<TVars>(
   }
 }
 
-// Retry 1x on row-level OCC conflict: fetch game version → patch → ulangi sekali.
-async function withGameVersionRetry<T>(
-  sessionId: string,
-  key: string,
-  patch: (version: number) => Promise<T>,
-): Promise<T> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const game = await getGame(sessionId, key)
-    if (!game) throw new Error(`Game ${key} not found`)
-    try {
-      return await patch(game.version)
-    } catch (err) {
-      if (attempt === 0 && isVersionMismatch(err)) continue
-      throw err
-    }
-  }
-  throw new Error('unreachable')
-}
+// Every game write carries the session version, and the cached snapshot always
+// holds it, so a game edit does not re-read the whole session to learn the
+// number (FE-31). A stale cache still costs one refetch inside the retry.
 
 // Retry 1x on session-level OCC conflict: baca version dari cache → patch →
 // saat mismatch refetch fresh lalu ulangi sekali. `requireFreshVersion` = true
@@ -125,18 +101,42 @@ async function withSnapshotVersionRetry<T>(
 
 const SESSION_PAGE_SIZE = 100
 
+/**
+ * The list inputs are typed one key at a time. Feeding each keystroke straight
+ * into the query key would leave one cache entry per prefix, so changes settle
+ * first; the value present on mount is used immediately, so opening the page
+ * never waits.
+ */
+function useSettledValue<T>(value: T, delayMs = 300): T {
+  const [settled, setSettled] = useState(value)
+  const initial = useRef(value)
+
+  useEffect(() => {
+    if (Object.is(value, initial.current)) {
+      setSettled(value)
+      return
+    }
+    const timer = setTimeout(() => setSettled(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+
+  return settled
+}
+
 export function useListSessions(options?: {
   date?: string
   q?: string
   limit?: number
   enabled?: boolean
 }) {
+  const date = useSettledValue(options?.date)
+  const q = useSettledValue(options?.q)
   const query = useInfiniteQuery({
-    queryKey: communityQueryKey('sessions', options?.date, options?.q, options?.limit),
+    queryKey: communityQueryKey('sessions', date, q, options?.limit),
     queryFn: ({ pageParam, signal }) =>
       listSessions({
-        date: options?.date,
-        q: options?.q,
+        date,
+        q,
         limit: options?.limit ?? SESSION_PAGE_SIZE,
         offset: pageParam,
         signal,
@@ -144,6 +144,9 @@ export function useListSessions(options?: {
     initialPageParam: 0,
     getNextPageParam: (last) => last.nextOffset,
     enabled: options?.enabled ?? true,
+    // Keep the rows on screen while a new filter resolves instead of blanking
+    // the list back to its skeleton.
+    placeholderData: keepPreviousData,
   })
 
   const sessions: SessionMeta[] = query.data?.pages.flatMap((page) => page.items) ?? []
@@ -242,7 +245,7 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
       try {
         const { ticket } = await issueSessionTicket(sessionId)
         if (!active) return
-        const slug = currentCommunitySlug()
+        const slug = activeCommunitySlug()
         socket = new WebSocket(
           `${socketBase()}/ws/c/${encodeURIComponent(slug)}` +
           `/sessions/${encodeURIComponent(sessionId)}` +
@@ -264,13 +267,26 @@ export function useSessionRealtime(sessionId: string | undefined, enabled = true
           pingTimer = setInterval(() => send({ type: 'ping' }), PING_MS)
         }
         socket.onmessage = (event) => {
-          let frame: { type?: string }
+          let frame: { type?: string; seq?: number }
           try {
-            frame = JSON.parse(String(event.data)) as { type?: string }
+            frame = JSON.parse(String(event.data)) as { type?: string; seq?: number }
           } catch {
             return
           }
           if (frame.type === 'session.changed') {
+            // `seq` is the session version that produced the frame. Our own
+            // write already brought that version into the cache, so the echo
+            // must not fetch the whole snapshot a second time.
+            const cached = queryClient.getQueryData<CloudSnapshot>(
+              communityQueryKey('session', sessionId),
+            )
+            if (
+              typeof frame.seq === 'number' &&
+              cached?.version != null &&
+              cached.version >= frame.seq
+            ) {
+              return
+            }
             void queryClient.invalidateQueries({ queryKey: communityQueryKey('session', sessionId) })
           }
           if (frame.type === 'full' || frame.type === 'revoked') {
@@ -383,8 +399,12 @@ export function useTogglePlayed(sessionId: string) {
         nextPlayed = (cur?.playedGames ?? []).includes(key)
       }
       const resolvedNextPlayed = nextPlayed
-      // Granular: fetch game version → PATCH per game (row-level OCC). Retry 1x on version conflict.
-      return withGameVersionRetry(sessionId, key, (version) => patchGamePlayed(sessionId, key, resolvedNextPlayed, version))
+      // Granular: PATCH per game with the session version from the cache.
+      return withSnapshotVersionRetry(
+        queryClient,
+        sessionId,
+        (version) => patchGamePlayed(sessionId, key, resolvedNextPlayed, version),
+      )
     },
     ...withGranularOptimisticLifecycle<{ key: string; nextPlayed?: boolean | string[] }>(
       queryClient,
@@ -406,7 +426,11 @@ export function useSetScore(sessionId: string) {
   return useMutation({
     mutationFn: async (vars: { key: string; a: number; b: number }) => {
       const { key, a, b } = vars
-      return withGameVersionRetry(sessionId, key, (version) => patchGameScore(sessionId, key, a, b, version))
+      return withSnapshotVersionRetry(
+        queryClient,
+        sessionId,
+        (version) => patchGameScore(sessionId, key, a, b, version),
+      )
     },
     ...withGranularOptimisticLifecycle<{ key: string; a: number; b: number }>(
       queryClient,
@@ -475,7 +499,7 @@ export function useSetAbsent(sessionId: string) {
       queryClient,
       sessionId,
       (previous, vars) => setAbsentPlayersInSnapshot(previous, vars.nextAbsent),
-      () => invalidateAllQueries(queryClient),
+      () => invalidateSessionQueries(queryClient),
     ),
   })
 }
@@ -485,7 +509,11 @@ export function useSetGameSkipped(sessionId: string) {
   return useMutation({
     mutationFn: async (vars: { key: string; playerIds: string[] }) => {
       const { key, playerIds } = vars
-      return withGameVersionRetry(sessionId, key, (version) => patchGameSkipped(sessionId, key, playerIds, version))
+      return withSnapshotVersionRetry(
+        queryClient,
+        sessionId,
+        (version) => patchGameSkipped(sessionId, key, playerIds, version),
+      )
     },
     ...withGranularOptimisticLifecycle<{ key: string; playerIds: string[] }>(
       queryClient,
@@ -504,7 +532,7 @@ export function useReplacePlayer(sessionId: string) {
       const { playerId, newName } = vars as { playerId: string; newName: string }
       return replacePlayerNameInSnapshot(old, playerId, newName)
     },
-    () => invalidateAllQueries(queryClient),
+    () => invalidateSessionQueries(queryClient),
   )
 }
 
@@ -567,16 +595,6 @@ export function useFetchSession() {
   )
 }
 
-export function useDeleteSession() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (sessionId: string) => deleteSession(sessionId),
-    onSettled: async () => {
-      await invalidateAllQueries(queryClient)
-    },
-  })
-}
-
 export function useChangePlayer(sessionId: string) {
   const queryClient = useQueryClient()
   return useOptimisticSessionMutation(
@@ -592,6 +610,6 @@ export function useChangePlayer(sessionId: string) {
         session: { ...old.session, playerCount: newPlayers.length },
       }
     },
-    () => invalidateAllQueries(queryClient),
+    () => invalidateSessionQueries(queryClient),
   )
 }
