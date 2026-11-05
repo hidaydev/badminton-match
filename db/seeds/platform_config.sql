@@ -17,6 +17,8 @@ insert into platform.config (key, value_type, value, min_value, max_value, scope
    'Default page size for granular endpoints'),
   ('rank.board_limit', 'int', '200', 1, 10000, 'platform',
    'Rows returned by the public ranking board'),
+  ('rank.min_sessions', 'int', '0', 0, 100, 'platform',
+   'Entries in the window a player needs before the board lists them'),
   ('rating.session_base', 'decimal', '250', 0, 100000, 'platform',
    'Base points for one session game'),
   ('rating.score_target', 'int', '21', 1, 99, 'community',

@@ -23,7 +23,7 @@ proc cleanup() =
          (select id from platform.community where slug = 'lifeclub')""",
     """delete from player.players where community_id in
          (select id from platform.community where slug = 'lifeclub')""",
-    "delete from platform.community where slug = 'lifeclub'",
+    "delete from platform.community where slug in ('lifeclub', 'lifeclub-only')",
     """delete from account.audit where actor_id in
          (select id from platform.user where google_sub in ('lc-actor', 'lc-user'))""",
     "delete from platform.user where google_sub in ('lc-actor', 'lc-user')"]:
@@ -49,6 +49,20 @@ proc seed() =
     """insert into player.players (community_id, canonical_name, gender, user_id)
        values ($1::uuid, 'Bound Player', 'M', $2::uuid) returning id""",
     @[textParam(communityId), textParam(userId)]).get.get("id")
+  discard database.execUpdate(
+    """insert into community.membership (community_id, user_id, role)
+       values ($1::uuid, $2::uuid, 'admin')""",
+    @[textParam(communityId), textParam(userId)])
+  # A community the account joined but never played in: the anonymiser must
+  # still find it through the membership row alone.
+  let memberOnlyId = database.queryOne(
+    """insert into platform.community (slug, name, timezone)
+       values ('lifeclub-only', 'Life Club Only', 'Asia/Jakarta') returning id"""
+    ).get.get("id")
+  discard database.execUpdate(
+    """insert into community.membership (community_id, user_id, role)
+       values ($1::uuid, $2::uuid, 'member')""",
+    @[textParam(memberOnlyId), textParam(userId)])
   discard database.execUpdate(
     """insert into player.claims
          (community_id, player_id, user_id, status, decided_by, decided_at, reason)
@@ -97,6 +111,11 @@ suite "account lifecycle":
       """select user_id from player.players where id = $1::uuid""",
       @[textParam(playerId)]).get
     check player["user_id"].isNone
+
+    # Membership is account data: both communities go, including the one that
+    # only exists as a membership row.
+    check count("""select count(*)::int as n from community.membership
+                   where user_id = '""" & userId & """'""") == 0
 
     check count("""select count(*)::int as n from rating.deltas
                    where community_id = '""" & communityId & """'""") == 1

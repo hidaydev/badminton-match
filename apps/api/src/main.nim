@@ -37,7 +37,13 @@ proc bootHandler(config: ServerConfig, threads: int): RequestHandler =
   let dsn = getEnv("MAJADU_PG_DSN")
   if dsn.len == 0:
     raise newException(ValueError, "MAJADU_PG_DSN is required")
-  let database = openDb(dsn, threads)
+  # A worker can need a second connection while it already holds one: a `tx`
+  # body that calls a `Db` helper. With exactly one connection per worker every
+  # worker can hold its only connection, and the nested call waits forever.
+  # Two spare connections bound the pool while turning that deadlock into a
+  # short queue; the pool is still per process, not per request.
+  const poolHeadroom = 2
+  let database = openDb(dsn, threads + poolHeadroom)
   let oidc = loadOidcConfig()
   let keyring = loadKeyring(getEnv("SHARE_CODE_KEYS"),
     getEnv("SHARE_CODE_ACTIVE_KEY_ID"))

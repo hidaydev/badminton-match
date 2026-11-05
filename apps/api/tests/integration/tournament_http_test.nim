@@ -336,6 +336,11 @@ suite "tournament HTTP":
          where community_id = $1::uuid and source_id = $2::uuid""",
       @[textParam(communityId), textParam(id)])
     check events.get.get("total") == "0"
+    # An id that names no tournament is a 404, not a 204 with a full rebuild.
+    let missing = call(HttpDelete, "/c/" & slug &
+      "/tournaments/00000000-0000-0000-0000-000000000000/rating", adminCookie)
+    check missing.status == 404
+    check parseJson(missing.body)["code"].getStr() == "NOT_FOUND"
     check call(HttpDelete, path, adminCookie).status == 204
 
 cleanup(database)

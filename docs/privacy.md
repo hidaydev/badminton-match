@@ -58,10 +58,18 @@ menjalankan satu transaksi:
 
 1. Semua klaim milik akun ditutup dengan status `released` (riwayatnya tetap).
 2. Baris pemain yang tertaut dilepas (`user_id` menjadi kosong), datanya tetap.
-3. Sesi login dan tiket WebSocket dihapus.
-4. `google_sub`, `email_hash`, dan `display_name` ditulis ulang menjadi identitas
+3. Keanggotaan komunitas (`community.membership`) milik akun dihapus di setiap
+   komunitas yang pernah disentuh akun itu — termasuk komunitas yang hanya
+   diikuti lewat membership, tanpa klaim atau pemain tertaut.
+4. Sesi login dan tiket WebSocket dihapus.
+5. `google_sub`, `email_hash`, dan `display_name` ditulis ulang menjadi identitas
    anonim, sehingga login dengan akun Google yang sama tidak lagi menemukan
    pengguna ini.
+
+Keanggotaan dihapus, bukan dianonimkan, karena ia hanya tautan akun ke komunitas
+dan tidak menyimpan riwayat pertandingan. Konsekuensi yang perlu diketahui
+operator: bila akun yang ditutup adalah **satu-satunya admin** sebuah komunitas,
+komunitas itu tertinggal tanpa admin dan harus diberi admin baru secara manual.
 
 Yang **dipertahankan**: skor, turnamen, delta peringkat, dan audit. Riwayat
 pertandingan milik pemain dan komunitas, bukan milik akun; menghapusnya akan

@@ -1,3 +1,4 @@
+import std/[options, strutils]
 import db/db
 import ../../account/domain/roles
 
@@ -42,3 +43,74 @@ proc remove*(db: Db, communityId, userId: string): bool =
     """delete from community.membership
        where community_id = $1::uuid and user_id = $2::uuid""",
     @[textParam(communityId), textParam(userId)]) > 0
+
+type
+  MemberWrite* = enum
+    mwOk = "ok"
+    mwNotFound = "not_found"
+    mwLastAdmin = "last_admin"
+
+proc lockCommunity(conn: DbConn, communityId: string) =
+  ## Role changes in one community run one at a time. Counting admins is only
+  ## safe while no other writer can change the count, so the community row is
+  ## the mutex; adding a member does not lower the count and needs no lock.
+  discard conn.queryOne(
+    """select 1 as ok from platform.community where id = $1::uuid for update""",
+    @[textParam(communityId)])
+
+proc adminCount(conn: DbConn, communityId: string): int =
+  let row = conn.queryOne(
+    """select count(*)::int as admins from community.membership
+       where community_id = $1::uuid and role = 'admin'""",
+    @[textParam(communityId)])
+  parseInt(row.get.get("admins"))
+
+proc setRoleChecked*(db: Db, communityId, userId, role: string): MemberWrite =
+  ## Demoting the last admin is refused inside the same transaction that does
+  ## the update, so two concurrent demotions cannot both see "another admin".
+  discard parseRole(role)
+  var outcome = mwNotFound
+  discard db.tx(proc(conn: DbConn): int =
+    lockCommunity(conn, communityId)
+    let row = conn.queryOne(
+      """select role from community.membership
+         where community_id = $1::uuid and user_id = $2::uuid""",
+      @[textParam(communityId), textParam(userId)])
+    if row.isNone:
+      outcome = mwNotFound
+      return 0
+    let current = row.get.get("role")
+    if role != "admin" and current == "admin" and
+       adminCount(conn, communityId) <= 1:
+      outcome = mwLastAdmin
+      return 0
+    discard conn.execUpdate(
+      """update community.membership set role = $1
+         where community_id = $2::uuid and user_id = $3::uuid""",
+      @[textParam(role), textParam(communityId), textParam(userId)])
+    outcome = mwOk
+    1)
+  outcome
+
+proc removeChecked*(db: Db, communityId, userId: string): MemberWrite =
+  ## Same rule for deletion: the last admin is refused under the same lock.
+  var outcome = mwNotFound
+  discard db.tx(proc(conn: DbConn): int =
+    lockCommunity(conn, communityId)
+    let row = conn.queryOne(
+      """select role from community.membership
+         where community_id = $1::uuid and user_id = $2::uuid""",
+      @[textParam(communityId), textParam(userId)])
+    if row.isNone:
+      outcome = mwNotFound
+      return 0
+    if row.get.get("role") == "admin" and adminCount(conn, communityId) <= 1:
+      outcome = mwLastAdmin
+      return 0
+    discard conn.execUpdate(
+      """delete from community.membership
+         where community_id = $1::uuid and user_id = $2::uuid""",
+      @[textParam(communityId), textParam(userId)])
+    outcome = mwOk
+    1)
+  outcome

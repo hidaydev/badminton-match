@@ -140,36 +140,41 @@ type
     dsNotFound = "not found"
     dsNotDraft = "not draft"
 
-proc remove*(db: Db, communityId, sessionId: string,
-             allowLocked: bool): DeleteStatus =
+proc removeConn*(conn: DbConn, communityId, sessionId: string,
+                 allowLocked: bool): DeleteStatus =
   ## Hard delete of one session and its children. `session.games` references
   ## `session.participants` without a cascade, so the child rows are removed
   ## explicitly and in dependency order. A locked session is only deletable by
   ## an admin caller (`allowLocked`).
+  let row = conn.queryOne(
+    """select status from session.sessions
+       where community_id = $1::uuid and id = $2::uuid
+       for update""",
+    @[textParam(communityId), textParam(sessionId)])
+  if row.isNone:
+    return dsNotFound
+  if row.get.get("status") != "draft" and not allowLocked:
+    return dsNotDraft
+  let params = @[textParam(communityId), textParam(sessionId)]
+  for statement in [
+    """delete from session.games
+       where community_id = $1::uuid and session_id = $2::uuid""",
+    """delete from session.links
+       where community_id = $1::uuid and session_id = $2::uuid""",
+    """delete from session.participants
+       where community_id = $1::uuid and session_id = $2::uuid"""]:
+    discard conn.execUpdate(statement, params)
+  discard conn.execUpdate(
+    """delete from session.sessions
+       where community_id = $1::uuid and id = $2::uuid""", params)
+  dsDeleted
+
+proc remove*(db: Db, communityId, sessionId: string,
+             allowLocked: bool): DeleteStatus =
+  ## One transaction of its own; callers that must also revert the rating event
+  ## use `removeConn` inside their transaction instead.
   var outcome = dsDeleted
   discard db.tx(proc(conn: DbConn): int =
-    let row = conn.queryOne(
-      """select status from session.sessions
-         where community_id = $1::uuid and id = $2::uuid
-         for update""",
-      @[textParam(communityId), textParam(sessionId)])
-    if row.isNone:
-      outcome = dsNotFound
-      return 0
-    if row.get.get("status") != "draft" and not allowLocked:
-      outcome = dsNotDraft
-      return 0
-    let params = @[textParam(communityId), textParam(sessionId)]
-    for statement in [
-      """delete from session.games
-         where community_id = $1::uuid and session_id = $2::uuid""",
-      """delete from session.links
-         where community_id = $1::uuid and session_id = $2::uuid""",
-      """delete from session.participants
-         where community_id = $1::uuid and session_id = $2::uuid"""]:
-      discard conn.execUpdate(statement, params)
-    discard conn.execUpdate(
-      """delete from session.sessions
-         where community_id = $1::uuid and id = $2::uuid""", params)
+    outcome = removeConn(conn, communityId, sessionId, allowLocked)
     1)
   outcome

@@ -38,7 +38,8 @@ var
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
 proc call(verb: HttpMethod, path, cookie = "", body = "",
-          ifMatch = "", apiVersion = "", idempotencyKey = ""): (int, string) =
+          ifMatch = "", ifNoneMatch = "", apiVersion = "",
+          idempotencyKey = ""): (int, string) =
   let client = newHttpClient(timeout = 5000)
   defer: client.close()
   var headers = newHttpHeaders()
@@ -49,6 +50,8 @@ proc call(verb: HttpMethod, path, cookie = "", body = "",
     headers["Content-Type"] = "application/json"
   if ifMatch.len > 0:
     headers["If-Match"] = ifMatch
+  if ifNoneMatch.len > 0:
+    headers["If-None-Match"] = ifNoneMatch
   if apiVersion.len > 0:
     headers["X-API-Version"] = apiVersion
   if idempotencyKey.len > 0:
@@ -164,6 +167,16 @@ suite "session schedule HTTP":
     check session["games"][0]["court"].getInt() == 0
     check session["participants"].len == 4
     check session["participants"][0]["name"].getStr() == "Ani"
+    # A poll that already holds this version is a 304 without the body; a
+    # stale validator still gets the full read.
+    let etag = "\"" & $session["version"].getInt() & "\""
+    let (notModified, notModifiedBody) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId, hostCookie, ifNoneMatch = etag)
+    check notModified == 304
+    check notModifiedBody.len == 0
+    let (staleEtag, _) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId, hostCookie, ifNoneMatch = "\"1\"")
+    check staleEtag == 200
     let (stale, _) = call(HttpPut,
       "/c/sched-club/sessions/" & sessionId & "/schedule", hostCookie,
       schedule, ifMatch = "\"1\"")

@@ -12,11 +12,15 @@ type
 
 proc communitiesOf(conn: DbConn, userId: string): seq[string] =
   ## One row per community the account touched, so every later write carries an
-  ## explicit community_id instead of sweeping across tenants.
+  ## explicit community_id instead of sweeping across tenants. Membership is
+  ## included: an account can be a member of a community it never played in.
   for row in conn.query(
     """select distinct community_id from player.claims where user_id = $1::uuid
        union
-       select distinct community_id from player.players where user_id = $1::uuid""",
+       select distinct community_id from player.players where user_id = $1::uuid
+       union
+       select distinct community_id from community.membership
+         where user_id = $1::uuid""",
     @[textParam(userId)]):
     result.add(row.get("community_id"))
 
@@ -35,9 +39,9 @@ proc releaseClaims(conn: DbConn, communityIds: seq[string], userId, actorId,
         textParam(actorId)])
 
 proc anonymize*(db: Db, userId, actorId, reason: string): LifecycleResult =
-  ## One transaction: close claims, unlink players, drop the sessions and
-  ## rewrite the identity. Rating rows are untouched, because the history belongs
-  ## to the player, not to the account.
+  ## One transaction: close claims, unlink players, drop the membership rows and
+  ## the sessions, then rewrite the identity. Rating rows are untouched, because
+  ## the history belongs to the player, not to the account.
   var outcome = lrOk
   discard db.tx(proc(conn: DbConn): int =
     let user = conn.queryOne(
@@ -56,6 +60,14 @@ proc anonymize*(db: Db, userId, actorId, reason: string): LifecycleResult =
     for communityId in communityIds:
       discard conn.execUpdate(
         """update player.players set user_id = null, updated_at = now()
+           where community_id = $1::uuid and user_id = $2::uuid""",
+        @[textParam(communityId), textParam(userId)])
+    # Membership is a link between the account and the community, not match
+    # history. Leaving it behind kept an anonymized account as admin, which
+    # also made `soleAdmin` refuse every demotion in that community.
+    for communityId in communityIds:
+      discard conn.execUpdate(
+        """delete from community.membership
            where community_id = $1::uuid and user_id = $2::uuid""",
         @[textParam(communityId), textParam(userId)])
     discard conn.execUpdate(

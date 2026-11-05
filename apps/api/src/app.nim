@@ -11,6 +11,8 @@ import config as edgeConfig
 import config_routes
 import live
 import logger
+# `templateRoute` (rate-limit labels) is the only symbol used here; the counter
+# registry is never incremented and no route renders it.
 import metrics
 import ratelimit
 import security_headers
@@ -728,6 +730,20 @@ proc requireIfMatch(request: Request): Option[int] =
   if result.isNone:
     problem(request, 428, "PRECONDITION_REQUIRED", "If-Match is required")
 
+proc ifNoneMatchHits(request: Request, etag: string): bool =
+  ## Conditional read for the session detail route. Only If-None-Match is read,
+  ## so the optimistic-concurrency If-Match path stays exactly as it was.
+  let header = request.headers["If-None-Match"].strip()
+  if header.len == 0:
+    return false
+  for raw in header.split(','):
+    var candidate = raw.strip()
+    if candidate.len >= 2 and candidate[0 .. 1].toLowerAscii() == "w/":
+      candidate = candidate[2 .. ^1].strip()
+    if candidate == "*" or candidate == etag:
+      return true
+  false
+
 proc idempotentWrite(request: Request, userId, communityId, key: string,
                      body: string): Option[JsonNode] =
   ## Returns the stored response for a replay, a 409 body for a conflict, and
@@ -1023,17 +1039,6 @@ proc listMembers(request: Request, ctx: CommunityContext) =
       "role": member.role, "joinedAt": member.joinedAt})
   jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
 
-proc soleAdmin(db: Db, communityId, userId: string): bool =
-  ## Removing or demoting the only admin would leave the community unmanageable.
-  let row = db.queryOne(
-    """select
-         (select count(*) from community.membership
-          where community_id = $1::uuid and role = 'admin') as admins,
-         (select role from community.membership
-          where community_id = $1::uuid and user_id = $2::uuid) as current""",
-    @[textParam(communityId), textParam(userId)])
-  row.isSome and row.get.get("admins") == "1" and row.get.get("current") == "admin"
-
 proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
                      targetId: string) =
   var body: JsonNode
@@ -1049,24 +1054,31 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
   except ValueError:
     problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
     return
-  if role != "admin" and soleAdmin(application.db, ctx.communityId, targetId):
+  case membershipStore.setRoleChecked(application.db, ctx.communityId,
+      targetId, role)
+  of membershipStore.mwLastAdmin:
     problem(request, 409, "LAST_ADMIN", "promote another admin first")
     return
-  if not membershipStore.setRole(application.db, ctx.communityId, targetId, role):
+  of membershipStore.mwNotFound:
     problem(request, 404, "NOT_FOUND", "member not found")
     return
+  of membershipStore.mwOk:
+    discard
   audit("community.member.role", ctx, user, "user", targetId,
     %*{"role": role})
   jsonResponse(request, 200, %*{"userId": targetId, "role": role})
 
 proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
                   targetId: string) =
-  if soleAdmin(application.db, ctx.communityId, targetId):
+  case membershipStore.removeChecked(application.db, ctx.communityId, targetId)
+  of membershipStore.mwLastAdmin:
     problem(request, 409, "LAST_ADMIN", "promote another admin first")
     return
-  if not membershipStore.remove(application.db, ctx.communityId, targetId):
+  of membershipStore.mwNotFound:
     problem(request, 404, "NOT_FOUND", "member not found")
     return
+  of membershipStore.mwOk:
+    discard
   # A removed member loses the sockets and tickets of that principal.
   application.hub.revokePrincipal(targetId)
   audit("community.member.remove", ctx, user, "user", targetId)
@@ -1550,8 +1562,24 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
   # The links go with the session, so their watchers have to be told before the
   # rows they point at are gone.
   let links = shareStore.liveLinks(application.db, ctx.communityId, sessionId)
-  let outcome = sessionWrite.remove(application.db, ctx.communityId, sessionId,
-    ctx.role == rAdmin)
+  # Params are read before the transaction: the config and settings lookups use
+  # the pool, and a nested acquisition inside a held connection would wait on
+  # the pool instead of this transaction.
+  let params = ratingParamsFor(ctx)
+  # Delete, revert and rebuild in one transaction: a failure halfway must leave
+  # the session and its derived points as they were, not a deleted session with
+  # a stale board and a 500.
+  var outcome = sessionWrite.dsDeleted
+  var removed = 0
+  discard application.db.tx(proc(conn: DbConn): int =
+    outcome = sessionWrite.removeConn(conn, ctx.communityId, sessionId,
+      ctx.role == rAdmin)
+    if outcome == sessionWrite.dsDeleted:
+      removed = ratingIngest.revertSourceConn(conn, ctx.communityId, sessionId)
+      if removed > 0:
+        discard ratingIngest.rebuildConn(conn, ctx.communityId, params)
+      discard ratingIngest.dropSourceConn(conn, ctx.communityId, sessionId)
+    1)
   case outcome
   of sessionWrite.dsNotFound:
     problem(request, 404, "NOT_FOUND", "session not found")
@@ -1561,12 +1589,6 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   of sessionWrite.dsDeleted:
     discard
-  let removed = ratingIngest.revertSource(application.db, ctx.communityId,
-    sessionId)
-  if removed > 0:
-    discard ratingIngest.rebuild(application.db, ctx.communityId,
-      ratingParamsFor(ctx))
-  discard ratingIngest.dropSource(application.db, ctx.communityId, sessionId)
   for linkId in links:
     application.hub.revokeShare(linkId)
   audit("session.delete", ctx, user, "session", sessionId,
@@ -1725,6 +1747,11 @@ proc getSessionDetail(request: Request, ctx: CommunityContext,
   if row.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
+  let etag = "\"" & row.get.get("version") & "\""
+  # A poll that already has this version costs a 304 instead of the full read.
+  if ifNoneMatchHits(request, etag):
+    send(request, 304, @[("ETag", etag), ("Cache-Control", "no-store")], "")
+    return
   var participants = newJArray()
   for entry in application.db.query(
     """select p.player_id, pl.canonical_name as name, p.is_absent
@@ -1781,7 +1808,7 @@ proc getSessionDetail(request: Request, ctx: CommunityContext,
     "participants": participants,
     "games": games,
     "skippedPlayers": skipped},
-    [("ETag", "\"" & row.get.get("version") & "\""),
+    [("ETag", etag),
      ("Cache-Control", "no-store")])
 
 proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
@@ -1925,25 +1952,28 @@ proc boardItems(rows: seq[ratingRead.BoardRow]): JsonNode =
     items.add(boardRowJson(row.rank, row))
   items
 
-proc minSessionsParam(request: Request): int =
-  ## v1's default is zero: the board shows every player with an entry in the
-  ## window. A malformed value falls back to it instead of failing the read.
+proc minSessionsParam(request: Request, fallback: int): int =
+  ## `rank.min_sessions` is the default (seeded 0, the v1 filter); an explicit
+  ## query parameter overrides it. A malformed value falls back to the default
+  ## instead of failing the read.
   let raw = request.queryParams["min_sessions"]
   if raw.len == 0:
-    return 0
+    return max(fallback, 0)
   try:
     max(parseInt(raw), 0)
   except ValueError:
-    0
+    max(fallback, 0)
 
 proc communityBoard(request: Request, communityId, timezone: string,
                     playerIds: seq[string] = @[]) =
   ## The member page reads the whole community board; a share link passes the
   ## session's participants so the public copy is one session, not the ladder.
   let settings = currentSettings(application.db, communityId)
-  let params = ratingParams.loadRatingParams(configSnapshot(), settings)
-  let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
-  let minSessions = minSessionsParam(request)
+  let snapshot = configSnapshot()
+  let params = ratingParams.loadRatingParams(snapshot, settings)
+  let limit = snapshot.intValue(settings, keyRankBoardLimit)
+  let minSessions = minSessionsParam(request,
+    snapshot.intValue(settings, keyRankMinSessions))
   let latest = ratingRead.latestEventDate(application.db, communityId)
   let asOf = if latest.len > 0: latest else: communityToday(timezone)
   let query = ratingRead.BoardQuery(communityId: communityId,
@@ -2223,6 +2253,16 @@ proc ingestTournamentRating(request: Request, ctx: CommunityContext,
 
 proc clearTournamentRating(request: Request, ctx: CommunityContext,
                            user: AuthUser, id: string) =
+  ## An id that names no tournament is a 404, like the session variant: the
+  ## caller is asking to undo something, and "there was nothing there" is the
+  ## answer. Only a known tournament reaches the rebuild.
+  let known = application.db.queryOne(
+    """select 1 as ok from tournament.tournaments
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(ctx.communityId), textParam(id)])
+  if known.isNone:
+    problem(request, 404, "NOT_FOUND", "tournament not found")
+    return
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, id):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return

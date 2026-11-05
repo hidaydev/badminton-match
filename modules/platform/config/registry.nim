@@ -19,6 +19,7 @@ type
     keyIngestTickerMinutes = "ingest.ticker_minutes"
     keyApiPageSizeDefault = "api.page_size_default"
     keyRankBoardLimit = "rank.board_limit"
+    keyRankMinSessions = "rank.min_sessions"
     keyRatingSessionBase = "rating.session_base"
     keyRatingScoreTarget = "rating.score_target"
     keyRatingOpponentClamp = "rating.opponent_clamp"
@@ -71,6 +72,7 @@ const allKeys* = [
   spec(keyIngestTickerMinutes, ctInt, 1, 1440, true),
   spec(keyApiPageSizeDefault, ctInt, 1, 1000, true),
   spec(keyRankBoardLimit, ctInt, 1, 10_000, true),
+  spec(keyRankMinSessions, ctInt, 0, 100, true),
   spec(keyRatingSessionBase, ctDecimal, 0, 100_000, true),
   spec(keyRatingScoreTarget, ctInt, 1, 99, true, scope = csCommunity),
   spec(keyRatingOpponentClamp, ctJson),

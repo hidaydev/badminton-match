@@ -214,38 +214,49 @@ proc setFinalized*(db: Db, communityId, sourceId: string,
     "finalizedAt": if value["finalized_at"].isSome:
       %value.get("finalized_at") else: newJNull()})
 
-proc dropSource*(db: Db, communityId, sourceId: string): int =
+proc dropSourceConn*(conn: DbConn, communityId, sourceId: string): int =
   ## Deletes the sign-off row for a source that itself is being deleted, so a
   ## later source reusing the id cannot inherit an old decision.
-  db.execUpdate(
+  conn.execUpdate(
     """delete from rating.sources
        where community_id = $1::uuid and source_id = $2::uuid""",
     @[textParam(communityId), textParam(sourceId)])
 
-proc revertSource*(db: Db, communityId, sourceId: string): int =
-  ## Drops one source's event and its deltas. The caller rebuilds the derived
-  ## state, because wins and losses cannot be recomputed from deltas alone.
+proc dropSource*(db: Db, communityId, sourceId: string): int =
   var removed = 0
   discard db.tx(proc(conn: DbConn): int =
-    let event = conn.queryOne(
-      """select id from rating.events
-         where community_id = $1::uuid and source_id = $2::uuid""",
-      @[textParam(communityId), textParam(sourceId)])
-    if event.isNone:
-      return 0
-    let eventId = event.get.get("id")
-    removed = conn.execUpdate(
-      """delete from rating.deltas
-         where community_id = $1::uuid and event_id = $2::uuid""",
-      @[textParam(communityId), textParam(eventId)])
-    discard conn.execUpdate(
-      """delete from rating.events
-         where community_id = $1::uuid and id = $2::uuid""",
-      @[textParam(communityId), textParam(eventId)])
+    removed = dropSourceConn(conn, communityId, sourceId)
     1)
   removed
 
-proc rebuild*(db: Db, communityId: string, params: RatingParams): IngestResult =
+proc revertSourceConn*(conn: DbConn, communityId, sourceId: string): int =
+  ## Drops one source's event and its deltas. The caller rebuilds the derived
+  ## state, because wins and losses cannot be recomputed from deltas alone.
+  let event = conn.queryOne(
+    """select id from rating.events
+       where community_id = $1::uuid and source_id = $2::uuid""",
+    @[textParam(communityId), textParam(sourceId)])
+  if event.isNone:
+    return 0
+  let eventId = event.get.get("id")
+  result = conn.execUpdate(
+    """delete from rating.deltas
+       where community_id = $1::uuid and event_id = $2::uuid""",
+    @[textParam(communityId), textParam(eventId)])
+  discard conn.execUpdate(
+    """delete from rating.events
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(eventId)])
+
+proc revertSource*(db: Db, communityId, sourceId: string): int =
+  var removed = 0
+  discard db.tx(proc(conn: DbConn): int =
+    removed = revertSourceConn(conn, communityId, sourceId)
+    1)
+  removed
+
+proc rebuildConn*(conn: DbConn, communityId: string,
+                  params: RatingParams): IngestResult =
   ## Deterministic: the state is thrown away and recomputed from the approved
   ## sessions, then from the signed-off tournaments, so two runs always end at
   ## the same numbers. A rebuild must not erase a tournament that was ingested
@@ -255,33 +266,38 @@ proc rebuild*(db: Db, communityId: string, params: RatingParams): IngestResult =
   ## event's deltas are computed from the state the events before it left, so a
   ## replay by session date would award a different multiplier and the board
   ## numbers would move on every rebuild.
+  lockCommunity(conn, communityId)
+  discard conn.execUpdate(
+    """delete from rating.deltas where community_id = $1::uuid""",
+    @[textParam(communityId)])
+  discard conn.execUpdate(
+    """delete from rating.events where community_id = $1::uuid""",
+    @[textParam(communityId)])
+  discard conn.execUpdate(
+    """delete from rating.player_state where community_id = $1::uuid""",
+    @[textParam(communityId)])
+  var ids: seq[string] = @[]
+  for row in conn.query(
+    """select id from session.sessions
+       where community_id = $1::uuid and approved_at is not null
+         and status in """ & approvedStatuses & """
+       order by approved_at, id""",
+    @[textParam(communityId)]):
+    ids.add(row.get("id"))
+  for sessionId in ids:
+    let part = ingestSessionConn(conn, communityId, sessionId, params)
+    result.events += part.events
+    result.deltas += part.deltas
+  let tournaments = ingestFinalTournamentsConn(conn, communityId, params)
+  result.events += tournaments.events
+  result.deltas += tournaments.deltas
+
+proc rebuild*(db: Db, communityId: string, params: RatingParams): IngestResult =
+  ## Wraps `rebuildConn` in a transaction. A caller that already holds one
+  ## (a delete that must not leave half its work behind) uses `rebuildConn`.
   var outcome: IngestResult
   discard db.tx(proc(conn: DbConn): int =
-    lockCommunity(conn, communityId)
-    discard conn.execUpdate(
-      """delete from rating.deltas where community_id = $1::uuid""",
-      @[textParam(communityId)])
-    discard conn.execUpdate(
-      """delete from rating.events where community_id = $1::uuid""",
-      @[textParam(communityId)])
-    discard conn.execUpdate(
-      """delete from rating.player_state where community_id = $1::uuid""",
-      @[textParam(communityId)])
-    var ids: seq[string] = @[]
-    for row in conn.query(
-      """select id from session.sessions
-         where community_id = $1::uuid and approved_at is not null
-           and status in """ & approvedStatuses & """
-         order by approved_at, id""",
-      @[textParam(communityId)]):
-      ids.add(row.get("id"))
-    for sessionId in ids:
-      let part = ingestSessionConn(conn, communityId, sessionId, params)
-      outcome.events += part.events
-      outcome.deltas += part.deltas
-    let tournaments = ingestFinalTournamentsConn(conn, communityId, params)
-    outcome.events += tournaments.events
-    outcome.deltas += tournaments.deltas
+    outcome = rebuildConn(conn, communityId, params)
     1)
   outcome
 

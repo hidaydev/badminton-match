@@ -67,6 +67,10 @@
           "source": "platform",
           "value": 200
         },
+        "rank.min_sessions": {
+          "source": "platform",
+          "value": 0
+        },
         "rating.best_n": {
           "source": "platform",
           "value": 10
