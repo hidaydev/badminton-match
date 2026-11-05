@@ -230,28 +230,29 @@ suite "community HTTP":
     check anonymous == 401
 
   test "an admin narrows a community setting, nobody widens it":
-    let (asMember, _) = call(HttpPatch, "/c/http-club/config", memberCookie,
+    let (asMember, _) = call(HttpPatch, "/c/http-club/settings", memberCookie,
       """{"community.invite_ttl_days": 3}""")
     check asMember == 403
-    let (unknown, _) = call(HttpPatch, "/c/http-club/config", adminCookie,
+    let (unknown, _) = call(HttpPatch, "/c/http-club/settings", adminCookie,
       """{"nope.value": 1}""")
     check unknown == 400
     # The platform value is the ceiling: 365 is above the seeded 7.
-    let (wide, _) = call(HttpPatch, "/c/http-club/config", adminCookie,
+    let (wide, _) = call(HttpPatch, "/c/http-club/settings", adminCookie,
       """{"community.invite_ttl_days": 365}""")
     check wide == 400
-    let (wrongType, _) = call(HttpPatch, "/c/http-club/config", adminCookie,
+    let (wrongType, _) = call(HttpPatch, "/c/http-club/settings", adminCookie,
       """{"community.invite_ttl_days": "three"}""")
     check wrongType == 400
-    let (okStatus, okBody) = call(HttpPatch, "/c/http-club/config", adminCookie,
+    let (okStatus, okBody) = call(HttpPatch, "/c/http-club/settings", adminCookie,
       """{"community.invite_ttl_days": 3}""")
     check okStatus == 200
-    let applied = parseJson(okBody)["effective"]["community.invite_ttl_days"]
-    check applied["value"].getInt() == 3
-    check applied["source"].getStr() == "community"
+    check parseJson(okBody)["values"]["community.invite_ttl_days"].getInt() == 3
+    # The member read uses /config, and it carries the new source.
     let (readStatus, readBody) = call(HttpGet, "/c/http-club/config", memberCookie)
     check readStatus == 200
-    check parseJson(readBody)["effective"]["community.invite_ttl_days"]["value"].getInt() == 3
+    let applied = parseJson(readBody)["effective"]["community.invite_ttl_days"]
+    check applied["value"].getInt() == 3
+    check applied["source"].getStr() == "community"
     # Other tests expect the platform value.
     discard database.execUpdate(
       "delete from community.settings where community_id = $1::uuid",

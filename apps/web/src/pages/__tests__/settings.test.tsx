@@ -84,14 +84,24 @@ describe('community settings', () => {
   })
 
   it('narrows an invite lifetime and sends only the changed key', async () => {
+    let configReads = 0
     const fetchMock = base({
-      'PATCH /api/c/acme/config': () => ({
-        body: {
-          effective: {
-            ...effective,
-            'community.invite_ttl_days': { value: 3, source: 'community' },
+      'GET /api/c/acme/config': () => {
+        configReads += 1
+        return {
+          body: {
+            effective:
+              configReads === 1
+                ? effective
+                : {
+                    ...effective,
+                    'community.invite_ttl_days': { value: 3, source: 'community' },
+                  },
           },
-        },
+        }
+      },
+      'PATCH /api/c/acme/settings': () => ({
+        body: { values: { 'community.invite_ttl_days': 3 } },
       }),
     })
 
@@ -107,7 +117,7 @@ describe('community settings', () => {
     })
     const call = fetchMock.mock.calls.find(
       ([url, init]) =>
-        String(url) === '/api/c/acme/config' &&
+        String(url) === '/api/c/acme/settings' &&
         (init as RequestInit | undefined)?.method === 'PATCH',
     )
     expect(jsonBody((call as [string, RequestInit])[1])).toEqual({

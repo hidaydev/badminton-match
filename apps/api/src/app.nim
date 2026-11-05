@@ -1091,29 +1091,6 @@ proc communityConfig(request: Request, ctx: CommunityContext) =
       currentSettings(application.db, ctx.communityId))},
     [("Cache-Control", "no-store")])
 
-proc patchCommunityConfig(request: Request, ctx: CommunityContext,
-                          user: AuthUser) =
-  ## A community may narrow a platform value, never widen it; `applyPatch`
-  ## validates the whole patch before it writes, and audits the result.
-  var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body is not valid JSON")
-    return
-  let result = applyPatch(application.db, configSnapshot(), ctx.communityId,
-    user.id, body)
-  case result.outcome
-  of soOk:
-    communityConfig(request, ctx)
-  of soUnknownKey:
-    problem(request, 400, "UNKNOWN_KEY",
-      "unknown configuration key: " & result.key)
-  of soOutOfCeiling:
-    problem(request, 400, "OUT_OF_RANGE", result.detail)
-  of soInvalidType:
-    problem(request, 400, "INVALID_VALUE", result.detail)
-
 proc playerLimit(request: Request): int =
   let fallback = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
   let raw = request.queryParams["limit"]
@@ -2706,10 +2683,6 @@ proc route(request: Request) =
       let admin = adminGate(request, parts[2])
       if admin.isNone: return
       let (user, ctx) = admin.get
-      if parts[3] == "config" and parts.len == 4:
-        if verb == "PATCH": patchCommunityConfig(request, ctx, user)
-        else: problem(request, 405, "METHOD", "")
-        return
       if parts[3] == "members" and parts.len == 5:
         if verb == "PATCH": patchMemberRole(request, ctx, user, parts[4])
         elif verb == "DELETE": removeMember(request, ctx, user, parts[4])

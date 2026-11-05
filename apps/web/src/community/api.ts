@@ -21,15 +21,16 @@ export async function fetchCommunityConfig(slug: string): Promise<CommunityConfi
 
 /**
  * Narrow one or more community values. The server refuses anything above the
- * platform value, so this is not an arbitrary write.
+ * platform value, so this is not an arbitrary write. The write answers with the
+ * overrides only, so the merged view is read back.
  */
 export async function updateCommunityConfig(
   slug: string,
   patch: Record<string, unknown>,
 ): Promise<CommunityConfig> {
-  const body = await request<{ effective: CommunityConfig }>(
-    `/c/${encodeURIComponent(slug)}/config`,
-    { method: 'PATCH', body: JSON.stringify(patch) },
-  )
-  return body.effective
+  await request<{ values: unknown }>(`/c/${encodeURIComponent(slug)}/settings`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  return fetchCommunityConfig(slug)
 }
