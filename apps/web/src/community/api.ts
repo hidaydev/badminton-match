@@ -34,3 +34,15 @@ export async function updateCommunityConfig(
   })
   return fetchCommunityConfig(slug)
 }
+
+/**
+ * Ask an admin to add this account. The API answers 202 for an unknown slug, a
+ * community that is not accepting and a pending request alike, so the screen
+ * must not claim more than "sent".
+ */
+export async function requestToJoin(slug: string): Promise<void> {
+  await request<{ status: string }>(`/c/${encodeURIComponent(slug)}/join-requests`, {
+    method: 'POST',
+    body: '{}',
+  })
+}

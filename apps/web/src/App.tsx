@@ -6,6 +6,7 @@ import { useAuth } from './auth/AuthContext'
 import ClientOutdatedBanner from './components/ClientOutdatedBanner'
 import { LoadingState } from './components/LoadingState'
 import { CommunityProvider } from './community/CommunityProvider'
+import JoinRequestCard from './community/JoinRequestCard'
 import { useCommunity } from './community/CommunityContext'
 import { t } from './i18n'
 import LoginPage from './pages/LoginPage'
@@ -174,13 +175,29 @@ function CommunityNotFound() {
 
 function RootRedirect() {
   const { current } = useCommunity()
+  const { user } = useAuth()
   if (current !== null) {
     return <Navigate to={`/c/${encodeURIComponent(current.slug)}`} replace />
   }
+  // The empty state must offer what this account can actually do: only the
+  // platform owner can create a community, everyone else asks to join one.
+  const isOwner = user?.platformOwner === true
   return (
     <section className="mx-auto max-w-2xl p-4">
       <h1 className="text-xl sm:text-2xl font-bold text-fg">{t('home.empty')}</h1>
-      <p className="mt-2 text-sm text-fg-dim">{t('home.emptyHint')}</p>
+      <p className="mt-2 text-sm text-fg-dim">
+        {isOwner ? t('home.emptyOwnerHint') : t('home.emptyHint')}
+      </p>
+      {isOwner ? (
+        <Link
+          to="/owner/communities"
+          className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {t('home.createCommunity')}
+        </Link>
+      ) : (
+        <JoinRequestCard />
+      )}
     </section>
   )
 }
