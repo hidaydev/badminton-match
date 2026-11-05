@@ -76,10 +76,17 @@ communities) tetap dipakai; halaman v2 yang tidak pernah dipasang di router
   ke `/ws/c/{slug}/sessions/{id}` atau `/ws/share/{code}`.
 - Frame `session.changed` hanya membawa `seq`; klien harus membaca ulang state.
 - Hub fan-out in-memory per proses → **API harus satu instance**. `platform.outbox`
-  sudah ada dan dibersihkan janitor, tetapi belum ada produsen event.
-- **Klien web belum memakai WebSocket**: halaman sesi memuat state saat dibuka,
-  setelah aksi lokal, dan polling 5 detik selama tab terbuka. Hook realtime lama
-  (SSE) sudah dinonaktifkan; upgrade ke WS belum dikerjakan.
+  sudah ada dan dibersihkan janitor, tetapi belum ada produsen event. Ini batasan
+  yang disengaja: satu container per VPS, jadi fan-out antar-instance belum
+  dibutuhkan. Menjalankan dua replika tanpa produsen outbox akan membuat sebagian
+  penonton tidak menerima `session.changed`.
+- **Klien web memakai WebSocket**: `useSessionRealtime` meminta tiket sekali pakai,
+  membuka `/ws/c/{slug}/sessions/{id}`, dan meng-invalidate `['session', id]` setiap
+  `session.changed`; frame `full`/`revoked` menghentikan reconnect. Selama socket
+  belum tersambung (atau setelah putus) halaman tetap polling 5 detik, jadi
+  realtime adalah percepatan, bukan syarat. Di dev, Vite mem-proxy `/ws`; di
+  produksi socket memakai origin API (`VITE_WS_BASE`), karena rewrite Vercel tidak
+  membawa upgrade.
 
 ## 5. Gate
 
@@ -90,7 +97,7 @@ communities) tetap dipakai; halaman v2 yang tidak pernah dipasang di router
 | Satu modul | `./task verify <modul\|api>` | integration bila DB ada |
 | Kontrak | `./task contract-check` | fingerprint + hasil generate |
 | Parity | `./task parity verify` / `./task parity v2 verify` | v1 beku 71 kasus/48 rute; v2 142 kasus |
-| Coverage | `./task coverage` | per modul, ratchet terhadap `coverage-baseline.json` (59,76% total, diukur dengan integration) |
+| Coverage | `./task coverage` | per modul, ratchet terhadap `coverage-baseline.json` (38,95% total, diukur dengan integration) |
 | Keamanan | bagian dari `./task test` | IDOR, eskalasi, CSRF, replay OIDC, rate limit, klaim |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 | E2E | `./task e2e` | Playwright: a11y, visual, compatibility |
@@ -123,6 +130,9 @@ E2E berjalan di dua perangkat: **iPhone 17** (WebKit, 402×874, DPR 3) dan
 - **Unit**: `ops/systemd/majadu-api.container` (rootless, `Pull=never`,
   `MemoryMax=512M`, `StartLimit*`, `OnFailure=majadu-alert@%n.service`,
   `NoNewPrivileges`, `DropCapability=ALL`) + `majadu-alert@.service`.
+- **Snapshot harian**: `majadu-snapshot.service` + `.timer` menjalankan
+  `ranksnapshot` dari image yang sama (`podman run --rm --pull=never`), supaya
+  panah pergerakan punya snapshot baru tiap hari. Diaktifkan setelah cutover.
 - **Caddy**: `api.qouver.com` adalah satu site dengan banyak `handle`; snippet
   majadu adalah **handler block** yang diimpor di dalam site itu, prefix `/majadu`
   dipertahankan. Langkah sekali-jalan ada di `ops/caddy/Caddyfile.api.qouver.com`.
@@ -145,6 +155,7 @@ Rencana 88 task: lihat [`roadmap.md`](roadmap.md). Ringkasnya:
   produsen `platform.outbox`, tautan share v1 `/s/{sessionId}` tidak lagi valid
   karena v2 memakai kode acak, dan kenaikan coverage di `modules/account`,
   `modules/share`, `modules/tournament`.
-- **Selisih data yang diketahui:** Salma, Youri, Zaid, dan Firda berbeda dari
-  `bm.rank_snapshots` v1 karena ledger v1 untuk sesi 2026-10-31 di-ingest
-  sebelum sesi itu diedit (100 dari 104 pemain tetap persis sama).
+- **Selisih data yang diketahui (diterima):** Salma, Youri, Zaid, dan Firda
+  berbeda dari `bm.rank_snapshots` v1 karena ledger v1 untuk sesi 2026-10-31
+  di-ingest sebelum sesi itu diedit. Keputusan pemilik: v2 mengikuti data
+  terkini, bukan ledger v1 yang basi; 100 dari 104 pemain tetap persis sama.

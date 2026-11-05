@@ -32,6 +32,9 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
   check:web`, `e2e` (iPhone 17 + POCO F5), CI 7 job + gate.
 - **Ops** — deploy/cutover/rollback/backup/restore/smoke, Quadlet hardened, Caddy
   handler `/majadu`, alert unit, harness rehearsal.
+- **Snapshot harian** — `ranksnapshot` ikut di image dan dijalankan
+  `majadu-snapshot.timer` (aktif setelah cutover); panah peringkat tidak lagi
+  bergantung pada snapshot manual.
 - **Rilis** — SemVer 2.0.0, CHANGELOG, tag SSH-signed, image sekali di CI, Release
   ber-digest.
 - **Dekomisi Go v1** — source dihapus; rollback memakai `:v1-final`.
@@ -40,11 +43,8 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
 
 | # | Item | Kenapa |
 |---|---|---|
-| 1 | **Klien WebSocket di FE** | Endpoint ticket + upgrade sudah siap, tetapi halaman sesi masih memuat state sekali; host lain tidak terlihat sampai refresh. |
-| 2 | **Produsen `platform.outbox`** | Realtime masih in-memory → API wajib satu instance; outbox sudah ada dan dibersihkan janitor, belum dipakai. |
-| 3 | **Snapshot harian** | `rating.snapshots` hanya ditulis manual; panah pergerakan butuh snapshot baru setiap hari seperti job v1. |
-| 4 | **Naikkan coverage** | Lihat `coverage-baseline.json`; ratchet hanya menahan, tidak menaikkan. |
-| 5 | **Putuskan selisih 4 pemain** | Salma, Youri, Zaid, Firda beda dari snapshot v1 karena ledger v1 sesi 2026-10-31 basi; v2 menghitung dari game terkini. Perlu keputusan produk (ikuti v1 atau data terkini). |
+| 1 | **Produsen `platform.outbox`** | Realtime masih in-memory → API wajib satu instance. Untuk satu VPS ini cukup; outbox baru perlu bila replika ditambah. |
+| 2 | **Naikkan coverage** | Ratchet hanya menahan. Setelah atribusi diperbaiki, yang paling rendah: `apps/api` 6,31% (`app.nim` 30k baris nyaris tanpa test), `tools` 19,95% (`import/main.nim` 0%), `shared` 26,61%, `platform` 30,28%. `modules/account` 65,83%, `modules/share` 38,92%, `modules/tournament` 63,88%. |
 
 ## 🚧 Operasional yang belum selesai
 
