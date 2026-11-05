@@ -105,8 +105,8 @@ proc splitKey(key: string): (string, string) =
   let index = key.find(keySeparator)
   if index < 0: (key, "") else: (key[0 ..< index], key[index + 1 .. ^1])
 
-proc loadTiers(conn: DbConn, communityId: string): Table[string, string] =
-  for row in conn.query(
+proc loadTiers(db: Db, communityId: string): Table[string, string] =
+  for row in db.query(
     """select id::text as id, coalesce(tier, '') as tier
        from player.players where community_id = $1::uuid""",
     @[textParam(communityId)]):
@@ -136,8 +136,8 @@ proc opponentsStrength(tiers: Table[string, string], params: RatingParams,
       inc seen
   if seen == 0: 0.0 else: total / seen.float
 
-proc loadLevels(conn: DbConn, communityId: string): Table[string, Level] =
-  for row in conn.query(
+proc loadLevels(db: Db, communityId: string): Table[string, Level] =
+  for row in db.query(
     """select kind, champion_points::text as champion,
               round_ratios::text as ratios, enabled
        from rating.levels where community_id = $1::uuid""",
@@ -159,14 +159,14 @@ proc addGame(acc: var Table[string, Acc], playerId, sourceId, date, kind: string
   inc entry.games
   acc[key] = entry
 
-proc sessionEntries(conn: DbConn, communityId, asOf: string,
+proc sessionEntries(db: Db, communityId, asOf: string,
                     params: RatingParams, tiers: Table[string, string],
                     population: float, acc: var Table[string, Acc]) =
   ## Sessions are one query plus the two exclusion tables, so a board read does
   ## not issue a query per session. A skipped or absent player contributes
   ## nothing, not even to the opponents' average, exactly like the ingest.
   var absentBySession = initTable[string, bool]()
-  for row in conn.query(
+  for row in db.query(
     """select session_id::text as session_id, player_id::text as player_id
        from session.participants
        where community_id = $1::uuid and is_absent""",
@@ -174,14 +174,14 @@ proc sessionEntries(conn: DbConn, communityId, asOf: string,
     absentBySession[row.get("session_id") & keySeparator &
       row.get("player_id")] = true
   var skips = initTable[string, bool]()
-  for row in conn.query(
+  for row in db.query(
     """select session_id::text as session_id, round_no, court_no,
               player_id::text as player_id
        from session.game_skips where community_id = $1::uuid""",
     @[textParam(communityId)]):
     skips[row.get("session_id") & keySeparator & row.get("round_no") & "-" &
       row.get("court_no") & keySeparator & row.get("player_id")] = true
-  for row in conn.query(
+  for row in db.query(
     """select e.source_id::text as source_id, e.local_date::text as local_date,
               g.round_no, g.court_no, g.score_a, g.score_b,
               coalesce(g.side_a1::text, '') as a1,
@@ -245,11 +245,11 @@ proc sessionEntries(conn: DbConn, communityId, asOf: string,
     for id in eligibleB:
       addGame(acc, id, sourceId, date, "session", valueB * multiplierB)
 
-proc tournamentEntries(conn: DbConn, communityId, asOf: string,
+proc tournamentEntries(db: Db, communityId, asOf: string,
                        params: RatingParams, tiers: Table[string, string],
                        population: float, levels: Table[string, Level],
                        acc: var Table[string, Acc]) =
-  for header in conn.query(
+  for header in db.query(
     """select e.source_id::text as id, e.local_date::text as local_date,
               t.format
        from rating.events e
@@ -263,11 +263,16 @@ proc tournamentEntries(conn: DbConn, communityId, asOf: string,
       intParam(params.windowWeeks.int64)]):
     let sourceId = header.get("id")
     let date = header.get("local_date")
-    let kind = "tournament_" & header.get("format")
+    let format = header.get("format")
+    let kind = "tournament_" & format
     let level = levels.getOrDefault(kind)
     let usesLevel = levels.hasKey(kind) and level.enabled
     var places = initTable[string, Place]()
-    for game in gamesFor(conn, communityId, sourceId, header.get("format")):
+    # One short-lived connection per tournament; the header query above
+    # already released its own.
+    let games = db.read(proc(conn: DbConn): seq[TournamentGame] =
+      gamesFor(conn, communityId, sourceId, format))
+    for game in games:
       let marginA = game.scoreA - game.scoreB
       if usesLevel:
         for side in [true, false]:
@@ -308,24 +313,29 @@ proc project*(db: Db, communityId, asOf: string, params: RatingParams,
               playerId = ""): Table[string, Projection] =
   ## Every player with at least one entry in the window, or only `playerId`
   ## when it is given. The caller decides who reaches the board.
+  ##
+  ## The read is deliberately not wrapped in a transaction. Each statement
+  ## checks a connection out of the pool and returns it, so a board request
+  ## never pins one for the whole aggregation; with a pool sized to the worker
+  ## count, a handful of concurrent boards would otherwise lock capacity. The
+  ## board is a point-in-time report either way: READ COMMITTED gives every
+  ## statement its own snapshot, with or without the outer BEGIN.
   var grouped = initTable[string, seq[Entry]]()
-  discard db.tx(proc(conn: DbConn): int =
-    let tiers = loadTiers(conn, communityId)
-    let population = populationStrength(tiers, params)
-    let levels = loadLevels(conn, communityId)
-    var acc = initTable[string, Acc]()
-    sessionEntries(conn, communityId, asOf, params, tiers, population, acc)
-    tournamentEntries(conn, communityId, asOf, params, tiers, population,
-      levels, acc)
-    for key, value in acc:
-      let (owner, sourceId) = splitKey(key)
-      if playerId.len > 0 and owner != playerId:
-        continue
-      grouped.mgetOrPut(owner, @[]).add(Entry(sourceId: sourceId,
-        date: value.date, kind: value.kind, points: value.points,
-        games: value.games,
-        result: (if value.usesLevel: resultKey(value.place) else: "")))
-    1)
+  let tiers = loadTiers(db, communityId)
+  let population = populationStrength(tiers, params)
+  let levels = loadLevels(db, communityId)
+  var acc = initTable[string, Acc]()
+  sessionEntries(db, communityId, asOf, params, tiers, population, acc)
+  tournamentEntries(db, communityId, asOf, params, tiers, population, levels,
+    acc)
+  for key, value in acc:
+    let (owner, sourceId) = splitKey(key)
+    if playerId.len > 0 and owner != playerId:
+      continue
+    grouped.mgetOrPut(owner, @[]).add(Entry(sourceId: sourceId,
+      date: value.date, kind: value.kind, points: value.points,
+      games: value.games,
+      result: (if value.usesLevel: resultKey(value.place) else: "")))
   for owner, entries in grouped:
     var list = entries
     list.sort(proc(a, b: Entry): int =

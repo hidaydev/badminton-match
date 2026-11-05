@@ -178,23 +178,26 @@ atau scrape config, bukan mengubah kode.
 
 ---
 
-## ADR-008 · Transaksi read-only boleh menahan satu koneksi
+## ADR-008 · Proyeksi papan membaca tanpa transaksi
 
 **Tanggal:** 2026-11-05
 **Temuan audit:** BEP-03
-**Status:** Ditunda
+**Status:** Diterapkan
 
-**Keputusan:** pembacaan yang dibungkus `tx` tetap seperti sekarang; pool diberi
-dua koneksi cadangan per proses (`apps/api/src/main.nim`).
+**Keputusan:** `projection.project` tidak lagi dibungkus `db.tx`. Setiap
+pernyataan memakai `db.query`/`db.read`, yang meminjam satu koneksi lalu
+mengembalikannya, dan agregasi berjalan setelah tidak ada koneksi yang dipegang.
+Pool tetap menyisakan dua koneksi per proses (`apps/api/src/main.nim`) untuk
+panggilan `Db` bersarang.
 
-**Alasan:** masalah sesungguhnya bukan transaksi read-only, melainkan satu
-koneksi per worker: panggilan `Db` bersarang di dalam `tx` akan menunggu pool
-selamanya. Dengan headroom, pola itu menjadi antrean singkat. Mengubah setiap
-pembacaan menjadi non-transaksional akan menyentuh puluhan jalur tanpa
-memperbaiki penyebabnya.
+**Alasan:** dengan pool seukuran jumlah worker, satu papan yang menahan koneksi
+selama seluruh agregasi mengurangi kapasitas untuk semua request lain. READ
+COMMITTED memberi tiap pernyataan snapshot-nya sendiri, jadi transaksi luar tidak
+menambah konsistensi yang berarti untuk laporan titik-waktu ini.
 
-**Pembuka ulang:** pool kembali ke satu koneksi per worker, atau ada jalur yang
-menahan transaksi selama panggilan jaringan.
+**Pembuka ulang:** papan butuh snapshot yang benar-benar seragam antar
+pernyataan (mis. pagar terhadap rebuild bersamaan); saat itu pakai transaksi
+`repeatable read` yang eksplisit, bukan `db.tx` biasa.
 
 ---
 

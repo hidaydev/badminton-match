@@ -232,6 +232,14 @@ proc queryOne*(db: Db, sql: string, params: seq[DbParam] = @[]): Option[Row] =
 proc execUpdate*(db: Db, sql: string, params: seq[DbParam] = @[]): int =
   withConn(db, proc(conn: DbConn): int = conn.execUpdate(sql, params))
 
+proc read*[T](db: Db, body: proc(conn: DbConn): T): T =
+  ## Runs `body` on one connection without opening a transaction. Prefer
+  ## `query`/`queryOne` for single statements: they release the connection as
+  ## soon as the statement is done. Reach for this only when a helper needs a
+  ## `DbConn` for a short, read-only burst and the pool must not be pinned for
+  ## the whole computation.
+  withConn(db, body)
+
 proc tx*[T](db: Db, body: proc(conn: DbConn): T): T =
   withConn(db, proc(conn: DbConn): T =
     let beginRes = pqexec(conn.conn, "BEGIN")
