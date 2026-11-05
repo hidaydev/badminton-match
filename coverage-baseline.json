@@ -1,16 +1,16 @@
 {
   "measured": "2026-11-05",
-  "total": 38.58,
+  "total": 39.14,
   "modules/account": 60.81,
   "modules/share": 66.88,
-  "shared": 42.94,
-  "apps/api": 14.84,
-  "modules/rating": 48.32,
+  "shared": 51.90,
+  "apps/api": 15.47,
+  "modules/rating": 48.27,
   "tools": 21.02,
   "modules/session": 54.22,
   "modules/community": 63.49,
   "modules/player": 42.52,
   "modules/platform": 51.23,
-  "modules/achievement": 68.72,
+  "modules/achievement": 68.07,
   "modules/tournament": 57.15
 }

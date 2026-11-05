@@ -100,7 +100,7 @@ communities) tetap dipakai; halaman v2 yang tidak pernah dipasang di router
 | Kontrak | `./task contract-check` | fingerprint + hasil generate |
 | Parity | `./task parity verify` / `./task parity v2 verify` | v1 beku 71 kasus/48 rute; v2 142 kasus |
 | Ladder turnamen | `./task levels` | baca/tulis `rating.levels`; tanpa baris = rumus per-game |
-| Coverage | `./task coverage` | per modul, ratchet terhadap `coverage-baseline.json` (38,58% total, integration; gcov dibaca per binary, toleransi 0,1 pp untuk derau gcov, ~3,5 menit) |
+| Coverage | `./task coverage` | per modul, ratchet terhadap `coverage-baseline.json` (39,14% total, integration; gcov dibaca per binary, toleransi 0,1 pp untuk derau gcov, ~7 menit) |
 | Keamanan | bagian dari `./task test` | IDOR, eskalasi, CSRF, replay OIDC, rate limit, klaim |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 | E2E | `./task e2e` | Playwright: a11y, visual, compatibility |
