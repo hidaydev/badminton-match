@@ -85,6 +85,7 @@ proc startFlow(returnTo: string): tuple[state, nonce: string] =
   let response = call(baseUrl, HttpPost, "/auth/start",
     body = $ %*{"returnTo": returnTo})
   doAssert response.status == 200, response.body
+  check response.header("Set-Cookie").contains("majadu_auth_flow=")
   let url = response.json["authorizeUrl"].getStr()
   (queryParam(url, "state"), queryParam(url, "nonce"))
 
@@ -98,10 +99,15 @@ proc stubCode(state, nonce, subject, email: string): string =
   doAssert response.code.int == 302, response.body
   queryParam(response.headers["Location"], "code")
 
-proc callback(state, code: string): HttpResult =
+proc callback(state, code: string, withCookie = true): HttpResult =
+  # The flow is bound to the browser that started it; `withCookie = false` is
+  # what a callback handed to a victim's browser looks like.
+  var headers: seq[(string, string)] = @[]
+  if withCookie:
+    headers.add(("Cookie", "majadu_auth_flow=" & sha256Hex(state)))
   call(baseUrl, HttpGet,
     "/auth/callback?code=" & encodeUrl(code) & "&state=" & encodeUrl(state),
-    maxRedirects = 0)
+    extra = headers, maxRedirects = 0)
 
 proc insertFlow(state, nonce, returnTo: string, expired = false) =
   let keyring = loadKeyring(keysJson, "1")
@@ -152,6 +158,17 @@ suite "security: OIDC replay":
     check rejected.header("Set-Cookie").len == 0
     # The flow was consumed before the nonce was checked: no free retry.
     expectProblem(callback(state, code), 400, "INVALID_STATE")
+
+  test "a callback from another browser cannot use the flow":
+    let (state, nonce) = startFlow("/sessions")
+    let code = stubCode(state, nonce, "t070-sub-3", "t070-3@example.com")
+    # A login-CSRF attempt: the attacker's callback URL opened by someone whose
+    # browser has no marker for this flow.
+    let foreign = callback(state, code, withCookie = false)
+    expectProblem(foreign, 400, "INVALID_STATE")
+    check foreign.header("Set-Cookie").len == 0
+    # The flow was not burned by the refusal, so the real browser can still use it.
+    expectStatus(callback(state, code), 302)
 
   test "an expired flow is rejected":
     let state = randomHex(32)

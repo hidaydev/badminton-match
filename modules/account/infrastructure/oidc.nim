@@ -11,6 +11,7 @@ type
     jwksUrl*: string
     issuer*: string
     clientId*: string
+    clientSecret*: string
     redirectUri*: string
 
   JwksCache = object
@@ -27,6 +28,7 @@ proc loadOidcConfig*(): OidcConfig =
   result.jwksUrl = getEnv("OIDC_JWKS_URL", "https://www.googleapis.com/oauth2/v3/certs")
   result.issuer = getEnv("OIDC_ISSUER", "https://accounts.google.com")
   result.clientId = getEnv("OIDC_CLIENT_ID")
+  result.clientSecret = getEnv("OIDC_CLIENT_SECRET")
   result.redirectUri = getEnv("OIDC_REDIRECT_URI")
   if result.clientId.len == 0 or result.redirectUri.len == 0:
     raise newException(ValueError, "OIDC_CLIENT_ID and OIDC_REDIRECT_URI are required")
@@ -63,12 +65,20 @@ proc authorizeUrl*(config: OidcConfig, state, nonce, challenge: string): string 
     "&code_challenge=" & encodeUrl(challenge) &
     "&code_challenge_method=S256"
 
-proc exchangeCode*(config: OidcConfig, code, verifier: string): string =
-  let body = "grant_type=authorization_code&code=" & encodeUrl(code) &
+proc tokenRequestBody*(config: OidcConfig, code, verifier: string): string =
+  ## The token endpoint exchange. A Google "Web application" client is
+  ## confidential and rejects the request without its secret; a public client
+  ## has none, so the parameter is only sent when a secret is configured.
+  result = "grant_type=authorization_code&code=" & encodeUrl(code) &
     "&client_id=" & encodeUrl(config.clientId) &
     "&redirect_uri=" & encodeUrl(config.redirectUri) &
     "&code_verifier=" & encodeUrl(verifier)
-  let document = parseJson(fetchRaw(config.tokenUrl, "POST", body,
+  if config.clientSecret.len > 0:
+    result.add("&client_secret=" & encodeUrl(config.clientSecret))
+
+proc exchangeCode*(config: OidcConfig, code, verifier: string): string =
+  let document = parseJson(fetchRaw(config.tokenUrl, "POST",
+    tokenRequestBody(config, code, verifier),
     "application/x-www-form-urlencoded"))
   if not document.hasKey("id_token"):
     raise newException(ValueError, "token endpoint returned no id_token")

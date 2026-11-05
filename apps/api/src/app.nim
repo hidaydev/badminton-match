@@ -220,6 +220,16 @@ proc setSessionCookie(request: Request, token: string) =
     cookie.add("; Secure")
   send(request, 204, @[("Set-Cookie", cookie)], "")
 
+proc authFlowCookie(state: string, maxAge: int): string =
+  ## Binds an OIDC flow to the browser that started it. Without it an attacker
+  ## can start the flow themselves and hand the callback URL to a victim, who
+  ## then ends up signed in as the attacker (login CSRF). The value is a hash of
+  ## the state, so the cookie is useless on its own and a mismatch is cheap.
+  result = "majadu_auth_flow=" & sha256Hex(state) &
+    "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" & $maxAge
+  if application.cookieSecure:
+    result.add("; Secure")
+
 proc createSessionToken(userId: string): string =
   let days = configSnapshot().intValue(%*{}, keySessionAbsoluteDays)
   createSession(application.db, userId, days)
@@ -302,13 +312,20 @@ proc startAuth(request: Request) =
   jsonResponse(request, 200, %*{
     "authorizeUrl": authorizeUrl(application.oidc, state, nonce, challenge),
     "keyId": keyId,
-  })
+  }, [("Set-Cookie", authFlowCookie(state, ttl * 60))])
 
 proc finishAuth(request: Request) =
   let code = request.queryParams["code"]
   let state = request.queryParams["state"]
   if code.len == 0 or state.len == 0:
     problem(request, 400, "INVALID_CALLBACK", "code and state are required")
+    return
+  # Checked before the flow row is consumed, so a callback posted from a foreign
+  # browser cannot burn a flow that belongs to someone else.
+  if cookieValue(request, "majadu_auth_flow") != sha256Hex(state):
+    authRejected("auth.login.rejected", "flow cookie missing or foreign")
+    problem(request, 400, "INVALID_STATE",
+      "flow not found, expired or already used")
     return
   # One-shot read: the row is deleted even when the tokens below fail, so a
   # replayed callback can never reuse a flow. Expiry is evaluated by the database.
@@ -392,7 +409,9 @@ proc finishAuth(request: Request) =
     isOwner: userRow.get.get("is_platform_owner") == "t"))
   send(request, 302,
     @[("Location", safeReturnPath(flow.get("return_to"))),
-      ("Set-Cookie", sessionCookie(token))], "")
+      ("Set-Cookie", sessionCookie(token)),
+      ("Set-Cookie",
+        "majadu_auth_flow=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0")], "")
 
 proc listAuthSessions(request: Request) =
   let user = requireUser(request)

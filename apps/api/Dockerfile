@@ -1,5 +1,11 @@
 # Build stage: the exact Nim version is pinned by tag and by deps.lock.
 FROM nimlang/nim:2.4.0-bookworm AS build
+# The API talks to Google over https, which needs `-d:ssl` and therefore the
+# OpenSSL headers at compile time. The tools above do not, so the flag stays on
+# the API line only.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libssl-dev \
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY config.nims deps.lock majadu.nimble ./
 COPY task.d/deps-install.sh ./task.d/deps-install.sh
@@ -11,7 +17,7 @@ COPY apps/api ./apps/api
 COPY db ./db
 COPY tools ./tools
 RUN nim c -d:release --opt:speed --stackTrace:on --lineTrace:on \
-      --threads:on --mm:atomicArc \
+      --threads:on --mm:atomicArc -d:ssl \
       --nimcache:/tmp/nimcache -o:/out/majadu-api apps/api/src/main.nim
 # The cutover runs on the VPS, which has no Nim toolchain: migrations, the ETL
 # and the first-owner seed therefore ship in the same image as the API, so the
