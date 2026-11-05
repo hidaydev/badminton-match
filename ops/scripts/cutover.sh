@@ -204,6 +204,16 @@ step_preflight() {
   install -m 644 "$MONO_DIR/ops/caddy/site-maintenance.caddy" "$CADDY_DIR/site-maintenance.caddy"
   [ -e "$CADDY_ACTIVE" ] || ln -s "$CADDY_DIR/site-v1.caddy" "$CADDY_ACTIVE"
   [ -e "$ENV_LINK" ] || ln -s "$ENV_V1" "$ENV_LINK"
+
+  # Share codes and websocket tickets travel in the query string, so the log
+  # matcher has to cover both prefixes. A matcher that only names /majadu/s/*
+  # writes live tickets into the access log of the whole server.
+  if [ -f "$CADDY_CONFIG" ]; then
+    if grep -q '/majadu/s/\*' "$CADDY_CONFIG" &&
+      ! grep -q '/majadu/ws/\*' "$CADDY_CONFIG"; then
+      fail "$CADDY_CONFIG skips /majadu/s/* but not /majadu/ws/* in the log matcher; see ops/caddy/Caddyfile.api.qouver.com step 3"
+    fi
+  fi
 }
 
 step_preserve_v1() {

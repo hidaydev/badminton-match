@@ -51,7 +51,8 @@ langkah di sini belum teruji.
 Site itu juga melayani `/hooks`, `/sds`, dan `/skyward`; snippet majadu tidak
 boleh menggantikan seluruh site. Prefix `/majadu` dipertahankan setelah cutover,
 jadi redirect OIDC, `PUBLIC_BASE_URL`, dan web client tidak berubah. Langkah
-sekali-jalan (termasuk `skip_log` untuk `/majadu/s/*`) ada di
+sekali-jalan (termasuk `skip_log` untuk `/majadu/s/*` dan `/majadu/ws/*`; preflight
+menolak Caddyfile yang hanya menyebut yang pertama) ada di
 `ops/caddy/Caddyfile.api.qouver.com`.
 
 ## 2. Checklist D-7
