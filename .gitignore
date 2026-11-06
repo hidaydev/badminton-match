@@ -92,3 +92,5 @@ tools/archcheck/tests/constants_test
 nimble.develop
 nimble.paths
 nimbledeps
+.vercel
+.env*

@@ -149,7 +149,8 @@ sekarang adalah yang pertama.
 `deploy-vps-rc.sh` membangun SPA di VPS lalu mengirimnya ke project:
 
 ```sh
-cd apps/web
+# from the repository root: the project's root directory is apps/web and the
+# CLI resolves it relative to the working directory.
 vercel link --yes --scope qouver --project majadu-rc --token "$(cat env/vercel-token)"
 vercel pull --yes --environment=production --token ...
 vercel build --prod --token ...

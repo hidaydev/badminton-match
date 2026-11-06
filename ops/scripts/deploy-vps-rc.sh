@@ -262,10 +262,14 @@ else
   TARGET_SCOPE="${MAJADU_RC_VERCEL_SCOPE:-qouver}"
   TARGET_PROJECT="${MAJADU_RC_VERCEL_PROJECT:-majadu-rc}"
   TOKEN=$(cat "$VERCEL_TOKEN_FILE")
-  # fnm keeps the node binary outside the login PATH this script inherits.
-  export PATH="$HOME/.local/share/fnm/aliases/default/bin:$PATH"
+  # fnm keeps node outside the login PATH this script inherits, and pnpm lives
+  # in a third place again; `vercel build` runs the project's install command.
+  export PATH="$HOME/.local/share/fnm/aliases/default/bin:$HOME/.local/share/pnpm/bin:$PATH"
 
-  cd "$MONO_DIR/apps/web"
+  # Run from the repository root: the project's root directory is apps/web, and
+  # the CLI resolves it relative to the working directory. Invoking it from
+  # apps/web makes it look for apps/web/apps/web.
+  cd "$MONO_DIR"
   "$VERCEL_BIN" link --yes --scope "$TARGET_SCOPE" --project "$TARGET_PROJECT" \
     --token "$TOKEN" >>"$LOG" 2>&1 || fail "vercel link failed"
   "$VERCEL_BIN" pull --yes --environment=production --token "$TOKEN" >>"$LOG" 2>&1 ||
