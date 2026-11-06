@@ -1,5 +1,5 @@
 # Build stage: the exact Nim version is pinned by tag and by deps.lock.
-FROM docker.io/nimlang/nim:2.4.0-bookworm AS build
+FROM docker.io/nimlang/nim:2.4.0 AS build
 # The API talks to Google over https, which needs `-d:ssl` and therefore the
 # OpenSSL headers at compile time. The tools above do not, so the flag stays on
 # the API line only.
