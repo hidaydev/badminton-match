@@ -1,7 +1,8 @@
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
-import type { Player, ScheduleSlot, GameScore, PlayerId } from '../../types'
+import type { Player, ScheduleSlot, GameScore, PlayerId, SetScore } from '../../types'
 import { toPlayerId, toGameKey } from '../../types'
 import type { PlayerStanding } from '../../utils/standings'
+import { setsWon, describeSets } from '../../utils/scoring'
 import { ordinal } from '../../utils/ordinal'
 import { t } from '../../../i18n'
 
@@ -12,6 +13,8 @@ interface GameRow {
   opponents: [Player | undefined, Player | undefined]
   scoreFor: number | null
   scoreAgainst: number | null
+  onTeamA: boolean
+  sets: SetScore[] | undefined
   won: boolean | null
 }
 
@@ -63,6 +66,15 @@ function buildGameRows(
       const partnerId = myTeam.find(id => id !== pid) ?? toPlayerId('')
       const key = toGameKey(slot.slot, slot.court)
       const score = gameScores[key]
+      const sets = score?.sets
+      const won = sets && sets.length > 0
+        ? (() => {
+            const count = setsWon(sets)
+            return inTeamA ? count.a > count.b : count.b > count.a
+          })()
+        : score
+          ? (inTeamA ? score.a > score.b : score.b > score.a)
+          : null
 
       return {
         slot: slot.slot,
@@ -71,7 +83,9 @@ function buildGameRows(
         opponents: [findPlayer(oppTeam[0]), findPlayer(oppTeam[1])],
         scoreFor: score ? (inTeamA ? score.a : score.b) : null,
         scoreAgainst: score ? (inTeamA ? score.b : score.a) : null,
-        won: score ? (inTeamA ? score.a > score.b : score.b > score.a) : null,
+        onTeamA: inTeamA,
+        sets,
+        won,
       }
     })
 }
@@ -154,11 +168,23 @@ export default function PlayerMatchDetailSheet({
                     {game.opponents[1]?.name ? <AnnotatedPlayerName name={game.opponents[1].name} /> : '?'}
                   </span>
                 </div>
-                {game.scoreFor !== null && (
+                {game.sets && game.sets.length > 0 ? (
+                  <div className="mt-1">
+                    <div className="text-sm text-slate-300">
+                      {(() => {
+                        const count = setsWon(game.sets)
+                        return `${game.onTeamA ? count.a : count.b} - ${game.onTeamA ? count.b : count.a}`
+                      })()}
+                    </div>
+                    {game.sets.length > 1 && (
+                      <div className="text-[11px] text-slate-400">{describeSets(game.sets)}</div>
+                    )}
+                  </div>
+                ) : game.scoreFor !== null ? (
                   <div className="text-sm text-slate-300 mt-1">
                     {game.scoreFor} - {game.scoreAgainst}
                   </div>
-                )}
+                ) : null}
               </div>
             ))}
           </div>

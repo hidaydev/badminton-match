@@ -3,6 +3,7 @@ import db/db
 import account/domain/audit
 import account/infrastructure/audit_store
 import platform/config/store
+import session/scoring
 
 type
   SettingsOutcome* = enum
@@ -50,6 +51,17 @@ proc validate(snapshot: Snapshot, key: ConfigKey, value: JsonNode): SettingsResu
     if value.getFloat() < spec.minValue:
       return SettingsResult(outcome: soOutOfCeiling, key: $key,
         detail: "override is below the registry minimum")
+  # The default format must exist in the current list; otherwise the wizard
+  # would open on a selection the create route refuses.
+  if key == keySessionDefaultScoringPreset and value.kind == JString:
+    let presets = parsePresets(snapshot.jsonValue(%*{}, keySessionScoringPresets))
+    var known = false
+    for preset in presets:
+      if preset.id == value.getStr():
+        known = true
+    if not known:
+      return SettingsResult(outcome: soInvalidType, key: $key,
+        detail: "default preset is not in session.scoring_presets")
   # A community may narrow a number, not overrule a platform switch. The
   # directory is the documented exception: it is opt-in per community and the
   # platform value is the default, not a ceiling.

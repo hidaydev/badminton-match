@@ -3,8 +3,8 @@ import { useParams } from 'react-router-dom'
 import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useCommunity } from '../community/CommunityContext'
-import { updateCommunityConfig } from '../community/api'
-import type { CommunityConfig } from '../community/api'
+import { updateCommunityConfig, fetchScoringPresets } from '../community/api'
+import type { CommunityConfig, ScoringPreset } from '../community/api'
 import { useCommunityConfig } from '../community/useCommunityConfig'
 import {
   createInvite,
@@ -134,7 +134,7 @@ export default function SettingsPage() {
 type ConfigField = {
   key: string
   label: MessageKey
-  kind: 'text' | 'number' | 'bool'
+  kind: 'text' | 'number' | 'bool' | 'select'
 }
 
 /** The values a community may narrow by hand. */
@@ -143,6 +143,7 @@ const CONFIG_FIELDS: readonly ConfigField[] = [
   { key: 'community.invite_ttl_days', label: 'community.setting.inviteTtl', kind: 'number' },
   { key: 'community.directory_enabled', label: 'community.setting.directory', kind: 'bool' },
   { key: 'community.join_requests_enabled', label: 'community.setting.joinRequests', kind: 'bool' },
+  { key: 'session.default_scoring_preset', label: 'community.setting.scoringPreset', kind: 'select' },
 ]
 
 function asDraft(field: ConfigField, value: unknown): string | boolean {
@@ -167,6 +168,18 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
   const [edits, setEdits] = useState<Record<string, string | boolean>>({})
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [presets, setPresets] = useState<ScoringPreset[]>([])
+
+  // The list is reference data; a failure here leaves the select empty rather
+  // than breaking the rest of the settings screen.
+  useEffect(() => {
+    if (slug === '') return
+    let active = true
+    fetchScoringPresets(slug)
+      .then((list) => { if (active) setPresets(list) })
+      .catch(() => { if (active) setPresets([]) })
+    return () => { active = false }
+  }, [slug])
 
   if (loading && config === null) {
     return <LoadingState label={t('community.settings')} rows={2} />
@@ -190,7 +203,11 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
     const patch: Record<string, unknown> = {}
     for (const field of CONFIG_FIELDS) {
       const next = fromDraft(field, fieldValue(field))
-      if (JSON.stringify(next) !== JSON.stringify(values[field.key]?.value)) {
+      const current = values[field.key]?.value
+      // A key the server did not report and an untouched empty draft are the
+      // same state; sending "" would ask to clear a setting that was never set.
+      if (current === undefined && next === '') continue
+      if (JSON.stringify(next) !== JSON.stringify(current)) {
         patch[field.key] = next
       }
     }
@@ -249,6 +266,25 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
                   }
                   className="h-5 w-5 rounded border border-border bg-elevated text-accent focus-visible:ring-2 focus-visible:ring-accent"
                 />
+              ) : field.kind === 'select' ? (
+                <select
+                  id={id}
+                  value={String(fieldValue(field) ?? '')}
+                  disabled={!canEdit || busy}
+                  onChange={(event) =>
+                    setEdits((current) => ({ ...current, [field.key]: event.target.value }))
+                  }
+                  className="min-h-11 w-40 rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
+                >
+                  {presets.map((preset) => (
+                    <option key={preset.id} value={preset.id}>{preset.label}</option>
+                  ))}
+                  {presets.every((preset) => preset.id !== String(fieldValue(field))) && (
+                    <option value={String(fieldValue(field) ?? '')}>
+                      {String(fieldValue(field) ?? '')}
+                    </option>
+                  )}
+                </select>
               ) : (
                 <input
                   id={id}

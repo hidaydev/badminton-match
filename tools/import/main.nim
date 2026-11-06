@@ -506,6 +506,24 @@ proc importGames(source, target: Db, communityId: string,
             textParam(playerIds[2]), textParam(playerIds[3])])
         mapPut(conn, communityId, "game", oldId, newId)
         if mapped.isSome: inc stats.updated else: inc stats.created
+        # v1 stored one game per slot, which is exactly one set. v2 reads the
+        # result from game_sets, so the flat score is mirrored here; the delete
+        # keeps a rerun idempotent when the source score changed or disappeared.
+        discard conn.execUpdate(
+          """delete from session.game_sets
+             where community_id = $1::uuid and session_id = $2::uuid
+               and round_no = $3 and court_no = $4""",
+          @[textParam(communityId), textParam(session.get),
+            textParam(row.get("slot_index")), textParam(row.get("court_index"))])
+        if row.get("score_a") != "-1" and row.get("score_b") != "-1":
+          discard conn.execUpdate(
+            """insert into session.game_sets
+                 (community_id, session_id, round_no, court_no, set_no,
+                  score_a, score_b)
+               values ($1::uuid, $2::uuid, $3, $4, 1, $5, $6)""",
+            @[textParam(communityId), textParam(session.get),
+              textParam(row.get("slot_index")), textParam(row.get("court_index")),
+              textParam(row.get("score_a")), textParam(row.get("score_b"))])
         # Per-player skip: v1 kept short player refs on the game, v2 keeps one
         # row per skipped player. Rewrite the set so a rerun stays idempotent.
         discard conn.execUpdate(
@@ -1510,6 +1528,18 @@ proc verifyGames*(source, target: Db, communityId: string): seq[string] =
       if ours.sideNames("a") != wantA or ours.sideNames("b") != wantB:
         result.add "game " & key & " of session " &
           sessionRow.get("share_code") & " has different players"
+    var scoredGames = 0
+    for _, row in expected:
+      if row["score_a"].isSome and row["score_b"].isSome:
+        inc scoredGames
+    let setCount = target.queryOne(
+      """select count(*)::int as n from session.game_sets
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(newSessionId)])
+    if setCount.isSome and parseInt(setCount.get.get("n")) != scoredGames:
+      result.add "session " & sessionRow.get("share_code") & " has " &
+        setCount.get.get("n") & " sets in v2 but " & $scoredGames &
+        " scored games in v1"
   if checked == 0 and result.len == 0:
     result.add "no game has been imported into this community"
 

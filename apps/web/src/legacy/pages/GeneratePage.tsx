@@ -90,9 +90,9 @@ export default function GeneratePage() {
     publishToCloud()
   }
 
-  function handleSetScore(key: string, a: number, b: number) {
+  function handleSetScore(key: string, sets: { a: number; b: number }[]) {
     if (isSharedView) return
-    setGameScore(key, a, b)
+    setGameScore(key, sets)
     publishToCloud()
   }
 
@@ -329,6 +329,7 @@ export default function GeneratePage() {
           courtNames={session.courtNames ?? []}
           playedGames={playedArr}
           gameScores={gameScores}
+          scoring={session.scoring}
           onTogglePlayedGame={handleTogglePlayed}
           onSetGameScore={handleSetScore}
           readOnly={isSharedView}

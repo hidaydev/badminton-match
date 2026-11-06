@@ -9,7 +9,7 @@ import {
 } from '@dnd-kit/core'
 import { t } from '../../i18n'
 import type { GeneratorResult } from '../generator'
-import type { Player, GameScore, CourtTime } from '../types'
+import type { Player, GameScore, CourtTime, SessionScoring } from '../types'
 import { formatMergedCourtTimes } from '../utils/time'
 import { formatLongDate } from '../../utils/day'
 import { courtLabel } from '../utils/courtLabel'
@@ -35,6 +35,8 @@ interface SummaryModalBaseProps {
   courtNames: string[]
   playedGames: string[]
   gameScores: Record<string, GameScore>
+  /** The session's frozen format; absent on a payload from an older build. */
+  scoring?: SessionScoring
   title: string
   date: string
   sessionStart: string
@@ -53,7 +55,7 @@ interface SummaryModalBaseProps {
 /** Edit callback props for SummaryModal (all optional for read-only views) */
 interface SummaryModalEditProps {
   onTogglePlayedGame?: (key: string) => void
-  onSetGameScore?: (key: string, a: number, b: number) => void
+  onSetGameScore?: (key: string, sets: { a: number; b: number }[]) => void
   onSwapPlayers?: (t1: SwapTarget, t2: SwapTarget) => void
   onSetAbsent?: (nextAbsent: string[]) => void
   onSetGameSkipped?: (key: string, playerIds: string[]) => void | Promise<void>
@@ -86,6 +88,7 @@ export default function SummaryModal({
   courtNames,
   playedGames: playedArr,
   gameScores,
+  scoring,
   onTogglePlayedGame,
   onSetGameScore,
   onClose,
@@ -121,8 +124,8 @@ export default function SummaryModal({
   // Escape menutup modal (tidak saat standalone/full-page).
   useEscapeKey(() => onClose?.(), !!onClose && !standalone)
 
-  const score = useScoreDraft(onSetGameScore)
-  const { expandedScore, setExpandedScore, scoreError, setScoreError, draftScores, setDraftScores, handleScoreSave } = score
+  const score = useScoreDraft(onSetGameScore, scoring)
+  const { expandedScore, setExpandedScore, scoreError, setScoreError, draftScores, setDraftScores, updateDraftSet, handleScoreSave, handleClearScore } = score
 
   // Mode edit (swap/absent/skip/replace/slotSwap/teamSwap/change) — lihat hook.
   const modes = useSummaryEditModes({
@@ -619,6 +622,7 @@ export default function SummaryModal({
             players={standingsPlayers}
             schedule={result.schedule}
             gameScores={gameScores}
+            playedGames={playedArr}
             absentPlayerIds={standingsAbsentIds}
             skippedPlayers={standingsSkipped}
           />
@@ -635,6 +639,7 @@ export default function SummaryModal({
             playerMap={playerMap}
             playedGames={playedArr}
             gameScores={gameScores}
+            scoring={scoring}
             effectiveAbsent={effectiveAbsent}
             effectiveSkipped={effectiveSkipped}
             expandedScore={expandedScore}
@@ -653,11 +658,13 @@ export default function SummaryModal({
             handleChangeSelect={handleChangeSelect}
             handleDragEnd={handleDragEnd}
             handleScoreSave={handleScoreSave}
+            handleClearScore={handleClearScore}
             onTogglePlayedGame={onTogglePlayedGame}
             onSkipToggle={toggleSkipForGame}
             setExpandedScore={setExpandedScore}
             setScoreError={setScoreError}
             setDraftScores={setDraftScores}
+            updateDraftSet={updateDraftSet}
             highlightedPlayerId={highlightedPlayerId}
           />
         )}

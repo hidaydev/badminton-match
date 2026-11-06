@@ -1,5 +1,6 @@
 import std/[json, options, strutils]
 import db/db
+import ./scoring
 import skips
 
 type
@@ -45,8 +46,9 @@ type
 
   GameContent = object
     slots: Slots
-    scoreA: Option[int]
-    scoreB: Option[int]
+    ## The result travels with the slot: a swapped game keeps the sets that were
+    ## recorded for it, not the ones recorded for the position it lands in.
+    sets: seq[SetScore]
     status: string
 
 proc swapError(kind: SwapKind, a, b: SwapTarget): string =
@@ -214,7 +216,7 @@ proc readContent(conn: DbConn, communityId, sessionId: string,
               coalesce(side_a2::text, '') as a2,
               coalesce(side_b1::text, '') as b1,
               coalesce(side_b2::text, '') as b2,
-              score_a, score_b, status
+              status
        from session.games
        where community_id = $1::uuid and session_id = $2::uuid
          and round_no = $3 and court_no = $4""",
@@ -227,30 +229,52 @@ proc readContent(conn: DbConn, communityId, sessionId: string,
     slots: Slots(a1: game.get("a1"), a2: game.get("a2"),
                  b1: game.get("b1"), b2: game.get("b2")),
     status: game.get("status"))
-  if game["score_a"].isSome:
-    content.scoreA = some(parseInt(game.get("score_a")))
-  if game["score_b"].isSome:
-    content.scoreB = some(parseInt(game.get("score_b")))
+  for entry in conn.query(
+    """select score_a, score_b from session.game_sets
+       where community_id = $1::uuid and session_id = $2::uuid
+         and round_no = $3 and court_no = $4
+       order by set_no""",
+    @[textParam(communityId), textParam(sessionId),
+      intParam(target.slot.int64), intParam(target.court.int64)]):
+    content.sets.add SetScore(a: parseInt(entry.get("score_a")),
+      b: parseInt(entry.get("score_b")))
   some(content)
 
 proc writeContent(conn: DbConn, communityId, sessionId: string,
                   target: SwapTarget, content: GameContent) =
   ## One statement per row, so the CHECK constraints see the final four slots
   ## together. The games trigger already bumps the row version and updated_at.
+  ## The flat score columns are only the migration's backfill source: every
+  ## write after 0029 leaves them empty and the sets are the result.
   discard conn.execUpdate(
     """update session.games set
          side_a1 = nullif($5, '')::uuid, side_a2 = nullif($6, '')::uuid,
          side_b1 = nullif($7, '')::uuid, side_b2 = nullif($8, '')::uuid,
-         score_a = $9, score_b = $10, status = $11
+         score_a = null, score_b = null, status = $9
        where community_id = $1::uuid and session_id = $2::uuid
          and round_no = $3 and court_no = $4""",
     @[textParam(communityId), textParam(sessionId),
       intParam(target.slot.int64), intParam(target.court.int64),
       textParam(content.slots.a1), textParam(content.slots.a2),
       textParam(content.slots.b1), textParam(content.slots.b2),
-      if content.scoreA.isSome: intParam(content.scoreA.get.int64) else: nullParam(),
-      if content.scoreB.isSome: intParam(content.scoreB.get.int64) else: nullParam(),
       textParam(content.status)])
+  # Sets follow the payload. Deleting first also frees the (game, set_no) keys,
+  # so a two-game swap can move a set list between slots without a collision.
+  discard conn.execUpdate(
+    """delete from session.game_sets
+       where community_id = $1::uuid and session_id = $2::uuid
+         and round_no = $3 and court_no = $4""",
+    @[textParam(communityId), textParam(sessionId),
+      intParam(target.slot.int64), intParam(target.court.int64)])
+  for index, entry in content.sets:
+    discard conn.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+         values ($1::uuid, $2::uuid, $3, $4, $5, $6, $7)""",
+      @[textParam(communityId), textParam(sessionId),
+        intParam(target.slot.int64), intParam(target.court.int64),
+        intParam((index + 1).int64), intParam(entry.a.int64),
+        intParam(entry.b.int64)])
 
 proc isConstraintError(error: ref DbError): bool =
   ## SQLSTATE class 23 is an integrity violation. The v2 CHECK constraints make

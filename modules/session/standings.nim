@@ -69,14 +69,14 @@ proc compute*(db: Db, communityId, sessionId: string): Option[JsonNode] =
     skips.mgetOrPut(key, @[]).add(row.get("player_id"))
 
   for game in db.query(
-    """select round_no, court_no, score_a, score_b,
+    """select round_no, court_no, winner, points_a, points_b,
               coalesce(side_a1::text, '') as side_a1,
               coalesce(side_a2::text, '') as side_a2,
               coalesce(side_b1::text, '') as side_b1,
               coalesce(side_b2::text, '') as side_b2
-       from session.games
+       from session.game_results
        where community_id = $1::uuid and session_id = $2::uuid
-         and status = 'played' and score_a is not null and score_b is not null
+         and status = 'played' and winner <> ''
        order by round_no, court_no""",
     @[textParam(communityId), textParam(sessionId)]):
     let key = game.get("round_no") & "-" & game.get("court_no")
@@ -92,23 +92,24 @@ proc compute*(db: Db, communityId, sessionId: string): Option[JsonNode] =
     let activeB = without(sideB, skipped)
     if activeA.len == 0 and activeB.len == 0:
       continue
-    let scoreA = parseInt(game.get("score_a"))
-    let scoreB = parseInt(game.get("score_b"))
+    let aWon = game.get("winner") == "a"
+    let pointsA = parseInt(game.get("points_a"))
+    let pointsB = parseInt(game.get("points_b"))
     for playerId in activeA:
       if not rows.hasKey(playerId):
         continue
       var tally = rows[playerId]
-      if scoreA > scoreB: tally.wins.inc else: tally.losses.inc
-      tally.pointsFor += scoreA
-      tally.pointsAgainst += scoreB
+      if aWon: tally.wins.inc else: tally.losses.inc
+      tally.pointsFor += pointsA
+      tally.pointsAgainst += pointsB
       rows[playerId] = tally
     for playerId in activeB:
       if not rows.hasKey(playerId):
         continue
       var tally = rows[playerId]
-      if scoreB > scoreA: tally.wins.inc else: tally.losses.inc
-      tally.pointsFor += scoreB
-      tally.pointsAgainst += scoreA
+      if aWon: tally.losses.inc else: tally.wins.inc
+      tally.pointsFor += pointsB
+      tally.pointsAgainst += pointsA
       rows[playerId] = tally
 
   var board: seq[Tally] = @[]

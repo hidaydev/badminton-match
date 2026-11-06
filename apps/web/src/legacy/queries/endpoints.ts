@@ -7,7 +7,7 @@
 // called once by the legacy shell before any screen mounts.
 
 import { toPlayerId, toTimeString } from '../types'
-import type { GameKey, Gender, Player, Tier } from '../types'
+import type { GameKey, Gender, Player, SessionScoring, SetScore, Tier } from '../types'
 import type { CloudSnapshot, PlayerSummary, PlayerStats, SessionMeta } from './types'
 import type { AnyTournamentSnapshot } from '../utils/teamTournament'
 import { parseRetryAfter, ApiError, shouldRetry } from './retry'
@@ -273,6 +273,10 @@ type V2Game = {
   sideB: string[]
   scoreA: number | null
   scoreB: number | null
+  sets?: SetScore[]
+  setsWonA?: number
+  setsWonB?: number
+  winner?: 'A' | 'B' | null
   status: string
 }
 
@@ -286,6 +290,7 @@ type V2SessionDetail = {
   version: number
   participants: Array<{ playerId: string; name: string; absent: boolean }>
   games: V2Game[]
+  scoring?: SessionScoring
   skippedPlayers?: Record<string, string[]>
 }
 
@@ -338,7 +343,13 @@ function toCloudSnapshot(detail: V2SessionDetail): CloudSnapshot {
     const key = gameKey(game)
     if (game.status === 'played') playedGames.push(key)
     if (game.scoreA !== null && game.scoreB !== null) {
-      gameScores[key] = { a: game.scoreA, b: game.scoreB }
+      // `sets` is the result; `a`/`b` stay the total points for readers that
+      // only know the old shape (export, share fallback).
+      gameScores[key] = {
+        a: game.scoreA,
+        b: game.scoreB,
+        ...(game.sets && game.sets.length > 0 ? { sets: game.sets } : {}),
+      }
     }
     if (game.status === 'cancelled') {
       skippedPlayers[key] = [...game.sideA, ...game.sideB]
@@ -361,6 +372,7 @@ function toCloudSnapshot(detail: V2SessionDetail): CloudSnapshot {
       playerCount: detail.participants.length,
       courtNames: [],
       locked: detail.status === 'locked',
+      ...(detail.scoring ? { scoring: detail.scoring } : {}),
     },
     players: detail.participants.map((participant) => playerMap.get(participant.playerId)!).filter(Boolean),
     fixMatches: [],
@@ -478,6 +490,29 @@ async function resolveSnapshotPlayers(players: Player[]): Promise<Map<string, st
   return ids
 }
 
+function sameSets(server: SetScore[] | undefined, desired: SetScore[]): boolean {
+  const have = server ?? []
+  if (have.length !== desired.length) return false
+  for (let index = 0; index < have.length; index += 1) {
+    if (have[index].a !== desired[index].a || have[index].b !== desired[index].b) return false
+  }
+  return true
+}
+
+/** A single-set format keeps the old flat body; anything longer sends sets. */
+function scoreBody(score: { a: number; b: number; sets?: SetScore[] },
+                   scoring: SessionScoring | undefined): Record<string, unknown> | null {
+  const sets = score.sets && score.sets.length > 0
+    ? score.sets
+    : [{ a: score.a, b: score.b }]
+  if (scoring && scoring.gamesToWin > 1) {
+    // Without the recorded sets there is nothing safe to send: a flat score
+    // would mean nothing in a best-of-three format.
+    return score.sets && score.sets.length > 0 ? { sets } : null
+  }
+  return { scoreA: sets[0].a, scoreB: sets[0].b }
+}
+
 /**
  * Full-snapshot save kept for the two legacy callers (share button and the
  * debounced wizard publish). v2 has no snapshot write, so the pieces are
@@ -526,9 +561,10 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
   )
   version = scheduled.version ?? version
 
-  // v2 keeps the score on the game row, so publish only the games whose
+  // v2 keeps the result on the game's sets, so publish only the games whose
   // server state differs from the snapshot.
   const persisted = await fetchSessionDetail(id)
+  const scoring = data.session.scoring ?? persisted?.scoring
   const serverGames = new Map(
     (persisted?.games ?? []).map((game) => [gameKey(game), game]),
   )
@@ -539,8 +575,11 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
     const wantPlayed = data.playedGames.includes(key)
     let body: Record<string, unknown> | null = null
     if (score !== undefined) {
-      if (server?.scoreA !== score.a || server?.scoreB !== score.b) {
-        body = { scoreA: score.a, scoreB: score.b }
+      const desired = score.sets && score.sets.length > 0
+        ? score.sets
+        : [{ a: score.a, b: score.b }]
+      if (!sameSets(server?.sets, desired)) {
+        body = scoreBody(score, scoring)
       }
     } else if (server !== undefined) {
       if (wantPlayed && (server.status !== 'played' || server.scoreA !== null)) {
@@ -579,14 +618,17 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
 export async function patchGameScore(
   id: string,
   key: string,
-  a: number,
-  b: number,
+  sets: SetScore[],
   expectedVersion: number,
+  scoring?: SessionScoring,
 ): Promise<CloudSnapshot> {
-  await request<unknown>('PATCH', communityPath(`/sessions/${enc(id)}/games/${enc(key)}`), {
-    scoreA: a,
-    scoreB: b,
-  }, undefined, ifMatch(expectedVersion))
+  const body = scoring && scoring.gamesToWin > 1
+    ? { sets }
+    : sets.length === 0
+      ? { sets: [] }
+      : { scoreA: sets[0].a, scoreB: sets[0].b }
+  await request<unknown>('PATCH', communityPath(`/sessions/${enc(id)}/games/${enc(key)}`), body,
+    undefined, ifMatch(expectedVersion))
   return sessionSnapshot(id)
 }
 
@@ -730,6 +772,7 @@ export async function createSession(input: {
   date: string
   startTime: string
   slotMinutes: number
+  scoringPreset?: string
 }): Promise<{ id: string }> {
   return request<{ id: string }>(
     'POST',

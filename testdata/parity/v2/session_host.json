@@ -17,6 +17,15 @@
           "round": 0,
           "scoreA": 21,
           "scoreB": 18,
+          "sets": [
+            {
+              "a": 21,
+              "b": 18,
+              "set": 1
+            }
+          ],
+          "setsWonA": 1,
+          "setsWonB": 0,
           "sideA": [
             "{uuid}",
             "{uuid}"
@@ -25,13 +34,17 @@
             "{uuid}",
             "{uuid}"
           ],
-          "status": "played"
+          "status": "played",
+          "winner": "A"
         },
         {
           "court": 1,
           "round": 0,
           "scoreA": null,
           "scoreB": null,
+          "sets": [],
+          "setsWonA": 0,
+          "setsWonB": 0,
           "sideA": [
             "{uuid}",
             "{uuid}"
@@ -40,7 +53,8 @@
             "{uuid}",
             "{uuid}"
           ],
-          "status": "scheduled"
+          "status": "scheduled",
+          "winner": null
         }
       ],
       "id": "{uuid}",
@@ -66,6 +80,16 @@
           "playerId": "{uuid}"
         }
       ],
+      "scoring": {
+        "changeEndsAt": 15,
+        "deuceAt": null,
+        "gamesToWin": 1,
+        "label": "v1 scoring",
+        "maxPoints": 99,
+        "pointsToWin": 30,
+        "preset": "legacy_v1",
+        "winBy": 1
+      },
       "skippedPlayers": {},
       "slotMinutes": 30,
       "startTime": "19:00",

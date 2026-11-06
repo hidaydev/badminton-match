@@ -1,6 +1,7 @@
 import type { Player, ScheduleSlot, GameScore, GameKey } from '../types'
 import { toGameKey } from '../types'
 import { initTallyRow, tallyMatch, computeDiff, standardStandingSort, type TallyRow } from './tally'
+import { setsWon } from './scoring'
 
 export interface PlayerStanding extends TallyRow {
   player: Player
@@ -12,6 +13,7 @@ export function computeStandings(
   gameScores: Record<GameKey, GameScore>,
   voidPlayerIds?: Iterable<string>,
   skippedPlayers?: Record<string, string[]>,
+  playedGames?: string[],
 ): PlayerStanding[] {
   const map = new Map<string, PlayerStanding>()
   // Semantik skip_player (MIRROR rating engine — domain.MatchRateable):
@@ -31,6 +33,9 @@ export function computeStandings(
   // pemain absent global & placeholder; pemain yang di-skip per game tetap ada
   // di sini (mereka hadir, hanya digantikan di game tersebut).
   const realIds = new Set<string>(players.map((p) => p.id))
+  // A partial match has sets but is not a result yet; the server reports that as
+  // `scheduled`, and only the played list is tallied.
+  const playedSet = playedGames ? new Set(playedGames) : null
 
   for (const p of players) {
     map.set(p.id, { ...initTallyRow(), player: p })
@@ -38,6 +43,7 @@ export function computeStandings(
 
   for (const slot of schedule) {
     const key = toGameKey(slot.slot, slot.court)
+    if (playedSet !== null && !playedSet.has(key)) continue
     const score = gameScores[key]
     if (!score) continue
 
@@ -61,15 +67,20 @@ export function computeStandings(
     if (teamA.length === 0 && teamB.length === 0) continue
 
     const { a, b } = score
+    // A multi-set format is decided by sets won; total points only break the
+    // board's tie-breaks. Single games fall back to the point comparison.
+    const won = score.sets && score.sets.length > 0
+      ? setsWon(score.sets)
+      : null
 
     for (const id of teamA) {
       const standing = map.get(id)
-      if (standing) tallyMatch(standing, a, b)
+      if (standing) tallyMatch(standing, a, b, won ? won.a > won.b : undefined)
     }
 
     for (const id of teamB) {
       const standing = map.get(id)
-      if (standing) tallyMatch(standing, b, a)
+      if (standing) tallyMatch(standing, b, a, won ? won.b > won.a : undefined)
     }
   }
 

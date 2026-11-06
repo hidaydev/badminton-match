@@ -2,6 +2,7 @@ import std/[json, locks, options, strutils, tables]
 import db/db
 import registry
 import logger
+import session/scoring
 
 export registry
 
@@ -73,6 +74,24 @@ proc loadSnapshot*(db: Db): Snapshot =
     try:
       validateValue(entry, result.values[key])
     except ConfigError as error:
+      problems.add(error.msg)
+  # The scoring list has a shape the generic JSON check cannot see: ids, caps
+  # and deuce ranges. A bad preset refuses the start instead of failing later
+  # on the first session.
+  if result.values.hasKey($keySessionScoringPresets) and
+     result.values.hasKey($keySessionDefaultScoringPreset) and
+     result.values[$keySessionDefaultScoringPreset].kind == JString:
+    try:
+      let presets = parsePresets(result.values[$keySessionScoringPresets])
+      let defaultId = result.values[$keySessionDefaultScoringPreset].getStr()
+      var known = false
+      for preset in presets:
+        if preset.id == defaultId:
+          known = true
+      if not known:
+        problems.add("session.default_scoring_preset names an unknown preset: " &
+          defaultId)
+    except SetConfigError as error:
       problems.add(error.msg)
   if problems.len > 0:
     raise newException(ConfigError, "invalid platform config: " & problems.join("; "))

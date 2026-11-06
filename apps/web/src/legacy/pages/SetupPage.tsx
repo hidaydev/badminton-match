@@ -1,10 +1,13 @@
-import { useId } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useStore } from '../store'
 import { selectTotalGames } from '../store/selectors'
 import { PLAYERS_PER_GAME } from '../types'
+import type { SessionScoring } from '../types'
 import { timeToMinutes, minutesToTime } from '../utils/time'
 import { courtLabel } from '../utils/courtLabel'
-import { useNavigate } from '../router'
+import { useLegacySlug, useNavigate } from '../router'
+import { fetchCommunityConfig, fetchScoringPresets } from '../../community/api'
+import type { ScoringPreset } from '../../community/api'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -180,6 +183,28 @@ function CourtTimeline({
 
 // ── page ──────────────────────────────────────────────────────────────────────
 
+function toScoring(preset: ScoringPreset): SessionScoring {
+  return {
+    preset: preset.id,
+    label: preset.label,
+    gamesToWin: preset.gamesToWin,
+    pointsToWin: preset.pointsToWin,
+    winBy: preset.winBy,
+    maxPoints: preset.maxPoints,
+    deuceAt: preset.deuceAt,
+    changeEndsAt: preset.changeEndsAt,
+  }
+}
+
+function formatSummary(preset: ScoringPreset): string {
+  const head = preset.gamesToWin === 1
+    ? `One game to ${preset.pointsToWin}`
+    : `Best of ${2 * preset.gamesToWin - 1} · first to ${preset.pointsToWin}`
+  const deuce = preset.deuceAt !== null ? ` · deuce ${preset.deuceAt}` : ''
+  const cap = preset.maxPoints !== preset.pointsToWin ? ` · cap ${preset.maxPoints}` : ''
+  return head + deuce + cap
+}
+
 export default function SetupPage() {
   const session = useStore((s) => s.session)
   const setCourts = useStore((s) => s.setCourts)
@@ -190,12 +215,40 @@ export default function SetupPage() {
   const setPlayerCount = useStore((s) => s.setPlayerCount)
   const setTitle = useStore((s) => s.setTitle)
   const setDate = useStore((s) => s.setDate)
+  const setScoringPreset = useStore((s) => s.setScoringPreset)
   const lockSession = useStore((s) => s.lockSession)
   const resetSession = useStore((s) => s.resetSession)
   const navigate = useNavigate()
+  const slug = useLegacySlug()
   const titleId = useId()
   const dateId = useId()
   const durationId = useId()
+
+  const [presets, setPresets] = useState<ScoringPreset[]>([])
+  const [defaultPreset, setDefaultPreset] = useState('')
+
+  // The list and the community default arrive together from the config read.
+  useEffect(() => {
+    if (slug === '') return
+    let active = true
+    Promise.all([fetchScoringPresets(slug), fetchCommunityConfig(slug)])
+      .then(([list, config]) => {
+        if (!active) return
+        setPresets(list)
+        const fallback = config['session.default_scoring_preset']?.value
+        setDefaultPreset(typeof fallback === 'string' ? fallback : '')
+      })
+      .catch(() => { if (active) setPresets([]) })
+    return () => { active = false }
+  }, [slug])
+
+  // A draft with no format opens on the community default; once a format is
+  // chosen the effect must not overwrite it.
+  useEffect(() => {
+    if (session.scoring !== undefined || presets.length === 0) return
+    const chosen = presets.find((preset) => preset.id === defaultPreset) ?? presets[0]
+    setScoringPreset(toScoring(chosen))
+  }, [presets, defaultPreset, session.scoring, setScoringPreset])
 
   // No auto-reset on mount: coming back here from the Players step used to
   // wipe the roster, schedule and scores. "Reset All" stays explicit below.
@@ -258,6 +311,40 @@ export default function SetupPage() {
             />
           </div>
         </div>
+
+        {/* Block 0b: Match format */}
+        <fieldset className="flex flex-col gap-2" disabled={session.locked}>
+          <legend className="text-xs text-slate-400">Match format</legend>
+          <div className="flex flex-wrap gap-2">
+            {presets.map((preset) => {
+              const selected = session.scoring?.preset === preset.id
+              return (
+                <label
+                  key={preset.id}
+                  className={`flex min-h-11 cursor-pointer flex-col gap-0.5 rounded-xl border px-3 py-2 transition-colors ${
+                    selected
+                      ? 'border-indigo-500 bg-indigo-900/40'
+                      : 'border-border bg-elevated hover:border-indigo-400'
+                  } ${session.locked ? 'cursor-not-allowed opacity-40' : ''}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="scoringPreset"
+                      value={preset.id}
+                      checked={selected}
+                      onChange={() => setScoringPreset(toScoring(preset))}
+                      disabled={session.locked}
+                      className="h-4 w-4 accent-indigo-500"
+                    />
+                    <span className="text-sm font-semibold text-white">{preset.label}</span>
+                  </span>
+                  <span className="pl-6 text-[10px] text-slate-400">{formatSummary(preset)}</span>
+                </label>
+              )
+            })}
+          </div>
+        </fieldset>
 
         {/* Block 1: Players + Duration */}
         <div className="flex flex-wrap gap-6 items-end">

@@ -1,8 +1,8 @@
-import type { ScheduleSlot, GameScore, GameKey } from '../types'
+import type { ScheduleSlot, GameScore, GameKey, SetScore } from '../types'
 import type { GeneratorResult } from '../generator'
 import type { SetState } from './index'
 import { applySlotSwap, swapKeys, swapKeyInList, type SlotSwapTarget } from '../utils/slotSwap'
-import { validateScore } from '../utils/scoreValidation'
+import { matchComplete, totalPoints, validateSets } from '../utils/scoring'
 
 export interface ScheduleSlice {
   schedule: ScheduleSlot[]
@@ -14,7 +14,7 @@ export interface ScheduleSlice {
   updateSchedule: (schedule: ScheduleSlot[]) => void
   swapSlotsWithScores: (g1: SlotSwapTarget, g2: SlotSwapTarget) => void
   togglePlayedGame: (key: string) => void
-  setGameScore: (key: string, a: number, b: number) => void
+  setGameScore: (key: string, sets: SetScore[]) => void
   clearGameScore: (key: string) => void
 }
 
@@ -57,14 +57,27 @@ export const createScheduleSlice = (
       return { playedGames, gameScores }
     }),
 
-  setGameScore: (key, a, b) => {
-    if (validateScore(a, b) !== null) return // Reject invalid scores
-    set((s) => ({
-      playedGames: s.playedGames.includes(key)
-        ? s.playedGames
-        : [...s.playedGames, key],
-      gameScores: { ...s.gameScores, [key]: { a, b } } as Record<GameKey, GameScore>,
-    }))
+  setGameScore: (key, sets) => {
+    set((s) => {
+      const next = { ...s.gameScores }
+      if (sets.length === 0) {
+        delete next[key as GameKey]
+        return {
+          gameScores: next,
+          playedGames: s.playedGames.filter((k) => k !== key),
+        }
+      }
+      const rules = s.session.scoring
+      if (rules && validateSets(rules, sets).error !== null) return {} // Reject invalid sets
+      const totals = totalPoints(sets)
+      const complete = rules ? matchComplete(rules, sets) : true
+      return {
+        playedGames: complete
+          ? s.playedGames.includes(key) ? s.playedGames : [...s.playedGames, key]
+          : s.playedGames.filter((k) => k !== key),
+        gameScores: { ...next, [key]: { a: totals.a, b: totals.b, sets } } as Record<GameKey, GameScore>,
+      }
+    })
   },
 
   clearGameScore: (key) =>

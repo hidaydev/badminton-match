@@ -15,13 +15,15 @@ export function initTallyRow(): TallyRow {
   return { wins: 0, losses: 0, pointsFor: 0, pointsAgainst: 0, diff: 0 }
 }
 
-/** Record a match result for one entity. */
+/** Record a match result for one entity. `won` overrides the point comparison
+ * for formats where the match is decided by sets, not total points. */
 export function tallyMatch(
   row: TallyRow,
   scoreFor: number,
   scoreAgainst: number,
+  won: boolean = scoreFor > scoreAgainst,
 ) {
-  if (scoreFor > scoreAgainst) row.wins++
+  if (won) row.wins++
   else row.losses++
   row.pointsFor += scoreFor
   row.pointsAgainst += scoreAgainst

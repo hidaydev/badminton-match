@@ -22,7 +22,6 @@
       "games": 4,
       "losses": 2,
       "minSessions": 0,
-      "thinEvidenceN": 3,
       "name": "Alice",
       "playerId": "{uuid}",
       "points": 142,
@@ -30,6 +29,7 @@
       "rank": 1,
       "rankDelta": null,
       "thinEvidence": true,
+      "thinEvidenceN": 3,
       "tier": "B",
       "windowWeeks": 12,
       "wins": 2

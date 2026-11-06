@@ -92,6 +92,7 @@ export const en = {
   'community.setting.directory': 'Public directory',
   'community.setting.inviteTtl': 'Invite validity, days',
   'community.setting.joinRequests': 'Join requests',
+  'community.setting.scoringPreset': 'Default match format',
   'community.value.enabled': 'Enabled',
   'community.value.disabled': 'Disabled',
   'community.source.community': 'Community',

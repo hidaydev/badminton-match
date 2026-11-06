@@ -287,3 +287,47 @@ kompleksitas ke UI.
 
 **Pembuka ulang:** pemilik memutuskan aturan untuk akun tanpa klaim (mis.
 meminta klaim dulu atau memilih pemain default).
+---
+
+## ADR-012 · Format skor per sesi (preset + snapshot)
+
+**Tanggal:** 2026-11-06
+**Status:** Diterima
+
+**Keputusan:** satu slot jadwal adalah satu match yang terdiri dari 1..N set
+(MAJADU 30, Classic BO3 21, New BWF BO3 15). Setiap sesi menyimpan snapshot
+`scoring_preset` + `scoring_rules`; daftar preset adalah config platform
+(`session.scoring_presets`) dan default komunitas adalah
+`session.default_scoring_preset`. Hasil match disimpan di `session.game_sets`
+dan dibaca lewat view `session.game_results`.
+
+Sesi lama (v1) mendapat snapshot `legacy_v1` dengan target 30, karena sesi itu
+memang dimainkan sampai 30. Rating lama yang memakai `rating.score_target = 21`
+adalah bug; karena poin diproyeksikan saat dibaca, koreksinya retroaktif tanpa
+migrasi data.
+
+Poin per match tetap 250 sebelum multiplier. Yang berubah hanya pembagian
+antara pemenang dan pecundang untuk match BO3, karena margin dinormalisasi per
+set:
+
+```
+r = Σ(a−b) / (pointsToWin × setsPlayed)
+value = gameValue(base, r × pointsToWin, pointsToWin)
+```
+
+**Alasan:** format harus bisa dipilih tanpa mengubah aplikasi; menyimpan
+snapshot mencegah edit config di masa depan menulis ulang hasil historis; dan
+satu baris `game_sets` per set membuat pemenang dihitung dari set, bukan dari
+total poin (total poin bisa menyesatkan di BO3). `rating.score_target` tetap ada
+hanya sebagai fallback untuk baris tanpa snapshot dan dihapus setelah dua
+rilis; kolom `session.games.score_a/score_b` juga dipertahankan sampai rollback
+tidak lagi dibutuhkan.
+
+**Konsekuensi:** papan bisa bergerak sekali saat deploy (target 21 → 30);
+snapshot harian lama tidak ditulis ulang, jadi `prevRank`/`rankDelta` boleh
+menunjukkan pergerakan sekali. `./task ranksnapshot` dijalankan setelah deploy
+agar snapshot hari itu memakai angka baru.
+
+**Pembuka ulang:** turnamen masuk lingkup format per sesi, atau muncul format
+yang butuh aturan di luar `gamesToWin/pointsToWin/winBy/deuceAt/maxPoints`
+(mis. side-out scoring).

@@ -76,6 +76,7 @@ export default function ShareButton() {
           date: session.date,
           startTime: session.sessionStart,
           slotMinutes: session.slotMinutes,
+          ...(session.scoringPreset ? { scoringPreset: session.scoringPreset } : {}),
         })
         id = created.id
         setCloudSessionId(id)

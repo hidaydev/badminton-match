@@ -1,4 +1,4 @@
-import type { SessionConfig, CourtTime } from '../types'
+import type { SessionConfig, CourtTime, SessionScoring } from '../types'
 import { toTimeString, createCourtTime } from '../types'
 import { timeToMinutes, minutesToTime, todayWIB } from '../utils/time'
 import type { SetState } from './index'
@@ -40,6 +40,7 @@ export interface SessionSlice {
   setCourtName: (index: number, name: string) => void
   setTitle: (title: string) => void
   setDate: (date: string) => void
+  setScoringPreset: (scoring?: SessionScoring) => void
   lockSession: () => void
   resetSession: () => void
 }
@@ -144,6 +145,16 @@ export const createSessionSlice = (
 
   setDate: (date) =>
     set((s) => ({ session: { ...s.session, date } })),
+
+  setScoringPreset: (scoring) =>
+    set((s) => ({
+      session: {
+        ...s.session,
+        ...(scoring
+          ? { scoringPreset: scoring.preset, scoring }
+          : { scoringPreset: undefined, scoring: undefined }),
+      },
+    })),
 
   lockSession: () =>
     set((s) => ({ session: { ...s.session, locked: true } })),

@@ -30,12 +30,12 @@ proc active(players, absent, skipped: seq[string]): seq[string] =
     if player notin absent and player notin skipped:
       result.add(player)
 
-proc awardSide(conn: DbConn, communityId: string, side: string, margin: int,
+proc awardSide(conn: DbConn, communityId: string, side: string, won: bool,
                row: Row, absent, skipped: seq[string]): int =
   let activePlayers = active(sidePlayers(row, side), absent, skipped)
   if activePlayers.len == 0:
     return 0
-  addState(conn, communityId, activePlayers, won = margin > 0)
+  addState(conn, communityId, activePlayers, won)
   activePlayers.len
 
 proc ingestGame(conn: DbConn, communityId: string, row: Row,
@@ -49,11 +49,10 @@ proc ingestGame(conn: DbConn, communityId: string, row: Row,
   let presentB = active(sideB, absent, newSeq[string]())
   if presentA.len == 0 or presentB.len == 0:
     return 0
-  let scoreA = parseInt(row.get("score_a"))
-  let scoreB = parseInt(row.get("score_b"))
-  result += awardSide(conn, communityId, "side_a", scoreA - scoreB, row,
+  let winner = row.get("winner")
+  result += awardSide(conn, communityId, "side_a", winner == "a", row,
     absent, skipped)
-  result += awardSide(conn, communityId, "side_b", scoreB - scoreA, row,
+  result += awardSide(conn, communityId, "side_b", winner == "b", row,
     absent, skipped)
 
 proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
@@ -93,14 +92,14 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
       @[]).add(entry.get("player_id"))
   var entries = 0
   for row in conn.query(
-    """select round_no, court_no, score_a, score_b,
+    """select round_no, court_no, winner,
               coalesce(side_a1::text, '') as side_a1,
               coalesce(side_a2::text, '') as side_a2,
               coalesce(side_b1::text, '') as side_b1,
               coalesce(side_b2::text, '') as side_b2
-       from session.games
+       from session.game_results
        where community_id = $1::uuid and session_id = $2::uuid
-         and status = 'played' and score_a is not null and score_b is not null
+         and status = 'played' and winner <> ''
        order by round_no, court_no""",
     @[textParam(communityId), textParam(sessionId)]):
     let skipped = skipRows.getOrDefault(

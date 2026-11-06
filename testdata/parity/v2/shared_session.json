@@ -18,6 +18,15 @@
           "round": 0,
           "scoreA": 21,
           "scoreB": 18,
+          "sets": [
+            {
+              "a": 21,
+              "b": 18,
+              "set": 1
+            }
+          ],
+          "setsWonA": 1,
+          "setsWonB": 0,
           "sideA": [
             "Alice",
             "Budi"
@@ -26,7 +35,8 @@
             "Candra",
             "Dewi"
           ],
-          "status": "played"
+          "status": "played",
+          "winner": "A"
         },
         {
           "court": 1,
@@ -34,6 +44,9 @@
           "round": 0,
           "scoreA": null,
           "scoreB": null,
+          "sets": [],
+          "setsWonA": 0,
+          "setsWonB": 0,
           "sideA": [
             "Alice",
             "Candra"
@@ -42,9 +55,20 @@
             "Budi",
             "Dewi"
           ],
-          "status": "scheduled"
+          "status": "scheduled",
+          "winner": null
         }
       ],
+      "scoring": {
+        "changeEndsAt": 15,
+        "deuceAt": null,
+        "gamesToWin": 1,
+        "label": "v1 scoring",
+        "maxPoints": 99,
+        "pointsToWin": 30,
+        "preset": "legacy_v1",
+        "winBy": 1
+      },
       "session": {
         "date": "2026-11-03",
         "id": "{uuid}",

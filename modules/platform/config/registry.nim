@@ -40,6 +40,8 @@ type
     keySessionAbsoluteDays = "session.absolute_days"
     keySessionIdleDays = "session.idle_days"
     keySessionSlotMinutesDefault = "session.slot_minutes_default"
+    keySessionScoringPresets = "session.scoring_presets"
+    keySessionDefaultScoringPreset = "session.default_scoring_preset"
     keyAuthFlowTtlMinutes = "auth.flow_ttl_minutes"
     keyJanitorRetentionDays = "janitor.retention_days"
     keyAuditRetentionDays = "audit.retention_days"
@@ -89,6 +91,8 @@ const allKeys* = [
   spec(keySessionAbsoluteDays, ctInt, 1, 365, true),
   spec(keySessionIdleDays, ctInt, 1, 90, true),
   spec(keySessionSlotMinutesDefault, ctInt, 1, 240, true),
+  spec(keySessionScoringPresets, ctJson),
+  spec(keySessionDefaultScoringPreset, ctString, scope = csCommunity),
   spec(keyAuthFlowTtlMinutes, ctInt, 1, 60, true),
   spec(keyJanitorRetentionDays, ctInt, 1, 3650, true),
   spec(keyAuditRetentionDays, ctInt, 1, 3650, true),

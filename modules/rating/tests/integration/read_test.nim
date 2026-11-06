@@ -99,6 +99,13 @@ proc addSession(age: int, roster: seq[string]) {.discardable.} =
       @[textParam(communityId), textParam(sessionId), intParam(game.int64),
         textParam($(30 - game)),
         textParam(a1), textParam(a2), textParam(b1), textParam(b2)])
+    # v2 reads the result from the sets; the fixture's one game is one set.
+    discard database.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+         values ($1::uuid, $2::uuid, $3::int, 0, 1, $4::int, 20)""",
+      @[textParam(communityId), textParam(sessionId), intParam(game.int64),
+        textParam($(30 - game))])
 
 proc seed() =
   communityId = database.queryOne(
@@ -437,6 +444,11 @@ suite "ranking read":
                  $3::uuid, $4::uuid, $5::uuid, $6::uuid)""",
       @[textParam(communityId), textParam(draft), textParam(roster[0]),
         textParam(roster[1]), textParam(roster[2]), textParam(roster[3])])
+    discard database.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+         values ($1::uuid, $2::uuid, 3, 0, 1, 21, 10)""",
+      @[textParam(communityId), textParam(draft)])
     check stats(database, communityId, roster[0]).get["history"].len == 1
 
   test "a skipped player is not an opponent and loses that game":

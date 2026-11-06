@@ -23,6 +23,13 @@
           "outcome": "W",
           "scoreA": 21,
           "scoreB": 18,
+          "sets": [
+            {
+              "a": 21,
+              "b": 18,
+              "set": 1
+            }
+          ],
           "teammates": [
             "Budi"
           ],

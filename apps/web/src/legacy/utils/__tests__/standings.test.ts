@@ -84,3 +84,40 @@ describe('computeStandings', () => {
     ])
   })
 })
+
+describe('computeStandings with sets', () => {
+  const player = (id: string, name: string): Player => ({
+    id: toPlayerId(id), name, gender: 'M', tier: 2,
+  })
+  const ani = player('p-ani', 'Ani')
+  const budi = player('p-budi', 'Budi')
+  const candra = player('p-candra', 'Candra')
+  const dewi = player('p-dewi', 'Dewi')
+
+  const schedule: ScheduleSlot[] = [{
+    slot: 0,
+    court: 0,
+    teamA: [ani.id, budi.id],
+    teamB: [candra.id, dewi.id],
+  }]
+  const players = [ani, budi, candra, dewi]
+  const key = toGameKey(0, 0)
+
+  it('counts the set winner even when the losing side scored more points', () => {
+    const scores: Record<GameKey, GameScore> = {
+      // 21-19, 19-21, 21-19: A wins two sets 61-59.
+      [key]: { a: 61, b: 59, sets: [{ a: 21, b: 19 }, { a: 19, b: 21 }, { a: 21, b: 19 }] },
+    }
+    const rows = computeStandings(players, schedule, scores, [], undefined, [key])
+    expect(rows.find((row) => row.player.name === 'Ani')?.wins).toBe(1)
+    expect(rows.find((row) => row.player.name === 'Candra')?.wins).toBe(0)
+  })
+
+  it('does not tally a partial match', () => {
+    const scores: Record<GameKey, GameScore> = {
+      [key]: { a: 21, b: 19, sets: [{ a: 21, b: 19 }] },
+    }
+    const rows = computeStandings(players, schedule, scores, [], undefined, [])
+    expect(rows.every((row) => row.wins === 0 && row.losses === 0)).toBe(true)
+  })
+})

@@ -168,12 +168,13 @@ export default function SharedSessionPage() {
         courtNames={snapshot.session.courtNames ?? []}
         playedGames={snapshot.playedGames}
         gameScores={snapshot.gameScores}
+        scoring={snapshot.session.scoring}
         onTogglePlayedGame={(key) => {
           const current = queryClient.getQueryData<CloudSnapshot>(communityQueryKey('session', sessionId))
           const willBePlayed = !current?.playedGames.includes(key)
           togglePlayed({ key, nextPlayed: willBePlayed }, mutationToastHandlers(setSaveError))
         }}
-        onSetGameScore={(key, a, b) => setScore({ key, a, b }, mutationToastHandlers(setSaveError))}
+        onSetGameScore={(key, sets) => setScore({ key, sets }, mutationToastHandlers(setSaveError))}
         title={snapshot.session.title ?? ''}
         date={snapshot.session.date ?? ''}
         sessionStart={snapshot.session.sessionStart}

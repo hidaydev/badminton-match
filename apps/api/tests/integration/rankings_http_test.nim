@@ -123,6 +123,11 @@ proc bootstrap() =
     @[textParam(communityId), textParam(sessionId), textParam(players[0]),
       textParam(players[1])])
   discard database.execUpdate(
+    """insert into session.game_sets
+         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+       values ($1::uuid, $2::uuid, 1, 1, 1, 21, 15)""",
+    @[textParam(communityId), textParam(sessionId)])
+  discard database.execUpdate(
     """insert into session.games
          (community_id, session_id, round_no, court_no, score_a, score_b,
           status, side_a1, side_a2, side_b1)
@@ -130,6 +135,11 @@ proc bootstrap() =
                $5::uuid)""",
     @[textParam(communityId), textParam(sessionId), textParam(players[0]),
       textParam(players[1]), textParam(players[2])])
+  discard database.execUpdate(
+    """insert into session.game_sets
+         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+       values ($1::uuid, $2::uuid, 1, 2, 1, 18, 21)""",
+    @[textParam(communityId), textParam(sessionId)])
   discard database.queryOne(
     """insert into rating.events (community_id, local_date, event_type, source_id)
        values ($1::uuid, current_date, 'session', $2::uuid) returning id""",
@@ -533,6 +543,11 @@ suite "rankings HTTP":
          values ($1::uuid, $2::uuid, 1, 1, 21, 10, 'played', $3::uuid, $4::uuid)""",
       @[textParam(communityId), textParam(otherSession), textParam(outsider),
         textParam(players[1])])
+    discard database.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+         values ($1::uuid, $2::uuid, 1, 1, 1, 21, 10)""",
+      @[textParam(communityId), textParam(otherSession)])
     discard database.execUpdate(
       """insert into rating.events (community_id, local_date, event_type, source_id)
          values ($1::uuid, current_date, 'session', $2::uuid)""",

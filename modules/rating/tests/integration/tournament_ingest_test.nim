@@ -141,6 +141,11 @@ proc newSession(sessionPlayers: seq[string]): string =
     @[textParam(communityId), textParam(id), textParam(sessionPlayers[0]),
       textParam(sessionPlayers[1]), textParam(sessionPlayers[2]),
       textParam(sessionPlayers[3])])
+  discard database.execUpdate(
+    """insert into session.game_sets
+         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+       values ($1::uuid, $2::uuid, 0, 0, 1, 21, 15)""",
+    @[textParam(communityId), textParam(id)])
   id
 
 proc bootstrap() =

@@ -29,7 +29,11 @@
         },
         "rating.score_target": {
           "source": "platform",
-          "value": 21
+          "value": 30
+        },
+        "session.default_scoring_preset": {
+          "source": "platform",
+          "value": "majadu30"
         }
       },
       "values": {

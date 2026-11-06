@@ -7,6 +7,7 @@ type
     wsNotFound = "not found"
     wsStale = "stale"
     wsInvalid = "invalid"
+    wsPresetLocked = "preset_locked"
 
   WriteResult* = object
     status*: WriteStatus
@@ -19,6 +20,10 @@ type
     date*: Option[string]
     startTime*: Option[string]
     slotMinutes*: Option[int]
+    ## A preset change carries both the id and the frozen rules; the API builds
+    ## the rules from the current config, so the write stays a single statement.
+    scoringPreset*: Option[string]
+    scoringRules*: Option[string]
 
 const sessionColumns = """
        id, title, session_date::text as session_date,
@@ -60,6 +65,10 @@ proc parsePatch*(body: JsonNode): SessionPatch =
     if slot < 1 or slot > 240:
       raise newException(ValueError, "slotMinutes must be between 1 and 240")
     result.slotMinutes = some(slot)
+  if body.hasKey("scoringPreset"):
+    if body["scoringPreset"].kind != JString:
+      raise newException(ValueError, "scoringPreset must be a string")
+    result.scoringPreset = some(body["scoringPreset"].getStr())
 
 proc sessionNode(row: Row): JsonNode =
   %*{
@@ -108,12 +117,32 @@ proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
   ## and no delete+insert, so row identity and child rows survive.
   if dateChangeBlocked(db, communityId, sessionId, patch.date):
     return WriteResult(status: wsInvalid)
+  if patch.scoringPreset.isSome:
+    ## A preset is part of the result, so it freezes once the first set exists.
+    ## Clearing the sets is the explicit way back.
+    let current = db.queryOne(
+      """select s.status,
+                exists (select 1 from session.game_sets x
+                        where x.community_id = s.community_id
+                          and x.session_id = s.id) as has_sets
+         from session.sessions s
+         where s.community_id = $1::uuid and s.id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    if current.isNone:
+      return WriteResult(status: wsNotFound)
+    if current.get.get("status") != "draft" or
+       current.get.get("has_sets") == "t":
+      return WriteResult(status: wsPresetLocked)
+    if patch.scoringRules.isNone:
+      return WriteResult(status: wsInvalid)
   let row = db.queryOne(
     """update session.sessions
        set title = coalesce($3, title),
            session_date = coalesce($4::date, session_date),
            start_time = coalesce($5::time, start_time),
            slot_minutes = coalesce($6, slot_minutes),
+           scoring_preset = coalesce($8, scoring_preset),
+           scoring_rules = coalesce($9::jsonb, scoring_rules),
            version = version + 1,
            updated_at = now()
        where community_id = $1::uuid and id = $2::uuid and version = $7
@@ -126,6 +155,8 @@ proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
       if patch.startTime.isSome: textParam(patch.startTime.get) else: nullParam(),
       if patch.slotMinutes.isSome: intParam(patch.slotMinutes.get.int64) else: nullParam(),
       intParam(expectedVersion.int64),
+      if patch.scoringPreset.isSome: textParam(patch.scoringPreset.get) else: nullParam(),
+      if patch.scoringRules.isSome: textParam(patch.scoringRules.get) else: nullParam(),
     ])
   if row.isSome:
     return WriteResult(status: wsOk, record: sessionNode(row.get))

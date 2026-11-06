@@ -13,7 +13,7 @@ import {
   replacePlayerNameInSnapshot,
   setAbsentPlayersInSnapshot,
   setPlayedInSnapshot,
-  setScoreInSnapshot,
+  setScoreSetsInSnapshot,
   setSkippedInSnapshot,
   swapPlayersInSnapshot,
   swapSlotsInSnapshot,
@@ -453,20 +453,23 @@ export function useTogglePlayed(sessionId: string) {
 export function useSetScore(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (vars: { key: string; a: number; b: number }) => {
-      const { key, a, b } = vars
+    mutationFn: async (vars: { key: string; sets: { a: number; b: number }[] }) => {
+      const { key, sets } = vars
+      const scoring = queryClient.getQueryData<CloudSnapshot>(
+        communityQueryKey('session', sessionId),
+      )?.session.scoring
       return withSnapshotVersionRetry(
         queryClient,
         sessionId,
-        (version) => patchGameScore(sessionId, key, a, b, version),
+        (version) => patchGameScore(sessionId, key, sets, version, scoring),
       )
     },
-    ...withGranularOptimisticLifecycle<{ key: string; a: number; b: number }>(
+    ...withGranularOptimisticLifecycle<{ key: string; sets: { a: number; b: number }[] }>(
       queryClient,
       sessionId,
       (previous, vars) => {
         try {
-          return setScoreInSnapshot(previous, vars.key, vars.a, vars.b)
+          return setScoreSetsInSnapshot(previous, vars.key, vars.sets)
         } catch (e) {
           // invalid score/gameKey — rollback nothing, let BE validate
           console.warn('[useSetScore] optimistic update skipped:', e)

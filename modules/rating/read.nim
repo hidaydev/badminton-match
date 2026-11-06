@@ -196,8 +196,7 @@ proc snapshotRows*(db: Db, communityId, asOf: string): seq[BoardRow] =
       tier: row.get("tier"), points: parseInt(row.get("points"))))
 
 const playedGameFilter =
-  """g.score_a is not null and g.score_b is not null
-     and g.status <> 'cancelled'"""
+  """g.status = 'played' and g.winner <> ''"""
 
 const approvedSessionFilter =
   """s.approved_at is not null
@@ -210,7 +209,15 @@ proc playerHistory(db: Db, communityId, playerId: string,
   result = newJArray()
   for row in db.query(
     """select s.session_date::text as session_date, s.title,
-              g.round_no, g.court_no, g.score_a, g.score_b,
+              g.round_no, g.court_no, g.points_a, g.points_b, g.winner,
+              coalesce((select json_agg(json_build_object(
+                          'set', x.set_no, 'a', x.score_a, 'b', x.score_b)
+                          order by x.set_no)
+                        from session.game_sets x
+                        where x.community_id = g.community_id
+                          and x.session_id = g.session_id
+                          and x.round_no = g.round_no
+                          and x.court_no = g.court_no), '[]'::json) as sets,
               coalesce(g.side_a1::text, '') as a1,
               coalesce(g.side_a2::text, '') as a2,
               coalesce(g.side_b1::text, '') as b1,
@@ -219,7 +226,7 @@ proc playerHistory(db: Db, communityId, playerId: string,
               coalesce(pa2.canonical_name, '') as a2_name,
               coalesce(pb1.canonical_name, '') as b1_name,
               coalesce(pb2.canonical_name, '') as b2_name
-       from session.games g
+       from session.game_results g
        join session.sessions s
          on s.community_id = g.community_id and s.id = g.session_id
        left join player.players pa1 on pa1.id = g.side_a1
@@ -262,16 +269,17 @@ proc playerHistory(db: Db, communityId, playerId: string,
         if row.get("b1_name").len > 0: teammates.add(%row.get("b1_name"))
       for name in [row.get("a1_name"), row.get("a2_name")]:
         if name.len > 0: opponents.add(%name)
-    let scoreA = parseInt(row.get("score_a"))
-    let scoreB = parseInt(row.get("score_b"))
-    let won = if onA: scoreA > scoreB else: scoreB > scoreA
+    let pointsA = parseInt(row.get("points_a"))
+    let pointsB = parseInt(row.get("points_b"))
+    let won = if onA: row.get("winner") == "a" else: row.get("winner") == "b"
     result.add(%*{
       "date": row.get("session_date"),
       "title": row.get("title"),
       "gameRef": row.get("round_no") & "-" & row.get("court_no"),
       "outcome": if won: "W" else: "L",
-      "scoreA": scoreA,
-      "scoreB": scoreB,
+      "scoreA": pointsA,
+      "scoreB": pointsB,
+      "sets": parseJson(row.get("sets")),
       "teammates": teammates,
       "opponents": opponents,
     })
@@ -308,7 +316,7 @@ proc playerSocial(db: Db, communityId, playerId: string,
     """with games as (
          select g.id, g.community_id, g.session_id, g.round_no, g.court_no,
                 (g.side_a1 = $2::uuid or g.side_a2 = $2::uuid) as on_a,
-                (g.score_a > g.score_b) as a_won,
+                (g.winner = 'a') as a_won,
                 case when g.side_a1 = $2::uuid then g.side_a2
                      when g.side_a2 = $2::uuid then g.side_a1
                      when g.side_b1 = $2::uuid then g.side_b2
@@ -317,7 +325,7 @@ proc playerSocial(db: Db, communityId, playerId: string,
                 case when g.side_a1 = $2::uuid or g.side_a2 = $2::uuid
                      then array[g.side_b1, g.side_b2]
                      else array[g.side_a1, g.side_a2] end as opps
-         from session.games g
+         from session.game_results g
          join session.sessions s
            on s.community_id = g.community_id and s.id = g.session_id
          where g.community_id = $1::uuid

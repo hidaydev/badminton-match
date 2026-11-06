@@ -19,6 +19,7 @@ import std/[algorithm, json, math, options, strutils, tables]
 import db/db
 import ./domain/rating
 import ./infrastructure/tournament
+import session/scoring as sessionScoring
 
 type
   Entry* = object
@@ -183,30 +184,33 @@ proc sessionEntries(db: Db, communityId, asOf: string,
       row.get("court_no") & keySeparator & row.get("player_id")] = true
   for row in db.query(
     """select e.source_id::text as source_id, e.local_date::text as local_date,
-              g.round_no, g.court_no, g.score_a, g.score_b,
-              coalesce(g.side_a1::text, '') as a1,
-              coalesce(g.side_a2::text, '') as a2,
-              coalesce(g.side_b1::text, '') as b1,
-              coalesce(g.side_b2::text, '') as b2
+              r.round_no, r.court_no, r.points_a, r.points_b, r.sets_played,
+              coalesce((s.scoring_rules->>'pointsToWin')::int, $4::int) as target,
+              coalesce(r.side_a1::text, '') as a1,
+              coalesce(r.side_a2::text, '') as a2,
+              coalesce(r.side_b1::text, '') as b1,
+              coalesce(r.side_b2::text, '') as b2
        from rating.events e
-       join session.games g
-         on g.community_id = e.community_id and g.session_id = e.source_id
+       join session.game_results r
+         on r.community_id = e.community_id and r.session_id = e.source_id
        join session.sessions s
          on s.community_id = e.community_id and s.id = e.source_id
        where e.community_id = $1::uuid and e.event_type = 'session'
          and e.local_date >= $2::date - ($3::int * 7)
          and e.local_date <= $2::date
          and s.approved_at is not null
-         and g.status = 'played'
-         and g.score_a is not null and g.score_b is not null
-       order by e.local_date, g.round_no, g.court_no""",
+         and r.status = 'played' and r.winner <> ''
+       order by e.local_date, r.round_no, r.court_no""",
     @[textParam(communityId), textParam(asOf),
-      intParam(params.windowWeeks.int64)]):
+      intParam(params.windowWeeks.int64),
+      intParam(params.scoreTarget.int64)]):
     let sourceId = row.get("source_id")
     let date = row.get("local_date")
     let gameKey = row.get("round_no") & "-" & row.get("court_no")
-    let scoreA = parseInt(row.get("score_a"))
-    let scoreB = parseInt(row.get("score_b"))
+    let pointsA = parseInt(row.get("points_a"))
+    let pointsB = parseInt(row.get("points_b"))
+    let setsPlayed = parseInt(row.get("sets_played"))
+    let target = parseInt(row.get("target"))
     var sideA: seq[string] = @[]
     var sideB: seq[string] = @[]
     for slot in ["a1", "a2"]:
@@ -236,10 +240,12 @@ proc sessionEntries(db: Db, communityId, asOf: string,
       opponentsStrength(tiers, params, eligibleB), population)
     let multiplierB = opponentMultiplier(params,
       opponentsStrength(tiers, params, eligibleA), population)
-    let valueA = gameValue(params.sessionBase, (scoreA - scoreB).float,
-      params.scoreTarget.float)
-    let valueB = gameValue(params.sessionBase, (scoreB - scoreA).float,
-      params.scoreTarget.float)
+    let ratio = sessionScoring.ratingMarginFrom(pointsA, pointsB, setsPlayed,
+      target)
+    let valueA = gameValue(params.sessionBase, ratio * target.float,
+      target.float)
+    let valueB = gameValue(params.sessionBase, -ratio * target.float,
+      target.float)
     for id in eligibleA:
       addGame(acc, id, sourceId, date, "session", valueA * multiplierA)
     for id in eligibleB:

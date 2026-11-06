@@ -61,9 +61,28 @@ export interface ScheduleSlot {
   teamB: [PlayerId, PlayerId]
 }
 
+export interface SetScore {
+  a: number // Team A points in this set
+  b: number // Team B points in this set
+}
+
+/** The format a session was played in; frozen on the session row. */
+export interface SessionScoring {
+  preset: string
+  label: string
+  gamesToWin: number
+  pointsToWin: number
+  winBy: number
+  maxPoints: number
+  deuceAt: number | null
+  changeEndsAt: number | null
+}
+
 export interface GameScore {
-  a: number  // Team A score
-  b: number  // Team B score
+  a: number // Team A total points across every set
+  b: number // Team B total points across every set
+  /** Recorded sets. A single-set format has one entry; absent on old payloads. */
+  sets?: SetScore[]
 }
 
 export interface CourtTime {
@@ -87,6 +106,10 @@ export interface SessionConfig {
   playerCount: number
   courtNames: string[]
   locked: boolean
+  /** Chosen format id; sent on create and echoed back as `scoring`. */
+  scoringPreset?: string
+  /** The frozen rules; present once the server has a format for this session. */
+  scoring?: SessionScoring
 }
 
 export interface CloudSnapshot {

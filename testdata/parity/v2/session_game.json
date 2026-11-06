@@ -14,6 +14,15 @@
       "round": 0,
       "scoreA": 21,
       "scoreB": 18,
+      "sets": [
+        {
+          "a": 21,
+          "b": 18,
+          "set": 1
+        }
+      ],
+      "setsWonA": 1,
+      "setsWonB": 0,
       "sideA": [
         "{uuid}",
         "{uuid}"
@@ -22,7 +31,8 @@
         "{uuid}",
         "{uuid}"
       ],
-      "status": "played"
+      "status": "played",
+      "winner": "A"
     }
   }
 }

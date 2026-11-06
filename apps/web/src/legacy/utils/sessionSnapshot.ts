@@ -1,7 +1,7 @@
-import type { CloudSnapshot, MatchConstraint, Player, ScheduleSlot, SessionConfig, GameKey } from '../types'
+import type { CloudSnapshot, MatchConstraint, Player, ScheduleSlot, SessionConfig, GameKey, SetScore } from '../types'
 import { applySwap, applyTeamSwap, type SwapTarget, type TeamSwapTarget } from './swap.ts'
 import { applySlotSwap, swapKeys, swapKeyInList, type SlotSwapTarget } from './slotSwap.ts'
-import { validateScore } from './scoreValidation.ts'
+import { matchComplete, totalPoints } from './scoring.ts'
 
 interface PublishableSessionInput {
   version?: number
@@ -49,29 +49,39 @@ export function setPlayedInSnapshot(snapshot: CloudSnapshot, key: string, nextPl
   return { ...snapshot, playedGames, gameScores }
 }
 
-export function setScoreInSnapshot(
+export function setScoreSetsInSnapshot(
   snapshot: CloudSnapshot,
   key: string,
-  a: number,
-  b: number,
+  sets: SetScore[],
 ): CloudSnapshot {
-  const err = validateScore(a, b)
-  if (err !== null) throw new Error(err)
-
-  // Validate that the key corresponds to an actual schedule slot
   const validKeys = new Set(snapshot.schedule.map(s => `${s.slot}-${s.court}`))
   if (!validKeys.has(key)) throw new Error(`Invalid game key: ${key}`)
 
-  const playedGames = snapshot.playedGames.includes(key)
-    ? snapshot.playedGames
-    : [...snapshot.playedGames, key]
+  const gameScores = { ...snapshot.gameScores }
+  if (sets.length === 0) {
+    delete gameScores[key as GameKey]
+    return {
+      ...snapshot,
+      playedGames: snapshot.playedGames.filter((k) => k !== key),
+      gameScores,
+    }
+  }
+
+  const totals = totalPoints(sets)
+  const rules = snapshot.session.scoring
+  const complete = rules ? matchComplete(rules, sets) : true
+  const playedGames = complete && !snapshot.playedGames.includes(key)
+    ? [...snapshot.playedGames, key]
+    : !complete
+      ? snapshot.playedGames.filter((k) => k !== key)
+      : snapshot.playedGames
 
   return {
     ...snapshot,
     playedGames,
     gameScores: {
-      ...snapshot.gameScores,
-      [key]: { a, b },
+      ...gameScores,
+      [key]: { a: totals.a, b: totals.b, sets },
     },
   }
 }

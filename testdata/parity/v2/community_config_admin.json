@@ -29,9 +29,45 @@
         },
         "rating.score_target": {
           "source": "platform",
-          "value": 21
+          "value": 30
+        },
+        "session.default_scoring_preset": {
+          "source": "platform",
+          "value": "majadu30"
         }
-      }
+      },
+      "scoringPresets": [
+        {
+          "changeEndsAt": 15,
+          "deuceAt": null,
+          "gamesToWin": 1,
+          "id": "majadu30",
+          "label": "MAJADU 30",
+          "maxPoints": 30,
+          "pointsToWin": 30,
+          "winBy": 1
+        },
+        {
+          "changeEndsAt": 11,
+          "deuceAt": 20,
+          "gamesToWin": 2,
+          "id": "classic21",
+          "label": "Classic BO3 21",
+          "maxPoints": 30,
+          "pointsToWin": 21,
+          "winBy": 2
+        },
+        {
+          "changeEndsAt": 8,
+          "deuceAt": 14,
+          "gamesToWin": 2,
+          "id": "bwf15",
+          "label": "New BWF BO3 15",
+          "maxPoints": 21,
+          "pointsToWin": 15,
+          "winBy": 2
+        }
+      ]
     }
   }
 }

@@ -9,6 +9,18 @@ export type CommunityConfigEntry = {
 
 export type CommunityConfig = Record<string, CommunityConfigEntry>
 
+/** One selectable match format from the platform list. */
+export type ScoringPreset = {
+  id: string
+  label: string
+  gamesToWin: number
+  pointsToWin: number
+  winBy: number
+  maxPoints: number
+  deuceAt: number | null
+  changeEndsAt: number | null
+}
+
 /**
  * Effective settings for a member of the community named by the slug. The
  * backend derives the community from the path, so no community header exists.
@@ -18,6 +30,14 @@ export async function fetchCommunityConfig(slug: string): Promise<CommunityConfi
     `/c/${encodeURIComponent(slug)}/config`,
   )
   return body.effective
+}
+
+/** The platform's format list; reference data, not a community setting. */
+export async function fetchScoringPresets(slug: string): Promise<ScoringPreset[]> {
+  const body = await request<{ scoringPresets?: ScoringPreset[] }>(
+    `/c/${encodeURIComponent(slug)}/config`,
+  )
+  return body.scoringPresets ?? []
 }
 
 /**

@@ -137,6 +137,12 @@ insert into session.games
    '30000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000003',
    '30000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000004');
 
+-- v2 reads the result from the sets; the scored fixture game is one set.
+insert into session.game_sets
+  (community_id, session_id, round_no, court_no, set_no, score_a, score_b) values
+  ('10000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001',
+   0, 0, 1, 21, 18);
+
 -- A completed classic tournament: four pairs, one group, one scored match.
 insert into tournament.tournaments
   (id, community_id, name, status, event_date, version, format) values

@@ -146,18 +146,18 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
   let absent = loadAbsent(conn, communityId)
   let skipped = loadSkips(conn, communityId)
   for row in conn.query(
-    """select g.session_id::text as session_id,
-              g.round_no as round_no, g.court_no as court_no,
-              g.score_a as score_a, g.score_b as score_b,
-              coalesce(g.side_a1::text, '') as a1,
-              coalesce(g.side_a2::text, '') as a2,
-              coalesce(g.side_b1::text, '') as b1,
-              coalesce(g.side_b2::text, '') as b2
-       from session.games g
+    """select r.session_id::text as session_id,
+              r.round_no as round_no, r.court_no as court_no,
+              r.winner as winner,
+              coalesce(r.side_a1::text, '') as a1,
+              coalesce(r.side_a2::text, '') as a2,
+              coalesce(r.side_b1::text, '') as b1,
+              coalesce(r.side_b2::text, '') as b2
+       from session.game_results r
        join session.sessions s
-         on s.community_id = g.community_id and s.id = g.session_id
-       where g.community_id = $1::uuid and g.status = 'played'
-         and g.score_a is not null and g.score_b is not null
+         on s.community_id = r.community_id and s.id = r.session_id
+       where r.community_id = $1::uuid and r.status = 'played'
+         and r.winner <> ''
          and s.approved_at is not null
          and s.status in """ & playedSessions,
     @[textParam(communityId)]):
@@ -169,7 +169,7 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
       continue
     let aSide = withoutSkips(presentA, sessionId, gameKey, skipped)
     let bSide = withoutSkips(presentB, sessionId, gameKey, skipped)
-    let aWon = parseInt(row.get("score_a")) > parseInt(row.get("score_b"))
+    let aWon = row.get("winner") == "a"
     result.tallySide(aSide, bSide, aWon)
     result.tallySide(bSide, aSide, not aWon)
 

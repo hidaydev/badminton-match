@@ -3,8 +3,10 @@ import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import { HIGHLIGHTED_PLAYERS, TEAM_HIGHLIGHT_ENABLED } from '../../config/teamHighlights'
 import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import type { GeneratorResult } from '../../generator'
-import type { Player, GameScore } from '../../types'
+import type { Player, GameScore, SessionScoring } from '../../types'
 import { toGameKey } from '../../types'
+import { draftFromScore, type MatchDraft } from './useScoreDraft'
+import { describeSets, setsWon } from '../../utils/scoring'
 import { computeBackToBackRunBySlot } from '../../utils/playerStats'
 import { courtLabel } from '../../utils/courtLabel'
 import { timeToMinutes, minutesToTime } from '../../utils/time'
@@ -25,10 +27,11 @@ interface ScheduleGridProps {
   playerMap: Map<string, Player>
   playedGames: string[]
   gameScores: Record<string, GameScore>
+  scoring?: SessionScoring
   effectiveAbsent: Set<string>
   effectiveSkipped?: Record<string, Set<string>>
   expandedScore: string | null
-  draftScores: Record<string, { a: string; b: string }>
+  draftScores: Record<string, MatchDraft>
   scoreError: string | null
   // Swap state
   swapSelected: SwapTarget | null
@@ -49,11 +52,13 @@ interface ScheduleGridProps {
   handleChangeSelect: (target: SwapTarget) => void
   handleDragEnd: (event: DragEndEvent) => void
   handleScoreSave: (key: string) => void
+  handleClearScore: (key: string) => void
   onTogglePlayedGame?: (key: string) => void
   onSkipToggle?: (gameKey: string, playerId: string) => void
   setExpandedScore: (key: string | null) => void
   setScoreError: (error: string | null) => void
-  setDraftScores: (fn: (prev: Record<string, { a: string; b: string }>) => Record<string, { a: string; b: string }>) => void
+  setDraftScores: (fn: (prev: Record<string, MatchDraft>) => Record<string, MatchDraft>) => void
+  updateDraftSet: (key: string, index: number, side: 'a' | 'b', value: string) => void
   highlightedPlayerId?: string | null
 }
 
@@ -69,6 +74,7 @@ export default function ScheduleGrid({
   playerMap,
   playedGames,
   gameScores,
+  scoring,
   effectiveAbsent,
   effectiveSkipped = {},
   expandedScore,
@@ -87,11 +93,13 @@ export default function ScheduleGrid({
   handleChangeSelect,
   handleDragEnd,
   handleScoreSave,
+  handleClearScore,
   onTogglePlayedGame,
   onSkipToggle,
   setExpandedScore,
   setScoreError,
   setDraftScores,
+  updateDraftSet,
   highlightedPlayerId,
 }: ScheduleGridProps) {
   const played = useMemo(() => new Set(playedGames), [playedGames])
@@ -135,7 +143,13 @@ export default function ScheduleGrid({
                 const done = played.has(key)
                 const savedScore = gameScores[key]
                 const isOpen = expandedScore === key
-                const draft = draftScores[key] ?? { a: savedScore ? String(savedScore.a) : '', b: savedScore ? String(savedScore.b) : '' }
+                const draft = draftScores[key] ?? draftFromScore(savedScore, scoring)
+                const savedSets = savedScore?.sets
+                const won = savedScore && savedSets && scoring ? setsWon(savedSets) : null
+                const headline = savedScore
+                  ? (won ? `${won.a}–${won.b}` : `${savedScore.a}–${savedScore.b}`)
+                  : ''
+                const setLine = savedSets && savedSets.length > 1 ? describeSets(savedSets) : ''
                 const teamANames = g.teamA.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
                 const teamBNames = g.teamB.map((id) => playerMap.get(id)?.name ?? id).join(' & ')
 
@@ -259,16 +273,18 @@ export default function ScheduleGrid({
                       {/* Score toggle / saved score */}
                       {mode === 'idle' && (savedScore && !isOpen ? (
                         <button
-                          onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) } }}
-                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
+                          onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draftFromScore(savedScore, scoring) })) } }}
+                          aria-label={`Score: ${teamANames} ${headline}${setLine ? `, sets ${setLine}` : ''}. Edit score`}
+                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
                         >
-                          {savedScore.a}–{savedScore.b}
+                          <span className="block">{headline}</span>
+                          {setLine && <span className="block text-[9px] font-medium text-slate-400">{setLine}</span>}
                         </button>
                       ) : !locked ? (
                         <button
                           onClick={() => {
                             if (isOpen) { setExpandedScore(null); setScoreError(null) }
-                            else { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draft })) }
+                            else { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draftFromScore(undefined) })) }
                           }}
                           className="text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap min-h-6 px-1 transition-colors"
                         >
@@ -280,45 +296,62 @@ export default function ScheduleGrid({
                     {/* Expandable score panel */}
                     {isOpen && (
                       <div className="ml-6 bg-slate-900 border border-indigo-800/60 rounded-lg px-3 py-2.5 flex flex-col gap-2">
-                        <div className="flex items-center justify-center gap-3">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-[10px] text-slate-400 truncate max-w-20 text-center">{teamANames}</span>
-                            <input
-                              type="number"
-                              min={0}
-                              max={99}
-                              value={draft.a}
-                              onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), a: e.target.value } }))}
-                              className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
-                              aria-label={`Score for ${teamANames}`}
-                            />
-                          </div>
-                          <span className="text-slate-400 font-bold text-lg mt-4">–</span>
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="text-[10px] text-slate-400 truncate max-w-20 text-center">{teamBNames}</span>
-                            <input
-                              type="number"
-                              min={0}
-                              max={99}
-                              value={draft.b}
-                              onChange={(e) => setDraftScores((d) => ({ ...d, [key]: { ...(d[key] ?? draft), b: e.target.value } }))}
-                              className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
-                              aria-label={`Score for ${teamBNames}`}
-                            />
-                          </div>
+                        {scoring && (
+                          <p className="text-[10px] text-slate-400 text-center">
+                            {scoring.label} · first to {scoring.gamesToWin} {scoring.gamesToWin === 1 ? 'set' : 'sets'} of {scoring.pointsToWin}
+                          </p>
+                        )}
+                        <div className="flex flex-col gap-1.5">
+                          {draft.map((row, index) => (
+                            <div key={index} className="flex items-center justify-center gap-2">
+                              <span className="w-10 text-right text-[10px] text-slate-400">Set {index + 1}</span>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                max={99}
+                                value={row.a}
+                                onChange={(e) => updateDraftSet(key, index, 'a', e.target.value)}
+                                className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                                aria-label={`Set ${index + 1} score for ${teamANames}`}
+                              />
+                              <span className="text-slate-400 font-bold text-lg">–</span>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                max={99}
+                                value={row.b}
+                                onChange={(e) => updateDraftSet(key, index, 'b', e.target.value)}
+                                className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                                aria-label={`Set ${index + 1} score for ${teamBNames}`}
+                              />
+                            </div>
+                          ))}
                         </div>
                         <div className="flex flex-col items-center gap-1">
                           {scoreError && (
-                            <p className="text-[10px] text-red-400 text-center">{scoreError}</p>
+                            <p role="alert" className="text-[10px] text-red-400 text-center">{scoreError}</p>
                           )}
-                          <button
-                            onClick={() => handleScoreSave(key)}
-                            disabled={saving}
-                            className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                          >
-                            {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                            {saving ? 'Saving…' : '✓ Save'}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {savedScore && (
+                              <button
+                                onClick={() => handleClearScore(key)}
+                                disabled={saving}
+                                className="px-3 py-1.5 min-h-6 rounded-lg border border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Clear
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleScoreSave(key)}
+                              disabled={saving}
+                              className="px-6 py-1.5 min-h-6 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                            >
+                              {saving && <svg className="animate-spin w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                              {saving ? 'Saving…' : '✓ Save'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}

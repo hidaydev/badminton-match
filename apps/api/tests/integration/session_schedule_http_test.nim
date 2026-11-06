@@ -203,7 +203,7 @@ suite "session schedule HTTP":
       hostCookie, schedule, ifMatch = "\"1\"")
     let (tie, tieBody) = call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
-      """{"scoreA":21,"scoreB":21}""", ifMatch = "\"2\"")
+      """{"scoreA":30,"scoreB":30}""", ifMatch = "\"2\"")
     check tie == 400
     check parseJson(tieBody)["code"].getStr() == "INVALID_SCORE"
     for badScore in ["""{"scoreA":-1,"scoreB":5}""", """{"scoreA":100,"scoreB":5}"""]:
@@ -214,7 +214,7 @@ suite "session schedule HTTP":
       check parseJson(rejectedBody)["code"].getStr() == "INVALID_SCORE"
     let (scored, _) = call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
-      """{"scoreA":21,"scoreB":15}""", ifMatch = "\"2\"")
+      """{"scoreA":30,"scoreB":15}""", ifMatch = "\"2\"")
     check scored == 200
     let (_, gameBody) = call(HttpGet,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie)
@@ -235,6 +235,72 @@ suite "session schedule HTTP":
       """{"games":[{"round":1,"court":0,"sideA":["00000000-0000-0000-0000-000000000000"]}]}""",
       ifMatch = "\"5\"")
     check unknown == 400
+
+  test "a classic session records sets and only counts a finished match":
+    let (_, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Classic night","date":"2026-11-12","scoringPreset":"classic21"}""")
+    let sessionId = parseJson(body)["id"].getStr()
+    let schedule = """{"games":[{"round":0,"court":0,"sideA":["""" &
+      players[0] & """","""" & players[1] & """"],"sideB":["""" &
+      players[2] & """","""" & players[3] & """"]}]}"""
+    discard call(HttpPut, "/c/sched-club/sessions/" & sessionId & "/schedule",
+      hostCookie, schedule, ifMatch = "\"1\"")
+    # A flat score has no meaning when the format is best of three.
+    let (flat, flatBody) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"scoreA":21,"scoreB":19}""", ifMatch = "\"2\"")
+    check flat == 400
+    check parseJson(flatBody)["code"].getStr() == "SETS_REQUIRED"
+    # One set is a partial match: it is stored, but it is not a result yet.
+    let (partial, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"sets":[{"a":21,"b":19}]}""", ifMatch = "\"2\"")
+    check partial == 200
+    let (_, partialGame) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie)
+    check parseJson(partialGame)["status"].getStr() == "scheduled"
+    check parseJson(partialGame)["sets"].len == 1
+    let (_, partialBoard) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId & "/standings", memberCookie)
+    for item in parseJson(partialBoard)["items"]:
+      check item["wins"].getInt() == 0
+    # The format is part of the result, so a recorded set freezes it.
+    let (frozen, frozenBody) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId, hostCookie,
+      """{"scoringPreset":"majadu30"}""", ifMatch = "\"3\"")
+    check frozen == 409
+    check parseJson(frozenBody)["code"].getStr() == "PRESET_LOCKED"
+    # The second set decides the match.
+    let (done, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"sets":[{"a":21,"b":19},{"a":21,"b":19}]}""", ifMatch = "\"3\"")
+    check done == 200
+    let (_, doneGame) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie)
+    let finished = parseJson(doneGame)
+    check finished["status"].getStr() == "played"
+    check finished["sets"].len == 2
+    check finished["setsWonA"].getInt() == 2
+    check finished["winner"].getStr() == "A"
+    # A set played after the match is won is refused, not ignored.
+    let (extra, extraBody) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"sets":[{"a":21,"b":19},{"a":21,"b":19},{"a":21,"b":19}]}""",
+      ifMatch = "\"4\"")
+    check extra == 400
+    check parseJson(extraBody)["code"].getStr() == "INVALID_SET_SEQUENCE"
+    # Clearing the sets is the explicit way back to a different format.
+    let (cleared, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"sets":[]}""", ifMatch = "\"4\"")
+    check cleared == 200
+    let (changed, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId, hostCookie,
+      """{"scoringPreset":"majadu30"}""", ifMatch = "\"5\"")
+    check changed == 200
+    let (_, changedDetail) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId, hostCookie)
+    check parseJson(changedDetail)["scoring"]["preset"].getStr() == "majadu30"
 
   test "a per-player skip keeps the game and reports the skipped players":
     let (_, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
@@ -279,10 +345,10 @@ suite "session schedule HTTP":
       hostCookie, schedule, ifMatch = "\"1\"")
     discard call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
-      """{"scoreA":21,"scoreB":15}""", ifMatch = "\"2\"")
+      """{"scoreA":30,"scoreB":15}""", ifMatch = "\"2\"")
     discard call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/1-0", hostCookie,
-      """{"scoreA":18,"scoreB":21}""", ifMatch = "\"3\"")
+      """{"scoreA":18,"scoreB":30}""", ifMatch = "\"3\"")
     # An absent player leaves the board, and a per-game skip drops one player
     # from one game without cancelling it: both must show up in the public
     # payload exactly as the member route reports them.
@@ -555,7 +621,7 @@ suite "session schedule HTTP":
       hostCookie, schedule, ifMatch = "\"1\"")
     discard call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
-      """{"scoreA":21,"scoreB":15}""", ifMatch = "\"2\"")
+      """{"scoreA":30,"scoreB":15}""", ifMatch = "\"2\"")
     let (locked, _) = call(HttpPost,
       "/c/sched-club/sessions/" & sessionId & "/lock", hostCookie,
       ifMatch = "\"3\"")
@@ -727,6 +793,11 @@ suite "session schedule HTTP":
          values ($1::uuid, $2::uuid, 0, 0, 30, 20, 'played', $3::uuid, $4::uuid)""",
       @[textParam(communityId), textParam(sessionId), textParam(players[0]),
         textParam(players[1])])
+    discard database.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+         values ($1::uuid, $2::uuid, 0, 0, 1, 30, 20)""",
+      @[textParam(communityId), textParam(sessionId)])
     let path = "/c/sched-club/sessions/" & sessionId & "/standings"
     let (read, boardBody) = call(HttpGet, path, memberCookie)
     check read == 200
@@ -755,7 +826,7 @@ suite "session schedule HTTP":
       hostCookie, schedule, ifMatch = "\"1\"")
     let (scored, _) = call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
-      """{"scoreA":21,"scoreB":15}""", ifMatch = "\"2\"")
+      """{"scoreA":30,"scoreB":15}""", ifMatch = "\"2\"")
     check scored == 200
     let events = proc(): string =
       let row = database.queryOne(
@@ -792,7 +863,7 @@ suite "session schedule HTTP":
     # A finished session is read-only: the score has to be reopened first.
     let (writeRefused, _) = call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
-      """{"scoreA":21,"scoreB":18}""", ifMatch = "\"4\"")
+      """{"scoreA":30,"scoreB":18}""", ifMatch = "\"4\"")
     check writeRefused == 403
 
     let (reopened, _) = call(HttpPost,

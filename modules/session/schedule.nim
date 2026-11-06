@@ -1,5 +1,6 @@
 import std/[json, options, strutils]
 import db/db
+import ./scoring
 import skips
 
 type
@@ -19,6 +20,8 @@ type
     ssNotFound = "not_found"
     ssStale = "stale"
     ssInvalid = "invalid"
+    ssInvalidSequence = "invalid_sequence"
+    ssHasSets = "has_sets"
     ssUnknownPlayer = "unknown_player"
     ssNotParticipant = "not_participant"
     ssLocked = "locked"
@@ -246,11 +249,22 @@ proc setAbsent*(db: Db, communityId, sessionId: string, expectedVersion: int,
     1)
   outcome
 
-proc setScore*(db: Db, communityId, sessionId, gameKey: string,
-               expectedVersion, scoreA, scoreB: int): ScheduleStatus =
-  ## A played game needs both scores; a tie is never a played game.
-  if scoreA < 0 or scoreA > 99 or scoreB < 0 or scoreB > 99 or scoreA == scoreB:
-    return ssInvalid
+proc sessionRules*(db: Db, communityId, sessionId: string): Option[ScoringRules] =
+  ## The frozen rules of one session. Used by the score route to build a precise
+  ## message before the write; `setSets` reads them again inside the transaction.
+  let row = db.queryOne(
+    """select scoring_rules from session.sessions
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(sessionId)])
+  if row.isNone:
+    return none(ScoringRules)
+  some(parseSnapshotNode(parseJson(row.get.get("scoring_rules"))))
+
+proc setSets*(db: Db, communityId, sessionId, gameKey: string,
+              expectedVersion: int, sets: seq[SetScore]): ScheduleStatus =
+  ## Replaces the whole set list of one match. The status follows the format:
+  ## `played` once one side reaches `gamesToWin`, `scheduled` while partial.
+  ## An empty list clears the score.
   let key = parseGameKey(gameKey)
   if key.isNone:
     return ssInvalid
@@ -263,23 +277,57 @@ proc setScore*(db: Db, communityId, sessionId, gameKey: string,
     if allowed != ssOk:
       outcome = allowed
       return 0
+    let rulesRow = conn.queryOne(
+      """select scoring_rules from session.sessions
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    if rulesRow.isNone:
+      outcome = ssNotFound
+      return 0
+    let rules = parseSnapshotNode(parseJson(rulesRow.get.get("scoring_rules")))
+    let verdict = validateSets(rules, sets)
+    if verdict.error != seOk:
+      outcome =
+        if verdict.error in {seTooManySets, seSetAfterEnd}: ssInvalidSequence
+        else: ssInvalid
+      return 0
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return 0
-    let updated = conn.execUpdate(
-      """update session.games
-         set score_a = $3, score_b = $4, status = 'played'
+    discard conn.execUpdate(
+      """delete from session.game_sets
          where community_id = $1::uuid and session_id = $2::uuid
-           and round_no = $5 and court_no = $6""",
+           and round_no = $3 and court_no = $4""",
       @[textParam(communityId), textParam(sessionId),
-        intParam(scoreA.int64), intParam(scoreB.int64),
         intParam(key.get[0].int64), intParam(key.get[1].int64)])
-    if updated == 0:
-      outcome = ssNotFound
-      return 0
+    for index, entry in sets:
+      discard conn.execUpdate(
+        """insert into session.game_sets
+             (community_id, session_id, round_no, court_no, set_no,
+              score_a, score_b)
+           values ($1::uuid, $2::uuid, $3, $4, $5, $6, $7)""",
+        @[textParam(communityId), textParam(sessionId),
+          intParam(key.get[0].int64), intParam(key.get[1].int64),
+          intParam((index + 1).int64), intParam(entry.a.int64),
+          intParam(entry.b.int64)])
+    let status = if matchComplete(rules, sets): "played" else: "scheduled"
+    discard conn.execUpdate(
+      """update session.games
+         set status = $3, score_a = null, score_b = null
+         where community_id = $1::uuid and session_id = $2::uuid
+           and round_no = $4 and court_no = $5""",
+      @[textParam(communityId), textParam(sessionId), textParam(status),
+        intParam(key.get[0].int64), intParam(key.get[1].int64)])
     1)
-  if outcome != ssOk: return outcome
-  ssOk
+  outcome
+
+proc setScore*(db: Db, communityId, sessionId, gameKey: string,
+               expectedVersion, scoreA, scoreB: int): ScheduleStatus =
+  ## The flat body stays for single-set sessions; it is one set.
+  if scoreA < 0 or scoreA > 99 or scoreB < 0 or scoreB > 99 or scoreA == scoreB:
+    return ssInvalid
+  setSets(db, communityId, sessionId, gameKey, expectedVersion,
+    @[SetScore(a: scoreA, b: scoreB)])
 
 proc setPlayed*(db: Db, communityId, sessionId, gameKey: string,
                 expectedVersion: int, played: bool): ScheduleStatus =
@@ -297,9 +345,25 @@ proc setPlayed*(db: Db, communityId, sessionId, gameKey: string,
     if allowed != ssOk:
       outcome = allowed
       return 0
+    if played and conn.queryOne(
+        """select 1 as ok from session.game_sets
+           where community_id = $1::uuid and session_id = $2::uuid
+             and round_no = $3 and court_no = $4 limit 1""",
+        @[textParam(communityId), textParam(sessionId),
+          intParam(key.get[0].int64), intParam(key.get[1].int64)]).isSome:
+      # Marking a scored match played would erase the sets. Clearing it first is
+      # an explicit choice, not a side effect of one click.
+      outcome = ssHasSets
+      return 0
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return 0
+    discard conn.execUpdate(
+      """delete from session.game_sets
+         where community_id = $1::uuid and session_id = $2::uuid
+           and round_no = $3 and court_no = $4""",
+      @[textParam(communityId), textParam(sessionId),
+        intParam(key.get[0].int64), intParam(key.get[1].int64)])
     let status = if played: "played" else: "scheduled"
     let updated = conn.execUpdate(
       """update session.games
@@ -402,6 +466,14 @@ proc skipGame*(db: Db, communityId, sessionId, gameKey: string,
     if updated == 0:
       outcome = ssNotFound
       return 0
+    # A cancelled game has no result; keeping the sets would leave the results
+    # view reporting a winner for a match the session cancelled.
+    discard conn.execUpdate(
+      """delete from session.game_sets
+         where community_id = $1::uuid and session_id = $2::uuid
+           and round_no = $3 and court_no = $4""",
+      @[textParam(communityId), textParam(sessionId),
+        intParam(key.get[0].int64), intParam(key.get[1].int64)])
     1)
   if outcome != ssOk: return outcome
   ssOk

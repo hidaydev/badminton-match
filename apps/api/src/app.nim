@@ -25,6 +25,7 @@ import share/store as shareStore
 import session/write as sessionWrite
 import session/standings as sessionStandings
 import session/schedule as sessionSchedule
+import session/scoring as sessionScoring
 import session/swap as sessionSwap
 import tournament/store as tournamentStore
 import ws_ticket as wsTicket
@@ -173,6 +174,18 @@ proc cookieValue(request: Request, name: string): string =
 
 proc configSnapshot(): Snapshot =
   application.config.snapshot(application.db)
+
+proc scoringPresets(): seq[sessionScoring.ScoringRules] =
+  ## The platform list. It is reference data for the wizard, not a community
+  ## setting, so every community sees the same formats.
+  sessionScoring.parsePresets(
+    configSnapshot().jsonValue(%*{}, keySessionScoringPresets))
+
+proc findPreset(id: string): Option[sessionScoring.ScoringRules] =
+  for preset in scoringPresets():
+    if preset.id == id:
+      return some(preset)
+  none(sessionScoring.ScoringRules)
 
 proc bodyJson(request: Request): JsonNode =
   if request.body.len == 0:
@@ -584,6 +597,7 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   var title = ""
   var date = ""
   var startTime = "00:00"
+  var presetId = ""
   var slot = configSnapshot().intValue(%*{}, keySessionSlotMinutesDefault)
   try:
     # `getStr`/`getInt` answer their default on a kind mismatch, so each field
@@ -591,13 +605,14 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
     if body.hasKey("title"): title = jsonString(body, "title")
     if body.hasKey("date"): date = jsonString(body, "date")
     if body.hasKey("startTime"): startTime = jsonString(body, "startTime")
+    if body.hasKey("scoringPreset"): presetId = jsonString(body, "scoringPreset")
     if body.hasKey("slotMinutes"):
       if body["slotMinutes"].kind != JInt:
         raise newException(ValueError, "slotMinutes must be an integer")
       slot = body["slotMinutes"].getInt()
   except ValueError:
     problem(request, 400, "INVALID_BODY",
-      "title, date, startTime and slotMinutes must have the documented types")
+      "title, date, startTime, scoringPreset and slotMinutes must have the documented types")
     return
   # Without these checks the insert reached PostgreSQL and a bad date, time or
   # slot became a 500. The contract already documents a 400 for this route.
@@ -619,6 +634,14 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   except ValueError as error:
     problem(request, 400, "INVALID_BODY", error.msg)
     return
+  if presetId.len == 0:
+    presetId = configSnapshot().stringValue(
+      currentSettings(application.db, ctx.communityId),
+      keySessionDefaultScoringPreset)
+  let chosen = findPreset(presetId)
+  if chosen.isNone:
+    problem(request, 400, "INVALID_PRESET", "unknown scoring preset")
+    return
   # Claim the key only once the body is known to be valid: a 400 must not leave
   # the key owned, or every retry would answer 409 for the rest of the day.
   let key = request.headers["Idempotency-Key"]
@@ -627,11 +650,14 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
     return
   let row = application.db.queryOne(
     """insert into session.sessions
-       (community_id, title, session_date, start_time, slot_minutes, status, source)
-       values ($1, $2, $3::date, $4::time, $5, 'draft', 'manual')
+       (community_id, title, session_date, start_time, slot_minutes, status,
+        source, scoring_preset, scoring_rules)
+       values ($1, $2, $3::date, $4::time, $5, 'draft', 'manual', $6,
+               $7::jsonb)
        returning id, title, session_date::text as session_date, status""",
     @[textParam(ctx.communityId), textParam(title), textParam(date),
-      textParam(startTime), intParam(slot.int64)])
+      textParam(startTime), intParam(slot.int64), textParam(presetId),
+      textParam($sessionScoring.rulesJson(chosen.get))])
   if row.isNone:
     # Nothing was written, so release the key instead of leaving it owned until
     # the TTL turns every retry into a 409.
@@ -883,6 +909,15 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
         "startTime must be HH:MM or HH:MM:SS")
       return
     patchBody.startTime = clock
+  if patchBody.scoringPreset.isSome:
+    # The id is resolved against the current list; a removed preset cannot be
+    # chosen even though an old session keeps its own snapshot.
+    let chosen = findPreset(patchBody.scoringPreset.get)
+    if chosen.isNone:
+      releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+      problem(request, 400, "INVALID_PRESET", "unknown scoring preset")
+      return
+    patchBody.scoringRules = some($sessionScoring.rulesJson(chosen.get))
   let result = sessionWrite.patch(application.db, ctx.communityId, sessionId,
     version.get, patchBody)
   case result.status
@@ -905,6 +940,10 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
   of wsInvalid:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
     problem(request, 400, "INVALID_PATCH", "cannot apply patch")
+  of wsPresetLocked:
+    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    problem(request, 409, "PRESET_LOCKED",
+      "clear the recorded sets before changing the format")
 
 proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
                  sessionId: string) =
@@ -1003,6 +1042,8 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 404, "NOT_FOUND", "session not found")
   of wsInvalid:
     problem(request, 400, "INVALID_PATCH", "cannot lock session")
+  of wsPresetLocked:
+    problem(request, 409, "PRESET_LOCKED", "session has recorded sets")
   if result.status == wsOk:
     application.hub.sessionChanged(sessionId, result.record["version"].getInt())
 
@@ -1233,11 +1274,21 @@ proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
   audit("community.member.remove", ctx, user, "user", targetId)
   send(request, 204, @[("Cache-Control", "no-store")], "")
 
+proc scoringPresetsJson(): JsonNode =
+  ## Read-only reference data for the wizard. `mode` is internal, so it is not
+  ## part of the public shape.
+  result = newJArray()
+  for preset in scoringPresets():
+    var item = sessionScoring.rulesJson(preset)
+    item.delete("mode")
+    result.add(item)
+
 proc communityConfig(request: Request, ctx: CommunityContext) =
   ## Effective registry values for this community, with the source of each one.
   jsonResponse(request, 200,
     %*{"effective": effectiveConfig(configSnapshot(),
-      currentSettings(application.db, ctx.communityId))},
+        currentSettings(application.db, ctx.communityId)),
+       "scoringPresets": scoringPresetsJson()},
     [("Cache-Control", "no-store")])
 
 proc playerLimit(request: Request): int =
@@ -1885,6 +1936,12 @@ proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
     problem(request, 412, "STALE_VERSION", "session changed since If-Match")
   of sessionSchedule.ssInvalid:
     problem(request, 400, "INVALID_SCHEDULE", "schedule body is invalid")
+  of sessionSchedule.ssInvalidSequence:
+    problem(request, 400, "INVALID_SET_SEQUENCE",
+      "sets must stop once the match is won")
+  of sessionSchedule.ssHasSets:
+    problem(request, 409, "MATCH_HAS_SETS",
+      "clear the recorded sets before marking the match played")
   of sessionSchedule.ssLocked:
     problem(request, 403, "FORBIDDEN", "session is locked")
   of sessionSchedule.ssUnknownPlayer:
@@ -1928,6 +1985,21 @@ proc setAbsentRoute(request: Request, ctx: CommunityContext, sessionId: string) 
     sessionSchedule.setAbsent(application.db, ctx.communityId, sessionId,
       version.get, playerIds))
 
+proc setErrorDetail(verdict: sessionScoring.SetVerdict): string =
+  let prefix =
+    if verdict.setIndex > 0: "set " & $verdict.setIndex & ": " else: ""
+  case verdict.error
+  of sessionScoring.seOk: ""
+  of sessionScoring.seTie: prefix & "scores cannot be equal"
+  of sessionScoring.seRange: prefix & "scores must be between 0 and 99"
+  of sessionScoring.seTooFewPoints:
+    prefix & "the winner must reach the format's points"
+  of sessionScoring.seAboveCap: prefix & "the score is above the format's cap"
+  of sessionScoring.seWinBy: prefix & "the winning margin is too small"
+  of sessionScoring.seTooManySets: "too many sets for this format"
+  of sessionScoring.seSetAfterEnd: prefix & "the match is already won"
+  of sessionScoring.seNotContiguous: prefix & "sets must be listed in order"
+
 proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
                        gameKey: string) =
   let version = requireIfMatch(request)
@@ -1938,6 +2010,9 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
   except ValueError:
     problem(request, 400, "INVALID_BODY", "body must be JSON")
     return
+  if body.kind != JObject:
+    problem(request, 400, "INVALID_BODY", "body must be an object")
+    return
   if body.hasKey("played"):
     if body["played"].kind != JBool:
       problem(request, 400, "INVALID_BODY", "played must be a boolean")
@@ -1946,20 +2021,45 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
       sessionSchedule.setPlayed(application.db, ctx.communityId, sessionId,
         gameKey, version.get, body["played"].getBool()))
     return
-  if not body.hasKey("scoreA") or not body.hasKey("scoreB") or
-     body["scoreA"].kind != JInt or body["scoreB"].kind != JInt:
-    problem(request, 400, "INVALID_SCORE", "scoreA and scoreB are required")
+  var sets: seq[sessionScoring.SetScore]
+  let hasSets = body.hasKey("sets")
+  if hasSets:
+    try:
+      sets = sessionScoring.parseSets(body["sets"])
+    except ValueError as error:
+      problem(request, 400, "INVALID_SCORE", error.msg)
+      return
+  else:
+    if not body.hasKey("scoreA") or not body.hasKey("scoreB") or
+       body["scoreA"].kind != JInt or body["scoreB"].kind != JInt:
+      problem(request, 400, "INVALID_SCORE",
+        "sets or scoreA and scoreB are required")
+      return
+    sets = @[sessionScoring.SetScore(a: body["scoreA"].getInt(),
+                                     b: body["scoreB"].getInt())]
+
+  let rules = sessionSchedule.sessionRules(application.db, ctx.communityId,
+    sessionId)
+  if rules.isNone:
+    problem(request, 404, "NOT_FOUND", "session not found")
     return
-  let status = sessionSchedule.setScore(application.db, ctx.communityId,
-    sessionId, gameKey, version.get, body["scoreA"].getInt(),
-    body["scoreB"].getInt())
-  if status == sessionSchedule.ssInvalid:
-    # This is a score problem, not a schedule one; the generic
-    # INVALID_SCHEDULE told the client to look at the wrong body.
-    problem(request, 400, "INVALID_SCORE",
-      "scoreA and scoreB must differ and be between 0 and 99")
+  if not hasSets and rules.get.gamesToWin > 1:
+    problem(request, 400, "SETS_REQUIRED",
+      "this format needs set scores, not a single score")
     return
-  scheduleDone(request, ctx, sessionId, status)
+  let verdict = sessionScoring.validateSets(rules.get, sets)
+  if verdict.error != sessionScoring.seOk:
+    let code =
+      if verdict.error in {sessionScoring.seTooManySets,
+                           sessionScoring.seSetAfterEnd}:
+        "INVALID_SET_SEQUENCE"
+      else:
+        "INVALID_SCORE"
+    problem(request, 400, code, setErrorDetail(verdict))
+    return
+  scheduleDone(request, ctx, sessionId,
+    sessionSchedule.setSets(application.db, ctx.communityId, sessionId,
+      gameKey, version.get, sets))
 
 proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
                    gameKey: string) =
@@ -2000,6 +2100,64 @@ proc getSessionStandingsRoute(request: Request, ctx: CommunityContext,
     return
   jsonResponse(request, 200, board.get, [("Cache-Control", "no-store")])
 
+proc scoringJson(rules: sessionScoring.ScoringRules): JsonNode =
+  ## The public view of a session's frozen format. `mode` and the internal
+  ## target stay out; the client only needs what it renders and validates.
+  result = %*{
+    "preset": rules.id,
+    "label": rules.label,
+    "gamesToWin": rules.gamesToWin,
+    "pointsToWin": rules.pointsToWin,
+    "winBy": rules.winBy,
+    "maxPoints": rules.maxPoints,
+  }
+  result["deuceAt"] =
+    if rules.deuceAt.isSome: %rules.deuceAt.get else: newJNull()
+  result["changeEndsAt"] =
+    if rules.changeEndsAt.isSome: %rules.changeEndsAt.get else: newJNull()
+
+proc gameSets(db: Db, communityId, sessionId: string,
+              round, court: int): JsonNode =
+  result = newJArray()
+  for entry in db.query(
+    """select set_no, score_a, score_b from session.game_sets
+       where community_id = $1::uuid and session_id = $2::uuid
+         and round_no = $3 and court_no = $4
+       order by set_no""",
+    @[textParam(communityId), textParam(sessionId),
+      intParam(round.int64), intParam(court.int64)]):
+    result.add(%*{
+      "set": parseInt(entry.get("set_no")),
+      "a": parseInt(entry.get("score_a")),
+      "b": parseInt(entry.get("score_b"))})
+
+proc gamePayload(entry: Row): JsonNode =
+  ## One match from the results view. `scoreA/scoreB` are total points, kept
+  ## under the old names so existing readers do not break; the winner comes from
+  ## sets, never from comparing totals.
+  var sideA = newJArray()
+  var sideB = newJArray()
+  for slot in ["side_a1", "side_a2"]:
+    if entry.get(slot).len > 0: sideA.add(%entry.get(slot))
+  for slot in ["side_b1", "side_b2"]:
+    if entry.get(slot).len > 0: sideB.add(%entry.get(slot))
+  let winner = entry.get("winner")
+  # A match with no set has no score. Keeping NULL here matters: the legacy
+  # adapter treats a non-null 0-0 as a recorded result.
+  let scored = parseInt(entry.get("sets_played")) > 0
+  %*{
+    "round": parseInt(entry.get("round_no")),
+    "court": parseInt(entry.get("court_no")),
+    "sideA": sideA,
+    "sideB": sideB,
+    "scoreA": if scored: %parseInt(entry.get("points_a")) else: newJNull(),
+    "scoreB": if scored: %parseInt(entry.get("points_b")) else: newJNull(),
+    "setsWonA": parseInt(entry.get("sets_a")),
+    "setsWonB": parseInt(entry.get("sets_b")),
+    "winner": if winner == "a": %"A" elif winner == "b": %"B" else: newJNull(),
+    "status": entry.get("status"),
+  }
+
 proc getSessionDetail(request: Request, ctx: CommunityContext,
                       sessionId: string) =
   ## The whole session in one read: header, who is playing and the games. The
@@ -2008,12 +2166,14 @@ proc getSessionDetail(request: Request, ctx: CommunityContext,
   let row = application.db.queryOne(
     """select id, title, session_date::text as session_date,
               to_char(start_time, 'HH24:MI') as start_time, slot_minutes,
-              status, version
+              status, version, scoring_rules
        from session.sessions where id = $1 and community_id = $2""",
     @[textParam(sessionId), textParam(ctx.communityId)])
   if row.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
+  let rules = sessionScoring.parseSnapshotNode(
+    parseJson(row.get.get("scoring_rules")))
   let etag = "\"" & row.get.get("version") & "\""
   # A poll that already has this version costs a 304 instead of the full read.
   if ifNoneMatchHits(request, etag):
@@ -2031,28 +2191,20 @@ proc getSessionDetail(request: Request, ctx: CommunityContext,
       "name": entry.get("name"), "absent": entry.get("is_absent") == "t"})
   var games = newJArray()
   for entry in application.db.query(
-    """select round_no, court_no, score_a, score_b, status,
+    """select round_no, court_no, status, winner, points_a, points_b,
+              sets_played, sets_a, sets_b,
               coalesce(side_a1::text, '') as side_a1,
               coalesce(side_a2::text, '') as side_a2,
               coalesce(side_b1::text, '') as side_b1,
               coalesce(side_b2::text, '') as side_b2
-       from session.games
+       from session.game_results
        where community_id = $1::uuid and session_id = $2::uuid
        order by round_no, court_no""",
     @[textParam(ctx.communityId), textParam(sessionId)]):
-    var sideA = newJArray()
-    var sideB = newJArray()
-    for slot in ["side_a1", "side_a2"]:
-      if entry.get(slot).len > 0: sideA.add(%entry.get(slot))
-    for slot in ["side_b1", "side_b2"]:
-      if entry.get(slot).len > 0: sideB.add(%entry.get(slot))
-    games.add(%*{
-      "round": parseInt(entry.get("round_no")),
-      "court": parseInt(entry.get("court_no")),
-      "sideA": sideA, "sideB": sideB,
-      "scoreA": if entry["score_a"].isNone: newJNull() else: %parseInt(entry.get("score_a")),
-      "scoreB": if entry["score_b"].isNone: newJNull() else: %parseInt(entry.get("score_b")),
-      "status": entry.get("status")})
+    var game = gamePayload(entry)
+    game["sets"] = gameSets(application.db, ctx.communityId, sessionId,
+      parseInt(entry.get("round_no")), parseInt(entry.get("court_no")))
+    games.add(game)
   var skipped = newJObject()
   for entry in application.db.query(
     """select round_no, court_no, player_id::text as player_id
@@ -2072,6 +2224,7 @@ proc getSessionDetail(request: Request, ctx: CommunityContext,
     "slotMinutes": parseInt(row.get.get("slot_minutes")),
     "status": row.get.get("status"),
     "version": parseInt(row.get.get("version")),
+    "scoring": scoringJson(rules),
     "participants": participants,
     "games": games,
     "skippedPlayers": skipped},
@@ -2085,12 +2238,13 @@ proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
     problem(request, 400, "INVALID_GAME_KEY", "gameKey must be round-court")
     return
   let row = application.db.queryOne(
-    """select round_no, court_no, score_a, score_b, status,
+    """select round_no, court_no, status, winner, points_a, points_b,
+              sets_played, sets_a, sets_b,
               coalesce(side_a1::text, '') as side_a1,
               coalesce(side_a2::text, '') as side_a2,
               coalesce(side_b1::text, '') as side_b1,
               coalesce(side_b2::text, '') as side_b2
-       from session.games
+       from session.game_results
        where community_id = $1::uuid and session_id = $2::uuid
          and round_no = $3 and court_no = $4""",
     @[textParam(ctx.communityId), textParam(sessionId),
@@ -2098,19 +2252,10 @@ proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
   if row.isNone:
     problem(request, 404, "NOT_FOUND", "game not found")
     return
-  var sideA = newJArray()
-  var sideB = newJArray()
-  for slot in ["side_a1", "side_a2"]:
-    if row.get.get(slot).len > 0: sideA.add(%row.get.get(slot))
-  for slot in ["side_b1", "side_b2"]:
-    if row.get.get(slot).len > 0: sideB.add(%row.get.get(slot))
-  jsonResponse(request, 200, %*{
-    "round": parseInt(row.get.get("round_no")),
-    "court": parseInt(row.get.get("court_no")),
-    "sideA": sideA, "sideB": sideB,
-    "scoreA": if row.get["score_a"].isNone: newJNull() else: %parseInt(row.get.get("score_a")),
-    "scoreB": if row.get["score_b"].isNone: newJNull() else: %parseInt(row.get.get("score_b")),
-    "status": row.get.get("status")}, [("Cache-Control", "no-store")])
+  var payload = gamePayload(row.get)
+  payload["sets"] = gameSets(application.db, ctx.communityId, sessionId,
+    key.get[0], key.get[1])
+  jsonResponse(request, 200, payload, [("Cache-Control", "no-store")])
 
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
@@ -2148,20 +2293,23 @@ proc resolveShare(code: string): Option[JsonNode] =
   if found.isNone:
     return none(JsonNode)
   let value = found.get
+  let rules = sessionSchedule.sessionRules(application.db, value.communityId,
+    value.sessionId)
   var games = newJArray()
   for row in application.db.query(
-    """select g.id, g.round_no, g.court_no, g.score_a, g.score_b, g.status,
+    """select r.id, r.round_no, r.court_no, r.status, r.winner,
+              r.points_a, r.points_b, r.sets_played, r.sets_a, r.sets_b,
               coalesce(a1.canonical_name, '') as a1,
               coalesce(a2.canonical_name, '') as a2,
               coalesce(b1.canonical_name, '') as b1,
               coalesce(b2.canonical_name, '') as b2
-       from session.games g
-       left join player.players a1 on a1.id = g.side_a1
-       left join player.players a2 on a2.id = g.side_a2
-       left join player.players b1 on b1.id = g.side_b1
-       left join player.players b2 on b2.id = g.side_b2
-       where g.community_id = $1::uuid and g.session_id = $2::uuid
-       order by g.round_no, g.court_no""",
+       from session.game_results r
+       left join player.players a1 on a1.id = r.side_a1
+       left join player.players a2 on a2.id = r.side_a2
+       left join player.players b1 on b1.id = r.side_b1
+       left join player.players b2 on b2.id = r.side_b2
+       where r.community_id = $1::uuid and r.session_id = $2::uuid
+       order by r.round_no, r.court_no""",
     @[textParam(value.communityId), textParam(value.sessionId)]):
     # Names, not ids: a spectator cannot resolve a uuid, and the share payload
     # is the only read that has no session behind it.
@@ -2171,23 +2319,33 @@ proc resolveShare(code: string): Option[JsonNode] =
       if row.get(slot).len > 0: sideA.add(%row.get(slot))
     for slot in ["b1", "b2"]:
       if row.get(slot).len > 0: sideB.add(%row.get(slot))
+    let winner = row.get("winner")
+    let scored = parseInt(row.get("sets_played")) > 0
     games.add(%*{
       "id": row.get("id"),
       "round": parseInt(row.get("round_no")),
       "court": parseInt(row.get("court_no")),
       "sideA": sideA, "sideB": sideB,
-      "scoreA": if row["score_a"].isNone: newJNull() else: %parseInt(row.get("score_a")),
-      "scoreB": if row["score_b"].isNone: newJNull() else: %parseInt(row.get("score_b")),
+      "scoreA": if scored: %parseInt(row.get("points_a")) else: newJNull(),
+      "scoreB": if scored: %parseInt(row.get("points_b")) else: newJNull(),
+      "setsWonA": parseInt(row.get("sets_a")),
+      "setsWonB": parseInt(row.get("sets_b")),
+      "winner": if winner == "a": %"A" elif winner == "b": %"B" else: newJNull(),
+      "sets": gameSets(application.db, value.communityId, value.sessionId,
+        parseInt(row.get("round_no")), parseInt(row.get("court_no"))),
       "status": row.get("status"),
     })
-  some(%*{
+  var shared = %*{
     "session": {"id": value.sessionId, "title": value.title,
                 "date": value.sessionDate, "status": value.status},
     "community": {"slug": value.slug, "name": value.communityName},
     "games": games,
     "standings": publicStandings(sessionStandings.compute(application.db,
       value.communityId, value.sessionId)),
-  })
+  }
+  if rules.isSome:
+    shared["scoring"] = scoringJson(rules.get)
+  some(shared)
 
 proc getShared(request: Request, code: string) =
   let shared = resolveShare(code)

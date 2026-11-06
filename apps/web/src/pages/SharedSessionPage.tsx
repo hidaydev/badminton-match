@@ -6,6 +6,7 @@ import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatCompactDate } from '../utils/day'
 import { ordinal } from '../legacy/utils/ordinal'
+import { describeSets } from '../legacy/utils/scoring'
 import { getSharedSession } from '../share/api'
 import type { SharedGame, SharedSession, SharedStanding } from '../share/api'
 import { LoadingState } from '../components/LoadingState'
@@ -44,7 +45,7 @@ const GAME_STATUS: Record<string, MessageKey> = {
  */
 function standingsFromGames(games: SharedGame[]): SharedStanding[] {
   const rows = new Map<string, SharedStanding>()
-  const tally = (name: string, pointsFor: number, pointsAgainst: number) => {
+  const tally = (name: string, pointsFor: number, pointsAgainst: number, won: boolean) => {
     const row = rows.get(name) ?? {
       name,
       wins: 0,
@@ -53,7 +54,7 @@ function standingsFromGames(games: SharedGame[]): SharedStanding[] {
       pointsAgainst: 0,
       diff: 0,
     }
-    if (pointsFor > pointsAgainst) row.wins += 1
+    if (won) row.wins += 1
     else row.losses += 1
     row.pointsFor += pointsFor
     row.pointsAgainst += pointsAgainst
@@ -62,8 +63,10 @@ function standingsFromGames(games: SharedGame[]): SharedStanding[] {
   for (const game of games) {
     if (game.status !== 'played' || game.scoreA === null || game.scoreB === null) continue
     if (game.sideA.length === 0 || game.sideB.length === 0) continue
-    for (const name of game.sideA) tally(name, game.scoreA, game.scoreB)
-    for (const name of game.sideB) tally(name, game.scoreB, game.scoreA)
+    // The winner comes from the sets; total points only break board ties.
+    const aWon = game.winner === 'A' || (game.winner === undefined && game.scoreA > game.scoreB)
+    for (const name of game.sideA) tally(name, game.scoreA, game.scoreB, aWon)
+    for (const name of game.sideB) tally(name, game.scoreB, game.scoreA, !aWon)
   }
   for (const row of rows.values()) row.diff = row.pointsFor - row.pointsAgainst
   return [...rows.values()].sort(
@@ -231,6 +234,12 @@ export default function SharedSessionPage() {
             </time>
             {' · '}
             {statusLabel(session.session.status)}
+            {session.scoring && (
+              <>
+                {' · '}
+                {session.scoring.label}
+              </>
+            )}
           </p>
 
           <div
@@ -292,6 +301,13 @@ export default function SharedSessionPage() {
                             game.status === 'played' &&
                             game.scoreA !== null &&
                             game.scoreB !== null
+                          const sets = game.sets ?? []
+                          const multiSet = sets.length > 1 ||
+                            (session.scoring !== undefined && session.scoring !== null &&
+                              session.scoring.gamesToWin > 1)
+                          const headline = multiSet && sets.length > 0
+                            ? `${game.setsWonA ?? 0}–${game.setsWonB ?? 0}`
+                            : `${game.scoreA}–${game.scoreB}`
                           return (
                             <div
                               key={game.id}
@@ -319,8 +335,15 @@ export default function SharedSessionPage() {
                                 </span>
                               </div>
                               {played ? (
-                                <span className="shrink-0 whitespace-nowrap text-[11px] font-bold tabular-nums text-emerald-300">
-                                  {game.scoreA}–{game.scoreB}
+                                <span className="shrink-0 whitespace-nowrap text-right">
+                                  <span className="block text-[11px] font-bold tabular-nums text-emerald-300">
+                                    {headline}
+                                  </span>
+                                  {multiSet && sets.length > 1 && (
+                                    <span className="block text-[9px] text-slate-400">
+                                      {describeSets(sets)}
+                                    </span>
+                                  )}
                                 </span>
                               ) : (
                                 <span className="shrink-0 whitespace-nowrap text-[10px] text-slate-400">

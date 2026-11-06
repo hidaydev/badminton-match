@@ -63,6 +63,12 @@ proc seedSession(approved: bool, sessionDate = "2026-11-04",
     @[textParam(communityId), textParam(id), textParam(players[0]),
       textParam(players[1]), textParam(players[2]), textParam(players[3]),
       intParam(scoreA.int64), intParam(scoreB.int64)])
+  discard database.execUpdate(
+    """insert into session.game_sets
+         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+       values ($1::uuid, $2::uuid, 0, 0, 1, $3::int, $4::int)""",
+    @[textParam(communityId), textParam(id), intParam(scoreA.int64),
+      intParam(scoreB.int64)])
   id
 
 proc state(player: string): tuple[games: int, wins: int, losses: int] =

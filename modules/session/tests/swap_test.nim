@@ -116,6 +116,17 @@ proc readGame(sessionId: string, round, court: int): Game =
   if row["score_b"].isSome: result.scoreB = some(parseInt(row.get("score_b")))
   result.status = row.get("status")
 
+proc readSets(sessionId: string, round, court: int): seq[(int, int)] =
+  ## The recorded sets of one game, in order; a swap must carry these along.
+  for row in database.query(
+    """select score_a, score_b from session.game_sets
+       where community_id = $1::uuid and session_id = $2::uuid
+         and round_no = $3 and court_no = $4
+       order by set_no""",
+    @[textParam(communityId), textParam(sessionId),
+      intParam(round.int64), intParam(court.int64)]):
+    result.add((parseInt(row.get("score_a")), parseInt(row.get("score_b"))))
+
 proc gameVersion(sessionId: string, round, court: int): int =
   parseInt(database.queryOne(
     """select version from session.games
@@ -194,11 +205,16 @@ suite "session swap":
     check readGame(sessionId, 0, 0).sides ==
       [players[2], players[3], players[0], players[1]]
 
-  test "a slot swap moves both games, score and status included":
+  test "a slot swap moves both games, their sets and status":
     discard database.execUpdate(
       """update session.games set score_a = 21, score_b = 15, status = 'played'
          where community_id = $1::uuid and session_id = $2::uuid
            and round_no = 0 and court_no = 0""",
+      @[textParam(communityId), textParam(sessionId)])
+    discard database.execUpdate(
+      """insert into session.game_sets
+           (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+         values ($1::uuid, $2::uuid, 0, 0, 1, 21, 15)""",
       @[textParam(communityId), textParam(sessionId)])
     let patch = parseSwap(%*{"type": "slot",
       "a": {"slot": 0, "court": 0},
@@ -207,13 +223,12 @@ suite "session swap":
     check outcome.status == swOk
     let first = readGame(sessionId, 0, 0)
     check first.sides == [players[4], players[5], players[6], players[7]]
-    check first.scoreA.isNone and first.scoreB.isNone
     check first.status == "scheduled"
+    check readSets(sessionId, 0, 0).len == 0
     let second = readGame(sessionId, 1, 0)
     check second.sides == [players[0], players[1], players[2], players[3]]
-    check second.scoreA == some(21)
-    check second.scoreB == some(15)
     check second.status == "played"
+    check readSets(sessionId, 1, 0) == @[(21, 15)]
 
   test "marking a game played keeps it scoreless":
     let outcome = setPlayed(database, communityId, sessionId, "0-0", 1, true)

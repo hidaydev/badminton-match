@@ -100,6 +100,13 @@ proc addGame(sessionId: string, roundNo: int, game: Game) =
       intParam(game.scoreA.int64), intParam(game.scoreB.int64),
       textParam(game.a[0]), textParam(game.a[1]), textParam(game.b[0]),
       textParam(game.b[1])])
+  # Achievement tallying reads the result from the sets.
+  discard database.execUpdate(
+    """insert into session.game_sets
+         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+       values ($1::uuid, $2::uuid, $3, $3, 1, $4, $5)""",
+    @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
+      intParam(game.scoreA.int64), intParam(game.scoreB.int64)])
 
 proc skipGame(sessionId: string, roundNo: int, playerId: string) =
   discard database.execUpdate(

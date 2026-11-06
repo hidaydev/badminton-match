@@ -13,6 +13,7 @@ interface StandingsTabProps {
   players: Player[]
   schedule: ScheduleSlot[]
   gameScores: Record<string, GameScore>
+  playedGames: string[]
   absentPlayerIds: string[]
   skippedPlayers?: Record<string, string[]>
 }
@@ -21,6 +22,7 @@ export default function StandingsTab({
   players,
   schedule,
   gameScores,
+  playedGames,
   absentPlayerIds,
   skippedPlayers = EMPTY_SKIPPED,
 }: StandingsTabProps) {
@@ -35,9 +37,10 @@ export default function StandingsTab({
       gameScores,
       voidPlayerIds,
       skippedPlayers,
+      playedGames,
     )
     return { absentList, placeholderList, voidPlayerIds, standings }
-  }, [players, absentPlayerIds, schedule, gameScores, skippedPlayers])
+  }, [players, absentPlayerIds, schedule, gameScores, skippedPlayers, playedGames])
 
   const [selectedPlayer, setSelectedPlayer] = useState<{ standing: (typeof standings)[number]; rank: number } | null>(null)
   const hasScores = Object.keys(gameScores).length > 0

@@ -65,6 +65,7 @@ export default function SessionPreviewPage() {
           playerMap={playerMap}
           playedGames={[]}
           gameScores={snapshot.gameScores ?? {}}
+          scoring={snapshot.session.scoring}
           effectiveAbsent={new Set(snapshot.absentPlayers ?? [])}
           effectiveSkipped={{}}
           expandedScore={null}
@@ -83,9 +84,11 @@ export default function SessionPreviewPage() {
           handleChangeSelect={noop}
           handleDragEnd={noop}
           handleScoreSave={noop}
+          handleClearScore={noop}
           setExpandedScore={noop}
           setScoreError={noop}
           setDraftScores={noop as never}
+          updateDraftSet={noop as never}
           highlightedPlayerId={highlightedPlayerId}
         />
         <PlayerStatsPanel

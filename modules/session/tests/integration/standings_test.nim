@@ -71,6 +71,14 @@ suite "session standings":
         (if sideA2.len > 0: textParam(sideA2) else: nullParam()),
         (if sideB1.len > 0: textParam(sideB1) else: nullParam()),
         (if sideB2.len > 0: textParam(sideB2) else: nullParam())])
+    # The board reads the result from the sets; a played game needs its one set.
+    if status == "played":
+      discard db.execUpdate(
+        """insert into session.game_sets
+             (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+           values ($1::uuid, $2::uuid, $3, $4, 1, $5, $6)""",
+        @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
+          intParam(courtNo.int64), intParam(scoreA.int64), intParam(scoreB.int64)])
 
   test "tallies played games, drops absent-only sides and orders like v1":
     addGame(0, 0, 21, 18, "played", players[0], players[1], players[2], players[3])
