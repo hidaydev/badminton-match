@@ -7,6 +7,12 @@ export const POST_WIDTH = 1080
 /** Instagram post height (1080×1350 = 4:5 ratio) */
 export const POST_HEIGHT = 1350
 
+/** Instagram story width (1080px) */
+export const STORY_WIDTH = 1080
+
+/** Instagram story height (1080×1920 = 9:16 ratio) */
+export const STORY_HEIGHT = 1920
+
 /** Header gradient band height */
 export const HEADER_H = 90
 

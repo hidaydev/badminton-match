@@ -1,5 +1,7 @@
 // src/config/instagramTemplates.ts
 
+import { POST_HEIGHT, POST_WIDTH } from './canvas'
+
 interface PostTemplate {
   id: string
   label: string
@@ -17,8 +19,8 @@ export const instagramTemplates: PostTemplate[] = [
   {
     id: 'portrait-v1',
     label: 'Portrait 4:5',
-    width: 1080,
-    height: 1350,
+    width: POST_WIDTH,
+    height: POST_HEIGHT,
     logo: '/instagram-logo.png',
     footer: '/instagram-footer.png',
     brushStroke: '/brush-stroke.webp',
@@ -28,8 +30,8 @@ export const instagramTemplates: PostTemplate[] = [
   {
     id: 'portrait-v2',
     label: 'Dark Frame',
-    width: 1080,
-    height: 1350,
+    width: POST_WIDTH,
+    height: POST_HEIGHT,
     footer: '/instagram-post-v2-frame.png',
     brushStroke: '/brush-stroke.webp',
     storyBg: '/story-bg-v2.png',

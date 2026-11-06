@@ -1,6 +1,7 @@
 // src/pages/InstagramPostPage.tsx
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { instagramTemplates } from '../config/instagramTemplates'
+import { POST_HEIGHT, POST_WIDTH, STORY_HEIGHT, STORY_WIDTH } from '../config/canvas'
 import { ACTIVE_TEMPLATE } from '../utils/canvas-templates/config'
 import { useListSessions, useFetchSession } from '../queries'
 import { computeStandings } from '../utils/standings'
@@ -259,8 +260,8 @@ export default function InstagramPostPage() {
       )
 
       const isStory = mode === 'story'
-      const W = 1080
-      const H = isStory ? 1920 : 1350
+      const W = POST_WIDTH
+      const H = isStory ? STORY_HEIGHT : POST_HEIGHT
 
       const offscreen = document.createElement('canvas')
       offscreen.width = W
@@ -333,7 +334,7 @@ export default function InstagramPostPage() {
     }
     closeSheet()
 
-    const W = 1080, H = 1920
+    const W = STORY_WIDTH, H = STORY_HEIGHT
     const offscreen = document.createElement('canvas')
     offscreen.width = W
     offscreen.height = H
@@ -518,7 +519,7 @@ export default function InstagramPostPage() {
                     <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600" />
                     <div className="text-center">
                       <p className="text-sm font-bold text-white">Post</p>
-                      <p className="text-[11px] text-slate-400">1080 × 1350</p>
+                      <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
                     </div>
                   </button>
 
@@ -532,7 +533,7 @@ export default function InstagramPostPage() {
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-bold text-black">Story</p>
-                      <p className="text-[11px] text-yellow-800">1080 × 1920</p>
+                      <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
                     </div>
                   </button>
 
@@ -546,7 +547,7 @@ export default function InstagramPostPage() {
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-bold text-white">Leaderboard Post</p>
-                      <p className="text-[11px] text-slate-400">1080 × 1350</p>
+                      <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
                     </div>
                   </button>
 
@@ -560,7 +561,7 @@ export default function InstagramPostPage() {
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-bold text-black">Leaderboard Story</p>
-                      <p className="text-[11px] text-yellow-800">1080 × 1920</p>
+                      <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
                     </div>
                   </button>
                 </div>
