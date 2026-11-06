@@ -36,10 +36,10 @@ Postgres 18.6 · skema per domain (platform, community, player, session,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Setiap operasi punya handler (gagal kompilasi bila tidak) dan baris otorisasi di
   `testdata/authz/matrix.yaml`; `./task contract-check` menjaga fingerprint.
-- **27 migrasi** di `db/migrations/` (`0001`–`0027`, terakhir
-  `0027_invite_ttl_scope.sql`); seed: `db/seeds/platform_config.sql`,
+- **28 migrasi** di `db/migrations/` (`0001`–`0028`, terakhir
+  `0028_config_cleanup.sql`); seed: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
-- **35 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
+- **32 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
   override per komunitas di `community.settings` hanya boleh mempersempit platform.
 - Nama database: produksi `bm2` (arsip v1 `bm` read-only), lokal `bm2_dev`,
   `bm2_ops`, `bm2_e2e`, `bm2_parity_v2`; cutover memakai `bm_staging`.

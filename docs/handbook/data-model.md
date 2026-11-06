@@ -147,7 +147,7 @@ revert/rebuild). Halaman pemain mengambil `points` dari baris papan
 
 Semua angka bisnis dibaca dari `platform.config` + override `community.settings`.
 Defaults di `db/seeds/platform_config.sql`; kunci dan tipenya dikunci di
-`modules/platform/config/registry.nim:13-50`. Nilai hilang, tipe salah, atau
+`modules/platform/config/registry.nim:13-46`. Nilai hilang, tipe salah, atau
 `scope` yang tidak cocok dengan registry membuat proses menolak start
 (`modules/platform/config/store.nim:50-78`). Nilai `community.default_timezone`
 diperiksa terhadap `pg_timezone_names` saat komunitas dibuat dan saat settings
@@ -156,13 +156,13 @@ ditulis, jadi zona yang tidak dikenal ditolak sebagai `400`, bukan disimpan.
 | Kelompok | Key (default seed) |
 |---|---|
 | Komunitas | `community.join_requests_enabled` (`false`), `community.invite_ttl_days` (`7`), `community.directory_enabled` (`false`), `community.default_timezone` (`Asia/Jakarta`) |
-| Ingest & halaman | `ingest.ticker_minutes` (`30`), `api.page_size_default` (`100`), `rank.board_limit` (`200`) |
+| Halaman | `api.page_size_default` (`100`), `api.page_size_max` (`500`), `rank.board_limit` (`200`) |
 | Poin | `rating.session_base` (`250`), `rating.score_target` (`21`), `rating.opponent_clamp` (`[0.5,1.5]`), `rating.window_weeks` (`12`), `rating.best_n` (`10`), `rating.thin_evidence_n` (`3`), `rating.tier_bands` (8 band kelas D 1000–1199 … A+ 2100–terbuka) |
 | Turnamen | konstanta domain `PairCount = 16` (bukan config; 16 pair adalah aturan format) |
-| Ekspor | `export.post_width`/`post_height` (`1080×1350`), `export.story_width`/`story_height` (`1080×1920`) |
-| Keamanan | `security.allowed_origins`, `security.rate_limit_per_minute` (`300`), `security.max_body_bytes` (`1048576`), `security.max_json_depth` (`16`), `security.read_timeout_ms` (`15000`), `security.join_request_rate` (`5`), `security.share_scrape_limit` (`120`) |
+| Keamanan | `security.allowed_origins`, `security.rate_limit_per_minute` (`300`), `security.max_body_bytes` (`1048576`), `security.max_json_depth` (`16`), `security.join_request_rate` (`5`), `security.share_scrape_limit` (`120`) |
 | Realtime | `ws.max_watchers_per_session` (`50`), `ws.max_watchers_per_ip` (`20`), `ws.max_watchers_process` (`500`), `ws.ticket_ttl_seconds` (`60`) |
-| Sesi login | `session.absolute_days` (`30`), `session.idle_days` (`7`), `auth.flow_ttl_minutes` (`10`) |
+| Sesi login | `session.absolute_days` (`30`), `session.idle_days` (`7`), `session.slot_minutes_default` (`30`), `auth.flow_ttl_minutes` (`10`) |
+| Tautan publik | `share.link_ttl_days` (`30`) |
 | Retensi | `janitor.retention_days` (`30`), `audit.retention_days` (`365`) |
 
 `rating.tier_bands` adalah **atribut tampilan/klasifikasi**, bukan hasil hitung poin:

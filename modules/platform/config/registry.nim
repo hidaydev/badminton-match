@@ -16,8 +16,8 @@ type
     keyCommunityDirectoryEnabled = "community.directory_enabled"
     keyCommunityInviteTtlDays = "community.invite_ttl_days"
     keyCommunityJoinRequestsEnabled = "community.join_requests_enabled"
-    keyIngestTickerMinutes = "ingest.ticker_minutes"
     keyApiPageSizeDefault = "api.page_size_default"
+    keyApiPageSizeMax = "api.page_size_max"
     keyRankBoardLimit = "rank.board_limit"
     keyRankMinSessions = "rank.min_sessions"
     keyRatingSessionBase = "rating.session_base"
@@ -27,15 +27,10 @@ type
     keyRatingBestN = "rating.best_n"
     keyRatingThinEvidenceN = "rating.thin_evidence_n"
     keyRatingTierBands = "rating.tier_bands"
-    keyExportPostWidth = "export.post_width"
-    keyExportPostHeight = "export.post_height"
-    keyExportStoryWidth = "export.story_width"
-    keyExportStoryHeight = "export.story_height"
     keySecurityAllowedOrigins = "security.allowed_origins"
     keySecurityRateLimitPerMinute = "security.rate_limit_per_minute"
     keySecurityMaxBodyBytes = "security.max_body_bytes"
     keySecurityMaxJsonDepth = "security.max_json_depth"
-    keySecurityReadTimeoutMs = "security.read_timeout_ms"
     keySecurityJoinRequestRate = "security.join_request_rate"
     keySecurityShareScrapeLimit = "security.share_scrape_limit"
     keyWsMaxWatchersPerSession = "ws.max_watchers_per_session"
@@ -44,9 +39,11 @@ type
     keyWsTicketTtlSeconds = "ws.ticket_ttl_seconds"
     keySessionAbsoluteDays = "session.absolute_days"
     keySessionIdleDays = "session.idle_days"
+    keySessionSlotMinutesDefault = "session.slot_minutes_default"
     keyAuthFlowTtlMinutes = "auth.flow_ttl_minutes"
     keyJanitorRetentionDays = "janitor.retention_days"
     keyAuditRetentionDays = "audit.retention_days"
+    keyShareLinkTtlDays = "share.link_ttl_days"
 
   KeySpec* = object
     key*: ConfigKey
@@ -68,8 +65,8 @@ const allKeys* = [
   spec(keyCommunityInviteTtlDays, ctInt, 1, 365, true,
     scope = csCommunity),
   spec(keyCommunityJoinRequestsEnabled, ctBool, scope = csCommunity),
-  spec(keyIngestTickerMinutes, ctInt, 1, 1440, true),
   spec(keyApiPageSizeDefault, ctInt, 1, 1000, true),
+  spec(keyApiPageSizeMax, ctInt, 1, 10_000, true),
   spec(keyRankBoardLimit, ctInt, 1, 10_000, true),
   spec(keyRankMinSessions, ctInt, 0, 100, true),
   spec(keyRatingSessionBase, ctDecimal, 0, 100_000, true),
@@ -79,15 +76,10 @@ const allKeys* = [
   spec(keyRatingBestN, ctInt, 1, 100, true),
   spec(keyRatingThinEvidenceN, ctInt, 0, 100, true),
   spec(keyRatingTierBands, ctJson),
-  spec(keyExportPostWidth, ctInt, 320, 4096, true),
-  spec(keyExportPostHeight, ctInt, 320, 4096, true),
-  spec(keyExportStoryWidth, ctInt, 320, 4096, true),
-  spec(keyExportStoryHeight, ctInt, 320, 4096, true),
   spec(keySecurityAllowedOrigins, ctJson),
   spec(keySecurityRateLimitPerMinute, ctInt, 1, 100_000, true),
   spec(keySecurityMaxBodyBytes, ctInt, 1024, 16_777_216, true),
   spec(keySecurityMaxJsonDepth, ctInt, 1, 64, true),
-  spec(keySecurityReadTimeoutMs, ctInt, 100, 300_000, true),
   spec(keySecurityJoinRequestRate, ctInt, 1, 1000, true),
   spec(keySecurityShareScrapeLimit, ctInt, 1, 10_000, true),
   spec(keyWsMaxWatchersPerSession, ctInt, 1, 100_000, true),
@@ -96,9 +88,11 @@ const allKeys* = [
   spec(keyWsTicketTtlSeconds, ctInt, 5, 3600, true),
   spec(keySessionAbsoluteDays, ctInt, 1, 365, true),
   spec(keySessionIdleDays, ctInt, 1, 90, true),
+  spec(keySessionSlotMinutesDefault, ctInt, 1, 240, true),
   spec(keyAuthFlowTtlMinutes, ctInt, 1, 60, true),
   spec(keyJanitorRetentionDays, ctInt, 1, 3650, true),
   spec(keyAuditRetentionDays, ctInt, 1, 3650, true),
+  spec(keyShareLinkTtlDays, ctInt, 1, 365, true),
 ]
 
 proc mayWiden*(key: ConfigKey): bool =

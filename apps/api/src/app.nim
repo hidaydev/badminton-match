@@ -584,7 +584,7 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   var title = ""
   var date = ""
   var startTime = "00:00"
-  var slot = 30
+  var slot = configSnapshot().intValue(%*{}, keySessionSlotMinutesDefault)
   try:
     # `getStr`/`getInt` answer their default on a kind mismatch, so each field
     # is type-checked before it is read: a numeric title must not become "".
@@ -670,7 +670,8 @@ proc listSessions(request: Request, ctx: CommunityContext) =
       limit = parseInt(rawLimit)
     except ValueError:
       limit = configured
-  limit = max(1, min(limit, 500))
+  let pageSizeMax = configSnapshot().intValue(%*{}, keyApiPageSizeMax)
+  limit = max(1, min(limit, pageSizeMax))
   var offset = 0
   let rawOffset = request.queryParams["offset"]
   if rawOffset.len > 0:
@@ -733,7 +734,8 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
          and revoked_at is null""",
     @[textParam(ctx.communityId), textParam(sessionId)])
   let code = shareStore.issue(application.db, application.keyring,
-    ctx.communityId, sessionId, user.id)
+    ctx.communityId, sessionId, user.id,
+    configSnapshot().intValue(%*{}, keyShareLinkTtlDays))
   if previous.isSome:
     application.hub.revokeShare(previous.get.get("id"))
   audit("share.issue", ctx, user, "session", sessionId,
@@ -1240,12 +1242,13 @@ proc communityConfig(request: Request, ctx: CommunityContext) =
 
 proc playerLimit(request: Request): int =
   let fallback = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
+  let pageSizeMax = configSnapshot().intValue(%*{}, keyApiPageSizeMax)
   let raw = request.queryParams["limit"]
   if raw.len == 0:
     return fallback
   try:
     let value = parseInt(raw)
-    if value < 1 or value > 1000:
+    if value < 1 or value > pageSizeMax:
       return fallback
     value
   except ValueError:

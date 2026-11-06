@@ -22,7 +22,7 @@ proc aadFor(communityId, linkId: string): string =
   communityId & "|" & linkId
 
 proc issue*(db: Db, keyring: Keyring, communityId, sessionId,
-            createdBy: string): string =
+            createdBy: string, ttlDays: int): string =
   ## Rotating the *link*: the previous live code stops resolving in the same
   ## transaction because a partial unique index allows only one live row. Links
   ## expire: a code forwarded in a group chat should not resolve forever.
@@ -40,10 +40,10 @@ proc issue*(db: Db, keyring: Keyring, communityId, sessionId,
            (id, community_id, session_id, code_hash, code_enc, key_id, created_by,
             expires_at)
          values ($1::uuid, $2::uuid, $3::uuid, decode($4,'hex'), decode($5,'hex'),
-                 $6, $7::uuid, now() + interval '30 days')""",
+                 $6, $7::uuid, now() + make_interval(days => $8))""",
       @[textParam(linkId), textParam(communityId), textParam(sessionId),
         textParam(sha256Hex(code)), textParam(bytesHex(encrypted)),
-        textParam(keyId), textParam(createdBy)])
+        textParam(keyId), textParam(createdBy), intParam(ttlDays.int64)])
     1)
   code
 

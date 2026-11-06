@@ -52,7 +52,7 @@ suite "share links":
     db.close()
 
   test "a new code resolves with its session and community":
-    let code = issue(db, keyring, communityId, sessionId, userId)
+    let code = issue(db, keyring, communityId, sessionId, userId, 30)
     check code.len == 32
     let found = resolve(db, keyring, code)
     check found.isSome
@@ -60,27 +60,27 @@ suite "share links":
     check found.get.slug == "share-test"
 
   test "the same code cannot be resolved across communities":
-    let code = issue(db, keyring, communityId, sessionId, userId)
+    let code = issue(db, keyring, communityId, sessionId, userId, 30)
     let found = resolve(db, keyring, code).get
     check found.communityId == communityId
     check resolve(db, keyring, "0" & code[1 .. ^1]).isNone or
       resolve(db, keyring, "0" & code[1 .. ^1]).get.communityId == communityId
 
   test "rotating the link revokes the previous code":
-    let first = issue(db, keyring, communityId, sessionId, userId)
-    let second = issue(db, keyring, communityId, sessionId, userId)
+    let first = issue(db, keyring, communityId, sessionId, userId, 30)
+    let second = issue(db, keyring, communityId, sessionId, userId, 30)
     check first != second
     check resolve(db, keyring, first).isNone
     check resolve(db, keyring, second).isSome
 
   test "current code is re-readable by the store":
-    let code = issue(db, keyring, communityId, sessionId, userId)
+    let code = issue(db, keyring, communityId, sessionId, userId, 30)
     check currentCode(db, keyring, communityId, sessionId).get == code
     check currentCode(db, keyring, otherCommunityId, otherSessionId).isNone
 
   test "key rotation re-encrypts old links and is idempotent":
     let oldKeyring = loadKeyring(keysJson, "1")
-    let code = issue(db, oldKeyring, communityId, sessionId, userId)
+    let code = issue(db, oldKeyring, communityId, sessionId, userId, 30)
     check resolve(db, oldKeyring, code).isSome
     # The row is sealed with key 1; the active key is 2.
     # Other rows in the database may also still be sealed with key 1, so the
@@ -92,7 +92,7 @@ suite "share links":
     check secondPass == 0
 
   test "a v1 style session id resolves while the session has a live link":
-    discard issue(db, keyring, communityId, sessionId, userId)
+    discard issue(db, keyring, communityId, sessionId, userId, 30)
     # `/s/{sessionId}` is what version one handed out; the row is still live, so
     # the id answers for it and links already in a group chat keep working.
     let byId = resolve(db, keyring, sessionId)
@@ -103,14 +103,14 @@ suite "share links":
     check resolve(db, keyring, "not-a-link").isNone
 
   test "a revoked session answers no longer answers by its id":
-    let code = issue(db, keyring, communityId, sessionId, userId)
+    let code = issue(db, keyring, communityId, sessionId, userId, 30)
     check resolve(db, keyring, sessionId).isSome
     check revokeLive(db, communityId, sessionId).len == 1
     check resolve(db, keyring, sessionId).isNone
     check resolve(db, keyring, code).isNone
 
   test "liveLinks lists only the live rows":
-    discard issue(db, keyring, communityId, sessionId, userId)
+    discard issue(db, keyring, communityId, sessionId, userId, 30)
     let live = liveLinks(db, communityId, sessionId)
     check live.len == 1
     discard revokeLive(db, communityId, sessionId)

@@ -413,7 +413,7 @@ suite "rankings HTTP":
     let ownerId = database.queryOne(
       """select id from platform.user where google_sub = 'rank-owner'"""
       ).get.get("id")
-    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId)
+    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId, 30)
     let (status, body) = call("/s/" & code & "/rankings")
     check status == 200
     check parseJson(body)["items"].len == 3
@@ -424,7 +424,7 @@ suite "rankings HTTP":
     let ownerId = database.queryOne(
       """select id from platform.user where google_sub = 'rank-owner'"""
       ).get.get("id")
-    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId)
+    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId, 30)
     let (status, body) = call("/s/" & code & "/rankings/" & players[0])
     check status == 200
     check parseJson(body)["rank"].getInt() == 1
@@ -448,7 +448,7 @@ suite "rankings HTTP":
          values ($1::uuid, $2::uuid, 'admin')""",
       @[textParam(communityId), textParam(adminId)])
     let adminCookie = createSession(database, adminId, 30)
-    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId)
+    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId, 30)
     let (live, _) = call("/s/" & code)
     check live == 200
     let path = "/c/rank-club/sessions/" & sessionId & "/share"
@@ -543,7 +543,7 @@ suite "rankings HTTP":
     let ownerId = database.queryOne(
       """select id from platform.user where google_sub = 'rank-owner'"""
       ).get.get("id")
-    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId)
+    let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId, 30)
     let (status, body) = call("/s/" & code & "/rankings")
     check status == 200
     let items = parseJson(body)["items"]

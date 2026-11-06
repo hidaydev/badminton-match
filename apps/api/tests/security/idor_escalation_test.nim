@@ -60,7 +60,7 @@ proc bootstrap() =
   sessionA = makeSession(database, clubId, "Alpha Session")
   sessionB = makeSession(database, otherId, "Bravo Session")
   shareB = shareStore.issue(database, loadKeyring(keysJson, "1"), otherId,
-    sessionB, adminId)
+    sessionB, adminId, 30)
 
   startServer(newTestApp(database), port, baseUrl)
 

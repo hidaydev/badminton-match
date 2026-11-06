@@ -59,6 +59,12 @@ suite "platform config":
     for entry in allKeys:
       check snapshot.values.hasKey($entry.key)
 
+  test "the business defaults load":
+    let snapshot = loadSnapshot(db)
+    check snapshot.intValue(%*{}, keyShareLinkTtlDays) == 30
+    check snapshot.intValue(%*{}, keyApiPageSizeMax) == 500
+    check snapshot.intValue(%*{}, keySessionSlotMinutesDefault) == 30
+
   test "missing key refuses to load":
     discard db.execUpdate("delete from platform.config where key = $1",
       @[textParam($keyWsTicketTtlSeconds)])

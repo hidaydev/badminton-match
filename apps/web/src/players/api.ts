@@ -32,7 +32,7 @@ export type PlayerFilter = {
   limit?: number
 }
 
-/** The list is keyset-paginated; the page size is the caller's, within 1..1000. */
+/** The list is keyset-paginated; the page size is the caller's, within the platform ceiling. */
 export const PLAYER_PAGE = 50
 
 function queryString(filter: PlayerFilter): string {

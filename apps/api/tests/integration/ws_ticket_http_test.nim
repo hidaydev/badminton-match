@@ -110,7 +110,7 @@ proc bootstrap() =
        values ($1::uuid, 'Foreign', '2026-11-03', 'draft', 'manual') returning id""",
     @[textParam(otherCommunityId)]).get.get("id")
   cookie = createSession(database, userId, 30)
-  shareCode = shareStore.issue(database, keyring, communityId, sessionId, userId)
+  shareCode = shareStore.issue(database, keyring, communityId, sessionId, userId, 30)
   ttl = parseInt(database.queryOne(
     "select value from platform.config where key = 'ws.ticket_ttl_seconds'").get.get("value"))
 
