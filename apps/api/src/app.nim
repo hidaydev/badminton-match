@@ -401,9 +401,15 @@ proc finishAuth(request: Request) =
     problem(request, 500, "USER_UPSERT_FAILED", "cannot create user")
     return
   # Invitations bound to this address (including the first-admin invite created
-  # with the community) are honoured at login.
-  discard inviteStore.acceptPendingForEmail(application.db,
-    userRow.get.get("id"), sha256Hex(email))
+  # with the community) are honoured at login. Only a membership this login
+  # created is audited: a returning member already holds the grant, and a second
+  # `community.join` row would claim they joined twice.
+  let loginUser = AuthUser(id: userRow.get.get("id"),
+    isOwner: userRow.get.get("is_platform_owner") == "t")
+  for grant in inviteStore.acceptPendingForEmail(application.db,
+      loginUser.id, sha256Hex(email)):
+    audit("community.join", grant.communityId, loginUser, "community",
+      grant.communityId, %*{"role": grant.role}, grant.role)
   let token = createSessionToken(userRow.get.get("id"))
   authAudit("auth.login", AuthUser(id: userRow.get.get("id"),
     isOwner: userRow.get.get("is_platform_owner") == "t"))

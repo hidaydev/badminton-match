@@ -52,6 +52,18 @@ suite "community access":
     check second.role == "host"
     check membership.list(db, communityId).anyIt(it.userId == outsiderId and it.role == "host")
 
+  test "login auto-accept reports only the memberships it created":
+    # The first-admin invite is pending for this address at first login.
+    let first = invite.acceptPendingForEmail(db, adminId, sha256Hex(adminEmail))
+    check first.len == 1
+    check first[0].communityId == communityId
+    check first[0].role == "admin"
+    # The invite is redeemed and the membership now exists: a second run must
+    # not report the grant again, or the caller would audit a no-op.
+    check invite.acceptPendingForEmail(db, adminId, sha256Hex(adminEmail)).len == 0
+    discard invite.create(db, communityId, sha256Hex(adminEmail), "host", adminId, 7)
+    check invite.acceptPendingForEmail(db, adminId, sha256Hex(adminEmail)).len == 0
+
   test "a different address cannot redeem the invitation":
     let token = invite.create(db, communityId, sha256Hex(outsiderEmail), "member",
       adminId, 7)

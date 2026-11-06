@@ -60,10 +60,13 @@ proc lookup*(db: Db, token: string): AcceptResult =
       role: detail.role, emailHash: detail.emailHash)
   detail
 
-proc acceptPendingForEmail*(db: Db, userId, emailHash: string): seq[string] =
+proc acceptPendingForEmail*(db: Db, userId, emailHash: string):
+    seq[tuple[communityId, role: string]] =
   ## Invitations bound to this address are granted at login, which is how the
-  ## first admin named at community creation becomes an admin (COM-01).
-  var joined: seq[string] = @[]
+  ## first admin named at community creation becomes an admin (COM-01). Only
+  ## memberships this call actually created are reported: an existing member
+  ## already had the grant, and reporting it again would audit a no-op.
+  var joined: seq[tuple[communityId, role: string]] = @[]
   discard db.tx(proc(conn: DbConn): int =
     for row in conn.query(
       """update community.invite
@@ -72,13 +75,16 @@ proc acceptPendingForEmail*(db: Db, userId, emailHash: string): seq[string] =
            and (expires_at is null or expires_at > now())
          returning community_id, role""",
       @[textParam(emailHash)]):
-      let communityId = row.get("community_id")
-      discard conn.execUpdate(
+      let granted = conn.queryOne(
         """insert into community.membership (community_id, user_id, role)
            values ($1::uuid, $2::uuid, $3)
-           on conflict (community_id, user_id) do nothing""",
-        @[textParam(communityId), textParam(userId), textParam(row.get("role"))])
-      joined.add(communityId)
+           on conflict (community_id, user_id) do nothing
+           returning role""",
+        @[textParam(row.get("community_id")), textParam(userId),
+          textParam(row.get("role"))])
+      if granted.isSome:
+        joined.add((communityId: row.get("community_id"),
+          role: granted.get.get("role")))
     1)
   joined
 
