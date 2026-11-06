@@ -50,12 +50,15 @@ proc lookup*(db: Db, token: string): AcceptResult =
     @[textParam(sha256Hex(token))])
   if row.isNone:
     return AcceptResult(outcome: aoNotFound)
-  if row.get.get("accepted") == "t":
-    return AcceptResult(outcome: aoUsed)
-  if row.get.get("expired") == "t":
-    return AcceptResult(outcome: aoExpired)
-  AcceptResult(outcome: aoOk, communityId: row.get.get("community_id"),
+  let detail = AcceptResult(communityId: row.get.get("community_id"),
     role: row.get.get("role"), emailHash: row.get.get("email_hash"))
+  if row.get.get("accepted") == "t":
+    return AcceptResult(outcome: aoUsed, communityId: detail.communityId,
+      role: detail.role, emailHash: detail.emailHash)
+  if row.get.get("expired") == "t":
+    return AcceptResult(outcome: aoExpired, communityId: detail.communityId,
+      role: detail.role, emailHash: detail.emailHash)
+  detail
 
 proc acceptPendingForEmail*(db: Db, userId, emailHash: string): seq[string] =
   ## Invitations bound to this address are granted at login, which is how the
@@ -84,10 +87,24 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
   ## cannot both succeed. The email check happens before the claim and leaves
   ## the invite usable by its intended recipient.
   let found = lookup(db, token)
-  if found.outcome != aoOk:
+  if found.outcome == aoNotFound:
     return found
   if found.emailHash != emailHash:
     return AcceptResult(outcome: aoEmailMismatch)
+  if found.outcome == aoUsed:
+    # Login claims every unused invite for the address, so the recipient who
+    # follows the link afterwards finds their own invitation already redeemed.
+    # Same address, same outcome: report the membership it granted.
+    let held = db.queryOne(
+      """select role from community.membership
+         where community_id = $1::uuid and user_id = $2::uuid""",
+      @[textParam(found.communityId), textParam(userId)])
+    if held.isSome:
+      return AcceptResult(outcome: aoOk, communityId: found.communityId,
+        role: held.get.get("role"), emailHash: found.emailHash)
+    return found
+  if found.outcome == aoExpired:
+    return found
 
   var communityId, role: string
   discard db.tx(proc(conn: DbConn): int =

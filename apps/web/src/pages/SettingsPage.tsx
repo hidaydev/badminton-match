@@ -462,6 +462,12 @@ function Invites({
           <span className="mt-1 block font-mono text-xs break-all text-fg-dim">
             {invite.token}
           </span>
+          <a
+            href={`/invites/${encodeURIComponent(invite.token)}`}
+            className="mt-1 block min-h-11 break-all font-mono text-xs text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {`${window.location.origin}/invites/${invite.token}`}
+          </a>
         </p>
       )}
     </section>

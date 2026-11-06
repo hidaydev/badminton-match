@@ -131,9 +131,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMemberships([])
   }, [queryClient])
 
+  const refreshMemberships = useCallback(async () => {
+    const joined = await fetchMemberships()
+    setMemberships(joined)
+    return joined
+  }, [])
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, memberships, loading, loggingIn, login, logout }),
-    [user, memberships, loading, loggingIn, login, logout],
+    () => ({ user, memberships, loading, loggingIn, login, logout, refreshMemberships }),
+    [user, memberships, loading, loggingIn, login, logout, refreshMemberships],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

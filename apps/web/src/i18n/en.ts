@@ -35,6 +35,24 @@ export const en = {
   'login.pending': 'Redirecting…',
   'login.error': 'Sign in could not be started. Try again.',
 
+  'invite.title': 'Community invitation',
+  'invite.signedOutHint':
+    'This link adds your account to a community. Sign in with the address the invitation was sent to, and you will come back to this page.',
+  'invite.signIn': 'Sign in to accept',
+  'invite.signedInHint':
+    'Accepting adds your account to this community. The link works once and is bound to the address it was sent to.',
+  'invite.signedInAs': 'Signed in as {name}',
+  'invite.accept': 'Accept invitation',
+  'invite.accepting': 'Accepting…',
+  'invite.accepted': 'You joined as {role}.',
+  'invite.open': 'Open community',
+  'invite.error.emailMismatch':
+    'This invitation was sent to a different address. Sign in with that account to accept it.',
+  'invite.error.used': 'This invitation has already been used.',
+  'invite.error.expired': 'This invitation has expired. Ask an administrator for a new one.',
+  'invite.error.notFound': 'This invitation link is not valid.',
+  'invite.error.failed': 'The invitation could not be accepted. Try again.',
+
   'home.title': 'Your communities',
   'home.subtitle': 'Pick a community to continue.',
   'home.empty': 'No community yet',
@@ -308,7 +326,7 @@ export const en = {
   'admin.invites.email': 'Email',
   'admin.invites.role': 'Role',
   'admin.invites.create': 'Create invite',
-  'admin.invites.created': 'Invite ready, valid for {days} days. Copy the token now; it is shown once.',
+  'admin.invites.created': 'Invite ready, valid for {days} days. Copy the link now; it is shown once.',
   'admin.requests': 'Join requests',
   'admin.requests.empty': 'Nobody is waiting.',
   'admin.requests.approve': 'Approve',
@@ -393,6 +411,7 @@ export const en = {
   'shell.back': 'Back',
   'shell.brand': 'MAJADU',
   'shell.refresh': 'Refresh',
+  'session.backToCommunity': 'Back to community',
   'shell.active': 'Active',
   'shell.reset': 'Reset',
   'shell.resetConfirm': 'Reset this session draft? A published session stays on the server.',

@@ -154,8 +154,15 @@ suite "community HTTP":
       memberCookie)
     check accepted == 201
     check parseJson(acceptedBody)["role"].getStr() == "host"
-    let (reused, _) = call(HttpPost, "/invites/" & token & "/accept", memberCookie)
-    check reused == 410
+    # Login auto-accepts the invite for its address, so a later click reports
+    # the same membership instead of a misleading "already used".
+    let (reused, reusedBody) = call(HttpPost, "/invites/" & token & "/accept",
+      memberCookie)
+    check reused == 201
+    check parseJson(reusedBody)["role"].getStr() == "host"
+    # Another account cannot reuse the token.
+    let (stolen, _) = call(HttpPost, "/invites/" & token & "/accept", adminCookie)
+    check stolen == 403
     check membership.list(database, clubId).anyIt(it.userId == memberId)
 
   test "join requests answer identically and are decided once":

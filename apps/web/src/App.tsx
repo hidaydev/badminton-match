@@ -9,6 +9,7 @@ import { CommunityProvider } from './community/CommunityProvider'
 import JoinRequestCard from './community/JoinRequestCard'
 import { useCommunity } from './community/CommunityContext'
 import { t } from './i18n'
+import InvitePage from './pages/InvitePage'
 import LoginPage from './pages/LoginPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
 import PlayersPage from './pages/PlayersPage'
@@ -322,6 +323,9 @@ export default function App() {
               <ClientOutdatedBanner />
               <Routes>
                 <Route path="/s/:code" element={<SharedSessionPage />} />
+                {/* Accepting is how an account gets its first membership, so
+                    this route cannot sit behind the community shell. */}
+                <Route path="/invites/:token" element={<InvitePage />} />
                 <Route
                   path="*"
                   element={

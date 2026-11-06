@@ -38,14 +38,18 @@ suite "community access":
       @[textParam(communityId)]).get
     check invite.get("email_hash") == sha256Hex(adminEmail)
 
-  test "an invitation can be accepted exactly once":
+  test "an invitation grants the address once and stays idempotent for it":
     let token = invite.create(db, communityId, sha256Hex(outsiderEmail), "host",
       adminId, 7)
     let first = invite.accept(db, token, outsiderId, sha256Hex(outsiderEmail))
     check first.outcome == aoOk
     check first.role == "host"
+    # Login auto-accepts invites, so the recipient may click the link after the
+    # grant already happened; that must report the membership, not "used".
     let second = invite.accept(db, token, outsiderId, sha256Hex(outsiderEmail))
-    check second.outcome == aoUsed
+    check second.outcome == aoOk
+    check second.communityId == first.communityId
+    check second.role == "host"
     check membership.list(db, communityId).anyIt(it.userId == outsiderId and it.role == "host")
 
   test "a different address cannot redeem the invitation":

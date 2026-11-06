@@ -9,6 +9,12 @@ export type AuthContextValue = {
   loggingIn: boolean
   login: () => Promise<void>
   logout: () => Promise<void>
+  /**
+   * Re-read the membership list after the account joined a community while the
+   * tab was open (accepting an invitation), so the community shell can route
+   * into it without a reload.
+   */
+  refreshMemberships: () => Promise<Membership[]>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

@@ -1,4 +1,5 @@
 import { request } from '../auth/api'
+import type { CommunityRole } from '../auth/api'
 
 /** One registry entry as `GET /c/{slug}/config` reports it. */
 export type CommunityConfigEntry = {
@@ -44,5 +45,21 @@ export async function requestToJoin(slug: string): Promise<void> {
   await request<{ status: string }>(`/c/${encodeURIComponent(slug)}/join-requests`, {
     method: 'POST',
     body: '{}',
+  })
+}
+
+/** What the invitation grants; the token itself is single use and expires. */
+export type AcceptedInvite = {
+  communityId: string
+  role: CommunityRole
+}
+
+/**
+ * Single-use, address-bound and signed in only. The response names the
+ * community by id, so the caller re-reads the membership list to learn its slug.
+ */
+export function acceptInvite(token: string): Promise<AcceptedInvite> {
+  return request<AcceptedInvite>(`/invites/${encodeURIComponent(token)}/accept`, {
+    method: 'POST',
   })
 }
