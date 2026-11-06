@@ -197,9 +197,12 @@ UNIT_DEST="$HOME/.config/containers/systemd/majadu-rc-api.container"
 mkdir -p "$(dirname "$UNIT_DEST")"
 if ! cmp -s "$UNIT_SRC" "$UNIT_DEST"; then
   install -m 644 "$UNIT_SRC" "$UNIT_DEST"
-  service daemon-reload >/dev/null 2>&1 || true
   log "unit majadu-rc-api.container updated from the repository"
 fi
+# Always reload: the quadlet generator only creates the .service when it runs, so
+# a unit file that was already in place (bootstrap installs it) never becomes a
+# startable unit otherwise.
+service daemon-reload >/dev/null 2>&1 || true
 
 STEP="restart"
 service restart "$SERVICE" >>"$LOG" 2>&1
