@@ -59,6 +59,12 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
     onSuccess: (next) => {
       setError(null)
       queryClient.setQueryData(shareKey, next)
+      // The click that created the link is the gesture the clipboard needs, so
+      // copying here is a best effort: a blocked write leaves the Copy button.
+      void navigator.clipboard
+        .writeText(shareUrl(next))
+        .then(() => setCopied(true))
+        .catch(() => {})
     },
     onError: () => setError(t('session.share.error')),
   })
@@ -88,7 +94,8 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
     },
   })
 
-  const url = code === null ? null : `${window.location.origin}/s/${code}`
+  const shareUrl = (value: string) => `${window.location.origin}/s/${value}`
+  const url = code === null ? null : shareUrl(code)
   const busy = create.isPending || rotate.isPending || revoke.isPending
 
   async function handleCopy() {
@@ -124,7 +131,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
             role="dialog"
             aria-label={t('session.share')}
             tabIndex={-1}
-            className="absolute right-0 top-full mt-1 z-20 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-xl flex flex-col gap-2 focus:outline-none"
+            className="fixed inset-x-2 mt-1 z-20 flex flex-col gap-2 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-xl focus:outline-none sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:w-72 max-h-[70vh] overflow-auto"
           >
             {isLoading ? (
               <span className="text-xs text-slate-400">{t('common.loading')}</span>
@@ -142,12 +149,12 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
               </div>
             ) : (
               <>
-                <code className="break-all text-[11px] text-slate-300">{url}</code>
+                <code className="block break-all rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5 text-[11px] text-slate-300">{url}</code>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-600 text-slate-200 hover:text-white transition-colors"
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${copied ? 'bg-emerald-400 text-slate-950' : 'bg-indigo-400 hover:bg-indigo-300 text-slate-950'}`}
                   >
                     {copied ? t('session.share.copied') : t('session.share.copy')}
                   </button>
