@@ -333,3 +333,76 @@ suite "player merge":
            where community_id = $1::uuid and session_id = $2::uuid""",
         @[textParam(communityId), textParam(sessionId)]).get.get("player_id") ==
         targetId
+
+  test "a pair with the same partner on both sides refuses the merge":
+    block:
+      unblockMerge()
+      let teammateId = playerId("Merge Partner A")
+      for owner in [sourceId, targetId]:
+        discard db.execUpdate(
+          """insert into tournament.pairs
+               (community_id, tournament_id, display_name, player_a_id, player_b_id)
+             select $1::uuid, id, 'Merge Pair', $2::uuid, $3::uuid
+             from tournament.tournaments where community_id = $1::uuid""",
+          @[textParam(communityId), textParam(owner), textParam(teammateId)])
+
+      let outcome = merge(db, communityId, targetId, sourceId, actorId)
+      # Both pairs would become (target, teammate), so the tournament would
+      # count the same team twice.
+      check outcome.error == mePairCollision
+      check countRows(db, communityId, "player.merge_log") == "0"
+      check countRows(db, communityId, "player.aliases") == aliasBefore
+      check countRows(db, communityId, "tournament.pairs") == "3"
+      for player in [targetId, sourceId]:
+        check db.queryOne(
+          "select id from player.players where id = $1::uuid",
+          @[textParam(player)]).isSome
+
+  test "pairs with a different partner on each side merge":
+    block:
+      unblockMerge()
+      let teammateA = playerId("Merge Partner A")
+      let teammateB = playerId("Merge Partner B")
+      for entry in [(sourceId, teammateA), (targetId, teammateB)]:
+        discard db.execUpdate(
+          """insert into tournament.pairs
+               (community_id, tournament_id, display_name, player_a_id, player_b_id)
+             select $1::uuid, id, 'Merge Pair', $2::uuid, $3::uuid
+             from tournament.tournaments where community_id = $1::uuid""",
+          @[textParam(communityId), textParam(entry[0]), textParam(entry[1])])
+
+      let outcome = merge(db, communityId, targetId, sourceId, actorId)
+      check outcome.error == meOk
+      check outcome.result.pairsMoved == 1
+      # The moved pair now names the target, next to the target's own pair.
+      check db.queryOne(
+        """select count(*)::int as total from tournament.pairs
+           where community_id = $1::uuid
+             and (player_a_id = $2::uuid or player_b_id = $2::uuid)""",
+        @[textParam(communityId), textParam(targetId)]).get.get("total") == "2"
+
+  test "a moved roster spot takes the target's name":
+    block:
+      unblockMerge()
+      let teamId = db.queryOne(
+        """insert into tournament.teams
+             (community_id, tournament_id, seed, team_name)
+           select $1::uuid, id, 1, 'Merge Team'
+           from tournament.tournaments where community_id = $1::uuid
+           returning id""",
+        @[textParam(communityId)]).get.get("id")
+      discard db.execUpdate(
+        """insert into tournament.team_players
+             (community_id, team_id, player_id, player_name, cls)
+           values ($1::uuid, $2::uuid, $3::uuid, 'Merge Source', 'A')""",
+        @[textParam(communityId), textParam(teamId), textParam(sourceId)])
+
+      let outcome = merge(db, communityId, targetId, sourceId, actorId)
+      check outcome.error == meOk
+      check outcome.result.teamPlayersMoved == 1
+      # The roster renders the stored name, which must follow the new owner.
+      check db.queryOne(
+        """select player_name from tournament.team_players
+           where community_id = $1::uuid and team_id = $2::uuid""",
+        @[textParam(communityId), textParam(teamId)]).get.get("player_name") ==
+        "Merge Target"

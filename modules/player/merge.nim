@@ -8,6 +8,7 @@ type
     meSamePlayer = "same_player"
     mePairInUse = "pair_in_use"
     meSessionCollision = "session_collision"
+    mePairCollision = "pair_collision"
     meConflict = "merge_conflict"
 
   MergeResult* = object
@@ -41,7 +42,9 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
   ## wins: the duplicate source row is dropped (aliases, snapshots, achievements,
   ## skips, roster spots) or closed (claims), so nothing is silently double
   ## counted. A game naming both players cannot be split, so a merge that meets
-  ## itself on one side is refused instead.
+  ## itself on one side is refused instead. Two pairs that would end up with the
+  ## same partner inside one tournament are refused as well, since they would
+  ## become the same pair.
   result.error = meOk
   if targetId == sourceId:
     result.error = meSamePlayer
@@ -79,6 +82,30 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
         if used.isSome:
           outcome.error = mePairInUse
           return 0
+
+      # Two pairs that share the same partner become the same pair once both
+      # merged players land on the target: (target, X) twice, which the
+      # tournament would count twice. A self-pair cannot match here, because
+      # its partner is the other merged player, so the equality below only
+      # finds real duplicates and refuses them before the first write.
+      let pairCollision = conn.queryOne(
+        """select 1 as found
+           from tournament.pairs s
+           join tournament.pairs t
+             on t.community_id = s.community_id
+            and t.tournament_id = s.tournament_id and t.id <> s.id
+           where s.community_id = $1::uuid
+             and (s.player_a_id = $2::uuid or s.player_b_id = $2::uuid)
+             and (t.player_a_id = $3::uuid or t.player_b_id = $3::uuid)
+             and case when s.player_a_id = $2::uuid then s.player_b_id
+                      else s.player_a_id end
+               = case when t.player_a_id = $3::uuid then t.player_b_id
+                      else t.player_a_id end
+           limit 1""",
+        @[textParam(communityId), textParam(sourceId), textParam(targetId)])
+      if pairCollision.isSome:
+        outcome.error = mePairCollision
+        return 0
 
       outcome.result.targetPlayerId = targetId
       outcome.result.sourcePlayerId = sourceId
@@ -291,6 +318,15 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
         """update tournament.team_players set player_id = $2::uuid
            where community_id = $1::uuid and player_id = $3::uuid""",
         @[textParam(communityId), textParam(targetId), textParam(sourceId)])
+      # The roster renders the stored name, not the player row, so the spots
+      # that just changed owner must stop showing the deleted player's name.
+      discard conn.execUpdate(
+        """update tournament.team_players tp
+           set player_name = p.canonical_name
+           from player.players p
+           where tp.community_id = $1::uuid and tp.player_id = $2::uuid
+             and p.community_id = tp.community_id and p.id = tp.player_id""",
+        @[textParam(communityId), textParam(targetId)])
 
       discard conn.execUpdate(
         """delete from player.players

@@ -1418,6 +1418,9 @@ proc mergePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   of playerMerge.meSessionCollision:
     problem(request, 409, "MERGE_SESSION_CONFLICT",
       "both players appear in the same game; edit that game first")
+  of playerMerge.mePairCollision:
+    problem(request, 409, "MERGE_PAIR_CONFLICT",
+      "both players already have a pair with the same partner")
   of playerMerge.meConflict:
     problem(request, 409, "MERGE_CONFLICT", "players cannot be merged")
 
