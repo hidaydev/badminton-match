@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { TournamentMatch } from '../../utils/tournament'
 import { validateScore } from '../../utils/scoreValidation'
 import ScoreboardOverlay from './ScoreboardOverlay'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import { t } from '../../../i18n'
 
 interface ScoreModalProps {
@@ -19,8 +20,15 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? '')
   const [scoreB, setScoreB] = useState(match.scoreB?.toString() ?? '')
   const [showScoreboard, setShowScoreboard] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const loadingRef = useRef<HTMLDivElement>(null)
 
   useEscapeKey(onClose, !showScoreboard)
+  // The scoreboard overlay owns focus while it is open; the two dialog branches
+  // each trap their own node, because the trap binds to the element that exists
+  // when it enables.
+  useFocusTrap(loadingRef, isFetching)
+  useFocusTrap(dialogRef, !showScoreboard && !isFetching)
 
   const a = parseInt(scoreA, 10)
   const b = parseInt(scoreB, 10)
@@ -48,7 +56,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
 
   if (isFetching) {
     return (
-      <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={t('tournament.enterScore')}>
+      <div ref={loadingRef} tabIndex={-1} className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={t('tournament.enterScore')}>
         <div className="bg-surface border border-border rounded-xl w-full max-w-sm p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
           <div className="animate-pulse">
             <div className="h-5 bg-elevated rounded w-1/3 mx-auto mb-1" />
@@ -76,7 +84,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
       <div className="bg-surface border border-border rounded-xl w-full max-w-sm p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-sm font-bold text-fg text-center mb-1">Enter Score</h3>
         <p className="text-xs text-fg-dim text-center mb-4">

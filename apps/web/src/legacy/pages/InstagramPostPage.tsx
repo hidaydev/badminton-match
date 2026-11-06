@@ -61,7 +61,7 @@ export default function InstagramPostPage() {
         setOverlays(loaded as OverlayImages)
       } catch (err) {
         console.error('Failed to load overlay images', err)
-        setOverlayError('Failed to load template images. Some features may not work.')
+        setOverlayError(t('instagram.error.overlays'))
       }
     }
     loadOverlays()
@@ -85,7 +85,7 @@ export default function InstagramPostPage() {
       setPhotoZoom(1)
     } catch (err) {
       console.error('Failed to load image', err)
-      setExportError('Failed to load image. Please try another file.')
+      setExportError(t('instagram.error.loadPhoto'))
     } finally {
       URL.revokeObjectURL(url)
     }
@@ -228,7 +228,11 @@ export default function InstagramPostPage() {
 
     try {
       const snapshot = await fetchSession(sessionMeta.id)
-      if (!snapshot) return
+      if (!snapshot) {
+        closeSheet()
+        setExportError(t('instagram.error.standings'))
+        return
+      }
 
       const standings = computeStandings(
         snapshot.players.filter(p => !(snapshot.absentPlayers ?? []).includes(p.id) && !isPlaceholderName(p.name)),
@@ -265,32 +269,42 @@ export default function InstagramPostPage() {
         hideHeader: ACTIVE_TEMPLATE === 2,
       })
 
-      offscreen.toBlob((blob) => {
-        if (!blob) {
-          console.error('toBlob returned null for standing export')
-          setExportError('Failed to generate image. Please try again.')
-          setIsGenerating(false)
-          return
-        }
-        const slug = sessionMeta.date.replace(/-/g, '')
-        triggerDownload(blob, `majadu-standing-${isStory ? 'story' : 'post'}-${slug}.jpg`)
+      // Wait for the encoder so the spinner covers the whole export, not only
+      // the synchronous part.
+      const blob = await new Promise<Blob | null>((resolve) => {
+        offscreen.toBlob(resolve, 'image/jpeg', 0.92)
+      })
+      if (!blob) {
+        console.error('toBlob returned null for standing export')
         closeSheet()
-      }, 'image/jpeg', 0.92)
+        setExportError(t('instagram.error.generate'))
+        return
+      }
+      const slug = sessionMeta.date.replace(/-/g, '')
+      triggerDownload(blob, `majadu-standing-${isStory ? 'story' : 'post'}-${slug}.jpg`)
+      closeSheet()
     } catch (err) {
       console.error('Standing export failed', err)
-      setExportError('Failed to export standings. Please try again.')
+      closeSheet()
+      setExportError(t('instagram.error.standings'))
+    } finally {
+      // Success and every failure path must release the picker spinner.
       setIsGenerating(false)
     }
   }, [pendingStandingMode, fetchSession, overlays, triggerDownload, closeSheet, photoOffset, photoZoom, userPhoto, setExportError, setIsGenerating])
 
   const handleDownloadPost = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas || !userPhoto) return
+    if (!canvas || !userPhoto) {
+      closeSheet()
+      setExportError(t('instagram.error.photoRequired'))
+      return
+    }
     closeSheet()
     canvas.toBlob((blob) => {
       if (!blob) {
         console.error('toBlob returned null for post download')
-        setExportError('Failed to generate image. Please try again.')
+        setExportError(t('instagram.error.generate'))
         return
       }
       triggerDownload(blob, `majadu-post-${dateValue}.jpg`)
@@ -299,7 +313,11 @@ export default function InstagramPostPage() {
 
   const handleDownloadStory = useCallback(() => {
     const postCanvas = canvasRef.current
-    if (!postCanvas || !userPhoto) return
+    if (!postCanvas || !userPhoto) {
+      closeSheet()
+      setExportError(t('instagram.error.photoRequired'))
+      return
+    }
     closeSheet()
 
     const W = 1080, H = 1920
@@ -347,7 +365,7 @@ export default function InstagramPostPage() {
     offscreen.toBlob((blob) => {
       if (!blob) {
         console.error('toBlob returned null for story download')
-        setExportError('Failed to generate image. Please try again.')
+        setExportError(t('instagram.error.generate'))
         return
       }
       triggerDownload(blob, `majadu-story-${dateValue}.jpg`)

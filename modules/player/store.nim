@@ -50,8 +50,10 @@ proc list*(db: Db, communityId: string, limit: int, cursor = "",
     sql.add(" and tier = $" & $(params.len + 1))
     params.add(textParam(tier))
   if search.len > 0:
-    sql.add(" and canonical_name ilike $" & $(params.len + 1))
-    params.add(textParam("%" & search & "%"))
+    # `strpos` keeps `%` and `_` literal; a name search for "100%" must not
+    # match every player.
+    sql.add(" and strpos(lower(canonical_name), lower($" & $(params.len + 1) & ")) > 0")
+    params.add(textParam(search))
   if cursor.len > 0:
     sql.add(" and id > $" & $(params.len + 1) & "::uuid")
     params.add(textParam(cursor))

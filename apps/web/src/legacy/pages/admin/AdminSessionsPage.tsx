@@ -1,6 +1,6 @@
 // src/pages/admin/AdminSessionsPage.tsx — Admin: unlock & delete sessions.
 import { useState } from 'react'
-import { useListSessions } from '../../queries'
+import { useSessionPage } from '../../queries'
 import { adminRequest } from '../../queries/admin'
 import { useAdmin } from '../../context/AdminContext'
 import { t } from '../../../i18n'
@@ -15,11 +15,12 @@ export default function AdminSessionsPage() {
   const [page, setPage] = useState(0)
   // Unlock withdraws the session's approval, so it takes a second, explicit tap.
   const [unlockConfirmId, setUnlockConfirmId] = useState<string | null>(null)
-  // The admin pager slices in the browser, so it asks for the whole list in one
-  // request (the server caps a page at 500) instead of paging behind its back.
-  const { data: sessions, total, refetch } = useListSessions({ limit: 500 })
+  // One server page per table page, so the table can reach sessions older
+  // than the server's 500-row cap instead of silently stopping there.
+  const { data: sessions, total, refetch, isPlaceholderData } =
+    useSessionPage(page, PAGE)
 
-  const slice = (sessions ?? []).slice(page * PAGE, page * PAGE + PAGE)
+  const slice = sessions
 
   return (
     <AdminPageShell>
@@ -28,12 +29,19 @@ export default function AdminSessionsPage() {
           <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between px-0.5">
               <p className="text-xs font-semibold text-fg-dim uppercase tracking-wider">{t('admin.sectionSession')}</p>
-              <span className="text-xs font-mono text-fg-dim">{total} sessions</span>
+              <span className="text-xs font-mono text-fg-dim">
+                {t(total === 1 ? 'admin.sessionCountOne' : 'admin.sessionCount', { count: total })}
+              </span>
             </div>
 
             <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">
-              {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">{t('admin.noSessions')}</p>}
-              {slice.map((s) => (
+              {!isPlaceholderData && slice.length === 0 && (
+                <p className="text-fg-dim text-xs font-sans text-center py-6">{t('admin.noSessions')}</p>
+              )}
+              {isPlaceholderData && (
+                <p className="text-fg-dim text-xs font-sans text-center py-6">{t('common.loading')}</p>
+              )}
+              {!isPlaceholderData && slice.map((s) => (
                 <div key={s.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-elevated/30 transition-colors">
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm font-medium text-fg truncate">{s.title || 'Untitled'}</span>
@@ -97,7 +105,7 @@ export default function AdminSessionsPage() {
               ))}
             </div>
 
-            <Pager page={page} total={(sessions ?? []).length} onPage={setPage} />
+            <Pager page={page} total={total} onPage={setPage} />
           </section>
         </>
       )}

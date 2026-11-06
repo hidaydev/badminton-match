@@ -282,7 +282,9 @@ proc swapMembers*(db: Db, communityId, sessionId: string, expectedVersion: int,
       let first = readContent(conn, communityId, sessionId, a)
       let second = if same: first else: readContent(conn, communityId, sessionId, b)
       if first.isNone or second.isNone:
-        outcome = SwapOutcome(status: swInvalid, detail: "swap target game not found")
+        # The session exists; it is the game the caller named that does not.
+        outcome = SwapOutcome(status: swNotFound,
+          detail: "swap target game not found")
         return 0
       var left = first.get
       var right = second.get

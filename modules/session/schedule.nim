@@ -20,6 +20,7 @@ type
     ssStale = "stale"
     ssInvalid = "invalid"
     ssUnknownPlayer = "unknown_player"
+    ssNotParticipant = "not_participant"
     ssLocked = "locked"
 
 proc parseGameKey*(key: string): Option[(int, int)] =
@@ -139,6 +140,22 @@ proc countKnownPlayers(db: Db, communityId: string,
       textParam("{" & playerIds.join(",") & "}")])
   parseInt(row.get.get("found"))
 
+proc unknownParticipants(conn: DbConn, communityId, sessionId: string,
+                         playerIds: seq[string]): bool =
+  ## A player who exists in the community but is not in this session cannot be
+  ## marked absent: the write would bump the version and change nothing.
+  if playerIds.len == 0:
+    return false
+  conn.queryOne(
+    """select 1 as missing from unnest($1::uuid[]) as wanted(id)
+       where not exists (
+         select 1 from session.participants p
+         where p.community_id = $2::uuid and p.session_id = $3::uuid
+           and p.player_id = wanted.id)
+       limit 1""",
+    @[textParam("{" & playerIds.join(",") & "}"), textParam(communityId),
+      textParam(sessionId)]).isSome
+
 proc putSchedule*(db: Db, communityId, sessionId: string, expectedVersion: int,
                   games: seq[GameSpec]): ScheduleStatus =
   ## Replaces the teams of the named games and registers every referenced player
@@ -209,6 +226,9 @@ proc setAbsent*(db: Db, communityId, sessionId: string, expectedVersion: int,
     let allowed = gate(conn, communityId, sessionId, expectedVersion)
     if allowed != ssOk:
       outcome = allowed
+      return 0
+    if unknownParticipants(conn, communityId, sessionId, unique):
+      outcome = ssNotParticipant
       return 0
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
@@ -326,7 +346,7 @@ proc setSkips*(db: Db, communityId, sessionId, gameKey: string,
              and player_id = $3::uuid""",
         @[textParam(communityId), textParam(sessionId), textParam(playerId)])
       if participant.isNone:
-        outcome = ssUnknownPlayer
+        outcome = ssNotParticipant
         return 0
     let allowed = gate(conn, communityId, sessionId, expectedVersion)
     if allowed != ssOk:

@@ -258,6 +258,26 @@ suite "rankings HTTP":
     check filtered.len == 1
     check filtered[0]["playerId"].getStr() == players[0]
 
+  test "a plus in the tier query survives form decoding":
+    discard database.execUpdate(
+      """update player.players set tier = 'C+' where id = $1::uuid""",
+      @[textParam(players[1])])
+    # A raw `+` in a query string means space, so a hand-written link arrives
+    # here as "C ".
+    let (status, body) = call("/c/rank-club/rankings?tier=C+", memberCookie)
+    check status == 200
+    let items = parseJson(body)["items"]
+    check items.len == 1
+    check items[0]["playerId"].getStr() == players[1]
+    # A tier outside the ladder is ignored instead of emptying the board.
+    let (_, allBody) = call("/c/rank-club/rankings", memberCookie)
+    let allItems = parseJson(allBody)["items"].len
+    check allItems >= 3
+    let (unknownStatus, unknownBody) = call("/c/rank-club/rankings?tier=Z",
+      memberCookie)
+    check unknownStatus == 200
+    check parseJson(unknownBody)["items"].len == allItems
+
   test "an unknown player or a non-member gets 404":
     let (missing, _) = call("/c/rank-club/rankings/00000000-0000-0000-0000-000000000000",
       memberCookie)

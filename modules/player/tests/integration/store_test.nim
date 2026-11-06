@@ -86,3 +86,10 @@ suite "player store":
 
     check outcome.status == psDuplicate
     check aliases(db, communityId, targetId) == @["Target Alias"]
+
+  test "a search treats LIKE wildcards literally":
+    discard addPlayer(db, communityId, "Percent 100%")
+    check list(db, communityId, 10, search = "100%").len == 1
+    # "%" and "_" would match every player if they stayed wildcards.
+    check list(db, communityId, 10, search = "%").len == 1
+    check list(db, communityId, 10, search = "_").len == 0

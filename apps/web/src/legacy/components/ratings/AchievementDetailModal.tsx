@@ -9,8 +9,9 @@
 // - Bar progres ke tier berikutnya jika milestone belum maksimal.
 // - Aksesibilitas keyboard (Escape & fokus awal tombol Close).
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import AchievementBadge from './AchievementBadge'
+import { useFocusTrap } from '../../hooks/useFocusTrap'
 import {
   eventTone,
   isEventKey,
@@ -33,6 +34,9 @@ export default function AchievementDetailModal({
   achievement,
   onClose,
 }: AchievementDetailModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, achievement !== null)
+
   useEffect(() => {
     if (!achievement) return
     const onKey = (e: KeyboardEvent) => {
@@ -72,6 +76,8 @@ export default function AchievementDetailModal({
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-60 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-[fadeInScale_0.15s_ease-out]"
       onClick={onClose}
       role="dialog"

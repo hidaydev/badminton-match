@@ -164,6 +164,27 @@ export function useListSessions(options?: {
   }
 }
 
+/**
+ * One server page of sessions at a known offset. The admin table needs random
+ * access to any page, which an infinite query cannot give without loading the
+ * pages in between; the list endpoint already takes `limit`/`offset`.
+ */
+export function useSessionPage(page: number, limit = SESSION_PAGE_SIZE) {
+  const query = useQuery({
+    queryKey: communityQueryKey('sessions', 'page', page, limit),
+    queryFn: ({ signal }) =>
+      listSessions({ limit, offset: page * limit, signal }),
+    // Keep the current rows visible while the next page arrives.
+    placeholderData: keepPreviousData,
+  })
+
+  return {
+    ...query,
+    data: query.data?.items ?? [],
+    total: query.data?.total ?? 0,
+  }
+}
+
 export function useSetSessionLock(sessionId: string) {
   const queryClient = useQueryClient()
   return useMutation({

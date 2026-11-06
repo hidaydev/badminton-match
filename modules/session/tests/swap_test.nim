@@ -282,14 +282,18 @@ suite "session swap":
          "b": {"slot": 1, "court": 0, "team": "B", "position": 0}},
       %*{"type": "team", "a": {"slot": 0, "court": 0, "team": "A", "position": 0},
          "b": {"slot": 0, "court": 0, "team": "A", "position": 1}},
-      %*{"type": "player", "a": {"slot": 0, "court": 0, "team": "A", "position": 0},
-         "b": {"slot": 5, "court": 0, "team": "A", "position": 0}},
       %*{"type": "player", "a": [], "b": {"slot": 1, "court": 0,
          "team": "A", "position": 0}}]
     for body in bodies:
       let outcome = swapMembers(database, communityId, sessionId, 1, parseSwap(body))
       checkpoint("body " & $body)
       check outcome.status == swInvalid
+    # Naming a game that does not exist is a 404, not a malformed body.
+    let missing = swapMembers(database, communityId, sessionId, 1, parseSwap(
+      %*{"type": "player", "a": {"slot": 0, "court": 0, "team": "A",
+         "position": 0},
+         "b": {"slot": 5, "court": 0, "team": "A", "position": 0}}))
+    check missing.status == swNotFound
     check sessionVersion(sessionId) == 1
     check readGame(sessionId, 0, 0).sides == before[0].sides
     check readGame(sessionId, 1, 0).sides == before[1].sides
@@ -345,7 +349,7 @@ suite "session swap":
     let outsider = addPlayer(97)
     let outcome = setSkips(database, communityId, sessionId, "0-0", 1,
       @[outsider])
-    check outcome == ssUnknownPlayer
+    check outcome == ssNotParticipant
     check sessionVersion(sessionId) == 1
 
   test "a stale skip is rejected without writing":

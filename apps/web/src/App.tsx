@@ -59,6 +59,10 @@ const NewTournamentPage = safeLazy(() => import('./legacy/pages/NewTournamentPag
 const NewTournamentWizard = safeLazy(() => import('./legacy/pages/NewTournamentWizard'))
 const LegacySharedSessionPage = safeLazy(() => import('./legacy/pages/SharedSessionPage'))
 
+// Mock-only preview screens. They are useful while developing the summary grid
+// and medal badges, but a production build must not serve them.
+const DEV_PREVIEWS = import.meta.env.DEV
+
 // The restored v1 screens use TanStack Query; the v2 screens keep their own
 // hooks, so one provider at the root serves both.
 const queryClient = new QueryClient({
@@ -245,9 +249,13 @@ function AuthedRoutes() {
           <Route path="rankings/:playerId" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="rankings-player"><RatingPlayerPage /></ErrorBoundary></Suspense>} />
           <Route path="ratings" element={<LegacyNavigate to="/rankings" replace />} />
           <Route path="ratings/:playerId" element={<LegacyNavigate to="/rankings" replace />} />
-          <Route path="dev/achievement-badges" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="achievement-badges-preview"><AchievementBadgesPreviewPage /></ErrorBoundary></Suspense>} />
-          <Route path="dev/match-result-preview" element={<Suspense fallback={<Loading />}><MatchResultPreview /></Suspense>} />
-          <Route path="dev/session-preview" element={<Suspense fallback={<Loading />}><SharedSessionPreviewPage /></Suspense>} />
+          {DEV_PREVIEWS && (
+            <>
+              <Route path="dev/achievement-badges" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="achievement-badges-preview"><AchievementBadgesPreviewPage /></ErrorBoundary></Suspense>} />
+              <Route path="dev/match-result-preview" element={<Suspense fallback={<Loading />}><MatchResultPreview /></Suspense>} />
+              <Route path="dev/session-preview" element={<Suspense fallback={<Loading />}><SharedSessionPreviewPage /></Suspense>} />
+            </>
+          )}
           <Route path="tournament" element={<LegacyNavigate to="/tournaments" replace />} />
           <Route path="tournaments" element={<Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-list"><TournamentListPage /></ErrorBoundary></Suspense>} />
           <Route path="tournaments/new" element={<RequireStaff><Suspense fallback={<Loading />}><ErrorBoundary routeName="tournament-new"><NewTournamentPage /></ErrorBoundary></Suspense></RequireStaff>} />

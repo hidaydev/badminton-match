@@ -37,21 +37,14 @@ export default function HomePage() {
   const { isAdmin } = useAdmin()
   const { isInstallable, isIos, prompt } = usePwaInstall()
   const { lastSession } = useLastSession()
-  const [installDismissed, setInstallDismissed] = useState(false)
   const [manualInstallOpen, setManualInstallOpen] = useState(false)
-  const today = new Date().toDateString()
-  const modalOpen =
-    manualInstallOpen || (
-      isInstallable &&
-      !installDismissed &&
-      localStorage.getItem('pwa-install-shown') !== today
-    )
+  // The install sheet only opens from the "Install App" card. Opening it by
+  // itself once a day covered the New Session CTA on the landing screen, so
+  // only an explicit tap opens it now.
 
   async function handleInstall() {
     try {
       await prompt()
-      localStorage.setItem('pwa-install-shown', today)
-      setInstallDismissed(true)
       setManualInstallOpen(false)
     } catch (err) {
       console.error('PWA install prompt failed', err)
@@ -171,13 +164,11 @@ export default function HomePage() {
         </div>
       )}
 
-      {modalOpen && (
+      {manualInstallOpen && (
         <InstallModal
           isIos={isIos}
           onInstall={handleInstall}
           onClose={() => {
-            localStorage.setItem('pwa-install-shown', today)
-            setInstallDismissed(true)
             setManualInstallOpen(false)
           }}
         />

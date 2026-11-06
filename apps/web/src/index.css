@@ -254,52 +254,8 @@ body {
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* Anniversary banner — remove bleed margins on desktop */
-@media (min-width: 768px) {
-  .anniv-left  { margin-left: 0 !important; }
-  .anniv-right { margin-right: 0 !important; }
-}
-
+/* Used by the celebration overlay's shimmering line. */
 @keyframes annivBlink {
   0%, 100% { opacity: 0.3; }
   50%       { opacity: 1; }
-}
-
-/* Anniversary banner overlay animations */
-@keyframes annivSlideInLeft {
-  from { transform: translateX(-110%); opacity: 0; }
-  to   { transform: translateX(0);     opacity: 1; }
-}
-
-@keyframes annivSlideInRight {
-  from { transform: translateX(110%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
-}
-
-@keyframes annivSlideInTop {
-  from { transform: translateY(-60px); opacity: 0; }
-  to   { transform: translateY(0);     opacity: 1; }
-}
-
-@keyframes annivFadeInUp {
-  from { transform: translateY(30px) scale(0.92); opacity: 0; }
-  to   { transform: translateY(0)    scale(1);    opacity: 1; }
-}
-
-@keyframes annivRaySpin {
-  from { transform: translateX(-50%) rotate(0deg); }
-  to   { transform: translateX(-50%) rotate(360deg); }
-}
-
-@keyframes annivFireworkBurst {
-  0%   { transform: translate(0, 0) scale(0); opacity: 0; }
-  15%  { transform: translate(0, 0) scale(1); opacity: 1; }
-  70%  { opacity: 0.8; }
-  100% { transform: translate(var(--fw-tx), var(--fw-ty)) scale(0); opacity: 0; }
-}
-
-@keyframes annivFireworkFlash {
-  0%   { transform: scale(0); opacity: 0; }
-  25%  { transform: scale(2); opacity: 1; }
-  100% { transform: scale(0); opacity: 0; }
 }

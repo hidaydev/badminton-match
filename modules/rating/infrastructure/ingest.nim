@@ -109,6 +109,15 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
     let skipped = skipRows.getOrDefault(
       row.get("round_no") & "-" & row.get("court_no"))
     entries += ingestGame(conn, communityId, row, absent, skipped)
+  if entries == 0:
+    # An approved session with no playable game contributes nothing. Leaving
+    # the empty event behind would show a rating source with zero entries and
+    # keep it in the ledger after the points were withdrawn.
+    discard conn.execUpdate(
+      "delete from rating.events where community_id = $1::uuid and id = $2::uuid",
+      @[textParam(communityId), textParam(eventId)])
+    result.events = 0
+    return
   result.deltas = entries
   discard conn.execUpdate(
     """update rating.events set point_entries = $3::int

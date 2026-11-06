@@ -725,11 +725,6 @@ export async function setSessionLock(
     undefined, undefined, ifMatch(expectedVersion))
 }
 
-export async function deleteSession(lookup: string): Promise<{ deleted: boolean; sessionId: string }> {
-  await request<void>('DELETE', communityPath(`/sessions/${enc(lookup)}`))
-  return { deleted: true, sessionId: lookup }
-}
-
 export async function createSession(input: {
   title: string
   date: string
@@ -899,10 +894,6 @@ export function toPlayerStats(data: V2PlayerStats): PlayerStats {
       })),
     },
   }
-}
-
-export async function getPlayerStats(name: string, signal?: AbortSignal): Promise<PlayerStats> {
-  return toPlayerStats(await getPlayerStatsRaw(name, signal))
 }
 
 export async function registerPlayer(

@@ -552,6 +552,88 @@ suite "session schedule HTTP":
     check retried == 200
     check parseJson(retriedBody)["title"].getStr() == "Retried"
 
+  test "search treats LIKE wildcards literally":
+    discard call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Percent 100%","date":"2026-11-21"}""")
+    discard call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Plain night","date":"2026-11-22"}""")
+    let (_, matches) = call(HttpGet, "/c/sched-club/sessions?q=100%25",
+      hostCookie)
+    let matchPage = parseJson(matches)
+    check matchPage["items"].len == 1
+    check matchPage["items"][0]["title"].getStr() == "Percent 100%"
+    check matchPage["total"].getInt() == 1
+    # A bare "%" only matches a title that really contains one.
+    let (_, percentOnly) = call(HttpGet, "/c/sched-club/sessions?q=%25",
+      hostCookie)
+    let percentPage = parseJson(percentOnly)
+    check percentPage["items"].len == 1
+    check percentPage["total"].getInt() == 1
+    let (_, underscore) = call(HttpGet, "/c/sched-club/sessions?q=_",
+      hostCookie)
+    let underscorePage = parseJson(underscore)
+    check underscorePage["items"].len == 0
+    check underscorePage["total"].getInt() == 0
+
+  test "a malformed If-Match is a 400, not a missing precondition":
+    let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Precondition","date":"2026-11-23"}""")
+    let sessionId = parseJson(created)["id"].getStr()
+    let path = "/c/sched-club/sessions/" & sessionId
+    let (malformed, malformedBody) = call(HttpPatch, path, hostCookie,
+      """{"title":"Nope"}""", ifMatch = "\"abc\"")
+    check malformed == 400
+    check parseJson(malformedBody)["code"].getStr() == "INVALID_PRECONDITION"
+    let (missing, _) = call(HttpPatch, path, hostCookie, """{"title":"Nope"}""")
+    check missing == 428
+
+  test "a player outside the session cannot be marked absent":
+    let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Absent night","date":"2026-11-24"}""")
+    let sessionId = parseJson(created)["id"].getStr()
+    let schedule = """{"games":[{"round":0,"court":0,"sideA":["""" &
+      players[0] & """","""" & players[1] & """"],"sideB":["""" &
+      players[2] & """","""" & players[3] & """"]}]}"""
+    let (written, _) = call(HttpPut,
+      "/c/sched-club/sessions/" & sessionId & "/schedule", hostCookie, schedule,
+      ifMatch = "\"1\"")
+    check written == 200
+    let path = "/c/sched-club/sessions/" & sessionId & "/absent"
+    let (unknown, unknownBody) = call(HttpPatch, path, hostCookie,
+      """{"playerIds":["""" & players[4] & """"]}""", ifMatch = "\"2\"")
+    check unknown == 400
+    check parseJson(unknownBody)["code"].getStr() == "NOT_PARTICIPANT"
+    # A rejected write must not bump the version.
+    let (_, read) = call(HttpGet, "/c/sched-club/sessions/" & sessionId,
+      hostCookie)
+    check parseJson(read)["version"].getInt() == 2
+    let (knownStatus, knownBody) = call(HttpPatch, path, hostCookie,
+      """{"playerIds":["""" & players[0] & """"]}""", ifMatch = "\"2\"")
+    check knownStatus == 200
+    check parseJson(knownBody)["version"].getInt() == 3
+
+    # The same participant rule applies to a per-game skip.
+    let (skipUnknown, skipBody) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0/skip", hostCookie,
+      """{"playerIds":["""" & players[4] & """"]}""", ifMatch = "\"3\"")
+    check skipUnknown == 400
+    check parseJson(skipBody)["code"].getStr() == "NOT_PARTICIPANT"
+
+  test "a swap naming a game that does not exist is a 404":
+    let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Missing game","date":"2026-11-25"}""")
+    let sessionId = parseJson(created)["id"].getStr()
+    let schedule = """{"games":[{"round":0,"court":0,"sideA":["""" &
+      players[0] & """","""" & players[1] & """"],"sideB":["""" &
+      players[2] & """","""" & players[3] & """"]}]}"""
+    discard call(HttpPut, "/c/sched-club/sessions/" & sessionId & "/schedule",
+      hostCookie, schedule, ifMatch = "\"1\"")
+    let (missing, _) = call(HttpPost,
+      "/c/sched-club/sessions/" & sessionId & "/swap", hostCookie,
+      """{"type":"slot","a":{"slot":9,"court":9},"b":{"slot":0,"court":0}}""",
+      ifMatch = "\"2\"")
+    check missing == 404
+
   test "members read the standings and an unknown session is a 404":
     let (created, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
       """{"title":"Board","date":"2026-11-04"}""")
@@ -609,6 +691,11 @@ suite "session schedule HTTP":
       row.get.get("n")
     check events() == "0"
 
+    let (draftIngest, draftBody) = call(HttpPost,
+      "/c/sched-club/sessions/" & sessionId & "/rating", adminCookie)
+    check draftIngest == 409
+    check parseJson(draftBody)["code"].getStr() == "CONFLICT"
+
     # Finishing is the rating gate: approval ingests the session in the same call.
     let lockPath = "/c/sched-club/sessions/" & sessionId & "/lock"
     let (memberRefused, _) = call(HttpPost, lockPath, memberCookie,
@@ -644,6 +731,21 @@ suite "session schedule HTTP":
            and achievement_key = 'games:200'""",
       @[textParam(communityId), textParam(players[0])])
     check stale.isNone
+
+  test "locking a session without a playable game writes no event":
+    let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Empty night","date":"2026-11-26"}""")
+    let sessionId = parseJson(created)["id"].getStr()
+    let (locked, _) = call(HttpPost,
+      "/c/sched-club/sessions/" & sessionId & "/lock", hostCookie,
+      ifMatch = "\"1\"")
+    check locked == 200
+    let row = database.queryOne(
+      """select count(*)::int as n from rating.events
+         where community_id = $1::uuid and event_type = 'session'
+           and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    check row.get.get("n") == "0"
 
   test "a bundle from another major is told to reload":
     let path = "/c/sched-club/players"

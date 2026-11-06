@@ -742,6 +742,13 @@ export const en = {
   'instagram.download': 'Download image',
   'instagram.dismissError': 'Dismiss error',
   'instagram.back': 'Back to formats',
+  'instagram.error.photoRequired': 'Choose a photo first.',
+  'instagram.error.generate': 'Could not generate the image. Try again.',
+  'instagram.error.standings': 'Could not export the standings. Try again.',
+  'instagram.error.loadPhoto': 'Could not load that photo. Try another file.',
+  'instagram.error.overlays': 'Could not load the template images. Some features may not work.',
+  'admin.sessionCount': '{count} sessions',
+  'admin.sessionCountOne': '{count} session',
   'admin.unlock': 'Unlock',
   'admin.unlockConfirm': 'Confirm unlock',
 } as const

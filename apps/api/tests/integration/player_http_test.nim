@@ -313,3 +313,19 @@ suite "player HTTP":
     let (missing, _) = call(HttpGet,
       "/c/player-other/players/" & playerId & "/achievements", adminCookie)
     check missing == 404
+
+  test "a plus in the player tier filter survives form decoding":
+    discard call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Citra","gender":"F","tier":"B+"}""")
+    discard call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Dodi","gender":"M","tier":"B"}""")
+    let (status, body) = call(HttpGet, "/c/player-club/players?tier=B+",
+      memberCookie)
+    check status == 200
+    let items = parseJson(body)["items"]
+    check items.len == 1
+    check items[0]["name"].getStr() == "Citra"
+    # An unknown tier is ignored, not an empty page.
+    let (_, unfiltered) = call(HttpGet, "/c/player-club/players?tier=Z",
+      memberCookie)
+    check parseJson(unfiltered)["items"].len >= 2

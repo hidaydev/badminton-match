@@ -681,7 +681,7 @@ proc listSessions(request: Request, ctx: CommunityContext) =
        from session.sessions s
        where s.community_id = $1::uuid
          and ($2 = '' or s.session_date = nullif($2, '')::date)
-         and ($3 = '' or s.title ilike '%' || $3 || '%')
+         and ($3 = '' or strpos(lower(s.title), lower($3)) > 0)
        order by s.session_date desc, s.updated_at desc
        limit $4 offset $5""",
     @[textParam(ctx.communityId), textParam(date), textParam(q),
@@ -695,7 +695,7 @@ proc listSessions(request: Request, ctx: CommunityContext) =
     """select count(*)::int as total from session.sessions s
        where s.community_id = $1::uuid
          and ($2 = '' or s.session_date = nullif($2, '')::date)
-         and ($3 = '' or s.title ilike '%' || $3 || '%')""",
+         and ($3 = '' or strpos(lower(s.title), lower($3)) > 0)""",
     @[textParam(ctx.communityId), textParam(date), textParam(q)])
   let total = if totalRow.isSome: parseInt(totalRow.get.get("total")) else: 0
   let nextCursor =
@@ -776,9 +776,15 @@ proc ifMatch(request: Request): Option[int] =
     none(int)
 
 proc requireIfMatch(request: Request): Option[int] =
+  ## A header that is present but unparsable is a client bug, not a request to
+  ## skip the precondition: only a missing one is 428.
+  if request.headers["If-Match"].strip().len == 0:
+    problem(request, 428, "PRECONDITION_REQUIRED", "If-Match is required")
+    return none(int)
   result = ifMatch(request)
   if result.isNone:
-    problem(request, 428, "PRECONDITION_REQUIRED", "If-Match is required")
+    problem(request, 400, "INVALID_PRECONDITION",
+      "If-Match must be a version number")
 
 proc ifNoneMatchHits(request: Request, etag: string): bool =
   ## Conditional read for the session detail route. Only If-None-Match is read,
@@ -920,7 +926,8 @@ proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 412, "STALE_VERSION", "session changed since If-Match")
   of sessionSwap.swNotFound:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
-    problem(request, 404, "NOT_FOUND", "session not found")
+    let detail = if result.detail.len > 0: result.detail else: "session not found"
+    problem(request, 404, "NOT_FOUND", detail)
   of sessionSwap.swLocked:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
     problem(request, 403, "FORBIDDEN", "session is locked")
@@ -1213,10 +1220,25 @@ proc playerLimit(request: Request): int =
   except ValueError:
     fallback
 
+proc tierParam(request: Request): string =
+  ## `+` means space in a form-encoded query, so a hand-written `?tier=C+`
+  ## arrives as "C ". A tier the ladder does not know is ignored instead of
+  ## silently emptying the board.
+  let raw = request.queryParams["tier"]
+  if raw.strip().len == 0:
+    return ""
+  # Try the plus-restored spelling first: a real tier never contains a space.
+  for candidate in [raw.replace(' ', '+'), raw]:
+    try:
+      return $playerDomain.parseTier(candidate.strip())
+    except ValueError:
+      discard
+  ""
+
 proc listPlayersRoute(request: Request, ctx: CommunityContext) =
   let items = playerStore.list(application.db, ctx.communityId,
-    playerLimit(request), request.queryParams["cursor"],
-    request.queryParams["tier"], request.queryParams["q"])
+    playerLimit(request), request.queryParams["cursor"], tierParam(request),
+    request.queryParams["q"])
   var body = newJArray()
   for item in items:
     body.add(item)
@@ -1552,12 +1574,23 @@ proc sessionVersionNow(communityId, sessionId: string): int =
     @[textParam(communityId), textParam(sessionId)])
   if row.isSome: parseInt(row.get.get("version")) else: 0
 
+proc sessionApproved(communityId, sessionId: string): bool =
+  let row = application.db.queryOne(
+    """select 1 as ok from session.sessions
+       where community_id = $1::uuid and id = $2::uuid
+         and approved_at is not null""",
+    @[textParam(communityId), textParam(sessionId)])
+  row.isSome
+
 proc ingestSessionRating(request: Request, ctx: CommunityContext,
                          user: AuthUser, sessionId: string) =
   ## A session id that names nothing in this community is a 404, not a silent
   ## ingest of zero rows that the caller cannot tell apart from a no-op.
   if sessionVersionNow(ctx.communityId, sessionId) == 0:
     problem(request, 404, "NOT_FOUND", "session not found")
+    return
+  if not sessionApproved(ctx.communityId, sessionId):
+    problem(request, 409, "CONFLICT", "session is not approved")
     return
   let params = ratingParamsFor(ctx)
   let result = ratingIngest.ingestSession(application.db, ctx.communityId,
@@ -1567,14 +1600,6 @@ proc ingestSessionRating(request: Request, ctx: CommunityContext,
     %*{"events": result.events, "deltas": result.deltas})
   jsonResponse(request, 200, %*{"events": result.events,
     "deltas": result.deltas}, [("Cache-Control", "no-store")])
-
-proc sessionApproved(communityId, sessionId: string): bool =
-  let row = application.db.queryOne(
-    """select 1 as ok from session.sessions
-       where community_id = $1::uuid and id = $2::uuid
-         and approved_at is not null""",
-    @[textParam(communityId), textParam(sessionId)])
-  row.isSome
 
 proc clearSessionRating(request: Request, ctx: CommunityContext,
                         user: AuthUser, sessionId: string) =
@@ -1810,6 +1835,8 @@ proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
     problem(request, 403, "FORBIDDEN", "session is locked")
   of sessionSchedule.ssUnknownPlayer:
     problem(request, 400, "UNKNOWN_PLAYER", "player is not in this community")
+  of sessionSchedule.ssNotParticipant:
+    problem(request, 400, "NOT_PARTICIPANT", "player is not in this session")
 
 proc scheduleDone(request: Request, ctx: CommunityContext, sessionId: string,
                   status: sessionSchedule.ScheduleStatus) =
@@ -2157,7 +2184,7 @@ proc communityBoard(request: Request, communityId, timezone: string,
   let asOf = if latest.len > 0: latest else: communityToday(timezone)
   let query = ratingRead.BoardQuery(communityId: communityId,
     asOf: asOf, params: params, limit: limit,
-    tier: request.queryParams["tier"], minSessions: minSessions,
+    tier: tierParam(request), minSessions: minSessions,
     playerIds: playerIds)
   let rows = ratingRead.board(application.db, query)
   jsonResponse(request, 200, %*{"items": boardItems(rows),
