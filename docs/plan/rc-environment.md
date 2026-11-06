@@ -141,7 +141,7 @@ bertanda tangan + `VERSION`. Produksi tetap memakai jalur digest GHCR.
 Sekali jalan, dan tidak menyentuh produksi:
 
 1. Build image dari branch RC.
-2. Buat role `bm2_rc_owner`/`bm2_rc_app` + database `bm2_rc`, migrate, seed.
+2. Buat role `bm2_owner`/`bm2_app` + database `bm2_rc`, migrate, seed.
 3. `pg_dump` `bm` lewat container → restore `bm_restore_rc`.
 4. `majadu-import etl` + `verify` ke `bm2_rc`.
 5. Hapus database staging, jalankan `deploy-vps-rc.sh`.

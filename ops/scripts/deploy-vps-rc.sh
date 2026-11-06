@@ -135,7 +135,16 @@ case "$MODE" in
   *) fail "$ENV_FILE must be mode 600 (found $MODE)" ;;
 esac
 OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$ENV_FILE" | tail -1)
+APP_DSN=$(sed -n 's/^MAJADU_PG_DSN=//p' "$ENV_FILE" | tail -1)
 [ -n "$OWNER_DSN" ] || fail "MAJADU_OWNER_DSN is missing from $ENV_FILE"
+[ -n "$APP_DSN" ] || fail "MAJADU_PG_DSN is missing from $ENV_FILE"
+# The role names are shared with the future bm2, so the database name is the
+# only thing that keeps this instance away from production data. Refuse a file
+# that points somewhere else instead of deploying it.
+OWNER_DB=$(printf '%s' "$OWNER_DSN" | sed 's/.*\///' | cut -d'?' -f1)
+APP_DB=$(printf '%s' "$APP_DSN" | sed 's/.*\///' | cut -d'?' -f1)
+[ "$OWNER_DB" = "bm2_rc" ] || fail "MAJADU_OWNER_DSN points at '$OWNER_DB', not bm2_rc"
+[ "$APP_DB" = "bm2_rc" ] || fail "MAJADU_PG_DSN points at '$APP_DB', not bm2_rc"
 
 # ---------------------------------------------------------------------------
 # Build. The previous :local becomes :prev first, so a failed build still

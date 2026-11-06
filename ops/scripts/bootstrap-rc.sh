@@ -79,6 +79,13 @@ case "$RC_DB" in
   *) ;;
 esac
 
+# The RC shares the bm2_* role names because every migration grants to bm2_app
+# by name. That is safe only while bm2 does not exist: this script sets the
+# passwords on those roles, which would break production once it does.
+if psql_super -Atc "select 1 from pg_database where datname = 'bm2'" | grep -q 1; then
+  die "database bm2 exists; this script would reset the production role passwords. Dismantle the RC or give it dedicated roles first."
+fi
+
 psql_db() {
   local db="$1"
   shift

@@ -15,7 +15,7 @@ Rencana lengkap dan alasan desainnya ada di `docs/plan/rc-environment.md`.
 | Unit | `majadu-rc-api.service` (Quadlet `majadu-rc-api.container`) |
 | Container | `majadu-rc-api`, `127.0.0.1:8081 -> 8080` |
 | Image | `localhost/majadu-rc-api:local` (+ `:prev`) |
-| Database | `bm2_rc`, role `bm2_rc_owner` / `bm2_rc_app` |
+| Database | `bm2_rc`, role `bm2_owner` / `bm2_app` |
 | Env | `/srv/qouver/apps/majadu-rc/env/majadu-rc.env` (600, dir 700) |
 | Caddy | `import /etc/caddy/site-rc.caddy` |
 | URL publik | `https://api.qouver.com/majadu-rc/*` |
