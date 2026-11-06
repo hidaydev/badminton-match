@@ -281,6 +281,10 @@ else
     --token "$TOKEN" >>"$LOG" 2>&1 || fail "vercel link failed"
   "$VERCEL_BIN" pull --yes --environment=production --token "$TOKEN" >>"$LOG" 2>&1 ||
     fail "vercel pull failed"
+  # `vercel build` reuses whatever output directory is already there, including
+  # builds.json from a failed attempt, and a deploy then refuses the stale
+  # record. Start from nothing so the build that is deployed is this one.
+  rm -rf "$MONO_DIR/.vercel/output"
   "$VERCEL_BIN" build --prod --token "$TOKEN" >>"$LOG" 2>&1 || fail "vercel build failed"
   DEPLOY_JSON=$("$VERCEL_BIN" deploy --prebuilt --prod --yes --json --token "$TOKEN" \
     2>>"$LOG" || true)
