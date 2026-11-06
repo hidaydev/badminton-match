@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { usePwaInstall } from '../hooks/usePwaInstall'
 import { useLastSession } from '../hooks/useLastSession'
 import { useAdmin } from '../context/AdminContext'
+import { communityHref } from '../../routes.manifest'
 import InstallModal from '../components/InstallModal'
 import Icon, { type IconName } from '../components/Icon'
 import AdminMenuGrid from '../components/admin/AdminMenuGrid'
@@ -73,7 +74,11 @@ export default function HomePage() {
       {/* Continue Session Card */}
       {lastSession && (
         <button
-          onClick={() => navigate(`/s/${lastSession.id}`)}
+          onClick={() =>
+            navigate(
+              communityHref(lastSession.slug, `/s/${encodeURIComponent(lastSession.id)}`),
+            )
+          }
           className="w-full flex items-center gap-3.5 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.99] transition-all text-left shadow-sm"
         >
           <div className="w-11 h-11 rounded-lg bg-accent/15 border border-accent/30 text-accent flex items-center justify-center shrink-0">

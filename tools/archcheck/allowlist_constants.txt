@@ -26,3 +26,6 @@ modules/achievement/domain/achievement.nim:97
 
 # Player history page cap; a response-size choice, not a business number.
 modules/rating/read.nim:50
+
+# Session title cap; a UI-width choice, not a business number.
+modules/session/write.nim:120

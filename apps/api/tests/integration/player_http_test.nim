@@ -176,6 +176,27 @@ suite "player HTTP":
       adminCookie)
     check delete == 404
 
+  test "a patch rejects a name that is not a string, blank or too long":
+    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Farah","gender":"F"}""")
+    let playerId = parseJson(body)["id"].getStr()
+    for bad in ["""{"name":123}""", """{"name":"   "}""",
+                """{"name":""" & "y".repeat(81) & """}"""]:
+      let (status, _) = call(HttpPatch,
+        "/c/player-club/players/" & playerId, hostCookie, bad)
+      check status == 400
+    let (read, after) = call(HttpGet, "/c/player-club/players/" & playerId,
+      memberCookie)
+    check read == 200
+    check parseJson(after)["name"].getStr() == "Farah"
+
+  test "achievements and claims answer 404 for a player of another community":
+    let unknown = "11111111-1111-1111-1111-111111111111"
+    for suffix in ["/achievements", "/claims"]:
+      let (status, _) = call(HttpGet,
+        "/c/player-club/players/" & unknown & suffix, memberCookie)
+      check status == 404
+
   test "aliases are stored, replaced and returned":
     let (created, body) = call(HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Fajar","gender":"M","aliases":["  Fajar  A ","Fajar"]}""")

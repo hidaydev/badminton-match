@@ -51,6 +51,11 @@ export function getSaveErrorMessage(error: unknown): string {
     return error.message
   }
 
+  // A rejected field (blank title, bad date, out-of-range slot) names the rule.
+  if (code === 'INVALID_BODY' || code === 'INVALID_PATCH' || code === 'INVALID_SESSION') {
+    return error.message
+  }
+
   if (code === '55P03' || message.includes('being updated by another request')) {
     if (message.includes('tournament')) {
       return 'Tournament is being updated. Wait a moment, reload, then try again.'

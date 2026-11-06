@@ -1,4 +1,4 @@
-import std/[json, options, strutils]
+import std/[json, options, strutils, unicode]
 import db/db
 
 type
@@ -25,6 +25,18 @@ const sessionColumns = """
        start_time::text as start_time, slot_minutes, status, version,
        approved_at::text as approved_at"""
 
+const maxTitleLength* = 120
+
+proc parseTitle*(raw: string): string =
+  ## A title is shown in the session list and on the live link, so a blank or
+  ## whitespace-only one is a data error rather than a valid default.
+  result = raw.strip()
+  if result.len == 0:
+    raise newException(ValueError, "title must not be blank")
+  if result.runeLen > maxTitleLength:
+    raise newException(ValueError,
+      "title must be at most " & $maxTitleLength & " characters")
+
 proc stringField(body: JsonNode, key: string): string =
   ## `getStr` answers its default for a non-string in Nim 2.4, so the kind has
   ## to be checked here: a `null` title used to erase the stored one.
@@ -36,7 +48,7 @@ proc parsePatch*(body: JsonNode): SessionPatch =
   if body.kind != JObject:
     raise newException(ValueError, "patch body must be an object")
   if body.hasKey("title"):
-    result.title = some(stringField(body, "title"))
+    result.title = some(parseTitle(stringField(body, "title")))
   if body.hasKey("date"):
     result.date = some(stringField(body, "date"))
   if body.hasKey("startTime"):

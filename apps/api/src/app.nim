@@ -559,6 +559,9 @@ proc validClockTime(value: string): bool =
   except TimeParseError:
     false
 
+proc idempotentWrite(request: Request, userId, communityId, key: string,
+                     body: string): Option[JsonNode]
+
 proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   var body: JsonNode
   try:
@@ -595,6 +598,19 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   if slot < 1 or slot > 240:
     problem(request, 400, "INVALID_BODY", "slotMinutes must be between 1 and 240")
     return
+  try:
+    # A blank title used to be stored as-is, so the list showed nameless
+    # drafts; the create form always sends one.
+    title = sessionWrite.parseTitle(title)
+  except ValueError as error:
+    problem(request, 400, "INVALID_BODY", error.msg)
+    return
+  # Claim the key only once the body is known to be valid: a 400 must not leave
+  # the key owned, or every retry would answer 409 for the rest of the day.
+  let key = request.headers["Idempotency-Key"]
+  if idempotentWrite(request, user.id, ctx.communityId, key,
+      request.body).isSome:
+    return
   let row = application.db.queryOne(
     """insert into session.sessions
        (community_id, title, session_date, start_time, slot_minutes, status, source)
@@ -603,17 +619,30 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
     @[textParam(ctx.communityId), textParam(title), textParam(date),
       textParam(startTime), intParam(slot.int64)])
   if row.isNone:
+    # Nothing was written, so release the key instead of leaving it owned until
+    # the TTL turns every retry into a 409.
+    if key.len > 0:
+      discard application.db.execUpdate(
+        """delete from platform.idempotency_keys
+           where user_id = $1::uuid and key = $2""",
+        @[textParam(user.id), textParam(scopedKey(ctx.communityId, key))])
     problem(request, 400, "INVALID_SESSION", "cannot create session")
     return
-  audit("session.create", ctx, user, "session", row.get.get("id"),
-    %*{"title": row.get.get("title"), "date": row.get.get("session_date"),
-        "status": row.get.get("status")})
-  jsonResponse(request, 201, %*{
+  let created = %*{
     "id": row.get.get("id"),
     "title": row.get.get("title"),
     "date": row.get.get("session_date"),
     "status": row.get.get("status"),
-  })
+  }
+  # Complete before the audit: a failure while recording the event must not
+  # leave a claimed key whose response was never stored.
+  if key.len > 0:
+    complete(application.db, user.id, scopedKey(ctx.communityId, key), 201,
+      created)
+  audit("session.create", ctx, user, "session", row.get.get("id"),
+    %*{"title": row.get.get("title"), "date": row.get.get("session_date"),
+        "status": row.get.get("status")})
+  jsonResponse(request, 201, created)
 
 proc listSessions(request: Request, ctx: CommunityContext) =
   ## One page, never a silently truncated history: the caller pages with
@@ -882,11 +911,10 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
                     sessionId: string, locked: bool) =
   let version = requireIfMatch(request)
   if version.isNone: return
-  # Unlocking withdraws the event, so it has to respect a sign-off exactly like
-  # the delete routes do. Without this a finalized source lost its event, and a
-  # re-lock wrote a new result under the same finalized flag.
-  if not locked and
-      ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
+  # A sign-off freezes the source: unlocking withdraws its event, and re-locking
+  # used to rewrite `approved_at`/`approved_by`, so a host could re-stamp a
+  # result an admin had approved. Both directions refuse now.
+  if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
     return
   let result = sessionWrite.setLock(application.db, ctx.communityId, sessionId,
@@ -1330,6 +1358,9 @@ proc listClaimsRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   ## Members see the claim trail but not who else applied or who decided:
   ## only a member's own claim stays identifiable, so the page can still say
   ## they are waiting. Hosts and admins need the full record to act on it.
+  if playerStore.get(application.db, ctx.communityId, playerId).isNone:
+    problem(request, 404, "NOT_FOUND", "player not found")
+    return
   let privileged = ctx.role in [rHost, rAdmin]
   var items = newJArray()
   for claim in playerClaim.list(application.db, ctx.communityId, playerId):
@@ -2095,6 +2126,9 @@ proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
 
 proc playerAchievements(request: Request, ctx: CommunityContext,
                         playerId: string) =
+  if playerStore.get(application.db, ctx.communityId, playerId).isNone:
+    problem(request, 404, "NOT_FOUND", "player not found")
+    return
   let items = achievementBackfill.listForPlayer(application.db,
     ctx.communityId, playerId)
   var body = newJArray()

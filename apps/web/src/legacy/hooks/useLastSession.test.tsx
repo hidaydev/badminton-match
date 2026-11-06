@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import type { SessionMeta } from '../queries/types'
-import { useLastSession } from './useLastSession'
+import { useLastSession, type LastSessionMeta } from './useLastSession'
 
 const LS_KEY = 'last-visited-session'
 
-const meta: SessionMeta = {
+const meta: LastSessionMeta = {
   id: 's1',
+  slug: 'jakarta',
   title: 'Tuesday Night',
   date: '2026-11-03',
   playerCount: 8,
@@ -43,5 +43,21 @@ describe('useLastSession', () => {
     window.localStorage.removeItem(LS_KEY)
     rerender()
     expect(result.current.lastSession).toEqual(meta)
+  })
+
+  it('stores the community slug next to the session id', () => {
+    const { result } = renderHook(() => useLastSession())
+    result.current.save(meta)
+
+    expect(JSON.parse(window.localStorage.getItem(LS_KEY) ?? '{}')).toEqual(meta)
+  })
+
+  it('ignores a session stored before the slug was added', () => {
+    const legacy: Record<string, unknown> = { ...meta }
+    delete legacy.slug
+    window.localStorage.setItem(LS_KEY, JSON.stringify(legacy))
+
+    const { result } = renderHook(() => useLastSession())
+    expect(result.current.lastSession).toBeNull()
   })
 })

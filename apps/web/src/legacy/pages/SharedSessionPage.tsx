@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useParams, useNavigate } from '../router'
+import { Link, useParams, useNavigate, useLegacySlug } from '../router'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetSession,
@@ -33,6 +33,7 @@ import { communityQueryKey } from '../queries/keys'
 
 export default function SharedSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
+  const slug = useLegacySlug()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -72,13 +73,14 @@ export default function SharedSessionPage() {
     if (!snapshot || !sessionId) return
     save({
       id: sessionId,
+      slug,
       title: snapshot.session.title,
       date: snapshot.session.date,
       playerCount: snapshot.players.length,
       totalGames: snapshot.schedule.length,
       locked: !!snapshot.session.locked,
     })
-  }, [save, sessionId, snapshot])
+  }, [save, sessionId, slug, snapshot])
 
   const header = (
     <header className="border-b border-border-subtle bg-surface sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
@@ -202,6 +204,7 @@ export default function SharedSessionPage() {
           }
         }}
         standalone
+        shareSessionId={canEdit ? sessionId : undefined}
         onRefetch={() => refetch()}
         isRefetching={isFetching}
         locked={!!snapshot?.session?.locked}

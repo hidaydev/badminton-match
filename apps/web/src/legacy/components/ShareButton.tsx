@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { communityQueryKey } from '../queries/keys'
 import {
+  activeCommunitySlug,
   createSession,
   ensureSessionShareLink,
   getSession,
@@ -13,6 +16,8 @@ import {
 import type { CloudSnapshot, PlayerSummary } from '../queries'
 import { getSaveErrorMessage } from '../queries/errors'
 import { buildPublishableSessionSnapshot } from '../utils/sessionSnapshot'
+import { communityHref } from '../../routes.manifest'
+import { t } from '../../i18n'
 import ResolvePlayersModal from './ResolvePlayersModal'
 import { findUnresolvedPlayers } from '../utils/resolvePlayers'
 
@@ -28,9 +33,10 @@ export default function ShareButton() {
   const setCloudVersion = useStore((s) => s.setCloudVersion)
   const updatePlayer = useStore((s) => s.updatePlayer)
 
+  const queryClient = useQueryClient()
   const [confirming, setConfirming] = useState(false)
   const [publishing, setPublishing] = useState(false)
-  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [publishedId, setPublishedId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [resolveOpen, setResolveOpen] = useState(false)
@@ -38,21 +44,20 @@ export default function ShareButton() {
 
   useEscapeKey(() => setConfirming(false), confirming)
 
+  // One cache entry for the live code, shared with the summary panel: rotating
+  // or revoking there must not leave this pill handing out the old link.
+  const shareKey = communityQueryKey('session-share', cloudSessionId ?? '')
+  const { data: shareCode = null } = useQuery({
+    queryKey: shareKey,
+    queryFn: () => getSessionShareCode(cloudSessionId as string),
+    enabled: cloudSessionId !== null && cloudSessionId !== undefined,
+  })
+  const shareUrl = shareCode === null ? null : `${window.location.origin}/s/${shareCode}`
+
   // A session published earlier already has a live link; show it again.
   useEffect(() => {
-    if (!cloudSessionId) return
-    let cancelled = false
-    getSessionShareCode(cloudSessionId)
-      .then((code) => {
-        if (!cancelled && code !== null) setShareUrl(`${window.location.origin}/s/${code}`)
-      })
-      .catch(() => {
-        // No link yet; the Share action creates one.
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [cloudSessionId])
+    if (cloudSessionId && shareCode !== null) setPublishedId(cloudSessionId)
+  }, [cloudSessionId, shareCode])
 
   async function handleConfirm() {
     setConfirming(false)
@@ -85,8 +90,11 @@ export default function ShareButton() {
       snapshot.session = { ...snapshot.session, locked: false }
       const published = await publishSession(id, snapshot)
       setCloudVersion(published.version ?? null)
+      // The session is live now, so the way back to it must not depend on the
+      // share link succeeding.
+      setPublishedId(id)
       const code = await ensureSessionShareLink(id)
-      setShareUrl(`${window.location.origin}/s/${code}`)
+      queryClient.setQueryData(communityQueryKey('session-share', id), code)
     } catch (err) {
       setError(getSaveErrorMessage(err))
     } finally {
@@ -250,6 +258,17 @@ export default function ShareButton() {
             </>
           )}
         </button>
+      )}
+      {publishedId && (
+        <a
+          href={communityHref(
+            activeCommunitySlug(),
+            `/s/${encodeURIComponent(publishedId)}`,
+          )}
+          className="inline-flex items-center text-xs font-bold shrink-0 rounded-lg bg-emerald-400 hover:bg-emerald-300 px-2.5 py-1.5 text-slate-950 transition-colors"
+        >
+          {t('wizard.generate.play')}
+        </a>
       )}
     </>
   )

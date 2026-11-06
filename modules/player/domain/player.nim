@@ -98,19 +98,30 @@ proc parseAliases*(node: JsonNode): seq[string] =
       raise newException(ValueError, "aliases must be strings")
     result.add(normalizeName(entry.getStr()))
 
+proc stringField(body: JsonNode, key: string): string =
+  ## `getStr` answers its default for a non-string in Nim 2.4, so the kind has
+  ## to be checked: `name: 123` used to blank the stored name.
+  if body[key].kind != JString:
+    raise newException(ValueError, key & " must be a string")
+  body[key].getStr()
+
 proc parsePatch*(body: JsonNode): PlayerPatch =
   ## `tier: null` clears it; an absent key leaves it untouched. That is the
   ## sticky behaviour: an update never drops a tier by accident.
   if body.kind != JObject:
     raise newException(ValueError, "patch body must be an object")
   if body.hasKey("name"):
-    result.name = some(normalizeName(body["name"].getStr()))
+    let name = normalizeName(stringField(body, "name"))
+    if name.len == 0 or name.len > maxNameLength:
+      raise newException(ValueError,
+        "name must be between 1 and " & $maxNameLength & " characters")
+    result.name = some(name)
   if body.hasKey("gender"):
-    result.gender = some(parseGender(body["gender"].getStr()))
+    result.gender = some(parseGender(stringField(body, "gender")))
   if body.hasKey("tier"):
     if body["tier"].kind == JNull:
       result.clearTier = true
     else:
-      result.tier = some(parseTier(body["tier"].getStr()))
+      result.tier = some(parseTier(stringField(body, "tier")))
   if body.hasKey("aliases"):
     result.aliases = some(parseAliases(body["aliases"]))

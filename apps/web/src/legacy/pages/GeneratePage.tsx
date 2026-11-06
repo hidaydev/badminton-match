@@ -345,6 +345,7 @@ export default function GeneratePage() {
           onReplacePlayer={handleReplacePlayer}
           onSetAbsent={cloudSessionId ? handleSetAbsent : undefined}
           absentPlayers={absentPlayers}
+          shareSessionId={cloudSessionId && !isSharedView ? cloudSessionId : undefined}
         />
       )}
     </div>

@@ -211,7 +211,11 @@ export default function SetupPage() {
       ? `Need at least ${minPlayersNeeded} players for ${session.courts} courts — add more or reduce courts.`
       : null
 
-  const canLock = !courtError && session.title.trim() !== '' && session.date !== ''
+  // The API trims and caps the title at 120 characters; keeping the input to
+  // the same bound means publishing cannot fail on a title the form accepted.
+  const titleLength = session.title.trim().length
+  const canLock = !courtError && titleLength > 0 && titleLength <= 120 &&
+    session.date !== ''
 
   function handleLock() {
     lockSession()
@@ -236,6 +240,7 @@ export default function SetupPage() {
               type="text"
               value={session.title}
               onChange={(e) => setTitle(e.target.value)}
+              maxLength={120}
               placeholder="e.g. Sunday Morning Session"
               disabled={session.locked}
               className="bg-elevated border border-border rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed h-9"

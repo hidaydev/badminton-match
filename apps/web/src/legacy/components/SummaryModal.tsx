@@ -17,6 +17,7 @@ import { validateChangeName } from '../utils/swap'
 import type { SlotSwapTarget } from '../utils/slotSwap'
 import ConfirmBars from './summary/ConfirmBars'
 import ActionsMenu from './summary/ActionsMenu'
+import ShareLinkPanel from './summary/ShareLinkPanel'
 import PlayerStatsPanel from './summary/PlayerStatsPanel'
 import ScheduleGrid from './summary/ScheduleGrid'
 import StandingsTab from './summary/StandingsTab'
@@ -43,6 +44,8 @@ interface SummaryModalBaseProps {
   readOnly?: boolean
   absentPlayers?: string[]
   skippedPlayers?: Record<string, string[]>
+  /** Cloud id; renders the share-link panel for a host/admin viewer. */
+  shareSessionId?: string
 }
 
 /** Edit callback props for SummaryModal (all optional for read-only views) */
@@ -94,6 +97,7 @@ export default function SummaryModal({
   onSwapPlayers,
   absentPlayers = EMPTY_STRING_ARRAY,
   skippedPlayers = EMPTY_SKIPPED_RECORD,
+  shareSessionId,
   onSetAbsent,
   onSetGameSkipped,
   onReplacePlayer,
@@ -356,6 +360,7 @@ export default function SummaryModal({
               />
             )
           )}
+          {shareSessionId && <ShareLinkPanel sessionId={shareSessionId} />}
           {/* Delete button */}
           {onDelete && !deleteConfirm && (
             <button

@@ -762,6 +762,11 @@ export async function getSessionShareCode(id: string): Promise<string | null> {
 export async function ensureSessionShareLink(id: string): Promise<string> {
   const live = await getSessionShareCode(id)
   if (live !== null) return live
+  return rotateSessionShareLink(id)
+}
+
+/** Issues a new code; the server revokes the previous one in the same transaction. */
+export async function rotateSessionShareLink(id: string): Promise<string> {
   const created = await request<{ code: string }>(
     'POST',
     communityPath(`/sessions/${enc(id)}/share`),
@@ -770,6 +775,11 @@ export async function ensureSessionShareLink(id: string): Promise<string> {
     { 'Idempotency-Key': makeIdempotencyKey() },
   )
   return created.code
+}
+
+/** Revokes the live code; the public link stops resolving immediately. */
+export async function deleteSessionShareLink(id: string): Promise<void> {
+  await request<void>('DELETE', communityPath(`/sessions/${enc(id)}/share`))
 }
 
 // ── Players ───────────────────────────────────────────────────────────────

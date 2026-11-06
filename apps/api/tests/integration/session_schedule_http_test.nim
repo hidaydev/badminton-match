@@ -355,6 +355,17 @@ suite "session schedule HTTP":
     let (wrongType, _) = call(HttpPost, path, hostCookie,
       """{"date":20261104}""")
     check wrongType == 400
+    # A title is required now: a blank one used to create a nameless draft.
+    let (noTitle, _) = call(HttpPost, path, hostCookie,
+      """{"date":"2026-11-04"}""")
+    check noTitle == 400
+    let (blankTitle, _) = call(HttpPost, path, hostCookie,
+      """{"title":"   ","date":"2026-11-04"}""")
+    check blankTitle == 400
+    let (longTitle, _) = call(HttpPost, path, hostCookie,
+      """{"title":"""" & "x".repeat(121) &
+      """","date":"2026-11-04"}""")
+    check longTitle == 400
     let (created, body) = call(HttpPost, path, hostCookie,
       """{"title":"Valid","date":"2026-11-04","startTime":"19:30","slotMinutes":45}""")
     check created == 201
@@ -406,6 +417,80 @@ suite "session schedule HTTP":
     let (_, after) = call(HttpGet, path, hostCookie)
     check parseJson(after)["title"].getStr() == "Renamed once"
     check parseJson(after)["version"].getInt() == 2
+
+  test "creating a session is idempotent per key":
+    let path = "/c/sched-club/sessions"
+    let body = """{"title":"Replay","date":"2026-11-13"}"""
+    let (first, firstBody) = call(HttpPost, path, hostCookie, body,
+      idempotencyKey = "create-once")
+    check first == 201
+    # The same key and body replay the stored response, and no second row.
+    let (replay, replayBody) = call(HttpPost, path, hostCookie, body,
+      idempotencyKey = "create-once")
+    check replay == 201
+    check parseJson(replayBody)["id"].getStr() == parseJson(firstBody)["id"].getStr()
+    let rows = database.queryOne(
+      """select count(*)::int as n from session.sessions
+         where community_id = $1::uuid and title = 'Replay'""",
+      @[textParam(communityId)])
+    check rows.get.get("n") == "1"
+    let (conflict, _) = call(HttpPost, path, hostCookie,
+      """{"title":"Replay","date":"2026-11-14"}""",
+      idempotencyKey = "create-once")
+    check conflict == 409
+    # A rejected body must not own the key: the corrected retry still works.
+    let (rejected, _) = call(HttpPost, path, hostCookie,
+      """{"date":"2026-11-15"}""", idempotencyKey = "create-retry")
+    check rejected == 400
+    let (retried, _) = call(HttpPost, path, hostCookie,
+      """{"title":"Retried","date":"2026-11-15"}""",
+      idempotencyKey = "create-retry")
+    check retried == 201
+
+  test "a sign-off freezes both locking and unlocking":
+    let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Signed off","date":"2026-11-16"}""")
+    let sessionId = parseJson(created)["id"].getStr()
+    let schedule = """{"games":[{"round":0,"court":0,"sideA":["""" &
+      players[0] & """","""" & players[1] & """"],"sideB":["""" &
+      players[2] & """","""" & players[3] & """"]}]}"""
+    discard call(HttpPut, "/c/sched-club/sessions/" & sessionId & "/schedule",
+      hostCookie, schedule, ifMatch = "\"1\"")
+    discard call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"scoreA":21,"scoreB":15}""", ifMatch = "\"2\"")
+    let (locked, _) = call(HttpPost,
+      "/c/sched-club/sessions/" & sessionId & "/lock", hostCookie,
+      ifMatch = "\"3\"")
+    check locked == 200
+    let before = database.queryOne(
+      """select approved_by, approved_at::text as approved_at
+         from session.sessions where id = $1::uuid""",
+      @[textParam(sessionId)])
+    let (finalized, _) = call(HttpPatch,
+      "/c/sched-club/rating-sources/" & sessionId, adminCookie,
+      """{"finalized":true}""")
+    check finalized == 200
+    # Neither direction may touch the event or the approval stamp now.
+    let (unlockRefused, _) = call(HttpPost,
+      "/c/sched-club/sessions/" & sessionId & "/unlock", hostCookie,
+      ifMatch = "\"4\"")
+    check unlockRefused == 403
+    let (lockRefused, _) = call(HttpPost,
+      "/c/sched-club/sessions/" & sessionId & "/lock", hostCookie,
+      ifMatch = "\"4\"")
+    check lockRefused == 403
+    let after = database.queryOne(
+      """select approved_by, approved_at::text as approved_at
+         from session.sessions where id = $1::uuid""",
+      @[textParam(sessionId)])
+    check after.get.get("approved_by") == before.get.get("approved_by")
+    check after.get.get("approved_at") == before.get.get("approved_at")
+    let events = database.queryOne(
+      """select count(*)::int as n from rating.events
+         where community_id = $1::uuid and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    check events.get.get("n") == "1"
 
   test "members read the standings and an unknown session is a 404":
     let (created, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
