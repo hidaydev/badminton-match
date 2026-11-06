@@ -30,11 +30,12 @@ type Game = { round: number; court: number; sideA: string[]; sideB: string[] }
 /** Writes a schedule and returns the session version the server now holds. */
 async function putGames(
   api: APIRequestContext,
+  slug: string,
   sessionId: string,
   games: Game[],
   version: number,
 ): Promise<number> {
-  const response = await api.put(`/api/c/e2e-club/sessions/${sessionId}/schedule`, {
+  const response = await api.put(`/api/c/${slug}/sessions/${sessionId}/schedule`, {
     headers: { 'If-Match': `"${version}"` },
     data: { games },
   })
@@ -46,13 +47,14 @@ async function putGames(
 
 async function playGame(
   api: APIRequestContext,
+  slug: string,
   sessionId: string,
   key: string,
   score: { scoreA: number; scoreB: number },
   version: number,
 ): Promise<number> {
   const response = await api.patch(
-    `/api/c/e2e-club/sessions/${sessionId}/games/${key}`,
+    `/api/c/${slug}/sessions/${sessionId}/games/${key}`,
     { headers: { 'If-Match': `"${version}"` }, data: score },
   )
   if (response.status() !== 200) {
@@ -84,6 +86,15 @@ export default async function globalSetup() {
     if (created.status() !== 201) {
       throw new Error(`communities: ${created.status()} ${await created.text()}`)
     }
+    // The write specs save scores and bump a session's updated_at, which moves
+    // it in the list the visual baseline pins. They get their own community so
+    // the pinned list never depends on which spec ran first.
+    const writes = await api.post('/api/communities', {
+      data: { slug: 'e2e-writes', name: 'E2E Writes', adminEmail: 'stub@example.com' },
+    })
+    if (writes.status() !== 201) {
+      throw new Error(`writes community: ${writes.status()} ${await writes.text()}`)
+    }
     // The creator is not a member yet: the first-admin invitation is honoured
     // at login, so a second pass through the stub is what grants admin.
     await startLogin(api)
@@ -96,6 +107,14 @@ export default async function globalSetup() {
       }
       playerIds.push(((await player.json()) as { id: string }).id)
     }
+    const writePlayerIds: string[] = []
+    for (const name of ['Wira', 'Xena', 'Yudi', 'Zara']) {
+      const player = await api.post('/api/c/e2e-writes/players', { data: { name } })
+      if (player.status() !== 201) {
+        throw new Error(`writes players: ${player.status()} ${await player.text()}`)
+      }
+      writePlayerIds.push(((await player.json()) as { id: string }).id)
+    }
 
     const session = await api.post('/api/c/e2e-club/sessions', {
       data: { title: 'E2E Wednesday', date: '2026-11-04', startTime: '19:00' },
@@ -106,11 +125,11 @@ export default async function globalSetup() {
     const sessionId = ((await session.json()) as { id: string }).id
     // The pinned session is what the visual baseline shows, so it carries the
     // states worth looking at: a played game and one still scheduled.
-    let version = await putGames(api, sessionId, [
+    let version = await putGames(api, 'e2e-club', sessionId, [
       { round: 0, court: 0, sideA: [playerIds[0], playerIds[1]], sideB: [playerIds[2], playerIds[3]] },
       { round: 0, court: 1, sideA: [playerIds[0], playerIds[2]], sideB: [playerIds[1], playerIds[3]] },
     ], 1)
-    version = await playGame(api, sessionId, '0-0', { scoreA: 30, scoreB: 24 }, version)
+    version = await playGame(api, 'e2e-club', sessionId, '0-0', { scoreA: 30, scoreB: 24 }, version)
     if (version !== 3) throw new Error(`pinned session version: ${version}`)
 
     // The spectator spec opens this without a login; nothing else writes it.
@@ -124,7 +143,7 @@ export default async function globalSetup() {
     // them, and two projects run in parallel, so each project gets its own.
     const writableByProject: Record<string, string> = {}
     for (const project of projects) {
-      const writable = await api.post('/api/c/e2e-club/sessions', {
+      const writable = await api.post('/api/c/e2e-writes/sessions', {
         // Named per project so the sessions list reads as a fixture, not as a
         // duplicate someone forgot to delete.
         data: { title: `E2E Writable ${project.name}`, date: '2026-11-05', startTime: '19:00' },
@@ -133,8 +152,8 @@ export default async function globalSetup() {
         throw new Error(`writable session: ${writable.status()} ${await writable.text()}`)
       }
       const id = ((await writable.json()) as { id: string }).id
-      await putGames(api, id, [
-        { round: 0, court: 0, sideA: [playerIds[0], playerIds[1]], sideB: [playerIds[2], playerIds[3]] },
+      await putGames(api, 'e2e-writes', id, [
+        { round: 0, court: 0, sideA: [writePlayerIds[0], writePlayerIds[1]], sideB: [writePlayerIds[2], writePlayerIds[3]] },
       ], 1)
       writableByProject[project.name] = id
     }
@@ -188,6 +207,7 @@ export default async function globalSetup() {
           playerId: playerIds[0],
           shareCode,
           writableByProject,
+          writableCommunitySlug: 'e2e-writes',
         },
         null,
         2,

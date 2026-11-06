@@ -43,6 +43,9 @@ export default defineConfig({
         // runtime rules below instead of on the first install.
         maximumFileSizeToCacheInBytes: 200 * 1024,
         navigateFallback: '/index.html',
+        // The API shares this origin under /api: a navigation there (the OIDC
+        // callback) must reach the server, never the cached app shell.
+        navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,ico,svg,webmanifest}', 'logo-*.png'],
         // The manifest body is injected by vite-plugin-pwa itself; ignoring it
         // here keeps one precache entry instead of two.

@@ -379,6 +379,7 @@ export default function InstagramPostPage() {
         </div>
         <input
           type="date"
+          aria-label="Post date"
           value={dateValue}
           onChange={e => setDateValue(e.target.value)}
           className="ml-auto bg-slate-800/60 border border-slate-700 rounded-xl px-3 py-2 text-sm font-semibold text-white outline-none"

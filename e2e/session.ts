@@ -7,6 +7,10 @@ import { t } from '../apps/web/src/i18n'
  * owner without a real Google account (TECH-SPEC §9).
  */
 export async function signIn(page: Page): Promise<void> {
+  // The anniversary overlay is a one-time promo that covers the whole page, and
+  // every test gets a fresh browser context. Mark it shown before the bundle
+  // boots so a test measures the app instead of the promo.
+  await page.addInitScript(() => sessionStorage.setItem('celebration-shown', '1'))
   await page.goto('/')
   await page.getByRole('button', { name: t('login.action') }).click()
   // The header is the shell; the nav inside it is collapsed on a phone until

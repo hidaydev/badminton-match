@@ -208,6 +208,14 @@ function OwnerOnly({ children }: { children: React.ReactNode }) {
   return children
 }
 
+function CelebrationGate({ onDismiss }: { onDismiss: () => void }) {
+  const { user } = useAuth()
+  // The sign-in screen comes first: a full-screen promo over it intercepts the
+  // clicks and leaves the visitor stuck until they dismiss it.
+  if (!user) return null
+  return <CelebrationOverlay onDismiss={onDismiss} />
+}
+
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <Loading />
@@ -306,14 +314,6 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
     <ErrorBoundary routeName="app">
       <SharedViewContext.Provider value={sharedViewValue}>
-        {showCelebration && (
-          <CelebrationOverlay
-            onDismiss={() => {
-              sessionStorage.setItem('celebration-shown', '1')
-              setShowCelebration(false)
-            }}
-          />
-        )}
         {needRefresh && (
           <UpdateBanner
             onReload={() => void updateServiceWorker(true)}
@@ -321,6 +321,14 @@ export default function App() {
           />
         )}
         <AuthProvider>
+          {showCelebration && (
+            <CelebrationGate
+              onDismiss={() => {
+                sessionStorage.setItem('celebration-shown', '1')
+                setShowCelebration(false)
+              }}
+            />
+          )}
           <BrowserRouter>
             <CommunityProvider>
               <ClientOutdatedBanner />

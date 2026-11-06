@@ -97,7 +97,7 @@ export default function PlayerStatsPanel({
       <div className="mt-6 bg-surface border border-border-subtle rounded-lg p-3 flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-white">Player Stats</span>
-          <span className="text-[10px] text-slate-500">tap a name to highlight matches</span>
+          <span className="text-[10px] text-slate-400">tap a name to highlight matches</span>
         </div>
         <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
           {sorted.map((id) => {

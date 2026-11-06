@@ -8,6 +8,8 @@ export type E2eState = {
   shareCode: string
   /** One writable session per project: the specs mutate it, so they must not share. */
   writableByProject: Record<string, string>
+  /** Writable sessions live outside the community the baselines pin. */
+  writableCommunitySlug: string
 }
 
 /**

@@ -250,6 +250,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 <div className="flex items-center justify-center gap-1.5">
                   <span>{round.title}</span>
                   <button
+                    aria-label={`Photo mode for ${round.title}`}
                     onClick={() => setPostModeRounds(prev => ({ ...prev, [round.id]: !prev[round.id] }))}
                     className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds[round.id] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}
                   >

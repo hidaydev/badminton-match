@@ -101,6 +101,7 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
               <div className="flex items-center gap-3">
                 <span className="text-accent/80 text-xs">Court {GROUP_COURTS[g]}</span>
                 <button
+                  aria-label={`Photo mode for group ${g}`}
                   onClick={() => setPostModeGroups(prev => ({ ...prev, [g]: !prev[g] }))}
                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                     postModeGroups[g] ? 'bg-accent active:bg-accent/80' : 'bg-black/50 active:bg-black/70'

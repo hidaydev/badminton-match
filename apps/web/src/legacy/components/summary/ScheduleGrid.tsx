@@ -229,7 +229,7 @@ export default function ScheduleGrid({
                         isHighlighted && TEAM_HIGHLIGHT_ENABLED && highlightedTeam === 'Green Grove' ? 'bg-emerald-400/8'
                         : isHighlighted && TEAM_HIGHLIGHT_ENABLED && highlightedTeam === 'Blue Waves' ? 'bg-sky-400/8'
                         : isHighlighted ? 'bg-yellow-400/10 ring-1 ring-yellow-400/40'
-                        : done ? 'opacity-40'
+                        : done ? 'opacity-70'
                         : 'hover:bg-slate-800/40'
                       } ${isDimmed ? 'opacity-25' : ''} ${glowClass}`}
                     >
@@ -253,14 +253,14 @@ export default function ScheduleGrid({
                           {courtLabel(courtNames, g.court)}
                         </span>
                         {teamCell('A')}
-                        <span className="text-slate-400 text-xs font-bold text-center select-none shrink-0">vs</span>
+                        <span className="text-slate-300 text-xs font-bold text-center select-none shrink-0">vs</span>
                         {teamCell('B')}
                       </div>
                       {/* Score toggle / saved score */}
                       {mode === 'idle' && (savedScore && !isOpen ? (
                         <button
                           onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: { a: String(savedScore.a), b: String(savedScore.b) } })) } }}
-                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 ${locked ? 'text-slate-400 cursor-default' : 'text-emerald-400 hover:text-emerald-300'}`}
+                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
                         >
                           {savedScore.a}–{savedScore.b}
                         </button>

@@ -104,11 +104,11 @@ export default function RankingsPage() {
                     ? 'bg-accent/20 text-accent border-accent/60 font-semibold'
                     : count > 0
                       ? 'bg-surface text-fg-dim border-border-subtle hover:text-fg hover:border-border'
-                      : 'bg-surface/50 text-fg-dim/40 border-border-subtle/50'
+                      : 'bg-surface/50 text-fg-dim border-border-subtle/50'
                 }`}
               >
                 <span>{tier}</span>
-                <span className="text-[10px] font-mono opacity-70">({count})</span>
+                <span className="text-[10px] font-mono">({count})</span>
               </button>
             )
           })}

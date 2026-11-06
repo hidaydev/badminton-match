@@ -32,6 +32,18 @@ describe('App auth gate', () => {
     expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
   })
 
+  it('does not cover the sign-in screen with the celebration', async () => {
+    mockFetch({ 'GET /api/auth/me': unauth })
+
+    render(<App />)
+
+    expect(await screen.findByRole('button', { name: t('login.action') })).toBeInTheDocument()
+    // A full-screen promo above the login button would intercept the click.
+    expect(
+      screen.queryByRole('dialog', { name: 'Championship celebration' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('starts login with a same-origin returnTo and follows the authorize url', async () => {
     const fetchMock = mockFetch({
       'GET /api/auth/me': unauth,

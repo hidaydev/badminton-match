@@ -157,7 +157,7 @@ export default function PlayerChipRenderer({
           isSelected
             ? 'bg-indigo-900/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/60'
             : isAbsent
-              ? 'border-transparent text-slate-400 line-through'
+              ? 'border-transparent text-slate-300 line-through'
               : 'border-transparent text-white'
         }`}
       >
@@ -192,11 +192,11 @@ export default function PlayerChipRenderer({
     <span
       className={`inline-flex items-center min-w-0 max-w-full text-xs font-medium px-0.5 py-0.5 rounded-md border ${
         isAbsent
-          ? 'border-transparent text-slate-400 line-through'
+          ? 'border-transparent text-slate-300 line-through'
           : showSkippedIdle
-            ? 'border-transparent text-amber-300/80 line-through decoration-amber-400/60'
+            ? 'border-transparent text-amber-200 line-through decoration-amber-400/60'
             : done
-              ? 'border-transparent text-slate-400 line-through'
+              ? 'border-transparent text-slate-300 line-through'
               : 'border-transparent text-white'
       }`}
       title={showSkippedIdle ? 'Skipped in this game' : undefined}
