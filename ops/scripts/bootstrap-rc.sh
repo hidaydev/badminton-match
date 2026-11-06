@@ -155,6 +155,10 @@ begin
   else
     alter role $(quote_sql "$APP_ROLE") with login password '$(quote_sql "$APP_PASS")';
   end if;
+  -- 0015 grants to bm2_etl; the RC never connects as it, so it stays nologin.
+  if not exists (select 1 from pg_roles where rolname = 'bm2_etl') then
+    create role bm2_etl nologin;
+  end if;
 end \$\$;
 SQL
 

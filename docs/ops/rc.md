@@ -141,19 +141,43 @@ setting berikut sudah diterapkan lewat API:
 | Output Directory | `dist` |
 | Node.js | 22.x |
 
-Yang belum dan **butuh akun GitHub/Vercel di browser**: koneksi Git. API Vercel
-menolaknya dengan `To link a GitHub repository, you need to install the GitHub
-integration first`, jadi urutannya:
+Yang belum dan **tidak lagi wajib**: koneksi Git. Ada dua jalur, dan yang aktif
+sekarang adalah yang pertama.
+
+### 5.1 Deploy lewat token (aktif)
+
+`deploy-vps-rc.sh` membangun SPA di VPS lalu mengirimnya ke project:
+
+```sh
+cd apps/web
+vercel link --yes --scope qouver --project majadu-rc --token "$(cat env/vercel-token)"
+vercel pull --yes --environment=production --token ...
+vercel build --prod --token ...
+vercel deploy --prebuilt --prod --yes --token ...
+```
+
+Token disimpan di `/srv/qouver/apps/majadu-rc/env/vercel-token` (mode 600) dan
+hanya dipakai untuk project ini. Tanpa file itu, langkah web dilewati dan API
+tetap deploy — jadi menambahkan atau mencabut token tidak mengubah jalur API.
+
+Token yang terpasang berasal dari sesi CLI pemilik (`vca_…`). `vercel tokens
+create` ditolak untuk login ini (`Cannot create tokens for this app`), jadi kalau
+mau token terpisah: buat di dashboard Vercel → Account Settings → Tokens, lalu
+timpa file di atas. Tidak perlu restart apa pun; deploy berikutnya memakai isi
+file terbaru.
+
+### 5.2 Deploy lewat Git (alternatif)
+
+Kalau nanti ingin pipeline Vercel yang standar:
 
 1. Pasang Vercel GitHub App untuk repo `hidaydev/badminton-match`
    (<https://github.com/apps/vercel/installations/new>). Akun yang memasang
    harus bisa melihat repo itu, dan akun Vercel `nferdazel` harus memakai
    identitas GitHub yang sama.
 2. Di Vercel: Project `majadu-rc` → Settings → Git → Connect
-   `hidaydev/badminton-match`, lalu set Production Branch
-   `release/2.0.0-rc.1`.
-3. Pastikan "Include files outside Root Directory" aktif, karena
-   `pnpm-lock.yaml` dan `pnpm-workspace.yaml` ada di root repo.
+   `hidaydev/badminton-match`, Production Branch `release/2.0.0-rc.1`.
+3. Aktifkan "Include files outside Root Directory".
+4. Hapus `env/vercel-token` kalau tidak ingin dua jalur berjalan bersamaan.
 
 Deployment Protection harus off, kalau tidak callback OAuth dan tautan share
 tertutup.
