@@ -461,9 +461,25 @@ suite "rankings HTTP":
       """{"finalized":false}""")
     check unfinalized == 200
     check not parseJson(unfinalizedBody)["finalized"].getBool()
+    # Withdrawing the sign-off is not enough: the session is still approved, so
+    # the rebuild would re-ingest the event and the undo would be a no-op.
+    let (stillApproved, _) = send(HttpDelete,
+      "/c/rank-club/sessions/" & sessionId & "/rating", adminCookie)
+    check stillApproved == 409
+    discard database.execUpdate(
+      """update session.sessions set status = 'draft', approved_at = null
+         where id = $1::uuid""", @[textParam(sessionId)])
     let (reverted, _) = send(HttpDelete,
       "/c/rank-club/sessions/" & sessionId & "/rating", adminCookie)
     check reverted == 200
+    # The undo really removed the event now (it used to be re-ingested at once),
+    # so put the shared session back: later tests read the board it feeds.
+    discard database.execUpdate(
+      """update session.sessions set status = 'locked', approved_at = now()
+         where id = $1::uuid""", @[textParam(sessionId)])
+    let (rebuiltAfterUndo, _) = send(HttpPost, "/c/rank-club/ratings/rebuild",
+      adminCookie)
+    check rebuiltAfterUndo == 200
 
   test "a share code publishes only the players of its session":
     # A second session puts one more player on the community board, so the

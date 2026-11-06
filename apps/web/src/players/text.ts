@@ -5,7 +5,11 @@ import { t } from '../i18n'
 export function describePlayerError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 403) return t('players.error.forbidden')
-    if (error.status === 409) return t('players.error.conflict')
+    // The route answers CONFLICT when the player still owns matches or
+    // sessions; that is not the same sentence as a duplicate name.
+    if (error.status === 409) {
+      return error.code === 'CONFLICT' ? t('players.error.inUse') : t('players.error.conflict')
+    }
     if (error.status === 400) return t('players.error.invalid')
   }
   return t('players.error.save')

@@ -117,10 +117,14 @@ proc parseClassic(body: JsonNode): ClassicTournament =
   result.name = text(body, "name")
   result.date = text(body, "date")
   result.version = optInt(body, "version")
+  if body.hasKey("pairs") and body["pairs"].kind notin {JArray, JNull}:
+    raise newException(ValueError, "pairs must be a list")
   if body.hasKey("pairs") and body["pairs"].kind == JArray:
     for raw in body["pairs"]:
       let entry = objectEntry(raw)
       result.pairs.add(Pair(id: text(entry, "id"), name: text(entry, "name")))
+  if body.hasKey("groups") and body["groups"].kind notin {JObject, JNull}:
+    raise newException(ValueError, "groups must be an object keyed by group id")
   if body.hasKey("groups") and body["groups"].kind == JObject:
     for groupId in GroupIds:
       let key = $groupId
@@ -131,6 +135,8 @@ proc parseClassic(body: JsonNode): ClassicTournament =
           if pairId.kind != JString:
             raise newException(ValueError, "pair ids must be strings")
           result.groups[ord(groupId)].add(pairId.getStr())
+  if body.hasKey("matches") and body["matches"].kind notin {JArray, JNull}:
+    raise newException(ValueError, "matches must be a list")
   if body.hasKey("matches") and body["matches"].kind == JArray:
     for raw in body["matches"]:
       let entry = objectEntry(raw)
@@ -153,6 +159,8 @@ proc parseTeam(body: JsonNode): TeamTournament =
   if result.date.len > 0 and not validDate(result.date):
     raise newException(ValueError, "date must be a valid YYYY-MM-DD value")
   result.version = optInt(body, "version")
+  if body.hasKey("teams") and body["teams"].kind notin {JArray, JNull}:
+    raise newException(ValueError, "teams must be a list")
   if body.hasKey("teams") and body["teams"].kind == JArray:
     for raw in body["teams"]:
       let entry = objectEntry(raw)
@@ -163,6 +171,8 @@ proc parseTeam(body: JsonNode): TeamTournament =
           team.players.add(TeamPlayer(name: text(player, "name"),
             cls: parseEnum[TeamClass](text(player, "cls"))))
       result.teams.add(team)
+  if body.hasKey("matches") and body["matches"].kind notin {JArray, JNull}:
+    raise newException(ValueError, "matches must be a list")
   if body.hasKey("matches") and body["matches"].kind == JArray:
     for raw in body["matches"]:
       let entry = objectEntry(raw)
@@ -657,7 +667,10 @@ proc patchTeam(conn: DbConn, communityId, tournamentId, matchId: string,
   if exists.isNone:
     return false
   let matchRow = exists.get.get("id")
-  var touched = false
+  # Parse and validate everything first. Writing partai one by one meant a bad
+  # third entry left the first two committed and the ETag untouched, so another
+  # writer could not even see the change.
+  var courtNames: seq[string] = @[]
   if body.hasKey("courts"):
     let courts = body["courts"]
     if courts.kind != JArray or courts.len != 3:
@@ -665,33 +678,34 @@ proc patchTeam(conn: DbConn, communityId, tournamentId, matchId: string,
     for court in courts:
       if court.kind != JString:
         raise newException(ValueError, "court names must be strings")
+      courtNames.add(court.getStr())
+  var partaiScores: seq[(Option[int], Option[int])] = @[]
+  if body.hasKey("partai"):
+    let partai = body["partai"]
+    if partai.kind != JArray or partai.len != 3:
+      raise newException(ValueError, "partai must contain three entries")
+    for rawEntry in partai:
+      partaiScores.add(parseScores(objectEntry(rawEntry)))
+  if courtNames.len == 0 and partaiScores.len == 0:
+    raise newException(ValueError, "courts or partai is required")
+  if courtNames.len > 0:
     discard conn.execUpdate(
       """update tournament.team_matches
          set courts = array(select jsonb_array_elements_text($4::jsonb))::text[]
          where community_id = $1::uuid and tournament_id = $2::uuid
            and coalesce(match_key, id::text) = $3""",
       @[textParam(communityId), textParam(tournamentId), textParam(matchId),
-        textParam($(%*[courts[0].getStr(), courts[1].getStr(), courts[2].getStr()]))])
-    touched = true
-  if body.hasKey("partai"):
-    let partai = body["partai"]
-    if partai.kind != JArray or partai.len != 3:
-      raise newException(ValueError, "partai must contain three entries")
-    for index in 0 ..< partai.len:
-      let entry = objectEntry(partai[index])
-      let scores = parseScores(entry)
-      discard conn.execUpdate(
-        """insert into tournament.team_partai
-             (community_id, team_match_id, partai_index, score_a, score_b)
-           values ($1::uuid, $2::uuid, $3, $4, $5)
-           on conflict (team_match_id, partai_index) do update
-             set score_a = excluded.score_a, score_b = excluded.score_b""",
-        @[textParam(communityId), textParam(matchRow), intParam(index.int64),
-          (if scores[0].isSome: intParam(scores[0].get.int64) else: nullParam()),
-          (if scores[1].isSome: intParam(scores[1].get.int64) else: nullParam())])
-      touched = true
-  if not touched:
-    raise newException(ValueError, "courts or partai is required")
+        textParam($(%*[courtNames[0], courtNames[1], courtNames[2]]))])
+  for index, scores in partaiScores:
+    discard conn.execUpdate(
+      """insert into tournament.team_partai
+           (community_id, team_match_id, partai_index, score_a, score_b)
+         values ($1::uuid, $2::uuid, $3, $4, $5)
+         on conflict (team_match_id, partai_index) do update
+           set score_a = excluded.score_a, score_b = excluded.score_b""",
+      @[textParam(communityId), textParam(matchRow), intParam(index.int64),
+        (if scores[0].isSome: intParam(scores[0].get.int64) else: nullParam()),
+        (if scores[1].isSome: intParam(scores[1].get.int64) else: nullParam())])
   true
 
 proc patchMatch*(db: Db, communityId, id, matchId: string, body: JsonNode,

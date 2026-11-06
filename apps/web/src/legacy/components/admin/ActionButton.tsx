@@ -6,6 +6,7 @@ interface ActionButtonProps {
   children: ReactNode
   tone?: 'neutral' | 'amber' | 'red' | 'green'
   disabled?: boolean
+  title?: string
 }
 
 const tones = {
@@ -15,11 +16,12 @@ const tones = {
   green: 'border-success/30 bg-success/10 text-success hover:bg-success/20',
 }
 
-export default function ActionButton({ onClick, children, tone = 'neutral', disabled }: ActionButtonProps) {
+export default function ActionButton({ onClick, children, tone = 'neutral', disabled, title }: ActionButtonProps) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={`text-xs font-medium px-2.5 py-1 rounded-md border transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ${tones[tone]}`}
     >
       {children}

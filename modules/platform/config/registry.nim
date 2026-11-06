@@ -101,6 +101,12 @@ const allKeys* = [
   spec(keyAuditRetentionDays, ctInt, 1, 3650, true),
 ]
 
+proc mayWiden*(key: ConfigKey): bool =
+  ## Only the directory is opt-in per community: the platform value is its
+  ## default, not a ceiling. Every other boolean is a platform switch that a
+  ## community may narrow but never turn on.
+  key == keyCommunityDirectoryEnabled
+
 proc specFor*(key: ConfigKey): KeySpec =
   for candidate in allKeys:
     if candidate.key == key:

@@ -65,7 +65,7 @@ export default function HomeLayout() {
             <button
               type="button"
               onClick={() => setAccountOpen((open) => !open)}
-              aria-label="Account menu"
+              aria-label={t('shell.account')}
               aria-haspopup="menu"
               aria-expanded={accountOpen}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-elevated text-xs font-bold text-fg hover:border-accent active:scale-95 transition-all"

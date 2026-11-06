@@ -924,7 +924,7 @@ proc getCommunitySettings(request: Request, ctx: CommunityContext) =
   let settings = currentSettings(application.db, ctx.communityId)
   let snapshot = configSnapshot()
   jsonResponse(request, 200, %*{
-    "values": settings,
+    "values": visibleSettings(settings),
     "effective": effectiveConfig(snapshot, settings),
   }, [("Cache-Control", "no-store")])
 
@@ -937,11 +937,12 @@ proc patchCommunitySettings(request: Request, ctx: CommunityContext,
     problem(request, 400, "INVALID_BODY", "settings patch must be JSON")
     return
   let result = applyPatch(application.db, configSnapshot(), ctx.communityId,
-    user.id, body)
+    user.id, body, uuidv7(), $ctx.role)
   case result.outcome
   of soOk:
     jsonResponse(request, 200,
-      %*{"values": currentSettings(application.db, ctx.communityId)},
+      %*{"values": visibleSettings(currentSettings(application.db,
+        ctx.communityId))},
       [("Cache-Control", "no-store")])
   of soUnknownKey:
     problem(request, 400, "UNKNOWN_CONFIG_KEY", result.detail & ": " & result.key)
@@ -1530,8 +1531,10 @@ proc clearSessionRating(request: Request, ctx: CommunityContext,
     return
   let params = ratingParamsFor(ctx)
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, sessionId)
-  let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId, params)
-  reconcileAchievements(ctx, params)
+  var rebuilt = ratingIngest.IngestResult()
+  if removed > 0:
+    rebuilt = ratingIngest.rebuild(application.db, ctx.communityId, params)
+    reconcileAchievements(ctx, params)
   audit("rating.session.revert", ctx, user, "session", sessionId,
     %*{"removedDeltas": removed})
   jsonResponse(request, 200, %*{"removedDeltas": removed,
@@ -2851,8 +2854,15 @@ proc route(request: Request) =
         return
     problem(request, 404, "NOT_FOUND", "route not found")
   except DbError as error:
-    if error.sqlState == "23503":
+    if error.sqlState in ["23001", "23503"]:
+      # PostgreSQL reports ON DELETE RESTRICT as 23001, not 23503: the player
+      # delete used to fall through to the 500 branch because of that.
       problem(request, 409, "CONFLICT", "the row is still referenced by other data")
+      return
+    if error.sqlState in ["23502", "23514", "54000"]:
+      # A not-null/check violation or an identifier too large for its index is
+      # a body problem, not an internal fault.
+      problem(request, 400, "INVALID_INPUT", "a value does not satisfy the schema")
       return
     if error.sqlState in ["22P02", "22007", "22008"]:
       # A path segment or body value that cannot become the uuid, date or time

@@ -54,7 +54,7 @@ proc validate(snapshot: Snapshot, key: ConfigKey, value: JsonNode): SettingsResu
   # directory is the documented exception: it is opt-in per community and the
   # platform value is the default, not a ceiling.
   if value.kind == JBool and value.getBool() and not platform.getBool() and
-      key != keyCommunityDirectoryEnabled:
+      not mayWiden(key):
     return SettingsResult(outcome: soOutOfCeiling, key: $key,
       detail: "override may not enable a platform-disabled flag")
   SettingsResult(outcome: soOk, key: $key)
@@ -83,7 +83,8 @@ proc currentSettings*(db: Db, communityId: string): JsonNode =
     parseJson(row.get.get("values"))
 
 proc applyPatch*(db: Db, snapshot: Snapshot, communityId, actorId: string,
-                 patch: JsonNode): SettingsResult =
+                 patch: JsonNode, requestId = "-",
+                 actorRole = "admin"): SettingsResult =
   ## Merge, validate, write and audit in that order. The audit row keeps the
   ## old and new values, sanitised by the domain allowlist.
   result = checkPatch(snapshot, patch)
@@ -103,8 +104,19 @@ proc applyPatch*(db: Db, snapshot: Snapshot, communityId, actorId: string,
   for name in patch.keys:
     evidence[name] = patch[name]
   recordAudit(db, auditEvent("config.override", communityId, actorId = actorId,
-    actorRole = "admin", targetKind = "community", targetId = communityId,
-    requestId = "-").withEvidence(before, evidence))
+    actorRole = actorRole, targetKind = "community", targetId = communityId,
+    requestId = requestId).withEvidence(before, evidence))
+
+proc visibleSettings*(settings: JsonNode): JsonNode =
+  ## What the caller is allowed to see back: an old row may hold a platform key
+  ## written before the scope was enforced, and that must not resurface here.
+  result = newJObject()
+  if settings.kind != JObject:
+    return
+  for name, value in settings:
+    let key = knownKey(name)
+    if key.isSome and specOf(key.get).scope == csCommunity:
+      result[name] = value
 
 proc effectiveConfig*(snapshot: Snapshot, settings: JsonNode): JsonNode =
   ## The community-scoped keys with the value that will actually be used.
@@ -115,7 +127,12 @@ proc effectiveConfig*(snapshot: Snapshot, settings: JsonNode): JsonNode =
     if entry.scope != csCommunity:
       continue
     if settings.kind == JObject and settings.hasKey($entry.key):
-      result[$entry.key] = %*{"value": settings[$entry.key], "source": "community"}
+      let value =
+        if entry.kind == ctBool:
+          %snapshot.boolValue(settings, entry.key)
+        else:
+          settings[$entry.key]
+      result[$entry.key] = %*{"value": value, "source": "community"}
     else:
       result[$entry.key] = %*{"value": snapshot.jsonValue(%*{}, entry.key),
                               "source": "platform"}

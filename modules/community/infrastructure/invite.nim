@@ -103,11 +103,27 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
     if row.isSome:
       communityId = row.get.get("community_id")
       role = row.get.get("role")
+      # An invite may promote an existing member (the screen offers host and
+      # admin), but never demote one: the update only fires when the invited
+      # role ranks higher.
       discard conn.execUpdate(
         """insert into community.membership (community_id, user_id, role)
            values ($1::uuid, $2::uuid, $3)
-           on conflict (community_id, user_id) do nothing""",
+           on conflict (community_id, user_id) do update
+             set role = excluded.role
+             where case excluded.role
+                     when 'admin' then 3 when 'host' then 2 else 1 end
+                 > case community.membership.role
+                     when 'admin' then 3 when 'host' then 2 else 1 end""",
         @[textParam(communityId), textParam(userId), textParam(role)])
+      # The audit and the response must name the role the member ended up with,
+      # not the one the invite asked for (a second invite may be a no-op).
+      let held = conn.queryOne(
+        """select role from community.membership
+           where community_id = $1::uuid and user_id = $2::uuid""",
+        @[textParam(communityId), textParam(userId)])
+      if held.isSome:
+        role = held.get.get("role")
     1)
 
   if communityId.len > 0:

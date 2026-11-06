@@ -86,16 +86,18 @@ export default function AdminRatingsPage() {
                       )}>
                         Ingest
                       </ActionButton>
-                      <ActionButton tone="red" onClick={() => {
-                        if (window.confirm(t('admin.revertConfirm', { name: src.source_name, kind: t(isT ? 'admin.revertKind.tournament' : 'admin.revertKind.session') }))) {
-                          run(
-                            () => adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
-                              isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
-                            'Reverted',
-                            refreshRatingData,
-                          )
-                        }
-                      }}>
+                      <ActionButton tone="red" disabled={!isT}
+                        title={isT ? undefined : t('admin.revertUnlockFirst')}
+                        onClick={() => {
+                          if (window.confirm(t('admin.revertConfirm', { name: src.source_name, kind: t(isT ? 'admin.revertKind.tournament' : 'admin.revertKind.session') }))) {
+                            run(
+                              () => adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
+                                isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
+                              'Reverted',
+                              refreshRatingData,
+                            )
+                          }
+                        }}>
                         Revert
                       </ActionButton>
                     </div>

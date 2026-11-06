@@ -8,7 +8,7 @@ test('the account menu opens, navigates and closes', async ({ page }) => {
   // Inside a community the menu has more than one link to navigate between.
   await page.goto(`/c/${state().communitySlug}`)
 
-  const menu = page.getByRole('button', { name: 'Account menu' })
+  const menu = page.getByRole('button', { name: t('shell.account') })
   const navigation = page.getByRole('menu')
   await expect(navigation).toBeHidden()
 

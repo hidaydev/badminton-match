@@ -45,6 +45,12 @@ export function getSaveErrorMessage(error: unknown): string {
     return 'Session changed elsewhere. Reload the page, then try again.'
   }
 
+  // A guard that refuses the write (finalized source, still-approved session)
+  // has a precise sentence; hiding it behind "Failed to save" looks like a bug.
+  if (code === 'FORBIDDEN' || code === 'CONFLICT') {
+    return error.message
+  }
+
   if (code === '55P03' || message.includes('being updated by another request')) {
     if (message.includes('tournament')) {
       return 'Tournament is being updated. Wait a moment, reload, then try again.'

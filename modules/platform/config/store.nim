@@ -142,11 +142,17 @@ proc stringValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): strin
   lookup(snapshot, key).getStr()
 
 proc boolValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): bool =
+  ## The effective value. A boolean override may only narrow the platform
+  ## value, so the read is an AND: a stored `true` stops counting the moment an
+  ## operator turns the platform switch off. The directory may widen instead.
+  let platform = lookup(snapshot, key).getBool()
   let override = communityValue(settings, key)
   if override.isSome:
     validateValue(specFor(key), override.get)
-    return override.get.getBool()
-  lookup(snapshot, key).getBool()
+    if mayWiden(key):
+      return override.get.getBool()
+    return platform and override.get.getBool()
+  platform
 
 proc jsonValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): JsonNode =
   let override = communityValue(settings, key)
