@@ -123,6 +123,13 @@ COMMIT=$(git rev-parse HEAD)
 VERSION=$(tr -d '[:space:]' <VERSION)
 [ -n "$VERSION" ] || fail "VERSION is empty"
 
+# The webhook runs the installed copy, so refresh it from the checkout it just
+# synced. Bash keeps reading the old inode, which is why the replace is atomic:
+# this run keeps its own code and the next one starts from the branch.
+SELF_INSTALL="$APP_DIR/scripts/deploy-vps-rc.sh"
+install -m 755 "$MONO_DIR/ops/scripts/deploy-vps-rc.sh" "$SELF_INSTALL.new"
+mv -f "$SELF_INSTALL.new" "$SELF_INSTALL"
+
 # ---------------------------------------------------------------------------
 # The env file is the only place the DSN lives. A missing or world-readable file
 # is a failed deploy, not a reason to guess.
