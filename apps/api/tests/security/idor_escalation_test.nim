@@ -239,13 +239,13 @@ suite "security: role escalation":
 
   test "an admin may still patch settings after the host is denied":
     let patched = call(baseUrl, HttpPatch, "/c/" & slugA & "/settings",
-      adminCookie, body = """{"api.page_size_default":20}""")
+      adminCookie, body = """{"rating.score_target":20}""")
     expectStatus(patched, 200)
-    check patched.json["values"]["api.page_size_default"].getInt() == 20
+    check patched.json["values"]["rating.score_target"].getInt() == 20
     let stored = database.queryOne(
       """select values::text as values from community.settings
          where community_id = $1::uuid""", @[textParam(clubId)])
-    check parseJson(stored.get.get("values"))["api.page_size_default"].getInt() == 20
+    check parseJson(stored.get.get("values"))["rating.score_target"].getInt() == 20
 
   test "platform ownership bypasses owner-only routes, not community roles":
     let created = call(baseUrl, HttpPost, "/communities", ownerCookie,

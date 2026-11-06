@@ -9,11 +9,11 @@
     }
   },
   "expect": {
-    "status": 200,
+    "status": 409,
     "body": {
-      "deltas": 18,
-      "events": 3,
-      "removedDeltas": 8
+      "code": "CONFLICT",
+      "detail": "session is still approved; unlock it first",
+      "status": 409
     }
   }
 }

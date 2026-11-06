@@ -12,7 +12,7 @@
   "expect": {
     "status": 201,
     "body": {
-      "expiresInDays": 7,
+      "expiresInDays": 3,
       "role": "host",
       "token": "{ticket}"
     }

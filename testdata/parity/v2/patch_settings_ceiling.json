@@ -7,13 +7,13 @@
       "Cookie": "majadu_session=parity-admin-token",
       "Origin": "http://127.0.0.1:5173"
     },
-    "body": "{\"api.page_size_default\":999999}"
+    "body": "{\"community.invite_ttl_days\":365}"
   },
   "expect": {
     "status": 400,
     "body": {
       "code": "OVERRIDE_TOO_HIGH",
-      "detail": "override exceeds the platform value: api.page_size_default",
+      "detail": "override exceeds the platform value: community.invite_ttl_days",
       "status": 400
     }
   }

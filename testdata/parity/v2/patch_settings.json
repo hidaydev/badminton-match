@@ -7,14 +7,14 @@
       "Cookie": "majadu_session=parity-admin-token",
       "Origin": "http://127.0.0.1:5173"
     },
-    "body": "{\"api.page_size_default\":25}"
+    "body": "{\"community.invite_ttl_days\":3}"
   },
   "expect": {
     "status": 200,
     "body": {
       "values": {
-        "api.page_size_default": 25,
         "community.directory_enabled": true,
+        "community.invite_ttl_days": 3,
         "community.join_requests_enabled": true
       }
     }

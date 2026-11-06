@@ -502,6 +502,15 @@ proc createCommunity(request: Request) =
   if check.problems.len > 0:
     problem(request, 400, "INVALID_COMMUNITY", $check.problems[0])
     return
+  # The zone decides which calendar day a session belongs to, so an unknown name
+  # is a bad request, not a value to store and fail on later.
+  let zone = application.db.queryOne(
+    "select 1 as ok from pg_timezone_names where name = $1",
+    @[textParam(check.timezone)])
+  if zone.isNone:
+    problem(request, 400, "INVALID_COMMUNITY",
+      "timezone is not a known IANA zone")
+    return
   let created = communityStore.create(application.db, check.slug, name.strip(),
     adminEmail, check.timezone, user.get.id)
   case created.status
@@ -531,6 +540,11 @@ proc listCommunities(request: Request) =
       "name": row.get("name"), "role": row.get("role")})
   jsonResponse(request, 200, %*{"items": items})
 
+proc jsonString(body: JsonNode, key: string): string =
+  if body[key].kind != JString:
+    raise newException(ValueError, key & " must be a string")
+  body[key].getStr()
+
 proc validSessionDate(value: string): bool =
   ## A real calendar day in YYYY-MM-DD; the round trip rejects 2026-02-30.
   try:
@@ -557,10 +571,15 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   var startTime = "00:00"
   var slot = 30
   try:
-    if body.hasKey("title"): title = body["title"].getStr()
-    if body.hasKey("date"): date = body["date"].getStr()
-    if body.hasKey("startTime"): startTime = body["startTime"].getStr()
-    if body.hasKey("slotMinutes"): slot = body["slotMinutes"].getInt()
+    # `getStr`/`getInt` answer their default on a kind mismatch, so each field
+    # is type-checked before it is read: a numeric title must not become "".
+    if body.hasKey("title"): title = jsonString(body, "title")
+    if body.hasKey("date"): date = jsonString(body, "date")
+    if body.hasKey("startTime"): startTime = jsonString(body, "startTime")
+    if body.hasKey("slotMinutes"):
+      if body["slotMinutes"].kind != JInt:
+        raise newException(ValueError, "slotMinutes must be an integer")
+      slot = body["slotMinutes"].getInt()
   except ValueError:
     problem(request, 400, "INVALID_BODY",
       "title, date, startTime and slotMinutes must have the documented types")
@@ -779,6 +798,14 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
   except ValueError as error:
     problem(request, 400, "INVALID_PATCH", error.msg)
     return
+  # The patch used to hand raw strings to `::date` / `::time`: a bad day became
+  # a 500 and a loose "9:00" was normalised where create rejects it.
+  if patchBody.date.isSome and not validSessionDate(patchBody.date.get):
+    problem(request, 400, "INVALID_PATCH", "date must be a real YYYY-MM-DD day")
+    return
+  if patchBody.startTime.isSome and not validClockTime(patchBody.startTime.get):
+    problem(request, 400, "INVALID_PATCH", "startTime must be HH:MM")
+    return
   let result = sessionWrite.patch(application.db, ctx.communityId, sessionId,
     version.get, patchBody)
   case result.status
@@ -855,6 +882,13 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
                     sessionId: string, locked: bool) =
   let version = requireIfMatch(request)
   if version.isNone: return
+  # Unlocking withdraws the event, so it has to respect a sign-off exactly like
+  # the delete routes do. Without this a finalized source lost its event, and a
+  # re-lock wrote a new result under the same finalized flag.
+  if not locked and
+      ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
+    problem(request, 403, "FORBIDDEN", "rating source is finalized")
+    return
   let result = sessionWrite.setLock(application.db, ctx.communityId, sessionId,
     user.id, version.get, locked)
   case result.status
@@ -911,6 +945,8 @@ proc patchCommunitySettings(request: Request, ctx: CommunityContext,
       [("Cache-Control", "no-store")])
   of soUnknownKey:
     problem(request, 400, "UNKNOWN_CONFIG_KEY", result.detail & ": " & result.key)
+  of soPlatformScope:
+    problem(request, 400, "PLATFORM_CONFIG_KEY", result.detail & ": " & result.key)
   of soOutOfCeiling:
     problem(request, 400, "OVERRIDE_TOO_HIGH", result.detail & ": " & result.key)
   of soInvalidType:
@@ -947,7 +983,8 @@ proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser) =
   except ValueError:
     problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
     return
-  let ttl = configSnapshot().intValue(%*{}, keyCommunityInviteTtlDays)
+  let ttl = configSnapshot().intValue(
+    currentSettings(application.db, ctx.communityId), keyCommunityInviteTtlDays)
   let token = inviteStore.create(application.db, ctx.communityId,
     sha256Hex(email.strip().toLowerAscii()), $parsed, user.id, ttl)
   audit("community.invite", ctx, user, "community", ctx.communityId,
@@ -964,7 +1001,7 @@ proc acceptInvite(request: Request, token: string) =
   case result.outcome
   of aoOk:
     audit("community.join", result.communityId, user.get, "community",
-      result.communityId, %*{"role": result.role})
+      result.communityId, %*{"role": result.role}, result.role)
     jsonResponse(request, 201, %*{"communityId": result.communityId,
       "role": result.role})
   of aoNotFound:
@@ -1468,6 +1505,14 @@ proc ingestSessionRating(request: Request, ctx: CommunityContext,
   jsonResponse(request, 200, %*{"events": result.events,
     "deltas": result.deltas}, [("Cache-Control", "no-store")])
 
+proc sessionApproved(communityId, sessionId: string): bool =
+  let row = application.db.queryOne(
+    """select 1 as ok from session.sessions
+       where community_id = $1::uuid and id = $2::uuid
+         and approved_at is not null""",
+    @[textParam(communityId), textParam(sessionId)])
+  row.isSome
+
 proc clearSessionRating(request: Request, ctx: CommunityContext,
                         user: AuthUser, sessionId: string) =
   if sessionVersionNow(ctx.communityId, sessionId) == 0:
@@ -1475,6 +1520,13 @@ proc clearSessionRating(request: Request, ctx: CommunityContext,
     return
   if ratingIngest.sourceFinalized(application.db, ctx.communityId, sessionId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
+    return
+  # The rebuild replays every approved session, so deleting the event of a
+  # session that is still approved only changes its id: the points come straight
+  # back and `removedDeltas` would be a lie. Withdraw the approval first.
+  if sessionApproved(ctx.communityId, sessionId):
+    problem(request, 409, "CONFLICT",
+      "session is still approved; unlock it first")
     return
   let params = ratingParamsFor(ctx)
   let removed = ratingIngest.revertSource(application.db, ctx.communityId, sessionId)
@@ -1553,6 +1605,15 @@ proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   if ratingIngest.eventFinalized(application.db, ctx.communityId, eventId):
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
+    return
+  let event = application.db.queryOne(
+    """select event_type, source_id::text as source_id from rating.events
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(ctx.communityId), textParam(eventId)])
+  if event.isSome and event.get.get("event_type") == "session" and
+      sessionApproved(ctx.communityId, event.get.get("source_id")):
+    problem(request, 409, "CONFLICT",
+      "session is still approved; unlock it first")
     return
   let params = ratingParamsFor(ctx)
   let removed = ratingIngest.removeEvent(application.db, ctx.communityId, eventId)
@@ -2790,11 +2851,14 @@ proc route(request: Request) =
         return
     problem(request, 404, "NOT_FOUND", "route not found")
   except DbError as error:
-    if error.sqlState == "22P02":
-      # A path segment or body value that cannot become the uuid (or date) the
-      # statement casts it to is the caller's mistake, not an internal fault.
-      # PostgreSQL raises it before a row is read, so one guard here turns every
-      # `$n::uuid` cast into a 400 instead of a 500.
+    if error.sqlState == "23503":
+      problem(request, 409, "CONFLICT", "the row is still referenced by other data")
+      return
+    if error.sqlState in ["22P02", "22007", "22008"]:
+      # A path segment or body value that cannot become the uuid, date or time
+      # the statement casts it to is the caller's mistake, not an internal
+      # fault. PostgreSQL raises it before a row is read, so one guard here
+      # turns every `$n::uuid` / `::date` / `::time` cast into a 400.
       problem(request, 400, "INVALID_INPUT", "a value has the wrong format")
       return
     # Driver messages echo input values; the logger redacts and emits one JSON

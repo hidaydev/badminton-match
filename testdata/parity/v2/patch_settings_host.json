@@ -7,7 +7,7 @@
       "Cookie": "majadu_session=parity-host-token",
       "Origin": "http://127.0.0.1:5173"
     },
-    "body": "{\"api.page_size_default\":25}"
+    "body": "{\"community.invite_ttl_days\":3}"
   },
   "expect": {
     "status": 403,

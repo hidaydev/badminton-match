@@ -8,6 +8,7 @@ type
   SettingsOutcome* = enum
     soOk
     soUnknownKey
+    soPlatformScope
     soOutOfCeiling
     soInvalidType
 
@@ -30,8 +31,14 @@ proc specOf(key: ConfigKey): KeySpec =
 
 proc validate(snapshot: Snapshot, key: ConfigKey, value: JsonNode): SettingsResult =
   ## Community overrides may only narrow a platform value: the L1 value is the
-  ## ceiling and a type mismatch is rejected before anything is written.
+  ## ceiling and a type mismatch is rejected before anything is written. Only
+  ## registry keys scoped to the community reach this point: a platform key is
+  ## read from the platform snapshot by every consumer, so storing a per-community
+  ## copy would report a value nothing uses.
   let spec = specOf(key)
+  if spec.scope != csCommunity:
+    return SettingsResult(outcome: soPlatformScope, key: $key,
+      detail: "key is managed at the platform level")
   let platform = snapshot.jsonValue(%*{}, key)
   if value.kind != platform.kind:
     return SettingsResult(outcome: soInvalidType, key: $key,
@@ -43,6 +50,13 @@ proc validate(snapshot: Snapshot, key: ConfigKey, value: JsonNode): SettingsResu
     if value.getFloat() < spec.minValue:
       return SettingsResult(outcome: soOutOfCeiling, key: $key,
         detail: "override is below the registry minimum")
+  # A community may narrow a number, not overrule a platform switch. The
+  # directory is the documented exception: it is opt-in per community and the
+  # platform value is the default, not a ceiling.
+  if value.kind == JBool and value.getBool() and not platform.getBool() and
+      key != keyCommunityDirectoryEnabled:
+    return SettingsResult(outcome: soOutOfCeiling, key: $key,
+      detail: "override may not enable a platform-disabled flag")
   SettingsResult(outcome: soOk, key: $key)
 
 proc checkPatch*(snapshot: Snapshot, patch: JsonNode): SettingsResult =
@@ -93,9 +107,13 @@ proc applyPatch*(db: Db, snapshot: Snapshot, communityId, actorId: string,
     requestId = "-").withEvidence(before, evidence))
 
 proc effectiveConfig*(snapshot: Snapshot, settings: JsonNode): JsonNode =
-  ## Every registered key with the value that will actually be used.
+  ## The community-scoped keys with the value that will actually be used.
+  ## Platform keys are left out on purpose: every member may read this, and the
+  ## security and session settings are not theirs to inspect.
   result = newJObject()
   for entry in allKeys:
+    if entry.scope != csCommunity:
+      continue
     if settings.kind == JObject and settings.hasKey($entry.key):
       result[$entry.key] = %*{"value": settings[$entry.key], "source": "community"}
     else:

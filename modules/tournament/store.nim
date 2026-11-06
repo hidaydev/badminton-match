@@ -40,8 +40,13 @@ const defaultCourts = ["Court 12", "Court 13", "Court 14"]
 # ── JSON helpers ───────────────────────────────────────────────────────────
 
 proc optString(node: JsonNode, key: string): Option[string] =
+  ## Nim 2.4 returns a default instead of raising on a kind mismatch, so a
+  ## number sent for a name silently became "". The kind is checked here: a
+  ## body that does not match the schema is a 400, never a stored guess.
   if not node.hasKey(key) or node[key].kind == JNull:
     none(string)
+  elif node[key].kind != JString:
+    raise newException(ValueError, key & " must be a string")
   else:
     some(node[key].getStr())
 
@@ -52,8 +57,17 @@ proc optRef(node: JsonNode, key: string): Option[string] =
 proc optInt(node: JsonNode, key: string): Option[int] =
   if not node.hasKey(key) or node[key].kind == JNull:
     none(int)
+  elif node[key].kind != JInt:
+    raise newException(ValueError, key & " must be an integer")
   else:
     some(node[key].getInt())
+
+proc objectEntry(entry: JsonNode): JsonNode =
+  ## A non-object inside `pairs`/`matches`/`teams`/`partai` used to hit an
+  ## assertion in `hasKey` and leave the route with an empty 500.
+  if entry.kind != JObject:
+    raise newException(ValueError, "every list entry must be an object")
+  entry
 
 proc text(node: JsonNode, key: string): string =
   optString(node, key).get("")
@@ -104,16 +118,22 @@ proc parseClassic(body: JsonNode): ClassicTournament =
   result.date = text(body, "date")
   result.version = optInt(body, "version")
   if body.hasKey("pairs") and body["pairs"].kind == JArray:
-    for entry in body["pairs"]:
+    for raw in body["pairs"]:
+      let entry = objectEntry(raw)
       result.pairs.add(Pair(id: text(entry, "id"), name: text(entry, "name")))
   if body.hasKey("groups") and body["groups"].kind == JObject:
     for groupId in GroupIds:
       let key = $groupId
       if body["groups"].hasKey(key):
+        if body["groups"][key].kind != JArray:
+          raise newException(ValueError, "each group must be a list of pair ids")
         for pairId in body["groups"][key]:
+          if pairId.kind != JString:
+            raise newException(ValueError, "pair ids must be strings")
           result.groups[ord(groupId)].add(pairId.getStr())
   if body.hasKey("matches") and body["matches"].kind == JArray:
-    for entry in body["matches"]:
+    for raw in body["matches"]:
+      let entry = objectEntry(raw)
       let group = optRef(entry, "groupId")
       let phase = parseEnum[ClassicPhase](text(entry, "phase"))
       result.matches.add(ClassicMatch(
@@ -134,24 +154,30 @@ proc parseTeam(body: JsonNode): TeamTournament =
     raise newException(ValueError, "date must be a valid YYYY-MM-DD value")
   result.version = optInt(body, "version")
   if body.hasKey("teams") and body["teams"].kind == JArray:
-    for entry in body["teams"]:
+    for raw in body["teams"]:
+      let entry = objectEntry(raw)
       var team = TeamInfo(id: text(entry, "id"), name: text(entry, "name"))
       if entry.hasKey("players") and entry["players"].kind == JArray:
-        for player in entry["players"]:
+        for rawPlayer in entry["players"]:
+          let player = objectEntry(rawPlayer)
           team.players.add(TeamPlayer(name: text(player, "name"),
             cls: parseEnum[TeamClass](text(player, "cls"))))
       result.teams.add(team)
   if body.hasKey("matches") and body["matches"].kind == JArray:
-    for entry in body["matches"]:
+    for raw in body["matches"]:
+      let entry = objectEntry(raw)
       var match = TeamMatch(id: text(entry, "id"),
         phase: parseEnum[TeamPhase](text(entry, "phase")),
         teamA: text(entry, "teamA"), teamB: text(entry, "teamB"),
         courts: [defaultCourts[0], defaultCourts[1], defaultCourts[2]])
       if entry.hasKey("courts") and entry["courts"].kind == JArray:
         for index in 0 ..< min(3, entry["courts"].len):
+          if entry["courts"][index].kind != JString:
+            raise newException(ValueError, "court names must be strings")
           match.courts[index] = entry["courts"][index].getStr()
       if entry.hasKey("partai") and entry["partai"].kind == JArray:
-        for partai in entry["partai"]:
+        for rawPartai in entry["partai"]:
+          let partai = objectEntry(rawPartai)
           let scoreA = optInt(partai, "scoreA")
           let scoreB = optInt(partai, "scoreB")
           # A partai with one side only would reach `scoreB.get` below and
@@ -636,6 +662,9 @@ proc patchTeam(conn: DbConn, communityId, tournamentId, matchId: string,
     let courts = body["courts"]
     if courts.kind != JArray or courts.len != 3:
       raise newException(ValueError, "courts must contain three names")
+    for court in courts:
+      if court.kind != JString:
+        raise newException(ValueError, "court names must be strings")
     discard conn.execUpdate(
       """update tournament.team_matches
          set courts = array(select jsonb_array_elements_text($4::jsonb))::text[]
@@ -649,7 +678,7 @@ proc patchTeam(conn: DbConn, communityId, tournamentId, matchId: string,
     if partai.kind != JArray or partai.len != 3:
       raise newException(ValueError, "partai must contain three entries")
     for index in 0 ..< partai.len:
-      let entry = partai[index]
+      let entry = objectEntry(partai[index])
       let scores = parseScores(entry)
       discard conn.execUpdate(
         """insert into tournament.team_partai

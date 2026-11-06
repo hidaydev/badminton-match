@@ -25,16 +25,25 @@ const sessionColumns = """
        start_time::text as start_time, slot_minutes, status, version,
        approved_at::text as approved_at"""
 
+proc stringField(body: JsonNode, key: string): string =
+  ## `getStr` answers its default for a non-string in Nim 2.4, so the kind has
+  ## to be checked here: a `null` title used to erase the stored one.
+  if body[key].kind != JString:
+    raise newException(ValueError, key & " must be a string")
+  body[key].getStr()
+
 proc parsePatch*(body: JsonNode): SessionPatch =
   if body.kind != JObject:
     raise newException(ValueError, "patch body must be an object")
   if body.hasKey("title"):
-    result.title = some(body["title"].getStr())
+    result.title = some(stringField(body, "title"))
   if body.hasKey("date"):
-    result.date = some(body["date"].getStr())
+    result.date = some(stringField(body, "date"))
   if body.hasKey("startTime"):
-    result.startTime = some(body["startTime"].getStr())
+    result.startTime = some(stringField(body, "startTime"))
   if body.hasKey("slotMinutes"):
+    if body["slotMinutes"].kind != JInt:
+      raise newException(ValueError, "slotMinutes must be an integer")
     let slot = body["slotMinutes"].getInt()
     if slot < 1 or slot > 240:
       raise newException(ValueError, "slotMinutes must be between 1 and 240")

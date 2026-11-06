@@ -5,7 +5,7 @@
 insert into platform.config (key, value_type, value, min_value, max_value, scope, description) values
   ('community.join_requests_enabled', 'bool', 'false', null, null, 'community',
    'Whether non-members may ask to join'),
-  ('community.invite_ttl_days', 'int', '7', 1, 365, 'platform',
+  ('community.invite_ttl_days', 'int', '7', 1, 365, 'community',
    'Lifetime of an email-bound invitation'),
   ('community.directory_enabled', 'bool', 'false', null, null, 'community',
    'Whether the community directory is visible to members'),

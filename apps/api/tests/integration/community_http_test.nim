@@ -220,11 +220,15 @@ suite "community HTTP":
     discard membership.add(database, clubId, memberId, "member")
     let (memberStatus, memberBody) = call(HttpGet, "/c/http-club/config", memberCookie)
     check memberStatus == 200
-    check parseJson(memberBody)["effective"]["api.page_size_default"]["source"].getStr() ==
-      "platform"
+    let memberConfig = parseJson(memberBody)["effective"]
+    check memberConfig["community.invite_ttl_days"]["source"].getStr() == "platform"
+    # Security and session keys are platform-scope, so the community view must
+    # not carry them: every member can read this endpoint.
+    check not memberConfig.hasKey("security.allowed_origins")
+    check not memberConfig.hasKey("session.absolute_days")
     let (adminStatus, body) = call(HttpGet, "/c/http-club/config", adminCookie)
     check adminStatus == 200
-    check parseJson(body)["effective"]["api.page_size_default"]["source"].getStr() ==
+    check parseJson(body)["effective"]["community.invite_ttl_days"]["source"].getStr() ==
       "platform"
     let (anonymous, _) = call(HttpGet, "/c/http-club/config")
     check anonymous == 401

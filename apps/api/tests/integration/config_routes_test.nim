@@ -38,16 +38,28 @@ suite "community config overrides":
   test "an unknown key is rejected":
     check checkPatch(snapshot, %*{"nope.value": 1}).outcome == soUnknownKey
 
+  test "a platform-scoped key cannot be overridden per community":
+    let result = checkPatch(snapshot, %*{"security.max_body_bytes": 2048})
+    check result.outcome == soPlatformScope
+
   test "an override above the platform value is rejected":
-    let result = checkPatch(snapshot, %*{"api.page_size_default": 100000})
+    let result = checkPatch(snapshot, %*{"rating.score_target": 50})
     check result.outcome == soOutOfCeiling
+
+  test "a boolean may not switch on a platform-disabled flag":
+    # The directory is the one documented exception; join requests are a
+    # platform switch, so a community cannot re-enable them.
+    let blocked = checkPatch(snapshot, %*{"community.join_requests_enabled": true})
+    check blocked.outcome == soOutOfCeiling
+    check checkPatch(snapshot,
+      %*{"community.directory_enabled": true}).outcome == soOk
 
   test "a valid override is stored and audited":
     let result = applyPatch(db, snapshot, communityId, userId,
-      %*{"api.page_size_default": 25})
+      %*{"rating.score_target": 15})
     check result.outcome == soOk
     let stored = currentSettings(db, communityId)
-    check stored["api.page_size_default"].getInt() == 25
+    check stored["rating.score_target"].getInt() == 15
     let auditRow = db.queryOne(
       """select before::text as before, after::text as after
          from account.audit
@@ -55,20 +67,22 @@ suite "community config overrides":
          order by occurred_at desc limit 1""",
       @[textParam(communityId)])
     check auditRow.isSome
-    check parseJson(auditRow.get.get("after"))["api.page_size_default"].getInt() == 25
+    check parseJson(auditRow.get.get("after"))["rating.score_target"].getInt() == 15
 
   test "an invalid second key leaves the first override untouched":
     discard applyPatch(db, snapshot, communityId, userId,
-      %*{"api.page_size_default": 30})
+      %*{"rating.score_target": 15})
     let rejected = applyPatch(db, snapshot, communityId, userId,
-      %*{"api.page_size_default": 40, "security.max_body_bytes": 99999999})
-    check rejected.outcome == soOutOfCeiling
-    check currentSettings(db, communityId)["api.page_size_default"].getInt() == 30
+      %*{"rating.score_target": 16, "security.max_body_bytes": 99999})
+    check rejected.outcome == soPlatformScope
+    check currentSettings(db, communityId)["rating.score_target"].getInt() == 15
 
   test "effective config reports the source of each value":
     discard applyPatch(db, snapshot, communityId, userId,
-      %*{"api.page_size_default": 15})
+      %*{"rating.score_target": 14})
     let effective = effectiveConfig(snapshot, currentSettings(db, communityId))
-    check effective["api.page_size_default"]["source"].getStr() == "community"
-    check effective["api.page_size_default"]["value"].getInt() == 15
-    check effective["rank.board_limit"]["source"].getStr() == "platform"
+    check effective["rating.score_target"]["source"].getStr() == "community"
+    check effective["rating.score_target"]["value"].getInt() == 14
+    # Platform keys are not part of the community view: every member reads this.
+    check not effective.hasKey("rank.board_limit")
+    check not effective.hasKey("security.allowed_origins")
