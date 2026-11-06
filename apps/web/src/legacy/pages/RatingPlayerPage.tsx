@@ -1,7 +1,7 @@
 // src/pages/RatingPlayerPage.tsx: player rating & career detail.
 // Mobile-first athlete scorecard UI with consistent spacing and i18n support.
 import { useState } from 'react'
-import { useParams, useNavigate } from '../router'
+import { useParams, useNavigate, Link } from '../router'
 import { useRatingPlayer, useRatingPlayerAchievements, usePlayerRankPoints } from '../queries/ratings'
 import { useGetPlayerStats } from '../queries'
 import RatingTierBadge from '../components/ratings/RatingTierBadge'
@@ -129,6 +129,15 @@ export default function RatingPlayerPage() {
             </div>
           </div>
 
+          {playerId && (
+            <Link
+              to={`/players/${playerId}`}
+              className="relative mt-3 inline-flex min-h-11 items-center rounded-xl text-xs font-medium text-fg-dim hover:text-fg"
+            >
+              {t('player.rosterLink')}
+            </Link>
+          )}
+
           {/* Points Highlight Bar */}
           <div className="mt-4 pt-3.5 border-t border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 relative">
             <div>
@@ -251,7 +260,7 @@ export default function RatingPlayerPage() {
                       {/* Teammates */}
                       {teammates.length > 0 && (
                         <p className="text-xs text-fg-dim truncate flex items-center gap-1">
-                          <span className="text-fg-dim/60">{t('player.with')}</span>
+                          <span className="text-fg-dim">{t('player.with')}</span>
                           {teammates.map((item, tidx) => (
                             <span key={tidx} className="font-medium text-fg inline-flex items-center">
                               <AnnotatedPlayerName name={item} />
@@ -263,7 +272,7 @@ export default function RatingPlayerPage() {
 
                       {/* Opponents */}
                       <p className="text-sm font-semibold text-fg truncate flex items-center gap-1">
-                        <span className="text-xs font-normal text-fg-dim/70">{t('player.vs')}</span>
+                        <span className="text-xs font-normal text-fg-dim">{t('player.vs')}</span>
                         {opponents.length > 0 ? (
                           opponents.map((o, oidx) => (
                             <span key={oidx} className="inline-flex items-center">
@@ -278,7 +287,7 @@ export default function RatingPlayerPage() {
 
                       {/* Match title */}
                       {h.title && (
-                        <p className="text-[10px] font-sans text-fg-dim/70 truncate">
+                        <p className="text-[10px] font-sans text-fg-dim truncate">
                           {h.title}
                         </p>
                       )}

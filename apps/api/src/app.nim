@@ -1718,6 +1718,20 @@ proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 400, "INVALID_BODY", "finalized must be a boolean")
     return
   let finalized = body["finalized"].getBool()
+  if finalized:
+    # A session is only signable once it has a rating. Accepting a draft with
+    # no event recorded a flag the ledger never shows, which then blocked the
+    # delete and let a later lock create the result under that sign-off.
+    let isSession = application.db.queryOne(
+      """select 1 as ok from session.sessions
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(ctx.communityId), textParam(eventId)]).isSome
+    if isSession and application.db.queryOne(
+        """select 1 as ok from rating.events
+           where community_id = $1::uuid and source_id = $2::uuid""",
+        @[textParam(ctx.communityId), textParam(eventId)]).isNone:
+      problem(request, 409, "NOT_RATED", "session has no rating to sign off")
+      return
   # Resolve the current flag first: only a source that is being signed off
   # again (not an idempotent repeat) needs its event replayed.
   let alreadyFinalized = application.db.queryOne(

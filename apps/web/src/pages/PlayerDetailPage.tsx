@@ -102,6 +102,13 @@ export default function PlayerDetailPage() {
             )}
           </header>
 
+          <Link
+            to={`/c/${encodeURIComponent(slug)}/rankings/${encodeURIComponent(player.id)}`}
+            className="mt-3 inline-flex min-h-11 items-center rounded-xl text-sm text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {t('players.ratingLink')}
+          </Link>
+
           {actionError !== null && (
             <p role="alert" className="mt-3 text-sm text-error">
               {actionError}

@@ -10,6 +10,7 @@ import { loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/can
 import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
 import { todayWIB } from '../utils/time'
+import { t } from '../../i18n'
 
 const TEMPLATE = instagramTemplates[ACTIVE_TEMPLATE - 1]
 
@@ -360,6 +361,7 @@ export default function InstagramPostPage() {
           <span>{exportError || overlayError}</span>
           <button
             onClick={() => { setExportError(null); setOverlayError(null) }}
+            aria-label={t('instagram.dismissError')}
             className="text-red-400 hover:text-red-200 shrink-0"
           >
             ✕
@@ -420,6 +422,7 @@ export default function InstagramPostPage() {
           <div className="absolute top-3 right-3 flex gap-2">
             <button
               onClick={() => fileInputRef.current?.click()}
+              aria-label={t('instagram.replacePhoto')}
               className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -431,6 +434,7 @@ export default function InstagramPostPage() {
             </button>
             <button
               onClick={() => setShowDownloadSheet(true)}
+              aria-label={t('instagram.download')}
               className="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center active:bg-yellow-300"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -532,6 +536,7 @@ export default function InstagramPostPage() {
                 <div className="flex items-center gap-3 mb-4">
                   <button
                     onClick={() => { setSheetScreen('formats'); setIsGenerating(false) }}
+                    aria-label={t('instagram.back')}
                     className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 text-sm active:bg-slate-700"
                   >
                     ←

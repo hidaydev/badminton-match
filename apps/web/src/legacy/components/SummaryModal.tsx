@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 import {
   KeyboardSensor,
   PointerSensor,
@@ -24,6 +25,7 @@ import StandingsTab from './summary/StandingsTab'
 import { useScoreDraft } from './summary/useScoreDraft'
 import { useSummaryEditModes } from './summary/useSummaryEditModes'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 /** Read-only data props for SummaryModal */
 interface SummaryModalBaseProps {
@@ -207,38 +209,28 @@ export default function SummaryModal({
   const [lockConfirm, setLockConfirm] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   const panelId = useId()
+  const scheduleTabId = `${panelId}-schedule`
+  const standingsTabId = `${panelId}-standings`
+  const TAB_ORDER = ['schedule', 'standings'] as const
 
   // Modal focus: move focus into the dialog, keep Tab inside it, and hand
   // focus back to the trigger when it closes. Full-page use is left alone.
-  useEffect(() => {
-    if (standalone) return
-    const node = dialogRef.current
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    node?.focus()
+  useFocusTrap(dialogRef, !standalone)
 
-    function handleTab(event: KeyboardEvent) {
-      if (event.key !== 'Tab' || !node) return
-      const focusable = node.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    node?.addEventListener('keydown', handleTab)
-    return () => {
-      node?.removeEventListener('keydown', handleTab)
-      if (previous && document.contains(previous)) previous.focus()
-    }
-  }, [standalone])
+  function handleTabKey(event: KeyboardEvent<HTMLDivElement>) {
+    const index = TAB_ORDER.indexOf(activeTab)
+    let next: (typeof TAB_ORDER)[number] | null = null
+    if (event.key === 'ArrowRight') next = TAB_ORDER[(index + 1) % TAB_ORDER.length]
+    else if (event.key === 'ArrowLeft') next = TAB_ORDER[(index - 1 + TAB_ORDER.length) % TAB_ORDER.length]
+    else if (event.key === 'Home') next = TAB_ORDER[0]
+    else if (event.key === 'End') next = TAB_ORDER[TAB_ORDER.length - 1]
+    if (next === null) return
+    event.preventDefault()
+    setActiveTab(next)
+    exitCurrentMode()
+    const tabs = event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')
+    tabs[TAB_ORDER.indexOf(next)]?.focus()
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -255,20 +247,24 @@ export default function SummaryModal({
       {/* Toolbar — wraps instead of clipping on a 390px screen. */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex gap-1" role="tablist" aria-label={t('summary.tabs')}>
+          <div className="flex gap-1" role="tablist" aria-label={t('summary.tabs')} onKeyDown={handleTabKey}>
             <button
+              id={scheduleTabId}
               role="tab"
               aria-selected={activeTab === 'schedule'}
               aria-controls={panelId}
+              tabIndex={activeTab === 'schedule' ? 0 : -1}
               onClick={() => { setActiveTab('schedule'); exitCurrentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
               {t('summary.tab.schedule')}
             </button>
             <button
+              id={standingsTabId}
               role="tab"
               aria-selected={activeTab === 'standings'}
               aria-controls={panelId}
+              tabIndex={activeTab === 'standings' ? 0 : -1}
               onClick={() => { setActiveTab('standings'); exitCurrentMode() }}
               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
@@ -324,6 +320,7 @@ export default function SummaryModal({
               </button>
               <button
                 onClick={() => setLockConfirm(false)}
+                aria-label={t('summary.cancel')}
                 className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
               >
                 ✕
@@ -334,6 +331,7 @@ export default function SummaryModal({
             mode !== 'idle' ? (
               <button
                 onClick={() => { exitCurrentMode(); setActionsOpen(false) }}
+                aria-label={t('summary.cancel')}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white transition-colors"
               >
                 ✕<span className="hidden sm:inline"> {t('summary.cancel')}</span>
@@ -366,6 +364,7 @@ export default function SummaryModal({
             <button
               onClick={() => setDeleteConfirm(true)}
               className="text-slate-400 hover:text-red-400 px-2 py-1.5 rounded-lg hover:bg-red-950/30 transition-colors text-sm"
+              aria-label={t('summary.delete')}
               title={t('summary.delete')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -386,6 +385,7 @@ export default function SummaryModal({
           {deleteConfirm && (
             <button
               onClick={() => setDeleteConfirm(false)}
+              aria-label={t('summary.deleteCancel')}
               className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors"
             >
               ✕
@@ -445,7 +445,7 @@ export default function SummaryModal({
       )}
 
       {/* Content */}
-      <div id={panelId} role="tabpanel" aria-label={activeTab === 'standings' ? t('summary.tab.standings') : t('summary.tab.schedule')} className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || skipChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
+      <div id={panelId} role="tabpanel" aria-labelledby={activeTab === 'standings' ? standingsTabId : scheduleTabId} className={`flex-1 overflow-auto px-4 py-4 max-w-xl mx-auto w-full ${pendingSwap || absentChanged || skipChanged || pendingTeamSwap || pendingChange ? 'pb-24' : pendingSlotSwap ? 'pb-36' : ''}`}>
         {mode === 'swap' && !pendingSwap && (
           <div className="mb-3 rounded-lg bg-indigo-950/50 border border-indigo-800/40 px-3 py-2 flex flex-col gap-1">
             <span className="text-xs text-indigo-300 font-medium">

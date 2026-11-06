@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Player } from '../types'
 import type { PlayerSummary } from '../queries'
 import type { ResolveEntry, ResolveResult } from '../utils/resolvePlayers'
 import { buildResolveResult } from '../utils/resolvePlayers'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface ResolvePlayersModalProps {
   open: boolean
@@ -21,8 +22,10 @@ export default function ResolvePlayersModal({
   onCancel,
 }: ResolvePlayersModalProps) {
   const [entries, setEntries] = useState<Record<string, ResolveEntry>>({})
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   useEscapeKey(onCancel, open)
+  useFocusTrap(dialogRef, open)
 
   if (!open) return null
 
@@ -65,7 +68,7 @@ export default function ResolvePlayersModal({
   const allResolved = list.length > 0 && list.every((e) => e.mode === 'new' || (e.mode === 'merge' && e.mergeTarget))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Resolve new players">
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Resolve new players">
       <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-lg w-full flex flex-col gap-4 shadow-2xl max-h-screen overflow-auto">
         <div className="flex flex-col gap-1">
           <h2 className="text-white font-bold text-lg">Resolve new players</h2>

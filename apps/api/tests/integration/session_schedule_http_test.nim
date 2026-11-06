@@ -454,6 +454,21 @@ suite "session schedule HTTP":
       idempotencyKey = "create-retry")
     check retried == 201
 
+  test "a draft with no rating cannot be signed off":
+    let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Unsigned draft","date":"2026-11-17"}""")
+    let draftId = parseJson(created)["id"].getStr()
+    let (refused, body) = call(HttpPatch,
+      "/c/sched-club/rating-sources/" & draftId, adminCookie,
+      """{"finalized":true}""")
+    # Otherwise the flag is invisible in the ledger while blocking delete, and a
+    # later lock creates the result under a sign-off recorded before it existed.
+    check refused == 409
+    check parseJson(body)["code"].getStr() == "NOT_RATED"
+    let (deleted, _) = call(HttpDelete, "/c/sched-club/sessions/" & draftId,
+      hostCookie)
+    check deleted == 204
+
   test "a sign-off freezes both locking and unlocking":
     let (_, created) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
       """{"title":"Signed off","date":"2026-11-16"}""")

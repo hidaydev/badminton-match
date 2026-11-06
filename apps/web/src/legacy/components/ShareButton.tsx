@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import { communityQueryKey } from '../queries/keys'
 import {
   activeCommunitySlug,
@@ -41,8 +42,10 @@ export default function ShareButton() {
   const [copied, setCopied] = useState(false)
   const [resolveOpen, setResolveOpen] = useState(false)
   const [knownPlayers, setKnownPlayers] = useState<PlayerSummary[]>([])
+  const confirmRef = useRef<HTMLDivElement>(null)
 
   useEscapeKey(() => setConfirming(false), confirming)
+  useFocusTrap(confirmRef, confirming)
 
   // One cache entry for the live code, shared with the summary panel: rotating
   // or revoking there must not leave this pill handing out the old link.
@@ -188,7 +191,7 @@ export default function ShareButton() {
       />
       {/* Confirmation modal */}
       {confirming && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Confirm publish session">
+        <div ref={confirmRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Confirm publish session">
           <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-sm w-full flex flex-col gap-4 shadow-2xl">
             <div className="flex flex-col gap-1">
               <h2 className="text-white font-bold text-lg">Publish this session?</h2>

@@ -159,6 +159,13 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
              where community_id = $1::uuid and id = $2::uuid""",
           @[textParam(communityId), textParam(pair.get("id"))])
 
+      var movedPairs: seq[string] = @[]
+      for pair in conn.query(
+        """select id from tournament.pairs
+           where community_id = $1::uuid
+             and (player_a_id = $2::uuid or player_b_id = $2::uuid)""",
+        @[textParam(communityId), textParam(sourceId)]):
+        movedPairs.add(pair.get("id"))
       outcome.result.pairsMoved = conn.execUpdate(
         """update tournament.pairs set player_a_id = $2::uuid
            where community_id = $1::uuid and player_a_id = $3::uuid""",
@@ -167,6 +174,23 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
         """update tournament.pairs set player_b_id = $2::uuid
            where community_id = $1::uuid and player_b_id = $3::uuid""",
         @[textParam(communityId), textParam(targetId), textParam(sourceId)])
+      # The display name is what the bracket shows; it still named the source.
+      for pairId in movedPairs:
+        let names = conn.queryOne(
+          """select a.canonical_name as a_name, b.canonical_name as b_name
+             from tournament.pairs p
+             join player.players a
+               on a.community_id = p.community_id and a.id = p.player_a_id
+             join player.players b
+               on b.community_id = p.community_id and b.id = p.player_b_id
+             where p.community_id = $1::uuid and p.id = $2::uuid""",
+          @[textParam(communityId), textParam(pairId)])
+        if names.isSome:
+          discard conn.execUpdate(
+            """update tournament.pairs set display_name = $3
+               where community_id = $1::uuid and id = $2::uuid""",
+            @[textParam(communityId), textParam(pairId),
+              textParam(names.get.get("a_name") & " & " & names.get.get("b_name"))])
 
       # A derived rating row is only useful if the target has none; otherwise the
       # source copy is stale by definition and gets dropped.

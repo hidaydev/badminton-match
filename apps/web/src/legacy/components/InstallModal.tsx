@@ -1,4 +1,6 @@
+import { useRef } from 'react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface InstallModalProps {
   isIos: boolean
@@ -7,10 +9,14 @@ interface InstallModalProps {
 }
 
 export default function InstallModal({ isIos, onInstall, onClose }: InstallModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
   useEscapeKey(onClose)
+  useFocusTrap(dialogRef)
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-50 flex items-end justify-center"
       onClick={onClose}
       role="dialog"

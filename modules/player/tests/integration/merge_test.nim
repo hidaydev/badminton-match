@@ -139,3 +139,35 @@ suite "player merge":
     check db.queryOne(
       "select id from player.players where id = $1::uuid",
       @[textParam(sourceId)]).isSome
+
+  test "a moved pair's display name follows the new player":
+    # The setup's self-pair and its match block the merge; drop them and give
+    # the source a normal pair so the move succeeds.
+    discard db.execUpdate(
+      """delete from tournament.matches where community_id = $1::uuid""",
+      @[textParam(communityId)])
+    discard db.execUpdate(
+      """delete from tournament.pairs where community_id = $1::uuid
+           and display_name = 'Source/Target'""",
+      @[textParam(communityId)])
+    let partnerId = db.queryOne(
+      """select id from player.players
+         where community_id = $1::uuid and canonical_name = 'Merge Partner A'""",
+      @[textParam(communityId)]).get.get("id")
+    let pairId = db.queryOne(
+      """insert into tournament.pairs
+           (community_id, tournament_id, display_name, player_a_id, player_b_id)
+         select $1::uuid, id, 'Merge Source & Merge Partner A', $2::uuid, $3::uuid
+         from tournament.tournaments where community_id = $1::uuid
+         returning id""",
+      @[textParam(communityId), textParam(sourceId),
+        textParam(partnerId)]).get.get("id")
+    let outcome = merge(db, communityId, targetId, sourceId, actorId)
+    check outcome.error == meOk
+    check outcome.result.pairsMoved == 1
+    let moved = db.queryOne(
+      """select display_name from tournament.pairs
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(communityId), textParam(pairId)]).get.get("display_name")
+    # The bracket would otherwise still name the player that no longer exists.
+    check moved == "Merge Target & Merge Partner A"
