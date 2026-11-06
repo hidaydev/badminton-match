@@ -1391,7 +1391,9 @@ proc mergePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
         "rowsMoved": outcome.result.aliasesMoved + outcome.result.claimsMoved +
           outcome.result.deltasMoved + outcome.result.snapshotsMoved +
           outcome.result.achievementsMoved + outcome.result.pairsMoved +
-          outcome.result.ratingStateMoved})
+          outcome.result.ratingStateMoved + outcome.result.sessionsMoved +
+          outcome.result.gamesMoved + outcome.result.skipsMoved +
+          outcome.result.teamPlayersMoved})
     jsonResponse(request, 200, %*{
       "targetPlayerId": outcome.result.targetPlayerId,
       "sourcePlayerId": outcome.result.sourcePlayerId,
@@ -1401,7 +1403,11 @@ proc mergePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
       "snapshotsMoved": outcome.result.snapshotsMoved,
       "achievementsMoved": outcome.result.achievementsMoved,
       "pairsMoved": outcome.result.pairsMoved,
-      "ratingStateMoved": outcome.result.ratingStateMoved})
+      "ratingStateMoved": outcome.result.ratingStateMoved,
+      "sessionsMoved": outcome.result.sessionsMoved,
+      "gamesMoved": outcome.result.gamesMoved,
+      "skipsMoved": outcome.result.skipsMoved,
+      "teamPlayersMoved": outcome.result.teamPlayersMoved})
   of playerMerge.mePlayerNotFound:
     problem(request, 404, "NOT_FOUND", "player not found")
   of playerMerge.meSamePlayer:
@@ -1409,6 +1415,9 @@ proc mergePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   of playerMerge.mePairInUse:
     problem(request, 409, "MERGE_CONFLICT",
       "a tournament pair of both players is already used by a match")
+  of playerMerge.meSessionCollision:
+    problem(request, 409, "MERGE_SESSION_CONFLICT",
+      "both players appear in the same game; edit that game first")
   of playerMerge.meConflict:
     problem(request, 409, "MERGE_CONFLICT", "players cannot be merged")
 

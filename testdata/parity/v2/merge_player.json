@@ -16,11 +16,15 @@
       "aliasesMoved": 0,
       "claimsMoved": 0,
       "deltasMoved": 0,
+      "gamesMoved": 0,
       "pairsMoved": 0,
       "ratingStateMoved": 0,
+      "sessionsMoved": 0,
+      "skipsMoved": 0,
       "snapshotsMoved": 0,
       "sourcePlayerId": "{uuid}",
-      "targetPlayerId": "{uuid}"
+      "targetPlayerId": "{uuid}",
+      "teamPlayersMoved": 0
     }
   }
 }

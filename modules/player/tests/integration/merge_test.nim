@@ -25,6 +25,8 @@ suite "player merge":
   proc cleanup() =
     ## FK-safe order for every row this suite may leave behind.
     for statement in [
+      """delete from session.sessions where community_id in
+           (select id from platform.community where slug = 'merge-test')""",
       """delete from tournament.matches where community_id in
            (select id from platform.community where slug = 'merge-test')""",
       """delete from tournament.pairs where community_id in
@@ -128,6 +130,49 @@ suite "player merge":
     cleanup()
     db.close()
 
+  proc playerId(name: string): string =
+    db.queryOne(
+      """select id from player.players
+         where community_id = $1::uuid and canonical_name = $2""",
+      @[textParam(communityId), textParam(name)]).get.get("id")
+
+  proc unblockMerge() =
+    ## The setup's self-pair and its match refuse every merge; drop them.
+    discard db.execUpdate(
+      """delete from tournament.matches where community_id = $1::uuid""",
+      @[textParam(communityId)])
+    discard db.execUpdate(
+      """delete from tournament.pairs where community_id = $1::uuid
+           and display_name = 'Source/Target'""",
+      @[textParam(communityId)])
+
+  proc addSession(title: string): string =
+    db.queryOne(
+      """insert into session.sessions
+           (community_id, title, session_date, status, source)
+         values ($1::uuid, $2, '2026-11-02', 'draft', 'manual') returning id""",
+      @[textParam(communityId), textParam(title)]).get.get("id")
+
+  proc addParticipant(sessionId, playerId: string) =
+    discard db.execUpdate(
+      """insert into session.participants (community_id, session_id, player_id)
+         values ($1::uuid, $2::uuid, $3::uuid)""",
+      @[textParam(communityId), textParam(sessionId), textParam(playerId)])
+
+  proc addGame(sessionId: string, roundNo, courtNo: int, sideA, sideB: string) =
+    discard db.execUpdate(
+      """insert into session.games
+           (community_id, session_id, round_no, court_no, side_a1, side_b1)
+         values ($1::uuid, $2::uuid, $3, $4, $5::uuid, $6::uuid)""",
+      @[textParam(communityId), textParam(sessionId), intParam(roundNo.int64),
+        intParam(courtNo.int64), textParam(sideA), textParam(sideB)])
+
+  proc gamesIn(sessionId: string): string =
+    db.queryOne(
+      """select count(*)::int as total from session.games
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)]).get.get("total")
+
   test "a self-pair used by a match refuses the merge without writing":
     let outcome = merge(db, communityId, targetId, sourceId, actorId)
     check outcome.error == mePairInUse
@@ -143,17 +188,8 @@ suite "player merge":
   test "a moved pair's display name follows the new player":
     # The setup's self-pair and its match block the merge; drop them and give
     # the source a normal pair so the move succeeds.
-    discard db.execUpdate(
-      """delete from tournament.matches where community_id = $1::uuid""",
-      @[textParam(communityId)])
-    discard db.execUpdate(
-      """delete from tournament.pairs where community_id = $1::uuid
-           and display_name = 'Source/Target'""",
-      @[textParam(communityId)])
-    let partnerId = db.queryOne(
-      """select id from player.players
-         where community_id = $1::uuid and canonical_name = 'Merge Partner A'""",
-      @[textParam(communityId)]).get.get("id")
+    unblockMerge()
+    let partnerId = playerId("Merge Partner A")
     let pairId = db.queryOne(
       """insert into tournament.pairs
            (community_id, tournament_id, display_name, player_a_id, player_b_id)
@@ -171,3 +207,129 @@ suite "player merge":
       @[textParam(communityId), textParam(pairId)]).get.get("display_name")
     # The bracket would otherwise still name the player that no longer exists.
     check moved == "Merge Target & Merge Partner A"
+
+  test "session history naming the source moves to the target":
+    block:
+      unblockMerge()
+      let teammateA = playerId("Merge Partner A")
+      let teammateB = playerId("Merge Partner B")
+      # Shared session: the two players played separate games, so both already
+      # own a participant row and only the source's duplicate has to go.
+      let shared = addSession("Separate games")
+      for player in [sourceId, targetId, teammateA, teammateB]:
+        addParticipant(shared, player)
+      addGame(shared, 0, 0, sourceId, teammateA)
+      addGame(shared, 0, 1, targetId, teammateB)
+      discard db.execUpdate(
+        """insert into session.game_skips
+             (community_id, session_id, round_no, court_no, player_id)
+           values ($1::uuid, $2::uuid, 0, 1, $3::uuid)""",
+        @[textParam(communityId), textParam(shared), textParam(sourceId)])
+      # Source-only session: the participant row itself changes owner.
+      let alone = addSession("Source only")
+      addParticipant(alone, sourceId)
+      addParticipant(alone, teammateA)
+      addGame(alone, 0, 0, sourceId, teammateA)
+
+      let outcome = merge(db, communityId, targetId, sourceId, actorId)
+      check outcome.error == meOk
+      check outcome.result.sessionsMoved == 1
+      check outcome.result.gamesMoved == 2
+      check outcome.result.skipsMoved == 1
+
+      check db.queryOne(
+        "select id from player.players where id = $1::uuid",
+        @[textParam(sourceId)]).isNone
+      check countRows(db, communityId, "session.participants") == "5"
+      check db.queryOne(
+        """select count(*)::int as total from session.participants
+           where community_id = $1::uuid and player_id = $2::uuid""",
+        @[textParam(communityId), textParam(sourceId)]).get.get("total") == "0"
+      check db.queryOne(
+        """select count(*)::int as total from session.participants
+           where community_id = $1::uuid and player_id = $2::uuid""",
+        @[textParam(communityId), textParam(targetId)]).get.get("total") == "2"
+      check gamesIn(alone) == "1"
+      check db.queryOne(
+        """select side_a1 from session.games
+           where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(alone)]).get.get("side_a1") == targetId
+      check db.queryOne(
+        """select count(*)::int as total from session.games
+           where community_id = $1::uuid
+             and $2::uuid in (side_a1, side_a2, side_b1, side_b2)""",
+        @[textParam(communityId), textParam(sourceId)]).get.get("total") == "0"
+      check db.queryOne(
+        """select count(*)::int as total from session.games
+           where community_id = $1::uuid
+             and $2::uuid in (side_a1, side_a2, side_b1, side_b2)""",
+        @[textParam(communityId), textParam(targetId)]).get.get("total") == "3"
+      check db.queryOne(
+        """select count(*)::int as total from session.game_skips
+           where community_id = $1::uuid and player_id = $2::uuid""",
+        @[textParam(communityId), textParam(targetId)]).get.get("total") == "1"
+
+  test "both players in the same game refuse the merge without writing":
+    block:
+      unblockMerge()
+      let teammateA = playerId("Merge Partner A")
+      let sessionId = addSession("Self match")
+      for player in [sourceId, targetId, teammateA]:
+        addParticipant(sessionId, player)
+      addGame(sessionId, 0, 0, sourceId, targetId)
+
+      let outcome = merge(db, communityId, targetId, sourceId, actorId)
+      check outcome.error == meSessionCollision
+
+      check countRows(db, communityId, "player.merge_log") == "0"
+      check countRows(db, communityId, "player.aliases") == aliasBefore
+      check db.queryOne(
+        "select id from player.players where id = $1::uuid",
+        @[textParam(sourceId)]).isSome
+      for player in [sourceId, targetId]:
+        check db.queryOne(
+          """select count(*)::int as total from session.participants
+             where community_id = $1::uuid and player_id = $2::uuid""",
+          @[textParam(communityId), textParam(player)]).get.get("total") == "1"
+      let game = db.queryOne(
+        """select side_a1, side_b1 from session.games
+           where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)]).get
+      check game.get("side_a1") == sourceId
+      check game.get("side_b1") == targetId
+      check db.queryOne(
+        """select count(*)::int as total from player.aliases
+           where community_id = $1::uuid and player_id = $2::uuid""",
+        @[textParam(communityId), textParam(sourceId)]).get.get("total") == "1"
+
+  test "a duplicate skip of both players collapses to one row":
+    block:
+      unblockMerge()
+      let teammateA = playerId("Merge Partner A")
+      let teammateB = playerId("Merge Partner B")
+      let sessionId = addSession("Duplicate skip")
+      for player in [sourceId, targetId, teammateA, teammateB]:
+        addParticipant(sessionId, player)
+      # Neither merged player sits in the first game, so both were skipped there.
+      addGame(sessionId, 0, 0, teammateA, teammateB)
+      addGame(sessionId, 0, 1, sourceId, teammateA)
+      addGame(sessionId, 0, 2, targetId, teammateB)
+      for player in [sourceId, targetId]:
+        discard db.execUpdate(
+          """insert into session.game_skips
+               (community_id, session_id, round_no, court_no, player_id)
+             values ($1::uuid, $2::uuid, 0, 0, $3::uuid)""",
+          @[textParam(communityId), textParam(sessionId), textParam(player)])
+
+      let outcome = merge(db, communityId, targetId, sourceId, actorId)
+      check outcome.error == meOk
+      check outcome.result.skipsMoved == 0
+      check db.queryOne(
+        """select count(*)::int as total from session.game_skips
+           where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)]).get.get("total") == "1"
+      check db.queryOne(
+        """select player_id from session.game_skips
+           where community_id = $1::uuid and session_id = $2::uuid""",
+        @[textParam(communityId), textParam(sessionId)]).get.get("player_id") ==
+        targetId
