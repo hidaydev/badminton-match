@@ -10,6 +10,8 @@ import { loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/can
 import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
 import { todayWIB } from '../utils/time'
+import { useEscapeKey } from '../hooks/useEscapeKey'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import { t } from '../../i18n'
 
 const TEMPLATE = instagramTemplates[ACTIVE_TEMPLATE - 1]
@@ -220,6 +222,17 @@ export default function InstagramPostPage() {
     setPendingStandingMode(null)
     setIsGenerating(false)
   }, [])
+
+  // The sheet is a modal dialog: focus moves into it, Tab stays inside, and
+  // focus goes back to the download button when it closes.
+  const sheetRef = useRef<HTMLDivElement>(null)
+  useEscapeKey(closeSheet, showDownloadSheet)
+  useFocusTrap(sheetRef, showDownloadSheet)
+  // Switching screens unmounts the focused button; keep focus in the dialog so
+  // Tab cannot escape to the page behind it.
+  useEffect(() => {
+    if (showDownloadSheet) sheetRef.current?.focus()
+  }, [sheetScreen, showDownloadSheet])
 
   const handleDownloadStanding = useCallback(async (sessionMeta: SessionMeta) => {
     if (!pendingStandingMode) return
@@ -482,6 +495,11 @@ export default function InstagramPostPage() {
         >
           <div className="absolute inset-0 bg-black/60" />
           <div
+            ref={sheetRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="instagram-sheet-title"
             className="relative w-full bg-slate-900 rounded-t-3xl px-5 pt-5 pb-10"
             style={{ boxShadow: '0 -8px 40px rgba(0,0,0,0.6)' }}
             onClick={e => e.stopPropagation()}
@@ -490,7 +508,7 @@ export default function InstagramPostPage() {
 
             {sheetScreen === 'formats' && (
               <>
-                <p className="text-xs font-sans text-slate-400 tracking-widest uppercase mb-4">Download as</p>
+                <h2 id="instagram-sheet-title" className="text-xs font-sans text-slate-400 tracking-widest uppercase mb-4">{t('instagram.sheet.downloadAs')}</h2>
                 <div className="grid grid-cols-2 gap-3">
                   {/* Photo Post */}
                   <button
@@ -559,7 +577,7 @@ export default function InstagramPostPage() {
                   >
                     ←
                   </button>
-                  <p className="text-xs font-sans text-slate-400 tracking-widest uppercase">Pick a session</p>
+                  <h2 id="instagram-sheet-title" className="text-xs font-sans text-slate-400 tracking-widest uppercase">{t('instagram.sheet.pickSession')}</h2>
                 </div>
 
                 <div className="mb-3">

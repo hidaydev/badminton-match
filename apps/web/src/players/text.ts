@@ -8,7 +8,9 @@ export function describePlayerError(error: unknown): string {
     // The route answers CONFLICT when the player still owns matches or
     // sessions; that is not the same sentence as a duplicate name.
     if (error.status === 409) {
-      return error.code === 'CONFLICT' ? t('players.error.inUse') : t('players.error.conflict')
+      if (error.code === 'CONFLICT') return t('players.error.inUse')
+      if (error.code === 'CLAIMANT_OWNS_PLAYER') return t('players.error.claimantHasPlayer')
+      return t('players.error.conflict')
     }
     if (error.status === 400) return t('players.error.invalid')
   }

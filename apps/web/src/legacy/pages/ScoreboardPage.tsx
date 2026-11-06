@@ -3,6 +3,7 @@ import { useNavigate } from '../router'
 import { ScoreboardSide, ScoreboardDivider, ScoreboardFooter } from '../components/scoreboard'
 import type { ScoreboardSideProps } from '../components/scoreboard'
 import { validateScore } from '../utils/scoreValidation'
+import { t } from '../../i18n'
 
 const LS_RED = 'score-red'
 const LS_BLUE = 'score-blue'
@@ -242,6 +243,13 @@ export default function ScoreboardPage({ overlay }: { overlay?: OverlayConfig } 
 
   const content = (
     <>
+      {/* The standalone route is a counter, not a match screen: say so. */}
+      {!overlay && (
+        <div className="sr-only">
+          <h1>{t('scoreboard.title')}</h1>
+          <p>{t('scoreboard.notLinked')}</p>
+        </div>
+      )}
       {sides.map((el, i) => (
         <Fragment key={i}>
           {i > 0 && <ScoreboardDivider />}

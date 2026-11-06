@@ -79,6 +79,9 @@ export default function PlayerDetailPage() {
       reload()
     } catch (problem) {
       setActionError(describePlayerError(problem))
+      // A refused write can still have closed the row (a second claim for the
+      // same member), so refresh instead of leaving stale pending actions.
+      reload()
     } finally {
       setBusy(false)
     }

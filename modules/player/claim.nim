@@ -7,6 +7,7 @@ type
     cePlayerNotFound = "player_not_found"
     ceAlreadyPending = "already_pending"
     ceAlreadyClaimed = "already_claimed"
+    ceClaimantOwnsPlayer = "claimant_owns_player"
     ceClaimNotFound = "claim_not_found"
     ceSelfDecision = "self_decision"
     ceConflict = "conflict"
@@ -37,7 +38,7 @@ proc submit*(db: Db, communityId, playerId, userId: string): ClaimError =
        where community_id = $1::uuid and user_id = $2::uuid limit 1""",
     @[textParam(communityId), textParam(userId)])
   if owned.isSome:
-    return ceAlreadyClaimed
+    return ceClaimantOwnsPlayer
   let inserted = db.execUpdate(
     """insert into player.claims (community_id, player_id, user_id)
        values ($1::uuid, $2::uuid, $3::uuid)
@@ -94,6 +95,31 @@ proc decide*(db: Db, communityId, playerId, claimId, adminId: string,
         return 1
       if approve:
         let claimant = decided.get.get("user_id")
+        # Serialize approvals for one claimant: under READ COMMITTED two
+        # concurrent decisions would both pass the ownership read.
+        discard conn.queryOne(
+          "select pg_advisory_xact_lock(hashtextextended($1, 0)) as held",
+          @[textParam(claimant)])
+        # One player per account (D11): approving a second claim cannot bind,
+        # and leaving the row pending would hide a refusal the admin has
+        # already seen. Close it with the real reason.
+        let otherOwned = conn.queryOne(
+          """select 1 as found from player.players
+             where community_id = $1::uuid and user_id = $2::uuid
+               and id <> $3::uuid limit 1""",
+          @[textParam(communityId), textParam(claimant),
+            textParam(playerId)])
+        if otherOwned.isSome:
+          discard conn.execUpdate(
+            """update player.claims
+               set status = 'rejected', decided_by = $4::uuid,
+                   decided_at = now(), reason = 'already_claimed'
+               where community_id = $1::uuid and player_id = $2::uuid
+                 and id = $3::uuid""",
+            @[textParam(communityId), textParam(playerId),
+              textParam(claimId), textParam(adminId)])
+          outcome = ceClaimantOwnsPlayer
+          return 0
         let bound = conn.queryOne(
           """update player.players set user_id = $3::uuid, updated_at = now()
              where community_id = $1::uuid and id = $2::uuid and user_id is null

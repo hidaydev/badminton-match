@@ -23,7 +23,6 @@ import { AdminProvider, useAdmin } from './legacy/context/AdminContext'
 import HomeLayout from './legacy/components/HomeLayout'
 import SessionLayout from './legacy/components/SessionLayout'
 import GlobalAmbiguousNames from './legacy/context/GlobalAmbiguousNames'
-import CelebrationOverlay from './legacy/components/CelebrationOverlay'
 import UpdateBanner from './legacy/components/UpdateBanner'
 import ErrorBoundary from './legacy/components/ErrorBoundary'
 import HomePage from './legacy/pages/HomePage'
@@ -212,14 +211,6 @@ function OwnerOnly({ children }: { children: React.ReactNode }) {
   return children
 }
 
-function CelebrationGate({ onDismiss }: { onDismiss: () => void }) {
-  const { user } = useAuth()
-  // The sign-in screen comes first: a full-screen promo over it intercepts the
-  // clicks and leaves the visitor stuck until they dismiss it.
-  if (!user) return null
-  return <CelebrationOverlay onDismiss={onDismiss} />
-}
-
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <Loading />
@@ -301,9 +292,6 @@ export default function App() {
   const [sharedSnapshot] = useState<SharedSnapshot | null>(() =>
     decodeSnapshot(window.location.hash),
   )
-  const [showCelebration, setShowCelebration] = useState(
-    () => !sessionStorage.getItem('celebration-shown'),
-  )
 
   const exitSharedView = useCallback(() => {
     window.location.href = `${window.location.origin}/`
@@ -329,14 +317,6 @@ export default function App() {
           />
         )}
         <AuthProvider>
-          {showCelebration && (
-            <CelebrationGate
-              onDismiss={() => {
-                sessionStorage.setItem('celebration-shown', '1')
-                setShowCelebration(false)
-              }}
-            />
-          )}
           <BrowserRouter>
             <CommunityProvider>
               <ClientOutdatedBanner />

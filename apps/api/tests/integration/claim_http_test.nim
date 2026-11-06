@@ -224,6 +224,36 @@ suite "claim HTTP":
       """{"action":"release","reason":"again"}""")
     check twice == 409
 
+  test "a second approval for the same member closes instead of dangling":
+    let claimant = freshMember("claim-two-players")
+    let firstPlayer = player("Klaim Empat A")
+    let secondPlayer = player("Klaim Empat B")
+    discard call(HttpPost, "/c/claim-club/players/" & firstPlayer & "/claims",
+      claimant)
+    discard call(HttpPost, "/c/claim-club/players/" & secondPlayer & "/claims",
+      claimant)
+    let (_, firstList) = call(HttpGet,
+      "/c/claim-club/players/" & firstPlayer & "/claims", adminCookie)
+    let firstClaim = parseJson(firstList)["items"][0]["id"].getStr()
+    let (firstApproved, _) = call(HttpPatch,
+      "/c/claim-club/players/" & firstPlayer & "/claims/" & firstClaim,
+      adminCookie, """{"decision":"approve"}""")
+    check firstApproved == 200
+
+    let (_, secondList) = call(HttpGet,
+      "/c/claim-club/players/" & secondPlayer & "/claims", adminCookie)
+    let secondClaim = parseJson(secondList)["items"][0]["id"].getStr()
+    let (refused, refusedBody) = call(HttpPatch,
+      "/c/claim-club/players/" & secondPlayer & "/claims/" & secondClaim,
+      adminCookie, """{"decision":"approve"}""")
+    check refused == 409
+    check parseJson(refusedBody)["code"].getStr() == "CLAIMANT_OWNS_PLAYER"
+    # The refused claim is closed, so it cannot stay pending forever.
+    let (_, afterList) = call(HttpGet,
+      "/c/claim-club/players/" & secondPlayer & "/claims", adminCookie)
+    check parseJson(afterList)["items"][0]["status"].getStr() == "rejected"
+    check parseJson(afterList)["items"][0]["reason"].getStr() == "already_claimed"
+
   test "a member sees the claim trail without another member's identity":
     let playerId = player("Klaim Enam")
     let applicant = freshMember("claim-enam-a")

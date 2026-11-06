@@ -1409,6 +1409,9 @@ proc claimProblem(request: Request, error: playerClaim.ClaimError) =
     problem(request, 409, "CLAIM_PENDING", "a claim for this player is pending")
   of ceAlreadyClaimed:
     problem(request, 409, "CLAIMED", "this player already has an owner")
+  of ceClaimantOwnsPlayer:
+    problem(request, 409, "CLAIMANT_OWNS_PLAYER",
+      "this member already has a player in this community")
   of ceClaimNotFound:
     problem(request, 404, "NOT_FOUND", "claim not found")
   of ceSelfDecision:
@@ -1490,6 +1493,11 @@ proc decideClaim(request: Request, ctx: CommunityContext, user: AuthUser,
   let result = playerClaim.decide(application.db, ctx.communityId, playerId,
     claimId, user.id, decision == "approve", reason)
   if result != ceOk:
+    # This branch persists a rejection (the second claim for one member), so it
+    # must leave a trail even though the request answers 409.
+    if result == ceClaimantOwnsPlayer:
+      audit("player.claim.rejected", ctx.communityId, user, "claim", claimId,
+        %*{"playerId": playerId, "status": "rejected"})
     claimProblem(request, result)
     return
   audit(if decision == "approve": "player.claim.approved" else: "player.claim.rejected",
@@ -2218,9 +2226,13 @@ proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
   let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
   let latest = ratingRead.latestEventDate(application.db, communityId)
   let asOf = if latest.len > 0: latest else: communityToday(timezone)
+  # `min_sessions` means the same filter as on the board: a player below it is
+  # not on the ranking either, instead of the detail route ignoring it.
+  let minSessions = minSessionsParam(request,
+    configSnapshot().intValue(settings, keyRankMinSessions))
   let query = ratingRead.BoardQuery(communityId: communityId,
     asOf: asOf, params: params, limit: limit, tier: "",
-    playerIds: playerIds)
+    minSessions: minSessions, playerIds: playerIds)
   let rows = ratingRead.board(application.db, query)
   var found = false
   var item: JsonNode
@@ -2236,7 +2248,8 @@ proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
   # same window numbers as the board.
   item["windowWeeks"] = %params.windowWeeks
   item["bestN"] = %params.bestN
-  item["minSessions"] = %params.thinEvidenceN
+  item["minSessions"] = %minSessions
+  item["thinEvidenceN"] = %params.thinEvidenceN
   jsonResponse(request, 200, item, [("Cache-Control", "no-store")])
 
 proc playerAchievements(request: Request, ctx: CommunityContext,

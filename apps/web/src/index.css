@@ -242,20 +242,7 @@ body {
   background: conic-gradient(from var(--glow-angle), transparent 50%, #5baee8 72%, #c8e8ff 82%, #5baee8 92%, transparent 100%);
 }
 
-/* Celebration overlay — confetti particle fall */
-@keyframes confettiFall {
-  0%   { transform: translateY(-10vh) rotate(0deg);   opacity: 1; }
-  80%  { opacity: 1; }
-  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
-}
-
 @keyframes fadeInScale {
   from { opacity: 0; transform: scale(0.88); }
   to   { opacity: 1; transform: scale(1); }
-}
-
-/* Used by the celebration overlay's shimmering line. */
-@keyframes annivBlink {
-  0%, 100% { opacity: 0.3; }
-  50%       { opacity: 1; }
 }

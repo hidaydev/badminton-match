@@ -278,6 +278,15 @@ suite "rankings HTTP":
     check unknownStatus == 200
     check parseJson(unknownBody)["items"].len == allItems
 
+  test "the player ranking honours the same min_sessions filter":
+    let (status, row) = call("/c/rank-club/rankings/" & players[0],
+      memberCookie)
+    check status == 200
+    check parseJson(row)["minSessions"].getInt() == 0
+    let (filteredOut, _) = call(
+      "/c/rank-club/rankings/" & players[0] & "?min_sessions=99", memberCookie)
+    check filteredOut == 404
+
   test "an unknown player or a non-member gets 404":
     let (missing, _) = call("/c/rank-club/rankings/00000000-0000-0000-0000-000000000000",
       memberCookie)
