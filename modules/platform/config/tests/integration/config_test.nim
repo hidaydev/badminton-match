@@ -73,6 +73,21 @@ suite "platform config":
          values ('ws.ticket_ttl_seconds', 'int', '30', 'platform')""")
     check caught
 
+  test "a stored scope that disagrees with the registry refuses to load":
+    discard db.execUpdate(
+      "update platform.config set scope = 'community' where key = $1",
+      @[textParam($keyWsTicketTtlSeconds)])
+    var caught = false
+    try:
+      discard loadSnapshot(db)
+    except ConfigError as error:
+      caught = true
+      check error.msg.contains("scope mismatch")
+    discard db.execUpdate(
+      "update platform.config set scope = 'platform' where key = $1",
+      @[textParam($keyWsTicketTtlSeconds)])
+    check caught
+
   test "value outside bounds refuses to load":
     discard db.execUpdate("update platform.config set value = '0' where key = $1",
       @[textParam($keyWsTicketTtlSeconds)])

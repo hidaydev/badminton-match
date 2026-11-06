@@ -48,20 +48,28 @@ proc validateValue(spec: KeySpec, value: JsonNode) =
     discard
 
 proc loadSnapshot*(db: Db): Snapshot =
-  ## Reads every registry key. Missing keys, wrong types or values outside the
-  ## frozen bounds refuse to start: there is no hidden default in code.
+  ## Reads every registry key. Missing keys, wrong types, a scope that disagrees
+  ## with the registry or values outside the frozen bounds refuse to start: there
+  ## is no hidden default in code.
   result.values = initTable[string, JsonNode]()
   let versionRow = db.queryOne(
     "select version from platform.config_version").get
   result.version = parseInt(versionRow.get("version"))
-  for row in db.query("select key, value from platform.config"):
+  var scopes = initTable[string, string]()
+  for row in db.query("select key, value, scope from platform.config"):
     result.values[row.get("key")] = parseJson(row.get("value"))
+    scopes[row.get("key")] = row.get("scope")
   var problems: seq[string] = @[]
   for entry in allKeys:
     let key = $entry.key
     if not result.values.hasKey(key):
       problems.add("missing key: " & key)
       continue
+    # The scope decides which layer owns the value. A row that disagrees with
+    # the registry is as broken as a wrong type, so it is a load problem.
+    if scopes.getOrDefault(key) != $entry.scope:
+      problems.add("scope mismatch for " & key & ": expected " &
+        $entry.scope & ", got " & scopes.getOrDefault(key, "missing"))
     try:
       validateValue(entry, result.values[key])
     except ConfigError as error:
