@@ -206,10 +206,10 @@ export default function SharedSessionPage() {
                     <th scope="col" className="px-3 py-2 font-semibold">
                       {t('session.column.sideB')}
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">
+                    <th scope="col" className="whitespace-nowrap px-3 py-2 text-right font-semibold">
                       {t('session.column.score')}
                     </th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">
+                    <th scope="col" className="whitespace-nowrap px-3 py-2 text-right font-semibold">
                       {t('session.column.status')}
                     </th>
                   </tr>
@@ -233,12 +233,12 @@ export default function SharedSessionPage() {
                           ? t('session.side.empty')
                           : game.sideB.join(' & ')}
                       </td>
-                      <td className="px-3 py-2 text-right font-mono text-fg">
+                      <td className="whitespace-nowrap px-3 py-2 text-right font-mono tabular-nums text-fg">
                         {game.scoreA === null || game.scoreB === null
                           ? '–'
                           : `${game.scoreA}–${game.scoreB}`}
                       </td>
-                      <td className="px-3 py-2 text-right text-xs text-fg-dim">
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-xs text-fg-dim">
                         {t(
                           game.status === 'played'
                             ? 'shared.gameStatus.played'
