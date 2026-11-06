@@ -90,6 +90,16 @@ proc applyPatch*(db: Db, snapshot: Snapshot, communityId, actorId: string,
   result = checkPatch(snapshot, patch)
   if result.outcome != soOk:
     return
+  # A stored zone decides which calendar day a session belongs to, so an unknown
+  # name is a bad request here exactly as it is on community creation.
+  if patch.kind == JObject and patch.hasKey($keyCommunityDefaultTimezone):
+    let zone = patch[$keyCommunityDefaultTimezone]
+    if zone.kind != JString or db.queryOne(
+        "select 1 as ok from pg_timezone_names where name = $1",
+        @[textParam(zone.getStr())]).isNone:
+      return SettingsResult(outcome: soInvalidType,
+        key: $keyCommunityDefaultTimezone,
+        detail: "timezone is not a known IANA zone")
   let before = currentSettings(db, communityId)
   var merged = before
   for name, value in patch:

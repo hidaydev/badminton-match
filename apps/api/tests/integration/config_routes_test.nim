@@ -69,6 +69,17 @@ suite "community config overrides":
     check auditRow.isSome
     check parseJson(auditRow.get.get("after"))["rating.score_target"].getInt() == 15
 
+  test "an unknown timezone is rejected":
+    let rejected = applyPatch(db, snapshot, communityId, userId,
+      %*{"community.default_timezone": "Mars/Olympus"})
+    check rejected.outcome == soInvalidType
+    check not currentSettings(db, communityId).hasKey("community.default_timezone")
+    let accepted = applyPatch(db, snapshot, communityId, userId,
+      %*{"community.default_timezone": "Asia/Makassar"})
+    check accepted.outcome == soOk
+    check currentSettings(db, communityId)["community.default_timezone"]
+      .getStr() == "Asia/Makassar"
+
   test "an invalid second key leaves the first override untouched":
     discard applyPatch(db, snapshot, communityId, userId,
       %*{"rating.score_target": 15})
