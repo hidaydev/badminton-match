@@ -1629,8 +1629,10 @@ const
   shareGlobalFactor = 10
 
 const requiredRelations = [
-  # One name per area the process cannot work without. `to_regclass` answers
-  # without touching the tables, so readiness never becomes a write path.
+  # One name per area the process cannot work without. The lookup reads
+  # pg_class rather than to_regclass(): the latter needs USAGE on the schema it
+  # is asked about, and dbtools is the owner's ledger, so a regular app role
+  # would turn a healthy database into a false "unreachable" on /readyz.
   "platform.community", "platform.user", "platform.config",
   "platform.cutover_state", "community.membership", "player.players",
   "session.sessions", "session.games", "rating.events",
@@ -1647,7 +1649,12 @@ proc readyz(request: Request) =
     let missing = application.db.queryOne(
       """select count(*)::int as missing
          from unnest($1::text[]) as wanted(name)
-         where to_regclass(wanted.name) is null""",
+         where not exists (
+           select 1
+             from pg_class c
+             join pg_namespace n on n.oid = c.relnamespace
+            where n.nspname = split_part(wanted.name, '.', 1)
+              and c.relname = split_part(wanted.name, '.', 2))""",
       @[textParam("{" & requiredRelations.join(",") & "}")])
     if parseInt(missing.get.get("missing")) > 0:
       detail = "schema is not migrated"

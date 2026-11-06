@@ -194,6 +194,8 @@ fi
 STEP="sync-unit"
 UNIT_SRC="$MONO_DIR/ops/systemd/majadu-rc-api.container"
 UNIT_DEST="$HOME/.config/containers/systemd/majadu-rc-api.container"
+# The unit bind-mounts this path; podman refuses to start when it is missing.
+mkdir -p "$APP_DIR/logs/main"
 mkdir -p "$(dirname "$UNIT_DEST")"
 if ! cmp -s "$UNIT_SRC" "$UNIT_DEST"; then
   install -m 644 "$UNIT_SRC" "$UNIT_DEST"
