@@ -176,16 +176,34 @@ proc awardTournamentSide(conn: DbConn, communityId: string,
   addState(conn, communityId, players, won = margin > 0)
   players.len
 
+proc insertEvent*(conn: DbConn, communityId, eventType, sourceId,
+                   localDate: string,
+                   preserved: Table[string, string]): Option[Row] =
+  ## A rebuild re-inserts an event for the same source. Keeping its id means a
+  ## page or audit row that already names the event stays valid across it.
+  let kept = preserved.getOrDefault(eventType & ":" & sourceId)
+  if kept.len > 0:
+    return conn.queryOne(
+      """insert into rating.events
+           (id, community_id, local_date, event_type, source_id)
+         values ($4::uuid, $1::uuid, $2::date, $3, $5::uuid)
+         returning id""",
+      @[textParam(communityId), textParam(localDate), textParam(eventType),
+        textParam(kept), textParam(sourceId)])
+  conn.queryOne(
+    """insert into rating.events (community_id, local_date, event_type, source_id)
+       values ($1::uuid, $2::date, $3, $4::uuid)
+       returning id""",
+    @[textParam(communityId), textParam(localDate), textParam(eventType),
+      textParam(sourceId)])
+
 proc ingestTournamentGames(conn: DbConn, communityId, tournamentId,
                            tournamentDate, format: string,
-                           params: RatingParams): TournamentIngestResult =
+                           params: RatingParams,
+                           preserved: Table[string, string]): TournamentIngestResult =
   let games = gamesFor(conn, communityId, tournamentId, format)
-  let event = conn.queryOne(
-    """insert into rating.events (community_id, local_date, event_type, source_id)
-       values ($1::uuid, $2::date, 'tournament', $3::uuid)
-       returning id""",
-    @[textParam(communityId), textParam(tournamentDate),
-      textParam(tournamentId)])
+  let event = insertEvent(conn, communityId, "tournament", tournamentId,
+    tournamentDate, preserved)
   if event.isNone:
     return
   let eventId = event.get.get("id")
@@ -200,7 +218,8 @@ proc ingestTournamentGames(conn: DbConn, communityId, tournamentId,
       intParam(result.deltas.int64)])
 
 proc ingestTournamentConn*(conn: DbConn, communityId, tournamentId: string,
-                           params: RatingParams): TournamentIngestResult =
+                           params: RatingParams,
+                           preserved: Table[string, string]): TournamentIngestResult =
   ## One event per signed-off tournament, inside the caller's transaction.
   ## The gate is the source row's `finalized`, exactly like v1
   ## `rating_sources.finalized`.
@@ -226,12 +245,19 @@ proc ingestTournamentConn*(conn: DbConn, communityId, tournamentId: string,
   if existing.isSome:
     return
   let part = ingestTournamentGames(conn, communityId, tournamentId,
-    header.get.get("event_date"), header.get.get("format"), params)
+    header.get.get("event_date"), header.get.get("format"), params, preserved)
   result.events = part.events
   result.deltas = part.deltas
 
+proc ingestTournamentConn*(conn: DbConn, communityId, tournamentId: string,
+                           params: RatingParams): TournamentIngestResult =
+  ## Incremental ingest: no rebuild happened, so no id needs preserving.
+  ingestTournamentConn(conn, communityId, tournamentId, params,
+    initTable[string, string]())
+
 proc ingestFinalTournamentsConn*(conn: DbConn, communityId: string,
-                                 params: RatingParams):
+                                 params: RatingParams,
+                                 preserved: Table[string, string]):
     tuple[events, deltas: int] =
   ## Replays every signed-off tournament inside the caller's transaction. The
   ## rebuild clears the ledger first, so this is what keeps tournament points
@@ -243,7 +269,8 @@ proc ingestFinalTournamentsConn*(conn: DbConn, communityId: string,
        where t.community_id = $1::uuid and s.finalized
        order by t.event_date, t.id""",
     @[textParam(communityId)]):
-    let part = ingestTournamentConn(conn, communityId, row.get("id"), params)
+    let part = ingestTournamentConn(conn, communityId, row.get("id"), params,
+      preserved)
     result.events += part.events
     result.deltas += part.deltas
 

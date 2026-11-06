@@ -57,7 +57,8 @@ proc ingestGame(conn: DbConn, communityId: string, row: Row,
     absent, skipped)
 
 proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
-                       params: RatingParams): IngestResult =
+                       params: RatingParams,
+                       preserved: Table[string, string]): IngestResult =
   let existing = conn.queryOne(
     """select id from rating.events
        where community_id = $1::uuid and event_type = 'session'
@@ -75,12 +76,8 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
     return
   if session.get.get("status") notin ["locked", "published", "completed", "archived"]:
     return
-  let event = conn.queryOne(
-    """insert into rating.events (community_id, local_date, event_type, source_id)
-       values ($1::uuid, $2::date, 'session', $3::uuid)
-       returning id""",
-    @[textParam(communityId), textParam(session.get.get("session_date")),
-      textParam(sessionId)])
+  let event = insertEvent(conn, communityId, "session", sessionId,
+    session.get.get("session_date"), preserved)
   if event.isNone:
     return
   let eventId = event.get.get("id")
@@ -130,7 +127,8 @@ proc ingestSession*(db: Db, communityId, sessionId: string,
   var outcome: IngestResult
   discard db.tx(proc(conn: DbConn): int =
     lockCommunity(conn, communityId)
-    outcome = ingestSessionConn(conn, communityId, sessionId, params)
+    outcome = ingestSessionConn(conn, communityId, sessionId, params,
+      initTable[string, string]())
     1)
   outcome
 
@@ -252,6 +250,15 @@ proc rebuildConn*(conn: DbConn, communityId: string,
   ## end at the same numbers. A rebuild must not erase a tournament that was
   ## ingested incrementally, so both source kinds are replayed here.
   lockCommunity(conn, communityId)
+  # Keep the id of every event that has a source: a rebuild must not invalidate
+  # a screen or audit row that already names it.
+  var preserved = initTable[string, string]()
+  for row in conn.query(
+    """select event_type, source_id::text as source_id, id::text as id
+       from rating.events
+       where community_id = $1::uuid and source_id is not null""",
+    @[textParam(communityId)]):
+    preserved[row.get("event_type") & ":" & row.get("source_id")] = row.get("id")
   discard conn.execUpdate(
     """delete from rating.events where community_id = $1::uuid""",
     @[textParam(communityId)])
@@ -267,10 +274,12 @@ proc rebuildConn*(conn: DbConn, communityId: string,
     @[textParam(communityId)]):
     ids.add(row.get("id"))
   for sessionId in ids:
-    let part = ingestSessionConn(conn, communityId, sessionId, params)
+    let part = ingestSessionConn(conn, communityId, sessionId, params,
+      preserved)
     result.events += part.events
     result.deltas += part.deltas
-  let tournaments = ingestFinalTournamentsConn(conn, communityId, params)
+  let tournaments = ingestFinalTournamentsConn(conn, communityId, params,
+    preserved)
   result.events += tournaments.events
   result.deltas += tournaments.deltas
 

@@ -123,6 +123,20 @@ suite "rating ingest":
     check eventCount() == 1
     check state(players[0]).games == 1
 
+  test "a rebuild keeps the event id a client already holds":
+    let before = database.queryOne(
+      """select id::text as id from rating.events
+         where community_id = $1::uuid and event_type = 'session'
+           and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)]).get.get("id")
+    discard rebuild(database, communityId, params())
+    let after = database.queryOne(
+      """select id::text as id from rating.events
+         where community_id = $1::uuid and event_type = 'session'
+           and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)]).get.get("id")
+    check after == before
+
   test "an absent player is not counted and earns no game":
     discard database.execUpdate(
       """update session.participants set is_absent = true

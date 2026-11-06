@@ -428,9 +428,10 @@ suite "tournament HTTP":
       """select id::text as id from rating.events
          where community_id = $1::uuid and source_id = $2::uuid""",
       @[textParam(communityId), textParam(id)])
-    # The stale event is replaced: the entry list now reflects the new scores.
+    # The replay keeps the event id, so an admin page that already names the
+    # source stays valid, while the counters below prove the new scores landed.
     check events.len == 1
-    check events[0].get("id") != firstEvent
+    check events[0].get("id") == firstEvent
     # The replay reached the counters: the flipped result moves one win from the
     # first pair to the second.
     check winsOf(sideAPlayer) == aWins - 1
