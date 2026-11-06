@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store'
 import { useEscapeKey } from '../hooks/useEscapeKey'
@@ -57,10 +57,12 @@ export default function ShareButton() {
   })
   const shareUrl = shareCode === null ? null : `${window.location.origin}/s/${shareCode}`
 
-  // A session published earlier already has a live link; show it again.
-  useEffect(() => {
-    if (cloudSessionId && shareCode !== null) setPublishedId(cloudSessionId)
-  }, [cloudSessionId, shareCode])
+  // A session published earlier already has a live link; show it again. The
+  // cached code is the signal, so this is derived instead of synced in an
+  // effect. `publishedId` still covers the flow that just published: the way
+  // back must not depend on the share link call succeeding.
+  const publishedSessionId =
+    publishedId ?? (shareCode !== null ? cloudSessionId ?? null : null)
 
   async function handleConfirm() {
     setConfirming(false)
@@ -262,11 +264,11 @@ export default function ShareButton() {
           )}
         </button>
       )}
-      {publishedId && (
+      {publishedSessionId && (
         <a
           href={communityHref(
             activeCommunitySlug(),
-            `/s/${encodeURIComponent(publishedId)}`,
+            `/s/${encodeURIComponent(publishedSessionId)}`,
           )}
           className="inline-flex items-center text-xs font-bold shrink-0 rounded-lg bg-emerald-400 hover:bg-emerald-300 px-2.5 py-1.5 text-slate-950 transition-colors"
         >
