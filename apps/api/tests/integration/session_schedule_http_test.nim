@@ -264,6 +264,60 @@ suite "session schedule HTTP":
       "/c/sched-club/sessions/" & sessionId, hostCookie)
     check parseJson(afterBody)["skippedPlayers"].len == 0
 
+  test "the share payload serves the same board as the member standings":
+    let (_, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"Shared board","date":"2026-11-09"}""")
+    let sessionId = parseJson(body)["id"].getStr()
+    let schedule = """{"games":[""" &
+      """{"round":0,"court":0,"sideA":["""" & players[0] & """","""" &
+        players[1] & """"],"sideB":["""" & players[2] & """","""" &
+        players[3] & """"]},""" &
+      """{"round":1,"court":0,"sideA":["""" & players[0] & """","""" &
+        players[2] & """"],"sideB":["""" & players[1] & """","""" &
+        players[3] & """"]}]}"""
+    discard call(HttpPut, "/c/sched-club/sessions/" & sessionId & "/schedule",
+      hostCookie, schedule, ifMatch = "\"1\"")
+    discard call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+      """{"scoreA":21,"scoreB":15}""", ifMatch = "\"2\"")
+    discard call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/1-0", hostCookie,
+      """{"scoreA":18,"scoreB":21}""", ifMatch = "\"3\"")
+    # An absent player leaves the board, and a per-game skip drops one player
+    # from one game without cancelling it: both must show up in the public
+    # payload exactly as the member route reports them.
+    let (absent, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/absent", hostCookie,
+      """{"playerIds":["""" & players[3] & """"]}""", ifMatch = "\"4\"")
+    check absent == 200
+    let (skipped, _) = call(HttpPatch,
+      "/c/sched-club/sessions/" & sessionId & "/games/1-0/skip", hostCookie,
+      """{"playerIds":["""" & players[0] & """"]}""", ifMatch = "\"5\"")
+    check skipped == 200
+
+    let (boardStatus, boardBody) = call(HttpGet,
+      "/c/sched-club/sessions/" & sessionId & "/standings", memberCookie)
+    check boardStatus == 200
+    let memberItems = parseJson(boardBody)["items"]
+    check memberItems.len == 3
+
+    let (issued, issuedBody) = call(HttpPost,
+      "/c/sched-club/sessions/" & sessionId & "/share", hostCookie)
+    check issued == 201
+    let code = parseJson(issuedBody)["code"].getStr()
+    let (shared, sharedBody) = call(HttpGet, "/s/" & code)
+    check shared == 200
+    let payload = parseJson(sharedBody)
+    check payload.hasKey("standings")
+    let publicItems = payload["standings"]["items"]
+    check publicItems.len == memberItems.len
+    for index in 0 ..< publicItems.len:
+      # The equality below is the guarantee: the two screens cannot drift.
+      var expected = memberItems[index]
+      check expected.hasKey("playerId")
+      expected.delete("playerId")
+      check publicItems[index] == expected
+
   test "deleting a session is host-for-draft and admin-for-any":
     let (created, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
       """{"title":"Draft to delete","date":"2026-11-06"}""")

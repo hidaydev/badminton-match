@@ -50,6 +50,42 @@
         "id": "{uuid}",
         "status": "locked",
         "title": "Tuesday Night"
+      },
+      "standings": {
+        "items": [
+          {
+            "diff": 3,
+            "losses": 0,
+            "name": "Alice",
+            "pointsAgainst": 18,
+            "pointsFor": 21,
+            "wins": 1
+          },
+          {
+            "diff": 3,
+            "losses": 0,
+            "name": "Budi",
+            "pointsAgainst": 18,
+            "pointsFor": 21,
+            "wins": 1
+          },
+          {
+            "diff": -3,
+            "losses": 1,
+            "name": "Candra",
+            "pointsAgainst": 21,
+            "pointsFor": 18,
+            "wins": 0
+          },
+          {
+            "diff": -3,
+            "losses": 1,
+            "name": "Dewi",
+            "pointsAgainst": 21,
+            "pointsFor": 18,
+            "wins": 0
+          }
+        ]
       }
     }
   }

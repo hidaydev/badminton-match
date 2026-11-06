@@ -2110,6 +2110,24 @@ proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
   jsonResponse(request, 200, %*{"code": code.get, "sessionId": sessionId},
     [("Cache-Control", "no-store")])
 
+proc publicStandings(board: Option[JsonNode]): JsonNode =
+  ## The public screen and the member page read the same board, so the share
+  ## payload mirrors the member route item for item. It carries names, never
+  ## ids: a spectator has no session to resolve a uuid against.
+  if board.isNone:
+    return newJNull()
+  var items = newJArray()
+  for entry in board.get["items"]:
+    items.add(%*{
+      "name": entry["name"],
+      "wins": entry["wins"],
+      "losses": entry["losses"],
+      "pointsFor": entry["pointsFor"],
+      "pointsAgainst": entry["pointsAgainst"],
+      "diff": entry["diff"],
+    })
+  %*{"items": items}
+
 proc resolveShare(code: string): Option[JsonNode] =
   let found = shareStore.resolve(application.db, application.keyring, code)
   if found.isNone:
@@ -2152,6 +2170,8 @@ proc resolveShare(code: string): Option[JsonNode] =
                 "date": value.sessionDate, "status": value.status},
     "community": {"slug": value.slug, "name": value.communityName},
     "games": games,
+    "standings": publicStandings(sessionStandings.compute(application.db,
+      value.communityId, value.sessionId)),
   })
 
 proc getShared(request: Request, code: string) =
