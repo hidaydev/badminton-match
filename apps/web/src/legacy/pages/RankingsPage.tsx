@@ -196,7 +196,7 @@ export default function RankingsPage() {
                       <span className="w-3 shrink-0 font-mono text-[10px] leading-none text-center">
                         {r.rank_delta == null || r.rank_delta === 0 ? (
                           <>
-                            <span className="text-fg-dim/40" aria-hidden="true">·</span>
+                            <span className="text-fg-dim" aria-hidden="true">·</span>
                             <span className="sr-only">{t('rankings.deltaSame')}</span>
                           </>
                         ) : r.rank_delta > 0 ? (

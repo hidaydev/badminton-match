@@ -195,12 +195,12 @@ export default function AchievementDetailModal({
 
                       <div className="flex flex-col items-center">
                         <span
-                          className={`text-[9px] font-medium leading-none ${achieved ? 'text-fg' : 'text-fg-dim/60'}`}
+                          className={`text-[9px] font-medium leading-none ${achieved ? 'text-fg' : 'text-fg-dim'}`}
                         >
                           {tierName}
                         </span>
                         <span
-                          className={`mt-0.5 text-[10px] font-bold leading-tight ${achieved ? 'text-fg' : 'text-fg-dim/50'}`}
+                          className={`mt-0.5 text-[10px] font-bold leading-tight ${achieved ? 'text-fg' : 'text-fg-dim'}`}
                         >
                           {label}
                         </span>

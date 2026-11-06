@@ -84,31 +84,40 @@ export default function AdminRatingsPage() {
                           {src.finalized ? t('admin.finalized') : t('admin.finalize')}
                         </ActionButton>
                       )}
-                      <ActionButton
-                        disabled={isT && !src.finalized}
-                        title={isT && !src.finalized ? t('admin.ingestNeedsFinalize') : undefined}
-                        onClick={() => run(
-                          () => adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
-                            isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
-                          t('admin.ingestDone'),
-                          refreshRatingData,
-                        )}>
-                        {t('admin.ingest')}
-                      </ActionButton>
-                      <ActionButton tone="red" disabled={!isT}
-                        title={isT ? undefined : t('admin.revertUnlockFirst')}
-                        onClick={() => {
-                          if (window.confirm(t('admin.revertConfirm', { name: src.source_name, kind: t(isT ? 'admin.revertKind.tournament' : 'admin.revertKind.session') }))) {
-                            run(
-                              () => adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
-                                isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
-                              'Reverted',
-                              refreshRatingData,
-                            )
-                          }
-                        }}>
-                        Revert
-                      </ActionButton>
+                      {/* The API rejects ingest until the source is signed off,
+                          so the sign-off is the only action a fresh tournament
+                          row offers. Ingest appears once it is signed off. */}
+                      {(!isT || src.finalized) && (
+                        <ActionButton
+                          onClick={() => run(
+                            () => adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
+                              isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
+                            t('admin.ingestDone'),
+                            refreshRatingData,
+                          )}>
+                          {t('admin.ingest')}
+                        </ActionButton>
+                      )}
+                      {/* Revert is refused for a signed-off source, and a row
+                          with no event has nothing to revert. A session is only
+                          revertible after it is unlocked, which the API also
+                          enforces. */}
+                      {(isT ? !src.finalized && eventId !== null : true) && (
+                        <ActionButton tone="red" disabled={!isT}
+                          title={isT ? undefined : t('admin.revertUnlockFirst')}
+                          onClick={() => {
+                            if (window.confirm(t('admin.revertConfirm', { name: src.source_name, kind: t(isT ? 'admin.revertKind.tournament' : 'admin.revertKind.session') }))) {
+                              run(
+                                () => adminRequest('POST', isT ? '/ratings/revert-tournament' : '/ratings/revert-session',
+                                  isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
+                                t('admin.revertDone'),
+                                refreshRatingData,
+                              )
+                            }
+                          }}>
+                          {t('admin.revert')}
+                        </ActionButton>
+                      )}
                       {/* A session event only exists while the session is
                           approved, and the API refuses that state; unlocking
                           removes the row, so there is nothing to delete. */}

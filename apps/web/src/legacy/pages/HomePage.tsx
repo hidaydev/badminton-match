@@ -88,7 +88,7 @@ export default function HomePage() {
               <span className="text-[10px] font-mono text-fg-dim">
                 {lastSession.date.split('-').reverse().join('-')}
               </span>
-              <span className="text-[10px] font-mono text-fg-dim/60">·</span>
+              <span className="text-[10px] font-mono text-fg-dim">·</span>
               <span className="text-[10px] font-mono text-fg-dim">
                 {lastSession.playerCount}p · {lastSession.totalGames}g
               </span>

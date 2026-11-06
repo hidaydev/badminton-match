@@ -49,7 +49,7 @@ export default function CareerStats({ stats, countedPoints }: {
               const counted = pts !== undefined
               return (
                 <div key={s.id} className="flex justify-between items-center text-sm gap-2 py-1.5 border-b border-border-subtle/50 last:border-0">
-                  <span className={s.absent ? 'text-fg-dim/60 line-through truncate min-w-0 font-medium' : 'text-fg truncate min-w-0 font-medium'}>
+                  <span className={s.absent ? 'text-fg-dim line-through truncate min-w-0 font-medium' : 'text-fg truncate min-w-0 font-medium'}>
                     {s.title || 'Untitled'}
                   </span>
                   <div className="flex items-center gap-2 shrink-0">
@@ -62,7 +62,7 @@ export default function CareerStats({ stats, countedPoints }: {
                       </span>
                     )}
                     {s.absent && (
-                      <span className="text-[10px] font-sans text-fg-dim/70 bg-elevated px-1.5 py-0.5 rounded border border-border-subtle">
+                      <span className="text-[10px] font-sans text-fg-dim bg-elevated px-1.5 py-0.5 rounded border border-border-subtle">
                         {t('career.absent')}
                       </span>
                     )}
@@ -147,7 +147,7 @@ export default function CareerStats({ stats, countedPoints }: {
             <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
               <div className="text-xl sm:text-2xl font-bold font-mono leading-none flex items-center justify-center gap-1">
                 <span className="text-emerald-400">{stats.tournamentStats.wins}W</span>
-                <span className="text-fg-dim/40 text-sm font-light">/</span>
+                <span className="text-fg-dim text-sm font-light">/</span>
                 <span className="text-red-400">{stats.tournamentStats.losses}L</span>
               </div>
               <span className="text-[10px] sm:text-xs font-sans text-fg-dim uppercase tracking-wider mt-1.5 font-medium">

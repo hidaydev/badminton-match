@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { listMembers } from '../community/adminApi'
 import { useCommunity } from '../community/CommunityContext'
 import { t } from '../i18n'
 import { TIERS } from '../players/api'
@@ -39,6 +40,31 @@ export default function PlayerDetailPage() {
     slug === '' ? null : slug,
     playerId === '' ? null : playerId,
   )
+
+  // A claim only carries the claimant's user id. Hosts and admins need a name
+  // to decide it, so resolve the ids against the member list they may read;
+  // the raw UUID is never rendered. Only fetch when some claim is not blank
+  // and not the viewer's own.
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({})
+  const claimsNeedingNames = (claims ?? []).some(
+    (claim) => claim.userId !== '' && claim.userId !== user?.id,
+  )
+  useEffect(() => {
+    if (!canEdit || slug === '' || !claimsNeedingNames) return
+    let active = true
+    listMembers(slug)
+      .then((members) => {
+        if (!active) return
+        setMemberNames(
+          Object.fromEntries(members.map((member) => [member.userId, member.displayName])),
+        )
+      })
+      // A failed lookup leaves the name unknown; it must not block the page.
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [canEdit, slug, claimsNeedingNames])
   // Merge needs somewhere to merge from; only an admin can ask for the list.
   const candidates = usePlayers(isAdmin ? slug : null, '')
 
@@ -64,6 +90,13 @@ export default function PlayerDetailPage() {
       (claim.status === 'pending' || claim.status === 'approved'),
   )
   const linkedToMe = player !== null && user !== null && player.userId === user.id
+
+  const claimantName = (claim: PlayerClaim): string => {
+    // A blank id is the server hiding another member's claim from the reader.
+    if (claim.userId === '') return t('playerAdmin.claims.other')
+    if (user !== null && claim.userId === user.id) return user.displayName
+    return memberNames[claim.userId] ?? t('playerAdmin.claims.unknown')
+  }
 
   return (
     <section className="mx-auto max-w-3xl p-4">
@@ -162,6 +195,7 @@ export default function PlayerDetailPage() {
                   slug={slug}
                   playerId={player.id}
                   claim={claim}
+                  claimant={claimantName(claim)}
                   admin={isAdmin}
                   own={claim.userId === user?.id}
                   busy={busy}
@@ -287,21 +321,20 @@ type ClaimRowProps = {
   slug: string
   playerId: string
   claim: PlayerClaim
+  claimant: string
   admin: boolean
   own: boolean
   busy: boolean
   onRun: Run
 }
 
-function ClaimRow({ slug, playerId, claim, admin, own, busy, onRun }: ClaimRowProps) {
+function ClaimRow({ slug, playerId, claim, claimant, admin, own, busy, onRun }: ClaimRowProps) {
   const [reason, setReason] = useState('')
 
   return (
     <li className="rounded-xl border border-border-subtle bg-surface p-3">
       <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-fg">
-        <span className={claim.userId === '' ? 'text-xs text-fg-dim' : 'font-mono text-xs text-fg-dim'}>
-          {claim.userId === '' ? t('playerAdmin.claims.other') : claim.userId}
-        </span>
+        <span className="text-xs text-fg-dim">{claimant}</span>
         <span className="text-xs text-fg-dim">{t(CLAIM_STATUS_KEY[claim.status])}</span>
       </p>
       <p className="mt-1 font-mono text-[10px] text-fg-dim">{formatDay(claim.createdAt)}</p>

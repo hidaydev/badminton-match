@@ -201,10 +201,17 @@ suite "session schedule HTTP":
       players[2] & """","""" & players[3] & """"]}]}"""
     discard call(HttpPut, "/c/sched-club/sessions/" & sessionId & "/schedule",
       hostCookie, schedule, ifMatch = "\"1\"")
-    let (tie, _) = call(HttpPatch,
+    let (tie, tieBody) = call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
       """{"scoreA":21,"scoreB":21}""", ifMatch = "\"2\"")
     check tie == 400
+    check parseJson(tieBody)["code"].getStr() == "INVALID_SCORE"
+    for badScore in ["""{"scoreA":-1,"scoreB":5}""", """{"scoreA":100,"scoreB":5}"""]:
+      let (rejected, rejectedBody) = call(HttpPatch,
+        "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
+        badScore, ifMatch = "\"2\"")
+      check rejected == 400
+      check parseJson(rejectedBody)["code"].getStr() == "INVALID_SCORE"
     let (scored, _) = call(HttpPatch,
       "/c/sched-club/sessions/" & sessionId & "/games/0-0", hostCookie,
       """{"scoreA":21,"scoreB":15}""", ifMatch = "\"2\"")
@@ -377,6 +384,20 @@ suite "session schedule HTTP":
       """{"title":"Valid","date":"2026-11-04","startTime":"19:30","slotMinutes":45}""")
     check created == 201
     check parseJson(body)["date"].getStr() == "2026-11-04"
+    # The detail route reads a time as HH:MM:SS, so that shape must round-trip
+    # through a patch instead of being rejected as malformed.
+    let sessionId = parseJson(body)["id"].getStr()
+    let (patched, patchedBody) = call(HttpPatch, path & "/" & sessionId,
+      hostCookie, """{"startTime":"18:45:00"}""", ifMatch = "\"1\"")
+    check patched == 200
+    check parseJson(patchedBody)["startTime"].getStr() == "18:45:00"
+    # The stored value keeps minute precision; the detail route renders HH:MM.
+    let (_, detail) = call(HttpGet, path & "/" & sessionId, hostCookie)
+    check parseJson(detail)["startTime"].getStr() == "18:45"
+    # Seconds outside zero are refused rather than silently truncated.
+    let (withSeconds, _) = call(HttpPatch, path & "/" & sessionId, hostCookie,
+      """{"startTime":"18:45:30"}""", ifMatch = "\"2\"")
+    check withSeconds == 400
 
   test "a malformed id is a 400 and never reaches the database":
     # The route casts every id to uuid; PostgreSQL's 22P02 used to surface as a

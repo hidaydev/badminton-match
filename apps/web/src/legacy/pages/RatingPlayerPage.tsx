@@ -189,7 +189,7 @@ export default function RatingPlayerPage() {
           <div className="bg-surface border border-border-subtle rounded-xl p-3 text-center flex flex-col justify-center">
             <div className="text-xl sm:text-2xl font-bold font-mono leading-none flex items-center justify-center gap-1">
               <span className="text-emerald-400">{wins}W</span>
-              <span className="text-fg-dim/40 text-sm font-light">/</span>
+              <span className="text-fg-dim text-sm font-light">/</span>
               <span className="text-red-400">{losses}L</span>
             </div>
             <span className="text-[10px] sm:text-xs font-sans text-fg-dim uppercase tracking-wider mt-1.5 font-medium">

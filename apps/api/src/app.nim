@@ -552,12 +552,18 @@ proc validSessionDate(value: string): bool =
   except TimeParseError:
     false
 
-proc validClockTime(value: string): bool =
-  ## HH:MM with two-digit fields, so "9:00" is refused rather than guessed.
-  try:
-    parse(value, "HH:mm", utc()).format("HH:mm") == value
-  except TimeParseError:
-    false
+proc normalizeClockTime(value: string): Option[string] =
+  ## Two-digit fields, so "9:00" is refused rather than guessed. Some write
+  ## responses format a `time::text` as HH:MM:SS, so that shape round-trips;
+  ## non-zero seconds are refused because the column only stores minutes.
+  for pattern in ["HH:mm", "HH:mm:ss"]:
+    try:
+      let parsed = parse(value, pattern, utc())
+      if parsed.format(pattern) == value and parsed.second == 0:
+        return some(parsed.format("HH:mm"))
+    except TimeParseError:
+      discard
+  none(string)
 
 proc idempotentWrite(request: Request, userId, communityId, key: string,
                      body: string, resource = ""): Option[JsonNode]
@@ -592,9 +598,11 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   if not validSessionDate(date):
     problem(request, 400, "INVALID_BODY", "date must be a real YYYY-MM-DD day")
     return
-  if not validClockTime(startTime):
-    problem(request, 400, "INVALID_BODY", "startTime must be HH:MM")
+  let clock = normalizeClockTime(startTime)
+  if clock.isNone:
+    problem(request, 400, "INVALID_BODY", "startTime must be HH:MM or HH:MM:SS")
     return
+  startTime = clock.get
   if slot < 1 or slot > 240:
     problem(request, 400, "INVALID_BODY", "slotMinutes must be between 1 and 240")
     return
@@ -859,10 +867,14 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
     problem(request, 400, "INVALID_PATCH", "date must be a real YYYY-MM-DD day")
     return
-  if patchBody.startTime.isSome and not validClockTime(patchBody.startTime.get):
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
-    problem(request, 400, "INVALID_PATCH", "startTime must be HH:MM")
-    return
+  if patchBody.startTime.isSome:
+    let clock = normalizeClockTime(patchBody.startTime.get)
+    if clock.isNone:
+      releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+      problem(request, 400, "INVALID_PATCH",
+        "startTime must be HH:MM or HH:MM:SS")
+      return
+    patchBody.startTime = clock
   let result = sessionWrite.patch(application.db, ctx.communityId, sessionId,
     version.get, patchBody)
   case result.status
@@ -1896,9 +1908,16 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
      body["scoreA"].kind != JInt or body["scoreB"].kind != JInt:
     problem(request, 400, "INVALID_SCORE", "scoreA and scoreB are required")
     return
-  scheduleDone(request, ctx, sessionId,
-    sessionSchedule.setScore(application.db, ctx.communityId, sessionId, gameKey,
-      version.get, body["scoreA"].getInt(), body["scoreB"].getInt()))
+  let status = sessionSchedule.setScore(application.db, ctx.communityId,
+    sessionId, gameKey, version.get, body["scoreA"].getInt(),
+    body["scoreB"].getInt())
+  if status == sessionSchedule.ssInvalid:
+    # This is a score problem, not a schedule one; the generic
+    # INVALID_SCHEDULE told the client to look at the wrong body.
+    problem(request, 400, "INVALID_SCORE",
+      "scoreA and scoreB must differ and be between 0 and 99")
+    return
+  scheduleDone(request, ctx, sessionId, status)
 
 proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
                    gameKey: string) =
