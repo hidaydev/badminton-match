@@ -1404,7 +1404,7 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Page size, clamped to 1..500. A value that is not an integer falls back to api.page_size_default.",
+            "description": "Page size, clamped to api.page_size_max (1..10000, seeded 500). A value that is not an integer falls back to api.page_size_default.",
             "schema": {
               "type": "integer"
             }
