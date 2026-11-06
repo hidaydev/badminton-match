@@ -200,10 +200,22 @@ podman exec -i "$PG" pg_restore -U "$PG_SUPER" -d "$STAGING_DB" \
 STAGING_DSN="postgres://$OWNER_ROLE:$(printf '%s' "$OWNER_PASS" | sed 's/@/%40/g')@$PG:5432/$STAGING_DB"
 psql_super -c "grant connect on database $STAGING_DB to $(quote_sql "$OWNER_ROLE")" >/dev/null
 # pg_restore ran as the container superuser with --no-owner, so the owner role
-# needs an explicit read grant before the importer can open the source.
+# needs an explicit read grant before the importer can open the source. V1 keeps
+# its data in the `bm` and `bm_dev` schemas, not in public, so every schema is
+# granted rather than a fixed list.
+OWNER_LITERAL="'$(quote_sql "$OWNER_ROLE")'"
 psql_db "$STAGING_DB" <<SQL
-grant usage on schema public to $(quote_sql "$OWNER_ROLE");
-grant select on all tables in schema public to $(quote_sql "$OWNER_ROLE");
+do \$\$
+declare s text;
+begin
+  for s in
+    select nspname from pg_namespace
+     where nspname not like 'pg\_%' and nspname <> 'information_schema'
+  loop
+    execute format('grant usage on schema %I to %s', s, $OWNER_LITERAL);
+    execute format('grant select on all tables in schema %I to %s', s, $OWNER_LITERAL);
+  end loop;
+end \$\$;
 SQL
 
 log "importing $STAGING_DB into $RC_DB"
