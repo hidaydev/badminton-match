@@ -1,0 +1,18 @@
+# RC handler: same shape as site-v1/site-v2, own prefix.
+#
+# The live Caddyfile keeps `handle /majadu/*` for production and imports this
+# snippet for the RC subtree:
+#
+#   import /srv/qouver/apps/majadu-rc/caddy/active.caddy
+#
+# The RC SPA reaches it through the Vercel rewrite
+# /api/:path* -> https://api.qouver.com/majadu-rc/:path*
+handle /majadu-rc/* {
+	uri strip_prefix /majadu-rc
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8081 {
+		header_up X-Client-IP {http.request.remote.host}
+		header_up -X-Forwarded-For
+		header_up -X-Real-IP
+	}
+}

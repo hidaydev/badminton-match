@@ -1,0 +1,38 @@
+# Quadlet unit for the RC API (schema bm2_rc) - rootless podman + systemd user.
+#
+# Separate from majadu-api.container on purpose (D-030): every name carries
+# `majadu-rc-api`, so this unit can never shadow the v1/v2 production unit, and
+# `systemctl --user restart majadu-api` keeps meaning production.
+#
+# The image is built by ops/scripts/deploy-vps-rc.sh and tagged :local; Quadlet
+# only ever starts that tag (Pull=never), so a restart cannot fetch a different
+# build behind the operator's back.
+[Unit]
+Description=Majadu API (RC, schema bm2_rc)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Container]
+Image=localhost/majadu-rc-api:local
+ContainerName=majadu-rc-api
+Network=qouver
+PublishPort=127.0.0.1:8081:8080
+Pull=never
+EnvironmentFile=/srv/qouver/apps/majadu-rc/env/majadu-rc.env
+Volume=/srv/qouver/apps/majadu-rc/logs/main:/logs:Z
+AutoUpdate=local
+UserNS=keep-id:uid=10001
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+# on-failure, not always: a deliberate stop (rebuild, rollback, maintenance)
+# must stay stopped.
+Restart=on-failure
+RestartSec=3
+MemoryMax=512M
+
+[Install]
+WantedBy=default.target
