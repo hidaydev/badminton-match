@@ -74,6 +74,13 @@ APP_ROLE=$(dsn_part "$APP_DSN" user)
 APP_PASS=$(dsn_part "$APP_DSN" password)
 RC_DB=$(dsn_part "$OWNER_DSN" database)
 
+psql_db() {
+  local db="$1"
+  shift
+  podman exec -i "$PG" psql -U "$PG_SUPER" -d "$db" -v ON_ERROR_STOP=1 "$@"
+}
+psql_super() { psql_db postgres "$@"; }
+
 case "$RC_DB" in
   bm|bm2|majadu|postgres) die "refusing to bootstrap over '$RC_DB'; use a dedicated RC database" ;;
   *) ;;
@@ -85,13 +92,6 @@ esac
 if psql_super -Atc "select 1 from pg_database where datname = 'bm2'" | grep -q 1; then
   die "database bm2 exists; this script would reset the production role passwords. Dismantle the RC or give it dedicated roles first."
 fi
-
-psql_db() {
-  local db="$1"
-  shift
-  podman exec -i "$PG" psql -U "$PG_SUPER" -d "$db" -v ON_ERROR_STOP=1 "$@"
-}
-psql_super() { psql_db postgres "$@"; }
 
 log "RC database is $RC_DB (roles $OWNER_ROLE/$APP_ROLE)"
 

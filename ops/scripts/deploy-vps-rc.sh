@@ -232,8 +232,50 @@ case "$ANSWERED" in
   *) fail "/version does not report commit $COMMIT: $ANSWERED" ;;
 esac
 
-printf '{"version":"%s","commit":"%s","schema":"%s","branch":"%s","at":"%s"}\n' \
-  "$VERSION" "$COMMIT" "$SCHEMA" "$BRANCH" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+# ---------------------------------------------------------------------------
+# FE. The token is optional: without it the API still deploys and the web build
+# stays with whatever pipeline the project has. With it the same push updates
+# both, and no GitHub App or repository collaborator is involved.
+#
+# The build runs on the VPS, so the CLI's project root directory is the same
+# apps/web the Git pipeline would use; `vercel build` reads the project settings
+# (install, build, output) that were applied through the API.
+# ---------------------------------------------------------------------------
+STEP="web"
+WEB_URL=""
+VERCEL_TOKEN_FILE="$APP_DIR/env/vercel-token"
+if [ ! -f "$VERCEL_TOKEN_FILE" ]; then
+  log "no vercel-token in $APP_DIR/env; skipping the web deploy"
+else
+  WEB_MODE=$(file_mode "$VERCEL_TOKEN_FILE")
+  case "$WEB_MODE" in
+    600|400) ;;
+    *) fail "$VERCEL_TOKEN_FILE must be mode 600 (found $WEB_MODE)" ;;
+  esac
+  VERCEL_BIN="${MAJADU_RC_VERCEL_BIN:-$HOME/.local/share/pnpm/bin/vercel}"
+  [ -x "$VERCEL_BIN" ] || fail "vercel CLI not found at $VERCEL_BIN"
+  TARGET_SCOPE="${MAJADU_RC_VERCEL_SCOPE:-qouver}"
+  TARGET_PROJECT="${MAJADU_RC_VERCEL_PROJECT:-majadu-rc}"
+  TOKEN=$(cat "$VERCEL_TOKEN_FILE")
+  # fnm keeps the node binary outside the login PATH this script inherits.
+  export PATH="$HOME/.local/share/fnm/aliases/default/bin:$PATH"
+
+  cd "$MONO_DIR/apps/web"
+  "$VERCEL_BIN" link --yes --scope "$TARGET_SCOPE" --project "$TARGET_PROJECT" \
+    --token "$TOKEN" >>"$LOG" 2>&1 || fail "vercel link failed"
+  "$VERCEL_BIN" pull --yes --environment=production --token "$TOKEN" >>"$LOG" 2>&1 ||
+    fail "vercel pull failed"
+  "$VERCEL_BIN" build --prod --token "$TOKEN" >>"$LOG" 2>&1 || fail "vercel build failed"
+  DEPLOY_JSON=$("$VERCEL_BIN" deploy --prebuilt --prod --yes --json --token "$TOKEN" \
+    2>>"$LOG" || true)
+  WEB_URL=$(printf '%s' "$DEPLOY_JSON" | sed -n 's/.*"url":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+  [ -n "$WEB_URL" ] || fail "vercel deploy returned no url"
+  log "web deployed: https://$WEB_URL"
+  cd "$MONO_DIR"
+fi
+
+printf '{"version":"%s","commit":"%s","schema":"%s","branch":"%s","web":"%s","at":"%s"}\n' \
+  "$VERSION" "$COMMIT" "$SCHEMA" "$BRANCH" "$WEB_URL" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
   >"$STATE_DIR/last-release.json"
 
 # Retention: only :local and :prev stay tagged; everything the rotation left
