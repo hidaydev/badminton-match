@@ -40,6 +40,12 @@
           },
           "409": {
             "description": "conflict"
+          },
+          "413": {
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "requestBody": {
@@ -70,6 +76,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         }
       }
@@ -95,6 +104,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "413": {
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "requestBody": {
@@ -135,6 +150,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "parameters": [
@@ -170,6 +188,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "413": {
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "requestBody": {
@@ -223,6 +247,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "413": {
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "requestBody": {
@@ -271,6 +301,9 @@
           },
           "410": {
             "description": "gone"
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "parameters": [
@@ -303,6 +336,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "parameters": [
@@ -338,6 +374,15 @@
           },
           "404": {
             "description": "not found"
+          },
+          "409": {
+            "description": "LAST_ADMIN: the change would leave the community with no admin. Promote another member first."
+          },
+          "413": {
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "requestBody": {
@@ -389,6 +434,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "409": {
+            "description": "LAST_ADMIN: the change would leave the community with no admin. Promote another member first."
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "parameters": [
@@ -429,6 +480,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "parameters": [
@@ -462,6 +516,12 @@
           },
           "404": {
             "description": "not found"
+          },
+          "413": {
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "requestBody": {
@@ -504,6 +564,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         },
         "parameters": [
@@ -536,6 +599,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "429": {
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
         }
       }
