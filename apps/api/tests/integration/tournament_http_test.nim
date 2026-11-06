@@ -278,6 +278,18 @@ suite "tournament HTTP":
     check deleted.status == 204
     check call(HttpGet, path, adminCookie).status == 404
 
+  test "a draw with duplicate pair names is rejected":
+    let snapshot = classicSnapshot()
+    var data = snapshot
+    data.pairs[1].name = data.pairs[0].name
+    let created = call(HttpPost, "/c/" & slug & "/tournaments", adminCookie,
+      $classicJson(data))
+    check created.status == 400
+    var kindsFound: seq[string] = @[]
+    for issue in parseJson(created.body)["issues"]:
+      kindsFound.add(issue["kind"].getStr())
+    check "duplicate_pair_name" in kindsFound
+
   test "team create and get":
     let body = $teamJson(teamSnapshot())
     let created = call(HttpPost, "/c/" & slug & "/tournaments", adminCookie, body)
@@ -339,6 +351,65 @@ suite "tournament HTTP":
       "/tournaments/00000000-0000-0000-0000-000000000000/rating", adminCookie)
     check missing.status == 404
     check parseJson(missing.body)["code"].getStr() == "NOT_FOUND"
+    check call(HttpDelete, path, adminCookie).status == 204
+
+  test "re-signing off a tournament replays the edited bracket":
+    let body = $classicJson(classicSnapshot())
+    let created = call(HttpPost, "/c/" & slug & "/tournaments", adminCookie, body)
+    check created.status == 201
+    let snapshot = parseJson(created.body)
+    let id = snapshot["id"].getStr()
+    let path = "/c/" & slug & "/tournaments/" & id
+    let matchId = snapshot["matches"][0]["id"].getStr()
+    check call(HttpPatch, path & "/matches/" & matchId, adminCookie,
+      """{"scoreA":30,"scoreB":20}""", ifMatch = "\"1\"").status == 200
+    let sourcePath = "/c/" & slug & "/rating-sources/" & id
+    check call(HttpPatch, sourcePath, adminCookie,
+      """{"finalized":true}""").status == 200
+    check call(HttpPost, path & "/rating", adminCookie).status == 200
+    let firstEvent = database.queryOne(
+      """select id::text as id from rating.events
+         where community_id = $1::uuid and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(id)]).get.get("id")
+    let winsOf = proc(name: string): int =
+      parseInt(database.queryOne(
+        """select coalesce(s.wins, 0)::int as wins
+           from player.players p
+           left join rating.player_state s
+             on s.community_id = p.community_id and s.player_id = p.id
+           where p.community_id = $1::uuid and p.canonical_name = $2""",
+        @[textParam(communityId), textParam(name)]).get.get("wins"))
+    # The first match of the draw decides which pair names to watch, so the
+    # assertion does not depend on the seed's group order.
+    let firstPairOf = proc(pairId: string): string =
+      for pair in snapshot["pairs"]:
+        if pair["id"].getStr() == pairId:
+          return pair["name"].getStr().split(" & ")[0]
+      ""
+    let sideAPlayer = firstPairOf(snapshot["matches"][0]["pairAId"].getStr())
+    let sideBPlayer = firstPairOf(snapshot["matches"][0]["pairBId"].getStr())
+    let aWins = winsOf(sideAPlayer)
+    let bWins = winsOf(sideBPlayer)
+    # Withdraw the sign-off, change the result, sign it off again.
+    check call(HttpPatch, sourcePath, adminCookie,
+      """{"finalized":false}""").status == 200
+    check call(HttpPatch, path & "/matches/" & matchId, adminCookie,
+      """{"scoreA":15,"scoreB":21}""", ifMatch = "\"2\"").status == 200
+    check call(HttpPatch, sourcePath, adminCookie,
+      """{"finalized":true}""").status == 200
+    let events = database.query(
+      """select id::text as id from rating.events
+         where community_id = $1::uuid and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(id)])
+    # The stale event is replaced: the entry list now reflects the new scores.
+    check events.len == 1
+    check events[0].get("id") != firstEvent
+    # The replay reached the counters: the flipped result moves one win from the
+    # first pair to the second.
+    check winsOf(sideAPlayer) == aWins - 1
+    check winsOf(sideBPlayer) == bWins + 1
+    check call(HttpPatch, sourcePath, adminCookie,
+      """{"finalized":false}""").status == 200
     check call(HttpDelete, path, adminCookie).status == 204
 
 cleanup(database)

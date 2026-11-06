@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, Navigate } from '../router'
+import { useParams, Navigate, Link } from '../router'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useGetTournament,
@@ -10,6 +10,7 @@ import { communityQueryKey } from '../queries/keys'
 import { GROUP_IDS, EMPTY_GROUPS, type GroupId } from '../utils/tournament'
 import { todayWIB } from '../utils/time'
 import { formatLongDate } from '../../utils/day'
+import { t } from '../../i18n'
 import { useAutoDismiss, mutationToastHandlers } from '../hooks/useAutoDismiss'
 import { useAdmin } from '../context/AdminContext'
 import ErrorBanner from '../components/ErrorBanner'
@@ -82,6 +83,7 @@ export default function TournamentPage() {
   const committedGroups = classic?.groups ?? EMPTY_GROUPS
   const matches = classic?.matches ?? []
   const name = classic?.name ?? ''
+  const groupCount = GROUP_IDS.filter((g) => committedGroups[g].length > 0).length
 
   // Sync localGroups HANYA saat committedGroups benar-benar berubah dari server.
   // Pola "prevCommitted" mencegah localGroups di-revert setiap render saat user
@@ -128,6 +130,18 @@ export default function TournamentPage() {
 
   // Tanpa id di URL (mis. akses langsung /tournament) → kembali ke list.
   if (!id) return <Navigate to="/tournaments" replace />
+  // A 404 comes back as `null`, not an empty snapshot: show that instead of a
+  // fabricated bracket with today's date.
+  if (snapshot === null) {
+    return (
+      <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
+        <p className="text-sm text-fg-dim">{t('tournaments.error.notFound')}</p>
+        <Link to="/tournaments" className="text-sm font-semibold text-accent">
+          {t('tournaments.backToList')}
+        </Link>
+      </div>
+    )
+  }
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'groups', label: 'Groups' },
@@ -157,22 +171,23 @@ export default function TournamentPage() {
             )
           )}
         </div>
-        <p className="text-xs text-fg-dim mt-0.5 mb-3">
-          {formatLongDate(date, false)}{' '}
-          · 16 pairs · 4 groups
-        </p>
+        {snapshot && (
+          <p className="text-xs text-fg-dim mt-0.5 mb-3">
+            {formatLongDate(date, false)} · {t(pairs.length === 1 ? 'classic.header.pair' : 'classic.header.pairs', { count: pairs.length })} · {t(groupCount === 1 ? 'classic.header.group' : 'classic.header.groups', { count: groupCount })}
+          </p>
+        )}
         <div className="flex">
-          {tabs.map((t) => (
+          {tabs.map((item) => (
             <button
-              key={t.id}
-              onClick={() => handleTabChange(t.id)}
+              key={item.id}
+              onClick={() => handleTabChange(item.id)}
               className={`flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                tab === t.id
+                tab === item.id
                   ? 'text-accent border-accent'
                   : 'text-fg-dim border-transparent hover:text-fg'
               }`}
             >
-              {t.label}
+              {item.label}
             </button>
           ))}
         </div>

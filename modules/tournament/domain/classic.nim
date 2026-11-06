@@ -62,6 +62,9 @@ type
     ciBlankPairId = "blank_pair_id"
     ciBlankPairName = "blank_pair_name"
     ciDuplicatePairId = "duplicate_pair_id"
+    ciDuplicatePairName = "duplicate_pair_name"
+    ciDuplicatePairPlayer = "duplicate_pair_player"
+    ciPairNameParts = "pair_name_parts"
     ciGroupSize = "group_size"
     ciUnknownGroupPair = "unknown_group_pair"
     ciDuplicateGroupPair = "duplicate_group_pair"
@@ -100,6 +103,31 @@ const
   # v1 daily score guard (domain/transform.go ValidateScore and the
   # matches_score_range check in the database).
   MaxScore* = 99
+
+proc pairNameParts*(display: string): seq[string] =
+  ## The pair display name is "A & B" (also "vs", "," or "/"). This is the one
+  ## splitter both the store and the validator use, so what is validated is
+  ## exactly what gets resolved into players.
+  var cleaned = display
+  for separator in [" & ", " vs ", " VS ", ",", "/"]:
+    cleaned = cleaned.replace(separator, "|")
+  for part in cleaned.split('|'):
+    if part.strip().len > 0:
+      result.add(part.strip())
+
+proc splitPairNames*(display: string): (string, string) =
+  ## v1 registered the players it could split; the schema needs two, so a lone
+  ## name is paired with a deterministic second label instead of leaving a
+  ## NOT NULL hole.
+  let names = pairNameParts(display)
+  if names.len == 0:
+    return ("TBD A", "TBD B")
+  if names.len == 1:
+    return (names[0], names[0] & " #2")
+  if normalizeName(names[0]).toLowerAscii() ==
+     normalizeName(names[1]).toLowerAscii():
+    return (names[0], names[1] & " #2")
+  (names[0], names[1])
 
 proc groupMatchId*(groupId: GroupId, index: int): string =
   ## Group match ids are positional, exactly like the v1 generator:
@@ -175,6 +203,8 @@ proc validatePairs(pairs: seq[Pair], issues: var seq[ClassicIssue]) =
   if pairs.len != PairCount:
     issues.addIssue(ciPairCount, $pairs.len)
   var seen: seq[string] = @[]
+  var seenNames: seq[string] = @[]
+  var seenPlayers: seq[string] = @[]
   for pair in pairs:
     if pair.id.strip().len == 0:
       issues.addIssue(ciBlankPairId)
@@ -183,8 +213,32 @@ proc validatePairs(pairs: seq[Pair], issues: var seq[ClassicIssue]) =
     else:
       seen.add(pair.id)
     # normalizeName collapses whitespace, so a name of spaces counts as blank.
-    if normalizeName(pair.name).len == 0:
+    let name = normalizeName(pair.name)
+    if name.len == 0:
       issues.addIssue(ciBlankPairName, pair.id)
+    else:
+      # Two pairs with the same display name resolve to the same players, which
+      # put one player on both sides of every match and doubled their games.
+      let key = name.toLowerAscii()
+      if key in seenNames:
+        issues.addIssue(ciDuplicatePairName, pair.name)
+      else:
+        seenNames.add(key)
+    # A display name resolves through the same splitter the store uses; a name
+    # with three parts would silently lose one, and the same player may not be
+    # registered in two pairs.
+    let parts = pairNameParts(pair.name)
+    if parts.len > 2:
+      issues.addIssue(ciPairNameParts, pair.name)
+    let (firstPlayer, secondPlayer) = splitPairNames(pair.name)
+    for playerName in [firstPlayer, secondPlayer]:
+      let key = normalizeName(playerName).toLowerAscii()
+      if key.len == 0:
+        continue
+      if key in seenPlayers:
+        issues.addIssue(ciDuplicatePairPlayer, playerName)
+      else:
+        seenPlayers.add(key)
 
 proc validateGroups(groups: array[4, seq[string]], pairIds: seq[string],
                     issues: var seq[ClassicIssue]) =

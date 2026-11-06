@@ -8,6 +8,8 @@ export interface SessionMeta {
   playerCount: number
   totalGames: number
   locked: boolean
+  /** Server status; absent on rows stored before it was read. */
+  status?: string
 }
 
 export interface PlayerStats {

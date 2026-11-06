@@ -87,7 +87,7 @@ proc classicGames(conn: DbConn, communityId, tournamentId: string):
       sideA: pairs.getOrDefault(row.get("pair_a_id")),
       sideB: pairs.getOrDefault(row.get("pair_b_id"))))
 
-proc partaiClasses(index: int): seq[string] =
+proc partaiClasses*(index: int): seq[string] =
   case index
   of 0: @["C+", "C"]
   of 1: @["A+", "A"]

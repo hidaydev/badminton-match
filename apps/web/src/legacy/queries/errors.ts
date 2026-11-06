@@ -1,3 +1,4 @@
+import { t } from '../../i18n'
 import { ApiError } from './endpoints'
 
 /** Check if error is a version mismatch (optimistic concurrency failure). */
@@ -31,7 +32,7 @@ export function isContentionError(error: unknown): boolean {
 }
 
 export function getSaveErrorMessage(error: unknown): string {
-  const fallback = 'Failed to save, please try again.'
+  const fallback = t('session.action.failed')
 
   if (!(error instanceof Error)) return fallback
 
@@ -39,10 +40,7 @@ export function getSaveErrorMessage(error: unknown): string {
   const code = error instanceof ApiError ? error.code : null
 
   if (code === 'STALE_VERSION' || code === '40001' || message.includes('version mismatch') || message.includes('changed since if-match')) {
-    if (message.includes('tournament')) {
-      return 'Tournament changed elsewhere. Reload the page, then try again.'
-    }
-    return 'Session changed elsewhere. Reload the page, then try again.'
+    return t(message.includes('tournament') ? 'session.staleTournament' : 'session.stale')
   }
 
   // A guard that refuses the write (finalized source, still-approved session)
@@ -57,23 +55,19 @@ export function getSaveErrorMessage(error: unknown): string {
   }
 
   if (code === '55P03' || message.includes('being updated by another request')) {
-    if (message.includes('tournament')) {
-      return 'Tournament is being updated. Wait a moment, reload, then try again.'
-    }
-    return 'Session is being updated. Wait a moment, reload, then try again.'
+    return t(message.includes('tournament') ? 'session.contentionTournament' : 'session.contention')
   }
 
   if (message.includes('unresolved player')) {
-    const detail = error.message
-    return `Some player names are not recognized: ${detail}`
+    return t('session.unresolvedPlayers', { detail: error.message })
   }
 
   if (message.includes('duplicate canonical resolution')) {
-    return 'Two different names resolved to the same player. Check for duplicates.'
+    return t('session.duplicateResolution')
   }
 
   if (message.includes('locked')) {
-    return 'Session is locked — no further edits allowed.'
+    return t('session.action.locked')
   }
 
   if (message.includes('scores cannot') || message.includes('scores must') || message.includes('invalid game key') || message.includes('winner must reach') || message.includes('validation failed')) {

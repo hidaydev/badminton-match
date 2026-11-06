@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useListSessions } from '../../queries'
 import { adminRequest } from '../../queries/admin'
+import { useAdmin } from '../../context/AdminContext'
 import { t } from '../../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
@@ -10,6 +11,7 @@ import Pager from '../../components/admin/Pager'
 const PAGE = 10
 
 export default function AdminSessionsPage() {
+  const { isAdminRole } = useAdmin()
   const [page, setPage] = useState(0)
   // Unlock withdraws the session's approval, so it takes a second, explicit tap.
   const [unlockConfirmId, setUnlockConfirmId] = useState<string | null>(null)
@@ -70,20 +72,26 @@ export default function AdminSessionsPage() {
                         </ActionButton>
                       </>
                     )}
-                    <ActionButton
-                      tone="red"
-                      onClick={() => {
-                        if (window.confirm(t('admin.sessionDeleteConfirm', { title: s.title || 'Untitled', date: s.date }))) {
-                          run(
-                            () => adminRequest('POST', `/sessions/${s.id}/delete`),
-                            t('admin.sessionDeleted'),
-                            () => refetch(),
-                          )
-                        }
-                      }}
-                    >
-                      Delete
-                    </ActionButton>
+                    {!isAdminRole && (s.status ?? 'draft') !== 'draft' ? (
+                      <span className="text-[11px] text-fg-dim max-w-[9rem] text-right">
+                        {t('admin.lockedDeleteAdminOnly')}
+                      </span>
+                    ) : (
+                      <ActionButton
+                        tone="red"
+                        onClick={() => {
+                          if (window.confirm(t('admin.sessionDeleteConfirm', { title: s.title || 'Untitled', date: s.date }))) {
+                            run(
+                              () => adminRequest('POST', `/sessions/${s.id}/delete`),
+                              t('admin.sessionDeleted'),
+                              () => refetch(),
+                            )
+                          }
+                        }}
+                      >
+                        Delete
+                      </ActionButton>
+                    )}
                   </div>
                 </div>
               ))}

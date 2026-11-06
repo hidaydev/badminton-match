@@ -1718,11 +1718,35 @@ proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 400, "INVALID_BODY", "finalized must be a boolean")
     return
   let finalized = body["finalized"].getBool()
+  # Resolve the current flag first: only a source that is being signed off
+  # again (not an idempotent repeat) needs its event replayed.
+  let alreadyFinalized = application.db.queryOne(
+    """select 1 as ok from rating.sources s
+       where s.community_id = $1::uuid and s.finalized
+         and (s.source_id = $2::uuid
+              or s.source_id = (select e.source_id from rating.events e
+                                where e.community_id = $1::uuid
+                                  and e.id = $2::uuid))""",
+    @[textParam(ctx.communityId), textParam(eventId)]).isSome
   let updated = ratingIngest.setFinalized(application.db, ctx.communityId,
     eventId, finalized)
   if updated.isNone:
     problem(request, 404, "NOT_FOUND", "rating source not found")
     return
+  if finalized and not alreadyFinalized and
+      updated.get["kind"].getStr() == "tournament":
+    let sourceId = updated.get["sourceId"].getStr()
+    let ingested = application.db.queryOne(
+      """select 1 as ok from rating.events
+         where community_id = $1::uuid and source_id = $2::uuid""",
+      @[textParam(ctx.communityId), textParam(sourceId)])
+    if ingested.isSome:
+      # The bracket may have been edited between withdrawing and restoring the
+      # sign-off. The stored event still carries the old scores, so replay every
+      # source instead of leaving the ledger on a stale result.
+      let params = ratingParamsFor(ctx)
+      discard ratingIngest.rebuild(application.db, ctx.communityId, params)
+      reconcileAchievements(ctx, params)
   audit("rating.source.finalize", ctx, user, "rating_event",
     eventId, %*{"finalized": finalized})
   jsonResponse(request, 200, updated.get, [("Cache-Control", "no-store")])

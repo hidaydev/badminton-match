@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from '../../router'
 import { useAdmin } from '../../context/AdminContext'
+import { getSaveErrorMessage } from '../../queries/errors'
 import { t } from '../../../i18n'
 
 interface AdminPageShellProps {
@@ -43,7 +44,7 @@ export default function AdminPageShell({ adminOnly = false, children }: AdminPag
       flash(okLabel)
       refresh?.()
     } catch (e) {
-      flash(undefined, e instanceof Error ? e.message : 'Failed')
+      flash(undefined, getSaveErrorMessage(e))
     }
   }, [flash])
 

@@ -424,6 +424,52 @@ suite "achievement backfill":
     discard award()
     check "tournaments:1" in keysOf(rostered)
 
+  test "tournament games count only once the event is ingested":
+    let a = newPlayer(60, "")
+    let b = newPlayer(61, "")
+    let c = newPlayer(62, "")
+    let d = newPlayer(63, "")
+    let tournamentId = database.queryOne(
+      """insert into tournament.tournaments (community_id, name)
+         values ($1::uuid, 'Scored Cup') returning id""",
+      @[textParam(communityId)]).get.get("id")
+    let pairA = database.queryOne(
+      """insert into tournament.pairs
+           (community_id, tournament_id, display_name, player_a_id, player_b_id)
+         values ($1::uuid, $2::uuid, 'A & B', $3::uuid, $4::uuid)
+         returning id""",
+      @[textParam(communityId), textParam(tournamentId), textParam(a),
+        textParam(b)]).get.get("id")
+    let pairB = database.queryOne(
+      """insert into tournament.pairs
+           (community_id, tournament_id, display_name, player_a_id, player_b_id)
+         values ($1::uuid, $2::uuid, 'C & D', $3::uuid, $4::uuid)
+         returning id""",
+      @[textParam(communityId), textParam(tournamentId), textParam(c),
+        textParam(d)]).get.get("id")
+    for index in 0 ..< 10:
+      discard database.execUpdate(
+        """insert into tournament.matches
+             (community_id, tournament_id, round_no, match_key, phase,
+              match_order, pair_a_id, pair_b_id, score_a, score_b)
+           values ($1::uuid, $2::uuid, 0, $3, 'group', $4,
+                   $5::uuid, $6::uuid, 30, 20)""",
+        @[textParam(communityId), textParam(tournamentId),
+          textParam("g-" & $index), intParam(index.int64),
+          textParam(pairA), textParam(pairB)])
+    discard award()
+    # A bracket nobody ingested is not on the profile, so it cannot award the
+    # game badge the profile would deny.
+    check "games:10" notin keysOf(a)
+    discard database.execUpdate(
+      """insert into rating.events
+           (community_id, local_date, event_type, source_id)
+         values ($1::uuid, '2026-12-01', 'tournament', $2::uuid)""",
+      @[textParam(communityId), textParam(tournamentId)])
+    discard award()
+    check "games:10" in keysOf(a)
+    check "games:10" in keysOf(c)
+
   test "every rank badge the board implies is on the shelf":
     ## A rank badge follows the current board: a player who slipped past a rung
     ## loses it on the next reconciliation, and the check is that the current

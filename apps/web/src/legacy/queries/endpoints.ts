@@ -700,6 +700,7 @@ export async function listSessions(options?: {
     playerCount: row.playerCount ?? 0,
     totalGames: row.totalGames ?? 0,
     locked: row.status === 'locked',
+    status: row.status,
   }))
 
   const total = typeof body.total === 'number' ? body.total : items.length

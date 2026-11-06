@@ -62,6 +62,13 @@ proc call(verb: HttpMethod, path, cookie = "", body = "",
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
+  # A test may leave a signed-off source behind, and the rating tables hold the
+  # community by FK: clear the ledger before the sessions and the community.
+  for table in ["achievement.earned", "rating.snapshots", "rating.events",
+                "rating.player_state", "rating.sources"]:
+    discard database.execUpdate(
+      """delete from """ & table & """ where community_id in
+           (select id from platform.community where slug = 'sched-club')""")
   discard database.execUpdate(
     """delete from session.games where community_id in
          (select id from platform.community where slug = 'sched-club')""")

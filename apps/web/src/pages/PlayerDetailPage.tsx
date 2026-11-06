@@ -292,7 +292,9 @@ function ClaimRow({ slug, playerId, claim, admin, own, busy, onRun }: ClaimRowPr
   return (
     <li className="rounded-xl border border-border-subtle bg-surface p-3">
       <p className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-fg">
-        <span className="font-mono text-xs text-fg-dim">{claim.userId}</span>
+        <span className={claim.userId === '' ? 'text-xs text-fg-dim' : 'font-mono text-xs text-fg-dim'}>
+          {claim.userId === '' ? t('playerAdmin.claims.other') : claim.userId}
+        </span>
         <span className="text-xs text-fg-dim">{t(CLAIM_STATUS_KEY[claim.status])}</span>
       </p>
       <p className="mt-1 font-mono text-[10px] text-fg-dim">{formatDay(claim.createdAt)}</p>

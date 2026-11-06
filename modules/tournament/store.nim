@@ -9,7 +9,6 @@
 import std/[json, options, strutils, tables, times]
 import db/db
 import uuidv7
-import player/domain/player as playerDomain
 import ./domain/classic
 import ./domain/team
 
@@ -317,26 +316,6 @@ proc list*(db: Db, communityId, format: string, limit, offset: int): seq[JsonNod
 
 # ── child writes ───────────────────────────────────────────────────────────
 
-proc splitNames(display: string): (string, string) =
-  ## Pair display names are "A & B" (also "vs", "," or "/"). v1 registered the
-  ## players it could split; the schema needs two, so a lone name is paired with
-  ## a deterministic second label instead of leaving a NOT NULL hole.
-  var cleaned = display
-  for separator in [" & ", " vs ", " VS ", ",", "/"]:
-    cleaned = cleaned.replace(separator, "|")
-  var names: seq[string] = @[]
-  for part in cleaned.split('|'):
-    if part.strip().len > 0:
-      names.add(part.strip())
-  if names.len == 0:
-    return ("TBD A", "TBD B")
-  if names.len == 1:
-    return (names[0], names[0] & " #2")
-  if playerDomain.normalizeName(names[0]).toLowerAscii() ==
-     playerDomain.normalizeName(names[1]).toLowerAscii():
-    return (names[0], names[1] & " #2")
-  (names[0], names[1])
-
 proc playerId(conn: DbConn, communityId, name: string): string =
   let lookup = """select id from player.players
                   where community_id = $1::uuid
@@ -368,7 +347,7 @@ proc writeClassic(conn: DbConn, communityId, tournamentId: string,
                   data: ClassicTournament, owned: Owned) =
   var pairMap = initTable[string, string]()
   for pair in data.pairs:
-    let names = splitNames(pair.name)
+    let names = splitPairNames(pair.name)
     let pairRow = pickId(pair.id, owned.pairs)
     pairMap[pair.id] = pairRow
     discard conn.execUpdate(

@@ -316,6 +316,25 @@ suite "classic validation":
     tournament.pairs[1].id = tournament.pairs[0].id
     check ciDuplicatePairId in kinds(validate(tournament))
 
+    # Two pairs that resolve to the same players put one player on both sides
+    # of a match and doubled their games.
+    tournament = generated(7)
+    tournament.pairs[1].name = tournament.pairs[0].name
+    check ciDuplicatePairName in kinds(validate(tournament))
+
+    tournament = generated(7)
+    tournament.pairs[1].name = "Player 2 & Player 5"
+    check ciDuplicatePairPlayer in kinds(validate(tournament))
+
+    tournament = generated(7)
+    tournament.pairs[1].name = "Player 2 & Player 1"
+    check ciDuplicatePairPlayer in kinds(validate(tournament))
+
+    # A third name would be dropped by the resolver without a word.
+    tournament = generated(7)
+    tournament.pairs[0].name = "Player 1 & Player 2 & Player 3"
+    check ciPairNameParts in kinds(validate(tournament))
+
   test "group problems are reported":
     var tournament = generated(7)
     tournament.groups[ord(ga)].setLen(3)

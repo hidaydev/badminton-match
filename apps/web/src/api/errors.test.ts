@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mockFetch } from '../test/fetchMock'
 import { ApiError, SESSION_EXPIRED_EVENT } from './errors'
 import { request } from '../auth/api'
+import { t } from '../i18n'
 import { ApiError as LegacyApiError } from '../legacy/queries/endpoints'
 import { getSaveErrorMessage } from '../legacy/queries/errors'
 
@@ -12,9 +13,7 @@ describe('ApiError', () => {
 
   it('is recognised by the legacy message mapper when a v2 screen throws it', () => {
     const error = new ApiError('412 STALE_VERSION', 'STALE_VERSION', 412)
-    expect(getSaveErrorMessage(error)).toBe(
-      'Session changed elsewhere. Reload the page, then try again.',
-    )
+    expect(getSaveErrorMessage(error)).toBe(t('session.stale'))
   })
 })
 

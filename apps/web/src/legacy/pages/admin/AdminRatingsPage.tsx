@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useRatingSources } from '../../queries/ratings'
 import { communityQueryKey } from '../../queries/keys'
 import { adminRequest } from '../../queries/admin'
+import { getSaveErrorMessage } from '../../queries/errors'
 import { t } from '../../../i18n'
 import AdminPageShell from '../../components/admin/AdminPageShell'
 import ActionButton from '../../components/admin/ActionButton'
@@ -35,7 +36,7 @@ export default function AdminRatingsPage() {
       setRebuildMsg({ kind: 'ok', text: t('admin.rebuildDone') })
       refreshRatingData()
     } catch (e) {
-      setRebuildMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Rebuild failed' })
+      setRebuildMsg({ kind: 'err', text: getSaveErrorMessage(e) })
     } finally {
       setRebuilding(false)
       setTimeout(() => setRebuildMsg(null), 5000)
@@ -61,8 +62,11 @@ export default function AdminRatingsPage() {
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm font-medium text-fg truncate">{src.source_name}</span>
                       <span className="text-[11px] text-fg-dim font-mono mt-0.5">
-                        {isT ? 'Tournament' : 'Session'} · {src.event_count} events
+                        {isT ? 'Tournament' : 'Session'} · {t(src.event_count === 1 ? 'admin.pointEntry' : 'admin.pointEntries', { count: src.event_count })}
                       </span>
+                      {isT && !src.finalized && (
+                        <span className="text-[11px] text-fg-dim mt-0.5">{t('admin.ingestNeedsFinalize')}</span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -71,20 +75,23 @@ export default function AdminRatingsPage() {
                           tone={src.finalized ? 'green' : 'neutral'}
                           onClick={() => run(
                             () => adminRequest('POST', `/ratings/sources/${src.source_id}/finalize`, { finalized: !src.finalized }),
-                            src.finalized ? 'Un-finalized' : 'Finalized',
+                            src.finalized ? t('admin.unfinalizeDone') : t('admin.finalizeDone'),
                             refreshRatingData,
                           )}
                         >
-                          {src.finalized ? 'Finalized' : 'Finalize'}
+                          {src.finalized ? t('admin.finalized') : t('admin.finalize')}
                         </ActionButton>
                       )}
-                      <ActionButton onClick={() => run(
-                        () => adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
-                          isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
-                        'Ingested',
-                        refreshRatingData,
-                      )}>
-                        Ingest
+                      <ActionButton
+                        disabled={isT && !src.finalized}
+                        title={isT && !src.finalized ? t('admin.ingestNeedsFinalize') : undefined}
+                        onClick={() => run(
+                          () => adminRequest('POST', isT ? '/ratings/ingest-tournament' : '/ratings/ingest-session',
+                            isT ? { tournamentId: src.source_id } : { sessionId: src.source_id }),
+                          t('admin.ingestDone'),
+                          refreshRatingData,
+                        )}>
+                        {t('admin.ingest')}
                       </ActionButton>
                       <ActionButton tone="red" disabled={!isT}
                         title={isT ? undefined : t('admin.revertUnlockFirst')}

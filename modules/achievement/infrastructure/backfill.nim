@@ -5,6 +5,7 @@ import platform/config/store
 import rating/domain/rating
 import rating/infrastructure/params
 import rating/read
+import rating/infrastructure/tournament
 import ../domain/achievement
 
 type
@@ -118,6 +119,25 @@ proc tallySide(result: var Table[string, GameTally], side, other: seq[string],
       entry.opponents.incl(opponent)
     result[playerId] = entry
 
+proc rosterFor(rosters: Table[string, seq[(string, string)]], teamId: string,
+               classes: seq[string]): seq[string] =
+  ## The partai side: only the roster slots whose class plays that partai, the
+  ## same mapping the ledger uses.
+  for entry in rosters.getOrDefault(teamId):
+    if entry[0] in classes:
+      result.add(entry[1])
+
+proc tallyResult(result: var Table[string, GameTally], side: seq[string],
+                 won: bool) =
+  ## Games and wins only. The global partner/opponent lists are session reads,
+  ## so a tournament must not grow a social badge the profile cannot show.
+  for playerId in side:
+    var entry = result.mgetOrPut(playerId, GameTally())
+    inc entry.games
+    if won:
+      inc entry.wins
+    result[playerId] = entry
+
 proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
   ## Played games of approved sessions. Each side is tallied separately so wins
   ## and the distinct partner/opponent sets come from one pass. The gate is the
@@ -152,6 +172,72 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
     let aWon = parseInt(row.get("score_a")) > parseInt(row.get("score_b"))
     result.tallySide(aSide, bSide, aWon)
     result.tallySide(bSide, aSide, not aWon)
+
+  # A tournament counts only once it was ingested: `player_state`, which the
+  # profile shows, is written by the event, so a running bracket must not award
+  # a badge the profile cannot explain. Classic matches count one game per pair
+  # and team matches one game per scored partai, exactly like the ledger.
+  for row in conn.query(
+    """select coalesce(pa.player_a_id::text, '') as a1,
+              coalesce(pa.player_b_id::text, '') as a2,
+              coalesce(pb.player_a_id::text, '') as b1,
+              coalesce(pb.player_b_id::text, '') as b2,
+              m.score_a as score_a, m.score_b as score_b
+       from tournament.matches m
+       join tournament.pairs pa
+         on pa.community_id = m.community_id and pa.id = m.pair_a_id
+       join tournament.pairs pb
+         on pb.community_id = m.community_id and pb.id = m.pair_b_id
+       join rating.events e
+         on e.community_id = m.community_id
+        and e.source_id = m.tournament_id and e.event_type = 'tournament'
+       where m.community_id = $1::uuid
+         and m.score_a is not null and m.score_b is not null""",
+    @[textParam(communityId)]):
+    var sideA, sideB: seq[string] = @[]
+    for key in ["a1", "a2"]:
+      if row.get(key).len > 0:
+        sideA.add(row.get(key))
+    for key in ["b1", "b2"]:
+      if row.get(key).len > 0:
+        sideB.add(row.get(key))
+    if sideA.len == 0 or sideB.len == 0:
+      continue
+    let aWon = parseInt(row.get("score_a")) > parseInt(row.get("score_b"))
+    result.tallyResult(sideA, aWon)
+    result.tallyResult(sideB, not aWon)
+  var rosters = initTable[string, seq[(string, string)]]()
+  for row in conn.query(
+    """select team_id::text as team_id, cls, player_id::text as player_id
+       from tournament.team_players
+       where community_id = $1::uuid and player_id is not null""",
+    @[textParam(communityId)]):
+    rosters.mgetOrPut(row.get("team_id"), @[]).add(
+      (row.get("cls"), row.get("player_id")))
+  for row in conn.query(
+    """select tm.team_a_id::text as team_a, tm.team_b_id::text as team_b,
+              p.partai_index as partai_index,
+              p.score_a as score_a, p.score_b as score_b
+       from tournament.team_partai p
+       join tournament.team_matches tm
+         on tm.community_id = p.community_id and tm.id = p.team_match_id
+       join rating.events e
+         on e.community_id = tm.community_id
+        and e.source_id = tm.tournament_id and e.event_type = 'tournament'
+       where p.community_id = $1::uuid
+         and p.score_a is not null and p.score_b is not null
+         and tm.team_a_id is not null and tm.team_b_id is not null""",
+    @[textParam(communityId)]):
+    let classes = partaiClasses(parseInt(row.get("partai_index")))
+    if classes.len == 0:
+      continue
+    let sideA = rosterFor(rosters, row.get("team_a"), classes)
+    let sideB = rosterFor(rosters, row.get("team_b"), classes)
+    if sideA.len == 0 or sideB.len == 0:
+      continue
+    let aWon = parseInt(row.get("score_a")) > parseInt(row.get("score_b"))
+    result.tallyResult(sideA, aWon)
+    result.tallyResult(sideB, not aWon)
 
 proc loadTournaments(conn: DbConn, communityId: string): Table[string, int] =
   ## Tournament appearances, classic pairs and team rosters alike: a team
