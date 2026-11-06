@@ -4,8 +4,9 @@ Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk dat
 dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
 dump VPS atau skema v1.
 
-- Migrasi: `db/migrations/0001_core.sql` … `0026_drop_rating_ledger.sql` (26 file;
-  `0026` adalah yang terakhir).
+- Migrasi: `db/migrations/0001_core.sql` … `0027_invite_ttl_scope.sql` (27 file;
+  `0027` adalah yang terakhir dan memindahkan scope `community.invite_ttl_days`
+  ke lapisan komunitas).
 - Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
   `dbtools.seed_files` (checksum per file).
@@ -57,6 +58,7 @@ v2. Nama-nama itu hanya ada di [`../backend/`](../backend/README.md) (arsip migr
 | `session.courts` | `court_index >= 0`, unik `(session_id, court_index)`, `start_time < end_time` | `0001:77-93` |
 | `session.games` | Unik `(session_id, round_no, court_no)`; skor 0–99 dan tidak boleh seri saat `played`; status `scheduled/played/cancelled`; `version` dinaikkan trigger `session.bump_version()`; `side_a1/a2/b1/b2` (0010) dengan FK komposit ke `session.participants`; CHECK `games_distinct_sides` (0014) | `0001:95-134`, `0010:32-61`, `0014` |
 | `session.participants` | Unik `(session_id, player_id)`; `is_absent`; FK player `on delete restrict` | `0010:7-27` |
+| `session.game_skips` | PK `(community_id, session_id, round_no, court_no, player_id)`; pemain yang dilewati pada satu game; cascade dengan sesi dan pemain | `0017` |
 
 Catatan: `session.games` adalah jadwal relasional, bukan blob. Empat kolom sisi berarti
 singles memakai satu slot per sisi; slot `NULL` adalah posisi kosong, bukan pemain.
@@ -145,8 +147,11 @@ revert/rebuild). Halaman pemain mengambil `points` dari baris papan
 
 Semua angka bisnis dibaca dari `platform.config` + override `community.settings`.
 Defaults di `db/seeds/platform_config.sql`; kunci dan tipenya dikunci di
-`modules/platform/config/registry.nim:13-50`. Nilai hilang atau tipe salah membuat
-proses menolak start (`modules/platform/config/store.nim:50-72`).
+`modules/platform/config/registry.nim:13-50`. Nilai hilang, tipe salah, atau
+`scope` yang tidak cocok dengan registry membuat proses menolak start
+(`modules/platform/config/store.nim:50-78`). Nilai `community.default_timezone`
+diperiksa terhadap `pg_timezone_names` saat komunitas dibuat dan saat settings
+ditulis, jadi zona yang tidak dikenal ditolak sebagai `400`, bukan disimpan.
 
 | Kelompok | Key (default seed) |
 |---|---|
@@ -202,7 +207,7 @@ Jangan membawa nama dari dokumen v1 ke sini:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0023` |
+| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0027` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (ledger delta tidak punya padanan) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |

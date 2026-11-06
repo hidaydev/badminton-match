@@ -6,11 +6,11 @@ Keduanya berbeda: halaman `/c/{slug}/rankings` memanggil `GET /c/{slug}/rankings
 ## 1. Rute web
 
 Sumber tunggal: `apps/web/src/App.tsx`. `apps/web/src/routes.manifest.ts` hanya
-menyediakan `communitySlugFromPath` untuk `CommunityProvider`; file itu tidak
+menyediakan helper path (`communitySlugFromPath`, `communityHref`); file itu tidak
 lagi memetakan rute atau menu.
 
 Semua layar lama berada di bawah `/c/:slug` lewat `LegacyShell`; URL publik
-`/s/:code` berada di luar shell itu.
+`/s/:code` dan `/invites/:token` berada di luar shell itu.
 
 | Path | Halaman | Akses | Catatan |
 |---|---|---|---|
@@ -20,6 +20,7 @@ Semua layar lama berada di bawah `/c/:slug` lewat `LegacyShell`; URL publik
 | `/c/:slug/sessions` | legacy `SessionListPage` | login | daftar sesi |
 | `/c/:slug/sessions/:id` | redirect | login | dialihkan ke `/c/:slug/s/:id` |
 | `/c/:slug/s/:sessionId` | legacy `SharedSessionPage` | login | halaman sesi penuh: skor, swap, absent, skip |
+| `/c/:slug/scoreboard` | legacy `ScoreboardPage` | login | skor courtside |
 | `/c/:slug/rankings` | legacy `RankingsPage` | login | papan poin + filter tier |
 | `/c/:slug/rankings/:playerId` | legacy `RatingPlayerPage` | login | detail rating, riwayat, badge |
 | `/c/:slug/ratings`, `/ratings/:playerId` | redirect | login | dialihkan ke `/rankings` |
@@ -45,7 +46,8 @@ Semua layar lama berada di bawah `/c/:slug` lewat `LegacyShell`; URL publik
 | `/c/:slug/dev/achievement-badges` | preview | login | hanya pengembangan |
 | `/c/:slug/dev/match-result-preview` | preview | login | hanya pengembangan |
 | `/c/:slug/dev/session-preview` | preview | login | hanya pengembangan |
-| `/s/:code` | `SharedSessionPage` | publik | sesi read-only dari share code |
+| `/invites/:token` | `InvitePage` (`pages/InvitePage.tsx`) | publik | terima undangan; login dengan URL ini sebagai `returnTo` |
+| `/s/:code` | `SharedSessionPage` | publik | sesi read-only dari share code, tab Games/Standings |
 
 Catatan:
 
@@ -68,6 +70,11 @@ Catatan:
   anggota login. `/s/:code` adalah tampilan publik read-only.
 - Tautan publik hanya `/s/:code` yang dibuat tombol Share; URL anggota
   `/c/:slug/s/:sessionId` selalu meminta login dan bukan tautan untuk dibagikan.
+- `/s/:code` memakai susunan layar sesi di aplikasi: tab **Games** dan
+  **Standings**. `GET /s/{code}` mengirim `games` dan `standings` (tally yang sama
+  dengan `GET /c/{slug}/sessions/{id}/standings`, tanpa id pemain).
+- `/invites/:token` sengaja di luar shell komunitas: akun baru saja bergabung, jadi
+  layar itu tidak boleh menuntut membership lebih dulu.
 
 ## 2. Kapabilitas halaman
 
@@ -169,6 +176,11 @@ Praktisnya ini titik masuk login, jadi harus bisa diakses tanpa cookie.
 sesi keduanya tetap menjawab (daftar publik / `202`). Matrix menandainya `session`
 sebagai niat kontrak, bukan perilaku handler.
 
+**Catatan undangan:** login meng-claim setiap undangan yang tertuju ke alamat akun
+itu, jadi `POST /invites/{token}/accept` idempoten untuk alamat pemiliknya: token
+yang sudah di-claim tetap menjawab `201` dengan membership yang diberikan, sedangkan
+alamat lain tetap `403 INVITE_EMAIL_MISMATCH`.
+
 ### `players`
 
 | Method | Path | Akses |
@@ -220,6 +232,12 @@ mendukung juga menerima `Idempotency-Key`.
 | `GET` | `/c/{slug}/sessions/{id}/share` | sesi + host/admin |
 | `DELETE` | `/c/{slug}/sessions/{id}/share` | sesi + host/admin |
 | `GET` | `/s/{code}` | publik |
+
+`GET /s/{code}` mengirim `session`, `community`, `games`, dan `standings`.
+`standings.items[]` berisi `name`, `wins`, `losses`, `pointsFor`, `pointsAgainst`,
+dan `diff` — nama, bukan id pemain, karena penonton tidak punya sesi untuk
+meresolve uuid. `standings` memakai tally yang sama dengan
+`GET /c/{slug}/sessions/{id}/standings`.
 
 ### `rankings`
 

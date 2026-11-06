@@ -38,7 +38,7 @@ untuk data server serta Zustand untuk draft wizard.
 | `apps/web/src/` | shell React, halaman, klien API per fitur |
 | `packages/contracts/openapi/` | dua spec sumber + dokumen gabungan + fingerprint |
 | `packages/web-client/src/api.ts` | klien TypeScript hasil generate |
-| `db/migrations/`, `db/seeds/` | skema (`0001`–`0023`) dan seed konfigurasi |
+| `db/migrations/`, `db/seeds/` | skema (`0001`–`0027`) dan seed konfigurasi |
 | `tools/` | dbtools, contract-gen, parity, CLI ops, OIDC stub |
 | `e2e/` | suite Playwright (a11y, visual, kompatibilitas) |
 | `task`, `task.d/` | satu-satunya command runner (`./task <target>`) |
@@ -231,19 +231,21 @@ menyentuh game yang disebut, sehingga jadwal parsial tetap valid
 ## 11. Frontend shell
 
 - `apps/web/src/main.tsx` membuat root; `App.tsx` memasang `AuthProvider` →
-  `BrowserRouter` → `CommunityProvider` → shell. `AppNav` hanya tampil setelah login
-  (`apps/web/src/App.tsx`).
-- Rute adalah daftar data di `apps/web/src/routes.manifest.ts`; setiap entri
-  menentukan `requiresAuth`, `roles`, `platformOwner`, dan `navGroup`. `visibleNav`
-  menyaring menu berdasarkan role komunitas yang sedang dipilih.
+  `BrowserRouter` → `CommunityProvider` → shell. Navigasi ada di
+  `legacy/components/HomeLayout` (picker komunitas dan menu akun) dan hanya
+  tampil setelah login (`apps/web/src/App.tsx`).
+- Rute didefinisikan langsung di `App.tsx`. `apps/web/src/routes.manifest.ts`
+  hanya menyediakan `communitySlugFromPath` dan `communityHref`, bukan daftar
+  rute atau menu.
 - Login memakai OIDC lewat API; token tidak pernah masuk JavaScript. Semua panggilan
   memakai cookie sesi (`credentials: 'include'`) dan header `X-API-Version: 2`
   (`apps/web/src/auth/api.ts`).
 - Browser tidak memanggil domain API langsung: dev memakai proxy `/api` di
   `vite.config.ts`, produksi memakai rewrite Vercel (`apps/web/vercel.json`).
-- Data fetching per fitur memakai `useEffect` + `useState` dengan request key (mis.
-  `useRankings`, `useSession`, `useCommunityConfig`), bukan cache global. Dependency
-  `@tanstack/react-query` masih terpasang tetapi tidak diimpor kode.
+- Data server memakai TanStack Query: `useQuery`/`useMutation` dengan query key
+  per fitur yang diprefiks slug komunitas (mis. `[slug, 'session', id]`,
+  `[slug, 'rankings', …]`), dan frame `session.changed` meng-invalidate key itu.
+  Draft wizard generator tetap di Zustand (`apps/web/src/legacy/store`).
 - Semua teks UI ada di `apps/web/src/i18n/en.ts`; test menolak teks JSX hardcoded
   (`apps/web/README.md`).
 

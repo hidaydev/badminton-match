@@ -43,8 +43,10 @@ Data sesi: judul, tanggal, jam mulai, durasi slot, court, peserta, dan game.
   (`modules/session/standings.nim`).
 
 **Status UI:** daftar dan detail sesi sudah ada. Host/admin mendapat panel untuk
-lock/unlock, share link, skor, skip, absent, dan swap. Membuat sesi baru dan menyusun
-jadwal belum punya wizard; keduanya masih lewat API.
+lock/unlock, share link, skor, skip, absent, dan swap. Membuat sesi baru dan
+menyusun jadwal lewat wizard 4 langkah (`/c/:slug/session/new` → `/session/players`
+→ `/session/constraints` → `/session/generate`) dengan generator jadwal 5 fase di
+browser.
 
 ### 2. Pemain
 
@@ -54,8 +56,11 @@ jadwal belum punya wizard; keduanya masih lewat API.
 - Gender `M`/`F`.
 - Klaim pemain oleh akun: satu klaim `pending` per pemain, satu pemain ber-owner per
   akun per komunitas; keputusan klaim oleh admin.
-- Merge memindahkan alias, klaim, delta rating, snapshot, achievement, pair, dan state
-  rating ke pemain target, lalu menghapus sumber.
+- Merge memindahkan alias, klaim, snapshot rating, achievement, pair (beserta
+  `display_name`-nya), state rating, dan riwayat sesi (peserta, game, skip, pemain
+  tim) ke pemain target, lalu menghapus sumber. Merge ditolak bila pasangan yang
+  menamai kedua pemain sudah dipakai match, atau bila keduanya muncul di game
+  yang sama.
 - Statistik pemain dan badge tersedia lewat API; halaman daftar pemain, klaim, dan
   antrean keputusan admin sudah dibangun (`apps/web/src/pages/PlayersPage.tsx`).
 
@@ -109,6 +114,9 @@ Admin bisa finalize source, ingest, revert rating, dan menghapus turnamen.
 ### 7. Komunitas & operasi
 
 - Undangan lewat email-hash + token; join request bisa dibuka/ditutup per komunitas.
+  Tautan `/invites/{token}` bisa diterima langsung oleh alamat yang dituju (login
+  juga meng-claim undangan itu), dan penerimaan ulang oleh alamat yang sama
+  idempoten.
 - Settings komunitas adalah override dari registry platform; override hanya boleh
   mempersempit nilai platform.
 - Audit append-only mencatat aksi privileged (aktor, target, hasil, before/after),
@@ -121,8 +129,9 @@ Admin bisa finalize source, ingest, revert rating, dan menghapus turnamen.
 Perubahan sesi disiarkan lewat WebSocket dengan ticket sekali pakai. Frame
 `session.changed` hanya menandai bahwa state berubah (membawa `seq`), bukan mengirim
 delta; klien harus membaca ulang sesi. Tidak ada SSE dan tidak ada replay event.
-Frontend memakai WebSocket di layar share (`useSessionRealtime`); layar sesi
-editor masih memuat ulang state tiap 5 detik.
+Frontend memakai WebSocket di layar sesi dalam aplikasi (`useSessionRealtime`,
+dengan polling 5 detik selama socket belum tersambung); halaman share publik
+`/s/{code}` tidak membuka socket dan memuat ulang tiap 10 detik.
 
 ## Arsitektur ringkas
 

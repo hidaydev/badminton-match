@@ -10,7 +10,7 @@ Run from the repo root. `./task` is a dispatcher over `task.d/`; `./task help`
 lists every target.
 
 ```bash
-./task check            # format, nim check, archcheck, unit tests (no database)
+./task check            # nim check, archcheck, unit tests (no database)
 ./task test             # + integration tests (needs MAJADU_PG_DSN)
 ./task ci               # check + build + test + contract fingerprint
 ./task coverage         # line coverage per module, ratcheted
@@ -38,7 +38,7 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 - **`packages/contracts/openapi`** is the hand-written source; `api.yaml`,
   `routes_gen.nim`, and `packages/web-client/src/api.ts` are generated. Never edit
   generated files; run `./task contract-gen`.
-- **`db/migrations`** is append-only (24 files today). Every table carries
+- **`db/migrations`** is append-only (27 files today). Every table carries
   `community_id`; queries must scope by it.
 - **Business numbers live in the database** (`platform.config` →
   `community.settings`), never as literals. `tools/archcheck` fails on violations.
@@ -78,11 +78,13 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 
 ## Known limits
 
-- The shared session view consumes the WebSocket (`useSessionRealtime`); the
-  session editor still refetches every 5 s. Realtime is in-memory, so the API
-  must stay a single instance.
-- There is no schedule generator; the contract accepts a schedule authored by the
-  client.
+- The in-app session screen consumes the WebSocket (`useSessionRealtime`) and
+  falls back to a 5 s refetch while the socket is down; the public share page
+  polls every 10 s. Realtime is in-memory, so the API must stay a single
+  instance.
+- The schedule generator runs in the browser
+  (`apps/web/src/legacy/generator`); the API stores whatever schedule the client
+  sends.
 - Cutover rehearsal and VPS-side checks are prepared but not executed; see
   `docs/ops/cutover.md`.
 

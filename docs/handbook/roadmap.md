@@ -1,6 +1,6 @@
 # Roadmap
 
-Status per **2026-11-05**. Riwayat perubahan ada di git history; rencana beku ada
+Status per **2026-11-06**. Riwayat perubahan ada di git history; rencana beku ada
 di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
 
 ## ✅ Selesai
@@ -10,7 +10,7 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
   `apps/api/src/main.nim`.
 - **Kontrak 75 operasi** — `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, klien TS, fingerprint (`packages/contracts/openapi`).
-- **Skema v2** — 23 migrasi (`0001`–`0023`), 36 key config, seed config dan
+- **Skema v2** — 27 migrasi (`0001`–`0027`), 35 key config, seed config dan
   achievement.
 - **Auth & komunitas** — OIDC + cookie sesi, membership `member`/`host`/`admin`,
   invite, join request, settings, audit append-only, platform owner.
@@ -44,7 +44,7 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
 | # | Item | Kenapa |
 |---|---|---|
 | 1 | **Produsen `platform.outbox`** | Realtime masih in-memory → API wajib satu instance. Untuk satu VPS ini cukup; outbox baru perlu bila replika ditambah. |
-| 2 | **Naikkan coverage** | Ratchet hanya menahan. Setelah atribusi diperbaiki, yang paling rendah: `apps/api` 6,31% (`app.nim` 30k baris nyaris tanpa test), `tools` 19,95% (`import/main.nim` 0%), `shared` 26,61%, `platform` 30,28%. `modules/account` 65,83%, `modules/share` 38,92%, `modules/tournament` 63,88%. |
+| 2 | **Naikkan coverage** | Ratchet hanya menahan. Setelah atribusi diperbaiki, yang paling rendah: `apps/api` 15,47% (`app.nim` 30k baris nyaris tanpa test), `tools` 21,02% (`import/main.nim` 0%), `modules/player` 42,52%, `modules/rating` 48,27%. `modules/account` 60,81%, `modules/share` 66,88%, `modules/tournament` 57,15%. |
 
 ## 🚧 Operasional yang belum selesai
 

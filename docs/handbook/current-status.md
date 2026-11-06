@@ -1,6 +1,6 @@
 # Current Status
 
-Terakhir diperbarui: **2026-11-05**. Dokumen ini menjawab "apa yang benar-benar
+Terakhir diperbarui: **2026-11-06**. Dokumen ini menjawab "apa yang benar-benar
 ada di repo hari ini", bukan "apa yang direncanakan". Rencana beku ada di
 [`../plan/`](../plan/README.md).
 
@@ -36,10 +36,10 @@ Postgres 18.6 · skema per domain (platform, community, player, session,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Setiap operasi punya handler (gagal kompilasi bila tidak) dan baris otorisasi di
   `testdata/authz/matrix.yaml`; `./task contract-check` menjaga fingerprint.
-- **26 migrasi** di `db/migrations/` (`0001`–`0026`, terakhir
-  `0026_drop_rating_ledger.sql`); seed: `db/seeds/platform_config.sql`,
+- **27 migrasi** di `db/migrations/` (`0001`–`0027`, terakhir
+  `0027_invite_ttl_scope.sql`); seed: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
-- **36 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
+- **35 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
   override per komunitas di `community.settings` hanya boleh mempersempit platform.
 - Nama database: produksi `bm2` (arsip v1 `bm` read-only), lokal `bm2_dev`,
   `bm2_ops`, `bm2_e2e`, `bm2_parity_v2`; cutover memakai `bm_staging`.
@@ -56,7 +56,8 @@ diterjemahkan di `legacy/queries/admin.ts`.
 - **Sesi**: daftar berhalaman (filter dan `load more` dari server), live session
   (`/c/:slug/s/:id`), scoreboard, wizard 4 langkah + generator 5 fase, aksi
   "Finish session" di ringkasan (lock → ingest rating, buka lagi → revert),
-  share code v2 (`/s/:code` untuk publik, memperbarui tiap 10 detik).
+  share code v2 (`/s/:code` untuk publik, tab Games/Standings seperti layar sesi
+  di aplikasi, memperbarui tiap 10 detik).
 - **Pemain**: roster v2 (klaim, merge, alias, edit, tier, hapus) di
   `/c/:slug/players`; halaman admin pemain lama sudah dipensiunkan dan
   `/admin/players` dialihkan ke roster.
@@ -64,6 +65,10 @@ diterjemahkan di `legacy/queries/admin.ts`.
 - **Turnamen**: daftar, editor classic dan team, klasemen/bracket, admin rating.
 - **Post**: editor Instagram Post (post dan story) dari sesi atau turnamen.
 - **Settings komunitas**: anggota, peran, undangan, join request, override config.
+  Undangan punya halamannya sendiri, `/invites/:token` (di luar shell komunitas);
+  login juga langsung meng-claim undangan yang tertuju ke alamat itu, dan
+  menerima ulang token yang sama oleh pemiliknya mengembalikan membership yang
+  sudah diberikan.
 - **Owner**: `/owner/communities` untuk membuat komunitas dan melihat yang diikuti.
 
 State klien memakai Zustand (wizard) dan TanStack Query (data server). Service
@@ -94,11 +99,11 @@ communities) tetap dipakai; halaman v2 yang tidak pernah dipasang di router
 
 | Suite | Perintah | Catatan |
 |---|---|---|
-| Format, `nim check`, archcheck, unit | `./task check` | tanpa database |
+| `nim check`, archcheck, unit | `./task check` | tanpa database |
 | Unit + integration | `./task test` | butuh `MAJADU_PG_DSN` |
 | Satu modul | `./task verify <modul\|api>` | integration bila DB ada |
 | Kontrak | `./task contract-check` | fingerprint + hasil generate |
-| Parity | `./task parity verify` / `./task parity v2 verify` | v1 beku 71 kasus/48 rute; v2 142 kasus |
+| Parity | `./task parity verify` / `./task parity v2 verify` | v1 beku 71 kasus/48 rute; v2 143 kasus |
 | Ladder turnamen | `./task levels` | baca/tulis `rating.levels`; tanpa baris = rumus per-game |
 | Coverage | `./task coverage` | per modul, ratchet terhadap `coverage-baseline.json` (39,14% total, integration; gcov dibaca per binary, toleransi 0,1 pp untuk derau gcov, ~7 menit) |
 | Keamanan | bagian dari `./task test` | IDOR, eskalasi, CSRF, replay OIDC, rate limit, klaim |
@@ -161,9 +166,9 @@ Rencana 88 task: lihat [`roadmap.md`](roadmap.md). Ringkasnya:
 - **Celah di luar rencana:** produsen `platform.outbox` (realtime masih
   per-proses). Coverage sudah diukur ulang dengan harness yang benar (gcov
   dibaca setelah setiap binary; sebelumnya `.gcda` basi membuat modul yang
-  teruji dilaporkan 0%), jadi baseline 38,15% adalah angka pertama yang bisa
-  dipercaya — bukan penurunan. Modul terendah: `apps/api` 14,79% dan `tools`
-  20,88%.
+  teruji dilaporkan 0%), jadi baseline 39,14% adalah angka pertama yang bisa
+  dipercaya — bukan penurunan. Modul terendah: `apps/api` 15,47% dan `tools`
+  21,02%.
 - **Selisih data yang diketahui (diterima):** Salma, Youri, Zaid, dan Firda
   berbeda dari `bm.rank_snapshots` v1 karena ledger v1 untuk sesi 2026-10-31
   di-ingest sebelum sesi itu diedit. Keputusan pemilik: v2 mengikuti data

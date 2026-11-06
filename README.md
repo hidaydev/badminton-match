@@ -58,7 +58,7 @@ majadu/
 ├── packages/
 │   ├── contracts/openapi/   core.yaml + community.yaml → api.yaml + client
 │   └── web-client/          Generated TypeScript client
-├── db/                      migrations (0001–0024), seeds, platform config
+├── db/                      migrations (0001–0027), seeds, platform config
 ├── ops/                     Quadlet, Caddy, deploy/cutover/backup/restore/smoke
 ├── tools/                   dbtools, contract-gen, archcheck, ETL, parity,
 │                            fixtures, mock-api, rehearsal
@@ -97,7 +97,7 @@ rewrites it in production, so the session cookie stays first-party. Set
 
 | Command | What it checks |
 |---|---|
-| `./task check` | format, `nim check`, archcheck, unit tests — no database |
+| `./task check` | `nim check`, archcheck, unit tests — no database |
 | `./task test` | unit + integration (needs `MAJADU_PG_DSN`) |
 | `./task ci` | check + build + test + contract fingerprint |
 | `./task coverage` | line coverage per module, ratcheted against `coverage-baseline.json` |
@@ -131,7 +131,7 @@ Rollback is the `:v1-final` image, not source code.
 
 ## 📌 Status
 
-The v2 rewrite is complete: 75 contract operations, 23 migrations, backend and
+The v2 rewrite is complete: 75 contract operations, 27 migrations, backend and
 frontend features wired end to end. The v1 Go tree is gone.
 
 Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):

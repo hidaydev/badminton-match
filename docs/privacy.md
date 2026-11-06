@@ -26,7 +26,7 @@ pemain, bukan untuk auditor.
 | Keanggotaan | peran per komunitas (`admin`/`host`/`member`) | Satu pengguna bisa punya peran berbeda di komunitas berbeda. |
 | Pemain | nama kanonik, alias, gender, tingkat | Dimiliki komunitas, bukan akun. Bisa ada tanpa akun. |
 | Pertandingan | sesi, jadwal, skor, kehadiran, turnamen | Riwayat kegiatan komunitas. |
-| Peringkat | event, delta, status pemain, snapshot | Turunan dari pertandingan. |
+| Peringkat | event (jumlah entri), hitungan main/menang/kalah, snapshot | Turunan dari pertandingan; ledger poin per game tidak disimpan. |
 | Audit | aksi, aktor, target, alasan | Tanpa email mentah, tanpa IP, tanpa kode tautan. |
 | Sesi dan tautan | cookie sesi, hash kode tautan | Kode tautan disimpan sebagai hash + ciphertext, bukan teks biasa. |
 
@@ -71,9 +71,9 @@ dan tidak menyimpan riwayat pertandingan. Konsekuensi yang perlu diketahui
 operator: bila akun yang ditutup adalah **satu-satunya admin** sebuah komunitas,
 komunitas itu tertinggal tanpa admin dan harus diberi admin baru secara manual.
 
-Yang **dipertahankan**: skor, turnamen, delta peringkat, dan audit. Riwayat
-pertandingan milik pemain dan komunitas, bukan milik akun; menghapusnya akan
-mengubah peringkat pemain lain. Audit tetap ada karena ia mencatat tindakan
+Yang **dipertahankan**: skor, turnamen, riwayat rating (event dan snapshot),
+dan audit. Riwayat pertandingan milik pemain dan komunitas, bukan milik akun;
+menghapusnya akan mengubah peringkat pemain lain. Audit tetap ada karena ia mencatat tindakan
 administratif, bukan identitas.
 
 Klaim yang sudah ditutup tidak bisa dibuka lagi dengan login yang sama, karena
