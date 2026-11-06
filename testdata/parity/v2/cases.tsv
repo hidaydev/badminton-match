@@ -110,8 +110,9 @@ patch_absent	patchSessionAbsent	PATCH	/c/parity/sessions/40000000-0000-4000-8000
 skip_game	skipSessionGame	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002/games/0-0/skip	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "4"	-
 swap_session	postSessionSwap	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000002/swap	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "5"	{"type":"player","a":{"team":"A","position":0,"playerId":"30000000-0000-4000-8000-000000000001"},"b":{"team":"B","position":0,"playerId":"30000000-0000-4000-8000-000000000003"}}
 unlock_session	unlockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/unlock	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "1"	-
-lock_session	lockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/lock	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "2"	-
-patch_session_game	patchSessionGame	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/0-1	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "3"	{"scoreA":21,"scoreB":19}
+patch_session_game	patchSessionGame	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/0-1	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "2"	{"scoreA":21,"scoreB":19}
+lock_session	lockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/lock	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "3"	-
+patch_session_game_locked	patchSessionGame	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/0-1	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "4"	{"scoreA":21,"scoreB":19}
 session_ws_ticket	postSessionWsTicket	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/ws-ticket	Cookie: majadu_session=parity-owner-token; Origin: http://127.0.0.1:5173	-
 post_session_rating	postSessionRating	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/rating	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{}
 rebuild_ratings	postRatingsRebuild	POST	/c/parity/ratings/rebuild	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{}

@@ -98,34 +98,42 @@
           "source": "platform",
           "value": [
             {
-              "min": 0,
+              "max": 1199,
+              "min": 1000,
               "tier": "D"
             },
             {
-              "min": 1000,
+              "max": 1299,
+              "min": 1200,
               "tier": "D+"
             },
             {
-              "min": 1200,
+              "max": 1499,
+              "min": 1300,
               "tier": "C"
             },
             {
-              "min": 1400,
+              "max": 1599,
+              "min": 1500,
               "tier": "C+"
             },
             {
+              "max": 1799,
               "min": 1600,
               "tier": "B"
             },
             {
+              "max": 1899,
               "min": 1800,
               "tier": "B+"
             },
             {
-              "min": 2000,
+              "max": 2099,
+              "min": 1900,
               "tier": "A"
             },
             {
+              "max": null,
               "min": 2100,
               "tier": "A+"
             }

@@ -10,13 +10,30 @@
   "expect": {
     "status": 200,
     "body": {
+      "bestN": 10,
+      "breakdown": [
+        {
+          "date": "2026-10-25",
+          "games": 1,
+          "kind": "tournament_classic",
+          "points": 141.9614147909968,
+          "sourceId": "{uuid}"
+        }
+      ],
+      "countedEntries": 1,
+      "entriesAvailable": 1,
       "games": 4,
       "losses": 2,
+      "minSessions": 3,
       "name": "Alice",
       "playerId": "{uuid}",
-      "points": 0,
+      "points": 142,
+      "prevRank": null,
       "rank": 1,
+      "rankDelta": null,
+      "thinEvidence": true,
       "tier": "B",
+      "windowWeeks": 12,
       "wins": 2
     }
   }

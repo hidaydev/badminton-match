@@ -67,7 +67,7 @@
         "title"
       ],
       "rows": 4,
-      "sha256": "08b2724b38964e579ee3eab8f02b0f2d57db74c1884dd7f782c0f684baf89f10"
+      "sha256": "0ed6e13f1af10dadddb405fbdf04f795172fdec5dcaed74368fe71e04f6594b3"
     },
     {
       "table": "session.participants p join session.sessions s on s.id = p.session_id join player.players pl on pl.id = p.player_id",
@@ -102,7 +102,7 @@
         "g.court_no"
       ],
       "rows": 3,
-      "sha256": "3f70188719dfb51f9f781dc6b9a7a21eaab3af9272447c4e3f4235243d67b961"
+      "sha256": "7723e5c4f6755fa3439fbd9e4c0eb358bc3fc94f387cf06fe2b9e8dca5ba9e4b"
     },
     {
       "table": "session.links",
@@ -229,7 +229,7 @@
         "source_id"
       ],
       "rows": 3,
-      "sha256": "3c820deb656a0b56499c1c7cf215d16580f996b854ea540a466eb687823c5303"
+      "sha256": "1360a03c02370ed72630493a751391d6eb52668031ec850dfc0380b994d21f78"
     },
     {
       "table": "rating.sources",
@@ -256,7 +256,7 @@
         "player_name"
       ],
       "rows": 6,
-      "sha256": "262d1bd6b693c4d1219ad1b253306b561df85ff5038c25056748a1e9bd673508"
+      "sha256": "f23d109c33077a244a6f895e176a87445c4e0a7a4179e09b02ab65a9f1678b40"
     }
   ],
   "selftest": {

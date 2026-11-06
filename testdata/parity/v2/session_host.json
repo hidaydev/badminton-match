@@ -66,6 +66,7 @@
           "playerId": "{uuid}"
         }
       ],
+      "skippedPlayers": {},
       "slotMinutes": 30,
       "startTime": "19:00",
       "status": "locked",

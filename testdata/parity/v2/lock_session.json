@@ -6,7 +6,7 @@
     "headers": {
       "Cookie": "majadu_session=parity-admin-token",
       "Origin": "http://127.0.0.1:5173",
-      "If-Match": "\"2\""
+      "If-Match": "\"3\""
     }
   },
   "expect": {
@@ -19,7 +19,7 @@
       "startTime": "19:00:00",
       "status": "locked",
       "title": "Tuesday Night",
-      "version": 3
+      "version": 4
     }
   }
 }

@@ -8,48 +8,107 @@
     "status": 200,
     "body": {
       "asOf": "{date}",
+      "bestN": 10,
       "items": [
         {
+          "breakdown": [
+            {
+              "date": "2026-10-25",
+              "games": 1,
+              "kind": "tournament_classic",
+              "points": 141.9614147909968,
+              "sourceId": "{uuid}"
+            }
+          ],
+          "countedEntries": 1,
+          "entriesAvailable": 1,
           "games": 4,
           "losses": 2,
           "name": "Alice",
           "playerId": "{uuid}",
-          "points": 0,
+          "points": 142,
+          "prevRank": null,
           "rank": 1,
+          "rankDelta": null,
+          "thinEvidence": true,
           "tier": "B",
           "wins": 2
         },
         {
+          "breakdown": [
+            {
+              "date": "2026-10-25",
+              "games": 1,
+              "kind": "tournament_classic",
+              "points": 141.9614147909968,
+              "sourceId": "{uuid}"
+            }
+          ],
+          "countedEntries": 1,
+          "entriesAvailable": 1,
           "games": 4,
           "losses": 2,
           "name": "Budi",
           "playerId": "{uuid}",
-          "points": 0,
-          "rank": 2,
+          "points": 142,
+          "prevRank": null,
+          "rank": 1,
+          "rankDelta": null,
+          "thinEvidence": true,
           "tier": "C+",
           "wins": 2
         },
         {
+          "breakdown": [
+            {
+              "date": "2026-10-25",
+              "games": 1,
+              "kind": "tournament_classic",
+              "points": 116.07717041800643,
+              "sourceId": "{uuid}"
+            }
+          ],
+          "countedEntries": 1,
+          "entriesAvailable": 1,
           "games": 4,
           "losses": 1,
           "name": "Candra",
           "playerId": "{uuid}",
-          "points": 0,
+          "points": 116,
+          "prevRank": null,
           "rank": 3,
+          "rankDelta": null,
+          "thinEvidence": true,
           "tier": "C",
           "wins": 3
         },
         {
+          "breakdown": [
+            {
+              "date": "2026-10-25",
+              "games": 1,
+              "kind": "tournament_classic",
+              "points": 116.07717041800643,
+              "sourceId": "{uuid}"
+            }
+          ],
+          "countedEntries": 1,
+          "entriesAvailable": 1,
           "games": 4,
           "losses": 3,
           "name": "Dewi",
           "playerId": "{uuid}",
-          "points": 0,
-          "rank": 4,
+          "points": 116,
+          "prevRank": null,
+          "rank": 3,
+          "rankDelta": null,
+          "thinEvidence": true,
           "tier": "D+",
           "wins": 1
         }
-      ]
+      ],
+      "minSessions": 0,
+      "windowWeeks": 12
     }
   }
 }

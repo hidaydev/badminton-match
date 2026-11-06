@@ -14,25 +14,33 @@
         {
           "date": "2026-11-17",
           "id": "{uuid}",
+          "playerCount": 0,
           "status": "draft",
           "title": "Delete Me",
+          "totalGames": 0,
           "version": 1
         },
         {
           "date": "2026-11-10",
           "id": "{uuid}",
+          "playerCount": 0,
           "status": "draft",
           "title": "Draft Night",
+          "totalGames": 0,
           "version": 1
         },
         {
           "date": "2026-11-03",
           "id": "{uuid}",
+          "playerCount": 4,
           "status": "locked",
           "title": "Tuesday Night",
+          "totalGames": 2,
           "version": 1
         }
-      ]
+      ],
+      "nextCursor": "",
+      "total": 3
     }
   }
 }

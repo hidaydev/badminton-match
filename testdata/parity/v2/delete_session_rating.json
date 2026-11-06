@@ -11,9 +11,9 @@
   "expect": {
     "status": 200,
     "body": {
-      "deltas": 8,
-      "events": 1,
-      "removedDeltas": 6
+      "deltas": 18,
+      "events": 3,
+      "removedDeltas": 8
     }
   }
 }
