@@ -54,8 +54,10 @@ RUN nim c -d:release --opt:speed --threads:on --mm:atomicArc \
       --nimcache:/tmp/nimcache-account -o:/out/account tools/accountlifecycle/main.nim
 
 FROM docker.io/library/debian:bookworm-slim
+# libpcre3 is the dynamic dependency of Nim's re module: the API and the ETL both
+# import it, and without the shared object they abort at the first match.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libpq5 ca-certificates tzdata \
+ && apt-get install -y --no-install-recommends libpq5 libpcre3 ca-certificates tzdata \
  && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --uid 10001 --home /nonexistent majadu
 COPY --from=build /out/majadu-api /usr/local/bin/majadu-api
