@@ -13,6 +13,7 @@ COPY task.d/deps-install.sh ./task.d/deps-install.sh
 # the build, so the exact packages pinned in deps.lock are installed first.
 RUN sh task.d/deps-install.sh
 COPY shared ./shared
+COPY modules ./modules
 COPY apps/api ./apps/api
 COPY db ./db
 COPY tools ./tools
