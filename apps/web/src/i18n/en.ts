@@ -69,6 +69,9 @@ export const en = {
   'join.failed': 'The request could not be sent. Try again.',
 
   'shared.title': 'Shared session',
+  'shared.tabs': 'Session views',
+  'shared.gamesCount': '{games} games',
+  'shared.versus': 'vs',
   'shared.error.missing': 'This link is no longer valid. Ask for a new one.',
   'shared.error.load': 'This session could not be loaded.',
   'shared.status.draft': 'Draft',
@@ -291,6 +294,7 @@ export const en = {
   'session.column.player': 'Player',
   'session.column.wins': 'W',
   'session.column.losses': 'L',
+  'session.column.points': 'Pts',
   'session.column.diff': '+/-',
 
 

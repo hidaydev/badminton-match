@@ -12,11 +12,23 @@ export type SharedGame = {
   status: string
 }
 
+/** One row of the session board, already ordered by the server. */
+export type SharedStanding = {
+  name: string
+  wins: number
+  losses: number
+  pointsFor: number
+  pointsAgainst: number
+  diff: number
+}
+
 /** `GET /s/{code}`: the only read that works without a session. */
 export type SharedSession = {
   session: { id: string; title: string; date: string; status: string }
   community: { slug: string; name: string }
   games: SharedGame[]
+  /** Same tally the in-app session screen shows; absent from older payloads. */
+  standings?: { items: SharedStanding[] } | null
 }
 
 export function getSharedSession(code: string): Promise<SharedSession> {
