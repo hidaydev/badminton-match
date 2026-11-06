@@ -176,6 +176,13 @@ suite "community HTTP":
       memberCookie)
     check pending == 202
     check againBody == pendingBody
+    let requestAudit = database.queryOne(
+      """select after from account.audit
+         where action = 'community.join.requested' and target_id = $1
+           and community_id = $2::uuid
+         order by occurred_at desc limit 1""",
+      @[textParam(memberId), textParam(closedId)])
+    check requestAudit.isSome
     let (listStatus, listBody) = call(HttpGet, "/c/http-closed/join-requests",
       adminCookie)
     check listStatus == 200
@@ -199,9 +206,23 @@ suite "community HTTP":
     let (demoteLast, _) = call(HttpPatch, "/c/http-club/members/" & adminId,
       adminCookie, """{"role":"member"}""")
     check demoteLast == 409
+    let previousRole = database.queryOne(
+      """select role from community.membership
+         where community_id = $1::uuid and user_id = $2::uuid""",
+      @[textParam(clubId), textParam(memberId)]).get.get("role")
     let (promoted, _) = call(HttpPatch, "/c/http-club/members/" & memberId,
       adminCookie, """{"role":"admin"}""")
     check promoted == 200
+    let roleRow = database.queryOne(
+      """select after from account.audit
+         where action = 'community.member.role' and target_id = $1
+           and community_id = $2::uuid
+         order by occurred_at desc limit 1""",
+      @[textParam(memberId), textParam(clubId)])
+    check roleRow.isSome
+    let roleEvidence = parseJson(roleRow.get.get("after"))
+    check roleEvidence["fromRole"].getStr() == previousRole
+    check roleEvidence["toRole"].getStr() == "admin"
     let (removed, _) = call(HttpDelete, "/c/http-club/members/" & memberId,
       adminCookie)
     check removed == 204

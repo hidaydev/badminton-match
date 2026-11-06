@@ -1119,8 +1119,13 @@ proc requestJoin(request: Request, slug: string) =
         boolParam(configSnapshot().boolValue(%*{}, keyCommunityJoinRequestsEnabled))])
     else:
       none(Row)
-  if row.isSome and row.get.get("enabled") == "t":
-    discard joinRequestStore.request(application.db, row.get.get("id"), user.get.id)
+  if row.isSome and row.get.get("enabled") == "t" and user.isSome:
+    let requester = user.get
+    if joinRequestStore.request(application.db, row.get.get("id"), requester.id):
+      # The request itself is a self-service write; record it without the
+      # community context the requester does not have yet.
+      audit("community.join.requested", row.get.get("id"), requester,
+        "user", requester.id, %*{"status": "pending"}, role = "member")
   send(request, 202, @[("Content-Type", "application/json"),
     ("Cache-Control", "no-store")], accepted)
 
@@ -1182,6 +1187,11 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
   except ValueError:
     problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
     return
+  # Read before the write: this is the role the change replaces.
+  let previous = application.db.queryOne(
+    """select role from community.membership
+       where community_id = $1::uuid and user_id = $2::uuid""",
+    @[textParam(ctx.communityId), textParam(targetId)])
   case membershipStore.setRoleChecked(application.db, ctx.communityId,
       targetId, role)
   of membershipStore.mwLastAdmin:
@@ -1192,8 +1202,11 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   of membershipStore.mwOk:
     discard
+  # The old role is what makes a role change auditable; `role` alone cannot
+  # tell a promotion from a demotion.
   audit("community.member.role", ctx, user, "user", targetId,
-    %*{"role": role})
+    %*{"fromRole": if previous.isSome: previous.get.get("role") else: "",
+       "toRole": role})
   jsonResponse(request, 200, %*{"userId": targetId, "role": role})
 
 proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
