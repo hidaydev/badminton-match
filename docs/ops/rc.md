@@ -17,7 +17,7 @@ Rencana lengkap dan alasan desainnya ada di `docs/plan/rc-environment.md`.
 | Image | `localhost/majadu-rc-api:local` (+ `:prev`) |
 | Database | `bm2_rc`, role `bm2_rc_owner` / `bm2_rc_app` |
 | Env | `/srv/qouver/apps/majadu-rc/env/majadu-rc.env` (600, dir 700) |
-| Caddy | `import /srv/qouver/apps/majadu-rc/caddy/site-rc.caddy` |
+| Caddy | `import /etc/caddy/site-rc.caddy` |
 | URL publik | `https://api.qouver.com/majadu-rc/*` |
 | Webhook | hook `majadu-monorepo` → `/srv/qouver/apps/majadu/scripts/deploy-dispatch.sh` |
 
@@ -54,22 +54,34 @@ dengan data produksi terbaru: `./ops/scripts/bootstrap-rc.sh --force`.
 
 ## 3. Caddy (butuh sudo)
 
-Sekali saja. Di dalam site block `api.qouver.com` di `/etc/caddy/Caddyfile`:
+Sekali saja. Snippet harus bisa dibaca user `caddy`, jadi disalin ke `/etc/caddy`
+(bukan dari app dir yang mode 700):
+
+```sh
+sudo install -o root -g root -m 644 ops/caddy/site-rc.caddy /etc/caddy/site-rc.caddy
+```
+
+Di dalam site block `api.qouver.com` di `/etc/caddy/Caddyfile`:
 
 ```
-import /srv/qouver/apps/majadu-rc/caddy/site-rc.caddy
+import /etc/caddy/site-rc.caddy
 ```
 
 Lalu:
 
 ```sh
 sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-sudo systemctl reload caddy
+sudo systemctl restart caddy
 curl -fsS https://api.qouver.com/majadu-rc/healthz
 ```
 
-Urutannya validate dulu, reload belakangan. Gagal validasi berarti tidak ada
-reload.
+`restart`, bukan `reload`: Caddyfile server ini memasang `admin off` (audit H-5),
+jadi `caddy reload` tidak punya endpoint admin untuk dituju. Validasi dulu;
+gagal validasi berarti tidak ada restart. Restart memutus semua site di server
+selama sekitar satu detik.
+
+Kalau isi `ops/caddy/site-rc.caddy` berubah, ulangi langkah `install` di atas —
+deploy script tidak menulis ke `/etc/caddy`.
 
 ## 4. Deploy harian
 

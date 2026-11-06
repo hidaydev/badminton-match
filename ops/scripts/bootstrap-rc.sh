@@ -229,10 +229,12 @@ cat <<EOF
 
 Next steps that need root or the dashboard:
 
-1. Caddy (sudo): add this line inside the api.qouver.com site block, then reload
-     import $APP_DIR/caddy/site-rc.caddy
+1. Caddy (sudo):
+     sudo install -o root -g root -m 644 $APP_DIR/repo/ops/caddy/site-rc.caddy /etc/caddy/site-rc.caddy
+   add this line inside the api.qouver.com site block, then restart
+     import /etc/caddy/site-rc.caddy
      sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-     sudo systemctl reload caddy
+     sudo systemctl restart caddy
 
 2. Vercel: create project majadu-rc from $GITHUB_REPO,
    production branch $BRANCH, root directory apps/web.
