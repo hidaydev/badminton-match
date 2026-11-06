@@ -290,6 +290,33 @@ suite "tournament HTTP":
       kindsFound.add(issue["kind"].getStr())
     check "duplicate_pair_name" in kindsFound
 
+  test "a match score needs both sides":
+    let created = call(HttpPost, "/c/" & slug & "/tournaments", adminCookie,
+      $classicJson(classicSnapshot()))
+    check created.status == 201
+    let snapshot = parseJson(created.body)
+    let id = snapshot["id"].getStr()
+    var emptyMatch = ""
+    for match in snapshot["matches"]:
+      if match["pairAId"].kind == JNull:
+        emptyMatch = match["id"].getStr()
+        break
+    check emptyMatch.len > 0
+    # The semifinal has no sides until its two quarterfinals are played, so a
+    # score there would make a bye look like a result.
+    let patched = call(HttpPatch,
+      "/c/" & slug & "/tournaments/" & id & "/matches/" & emptyMatch,
+      adminCookie, """{"scoreA":21,"scoreB":15}""", ifMatch = "\"1\"")
+    check patched.status == 400
+    let after = call(HttpGet, "/c/" & slug & "/tournaments/" & id,
+      adminCookie)
+    for match in parseJson(after.body)["matches"]:
+      if match["id"].getStr() == emptyMatch:
+        check match["scoreA"].kind == JNull
+        check match["scoreB"].kind == JNull
+    check call(HttpDelete, "/c/" & slug & "/tournaments/" & id,
+      adminCookie).status == 204
+
   test "team create and get":
     let body = $teamJson(teamSnapshot())
     let created = call(HttpPost, "/c/" & slug & "/tournaments", adminCookie, body)

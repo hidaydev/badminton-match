@@ -2,12 +2,14 @@
 import { useState } from 'react'
 import { useNavigate } from '../router'
 import { useListSessions } from '../queries'
+import { useAdmin } from '../context/AdminContext'
 import { t } from '../../i18n'
 
 const MONTH_NAMES = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
 export default function SessionListPage() {
   const navigate = useNavigate()
+  const { isAdmin } = useAdmin()
   const [query, setQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('')
 
@@ -52,7 +54,7 @@ export default function SessionListPage() {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            aria-label="Filter by date"
+            aria-label={t('sessions.filterDate')}
             className="bg-elevated border border-border rounded-lg px-2.5 py-2 text-xs font-mono text-fg scheme-dark focus:border-accent focus:outline-none"
           />
           {dateFilter && (
@@ -99,6 +101,31 @@ export default function SessionListPage() {
           <p className="text-fg-dim text-xs font-sans">
             {hasFilter ? t('sessions.noSessionsFound') : t('sessions.noSessionsYet')}
           </p>
+          {(hasFilter || isAdmin) && (
+            <p className="mt-1 text-xs font-sans text-fg-dim">
+              {hasFilter ? t('sessions.emptyHintFilter') : t('sessions.emptyHint')}
+            </p>
+          )}
+          {hasFilter ? (
+            <button
+              onClick={() => {
+                setQuery('')
+                setDateFilter('')
+              }}
+              className="mt-3 min-h-11 rounded-xl border border-border px-3 text-xs font-mono text-fg-dim hover:text-fg transition-colors"
+            >
+              {t('sessions.clearFilters')}
+            </button>
+          ) : (
+            isAdmin && (
+              <button
+                onClick={() => navigate('/session/new')}
+                className="mt-3 min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground transition-colors active:scale-[0.98]"
+              >
+                {t('home.newSession')}
+              </button>
+            )
+          )}
         </div>
       )}
 

@@ -514,6 +514,44 @@ suite "session schedule HTTP":
       @[textParam(communityId), textParam(sessionId)])
     check events.get.get("n") == "1"
 
+  test "an idempotency key does not leak between sessions":
+    let path = "/c/sched-club/sessions"
+    let (_, firstBody) = call(HttpPost, path, hostCookie,
+      """{"title":"Scoped A","date":"2026-11-18"}""")
+    let (_, secondBody) = call(HttpPost, path, hostCookie,
+      """{"title":"Scoped B","date":"2026-11-19"}""")
+    let firstId = parseJson(firstBody)["id"].getStr()
+    let secondId = parseJson(secondBody)["id"].getStr()
+    let patch = """{"title":"Scoped A"}"""
+    let (applied, _) = call(HttpPatch, path & "/" & firstId, hostCookie, patch,
+      ifMatch = "\"1\"", idempotencyKey = "shared-key")
+    check applied == 200
+    # The same key and body against another session must run, not replay A.
+    let (other, otherBody) = call(HttpPatch, path & "/" & secondId, hostCookie,
+      patch, ifMatch = "\"1\"", idempotencyKey = "shared-key")
+    check other == 200
+    check parseJson(otherBody)["id"].getStr() == secondId
+    let (_, stored) = call(HttpGet, path & "/" & secondId, hostCookie)
+    check parseJson(stored)["title"].getStr() == "Scoped A"
+
+  test "a rejected idempotent patch releases the key":
+    let path = "/c/sched-club/sessions"
+    let (_, created) = call(HttpPost, path, hostCookie,
+      """{"title":"Retry me","date":"2026-11-20"}""")
+    let sessionId = parseJson(created)["id"].getStr()
+    let patchPath = path & "/" & sessionId
+    let (rejected, _) = call(HttpPatch, patchPath, hostCookie,
+      """{"date":"2026-02-30"}""", ifMatch = "\"1\"",
+      idempotencyKey = "retry-after-400")
+    check rejected == 400
+    # The corrected retry must run, not answer 409 because the failed attempt
+    # still owned the key.
+    let (retried, retriedBody) = call(HttpPatch, patchPath, hostCookie,
+      """{"title":"Retried"}""", ifMatch = "\"1\"",
+      idempotencyKey = "retry-after-400")
+    check retried == 200
+    check parseJson(retriedBody)["title"].getStr() == "Retried"
+
   test "members read the standings and an unknown session is a 404":
     let (created, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
       """{"title":"Board","date":"2026-11-04"}""")

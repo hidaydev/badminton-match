@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { useNavigate } from '../router'
 import { isPlaceholderName } from '../utils/placeholders'
 import { useListPlayers } from '../queries'
+import { t } from '../../i18n'
 
 function parsePlayerList(raw: string): string[] {
   return raw
@@ -151,7 +152,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
         <button
           onClick={onRemove}
           className="text-slate-400 hover:text-red-400 active:text-red-400 text-sm transition-colors shrink-0 p-2"
-          aria-label="Remove player"
+          aria-label={t('wizard.players.remove')}
         >
           ✕
         </button>
@@ -236,7 +237,7 @@ function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: {
       >
         Add
       </button>
-      <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-200 text-sm transition-colors" aria-label="Cancel add player">
+      <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-200 text-sm transition-colors" aria-label={t('wizard.players.addCancel')}>
         ✕
       </button>
     </form>
@@ -275,7 +276,7 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
     <div className="bg-elevated border border-border rounded-xl p-4 flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-white">Paste player list</span>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-sm" aria-label="Close bulk import">✕</button>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-sm" aria-label={t('players.bulkClose')}>✕</button>
       </div>
       <textarea
         autoFocus
@@ -434,7 +435,7 @@ export default function PlayersPage() {
             disabled={players.length >= required}
             onClick={() => handleAdd('tbd', 'M', 2)}
             className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-amber-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-amber-400 rounded-xl text-sm font-medium transition-colors"
-            title="Add a TBD slot — replace with a real player before play (games involving it are void)"
+            title={t('players.tbdHint')}
           >
             + TBD
           </button>
@@ -442,7 +443,7 @@ export default function PlayersPage() {
             disabled={players.length >= required}
             onClick={() => setShowBulk((v) => !v)}
             className="py-2.5 px-4 border-2 border-dashed border-slate-700 hover:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:text-emerald-400 rounded-xl text-sm font-medium transition-colors"
-            title="Bulk import from text"
+            title={t('players.bulkHint')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg> Bulk
           </button>

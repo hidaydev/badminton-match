@@ -335,6 +335,27 @@ suite "classic validation":
     tournament.pairs[0].name = "Player 1 & Player 2 & Player 3"
     check ciPairNameParts in kinds(validate(tournament))
 
+  test "phase and group consistency is reported":
+    var tournament = generated(7)
+    tournament.matches[0].groupId = none(GroupId)
+    check ciPhaseGroup in kinds(validate(tournament))
+
+    tournament = generated(7)
+    tournament.matches[24].groupId = some(ga)
+    check ciPhaseGroup in kinds(validate(tournament))
+
+    # A group match cannot borrow a pair from another group.
+    tournament = generated(7)
+    tournament.matches[0].pairAId = some(tournament.groups[ord(gb)][0])
+    check ciGroupMembership in kinds(validate(tournament))
+
+    # A result needs both sides: a bye cannot win a bracket slot. The
+    # semifinal is empty until its two quarterfinals are played.
+    tournament = generated(7)
+    tournament.matches[28].scoreA = some(21)
+    tournament.matches[28].scoreB = some(15)
+    check ciScoredWithoutSides in kinds(validate(tournament))
+
   test "group problems are reported":
     var tournament = generated(7)
     tournament.groups[ord(ga)].setLen(3)

@@ -32,7 +32,7 @@ export default function HomeLayout() {
             <button
               onClick={() => navigate(-1)}
               className="p-1.5 -ml-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0"
-              aria-label="Back"
+              aria-label={t('shell.back')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M15 18l-6-6 6-6"/>
@@ -40,7 +40,7 @@ export default function HomeLayout() {
             </button>
           )}
           <Link to="/" className="flex items-center gap-2 flex-1">
-            <img src="/logo-192.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
+            <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
             <h1 className="text-sm font-bold text-fg tracking-tight">MAJADU</h1>
           </Link>
           <div className="hidden sm:flex items-center gap-2">
@@ -49,7 +49,7 @@ export default function HomeLayout() {
           <button
             onClick={() => window.location.reload()}
             className="p-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all"
-            aria-label="Refresh"
+            aria-label={t('shell.refresh')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>

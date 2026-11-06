@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { t } from '../../i18n'
 
 interface InstallModalProps {
   isIos: boolean
@@ -21,7 +22,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Install app"
+      aria-label={t('home.installApp')}
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
@@ -38,7 +39,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
 
         {/* App identity */}
         <div className="flex flex-col items-center gap-2 px-6 pt-4 pb-5">
-          <img src="/logo-192.png" alt="Majadu" className="w-16 h-16 rounded-lg object-contain" />
+          <img src="/logo-192.png" alt="" className="w-16 h-16 rounded-lg object-contain" />
           <div className="text-center">
             <p className="text-white font-bold text-lg leading-tight">Install Majadu App</p>
             <p className="text-slate-400 text-sm mt-0.5">
@@ -70,7 +71,7 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
               </div>
               <img
                 src="/add-to-home-screen.jpeg"
-                alt="Add to Home Screen button"
+                alt={t('install.addToHomeScreen')}
                 className="w-1/2 rounded-lg object-contain border border-slate-700 mt-2 mb-1 ml-12"
               />
             </li>

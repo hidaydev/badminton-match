@@ -57,10 +57,11 @@ export function decideJoinRequest(
   slug: string,
   id: string,
   decision: 'approve' | 'reject',
+  role: CommunityRole = 'member',
 ): Promise<{ status: string }> {
   return request<{ status: string }>(
     `/c/${encodeURIComponent(slug)}/join-requests/${encodeURIComponent(id)}`,
-    { method: 'PATCH', body: JSON.stringify({ decision }) },
+    { method: 'PATCH', body: JSON.stringify({ decision, role }) },
   )
 }
 

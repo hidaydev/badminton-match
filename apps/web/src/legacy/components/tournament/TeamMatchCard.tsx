@@ -1,6 +1,7 @@
 // apps/web/src/components/tournament/TeamMatchCard.tsx
 import { teamMatchOutcome, teamTarget, PARTAI_CLASSES, teamName, DEFAULT_TEAM_COURTS, type TeamMatch, type TeamInfo } from '../../utils/teamTournament'
 import Icon from '../Icon'
+import { t } from '../../../i18n'
 
 interface PostProps {
   isPostMode: boolean
@@ -77,7 +78,7 @@ export default function TeamMatchCard({
               className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                 postProps.isPostMode ? 'bg-accent' : 'bg-elevated border border-border-subtle text-fg-dim hover:text-fg'
               }`}
-              aria-label="Toggle post mode"
+              aria-label={t('tournament.postMode')}
             >
               <Icon name="camera" size={14} stroke={postProps.isPostMode ? 'black' : 'currentColor'} strokeWidth={2.2} />
             </button>
@@ -156,7 +157,7 @@ export default function TeamMatchCard({
               onClick={postProps.onDownload}
               disabled={postProps.uploadedCount === 0}
               className="w-10 h-10 rounded-lg bg-accent text-slate-950 flex items-center justify-center hover:brightness-110 active:scale-[0.98] disabled:opacity-40 shrink-0"
-              aria-label="Download posts"
+              aria-label={t('tournament.downloadPosts')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>

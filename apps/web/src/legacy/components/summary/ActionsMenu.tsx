@@ -1,3 +1,5 @@
+import { t } from '../../../i18n'
+
 interface ActionsMenuProps {
   actionsOpen: boolean
   onToggle: () => void
@@ -44,7 +46,7 @@ export default function ActionsMenu({
         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 hover:text-white transition-colors"
         aria-expanded={actionsOpen}
         aria-haspopup="true"
-        aria-label="Actions menu"
+        aria-label={t('summary.actions')}
       >
         ⋯<span className="hidden sm:inline"> Actions</span>
       </button>
@@ -55,7 +57,7 @@ export default function ActionsMenu({
             className="absolute right-0 top-full mt-1 z-20 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden"
             style={{ minWidth: '160px' }}
             role="menu"
-            aria-label="Session actions"
+            aria-label={t('summary.actionsSession')}
           >
             {hasSwapPlayers && (
               <button

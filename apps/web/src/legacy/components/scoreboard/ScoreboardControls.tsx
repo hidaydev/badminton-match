@@ -1,3 +1,5 @@
+import { t } from '../../../i18n'
+
 export interface ScoreboardControlsProps {
   isFullscreen: boolean
   onReset: () => void
@@ -25,7 +27,7 @@ export function ScoreboardControls({
         onClick={onReset}
         className={cls}
         style={baseBtnStyle}
-        aria-label="Reset scores"
+        aria-label={t('scoreboard.reset')}
       >
         ↺
       </button>
@@ -33,7 +35,7 @@ export function ScoreboardControls({
         onClick={onSwap}
         className={cls}
         style={baseBtnStyle}
-        aria-label="Swap sides"
+        aria-label={t('scoreboard.swap')}
       >
         ⇄
       </button>
@@ -41,7 +43,7 @@ export function ScoreboardControls({
         onClick={onToggleFullscreen}
         className={cls}
         style={baseBtnStyle}
-        aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+        aria-label={isFullscreen ? t('scoreboard.fullscreenExit') : t('scoreboard.fullscreenEnter')}
       >
         {isFullscreen ? '⊠' : '⛶'}
       </button>

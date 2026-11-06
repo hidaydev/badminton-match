@@ -144,4 +144,35 @@ describe('community settings', () => {
       ).toBe(true)
     })
   })
+
+  it('approves a join request with the role the admin picked', async () => {
+    const fetchMock = base({
+      'PATCH /api/c/acme/join-requests/r1': () => ({ body: { status: 'approved' } }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    fireEvent.change(
+      await screen.findByLabelText(t('admin.requests.roleOf', { name: 'Budi' })),
+      { target: { value: 'host' } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: t('admin.requests.approve') }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url) === '/api/c/acme/join-requests/r1' &&
+          (init as RequestInit | undefined)?.method === 'PATCH',
+      )
+      expect(jsonBody((call as [string, RequestInit])[1])).toEqual({
+        decision: 'approve',
+        role: 'host',
+      })
+    })
+    expect(
+      await screen.findByText(
+        t('admin.requests.granted', { name: 'Budi', role: t('role.host') }),
+      ),
+    ).toBeInTheDocument()
+  })
 })

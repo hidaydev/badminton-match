@@ -3,6 +3,7 @@ import type { TournamentMatch } from '../../utils/tournament'
 import { validateScore } from '../../utils/scoreValidation'
 import ScoreboardOverlay from './ScoreboardOverlay'
 import { useEscapeKey } from '../../hooks/useEscapeKey'
+import { t } from '../../../i18n'
 
 interface ScoreModalProps {
   match: TournamentMatch
@@ -47,7 +48,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
 
   if (isFetching) {
     return (
-      <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label="Enter score">
+      <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={t('tournament.enterScore')}>
         <div className="bg-surface border border-border rounded-xl w-full max-w-sm p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
           <div className="animate-pulse">
             <div className="h-5 bg-elevated rounded w-1/3 mx-auto mb-1" />

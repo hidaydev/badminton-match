@@ -79,6 +79,9 @@ type
     ciScoreTooHigh = "score_too_high"
     ciTiedMatch = "tied_match"
     ciBracketProgression = "bracket_progression"
+    ciPhaseGroup = "phase_group"
+    ciGroupMembership = "group_membership"
+    ciScoredWithoutSides = "scored_without_sides"
 
   ClassicIssue* = object
     kind*: ClassicIssueKind
@@ -258,6 +261,23 @@ proc validateGroups(groups: array[4, seq[string]], pairIds: seq[string],
       else:
         grouped.add(pairId)
 
+proc validatePhases(groups: array[4, seq[string]], matches: seq[ClassicMatch],
+                    issues: var seq[ClassicIssue]) =
+  ## A group match names its group and both sides must sit in it; a knockout
+  ## carries no group. v1 kept these consistent, and a snapshot that breaks them
+  ## puts a pair in a group it was never drawn into.
+  for match in matches:
+    if match.phase == cpGroup:
+      if match.groupId.isNone:
+        issues.addIssue(ciPhaseGroup, match.id & ": missing group")
+        continue
+      let members = groups[ord(match.groupId.get)]
+      for side in [match.pairAId, match.pairBId]:
+        if side.isSome and side.get.strip().len > 0 and side.get notin members:
+          issues.addIssue(ciGroupMembership, match.id & ": " & side.get)
+    elif match.groupId.isSome:
+      issues.addIssue(ciPhaseGroup, match.id & ": group on a knockout")
+
 proc validateMatchIds(matches: seq[ClassicMatch],
                       issues: var seq[ClassicIssue]) =
   var seen: seq[string] = @[]
@@ -308,6 +328,11 @@ proc validateScores(match: ClassicMatch, issues: var seq[ClassicIssue]) =
   if match.scoreA.isNone or match.scoreB.isNone:
     issues.addIssue(ciPartialScore, match.id)
     return
+  # A result needs two sides to belong to; otherwise the winner is a bye that
+  # no later round can consume.
+  if match.pairAId.isNone or match.pairAId.get.strip().len == 0 or
+      match.pairBId.isNone or match.pairBId.get.strip().len == 0:
+    issues.addIssue(ciScoredWithoutSides, match.id)
   let scoreA = match.scoreA.get
   let scoreB = match.scoreB.get
   if scoreA < 0 or scoreB < 0:
@@ -379,6 +404,7 @@ proc validate*(tournament: ClassicTournament): seq[ClassicIssue] =
     if pair.id.strip().len > 0:
       pairIds.add(pair.id)
   validateGroups(tournament.groups, pairIds, result)
+  validatePhases(tournament.groups, tournament.matches, result)
   validateMatchIds(tournament.matches, result)
   validatePhaseCounts(tournament.matches, result)
   validatePairRefs(tournament.matches, pairIds, result)

@@ -73,14 +73,16 @@ export default function SettingsPage() {
 
   const reload = useCallback(() => setAttempt((count) => count + 1), [])
 
-  const run = async (action: () => Promise<unknown>) => {
+  const run = async (action: () => Promise<unknown>): Promise<boolean> => {
     setBusy(true)
     setFailure(null)
     try {
       await action()
       reload()
+      return true
     } catch (problem) {
       setFailure({ key: slug, message: describe(problem) })
+      return false
     } finally {
       setBusy(false)
     }
@@ -281,7 +283,7 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
   )
 }
 
-type Run = (action: () => Promise<unknown>) => Promise<void>
+type Run = (action: () => Promise<unknown>) => Promise<boolean>
 
 function Members({
   slug,
@@ -477,6 +479,27 @@ function JoinRequests({
   busy: boolean
   onRun: Run
 }) {
+  // A request joins as a member unless the admin says otherwise; the role is
+  // sent with the approval, and the granted role is echoed back afterwards.
+  const [roles, setRoles] = useState<Record<string, CommunityRole>>({})
+  const [granted, setGranted] = useState<{ name: string; role: CommunityRole } | null>(
+    null,
+  )
+
+  const approve = async (request: JoinRequest) => {
+    const role = roles[request.id] ?? 'member'
+    // A stale banner from an earlier approval must not sit beside a new error.
+    setGranted(null)
+    if (await onRun(() => decideJoinRequest(slug, request.id, 'approve', role))) {
+      setGranted({ name: request.displayName, role })
+    }
+  }
+
+  const reject = async (request: JoinRequest) => {
+    setGranted(null)
+    await onRun(() => decideJoinRequest(slug, request.id, 'reject'))
+  }
+
   return (
     <section className="mt-8">
       <h2 className="text-sm font-semibold text-fg">{t('admin.requests')}</h2>
@@ -493,13 +516,33 @@ function JoinRequests({
               <p className="font-mono text-[10px] text-fg-dim">
                 {formatDay(request.createdAt)}
               </p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="mt-2 flex flex-wrap items-end gap-2">
+                <label className="text-xs text-fg-dim">
+                  <span className="sr-only">
+                    {t('admin.requests.roleOf', { name: request.displayName })}
+                  </span>
+                  <select
+                    value={roles[request.id] ?? 'member'}
+                    disabled={busy}
+                    onChange={(event) =>
+                      setRoles((current) => ({
+                        ...current,
+                        [request.id]: event.target.value as CommunityRole,
+                      }))
+                    }
+                    className="min-h-11 rounded-xl border border-border bg-elevated px-2 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                  >
+                    {ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {t(ROLE_LABEL[role])}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() =>
-                    void onRun(() => decideJoinRequest(slug, request.id, 'approve'))
-                  }
+                  onClick={() => void approve(request)}
                   className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                 >
                   {t('admin.requests.approve')}
@@ -507,9 +550,7 @@ function JoinRequests({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() =>
-                    void onRun(() => decideJoinRequest(slug, request.id, 'reject'))
-                  }
+                  onClick={() => void reject(request)}
                   className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                 >
                   {t('admin.requests.reject')}
@@ -518,6 +559,14 @@ function JoinRequests({
             </li>
           ))}
         </ul>
+      )}
+      {granted !== null && (
+        <p role="status" aria-live="polite" className="mt-2 text-sm text-fg-dim">
+          {t('admin.requests.granted', {
+            name: granted.name,
+            role: t(ROLE_LABEL[granted.role]),
+          })}
+        </p>
       )}
     </section>
   )

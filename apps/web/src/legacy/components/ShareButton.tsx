@@ -191,7 +191,7 @@ export default function ShareButton() {
       />
       {/* Confirmation modal */}
       {confirming && (
-        <div ref={confirmRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label="Confirm publish session">
+        <div ref={confirmRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label={t('session.publishConfirm')}>
           <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-sm w-full flex flex-col gap-4 shadow-2xl">
             <div className="flex flex-col gap-1">
               <h2 className="text-white font-bold text-lg">Publish this session?</h2>

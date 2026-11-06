@@ -1,4 +1,5 @@
 import { useEscapeKey } from '../hooks/useEscapeKey'
+import { t } from '../../i18n'
 
 interface UpdateBannerProps {
   onReload(): void
@@ -14,7 +15,7 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
     <div
       className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none"
       role="dialog"
-      aria-label="Update available"
+      aria-label={t('app.updateAvailable')}
     >
       <div
         className="relative w-full max-w-lg mx-3 mb-3 pointer-events-auto bg-slate-900 rounded-3xl border border-border flex flex-col overflow-hidden

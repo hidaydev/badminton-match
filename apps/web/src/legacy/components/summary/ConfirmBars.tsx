@@ -1,6 +1,7 @@
 import type { Player, ScheduleSlot } from '../../types'
 import type { SwapTarget, TeamSwapTarget } from '../../utils/swap'
 import type { SlotSwapTarget } from '../../utils/slotSwap'
+import { t } from '../../../i18n'
 
 type BarColor = 'indigo' | 'red' | 'orange' | 'violet' | 'sky' | 'amber'
 
@@ -49,7 +50,7 @@ function ConfirmActionBar({
             <button
               onClick={onCancel}
               className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 transition-colors shrink-0"
-              aria-label="Cancel"
+              aria-label={t('summary.cancel')}
             >
               ✕
             </button>

@@ -90,7 +90,37 @@ export default function PlayersPage() {
         </p>
       )}
       {items !== null && items.length === 0 && (
-        <p className="mt-4 text-sm text-fg-dim">{t('players.empty')}</p>
+        <div className="mt-4 rounded-xl border border-border-subtle bg-surface p-4 text-center">
+          <p className="text-sm text-fg-dim">{t('players.empty')}</p>
+          {(query !== '' || canManage) && (
+            <p className="mt-1 text-xs text-fg-dim">
+              {query === ''
+                ? t('players.empty.hint')
+                : t('players.empty.hintQuery', { query })}
+            </p>
+          )}
+          {query !== '' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setDraft('')
+                setSearchParams({}, { replace: true })
+              }}
+              className="mt-3 min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {t('players.empty.clear')}
+            </button>
+          ) : (
+            canManage && (
+              <a
+                href="#players-add"
+                className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                {t('players.add')}
+              </a>
+            )
+          )}
+        </div>
       )}
 
       {items !== null && items.length > 0 && (
@@ -133,6 +163,7 @@ export default function PlayersPage() {
 
       {canManage && (
         <form
+          id="players-add"
           className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4"
           onSubmit={(event) => {
             event.preventDefault()

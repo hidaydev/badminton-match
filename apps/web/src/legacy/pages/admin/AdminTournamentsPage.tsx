@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from '../../router'
 import { useListTournaments } from '../../queries'
 import { adminRequest } from '../../queries/admin'
 import { t } from '../../../i18n'
@@ -10,6 +11,7 @@ const PAGE = 10
 
 export default function AdminTournamentsPage() {
   const [page, setPage] = useState(0)
+  const navigate = useNavigate()
   const { data: tournaments, refetch } = useListTournaments()
 
   const slice = (tournaments ?? []).slice(page * PAGE, page * PAGE + PAGE)
@@ -25,7 +27,18 @@ export default function AdminTournamentsPage() {
             </div>
 
             <div className="bg-surface border border-border-subtle rounded-xl divide-y divide-border-subtle overflow-hidden shadow-xs">
-              {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">{t('admin.noTournaments')}</p>}
+              {slice.length === 0 && (
+                <div className="flex flex-col items-center gap-2 py-6">
+                  <p className="text-fg-dim text-xs font-sans text-center">{t('admin.noTournaments')}</p>
+                  <p className="text-fg-dim text-xs font-sans text-center">{t('admin.noTournamentsHint')}</p>
+                  <button
+                    onClick={() => navigate('/tournaments')}
+                    className="text-accent text-xs font-medium hover:underline"
+                  >
+                    {t('tournaments.backToList')}
+                  </button>
+                </div>
+              )}
               {slice.map((t2) => (
                 <div key={t2.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-elevated/30 transition-colors">
                   <div className="flex flex-col min-w-0">

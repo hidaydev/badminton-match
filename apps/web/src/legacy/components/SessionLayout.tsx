@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from '../router'
 import { useStore } from '../store'
+import { t } from '../../i18n'
 
 const steps = [
   { to: '/session/new', label: 'Setup' },
@@ -37,14 +38,14 @@ export default function SessionLayout() {
           <button
             onClick={() => navigate(-1)}
             className="p-1.5 -ml-1.5 rounded-lg text-fg-dim hover:text-fg active:scale-90 transition-all shrink-0"
-            aria-label="Back"
+            aria-label={t('shell.back')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6"/>
             </svg>
           </button>
           <Link to="/" className="flex items-center gap-2">
-            <img src="/logo-192.png" alt="logo" className="w-6 h-6 shrink-0 object-contain" />
+            <img src="/logo-192.png" alt="" className="w-6 h-6 shrink-0 object-contain" />
             <h1 className="text-sm font-bold text-fg tracking-tight whitespace-nowrap">MAJADU</h1>
           </Link>
           {locked && (

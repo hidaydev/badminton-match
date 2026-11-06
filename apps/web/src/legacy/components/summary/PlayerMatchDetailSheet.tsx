@@ -3,6 +3,7 @@ import type { Player, ScheduleSlot, GameScore, PlayerId } from '../../types'
 import { toPlayerId, toGameKey } from '../../types'
 import type { PlayerStanding } from '../../utils/standings'
 import { ordinal } from '../../utils/ordinal'
+import { t } from '../../../i18n'
 
 interface GameRow {
   slot: number
@@ -104,7 +105,7 @@ export default function PlayerMatchDetailSheet({
           <button
             onClick={onClose}
             className="p-2 text-slate-400 hover:text-slate-200 transition-colors"
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             ✕
           </button>

@@ -27,6 +27,7 @@ import { useAutoDismiss } from '../hooks/useAutoDismiss'
 import { drawPositionPost, loadImage } from '../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../utils/share'
 import { loadOverlayImages } from '../utils/overlays'
+import { t } from '../../i18n'
 
 type Tab = 'klasemen' | 'jadwal' | 'final'
 
@@ -436,7 +437,7 @@ export default function TeamTournamentPage() {
                         <button
                           onClick={() => openFinalUpload('champion')}
                           className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors"
-                          aria-label="Upload champion photo"
+                          aria-label={t('tournament.uploadChampion')}
                         >
                           <Icon name="camera" size={13} strokeWidth={2.2} />
                         </button>
@@ -452,7 +453,7 @@ export default function TeamTournamentPage() {
                         <button
                           onClick={() => openFinalUpload('runnerup')}
                           className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center text-fg-dim hover:text-fg transition-colors"
-                          aria-label="Upload runner-up photo"
+                          aria-label={t('tournament.uploadRunnerUp')}
                         >
                           <Icon name="camera" size={13} strokeWidth={2.2} />
                         </button>

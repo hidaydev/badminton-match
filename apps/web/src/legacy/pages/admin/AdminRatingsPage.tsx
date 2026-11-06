@@ -57,6 +57,8 @@ export default function AdminRatingsPage() {
               {slice.length === 0 && <p className="text-fg-dim text-xs font-sans text-center py-6">{t('admin.noSources')}</p>}
               {slice.map((src) => {
                 const isT = src.source_kind.startsWith('tournament')
+                // The delete endpoint names the rating event, not the source.
+                const eventId = src.event_id
                 return (
                   <div key={src.source_id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-elevated/30 transition-colors">
                     <div className="flex flex-col min-w-0">
@@ -107,6 +109,26 @@ export default function AdminRatingsPage() {
                         }}>
                         Revert
                       </ActionButton>
+                      {/* A session event only exists while the session is
+                          approved, and the API refuses that state; unlocking
+                          removes the row, so there is nothing to delete. */}
+                      {isT && <ActionButton tone="red"
+                        disabled={src.finalized || eventId === null}
+                        title={src.finalized
+                          ? t('admin.deleteSourceFinalized')
+                          : eventId === null ? t('admin.deleteSourceNoEvent') : undefined}
+                        onClick={() => {
+                          if (eventId === null) return
+                          if (window.confirm(t('admin.deleteSourceConfirm', { name: src.source_name }))) {
+                            run(
+                              () => adminRequest('DELETE', `/rating-sources/${encodeURIComponent(eventId)}`),
+                              t('admin.deleteSourceDone'),
+                              refreshRatingData,
+                            )
+                          }
+                        }}>
+                        {t('admin.deleteSource')}
+                      </ActionButton>}
                     </div>
                   </div>
                 )

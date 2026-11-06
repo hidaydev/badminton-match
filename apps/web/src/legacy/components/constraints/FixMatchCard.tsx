@@ -3,6 +3,7 @@ import { toPlayerId, toTimeString } from '../../types'
 import { useStore } from '../../store'
 import { computeTimeSlots, courtsAtTime } from '../../utils/time'
 import { courtLabel } from '../../utils/courtLabel'
+import { t } from '../../../i18n'
 import { SlotPicker } from './SlotPicker'
 
 // ── Fix Match card ────────────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ export function FixMatchCard({
           <button
             onClick={() => removeFixMatch(match.id)}
             className="text-xs text-slate-400 hover:text-red-400 px-2.5 py-1.5 rounded hover:bg-slate-800 transition-colors"
-            aria-label="Remove match"
+            aria-label={t('wizard.constraints.remove')}
           >
             ✕
           </button>

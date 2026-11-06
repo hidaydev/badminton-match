@@ -623,6 +623,18 @@ proc parseScores(body: JsonNode): (Option[int], Option[int]) =
 proc patchClassic(conn: DbConn, communityId, tournamentId, matchId: string,
                   body: JsonNode): bool =
   let scores = parseScores(body)
+  # The full-snapshot validator refuses this, but the match route writes the
+  # score on its own: a bye would otherwise become a played result nothing can
+  # consume.
+  if scores[0].isSome or scores[1].isSome:
+    let sides = conn.queryOne(
+      """select pair_a_id, pair_b_id from tournament.matches
+         where community_id = $1::uuid and tournament_id = $2::uuid
+           and coalesce(match_key, id::text) = $3""",
+      @[textParam(communityId), textParam(tournamentId), textParam(matchId)])
+    if sides.isNone or sides.get["pair_a_id"].isNone or
+        sides.get["pair_b_id"].isNone:
+      raise newException(ValueError, "a result needs both sides to be decided")
   conn.execUpdate(
     """update tournament.matches
        set score_a = $4::int, score_b = $5::int,

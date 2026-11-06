@@ -1,4 +1,5 @@
 import { ScoreboardControls } from './ScoreboardControls'
+import { t } from '../../../i18n'
 
 export interface OverlayFooterState {
   pendingClose: boolean
@@ -62,7 +63,7 @@ export function ScoreboardFooter({
               disabled={overlay.isSaving}
               className="px-3 h-9 flex items-center rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto disabled:opacity-30 disabled:cursor-not-allowed"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-              aria-label="Close scoreboard"
+              aria-label={t('scoreboard.close')}
             >
               ✕
             </button>
@@ -96,7 +97,7 @@ export function ScoreboardFooter({
             onClick={onBack}
             className="px-3 py-1 rounded-lg text-white/55 text-lg cursor-pointer active:bg-white/10 transition-colors pointer-events-auto"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
-            aria-label="Back to home"
+            aria-label={t('scoreboard.home')}
           >
             ←
           </button>

@@ -51,6 +51,8 @@ export interface RatingSourceRow {
   finalized: boolean
   ingested_at: string
   event_count: number
+  /** The rating event behind the source; null when there is nothing to delete. */
+  event_id: string | null
 }
 
 type V2RatingEvent = {
@@ -76,6 +78,10 @@ export function useRatingSources() {
       const grouped = new Map<string, RatingSourceRow>()
       for (const event of data?.items ?? []) {
         const sourceId = event.sourceId || event.id
+        // One event per source. A tournament that was never ingested still gets
+        // a row, but it reports the tournament id as both ids and has no event
+        // to delete.
+        const eventId = event.id === sourceId ? null : event.id
         const current = grouped.get(sourceId)
         if (current === undefined) {
           grouped.set(sourceId, {
@@ -85,10 +91,12 @@ export function useRatingSources() {
             finalized: event.finalized,
             ingested_at: event.finalizedAt ?? '',
             event_count: event.deltas,
+            event_id: eventId,
           })
         } else {
           current.event_count += event.deltas
           current.finalized = current.finalized || event.finalized
+          current.event_id = current.event_id ?? eventId
         }
       }
       return [...grouped.values()]
