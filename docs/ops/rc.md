@@ -129,20 +129,43 @@ journalctl --user -u majadu-rc-api -n 50 --no-pager
 
 ## 5. FE di Vercel
 
-Project `majadu-rc` di akun pemilik:
+Project `majadu-rc` sudah dibuat di team `qouver` (akun Vercel pemilik) dan
+setting berikut sudah diterapkan lewat API:
 
-- Production branch: `release/2.0.0-rc.1`
-- Root Directory: `apps/web`
-- Include files outside Root Directory: on
-- Framework: Vite, Node 22
-- Install: `pnpm install --frozen-lockfile`, build: `pnpm run build`, output `dist`
-- Deployment Protection: off (kalau tidak, callback OAuth dan tautan share tertutup)
+| Setting | Nilai |
+|---|---|
+| Root Directory | `apps/web` |
+| Framework | Vite |
+| Install Command | `pnpm install --frozen-lockfile` |
+| Build Command | `pnpm run build` |
+| Output Directory | `dist` |
+| Node.js | 22.x |
+
+Yang belum dan **butuh akun GitHub/Vercel di browser**: koneksi Git. API Vercel
+menolaknya dengan `To link a GitHub repository, you need to install the GitHub
+integration first`, jadi urutannya:
+
+1. Pasang Vercel GitHub App untuk repo `hidaydev/badminton-match`
+   (<https://github.com/apps/vercel/installations/new>). Akun yang memasang
+   harus bisa melihat repo itu, dan akun Vercel `nferdazel` harus memakai
+   identitas GitHub yang sama.
+2. Di Vercel: Project `majadu-rc` → Settings → Git → Connect
+   `hidaydev/badminton-match`, lalu set Production Branch
+   `release/2.0.0-rc.1`.
+3. Pastikan "Include files outside Root Directory" aktif, karena
+   `pnpm-lock.yaml` dan `pnpm-workspace.yaml` ada di root repo.
+
+Deployment Protection harus off, kalau tidak callback OAuth dan tautan share
+tertutup.
 
 Branch RC membawa satu diff yang disengaja di `apps/web/vercel.json`:
 `/api` diarahkan ke `https://api.qouver.com/majadu-rc/*`, bukan `/majadu/*`.
 
 Google Cloud Console: tambahkan
 `https://majadu-rc.vercel.app/api/auth/callback` ke Authorized redirect URIs.
+
+Kalau yang terpasang malah `<project>-<team>.vercel.app`, ganti
+`OIDC_REDIRECT_URI` di env RC dan URI di Google, lalu restart unit.
 
 ## 6. Setelah merge ke main
 
@@ -164,6 +187,16 @@ Instance RC tetap hidup sebagai lingkungan uji sampai diputuskan untuk dimatikan
   `restore.sh`, dan `cutover.sh` memanggil keduanya langsung. Untuk cutover
   produksi nanti, keduanya harus dipasang atau skripnya diubah memakai container.
   `bootstrap-rc.sh` sudah memakai container, jadi ia tidak terpengaruh.
+- `apps/api/Dockerfile` di branch RC punya dua cacat yang membuat image tidak
+  pernah bisa dibangun: base tag `nimlang/nim:2.4.0-bookworm` tidak ada di
+  registry, dan `modules/` tidak pernah di-`COPY` padahal API mengimpornya.
+  Keduanya sudah diperbaiki di branch RC. Artinya tag `v2.0.0` **harus** dibuat
+  setelah merge, bukan dari `main` yang sekarang.
+- Caddyfile server memakai `admin off` (audit H-5), jadi perubahan konfigurasi
+  hanya bisa lewat `systemctl restart caddy`, bukan `reload`. Restart memutus
+  semua site sekitar satu detik.
+- Snippet Caddy harus berada di `/etc/caddy` karena user `caddy` tidak bisa
+  menembus `/srv/qouver/apps/majadu-rc` (mode 700).
 - `majadu` (port 8080, DB `bm`) adalah produksi v1 yang masih jalan.
   `majadu2` (port 8093, DB `majadu`) adalah aplikasi lain dari repo lain.
 - Produksi memakai role `majadu_app`; role `bm2_*` belum ada di cluster.
