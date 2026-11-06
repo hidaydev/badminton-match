@@ -93,3 +93,12 @@ suite "player store":
     # "%" and "_" would match every player if they stayed wildcards.
     check list(db, communityId, 10, search = "%").len == 1
     check list(db, communityId, 10, search = "_").len == 0
+
+  test "a search matches an alias, not just the canonical name":
+    # "Target Alias" is only an alias of "Patch Target".
+    let byAlias = list(db, communityId, 10, search = "target alias")
+    check byAlias.len == 1
+    check byAlias[0]["id"].getStr() == targetId
+    # Alias matching is literal too, and stays inside the community.
+    check list(db, communityId, 10, search = "%").len == 0
+    check list(db, communityId, 10, search = "taken_").len == 0

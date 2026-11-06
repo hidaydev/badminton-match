@@ -51,8 +51,14 @@ proc list*(db: Db, communityId: string, limit: int, cursor = "",
     params.add(textParam(tier))
   if search.len > 0:
     # `strpos` keeps `%` and `_` literal; a name search for "100%" must not
-    # match every player.
-    sql.add(" and strpos(lower(canonical_name), lower($" & $(params.len + 1) & ")) > 0")
+    # match every player. Aliases count as names, so a player imported under an
+    # alternate spelling is still found by the canonical one and vice versa.
+    let slot = "$" & $(params.len + 1)
+    sql.add(" and (strpos(lower(canonical_name), lower(" & slot & ")) > 0" &
+      " or exists (select 1 from player.aliases a" &
+      " where a.community_id = player.players.community_id" &
+      " and a.player_id = player.players.id" &
+      " and strpos(lower(a.alias), lower(" & slot & ")) > 0))")
     params.add(textParam(search))
   if cursor.len > 0:
     sql.add(" and id > $" & $(params.len + 1) & "::uuid")
