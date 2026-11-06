@@ -138,8 +138,9 @@ if [ -n "$EXISTS" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Roles and database. The role names carry _rc so a wrong DSN fails to connect
-# instead of reaching bm2 during the real cutover.
+# Roles and database. The role names are the ones every migration grants to
+# (bm2_owner/bm2_app/bm2_etl); the database name is what isolates this instance,
+# and both DSNs must name it.
 # ---------------------------------------------------------------------------
 log "creating roles and $RC_DB"
 psql_super <<SQL
@@ -185,7 +186,9 @@ DUMP="$BACKUP_DIR/$V1_DB-rc-$STAMP.dump"
 log "dumping $V1_DB to $DUMP"
 podman exec "$PG" pg_dump -U "$PG_SUPER" -Fc "$V1_DB" >"$DUMP"
 chmod 600 "$DUMP"
-podman exec "$PG" pg_restore -l "$DUMP" >/dev/null 2>&1 ||
+# The dump lives on the host; pg_restore runs in the container and only sees
+# stdin, so the file is piped rather than named.
+podman exec -i "$PG" pg_restore -l <"$DUMP" >/dev/null 2>&1 ||
   die "the dump cannot be read back; refusing to import a truncated file"
 
 log "restoring into $STAGING_DB"
