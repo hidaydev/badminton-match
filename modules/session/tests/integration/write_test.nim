@@ -1,6 +1,7 @@
 import std/[json, options, os, unittest]
 import db/db
 import ../../write
+import ../../scoring
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
@@ -38,6 +39,40 @@ suite "session write":
     check result.record["title"].getStr() == "Renamed"
     check result.record["slotMinutes"].getInt() == 45
     check result.record["version"].getInt() == 2
+
+  test "a preset patch stores its own id and rules":
+    # The body carries only `scoringPreset`; the route resolves it into rules
+    # before calling `patch`, and both columns come from that one value.
+    let classic = parsePresetNode(%*{
+      "id": "classic21",
+      "label": "Classic BO3 21",
+      "gamesToWin": 2,
+      "pointsToWin": 21,
+      "winBy": 2,
+      "deuceAt": 20,
+      "maxPoints": 30,
+      "changeEndsAt": 11}, "test")
+    let result = patch(db, communityId, sessionId, 1,
+      SessionPatch(scoringPreset: some("classic21"),
+        scoringRules: some(classic)))
+    check result.status == wsOk
+    let stored = db.queryOne(
+      """select scoring_preset, scoring_rules->>'id' as rules_id
+         from session.sessions where id = $1::uuid""",
+      @[textParam(sessionId)]).get
+    check stored.get("scoring_preset") == "classic21"
+    check stored.get("rules_id") == "classic21"
+    # An id that disagrees with the resolved format cannot reach the column.
+    let mismatch = patch(db, communityId, sessionId, 2,
+      SessionPatch(scoringPreset: some("majadu30"),
+        scoringRules: some(classic)))
+    check mismatch.status == wsOk
+    let kept = db.queryOne(
+      """select scoring_preset, scoring_rules->>'id' as rules_id
+         from session.sessions where id = $1::uuid""",
+      @[textParam(sessionId)]).get
+    check kept.get("scoring_preset") == "classic21"
+    check kept.get("rules_id") == "classic21"
 
   test "a stale version does not write and reports staleness":
     check patch(db, communityId, sessionId, 1,

@@ -1,6 +1,7 @@
 import std/[json, options, unicode]
 import db/db
 import ./lifecycle
+import ./scoring
 
 type
   WriteStatus* = enum
@@ -21,10 +22,11 @@ type
     date*: Option[string]
     startTime*: Option[string]
     slotMinutes*: Option[int]
-    ## A preset change carries both the id and the frozen rules; the API builds
-    ## the rules from the current config, so the write stays a single statement.
+    ## `scoringPreset` is the id the client sent; `scoringRules` is the format
+    ## resolved from it. The write takes both the stored id and the frozen JSON
+    ## from `scoringRules`, so the two columns cannot disagree.
     scoringPreset*: Option[string]
-    scoringRules*: Option[string]
+    scoringRules*: Option[ScoringRules]
 
 const sessionColumns = """
        id, title, session_date::text as session_date,
@@ -118,7 +120,7 @@ proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
   ## and no delete+insert, so row identity and child rows survive.
   if dateChangeBlocked(db, communityId, sessionId, patch.date):
     return WriteResult(status: wsInvalid)
-  if patch.scoringPreset.isSome:
+  if patch.scoringRules.isSome:
     ## A preset is part of the result, so it freezes once the first set exists.
     ## Clearing the sets is the explicit way back.
     let current = db.queryOne(
@@ -134,8 +136,6 @@ proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
     if not isEditable(current.get.get("status")) or
        current.get.getBool("has_sets"):
       return WriteResult(status: wsPresetLocked)
-    if patch.scoringRules.isNone:
-      return WriteResult(status: wsInvalid)
   let row = db.queryOne(
     """update session.sessions
        set title = coalesce($3, title),
@@ -156,8 +156,12 @@ proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
       if patch.startTime.isSome: textParam(patch.startTime.get) else: nullParam(),
       if patch.slotMinutes.isSome: intParam(patch.slotMinutes.get.int64) else: nullParam(),
       intParam(expectedVersion.int64),
-      if patch.scoringPreset.isSome: textParam(patch.scoringPreset.get) else: nullParam(),
-      if patch.scoringRules.isSome: textParam(patch.scoringRules.get) else: nullParam(),
+      if patch.scoringRules.isSome:
+        textParam(patch.scoringRules.get.id)
+      else: nullParam(),
+      if patch.scoringRules.isSome:
+        textParam($rulesJson(patch.scoringRules.get))
+      else: nullParam(),
     ])
   if row.isSome:
     return WriteResult(status: wsOk, record: sessionNode(row.get))

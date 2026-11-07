@@ -1052,7 +1052,7 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
       w.release()
       problem(request, 400, "INVALID_PRESET", "unknown scoring preset")
       return
-    patchBody.scoringRules = some($sessionScoring.rulesJson(chosen.get))
+    patchBody.scoringRules = some(chosen.get)
   let result = sessionWrite.patch(application.db, ctx.communityId, sessionId,
     version.get, patchBody)
   case result.status
