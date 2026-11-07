@@ -9,7 +9,10 @@ import std/[strutils]
 ## live there; loop indices and small enum-like numbers do not, and flagging
 ## them would drown the real findings.
 
-const minBusinessValue* = 50
+const
+  minBusinessValue* = 50
+  seedPath* = "db/seeds/platform_config.sql"
+  registryPath* = "modules/platform/config/registry.nim"
 
 ## Protocol numbers are not business numbers. A 503 from a probe is not an
 ## attempt to configure readiness. Limitation, stated on purpose: a business
@@ -24,6 +27,23 @@ type
   SeededValue* = object
     key*: string
     value*: int
+
+  SeedRow* = object
+    ## One row of the config seed. `hasBounds` is false when the row stores
+    ## `null` in `min_value`/`max_value`.
+    key*: string
+    kind*: string
+    hasBounds*: bool
+    minValue*: float
+    maxValue*: float
+
+  RegistrySpec* = object
+    ## One `spec(...)` entry from `modules/platform/config/registry.nim`.
+    key*: string
+    kind*: string
+    hasBounds*: bool
+    minValue*: float
+    maxValue*: float
 
 proc isProtocolNumber(value: int): bool =
   value in protocolNumbers
@@ -71,6 +91,195 @@ proc seededValues*(seedSql: string, minimum = minBusinessValue): seq[SeededValue
       continue
     seen.add(value)
     result.add(SeededValue(key: parts[1], value: value))
+
+proc numeric(text: string, value: var float): bool =
+  ## `10_000` is a Nim literal; bounds are compared as numbers, not text.
+  var cleaned = ""
+  for c in text:
+    if c != '_':
+      cleaned.add(c)
+  try:
+    value = parseFloat(cleaned)
+    result = true
+  except ValueError:
+    result = false
+
+proc seedRows*(seedSql: string): seq[SeedRow] =
+  ## Reads `('key', 'kind', 'value', min, max, ...)` tuples including the bound
+  ## columns the value scan ignores. Tuples are read from the whole file, not
+  ## line by line, because a `json` value spans several lines.
+  var index = 0
+  while index < seedSql.len:
+    let start = seedSql.find("('", index)
+    if start < 0:
+      break
+    let keyStart = start + 2
+    let keyEnd = seedSql.find('\'', keyStart)
+    if keyEnd < 0:
+      break
+    let kindStart = seedSql.find('\'', keyEnd + 1)
+    if kindStart < 0:
+      break
+    let kindEnd = seedSql.find('\'', kindStart + 1)
+    if kindEnd < 0:
+      break
+    let valueStart = seedSql.find('\'', kindEnd + 1)
+    if valueStart < 0:
+      break
+    let valueEnd = seedSql.find('\'', valueStart + 1)
+    if valueEnd < 0:
+      break
+    let boundsEnd = seedSql.find('\'', valueEnd + 1)
+    if boundsEnd < 0:
+      break
+    var row = SeedRow(key: seedSql[keyStart ..< keyEnd],
+      kind: seedSql[kindStart + 1 ..< kindEnd])
+    var bounds: seq[float] = @[]
+    var nullBounds = false
+    for item in seedSql[valueEnd + 1 ..< boundsEnd].split(','):
+      let text = item.strip()
+      if text.len == 0:
+        continue
+      var value: float
+      if text == "null":
+        nullBounds = true
+      elif numeric(text, value):
+        bounds.add(value)
+      else:
+        nullBounds = true
+    if not nullBounds and bounds.len == 2:
+      row.hasBounds = true
+      row.minValue = bounds[0]
+      row.maxValue = bounds[1]
+    result.add(row)
+    index = boundsEnd
+
+proc configKind(enumName: string): string =
+  case enumName
+  of "ctInt": "int"
+  of "ctDecimal": "decimal"
+  of "ctBool": "bool"
+  of "ctString": "string"
+  of "ctJson": "json"
+  else: ""
+
+proc callArguments(source: string, name: string): seq[seq[string]] =
+  ## Top-level, comma-separated arguments of every `name(...)` call. The calls
+  ## in the registry span several lines, so the whole source is read at once.
+  var index = 0
+  while index < source.len:
+    let start = source.find(name & "(", index)
+    if start < 0:
+      break
+    var position = start + name.len + 1
+    var depth = 1
+    var body = ""
+    while position < source.len and depth > 0:
+      let c = source[position]
+      if c == '(':
+        depth.inc
+      elif c == ')':
+        depth.dec
+      if depth > 0:
+        body.add(c)
+      position.inc
+    var args: seq[string] = @[]
+    var current = ""
+    var nested = 0
+    for c in body:
+      case c
+      of '(':
+        nested.inc
+        current.add(c)
+      of ')':
+        nested.dec
+        current.add(c)
+      of ',':
+        if nested == 0:
+          args.add(current.strip())
+          current = ""
+        else:
+          current.add(c)
+      else:
+        current.add(c)
+    if current.strip().len > 0:
+      args.add(current.strip())
+    result.add(args)
+    index = position
+
+proc registrySpecs*(registrySource: string): seq[RegistrySpec] =
+  ## Every `spec(keyFoo, ctInt, min, max, true, ...)` in the registry, mapped
+  ## back to its database key. The `proc spec` definition has no database key
+  ## and is skipped by that lookup.
+  var keys: seq[(string, string)] = @[]
+  for raw in registrySource.splitLines():
+    let line = raw.strip()
+    if not line.startsWith("key"):
+      continue
+    let equals = line.find(" = \"")
+    if equals < 0:
+      continue
+    let firstQuote = equals + 4
+    let lastQuote = line.find('"', firstQuote)
+    if lastQuote < 0:
+      continue
+    keys.add((line[0 ..< equals], line[firstQuote ..< lastQuote]))
+  for args in callArguments(registrySource, "spec"):
+    if args.len < 2:
+      continue
+    var key = ""
+    for (enumName, dbKey) in keys:
+      if enumName == args[0]:
+        key = dbKey
+        break
+    if key.len == 0:
+      continue
+    var spec = RegistrySpec(key: key, kind: configKind(args[1]))
+    if args.len >= 5 and args[4] == "true":
+      var low, high: float
+      if numeric(args[2], low) and numeric(args[3], high):
+        spec.hasBounds = true
+        spec.minValue = low
+        spec.maxValue = high
+    result.add(spec)
+
+proc renderBound(value: float): string =
+  let whole = int(value)
+  if float(whole) == value: $whole else: $value
+
+proc boundViolations*(specs: seq[RegistrySpec],
+                      rows: seq[SeedRow]): seq[string] =
+  ## The registry is where a bound is decided and the seed repeats it for the
+  ## database. A bound present in only one of them is drift the value scan
+  ## cannot see, and X-4's clamp will trust whichever it reads.
+  for spec in specs:
+    var row: SeedRow
+    var found = false
+    for candidate in rows:
+      if candidate.key == spec.key:
+        row = candidate
+        found = true
+        break
+    if not found:
+      result.add(registryPath & ": " & spec.key & " has no row in " & seedPath)
+      continue
+    if spec.hasBounds and not row.hasBounds:
+      result.add(registryPath & ": " & spec.key & " declares min " &
+        renderBound(spec.minValue) & " max " & renderBound(spec.maxValue) &
+        " but " & seedPath & " stores null bounds")
+    elif not spec.hasBounds and row.hasBounds:
+      result.add(registryPath & ": " & spec.key & " declares no bounds but " &
+        seedPath & " stores min " & renderBound(row.minValue) & " max " &
+        renderBound(row.maxValue))
+    elif spec.hasBounds:
+      if spec.minValue != row.minValue:
+        result.add(registryPath & ": " & spec.key & " min " &
+          renderBound(spec.minValue) & " does not match " & seedPath & " (" &
+          renderBound(row.minValue) & ")")
+      if spec.maxValue != row.maxValue:
+        result.add(registryPath & ": " & spec.key & " max " &
+          renderBound(spec.maxValue) & " does not match " & seedPath & " (" &
+          renderBound(row.maxValue) & ")")
 
 proc numberKey(path: string, value: int): string =
   path.replace('\\', '/') & ":" & $value

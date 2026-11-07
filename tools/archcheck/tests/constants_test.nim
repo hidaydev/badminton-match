@@ -61,3 +61,87 @@ modules/rating/x.nim:250   # inline reason
 apps/api/src/main.nim
 """)
     check entries == @["modules/rating/x.nim:250", "apps/api/src/main.nim"]
+
+const boundsRegistry = """
+  proc spec(key: ConfigKey, kind: ConfigType, minValue = 0.0,
+            maxValue = 0.0, hasBounds = false,
+            scope = csPlatform): KeySpec =
+    KeySpec(key: key, kind: kind, minValue: minValue,
+      maxValue: maxValue, hasBounds: hasBounds)
+
+  allKeys* = [
+    spec(keyRankBoardLimit, ctInt, 1, 10_000, true),
+    spec(keySessionSlotMinutesDefault, ctInt, 1, 240, true),
+    spec(keyRatingOpponentClamp, ctJson),
+  ]
+"""
+
+const boundsKeys = """
+    keyRankBoardLimit = "rank.board_limit"
+    keySessionSlotMinutesDefault = "session.slot_minutes_default"
+    keyRatingOpponentClamp = "rating.opponent_clamp"
+"""
+
+const boundsSeed = """
+  ('rank.board_limit', 'int', '200', 1, 10000, 'platform',
+   'Rows on the board'),
+  ('session.slot_minutes_default', 'int', '30', 1, 240, 'platform',
+   'Slot length'),
+  ('rating.opponent_clamp', 'json', '{}', null, null, 'platform',
+   'Clamp value'),
+"""
+
+suite "config bounds":
+  test "registry specs are read with their database keys and bounds":
+    let specs = registrySpecs(boundsKeys & boundsRegistry)
+    check specs.len == 3
+    check specs[0].key == "rank.board_limit"
+    check specs[0].kind == "int"
+    check specs[0].hasBounds
+    check specs[0].minValue == 1.0
+    check specs[0].maxValue == 10_000.0
+    check not specs[2].hasBounds
+
+  test "the seed keeps the bound columns":
+    let rows = seedRows(boundsSeed)
+    check rows.len == 3
+    check rows[0].hasBounds
+    check rows[0].minValue == 1.0
+    check rows[0].maxValue == 10_000.0
+    check not rows[2].hasBounds
+
+  test "a registry max that the seed does not repeat is a violation":
+    let drifted = (boundsKeys & boundsRegistry).replace("1, 240", "1, 241")
+    let found = boundViolations(registrySpecs(drifted), seedRows(boundsSeed))
+    check found.len == 1
+    check found[0].contains("session.slot_minutes_default")
+    check found[0].contains("max 241 does not match")
+
+  test "matching bounds produce no violation":
+    let specs = registrySpecs(boundsKeys & boundsRegistry)
+    check boundViolations(specs, seedRows(boundsSeed)).len == 0
+
+  test "a bound in the seed that the registry does not declare is a violation":
+    let rows = seedRows(boundsSeed)
+    var adjusted: seq[SeedRow] = @[]
+    for row in rows:
+      if row.key == "rating.opponent_clamp":
+        adjusted.add(SeedRow(key: row.key, kind: row.kind, hasBounds: true,
+          minValue: 1.0, maxValue: 2.0))
+      else:
+        adjusted.add(row)
+    let found = boundViolations(registrySpecs(boundsKeys & boundsRegistry),
+      adjusted)
+    check found.len == 1
+    check found[0].contains("rating.opponent_clamp declares no bounds")
+
+  test "a registry key with no seed row is a violation":
+    let rows = seedRows(boundsSeed)
+    var kept: seq[SeedRow] = @[]
+    for row in rows:
+      if row.key != "session.slot_minutes_default":
+        kept.add(row)
+    let found = boundViolations(registrySpecs(boundsKeys & boundsRegistry),
+      kept)
+    check found.len == 1
+    check found[0].contains("session.slot_minutes_default has no row in")

@@ -3,7 +3,6 @@ import rules
 import scan_constants
 
 const roots = ["apps", "modules", "shared", "tools"]
-const seedPath = "db/seeds/platform_config.sql"
 const allowlistPath = "tools/archcheck/allowlist_constants.txt"
 
 proc at(base, relative: string): string =
@@ -15,10 +14,27 @@ proc main() =
   var violations: seq[string] = @[]
   var scanned = 0
   # The seed is what the database holds, so it is the reference the code must
-  # not repeat. A missing seed means a partial checkout, not a clean tree.
-  let values =
-    if fileExists(at(base, seedPath)): seededValues(readFile(at(base, seedPath)))
-    else: @[]
+  # not repeat and the bounds must match. A missing seed means a partial
+  # checkout, not a clean tree: the guard fails instead of reporting a scan it
+  # did not perform.
+  let seedFile = at(base, seedPath)
+  if not fileExists(seedFile):
+    stderr.writeLine "archcheck: missing seed file: " & seedFile
+    quit(1)
+  let registryFile = at(base, registryPath)
+  if not fileExists(registryFile):
+    stderr.writeLine "archcheck: missing config registry: " & registryFile
+    quit(1)
+  let seedSql = readFile(seedFile)
+  let values = seededValues(seedSql)
+  let specs = registrySpecs(readFile(registryFile))
+  let rows = seedRows(seedSql)
+  # A parser that reads nothing would compare nothing and still print `ok`.
+  if specs.len == 0 or rows.len == 0:
+    stderr.writeLine "archcheck: no config keys read from " & registryPath &
+      " / " & seedPath
+    quit(1)
+  violations.add(boundViolations(specs, rows))
   let allowed =
     if fileExists(at(base, allowlistPath)):
       loadAllowlist(readFile(at(base, allowlistPath)))
