@@ -105,6 +105,20 @@ proc create*(db: Db, communityId, name, gender: string, tier: string): CreateRes
   else:
     CreateResult(status: pcDuplicate)
 
+proc playerIdForName*(conn: DbConn, communityId, name: string): string =
+  ## Resolves a name to its player for a caller that only has names. Identity
+  ## is the generated `canonical_key` column, so both cases fit one statement:
+  ## a new name is inserted, an existing one keeps the spelling it was created
+  ## with. The no-op update is what makes `returning` fire on the conflict; a
+  ## plain `do nothing` would return no row.
+  conn.queryOne(
+    """insert into player.players (community_id, canonical_name)
+       values ($1::uuid, $2)
+       on conflict (community_id, canonical_key)
+         do update set canonical_name = player.players.canonical_name
+       returning id""",
+    @[textParam(communityId), textParam(name)]).get.getUuid("id")
+
 proc replaceAliases(conn: DbConn, communityId, playerId: string,
                     values: seq[string]) =
   discard conn.execUpdate(

@@ -178,6 +178,32 @@ suite "tournament store":
     check count(database, "tournament.matches") == 0
     check count(database, "tournament.pairs") == 0
 
+  test "a tournament name resolves to the player that already holds it":
+    # Name identity is the generated canonical_key, so the tournament may send
+    # any spelling that collapses to the same key.
+    discard database.execUpdate(
+      """insert into player.players (community_id, canonical_name, gender)
+         values ($1::uuid, '  Budi   Santoso ', 'M')""",
+      @[textParam(communityId)])
+
+    var pairs: seq[Pair] = @[]
+    for index in 1 .. 16:
+      pairs.add(Pair(id: "p" & $index,
+        name: "Player " & $(index * 2 - 1) & " & Player " & $(index * 2)))
+    pairs[0].name = "budi santoso & Player 2"
+    let body = classicJson(generateTournament("Name Cup", "2026-11-06", pairs, 7))
+    let (created, snapshot) = create(database, communityId, "", body)
+    check created == svOk
+
+    let rows = database.query(
+      """select canonical_name from player.players
+         where community_id = $1::uuid and canonical_key = 'budi santoso'""",
+      @[textParam(communityId)])
+    check rows.len == 1
+    # The stored row keeps the spelling it was created with.
+    check rows[0].get("canonical_name") == "  Budi   Santoso "
+    check remove(database, communityId, snapshot["id"].getStr())
+
   test "team creates, round-trips and patches one partai":
     let body = teamJson(teamSnapshot())
     let (created, snapshot) = create(database, communityId, "", body)

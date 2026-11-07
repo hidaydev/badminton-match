@@ -8,6 +8,7 @@
 
 import std/[json, options, strutils, tables, times]
 import db/db
+import player/store as playerStore
 import uuidv7
 import ./domain/classic
 import ./domain/team
@@ -316,22 +317,6 @@ proc list*(db: Db, communityId, format: string, limit, offset: int): seq[JsonNod
 
 # ── child writes ───────────────────────────────────────────────────────────
 
-proc playerId(conn: DbConn, communityId, name: string): string =
-  let lookup = """select id from player.players
-                  where community_id = $1::uuid
-                    and canonical_key = btrim(regexp_replace(lower($2), '\s+', ' ', 'g'))"""
-  let params = @[textParam(communityId), textParam(name)]
-  let found = conn.queryOne(lookup, params)
-  if found.isSome:
-    return found.get.getUuid("id")
-  let inserted = conn.queryOne(
-    """insert into player.players (community_id, canonical_name)
-       values ($1::uuid, $2) on conflict (community_id, canonical_key) do nothing
-       returning id""", params)
-  if inserted.isSome:
-    return inserted.get.getUuid("id")
-  conn.queryOne(lookup, params).get.getUuid("id")
-
 proc pickId(candidate: string, owned: Table[string, bool]): string =
   if candidate.len > 0 and owned.hasKey(candidate): candidate else: uuidv7()
 
@@ -356,8 +341,8 @@ proc writeClassic(conn: DbConn, communityId, tournamentId: string,
          values ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6::uuid)""",
       @[textParam(pairRow), textParam(communityId), textParam(tournamentId),
         textParam(pair.name),
-        textParam(playerId(conn, communityId, names[0])),
-        textParam(playerId(conn, communityId, names[1]))])
+        textParam(playerStore.playerIdForName(conn, communityId, names[0])),
+        textParam(playerStore.playerIdForName(conn, communityId, names[1]))])
   for groupId in GroupIds:
     for position, pairRef in data.groups[ord(groupId)]:
       let pairRow = pairMap.getOrDefault(pairRef)
@@ -412,7 +397,7 @@ proc writeTeam(conn: DbConn, communityId, tournamentId: string,
              (community_id, team_id, player_name, player_id, cls)
            values ($1::uuid, $2::uuid, $3, $4::uuid, $5)""",
         @[textParam(communityId), textParam(teamRow), textParam(player.name),
-          textParam(playerId(conn, communityId, player.name)),
+          textParam(playerStore.playerIdForName(conn, communityId, player.name)),
           textParam($player.cls)])
   for order, match in data.matches:
     let teamA = teamMap.getOrDefault(match.teamA)
