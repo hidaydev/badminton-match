@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useCommunity } from '../community/CommunityContext'
 import { t } from '../i18n'
@@ -7,6 +7,9 @@ import { createPlayer } from '../players/api'
 import { usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { LoadingState } from '../components/LoadingState'
+
+/** A search fires after this pause, so typing a name is one request. */
+const SEARCH_DEBOUNCE_MS = 300
 
 export default function PlayersPage() {
   const { slug = '' } = useParams<{ slug: string }>()
@@ -19,6 +22,28 @@ export default function PlayersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const query = searchParams.get('q') ?? ''
   const [draft, setDraft] = useState(query)
+  const [draftOf, setDraftOf] = useState(query)
+
+  // The URL is the source of truth: when it changes from the outside (back
+  // button, a Find press), the box follows. Adjusting state during render is
+  // the documented way to reset from a prop without an effect.
+  if (draftOf !== query) {
+    setDraftOf(query)
+    setDraft(query)
+  }
+
+  // Typing searches on its own, after a pause long enough that a fast typist
+  // does not issue a request per keystroke. The Find button stays for a search
+  // the moment it is typed.
+  useEffect(() => {
+    const next = draft.trim()
+    if (next === query) return
+    const timer = window.setTimeout(() => {
+      setSearchParams(next === '' ? {} : { q: next }, { replace: true })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [draft, query, setSearchParams])
+
   const { items, loading, loadingMore, error, hasMore, loadMore, reload } = usePlayers(
     slug === '' ? null : slug,
     query,

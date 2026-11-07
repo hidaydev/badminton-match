@@ -213,4 +213,22 @@ describe('players', () => {
     expect(await screen.findByRole('heading', { name: 'Ani' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: t('playerAdmin.claim') })).toBeNull()
   })
+
+  it('searches while typing, without pressing Find', async () => {
+    const anita = { ...ani, id: 'p2', name: 'Anita' }
+    mockFetch({
+      'GET /api/auth/me': () => ({ body: sessionUser }),
+      'GET /api/communities': () => ({ body: { items: [membership('member')] } }),
+      'GET /api/c/acme/players?limit=50': () => ({ body: { items: [ani] } }),
+      'GET /api/c/acme/players?q=Ani&limit=50': () => ({ body: { items: [anita] } }),
+    })
+
+    renderAt('/c/acme/players')
+
+    const search = await screen.findByLabelText(t('players.search'))
+    fireEvent.change(search, { target: { value: 'Ani' } })
+
+    expect(await screen.findByRole('link', { name: /Anita/ })).toBeInTheDocument()
+    expect(window.location.search).toBe('?q=Ani')
+  })
 })
