@@ -272,7 +272,7 @@ suite "security: IDOR":
     expectProblem(call(baseUrl, HttpPost,
       "/c/" & slugA & "/sessions/" & sessionB & "/swap", hostCookie,
       ifMatch = "1",
-      body = """{"kind":"slot","a":{"slot":1,"court":1},"b":{"slot":1,"court":2}}"""),
+      body = """{"type":"slot","a":{"slot":1,"court":1},"b":{"slot":1,"court":2}}"""),
       404, "NOT_FOUND")
     # Ingest would rate the approved session in B, and revert would answer 200
     # on B's draft: both are refusals only the scope check can make.
@@ -364,6 +364,13 @@ suite "security: IDOR":
     ## Settings and config carry no object id: the slug is the whole key, so
     ## this is the reverse direction of the cases above (an authenticated A
     ## admin on B's slug), and the only reason to refuse is the membership.
+    # B needs a row first: with no row at all, "the refusal changed nothing" is
+    # also true when the handler never looked, so the assertion would be vacuous.
+    discard database.execUpdate(
+      """insert into community.settings (community_id, values)
+         values ($1::uuid, '{"rating.score_target":25}'::jsonb)
+         on conflict (community_id) do update set values = excluded.values""",
+      @[textParam(otherId)])
     expectProblem(call(baseUrl, HttpPatch, "/c/" & slugB & "/settings",
       adminCookie, body = """{"rating.score_target":20}"""), 404, "NOT_FOUND")
     expectProblem(call(baseUrl, HttpGet, "/c/" & slugB & "/config", adminCookie),
@@ -372,7 +379,7 @@ suite "security: IDOR":
       """select values->>'rating.score_target' as target
          from community.settings where community_id = $1::uuid""",
       @[textParam(otherId)])
-    check stored.isNone or stored.get.getOpt("target").isNone
+    check stored.get.get("target") == "25"
 
 suite "security: role escalation":
   test "v1-red/v2-green: a member cannot create or change community data":
