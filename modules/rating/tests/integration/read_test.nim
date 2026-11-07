@@ -179,15 +179,18 @@ proc skipRoundZero(playerId: string) =
     @[textParam(communityId), textParam(playerId)])
 
 proc addClassicTournament(age: int, withLevel: bool, winnerScore,
-                          loserScore: int, sideA, sideB: seq[string]): string =
-  ## One completed classic bracket: a single final between two pairs. The
-  ## rating event points at the tournament, exactly like the ETL writes it.
+                          loserScore: int, sideA, sideB: seq[string],
+                          format = "classic"): string =
+  ## One completed bracket: a single final between two pairs. `format` lets a
+  ## test mark the header `team` while keeping the classic match rows, so a
+  ## classic-only read can be checked against a header its format rejects.
   let tournamentId = database.queryOne(
     """insert into tournament.tournaments
          (community_id, name, status, format, event_date)
-       values ($1::uuid, 'Read Cup', 'completed', 'classic', $2::date - $3::int)
+       values ($1::uuid, 'Read Cup', 'completed', $4, $2::date - $3::int)
        returning id""",
-    @[textParam(communityId), textParam(asOf), intParam(age.int64)]).get.get("id")
+    @[textParam(communityId), textParam(asOf), intParam(age.int64),
+      textParam(format)]).get.get("id")
   let pairA = database.queryOne(
     """insert into tournament.pairs
          (community_id, tournament_id, display_name, player_a_id, player_b_id)
@@ -378,6 +381,34 @@ suite "ranking read":
     # worth 250 * (0.5 + 0.5 * 11/42), rounded once at the edge.
     check entry.get.points == int(round(250.0 * (0.5 + 0.5 * 11.0 / 42.0)))
 
+  test "the tournament lists are three deep and classic only":
+    let main = newPlayer("Cup Main")
+    let mates = @[newPlayer("Cup Mate 1"), newPlayer("Cup Mate 2"),
+      newPlayer("Cup Mate 3"), newPlayer("Cup Mate 4")]
+    let rivals = @[newPlayer("Cup Rival 1"), newPlayer("Cup Rival 2")]
+    # Four classic finals: four distinct partners, every count equal, so the
+    # cap keeps the three names the count-then-name order puts first.
+    for index, mate in mates:
+      discard addClassicTournament(index + 1, withLevel = false,
+        winnerScore = 21, loserScore = 10, @[main, mate],
+        @[rivals[index mod 2], rivals[(index + 1) mod 2]])
+    # A team-format header whose classic match rows exist anyway. Its sort-first
+    # names would take a slot if the format filter were missing.
+    discard addClassicTournament(9, withLevel = false, winnerScore = 21,
+      loserScore = 10, @[main, newPlayer("Cup A Team Mate")],
+      @[newPlayer("Cup A Team Rival 1"), newPlayer("Cup A Team Rival 2")],
+      format = "team")
+    let tournament = stats(database, communityId, main).get["tournamentStats"]
+    let partners = tournament["topPartners"]
+    check partners.len == 3
+    check partners[0]["name"].getStr() == "Cup Mate 1"
+    check partners[2]["name"].getStr() == "Cup Mate 3"
+    # The team tournament reaches neither list: the partners and the opponents
+    # share one query, so one format filter covers both.
+    check socialCount(partners, "Cup A Team Mate") == 0
+    check socialCount(tournament["topOpponents"], "Cup A Team Rival 1") == 0
+    check tournament["topOpponents"].len == 2
+
   test "a skipped or absent player does not score that game":
     let roster = @[newPlayer("Skip A1"), newPlayer("Skip A2"),
       newPlayer("Skip B1"), newPlayer("Skip B2")]
@@ -490,6 +521,26 @@ suite "ranking read":
     let sideB = stats(database, communityId, roster[2]).get
     check socialCount(sideB["topPartners"], "Soc L") == 2
     check socialCount(sideB["topOpponents"], "Soc I") == 2
+
+  test "the social lists are capped at three, most games first":
+    let main = newPlayer("Cap Main")
+    let partners = @[newPlayer("Cap P1"), newPlayer("Cap P2"),
+      newPlayer("Cap P3"), newPlayer("Cap P4")]
+    let opponents = @[newPlayer("Cap O1"), newPlayer("Cap O2")]
+    # P1 and P2 share two sessions; P3 and P4 share one each. The cap keeps the
+    # two four-game partners and the first of the two-game tie by name.
+    addSession(20, @[main, partners[0], opponents[0], opponents[1]])
+    addSession(21, @[main, partners[0], opponents[0], opponents[1]])
+    addSession(22, @[main, partners[1], opponents[0], opponents[1]])
+    addSession(23, @[main, partners[1], opponents[0], opponents[1]])
+    addSession(24, @[main, partners[2], opponents[0], opponents[1]])
+    addSession(25, @[main, partners[3], opponents[0], opponents[1]])
+    let rows = stats(database, communityId, main).get["topPartners"]
+    check rows.len == 3
+    check rows[0]["name"].getStr() == "Cap P1"
+    check rows[1]["name"].getStr() == "Cap P2"
+    check rows[2]["name"].getStr() == "Cap P3"
+    check rows[2]["count"].getInt() == 2
 
   test "the session list is capped at the newest hundred":
     let player = newPlayer("List Guy")

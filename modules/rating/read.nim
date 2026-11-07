@@ -202,6 +202,10 @@ const approvedSessionFilter =
   """s.approved_at is not null
      and s.status in ('locked', 'published', 'completed', 'archived')"""
 
+const careerListCap = 3
+  ## The career page shows a short top list, so each social tally stops at the
+  ## three names that matter rather than the full ranking.
+
 proc playerHistory(db: Db, communityId, playerId: string,
                    limit = 50): JsonNode =
   ## Recent played session games, newest first. Only an approved session is a
@@ -307,10 +311,10 @@ proc playerSessions(db: Db, communityId, playerId: string,
 
 proc playerSocial(db: Db, communityId, playerId: string,
                   opponentsOnly: bool): JsonNode =
-  ## Partner and opponent counts over played session games. The player's side
-  ## decides both the teammate and the win flag. A player who skipped a game sat
-  ## that game out, so it is neither theirs nor a partner or opponent of anyone
-  ## else in it.
+  ## Partner and opponent counts over played session games, at most three names
+  ## ordered by games together. The player's side decides both the teammate and
+  ## the win flag. A player who skipped a game sat that game out, so it is
+  ## neither theirs nor a partner or opponent of anyone else in it.
   result = newJArray()
   let gamesCte =
     """with games as (
@@ -362,7 +366,7 @@ proc playerSocial(db: Db, communityId, playerId: string,
            and k.player_id = opp.player_id)
        group by p.canonical_name
        order by count desc, p.canonical_name asc
-       limit 5"""
+       limit """ & $careerListCap
     else:
       gamesCte & """
        select p.canonical_name as name, count(*)::int as count,
@@ -384,7 +388,7 @@ proc playerSocial(db: Db, communityId, playerId: string,
              and k.player_id = games.mate)
        group by p.canonical_name
        order by count desc, p.canonical_name asc
-       limit 5"""
+       limit """ & $careerListCap
   for row in db.query(sql, @[textParam(communityId), textParam(playerId)]):
     result.add(%*{
       "name": row.get("name"),
@@ -395,9 +399,12 @@ proc playerSocial(db: Db, communityId, playerId: string,
 
 proc tournamentPartners(db: Db, communityId, playerId: string,
                         opponentsOnly: bool): JsonNode =
-  ## Classic tournament pairs only. A team-format partner depends on the
-  ## partai class mapping, which lives in the tournament domain; rather than
-  ## duplicate it in SQL this read returns no team social rows.
+  ## Classic tournament pairs only, at most three names ordered by games
+  ## together. The classic filter is on the tournament header, so a team-format
+  ## tournament never contributes a social row even if its matches landed in the
+  ## classic tables. A real team-format partner depends on the partai class
+  ## mapping, which lives in the tournament domain; rather than duplicate it in
+  ## SQL this read returns no team social rows.
   result = newJArray()
   let classicCte =
     """with classic as (
@@ -412,6 +419,9 @@ proc tournamentPartners(db: Db, communityId, playerId: string,
                      then array[pb.player_a_id, pb.player_b_id]
                      else array[pa.player_a_id, pa.player_b_id] end as opps
          from tournament.matches m
+         join tournament.tournaments t
+           on t.community_id = m.community_id and t.id = m.tournament_id
+          and t.format = 'classic'
          join tournament.pairs pa on pa.community_id = m.community_id
                                   and pa.id = m.pair_a_id
          join tournament.pairs pb on pb.community_id = m.community_id
@@ -434,7 +444,7 @@ proc tournamentPartners(db: Db, communityId, playerId: string,
          and p.community_id = $1::uuid
        group by p.canonical_name
        order by count desc, p.canonical_name asc
-       limit 5"""
+       limit """ & $careerListCap
     else:
       classicCte & """
        select p.canonical_name as name, count(*)::int as count,
@@ -447,7 +457,7 @@ proc tournamentPartners(db: Db, communityId, playerId: string,
        where classic.mate is not null
        group by p.canonical_name
        order by count desc, p.canonical_name asc
-       limit 5"""
+       limit """ & $careerListCap
   for row in db.query(sql, @[textParam(communityId), textParam(playerId)]):
     result.add(%*{
       "name": row.get("name"),
