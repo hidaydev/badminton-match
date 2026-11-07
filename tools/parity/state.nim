@@ -137,7 +137,7 @@ proc selftest*(db: Db, state: StateFile): seq[string] =
   let (_, before) = compute(db, probe)
   var rollback = false
   try:
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       let changed = conn.execUpdate(state.selftestSql)
       if changed != 1:
         raise newException(ValueError,

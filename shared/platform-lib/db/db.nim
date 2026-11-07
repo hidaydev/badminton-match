@@ -274,8 +274,3 @@ proc tx*(db: Db, body: proc(conn: DbConn)) =
   discard txRet(db, proc(conn: DbConn): bool =
     body(conn)
     true)
-
-proc tx*[T](db: Db, body: proc(conn: DbConn): T): T =
-  ## Legacy value-returning form, still used by the CLI tools that pass a
-  ## sentinel. Application code uses `tx` or `txRet` so the boundary is visible.
-  txRet(db, body)

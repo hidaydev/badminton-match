@@ -483,9 +483,9 @@ proc resetFixture(options: Options) =
     fail "fixture not found: " & fixture
   let database = openParityDb(options)
   defer: database.close()
-  discard database.tx(proc(conn: DbConn): int =
+  database.tx(proc(conn: DbConn) =
     conn.execScript(readFile(fixture))
-    1)
+  )
   let keyring = loadKeyring(getEnv("SHARE_CODE_KEYS"),
     getEnv("SHARE_CODE_ACTIVE_KEY_ID"))
   let (keyId, encrypted) = encryptWith(keyring, fixtureShareCode,

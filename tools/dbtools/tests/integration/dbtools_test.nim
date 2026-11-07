@@ -38,7 +38,7 @@ suite "dbtools":
   teardown:
     discard db.execUpdate("drop schema if exists dbtools cascade")
     if savedMigrations.len > 0 or savedSeeds.len > 0:
-      discard db.tx(proc(conn: DbConn): int =
+      db.tx(proc(conn: DbConn) =
         conn.execScript(ledgerSchema)
         for (version, sum) in savedMigrations:
           discard conn.execUpdate(
@@ -48,7 +48,7 @@ suite "dbtools":
           discard conn.execUpdate(
             "insert into dbtools.seed_files (name, checksum) values ($1, $2)",
             @[textParam(name), textParam(sum)])
-        1)
+      )
     db.close()
 
   test "migrate is idempotent and records checksums":

@@ -135,7 +135,7 @@ proc main() =
         "kind": kind, "championPoints": champion,
         "enabled": enabled, "roundRatios": plannedRatios})
       return
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       discard conn.execUpdate(
         """insert into rating.levels
              (community_id, kind, champion_points, round_ratios, enabled,
@@ -152,7 +152,7 @@ proc main() =
                  updated_at = now()""",
         @[textParam(communityId), textParam(kind), textParam(championRaw),
           textParam(ratios), textParam(if enabled: "true" else: "false")])
-      1)
+    )
     echo $(%*{"community": slug, "kind": kind, "action": action,
       "championPoints": champion, "enabled": enabled,
       "roundRatios": plannedRatios})
@@ -167,12 +167,12 @@ proc main() =
         "action": (if before.isSome: "delete" else: "noop")})
       return
     var deleted = 0
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       deleted = conn.execUpdate(
         """delete from rating.levels
            where community_id = $1::uuid and kind = $2""",
         @[textParam(communityId), textParam(kind)])
-      1)
+    )
     echo $(%*{"community": slug, "kind": kind, "deleted": deleted})
   else:
     fail "unknown command: " & command

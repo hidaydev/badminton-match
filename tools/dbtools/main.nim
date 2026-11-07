@@ -64,7 +64,7 @@ proc migrate*(db: Db, dir: string) =
   if migrations.len == 0:
     fail "no .sql files in " & dir
 
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     # One transaction and one advisory lock: two deploys cannot interleave.
     discard conn.query("select pg_advisory_xact_lock(hashtext('majadu-dbtools'))")
     ensureLedger(conn)
@@ -86,13 +86,12 @@ proc migrate*(db: Db, dir: string) =
         "insert into dbtools.schema_migrations (version, checksum) values ($1, $2)",
         @[textParam(migration.version), textParam(migration.checksum)],
       )
-    1
   )
   echo "dbtools: migrated " & $migrations.len & " file(s)"
 
 proc verifyProblems*(db: Db, dir: string): seq[string] =
   let migrations = loadMigrations(dir)
-  let rows = db.tx(proc(conn: DbConn): seq[(string, string)] =
+  let rows = db.txRet(proc(conn: DbConn): seq[(string, string)] =
     ensureLedger(conn)
     applied(conn)
   )
@@ -124,7 +123,7 @@ proc seed*(db: Db, dir: string) =
   let files = sqlFiles(dir)
   if files.len == 0:
     fail "no .sql files in " & dir
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     discard conn.query("select pg_advisory_xact_lock(hashtext('majadu-dbtools'))")
     ensureLedger(conn)
     for path in files:
@@ -145,7 +144,6 @@ proc seed*(db: Db, dir: string) =
              set checksum = excluded.checksum, applied_at = excluded.applied_at""",
         @[textParam(name), textParam(sum)],
       )
-    1
   )
   echo "dbtools: seeded " & $files.len & " file(s)"
 

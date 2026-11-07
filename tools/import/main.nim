@@ -147,7 +147,7 @@ proc importPlayers(source, target: Db, communityId: string, dryRun: bool): Resul
   ## with the same name collapse into one player; the second old id is mapped to
   ## the first new id, which is what "collapsed" counts.
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select id::text as id, canonical_name, coalesce(tier, '') as tier,
                 gender, created_at::text as created_at,
@@ -191,13 +191,13 @@ proc importPlayers(source, target: Db, communityId: string, dryRun: bool): Resul
       else:
         inc stats.created
       mapPut(conn, communityId, "player", oldId, newId)
-    1)
+  )
   stats
 
 proc importAliases(source, target: Db, communityId: string,
                    dryRun: bool): Result =
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select a.alias_name, a.player_id::text as player_id,
                 a.created_at::text as created_at
@@ -216,7 +216,7 @@ proc importAliases(source, target: Db, communityId: string,
         @[textParam(communityId), textParam(player.get), textParam(row.get("alias_name")),
           textParam(row.get("created_at"))])
       if changed == 1: inc stats.created else: inc stats.updated
-    1)
+  )
   stats
 
 proc v2Source(v1Source: string): string =
@@ -244,7 +244,7 @@ proc calendarDate*(db: Db, instant, timezone: string): string =
 proc importSessions(source, target: Db, communityId: string,
                     dryRun: bool): Result =
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select s.id::text as id, s.title,
                 s.session_date::text as session_date,
@@ -303,13 +303,13 @@ proc importSessions(source, target: Db, communityId: string,
             textParam(row.get("created_at")), textParam(row.get("updated_at"))])
         inc stats.created
       mapPut(conn, communityId, "session", oldId, newId)
-    1)
+  )
   stats
 
 proc importCourts(source, target: Db, communityId: string,
                   dryRun: bool): Result =
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select internal_id::text as id, session_id::text as session_id,
                 court_index, court_name, start_time::text as start_time,
@@ -338,7 +338,7 @@ proc importCourts(source, target: Db, communityId: string,
           textParam(row.get("start_time")), textParam(row.get("end_time"))])
       mapPut(conn, communityId, "court", row.get("id"), newId)
       if mapped.isSome: inc stats.updated else: inc stats.created
-    1)
+  )
   stats
 
 proc importParticipants(source, target: Db, communityId: string,
@@ -347,7 +347,7 @@ proc importParticipants(source, target: Db, communityId: string,
   ## are real players, so those rows are counted as skipped rather than turned
   ## into somebody. The games that named them keep an empty side.
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select internal_id::text as id, session_id::text as session_id,
                 coalesce(player_id::text, '') as player_id, is_absent
@@ -405,7 +405,7 @@ proc importParticipants(source, target: Db, communityId: string,
             textParam(if row.get("is_absent") == "t": "true" else: "false")])
         inc stats.collapsed
       mapPut(conn, communityId, "participant", row.get("id"), participantId)
-    1)
+  )
   stats
 
 proc importGames(source, target: Db, communityId: string,
@@ -414,7 +414,7 @@ proc importGames(source, target: Db, communityId: string,
   ## four columns on the game itself. The slot is the position, so the side is
   ## `side_a1`, `side_a2`, `side_b1` or `side_b2`.
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for sessionRow in source.query(
       "select id::text as id from bm.sessions order by session_date, id"):
       let oldSessionId = sessionRow.get("id")
@@ -549,7 +549,7 @@ proc importGames(source, target: Db, communityId: string,
               @[textParam(communityId), textParam(session.get),
                 textParam(row.get("slot_index")), textParam(row.get("court_index")),
                 textParam(mappedPlayer.get)])
-    1)
+  )
   stats
 
 const classicRounds = {"group": 0, "qf": 1, "sf": 2, "3rd": 3, "final": 4}.toTable
@@ -580,7 +580,7 @@ proc tournamentStatus(source: Db, oldId, format: string): string =
 proc importTournamentHeaders(source, target: Db, communityId: string,
                              dryRun: bool): Result =
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select id::text as id, share_code, name, event_date::text as event_date,
                 format, version, created_at::text as created_at,
@@ -623,7 +623,7 @@ proc importTournamentHeaders(source, target: Db, communityId: string,
       # The share code is how a v1 rating source named a tournament, so mapping
       # it lets the source resolve without a second lookup table.
       mapPut(conn, communityId, "tournament_code", row.get("share_code"), newId)
-    1)
+  )
   stats
 
 proc importClassicChildren(source: Db, conn: DbConn, communityId,
@@ -853,7 +853,7 @@ proc importTournamentChildren(source, target: Db, communityId: string,
   for row in source.query(
     "select id::text as id, format from bm.tournaments order by event_date, id"):
     rows.add(row)
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in rows:
       let newId = mapLookup(conn, communityId, "tournament", row.get("id"))
       if newId.isNone: continue
@@ -863,7 +863,7 @@ proc importTournamentChildren(source, target: Db, communityId: string,
       else:
         importClassicChildren(source, conn, communityId, row.get("id"),
           newId.get, dryRun, stats)
-    1)
+  )
   stats
 
 proc communitySettings(db: Db, communityId: string): JsonNode =
@@ -886,7 +886,7 @@ proc importRatingSources*(source, target: Db, communityId: string,
   ## its numbers cannot be turned into v2 deltas. What is copied is the sign-off,
   ## and v2 then recomputes the events from the sessions it just imported.
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select source_id, source_kind, finalized, ingested_at::text as ingested_at
          from bm.rating_sources order by source_id"""):
@@ -926,7 +926,7 @@ proc importRatingSources*(source, target: Db, communityId: string,
           textParam(if row.get("finalized") == "t": row.get("ingested_at") else: ""),
           textParam(row.get("ingested_at"))])
       if present.isSome: inc stats.updated else: inc stats.created
-    1)
+  )
   stats
 
 proc importRatingLevels*(source, target: Db, communityId: string,
@@ -935,7 +935,7 @@ proc importRatingLevels*(source, target: Db, communityId: string,
   ## format and the ratio of every place. The board multiplies the two, so the
   ## ladder is copied row for row instead of being folded into deltas.
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select kind, champion_points::text as champion,
                 coalesce(round_ratios::text, '{}') as ratios, enabled
@@ -961,7 +961,7 @@ proc importRatingLevels*(source, target: Db, communityId: string,
           textParam(row.get("champion")), textParam(row.get("ratios")),
           textParam(if row.get("enabled") == "t": "true" else: "false")])
       if present.isSome: inc stats.updated else: inc stats.created
-    1)
+  )
   stats
 
 proc rebuildRating*(target: Db, communityId: string): tuple[events, deltas: int] =
@@ -1047,7 +1047,7 @@ proc importAchievements*(source, target: Db, communityId: string,
   # have written itself. A v1 badge is history: the games behind it may not all
   # have survived into v2, and losing the badge would erase what the members earned.
   const importedMeta = """{"source":"v1"}"""
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select pa.id::text as id, pa.player_id::text as player_id,
                 pa.achievement_key, pa.earned_at::text as earned_at,
@@ -1120,7 +1120,7 @@ proc importAchievements*(source, target: Db, communityId: string,
         if changed == 1: inc stats.created else: inc stats.updated
       if awarded == 0:
         inc stats.skipped
-    1)
+  )
   stats
 
 proc backfillAchievements*(target: Db, communityId: string): Result =
@@ -1196,7 +1196,7 @@ proc importSnapshots(source, target: Db, communityId: string,
   ## the most recent snapshot older than its anchor. The stored number is the
   ## points total, which is what v2's `rating.snapshots.rating` carries.
   var stats = Result()
-  discard target.tx(proc(conn: DbConn): int =
+  target.tx(proc(conn: DbConn) =
     for row in source.query(
       """select as_of::text as as_of, player_id::text as player_id,
                 points::int as points
@@ -1223,7 +1223,7 @@ proc importSnapshots(source, target: Db, communityId: string,
         @[textParam(communityId), textParam(player.get),
           textParam(row.get("as_of")), intParam(parseInt(row.get("points")))])
       if existed.isSome: inc stats.updated else: inc stats.created
-    1)
+  )
   stats
 
 proc verifySnapshots(source, target: Db, communityId: string): seq[string] =
