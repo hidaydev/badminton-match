@@ -5,6 +5,8 @@ import type { CommunityRole } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
+import { ErrorText } from '../components/ErrorText'
+import { Field, Input } from '../components/Field'
 import { createCommunity } from '../community/ownerApi'
 import type { CreatedCommunity } from '../community/ownerApi'
 
@@ -112,9 +114,7 @@ export default function SetupPage() {
         >
           <h2 className="text-sm font-semibold text-fg">{t('setup.create')}</h2>
           {error !== null && (
-            <p role="alert" className="mt-2 text-sm text-error">
-              {error}
-            </p>
+            <ErrorText className="mt-2">{error}</ErrorText>
           )}
           {created !== null && (
             <p role="status" className="mt-2 text-sm text-fg">
@@ -123,45 +123,37 @@ export default function SetupPage() {
             </p>
           )}
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="text-xs text-fg-dim">
-              {t('setup.slug')}
-              <input
+            <Field label={t('setup.slug')}>
+              <Input
                 required
                 value={slug}
                 onChange={(event) => setSlug(event.target.value)}
                 pattern="[a-z0-9-]{2,40}"
                 placeholder={t('setup.slug.placeholder')}
-                className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
               />
-            </label>
-            <label className="text-xs text-fg-dim">
-              {t('setup.name')}
-              <input
+            </Field>
+            <Field label={t('setup.name')}>
+              <Input
                 required
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
               />
-            </label>
-            <label className="text-xs text-fg-dim">
-              {t('setup.adminEmail')}
-              <input
+            </Field>
+            <Field label={t('setup.adminEmail')}>
+              <Input
                 required
                 type="email"
                 value={adminEmail}
                 onChange={(event) => setAdminEmail(event.target.value)}
-                className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
               />
-            </label>
-            <label className="text-xs text-fg-dim">
-              {t('setup.timezone')}
-              <input
+            </Field>
+            <Field label={t('setup.timezone')}>
+              <Input
                 value={timezone}
                 onChange={(event) => setTimezone(event.target.value)}
                 placeholder={t('setup.timezone.placeholder')}
-                className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
               />
-            </label>
+            </Field>
           </div>
           <p className="mt-2 text-xs text-fg-dim">{t('setup.adminEmail.hint')}</p>
           <button

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { t } from '../i18n'
+import { Field, Input } from '../components/Field'
 import { requestToJoin } from './api'
 
 /**
@@ -47,9 +48,8 @@ export default function JoinRequestCard({
           void submit()
         }}
       >
-        <label htmlFor="join-slug" className="min-w-0 flex-1 text-xs text-fg-dim">
-          {t('join.slug')}
-          <input
+        <Field label={t('join.slug')} className="min-w-0 flex-1">
+          <Input
             id="join-slug"
             type="text"
             autoComplete="off"
@@ -61,9 +61,9 @@ export default function JoinRequestCard({
               onSlugChange(event.target.value)
               setSent(false)
             }}
-            className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
+            className="disabled:opacity-60"
           />
-        </label>
+        </Field>
         <button
           type="submit"
           disabled={sending}

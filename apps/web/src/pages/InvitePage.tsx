@@ -4,6 +4,7 @@ import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
 import { acceptInvite } from '../community/api'
+import { ErrorText } from '../components/ErrorText'
 import { LoadingState } from '../components/LoadingState'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
@@ -128,9 +129,7 @@ export default function InvitePage() {
         )}
 
         {error !== null && (
-          <p role="alert" aria-live="polite" className="mt-3 text-sm text-error">
-            {t(error)}
-          </p>
+          <ErrorText className="mt-3">{t(error)}</ErrorText>
         )}
       </section>
     </main>

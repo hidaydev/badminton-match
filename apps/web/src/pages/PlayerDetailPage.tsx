@@ -17,6 +17,8 @@ import type { PlayerClaim } from '../players/api'
 import { usePlayerDetail, usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { formatDay } from '../utils/day'
+import { ErrorText } from '../components/ErrorText'
+import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
 
 type Run = (action: () => Promise<unknown>) => Promise<void>
@@ -112,14 +114,10 @@ export default function PlayerDetailPage() {
 
       {loading && <LoadingState label={t('app.loading')} rows={1} />}
       {error === 'notFound' && (
-        <p role="alert" className="mt-2 text-sm text-error">
-          {t('playerAdmin.error.notFound')}
-        </p>
+        <ErrorText className="mt-2">{t('playerAdmin.error.notFound')}</ErrorText>
       )}
       {error === 'failed' && (
-        <p role="alert" className="mt-2 text-sm text-error">
-          {t('playerAdmin.error.load')}
-        </p>
+        <ErrorText className="mt-2">{t('playerAdmin.error.load')}</ErrorText>
       )}
 
       {player !== null && (
@@ -146,9 +144,7 @@ export default function PlayerDetailPage() {
           </Link>
 
           {actionError !== null && (
-            <p role="alert" className="mt-3 text-sm text-error">
-              {actionError}
-            </p>
+            <ErrorText className="mt-3">{actionError}</ErrorText>
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -252,53 +248,42 @@ function EditPlayer({ slug, player, busy, onRun }: EditProps) {
         {t('playerAdmin.edit')}
       </summary>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="text-xs text-fg-dim">
-          {t('players.add.name')}
-          <input
+        <Field label={t('players.add.name')}>
+          <Input
             value={name}
             onChange={(event) => setName(event.target.value)}
             maxLength={80}
-            className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
           />
-        </label>
-        <label className="text-xs text-fg-dim">
-          {t('players.add.gender')}
-          <select
+        </Field>
+        <Field label={t('players.add.gender')}>
+          <Select
             value={gender}
             onChange={(event) => setGender(event.target.value === 'F' ? 'F' : 'M')}
-            className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
           >
             <option value="M">{t('player.gender.male')}</option>
             <option value="F">{t('player.gender.female')}</option>
-          </select>
-        </label>
-        <label className="text-xs text-fg-dim">
-          {t('players.add.tier')}
-          <select
-            value={tier}
-            onChange={(event) => setTier(event.target.value)}
-            className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
-          >
+          </Select>
+        </Field>
+        <Field label={t('players.add.tier')}>
+          <Select value={tier} onChange={(event) => setTier(event.target.value)}>
             <option value="">{t('players.tier.none')}</option>
             {TIERS.map((value) => (
               <option key={value} value={value}>
                 {value}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="text-xs text-fg-dim">
-          {t('players.add.aliases')}
-          <input
+          </Select>
+        </Field>
+        <Field label={t('players.add.aliases')}>
+          <Input
             value={aliases}
             onChange={(event) => {
               setAliases(event.target.value)
               setAliasesTouched(true)
             }}
             placeholder={t('playerAdmin.aliases.keep')}
-            className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
           />
-        </label>
+        </Field>
       </div>
       <button
         type="button"
@@ -372,14 +357,9 @@ function ClaimRow({ slug, playerId, claim, claimant, admin, own, busy, onRun }: 
 
       {admin && !own && claim.status === 'approved' && (
         <div className="mt-2 flex flex-wrap items-end gap-2">
-          <label className="min-w-0 flex-1 text-xs text-fg-dim">
-            {t('playerAdmin.decide.reason')}
-            <input
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
-            />
-          </label>
+          <Field label={t('playerAdmin.decide.reason')} className="min-w-0 flex-1">
+            <Input value={reason} onChange={(event) => setReason(event.target.value)} />
+          </Field>
           <button
             type="button"
             disabled={busy || reason.trim() === ''}
@@ -434,21 +414,16 @@ function MergePanel({
       </summary>
       <p className="mt-2 text-xs text-fg-dim">{t('playerAdmin.merge.hint')}</p>
       <div className="mt-2 flex flex-wrap items-end gap-2">
-        <label className="min-w-0 flex-1 text-xs text-fg-dim">
-          {t('playerAdmin.merge.source')}
-          <select
-            value={source}
-            onChange={(event) => setSource(event.target.value)}
-            className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
-          >
+        <Field label={t('playerAdmin.merge.source')} className="min-w-0 flex-1">
+          <Select value={source} onChange={(event) => setSource(event.target.value)}>
             <option value="">{t('playerAdmin.merge.pick')}</option>
             {others.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>
                 {candidate.name}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
         <button
           type="button"
           disabled={busy || source === ''}
@@ -512,9 +487,7 @@ function DeletePanel({
     >
       <p className="text-sm text-fg-dim">{t('playerAdmin.delete.confirm')}</p>
       {error !== null && (
-        <p role="alert" className="mt-2 text-sm text-error">
-          {error}
-        </p>
+        <ErrorText className="mt-2">{error}</ErrorText>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
         <button

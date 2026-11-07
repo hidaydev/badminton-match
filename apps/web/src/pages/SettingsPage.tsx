@@ -20,6 +20,8 @@ import { decideClaim } from '../players/api'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatDay } from '../utils/day'
+import { ErrorText } from '../components/ErrorText'
+import { Field, Input } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
 
 type Data = {
@@ -105,9 +107,7 @@ export default function SettingsPage() {
 
       {loading && <LoadingState label={t('app.loading')} rows={1} />}
       {error !== null && (
-        <p role="alert" aria-live="polite" className="mt-4 text-sm text-error">
-          {error}
-        </p>
+        <ErrorText className="mt-4">{error}</ErrorText>
       )}
       {current !== null && (
         <>
@@ -220,11 +220,7 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
     return <LoadingState label={t('community.settings')} rows={2} />
   }
   if (error !== null && config === null) {
-    return (
-      <p role="alert" className="mt-4 text-sm text-error">
-        {t('community.error.load')}
-      </p>
-    )
+    return <ErrorText className="mt-4">{t('community.error.load')}</ErrorText>
   }
   if (config === null) return null
 
@@ -512,16 +508,14 @@ function Invites({
           })
         }}
       >
-        <label className="min-w-0 flex-1 text-xs text-fg-dim">
-          {t('admin.invites.email')}
-          <input
+        <Field label={t('admin.invites.email')} className="min-w-0 flex-1">
+          <Input
             type="email"
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
           />
-        </label>
+        </Field>
         <label className="text-xs text-fg-dim">
           {t('admin.invites.role')}
           <select
@@ -746,9 +740,7 @@ function PendingClaims({
         </ul>
       )}
       {failure !== null && (
-        <p role="alert" aria-live="polite" className="mt-2 text-sm text-error">
-          {failure}
-        </p>
+        <ErrorText className="mt-2">{failure}</ErrorText>
       )}
     </section>
   )

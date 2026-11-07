@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { ErrorText } from '../components/ErrorText'
 import { t } from '../i18n'
 
 /** The Google mark, drawn once so the button needs no network request. */
@@ -88,9 +89,7 @@ export default function LoginPage() {
           </button>
 
           {failed && (
-            <p role="alert" aria-live="polite" className="mt-4 text-sm text-error">
-              {t('login.error')}
-            </p>
+            <ErrorText className="mt-4">{t('login.error')}</ErrorText>
           )}
         </div>
 

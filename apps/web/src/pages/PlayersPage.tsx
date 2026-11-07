@@ -6,6 +6,8 @@ import { TIERS } from '../players/api'
 import { createPlayer } from '../players/api'
 import { usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
+import { ErrorText } from '../components/ErrorText'
+import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
 
 /** A search fires after this pause, so typing a name is one request. */
@@ -90,16 +92,14 @@ export default function PlayersPage() {
           setSearchParams(next === '' ? {} : { q: next }, { replace: true })
         }}
       >
-        <label className="min-w-0 flex-1 text-xs text-fg-dim">
-          {t('players.search')}
-          <input
+        <Field label={t('players.search')} className="min-w-0 flex-1">
+          <Input
             type="search"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             placeholder={t('players.search.placeholder')}
-            className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
           />
-        </label>
+        </Field>
         <button
           type="submit"
           className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
@@ -110,9 +110,7 @@ export default function PlayersPage() {
 
       {loading && <LoadingState label={t('app.loading')} rows={1} />}
       {error !== null && (
-        <p role="alert" aria-live="polite" className="mt-4 text-sm text-error">
-          {t('players.error.load')}
-        </p>
+        <ErrorText className="mt-4">{t('players.error.load')}</ErrorText>
       )}
       {items !== null && items.length === 0 && (
         <div className="mt-4 rounded-xl border border-border-subtle bg-surface p-4 text-center">
@@ -197,56 +195,43 @@ export default function PlayersPage() {
         >
           <h2 className="text-sm font-semibold text-fg">{t('players.add')}</h2>
           {formError !== null && (
-            <p role="alert" className="mt-2 text-sm text-error">
-              {formError}
-            </p>
+            <ErrorText className="mt-2">{formError}</ErrorText>
           )}
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="text-xs text-fg-dim">
-              {t('players.add.name')}
-              <input
+            <Field label={t('players.add.name')}>
+              <Input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 required
                 maxLength={80}
-                className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
               />
-            </label>
-            <label className="text-xs text-fg-dim">
-              {t('players.add.gender')}
-              <select
+            </Field>
+            <Field label={t('players.add.gender')}>
+              <Select
                 value={gender}
                 onChange={(event) => setGender(event.target.value === 'F' ? 'F' : 'M')}
-                className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <option value="M">{t('player.gender.male')}</option>
                 <option value="F">{t('player.gender.female')}</option>
-              </select>
-            </label>
-            <label className="text-xs text-fg-dim">
-              {t('players.add.tier')}
-              <select
-                value={tier}
-                onChange={(event) => setTier(event.target.value)}
-                className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
-              >
+              </Select>
+            </Field>
+            <Field label={t('players.add.tier')}>
+              <Select value={tier} onChange={(event) => setTier(event.target.value)}>
                 <option value="">{t('players.tier.none')}</option>
                 {TIERS.map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>
                 ))}
-              </select>
-            </label>
-            <label className="text-xs text-fg-dim">
-              {t('players.add.aliases')}
-              <input
+              </Select>
+            </Field>
+            <Field label={t('players.add.aliases')}>
+              <Input
                 value={aliases}
                 onChange={(event) => setAliases(event.target.value)}
                 aria-describedby="players-aliases-hint"
-                className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent"
               />
-            </label>
+            </Field>
           </div>
           <p id="players-aliases-hint" className="mt-2 text-xs text-fg-dim">
             {t('players.add.aliasesHint')}
