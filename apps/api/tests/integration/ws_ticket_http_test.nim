@@ -169,7 +169,7 @@ suite "ws ticket HTTP":
 
   test "a live share socket gets ready, pong and closes on a malformed frame":
     let ticket = shareTicket()
-    let socket = connectWs("127.0.0.1", 18093,
+    let socket = connectWs("127.0.0.1", int(port),
       "/ws/share/" & shareCode & "?ticket=" & ticket)
     check socket.status == 101
     check socket.receiveText() == readyFrame
@@ -189,10 +189,10 @@ suite "ws ticket HTTP":
 
   test "the second watcher of a full session gets full":
     setConfigInt("ws.max_watchers_per_session", 1)
-    let first = connectWs("127.0.0.1", 18093, sessionWsPath(sessionTicket()))
+    let first = connectWs("127.0.0.1", int(port), sessionWsPath(sessionTicket()))
     check first.status == 101
     check first.receiveText() == readyFrame
-    let second = connectWs("127.0.0.1", 18093, sessionWsPath(sessionTicket()))
+    let second = connectWs("127.0.0.1", int(port), sessionWsPath(sessionTicket()))
     check second.receiveText() == fullFrame
     closeWs(first)
     closeWs(second)
@@ -219,7 +219,7 @@ suite "ws ticket HTTP":
 
   test "logout revokes the principal and closes its socket":
     let ticket = sessionTicket()
-    let socket = connectWs("127.0.0.1", 18093, sessionWsPath(ticket))
+    let socket = connectWs("127.0.0.1", int(port), sessionWsPath(ticket))
     check socket.receiveText() == readyFrame
     let pending = sessionTicket()
     let status = call(baseUrl, HttpPost, "/auth/logout", cookie)

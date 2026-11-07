@@ -9,9 +9,9 @@ import account/infrastructure/session_store
 import platform/config/store
 import share/crypto
 
-# Callers write `Port(18094)` in their const block and pass `HttpGet`/`HttpPost`
-# to `call`, so both symbols travel with the harness instead of every suite
-# importing the client itself.
+# Callers write `testPort(18090)` in their const block and pass `HttpGet`/
+# `HttpPost` to `call`, so both symbols travel with the harness instead of every
+# suite importing the client itself.
 export net.Port
 export httpclient
 

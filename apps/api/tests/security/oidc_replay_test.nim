@@ -11,7 +11,8 @@ import ../http_support
 const
   port = testPort(18100)
   baseUrl = "http://127.0.0.1:" & $uint16(port)
-  stubBase = "http://127.0.0.1:18177"
+  stubPort = 18177
+  stubBase = "http://127.0.0.1:" & $stubPort
   clientId = "t070-client"
   redirectUri = "http://127.0.0.1:5173/api/auth/callback"
 
@@ -48,7 +49,7 @@ proc stopStub() {.noconv.} =
 
 proc startStub() =
   let bin = ensureStub()
-  putEnv("OIDC_STUB_PORT", "18177")
+  putEnv("OIDC_STUB_PORT", $stubPort)
   putEnv("OIDC_STUB_ISSUER", stubBase)
   putEnv("OIDC_STUB_CLIENT_ID", clientId)
   stubProcess = startProcess(bin, workingDir = repoRoot(), args = [])
