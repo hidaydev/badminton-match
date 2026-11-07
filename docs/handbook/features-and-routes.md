@@ -198,8 +198,10 @@ alamat lain tetap `403 INVITE_EMAIL_MISMATCH`.
 | `DELETE` | `/c/{slug}/players/{playerId}/claim` | sesi (anggota) |
 | `POST` | `/c/{slug}/players/{playerId}/merge` | sesi + admin* |
 
-**Catatan:** `DELETE player`, `PATCH claim`, dan `POST merge` memakai `adminGate` (admin saja),
-walau matrix menulis `host,admin`. `createPlayer`/`PATCH player` tetap host/admin.
+**Catatan:** `DELETE player`, `PATCH claim`, dan `POST merge` adalah admin saja. `matrix.yaml`
+menyatakan hal yang sama, dan satu tabel (`apps/api/src/route_access.nim`) dipakai baik oleh
+dispatch maupun oleh test yang membandingkannya dengan matrix. `createPlayer`/`PATCH player`
+tetap host/admin.
 
 ### `sessions`
 
@@ -255,8 +257,8 @@ meresolve uuid. `standings` memakai tally yang sama dengan
 | `GET` | `/s/{code}/rankings` | publik |
 | `GET` | `/s/{code}/rankings/{playerId}` | publik |
 
-**Catatan:** Handler `rating-sources` hanya menerima admin (`adminGate`), walau matrix menulis
-`session`; lihat `apps/api/src/app.nim` cabang `ratings/rating-sources`.
+**Catatan:** `ratings` dan `rating-sources` adalah admin saja, dan `matrix.yaml` menyatakan hal
+yang sama; kelas aksesnya ditentukan `apps/api/src/route_access.nim`.
 
 ### `tournaments`
 
