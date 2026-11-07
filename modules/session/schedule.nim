@@ -132,6 +132,36 @@ proc bump(conn: DbConn, communityId, sessionId: string,
     @[textParam(communityId), textParam(sessionId),
       intParam(expectedVersion.int64)]) == 1
 
+# The flat score columns are only the migration's backfill source: every write
+# after 0029 clears them and the sets are the result. They live here once, and
+# the swap folds this assignment into its own games update so one row update
+# still fires `games_bump_version` once.
+const clearedScoreColumns* = "score_a = null, score_b = null"
+
+proc clearSets*(conn: DbConn, communityId, sessionId: string,
+                round, court: int) =
+  ## A game's result is its set list, so replacing or dropping it starts from an
+  ## empty slate. Deleting first also frees the (game, set_no) keys, so a
+  ## two-game swap can move a list between slots without a collision.
+  discard conn.execUpdate(
+    """delete from session.game_sets
+       where community_id = $1::uuid and session_id = $2::uuid
+         and round_no = $3 and court_no = $4""",
+    @[textParam(communityId), textParam(sessionId),
+      intParam(round.int64), intParam(court.int64)])
+
+proc setGameStatus*(conn: DbConn, communityId, sessionId: string,
+                    round, court: int, status: string): int =
+  ## Moves one game to `status` and clears the flat score. The row count lets a
+  ## caller tell a missing game from a written one.
+  conn.execUpdate(
+    """update session.games
+       set status = $3, """ & clearedScoreColumns & """
+       where community_id = $1::uuid and session_id = $2::uuid
+         and round_no = $4 and court_no = $5""",
+    @[textParam(communityId), textParam(sessionId), textParam(status),
+      intParam(round.int64), intParam(court.int64)])
+
 proc countKnownPlayers(db: Db, communityId: string,
                        playerIds: seq[string]): int =
   ## Counts how many of the given players exist in this community.
@@ -305,12 +335,7 @@ proc setSets*(db: Db, communityId, sessionId, gameKey: string,
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return
-    discard conn.execUpdate(
-      """delete from session.game_sets
-         where community_id = $1::uuid and session_id = $2::uuid
-           and round_no = $3 and court_no = $4""",
-      @[textParam(communityId), textParam(sessionId),
-        intParam(key.get[0].int64), intParam(key.get[1].int64)])
+    clearSets(conn, communityId, sessionId, key.get[0], key.get[1])
     for index, entry in sets:
       discard conn.execUpdate(
         """insert into session.game_sets
@@ -322,13 +347,8 @@ proc setSets*(db: Db, communityId, sessionId, gameKey: string,
           intParam((index + 1).int64), intParam(entry.a.int64),
           intParam(entry.b.int64)])
     let status = if matchComplete(rules, sets): "played" else: "scheduled"
-    discard conn.execUpdate(
-      """update session.games
-         set status = $3, score_a = null, score_b = null
-         where community_id = $1::uuid and session_id = $2::uuid
-           and round_no = $4 and court_no = $5""",
-      @[textParam(communityId), textParam(sessionId), textParam(status),
-        intParam(key.get[0].int64), intParam(key.get[1].int64)]))
+    discard setGameStatus(conn, communityId, sessionId, key.get[0], key.get[1],
+      status))
   (status: outcome, verdict: verdict)
 
 proc setScore*(db: Db, communityId, sessionId, gameKey: string,
@@ -372,20 +392,10 @@ proc setPlayed*(db: Db, communityId, sessionId, gameKey: string,
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return
-    discard conn.execUpdate(
-      """delete from session.game_sets
-         where community_id = $1::uuid and session_id = $2::uuid
-           and round_no = $3 and court_no = $4""",
-      @[textParam(communityId), textParam(sessionId),
-        intParam(key.get[0].int64), intParam(key.get[1].int64)])
+    clearSets(conn, communityId, sessionId, key.get[0], key.get[1])
     let status = if played: "played" else: "scheduled"
-    let updated = conn.execUpdate(
-      """update session.games
-         set status = $3, score_a = null, score_b = null
-         where community_id = $1::uuid and session_id = $2::uuid
-           and round_no = $4 and court_no = $5""",
-      @[textParam(communityId), textParam(sessionId), textParam(status),
-        intParam(key.get[0].int64), intParam(key.get[1].int64)])
+    let updated = setGameStatus(conn, communityId, sessionId, key.get[0],
+      key.get[1], status)
     if updated == 0:
       outcome = ssNotFound
       return)
@@ -468,24 +478,14 @@ proc skipGame*(db: Db, communityId, sessionId, gameKey: string,
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return
-    let updated = conn.execUpdate(
-      """update session.games
-         set status = 'cancelled', score_a = null, score_b = null
-         where community_id = $1::uuid and session_id = $2::uuid
-           and round_no = $3 and court_no = $4""",
-      @[textParam(communityId), textParam(sessionId),
-        intParam(key.get[0].int64), intParam(key.get[1].int64)])
+    let updated = setGameStatus(conn, communityId, sessionId, key.get[0],
+      key.get[1], "cancelled")
     if updated == 0:
       outcome = ssNotFound
       return
     # A cancelled game has no result; keeping the sets would leave the results
     # view reporting a winner for a match the session cancelled.
-    discard conn.execUpdate(
-      """delete from session.game_sets
-         where community_id = $1::uuid and session_id = $2::uuid
-           and round_no = $3 and court_no = $4""",
-      @[textParam(communityId), textParam(sessionId),
-        intParam(key.get[0].int64), intParam(key.get[1].int64)]))
+    clearSets(conn, communityId, sessionId, key.get[0], key.get[1]))
   if outcome != ssOk: return outcome
   ssOk
 

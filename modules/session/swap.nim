@@ -2,6 +2,7 @@ import std/[json, options, strutils]
 import db/db
 import ./scoring
 import ./lifecycle
+import ./schedule
 import skips
 
 type
@@ -244,14 +245,16 @@ proc readContent(conn: DbConn, communityId, sessionId: string,
 proc writeContent(conn: DbConn, communityId, sessionId: string,
                   target: SwapTarget, content: GameContent) =
   ## One statement per row, so the CHECK constraints see the final four slots
-  ## together. The games trigger already bumps the row version and updated_at.
-  ## The flat score columns are only the migration's backfill source: every
-  ## write after 0029 leaves them empty and the sets are the result.
+  ## together and `games_bump_version` fires once. The status comes from the
+  ## payload, not a constant: a swapped game keeps the result it carried.
+  ##
+  ## The flat score clear rides in this same statement instead of going through
+  ## `setGameStatus`: a second update of the row would bump its version twice.
   discard conn.execUpdate(
     """update session.games set
          side_a1 = nullif($5, '')::uuid, side_a2 = nullif($6, '')::uuid,
          side_b1 = nullif($7, '')::uuid, side_b2 = nullif($8, '')::uuid,
-         score_a = null, score_b = null, status = $9
+         status = $9, """ & clearedScoreColumns & """
        where community_id = $1::uuid and session_id = $2::uuid
          and round_no = $3 and court_no = $4""",
     @[textParam(communityId), textParam(sessionId),
@@ -259,14 +262,8 @@ proc writeContent(conn: DbConn, communityId, sessionId: string,
       textParam(content.slots.a1), textParam(content.slots.a2),
       textParam(content.slots.b1), textParam(content.slots.b2),
       textParam(content.status)])
-  # Sets follow the payload. Deleting first also frees the (game, set_no) keys,
-  # so a two-game swap can move a set list between slots without a collision.
-  discard conn.execUpdate(
-    """delete from session.game_sets
-       where community_id = $1::uuid and session_id = $2::uuid
-         and round_no = $3 and court_no = $4""",
-    @[textParam(communityId), textParam(sessionId),
-      intParam(target.slot.int64), intParam(target.court.int64)])
+  # Sets follow the payload.
+  clearSets(conn, communityId, sessionId, target.slot, target.court)
   for index, entry in content.sets:
     discard conn.execUpdate(
       """insert into session.game_sets
