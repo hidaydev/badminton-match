@@ -617,7 +617,6 @@ type
     seWinBy = "win_by"
     seTooManySets = "too_many_sets"
     seSetAfterEnd = "set_after_end"
-    seNotContiguous = "not_contiguous"
 
   SetVerdict* = object
     error*: SetError
@@ -695,8 +694,9 @@ proc validateSets*(rules: ScoringRules, sets: openArray[SetScore]): SetVerdict =
   SetVerdict(error: seOk)
 ```
 
-`seNotContiguous` disediakan untuk masa depan (mis. edit set ke-2 saja), tetapi
-tidak dipakai di API v1 karena body selalu mengirim daftar penuh.
+`seNotContiguous` tidak pernah dipakai: body selalu mengirim daftar penuh, jadi
+tidak ada input yang dapat menghasilkannya. Anggota enum itu sudah dihapus
+supaya tidak ada cabang mati yang dipetakan ke kode respons.
 
 ### 7.4 Turunan
 
