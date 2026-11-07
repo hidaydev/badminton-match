@@ -3,6 +3,7 @@ import mummy
 import auth_middleware
 import clock
 import community_context
+import community_time
 import community/domain/community as communityDomain
 import community/infrastructure/community_store
 import community/infrastructure/invite as inviteStore
@@ -662,10 +663,7 @@ proc createCommunity(request: Request, snapshot: Snapshot) =
     return
   # The zone decides which calendar day a session belongs to, so an unknown name
   # is a bad request, not a value to store and fail on later.
-  let zone = application.db.queryOne(
-    "select 1 as ok from pg_timezone_names where name = $1",
-    @[textParam(check.timezone)])
-  if zone.isNone:
+  if not validTimezone(application.db, check.timezone):
     problem(request, 400, "INVALID_COMMUNITY",
       "timezone is not a known IANA zone")
     return
@@ -2500,14 +2498,6 @@ proc getShared(request: Request, code: string) =
   jsonResponse(request, 200, shared.get,
     [("X-Robots-Tag", "noindex")])
 
-proc communityToday(timezone: string): string =
-  ## The board window is a calendar question, so "today" is the community's day,
-  ## not the server's.
-  let row = application.db.queryOne(
-    "select (now() at time zone $1)::date::text as today",
-    @[textParam(timezone)])
-  row.get.get("today")
-
 proc optInt(value: Option[int]): JsonNode =
   if value.isSome: %value.get else: newJNull()
 
@@ -2564,7 +2554,8 @@ proc communityBoard(request: Request, communityId, timezone: string,
   let minSessions = minSessionsParam(request,
     snapshot.intValue(settings, keyRankMinSessions))
   let latest = ratingRead.latestEventDate(application.db, communityId)
-  let asOf = if latest.len > 0: latest else: communityToday(timezone)
+  let asOf =
+    if latest.len > 0: latest else: communityToday(application.db, timezone)
   let query = ratingRead.BoardQuery(communityId: communityId,
     asOf: asOf, params: params, limit: limit,
     tier: tierParam(request), minSessions: minSessions,
@@ -2581,7 +2572,8 @@ proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
   let params = ratingParams.loadRatingParams(snapshot, settings)
   let limit = snapshot.intValue(settings, keyRankBoardLimit)
   let latest = ratingRead.latestEventDate(application.db, communityId)
-  let asOf = if latest.len > 0: latest else: communityToday(timezone)
+  let asOf =
+    if latest.len > 0: latest else: communityToday(application.db, timezone)
   # `min_sessions` means the same filter as on the board: a player below it is
   # not on the ranking either, instead of the detail route ignoring it.
   let minSessions = minSessionsParam(request,
@@ -2630,7 +2622,8 @@ proc boardPoints(communityId, timezone, playerId: string,
   let params = ratingParams.loadRatingParams(snapshot, settings)
   let limit = snapshot.intValue(settings, keyRankBoardLimit)
   let latest = ratingRead.latestEventDate(application.db, communityId)
-  let asOf = if latest.len > 0: latest else: communityToday(timezone)
+  let asOf =
+    if latest.len > 0: latest else: communityToday(application.db, timezone)
   let row = ratingRead.boardEntry(application.db, ratingRead.BoardQuery(
     communityId: communityId, asOf: asOf, params: params, limit: limit,
     tier: ""), playerId)

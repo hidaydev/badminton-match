@@ -1,5 +1,6 @@
 import std/[json, options, os, strutils, tables]
 import cli
+import community_time
 import db/db
 import platform/config/store
 import rating/infrastructure/params
@@ -19,12 +20,6 @@ proc communitySettings(db: Db, communityId: string): JsonNode =
     """select values::text as values from community.settings
        where community_id = $1::uuid""", @[textParam(communityId)])
   if row.isSome: parseJson(row.get.get("values")) else: newJObject()
-
-proc today(db: Db, timezone: string): string =
-  let row = db.queryOne(
-    "select (now() at time zone $1)::date::text as today",
-    @[textParam(timezone)])
-  row.get.get("today")
 
 proc main() =
   var asOf = ""
@@ -47,7 +42,7 @@ proc main() =
     let day =
       if asOf.len > 0: asOf
       elif latest.len > 0: latest
-      else: today(db, row.get("timezone"))
+      else: communityToday(db, row.get("timezone"))
     let rows = board(db, BoardQuery(communityId: communityId, asOf: day,
       params: params, limit: limit, tier: ""))
     discard writeSnapshot(db, communityId, day, rows)

@@ -1,5 +1,6 @@
 import std/[json, options]
 import db/db
+import community_time
 import account/domain/audit
 import account/infrastructure/audit_store
 import platform/config/store
@@ -100,9 +101,7 @@ proc applyPatch*(db: Db, snapshot: Snapshot, communityId, actorId: string,
     # unknown name is a bad request here exactly as on community creation.
     if patch.kind == JObject and patch.hasKey($keyCommunityDefaultTimezone):
       let zone = patch[$keyCommunityDefaultTimezone]
-      if zone.kind != JString or conn.queryOne(
-          "select 1 as ok from pg_timezone_names where name = $1",
-          @[textParam(zone.getStr())]).isNone:
+      if zone.kind != JString or not validTimezone(conn, zone.getStr()):
         verdict = SettingsResult(outcome: soInvalidType,
           key: $keyCommunityDefaultTimezone,
           detail: "timezone is not a known IANA zone")
