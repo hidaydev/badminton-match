@@ -205,15 +205,28 @@ proc jsonResponse(request: Request, status: int, body: JsonNode,
   send(request, status, headers, $body)
 
 proc sendProblem(request: Request, status: int, contentType: string,
-                 body: platformErrors.Problem) =
-  send(request, status, @[("Content-Type", contentType)], body.toJson())
+                 body: platformErrors.Problem, extra: JsonNode = nil,
+                 headers: openArray[(string, string)] = []) =
+  ## `extra` adds members the envelope does not carry on every route (`issues`,
+  ## `retryAfter`); it is merged over the canonical fields rather than replacing
+  ## them, so the shape stays one shape.
+  var node = parseJson(body.toJson())
+  if extra != nil:
+    for key, value in extra:
+      node[key] = value
+  var merged = @[("Content-Type", contentType)]
+  for pair in headers:
+    merged.add(pair)
+  send(request, status, merged, $node)
 
-proc problem(request: Request, status: int, code, detail: string) =
+proc problem(request: Request, status: int, code, detail: string,
+             extra: JsonNode = nil,
+             headers: openArray[(string, string)] = []) =
   ## One envelope for every rejection. The body is built by platform-lib so the
   ## shape, the i18nKey lookup and the detail redaction cannot drift per route.
   sendProblem(request, status, "application/problem+json",
     platformErrors.newProblem(status, code, platformErrors.i18nKeyFor(code),
-      detail))
+      detail), extra, headers)
 
 proc redactIssues(issues: JsonNode): JsonNode =
   ## The wizard renders each `detail` verbatim and the domain echoes the
@@ -235,13 +248,13 @@ proc invalidBodyResponse(request: Request, code, detail: string,
                          snapshot: JsonNode) =
   ## A rejected tournament body keeps the field-level `issues` the wizard
   ## renders, but it is still a 4xx and must carry the one error envelope:
-  ## status, code and i18nKey. The issues are added to the envelope, not sent
-  ## as the whole body, so a client never has to read two shapes.
-  var body = parseJson(platformErrors.newProblem(400, code,
-    platformErrors.i18nKeyFor(code), detail).toJson)
+  ## status, code and i18nKey. The issues are an extension of that envelope,
+  ## not a second body, so a client never has to read two shapes.
+  var extra: JsonNode = nil
   if snapshot.hasKey("issues"):
-    body["issues"] = redactIssues(snapshot["issues"])
-  send(request, 400, @[("Content-Type", "application/problem+json")], $body)
+    extra = newJObject()
+    extra["issues"] = redactIssues(snapshot["issues"])
+  problem(request, 400, code, detail, extra)
 
 proc methodNotAllowed(request: Request) =
   ## A known path with an unsupported verb answers 405, so a caller can tell a
@@ -328,10 +341,11 @@ proc requestIdentity(request: Request): string =
   else: clientIp(request, trustedProxies())
 
 proc rateLimited(request: Request, decision: Decision) =
-  jsonResponse(request, 429,
-    %*{"status": 429, "code": "RATE_LIMITED",
-       "retryAfter": decision.retryAfter},
-    [("Retry-After", $decision.retryAfter)])
+  ## A 429 is not a second shape: it is the same envelope with `retryAfter`
+  ## added, and the header repeats it for clients that do not read the body.
+  problem(request, 429, "RATE_LIMITED", "too many requests",
+    %*{"retryAfter": decision.retryAfter},
+    [("Retry-After", $decision.retryAfter), ("Cache-Control", "no-store")])
 
 proc quota(request: Request, snapshot: Snapshot, scope, key: string,
            limit: int): bool =
