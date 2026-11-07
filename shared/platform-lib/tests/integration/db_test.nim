@@ -103,8 +103,18 @@ suite "database layer":
       message = error.msg
     check message.contains("player_id")
 
-  test "a timestamptz reads as a value":
+  test "a timestamptz keeps its fractional second":
     let row = Row(names: @["earned_at"],
       values: @[some("2026-11-07 12:00:00.5+07")])
-    check row.getTimestamp("earned_at") ==
-      parse("2026-11-07T05:00:00Z", "yyyy-MM-dd'T'HH:mm:ss'Z'", utc())
+    let at = row.getTimestamp("earned_at")
+    check at == parse("2026-11-07T05:00:00.500Z",
+      "yyyy-MM-dd'T'HH:mm:ss'.'fff'Z'", utc())
+    check at.nanosecond == 500_000_000
+
+  test "a whole-second timestamptz has no fraction":
+    let row = Row(names: @["earned_at"],
+      values: @[some("2026-11-07 12:00:00+07")])
+    let at = row.getTimestamp("earned_at")
+    check at == parse("2026-11-07T05:00:00Z",
+      "yyyy-MM-dd'T'HH:mm:ss'Z'", utc())
+    check at.nanosecond == 0
