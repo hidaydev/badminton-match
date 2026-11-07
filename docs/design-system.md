@@ -127,6 +127,81 @@ className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3
 // name, so there is no id/htmlFor plumbing.
 ```
 
+## Overlay (bottom sheet)
+
+Satu primitive, satu varian. `apps/web/src/components/Overlay.tsx` adalah satu-satunya
+shell untuk dialog modal; pemakaian baru mengimpor komponen ini, bukan menyalin
+`fixed inset-0` lagi. Test-nya di `Overlay.test.tsx`.
+
+### Props
+
+| Prop | Tipe | Default | Keterangan |
+|------|------|---------|------------|
+| `onClose` | `() => void` | wajib | Dipanggil oleh Escape, tap scrim, dan tombol ✕ |
+| `title` | `ReactNode` | wajib | Dirender sebagai `<h2 id>`, jadi nama dialog datang dari judul |
+| `description` | `ReactNode` | - | `<p>` di bawah judul |
+| `children` | `ReactNode` | wajib | Isi sheet; satu-satunya area yang scroll |
+| `footer` | `ReactNode` | - | Aksi di bawah, di dalam area aman |
+| `dismissible` | `boolean` | `true` | `false` saat saving: Escape dan scrim diabaikan, ✕ tidak dirender |
+| `labelledBy` | `string` | - | Escape hatch bila heading kustom dirender di dalam `children`; `<h2>` bawaan tidak dirender |
+
+### Class recipe
+
+```tsx
+scrim  : fixed inset-0 z-50 flex items-end justify-center bg-black/60
+sheet  : relative flex w-full max-w-lg max-h-dvh flex-col overflow-hidden
+         rounded-t-3xl border-t border-border-subtle bg-surface pb-[max(0.75rem,env(safe-area-inset-bottom))]
+         shadow-2xl
+handle : mx-auto mt-3 mb-1 h-1 w-10 shrink-0 rounded-full bg-border
+header : shrink-0 px-5 pt-3 pb-2            (h2 text-base font-bold text-fg)
+body   : min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4
+footer : shrink-0 border-t border-border-subtle px-5 pt-3   (tanpa padding bawah)
+close  : absolute right-2 top-2 inline-flex min-h-11 min-w-11 items-center justify-center
+         rounded-lg text-fg-dim hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent
+```
+
+Root tanpa padding supaya sheet setinggi layar tetap mulai di y=0. `max-h-dvh` +
+`min-h-0` + `flex-1 overflow-y-auto` adalah satu-satunya pola yang membatasi tinggi di HP
+sekaligus menyisakan area scroll. Semua nilai adalah utility stok; satu-satunya arbitrary
+value adalah `pb-[max(0.75rem,env(safe-area-inset-bottom))]` yang diizinkan
+`scripts/check-tailwind-arbitrary.mjs`.
+
+### Satu varian
+
+Tidak ada varian `center` dan tidak ada varian full-screen. Di 402x874 dialog center
+membuat footer masuk ke area home indicator, dan begitu keyboard iOS terbuka tombol
+konfirmasi tertutup tanpa container scroll untuk menyelamatkannya. Full-screen adalah
+halaman, bukan dialog (lihat daftar di bawah).
+
+### Perilaku
+
+| Perilaku | Implementasi |
+|---|---|
+| Focus trap + restore | `useFocusTrap(sheetRef)` dari `legacy/hooks/` |
+| Escape | `useEscapeKey(onClose, dismissible)`; stack global di hook memastikan hanya overlay teratas yang menang, dan `dismissible: false` melepas listener |
+| Tap scrim | `pointerdown` mencatat apakah gestur dimulai di scrim; klik hanya menutup bila mulai dan berakhir di scrim, jadi drag-select dari body tidak menutup sheet |
+| Body scroll lock | Counter modul: overlay pertama menyetel `body` ke `position: fixed`, `top: -scrollY`, `width: 100%`, `overflow: hidden`; overlay terakhir mengembalikan style sebelumnya dan `scrollTo` posisi lama. `overflow: hidden` saja tidak dihormati iOS |
+| Safe area | `pb-[max(0.75rem,env(safe-area-inset-bottom))]` dipasang sekali di sheet, bukan di footer. Footerless sheet (#4, #11, #15) ikut berhenti di atas home indicator; footer tidak boleh mengulang padding itu |
+| Keyboard clamp | `useEffect` membaca `window.visualViewport` (feature-detected) dan menulis inline `maxHeight = viewport.height - 16` saat resize/scroll, lalu menghapusnya saat unmount |
+| Semantik | `role="dialog"`, `aria-modal="true"`, `aria-labelledby` dari `<h2 id>` (atau `labelledBy`); ✕ adalah target 44px dengan label dari `common.close` |
+| Non-dismissible | Saat `dismissible` false, ✕ tidak dirender sama sekali, bukan dirender disabled |
+
+### Yang tetap di luar primitive
+
+| Permukaan | Alasan |
+|---|---|
+| ActionsMenu (#14), menu akun HomeLayout (#16) | `role="menu"`, non-modal, tidak boleh scroll-lock atau trap (Tab keluar menu itu sah), dan harus tetap dekat trigger |
+| ConfirmBars (#13), discard confirm scoreboard (#20) | Bukan dialog: tidak punya siklus buka/tutup, sengaja tidak menutupi layar, dan tingginya dikompensasi konten di belakangnya. Yang perlu ditambah hanya Esc dan `aria-live` |
+| Tooltip `AnnotatedPlayerName` (#17) | Tidak punya dismissal, `pointer-events-none` |
+| Toast `ErrorBanner` (#18) | `role="alert"`, tidak punya lifecycle buka/tutup |
+| Scoreboard surface (#19) | Bukan dialog: permukaan landscape yang dirotasi, tap-zone skor, tanpa judul, tanpa scrim, tanpa scroll lock |
+| SummaryModal mode `standalone` (#10) | Halaman, bukan overlay; hanya jalur non-standalone yang memakai primitive |
+
+Catatan koreksi: resep audit menaruh padding safe-area di footer. Mockup menunjukkan
+sheet tanpa footer (#4, #11, #15) juga harus berhenti di atas home indicator, jadi
+primitive yang memiliki padding itu sekali di container sheet. Itu sebabnya footer tidak
+lagi memuat `pb-[max(...)]`.
+
 ## Accessibility (Mobile PWA)
 
 | Rule | Implementation |
