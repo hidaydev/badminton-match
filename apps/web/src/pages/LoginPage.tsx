@@ -50,7 +50,7 @@ export default function LoginPage() {
           alt={t('login.brand')}
           width={77}
           height={108}
-          className="h-28 w-auto"
+          className="h-28 w-auto self-start object-contain"
         />
         <div className="max-w-sm">
           <span aria-hidden="true" className="block h-px w-12 bg-accent" />
@@ -66,7 +66,7 @@ export default function LoginPage() {
           alt={t('login.brand')}
           width={64}
           height={90}
-          className="h-20 w-auto md:hidden"
+          className="h-20 w-auto self-start object-contain md:hidden"
         />
 
         <div className="mt-8 w-full max-w-sm md:mt-0">
