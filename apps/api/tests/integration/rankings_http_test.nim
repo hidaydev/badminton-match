@@ -520,6 +520,60 @@ suite "rankings HTTP":
       adminCookie)
     check rebuiltAfterUndo == 200
 
+  test "a failed rebuild leaves the deleted source in place":
+    # The delete and the rebuild share one transaction, so a rebuild that fails
+    # must put back the event it already removed and answer with the mapped
+    # client error, not a 500 that leaves the caller unsure what landed.
+    let adminId = database.queryOne(
+      """select user_id from community.membership m
+         join platform.user u on u.id = m.user_id
+         where u.google_sub = 'rank-admin' limit 1""").get.get("user_id")
+    let adminCookie = createSession(database, adminId, 30)
+    let eventId = database.queryOne(
+      """select id from rating.events
+         where community_id = $1::uuid and source_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)]).get.get("id")
+    # The rebuild only writes an event when some approved session has one, and
+    # the source being deleted must not be approved for the route to proceed.
+    # A second approved session gives the rebuild the insert that fails.
+    let filler = database.queryOne(
+      """insert into session.sessions
+           (community_id, title, session_date, status, source, approved_at)
+         values ($1::uuid, 'Failing rebuild', current_date, 'locked',
+                 'manual', now())
+         returning id""", @[textParam(communityId)]).get.get("id")
+    discard database.execUpdate(
+      """update session.sessions set status = 'draft', approved_at = null
+         where id = $1::uuid""", @[textParam(sessionId)])
+    discard database.execUpdate(
+      """create or replace function rankings_http_fail_rebuild()
+           returns trigger as $$
+         begin
+           raise exception 'rebuild refused' using errcode = '23514';
+         end;
+         $$ language plpgsql""")
+    discard database.execUpdate(
+      """drop trigger if exists rankings_http_fail_rebuild on rating.events""")
+    discard database.execUpdate(
+      """create trigger rankings_http_fail_rebuild before insert on rating.events
+         for each row execute function rankings_http_fail_rebuild()""")
+    let (status, _) = send(HttpDelete,
+      "/c/rank-club/rating-sources/" & eventId, adminCookie)
+    check status == 400
+    check database.queryOne(
+      """select 1 as ok from rating.events where id = $1::uuid""",
+      @[textParam(eventId)]).isSome
+    discard database.execUpdate(
+      """drop trigger rankings_http_fail_rebuild on rating.events""")
+    discard database.execUpdate("drop function rankings_http_fail_rebuild()")
+    discard database.execUpdate(
+      """delete from session.sessions where id = $1::uuid""",
+      @[textParam(filler)])
+    # Put the shared fixture back the way the following tests expect it.
+    discard database.execUpdate(
+      """update session.sessions set status = 'locked', approved_at = now()
+         where id = $1::uuid""", @[textParam(sessionId)])
+
   test "a share code publishes only the players of its session":
     # A second session puts one more player on the community board, so the
     # public copy and the member page can be told apart.

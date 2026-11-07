@@ -496,7 +496,7 @@ proc create*(db: Db, communityId, actorId: string,
     let issues = validate(data)
     if issues.len > 0:
       return (svInvalid, invalid(issuesJson(issues)))
-    let id = db.tx(proc(conn: DbConn): string =
+    let id = db.txRet(proc(conn: DbConn): string =
       result = insertHeader(conn, communityId, data.name, data.date, "team")
       writeTeam(conn, communityId, result, data, Owned()))
     return (svOk, withId(load(db, communityId, id).get, id))
@@ -506,7 +506,7 @@ proc create*(db: Db, communityId, actorId: string,
   let issues = validate(data)
   if issues.len > 0:
     return (svInvalid, invalid(issuesJson(issues)))
-  let id = db.tx(proc(conn: DbConn): string =
+  let id = db.txRet(proc(conn: DbConn): string =
     result = insertHeader(conn, communityId, data.name, data.date, "classic")
     writeClassic(conn, communityId, result, data, Owned()))
   (svOk, withId(load(db, communityId, id).get, id))
@@ -577,9 +577,8 @@ proc replace*(db: Db, communityId, id, actorId: string, body: JsonNode,
     let issues = validate(data)
     if issues.len > 0:
       return (svInvalid, invalid(issuesJson(issues)))
-    discard db.tx(proc(conn: DbConn): int =
-      status = replaceTeam(conn, communityId, id, data, expectedVersion)
-      0)
+    db.tx(proc(conn: DbConn) =
+      status = replaceTeam(conn, communityId, id, data, expectedVersion))
   else:
     var data: ClassicTournament
     try: data = parseClassic(body)
@@ -587,21 +586,22 @@ proc replace*(db: Db, communityId, id, actorId: string, body: JsonNode,
     let issues = validate(data)
     if issues.len > 0:
       return (svInvalid, invalid(issuesJson(issues)))
-    discard db.tx(proc(conn: DbConn): int =
-      status = replaceClassic(conn, communityId, id, data, expectedVersion)
-      0)
+    db.tx(proc(conn: DbConn) =
+      status = replaceClassic(conn, communityId, id, data, expectedVersion))
   if status != svOk:
     return (status, newJObject())
   (svOk, withId(load(db, communityId, id).get, id))
 
 
 proc remove*(db: Db, communityId, id: string): bool =
-  db.tx(proc(conn: DbConn): int =
+  var removed = 0
+  db.tx(proc(conn: DbConn) =
     clearChildren(conn, communityId, id)
-    result = conn.execUpdate(
+    removed = conn.execUpdate(
       """delete from tournament.tournaments
          where community_id = $1::uuid and id = $2::uuid""",
-      @[textParam(communityId), textParam(id)])) > 0
+      @[textParam(communityId), textParam(id)]))
+  removed > 0
 
 # ── match patch ────────────────────────────────────────────────────────────
 
@@ -703,7 +703,7 @@ proc patchMatch*(db: Db, communityId, id, matchId: string, body: JsonNode,
                  expectedVersion: int): (PatchStatus, JsonNode) =
   var status = ptOk
   var detail = newJObject()
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     let header = conn.queryOne(
       """select t.format, t.version, coalesce(s.finalized, false) as finalized
          from tournament.tournaments t
@@ -713,13 +713,13 @@ proc patchMatch*(db: Db, communityId, id, matchId: string, body: JsonNode,
       @[textParam(communityId), textParam(id)])
     if header.isNone:
       status = ptNotFound
-      return 0
+      return
     if header.get.get("finalized") == "t":
       status = ptLocked
-      return 0
+      return
     if parseInt(header.get.get("version")) != expectedVersion:
       status = ptStale
-      return 0
+      return
     var applied = false
     try:
       if header.get.get("format") == "team":
@@ -729,16 +729,15 @@ proc patchMatch*(db: Db, communityId, id, matchId: string, body: JsonNode,
     except ValueError as error:
       status = ptInvalid
       detail = failure("invalid_body", error.msg)
-      return 0
+      return
     if not applied:
       status = ptNotFound
-      return 0
+      return
     discard conn.execUpdate(
       """update tournament.tournaments
          set version = version + 1, updated_at = now()
          where community_id = $1::uuid and id = $2::uuid""",
-      @[textParam(communityId), textParam(id)])
-    0)
+      @[textParam(communityId), textParam(id)]))
   if status != ptOk:
     return (status, detail)
   (ptOk, withId(load(db, communityId, id).get, id))

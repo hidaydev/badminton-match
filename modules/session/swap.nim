@@ -296,11 +296,11 @@ proc swapMembers*(db: Db, communityId, sessionId: string, expectedVersion: int,
 
   var outcome = SwapOutcome(status: swOk)
   try:
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       let guard = sessionGuard(conn, communityId, sessionId, expectedVersion)
       if guard.status != swOk:
         outcome = guard
-        return 0
+        return
       let a = patch.a
       let b = patch.b
       let same = a.slot == b.slot and a.court == b.court
@@ -310,7 +310,7 @@ proc swapMembers*(db: Db, communityId, sessionId: string, expectedVersion: int,
         # The session exists; it is the game the caller named that does not.
         outcome = SwapOutcome(status: swNotFound,
           detail: "swap target game not found")
-        return 0
+        return
       var left = first.get
       var right = second.get
       var failure = ""
@@ -325,7 +325,7 @@ proc swapMembers*(db: Db, communityId, sessionId: string, expectedVersion: int,
         swap(left, right)
       if failure.len > 0:
         outcome = SwapOutcome(status: swInvalid, detail: failure)
-        return 0
+        return
       writeContent(conn, communityId, sessionId, a, left)
       if not same:
         writeContent(conn, communityId, sessionId, b, right)
@@ -337,8 +337,7 @@ proc swapMembers*(db: Db, communityId, sessionId: string, expectedVersion: int,
            where community_id = $1::uuid and id = $2::uuid""",
         @[textParam(communityId), textParam(sessionId)])
       outcome = SwapOutcome(status: swOk, version: guard.version + 1,
-                            sessionStatus: guard.sessionStatus)
-      1)
+                            sessionStatus: guard.sessionStatus))
   except DbError as error:
     if isConstraintError(error):
       return SwapOutcome(status: swInvalid,

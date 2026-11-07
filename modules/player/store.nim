@@ -136,7 +136,7 @@ proc patch*(db: Db, communityId, playerId: string,
   ## update back instead of leaving a renamed player behind a 409.
   var outcome = PatchResult(status: psNotFound)
   try:
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       let row = updatePlayer(conn, communityId, playerId, patch)
       if row.isNone:
         # A name collision raises above; reaching this point means the row is
@@ -146,11 +146,10 @@ proc patch*(db: Db, communityId, playerId: string,
              where community_id = $1::uuid and id = $2::uuid""",
           @[textParam(communityId), textParam(playerId)])
         outcome.status = if existing.isSome: psDuplicate else: psNotFound
-        return 0
+        return
       outcome = PatchResult(status: psOk, player: node(row.get))
       if patch.aliases.isSome:
-        replaceAliases(conn, communityId, playerId, patch.aliases.get)
-      1)
+        replaceAliases(conn, communityId, playerId, patch.aliases.get))
   except DbError as error:
     if error.sqlState == "23505":
       if error.constraint == aliasUniqueConstraint:
@@ -173,9 +172,8 @@ proc setAliases*(db: Db, communityId, playerId: string,
   ## player already answers to one of these names; the transaction rolls back,
   ## so the previous set survives unchanged.
   try:
-    discard db.tx(proc(conn: DbConn): int =
-      replaceAliases(conn, communityId, playerId, values)
-      1)
+    db.tx(proc(conn: DbConn) =
+      replaceAliases(conn, communityId, playerId, values))
     true
   except DbError as error:
     if error.sqlState == "23505":

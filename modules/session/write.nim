@@ -227,7 +227,6 @@ proc remove*(db: Db, communityId, sessionId: string,
   ## One transaction of its own; callers that must also revert the rating event
   ## use `removeConn` inside their transaction instead.
   var outcome = dsDeleted
-  discard db.tx(proc(conn: DbConn): int =
-    outcome = removeConn(conn, communityId, sessionId, allowLocked)
-    1)
+  db.tx(proc(conn: DbConn) =
+    outcome = removeConn(conn, communityId, sessionId, allowLocked))
   outcome

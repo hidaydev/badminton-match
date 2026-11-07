@@ -38,7 +38,7 @@ proc decide*(db: Db, communityId, requestId, actorId: string,
   if approve:
     discard parseRole(role)
   var decided = false
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     let row = conn.queryOne(
       """update community.join_request
          set status = case when $3 then 'approved' else 'rejected' end,
@@ -60,6 +60,5 @@ proc decide*(db: Db, communityId, requestId, actorId: string,
              values ($1::uuid, $2::uuid, $3)
              on conflict (community_id, user_id) do nothing""",
           @[textParam(communityId), textParam(row.get.get("user_id")),
-            textParam(role)])
-    1)
+            textParam(role)]))
   decided

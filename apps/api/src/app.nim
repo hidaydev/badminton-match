@@ -105,24 +105,46 @@ proc b64url*(value: openArray[byte]): string =
     raw[index] = char(value[index])
   b64url(raw)
 
-proc audit(action: string, communityId: string, user: AuthUser,
-           targetKind: string, targetId: string,
-           after: JsonNode = newJObject(), role = "") =
-  ## Every privileged write leaves evidence. Field names outside the domain
+proc evidenceEvent(action: string, communityId: string, user: AuthUser,
+                   targetKind: string, targetId: string, after: JsonNode,
+                   role: string): AuditEvent =
+  ## The row every privileged write leaves. Field names outside the domain
   ## allowlist are dropped inside the adapter, never written. The role is what
   ## the membership actually granted, so a host write does not read as admin.
-  recordAudit(application.db, auditEvent(action, communityId,
+  auditEvent(action, communityId,
     actorId = user.id,
     actorRole = (if user.isOwner: "platform_owner"
                  elif role.len > 0: role
                  else: "admin"),
     targetKind = targetKind, targetId = targetId, requestId = uuidv7()).withEvidence(
-      newJObject(), after))
+      newJObject(), after)
+
+proc auditConn(conn: DbConn, action: string, communityId: string, user: AuthUser,
+               targetKind: string, targetId: string,
+               after: JsonNode = newJObject(), role = "") =
+  ## Same evidence, written on the connection of the transaction that performs
+  ## the privileged write, so the row and the write commit together.
+  recordAuditConn(conn, evidenceEvent(action, communityId, user, targetKind,
+    targetId, after, role))
+
+proc auditConn(conn: DbConn, action: string, ctx: CommunityContext, user: AuthUser,
+               targetKind: string, targetId: string,
+               after: JsonNode = newJObject()) =
+  ## Community route overload: the membership role is already resolved.
+  auditConn(conn, action, ctx.communityId, user, targetKind, targetId, after,
+    $ctx.role)
+
+proc audit(action: string, communityId: string, user: AuthUser,
+           targetKind: string, targetId: string,
+           after: JsonNode = newJObject(), role = "") =
+  ## Evidence for a write that already committed: it gets its own connection
+  ## because the caller holds none. A route that can share one uses `auditConn`.
+  recordAudit(application.db, evidenceEvent(action, communityId, user,
+    targetKind, targetId, after, role))
 
 proc audit(action: string, ctx: CommunityContext, user: AuthUser,
            targetKind: string, targetId: string,
            after: JsonNode = newJObject()) =
-  ## Community route overload: the membership role is already resolved.
   audit(action, ctx.communityId, user, targetKind, targetId, after, $ctx.role)
 
 proc authAudit(action: string, user: AuthUser, outcome = arAllow,
@@ -1853,11 +1875,17 @@ proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
       "session is still approved; unlock it first")
     return
   let params = ratingParamsFor(ctx)
-  let removed = ratingIngest.removeEvent(application.db, ctx.communityId, eventId)
-  let rebuilt = ratingIngest.rebuild(application.db, ctx.communityId, params)
+  # Remove, rebuild and the evidence share one transaction: a rebuild that
+  # fails must leave the event and the board as they were, not a deleted event
+  # with stale points and an audit row describing the delete.
+  var removed = 0
+  var rebuilt: ratingIngest.IngestResult
+  application.db.tx(proc(conn: DbConn) =
+    removed = ratingIngest.removeEventConn(conn, ctx.communityId, eventId)
+    rebuilt = ratingIngest.rebuildConn(conn, ctx.communityId, params)
+    auditConn(conn, "rating.source.delete", ctx, user, "rating_event", eventId,
+      %*{"removedDeltas": removed}))
   reconcileAchievements(ctx, params)
-  audit("rating.source.delete", ctx, user, "rating_event", eventId,
-    %*{"removedDeltas": removed})
   jsonResponse(request, 200, %*{"removedDeltas": removed,
     "events": rebuilt.events, "deltas": rebuilt.deltas})
 
@@ -1883,7 +1911,7 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
   # a stale board and a 500.
   var outcome = sessionWrite.dsDeleted
   var removed = 0
-  discard application.db.tx(proc(conn: DbConn): int =
+  application.db.tx(proc(conn: DbConn) =
     outcome = sessionWrite.removeConn(conn, ctx.communityId, sessionId,
       ctx.role == rAdmin)
     if outcome == sessionWrite.dsDeleted:
@@ -1891,7 +1919,8 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
       if removed > 0:
         discard ratingIngest.rebuildConn(conn, ctx.communityId, params)
       discard ratingIngest.dropSourceConn(conn, ctx.communityId, sessionId)
-    1)
+      auditConn(conn, "session.delete", ctx, user, "session", sessionId,
+        %*{"removedDeltas": removed}))
   case outcome
   of sessionWrite.dsNotFound:
     problem(request, 404, "NOT_FOUND", "session not found")
@@ -1903,8 +1932,6 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
     reconcileAchievements(ctx, params)
   for linkId in links:
     application.hub.revokeShare(linkId)
-  audit("session.delete", ctx, user, "session", sessionId,
-    %*{"removedDeltas": removed})
   send(request, 204)
 
 proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,

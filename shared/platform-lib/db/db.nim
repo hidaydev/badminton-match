@@ -240,7 +240,10 @@ proc read*[T](db: Db, body: proc(conn: DbConn): T): T =
   ## the whole computation.
   withConn(db, body)
 
-proc tx*[T](db: Db, body: proc(conn: DbConn): T): T =
+proc txRet*[T](db: Db, body: proc(conn: DbConn): T): T =
+  ## Runs `body` in one transaction and returns its value. A normal return
+  ## commits, an exception rolls back. Reach for this only when the body's
+  ## value is the answer; otherwise `tx` says the boundary is all that matters.
   withConn(db, proc(conn: DbConn): T =
     let beginRes = pqexec(conn.conn, "BEGIN")
     try:
@@ -262,3 +265,17 @@ proc tx*[T](db: Db, body: proc(conn: DbConn): T): T =
         pqclear(rollbackRes)
       raise
   )
+
+proc tx*(db: Db, body: proc(conn: DbConn)) =
+  ## Runs `body` in one transaction. A normal return commits, an exception rolls
+  ## back. There is no "return without committing": a refusal that must not land
+  ## decides before the first write and raises, so a caller cannot mistake the
+  ## end of the body for a commit it did not ask for.
+  discard txRet(db, proc(conn: DbConn): bool =
+    body(conn)
+    true)
+
+proc tx*[T](db: Db, body: proc(conn: DbConn): T): T =
+  ## Legacy value-returning form, still used by the CLI tools that pass a
+  ## sentinel. Application code uses `tx` or `txRet` so the boundary is visible.
+  txRet(db, body)

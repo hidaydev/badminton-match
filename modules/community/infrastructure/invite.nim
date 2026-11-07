@@ -67,7 +67,7 @@ proc acceptPendingForEmail*(db: Db, userId, emailHash: string):
   ## memberships this call actually created are reported: an existing member
   ## already had the grant, and reporting it again would audit a no-op.
   var joined: seq[tuple[communityId, role: string]] = @[]
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     for row in conn.query(
       """update community.invite
          set accepted_at = now()
@@ -84,8 +84,7 @@ proc acceptPendingForEmail*(db: Db, userId, emailHash: string):
           textParam(row.get("role"))])
       if granted.isSome:
         joined.add((communityId: row.get("community_id"),
-          role: granted.get.get("role")))
-    1)
+          role: granted.get.get("role"))))
   joined
 
 proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
@@ -113,7 +112,7 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
     return found
 
   var communityId, role: string
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     let row = conn.queryOne(
       """update community.invite
          set accepted_at = now()
@@ -146,8 +145,7 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
            where community_id = $1::uuid and user_id = $2::uuid""",
         @[textParam(communityId), textParam(userId)])
       if held.isSome:
-        role = held.get.get("role")
-    1)
+        role = held.get.get("role"))
 
   if communityId.len > 0:
     AcceptResult(outcome: aoOk, communityId: communityId, role: role)

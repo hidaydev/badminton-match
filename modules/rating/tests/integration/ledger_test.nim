@@ -58,22 +58,19 @@ suite "rating ledger counters":
   test "a side is counted once per listed player, repeats included":
     # A roster that names one player twice counts twice: the write folds the
     # repeat into a multiplicity instead of a second conflicting row.
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       lockCommunity(conn, communityId)
-      addState(conn, communityId, @[first, first], won = true)
-      1)
+      addState(conn, communityId, @[first, first], won = true))
     check counters(first) == (2, 2, 0)
     # A later game accumulates on top of the first one.
-    discard db.tx(proc(conn: DbConn): int =
-      addState(conn, communityId, @[first, second], won = false)
-      1)
+    db.tx(proc(conn: DbConn) =
+      addState(conn, communityId, @[first, second], won = false))
     check counters(first) == (3, 2, 1)
     check counters(second) == (1, 0, 1)
 
   test "an empty side writes nothing":
-    discard db.tx(proc(conn: DbConn): int =
-      addState(conn, communityId, @[], won = true)
-      1)
+    db.tx(proc(conn: DbConn) =
+      addState(conn, communityId, @[], won = true))
     let row = db.queryOne(
       """select count(*)::int as n from rating.player_state
          where community_id = $1::uuid""", @[textParam(communityId)])
@@ -85,11 +82,11 @@ suite "rating ledger counters":
       """insert into rating.sources (community_id, source_id, kind, finalized)
          values ($1::uuid, $2::uuid, 'session', false)""",
       @[textParam(communityId), textParam(sourceId)])
-    check db.tx(proc(conn: DbConn): bool =
+    check db.txRet(proc(conn: DbConn): bool =
       sourceFinalizedConn(conn, communityId, sourceId)) == false
     discard db.execUpdate(
       """update rating.sources set finalized = true
          where community_id = $1::uuid and source_id = $2::uuid""",
       @[textParam(communityId), textParam(sourceId)])
-    check db.tx(proc(conn: DbConn): bool =
+    check db.txRet(proc(conn: DbConn): bool =
       sourceFinalizedConn(conn, communityId, sourceId))

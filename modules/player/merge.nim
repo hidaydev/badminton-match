@@ -52,7 +52,7 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
 
   var outcome: MergeOutcome
   try:
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       let locked = conn.query(
         """select id from player.players
            where community_id = $1::uuid and id in ($2::uuid, $3::uuid)
@@ -60,7 +60,7 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
         @[textParam(communityId), textParam(targetId), textParam(sourceId)]).len
       if locked != 2:
         outcome.error = mePlayerNotFound
-        return 0
+        return
 
       # A pair naming both merged players becomes a self-pair. It can only be
       # dropped while no match refers to it; otherwise the merge is refused.
@@ -81,7 +81,7 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
           @[textParam(communityId), textParam(pair.get("id"))])
         if used.isSome:
           outcome.error = mePairInUse
-          return 0
+          return
 
       # Two pairs that share the same partner become the same pair once both
       # merged players land on the target: (target, X) twice, which the
@@ -105,7 +105,7 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
         @[textParam(communityId), textParam(sourceId), textParam(targetId)])
       if pairCollision.isSome:
         outcome.error = mePairCollision
-        return 0
+        return
 
       outcome.result.targetPlayerId = targetId
       outcome.result.sourcePlayerId = sourceId
@@ -122,7 +122,7 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
         @[textParam(communityId), textParam(sourceId), textParam(targetId)])
       if sessionCollision.isSome:
         outcome.error = meSessionCollision
-        return 0
+        return
 
       # Aliases are unique per community, so the source row blocks an insert of
       # the same key for the target. Drop the duplicates first, then re-own the
@@ -338,8 +338,7 @@ proc merge*(db: Db, communityId, targetId, sourceId, actorId: string): MergeOutc
              (community_id, source_id, target_id, rows_moved, actor_id)
            values ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid)""",
         @[textParam(communityId), textParam(sourceId), textParam(targetId),
-          intParam(totalRows(outcome.result).int64), textParam(actorId)])
-      1)
+          intParam(totalRows(outcome.result).int64), textParam(actorId)]))
   except DbError as error:
     # The transaction rolled back, so neither player changed. A constraint
     # violation means the two players cannot be combined cleanly.

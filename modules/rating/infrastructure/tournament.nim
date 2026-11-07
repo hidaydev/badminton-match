@@ -279,8 +279,7 @@ proc ingestTournament*(db: Db, communityId, tournamentId: string,
   ## One event per signed-off tournament, serialised with every other rating
   ## write for the community.
   var outcome = TournamentIngestResult(status: tisOk)
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     lockCommunity(conn, communityId)
-    outcome = ingestTournamentConn(conn, communityId, tournamentId, params)
-    1)
+    outcome = ingestTournamentConn(conn, communityId, tournamentId, params))
   outcome

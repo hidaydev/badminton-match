@@ -172,7 +172,7 @@ proc writeSnapshot*(db: Db, communityId, asOf: string,
   ## stored placement can never disagree with the board it came from. A rank of
   ## zero means the caller had none to give, so the column stays NULL.
   var written = 0
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     for row in rows:
       written += conn.execUpdate(
         """insert into rating.snapshots
@@ -181,8 +181,7 @@ proc writeSnapshot*(db: Db, communityId, asOf: string,
            on conflict (community_id, player_id, taken_on) do update
              set rating = excluded.rating, rank = excluded.rank""",
         @[textParam(communityId), textParam(row.playerId), textParam(asOf),
-          intParam(row.points.int64), intParam(row.rank.int64)])
-    1)
+          intParam(row.points.int64), intParam(row.rank.int64)]))
   written
 
 proc snapshotRows*(db: Db, communityId, asOf: string): seq[BoardRow] =

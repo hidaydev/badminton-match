@@ -73,7 +73,7 @@ suite "database layer":
   test "transaction rolls back on error":
     var caught = false
     try:
-      discard db.tx(proc(conn: DbConn): int =
+      db.tx(proc(conn: DbConn) =
         discard conn.execUpdate(
           "insert into t004_probe (id) values ($1)", @[intParam(4)])
         raise newException(ValueError, "boom")

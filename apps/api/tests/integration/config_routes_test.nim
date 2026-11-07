@@ -16,9 +16,8 @@ suite "community config overrides":
     db = openDb(dsn(), 1)
     if db.queryOne("select count(*) as total from platform.config").get.get("total") == "0":
       let seed = readFile("db/seeds/platform_config.sql")
-      discard db.tx(proc(conn: DbConn): int =
-        conn.execScript(seed)
-        1)
+      db.tx(proc(conn: DbConn) =
+        conn.execScript(seed))
     snapshot = loadSnapshot(db)
     discard db.execUpdate(
       "delete from community.settings where community_id in (select id from platform.community where slug = 'cfg-test')")

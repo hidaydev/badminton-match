@@ -70,7 +70,7 @@ proc setRoleChecked*(db: Db, communityId, userId, role: string): MemberWrite =
   ## the update, so two concurrent demotions cannot both see "another admin".
   discard parseRole(role)
   var outcome = mwNotFound
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     lockCommunity(conn, communityId)
     let row = conn.queryOne(
       """select role from community.membership
@@ -78,24 +78,23 @@ proc setRoleChecked*(db: Db, communityId, userId, role: string): MemberWrite =
       @[textParam(communityId), textParam(userId)])
     if row.isNone:
       outcome = mwNotFound
-      return 0
+      return
     let current = row.get.get("role")
     if role != "admin" and current == "admin" and
        adminCount(conn, communityId) <= 1:
       outcome = mwLastAdmin
-      return 0
+      return
     discard conn.execUpdate(
       """update community.membership set role = $1
          where community_id = $2::uuid and user_id = $3::uuid""",
       @[textParam(role), textParam(communityId), textParam(userId)])
-    outcome = mwOk
-    1)
+    outcome = mwOk)
   outcome
 
 proc removeChecked*(db: Db, communityId, userId: string): MemberWrite =
   ## Same rule for deletion: the last admin is refused under the same lock.
   var outcome = mwNotFound
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     lockCommunity(conn, communityId)
     let row = conn.queryOne(
       """select role from community.membership
@@ -103,14 +102,13 @@ proc removeChecked*(db: Db, communityId, userId: string): MemberWrite =
       @[textParam(communityId), textParam(userId)])
     if row.isNone:
       outcome = mwNotFound
-      return 0
+      return
     if row.get.get("role") == "admin" and adminCount(conn, communityId) <= 1:
       outcome = mwLastAdmin
-      return 0
+      return
     discard conn.execUpdate(
       """delete from community.membership
          where community_id = $1::uuid and user_id = $2::uuid""",
       @[textParam(communityId), textParam(userId)])
-    outcome = mwOk
-    1)
+    outcome = mwOk)
   outcome

@@ -26,13 +26,12 @@ proc readSnapshot(job: ptr SnapshotJob) {.thread.} =
       job.failed = true
 
 proc bumpTimezone(db: Db, value: string) =
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     discard conn.execUpdate(
       "update platform.config set value = $1 where key = $2",
       @[textParam("\"" & value & "\""), textParam($keyCommunityDefaultTimezone)])
     discard conn.execUpdate(
-      "update platform.config_version set version = version + 1")
-    1)
+      "update platform.config_version set version = version + 1"))
 
 proc seedPresent(db: Db): bool =
   db.queryOne("select count(*) as total from platform.config").get.get("total") != "0"
@@ -47,9 +46,8 @@ suite "platform config":
       # Self-seeding keeps the suite runnable on a database that was only
       # migrated; the seed file is the same one dbtools applies in production.
       let seed = readFile("db/seeds/platform_config.sql")
-      discard db.tx(proc(conn: DbConn): int =
-        conn.execScript(seed)
-        1)
+      db.tx(proc(conn: DbConn) =
+        conn.execScript(seed))
 
   teardown:
     db.close()
@@ -122,20 +120,18 @@ suite "platform config":
     let cache = newConfigCache(db)
     let before = cache.snapshot(db).stringValue(%*{}, keyCommunityDefaultTimezone)
     check before == "Asia/Jakarta"
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       discard conn.execUpdate(
         "update platform.config set value = '\"Asia/Makassar\"' where key = $1",
         @[textParam($keyCommunityDefaultTimezone)])
-      discard conn.execUpdate("update platform.config_version set version = version + 1")
-      1)
+      discard conn.execUpdate("update platform.config_version set version = version + 1"))
     let after = cache.snapshot(db).stringValue(%*{}, keyCommunityDefaultTimezone)
     check after == "Asia/Makassar"
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       discard conn.execUpdate(
         "update platform.config set value = '\"Asia/Jakarta\"' where key = $1",
         @[textParam($keyCommunityDefaultTimezone)])
-      discard conn.execUpdate("update platform.config_version set version = version + 1")
-      1)
+      discard conn.execUpdate("update platform.config_version set version = version + 1"))
     check cache.snapshot(db).stringValue(%*{}, keyCommunityDefaultTimezone) == "Asia/Jakarta"
 
   test "concurrent readers reload the bumped version and never downgrade":

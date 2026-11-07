@@ -176,14 +176,14 @@ proc putSchedule*(db: Db, communityId, sessionId: string, expectedVersion: int,
 
   var outcome = ssOk
   try:
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       let allowed = gate(conn, communityId, sessionId, expectedVersion)
       if allowed != ssOk:
         outcome = allowed
-        return 0
+        return
       if not bump(conn, communityId, sessionId, expectedVersion):
         outcome = ssStale
-        return 0
+        return
       for playerId in playerIds:
         discard conn.execUpdate(
           """insert into session.participants (community_id, session_id, player_id)
@@ -207,8 +207,7 @@ proc putSchedule*(db: Db, communityId, sessionId: string, expectedVersion: int,
             textParam(game.sideB.first), textParam(game.sideB.second)])
       # Rewriting the sides can orphan a skip that named a player who is no
       # longer in that game.
-      discard clearStaleSkips(conn, communityId, sessionId)
-      1)
+      discard clearStaleSkips(conn, communityId, sessionId))
   except DbError as error:
     if error.sqlState.len >= 2 and error.sqlState[0 .. 1] == "23":
       return ssInvalid
@@ -226,17 +225,17 @@ proc setAbsent*(db: Db, communityId, sessionId: string, expectedVersion: int,
   if countKnownPlayers(db, communityId, unique) != unique.len:
     return ssUnknownPlayer
   var outcome = ssOk
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     let allowed = gate(conn, communityId, sessionId, expectedVersion)
     if allowed != ssOk:
       outcome = allowed
-      return 0
+      return
     if unknownParticipants(conn, communityId, sessionId, unique):
       outcome = ssNotParticipant
-      return 0
+      return
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
-      return 0
+      return
     discard conn.execUpdate(
       """update session.participants set is_absent = false
          where community_id = $1::uuid and session_id = $2::uuid""",
@@ -246,8 +245,7 @@ proc setAbsent*(db: Db, communityId, sessionId: string, expectedVersion: int,
         """update session.participants set is_absent = true
            where community_id = $1::uuid and session_id = $2::uuid
              and player_id = $3::uuid""",
-        @[textParam(communityId), textParam(sessionId), textParam(playerId)])
-    1)
+        @[textParam(communityId), textParam(sessionId), textParam(playerId)]))
   outcome
 
 proc sessionRules*(db: Db, communityId, sessionId: string): Option[ScoringRules] =
@@ -270,31 +268,31 @@ proc setSets*(db: Db, communityId, sessionId, gameKey: string,
   if key.isNone:
     return ssInvalid
   var outcome = ssOk
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     if not gameExists(conn, communityId, sessionId, key.get):
       outcome = ssNotFound
-      return 0
+      return
     let allowed = gate(conn, communityId, sessionId, expectedVersion)
     if allowed != ssOk:
       outcome = allowed
-      return 0
+      return
     let rulesRow = conn.queryOne(
       """select scoring_rules from session.sessions
          where community_id = $1::uuid and id = $2::uuid""",
       @[textParam(communityId), textParam(sessionId)])
     if rulesRow.isNone:
       outcome = ssNotFound
-      return 0
+      return
     let rules = parseSnapshotNode(parseJson(rulesRow.get.get("scoring_rules")))
     let verdict = validateSets(rules, sets)
     if verdict.error != seOk:
       outcome =
         if verdict.error in {seTooManySets, seSetAfterEnd}: ssInvalidSequence
         else: ssInvalid
-      return 0
+      return
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
-      return 0
+      return
     discard conn.execUpdate(
       """delete from session.game_sets
          where community_id = $1::uuid and session_id = $2::uuid
@@ -318,8 +316,7 @@ proc setSets*(db: Db, communityId, sessionId, gameKey: string,
          where community_id = $1::uuid and session_id = $2::uuid
            and round_no = $4 and court_no = $5""",
       @[textParam(communityId), textParam(sessionId), textParam(status),
-        intParam(key.get[0].int64), intParam(key.get[1].int64)])
-    1)
+        intParam(key.get[0].int64), intParam(key.get[1].int64)]))
   outcome
 
 proc setScore*(db: Db, communityId, sessionId, gameKey: string,
@@ -338,14 +335,14 @@ proc setPlayed*(db: Db, communityId, sessionId, gameKey: string,
   if key.isNone:
     return ssInvalid
   var outcome = ssOk
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     if not gameExists(conn, communityId, sessionId, key.get):
       outcome = ssNotFound
-      return 0
+      return
     let allowed = gate(conn, communityId, sessionId, expectedVersion)
     if allowed != ssOk:
       outcome = allowed
-      return 0
+      return
     if played and conn.queryOne(
         """select 1 as ok from session.game_sets
            where community_id = $1::uuid and session_id = $2::uuid
@@ -355,10 +352,10 @@ proc setPlayed*(db: Db, communityId, sessionId, gameKey: string,
       # Marking a scored match played would erase the sets. Clearing it first is
       # an explicit choice, not a side effect of one click.
       outcome = ssHasSets
-      return 0
+      return
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
-      return 0
+      return
     discard conn.execUpdate(
       """delete from session.game_sets
          where community_id = $1::uuid and session_id = $2::uuid
@@ -375,8 +372,7 @@ proc setPlayed*(db: Db, communityId, sessionId, gameKey: string,
         intParam(key.get[0].int64), intParam(key.get[1].int64)])
     if updated == 0:
       outcome = ssNotFound
-      return 0
-    1)
+      return)
   if outcome != ssOk: return outcome
   ssOk
 
@@ -394,7 +390,7 @@ proc setSkips*(db: Db, communityId, sessionId, gameKey: string,
   if countKnownPlayers(db, communityId, unique) != unique.len:
     return ssUnknownPlayer
   var outcome = ssOk
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     let game = conn.queryOne(
       """select 1 as ok from session.games
          where community_id = $1::uuid and session_id = $2::uuid
@@ -403,7 +399,7 @@ proc setSkips*(db: Db, communityId, sessionId, gameKey: string,
         intParam(key.get[0].int64), intParam(key.get[1].int64)])
     if game.isNone:
       outcome = ssNotFound
-      return 0
+      return
     for playerId in unique:
       let participant = conn.queryOne(
         """select 1 as ok from session.participants
@@ -412,14 +408,14 @@ proc setSkips*(db: Db, communityId, sessionId, gameKey: string,
         @[textParam(communityId), textParam(sessionId), textParam(playerId)])
       if participant.isNone:
         outcome = ssNotParticipant
-        return 0
+        return
     let allowed = gate(conn, communityId, sessionId, expectedVersion)
     if allowed != ssOk:
       outcome = allowed
-      return 0
+      return
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
-      return 0
+      return
     discard conn.execUpdate(
       """delete from session.game_skips
          where community_id = $1::uuid and session_id = $2::uuid
@@ -435,8 +431,7 @@ proc setSkips*(db: Db, communityId, sessionId, gameKey: string,
         @[textParam(communityId), textParam(sessionId),
           intParam(key.get[0].int64), intParam(key.get[1].int64),
           textParam(playerId)])
-    discard clearStaleSkips(conn, communityId, sessionId)
-    1)
+    discard clearStaleSkips(conn, communityId, sessionId))
   if outcome != ssOk: return outcome
   ssOk
 
@@ -446,17 +441,17 @@ proc skipGame*(db: Db, communityId, sessionId, gameKey: string,
   if key.isNone:
     return ssInvalid
   var outcome = ssOk
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     if not gameExists(conn, communityId, sessionId, key.get):
       outcome = ssNotFound
-      return 0
+      return
     let allowed = gate(conn, communityId, sessionId, expectedVersion)
     if allowed != ssOk:
       outcome = allowed
-      return 0
+      return
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
-      return 0
+      return
     let updated = conn.execUpdate(
       """update session.games
          set status = 'cancelled', score_a = null, score_b = null
@@ -466,7 +461,7 @@ proc skipGame*(db: Db, communityId, sessionId, gameKey: string,
         intParam(key.get[0].int64), intParam(key.get[1].int64)])
     if updated == 0:
       outcome = ssNotFound
-      return 0
+      return
     # A cancelled game has no result; keeping the sets would leave the results
     # view reporting a winner for a match the session cancelled.
     discard conn.execUpdate(
@@ -474,8 +469,7 @@ proc skipGame*(db: Db, communityId, sessionId, gameKey: string,
          where community_id = $1::uuid and session_id = $2::uuid
            and round_no = $3 and court_no = $4""",
       @[textParam(communityId), textParam(sessionId),
-        intParam(key.get[0].int64), intParam(key.get[1].int64)])
-    1)
+        intParam(key.get[0].int64), intParam(key.get[1].int64)]))
   if outcome != ssOk: return outcome
   ssOk
 

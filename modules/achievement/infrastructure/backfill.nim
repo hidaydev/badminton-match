@@ -471,7 +471,7 @@ proc backfill*(db: Db, communityId, asOf: string,
   ## process a single connection.
   var outcome: BackfillResult
   let ranks = loadRanks(db, communityId, asOf, params)
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     let facts = loadFacts(conn, communityId, ranks)
     let keys = catalogKeys()
     let earnedAt = utcNow().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
@@ -503,8 +503,7 @@ proc backfill*(db: Db, communityId, asOf: string,
     outcome.revoked = revokeAwards(conn, communityId, earned, qualified,
       imported)
     outcome.players = facts.len
-    outcome.awarded = writeAwards(conn, communityId, earnedAt, rows)
-    1)
+    outcome.awarded = writeAwards(conn, communityId, earnedAt, rows))
   outcome
 
 proc backfill*(db: Db, communityId: string): BackfillResult =

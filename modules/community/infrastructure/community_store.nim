@@ -18,7 +18,7 @@ proc create*(db: Db, slug, name, adminEmail, timezone, actorId: string): CreateR
   ## a community without an admin has no way to be managed (COM-01).
   var taken = false
   var communityId = ""
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     let row = conn.queryOne(
       """insert into platform.community (slug, name, timezone)
          values ($1, $2, $3)
@@ -40,8 +40,7 @@ proc create*(db: Db, slug, name, adminEmail, timezone, actorId: string): CreateR
           textParam(sha256Hex(newToken())),
           textParam(sha256Hex(adminEmail.strip().toLowerAscii())),
           (if actorId.len == 0: nullParam() else: textParam(actorId)),
-        ])
-    1)
+        ]))
   if taken:
     CreateResult(status: csSlugTaken)
   else:

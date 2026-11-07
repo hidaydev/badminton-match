@@ -104,7 +104,7 @@ proc decide*(db: Db, communityId, playerId, claimId, adminId: string,
 
   var outcome = ceConflict
   try:
-    discard db.tx(proc(conn: DbConn): int =
+    db.tx(proc(conn: DbConn) =
       let status = if approve: "approved" else: "rejected"
       # The CHECK constraint requires a reason whenever the row is decided.
       let decidedReason =
@@ -121,7 +121,7 @@ proc decide*(db: Db, communityId, playerId, claimId, adminId: string,
         @[textParam(communityId), textParam(playerId), textParam(claimId),
           textParam(status), textParam(adminId), textParam(decidedReason)])
       if decided.isNone:
-        return 1
+        return
       if approve:
         let claimant = decided.get.get("user_id")
         # Serialize approvals for one claimant: under READ COMMITTED two
@@ -148,7 +148,7 @@ proc decide*(db: Db, communityId, playerId, claimId, adminId: string,
             @[textParam(communityId), textParam(playerId),
               textParam(claimId), textParam(adminId)])
           outcome = ceClaimantOwnsPlayer
-          return 0
+          return
         let bound = conn.queryOne(
           """update player.players set user_id = $3::uuid, updated_at = now()
              where community_id = $1::uuid and id = $2::uuid and user_id is null
@@ -165,8 +165,7 @@ proc decide*(db: Db, communityId, playerId, claimId, adminId: string,
                and status = 'pending' and id <> $3::uuid""",
           @[textParam(communityId), textParam(playerId), textParam(claimId),
             textParam(adminId)])
-      outcome = ceOk
-      1)
+      outcome = ceOk)
   except ValueError:
     return ceConflict
   except DbError as error:
@@ -181,7 +180,7 @@ proc release*(db: Db, communityId, playerId, adminId: string,
   ## is locked first, then the conditional UPDATE decides the winner; zero rows
   ## is a 409, never a 500.
   var outcome = ceConflict
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     discard conn.queryOne(
       """select id from player.players
          where community_id = $1::uuid and id = $2::uuid for update""",
@@ -201,13 +200,12 @@ proc release*(db: Db, communityId, playerId, adminId: string,
       @[textParam(communityId), textParam(playerId), textParam(claimId),
         textParam(adminId), textParam(reason), textParam(subjectUserId)])
     if released.isNone:
-      return 1
+      return
     discard conn.execUpdate(
       """update player.players set user_id = null, updated_at = now()
          where community_id = $1::uuid and id = $2::uuid and user_id = $3::uuid""",
       @[textParam(communityId), textParam(playerId), textParam(subjectUserId)])
-    outcome = ceOk
-    1)
+    outcome = ceOk)
   outcome
 
 proc claimOwner*(db: Db, communityId, playerId, claimId: string): string =

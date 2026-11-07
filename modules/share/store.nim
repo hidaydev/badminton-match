@@ -29,7 +29,7 @@ proc issue*(db: Db, keyring: Keyring, communityId, sessionId,
   let linkId = uuidv7()
   let code = newShareCode()
   let (keyId, encrypted) = encryptWith(keyring, code, aadFor(communityId, linkId))
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     discard conn.execUpdate(
       """update session.links set revoked_at = now()
          where community_id = $2::uuid and session_id = $1::uuid
@@ -43,8 +43,7 @@ proc issue*(db: Db, keyring: Keyring, communityId, sessionId,
                  $6, $7::uuid, now() + make_interval(days => $8))""",
       @[textParam(linkId), textParam(communityId), textParam(sessionId),
         textParam(sha256Hex(code)), textParam(bytesHex(encrypted)),
-        textParam(keyId), textParam(createdBy), intParam(ttlDays.int64)])
-    1)
+        textParam(keyId), textParam(createdBy), intParam(ttlDays.int64)]))
   code
 
 proc currentCode*(db: Db, keyring: Keyring, communityId,

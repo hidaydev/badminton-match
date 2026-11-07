@@ -123,11 +123,10 @@ proc ingestSession*(db: Db, communityId, sessionId: string,
                     params: RatingParams): IngestResult =
   ## Exactly one event per approved session; a second run is a no-op.
   var outcome: IngestResult
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     lockCommunity(conn, communityId)
     outcome = ingestSessionConn(conn, communityId, sessionId, params,
-      initTable[string, string]())
-    1)
+      initTable[string, string]()))
   outcome
 
 proc sourceFinalized*(db: Db, communityId, sourceId: string): bool =
@@ -213,9 +212,8 @@ proc dropSourceConn*(conn: DbConn, communityId, sourceId: string): int =
 
 proc dropSource*(db: Db, communityId, sourceId: string): int =
   var removed = 0
-  discard db.tx(proc(conn: DbConn): int =
-    removed = dropSourceConn(conn, communityId, sourceId)
-    1)
+  db.tx(proc(conn: DbConn) =
+    removed = dropSourceConn(conn, communityId, sourceId))
   removed
 
 proc revertSourceConn*(conn: DbConn, communityId, sourceId: string): int =
@@ -236,9 +234,8 @@ proc revertSourceConn*(conn: DbConn, communityId, sourceId: string): int =
 
 proc revertSource*(db: Db, communityId, sourceId: string): int =
   var removed = 0
-  discard db.tx(proc(conn: DbConn): int =
-    removed = revertSourceConn(conn, communityId, sourceId)
-    1)
+  db.tx(proc(conn: DbConn) =
+    removed = revertSourceConn(conn, communityId, sourceId))
   removed
 
 proc rebuildConn*(conn: DbConn, communityId: string,
@@ -285,25 +282,26 @@ proc rebuild*(db: Db, communityId: string, params: RatingParams): IngestResult =
   ## Wraps `rebuildConn` in a transaction. A caller that already holds one
   ## (a delete that must not leave half its work behind) uses `rebuildConn`.
   var outcome: IngestResult
-  discard db.tx(proc(conn: DbConn): int =
-    outcome = rebuildConn(conn, communityId, params)
-    1)
+  db.tx(proc(conn: DbConn) =
+    outcome = rebuildConn(conn, communityId, params))
   outcome
+
+proc removeEventConn*(conn: DbConn, communityId, eventId: string): int =
+  ## Deletes one event by id on the caller's connection, leaving the caller to
+  ## rebuild derived state, so the delete and the rebuild can share a boundary.
+  let event = conn.queryOne(
+    """select point_entries from rating.events
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(eventId)])
+  if event.isNone:
+    return 0
+  result = parseInt(event.get.get("point_entries"))
+  discard conn.execUpdate(
+    """delete from rating.events
+       where community_id = $1::uuid and id = $2::uuid""",
+    @[textParam(communityId), textParam(eventId)])
 
 proc removeEvent*(db: Db, communityId, eventId: string): int =
   ## Deletes one event by id, leaving the caller to rebuild derived state.
-  var removed = 0
-  discard db.tx(proc(conn: DbConn): int =
-    let event = conn.queryOne(
-      """select point_entries from rating.events
-         where community_id = $1::uuid and id = $2::uuid""",
-      @[textParam(communityId), textParam(eventId)])
-    if event.isNone:
-      return 0
-    removed = parseInt(event.get.get("point_entries"))
-    discard conn.execUpdate(
-      """delete from rating.events
-         where community_id = $1::uuid and id = $2::uuid""",
-      @[textParam(communityId), textParam(eventId)])
-    1)
-  removed
+  db.txRet(proc(conn: DbConn): int =
+    removeEventConn(conn, communityId, eventId))

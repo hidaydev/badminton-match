@@ -43,17 +43,17 @@ proc anonymize*(db: Db, userId, actorId, reason: string): LifecycleResult =
   ## the sessions, then rewrite the identity. Rating rows are untouched, because
   ## the history belongs to the player, not to the account.
   var outcome = lrOk
-  discard db.tx(proc(conn: DbConn): int =
+  db.tx(proc(conn: DbConn) =
     let user = conn.queryOne(
       """select google_sub, email_hash from platform.user
          where id = $1::uuid for update""",
       @[textParam(userId)])
     if user.isNone:
       outcome = lrNotFound
-      return 0
+      return
     if isAnonymized(user.get.get("email_hash"), userId):
       outcome = lrAlready
-      return 0
+      return
     let identity = anonymizedIdentity(user.get.get("google_sub"), userId)
     let communityIds = communitiesOf(conn, userId)
     releaseClaims(conn, communityIds, userId, actorId, reason)
@@ -82,10 +82,10 @@ proc anonymize*(db: Db, userId, actorId, reason: string): LifecycleResult =
          where id = $1::uuid""",
       @[textParam(userId), textParam(identity.sub),
         textParam(identity.emailHash), textParam(identity.displayName)])
-    1)
-  if outcome == lrOk:
-    recordAudit(db, auditEvent("account.anonymize", communityId = "",
+    # The evidence belongs to the same transaction as the rewrite it records,
+    # so an audit failure cannot leave an anonymized account without its row.
+    recordAuditConn(conn, auditEvent("account.anonymize", communityId = "",
       actorId = actorId, actorRole = "platform_owner",
       targetKind = "user", targetId = userId, reason = reason,
-      requestId = "cli").withEvidence(newJObject(), %*{"reason": reason}))
+      requestId = "cli").withEvidence(newJObject(), %*{"reason": reason})))
   outcome
