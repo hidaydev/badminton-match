@@ -290,7 +290,12 @@ else
     2>>"$LOG" || true)
   WEB_URL=$(printf '%s' "$DEPLOY_JSON" | sed -n 's/.*"url":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
   [ -n "$WEB_URL" ] || fail "vercel deploy returned no url"
-  log "web deployed: https://$WEB_URL"
+  # The CLI reports a bare host on some versions and a full URL on others.
+  case "$WEB_URL" in
+    *://*) ;;
+    *) WEB_URL="https://$WEB_URL" ;;
+  esac
+  log "web deployed: $WEB_URL"
   cd "$MONO_DIR"
 fi
 
