@@ -1,11 +1,9 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { Player } from '../types'
 import type { PlayerSummary } from '../queries'
 import type { ResolveEntry, ResolveResult } from '../utils/resolvePlayers'
 import { buildResolveResult } from '../utils/resolvePlayers'
-import { useEscapeKey } from '../hooks/useEscapeKey'
-import { useFocusTrap } from '../hooks/useFocusTrap'
-import { t } from '../../i18n'
+import { Overlay } from '../../components/Overlay'
 
 interface ResolvePlayersModalProps {
   open: boolean
@@ -23,10 +21,6 @@ export default function ResolvePlayersModal({
   onCancel,
 }: ResolvePlayersModalProps) {
   const [entries, setEntries] = useState<Record<string, ResolveEntry>>({})
-  const dialogRef = useRef<HTMLDivElement>(null)
-
-  useEscapeKey(onCancel, open)
-  useFocusTrap(dialogRef, open)
 
   if (!open) return null
 
@@ -69,70 +63,19 @@ export default function ResolvePlayersModal({
   const allResolved = list.length > 0 && list.every((e) => e.mode === 'new' || (e.mode === 'merge' && e.mergeTarget))
 
   return (
-    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label={t('wizard.resolvePlayers')}>
-      <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-lg w-full flex flex-col gap-4 shadow-2xl max-h-screen overflow-auto">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-white font-bold text-lg">Resolve new players</h2>
-          <p className="text-slate-400 text-sm">
-            {list.length} player{list.length > 1 ? 's' : ''} not found in the database.
-            Choose <span className="text-emerald-400 font-medium">Add new</span> to register
-            them, or <span className="text-indigo-400 font-medium">Merge</span> to link
-            them to an existing player.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          {list.map((entry) => (
-            <div key={entry.player.id} className="bg-elevated border border-border rounded-xl px-3 py-2.5 flex flex-col gap-2">
-              <span className="text-sm font-semibold text-white">{entry.player.name}</span>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={() => setMode(entry.player.id, 'new')}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    entry.mode === 'new'
-                      ? 'bg-emerald-700 text-white border border-emerald-500'
-                      : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
-                  }`}
-                >
-                  + Add new
-                </button>
-                <button
-                  onClick={() => setMode(entry.player.id, 'merge')}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    entry.mode === 'merge'
-                      ? 'bg-indigo-400 text-slate-950 border border-indigo-300'
-                      : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
-                  }`}
-                >
-                  ⇄ Merge
-                </button>
-              </div>
-              {entry.mode === 'merge' && (
-                <select
-                  value={entry.mergeTarget ?? ''}
-                  onChange={(e) => setMergeTarget(entry.player.id, e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
-                >
-                  <option value="">— Select existing player —</option>
-                  {knownPlayers.map((kp) => (
-                    <option key={kp.name} value={kp.name}>
-                      {kp.name} ({kp.gender}, Tier {kp.tier})
-                    </option>
-                  ))}
-                </select>
-              )}
-              {entry.mode === 'merge' && entry.mergeTarget && (
-                <p className="text-[10px] text-slate-400">
-                  &quot;{entry.player.name}&quot; will be registered as an alias of{' '}
-                  <span className="text-indigo-400 font-medium">{entry.mergeTarget}</span>.
-                  Future sessions with this name will auto-resolve.
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="flex gap-2 pt-1">
+    <Overlay
+      onClose={onCancel}
+      title="Resolve new players"
+      description={
+        <>
+          {list.length} player{list.length > 1 ? 's' : ''} not found in the database.
+          Choose <span className="text-emerald-400 font-medium">Add new</span> to register
+          them, or <span className="text-indigo-400 font-medium">Merge</span> to link
+          them to an existing player.
+        </>
+      }
+      footer={
+        <div className="flex gap-2">
           <button
             onClick={onCancel}
             className="flex-1 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
@@ -147,7 +90,58 @@ export default function ResolvePlayersModal({
             Confirm
           </button>
         </div>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        {list.map((entry) => (
+          <div key={entry.player.id} className="bg-elevated border border-border rounded-xl px-3 py-2.5 flex flex-col gap-2">
+            <span className="text-sm font-semibold text-white">{entry.player.name}</span>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setMode(entry.player.id, 'new')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  entry.mode === 'new'
+                    ? 'bg-emerald-700 text-white border border-emerald-500'
+                    : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
+                }`}
+              >
+                + Add new
+              </button>
+              <button
+                onClick={() => setMode(entry.player.id, 'merge')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  entry.mode === 'merge'
+                    ? 'bg-indigo-400 text-slate-950 border border-indigo-300'
+                    : 'bg-slate-700 text-slate-400 border border-slate-600 hover:text-slate-200'
+                }`}
+              >
+                ⇄ Merge
+              </button>
+            </div>
+            {entry.mode === 'merge' && (
+              <select
+                value={entry.mergeTarget ?? ''}
+                onChange={(e) => setMergeTarget(entry.player.id, e.target.value)}
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <option value="">— Select existing player —</option>
+                {knownPlayers.map((kp) => (
+                  <option key={kp.name} value={kp.name}>
+                    {kp.name} ({kp.gender}, Tier {kp.tier})
+                  </option>
+                ))}
+              </select>
+            )}
+            {entry.mode === 'merge' && entry.mergeTarget && (
+              <p className="text-[10px] text-slate-400">
+                &quot;{entry.player.name}&quot; will be registered as an alias of{' '}
+                <span className="text-indigo-400 font-medium">{entry.mergeTarget}</span>.
+                Future sessions with this name will auto-resolve.
+              </p>
+            )}
+          </div>
+        ))}
       </div>
-    </div>
+    </Overlay>
   )
 }

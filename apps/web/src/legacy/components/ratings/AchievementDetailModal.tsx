@@ -7,11 +7,11 @@
 // - Tangga progres 5-tingkat dengan rel penghubung (progress track), status earned/locked,
 //   dan indikator tier saat ini.
 // - Bar progres ke tier berikutnya jika milestone belum maksimal.
-// - Aksesibilitas keyboard (Escape & fokus awal tombol Close).
+// - Escape, focus trap dan scrim ditangani `Overlay` (satu stack, bukan listener sendiri).
 
-import { useEffect, useRef } from 'react'
+import { useId } from 'react'
 import AchievementBadge from './AchievementBadge'
-import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { Overlay } from '../../../components/Overlay'
 import {
   eventTone,
   isEventKey,
@@ -34,17 +34,7 @@ export default function AchievementDetailModal({
   achievement,
   onClose,
 }: AchievementDetailModalProps) {
-  const dialogRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(dialogRef, achievement !== null)
-
-  useEffect(() => {
-    if (!achievement) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [achievement, onClose])
+  const titleId = useId()
 
   if (!achievement) return null
   const a = achievement
@@ -75,18 +65,9 @@ export default function AchievementDetailModal({
   }
 
   return (
-    <div
-      ref={dialogRef}
-      tabIndex={-1}
-      className="fixed inset-0 z-60 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-[fadeInScale_0.15s_ease-out]"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${a.title} details`}
-    >
+    <Overlay onClose={onClose} title={a.title} labelledBy={titleId}>
       <div
-        className="relative flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border/80 bg-surface shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        className="relative mx-auto flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-border/80 bg-surface shadow-2xl"
         style={{
           ['--modal-glow' as string]: currentTierStyle.glow,
         }}
@@ -130,7 +111,7 @@ export default function AchievementDetailModal({
             </div>
           )}
 
-          <h3 className="mt-2 text-base font-bold text-fg">{a.title}</h3>
+          <h3 id={titleId} className="mt-2 text-base font-bold text-fg">{a.title}</h3>
 
           {a.detail && (
             <p className="mt-0.5 text-xs font-semibold text-accent">{a.detail}</p>
@@ -252,6 +233,6 @@ export default function AchievementDetailModal({
           </div>
         )}
       </div>
-    </div>
+    </Overlay>
   )
 }

@@ -1,8 +1,6 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStore } from '../store'
-import { useEscapeKey } from '../hooks/useEscapeKey'
-import { useFocusTrap } from '../hooks/useFocusTrap'
 import { communityQueryKey } from '../queries/keys'
 import {
   activeCommunitySlug,
@@ -20,6 +18,7 @@ import { buildPublishableSessionSnapshot } from '../utils/sessionSnapshot'
 import { communityHref } from '../../routes.manifest'
 import { t } from '../../i18n'
 import ResolvePlayersModal from './ResolvePlayersModal'
+import { Overlay } from '../../components/Overlay'
 import { findUnresolvedPlayers } from '../utils/resolvePlayers'
 
 export default function ShareButton() {
@@ -42,10 +41,6 @@ export default function ShareButton() {
   const [copied, setCopied] = useState(false)
   const [resolveOpen, setResolveOpen] = useState(false)
   const [knownPlayers, setKnownPlayers] = useState<PlayerSummary[]>([])
-  const confirmRef = useRef<HTMLDivElement>(null)
-
-  useEscapeKey(() => setConfirming(false), confirming)
-  useFocusTrap(confirmRef, confirming)
 
   // One cache entry for the live code, shared with the summary panel: rotating
   // or revoking there must not leave this pill handing out the old link.
@@ -194,24 +189,12 @@ export default function ShareButton() {
       />
       {/* Confirmation modal */}
       {confirming && (
-        <div ref={confirmRef} tabIndex={-1} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" role="dialog" aria-modal="true" aria-label={t('session.publishConfirm')}>
-          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-sm w-full flex flex-col gap-4 shadow-2xl">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-white font-bold text-lg">Publish this session?</h2>
-              <p className="text-slate-400 text-sm">Share this session with players. You can still input scores and manage the live session after publishing.</p>
-            </div>
-            <div className="flex flex-col gap-2 text-sm">
-              <div className="flex items-center gap-2 text-slate-400">
-                <span className="text-emerald-400">✓</span> Mark games as played
-              </div>
-              <div className="flex items-center gap-2 text-slate-400">
-                <span className="text-emerald-400">✓</span> Enter and update scores
-              </div>
-              <div className="flex items-center gap-2 text-slate-400">
-                <span className="text-red-400">✕</span> Regenerate the schedule
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
+        <Overlay
+          onClose={() => setConfirming(false)}
+          title="Publish this session?"
+          description="Share this session with players. You can still input scores and manage the live session after publishing."
+          footer={
+            <div className="flex gap-2">
               <button
                 onClick={() => setConfirming(false)}
                 className="flex-1 py-2 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
@@ -225,8 +208,20 @@ export default function ShareButton() {
                 Publish & Share
               </button>
             </div>
+          }
+        >
+          <div className="flex flex-col gap-2 text-sm">
+            <div className="flex items-center gap-2 text-slate-400">
+              <span className="text-emerald-400">✓</span> Mark games as played
+            </div>
+            <div className="flex items-center gap-2 text-slate-400">
+              <span className="text-emerald-400">✓</span> Enter and update scores
+            </div>
+            <div className="flex items-center gap-2 text-slate-400">
+              <span className="text-red-400">✕</span> Regenerate the schedule
+            </div>
           </div>
-        </div>
+        </Overlay>
       )}
 
       {/* Inline share URL (after publish) */}
