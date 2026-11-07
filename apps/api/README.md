@@ -83,7 +83,7 @@ gagal bila ada yang hilang.
 ./task parity verify    # korpus v1 beku (71 kasus, 48 rute)
 ```
 
-Migrasi: 30 berkas (`db/migrations/0001`–`0030`). Config bisnis: 34 key di
+Migrasi: 32 berkas (`db/migrations/0001`–`0032`). Config bisnis: 34 key di
 `modules/platform/config/registry.nim`.
 
 ## v1 sudah dihapus

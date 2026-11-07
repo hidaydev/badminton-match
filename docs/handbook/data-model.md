@@ -4,9 +4,10 @@ Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk dat
 dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
 dump VPS atau skema v1.
 
-- Migrasi: `db/migrations/0001_core.sql` … `0030_scoring_grants.sql` (30 file;
-  `0030` adalah yang terakhir dan memberi role aplikasi grant pada
-  `session.game_sets` dan view `session.game_results`).
+- Migrasi: `db/migrations/0001_core.sql` … `0032_default_grants.sql` (32 file;
+  `0032` adalah yang terakhir dan menambah default privileges untuk role
+  aplikasi; `0030` memberi grant pada `session.game_sets` dan view
+  `session.game_results`).
 - Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
   `dbtools.seed_files` (checksum per file).
@@ -215,7 +216,7 @@ Jangan membawa nama dari dokumen v1 ke sini:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0030` |
+| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0032` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (ledger delta tidak punya padanan) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |

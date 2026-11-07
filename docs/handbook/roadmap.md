@@ -10,7 +10,7 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
   `apps/api/src/main.nim`.
 - **Kontrak 75 operasi** — `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, klien TS, fingerprint (`packages/contracts/openapi`).
-- **Skema v2** — 30 migrasi (`0001`–`0030`), 34 key config, seed config dan
+- **Skema v2** — 32 migrasi (`0001`–`0032`), 34 key config, seed config dan
   achievement.
 - **Auth & komunitas** — OIDC + cookie sesi, membership `member`/`host`/`admin`,
   invite, join request, settings, audit append-only, platform owner.

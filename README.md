@@ -58,7 +58,7 @@ majadu/
 ├── packages/
 │   ├── contracts/openapi/   core.yaml + community.yaml → api.yaml + client
 │   └── web-client/          Generated TypeScript client
-├── db/                      migrations (0001–0030), seeds, platform config
+├── db/                      migrations (0001–0032), seeds, platform config
 ├── ops/                     Quadlet, Caddy, deploy/cutover/backup/restore/smoke
 ├── tools/                   dbtools, contract-gen, archcheck, ETL, parity,
 │                            fixtures, mock-api, rehearsal
@@ -131,7 +131,7 @@ Rollback is the `:v1-final` image, not source code.
 
 ## 📌 Status
 
-The v2 rewrite is complete: 75 contract operations, 30 migrations, backend and
+The v2 rewrite is complete: 75 contract operations, 32 migrations, backend and
 frontend features wired end to end. The v1 Go tree is gone.
 
 Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):
