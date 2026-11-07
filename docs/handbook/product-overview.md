@@ -108,7 +108,8 @@ Admin bisa finalize source, ingest, revert rating, dan menghapus turnamen.
 
 - Sumber: klasemen sesi, grup/bracket/final classic, atau klasemen/final team.
 - Dua varian: `post` (default 1080×1350) dan `story` (default 1080×1920).
-- Ukuran dibaca dari config `export.*`, bukan hardcode.
+- Ukuran memakai konstanta di `apps/web/src/legacy/config/canvas.ts`
+  (`POST_WIDTH`/`POST_HEIGHT`, `STORY_WIDTH`/`STORY_HEIGHT`), bukan config.
 - Render di canvas browser; hasil diunduh sebagai gambar.
 
 ### 7. Komunitas & operasi

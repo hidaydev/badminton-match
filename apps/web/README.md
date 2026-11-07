@@ -29,7 +29,7 @@ community a pathname belongs to.
    server-side and sets the session cookie.
 4. `POST /api/auth/logout` revokes the session and clears local state.
 
-The only session storage is the `__Host-` `HttpOnly` cookie. `src/auth/api.ts`
+The only session storage is the `majadu_session` `HttpOnly` cookie. `src/auth/api.ts`
 sends `credentials: 'include'` on every call and never touches
 `localStorage`/`sessionStorage`. A test asserts both stores stay empty.
 
@@ -44,11 +44,14 @@ cookie stays first-party:
 
 - dev: `vite.config.ts` proxies `/api` to `http://127.0.0.1:8080` and strips the
   `/api` prefix (the API itself has no prefix).
-- prod/preview: `vercel.json` rewrites `/api/:path*` to
-  `https://api.qouver.com/majadu/:path*` **before** the SPA catch-all. The
-  `/majadu` segment is required: Caddy serves the API only under `/majadu/*`
-  and strips the prefix before proxying (`ops/caddy/site-v2.caddy`), so a
-  rewrite to the bare host reaches nothing.
+- prod/preview: `vercel.json` rewrites `/api/:path*` to the API host
+  **before** the SPA catch-all. The `/majadu` segment is required: Caddy serves
+  the API only under `/majadu/*` and strips the prefix before proxying
+  (`ops/caddy/site-v2.caddy`), so a rewrite to the bare host reaches nothing.
+  The production value is `https://api.qouver.com/majadu/:path*`. On this RC
+  branch the committed file is an intentional exception: it points at
+  `/majadu-rc/*` for the RC environment (`docs/ops/rc.md`). Restore `/majadu/*`
+  before merging to `main`; the cutover runbook assumes that value.
 
 Set `VITE_API_BASE` to bypass both. It must carry the same prefix, for example
 `https://api.qouver.com/majadu`; without `/majadu` every call 404s. Unset, the

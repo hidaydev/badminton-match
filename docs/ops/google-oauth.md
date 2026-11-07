@@ -79,16 +79,15 @@ Di Google Cloud Console, pada project yang dipakai:
    (`https://majadu.vercel.app/api/auth/callback`). Tidak perlu Authorized
    JavaScript origins: flow ini server-side, browser tidak memanggil endpoint
    Google dengan JavaScript.
-4. Salin client ID ke env, `chmod 600`, restart unit.
+4. Salin client ID **dan client secret** ke env, `chmod 600`, restart unit.
 
-**Client secret belum dipakai.** `exchangeCode` mengirim `client_id`,
-`code_verifier` (PKCE S256) dan tidak mengirim `client_secret`
-(`oidc.nim:66-72`). Client tipe *Web application* Google meminta secret pada
-token endpoint, jadi kemungkinan besar penukaran code akan ditolak
-(`invalid_request` / `client_secret is missing`) sampai kode mengirimkannya.
-Itu perubahan di `apps/api` (di luar dokumen ini); jangan menambahkan secret ke
-env sebelum kode membacanya. Uji di origin produksi sebelum menganggap login
-hidup.
+**Client secret wajib untuk client tipe *Web application*.** `loadOidcConfig`
+membaca `OIDC_CLIENT_SECRET` (`oidc.nim:31`), dan `tokenRequestBody`
+menambahkan `client_secret` ke permintaan token selama nilainya tidak kosong
+(`oidc.nim:76-77`). Google menolak penukaran `code` dari client rahasia tanpa
+parameter itu (`invalid_request` / `client_secret is missing`), jadi isi
+secret bersama client ID sebelum login diuji. Kosongkan hanya bila sengaja
+memakai client publik. Uji di origin produksi sebelum menganggap login hidup.
 
 ## 4. Verifikasi setelah konfigurasi
 
@@ -142,5 +141,6 @@ expires_at < now()`.
   bukan dari percobaan.
 - Perilaku `Set-Cookie` lewat rewrite Vercel harus diuji di alias staging yang
   terdaftar sebagai redirect URI, bukan preview acak.
-- `-d:ssl` belum ada di Dockerfile, dan `client_secret` belum dikirim pada
-  penukaran code — dua hal itu membuat login produksi belum mungkin hari ini.
+- `client_secret` dan `-d:ssl` sudah beres: secret dikirim
+  (`oidc.nim:76-77`) dan image dibangun dengan `-d:ssl`
+  (`apps/api/Dockerfile:27`). Yang belum terbukti tinggal dua butir di atas.

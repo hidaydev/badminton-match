@@ -10,7 +10,7 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
   `apps/api/src/main.nim`.
 - **Kontrak 75 operasi** — `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, klien TS, fingerprint (`packages/contracts/openapi`).
-- **Skema v2** — 27 migrasi (`0001`–`0027`), 35 key config, seed config dan
+- **Skema v2** — 30 migrasi (`0001`–`0030`), 34 key config, seed config dan
   achievement.
 - **Auth & komunitas** — OIDC + cookie sesi, membership `member`/`host`/`admin`,
   invite, join request, settings, audit append-only, platform owner.
@@ -55,7 +55,7 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
 - **T-074 soak** — 1 juta request + 50 watcher; ditunda pemilik, belum ada harness.
 - **T-082** — hapus image `:v1-final` setelah 30 hari observasi pasca-cutover.
 - **T-108** — force-push riwayat yang sudah di-rewrite **ditunda** atas keputusan
-  pemilik; hook lokal sudah menolak `docs/audits` dan `docs/plan/reviews` kembali.
+  pemilik; hook lokal sudah menolak `docs/audit` dan `docs/plan/reviews` kembali.
 
 ## Catatan
 

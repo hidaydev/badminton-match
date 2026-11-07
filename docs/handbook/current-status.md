@@ -36,11 +36,20 @@ Postgres 18.6 · skema per domain (platform, community, player, session,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Setiap operasi punya handler (gagal kompilasi bila tidak) dan baris otorisasi di
   `testdata/authz/matrix.yaml`; `./task contract-check` menjaga fingerprint.
-- **28 migrasi** di `db/migrations/` (`0001`–`0028`, terakhir
-  `0028_config_cleanup.sql`); seed: `db/seeds/platform_config.sql`,
+- **30 migrasi** di `db/migrations/` (`0001`–`0030`, terakhir
+  `0030_scoring_grants.sql`); seed: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
-- **32 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
+- **34 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
   override per komunitas di `community.settings` hanya boleh mempersempit platform.
+- **Format skor per sesi** (ADR-012 di [`../DECISIONS.md`](../DECISIONS.md)): satu
+  slot jadwal adalah satu match berisi 1..N set. `0029_scoring_presets.sql`
+  menambah `session.game_sets` (satu baris per set), view `session.game_results`,
+  serta snapshot `scoring_preset` + `scoring_rules` di `session.sessions`; daftar
+  preset ada di config `session.scoring_presets` (MAJADU 30, Classic BO3 21, New
+  BWF BO3 15) dan default komunitas di `session.default_scoring_preset`. Sesi v1
+  mendapat snapshot `legacy_v1` bertarget 30; kolom `score_a`/`score_b` lama
+  dipertahankan sebagai sumber backfill dan jalur rollback. `0030_scoring_grants.sql`
+  memberi role aplikasi akses ke tabel dan view baru.
 - Nama database: produksi `bm2` (arsip v1 `bm` read-only), lokal `bm2_dev`,
   `bm2_ops`, `bm2_e2e`, `bm2_parity_v2`; cutover memakai `bm_staging`.
 
@@ -135,7 +144,7 @@ E2E berjalan di dua perangkat: **iPhone 17** (WebKit, 402×874, DPR 3) dan
   bila gagal. Skema tidak ikut di-rollback, jadi migrasi wajib expand/contract.
   **Cutover gate:** selama env produksi masih menunjuk `bm`, script berhenti
   sebelum pull/restart.
-- **Cutover** (`ops/scripts/cutover.sh`): 12 langkah bernama dengan penanda resume
+- **Cutover** (`ops/scripts/cutover.sh`): 14 langkah bernama dengan penanda resume
   (`--from`), `:v1-final` ditag sebelum v1 dihentikan, maintenance Caddy, dump →
   `bm_staging`, peran + migrasi + seed + owner, ETL + verify, `cutover_state`,
   tukar env, tukar snippet Caddy, `/readyz`, smoke. Rollback: `rollback.sh`.

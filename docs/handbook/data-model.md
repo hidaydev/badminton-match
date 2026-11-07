@@ -4,9 +4,9 @@ Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk dat
 dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
 dump VPS atau skema v1.
 
-- Migrasi: `db/migrations/0001_core.sql` … `0027_invite_ttl_scope.sql` (27 file;
-  `0027` adalah yang terakhir dan memindahkan scope `community.invite_ttl_days`
-  ke lapisan komunitas).
+- Migrasi: `db/migrations/0001_core.sql` … `0030_scoring_grants.sql` (30 file;
+  `0030` adalah yang terakhir dan memberi role aplikasi grant pada
+  `session.game_sets` dan view `session.game_results`).
 - Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
   `dbtools.seed_files` (checksum per file).
@@ -53,15 +53,22 @@ v2. Nama-nama itu hanya ada di [`../backend/`](../backend/README.md) (arsip migr
 
 | Tabel | Kolom/constraint penting | Migrasi |
 |---|---|---|
-| `session.sessions` | `community_id`, `title`, `session_date`, `start_time`, `slot_minutes > 0`, `status` ∈ `draft/locked/published/completed/archived`, `source` ∈ `manual/generator/legacy_snapshot`, `version > 0`, `approved_at`, `approved_by` | `0001:32-52`, `0006` |
+| `session.sessions` | `community_id`, `title`, `session_date`, `start_time`, `slot_minutes > 0`, `status` ∈ `draft/locked/published/completed/archived`, `source` ∈ `manual/generator/legacy_snapshot`, `version > 0`, `approved_at`, `approved_by`; `scoring_preset` dan `scoring_rules` JSONB (snapshot format per sesi) | `0001:32-52`, `0006`, `0029` |
 | `session.links` | `id` diisi aplikasi, `code_hash` unik, `code_enc`, `key_id`, `created_by`, `revoked_at`, `expires_at`; index parsial menjamin satu link hidup per sesi | `0001:54-75` |
 | `session.courts` | `court_index >= 0`, unik `(session_id, court_index)`, `start_time < end_time` | `0001:77-93` |
-| `session.games` | Unik `(session_id, round_no, court_no)`; skor 0–99 dan tidak boleh seri saat `played`; status `scheduled/played/cancelled`; `version` dinaikkan trigger `session.bump_version()`; `side_a1/a2/b1/b2` (0010) dengan FK komposit ke `session.participants`; CHECK `games_distinct_sides` (0014) | `0001:95-134`, `0010:32-61`, `0014` |
+| `session.games` | Unik `(session_id, round_no, court_no)` dan `games_identity_unique` (0029) pada `(community_id, session_id, round_no, court_no)`; status `scheduled/played/cancelled`; `version` dinaikkan trigger `session.bump_version()`; `side_a1/a2/b1/b2` (0010) dengan FK komposit ke `session.participants`; CHECK `games_distinct_sides` (0014); `score_a`/`score_b` lama hanya jalur backfill dan rollback, tidak lagi ditulis aplikasi | `0001:95-134`, `0010:32-61`, `0014`, `0029` |
 | `session.participants` | Unik `(session_id, player_id)`; `is_absent`; FK player `on delete restrict` | `0010:7-27` |
+| `session.game_sets` | Satu baris per set; `set_no` 1–9, `score_a`/`score_b` 0–99 dan tidak boleh seri; unik `(session_id, round_no, court_no, set_no)`; FK komposit ke `session.games`, cascade; grant aplikasi di `0030` | `0029`, `0030` |
 | `session.game_skips` | PK `(community_id, session_id, round_no, court_no, player_id)`; pemain yang dilewati pada satu game; cascade dengan sesi dan pemain | `0017` |
+
+`session.game_results` adalah view (bukan tabel) yang menghitung `sets_played`,
+`sets_a`/`sets_b`, `points_a`/`points_b`, dan `winner` per match dari
+`session.game_sets` dengan aturan `scoring_rules` sesi (`0029`).
 
 Catatan: `session.games` adalah jadwal relasional, bukan blob. Empat kolom sisi berarti
 singles memakai satu slot per sisi; slot `NULL` adalah posisi kosong, bukan pemain.
+Sejak `0029`, satu baris `session.games` adalah satu match berisi 1..N set, bukan
+satu pasang skor.
 
 ### `player`
 
@@ -127,8 +134,9 @@ revert/rebuild). Halaman pemain mengambil `points` dari baris papan
 
 ## 3. Constraint & aturan yang mudah salah
 
-- `session.games` tidak boleh seri saat `status = 'played'`; skor `NULL` berarti belum
-  dimainkan (`0001:111-117`).
+- `session.games` tidak boleh seri saat `status = 'played'` pada kolom `score_a`/`score_b`
+  lama, yang sekarang hanya jalur backfill/rollback; skor baru ada di
+  `session.game_sets` (`0001:111-117`, `0029`).
 - `session.games` versi per baris dinaikkan trigger, tetapi **OCC API memakai versi
   sesi** (`session.sessions.version`) — lihat [`architecture.md`](architecture.md) §9.
 - Pemain yang sama tidak boleh muncul dua kali dalam satu game, dan tidak boleh ada di
@@ -147,7 +155,7 @@ revert/rebuild). Halaman pemain mengambil `points` dari baris papan
 
 Semua angka bisnis dibaca dari `platform.config` + override `community.settings`.
 Defaults di `db/seeds/platform_config.sql`; kunci dan tipenya dikunci di
-`modules/platform/config/registry.nim:13-46`. Nilai hilang, tipe salah, atau
+`modules/platform/config/registry.nim`. Nilai hilang, tipe salah, atau
 `scope` yang tidak cocok dengan registry membuat proses menolak start
 (`modules/platform/config/store.nim:50-78`). Nilai `community.default_timezone`
 diperiksa terhadap `pg_timezone_names` saat komunitas dibuat dan saat settings
@@ -157,7 +165,7 @@ ditulis, jadi zona yang tidak dikenal ditolak sebagai `400`, bukan disimpan.
 |---|---|
 | Komunitas | `community.join_requests_enabled` (`false`), `community.invite_ttl_days` (`7`), `community.directory_enabled` (`false`), `community.default_timezone` (`Asia/Jakarta`) |
 | Halaman | `api.page_size_default` (`100`), `api.page_size_max` (`500`), `rank.board_limit` (`200`) |
-| Poin | `rating.session_base` (`250`), `rating.score_target` (`21`), `rating.opponent_clamp` (`[0.5,1.5]`), `rating.window_weeks` (`12`), `rating.best_n` (`10`), `rating.thin_evidence_n` (`3`), `rating.tier_bands` (8 band kelas D 1000–1199 … A+ 2100–terbuka) |
+| Poin | `rating.session_base` (`250`), `rating.score_target` (`30`, fallback untuk sesi tanpa snapshot format), `rating.opponent_clamp` (`[0.5,1.5]`), `rating.window_weeks` (`12`), `rating.best_n` (`10`), `rating.thin_evidence_n` (`3`), `rating.tier_bands` (8 band kelas D 1000–1199 … A+ 2100–terbuka) |
 | Turnamen | konstanta domain `PairCount = 16` (bukan config; 16 pair adalah aturan format) |
 | Keamanan | `security.allowed_origins`, `security.rate_limit_per_minute` (`300`), `security.max_body_bytes` (`1048576`), `security.max_json_depth` (`16`), `security.join_request_rate` (`5`), `security.share_scrape_limit` (`120`) |
 | Realtime | `ws.max_watchers_per_session` (`50`), `ws.max_watchers_per_ip` (`20`), `ws.max_watchers_process` (`500`), `ws.ticket_ttl_seconds` (`60`) |
@@ -207,7 +215,7 @@ Jangan membawa nama dari dokumen v1 ke sini:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0027` |
+| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0030` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (ledger delta tidak punya padanan) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |

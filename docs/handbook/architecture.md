@@ -38,7 +38,7 @@ untuk data server serta Zustand untuk draft wizard.
 | `apps/web/src/` | shell React, halaman, klien API per fitur |
 | `packages/contracts/openapi/` | dua spec sumber + dokumen gabungan + fingerprint |
 | `packages/web-client/src/api.ts` | klien TypeScript hasil generate |
-| `db/migrations/`, `db/seeds/` | skema (`0001`–`0027`) dan seed konfigurasi |
+| `db/migrations/`, `db/seeds/` | skema (`0001`–`0030`) dan seed konfigurasi |
 | `tools/` | dbtools, contract-gen, parity, CLI ops, OIDC stub |
 | `e2e/` | suite Playwright (a11y, visual, kompatibilitas) |
 | `task`, `task.d/` | satu-satunya command runner (`./task <target>`) |
@@ -51,15 +51,15 @@ Sumber: `config.nims:1-8` (path modul), `task:13-34` (daftar target),
 Entrypoint: `apps/api/src/main.nim`.
 
 1. `loadConfig()` mewajibkan `MAJADU_PORT` dan `MAJADU_DRAIN_MS`; `MAJADU_SHUTDOWN_TIMEOUT_MS`
-   default 30 dtk (`apps/api/src/server.nim:29-42`).
+   default 30 dtk (`apps/api/src/server.nim`).
 2. `bootHandler` mewajibkan `MAJADU_PG_DSN`, memuat konfigurasi OIDC, keyring share code
    (`SHARE_CODE_KEYS`, `SHARE_CODE_ACTIVE_KEY_ID`), lalu registry config dari database
-   (`apps/api/src/main.nim:34-47`). Nilai yang hilang membuat proses menolak start, bukan
+   (`apps/api/src/main.nim`). Nilai yang hilang membuat proses menolak start, bukan
    menyajikan 500.
 3. `newApp()` + `install()` menyimpan satu `App` process-wide; handler Mummy memakai
-   cast `gcsafe` satu-satunya di boundary (`apps/api/src/app.nim:2303-2320`).
+   cast `gcsafe` satu-satunya di boundary (`apps/api/src/app.nim`).
 4. Server berjalan dengan `max(countProcessors(), 2)` worker thread; SIGTERM/SIGINT
-   memicu drain lalu tutup (`apps/api/src/main.nim:49-74`).
+   memicu drain lalu tutup (`apps/api/src/main.nim`).
 
 Konfigurasi bisnis **tidak** dibaca dari env. Semua angka ada di `platform.config`
 dengan registry bertipe di `modules/platform/config/registry.nim`; snapshot di-cache per
@@ -68,9 +68,9 @@ dengan registry bertipe di `modules/platform/config/registry.nim`; snapshot di-c
 
 ## 4. Pipeline request
 
-`proc route` (`apps/api/src/app.nim:1906`) menjalankan urutan tetap:
+`proc route` (`apps/api/src/app.nim`) menjalankan urutan tetap:
 
-1. **Body limit** — `security.max_body_bytes` (`apps/api/src/app.nim:1911`).
+1. **Body limit** — `security.max_body_bytes` (`apps/api/src/app.nim`).
 2. **CSRF** — method state-changing wajib origin yang diizinkan (atau `Sec-Fetch-Site`
    `same-origin`/`none`); request ber-cookie tanpa Origin ditolak
    (`apps/api/src/security_headers.nim:22-45`).
@@ -80,16 +80,16 @@ dengan registry bertipe di `modules/platform/config/registry.nim`; snapshot di-c
 4. **Rute sistem** — `/healthz`, `/readyz` (memeriksa tabel wajib via `to_regclass` dan
    snapshot `cutover_state`), `/version`, `/ops/*`.
 5. **Client lama** — `X-API-Version` di bawah versi server dijawab `410 CLIENT_OUTDATED`
-   (`apps/api/src/app.nim:1890-1904`, `apps/api/src/app.nim:1960`).
+   (`apps/api/src/app.nim`).
 6. **Auth + otorisasi** — cookie sesi `majadu_session` (HttpOnly, SameSite=Lax) →
-   `currentUser` → `loadCommunity` → `gate` (`apps/api/src/app.nim:168-207`,
+   `currentUser` → `loadCommunity` → `gate` (`apps/api/src/app.nim`,
    `apps/api/src/community_context.nim:15-30`, `apps/api/src/auth_middleware.nim:19-42`).
 7. **Dispatch** — cabang per prefix: `/c/{slug}/players`, `/sessions`, `/tournaments`,
    `/ratings`, `/members`, `/settings`, `/ws/...`, `/s/...`.
 
 Semua respons melewati `send()` sehingga header keamanan tidak bisa terlewat
-(`apps/api/src/app.nim:110-120`, `apps/api/src/security_headers.nim:62-75`). Error memakai envelope
-`{"status", "code", "detail"}` (`apps/api/src/app.nim:129-130`). Log JSON meredaksi share code,
+(`apps/api/src/app.nim`, `apps/api/src/security_headers.nim:62-75`). Error memakai envelope
+`{"status", "code", "detail"}` (`apps/api/src/app.nim`). Log JSON meredaksi share code,
 ticket, cookie, email, dan IPv4 (`shared/platform-lib/logger.nim:11-32`).
 
 ### Peran & batas data

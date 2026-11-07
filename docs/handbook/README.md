@@ -25,7 +25,8 @@ panduan implementasi.
 ## Rencana & arsip
 
 - [`../plan/`](../plan/README.md) — rencana rewrite v2 (BRD/PRD/TECH-SPEC/BACKLOG),
-  dibekukan 2026-11-03
+  dibekukan 2026-11-03; `rc-environment.md` dan `scoring-presets.md` ditambahkan
+  setelahnya
 - [`../backend/`](../backend/README.md) — **arsip** migrasi SQL v1 `000013`–`000023`
   (skema `bm`), bukan skema aktif
 - [`../superpowers/`](../superpowers/) — design spec per fitur (arsip)
