@@ -99,6 +99,35 @@ proc newGame*(db: Db, communityId, sessionId: string, roundNo, courtNo: int;
       intParam(courtNo.int64), scoredA, scoredB, textParam(status),
       textParam(a1), textParam(a2), textParam(b1), textParam(b2)])
 
+proc newParticipant*(db: Db, communityId, sessionId, playerId: string;
+                     absent = false) =
+  ## A game can name a player without a participant row, but the standings and
+  ## the absent flag read only this table: a suite that needs a board or an
+  ## absence states the row here.
+  discard db.execUpdate(
+    """insert into session.participants
+         (community_id, session_id, player_id, is_absent)
+       values ($1::uuid, $2::uuid, $3::uuid, $4)""",
+    @[textParam(communityId), textParam(sessionId), textParam(playerId),
+      boolParam(absent)])
+
+proc newClaim*(db: Db, communityId, playerId, userId: string): string =
+  ## One pending claim. The decision columns stay NULL, which the table's own
+  ## check constraint requires of a pending row.
+  db.queryOne(
+    """insert into player.claims (community_id, player_id, user_id)
+       values ($1::uuid, $2::uuid, $3::uuid) returning id""",
+    @[textParam(communityId), textParam(playerId),
+      textParam(userId)]).get.getUuid("id")
+
+proc newJoinRequest*(db: Db, communityId, userId: string): string =
+  ## A pending request, without the invite flow or the community setting that
+  ## gates it: this is the row an admin decides.
+  db.queryOne(
+    """insert into community.join_request (community_id, user_id)
+       values ($1::uuid, $2::uuid) returning id""",
+    @[textParam(communityId), textParam(userId)]).get.getUuid("id")
+
 proc purgeCommunity*(db: Db, slug: string) =
   ## Removes one community and everything that names it, from the catalog
   ## instead of a list a test has to remember to extend. A hand-kept list was

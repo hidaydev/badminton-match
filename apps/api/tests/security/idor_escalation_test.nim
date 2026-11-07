@@ -4,6 +4,8 @@ import mummy
 import community/infrastructure/community_store
 import share/crypto
 import share/store as shareStore
+import tournament/domain/classic
+import tournament/domain/classic_draw
 import tests/fixtures
 import ../http_support
 
@@ -19,8 +21,42 @@ var
   clubId, otherId: string
   adminCookie, hostCookie, memberCookie, member2Cookie, otherCookie,
     ownerCookie: string
-  member2Id, ownerId: string
-  playerA, playerB, sessionA, sessionB, shareB: string
+  member2Id, ownerId, otherAdminId: string
+  playerA, playerB, playerB2, sessionA, sessionB, shareB: string
+  playerA2, sessionBRated, tournamentB, tournamentBBody, matchB, claimB,
+    joinRequestB: string
+
+proc classicJson(data: ClassicTournament): JsonNode =
+  ## The body `POST /tournaments` accepts, field for field the shape the
+  ## tournament suites send. B's bracket has to be a real one: the PUT and the
+  ## match PATCH below replay it, and an invalid body would be rejected before
+  ## the community is ever consulted.
+  var pairs = newJArray()
+  for pair in data.pairs:
+    pairs.add(%*{"id": pair.id, "name": pair.name})
+  var groups = newJObject()
+  for groupId in GroupIds:
+    var members = newJArray()
+    for pairId in data.groups[ord(groupId)]:
+      members.add(%pairId)
+    groups[$groupId] = members
+  var matches = newJArray()
+  for match in data.matches:
+    matches.add(%*{
+      "id": match.id, "phase": $match.phase,
+      "groupId": if match.groupId.isSome: %($match.groupId.get) else: newJNull(),
+      "pairAId": if match.pairAId.isSome: %match.pairAId.get else: newJNull(),
+      "pairBId": if match.pairBId.isSome: %match.pairBId.get else: newJNull(),
+      "scoreA": if match.scoreA.isSome: %match.scoreA.get else: newJNull(),
+      "scoreB": if match.scoreB.isSome: %match.scoreB.get else: newJNull()})
+  %*{"name": data.name, "date": data.date, "pairs": pairs, "groups": groups,
+     "matches": matches}
+
+proc classicBody(): string =
+  var pairs: seq[Pair] = @[]
+  for index in 1 .. 16:
+    pairs.add(Pair(id: "p" & $index, name: "Other Pair " & $index))
+  $classicJson(generateTournament("Other Cup", "2026-11-04", pairs, 7))
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
@@ -48,6 +84,7 @@ proc bootstrap() =
   let otherUserId = newUser(database, "sec-other-member",
     "sec-other-member@example.com")
   newMember(database, otherId, otherUserId, "admin")
+  otherAdminId = otherUserId
 
   adminCookie = cookieFor(database, adminId)
   hostCookie = cookieFor(database, hostId)
@@ -57,17 +94,50 @@ proc bootstrap() =
   ownerCookie = cookieFor(database, ownerId)
 
   playerA = newPlayer(database, clubId, "Alpha Player")
+  playerA2 = newPlayer(database, clubId, "Alpha Partner")
   playerB = newPlayer(database, otherId, "Bravo Player")
+  playerB2 = newPlayer(database, otherId, "Bravo Partner")
   sessionA = newSession(database, clubId, "Alpha Session")
   sessionB = newSession(database, otherId, "Bravo Session")
+  # A session the rating gate would accept if this community were ignored:
+  # approved, so only the scope check can refuse the ingest. `sessionB` stays a
+  # draft, which is what the revert route answers 200 on when it is not scoped.
+  sessionBRated = newSession(database, otherId, "Bravo Rated",
+    status = "locked", approved = true)
   shareB = shareStore.issue(database, loadKeyring(keysJson, "1"), otherId,
     sessionB, adminId, 30)
 
+  # Two games and their participants in B: the game routes key off a
+  # (round, court) pair, the swap exchanges two of them and the absent route
+  # marks a participant, so every one of those ids is a real row in B.
+  newParticipant(database, otherId, sessionB, playerB)
+  newParticipant(database, otherId, sessionB, playerB2)
+  newGame(database, otherId, sessionB, 1, 1, [playerB], [playerB2])
+  newGame(database, otherId, sessionB, 1, 2, [playerB], [playerB2])
+
+  claimB = newClaim(database, otherId, playerB, otherUserId)
+  # A request by an A member, who is by definition not in B: deciding it is
+  # the admin write that must stay inside B.
+  joinRequestB = newJoinRequest(database, otherId, member2Id)
+
   startServer(newTestApp(database), port, baseUrl)
+
+proc seedBracket() =
+  ## B's tournament is created through the API: the bracket, its match ids and
+  ## its version are what the PUT and match PATCH cases replay, and a
+  ## hand-written header could not tell a rejected body from a rejected id.
+  let created = call(baseUrl, HttpPost, "/c/" & slugB & "/tournaments",
+    otherCookie, classicBody())
+  doAssert created.status == 201, "seeding B's bracket failed: " & created.body
+  let snapshot = parseJson(created.body)
+  tournamentB = snapshot["id"].getStr()
+  tournamentBBody = created.body
+  matchB = snapshot["matches"][0]["id"].getStr()
 
 requireDatabase()
 
 bootstrap()
+seedBracket()
 
 suite "security: IDOR":
   test "v1-red/v2-green: a member of A gets 404 for every foreign community route":
@@ -171,6 +241,138 @@ suite "security: IDOR":
     check shared.json["session"]["id"].getStr() == sessionA
     # A live code for B is not reachable as A's share link.
     check shareB.len > 0
+
+  test "v1-red/v2-green: B's session objects are refused through A's slug":
+    ## Every id here names a row that exists in B, seeded in `bootstrap`: a
+    ## missing `community_id` predicate would answer 200 (or 204) instead of
+    ## these 404s, which is exactly what the case has to catch.
+    expectProblem(call(baseUrl, HttpGet,
+      "/c/" & slugA & "/sessions/" & sessionB & "/games/1-1", hostCookie),
+      404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpPatch,
+      "/c/" & slugA & "/sessions/" & sessionB & "/games/1-1", hostCookie,
+      ifMatch = "1", body = """{"scoreA":30,"scoreB":20}"""),
+      404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpGet,
+      "/c/" & slugA & "/sessions/" & sessionB & "/standings", memberCookie),
+      404, "NOT_FOUND")
+    # The schedule has a write route only; its read is `GET /sessions/{id}`,
+    # which the foreign-session case above already covers. The body names A's
+    # players on purpose: the route checks them against the caller's community
+    # first, so naming B's would be a 400 before the session is ever read.
+    expectProblem(call(baseUrl, HttpPut,
+      "/c/" & slugA & "/sessions/" & sessionB & "/schedule", hostCookie,
+      ifMatch = "1",
+      body = "{\"games\":[{\"round\":1,\"court\":1,\"sideA\":[\"" & playerA &
+        "\"],\"sideB\":[\"" & playerA2 & "\"]}]}"), 404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpPatch,
+      "/c/" & slugA & "/sessions/" & sessionB & "/absent", hostCookie,
+      ifMatch = "1", body = "{\"playerIds\":[\"" & playerA & "\"]}"),
+      404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpPost,
+      "/c/" & slugA & "/sessions/" & sessionB & "/swap", hostCookie,
+      ifMatch = "1",
+      body = """{"kind":"slot","a":{"slot":1,"court":1},"b":{"slot":1,"court":2}}"""),
+      404, "NOT_FOUND")
+    # Ingest would rate the approved session in B, and revert would answer 200
+    # on B's draft: both are refusals only the scope check can make.
+    expectProblem(call(baseUrl, HttpPost,
+      "/c/" & slugA & "/sessions/" & sessionBRated & "/rating", adminCookie),
+      404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpDelete,
+      "/c/" & slugA & "/sessions/" & sessionB & "/rating", adminCookie),
+      404, "NOT_FOUND")
+    # Nothing above wrote through the 404: B's session is still version 1.
+    let version = database.queryOne(
+      "select version from session.sessions where id = $1::uuid",
+      @[textParam(sessionB)])
+    check version.get.get("version") == "1"
+
+  test "v1-red/v2-green: B's tournament objects are refused through A's slug":
+    ## B's bracket was created through the API, so its rows, its version and its
+    ## match ids are the ones an unscoped handler would have written.
+    expectProblem(call(baseUrl, HttpGet,
+      "/c/" & slugA & "/tournaments/" & tournamentB, memberCookie),
+      404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpPut,
+      "/c/" & slugA & "/tournaments/" & tournamentB, hostCookie,
+      ifMatch = "1", body = tournamentBBody), 404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpPatch,
+      "/c/" & slugA & "/tournaments/" & tournamentB & "/matches/" & matchB,
+      hostCookie, ifMatch = "1",
+      body = """{"scoreA":30,"scoreB":20}"""), 404, "NOT_FOUND")
+    # The rating source is the tournament id, and the sign-off is the write
+    # that would otherwise reach into B's ledger.
+    expectProblem(call(baseUrl, HttpPatch,
+      "/c/" & slugA & "/rating-sources/" & tournamentB, adminCookie,
+      body = """{"finalized":true}"""), 404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpDelete,
+      "/c/" & slugA & "/tournaments/" & tournamentB & "/rating", adminCookie),
+      404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpDelete,
+      "/c/" & slugA & "/tournaments/" & tournamentB, hostCookie),
+      404, "NOT_FOUND")
+    # The bracket is still there, at the version it was created with.
+    let row = database.queryOne(
+      """select version from tournament.tournaments
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(otherId), textParam(tournamentB)])
+    check row.isSome
+    check row.get.get("version") == "1"
+
+  test "v1-red/v2-green: B's player and roster ids are refused through A's slug":
+    # Rankings, achievements and stats all resolve the player first: a foreign
+    # id must not resolve at all.
+    expectProblem(call(baseUrl, HttpGet,
+      "/c/" & slugA & "/rankings/" & playerB, memberCookie), 404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpGet,
+      "/c/" & slugA & "/players/" & playerB & "/achievements", memberCookie),
+      404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpGet,
+      "/c/" & slugA & "/players/" & playerB & "/stats", memberCookie),
+      404, "NOT_FOUND")
+    # The roster ids are `platform.user` rows: B's admin is a real user, so the
+    # only thing that can turn the role change away is the community scope.
+    expectProblem(call(baseUrl, HttpPatch,
+      "/c/" & slugA & "/members/" & otherAdminId, adminCookie,
+      body = """{"role":"member"}"""), 404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpDelete,
+      "/c/" & slugA & "/members/" & otherAdminId, adminCookie),
+      404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpPatch,
+      "/c/" & slugA & "/join-requests/" & joinRequestB, adminCookie,
+      body = """{"decision":"approve"}"""), 404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpPatch,
+      "/c/" & slugA & "/players/" & playerB & "/claims/" & claimB,
+      adminCookie, body = """{"decision":"approve"}"""), 404, "NOT_FOUND")
+    # The source id of a merge is the one body-supplied player id: A's target
+    # exists, so only the source's community can stop the merge.
+    expectProblem(call(baseUrl, HttpPost,
+      "/c/" & slugA & "/players/" & playerA & "/merge", adminCookie,
+      body = "{\"sourcePlayerId\":\"" & playerB & "\"}"),
+      404, "NOT_FOUND")
+    let claim = database.queryOne(
+      "select status from player.claims where id = $1::uuid",
+      @[textParam(claimB)])
+    check claim.get.get("status") == "pending"
+    let joinRequest = database.queryOne(
+      "select status from community.join_request where id = $1::uuid",
+      @[textParam(joinRequestB)])
+    check joinRequest.get.get("status") == "pending"
+
+  test "v1-red/v2-green: A's admin cannot reach B's settings or config":
+    ## Settings and config carry no object id: the slug is the whole key, so
+    ## this is the reverse direction of the cases above (an authenticated A
+    ## admin on B's slug), and the only reason to refuse is the membership.
+    expectProblem(call(baseUrl, HttpPatch, "/c/" & slugB & "/settings",
+      adminCookie, body = """{"rating.score_target":20}"""), 404, "NOT_FOUND")
+    expectProblem(call(baseUrl, HttpGet, "/c/" & slugB & "/config", adminCookie),
+      404, "NOT_FOUND")
+    let stored = database.queryOne(
+      """select values->>'rating.score_target' as target
+         from community.settings where community_id = $1::uuid""",
+      @[textParam(otherId)])
+    check stored.isNone or stored.get.getOpt("target").isNone
 
 suite "security: role escalation":
   test "v1-red/v2-green: a member cannot create or change community data":
