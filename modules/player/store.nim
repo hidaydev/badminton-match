@@ -30,6 +30,14 @@ const columns = """
 
 const aliasUniqueConstraint = "aliases_key_unique"
 
+const uniqueViolationSqlState = "23505"
+
+proc isUniqueViolation*(error: ref DbError): bool =
+  ## A duplicate is a domain result here, not an HTTP status: the patch answers
+  ## 200 with a taken alias, and the other callers report `PLAYER_EXISTS` or a
+  ## conflict. The boundary owns the status for every duplicate it still sees.
+  error.sqlState == uniqueViolationSqlState
+
 proc node*(row: Row): JsonNode =
   %*{
     "id": row.get("id"),
@@ -151,7 +159,7 @@ proc patch*(db: Db, communityId, playerId: string,
       if patch.aliases.isSome:
         replaceAliases(conn, communityId, playerId, patch.aliases.get))
   except DbError as error:
-    if error.sqlState == "23505":
+    if isUniqueViolation(error):
       if error.constraint == aliasUniqueConstraint:
         return PatchResult(status: psOk, aliasTaken: true)
       return PatchResult(status: psDuplicate)
@@ -176,7 +184,7 @@ proc setAliases*(db: Db, communityId, playerId: string,
       replaceAliases(conn, communityId, playerId, values))
     true
   except DbError as error:
-    if error.sqlState == "23505":
+    if isUniqueViolation(error):
       return false
     raise
 

@@ -2981,6 +2981,41 @@ proc rejectShareScrape(request: Request, snapshot: Snapshot): bool =
   quota(request, snapshot, "share", codeKey & "|" & requestIdentity(request),
     limit)
 
+const
+  conflictSqlStates = ["23001", "23503", "23505"]
+  schemaSqlStates = ["23502", "23514", "54000"]
+  formatSqlStates = ["22P02", "22007", "22008"]
+
+proc statusForSqlState*(state: string): int =
+  ## One integrity violation, one status, decided once at the HTTP boundary.
+  ## A duplicate or a missing/restricted reference is a conflict; a value the
+  ## schema rejects or cannot cast is the caller's mistake, not an internal
+  ## fault. Everything else is a 500.
+  if state in conflictSqlStates:
+    409
+  elif state in schemaSqlStates or state in formatSqlStates:
+    400
+  else:
+    500
+
+proc codeForSqlState*(state: string): string =
+  case statusForSqlState(state)
+  of 409: "CONFLICT"
+  of 400: "INVALID_INPUT"
+  else: "INTERNAL"
+
+proc detailForSqlState(state: string): string =
+  ## The envelope keeps one sentence per cause, not one per status, because the
+  ## legacy UI renders `detail` verbatim.
+  if state in formatSqlStates:
+    "a value has the wrong format"
+  elif state in schemaSqlStates:
+    "a value does not satisfy the schema"
+  elif state == "23505":
+    "a value already exists"
+  else:
+    "the row is still referenced by other data"
+
 proc route(request: Request) =
   try:
     let path = request.path
@@ -3334,22 +3369,14 @@ proc route(request: Request) =
         return
     routeNotFound(request)
   except DbError as error:
-    if error.sqlState in ["23001", "23503"]:
-      # PostgreSQL reports ON DELETE RESTRICT as 23001, not 23503: the player
-      # delete used to fall through to the 500 branch because of that.
-      problem(request, 409, "CONFLICT", "the row is still referenced by other data")
-      return
-    if error.sqlState in ["23502", "23514", "54000"]:
-      # A not-null/check violation or an identifier too large for its index is
-      # a body problem, not an internal fault.
-      problem(request, 400, "INVALID_INPUT", "a value does not satisfy the schema")
-      return
-    if error.sqlState in ["22P02", "22007", "22008"]:
-      # A path segment or body value that cannot become the uuid, date or time
-      # the statement casts it to is the caller's mistake, not an internal
-      # fault. PostgreSQL raises it before a row is read, so one guard here
-      # turns every `$n::uuid` / `::date` / `::time` cast into a 400.
-      problem(request, 400, "INVALID_INPUT", "a value has the wrong format")
+    let status = statusForSqlState(error.sqlState)
+    if status != 500:
+      # PostgreSQL reports ON DELETE RESTRICT as 23001, not 23503; the player
+      # delete used to fall through to the 500 branch because of that. Path and
+      # body values that cannot become a uuid/date/time are cast before a row is
+      # read, so 22xxx is the caller's mistake. Duplicates (23505) are conflicts.
+      problem(request, status, codeForSqlState(error.sqlState),
+        detailForSqlState(error.sqlState))
       return
     # Driver messages echo input values; the logger redacts and emits one JSON
     # line, so a crafted path cannot forge log rows or leak a share code.

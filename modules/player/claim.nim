@@ -1,5 +1,6 @@
 import std/[options, strutils]
 import db/db
+import ./store
 
 type
   ClaimError* = enum
@@ -169,7 +170,7 @@ proc decide*(db: Db, communityId, playerId, claimId, adminId: string,
   except ValueError:
     return ceConflict
   except DbError as error:
-    if error.sqlState == "23505":
+    if isUniqueViolation(error):
       return ceAlreadyClaimed
     raise
   outcome

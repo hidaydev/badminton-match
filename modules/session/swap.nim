@@ -278,9 +278,10 @@ proc writeContent(conn: DbConn, communityId, sessionId: string,
         intParam(entry.b.int64)])
 
 proc isConstraintError(error: ref DbError): bool =
-  ## SQLSTATE class 23 is an integrity violation. The v2 CHECK constraints make
-  ## an impossible swap (one player twice in a game) a validation failure.
-  error.sqlState.len >= 2 and error.sqlState[0 .. 1] == "23"
+  ## Only the states the boundary reports as 400: a NOT NULL or CHECK violation
+  ## makes the swap itself invalid. A duplicate (23505) is a conflict and must
+  ## reach the boundary instead of becoming an `INVALID_SWAP`.
+  error.sqlState in ["23502", "23514"]
 
 proc swapMembers*(db: Db, communityId, sessionId: string, expectedVersion: int,
                   patch: SwapPatch): SwapOutcome =
