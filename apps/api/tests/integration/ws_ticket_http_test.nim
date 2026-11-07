@@ -188,10 +188,11 @@ suite "ws ticket HTTP":
          join session.links l on l.id = t.channel_id
          where l.code_hash = decode($1,'hex')""",
       @[textParam(sha256Hex(shareCode))]).get.get("n")
-    let status = call(baseUrl, HttpPost, "/s/" & shareCode & "/ws-ticket")
-    # A 429 carries {status, code, retryAfter} without `detail`, so it is the
-    # one rejection that cannot go through expectProblem.
-    expectStatus(status, 429)
+    let limited = call(baseUrl, HttpPost, "/s/" & shareCode & "/ws-ticket")
+    # The 429 goes through `problem()` like every other rejection, with
+    # `retryAfter` as an extra field rather than a second envelope.
+    expectProblem(limited, 429, "RATE_LIMITED")
+    check parseJson(limited.body)["retryAfter"].kind == JInt
     let after = database.queryOne(
       """select count(*) as n from platform.ws_ticket t
          join session.links l on l.id = t.channel_id

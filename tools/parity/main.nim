@@ -411,12 +411,9 @@ proc lintErrorEnvelope(name: string, status: int, body: JsonNode,
   ## A 4xx recorded from the Nim API must carry the problem+json envelope.
   ## Re-recording the corpus is how an intentional body change lands, so without
   ## this check the corpus would also accept a hand-built error body that skipped
-  ## `problem()`. RATE_LIMITED is the documented exception: the limiter writes it
-  ## before dispatch and adds `retryAfter`.
+  ## `problem()`. Every 4xx goes through `problem()`, including 429, so there is
+  ## no exemption.
   if status < 400 or body.kind != JObject or body.len == 0:
-    return
-  if body.hasKey("code") and body["code"].kind == JString and
-     body["code"].getStr() == "RATE_LIMITED":
     return
   if not body.hasKey("code") or body["code"].kind != JString:
     problems.add(name & ": 4xx body has no string code")
