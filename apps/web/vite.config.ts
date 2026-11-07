@@ -34,6 +34,11 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
+      // Registration lives in `src/App.tsx` (`useRegisterSW`), so the plugin has
+      // nothing to inject. Pinned off instead of left on `auto` so a later
+      // registerType change cannot add a second, inline registration script to
+      // index.html: the CSP allows `script-src 'self'` and no inline script.
+      injectRegister: false,
       // The logo icons come from `globPatterns`; letting the plugin add them a
       // second time only duplicates the precache entries.
       includeManifestIcons: false,
