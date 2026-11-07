@@ -66,6 +66,7 @@ assertions all run, the pixel comparison is skipped. Recording the Linux set is
 a deliberate `--update-snapshots` run on Linux, not something CI should do.
 
 The job provisions PostgreSQL and calls `./task e2e` itself, so the API, the
-OIDC stub and the preview server come from the same script a laptop uses. It
-does not run `./task deps-check`, which also pins `lcov`/`gcovr` — those belong
-to the coverage workflow.
+OIDC stub and the preview server come from the same script a laptop uses. It is
+also the only job that installs every pin in `deps.lock` — Nim packages, pnpm,
+the browser builds and the coverage tools — so it runs `./task deps-check`
+before the suite.

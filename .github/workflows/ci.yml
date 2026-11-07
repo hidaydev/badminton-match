@@ -168,11 +168,23 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: "E2E: install browsers"
         run: pnpm exec playwright install --with-deps
-      # deps.lock also pins the coverage tools. This job is the only one that
-      # installs them alongside pnpm, the browser builds and the Nim packages,
-      # so it is the only place the whole lock can be compared in one shot.
-      - name: "Dependencies: install gcov tooling"
-        run: sudo apt-get update && sudo apt-get install -y lcov gcovr
+      # deps.lock also pins the coverage tools, and `./task deps-check` compares
+      # the versions they report exactly. apt on the runner ships lcov 2.0 and
+      # gcovr 7.0 against the locked 2.6 and 8.8, so both come from upstream.
+      # The doc and XS targets are skipped: they need sphinx and a C++20 build
+      # and contribute nothing to `lcov --version`.
+      - name: "Dependencies: install pinned coverage tools"
+        run: |
+          python3 -m pip install --break-system-packages gcovr==8.8
+          git clone --depth 1 --branch v2.6 \
+            https://github.com/linux-test-project/lcov "$RUNNER_TEMP/lcov"
+          sudo make -C "$RUNNER_TEMP/lcov" install LCOV_NO_DOC=1 LCOV_NO_XS=1
+      # Printed for the log; `./task deps-check` below is what turns a version
+      # that is not the exact pin in deps.lock into a failure.
+      - name: "Dependencies: pinned coverage tool versions"
+        run: |
+          lcov --version
+          gcovr --version
       - name: "Dependencies: installed content must match deps.lock"
         run: ./task deps-check
       - name: "Database: provision"
