@@ -180,6 +180,43 @@ function CommunityNotFound() {
   )
 }
 
+/**
+ * This screen is the only signed-in page outside the community shell, so the
+ * account menu in `HomeLayout` never renders here. Without this row an account
+ * with no membership has nowhere to sign out.
+ */
+function AccountRow() {
+  const { user, logout } = useAuth()
+  const [signingOut, setSigningOut] = useState(false)
+
+  const signOut = async () => {
+    setSigningOut(true)
+    try {
+      await logout()
+    } catch {
+      // The row stays on screen, so a second tap retries the same request.
+    } finally {
+      setSigningOut(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-3">
+      <p className="min-w-0 truncate text-sm text-fg-dim">
+        {t('nav.signedInAs', { name: user?.displayName ?? '' })}
+      </p>
+      <button
+        type="button"
+        onClick={() => void signOut()}
+        disabled={signingOut}
+        className="min-h-11 shrink-0 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+      >
+        {t('nav.logout')}
+      </button>
+    </div>
+  )
+}
+
 function RootRedirect() {
   const { current } = useCommunity()
   const { user } = useAuth()
@@ -191,8 +228,9 @@ function RootRedirect() {
   // platform owner can create a community, everyone else asks to join one.
   const isOwner = user?.platformOwner === true
   return (
-    <section className="mx-auto max-w-2xl p-4">
-      <h1 className="text-xl sm:text-2xl font-bold text-fg">{t('home.empty')}</h1>
+    <section className="mx-auto max-w-2xl px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]">
+      <AccountRow />
+      <h1 className="mt-6 text-xl sm:text-2xl font-bold text-fg">{t('home.empty')}</h1>
       <p className="mt-2 text-sm text-fg-dim">
         {isOwner ? t('home.emptyOwnerHint') : t('home.emptyHint')}
       </p>

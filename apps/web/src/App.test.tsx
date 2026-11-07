@@ -80,6 +80,33 @@ describe('App auth gate', () => {
     expect((logoutCall as [string, RequestInit])[1].credentials).toBe('include')
   })
 
+  it('lets an account without a community sign out', async () => {
+    const fetchMock = mockFetch({
+      'GET /api/auth/me': () => ({ body: sessionUser }),
+      'GET /api/communities': () => ({ body: { items: [] } }),
+      'GET /api/directory': () => ({ body: { items: [] } }),
+      'POST /api/auth/logout': () => ({ status: 204 }),
+    })
+
+    render(<App />)
+
+    // The empty state sits outside the community shell, so the account menu
+    // that signs everyone else out is not on screen.
+    await screen.findByRole('heading', { name: t('home.empty') })
+    expect(screen.getByText(t('nav.signedInAs', { name: sessionUser.displayName }))).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: t('nav.logout') }))
+
+    expect(await screen.findByRole('button', { name: t('login.action') })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: t('home.empty') })).not.toBeInTheDocument()
+
+    const logoutCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/auth/logout'))
+    expect(logoutCall).toBeDefined()
+    const [logoutUrl, logoutInit] = logoutCall as [string, RequestInit]
+    expect(logoutUrl).toBe('/api/auth/logout')
+    expect(logoutInit.method).toBe('POST')
+    expect(logoutInit.credentials).toBe('include')
+  })
+
   it('never writes session material to web storage', async () => {
     mockFetch({
       'GET /api/auth/me': () => ({ body: sessionUser }),
