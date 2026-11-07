@@ -82,7 +82,8 @@ playwright-report/
 .cache/
 nimcache/
 
-# Nim test binaries (must stay in .cache)
+# Nim test binaries are built in place by ./task and must never be committed.
+**/tests/**/*_test
 apps/api/tests/server_test
 shared/platform-lib/tests/platform_lib_test
 tools/archcheck/main
