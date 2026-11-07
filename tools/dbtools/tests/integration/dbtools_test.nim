@@ -87,6 +87,23 @@ suite "dbtools":
     check problems[0].contains("pending migration: 0003_late")
     removeDir(extra)
 
+  test "a contract migration only runs with the flag":
+    migrate(db, migrations)
+    let contract = getTempDir() / "dbtools-contract-migrate"
+    if dirExists(contract):
+      removeDir(contract)
+    copyDir(migrations, contract)
+    writeFile(contract / "0003_contract.sql",
+      "-- 0003: rewrite the probe once the previous release stopped reading it.\n" &
+      "-- contract\n\n" &
+      "create table if not exists contract_probe (id int);\n" &
+      "drop table contract_probe;\n")
+    check contractRefusal(contract, false).contains("0003_contract.sql")
+    check contractRefusal(contract, true).len == 0
+    migrate(db, contract, allowContract = true)
+    check verifyProblems(db, contract).len == 0
+    removeDir(contract)
+
   test "seed runs once":
     migrate(db, migrations)
     seed(db, seeds)

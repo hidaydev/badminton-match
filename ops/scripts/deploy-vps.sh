@@ -21,6 +21,10 @@
 # must therefore stay expand/contract: `:prev` has to keep serving on the new
 # schema, because that is what the readiness rollback starts.
 #
+# The schema a release expects is the last migration file in the image, and it
+# is recorded in last-release.json next to the image digest. A rollback or an
+# audit reads it from there instead of walking db/migrations at the old commit.
+#
 # After readiness, `scripts/smoke.sh` asserts that `/version` reports the release
 # that was just pulled, not just that a process is up.
 set -euo pipefail
@@ -243,8 +247,15 @@ log "pulled $REGISTRY_IMAGE@$DIGEST"
 # single transaction with an advisory lock, and `verify` then proves the ledger
 # matches the committed files; either failure aborts here, while :local and
 # :prev still point at the release that is running. The owner DSN is required
-# because DDL needs bm2_owner, not the application role.
+# because DDL needs bm2_owner, not the application role. No --allow-contract:
+# a migration marked `-- contract` is refused here and applied by hand one
+# release later, so a deploy can never be the step that removes the old shape.
 # ---------------------------------------------------------------------------
+# The previous release's schema is read before `migrate`, because every failure
+# from here on replaces last-release.json with the failure record.
+PREV_SCHEMA=$(sed -n 's/.*"schema":"\([^"]*\)".*/\1/p' \
+  "$STATE_DIR/last-release.json" 2>/dev/null | tail -1 || true)
+[ -n "$PREV_SCHEMA" ] || PREV_SCHEMA="unknown"
 STEP="migrate"
 OWNER_DSN=$(sed -n 's/^MAJADU_OWNER_DSN=//p' "$ENV_FILE" | tail -1)
 if [ -z "$OWNER_DSN" ]; then
@@ -259,7 +270,15 @@ if ! run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
   verify --dir /app/db/migrations >>"$LOG" 2>&1; then
   fail "dbtools verify failed; the database is not at the committed schema, v$VERSION is not deployed"
 fi
-SCHEMA=$(basename "$(ls "$MONO_DIR"/db/migrations/*.sql | tail -1)" .sql)
+# The last migration file is the schema this release expects. An empty name is
+# not a version: without it the release record cannot say which schema the image
+# needs, so the deploy stops instead of writing metadata that a later rollback
+# or audit would have to guess at.
+SCHEMA_FILE=$(ls "$MONO_DIR"/db/migrations/*.sql 2>/dev/null | tail -1 || true)
+if [ -z "$SCHEMA_FILE" ] || [ ! -f "$SCHEMA_FILE" ]; then
+  fail "cannot name the schema version: no migration file in $MONO_DIR/db/migrations"
+fi
+SCHEMA=$(basename "$SCHEMA_FILE" .sql)
 log "schema verified at $SCHEMA"
 
 STEP="rotate"
@@ -348,7 +367,7 @@ service restart "$SERVICE" >>"$LOG" 2>&1
 
 STEP="readiness"
 if ! wait_ready; then
-  log "readiness gate failed; rolling back to :prev on schema $SCHEMA (the schema is not rolled back, so :prev must still serve it)"
+  log "readiness gate failed; rolling back to :prev: schema $PREV_SCHEMA -> $SCHEMA (the schema is not rolled back, so :prev must still serve $SCHEMA)"
   if podman image exists "$LOCAL_IMAGE:prev"; then
     podman tag "$LOCAL_IMAGE:prev" "$LOCAL_IMAGE:local"
     service restart "$SERVICE" >>"$LOG" 2>&1 || true
