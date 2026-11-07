@@ -136,11 +136,47 @@ suite "archcheck rules":
       "  \" where t.session_id = p.session_id)\"\n"
     check violationsFor("modules/player/merge.nim", source).len == 0
 
-  test "a join predicate scopes the delivery layer":
+  test "a join predicate alone does not scope the delivery layer":
     let source = "let q = \"select p.id from player.players p\" &\n" &
       "  \" join session.participants s\" &\n" &
       "  \" on s.community_id = p.community_id\"\n"
-    check violationsFor("apps/api/src/app.nim", source).len == 0
+    let found = violationsFor("apps/api/src/app.nim", source)
+    check found.len == 1
+    check found[0].contains("community_id")
+
+  test "community_id compared with itself is not a scope":
+    let source = "let q = \"select id from session.sessions\" &\n" &
+      "  \" where community_id = community_id\"\n"
+    check violationsFor("apps/api/src/app.nim", source).len == 1
+
+  test "each union branch must scope itself":
+    let source = "let q = \"select id from session.sessions where community_id = $1\" &\n" &
+      "  \" union all select id from player.players\"\n"
+    let found = violationsFor("modules/rating/read.nim", source)
+    check found.len == 1
+    check found[0].contains("community_id")
+
+  test "a builder accumulates its fragments into one statement":
+    # `sql.add` reaches the database with the base, so the scope in the base
+    # covers the fragment. Judging the fragment alone would be a false alarm.
+    let scoped = "var sql = \"select id from session.sessions where community_id = $1\"\n" &
+      "sql.add(\" and title = $2\")\n"
+    check violationsFor("modules/session/write.nim", scoped).len == 0
+    let unscoped = "var sql = \"select id from session.sessions\"\n" &
+      "sql.add(\" and title = $2\")\n"
+    check violationsFor("modules/session/write.nim", unscoped).len == 1
+
+  test "a chain that starts at an identifier is not also judged as a fragment":
+    let source = "const tail = \" and exists (select 1 from player.aliases a\" &\n" &
+      "  \" where a.community_id = p.community_id and a.player_id = p.id)\"\n" &
+      "let q = \"select p.id from player.players p where p.community_id = $1\" & tail\n"
+    check violationsFor("modules/player/store.nim", source).len == 0
+
+  test "a cte joined on community_id carries its scope into the join":
+    let source = "let q = \"with m as (select id, community_id from tournament.team_matches\" &\n" &
+      "  \" where community_id = $1) select tp.id from m\" &\n" &
+      "  \" join tournament.team_players tp on tp.community_id = m.community_id\"\n"
+    check violationsFor("modules/rating/read.nim", source).len == 0
 
   test "an insert is scoped by its column list":
     check violationsFor("apps/api/src/app.nim",

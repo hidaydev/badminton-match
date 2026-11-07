@@ -10,9 +10,9 @@
 # finding, not an entry. The scan runs again on every check, so a new statement
 # in the same file or routine is still judged on its own.
 #
-# The delivery layer was scanned with an empty allowlist first: every statement
-# in `apps/` already scopes the tables it names (a `where`/`join` predicate or
-# the column list of an insert), so no entry below covers it.
+# The delivery layer is scanned too. Its domain-table statements scope what they
+# read; the entries below from `apps/` are the platform doors and the membership
+# lookup, which run before a community context exists.
 
 # Operator tools run outside a community context: the operator names the
 # community on the command line and the job then works inside it. Import also
@@ -23,6 +23,10 @@ tools/
 # community, selected by `key_id`; the community comes from each row.
 modules/share/store.nim:rotateKeys
 
+# A share code (or a pre-code session id) is the credential; the link row that
+# carries it names the community, so there is no context to scope by yet.
+modules/share/store.nim:resolve
+
 # An invite token or email hash is presented before any community context
 # exists; the row is read first and the community it carries is the result.
 modules/community/infrastructure/invite.nim:lookup
@@ -32,3 +36,14 @@ modules/community/infrastructure/invite.nim:accept
 # Account deletion asks which communities a user touched before choosing one;
 # every branch is keyed by that user, and the writes that follow are scoped.
 modules/account/infrastructure/lifecycle_store.nim:communitiesOf
+
+# The slug plus the caller's own membership row is the lookup that *produces*
+# the community context; until it returns there is nothing to scope by.
+apps/api/src/community_context.nim:loadCommunity
+
+# Platform-level reads and doors: they run outside any community, so the slug
+# in the request is what names the community they answer for.
+apps/api/src/app.nim:listCommunities
+apps/api/src/app.nim:requestJoin
+apps/api/src/app.nim:handleWebSocket
+modules/community/infrastructure/community_store.nim:directory
