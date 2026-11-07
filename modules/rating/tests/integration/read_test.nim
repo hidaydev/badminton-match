@@ -374,6 +374,13 @@ suite "ranking read":
       check stored.isSome
       check stored.get.get("rank") == $rows[index].rank
 
+  test "a snapshot of the whole board is one insert":
+    let rows = board(database, query())
+    check rows.len == 200
+    check writeSnapshot(database, communityId, asOf, rows) == rows.len
+    # The board goes in through `unnest`, so 200 players cost one statement.
+    check statementsInTransaction() == 1
+
   test "every row reports its window evidence and breakdown":
     let rows = board(database, query())
     check rows.len > 0

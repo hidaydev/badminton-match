@@ -289,17 +289,27 @@ proc writeSnapshot*(db: Db, communityId, asOf: string,
   ## rows instead of duplicating them, and the rank moves with the points so the
   ## stored placement can never disagree with the board it came from. A rank of
   ## zero means the caller had none to give, so the column stays NULL.
+  ##
+  ## The whole board goes in as one statement: `unnest` turns the three arrays
+  ## back into rows, so the cost does not grow with the number of players.
+  var playerIds, points, ranks: seq[string] = @[]
+  for row in rows:
+    playerIds.add(row.playerId)
+    points.add($row.points)
+    ranks.add($row.rank)
   var written = 0
   db.tx(proc(conn: DbConn) =
-    for row in rows:
-      written += conn.execUpdate(
-        """insert into rating.snapshots
-             (community_id, player_id, taken_on, rating, rank)
-           values ($1::uuid, $2::uuid, $3::date, $4, nullif($5, 0))
-           on conflict (community_id, player_id, taken_on) do update
-             set rating = excluded.rating, rank = excluded.rank""",
-        @[textParam(communityId), textParam(row.playerId), textParam(asOf),
-          intParam(row.points.int64), intParam(row.rank.int64)]))
+    written = conn.execUpdate(
+      """insert into rating.snapshots
+           (community_id, player_id, taken_on, rating, rank)
+         select $1::uuid, s.player_id, $2::date, s.rating, nullif(s.rank, 0)
+         from unnest($3::uuid[], $4::int[], $5::int[])
+           as s(player_id, rating, rank)
+         on conflict (community_id, player_id, taken_on) do update
+           set rating = excluded.rating, rank = excluded.rank""",
+      @[textParam(communityId), textParam(asOf),
+        textParam(textArray(playerIds)), textParam(textArray(points)),
+        textParam(textArray(ranks))]))
   written
 
 proc snapshotRows*(db: Db, communityId, asOf: string): seq[BoardRow] =

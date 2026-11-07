@@ -47,6 +47,15 @@ proc textOrNull*(value: string): DbParam =
   ## An empty string is "no value": the column keeps NULL instead of `''`.
   if value.len == 0: nullParam() else: textParam(value)
 
+proc textArray*(values: seq[string]): string =
+  ## An array literal for one parameter: a batched write passes the whole set in
+  ## one round trip, and a value with a comma, a brace or a quote inside it (a
+  ## match key is free text) survives, unlike a bare join.
+  var quoted: seq[string] = @[]
+  for value in values:
+    quoted.add("\"" & value.replace("\\", "\\\\").replace("\"", "\\\"") & "\"")
+  "{" & quoted.join(",") & "}"
+
 proc asText*(param: DbParam): string =
   case param.kind
   of dpNull: ""
@@ -87,6 +96,24 @@ type BoundParams = object
   ## pointers during PQexecParams, so these strings must outlive the call.
   backing: seq[string]
 
+var
+  # The statement counter is a test hook: a suite proves that a batched write
+  # costs a fixed number of round trips instead of one per row. Only a
+  # transaction's own statements are counted, because its body is what a write
+  # holds its row locks for; `BEGIN`/`COMMIT` never reach the executors.
+  countingStatements {.threadvar.}: bool
+  transactionStatements {.threadvar.}: int
+
+proc countStatement() =
+  if countingStatements:
+    inc transactionStatements
+
+proc statementsInTransaction*(): int =
+  ## How many statements the most recent transaction sent, `BEGIN`/`COMMIT`
+  ## excluded. The suites read it to keep a batched write from growing with its
+  ## row count.
+  transactionStatements
+
 proc bindValues(params: seq[DbParam]): BoundParams =
   result.values = cast[cstringArray](alloc0(params.len * sizeof(cstring)))
   result.backing = newSeq[string](params.len)
@@ -106,6 +133,7 @@ proc freeValues(bound: BoundParams) =
 proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
   ## The SQL string is passed verbatim with $1..$n placeholders, so a jsonb `?`
   ## operator is never rewritten or rejected.
+  countStatement()
   let bound = bindValues(params)
   try:
     let res = pqexecParams(
@@ -122,6 +150,7 @@ proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
     freeValues(bound)
 
 proc executeCommand(conn: PPGconn, sql: string, params: seq[DbParam]): int =
+  countStatement()
   let bound = bindValues(params)
   try:
     let res = pqexecParams(
@@ -153,6 +182,7 @@ proc execUpdate*(conn: DbConn, sql: string, params: seq[DbParam] = @[]): int =
 proc execScript*(conn: DbConn, sql: string) =
   ## Runs a multi-statement SQL file. Used by dbtools migrations and seeds;
   ## regular application queries must use `query`/`execUpdate`.
+  countStatement()
   let res = pqexec(conn.conn, sql.cstring)
   if res == nil:
     raise newException(DbError, $pqerrorMessage(conn.conn))
@@ -341,6 +371,8 @@ proc txRet*[T](db: Db, body: proc(conn: DbConn): T): T =
     finally:
       pqclear(beginRes)
     var committed = false
+    countingStatements = true
+    transactionStatements = 0
     try:
       result = body(conn)
       let commitRes = pqexec(conn.conn, "COMMIT")
@@ -351,6 +383,7 @@ proc txRet*[T](db: Db, body: proc(conn: DbConn): T): T =
         pqclear(commitRes)
       committed = true
     finally:
+      countingStatements = false
       # Every exit path, `Defect` included, must release the transaction before
       # `withConn` hands the connection back to the pool.
       if not committed:

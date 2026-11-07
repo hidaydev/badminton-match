@@ -6,16 +6,8 @@
 ## and the stored per-game ledger that used to hold them fed only a second score
 ## nothing exposes any more. What remains is the tally: games, wins and losses.
 
-import std/[options, strutils, tables]
+import std/[options, tables]
 import db/db
-
-proc textArray(values: seq[string]): string =
-  ## An array literal that survives a comma, a brace or a quote inside a value
-  ## (a match key is free text), unlike a bare join.
-  var quoted: seq[string] = @[]
-  for value in values:
-    quoted.add("\"" & value.replace("\\", "\\\\").replace("\"", "\\\"") & "\"")
-  "{" & quoted.join(",") & "}"
 
 proc lockCommunity*(conn: DbConn, communityId: string) =
   ## Serialises every rating write for one community. Without it two ingests,

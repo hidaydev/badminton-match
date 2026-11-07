@@ -214,12 +214,15 @@ proc putSchedule*(db: Db, communityId, sessionId: string, expectedVersion: int,
       if not bump(conn, communityId, sessionId, expectedVersion):
         outcome = ssStale
         return
-      for playerId in playerIds:
-        discard conn.execUpdate(
-          """insert into session.participants (community_id, session_id, player_id)
-             values ($1::uuid, $2::uuid, $3::uuid)
-             on conflict (session_id, player_id) do nothing""",
-          @[textParam(communityId), textParam(sessionId), textParam(playerId)])
+      # One statement for the whole roster: the games below name these players
+      # anyway, and a row that is already a participant is left alone.
+      discard conn.execUpdate(
+        """insert into session.participants (community_id, session_id, player_id)
+           select $1::uuid, $2::uuid, t.player_id
+           from unnest($3::uuid[]) as t(player_id)
+           on conflict (session_id, player_id) do nothing""",
+        @[textParam(communityId), textParam(sessionId),
+          textParam(textArray(playerIds))])
       for game in games:
         discard conn.execUpdate(
           """insert into session.games
@@ -266,16 +269,17 @@ proc setAbsent*(db: Db, communityId, sessionId: string, expectedVersion: int,
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
       return
+    # One statement for the whole session: absent is true exactly for the
+    # players the caller named, so a participant left out of the list falls
+    # back to false, which is what the reset-then-mark pair wrote. Rating ingest
+    # and the achievement backfill read this flag, so the predicate is the
+    # contract.
     discard conn.execUpdate(
-      """update session.participants set is_absent = false
+      """update session.participants
+         set is_absent = (player_id = any($3::uuid[]))
          where community_id = $1::uuid and session_id = $2::uuid""",
-      @[textParam(communityId), textParam(sessionId)])
-    for playerId in unique:
-      discard conn.execUpdate(
-        """update session.participants set is_absent = true
-           where community_id = $1::uuid and session_id = $2::uuid
-             and player_id = $3::uuid""",
-        @[textParam(communityId), textParam(sessionId), textParam(playerId)]))
+      @[textParam(communityId), textParam(sessionId),
+        textParam(textArray(unique))]))
   outcome
 
 proc sessionRules*(db: Db, communityId, sessionId: string): Option[ScoringRules] =

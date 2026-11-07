@@ -56,6 +56,14 @@ suite "session schedule":
       return @[]
     raw[1 ..< raw.len - 1].split(',')
 
+  proc absent(playerId: string): bool =
+    db.queryOne(
+      """select is_absent from session.participants
+         where community_id = $1::uuid and session_id = $2::uuid
+           and player_id = $3::uuid""",
+      @[textParam(communityId), textParam(sessionId),
+        textParam(playerId)]).get.getBool("is_absent")
+
   test "rewriting the sides drops a skip that named a player who left the game":
     let kept = addPlayer("Kept Player")
     let dropped = addPlayer("Dropped Player")
@@ -79,3 +87,30 @@ suite "session schedule":
     check version() == "1"
     check setPlayed(db, communityId, sessionId, "0-0", 1, true) == ssNotFound
     check version() == "1"
+
+  test "marking players absent is one statement whatever the count":
+    var roster: seq[string] = @[]
+    for index in 0 ..< 8:
+      let playerId = addPlayer("Absent " & $index)
+      roster.add(playerId)
+      discard db.execUpdate(
+        """insert into session.participants (community_id, session_id, player_id)
+           values ($1::uuid, $2::uuid, $3::uuid)""",
+        @[textParam(communityId), textParam(sessionId), textParam(playerId)])
+
+    # The same four statements every time: the version gate, the participant
+    # check, the session bump and one flag update for the whole roster. A tenth
+    # player would not add a tenth round trip.
+    for ids in [roster[0 ..< 1], roster[0 ..< 4], roster]:
+      check setAbsent(db, communityId, sessionId, parseInt(version()),
+        ids) == ssOk
+      check statementsInTransaction() == 4
+
+    # The update assigns the flag instead of only raising it: a participant the
+    # caller leaves out reads as present again, which is what the old
+    # reset-then-mark pair wrote.
+    check setAbsent(db, communityId, sessionId, parseInt(version()),
+      roster[4 ..< 8]) == ssOk
+    check statementsInTransaction() == 4
+    for index, playerId in roster:
+      check absent(playerId) == (index >= 4)
