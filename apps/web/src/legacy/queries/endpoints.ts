@@ -219,11 +219,21 @@ function isNotFound(error: unknown): boolean {
 
 let playerCache: PlayerSummary[] | null = null
 let playerCacheSlug = ''
-/** name → id learned from a stats read, so a second read is not a lookup. */
+/**
+ * `<community>\u0000<name>` → id learned from a stats read, so a second read is
+ * not a lookup. The same name can be a different player in another community,
+ * so the slug is part of the key; this map is not a second source of truth for
+ * the roster, the query client holds that.
+ */
 const playerIdByName = new Map<string, string>()
 
+/** The roster is single-slot: a read only sees rows stamped with this community. */
 function cachedPlayers(): PlayerSummary[] | null {
   return playerCacheSlug === activeCommunitySlug() ? playerCache : null
+}
+
+function playerNameKey(slug: string, name: string): string {
+  return `${slug}\u0000${name.toLowerCase()}`
 }
 
 const TIER_NUMBER: Record<string, Tier> = {
@@ -447,17 +457,22 @@ export async function getSession(
   // it is read alongside the session instead of before it.
   // Polling re-reads the same session every few seconds; the API answers 304
   // when nothing changed, and the cached snapshot is kept.
+  const slug = activeCommunitySlug()
   const detailPromise = readSessionDetail(
     id,
     signal,
-    previous === undefined ? undefined : sessionEtags.get(`${activeCommunitySlug()}:${id}`),
+    previous === undefined ? undefined : sessionEtags.get(`${slug}:${id}`),
   )
   if (cachedPlayers() === null) {
     try {
       await listPlayers(signal)
     } catch {
-      playerCache = []
-      playerCacheSlug = activeCommunitySlug()
+      // An empty roster stamped with the community it was read for; a response
+      // that arrived after a switch must not mark the new community as empty.
+      if (slug === activeCommunitySlug()) {
+        playerCache = []
+        playerCacheSlug = slug
+      }
     }
   }
   const detail = await detailPromise
@@ -839,6 +854,7 @@ export async function deleteSessionShareLink(id: string): Promise<void> {
 // ── Players ───────────────────────────────────────────────────────────────
 
 export async function listPlayers(signal?: AbortSignal): Promise<PlayerSummary[]> {
+  const slug = activeCommunitySlug()
   const body = await request<{ items: V2Player[] }>(
     'GET',
     communityPath('/players?limit=1000'),
@@ -847,14 +863,18 @@ export async function listPlayers(signal?: AbortSignal): Promise<PlayerSummary[]
   )
   const rows = body?.items ?? []
   const summaries = rows.map(toPlayerSummary)
-  playerCache = summaries
-  playerCacheSlug = activeCommunitySlug()
+  // A response that lands after the community changed belongs to the old one:
+  // stamping it with the current slug would hand A's roster to B.
+  if (slug === activeCommunitySlug()) {
+    playerCache = summaries
+    playerCacheSlug = slug
+  }
   return summaries
 }
 
 async function resolvePlayerId(nameOrId: string, signal?: AbortSignal): Promise<string> {
   if (/^[0-9a-f-]{36}$/i.test(nameOrId)) return nameOrId
-  const cached = playerCache?.find((player) => player.name.toLowerCase() === nameOrId.toLowerCase())
+  const cached = cachedPlayers()?.find((player) => player.name.toLowerCase() === nameOrId.toLowerCase())
   if (cached?.playerId) return cached.playerId
   const body = await request<{ items: V2Player[] }>(
     'GET',
@@ -906,18 +926,20 @@ export async function getPlayerStatsRaw(
   nameOrId: string,
   signal?: AbortSignal,
 ): Promise<V2PlayerStats> {
+  const slug = activeCommunitySlug()
   const playerId = await resolvePlayerId(nameOrId, signal)
   const stats = await fetchPlayerStats(playerId, signal)
   // One stats read teaches the name → id mapping, so the next reader of the
-  // same player does not pay for a name lookup.
-  if (stats.name) playerIdByName.set(stats.name.toLowerCase(), playerId)
+  // same player does not pay for a name lookup. The mapping stays with the
+  // community the read was issued for.
+  if (stats.name) playerIdByName.set(playerNameKey(slug, stats.name), playerId)
   return stats
 }
 
-/** The id behind a name, when an earlier read already resolved it. */
+/** The id behind a name, when an earlier read in this community resolved it. */
 export function knownPlayerId(nameOrId: string): string | null {
   if (/^[0-9a-f-]{36}$/i.test(nameOrId)) return nameOrId
-  return playerIdByName.get(nameOrId.toLowerCase()) ?? null
+  return playerIdByName.get(playerNameKey(activeCommunitySlug(), nameOrId)) ?? null
 }
 
 export function toPlayerStats(data: V2PlayerStats): PlayerStats {
@@ -959,6 +981,7 @@ export async function registerPlayer(
   canonicalName?: string,
   gender?: Gender,
 ): Promise<{ playerId: string }> {
+  const slug = activeCommunitySlug()
   if (canonicalName !== undefined) {
     // v1's second argument meant "register this spelling as an alias of the
     // canonical player". v2 stores aliases on the player row.
@@ -983,9 +1006,9 @@ export async function registerPlayer(
   if (cached !== null) {
     const summary = toPlayerSummary(player)
     playerCache = [...cached.filter((row) => row.playerId !== summary.playerId), summary]
-    playerCacheSlug = activeCommunitySlug()
+    playerCacheSlug = slug
   }
-  playerIdByName.set(String(player.name).toLowerCase(), player.id)
+  playerIdByName.set(playerNameKey(slug, String(player.name)), player.id)
   return { playerId: player.id }
 }
 
