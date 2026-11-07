@@ -1,4 +1,4 @@
-import std/[atomics, cpuinfo, net, os, posix]
+import std/[atomics, cpuinfo, json, net, os, posix]
 import mummy
 import app
 import build_info
@@ -29,7 +29,8 @@ proc shutdownWatcher(args: ShutdownArgs) {.thread.} =
   args.server.close()
   # Hard bound: if close() cannot finish, do not hang forever.
   sleep(args.timeoutMs)
-  echo """{"level":"error","msg":"shutdown timed out"}"""
+  {.cast(gcsafe).}:
+    logError("shutdown timed out")
   quit(1)
 
 type
@@ -99,21 +100,15 @@ proc main() =
     ),
   )
 
-  echo """{"level":"info","msg":"listening","port":""" & $config.port.int &
-    ""","metricsPort":""" & $config.metricsPort &
-    ""","build":""" & buildInfoJson(threads) & "}"
+  logInfo("listening", values = [
+    ("port", %config.port.int),
+    ("metricsPort", %config.metricsPort),
+    ("build", parseJson(buildInfoJson(threads))),
+  ])
   try:
     apiServer.serve(config.port, "0.0.0.0")
   except MummyError as error:
-    var detail = ""
-    for c in error.msg:
-      case c
-      of '"': detail.add("\\\"")
-      of '\\': detail.add("\\\\")
-      of '\n': detail.add("\\n")
-      else: detail.add(c)
-    stderr.writeLine("{\"level\":\"error\",\"msg\":\"serve failed\",\"detail\":\"" &
-      detail & "\"}")
+    logError("serve failed", [("detail", error.msg)])
     quit(1)
 
   # serve() returns once close() finishes draining. Exit without joining the

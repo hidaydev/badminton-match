@@ -48,12 +48,37 @@ suite "redaction":
     check redact("user@example.com") == "{email}"
     check redact("127.0.0.1") == "{ip}"
 
+  test "ipv6 addresses":
+    check redact("::1") == "{ip}"
+    check redact("[2001:db8::1]:8080") == "[{ip}]:8080"
+    check redact("2001:0db8:85a3:0000:0000:8a2e:0370:7334") == "{ip}"
+
+  test "query secrets":
+    check redact("?code=abc123") == "?code=REDACTED"
+    check redact("?token=t&x=1") == "?token=REDACTED&x=1"
+    check redact("?key=k") == "?key=REDACTED"
+
+  test "timestamps, hashes and routes survive":
+    check redact("2026-11-07T12:00:00Z") == "2026-11-07T12:00:00Z"
+    check redact("12:00:00") == "12:00:00"
+    check redact(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad") ==
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    check redact("/c/my-club/sessions/42") == "/c/my-club/sessions/42"
+    check redact("?zipcode=12345") == "?zipcode=12345"
+
   test "log line is one json object":
     let line = renderLog("info", "request", [("path", "/s/abc123"), ("ip", "10.0.0.1")])
     let node = parseJson(line)
     check node["msg"].getStr() == "request"
     check node["path"].getStr() == "/s/{code}"
     check node["ip"].getStr() == "{ip}"
+
+  test "log line keeps a typed field":
+    let node = parseJson(renderLog("info", "listening", [],
+      [("port", %8080), ("build", %*{"version": "dev"})]))
+    check node["port"].getInt() == 8080
+    check node["build"]["version"].getStr() == "dev"
 
 suite "metrics":
   test "template route collapses identifiers":
