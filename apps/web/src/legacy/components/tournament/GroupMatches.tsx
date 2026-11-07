@@ -135,7 +135,7 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
                   </button>
 
                   {postModeGroups[g] && (
-                    <div className="relative pr-3 shrink-0">
+                    <div className="relative pl-2 pr-3 shrink-0">
                       <button
                         aria-label={`Upload photo for match ${getPairName(m.pairAId)} vs ${getPairName(m.pairBId)}`}
                         onClick={() => openMatchUpload(m.id)}

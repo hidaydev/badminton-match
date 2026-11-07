@@ -258,7 +258,7 @@ export default function SummaryModal({
               aria-controls={panelId}
               tabIndex={activeTab === 'schedule' ? 0 : -1}
               onClick={() => { setActiveTab('schedule'); exitCurrentMode() }}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${activeTab === 'schedule' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
               {t('summary.tab.schedule')}
             </button>
@@ -269,7 +269,7 @@ export default function SummaryModal({
               aria-controls={panelId}
               tabIndex={activeTab === 'standings' ? 0 : -1}
               onClick={() => { setActiveTab('standings'); exitCurrentMode() }}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${activeTab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
             >
               {t('summary.tab.standings')}
             </button>

@@ -47,7 +47,7 @@ function MatchCard({
   const scored = match.scoreA !== null
   return (
     <div className={`w-full bg-surface rounded-lg border-l-2 ${borderColor} border-t border-r border-b border-border-subtle overflow-hidden shadow-xs`}>
-      <div className="px-2 py-1.5 border-b border-border-subtle flex items-center justify-between">
+      <div className="px-2 pt-2 pb-1.5 border-b border-border-subtle flex items-center justify-between">
         <span className={`text-[8px] font-bold tracking-wide ${labelColor}`}>{label}</span>
         {showPostIcon && (
           <div className="relative shrink-0">
@@ -241,14 +241,14 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
   return (
     <div>
       {/* Bracket — horizontally scrollable */}
-      <div className="overflow-x-auto -mx-3 px-3 pb-2 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="overflow-x-auto -mx-3 px-3 pt-1.5 pb-2 scroll-smooth" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="min-w-75 w-full">
           {/* Column headers */}
           <div className="grid grid-cols-[1fr_10px_1fr_10px_1fr] mb-2 text-[10px] text-fg-dim uppercase tracking-widest font-semibold">
             {rounds.map((round, i) => (
               <Fragment key={round.id}>
                 {i > 0 && <span />}
-                <div className="flex items-center justify-center gap-1.5">
+                <div className="flex items-center justify-center gap-3">
                   <span>{round.title}</span>
                   <button
                     aria-label={`Photo mode for ${round.title}`}
@@ -363,7 +363,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 </div>
                 <div className={`text-[10px] mt-1 font-bold ${isChamp ? 'text-accent' : 'text-fg-dim'}`}>{label}</div>
                 <div className={`text-xs mt-1 font-medium max-w-24 truncate ${isChamp ? 'text-fg text-sm font-semibold' : 'text-fg-dim'}`}>{name}</div>
-                <div className="mt-2 flex items-center justify-center gap-1.5">
+                <div className="mt-2 flex items-center justify-center gap-3">
                   <button
                     onClick={() => openPodiumUpload(pos)}
                     className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${hit44} ${podiumPhotos[pos] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}

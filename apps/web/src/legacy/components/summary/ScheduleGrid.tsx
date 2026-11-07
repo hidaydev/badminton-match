@@ -13,6 +13,7 @@ import { timeToMinutes, minutesToTime } from '../../utils/time'
 import type { SwapTarget, TeamSwapTarget } from '../../utils/swap'
 import type { PlayerChipMode } from './PlayerChipRenderer'
 import PlayerChipRenderer from './PlayerChipRenderer'
+import { hit44 } from '../hitTarget'
 import SlotGameCard from './SlotGameCard'
 
 interface ScheduleGridProps {
@@ -137,7 +138,7 @@ export default function ScheduleGrid({
                 {minutesToTime(timeToMinutes(sessionStart) + s * slotMinutes)}
               </span>
             </div>
-            <div className="flex flex-col gap-2.5 flex-1">
+            <div className="flex flex-col gap-4 flex-1">
               {games.map((g) => {
                 const key = toGameKey(s, g.court)
                 const done = played.has(key)
@@ -252,18 +253,17 @@ export default function ScheduleGrid({
                         : 'hover:bg-slate-800/40'
                       } ${isDimmed ? 'opacity-25' : ''} ${glowClass}`}
                     >
-                      {/* Played toggle — 44px hit area around a 24px visual box */}
+                      {/* Played toggle — 24px box with a 44px hit area so the team
+                          columns keep their width at 402px */}
                       <button
                         type="button"
                         onClick={() => { if (!locked && !saving && mode === 'idle') onTogglePlayedGame?.(key) }}
                         disabled={locked || saving || mode !== 'idle' || !onTogglePlayedGame}
                         aria-pressed={done}
                         aria-label={`Played: ${teamANames} vs ${teamBNames}`}
-                        className={`w-11 h-11 -my-2 shrink-0 flex items-center justify-center rounded transition-colors disabled:cursor-not-allowed ${locked || mode !== 'idle' ? 'opacity-25' : saving ? 'opacity-50' : 'cursor-pointer'}`}
+                        className={`w-6 h-6 shrink-0 rounded border flex items-center justify-center transition-colors ${hit44} disabled:cursor-not-allowed ${locked || mode !== 'idle' ? 'opacity-25' : saving ? 'opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
                       >
-                        <span className={`w-6 h-6 rounded border flex items-center justify-center ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}>
-                          {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
-                        </span>
+                        {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
                       </button>
                       {/* Teams — 4-column precision grid: Court label (compact fixed), Team A, vs (centered lurus), Team B */}
                       <div
@@ -282,7 +282,7 @@ export default function ScheduleGrid({
                         <button
                           onClick={() => { if (!locked) { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draftFromScore(savedScore, scoring) })) } }}
                           aria-label={`Score: ${teamANames} ${headline}${setLine ? `, sets ${setLine}` : ''}. Edit score`}
-                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
+                          className={`text-[11px] font-bold shrink-0 whitespace-nowrap min-h-6 px-1 leading-tight ${hit44} ${locked ? 'text-slate-300 cursor-default' : 'text-emerald-300 hover:text-emerald-200'}`}
                         >
                           <span className="block">{headline}</span>
                           {setLine && <span className="block text-[9px] font-medium text-slate-400">{setLine}</span>}
@@ -293,7 +293,7 @@ export default function ScheduleGrid({
                             if (isOpen) { setExpandedScore(null); setScoreError(null) }
                             else { setExpandedScore(key); setScoreError(null); setDraftScores((d) => ({ ...d, [key]: draftFromScore(undefined) })) }
                           }}
-                          className="text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap min-h-6 px-1 transition-colors"
+                          className={`text-[10px] text-slate-400 hover:text-slate-400 shrink-0 whitespace-nowrap min-h-6 px-1 transition-colors ${hit44}`}
                         >
                           {isOpen ? '▲ score' : '+ score'}
                         </button>

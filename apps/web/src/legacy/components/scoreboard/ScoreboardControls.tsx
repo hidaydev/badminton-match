@@ -5,7 +5,7 @@ export interface ScoreboardControlsProps {
   onReset: () => void
   onSwap: () => void
   onToggleFullscreen: () => void
-  /** Tailwind classes for button sizing. Defaults to overlay-style h-9 layout. */
+  /** Tailwind classes for button sizing. Defaults to the 44px overlay layout. */
   buttonClassName?: string
 }
 
@@ -17,7 +17,7 @@ export function ScoreboardControls({
   onReset,
   onSwap,
   onToggleFullscreen,
-  buttonClassName = 'px-3 h-11 flex items-center',
+  buttonClassName = 'px-3 min-w-11 h-11 flex items-center justify-center',
 }: ScoreboardControlsProps) {
   const cls = `${buttonClassName} ${baseBtnClass}`
 
