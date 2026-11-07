@@ -46,18 +46,81 @@ type
     ## A share link sets it so a forwarded code publishes one session, not the
     ## community's whole board.
     playerIds*: seq[string]
+    ## How many players the read may consider. `none` keeps the board cap the
+    ## caller took from `rank.board_limit`, and a non-positive cap reads every
+    ## player, which is what a backfill or a snapshot pass asks for.
+    candidates*: Option[int]
 
 proc uuidArray(ids: seq[string]): string =
   "{" & ids.join(",") & "}"
 
-proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
+proc candidateCap(query: BoardQuery): int =
+  ## The most players a board read may consider. The caller's own candidate set
+  ## wins over the board cap, and the board cap is `rank.board_limit` as the
+  ## caller read it, so an uncapped board (`limit: 0`) is still unlimited.
+  if query.candidates.isSome: query.candidates.get else: query.limit
+
+proc onBoard(query: BoardQuery, playerId: string,
+             projected: Projection): bool =
+  ## The board's own membership rule. A candidate has to pass it before it can
+  ## be counted against the cap, so the cap never spends a slot on a row the
+  ## row filter would drop anyway.
+  if projected.available < query.minSessions:
+    return false
+  query.playerIds.len == 0 or playerId in query.playerIds
+
+proc candidateIds(projections: Table[string, Projection],
+                  query: BoardQuery): Option[seq[string]] =
+  ## The players the SQL may read, or `none` for the whole community. The prefix
+  ## is the board's order without the name: points first, then evidence. A name
+  ## only breaks a tie those two already made, so the list can still sort the
+  ## prefix and reach the same rows. A cut that lands inside a group tied on
+  ## both keys keeps the whole group, because every member of it is worth the
+  ## same row and only the name decides which of them the list shows.
+  ##
+  ## A tier filter narrows the list in SQL, which the projection cannot see, so
+  ## a filtered read reads every player and lets the filter do the work.
+  if query.tier.len > 0:
+    return none(seq[string])
+  let cap = candidateCap(query)
+  if cap <= 0:
+    return none(seq[string])
+  var ids: seq[string] = @[]
+  for playerId, projected in projections:
+    if onBoard(query, playerId, projected):
+      ids.add(playerId)
+  if ids.len > cap:
+    ids.sort(proc(a, b: string): int =
+      let left = projections[a]
+      let right = projections[b]
+      if left.points != right.points: cmp(right.points, left.points)
+      elif left.available != right.available:
+        cmp(right.available, left.available)
+      else: cmp(a, b))
+    let cutoff = projections[ids[cap - 1]]
+    var kept = cap
+    while kept < ids.len and projections[ids[kept]].points == cutoff.points and
+        projections[ids[kept]].available == cutoff.available:
+      inc kept
+    ids.setLen(kept)
+  some(ids)
+
+proc boardRows(db: Db, query: BoardQuery,
+               projections: Table[string, Projection]): seq[BoardRow] =
   ## Points are the sum of the player's best entries inside the rolling window;
   ## every entry is one source, and the projection is the same one the player
   ## page reads, so a row can never disagree with its own detail. Players with
   ## no entry in the window are not on the board, exactly like v1.
-  let projections = projection.project(db, query.communityId, query.asOf,
-    query.params)
-  for row in db.query(
+  ##
+  ## The projection already says who can reach the list, so the names and the
+  ## counters are read for that candidate prefix instead of the whole community.
+  let candidates = candidateIds(projections, query)
+  let filter =
+    if candidates.isSome: candidates
+    elif query.playerIds.len > 0: some(query.playerIds)
+    else: none(seq[string])
+  let filterIds = if filter.isSome: filter.get else: newSeq[string]()
+  var sql =
     """select p.id as player_id, p.canonical_name, coalesce(p.tier, '') as tier,
               coalesce(s.games_played, 0) as games_played,
               coalesce(s.wins, 0) as wins, coalesce(s.losses, 0) as losses
@@ -66,9 +129,14 @@ proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
          on s.community_id = p.community_id and s.player_id = p.id
        where p.community_id = $1::uuid
          and ($2::text = '' or coalesce(p.tier, '') = $2)
-         and (cardinality($3::uuid[]) = 0 or p.id = any($3::uuid[]))""",
-    @[textParam(query.communityId), textParam(query.tier),
-      textParam(uuidArray(query.playerIds))]):
+         and ($3::bool or p.id = any($4::uuid[]))"""
+  var params = @[textParam(query.communityId), textParam(query.tier),
+    boolParam(filter.isNone), textParam(uuidArray(filterIds))]
+  if filter.isSome:
+    # The ids are already the read's bound; the limit states it in SQL too.
+    sql.add "\n       limit $5"
+    params.add intParam(filterIds.len.int64)
+  for row in db.query(sql, params):
     let playerId = row.getUuid("player_id")
     if not projections.hasKey(playerId):
       continue
@@ -146,24 +214,74 @@ proc latestEventDate*(db: Db, communityId: string): string =
   if row.isSome: row.get.getOpt("day").get("") else: ""
 
 proc board*(db: Db, query: BoardQuery): seq[BoardRow] =
-  boardRows(db, query)
+  boardRows(db, query,
+    projection.project(db, query.communityId, query.asOf, query.params))
+
+proc projectedRank(projections: Table[string, Projection], query: BoardQuery,
+                   playerId: string): int =
+  ## The place the list gives a player: one behind everyone who projects more
+  ## points under the same filter, with a tie sharing the place, which is the
+  ## rule the sorted rows apply. Points are the only input to a rank, so the
+  ## other rows never have to be fetched. Zero means the player is not on the
+  ## board at all: no entry inside the window, or a place the capped list does
+  ## not reach.
+  if not projections.hasKey(playerId):
+    return 0
+  let target = projections[playerId]
+  if not onBoard(query, playerId, target):
+    return 0
+  var ahead = 0
+  for id, projected in projections:
+    if projected.points > target.points and onBoard(query, id, projected):
+      inc ahead
+  if query.limit > 0 and ahead + 1 > query.limit:
+    return 0
+  ahead + 1
 
 proc boardEntry*(db: Db, query: BoardQuery,
                  playerId: string): Option[BoardRow] =
   ## One player's row plus its rank, resolved from the same board query so the
-  ## detail view can never disagree with the list.
-  let rows = boardRows(db, query)
-  for row in rows:
+  ## detail view can never disagree with the list. The rank comes from the
+  ## projection, which is where the points come from, and the name and counters
+  ## are fetched for this player alone, so the detail read costs one row instead
+  ## of the community. A tier filter narrows the list in SQL, which the
+  ## projection cannot see, so a filtered read keeps the list path.
+  let projections = projection.project(db, query.communityId, query.asOf,
+    query.params)
+  if query.tier.len > 0:
+    for row in boardRows(db, query, projections):
+      if row.playerId == playerId:
+        return some(row)
+    return none(BoardRow)
+  let rank = projectedRank(projections, query, playerId)
+  if rank == 0:
+    return none(BoardRow)
+  var scoped = query
+  scoped.playerIds = @[playerId]
+  scoped.candidates = some(1)
+  for row in boardRows(db, scoped, projections):
     if row.playerId == playerId:
-      return some(row)
+      var entry = row
+      entry.rank = rank
+      # The movement was measured against the rank the one-row list gave it,
+      # so it is re-derived from the place the whole list gives it.
+      if entry.prevRank.isSome:
+        entry.rankDelta = some(entry.prevRank.get - rank)
+      return some(entry)
   none(BoardRow)
 
 proc rankOf*(db: Db, query: BoardQuery, playerId: string): int =
-  let rows = boardRows(db, query)
-  for row in rows:
-    if row.playerId == playerId:
-      return row.rank
-  0
+  ## The player's place on the list, read from the projection for the same
+  ## reason: a rank is derived from the points and never from the rows. A tier
+  ## filter narrows the list in SQL, so a filtered read keeps the list path.
+  let projections = projection.project(db, query.communityId, query.asOf,
+    query.params)
+  if query.tier.len > 0:
+    for row in boardRows(db, query, projections):
+      if row.playerId == playerId:
+        return row.rank
+    return 0
+  projectedRank(projections, query, playerId)
 
 proc writeSnapshot*(db: Db, communityId, asOf: string,
                     rows: seq[BoardRow]): int =

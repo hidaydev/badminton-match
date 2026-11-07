@@ -3,6 +3,7 @@ import db/db
 import ../../read
 import ../../domain/rating
 import ../../infrastructure/ledger
+import ../../projection
 
 var
   database: Db
@@ -145,6 +146,20 @@ proc newPlayer(name: string): string =
     """insert into player.players (community_id, canonical_name, gender, tier)
        values ($1::uuid, $2, 'M', null) returning id""",
     @[textParam(communityId), textParam(name)]).get.get("id")
+
+proc statements(body: proc()): int =
+  ## How many statements a read costs. Every statement outside a transaction is
+  ## one commit, so the database's commit counter is the count; the counter read
+  ## commits after its own snapshot, which is why its commit is subtracted back
+  ## out. The suites run one after another against one database, so nothing else
+  ## moves the counter while a read is measured.
+  let before = database.queryOne(
+    """select xact_commit::int as n from pg_stat_database
+       where datname = current_database()""").get.getInt("n")
+  body()
+  database.queryOne(
+    """select xact_commit::int as n from pg_stat_database
+       where datname = current_database()""").get.getInt("n") - before - 1
 
 proc socialCount(rows: JsonNode, name: string): int =
   for entry in rows:
@@ -307,6 +322,38 @@ suite "ranking read":
     check entry.get.points == int(round(total))
     check rankOf(database, query(), heavy) == 1
 
+  test "a detail read costs the board two statements":
+    let projectionOnly = statements(proc() = discard projection.project(
+      database, communityId, asOf, params()))
+    let detail = statements(proc() = discard boardEntry(database, query(),
+      players[0]))
+    # The row and the previous snapshot, on top of the projection that the
+    # board itself needs: a detail read no longer builds the whole list.
+    check detail - projectionOnly <= 2
+    # A rank is derived from the projection, which is where the points come
+    # from, so it costs no statement of its own.
+    check statements(proc() = discard rankOf(database, query(),
+      players[0])) == projectionOnly
+
+  test "the board reads its candidates and keeps the same places":
+    let whole = board(database, queryAll())
+    let capped = board(database, BoardQuery(communityId: communityId,
+      asOf: asOf, params: params(), limit: 200, tier: "", candidates: some(40)))
+    # The read is bounded to the candidate prefix, so it cannot carry more rows
+    # than the board may show, and a tie at the cut may add its own members.
+    check capped.len >= 40
+    check capped.len < whole.len
+    for index in 0 ..< capped.len:
+      check capped[index].playerId == whole[index].playerId
+      check capped[index].points == whole[index].points
+      check capped[index].rank == whole[index].rank
+    # The default candidate set is the board cap itself, so the member page
+    # reads the same prefix without a caller asking for it.
+    let cappedByDefault = board(database, query())
+    check cappedByDefault.len == 200
+    for index in 0 ..< cappedByDefault.len:
+      check cappedByDefault[index].playerId == whole[index].playerId
+
   test "a snapshot matches the board on the same day":
     let rows = board(database, query())
     check writeSnapshot(database, communityId, asOf, rows) == rows.len
@@ -364,6 +411,24 @@ suite "ranking read":
         asOf: "2026-10-01", params: params(), limit: 5, tier: "")):
       check row.prevRank.isNone
       check row.rankDelta.isNone
+
+  test "one row agrees with the list it belongs to":
+    let rows = board(database, query())
+    for index in 0 ..< 5:
+      let entry = boardEntry(database, query(), rows[index].playerId)
+      check entry.isSome
+      check entry.get.rank == rows[index].rank
+      check entry.get.points == rows[index].points
+      check entry.get.countedEntries == rows[index].countedEntries
+      check entry.get.prevRank == rows[index].prevRank
+      # The movement is the list's, not the one-row read's own place.
+      check entry.get.rankDelta == rows[index].rankDelta
+    # A place the capped list does not reach has no row, exactly as before.
+    let short = BoardQuery(communityId: communityId, asOf: asOf,
+      params: params(), limit: 5, tier: "")
+    check boardEntry(database, short, rows[^1].playerId).isNone
+    check rankOf(database, short, rows[^1].playerId) == 0
+    check rankOf(database, query(), rows[^1].playerId) == rows[^1].rank
 
   test "a tied snapshot ranks both players the same":
     let rows = board(database, query())
