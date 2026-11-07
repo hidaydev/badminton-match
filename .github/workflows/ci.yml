@@ -168,6 +168,13 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: "E2E: install browsers"
         run: pnpm exec playwright install --with-deps
+      # deps.lock also pins the coverage tools. This job is the only one that
+      # installs them alongside pnpm, the browser builds and the Nim packages,
+      # so it is the only place the whole lock can be compared in one shot.
+      - name: "Dependencies: install gcov tooling"
+        run: sudo apt-get update && sudo apt-get install -y lcov gcovr
+      - name: "Dependencies: installed content must match deps.lock"
+        run: ./task deps-check
       - name: "Database: provision"
         env:
           MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
@@ -178,8 +185,6 @@ jobs:
           # harness's passwordless DSN does not carry.
           psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE \"$(whoami)\" LOGIN SUPERUSER PASSWORD 'postgres'"
-      # `./task deps-check` is not run here: deps.lock also pins the coverage
-      # tools (lcov, gcovr), which only the coverage workflow installs.
       - name: "E2E: run"
         env:
           PGPASSWORD: postgres
