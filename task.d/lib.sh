@@ -48,6 +48,15 @@ nim_run_check() {
     -o:"$(test_binary "$_file")" "$_file" "$@"
 }
 
+nim_compile_check() {
+  # Compile a suite without running it, so `ci` can keep the compile-only
+  # signal while `test` executes the same file once.
+  _file=$1
+  shift
+  nim c $CHECK_FLAGS --nimcache:"$NIMCACHE_CHECK" \
+    -o:"$(test_binary "$_file")" "$_file" "$@"
+}
+
 list_test_files() {
   # Unit tests always run. Integration tests only when INTEGRATION=1.
   find "$REPO_ROOT/apps" "$REPO_ROOT/modules" "$REPO_ROOT/shared" "$REPO_ROOT/tools" \

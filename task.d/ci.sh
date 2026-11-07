@@ -1,7 +1,9 @@
 #!/bin/sh
 . "$(dirname "$0")/lib.sh"
 
-sh "$REPO_ROOT/task.d/check.sh"
+# `test` runs every suite, unit ones included, so `check` only compiles them
+# here. Running both would execute the unit suites twice in one job.
+sh "$REPO_ROOT/task.d/check.sh" --no-run
 sh "$REPO_ROOT/task.d/build.sh"
 sh "$REPO_ROOT/task.d/test.sh"
 
