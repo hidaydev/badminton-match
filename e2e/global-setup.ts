@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { request } from 'playwright/test'
@@ -98,6 +99,20 @@ export default async function globalSetup() {
     // The creator is not a member yet: the first-admin invitation is honoured
     // at login, so a second pass through the stub is what grants admin.
     await startLogin(api)
+
+    // Settings renders the membership's `created_at`, which is the day the
+    // suite happens to run. Pin it, or the settings baseline goes stale every
+    // midnight. The DSN is the one `task.d/e2e.sh` already migrated.
+    const dsn = process.env.MAJADU_PG_DSN
+    if (!dsn) throw new Error('MAJADU_PG_DSN is required to pin the fixture dates')
+    execFileSync('psql', [
+      dsn,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `update community.membership set created_at = timestamptz '2026-11-01 00:00:00+07'
+         where community_id in (select id from platform.community where slug in ('e2e-club', 'e2e-writes'))`,
+    ])
 
     const playerIds: string[] = []
     for (const name of ['Ani', 'Budi', 'Candra', 'Dewi']) {

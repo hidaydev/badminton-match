@@ -18,6 +18,10 @@ test.beforeEach(async ({ page }) => {
 
 for (const route of visualRoutes) {
   test(`${route.name} matches the baseline`, async ({ page }) => {
+    // The session list prints a date-filter chip and the export poster prints
+    // the day it was opened; both read the browser clock. Pin it so a baseline
+    // recorded on one day is still valid the next.
+    await page.clock.setFixedTime(new Date('2026-11-04T12:00:00Z'))
     await page.goto(route.path(state()))
     await page.waitForLoadState('networkidle')
     // Fonts are served from the repo and still have to arrive before the glyphs
