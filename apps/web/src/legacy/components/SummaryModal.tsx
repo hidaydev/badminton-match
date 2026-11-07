@@ -121,8 +121,13 @@ export default function SummaryModal({
   const played = new Set(playedArr)
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings'>('schedule')
-  // Escape menutup modal (tidak saat standalone/full-page).
-  useEscapeKey(() => onClose?.(), !!onClose && !standalone)
+  // Escape menutup modal (tidak saat standalone/full-page). Menu Actions punya
+  // handler sendiri di atas stack; guard ini memastikan satu Escape hanya
+  // menutup satu hal meski urutan stack berubah.
+  useEscapeKey(() => {
+    if (actionsOpen) return
+    onClose?.()
+  }, !!onClose && !standalone)
 
   const score = useScoreDraft(onSetGameScore, scoring)
   const { expandedScore, setExpandedScore, scoreError, setScoreError, draftScores, setDraftScores, updateDraftSet, handleScoreSave, handleClearScore } = score

@@ -1,4 +1,5 @@
 import { t } from '../../../i18n'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 interface ActionsMenuProps {
   actionsOpen: boolean
@@ -39,6 +40,11 @@ export default function ActionsMenu({
   hasSetAbsent,
   hasSetSkipped,
 }: ActionsMenuProps) {
+  // A menu, not a dialog: it owns Escape only while it is open. Its handler sits
+  // above the SummaryModal one on the global stack, so one press closes the menu
+  // and leaves the modal alone.
+  useEscapeKey(onClose, actionsOpen)
+
   return (
     <div className="relative">
       <button
@@ -52,7 +58,7 @@ export default function ActionsMenu({
       </button>
       {actionsOpen && (
         <>
-          <div className="fixed inset-0 z-10" onClick={onClose} />
+          <div className="fixed inset-0 z-10" onClick={onClose} aria-hidden="true" />
           <div
             className="absolute right-0 top-full mt-1 z-20 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden"
             style={{ minWidth: '160px' }}

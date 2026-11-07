@@ -7,6 +7,7 @@ import { useCommunity } from '../../community/CommunityContext'
 import CommunityPicker from '../../community/CommunityPicker'
 import { t } from '../../i18n'
 import AccountSessions from './AccountSessions'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 export default function HomeLayout() {
   const location = useLocation()
@@ -17,6 +18,9 @@ export default function HomeLayout() {
   const { memberships, current, select } = useCommunity()
   const [accountOpen, setAccountOpen] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
+  // The account menu is not a dialog: Escape closes the menu itself and nothing
+  // behind it.
+  useEscapeKey(() => setAccountOpen(false), accountOpen)
 
   const roleLabel = user?.platformOwner === true
     ? t('role.owner')

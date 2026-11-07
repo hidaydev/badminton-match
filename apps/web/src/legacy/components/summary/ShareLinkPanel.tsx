@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t } from '../../../i18n'
 import {
@@ -8,40 +8,20 @@ import {
   rotateSessionShareLink,
 } from '../../queries/endpoints'
 import { communityQueryKey } from '../../queries/keys'
-import { useEscapeKey } from '../../hooks/useEscapeKey'
+import { Overlay } from '../../../components/Overlay'
 
 /**
- * Host/admin control for the public link of one session. The panel is a
- * popover so the toolbar layout stays untouched; every action is a real
- * button, and a revoked link disappears as soon as the mutation settles.
+ * Host/admin control for the public link of one session. The panel is the shared
+ * bottom sheet, so its trigger keeps the toolbar slot it always had; every action
+ * is a real button, and a revoked link disappears as soon as the mutation settles.
  */
 export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
   const queryClient = useQueryClient()
-  const panelId = useId()
   const [open, setOpen] = useState(false)
   const [confirmRevoke, setConfirmRevoke] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const panelRef = useRef<HTMLElement>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
-  const wasOpen = useRef(false)
-
-  useEscapeKey(() => {
-    setOpen(false)
-    setConfirmRevoke(false)
-  }, open)
-
-  // Focus moves into the popover on open and back to the trigger on close, so
-  // a keyboard user is never dropped to the end of the document.
-  useEffect(() => {
-    if (open) {
-      wasOpen.current = true
-      panelRef.current?.focus()
-    } else if (wasOpen.current) {
-      triggerRef.current?.focus()
-    }
-  }, [open])
 
   // The Revoke button is replaced by the confirm pair; keep focus on it.
   useEffect(() => {
@@ -98,6 +78,11 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
   const url = code === null ? null : shareUrl(code)
   const busy = create.isPending || rotate.isPending || revoke.isPending
 
+  function close() {
+    setOpen(false)
+    setConfirmRevoke(false)
+  }
+
   async function handleCopy() {
     if (url === null) return
     try {
@@ -112,27 +97,17 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
   return (
     <div className="relative">
       <button
-        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => setOpen(true)}
         aria-expanded={open}
-        aria-controls={panelId}
         aria-haspopup="dialog"
         className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 hover:text-white transition-colors"
       >
         {t('session.share')}
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden="true" />
-          <section
-            ref={panelRef}
-            id={panelId}
-            role="dialog"
-            aria-label={t('session.share')}
-            tabIndex={-1}
-            className="fixed inset-x-2 mt-1 z-20 flex flex-col gap-2 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-xl focus:outline-none sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:w-72 max-h-share-panel overflow-auto"
-          >
+        <Overlay onClose={close} title={t('session.share')}>
+          <div className="flex flex-col gap-2">
             {isLoading ? (
               <span className="text-xs text-slate-400">{t('common.loading')}</span>
             ) : url === null ? (
@@ -212,8 +187,8 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
               <span role="alert" className="text-[11px] text-red-300">{error}</span>
             )}
             <span role="status" className="sr-only">{copied ? t('session.share.copied') : ''}</span>
-          </section>
-        </>
+          </div>
+        </Overlay>
       )}
     </div>
   )
