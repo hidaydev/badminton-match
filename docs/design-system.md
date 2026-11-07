@@ -1,6 +1,6 @@
 # Majadu App — Design System
 
-> Formalized and adopted across the codebase. Last updated: 2026-09-19.
+> Formalized and adopted across the codebase. Last updated: 2026-11-07.
 
 ## Typography
 
@@ -102,26 +102,29 @@ Components follow the semantic token system. Key patterns:
 
 | Variant | Classes |
 |---------|---------|
-| Primary | `bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl` |
-| Secondary | `border-2 border-dashed border-border hover:border-accent-alt text-fg-dim` |
-| Ghost | `text-fg-dim hover:text-white hover:bg-elevated` |
-| Danger | `text-error hover:text-red-300` or `bg-red-600 text-white` |
-| Icon-only | `p-2 rounded-lg text-fg-dim hover:text-white` (≥44px touch) |
+| Primary | `bg-accent text-ground font-semibold rounded-xl min-h-11 px-4` |
+| Secondary | `border border-border text-fg hover:bg-elevated rounded-xl min-h-11 px-4` |
+| Danger | `border border-border text-error hover:bg-elevated rounded-xl min-h-11 px-4` |
+| Icon-only | `min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-fg-dim` |
+
+Legacy screens still spell the primary CTA as `bg-indigo-400 text-slate-950`. The
+palette remap in `index.css` renders that as `accent`, so the difference is
+naming, not colour; migration is cosmetic and can wait.
+
+Dense rows (the played toggle, tournament camera buttons) keep a 24-32px visual
+box and expand the hit area with `hit44` from
+`apps/web/src/legacy/components/hitTarget.ts`.
 
 ## Form Patterns
 
 ```tsx
-// Input
-className="bg-elevated border border-border rounded-lg px-3 py-1.5 text-sm text-white
-  placeholder-slate-500 focus:outline-none focus:border-indigo-500
-  focus-visible:ring-2 focus-visible:ring-indigo-500/50
-  disabled:opacity-40 disabled:cursor-not-allowed h-9"
+// Input and Select share one recipe; components/Field.tsx owns it.
+className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3
+  text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent
+  disabled:opacity-60"
 
-// Select
-className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white
-  focus:outline-none focus:border-indigo-500
-  focus-visible:ring-2 focus-visible:ring-indigo-500/50
-  cursor-pointer h-9"
+// The control is the child of a <label>. That is what gives it an accessible
+// name, so there is no id/htmlFor plumbing.
 ```
 
 ## Accessibility (Mobile PWA)
@@ -132,7 +135,7 @@ className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-
 | Touch targets | ≥44px for interactive elements |
 | Reduced motion | `@media (prefers-reduced-motion: reduce)` |
 | Screen readers | `aria-label` on icon buttons, `role="dialog"` on modals |
-| Error toast | `role="alert" aria-live="polite"` |
+| Error text | `role="alert"` only. Adding `aria-live` on top is redundant and is documented as wrong in `legacy/components/ErrorBanner.tsx` |
 | Keyboard nav | `role="button" tabIndex={0}` on score tap zones |
 | Menu | `role="menu"` / `role="menuitem"` on ActionsMenu |
 
