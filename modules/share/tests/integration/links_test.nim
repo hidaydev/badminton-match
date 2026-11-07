@@ -66,12 +66,15 @@ suite "share links":
     check resolve(db, keyring, "0" & code[1 .. ^1]).isNone or
       resolve(db, keyring, "0" & code[1 .. ^1]).get.communityId == communityId
 
-  test "rotating the link revokes the previous code":
+  test "rotating the link revokes the previous code and the session id":
     let first = issue(db, keyring, communityId, sessionId, userId, 30)
     let second = issue(db, keyring, communityId, sessionId, userId, 30)
     check first != second
     check resolve(db, keyring, first).isNone
     check resolve(db, keyring, second).isSome
+    # The payload still carries the session id. It must not stand in for the
+    # link that replaced the one the ex-viewer holds.
+    check resolve(db, keyring, sessionId).isNone
 
   test "current code is re-readable by the store":
     let code = issue(db, keyring, communityId, sessionId, userId, 30)
@@ -91,8 +94,24 @@ suite "share links":
     let secondPass = rotateKeys(db, keyring, "1", "2")
     check secondPass == 0
 
-  test "a v1 style session id resolves while the session has a live link":
+  test "a newly issued link is reachable by its code only":
     discard issue(db, keyring, communityId, sessionId, userId, 30)
+    let row = db.queryOne(
+      """select legacy_id_ok from session.links
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    check row.isSome
+    check row.get.get("legacy_id_ok") == "f"
+    check resolve(db, keyring, sessionId).isNone
+
+  test "a pre-code link still resolves by its session id":
+    discard issue(db, keyring, communityId, sessionId, userId, 30)
+    # 0033 marked every row that existed at that moment. A link minted then is
+    # this row with the flag the backfill gave it.
+    discard db.execUpdate(
+      """update session.links set legacy_id_ok = true
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
     # `/s/{sessionId}` is what version one handed out; the row is still live, so
     # the id answers for it and links already in a group chat keep working.
     let byId = resolve(db, keyring, sessionId)
@@ -104,6 +123,10 @@ suite "share links":
 
   test "a revoked session answers no longer answers by its id":
     let code = issue(db, keyring, communityId, sessionId, userId, 30)
+    discard db.execUpdate(
+      """update session.links set legacy_id_ok = true
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
     check resolve(db, keyring, sessionId).isSome
     check revokeLive(db, communityId, sessionId).len == 1
     check resolve(db, keyring, sessionId).isNone

@@ -43,6 +43,8 @@ proc issue*(db: Db, keyring: Keyring, communityId, sessionId,
   ## Rotating the *link*: the previous live code stops resolving in the same
   ## transaction because a partial unique index allows only one live row. Links
   ## expire: a code forwarded in a group chat should not resolve forever.
+  ## The new row leaves `legacy_id_ok` at its default (false), so the session id
+  ## cannot stand in for it; only pre-code rows carry that shortcut.
   let linkId = uuidv7()
   let code = newShareCode()
   let (keyId, encrypted) = encryptWith(keyring, code, aadFor(communityId, linkId))
@@ -110,12 +112,12 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     """l.code_hash = decode($1,'hex') and """ & liveLinkSql,
     @[textParam(sha256Hex(code))])
   if row.isNone and looksLikeUuid(code):
-    # A link minted before the code era was `/s/{sessionId}`. While that session
-    # still has a live link, its id answers for it, so links already in a group
-    # chat keep working instead of turning into a 404.
+    # A link minted before the code era was `/s/{sessionId}`. Only those rows
+    # answer for an id, so links already in a group chat keep working while a
+    # rotated link revokes that shape together with the old code.
     row = db.queryOne(
       shareLookupColumns & shareLookupFrom &
-      """l.session_id = $1::uuid and """ & liveLinkSql,
+      """l.session_id = $1::uuid and l.legacy_id_ok and """ & liveLinkSql,
       @[textParam(code)])
   if row.isNone:
     return none(ShareLookup)
