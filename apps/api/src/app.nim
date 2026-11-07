@@ -78,6 +78,11 @@ type
 
 var application: App
 
+# `route()` computes the route template once and `send` hands it to the counter
+# instead of asking `templateRoute` again. Each connection is served on a single
+# worker thread, so a threadvar cannot leak a label between requests.
+var currentRouteLabel {.threadvar.}: string
+
 proc randomHex*(count: int): string =
   var bytes = newSeq[byte](count)
   if not urandom(bytes):
@@ -177,7 +182,7 @@ proc send(request: Request, status: int,
   for pair in securityHeaders(application.cookieSecure):
     merged.add(pair)
   request.respond(status, merged, body)
-  recordResponse(request.httpMethod, request.path, status)
+  recordResponse(request.httpMethod, request.path, status, currentRouteLabel)
 
 proc send(request: Request, status: int) =
   send(request, status, newSeq[(string, string)](), "")
@@ -243,6 +248,11 @@ proc methodNotAllowed(request: Request) =
 
 proc routeNotFound(request: Request) =
   problem(request, 404, "NOT_FOUND", "route not found")
+
+proc originNotAllowed(request: Request) =
+  ## The one refusal for an origin outside the allowlist. The request chain and
+  ## the WebSocket handshake reach it from different guards but answer alike.
+  problem(request, 403, "CSRF_REJECTED", "origin is not allowed")
 
 proc cookieValue(request: Request, name: string): string =
   let header = request.headers["Cookie"]
@@ -320,6 +330,18 @@ proc rateLimited(request: Request, decision: Decision) =
     %*{"status": 429, "code": "RATE_LIMITED",
        "retryAfter": decision.retryAfter},
     [("Retry-After", $decision.retryAfter)])
+
+proc quota(request: Request, snapshot: Snapshot, scope, key: string,
+           limit: int): bool =
+  ## One limiter call and one 429 for every budget. `scope` names the bucket and
+  ## `key` is what is counted inside it, so the route budget, a share link and an
+  ## invite request share the window and the body instead of each keeping their
+  ## own copy. `true` means the 429 was already sent.
+  let budget = application.limiter.hit(scope & "|" & key, limit, epochTime())
+  if budget.allowed:
+    return false
+  rateLimited(request, budget)
+  true
 
 proc sessionCookie(token: string): string =
   let days = configSnapshot().intValue(%*{}, keySessionAbsoluteDays)
@@ -1247,11 +1269,9 @@ proc requestJoin(request: Request, slug: string) =
   if user.isSome:
     # Per account per window: a repeated submission is a script, not a person,
     # and the anonymous path never reaches the store anyway.
-    let rate = configSnapshot().intValue(%*{}, keySecurityJoinRequestRate)
-    let budget = application.limiter.hit("join|" & requestIdentity(request),
-      rate, epochTime())
-    if not budget.allowed:
-      rateLimited(request, budget)
+    let snapshot = configSnapshot()
+    if quota(request, snapshot, "join", requestIdentity(request),
+        snapshot.intValue(%*{}, keySecurityJoinRequestRate)):
       return
   let row = if user.isSome:
     application.db.queryOne(
@@ -2667,7 +2687,7 @@ proc handleWebSocket(request: Request, snapshot: Snapshot, parts: seq[string]) =
   # alone, matching the rule `csrfCheck` already applies to cookie requests.
   let origin = request.headers["Origin"]
   if origin.len > 0 and not originAllowed(snapshot, origin):
-    problem(request, 403, "ORIGIN_FORBIDDEN", "origin is not allowed")
+    originNotAllowed(request)
     return
   let address = clientIp(request, trustedProxies())
   if parts.len == 6 and parts[2] == "c" and parts[4] == "sessions":
@@ -2928,41 +2948,55 @@ proc outdatedClient(request: Request): bool =
     except ValueError: return false
   client != server
 
+proc rejectLargeBody(request: Request, snapshot: Snapshot): bool =
+  ## `true` means the 413 is already sent, so `route()` is one chain of guards
+  ## that answer for themselves.
+  if request.body.len == 0 or not bodyTooLarge(request, snapshot):
+    return false
+  problem(request, 413, "BODY_TOO_LARGE", "request body exceeds the limit")
+  true
+
+proc rejectCrossSite(request: Request, snapshot: Snapshot): bool =
+  if csrfCheck(request, snapshot) != csrfRejected:
+    return false
+  originNotAllowed(request)
+  true
+
+proc rejectShareScrape(request: Request, snapshot: Snapshot): bool =
+  ## Share links are limited per viewer, so one scraper cannot exhaust the
+  ## budget of the group that holds the link, and per code at a looser ceiling
+  ## so a pool of addresses still cannot replay a scraped code without bound.
+  let path = request.path
+  if not path.startsWith("/s/"):
+    return false
+  let parts = path.split('/')
+  if parts.len < 3:
+    return false
+  let codeKey = sha256Hex(parts[2])[0 .. 15]
+  let limit = snapshot.intValue(%*{}, keySecurityShareScrapeLimit)
+  if quota(request, snapshot, "share", codeKey, limit * shareGlobalFactor):
+    return true
+  quota(request, snapshot, "share", codeKey & "|" & requestIdentity(request),
+    limit)
+
 proc route(request: Request) =
   try:
     let path = request.path
     let parts = path.split('/')
     let verb = request.httpMethod
     let snapshot = configSnapshot()
-    if request.body.len > 0 and bodyTooLarge(request, snapshot):
-      problem(request, 413, "BODY_TOO_LARGE", "request body exceeds the limit")
+    # One template per request: the quota bucket and the counter label both use
+    # it, so the same path cannot be labelled two ways.
+    currentRouteLabel = templateRoute(path)
+    if rejectLargeBody(request, snapshot):
       return
-    if csrfCheck(request, snapshot) == csrfRejected:
-      problem(request, 403, "CSRF_REJECTED", "origin is not allowed")
+    if rejectCrossSite(request, snapshot):
       return
-    let identity = requestIdentity(request)
-    let routeLabel = templateRoute(path)
-    let budget = application.limiter.hit(routeLabel & "|" & identity,
-      snapshot.intValue(%*{}, keySecurityRateLimitPerMinute), epochTime())
-    if not budget.allowed:
-      rateLimited(request, budget)
+    if quota(request, snapshot, currentRouteLabel, requestIdentity(request),
+        snapshot.intValue(%*{}, keySecurityRateLimitPerMinute)):
       return
-    # Share links are limited per viewer, so one scraper cannot exhaust the
-    # budget of the group that holds the link, and per code at a looser ceiling
-    # so a pool of addresses still cannot replay a scraped code without bound.
-    if path.startsWith("/s/"):
-      if parts.len >= 3:
-        let codeKey = sha256Hex(parts[2])[0 .. 15]
-        let limit = snapshot.intValue(%*{}, keySecurityShareScrapeLimit)
-        let now = epochTime()
-        let global = application.limiter.hit("share|" & codeKey,
-          limit * shareGlobalFactor, now)
-        let viewer = application.limiter.hit("share|" & codeKey & "|" & identity,
-          limit, now)
-        let refused = if not global.allowed: global else: viewer
-        if not refused.allowed:
-          rateLimited(request, refused)
-          return
+    if rejectShareScrape(request, snapshot):
+      return
     if path == "/healthz":
       send(request, 200, """{"status":"ok"}""")
       return

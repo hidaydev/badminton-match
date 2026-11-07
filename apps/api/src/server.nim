@@ -65,17 +65,23 @@ var
 
 initLock(registryLock)
 
-proc recordResponse*(verb, path: string, status: int) =
+proc recordResponse*(verb, path: string, status: int, label = "") =
   ## One counter and one access-log line per answer. The label is the route
   ## template, never the raw path, so a share code, slug or id cannot become a
   ## series. Unmatched paths share one bucket: a scanner would otherwise mint a
   ## new series per request and grow the registry without bound.
-  let label = if status == 404: "unmatched" else: templateRoute(path)
+  ##
+  ## The request chain already computed the template, so it passes it in; a
+  ## direct caller without a request leaves it empty and it is derived here.
+  let routeLabel =
+    if status == 404: "unmatched"
+    elif label.len > 0: label
+    else: templateRoute(path)
   withLock registryLock:
     registry.inc("http_requests_total",
-      [("method", verb), ("route", label), ("status", $status)])
+      [("method", verb), ("route", routeLabel), ("status", $status)])
   logInfo("request",
-    [("method", verb), ("route", label), ("status", $status)])
+    [("method", verb), ("route", routeLabel), ("status", $status)])
 
 proc metricsText*(): string {.gcsafe.} =
   ## Prometheus text exposition for the internal listener. The registry holds a
