@@ -27,25 +27,74 @@
             "description": "created"
           },
           "400": {
-            "description": "bad request"
+            "description": "bad request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "409": {
-            "description": "conflict"
+            "description": "conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "413": {
-            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -69,16 +118,44 @@
             "description": "ok"
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -94,22 +171,64 @@
             "description": "accepted"
           },
           "400": {
-            "description": "bad request"
+            "description": "bad request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "413": {
-            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -143,16 +262,44 @@
             "description": "ok"
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -178,22 +325,64 @@
             "description": "ok"
           },
           "400": {
-            "description": "bad request"
+            "description": "bad request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "413": {
-            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -237,22 +426,64 @@
             "description": "created"
           },
           "400": {
-            "description": "bad request"
+            "description": "bad request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "413": {
-            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -288,22 +519,64 @@
             "description": "created"
           },
           "400": {
-            "description": "bad request"
+            "description": "bad request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "410": {
-            "description": "gone"
+            "description": "gone",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -329,16 +602,44 @@
             "description": "ok"
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -364,25 +665,74 @@
             "description": "ok"
           },
           "400": {
-            "description": "bad request"
+            "description": "bad request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "409": {
-            "description": "LAST_ADMIN: the change would leave the community with no admin. Promote another member first."
+            "description": "LAST_ADMIN: the change would leave the community with no admin. Promote another member first.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "413": {
-            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -424,22 +774,64 @@
             "description": "ok"
           },
           "400": {
-            "description": "bad request"
+            "description": "bad request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "409": {
-            "description": "LAST_ADMIN: the change would leave the community with no admin. Promote another member first."
+            "description": "LAST_ADMIN: the change would leave the community with no admin. Promote another member first.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -473,16 +865,44 @@
             "description": "ok"
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -506,22 +926,64 @@
             "description": "ok"
           },
           "400": {
-            "description": "bad request"
+            "description": "bad request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "413": {
-            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+            "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -557,16 +1019,44 @@
             "description": "ok"
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -592,16 +1082,44 @@
             "description": "ok"
           },
           "401": {
-            "description": "unauthenticated"
+            "description": "unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "403": {
-            "description": "forbidden"
+            "description": "forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "404": {
-            "description": "not found"
+            "description": "not found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "429": {
-            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
+            "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After and the body's retryAfter are the number of seconds to wait.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
