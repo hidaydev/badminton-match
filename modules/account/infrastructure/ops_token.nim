@@ -11,10 +11,11 @@ type
     expiresAt*: string
     revokedAt*: string
 
-proc issue*(db: Db, name, createdBy: string, ttlDays: int): string =
-  ## Returns the plaintext exactly once; the row keeps only the hash.
+proc issueConn*(conn: DbConn, name, createdBy: string, ttlDays: int): string =
+  ## Returns the plaintext exactly once; the row keeps only the hash. The caller
+  ## holds the connection, so the insert and its audit row share a transaction.
   let token = newOpaqueToken()
-  discard db.execUpdate(
+  discard conn.execUpdate(
     """insert into platform.ops_token
          (name, token_hash, created_by, expires_at)
        values ($1, decode($2,'hex'), $3::uuid,
@@ -26,6 +27,10 @@ proc issue*(db: Db, name, createdBy: string, ttlDays: int): string =
       intParam(ttlDays.int64),
     ])
   token
+
+proc issue*(db: Db, name, createdBy: string, ttlDays: int): string =
+  db.txRet(proc(conn: DbConn): string =
+    issueConn(conn, name, createdBy, ttlDays))
 
 proc verify*(db: Db, token: string): Option[string] =
   ## Returns the token name when it is active. Expiry is evaluated by the

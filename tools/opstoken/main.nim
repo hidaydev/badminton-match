@@ -60,12 +60,16 @@ proc main() =
       if row.get.get("is_platform_owner") != "t":
         fail(program, "only a platform owner may issue ops tokens")
       actorId = row.get.get("id")
-    let token = ops_token.issue(db, name, actorId, days)
-    if actorId.len > 0:
-      recordAudit(db, auditEvent("platform.ops_token.create", communityId = "",
-        actorId = actorId, actorRole = "platform_owner",
-        targetKind = "ops_token", targetId = name,
-        requestId = "cli").withEvidence(newJObject(), %*{"name": name}))
+    # The token and its audit row share one transaction: a failed audit rolls
+    # the token back instead of leaving a working bearer with no evidence.
+    var token = ""
+    db.tx(proc(conn: DbConn) =
+      token = ops_token.issueConn(conn, name, actorId, days)
+      if actorId.len > 0:
+        recordAuditConn(conn, auditEvent("platform.ops_token.create",
+          communityId = "", actorId = actorId, actorRole = "platform_owner",
+          targetKind = "ops_token", targetId = name,
+          requestId = "cli").withEvidence(newJObject(), %*{"name": name})))
     echo $(%*{"token": token, "name": name, "expiresInDays": days})
   of "list":
     var items = newJArray()

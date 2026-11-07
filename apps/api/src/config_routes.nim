@@ -72,50 +72,60 @@ proc checkPatch*(snapshot: Snapshot, patch: JsonNode): SettingsResult =
       return verdict
   SettingsResult(outcome: soOk)
 
-proc currentSettings*(db: Db, communityId: string): JsonNode =
-  let row = db.queryOne(
-    """select values::text as values from community.settings
-       where community_id = $1::uuid""",
-    @[textParam(communityId)])
+const selectSettingsSql = """select values::text as values from community.settings
+       where community_id = $1::uuid"""
+
+proc settingsFrom(row: Option[Row]): JsonNode =
   if row.isNone:
     newJObject()
   else:
     parseJson(row.get.get("values"))
 
+proc currentSettings*(db: Db, communityId: string): JsonNode =
+  settingsFrom(db.queryOne(selectSettingsSql, @[textParam(communityId)]))
+
 proc applyPatch*(db: Db, snapshot: Snapshot, communityId, actorId: string,
                  patch: JsonNode, requestId = "-",
                  actorRole = "admin"): SettingsResult =
-  ## Merge, validate, write and audit in that order. The audit row keeps the
-  ## old and new values, sanitised by the domain allowlist.
+  ## Merge, validate, write and audit in one transaction, in that order. The
+  ## audit row keeps the old and new values, sanitised by the domain allowlist,
+  ## and shares the caller's transaction so a failed audit cannot turn a
+  ## committed override into a 500.
   result = checkPatch(snapshot, patch)
   if result.outcome != soOk:
     return
-  # A stored zone decides which calendar day a session belongs to, so an unknown
-  # name is a bad request here exactly as it is on community creation.
-  if patch.kind == JObject and patch.hasKey($keyCommunityDefaultTimezone):
-    let zone = patch[$keyCommunityDefaultTimezone]
-    if zone.kind != JString or db.queryOne(
-        "select 1 as ok from pg_timezone_names where name = $1",
-        @[textParam(zone.getStr())]).isNone:
-      return SettingsResult(outcome: soInvalidType,
-        key: $keyCommunityDefaultTimezone,
-        detail: "timezone is not a known IANA zone")
-  let before = currentSettings(db, communityId)
-  var merged = before
-  for name, value in patch:
-    merged[name] = value
-  discard db.execUpdate(
-    """insert into community.settings (community_id, values, updated_at)
-       values ($1::uuid, $2::jsonb, now())
-       on conflict (community_id) do update
-         set values = excluded.values, updated_at = now()""",
-    @[textParam(communityId), textParam($merged)])
-  var evidence = newJObject()
-  for name in patch.keys:
-    evidence[name] = patch[name]
-  recordAudit(db, auditEvent("config.override", communityId, actorId = actorId,
-    actorRole = actorRole, targetKind = "community", targetId = communityId,
-    requestId = requestId).withEvidence(before, evidence))
+  var verdict = result
+  db.tx(proc(conn: DbConn) =
+    # A stored zone decides which calendar day a session belongs to, so an
+    # unknown name is a bad request here exactly as on community creation.
+    if patch.kind == JObject and patch.hasKey($keyCommunityDefaultTimezone):
+      let zone = patch[$keyCommunityDefaultTimezone]
+      if zone.kind != JString or conn.queryOne(
+          "select 1 as ok from pg_timezone_names where name = $1",
+          @[textParam(zone.getStr())]).isNone:
+        verdict = SettingsResult(outcome: soInvalidType,
+          key: $keyCommunityDefaultTimezone,
+          detail: "timezone is not a known IANA zone")
+        return
+    let before = settingsFrom(conn.queryOne(selectSettingsSql,
+      @[textParam(communityId)]))
+    var merged = before
+    for name, value in patch:
+      merged[name] = value
+    discard conn.execUpdate(
+      """insert into community.settings (community_id, values, updated_at)
+         values ($1::uuid, $2::jsonb, now())
+         on conflict (community_id) do update
+           set values = excluded.values, updated_at = now()""",
+      @[textParam(communityId), textParam($merged)])
+    var evidence = newJObject()
+    for name in patch.keys:
+      evidence[name] = patch[name]
+    recordAuditConn(conn, auditEvent("config.override", communityId,
+      actorId = actorId, actorRole = actorRole, targetKind = "community",
+      targetId = communityId, requestId = requestId).withEvidence(before,
+        evidence)))
+  result = verdict
 
 proc visibleSettings*(settings: JsonNode): JsonNode =
   ## What the caller is allowed to see back: an old row may hold a platform key
