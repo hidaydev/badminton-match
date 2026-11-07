@@ -139,6 +139,17 @@ suite "authorization matrix":
     check "createSession" in found
     check found.len == impostors(loadMatrix()).len + 2
 
+  test "only the exact create shape is the anonymous join-request door":
+    # The dispatch reaches the family block for any length >= 4; a public class
+    # there would skip the membership check and the handler would read a
+    # context that was never built.
+    check operationAccess("POST", "/c/x/join-requests").isPublic
+    for path in ["/c/x/join-requests/abc", "/c/x/join-requests/abc/extra"]:
+      let access = operationAccess("POST", path)
+      check not access.isPublic
+      check access.can(principal(role = some(rAdmin)))
+      check not access.can(principal(role = some(rMember)))
+
   test "a member reads a game and only a host scores it":
     let read = operationAccess("GET", "/c/x/sessions/s/games/g")
     check read.can(principal(role = some(rMember)))

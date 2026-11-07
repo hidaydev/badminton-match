@@ -90,9 +90,10 @@ proc operationAccess*(verb, path: string): Access =
         return readAccess()
       return adminAccess()
     of "join-requests":
-      # The anonymous create route is answered before the admin gate; every
-      # other operation in this family is admin.
-      return if verb == "POST": publicAccess() else: adminAccess()
+      # Only the exact create shape is the anonymous door; the badge decides
+      # the rest, and an extra segment must not inherit the public class.
+      return if verb == "POST" and parts.len == 4: publicAccess()
+             else: adminAccess()
     of "claims", "invites":
       return adminAccess()
     of "config":
