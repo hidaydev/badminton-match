@@ -12,8 +12,8 @@ import tournament/domain/team_draw
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18110"
-  port = Port(18110)
+  port = testPort(18102)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
   slug = "tour-http"
   otherSlug = "tour-http-other"
   adminEmail = "tour-admin@example.com"

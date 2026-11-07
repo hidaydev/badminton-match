@@ -5,8 +5,8 @@ import community/infrastructure/community_store
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18095"
-  port = Port(18095)
+  port = testPort(18092)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
   adminEmail = "player-admin@example.com"
   hostEmail = "player-host@example.com"
   memberEmail = "player-member@example.com"

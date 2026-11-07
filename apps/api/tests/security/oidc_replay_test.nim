@@ -9,8 +9,8 @@ import share/crypto
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18103"
-  port = Port(18103)
+  port = testPort(18100)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
   stubBase = "http://127.0.0.1:18177"
   clientId = "t070-client"
   redirectUri = "http://127.0.0.1:5173/api/auth/callback"

@@ -50,16 +50,24 @@ jobs:
         run: ./task deps-install
       - name: "Coverage: install gcov tooling"
         run: sudo apt-get update && sudo apt-get install -y lcov gcovr
-      - name: "Database: provision"
+      - name: "Database: provision and create the test database"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
           MAJADU_DEV_ENV: ${{ runner.temp }}/dev.env
-        run: ./task dev-db
+        run: |
+          ./task dev-db
+          # `dev-db` only creates bm2_dev and bm2_template; the integration half
+          # of the coverage run writes rows it does not own, so it gets the
+          # disposable bm2_test database.
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT 'CREATE DATABASE bm2_test OWNER bm2_owner'
+          WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'bm2_test') \gexec
+          SQL
       # `dev-db` only creates empty databases; the integration half of the
       # coverage run needs the schema and the reference rows.
       - name: "Database: migrate and seed"
         env:
-          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_dev
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
         run: |
           mkdir -p .cache/ci
           nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
@@ -67,5 +75,5 @@ jobs:
           .cache/ci/dbtools seed --dir db/seeds
       - name: "Coverage: measure against the baseline"
         env:
-          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_dev
+          MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
         run: ./task coverage

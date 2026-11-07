@@ -4,8 +4,8 @@ import mummy
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18105"
-  port = Port(18105)
+  port = testPort(18101)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
 
 var database: Db
 

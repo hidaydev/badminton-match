@@ -8,9 +8,9 @@ import ../../src/live
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18093"
-  wsBase = "ws://127.0.0.1:18093"
-  port = Port(18093)
+  port = testPort(18090)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
+  wsBase = "ws://127.0.0.1:" & $uint16(port)
   keysJson = """{"1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}"""
 
 var

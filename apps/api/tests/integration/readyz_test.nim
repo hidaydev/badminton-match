@@ -3,8 +3,8 @@ import db/db
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18099"
-  port = Port(18099)
+  port = testPort(18097)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
 
 var database: Db
 

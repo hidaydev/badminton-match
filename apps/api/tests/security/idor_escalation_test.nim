@@ -7,8 +7,8 @@ import share/store as shareStore
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18101"
-  port = Port(18101)
+  port = testPort(18098)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
   slugA = "sec-club"
   slugB = "sec-other"
   slugOwned = "sec-owned"

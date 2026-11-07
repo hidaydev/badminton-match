@@ -8,8 +8,8 @@ import share/store as shareStore
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18098"
-  port = Port(18098)
+  port = testPort(18096)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
   keysJson = """{"1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}"""
 
 var

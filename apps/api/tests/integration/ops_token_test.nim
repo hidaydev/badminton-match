@@ -4,8 +4,8 @@ import account/infrastructure/ops_token
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18097"
-  port = Port(18097)
+  port = testPort(18095)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
 
 var
   database: Db

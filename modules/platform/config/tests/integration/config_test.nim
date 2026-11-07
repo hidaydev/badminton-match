@@ -36,6 +36,14 @@ proc bumpTimezone(db: Db, value: string) =
 proc seedPresent(db: Db): bool =
   db.queryOne("select count(*) as total from platform.config").get.get("total") != "0"
 
+proc restoreConfig(db: Db) =
+  ## The seed ends with `on conflict (key) do nothing`, so a modified row would
+  ## survive a plain re-apply. Clear L1 first and apply the same file dbtools
+  ## uses, so a raised test cannot leave a doctored value for every later suite.
+  db.tx(proc(conn: DbConn) =
+    discard conn.execUpdate("delete from platform.config")
+    conn.execScript(readFile("db/seeds/platform_config.sql")))
+
 suite "platform config":
   var db: Db
   setup:
@@ -50,6 +58,7 @@ suite "platform config":
         conn.execScript(seed))
 
   teardown:
+    restoreConfig(db)
     db.close()
 
   test "every registry key is present and valid":
@@ -72,9 +81,6 @@ suite "platform config":
     except ConfigError as error:
       caught = true
       check error.msg.contains("missing key")
-    discard db.execUpdate(
-      """insert into platform.config (key, value_type, value, scope)
-         values ('ws.ticket_ttl_seconds', 'int', '30', 'platform')""")
     check caught
 
   test "a stored scope that disagrees with the registry refuses to load":
@@ -100,8 +106,6 @@ suite "platform config":
       discard loadSnapshot(db)
     except ConfigError:
       caught = true
-    discard db.execUpdate("update platform.config set value = '30' where key = $1",
-      @[textParam($keyWsTicketTtlSeconds)])
     check caught
 
   test "writing the registry bumps the version by itself":

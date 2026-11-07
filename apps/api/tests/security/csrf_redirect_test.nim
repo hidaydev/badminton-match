@@ -5,8 +5,8 @@ import sha256
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18102"
-  port = Port(18102)
+  port = testPort(18099)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
   foreignOrigin = "https://evil.example"
 
 var

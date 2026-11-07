@@ -4,8 +4,8 @@ import community/infrastructure/community_store
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18096"
-  port = Port(18096)
+  port = testPort(18093)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
 
 var
   database: Db

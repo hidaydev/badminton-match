@@ -6,8 +6,8 @@ import player/store as playerStore
 import ../http_support
 
 const
-  baseUrl = "http://127.0.0.1:18096"
-  port = Port(18096)
+  port = testPort(18094)
+  baseUrl = "http://127.0.0.1:" & $uint16(port)
   adminEmail = "sched-admin@example.com"
   hostEmail = "sched-host@example.com"
   memberEmail = "sched-member@example.com"
