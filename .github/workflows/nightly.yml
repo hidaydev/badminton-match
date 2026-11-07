@@ -35,6 +35,10 @@ jobs:
       # must install them before anything compiles.
       - name: "Dependencies: install pinned Nim packages"
         run: ./task deps-install
+      # deps.lock is installed from every job but compared in none: this is the
+      # scheduled run that turns unpinned or drifted content into a failure.
+      - name: "Dependencies: installed content must match deps.lock"
+        run: ./task deps-check
       - name: "Database: provision"
         env:
           MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
