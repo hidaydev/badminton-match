@@ -1,7 +1,6 @@
-import std/[httpclient, json, net, options, os, strutils, unittest, uri]
+import std/[httpclient, json, net, os, strutils, unittest, uri]
 import mummy
 import db/db
-import sha256
 import ../src/app
 import ../src/live
 import account/infrastructure/oidc
@@ -150,26 +149,6 @@ proc startServer*(app: App, port: Port, baseUrl: string,
 proc newTestApp*(db: Db): App =
   newApp(db, OidcConfig(), loadKeyring(keysJson, "1"), newConfigCache(db))
 
-proc cleanupCommunity*(db: Db, slug: string) =
-  ## FK-safe order for every row a security test may create.
-  const tables = [
-    "rating.events", "rating.player_state", "rating.snapshots",
-    "tournament.matches", "tournament.pairs", "tournament.tournaments",
-    "session.games", "session.participants", "session.courts",
-    "session.links", "session.sessions",
-    "player.claims", "player.merge_log", "player.aliases", "achievement.earned",
-    "player.players",
-    "community.membership", "community.invite", "community.join_request",
-    "community.settings",
-  ]
-  for table in tables:
-    discard db.execUpdate(
-      "delete from " & table &
-      " where community_id in (select id from platform.community where slug = $1)",
-      @[textParam(slug)])
-  discard db.execUpdate("delete from platform.community where slug = $1",
-    @[textParam(slug)])
-
 proc cleanupUsers*(db: Db, prefix: string) =
   discard db.execUpdate(
     """delete from account.sessions where user_id in
@@ -177,35 +156,6 @@ proc cleanupUsers*(db: Db, prefix: string) =
     @[textParam(prefix)])
   discard db.execUpdate("delete from platform.user where google_sub like $1",
     @[textParam(prefix)])
-
-proc addUser*(db: Db, sub, email: string, owner = false): string =
-  db.queryOne(
-    """insert into platform.user
-         (google_sub, email_hash, display_name, is_platform_owner)
-       values ($1, $2, $3, $4) returning id""",
-    @[textParam(sub), textParam(sha256Hex(email)), textParam(sub),
-      boolParam(owner)]).get.get("id")
-
-proc addMember*(db: Db, communityId, userId, role: string) =
-  discard db.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1::uuid, $2::uuid, $3)""",
-    @[textParam(communityId), textParam(userId), textParam(role)])
-
-proc makePlayer*(db: Db, communityId, name: string): string =
-  db.queryOne(
-    """insert into player.players (community_id, canonical_name, gender)
-       values ($1::uuid, $2, 'M') returning id""",
-    @[textParam(communityId), textParam(name)]).get.get("id")
-
-proc makeSession*(db: Db, communityId, title: string): string =
-  db.queryOne(
-    """insert into session.sessions
-         (community_id, title, session_date, start_time, slot_minutes,
-          status, source)
-       values ($1::uuid, $2, current_date, '18:00', 30, 'draft', 'manual')
-       returning id""",
-    @[textParam(communityId), textParam(title)]).get.get("id")
 
 proc cookieFor*(db: Db, userId: string): string =
   createSession(db, userId, 30)

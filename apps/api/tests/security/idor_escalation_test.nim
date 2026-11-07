@@ -4,6 +4,7 @@ import mummy
 import community/infrastructure/community_store
 import share/crypto
 import share/store as shareStore
+import tests/fixtures
 import ../http_support
 
 const
@@ -24,10 +25,10 @@ var
 proc bootstrap() =
   database = openDb(dsn(), 1)
   for slug in [slugA, slugB, slugOwned]:
-    cleanupCommunity(database, slug)
+    purgeCommunity(database, slug)
   cleanupUsers(database, "sec-%")
 
-  ownerId = addUser(database, "sec-owner", "sec-owner@example.com", owner = true)
+  ownerId = newUser(database, "sec-owner", "sec-owner@example.com", owner = true)
   clubId = community_store.create(database, slugA, "Security Club",
     "sec-admin@example.com", "Asia/Jakarta", ownerId).communityId
   otherId = community_store.create(database, slugB, "Security Other",
@@ -35,18 +36,18 @@ proc bootstrap() =
 
   # The owner is only a plain member here: platform ownership is not a
   # community role, and the security suite has to prove that.
-  addMember(database, clubId, ownerId, "member")
-  let adminId = addUser(database, "sec-admin", "sec-admin@example.com")
-  addMember(database, clubId, adminId, "admin")
-  let hostId = addUser(database, "sec-host", "sec-host@example.com")
-  addMember(database, clubId, hostId, "host")
-  let memberId = addUser(database, "sec-member", "sec-member@example.com")
-  addMember(database, clubId, memberId, "member")
-  member2Id = addUser(database, "sec-member2", "sec-member2@example.com")
-  addMember(database, clubId, member2Id, "member")
-  let otherUserId = addUser(database, "sec-other-member",
+  newMember(database, clubId, ownerId, "member")
+  let adminId = newUser(database, "sec-admin", "sec-admin@example.com")
+  newMember(database, clubId, adminId, "admin")
+  let hostId = newUser(database, "sec-host", "sec-host@example.com")
+  newMember(database, clubId, hostId, "host")
+  let memberId = newUser(database, "sec-member", "sec-member@example.com")
+  newMember(database, clubId, memberId, "member")
+  member2Id = newUser(database, "sec-member2", "sec-member2@example.com")
+  newMember(database, clubId, member2Id, "member")
+  let otherUserId = newUser(database, "sec-other-member",
     "sec-other-member@example.com")
-  addMember(database, otherId, otherUserId, "admin")
+  newMember(database, otherId, otherUserId, "admin")
 
   adminCookie = cookieFor(database, adminId)
   hostCookie = cookieFor(database, hostId)
@@ -55,10 +56,10 @@ proc bootstrap() =
   otherCookie = cookieFor(database, otherUserId)
   ownerCookie = cookieFor(database, ownerId)
 
-  playerA = makePlayer(database, clubId, "Alpha Player")
-  playerB = makePlayer(database, otherId, "Bravo Player")
-  sessionA = makeSession(database, clubId, "Alpha Session")
-  sessionB = makeSession(database, otherId, "Bravo Session")
+  playerA = newPlayer(database, clubId, "Alpha Player")
+  playerB = newPlayer(database, otherId, "Bravo Player")
+  sessionA = newSession(database, clubId, "Alpha Session")
+  sessionB = newSession(database, otherId, "Bravo Session")
   shareB = shareStore.issue(database, loadKeyring(keysJson, "1"), otherId,
     sessionB, adminId, 30)
 

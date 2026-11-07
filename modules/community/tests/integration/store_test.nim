@@ -1,6 +1,7 @@
 import std/[json, options, os, unittest]
 import db/db
 import sha256
+import tests/fixtures
 import ../../infrastructure/community_store
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
@@ -14,21 +15,11 @@ suite "community store":
       raise newException(ValueError, "MAJADU_PG_DSN is required")
     db = openDb(dsn(), 1)
     for slug in ["store-open", "store-closed", "store-taken"]:
-      discard db.execUpdate(
-        """delete from community.invite where community_id in
-             (select id from platform.community where slug = $1)""",
-        @[textParam(slug)])
-      discard db.execUpdate(
-        "delete from platform.community where slug = $1", @[textParam(slug)])
+      purgeCommunity(db, slug)
     discard db.execUpdate("delete from platform.user where google_sub like 'store-%'")
-    ownerId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name, is_platform_owner)
-         values ('store-owner', 'store-owner-hash', 'Owner', true) returning id"""
-      ).get.get("id")
-    memberId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('store-member', 'store-member-hash', 'Member') returning id"""
-      ).get.get("id")
+    ownerId = newUser(db, "store-owner", "store-owner-hash", "Owner",
+      owner = true)
+    memberId = newUser(db, "store-member", "store-member-hash", "Member")
 
   teardown:
     db.close()
@@ -71,10 +62,7 @@ suite "community store":
   test "members see their own community even when the directory is off":
     let closed = create(db, "store-closed", "Store Closed", "b@example.com",
       "Asia/Jakarta", ownerId)
-    discard db.execUpdate(
-      """insert into community.membership (community_id, user_id, role)
-         values ($1::uuid, $2::uuid, 'member')""",
-      @[textParam(closed.communityId), textParam(memberId)])
+    newMember(db, closed.communityId, memberId, "member")
     let member = directory(db, some(memberId), false, "community.directory_enabled")
     var found = false
     for entry in member:

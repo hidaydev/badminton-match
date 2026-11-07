@@ -4,6 +4,8 @@ import sha256
 import account/domain/lifecycle
 import account/infrastructure/lifecycle_store
 import account/infrastructure/session_store
+import rating/infrastructure/ledger
+import tests/fixtures
 
 var
   database: Db
@@ -12,66 +14,39 @@ var
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
 proc cleanup() =
-  for statement in [
-    """delete from rating.events where community_id in
-         (select id from platform.community where slug = 'lifeclub')""",
-    """delete from rating.player_state where community_id in
-         (select id from platform.community where slug = 'lifeclub')""",
-    """delete from player.claims where community_id in
-         (select id from platform.community where slug = 'lifeclub')""",
-    """delete from player.players where community_id in
-         (select id from platform.community where slug = 'lifeclub')""",
-    "delete from platform.community where slug in ('lifeclub', 'lifeclub-only')",
+  for slug in ["lifeclub", "lifeclub-only"]:
+    purgeCommunity(database, slug)
+  discard database.execUpdate(
     """delete from account.audit where actor_id in
-         (select id from platform.user where google_sub in ('lc-actor', 'lc-user'))""",
-    "delete from platform.user where google_sub in ('lc-actor', 'lc-user')"]:
-    discard database.execUpdate(statement)
+         (select id from platform.user where google_sub in ('lc-actor', 'lc-user'))""")
+  discard database.execUpdate(
+    "delete from platform.user where google_sub in ('lc-actor', 'lc-user')")
   # A previous run may have rewritten the subject to its hash.
   discard database.execUpdate(
     "delete from platform.user where google_sub = $1",
     @[textParam(sha256Hex("lc-user"))])
 
 proc seed() =
-  actorId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name, is_platform_owner)
-       values ('lc-actor', $1, 'Actor', true) returning id""",
-    @[textParam(sha256Hex("lc-actor@example.com"))]).get.get("id")
-  userId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name)
-       values ('lc-user', $1, 'Leaving User') returning id""",
-    @[textParam(sha256Hex("lc-user@example.com"))]).get.get("id")
-  communityId = database.queryOne(
-    """insert into platform.community (slug, name, timezone)
-       values ('lifeclub', 'Life Club', 'Asia/Jakarta') returning id""").get.get("id")
-  playerId = database.queryOne(
-    """insert into player.players (community_id, canonical_name, gender, user_id)
-       values ($1::uuid, 'Bound Player', 'M', $2::uuid) returning id""",
-    @[textParam(communityId), textParam(userId)]).get.get("id")
-  discard database.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1::uuid, $2::uuid, 'admin')""",
-    @[textParam(communityId), textParam(userId)])
+  actorId = newUser(database, "lc-actor", "lc-actor@example.com", "Actor",
+    owner = true)
+  userId = newUser(database, "lc-user", "lc-user@example.com", "Leaving User")
+  communityId = newCommunity(database, "lifeclub", "Life Club")
+  playerId = newPlayer(database, communityId, "Bound Player", userId = userId)
+  newMember(database, communityId, userId, "admin")
   # A community the account joined but never played in: the anonymiser must
   # still find it through the membership row alone.
-  let memberOnlyId = database.queryOne(
-    """insert into platform.community (slug, name, timezone)
-       values ('lifeclub-only', 'Life Club Only', 'Asia/Jakarta') returning id"""
-    ).get.get("id")
-  discard database.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1::uuid, $2::uuid, 'member')""",
-    @[textParam(memberOnlyId), textParam(userId)])
+  let memberOnlyId = newCommunity(database, "lifeclub-only", "Life Club Only")
+  newMember(database, memberOnlyId, userId, "member")
   discard database.execUpdate(
     """insert into player.claims
          (community_id, player_id, user_id, status, decided_by, decided_at, reason)
        values ($1::uuid, $2::uuid, $3::uuid, 'approved', $4::uuid, now(), 'seed')""",
     @[textParam(communityId), textParam(playerId), textParam(userId),
       textParam(actorId)])
-  discard database.execUpdate(
-    """insert into rating.player_state
-         (community_id, player_id, games_played, wins, losses)
-       values ($1::uuid, $2::uuid, 3, 2, 1)""",
-    @[textParam(communityId), textParam(playerId)])
+  database.tx(proc(conn: DbConn) =
+    addState(conn, communityId, @[playerId], won = true)
+    addState(conn, communityId, @[playerId], won = true)
+    addState(conn, communityId, @[playerId], won = false))
   discard database.queryOne(
     """insert into rating.events (community_id, local_date, event_type)
        values ($1::uuid, current_date, 'session') returning id""",

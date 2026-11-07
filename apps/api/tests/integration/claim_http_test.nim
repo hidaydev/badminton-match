@@ -1,6 +1,7 @@
 import std/[json, options, strutils, unittest]
 import db/db
 import community/infrastructure/community_store
+import tests/fixtures
 import ../http_support
 
 const
@@ -14,16 +15,8 @@ var
   adminId: string
 
 proc freshMember(sub: string): string =
-  let id = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name)
-       values ($1, $1, $1)
-       on conflict (google_sub) do update set display_name = excluded.display_name
-       returning id""", @[textParam(sub)]).get.get("id")
-  discard database.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1::uuid, $2::uuid, 'member')
-       on conflict (community_id, user_id) do nothing""",
-    @[textParam(communityId), textParam(id)])
+  let id = newUser(database, sub, sub, sub)
+  newMember(database, communityId, id, "member")
   cookieFor(database, id)
 
 proc player(name: string): string =
@@ -34,30 +27,16 @@ proc player(name: string): string =
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
-  discard database.execUpdate(
-    """delete from player.claims where community_id in
-         (select id from platform.community where slug = 'claim-club')""")
-  discard database.execUpdate(
-    """delete from player.players where community_id in
-         (select id from platform.community where slug = 'claim-club')""")
-  discard database.execUpdate(
-    "delete from platform.community where slug = 'claim-club'")
+  purgeCommunity(database, "claim-club")
   discard database.execUpdate(
     "delete from platform.user where google_sub like 'claim-%'")
-  let ownerId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name, is_platform_owner)
-       values ('claim-owner', 'claim-owner-hash', 'Owner', true) returning id"""
-    ).get.get("id")
+  let ownerId = newUser(database, "claim-owner", "claim-owner-hash", "Owner",
+    owner = true)
   communityId = community_store.create(database, "claim-club", "Claim Club",
     "claim-admin@example.com", "Asia/Jakarta", ownerId).communityId
   proc member(sub, role: string): string =
-    let id = database.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ($1, $1, $1) returning id""", @[textParam(sub)]).get.get("id")
-    discard database.execUpdate(
-      """insert into community.membership (community_id, user_id, role)
-         values ($1::uuid, $2::uuid, $3)""",
-      @[textParam(communityId), textParam(id), textParam(role)])
+    let id = newUser(database, sub, sub, sub)
+    newMember(database, communityId, id, role)
     id
   adminId = member("claim-admin", "admin")
   let admin2Id = member("claim-admin2", "admin")

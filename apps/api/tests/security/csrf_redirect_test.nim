@@ -2,6 +2,7 @@ import std/[httpclient, json, options, unittest]
 import db/db
 import mummy
 import sha256
+import tests/fixtures
 import ../http_support
 
 const
@@ -17,7 +18,7 @@ proc bootstrap() =
   database = openDb(dsn(), 1)
   cleanupUsers(database, "csrf-%")
   discard database.execUpdate("delete from auth.oauth_flows")
-  userId = addUser(database, "csrf-user", "csrf-user@example.com")
+  userId = newUser(database, "csrf-user", "csrf-user@example.com")
   startServer(newTestApp(database), port, baseUrl)
 
 proc storedReturnTo(state: string): string =

@@ -1,6 +1,7 @@
 import std/[json, options, unittest]
 import db/db
 import account/infrastructure/ops_token
+import tests/fixtures
 import ../http_support
 
 const
@@ -16,10 +17,8 @@ proc bootstrap() =
   database = openDb(dsn(), 1)
   discard database.execUpdate("delete from platform.ops_token")
   discard database.execUpdate("delete from platform.user where google_sub = 'ops-owner'")
-  ownerId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name, is_platform_owner)
-       values ('ops-owner', 'ops-owner-hash', 'Ops Owner', true) returning id"""
-    ).get.get("id")
+  ownerId = newUser(database, "ops-owner", "ops-owner@example.com", "Ops Owner",
+    owner = true)
   ownerCookie = cookieFor(database, ownerId)
   token = ops_token.issue(database, "ci", ownerId, 30)
   expiredToken = ops_token.issue(database, "old", ownerId, 30)

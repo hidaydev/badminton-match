@@ -1,5 +1,6 @@
 import std/[options, os, unittest]
 import db/db
+import tests/fixtures
 import ../../infrastructure/session_store
 
 const channelId = "11111111-1111-1111-1111-111111111111"
@@ -17,9 +18,7 @@ suite "session store":
     discard db.execUpdate("delete from platform.ws_ticket")
     discard db.execUpdate("delete from account.sessions")
     discard db.execUpdate("delete from platform.user where google_sub like 'session-test-%'")
-    userId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('session-test-1', 'hash-session-1', 'Tester') returning id""").get.get("id")
+    userId = newUser(db, "session-test-1", "hash-session-1", "Tester")
 
   teardown:
     db.close()

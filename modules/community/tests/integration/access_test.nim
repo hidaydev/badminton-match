@@ -1,6 +1,7 @@
 import std/[options, os, sequtils, unittest]
 import db/db
 import sha256
+import tests/fixtures
 import ../../domain/community
 import ../../infrastructure/[community_store, invite, join_request, membership]
 
@@ -16,16 +17,10 @@ suite "community access":
     if dsn().len == 0:
       raise newException(ValueError, "MAJADU_PG_DSN is required")
     db = openDb(dsn(), 1)
-    discard db.execUpdate("delete from platform.community where slug = 'access-test'")
+    purgeCommunity(db, "access-test")
     discard db.execUpdate("delete from platform.user where google_sub like 'access-%'")
-    adminId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('access-admin', $1, 'Admin') returning id""",
-      @[textParam(sha256Hex(adminEmail))]).get.get("id")
-    outsiderId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('access-member', $1, 'Member') returning id""",
-      @[textParam(sha256Hex(outsiderEmail))]).get.get("id")
+    adminId = newUser(db, "access-admin", adminEmail, "Admin")
+    outsiderId = newUser(db, "access-member", outsiderEmail, "Member")
     communityId = community_store.create(db, "access-test", "Access Test", adminEmail,
       "Asia/Jakarta", adminId).communityId
 

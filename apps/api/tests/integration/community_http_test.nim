@@ -1,7 +1,7 @@
 import std/[httpclient, json, options, os, sequtils, strutils, unittest]
 import db/db
-import sha256
 import community/infrastructure/[community_store, membership]
+import tests/fixtures
 import ../http_support
 
 const
@@ -18,29 +18,20 @@ var
   ownerCookie, adminCookie, memberCookie: string
   clubId, closedId: string
 
-proc user(googleSub, email: string, owner = false): string =
-  database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name, is_platform_owner)
-       values ($1, $2, $1, $3) returning id""",
-    @[textParam(googleSub), textParam(sha256Hex(email)), boolParam(owner)]
-    ).get.get("id")
-
 proc bootstrap() =
   database = openDb(dsn(), 1)
-  discard database.execUpdate(
-    "delete from platform.community where slug in ('http-club', 'http-closed')")
+  for slug in ["http-club", "http-closed"]:
+    purgeCommunity(database, slug)
   discard database.execUpdate("delete from platform.user where google_sub like 'http-%'")
-  ownerId = user("http-owner", ownerEmail, owner = true)
-  adminId = user("http-admin", adminEmail)
-  memberId = user("http-member", memberEmail)
+  ownerId = newUser(database, "http-owner", ownerEmail, "http-owner", owner = true)
+  adminId = newUser(database, "http-admin", adminEmail, "http-admin")
+  memberId = newUser(database, "http-member", memberEmail, "http-member")
   clubId = community_store.create(database, "http-club", "HTTP Club", adminEmail,
     "Asia/Jakarta", ownerId).communityId
   closedId = community_store.create(database, "http-closed", "HTTP Closed",
     adminEmail, "Asia/Jakarta", ownerId).communityId
-  discard database.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1::uuid, $2::uuid, 'admin'), ($3::uuid, $2::uuid, 'admin')""",
-    @[textParam(clubId), textParam(adminId), textParam(closedId)])
+  newMember(database, clubId, adminId, "admin")
+  newMember(database, closedId, adminId, "admin")
   ownerCookie = cookieFor(database, ownerId)
   adminCookie = cookieFor(database, adminId)
   memberCookie = cookieFor(database, memberId)

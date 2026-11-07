@@ -1,8 +1,7 @@
 import std/[json, options, strutils, unittest]
 import db/db
-import sha256
 import community/infrastructure/community_store
-import player/store as playerStore
+import tests/fixtures
 import ../http_support
 
 const
@@ -21,56 +20,27 @@ var
 proc bootstrap() =
   database = openDb(dsn(), 1)
   # A test may leave a signed-off source behind, and the rating tables hold the
-  # community by FK: clear the ledger before the sessions and the community.
-  for table in ["achievement.earned", "rating.snapshots", "rating.events",
-                "rating.player_state", "rating.sources"]:
-    discard database.execUpdate(
-      """delete from """ & table & """ where community_id in
-           (select id from platform.community where slug = 'sched-club')""")
-  discard database.execUpdate(
-    """delete from session.games where community_id in
-         (select id from platform.community where slug = 'sched-club')""")
-  discard database.execUpdate(
-    """delete from session.participants where community_id in
-         (select id from platform.community where slug = 'sched-club')""")
-  discard database.execUpdate(
-    """delete from session.sessions where community_id in
-         (select id from platform.community where slug = 'sched-club')""")
-  discard database.execUpdate(
-    """delete from player.claims where community_id in
-         (select id from platform.community where slug = 'sched-club')""")
-  discard database.execUpdate(
-    """delete from player.players where community_id in
-         (select id from platform.community where slug = 'sched-club')""")
-  discard database.execUpdate(
-    "delete from platform.community where slug = 'sched-club'")
+  # community by FK: clear everything the community owns in one place.
+  purgeCommunity(database, "sched-club")
   discard database.execUpdate(
     """delete from platform.idempotency_keys where user_id in
          (select id from platform.user where google_sub like 'sched-%')""")
   discard database.execUpdate(
     "delete from platform.user where google_sub like 'sched-%'")
-  let ownerId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name, is_platform_owner)
-       values ('sched-owner', $1, 'Owner', true) returning id""",
-    @[textParam(sha256Hex("sched-owner@example.com"))]).get.get("id")
+  let ownerId = newUser(database, "sched-owner", "sched-owner@example.com",
+    "Owner", owner = true)
   communityId = community_store.create(database, "sched-club", "Schedule Club",
     adminEmail, "Asia/Jakarta", ownerId).communityId
   proc member(sub, email, role: string): string =
-    let id = database.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ($1, $2, $1) returning id""",
-      @[textParam(sub), textParam(sha256Hex(email))]).get.get("id")
-    discard database.execUpdate(
-      """insert into community.membership (community_id, user_id, role)
-         values ($1::uuid, $2::uuid, $3)""",
-      @[textParam(communityId), textParam(id), textParam(role)])
+    let id = newUser(database, sub, email, sub)
+    newMember(database, communityId, id, role)
     id
   adminCookie = cookieFor(database, member("sched-admin", adminEmail, "admin"))
   hostCookie = cookieFor(database, member("sched-host", hostEmail, "host"))
   memberCookie = cookieFor(database,
     member("sched-member", memberEmail, "member"))
   for name in ["Ani", "Budi", "Cakra", "Dewi", "Eka", "Fajar", "Gita", "Hadi"]:
-    players.add(playerStore.create(database, communityId, name, "M", "").player["id"].getStr())
+    players.add(newPlayer(database, communityId, name))
 
   startServer(newTestApp(database), port, baseUrl)
 
@@ -771,13 +741,8 @@ suite "session schedule HTTP":
              (community_id, session_id, player_id)
            values ($1::uuid, $2::uuid, $3::uuid)""",
         @[textParam(communityId), textParam(sessionId), textParam(player)])
-    discard database.execUpdate(
-      """insert into session.games
-           (community_id, session_id, round_no, court_no, score_a, score_b,
-            status, side_a1, side_b1)
-         values ($1::uuid, $2::uuid, 0, 0, 30, 20, 'played', $3::uuid, $4::uuid)""",
-      @[textParam(communityId), textParam(sessionId), textParam(players[0]),
-        textParam(players[1])])
+    newGame(database, communityId, sessionId, 0, 0, [players[0]],
+      [players[1]], status = "played", scoreA = 30, scoreB = 20)
     discard database.execUpdate(
       """insert into session.game_sets
            (community_id, session_id, round_no, court_no, set_no, score_a, score_b)

@@ -2,6 +2,7 @@ import std/[options, os, unittest]
 import db/db
 import sha256
 import uuidv7
+import tests/fixtures
 import ../../src/live
 import ../../src/ws_ticket
 
@@ -18,36 +19,16 @@ suite "ws tickets":
       raise newException(ValueError, "MAJADU_PG_DSN is required")
     db = openDb(dsn(), 1)
     hub = newHub(db)
-    discard db.execUpdate(
-      "delete from platform.ws_ticket where user_id in (select id from platform.user where google_sub in ('ws-ticket-user','ws-ticket-other'))")
+    for slug in ["ws-ticket-test", "ws-ticket-other"]:
+      purgeCommunity(db, slug)
     discard db.execUpdate(
       "delete from platform.user where google_sub in ('ws-ticket-user','ws-ticket-other')")
-    discard db.execUpdate(
-      """delete from session.sessions where community_id in
-           (select id from platform.community
-            where slug in ('ws-ticket-test','ws-ticket-other'))""")
-    discard db.execUpdate(
-      "delete from platform.community where slug in ('ws-ticket-test','ws-ticket-other')")
-    userId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('ws-ticket-user', 'ws-hash', 'Watcher') returning id""").get.get("id")
-    otherUserId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('ws-ticket-other', 'ws-hash-2', 'Other') returning id""").get.get("id")
-    communityId = db.queryOne(
-      """insert into platform.community (slug, name, timezone)
-         values ('ws-ticket-test', 'Ticket Test', 'Asia/Jakarta') returning id""").get.get("id")
-    otherCommunityId = db.queryOne(
-      """insert into platform.community (slug, name, timezone)
-         values ('ws-ticket-other', 'Ticket Other', 'Asia/Jakarta') returning id""").get.get("id")
-    sessionId = db.queryOne(
-      """insert into session.sessions (community_id, title, session_date, status, source)
-         values ($1::uuid, 'Session', '2026-11-03', 'draft', 'manual') returning id""",
-      @[textParam(communityId)]).get.get("id")
-    otherSessionId = db.queryOne(
-      """insert into session.sessions (community_id, title, session_date, status, source)
-         values ($1::uuid, 'Other', '2026-11-03', 'draft', 'manual') returning id""",
-      @[textParam(otherCommunityId)]).get.get("id")
+    userId = newUser(db, "ws-ticket-user", "ws-hash", "Watcher")
+    otherUserId = newUser(db, "ws-ticket-other", "ws-hash-2", "Other")
+    communityId = newCommunity(db, "ws-ticket-test", "Ticket Test")
+    otherCommunityId = newCommunity(db, "ws-ticket-other", "Ticket Other")
+    sessionId = newSession(db, communityId, "Session", "2026-11-03")
+    otherSessionId = newSession(db, otherCommunityId, "Other", "2026-11-03")
 
   teardown:
     db.close()

@@ -2,6 +2,7 @@ import std/[json, math, options, os, strutils, unittest]
 import db/db
 import ../../read
 import ../../domain/rating
+import ../../infrastructure/ledger
 
 var
   database: Db
@@ -130,13 +131,13 @@ proc seed() =
     addSession(sessionIndex, @[players[base],
       players[(base + 1) mod 210], players[(base + 2) mod 210],
       players[(base + 3) mod 210]])
-  for player in players:
-    discard database.execUpdate(
-      """insert into rating.player_state
-           (community_id, player_id, games_played, wins, losses)
-       values ($1::uuid, $2::uuid, 5, 3, 2)
-       on conflict (community_id, player_id) do nothing""",
-      @[textParam(communityId), textParam(player)])
+  # Five counted games per player, through the writer production uses.
+  database.tx(proc(conn: DbConn) =
+    for player in players:
+      for _ in 0 ..< 3:
+        addState(conn, communityId, @[player], won = true)
+      for _ in 0 ..< 2:
+        addState(conn, communityId, @[player], won = false))
 
 proc newPlayer(name: string): string =
   ## A player with no sessions yet, so a test sees only the entries it adds.

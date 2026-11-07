@@ -1,6 +1,7 @@
 import std/[json, options, os, unittest]
 import db/db
 import platform/config/store
+import tests/fixtures
 import ../../src/config_routes
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
@@ -19,17 +20,10 @@ suite "community config overrides":
       db.tx(proc(conn: DbConn) =
         conn.execScript(seed))
     snapshot = loadSnapshot(db)
-    discard db.execUpdate(
-      "delete from community.settings where community_id in (select id from platform.community where slug = 'cfg-test')")
-    discard db.execUpdate(
-      "delete from platform.community where slug = 'cfg-test'")
+    purgeCommunity(db, "cfg-test")
     discard db.execUpdate("delete from platform.user where google_sub = 'cfg-test'")
-    userId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('cfg-test', 'cfg-hash', 'Admin') returning id""").get.get("id")
-    communityId = db.queryOne(
-      """insert into platform.community (slug, name, timezone)
-         values ('cfg-test', 'Config Test', 'Asia/Jakarta') returning id""").get.get("id")
+    userId = newUser(db, "cfg-test", "cfg-hash", "Admin")
+    communityId = newCommunity(db, "cfg-test", "Config Test")
 
   teardown:
     db.close()

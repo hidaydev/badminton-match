@@ -1,6 +1,7 @@
 import std/[options, os, unittest]
 import db/db
 import account/domain/roles
+import tests/fixtures
 import ../../src/community_context
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
@@ -13,23 +14,14 @@ suite "community context":
     if dsn().len == 0:
       raise newException(ValueError, "MAJADU_PG_DSN is required")
     db = openDb(dsn(), 1)
-    discard db.execUpdate(
-      "delete from platform.community where slug in ('ctx-test', 'ctx-other')")
+    for slug in ["ctx-test", "ctx-other"]:
+      purgeCommunity(db, slug)
     discard db.execUpdate(
       "delete from platform.user where google_sub like 'ctx-test-%'")
-    memberId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('ctx-test-member', 'ctx-hash-1', 'Member') returning id""").get.get("id")
-    strangerId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('ctx-test-stranger', 'ctx-hash-2', 'Stranger') returning id""").get.get("id")
-    communityId = db.queryOne(
-      """insert into platform.community (slug, name, timezone)
-         values ('ctx-test', 'Context Test', 'Asia/Jakarta') returning id""").get.get("id")
-    discard db.execUpdate(
-      """insert into community.membership (community_id, user_id, role)
-         values ($1::uuid, $2::uuid, 'host')""",
-      @[textParam(communityId), textParam(memberId)])
+    memberId = newUser(db, "ctx-test-member", "ctx-hash-1", "Member")
+    strangerId = newUser(db, "ctx-test-stranger", "ctx-hash-2", "Stranger")
+    communityId = newCommunity(db, "ctx-test", "Context Test")
+    newMember(db, communityId, memberId, "host")
 
   teardown:
     db.close()

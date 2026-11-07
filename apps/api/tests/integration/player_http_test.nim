@@ -1,7 +1,8 @@
 import std/[json, options, strutils, unittest]
 import db/db
-import sha256
 import community/infrastructure/community_store
+import rating/infrastructure/ledger
+import tests/fixtures
 import ../http_support
 
 const
@@ -18,39 +19,22 @@ var
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
-  discard database.execUpdate(
-    """delete from player.claims where community_id in
-         (select id from platform.community
-          where slug in ('player-club', 'player-other'))""")
-  discard database.execUpdate(
-    """delete from player.players where community_id in
-         (select id from platform.community
-          where slug in ('player-club', 'player-other'))""")
-  discard database.execUpdate(
-    "delete from platform.community where slug in ('player-club', 'player-other')")
+  for slug in ["player-club", "player-other"]:
+    purgeCommunity(database, slug)
   discard database.execUpdate(
     "delete from platform.user where google_sub like 'player-%'")
-  let ownerId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name, is_platform_owner)
-       values ('player-owner', $1, 'Owner', true) returning id""",
-    @[textParam(sha256Hex("player-owner@example.com"))]).get.get("id")
+  let ownerId = newUser(database, "player-owner", "player-owner@example.com",
+    "Owner", owner = true)
   communityId = community_store.create(database, "player-club", "Player Club",
     adminEmail, "Asia/Jakarta", ownerId).communityId
   otherId = community_store.create(database, "player-other", "Player Other",
     adminEmail, "Asia/Jakarta", ownerId).communityId
-  proc member(sub, email, role: string): string =
-    let id = database.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ($1, $2, $1) returning id""",
-      @[textParam(sub), textParam(sha256Hex(email))]).get.get("id")
-    discard database.execUpdate(
-      """insert into community.membership (community_id, user_id, role)
-         values ($1::uuid, $2::uuid, $3)""",
-      @[textParam(communityId), textParam(id), textParam(role)])
-    id
-  let adminId = member("player-admin", adminEmail, "admin")
-  let hostId = member("player-host", hostEmail, "host")
-  let memberId = member("player-member", memberEmail, "member")
+  let adminId = newUser(database, "player-admin", adminEmail, "player-admin")
+  let hostId = newUser(database, "player-host", hostEmail, "player-host")
+  let memberId = newUser(database, "player-member", memberEmail, "player-member")
+  newMember(database, communityId, adminId, "admin")
+  newMember(database, communityId, hostId, "host")
+  newMember(database, communityId, memberId, "member")
   adminCookie = cookieFor(database, adminId)
   hostCookie = cookieFor(database, hostId)
   memberCookie = cookieFor(database, memberId)
@@ -210,11 +194,11 @@ suite "player HTTP":
     let sourceBody = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Iwan Setiawan","gender":"M","aliases":["Iwan Set","Iwan S2"]}""").body
     let sourceId = parseJson(sourceBody)["id"].getStr()
-    discard database.execUpdate(
-      """insert into rating.player_state
-           (community_id, player_id, games_played, wins, losses)
-         values ($1::uuid, $2::uuid, 2, 1, 1)""",
-      @[textParam(communityId), textParam(sourceId)])
+    # The merge moves the counters, so seed them through the ledger the way a
+    # played game would: two games, one win, one loss.
+    database.tx(proc(conn: DbConn) =
+      addState(conn, communityId, @[sourceId], won = true)
+      addState(conn, communityId, @[sourceId], won = false))
 
     let byHost = call(baseUrl, HttpPost, "/c/player-club/players/" & targetId & "/merge",
       hostCookie, """{"sourcePlayerId":"""" & sourceId & """"}""")

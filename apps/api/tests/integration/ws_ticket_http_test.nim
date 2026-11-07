@@ -4,6 +4,7 @@ import db/db
 import sha256
 import share/crypto
 import share/store as shareStore
+import tests/fixtures
 import ../../src/live
 import ../http_support
 
@@ -46,37 +47,19 @@ proc bootstrap() =
   requireDatabase()
   database = openDb(dsn(), 8)
   keyring = loadKeyring(keysJson, "1")
+  for slug in ["ws-http", "ws-http-other"]:
+    purgeCommunity(database, slug)
   discard database.execUpdate(
     "delete from platform.ws_ticket where user_id in (select id from platform.user where google_sub = 'ws-http-user')")
   discard database.execUpdate(
-    """delete from session.sessions where community_id in
-         (select id from platform.community
-          where slug in ('ws-http','ws-http-other'))""")
-  discard database.execUpdate(
     "delete from platform.user where google_sub = 'ws-http-user'")
-  discard database.execUpdate(
-    """delete from platform.community where slug in ('ws-http','ws-http-other')""")
-  userId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name)
-       values ('ws-http-user', 'ws-http-hash', 'Member') returning id""").get.get("id")
-  communityId = database.queryOne(
-    """insert into platform.community (slug, name, timezone)
-       values ('ws-http', 'WS HTTP', 'Asia/Jakarta') returning id""").get.get("id")
-  let otherCommunityId = database.queryOne(
-    """insert into platform.community (slug, name, timezone)
-       values ('ws-http-other', 'WS Other', 'Asia/Jakarta') returning id""").get.get("id")
-  discard database.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1::uuid, $2::uuid, 'member')""",
-    @[textParam(communityId), textParam(userId)])
-  sessionId = database.queryOne(
-    """insert into session.sessions (community_id, title, session_date, status, source)
-       values ($1::uuid, 'Session', '2026-11-03', 'draft', 'manual') returning id""",
-    @[textParam(communityId)]).get.get("id")
-  foreignSessionId = database.queryOne(
-    """insert into session.sessions (community_id, title, session_date, status, source)
-       values ($1::uuid, 'Foreign', '2026-11-03', 'draft', 'manual') returning id""",
-    @[textParam(otherCommunityId)]).get.get("id")
+  userId = newUser(database, "ws-http-user", "ws-http-hash", "Member")
+  communityId = newCommunity(database, "ws-http", "WS HTTP")
+  let otherCommunityId = newCommunity(database, "ws-http-other", "WS Other")
+  newMember(database, communityId, userId, "member")
+  sessionId = newSession(database, communityId, "Session", "2026-11-03")
+  foreignSessionId = newSession(database, otherCommunityId, "Foreign",
+    "2026-11-03")
   cookie = cookieFor(database, userId)
   shareCode = shareStore.issue(database, keyring, communityId, sessionId, userId, 30)
   ttl = parseInt(database.queryOne(

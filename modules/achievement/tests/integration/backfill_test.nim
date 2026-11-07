@@ -3,6 +3,7 @@ import db/db
 import ../../domain/achievement
 import ../../infrastructure/backfill
 import rating/domain/rating
+import rating/infrastructure/ledger
 import rating/read
 
 type
@@ -80,13 +81,11 @@ proc newPlayer(index: int, tier: string): string =
       textParam(tier)]).get.get("id")
 
 proc seedState(player: string, wins, losses: int) =
-  discard database.execUpdate(
-    """insert into rating.player_state
-         (community_id, player_id, games_played, wins, losses)
-       values ($1::uuid, $2::uuid, $3, $4, $5)""",
-    @[textParam(communityId), textParam(player),
-      intParam((wins + losses).int64), intParam(wins.int64),
-      intParam(losses.int64)])
+  database.tx(proc(conn: DbConn) =
+    for _ in 0 ..< wins:
+      addState(conn, communityId, @[player], won = true)
+    for _ in 0 ..< losses:
+      addState(conn, communityId, @[player], won = false))
 
 proc addGame(sessionId: string, roundNo: int, game: Game) =
   discard database.execUpdate(

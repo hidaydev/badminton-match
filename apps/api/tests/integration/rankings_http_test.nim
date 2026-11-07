@@ -1,10 +1,12 @@
-import std/[json, options, strutils, unittest]
+import std/[json, options, unittest]
 import db/db
-import sha256
 import community/infrastructure/community_store
-import player/store as playerStore
+import platform/config/store
+import rating/infrastructure/[ingest, ledger, params]
+import rating/read
 import share/crypto
 import share/store as shareStore
+import tests/fixtures
 import ../http_support
 
 const
@@ -22,58 +24,21 @@ var
 proc bootstrap() =
   database = openDb(dsn(), 1)
   keyring = loadKeyring(keysJson, "1")
-  for statement in [
-    """delete from achievement.earned where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from tournament.matches where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from tournament.pairs where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from tournament.tournaments where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from rating.snapshots where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from rating.events where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from rating.player_state where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from rating.sources where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from session.games where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from session.participants where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from session.links where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from session.sessions where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    """delete from player.players where community_id in
-         (select id from platform.community where slug = 'rank-club')""",
-    "delete from platform.community where slug = 'rank-club'",
-    "delete from platform.user where google_sub like 'rank-%'"]:
-    discard database.execUpdate(statement)
-  let ownerId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name, is_platform_owner)
-       values ('rank-owner', $1, 'Owner', true) returning id""",
-    @[textParam(sha256Hex("rank-owner@example.com"))]).get.get("id")
+  purgeCommunity(database, "rank-club")
+  discard database.execUpdate(
+    "delete from platform.user where google_sub like 'rank-%'")
+  let ownerId = newUser(database, "rank-owner", "rank-owner@example.com",
+    "Owner", owner = true)
   communityId = community_store.create(database, "rank-club", "Rank Club",
     "rank-admin@example.com", "Asia/Jakarta", ownerId).communityId
-  let memberId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name)
-       values ('rank-member', $1, 'Member') returning id""",
-    @[textParam(sha256Hex("rank-member@example.com"))]).get.get("id")
-  discard database.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1::uuid, $2::uuid, 'member')""",
-    @[textParam(communityId), textParam(memberId)])
+  let memberId = newUser(database, "rank-member", "rank-member@example.com",
+    "Member")
+  newMember(database, communityId, memberId, "member")
   memberCookie = cookieFor(database, memberId)
   for name in ["Ani", "Budi", "Cakra", "Dewi"]:
-    players.add(playerStore.create(database, communityId, name, "M", "").player["id"].getStr())
-  sessionId = database.queryOne(
-    """insert into session.sessions
-         (community_id, title, session_date, status, source, approved_at)
-       values ($1::uuid, 'Rank night', current_date, 'locked', 'manual', now())
-       returning id""", @[textParam(communityId)]).get.get("id")
+    players.add(newPlayer(database, communityId, name))
+  sessionId = newSession(database, communityId, "Rank night",
+    status = "locked", approved = true)
   for player in players:
     discard database.execUpdate(
       """insert into session.participants
@@ -82,51 +47,40 @@ proc bootstrap() =
       @[textParam(communityId), textParam(sessionId), textParam(player)])
   # A singles win and a doubles loss for Ani, so history and social tallies
   # have more than one shape to report.
-  discard database.execUpdate(
-    """insert into session.games
-         (community_id, session_id, round_no, court_no, score_a, score_b,
-          status, side_a1, side_b1)
-       values ($1::uuid, $2::uuid, 1, 1, 21, 15, 'played', $3::uuid, $4::uuid)""",
-    @[textParam(communityId), textParam(sessionId), textParam(players[0]),
-      textParam(players[1])])
+  newGame(database, communityId, sessionId, 1, 1, [players[0]],
+    [players[1]], status = "played", scoreA = 21, scoreB = 15)
   discard database.execUpdate(
     """insert into session.game_sets
          (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
        values ($1::uuid, $2::uuid, 1, 1, 1, 21, 15)""",
     @[textParam(communityId), textParam(sessionId)])
-  discard database.execUpdate(
-    """insert into session.games
-         (community_id, session_id, round_no, court_no, score_a, score_b,
-          status, side_a1, side_a2, side_b1)
-       values ($1::uuid, $2::uuid, 1, 2, 18, 21, 'played', $3::uuid, $4::uuid,
-               $5::uuid)""",
-    @[textParam(communityId), textParam(sessionId), textParam(players[0]),
-      textParam(players[1]), textParam(players[2])])
+  newGame(database, communityId, sessionId, 1, 2,
+    [players[0], players[1]], [players[2]], status = "played",
+    scoreA = 18, scoreB = 21)
   discard database.execUpdate(
     """insert into session.game_sets
          (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
        values ($1::uuid, $2::uuid, 1, 2, 1, 18, 21)""",
     @[textParam(communityId), textParam(sessionId)])
-  discard database.queryOne(
-    """insert into rating.events (community_id, local_date, event_type, source_id)
-       values ($1::uuid, current_date, 'session', $2::uuid) returning id""",
-    @[textParam(communityId), textParam(sessionId)])
+  # The event and the deltas come from the ingest the API itself runs. The
+  # counters then add the two games the exposed history does not show, because
+  # the stats fixture covers four games even though only two are on display.
+  discard ingestSession(database, communityId, sessionId,
+    loadRatingParams(loadSnapshot(database), newJObject()))
+  database.tx(proc(conn: DbConn) =
+    addState(conn, communityId, @[players[0], players[1]], won = true)
+    addState(conn, communityId, @[players[2], players[3]], won = false)
+    addState(conn, communityId, @[players[0], players[1]], won = false)
+    addState(conn, communityId, @[players[2], players[3]], won = true))
   # Yesterday's snapshot is deliberately in a different order, so rank
   # movement has something to report.
+  let yesterday = database.queryOne(
+    "select (current_date - 1)::text as day").get.get("day")
   let previous = [100, 500, 300, 50]
+  var priorRows: seq[BoardRow] = @[]
   for index, player in players:
-    discard database.execUpdate(
-      """insert into rating.snapshots
-           (community_id, player_id, taken_on, rating)
-         values ($1::uuid, $2::uuid, current_date - 1, $3)""",
-      @[textParam(communityId), textParam(player),
-        intParam(previous[index].int64)])
-  for player in players:
-    discard database.execUpdate(
-      """insert into rating.player_state
-           (community_id, player_id, games_played, wins, losses)
-       values ($1::uuid, $2::uuid, 4, 2, 2)""",
-      @[textParam(communityId), textParam(player)])
+    priorRows.add(BoardRow(playerId: player, points: previous[index]))
+  discard writeSnapshot(database, communityId, yesterday, priorRows)
   let tournamentId = database.queryOne(
     """insert into tournament.tournaments
          (community_id, name, status, format, event_date)
@@ -416,14 +370,9 @@ suite "rankings HTTP":
     let ownerId = database.queryOne(
       """select id from platform.user where google_sub = 'rank-owner'"""
       ).get.get("id")
-    let adminId = database.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('rank-admin', $1, 'Rank Admin') returning id""",
-      @[textParam(sha256Hex("rank-admin@example.com"))]).get.get("id")
-    discard database.execUpdate(
-      """insert into community.membership (community_id, user_id, role)
-         values ($1::uuid, $2::uuid, 'admin')""",
-      @[textParam(communityId), textParam(adminId)])
+    let adminId = newUser(database, "rank-admin", "rank-admin@example.com",
+      "Rank Admin")
+    newMember(database, communityId, adminId, "admin")
     let adminCookie = cookieFor(database, adminId)
     let code = shareStore.issue(database, keyring, communityId, sessionId, ownerId, 30)
     let live = call(baseUrl, HttpGet, "/s/" & code)
@@ -505,12 +454,8 @@ suite "rankings HTTP":
     # The rebuild only writes an event when some approved session has one, and
     # the source being deleted must not be approved for the route to proceed.
     # A second approved session gives the rebuild the insert that fails.
-    let filler = database.queryOne(
-      """insert into session.sessions
-           (community_id, title, session_date, status, source, approved_at)
-         values ($1::uuid, 'Failing rebuild', current_date, 'locked',
-                 'manual', now())
-         returning id""", @[textParam(communityId)]).get.get("id")
+    let filler = newSession(database, communityId, "Failing rebuild",
+      status = "locked", approved = true)
     discard database.execUpdate(
       """update session.sessions set status = 'draft', approved_at = null
          where id = $1::uuid""", @[textParam(sessionId)])
@@ -546,35 +491,24 @@ suite "rankings HTTP":
   test "a share code publishes only the players of its session":
     # A second session puts one more player on the community board, so the
     # public copy and the member page can be told apart.
-    let outsider = playerStore.create(database, communityId, "Eka", "F",
-      "").player["id"].getStr()
-    let otherSession = database.queryOne(
-      """insert into session.sessions
-           (community_id, title, session_date, status, source, approved_at)
-         values ($1::uuid, 'Second night', current_date, 'locked', 'manual', now())
-         returning id""", @[textParam(communityId)]).get.get("id")
+    let outsider = newPlayer(database, communityId, "Eka", "F")
+    let otherSession = newSession(database, communityId, "Second night",
+      status = "locked", approved = true)
     for player in [players[1], outsider]:
       discard database.execUpdate(
         """insert into session.participants
              (community_id, session_id, player_id)
            values ($1::uuid, $2::uuid, $3::uuid)""",
         @[textParam(communityId), textParam(otherSession), textParam(player)])
-    discard database.execUpdate(
-      """insert into session.games
-           (community_id, session_id, round_no, court_no, score_a, score_b,
-            status, side_a1, side_b1)
-         values ($1::uuid, $2::uuid, 1, 1, 21, 10, 'played', $3::uuid, $4::uuid)""",
-      @[textParam(communityId), textParam(otherSession), textParam(outsider),
-        textParam(players[1])])
+    newGame(database, communityId, otherSession, 1, 1, [outsider],
+      [players[1]], status = "played", scoreA = 21, scoreB = 10)
     discard database.execUpdate(
       """insert into session.game_sets
            (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
          values ($1::uuid, $2::uuid, 1, 1, 1, 21, 10)""",
       @[textParam(communityId), textParam(otherSession)])
-    discard database.execUpdate(
-      """insert into rating.events (community_id, local_date, event_type, source_id)
-         values ($1::uuid, current_date, 'session', $2::uuid)""",
-      @[textParam(communityId), textParam(otherSession)])
+    discard ingestSession(database, communityId, otherSession,
+      loadRatingParams(loadSnapshot(database), newJObject()))
     let memberStatus = call(baseUrl, HttpGet, "/c/rank-club/rankings", memberCookie)
     let memberBody = memberStatus.body
     expectStatus(memberStatus, 200)

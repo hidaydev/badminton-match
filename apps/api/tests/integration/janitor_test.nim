@@ -2,6 +2,7 @@ import std/[options, os, tables, unittest]
 import db/db
 import platform/janitor
 import platform/audit_retention
+import tests/fixtures
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
@@ -13,25 +14,14 @@ suite "janitor":
     if dsn().len == 0:
       raise newException(ValueError, "MAJADU_PG_DSN is required")
     db = openDb(dsn(), 1)
-    discard db.execUpdate(
-      "delete from session.links where community_id in (select id from platform.community where slug = 'janitor-test')")
-    discard db.execUpdate(
-      "delete from session.sessions where community_id in (select id from platform.community where slug = 'janitor-test')")
-    discard db.execUpdate("delete from platform.community where slug = 'janitor-test'")
+    purgeCommunity(db, "janitor-test")
     discard db.execUpdate("delete from platform.user where google_sub = 'janitor-test'")
     discard db.execUpdate("delete from platform.outbox where topic = 'janitor-test'")
     discard db.execUpdate("delete from auth.oauth_flows where return_to = '/janitor-test'")
-    userId = db.queryOne(
-      """insert into platform.user (google_sub, email_hash, display_name)
-         values ('janitor-test', 'janitor-hash', 'Janitor') returning id""").get.get("id")
-    communityId = db.queryOne(
-      """insert into platform.community (slug, name, timezone)
-         values ('janitor-test', 'Janitor Test', 'Asia/Jakarta') returning id""").get.get("id")
-    sessionId = db.queryOne(
-      """insert into session.sessions
-           (community_id, title, session_date, start_time, slot_minutes, status, source)
-         values ($1::uuid, 'Janitor', '2026-11-03', '19:00', 30, 'draft', 'manual')
-         returning id""", @[textParam(communityId)]).get.get("id")
+    userId = newUser(db, "janitor-test", "janitor-hash", "Janitor")
+    communityId = newCommunity(db, "janitor-test", "Janitor Test")
+    sessionId = newSession(db, communityId, "Janitor", "2026-11-03",
+      startTime = "19:00")
     discard db.execUpdate(
       """insert into auth.oauth_flows
            (state_hash, nonce_hash, code_verifier_enc, return_to, created_at, expires_at)

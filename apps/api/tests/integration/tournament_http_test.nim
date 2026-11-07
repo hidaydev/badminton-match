@@ -3,12 +3,12 @@
 
 import std/[json, options, strutils, unittest]
 import db/db
-import sha256
 import community/infrastructure/community_store
 import tournament/domain/classic
 import tournament/domain/classic_draw
 import tournament/domain/team
 import tournament/domain/team_draw
+import tests/fixtures
 import ../http_support
 
 const
@@ -87,35 +87,8 @@ proc teamSnapshot(): TeamTournament =
   result.matches.add(finalMatch(ids[0], ids[1]))
 
 proc cleanup(database: Db) =
-  const statements = [
-    """delete from rating.events where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from rating.player_state where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from rating.sources where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from tournament.team_partai where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from tournament.team_matches where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from tournament.team_players where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from tournament.teams where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from tournament.groups where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from tournament.matches where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from tournament.pairs where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from tournament.tournaments where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    """delete from player.players where community_id in
-         (select id from platform.community where slug in ($1, $2))""",
-    "delete from platform.community where slug in ($1, $2)"]
-  for statement in statements:
-    discard database.execUpdate(statement,
-      @[textParam(slug), textParam(otherSlug)])
+  for communitySlug in [slug, otherSlug]:
+    purgeCommunity(database, communitySlug)
   discard database.execUpdate(
     """delete from account.sessions where user_id in
          (select id from platform.user where google_sub like 'tour-%')""")
@@ -123,37 +96,22 @@ proc cleanup(database: Db) =
     "delete from platform.user where google_sub like 'tour-%'")
 
 proc member(sub, email, role, community: string): string =
-  let userId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name)
-       values ($1, $2, $1) returning id""",
-    @[textParam(sub), textParam(sha256Hex(email))]).get.get("id")
-  discard database.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1::uuid, $2::uuid, $3)""",
-    @[textParam(community), textParam(userId), textParam(role)])
+  let userId = newUser(database, sub, email, sub)
+  newMember(database, community, userId, role)
   userId
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
   cleanup(database)
-  let ownerId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name,
-         is_platform_owner)
-       values ('tour-owner', $1, 'Owner', true) returning id""",
-    @[textParam(sha256Hex("tour-owner@example.com"))]).get.get("id")
+  let ownerId = newUser(database, "tour-owner", "tour-owner@example.com",
+    "Owner", owner = true)
   communityId = communityStore.create(database, slug, "Tournament HTTP",
     adminEmail, "Asia/Jakarta", ownerId).communityId
   otherCommunityId = communityStore.create(database, otherSlug,
     "Tournament HTTP Other", adminEmail, "Asia/Jakarta", ownerId).communityId
-  adminId = database.queryOne(
-    """insert into platform.user (google_sub, email_hash, display_name)
-       values ('tour-admin', $1, 'Admin') returning id""",
-    @[textParam(sha256Hex(adminEmail))]).get.get("id")
+  adminId = newUser(database, "tour-admin", adminEmail, "Admin")
   for community in [communityId, otherCommunityId]:
-    discard database.execUpdate(
-      """insert into community.membership (community_id, user_id, role)
-         values ($1::uuid, $2::uuid, 'admin')""",
-      @[textParam(community), textParam(adminId)])
+    newMember(database, community, adminId, "admin")
   let memberId = member("tour-member", memberEmail, "member", communityId)
   adminCookie = cookieFor(database, adminId)
   memberCookie = cookieFor(database, memberId)
