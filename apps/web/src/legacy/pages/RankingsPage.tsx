@@ -135,7 +135,7 @@ export default function RankingsPage() {
 
         {isError && (
           <div className="flex items-center gap-3">
-            <p className="text-error text-sm">{t('rankings.loadFailed')}</p>
+            <p role="alert" className="text-error text-sm">{t('rankings.loadFailed')}</p>
             <button
               type="button"
               onClick={() => void refetch()}

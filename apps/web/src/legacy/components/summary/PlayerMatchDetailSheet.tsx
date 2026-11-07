@@ -5,6 +5,7 @@ import type { PlayerStanding } from '../../utils/standings'
 import { setsWon, describeSets } from '../../utils/scoring'
 import { ordinal } from '../../utils/ordinal'
 import { t } from '../../../i18n'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 interface GameRow {
   slot: number
@@ -100,6 +101,9 @@ export default function PlayerMatchDetailSheet({
   skippedPlayers,
   onClose,
 }: PlayerMatchDetailSheetProps) {
+  // Hooks run before the early return; `enabled` carries the guard instead.
+  useEscapeKey(onClose, player !== null)
+
   if (!player) return null
 
   const games = buildGameRows(player.player.id, schedule, gameScores, players, voidPlayerIds, skippedPlayers)
@@ -107,13 +111,16 @@ export default function PlayerMatchDetailSheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-slate-900 rounded-t-2xl w-full max-w-lg overflow-y-auto p-4"
-        style={{ maxHeight: '80vh' }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="player-match-sheet-title"
+        className="bg-slate-900 rounded-t-2xl w-full max-w-lg overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+        style={{ maxHeight: '80dvh' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-100"><AnnotatedPlayerName name={player.player.name} /></h2>
+            <h2 id="player-match-sheet-title" className="text-lg font-semibold text-slate-100"><AnnotatedPlayerName name={player.player.name} /></h2>
             <p className="text-sm text-slate-400">#{rank} {ordinal(rank)}</p>
           </div>
           <button
