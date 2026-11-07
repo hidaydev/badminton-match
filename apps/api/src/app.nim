@@ -9,6 +9,7 @@ import community/infrastructure/join_request as joinRequestStore
 import community/infrastructure/membership as membershipStore
 import config as edgeConfig
 import config_routes
+import errors as platformErrors
 import live
 import logger
 # `templateRoute` (rate-limit labels) is the only symbol used here; the counter
@@ -173,8 +174,16 @@ proc jsonResponse(request: Request, status: int, body: JsonNode,
     headers.add(pair)
   send(request, status, headers, $body)
 
+proc sendProblem(request: Request, status: int, contentType: string,
+                 body: platformErrors.Problem) =
+  send(request, status, @[("Content-Type", contentType)], body.toJson())
+
 proc problem(request: Request, status: int, code, detail: string) =
-  send(request, status, $ %*{"status": status, "code": code, "detail": detail})
+  ## One envelope for every rejection. The body is built by platform-lib so the
+  ## shape, the i18nKey lookup and the detail redaction cannot drift per route.
+  sendProblem(request, status, "application/problem+json",
+    platformErrors.newProblem(status, code, platformErrors.i18nKeyFor(code),
+      detail))
 
 proc methodNotAllowed(request: Request) =
   ## A known path with an unsupported verb answers 405, so a caller can tell a
@@ -402,7 +411,9 @@ proc finishAuth(request: Request) =
   try:
     idToken = exchangeCode(application.oidc, code, verifier)
   except CatchableError as error:
-    problem(request, 400, "TOKEN_EXCHANGE_FAILED", error.msg)
+    logError("token exchange failed",
+      [("error", error.msg), ("path", request.path)])
+    problem(request, 400, "TOKEN_EXCHANGE_FAILED", "token exchange failed")
     return
   var claims: JsonNode
   try:
@@ -411,7 +422,9 @@ proc finishAuth(request: Request) =
       epochTime().int64)
   except CatchableError as error:
     authRejected("auth.login.rejected", "invalid id token")
-    problem(request, 401, "INVALID_ID_TOKEN", error.msg)
+    logError("id token rejected",
+      [("error", error.msg), ("path", request.path)])
+    problem(request, 401, "INVALID_ID_TOKEN", "id token is invalid")
     return
   if sha256Hex(claims["nonce"].getStr()) != flow.get("nonce_hash"):
     authRejected("auth.login.rejected", "nonce mismatch")
@@ -659,7 +672,9 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
     # drafts; the create form always sends one.
     title = sessionWrite.parseTitle(title)
   except ValueError as error:
-    problem(request, 400, "INVALID_BODY", error.msg)
+    logWarn("session title rejected",
+      [("error", error.msg), ("path", request.path)])
+    problem(request, 400, "INVALID_BODY", "title is invalid")
     return
   if presetId.len == 0:
     presetId = configSnapshot().stringValue(
@@ -925,7 +940,9 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
     patchBody = sessionWrite.parsePatch(bodyJson(request))
   except ValueError as error:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
-    problem(request, 400, "INVALID_PATCH", error.msg)
+    logWarn("session patch rejected",
+      [("error", error.msg), ("path", request.path)])
+    problem(request, 400, "INVALID_PATCH", "patch is invalid")
     return
   # The patch used to hand raw strings to `::date` / `::time`: a bad day became
   # a 500 and a loose "9:00" was normalised where create rejects it.
@@ -1363,7 +1380,9 @@ proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) 
     try:
       aliases = playerDomain.parseAliases(body["aliases"])
     except ValueError as error:
-      problem(request, 400, "INVALID_PLAYER", error.msg)
+      logWarn("player aliases rejected",
+        [("error", error.msg), ("path", request.path)])
+      problem(request, 400, "INVALID_PLAYER", "aliases are invalid")
       return
     if not playerDomain.aliasesValid(aliases):
       problem(request, 400, "INVALID_ALIAS", "aliases must be distinct non-empty names")
@@ -1410,7 +1429,9 @@ proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   try:
     patch = playerDomain.parsePatch(bodyJson(request))
   except ValueError as error:
-    problem(request, 400, "INVALID_PLAYER", error.msg)
+    logWarn("player patch rejected",
+      [("error", error.msg), ("path", request.path)])
+    problem(request, 400, "INVALID_PLAYER", "patch is invalid")
     return
   var aliases: seq[string] = @[]
   if patch.aliases.isSome:
@@ -1967,7 +1988,9 @@ proc putScheduleRoute(request: Request, ctx: CommunityContext, sessionId: string
   try:
     games = sessionSchedule.parseSchedule(bodyJson(request))
   except ValueError as error:
-    problem(request, 400, "INVALID_SCHEDULE", error.msg)
+    logWarn("schedule rejected",
+      [("error", error.msg), ("path", request.path)])
+    problem(request, 400, "INVALID_SCHEDULE", "schedule is invalid")
     return
   scheduleDone(request, ctx, sessionId,
     sessionSchedule.putSchedule(application.db, ctx.communityId, sessionId,
@@ -1980,7 +2003,9 @@ proc setAbsentRoute(request: Request, ctx: CommunityContext, sessionId: string) 
   try:
     playerIds = sessionSchedule.parsePlayerIds(bodyJson(request))
   except ValueError as error:
-    problem(request, 400, "INVALID_SCHEDULE", error.msg)
+    logWarn("absent list rejected",
+      [("error", error.msg), ("path", request.path)])
+    problem(request, 400, "INVALID_SCHEDULE", "absent player list is invalid")
     return
   scheduleDone(request, ctx, sessionId,
     sessionSchedule.setAbsent(application.db, ctx.communityId, sessionId,
@@ -2025,7 +2050,9 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
     try:
       sets = sessionScoring.parseSets(body["sets"])
     except ValueError as error:
-      problem(request, 400, "INVALID_SCORE", error.msg)
+      logWarn("score rejected",
+        [("error", error.msg), ("path", request.path)])
+      problem(request, 400, "INVALID_SCORE", "score is invalid")
       return
   else:
     if not body.hasKey("scoreA") or not body.hasKey("scoreB") or

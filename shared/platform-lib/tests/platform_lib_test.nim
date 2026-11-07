@@ -110,6 +110,16 @@ suite "errors":
     check node["code"].getStr() == "NOT_FOUND"
     check node["i18nKey"].getStr() == "error.notFound"
 
+  test "maps a business code to its translation key":
+    check i18nKeyFor("INVALID_BODY") == "error.invalidBody"
+    check i18nKeyFor("TOKEN_EXCHANGE_FAILED") == "error.tokenExchangeFailed"
+    check i18nKeyFor("NOT_YET_DOCUMENTED") == unknownI18nKey
+
+  test "redacts the detail like a log field":
+    let node = parseJson(newProblem(400, "INVALID_EMAIL", "error.invalidEmail",
+      "a@b.co from 10.0.0.1").toJson())
+    check node["detail"].getStr() == "{email} from {ip}"
+
 suite "context":
   test "carries optional identity without globals":
     let ctx = Ctx(
