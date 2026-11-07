@@ -35,6 +35,20 @@ proc communityIdOf(db: Db, slug: string): string =
 proc planFor(db: Db, snapshot: Snapshot, communityId: string): RatingParams =
   loadRatingParams(snapshot, communitySettings(db, communityId))
 
+proc absentSessionMessage*(sessionId, slug: string): string =
+  ## One line that names both values the operator typed. A session outside the
+  ## community and a session that does not exist are the same answer here.
+  "no session " & sessionId & " in community " & slug
+
+proc sessionInCommunity(db: Db, communityId, sessionId: string): bool =
+  ## Asked before ingest: `ingestSession` returns silently for a session that is
+  ## not this community's, which would spell the operator's wrong slug and a
+  ## session with nothing new as the same `events:0`.
+  db.queryOne(
+    """select 1 as found from session.sessions
+       where id = $1::uuid and community_id = $2::uuid""",
+    @[textParam(sessionId), textParam(communityId)]).isSome
+
 proc pendingSessions*(db: Db, communityId: string): seq[string] =
   ## Only the approved sessions the ledger has not seen yet. A tick asks once
   ## instead of walking every session and paying three round-trips per no-op.
@@ -95,6 +109,8 @@ proc main() =
     if slug.len == 0 or sessionId.len == 0:
       usageFail(program, "session needs an id and --community <slug>")
     let communityId = communityIdOf(db, slug)
+    if not sessionInCommunity(db, communityId, sessionId):
+      fail(program, absentSessionMessage(sessionId, slug))
     let params = planFor(db, snapshot, communityId)
     let result = ingestSession(db, communityId, sessionId, params)
     events += result.events
