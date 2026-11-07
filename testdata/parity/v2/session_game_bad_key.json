@@ -12,7 +12,10 @@
     "body": {
       "code": "INVALID_GAME_KEY",
       "detail": "gameKey must be round-court",
-      "status": 400
+      "i18nKey": "error.invalidGameKey",
+      "status": 400,
+      "title": "INVALID_GAME_KEY",
+      "type": "about:blank"
     }
   }
 }

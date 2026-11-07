@@ -9,7 +9,10 @@
     "body": {
       "code": "INVALID_CALLBACK",
       "detail": "code and state are required",
-      "status": 400
+      "i18nKey": "error.invalidCallback",
+      "status": 400,
+      "title": "INVALID_CALLBACK",
+      "type": "about:blank"
     }
   }
 }

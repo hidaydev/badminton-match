@@ -17,7 +17,8 @@
         },
         "community.directory_enabled": {
           "source": "community",
-          "value": true
+          "value": true,
+          "widenable": true
         },
         "community.invite_ttl_days": {
           "source": "platform",
@@ -25,7 +26,8 @@
         },
         "community.join_requests_enabled": {
           "source": "community",
-          "value": false
+          "value": true,
+          "widenable": true
         },
         "rating.score_target": {
           "source": "platform",

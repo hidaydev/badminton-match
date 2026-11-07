@@ -12,7 +12,10 @@
     "body": {
       "code": "UNAUTHENTICATED",
       "detail": "login required",
-      "status": 401
+      "i18nKey": "error.unauthenticated",
+      "status": 401,
+      "title": "UNAUTHENTICATED",
+      "type": "about:blank"
     }
   }
 }

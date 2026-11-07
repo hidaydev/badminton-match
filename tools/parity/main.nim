@@ -358,6 +358,28 @@ proc isNonEmptyBody(node: JsonNode): bool =
   of JObject, JArray: node.len > 0
   of JBool, JInt, JFloat: true
 
+proc lintErrorEnvelope(name: string, status: int, body: JsonNode,
+                       problems: var seq[string]) =
+  ## A 4xx recorded from the Nim API must carry the problem+json envelope.
+  ## Re-recording the corpus is how an intentional body change lands, so without
+  ## this check the corpus would also accept a hand-built error body that skipped
+  ## `problem()`. RATE_LIMITED is the documented exception: the limiter writes it
+  ## before dispatch and adds `retryAfter`.
+  if status < 400 or body.kind != JObject or body.len == 0:
+    return
+  if body.hasKey("retryAfter"):
+    return
+  if not body.hasKey("code") or body["code"].kind != JString:
+    problems.add(name & ": 4xx body has no string code")
+  if not body.hasKey("i18nKey") or body["i18nKey"].kind != JString:
+    problems.add(name & ": 4xx body has no i18nKey")
+  elif not body["i18nKey"].getStr().startsWith("error."):
+    problems.add(name & ": i18nKey is not error.<name>")
+  if not body.hasKey("status") or body["status"].kind != JInt:
+    problems.add(name & ": 4xx body has no integer status")
+  elif body["status"].getInt() != status:
+    problems.add(name & ": 4xx body status does not match expect.status")
+
 proc lintCase(name: string, document: JsonNode,
               problems: var seq[string], rejected: var int): string =
   if not document.hasKey("expect"):
@@ -375,6 +397,8 @@ proc lintCase(name: string, document: JsonNode,
       problems.add(name & ": expect.body is empty (set expect.emptyBody when 204)")
   elif expect.hasKey("emptyBody") and expect["emptyBody"].getBool():
     problems.add(name & ": expect.emptyBody is set but the body is not empty")
+  elif expect.hasKey("status") and expect["status"].kind == JInt:
+    lintErrorEnvelope(name, expect["status"].getInt(), expect["body"], problems)
   if document.hasKey("expectNim"):
     if not document.hasKey("expectedDivergence"):
       problems.add(name & ": expectNim without expectedDivergence")

@@ -13,8 +13,11 @@
     "status": 400,
     "body": {
       "code": "INVALID_PLAYER",
-      "detail": "unknown tier: Z",
-      "status": 400
+      "detail": "patch is invalid",
+      "i18nKey": "error.invalidPlayer",
+      "status": 400,
+      "title": "INVALID_PLAYER",
+      "type": "about:blank"
     }
   }
 }

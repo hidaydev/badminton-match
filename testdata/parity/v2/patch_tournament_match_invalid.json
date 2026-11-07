@@ -13,12 +13,18 @@
   "expect": {
     "status": 400,
     "body": {
+      "code": "INVALID_TOURNAMENT",
+      "detail": "tournament match body is invalid",
+      "i18nKey": "error.invalidTournament",
       "issues": [
         {
           "detail": "scores must be between 0 and 99",
           "kind": "invalid_body"
         }
-      ]
+      ],
+      "status": 400,
+      "title": "INVALID_TOURNAMENT",
+      "type": "about:blank"
     }
   }
 }

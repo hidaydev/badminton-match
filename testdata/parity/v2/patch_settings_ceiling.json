@@ -14,7 +14,10 @@
     "body": {
       "code": "OVERRIDE_TOO_HIGH",
       "detail": "override exceeds the platform value: community.invite_ttl_days",
-      "status": 400
+      "i18nKey": "error.overrideTooHigh",
+      "status": 400,
+      "title": "OVERRIDE_TOO_HIGH",
+      "type": "about:blank"
     }
   }
 }

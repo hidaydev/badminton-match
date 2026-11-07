@@ -13,7 +13,10 @@
     "body": {
       "code": "INVITE_NOT_FOUND",
       "detail": "invitation not found",
-      "status": 404
+      "i18nKey": "error.inviteNotFound",
+      "status": 404,
+      "title": "INVITE_NOT_FOUND",
+      "type": "about:blank"
     }
   }
 }

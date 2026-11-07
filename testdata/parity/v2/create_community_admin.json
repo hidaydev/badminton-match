@@ -14,7 +14,10 @@
     "body": {
       "code": "FORBIDDEN",
       "detail": "platform owner only",
-      "status": 403
+      "i18nKey": "error.forbidden",
+      "status": 403,
+      "title": "FORBIDDEN",
+      "type": "about:blank"
     }
   }
 }

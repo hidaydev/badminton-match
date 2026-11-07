@@ -10,11 +10,14 @@
     }
   },
   "expect": {
-    "status": 404,
+    "status": 405,
     "body": {
-      "code": "NOT_FOUND",
-      "detail": "route not found",
-      "status": 404
+      "code": "METHOD",
+      "detail": "",
+      "i18nKey": "error.method",
+      "status": 405,
+      "title": "METHOD",
+      "type": "about:blank"
     }
   }
 }

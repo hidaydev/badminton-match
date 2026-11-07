@@ -12,7 +12,10 @@
     "body": {
       "code": "NOT_FOUND",
       "detail": "session not found",
-      "status": 404
+      "i18nKey": "error.notFound",
+      "status": 404,
+      "title": "NOT_FOUND",
+      "type": "about:blank"
     }
   }
 }

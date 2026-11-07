@@ -15,7 +15,10 @@
     "body": {
       "code": "STALE_VERSION",
       "detail": "session changed since If-Match",
-      "status": 412
+      "i18nKey": "error.staleVersion",
+      "status": 412,
+      "title": "STALE_VERSION",
+      "type": "about:blank"
     }
   }
 }

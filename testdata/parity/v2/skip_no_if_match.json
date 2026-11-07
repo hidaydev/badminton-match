@@ -13,7 +13,10 @@
     "body": {
       "code": "PRECONDITION_REQUIRED",
       "detail": "If-Match is required",
-      "status": 428
+      "i18nKey": "error.preconditionRequired",
+      "status": 428,
+      "title": "PRECONDITION_REQUIRED",
+      "type": "about:blank"
     }
   }
 }

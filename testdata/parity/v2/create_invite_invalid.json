@@ -14,7 +14,10 @@
     "body": {
       "code": "INVALID_EMAIL",
       "detail": "a valid email is required",
-      "status": 400
+      "i18nKey": "error.invalidEmail",
+      "status": 400,
+      "title": "INVALID_EMAIL",
+      "type": "about:blank"
     }
   }
 }

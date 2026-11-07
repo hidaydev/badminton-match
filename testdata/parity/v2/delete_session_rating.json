@@ -13,7 +13,10 @@
     "body": {
       "code": "CONFLICT",
       "detail": "session is still approved; unlock it first",
-      "status": 409
+      "i18nKey": "error.conflict",
+      "status": 409,
+      "title": "CONFLICT",
+      "type": "about:blank"
     }
   }
 }

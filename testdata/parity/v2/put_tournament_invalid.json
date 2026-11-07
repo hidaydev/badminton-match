@@ -13,6 +13,9 @@
   "expect": {
     "status": 400,
     "body": {
+      "code": "INVALID_TOURNAMENT",
+      "detail": "tournament body is invalid",
+      "i18nKey": "error.invalidTournament",
       "issues": [
         {
           "detail": "",
@@ -50,7 +53,10 @@
           "detail": "final: 0",
           "kind": "phase_count"
         }
-      ]
+      ],
+      "status": 400,
+      "title": "INVALID_TOURNAMENT",
+      "type": "about:blank"
     }
   }
 }

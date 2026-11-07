@@ -14,7 +14,10 @@
     "body": {
       "code": "INVALID_PLAYER",
       "detail": "invalid_name",
-      "status": 400
+      "i18nKey": "error.invalidPlayer",
+      "status": 400,
+      "title": "INVALID_PLAYER",
+      "type": "about:blank"
     }
   }
 }

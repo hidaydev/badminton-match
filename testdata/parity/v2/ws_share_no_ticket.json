@@ -9,7 +9,10 @@
     "body": {
       "code": "UNAUTHENTICATED",
       "detail": "ticket is invalid, expired or already used",
-      "status": 401
+      "i18nKey": "error.unauthenticated",
+      "status": 401,
+      "title": "UNAUTHENTICATED",
+      "type": "about:blank"
     }
   }
 }

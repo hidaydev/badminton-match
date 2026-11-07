@@ -14,7 +14,10 @@
     "body": {
       "code": "INVALID_DECISION",
       "detail": "decision must be approve or reject",
-      "status": 400
+      "i18nKey": "error.invalidDecision",
+      "status": 400,
+      "title": "INVALID_DECISION",
+      "type": "about:blank"
     }
   }
 }
