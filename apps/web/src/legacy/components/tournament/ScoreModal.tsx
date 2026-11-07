@@ -1,9 +1,8 @@
-import { useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import type { TournamentMatch } from '../../utils/tournament'
 import { validateScore } from '../../utils/scoreValidation'
 import ScoreboardOverlay from './ScoreboardOverlay'
-import { useEscapeKey } from '../../hooks/useEscapeKey'
-import { useFocusTrap } from '../../hooks/useFocusTrap'
+import { Overlay } from '../../../components/Overlay'
 import { t } from '../../../i18n'
 
 interface ScoreModalProps {
@@ -20,15 +19,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
   const [scoreA, setScoreA] = useState(match.scoreA?.toString() ?? '')
   const [scoreB, setScoreB] = useState(match.scoreB?.toString() ?? '')
   const [showScoreboard, setShowScoreboard] = useState(false)
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const loadingRef = useRef<HTMLDivElement>(null)
-
-  useEscapeKey(onClose, !showScoreboard)
-  // The scoreboard overlay owns focus while it is open; the two dialog branches
-  // each trap their own node, because the trap binds to the element that exists
-  // when it enables.
-  useFocusTrap(loadingRef, isFetching)
-  useFocusTrap(dialogRef, !showScoreboard && !isFetching)
+  const loadingHeadingId = useId()
 
   const a = parseInt(scoreA, 10)
   const b = parseInt(scoreB, 10)
@@ -54,76 +45,43 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
     )
   }
 
+  // The skeleton branch is the only in-flight state this sheet has: while the
+  // match refetches the overlay drops Escape, the scrim tap and the ✕.
   if (isFetching) {
     return (
-      <div ref={loadingRef} tabIndex={-1} className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose} role="dialog" aria-modal="true" aria-label={t('tournament.enterScore')}>
-        <div className="bg-surface border border-border rounded-xl w-full max-w-sm p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
-          <div className="animate-pulse">
-            <div className="h-5 bg-elevated rounded w-1/3 mx-auto mb-1" />
-            <div className="h-4 bg-elevated rounded w-1/2 mx-auto mb-4" />
-            <div className="flex items-center gap-3 mb-5">
-              <div className="flex-1 flex flex-col items-center gap-1">
-                <div className="h-4 bg-elevated rounded w-3/4" />
-                <div className="h-11.75 bg-elevated rounded-xl w-full" />
-              </div>
-              <div className="w-6 shrink-0" />
-              <div className="flex-1 flex flex-col items-center gap-1">
-                <div className="h-4 bg-elevated rounded w-3/4" />
-                <div className="h-11.75 bg-elevated rounded-xl w-full" />
-              </div>
+      <Overlay onClose={onClose} title={null} labelledBy={loadingHeadingId} dismissible={false}>
+        <h2 id={loadingHeadingId} className="sr-only">{t('tournament.enterScore')}</h2>
+        <div className="animate-pulse">
+          <div className="h-5 bg-elevated rounded w-1/3 mx-auto mb-1" />
+          <div className="h-4 bg-elevated rounded w-1/2 mx-auto mb-4" />
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex-1 flex flex-col items-center gap-1">
+              <div className="h-4 bg-elevated rounded w-3/4" />
+              <div className="h-11.75 bg-elevated rounded-xl w-full" />
             </div>
-            <div className="flex gap-3 mb-3">
-              <div className="flex-1 h-11 bg-elevated rounded-xl" />
-              <div className="flex-1 h-11 bg-accent/20 rounded-xl" />
+            <div className="w-6 shrink-0" />
+            <div className="flex-1 flex flex-col items-center gap-1">
+              <div className="h-4 bg-elevated rounded w-3/4" />
+              <div className="h-11.75 bg-elevated rounded-xl w-full" />
             </div>
-            <div className="h-10 bg-elevated/60 rounded-xl" />
           </div>
+          <div className="flex gap-3 mb-3">
+            <div className="flex-1 h-11 bg-elevated rounded-xl" />
+            <div className="flex-1 h-11 bg-accent/20 rounded-xl" />
+          </div>
+          <div className="h-10 bg-elevated/60 rounded-xl" />
         </div>
-      </div>
+      </Overlay>
     )
   }
 
   return (
-    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-surface border border-border rounded-xl w-full max-w-sm p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-sm font-bold text-fg text-center mb-1">Enter Score</h3>
-        <p className="text-xs text-fg-dim text-center mb-4">
-          {pairAName} vs {pairBName}
-        </p>
-
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <span className="text-xs text-fg-dim font-medium truncate w-full text-center">{pairAName}</span>
-            <input
-              type="number"
-              min={0}
-              value={scoreA}
-              onChange={(e) => setScoreA(e.target.value)}
-              className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
-              placeholder="0"
-            />
-          </div>
-          <span className="text-fg-dim font-bold text-lg pt-5">vs</span>
-          <div className="flex-1 flex flex-col items-center gap-1">
-            <span className="text-xs text-fg-dim font-medium truncate w-full text-center">{pairBName}</span>
-            <input
-              type="number"
-              min={0}
-              value={scoreB}
-              onChange={(e) => setScoreB(e.target.value)}
-              className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
-              placeholder="0"
-            />
-          </div>
-        </div>
-
-        {validationError && (
-          <p className="text-xs text-error text-center mb-3">
-            {a === b ? 'Scores cannot be equal (no draws)' : validationError}
-          </p>
-        )}
-
-        <div className="flex gap-3 mb-3">
+    <Overlay
+      onClose={onClose}
+      title="Enter Score"
+      description={`${pairAName} vs ${pairBName}`}
+      footer={
+        <div className="flex gap-3">
           <button
             onClick={onClose}
             className="flex-1 py-3 rounded-xl bg-elevated border border-border hover:bg-border text-fg text-sm font-semibold transition-colors"
@@ -138,14 +96,46 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
             Confirm
           </button>
         </div>
-
-        <button
-          onClick={() => setShowScoreboard(true)}
-          className="w-full py-2.5 rounded-xl text-fg-dim border border-border text-sm font-medium flex items-center justify-center gap-2 hover:bg-elevated hover:text-fg active:bg-elevated/60 transition-colors"
-        >
-          Open Scoreboard
-        </button>
+      }
+    >
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <span className="text-xs text-fg-dim font-medium truncate w-full text-center">{pairAName}</span>
+          <input
+            type="number"
+            min={0}
+            value={scoreA}
+            onChange={(e) => setScoreA(e.target.value)}
+            className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+            placeholder="0"
+          />
+        </div>
+        <span className="text-fg-dim font-bold text-lg pt-5">vs</span>
+        <div className="flex-1 flex flex-col items-center gap-1">
+          <span className="text-xs text-fg-dim font-medium truncate w-full text-center">{pairBName}</span>
+          <input
+            type="number"
+            min={0}
+            value={scoreB}
+            onChange={(e) => setScoreB(e.target.value)}
+            className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
+            placeholder="0"
+          />
+        </div>
       </div>
-    </div>
+
+      {validationError && (
+        <p className="text-xs text-error text-center mb-3">
+          {a === b ? 'Scores cannot be equal (no draws)' : validationError}
+        </p>
+      )}
+
+      <button
+        onClick={() => setShowScoreboard(true)}
+        className="w-full py-2.5 rounded-xl text-fg-dim border border-border text-sm font-medium flex items-center justify-center gap-2 hover:bg-elevated hover:text-fg active:bg-elevated/60 transition-colors"
+      >
+        Open Scoreboard
+      </button>
+    </Overlay>
   )
 }
