@@ -13,6 +13,7 @@ import InvitePage from './pages/InvitePage'
 import LoginPage from './pages/LoginPage'
 import PlayerDetailPage from './pages/PlayerDetailPage'
 import PlayersPage from './pages/PlayersPage'
+import PrivacyPage from './pages/PrivacyPage'
 import SettingsPage from './pages/SettingsPage'
 import OwnerSetupPage from './pages/SetupPage'
 import SharedSessionPage from './pages/SharedSessionPage'
@@ -326,6 +327,9 @@ export default function App() {
                 {/* Accepting is how an account gets its first membership, so
                     this route cannot sit behind the community shell. */}
                 <Route path="/invites/:token" element={<InvitePage />} />
+                {/* Public legal page: readable without a session and outside
+                    the community shell. */}
+                <Route path="/privacy" element={<PrivacyPage />} />
                 <Route
                   path="*"
                   element={

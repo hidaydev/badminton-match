@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { t } from '../i18n'
 
@@ -33,6 +34,12 @@ export default function LoginPage() {
             {t('login.error')}
           </p>
         )}
+        <Link
+          to="/privacy"
+          className="mt-4 inline-flex min-h-11 items-center rounded-xl text-xs text-fg-dim hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {t('login.privacy')}
+        </Link>
       </section>
     </main>
   )

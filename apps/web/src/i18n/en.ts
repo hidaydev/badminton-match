@@ -34,6 +34,7 @@ export const en = {
   'login.action': 'Continue with Google',
   'login.pending': 'Redirecting…',
   'login.error': 'Sign in could not be started. Try again.',
+  'login.privacy': 'Privacy Policy',
 
   'invite.title': 'Community invitation',
   'invite.signedOutHint':
@@ -783,6 +784,71 @@ export const en = {
   'admin.sessionCountOne': '{count} session',
   'admin.unlock': 'Unlock',
   'admin.unlockConfirm': 'Confirm unlock',
+
+  'privacy.title': 'Privacy Policy',
+  'privacy.updated': 'Last updated: 7 November 2026',
+  'privacy.intro':
+    'Majadu records community badminton: who played, with whom, the scores, and the resulting ratings. This page describes what the application actually stores, where it is stored, and what happens when an account is closed. There are no ads, no cross-site tracking, and no selling of data.',
+  'privacy.data.heading': 'Data we collect',
+  'privacy.data.account':
+    'Account. Signing in with Google gives Majadu your Google subject identifier (sub), your email address, and your display name. Majadu stores the sub, your display name, and a SHA-256 hash of your email address. The raw email is not stored, including on invitations. There is no password.',
+  'privacy.data.community':
+    'Community. Community name, slug, and timezone; your membership and role (admin, host, or member); invitations, which are bound to an email hash and carry a status and expiry; and join requests.',
+  'privacy.data.sessions':
+    'Sessions, games, and tournaments. Titles, dates, status, courts, participants, pairings, scores, attendance, and tournament results.',
+  'privacy.data.ratings':
+    'Ratings and achievements. Rating events, player state, rating snapshots, and earned badges. This history belongs to the player and the community, not to the Google account.',
+  'privacy.data.audit':
+    'Audit records. Administrative actions with the actor, their role, the target, the reason, the result, and a request id. Audit rows do not contain raw email addresses, client IP addresses, or share-link codes.',
+  'privacy.data.logs':
+    'Technical logs. The server writes one line per request: time, request id, method, route template, status, duration, and response size. Request bodies, query strings, and authorization headers are not included. Client IP addresses are used in memory to rate-limit requests and are not written to the database.',
+  'privacy.why.heading': 'Why we collect it',
+  'privacy.why.body':
+    'To run the service you asked for: signing you in, keeping your community membership and roles, recording sessions and results, and computing ratings and standings. Google sign-in is how Majadu checks who may access administrative data; players may appear in community records without having an account. We do not build advertising profiles, track you across other sites, or sell data.',
+  'privacy.where.heading': 'Where it is stored',
+  'privacy.where.database':
+    'The database is PostgreSQL on a VPS that we operate ourselves, not a third-party database service. Only the API can reach it.',
+  'privacy.where.web': 'The web application is hosted on Vercel.',
+  'privacy.where.dns': 'The domain, DNS, and proxy run through Cloudflare.',
+  'privacy.where.google':
+    'Sign-in goes through Google. Google handles your credentials and returns your identity; the Google privacy policy applies to that part.',
+  'privacy.where.api':
+    'The API runs on the same VPS behind Caddy and is reached through api.qouver.com over HTTPS.',
+  'privacy.cookies.heading': 'Cookies and local storage',
+  'privacy.cookies.session':
+    'majadu_session is the sign-in cookie. It is HttpOnly (page JavaScript cannot read it), SameSite=Lax, Secure when the app is served over HTTPS, and lasts 30 days by default. The server stores only a hash of its token. A session ends after 7 days of inactivity or 30 days after sign-in, and is revoked on sign-out, role changes, or when an account is disabled.',
+  'privacy.cookies.flow':
+    'majadu_auth_flow is a short-lived HttpOnly cookie used only during Google sign-in. It has no fixed lifetime and is cleared when the callback finishes.',
+  'privacy.cookies.local':
+    'Local storage on your device holds majadu.community.slug (the community you last selected), last-visited-session (the id, title, date, and community slug of the last session you opened), badminton-store (an unsaved session draft with player names, schedule, and settings; cleared on sign-out), and score-red, score-blue, name-red, and name-blue (scoreboard values for that device).',
+  'privacy.cookies.offline':
+    'The installed app caches the application shell, images, and fonts so it can open offline. It does not cache API responses.',
+  'privacy.cookies.thirdParty':
+    'The application sets no advertising or third-party tracking cookies, and no session token is kept in JavaScript. The page loads IBM Plex fonts from Google Fonts, which means your browser makes a request to Google.',
+  'privacy.share.heading': 'Public share links',
+  'privacy.share.body':
+    'A host or admin can create a /s/<code> link for a session. Anyone who has that link can read the session without signing in: the community name, session title and date, player names, pairings, scores, and standings. Treat the link as public to anyone you send it to. The code is stored hashed and encrypted at rest, the link expires after 30 days by default, and the people who manage the session can revoke it at any time; a revoked link stops working immediately. Older links may carry session data inside the URL fragment; those cannot be revoked from the server, so share them with the same care.',
+  'privacy.retention.heading': 'Retention and deletion',
+  'privacy.retention.sessions':
+    'Sign-in sessions: 7 days idle and 30 days absolute by default.',
+  'privacy.retention.temporary':
+    'Temporary rows (OAuth flows, idempotency keys, processed outbox events, WebSocket tickets, and revoked share links): 30 days by default.',
+  'privacy.retention.audit':
+    'Audit records: 365 days by default. Only an owner-run retention job can prune them; the application role cannot delete them.',
+  'privacy.retention.history':
+    'Scores, tournaments, ratings, and achievements: no automatic deletion; they remain for as long as the community uses them.',
+  'privacy.retention.logs':
+    'Server logs: rotated on the server and kept for 14 days by default.',
+  'privacy.deletion.body':
+    'There is no self-service delete button yet. Send a closure request to the contact below. The account is anonymised in one transaction: claims are closed (approved claims become released), player rows are unlinked from the account while their match data remains, community memberships are deleted, sign-in sessions and WebSocket tickets are removed, and the Google subject, email hash, and display name are replaced with anonymous values. Signing in again with the same Google account is then refused. Scores, tournaments, rating history, and audit records are kept because they belong to the player and the community, and audit records document administrative actions rather than identity.',
+  'privacy.contact.heading': 'Contact',
+  'privacy.contact.body':
+    'Questions about this policy, or a request to close your account:',
+  'privacy.contact.email': 'hello@qouver.com',
+  'privacy.changes.heading': 'Changes to this page',
+  'privacy.changes.body':
+    'If what the application stores or how long it keeps it changes, this page and the date above are updated in the same change.',
+  'privacy.back': 'Back to Majadu',
 } as const
 
 export type MessageKey = keyof typeof en
