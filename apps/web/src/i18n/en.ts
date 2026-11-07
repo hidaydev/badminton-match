@@ -98,6 +98,8 @@ export const en = {
   'community.setting.inviteTtl': 'Invite validity, days',
   'community.setting.joinRequests': 'Join requests',
   'community.setting.scoringPreset': 'Default match format',
+  'community.setting.lockedByPlatform':
+    'Turned off by the platform. Only a platform owner can turn it on.',
   'community.value.enabled': 'Enabled',
   'community.value.disabled': 'Disabled',
   'community.source.community': 'Community',

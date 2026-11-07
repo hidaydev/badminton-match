@@ -14,12 +14,20 @@ export class ApiError extends Error {
   readonly status: number | null
   /** Business code from the error body (eg `CLIENT_OUTDATED`, `STALE_VERSION`). */
   readonly code: string | null
+  /** Sentence from the error body (eg the reason a settings write was refused). */
+  readonly detail: string | null
 
-  constructor(message: string, code: string | null = null, status: number | null = null) {
+  constructor(
+    message: string,
+    code: string | null = null,
+    status: number | null = null,
+    detail: string | null = null,
+  ) {
     super(message)
     this.name = 'ApiError'
     this.code = code
     this.status = status
+    this.detail = detail
   }
 }
 

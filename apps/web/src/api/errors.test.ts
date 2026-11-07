@@ -37,4 +37,19 @@ describe('request', () => {
 
     expect(seen).toEqual(['expired'])
   })
+
+  it('keeps the server detail so a screen can show the reason', async () => {
+    const detail =
+      'override may not enable a platform-disabled flag: community.join_requests_enabled'
+    mockFetch({
+      'PATCH /api/c/acme/settings': () => ({
+        status: 400,
+        body: { code: 'OVERRIDE_TOO_HIGH', detail },
+      }),
+    })
+
+    await expect(
+      request('/c/acme/settings', { method: 'PATCH', body: '{}' }),
+    ).rejects.toMatchObject({ code: 'OVERRIDE_TOO_HIGH', detail })
+  })
 })

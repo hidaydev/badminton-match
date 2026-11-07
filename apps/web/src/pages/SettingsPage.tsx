@@ -4,7 +4,7 @@ import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useCommunity } from '../community/CommunityContext'
 import { updateCommunityConfig, fetchScoringPresets } from '../community/api'
-import type { CommunityConfig, ScoringPreset } from '../community/api'
+import type { CommunityConfig, CommunityConfigEntry, ScoringPreset } from '../community/api'
 import { useCommunityConfig } from '../community/useCommunityConfig'
 import {
   createInvite,
@@ -158,6 +158,30 @@ function fromDraft(field: ConfigField, raw: string | boolean | undefined): unkno
 }
 
 /**
+ * A switch the server says the community cannot turn on. The API decides this
+ * per key (`widenable`), so the screen never hardcodes which flags are opt-in;
+ * a response without the field counts as not widenable and fails safe.
+ */
+function pinnedByPlatform(
+  field: ConfigField,
+  entry: CommunityConfigEntry | undefined,
+): boolean {
+  return (
+    field.kind === 'bool' &&
+    entry !== undefined &&
+    entry.source === 'platform' &&
+    entry.value === false &&
+    entry.widenable !== true
+  )
+}
+
+/** The server explains a refused write in `detail`; show it when it is there. */
+function describeSave(error: unknown): string {
+  if (error instanceof ApiError && error.detail !== null) return error.detail
+  return describe(error)
+}
+
+/**
  * The values an admin can narrow. The server rejects anything above the platform
  * value, so the screen shows the source of each one instead of pretending the
  * community owns it.
@@ -202,6 +226,9 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
   const submit = async () => {
     const patch: Record<string, unknown> = {}
     for (const field of CONFIG_FIELDS) {
+      // A pinned switch is locked on screen; keeping it out of the body means
+      // the form never asks the server for a write it has already refused.
+      if (pinnedByPlatform(field, values[field.key])) continue
       const next = fromDraft(field, fieldValue(field))
       const current = values[field.key]?.value
       // A key the server did not report and an untouched empty draft are the
@@ -223,7 +250,7 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
       setEdits({})
       setMessage(t('community.settings.saved'))
     } catch (problem) {
-      setMessage(describe(problem))
+      setMessage(describeSave(problem))
     } finally {
       setBusy(false)
     }
@@ -243,6 +270,8 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
         {CONFIG_FIELDS.map((field) => {
           const entry = values[field.key]
           const id = `config-${field.key}`
+          const pinned = pinnedByPlatform(field, entry)
+          const reasonId = `${id}-locked`
           return (
             <div key={field.key} className="flex flex-wrap items-center justify-between gap-2">
               <span className="flex items-baseline gap-2">
@@ -260,11 +289,18 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
                   id={id}
                   type="checkbox"
                   checked={fieldValue(field) === true}
-                  disabled={!canEdit || busy}
-                  onChange={(event) =>
-                    setEdits((current) => ({ ...current, [field.key]: event.target.checked }))
-                  }
-                  className="h-5 w-5 rounded border border-border bg-elevated text-accent focus-visible:ring-2 focus-visible:ring-accent"
+                  disabled={!canEdit || busy || pinned}
+                  aria-describedby={pinned ? reasonId : undefined}
+                  onChange={(event) => {
+                    // Disabled in the DOM already; ignoring a synthetic change
+                    // keeps the draft from disagreeing with the lock.
+                    if (pinned) return
+                    setEdits((current) => ({
+                      ...current,
+                      [field.key]: event.target.checked,
+                    }))
+                  }}
+                  className="h-5 w-5 rounded border border-border bg-elevated text-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
                 />
               ) : field.kind === 'select' ? (
                 <select
@@ -296,6 +332,11 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
                   }
                   className="min-h-11 w-40 rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"
                 />
+              )}
+              {pinned && (
+                <p id={reasonId} className="w-full text-xs text-fg-dim">
+                  {t('community.setting.lockedByPlatform')}
+                </p>
               )}
             </div>
           )

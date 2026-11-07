@@ -37,7 +37,8 @@ function renderAt(path: string) {
 const effective = {
   'community.default_timezone': { value: 'Asia/Jakarta', source: 'platform' },
   'community.invite_ttl_days': { value: 7, source: 'platform' },
-  'community.directory_enabled': { value: false, source: 'platform' },
+  'community.directory_enabled': { value: false, source: 'platform', widenable: true },
+  // No `widenable`: the client must read that as a ceiling, not as opt-in.
   'community.join_requests_enabled': { value: false, source: 'platform' },
 }
 
@@ -124,6 +125,126 @@ describe('community settings', () => {
       'community.invite_ttl_days': 3,
     })
     expect(input).toHaveValue(3)
+  })
+
+  it('locks a switch the platform pinned off and never sends it', async () => {
+    const fetchMock = base({
+      'PATCH /api/c/acme/settings': () => ({
+        body: { values: { 'community.invite_ttl_days': 3 } },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    const pinned = await screen.findByLabelText(t('community.setting.joinRequests'))
+    expect(pinned).not.toBeChecked()
+    expect(pinned).toBeDisabled()
+    expect(pinned).toHaveAccessibleDescription(t('community.setting.lockedByPlatform'))
+
+    // The server marks the directory widenable, so its switch stays.
+    expect(screen.getByLabelText(t('community.setting.directory'))).toBeEnabled()
+
+    fireEvent.click(pinned)
+    expect(pinned).not.toBeChecked()
+
+    fireEvent.change(screen.getByLabelText(t('community.setting.inviteTtl')), {
+      target: { value: '3' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: t('community.settings.save') }))
+
+    await waitFor(() => {
+      expect(screen.getByText(t('community.settings.saved'))).toBeInTheDocument()
+    })
+    const call = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url) === '/api/c/acme/settings' &&
+        (init as RequestInit | undefined)?.method === 'PATCH',
+    )
+    expect(jsonBody((call as [string, RequestInit])[1])).toEqual({
+      'community.invite_ttl_days': 3,
+    })
+  })
+
+  it('lets an admin turn on a flag the platform allows widening', async () => {
+    const fetchMock = base({
+      'PATCH /api/c/acme/settings': () => ({
+        body: { values: { 'community.directory_enabled': true } },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    const directory = await screen.findByLabelText(t('community.setting.directory'))
+    expect(directory).toBeEnabled()
+    fireEvent.click(directory)
+    fireEvent.click(screen.getByRole('button', { name: t('community.settings.save') }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url) === '/api/c/acme/settings' &&
+          (init as RequestInit | undefined)?.method === 'PATCH',
+      )
+      expect(jsonBody((call as [string, RequestInit])[1])).toEqual({
+        'community.directory_enabled': true,
+      })
+    })
+  })
+
+  it('follows the server rather than the key name when a flag is widenable', async () => {
+    const fetchMock = base({
+      'GET /api/c/acme/config': () => ({
+        body: {
+          effective: {
+            ...effective,
+            'community.join_requests_enabled': {
+              value: false,
+              source: 'platform',
+              widenable: true,
+            },
+          },
+        },
+      }),
+      'PATCH /api/c/acme/settings': () => ({ body: { values: {} } }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    const join = await screen.findByLabelText(t('community.setting.joinRequests'))
+    expect(join).toBeEnabled()
+    fireEvent.click(join)
+    fireEvent.click(screen.getByRole('button', { name: t('community.settings.save') }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url) === '/api/c/acme/settings' &&
+          (init as RequestInit | undefined)?.method === 'PATCH',
+      )
+      expect(jsonBody((call as [string, RequestInit])[1])).toEqual({
+        'community.join_requests_enabled': true,
+      })
+    })
+  })
+
+  it('shows the reason the server refused a save', async () => {
+    const detail =
+      'override may not enable a platform-disabled flag: community.join_requests_enabled'
+    base({
+      'PATCH /api/c/acme/settings': () => ({
+        status: 400,
+        body: { status: 400, code: 'OVERRIDE_TOO_HIGH', detail },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    fireEvent.change(await screen.findByLabelText(t('community.setting.inviteTtl')), {
+      target: { value: '3' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: t('community.settings.save') }))
+
+    expect(await screen.findByText(detail)).toBeInTheDocument()
   })
 
   it('answers a join request', async () => {

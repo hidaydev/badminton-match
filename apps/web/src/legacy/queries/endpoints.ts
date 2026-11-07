@@ -146,14 +146,16 @@ export async function request<T>(
       if (!res.ok) {
         let message = `${res.status} ${res.statusText}`
         let code: string | null = null
+        let detail: string | null = null
         try {
           const json = await res.json() as { detail?: string; message?: string; code?: string }
-          message = json.detail ?? json.message ?? message
+          detail = json.detail ?? json.message ?? null
+          message = detail ?? message
           code = json.code ?? null
         } catch {
           // keep HTTP status text
         }
-        const err = new ApiError(message, code, res.status)
+        const err = new ApiError(message, code, res.status, detail)
         // A 410 means the contract moved and a 401 means the cookie is gone.
         // Both are shell-level states, so signal them for every legacy caller
         // instead of letting ~90% of traffic render a generic "Failed to load".

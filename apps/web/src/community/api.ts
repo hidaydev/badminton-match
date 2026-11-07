@@ -5,6 +5,12 @@ import type { CommunityRole } from '../auth/api'
 export type CommunityConfigEntry = {
   value: unknown
   source: 'platform' | 'community'
+  /**
+   * Booleans only: true when the platform value is a default the community may
+   * turn on rather than a ceiling. A response without the field predates it, so
+   * the entry is treated as not widenable.
+   */
+  widenable?: boolean
 }
 
 export type CommunityConfig = Record<string, CommunityConfigEntry>

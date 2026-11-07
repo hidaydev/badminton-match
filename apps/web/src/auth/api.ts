@@ -39,7 +39,14 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   if (!response.ok) {
     const problem = await response.json().catch(() => ({}))
     const code = typeof problem.code === 'string' ? problem.code : 'UNKNOWN'
-    const error = new ApiError(`${response.status} ${code}`, code, response.status)
+    const detail =
+      typeof problem.detail === 'string' && problem.detail !== '' ? problem.detail : null
+    const error = new ApiError(
+      `${response.status} ${code}`,
+      code,
+      response.status,
+      detail,
+    )
     // A 410 is the contract rolling forward and a 401 is the cookie going away;
     // both need the shell to react, not just the screen that made the call.
     if (isClientOutdated(error)) reportClientOutdated()
