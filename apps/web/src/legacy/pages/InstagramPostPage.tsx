@@ -483,6 +483,7 @@ export default function InstagramPostPage() {
           onClose={closeSheet}
           title={sheetScreen === 'formats' ? t('instagram.sheet.downloadAs') : t('instagram.sheet.pickSession')}
           labelledBy="instagram-sheet-title"
+          focusKey={sheetScreen}
         >
           {sheetScreen === 'formats' && (
             <>

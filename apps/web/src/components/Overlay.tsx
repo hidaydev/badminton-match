@@ -1,6 +1,6 @@
 // Overlay — the one sheet every dialog in the app builds on. It owns the scrim,
 // the focus trap, Escape, the body scroll lock, the bottom safe area and the
-// iOS keyboard clamp, so no call site has to repeat them.
+// iOS keyboard clamp and lift, so no call site has to repeat them.
 import { useEffect, useId, useRef } from 'react'
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 import { useEscapeKey } from '../legacy/hooks/useEscapeKey'
@@ -20,13 +20,19 @@ type OverlayProps = {
   dismissible?: boolean
   /** Escape hatch for a heading the caller renders inside `children`. */
   labelledBy?: string
+  /**
+   * Re-focus the sheet whenever this value changes. A screen switch inside the
+   * sheet unmounts the button that was focused, which would drop focus to
+   * `<body>` where the trap no longer catches Tab.
+   */
+  focusKey?: unknown
 }
 
 const SCRIM = 'fixed inset-0 z-50 flex items-end justify-center bg-black/60'
 const SHEET =
   'relative flex w-full max-w-lg max-h-dvh flex-col overflow-hidden rounded-t-3xl border-t border-border-subtle bg-surface pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-2xl'
 const HANDLE = 'mx-auto mt-3 mb-1 h-1 w-10 shrink-0 rounded-full bg-border'
-const HEADER = 'shrink-0 px-5 pt-3 pb-2'
+const HEADER = 'shrink-0 pl-5 pr-14 pt-3 pb-2'
 const BODY = 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4'
 const FOOTER = 'shrink-0 border-t border-border-subtle px-5 pt-3'
 const CLOSE =
@@ -75,6 +81,7 @@ export function Overlay({
   footer,
   dismissible = true,
   labelledBy,
+  focusKey,
 }: OverlayProps) {
   const sheetRef = useRef<HTMLDivElement>(null)
   const startedOnScrim = useRef(false)
@@ -85,14 +92,26 @@ export function Overlay({
 
   useEffect(() => lockBodyScroll(), [])
 
+  // The trap owns the mount focus; this repeats it when the caller swaps
+  // screens inside the sheet and the focused button unmounts.
+  useEffect(() => {
+    if (focusKey === undefined) return
+    sheetRef.current?.focus()
+  }, [focusKey])
+
   // `max-h-dvh` follows the browser chrome, not the keyboard. The visual
-  // viewport is the only thing that shrinks when iOS opens its keyboard.
+  // viewport is the only thing that shrinks when iOS opens its keyboard, and
+  // the layout viewport keeps its height, so the sheet is both clamped and
+  // lifted by the part of the layout viewport the keyboard covers. This is a
+  // layout approximation until it is checked on a device.
   useEffect(() => {
     const viewport = window.visualViewport
     const sheet = sheetRef.current
     if (!viewport || !sheet) return
     const clamp = () => {
       sheet.style.maxHeight = `${Math.max(viewport.height - 16, 0)}px`
+      const keyboardGap = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      sheet.style.marginBottom = `${keyboardGap}px`
     }
     clamp()
     viewport.addEventListener('resize', clamp)
@@ -101,6 +120,7 @@ export function Overlay({
       viewport.removeEventListener('resize', clamp)
       viewport.removeEventListener('scroll', clamp)
       sheet.style.maxHeight = ''
+      sheet.style.marginBottom = ''
     }
   }, [])
 

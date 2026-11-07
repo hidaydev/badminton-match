@@ -182,7 +182,7 @@ halaman, bukan dialog (lihat daftar di bawah).
 | Tap scrim | `pointerdown` mencatat apakah gestur dimulai di scrim; klik hanya menutup bila mulai dan berakhir di scrim, jadi drag-select dari body tidak menutup sheet |
 | Body scroll lock | Counter modul: overlay pertama menyetel `body` ke `position: fixed`, `top: -scrollY`, `width: 100%`, `overflow: hidden`; overlay terakhir mengembalikan style sebelumnya dan `scrollTo` posisi lama. `overflow: hidden` saja tidak dihormati iOS |
 | Safe area | `pb-[max(0.75rem,env(safe-area-inset-bottom))]` dipasang sekali di sheet, bukan di footer. Footerless sheet (#4, #11, #15) ikut berhenti di atas home indicator; footer tidak boleh mengulang padding itu |
-| Keyboard clamp | `useEffect` membaca `window.visualViewport` (feature-detected) dan menulis inline `maxHeight = viewport.height - 16` saat resize/scroll, lalu menghapusnya saat unmount |
+| Keyboard clamp + lift | `useEffect` membaca `window.visualViewport` (feature-detected) saat resize/scroll: menulis inline `maxHeight = viewport.height - 16` dan `marginBottom = max(0, innerHeight - viewport.height - offsetTop)`, lalu menghapus keduanya saat unmount. Margin mengangkat sheet selebar area yang ditutup keyboard karena layout viewport iOS tidak ikut menyusut; di desktop/Android gap-nya 0 sehingga tidak ada perubahan. Ini aproksimasi layout sampai dicek di perangkat |
 | Semantik | `role="dialog"`, `aria-modal="true"`, `aria-labelledby` dari `<h2 id>` (atau `labelledBy`); ✕ adalah target 44px dengan label dari `common.close` |
 | Non-dismissible | Saat `dismissible` false, ✕ tidak dirender sama sekali, bukan dirender disabled |
 

@@ -1,6 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Overlay } from './Overlay'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 type OverlayOverrides = {
   description?: string
@@ -72,5 +76,70 @@ describe('Overlay', () => {
     const dialog = screen.getByRole('dialog')
     expect(dialog.getAttribute('aria-labelledby')).toBe('custom-heading')
     expect(screen.queryByRole('heading', { name: 'Sheet title' })).toBeNull()
+  })
+
+  it('restores the scroll position when two overlays close out of order', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    vi.stubGlobal('scrollY', 420)
+    const bottom = render(
+      <Overlay onClose={() => {}} title="Bottom">
+        <button>bottom inside</button>
+      </Overlay>,
+    )
+    const top = render(
+      <Overlay onClose={() => {}} title="Top">
+        <button>top inside</button>
+      </Overlay>,
+    )
+    expect(document.body.style.top).toBe('-420px')
+    // Closing the top overlay keeps the lock: the bottom one is still open.
+    top.unmount()
+    expect(document.body.style.position).toBe('fixed')
+    expect(document.body.style.top).toBe('-420px')
+    expect(scrollTo).not.toHaveBeenCalled()
+    bottom.unmount()
+    expect(document.body.style.position).toBe('')
+    expect(document.body.style.top).toBe('')
+    expect(scrollTo).toHaveBeenCalledWith(0, 420)
+  })
+
+  it('applies a dismissible change to Escape and the close button', () => {
+    const onClose = vi.fn()
+    const view = render(
+      <Overlay onClose={onClose} title="Sheet title" dismissible={false}>
+        <button>inside</button>
+      </Overlay>,
+    )
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+
+    view.rerender(
+      <Overlay onClose={onClose} title="Sheet title">
+        <button>inside</button>
+      </Overlay>,
+    )
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(onClose).toHaveBeenCalledTimes(2)
+  })
+
+  it('moves focus back into the sheet when focusKey changes', () => {
+    const view = render(
+      <Overlay onClose={() => {}} title="Sheet title" focusKey="formats">
+        <button>inside</button>
+      </Overlay>,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Sheet title' })
+    screen.getByRole('button', { name: 'inside' }).focus()
+    expect(document.activeElement).not.toBe(dialog)
+
+    view.rerender(
+      <Overlay onClose={() => {}} title="Sheet title" focusKey="session-picker">
+        <button>inside</button>
+      </Overlay>,
+    )
+    expect(document.activeElement).toBe(dialog)
   })
 })

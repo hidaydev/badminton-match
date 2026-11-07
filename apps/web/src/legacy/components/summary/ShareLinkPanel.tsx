@@ -22,11 +22,27 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const revokeRef = useRef<HTMLButtonElement>(null)
+  const returnToRevoke = useRef(false)
 
-  // The Revoke button is replaced by the confirm pair; keep focus on it.
+  // The Revoke button is replaced by the confirm pair; keep focus on it, and
+  // hand focus back when Cancel unmounts the pressed button instead of letting
+  // it fall to <body> outside the trap.
   useEffect(() => {
-    if (confirmRevoke) confirmRef.current?.focus()
+    if (confirmRevoke) {
+      confirmRef.current?.focus()
+      return
+    }
+    if (returnToRevoke.current) {
+      returnToRevoke.current = false
+      revokeRef.current?.focus()
+    }
   }, [confirmRevoke])
+
+  function cancelRevoke() {
+    returnToRevoke.current = true
+    setConfirmRevoke(false)
+  }
 
   const shareKey = communityQueryKey('session-share', sessionId)
   const { data: code = null, isLoading } = useQuery({
@@ -151,6 +167,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
                   </button>
                   {!confirmRevoke ? (
                     <button
+                      ref={revokeRef}
                       type="button"
                       onClick={() => { setConfirmRevoke(true); setError(null) }}
                       disabled={busy}
@@ -172,7 +189,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setConfirmRevoke(false)}
+                        onClick={cancelRevoke}
                         disabled={busy}
                         className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:text-white disabled:opacity-50 transition-colors"
                       >

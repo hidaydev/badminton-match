@@ -122,10 +122,9 @@ export default function SummaryModal({
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'standings'>('schedule')
   // Escape menutup modal (tidak saat standalone/full-page). Menu Actions punya
-  // handler sendiri di atas stack; guard ini memastikan satu Escape hanya
-  // menutup satu hal meski urutan stack berubah.
+  // handler sendiri; stack di useEscapeKey memastikan satu Escape hanya
+  // menutup satu hal, jadi tidak perlu guard di sini.
   useEscapeKey(() => {
-    if (actionsOpen) return
     onClose?.()
   }, !!onClose && !standalone)
 

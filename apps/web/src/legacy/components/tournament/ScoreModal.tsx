@@ -45,11 +45,12 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
     )
   }
 
-  // The skeleton branch is the only in-flight state this sheet has: while the
-  // match refetches the overlay drops Escape, the scrim tap and the ✕.
+  // The match refetches on focus and after every open, so this sheet can mount
+  // in its skeleton state. That is a read, not a write: nothing is in flight
+  // that a stray tap could corrupt, so the sheet stays dismissible.
   if (isFetching) {
     return (
-      <Overlay onClose={onClose} title={null} labelledBy={loadingHeadingId} dismissible={false}>
+      <Overlay onClose={onClose} title={null} labelledBy={loadingHeadingId}>
         <h2 id={loadingHeadingId} className="sr-only">{t('tournament.enterScore')}</h2>
         <div className="animate-pulse">
           <div className="h-5 bg-elevated rounded w-1/3 mx-auto mb-1" />
