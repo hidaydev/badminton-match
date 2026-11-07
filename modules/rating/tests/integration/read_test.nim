@@ -227,6 +227,56 @@ proc addClassicTournament(age: int, withLevel: bool, winnerScore,
       @[textParam(communityId)])
   tournamentId
 
+type TeamRosterEntry = tuple[name: string, playerId: string, cls: string]
+
+proc addTeamTournament(age: int, name: string): string =
+  ## A team-format header. Its partais live in the team tables, not the classic
+  ## ones, which is why the read merges a second pass over them.
+  database.queryOne(
+    """insert into tournament.tournaments
+         (community_id, name, status, format, event_date)
+       values ($1::uuid, $2, 'completed', 'team', $3::date - $4::int)
+       returning id""",
+    @[textParam(communityId), textParam(name), textParam(asOf),
+      intParam(age.int64)]).get.get("id")
+
+proc addTeam(tournamentId: string, seed: int, teamName: string,
+             roster: seq[TeamRosterEntry]): string =
+  let teamId = database.queryOne(
+    """insert into tournament.teams
+         (community_id, tournament_id, seed, team_name)
+       values ($1::uuid, $2::uuid, $3::int, $4)
+       returning id""",
+    @[textParam(communityId), textParam(tournamentId), intParam(seed.int64),
+      textParam(teamName)]).get.get("id")
+  for entry in roster:
+    discard database.execUpdate(
+      """insert into tournament.team_players
+           (community_id, team_id, player_name, player_id, cls)
+         values ($1::uuid, $2::uuid, $3, $4::uuid, $5)""",
+      @[textParam(communityId), textParam(teamId), textParam(entry.name),
+        textParam(entry.playerId), textParam(entry.cls)])
+  teamId
+
+proc addTeamMatch(tournamentId, matchKey: string, order: int,
+                  teamA, teamB: string,
+                  partai: seq[tuple[index: int, scoreA: int, scoreB: int]]) =
+  let matchId = database.queryOne(
+    """insert into tournament.team_matches
+         (community_id, tournament_id, phase, match_order, match_key,
+          team_a_id, team_b_id)
+       values ($1::uuid, $2::uuid, 'group', $3::int, $4, $5::uuid, $6::uuid)
+       returning id""",
+    @[textParam(communityId), textParam(tournamentId), intParam(order.int64),
+      textParam(matchKey), textParam(teamA), textParam(teamB)]).get.get("id")
+  for entry in partai:
+    discard database.execUpdate(
+      """insert into tournament.team_partai
+           (community_id, team_match_id, partai_index, score_a, score_b)
+         values ($1::uuid, $2::uuid, $3::int, $4::int, $5::int)""",
+      @[textParam(communityId), textParam(matchId), intParam(entry.index.int64),
+        intParam(entry.scoreA.int64), intParam(entry.scoreB.int64)])
+
 database = openDb(dsn(), 1)
 cleanup()
 seed()
@@ -381,8 +431,9 @@ suite "ranking read":
     # worth 250 * (0.5 + 0.5 * 11/42), rounded once at the edge.
     check entry.get.points == int(round(250.0 * (0.5 + 0.5 * 11.0 / 42.0)))
 
-  test "the tournament lists are three deep and classic only":
-    let main = newPlayer("Cup Main")
+  test "the tournament lists merge team partais, cap at three and keep count order":
+    let mainName = "Cup Main"
+    let main = newPlayer(mainName)
     let mates = @[newPlayer("Cup Mate 1"), newPlayer("Cup Mate 2"),
       newPlayer("Cup Mate 3"), newPlayer("Cup Mate 4")]
     let rivals = @[newPlayer("Cup Rival 1"), newPlayer("Cup Rival 2")]
@@ -392,6 +443,20 @@ suite "ranking read":
       discard addClassicTournament(index + 1, withLevel = false,
         winnerScore = 21, loserScore = 10, @[main, mate],
         @[rivals[index mod 2], rivals[(index + 1) mod 2]])
+    # A team event stores its fixtures in the team tables. Main plays class B,
+    # so partai 2 pairs them with the team's B+ player and against the opposing
+    # team's B+ and B players.
+    let teamCup = addTeamTournament(5, "Read Team Cup")
+    let teamA = addTeam(teamCup, 1, "RED RAPTORS", @[
+      (name: "Cup Mate 1", playerId: mates[0], cls: "B+"),
+      (name: mainName, playerId: main, cls: "B")])
+    let teamB = addTeam(teamCup, 2, "WHITE FURY", @[
+      (name: "Cup Rival 1", playerId: rivals[0], cls: "B+"),
+      (name: "Cup Rival 2", playerId: rivals[1], cls: "B")])
+    addTeamMatch(teamCup, "group-1", 1, teamA, teamB,
+      @[(index: 2, scoreA: 30, scoreB: 20)])
+    addTeamMatch(teamCup, "group-2", 2, teamA, teamB,
+      @[(index: 2, scoreA: 18, scoreB: 30)])
     # A team-format header whose classic match rows exist anyway. Its sort-first
     # names would take a slot if the format filter were missing.
     discard addClassicTournament(9, withLevel = false, winnerScore = 21,
@@ -401,13 +466,25 @@ suite "ranking read":
     let tournament = stats(database, communityId, main).get["tournamentStats"]
     let partners = tournament["topPartners"]
     check partners.len == 3
+    # The B+ teammate is the class-B player's partner, and the name that also
+    # appeared in the classic event is summed once, not listed twice.
     check partners[0]["name"].getStr() == "Cup Mate 1"
+    check partners[0]["count"].getInt() == 3
+    check partners[0]["wins"].getInt() == 2
     check partners[2]["name"].getStr() == "Cup Mate 3"
-    # The team tournament reaches neither list: the partners and the opponents
-    # share one query, so one format filter covers both.
+    var cups = 0
+    for entry in partners:
+      if entry["name"].getStr() == "Cup Mate 1": inc cups
+    check cups == 1
+    # The classic rows under a team header still stay out.
     check socialCount(partners, "Cup A Team Mate") == 0
-    check socialCount(tournament["topOpponents"], "Cup A Team Rival 1") == 0
-    check tournament["topOpponents"].len == 2
+    # Both classes of the opposing pair count as opponents, and their classic
+    # and team appearances add up.
+    let opponents = tournament["topOpponents"]
+    check opponents.len == 2
+    check socialCount(opponents, "Cup Rival 1") == 6
+    check socialCount(opponents, "Cup Rival 2") == 6
+    check socialCount(opponents, "Cup A Team Rival 1") == 0
 
   test "a skipped or absent player does not score that game":
     let roster = @[newPlayer("Skip A1"), newPlayer("Skip A2"),

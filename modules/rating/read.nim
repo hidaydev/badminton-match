@@ -1,5 +1,6 @@
 import std/[algorithm, json, options, strutils, tables]
 import db/db
+import tournament/domain/team
 import ./domain/rating
 import ./projection
 
@@ -397,14 +398,65 @@ proc playerSocial(db: Db, communityId, playerId: string,
       "losses": parseInt(row.get("losses")),
     })
 
+type
+  CareerTally = tuple[count: int, wins: int]
+
+  TeamRosterEntry = object
+    cls: TeamClass
+    name: string
+
+  TeamFixture = object
+    teamA: string
+    teamB: string
+    partaiIndex: int
+    scoreA: int
+    scoreB: int
+
+  TeamMembership = object
+    teamId: string
+    cls: TeamClass
+    partaiIndex: int
+
+proc parseTeamClass(value: string): Option[TeamClass] =
+  ## The database stores a class as the enum's own string, so the mapping stays
+  ## in the tournament domain instead of being repeated as a second copy.
+  try:
+    some(parseEnum[TeamClass](value))
+  except ValueError:
+    none(TeamClass)
+
+proc partaiIndexOf(cls: TeamClass): int =
+  ## The one partai a class plays; PartaiClasses is the only place that says so.
+  for index in 0 ..< PartaiClasses.len:
+    if classInPartai(index, cls):
+      return index
+  -1
+
+proc addTally(tallies: var Table[string, CareerTally], name: string, won: bool) =
+  var tally = tallies.getOrDefault(name)
+  tally.count.inc
+  if won: tally.wins.inc
+  tallies[name] = tally
+
+proc rosterName(roster: seq[TeamRosterEntry], cls: TeamClass): Option[string] =
+  ## A fixture is only trustworthy when exactly one rostered player holds the
+  ## class; a missing or duplicated class would make the partner a guess.
+  var found = 0
+  var name = ""
+  for entry in roster:
+    if entry.cls == cls:
+      found.inc
+      name = entry.name
+  if found == 1: some(name) else: none(string)
+
 proc tournamentPartners(db: Db, communityId, playerId: string,
                         opponentsOnly: bool): JsonNode =
-  ## Classic tournament pairs only, at most three names ordered by games
-  ## together. The classic filter is on the tournament header, so a team-format
-  ## tournament never contributes a social row even if its matches landed in the
-  ## classic tables. A real team-format partner depends on the partai class
-  ## mapping, which lives in the tournament domain; rather than duplicate it in
-  ## SQL this read returns no team social rows.
+  ## Classic tournament pairs plus team-format partais, at most three names
+  ## ordered by games together. A team event stores partais instead of pairs, so
+  ## the class-to-partai mapping comes from the tournament domain: a rostered
+  ## player appears in the partai that holds their class, partnered by the other
+  ## class of that pair and facing both classes of the opposing team. The classic
+  ## rows still come from SQL; the two tallies merge on the canonical name.
   result = newJArray()
   let classicCte =
     """with classic as (
@@ -442,9 +494,7 @@ proc tournamentPartners(db: Db, communityId, playerId: string,
        cross join lateral unnest(classic.opps) as opp(player_id)
        join player.players p on p.id = opp.player_id
          and p.community_id = $1::uuid
-       group by p.canonical_name
-       order by count desc, p.canonical_name asc
-       limit """ & $careerListCap
+       group by p.canonical_name"""
     else:
       classicCte & """
        select p.canonical_name as name, count(*)::int as count,
@@ -455,14 +505,126 @@ proc tournamentPartners(db: Db, communityId, playerId: string,
        join player.players p on p.id = classic.mate
          and p.community_id = $1::uuid
        where classic.mate is not null
-       group by p.canonical_name
-       order by count desc, p.canonical_name asc
-       limit """ & $careerListCap
+       group by p.canonical_name"""
+  var tallies = initTable[string, CareerTally]()
   for row in db.query(sql, @[textParam(communityId), textParam(playerId)]):
+    tallies[row.get("name")] = (count: parseInt(row.get("count")),
+      wins: parseInt(row.get("wins")))
+  var members: seq[TeamMembership] = @[]
+  var seenTeams = initTable[string, bool]()
+  for row in db.query(
+    """select team_id::text as team_id, cls
+       from tournament.team_players
+       where community_id = $1::uuid and player_id = $2::uuid""",
+    @[textParam(communityId), textParam(playerId)]):
+    let cls = parseTeamClass(row.get("cls"))
+    if cls.isNone:
+      continue
+    let partaiIndex = partaiIndexOf(cls.get)
+    if partaiIndex < 0:
+      continue
+    let teamId = row.get("team_id")
+    if seenTeams.hasKey(teamId):
+      continue
+    seenTeams[teamId] = true
+    members.add(TeamMembership(teamId: teamId, cls: cls.get,
+      partaiIndex: partaiIndex))
+  if members.len > 0:
+    var membershipIds: seq[string] = @[]
+    for member in members:
+      if member.teamId notin membershipIds:
+        membershipIds.add(member.teamId)
+    var rosterIds = initTable[string, bool]()
+    var rosterOrder: seq[string] = @[]
+    for teamId in membershipIds:
+      rosterIds[teamId] = true
+      rosterOrder.add(teamId)
+    var fixtures: seq[TeamFixture] = @[]
+    for teamId in membershipIds:
+      for row in db.query(
+        """select tm.team_a_id::text as team_a_id,
+                  tm.team_b_id::text as team_b_id,
+                  part.partai_index, part.score_a::text as score_a,
+                  part.score_b::text as score_b
+           from tournament.team_partai part
+           join tournament.team_matches tm
+             on tm.community_id = part.community_id
+            and tm.id = part.team_match_id
+           where tm.community_id = $1::uuid
+             and (tm.team_a_id = $2::uuid or tm.team_b_id = $2::uuid)
+             and part.score_a is not null and part.score_b is not null""",
+        @[textParam(communityId), textParam(teamId)]):
+        let teamA = row.get("team_a_id")
+        let teamB = row.get("team_b_id")
+        for side in [teamA, teamB]:
+          if not rosterIds.hasKey(side):
+            rosterIds[side] = true
+            rosterOrder.add(side)
+        fixtures.add(TeamFixture(teamA: teamA, teamB: teamB,
+          partaiIndex: parseInt(row.get("partai_index")),
+          scoreA: parseInt(row.get("score_a")),
+          scoreB: parseInt(row.get("score_b"))))
+    var rosters = initTable[string, seq[TeamRosterEntry]]()
+    for row in db.query(
+      """select tp.team_id::text as team_id, tp.cls, p.canonical_name
+         from tournament.team_players tp
+         join player.players p
+           on p.id = tp.player_id and p.community_id = tp.community_id
+         where tp.community_id = $1::uuid
+           and tp.team_id = any($2::uuid[])""",
+      @[textParam(communityId), textParam(uuidArray(rosterOrder))]):
+      let cls = parseTeamClass(row.get("cls"))
+      if cls.isNone:
+        continue
+      rosters.mgetOrPut(row.get("team_id"), newSeq[TeamRosterEntry]()).add(
+        TeamRosterEntry(cls: cls.get, name: row.get("canonical_name")))
+    for member in members:
+      let pair = PartaiClasses[member.partaiIndex]
+      if opponentsOnly:
+        for fixture in fixtures:
+          if fixture.partaiIndex != member.partaiIndex:
+            continue
+          let onA = fixture.teamA == member.teamId
+          if not onA and fixture.teamB != member.teamId:
+            continue
+          let oppRoster =
+            rosters.getOrDefault(if onA: fixture.teamB else: fixture.teamA)
+          let first = rosterName(oppRoster, pair[0])
+          let second = rosterName(oppRoster, pair[1])
+          if first.isNone or second.isNone:
+            continue
+          let won = if onA: fixture.scoreA > fixture.scoreB
+                    else: fixture.scoreB > fixture.scoreA
+          tallies.addTally(first.get, won)
+          tallies.addTally(second.get, won)
+      else:
+        let partnerCls = if member.cls == pair[0]: pair[1] else: pair[0]
+        let partner = rosterName(rosters.getOrDefault(member.teamId), partnerCls)
+        if partner.isNone:
+          continue
+        for fixture in fixtures:
+          if fixture.partaiIndex != member.partaiIndex:
+            continue
+          let onA = fixture.teamA == member.teamId
+          if not onA and fixture.teamB != member.teamId:
+            continue
+          let won = if onA: fixture.scoreA > fixture.scoreB
+                    else: fixture.scoreB > fixture.scoreA
+          tallies.addTally(partner.get, won)
+  var names: seq[string] = @[]
+  for name in tallies.keys: names.add(name)
+  names.sort(proc(a, b: string): int =
+    let left = tallies[a]
+    let right = tallies[b]
+    if left.count != right.count: cmp(right.count, left.count)
+    else: cmp(a, b))
+  if names.len > careerListCap:
+    names.setLen(careerListCap)
+  for name in names:
     result.add(%*{
-      "name": row.get("name"),
-      "count": parseInt(row.get("count")),
-      "wins": parseInt(row.get("wins")),
+      "name": name,
+      "count": tallies[name].count,
+      "wins": tallies[name].wins,
     })
 
 proc tournamentStats(db: Db, communityId, playerId: string): JsonNode =
