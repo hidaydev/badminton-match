@@ -111,7 +111,7 @@ export default function ResolvePlayersModal({
                 <select
                   value={entry.mergeTarget ?? ''}
                   onChange={(e) => setMergeTarget(entry.player.id, e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <option value="">— Select existing player —</option>
                   {knownPlayers.map((kp) => (

@@ -130,7 +130,7 @@ export default function RankingsPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={selectedTier === 'all' ? t('rankings.searchAll') : t('rankings.searchTier', { tier: selectedTier })}
-          className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+          className="bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         />
 
         {isError && (

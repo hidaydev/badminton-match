@@ -99,7 +99,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
               min={0}
               value={scoreA}
               onChange={(e) => setScoreA(e.target.value)}
-              className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/50"
+              className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
               placeholder="0"
             />
           </div>
@@ -111,7 +111,7 @@ export default function ScoreModal({ match, pairAName, pairBName, onConfirm, onC
               min={0}
               value={scoreB}
               onChange={(e) => setScoreB(e.target.value)}
-              className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/50"
+              className="w-full bg-elevated border border-border rounded-xl px-3 py-3 text-2xl font-bold font-mono text-accent text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
               placeholder="0"
             />
           </div>

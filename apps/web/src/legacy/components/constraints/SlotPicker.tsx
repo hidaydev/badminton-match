@@ -24,7 +24,7 @@ export function SlotPicker({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-elevated border border-border rounded-lg px-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer w-full"
+        className="bg-elevated border border-border rounded-lg px-1.5 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer w-full"
       >
         <option value="">— Any —</option>
         {available.map((p) => (

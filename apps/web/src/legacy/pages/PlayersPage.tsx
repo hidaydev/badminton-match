@@ -120,7 +120,7 @@ function PlayerRow({ player, onRemove, isRegistered, ambiguousMatches }: {
             onChange={(e) => setName(e.target.value)}
             onBlur={save}
             onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setName(player.name); setEditing(false) } }}
-            className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+            className="flex-1 bg-slate-800 border border-indigo-500 rounded-lg px-2 py-1 text-white text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           />
         ) : (
           <span
@@ -224,7 +224,7 @@ function AddPlayerRow({ onAdd, onCancel, canonicalPlayers }: {
         onChange={(e) => handleNameChange(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
         placeholder="Player name"
-        className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+        className="flex-1 bg-transparent text-white text-sm placeholder-slate-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       />
       {/* Gender picker */}
       <GenderToggle value={gender} onChange={setGender} type="button" />
@@ -284,7 +284,7 @@ function BulkImport({ onClose, existingCount, max, canonicalPlayers }: {
         onChange={(e) => setText(e.target.value)}
         placeholder={"1. Rakha ✅\n2. Vina ✅\n3. Fakhri ✅"}
         rows={6}
-        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm font-sans focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 resize-none"
+        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-500 text-sm font-sans focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent resize-none"
       />
       {preview.length > 0 && (
         <div className="flex flex-col gap-1">

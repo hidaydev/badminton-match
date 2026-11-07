@@ -47,7 +47,7 @@ export default function SessionListPage() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('sessions.searchPlaceholder')}
           aria-label={t('sessions.searchPlaceholder')}
-          className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+          className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         />
         <div className="flex items-center gap-1.5 shrink-0">
           <input

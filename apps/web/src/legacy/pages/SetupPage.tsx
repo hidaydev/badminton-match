@@ -98,7 +98,7 @@ function TimeSelect({
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
+      className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
     >
       {options.map((o) => (
         <option key={o} value={o}>{hourLabel(o)}</option>
@@ -296,7 +296,7 @@ export default function SetupPage() {
               maxLength={120}
               placeholder="e.g. Sunday Morning Session"
               disabled={session.locked}
-              className="bg-elevated border border-border rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed h-9"
+              className="bg-elevated border border-border rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed h-9"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-35">
@@ -307,7 +307,7 @@ export default function SetupPage() {
               value={session.date}
               onChange={(e) => setDate(e.target.value)}
               disabled={session.locked}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
             />
           </div>
         </div>
@@ -381,7 +381,7 @@ export default function SetupPage() {
               value={session.slotMinutes}
               disabled={session.locked}
               onChange={(e) => setSlotMinutes(Number(e.target.value))}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer h-9"
             >
               {DURATION_OPTIONS.map((d) => (
                 <option key={d} value={d}>{d} min</option>
@@ -405,7 +405,7 @@ export default function SetupPage() {
                     onChange={(e) => setCourtName(i, e.target.value)}
                     placeholder={courtLabel(session.courtNames, i)}
                     aria-label={`Court ${i + 1} name`}
-                    className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-400 focus:outline-none focus:text-white focus-visible:ring-2 focus-visible:ring-indigo-500/50 focus-visible:rounded-lg"
+                    className="w-20 bg-transparent text-sm text-slate-300 placeholder-slate-400 focus:outline-none focus:text-white focus-visible:ring-2 focus-visible:ring-accent focus-visible:rounded-lg"
                   />
                   <TimeSelect
                     value={ct.start}

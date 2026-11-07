@@ -319,7 +319,7 @@ export default function ScheduleGrid({
                                 max={99}
                                 value={row.a}
                                 onChange={(e) => updateDraftSet(key, index, 'a', e.target.value)}
-                                className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                                className="w-14 bg-slate-800 border border-indigo-700 rounded-lg px-2 py-1.5 text-white font-bold text-lg text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
                                 aria-label={`Set ${index + 1} score for ${teamANames}`}
                               />
                               <span className="text-slate-400 font-bold text-lg">–</span>
@@ -330,7 +330,7 @@ export default function ScheduleGrid({
                                 max={99}
                                 value={row.b}
                                 onChange={(e) => updateDraftSet(key, index, 'b', e.target.value)}
-                                className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+                                className="w-14 bg-elevated border border-border rounded-lg px-2 py-1.5 text-slate-300 font-bold text-lg text-center focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent"
                                 aria-label={`Set ${index + 1} score for ${teamBNames}`}
                               />
                             </div>

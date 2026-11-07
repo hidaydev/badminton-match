@@ -132,7 +132,7 @@ function TeamWizard() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Majadu Team Cup"
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -141,7 +141,7 @@ function TeamWizard() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 scheme-dark"
+              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent scheme-dark"
             />
           </label>
           <button
@@ -170,12 +170,12 @@ function TeamWizard() {
                   value={p.name}
                   onChange={(e) => updatePlayer(i, { name: e.target.value })}
                   placeholder={`${TEAM_NAMES[TEAM_IDS.indexOf(p.team)]} (${p.cls})`}
-                  className="flex-1 bg-elevated border border-border rounded-md px-2 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 min-w-0"
+                  className="flex-1 bg-elevated border border-border rounded-md px-2 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
                 />
                 <select
                   value={p.cls}
                   onChange={(e) => updatePlayer(i, { cls: e.target.value as TeamClass })}
-                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 shrink-0 w-14 sm:w-16 cursor-pointer"
+                  className="bg-elevated border border-border rounded-md px-1.5 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent shrink-0 w-14 sm:w-16 cursor-pointer"
                 >
                   {TEAM_CLASSES.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -184,7 +184,7 @@ function TeamWizard() {
                 <select
                   value={p.team}
                   onChange={(e) => updatePlayer(i, { team: e.target.value as TeamId })}
-                  className="bg-elevated border border-border rounded-md px-2 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 shrink-0 w-24 sm:w-28 md:w-32 truncate cursor-pointer"
+                  className="bg-elevated border border-border rounded-md px-2 py-2 text-xs font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent shrink-0 w-24 sm:w-28 md:w-32 truncate cursor-pointer"
                 >
                   {TEAM_IDS.map((t, idx) => (
                     <option key={t} value={t}>{TEAM_NAMES[idx]}</option>
@@ -332,7 +332,7 @@ function ClassicWizard() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Internal Cup 2026"
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
+              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -341,7 +341,7 @@ function ClassicWizard() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 scheme-dark"
+              className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm font-sans text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent scheme-dark"
             />
           </label>
           <button
@@ -375,14 +375,14 @@ function ClassicWizard() {
                   value={p.a}
                   onChange={(e) => updatePair(i, 'a', e.target.value)}
                   placeholder="Player 1"
-                  className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 min-w-0"
+                  className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
                 />
                 <span className="text-fg-dim text-xs shrink-0">&</span>
                 <input
                   value={p.b}
                   onChange={(e) => updatePair(i, 'b', e.target.value)}
                   placeholder="Player 2"
-                  className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 min-w-0"
+                  className="flex-1 bg-elevated border border-border rounded-md px-2.5 py-2 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent min-w-0"
                 />
               </div>
             ))}

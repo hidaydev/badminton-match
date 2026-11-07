@@ -117,7 +117,7 @@ export function FixMatchCard({
             <select
               value={match.pinnedTime}
               onChange={(e) => updateFixMatch(match.id, { pinnedTime: e.target.value || toTimeString(''), pinnedCourt: e.target.value ? match.pinnedCourt : 0 } as Partial<MatchConstraint>)}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
             >
               <option value="">— Select time —</option>
               {timeSlots.map((t) => (
@@ -131,7 +131,7 @@ export function FixMatchCard({
               value={match.pinnedCourt}
               onChange={(e) => updateFixMatch(match.id, { pinnedCourt: e.target.value ? Number(e.target.value) : 0 } as Partial<MatchConstraint>)}
               disabled={!match.pinnedTime}
-              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <option value="">— Select court —</option>
               {availableCourts.map((c) => (
