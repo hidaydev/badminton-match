@@ -46,11 +46,12 @@ suite "community config overrides":
     let result = checkPatch(snapshot, %*{"rating.score_target": 50})
     check result.outcome == soOutOfCeiling
 
-  test "a boolean may not switch on a platform-disabled flag":
-    # The directory is the one documented exception; join requests are a
-    # platform switch, so a community cannot re-enable them.
-    let blocked = checkPatch(snapshot, %*{"community.join_requests_enabled": true})
-    check blocked.outcome == soOutOfCeiling
+  test "an opt-in flag may be switched on by a community":
+    # The platform value of these two keys is the default, not a ceiling: the
+    # join path reads it with coalesce against the community value, and the
+    # directory was always opt-in. Both must survive the patch route.
+    check checkPatch(snapshot,
+      %*{"community.join_requests_enabled": true}).outcome == soOk
     check checkPatch(snapshot,
       %*{"community.directory_enabled": true}).outcome == soOk
 
@@ -94,6 +95,10 @@ suite "community config overrides":
     let effective = effectiveConfig(snapshot, currentSettings(db, communityId))
     check effective["rating.score_target"]["source"].getStr() == "community"
     check effective["rating.score_target"]["value"].getInt() == 14
+    # Booleans carry the policy: the screen locks a switch only when the server
+    # says the key is not opt-in, so it never offers a save the route refuses.
+    check effective["community.join_requests_enabled"]["widenable"].getBool()
+    check effective["community.directory_enabled"]["widenable"].getBool()
     # Platform keys are not part of the community view: every member reads this.
     check not effective.hasKey("rank.board_limit")
     check not effective.hasKey("security.allowed_origins")

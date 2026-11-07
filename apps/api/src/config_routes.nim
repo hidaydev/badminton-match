@@ -63,8 +63,8 @@ proc validate(snapshot: Snapshot, key: ConfigKey, value: JsonNode): SettingsResu
       return SettingsResult(outcome: soInvalidType, key: $key,
         detail: "default preset is not in session.scoring_presets")
   # A community may narrow a number, not overrule a platform switch. The
-  # directory is the documented exception: it is opt-in per community and the
-  # platform value is the default, not a ceiling.
+  # opt-in switches are the exception: the platform value is their default,
+  # not a ceiling, so a community may turn one on.
   if value.kind == JBool and value.getBool() and not platform.getBool() and
       not mayWiden(key):
     return SettingsResult(outcome: soOutOfCeiling, key: $key,
@@ -148,13 +148,19 @@ proc effectiveConfig*(snapshot: Snapshot, settings: JsonNode): JsonNode =
   for entry in allKeys:
     if entry.scope != csCommunity:
       continue
-    if settings.kind == JObject and settings.hasKey($entry.key):
-      let value =
-        if entry.kind == ctBool:
-          %snapshot.boolValue(settings, entry.key)
-        else:
-          settings[$entry.key]
-      result[$entry.key] = %*{"value": value, "source": "community"}
-    else:
-      result[$entry.key] = %*{"value": snapshot.jsonValue(%*{}, entry.key),
-                              "source": "platform"}
+    var entryNode =
+      if settings.kind == JObject and settings.hasKey($entry.key):
+        let value =
+          if entry.kind == ctBool:
+            %snapshot.boolValue(settings, entry.key)
+          else:
+            settings[$entry.key]
+        %*{"value": value, "source": "community"}
+      else:
+        %*{"value": snapshot.jsonValue(%*{}, entry.key),
+           "source": "platform"}
+    # The screen must not offer a switch the patch route will refuse: a
+    # platform-disabled boolean is locked unless the key is opt-in.
+    if entry.kind == ctBool:
+      entryNode["widenable"] = %mayWiden(entry.key)
+    result[$entry.key] = entryNode
