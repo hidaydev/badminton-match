@@ -15,12 +15,13 @@
 ## A tournament format without an enabled level row falls back to the game
 ## formula, exactly like v1.
 
-import std/[algorithm, json, math, options, strutils, tables]
+import std/[algorithm, json, math, options, sets, strutils, tables]
 import db/db
 import ./domain/rating
 import ./infrastructure/tournament
 import session/lifecycle
 import session/scoring as sessionScoring
+import session/sides
 
 type
   Entry* = object
@@ -167,22 +168,24 @@ proc sessionEntries(db: Db, communityId, asOf: string,
   ## Sessions are one query plus the two exclusion tables, so a board read does
   ## not issue a query per session. A skipped or absent player contributes
   ## nothing, not even to the opponents' average, exactly like the ingest.
-  var absentBySession = initTable[string, bool]()
+  var absentBySession = initTable[string, HashSet[string]]()
   for row in db.query(
     """select session_id::text as session_id, player_id::text as player_id
        from session.participants
        where community_id = $1::uuid and is_absent""",
     @[textParam(communityId)]):
-    absentBySession[row.getUuid("session_id") & keySeparator &
-      row.getUuid("player_id")] = true
-  var skips = initTable[string, bool]()
+    absentBySession.mgetOrPut(row.getUuid("session_id"),
+      initHashSet[string]()).incl(row.getUuid("player_id"))
+  var skipsBySession = initTable[string, Table[string, HashSet[string]]]()
   for row in db.query(
     """select session_id::text as session_id, round_no, court_no,
               player_id::text as player_id
        from session.game_skips where community_id = $1::uuid""",
     @[textParam(communityId)]):
-    skips[row.getUuid("session_id") & keySeparator & row.get("round_no") & "-" &
-      row.get("court_no") & keySeparator & row.getUuid("player_id")] = true
+    skipsBySession.mgetOrPut(row.getUuid("session_id"),
+      initTable[string, HashSet[string]]()).mgetOrPut(
+        row.get("round_no") & "-" & row.get("court_no"),
+        initHashSet[string]()).incl(row.getUuid("player_id"))
   for row in db.query(
     """select e.source_id::text as source_id, e.local_date::text as local_date,
               r.round_no, r.court_no, r.points_a, r.points_b, r.sets_played,
@@ -213,44 +216,24 @@ proc sessionEntries(db: Db, communityId, asOf: string,
     let pointsB = row.getInt("points_b")
     let setsPlayed = row.getInt("sets_played")
     let target = row.getInt("target")
-    var sideA: seq[string] = @[]
-    var sideB: seq[string] = @[]
-    for slot in ["a1", "a2"]:
-      let id = row.get(slot)
-      if id.len > 0 and not absentBySession.hasKey(sourceId & keySeparator & id):
-        sideA.add(id)
-    for slot in ["b1", "b2"]:
-      let id = row.get(slot)
-      if id.len > 0 and not absentBySession.hasKey(sourceId & keySeparator & id):
-        sideB.add(id)
-    # v1's gate: a game needs a present player on both sides. A side whose
-    # players were all substituted still keeps the game alive for the other
-    # side, so only an absent (or empty) side voids it.
-    if sideA.len == 0 or sideB.len == 0:
-      continue
-    var eligibleA: seq[string] = @[]
-    var eligibleB: seq[string] = @[]
-    for id in sideA:
-      if not skips.hasKey(sourceId & keySeparator & gameKey & keySeparator & id):
-        eligibleA.add(id)
-    for id in sideB:
-      if not skips.hasKey(sourceId & keySeparator & gameKey & keySeparator & id):
-        eligibleB.add(id)
-    if eligibleA.len == 0 and eligibleB.len == 0:
+    let split = sides(row.get("a1"), row.get("a2"), row.get("b1"),
+      row.get("b2"), absentBySession.getOrDefault(sourceId),
+      skipsBySession.getOrDefault(sourceId).getOrDefault(gameKey))
+    if not split.counts:
       continue
     let multiplierA = opponentMultiplier(params,
-      opponentsStrength(tiers, params, eligibleB), population)
+      opponentsStrength(tiers, params, split.eligibleB), population)
     let multiplierB = opponentMultiplier(params,
-      opponentsStrength(tiers, params, eligibleA), population)
+      opponentsStrength(tiers, params, split.eligibleA), population)
     let ratio = sessionScoring.ratingMarginFrom(pointsA, pointsB, setsPlayed,
       target)
     let valueA = gameValue(params.sessionBase, ratio * target.float,
       target.float)
     let valueB = gameValue(params.sessionBase, -ratio * target.float,
       target.float)
-    for id in eligibleA:
+    for id in split.eligibleA:
       addGame(acc, id, sourceId, date, "session", valueA * multiplierA)
-    for id in eligibleB:
+    for id in split.eligibleB:
       addGame(acc, id, sourceId, date, "session", valueB * multiplierB)
 
 proc tournamentEntries(db: Db, communityId, asOf: string,

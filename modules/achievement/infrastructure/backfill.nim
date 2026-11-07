@@ -7,6 +7,7 @@ import rating/infrastructure/params
 import rating/read
 import rating/infrastructure/tournament
 import session/lifecycle
+import session/sides
 import ../domain/achievement
 
 type
@@ -69,7 +70,8 @@ proc loadAttendance(conn: DbConn, communityId: string): Table[string, Attendance
       tally.streak = max(tally.streak, tally.run)
     result[playerId] = tally
 
-proc loadAbsent(conn: DbConn, communityId: string): HashSet[string] =
+proc loadAbsent(conn: DbConn, communityId: string):
+    Table[string, HashSet[string]] =
   ## A player marked absent still occupies a schedule slot, but the game did
   ## not happen for them, so it must not feed the volume or social ladders.
   for row in conn.query(
@@ -77,9 +79,11 @@ proc loadAbsent(conn: DbConn, communityId: string): HashSet[string] =
        from session.participants p
        where p.community_id = $1::uuid and p.is_absent""",
     @[textParam(communityId)]):
-    result.incl(row.getUuid("session_id") & "|" & row.getUuid("player_id"))
+    result.mgetOrPut(row.getUuid("session_id"),
+      initHashSet[string]()).incl(row.getUuid("player_id"))
 
-proc loadSkips(conn: DbConn, communityId: string): HashSet[string] =
+proc loadSkips(conn: DbConn, communityId: string):
+    Table[string, Table[string, HashSet[string]]] =
   ## A skipped player was at the session but sat this game out, so the game is
   ## neither theirs nor a partner or opponent of anyone else in it.
   for row in conn.query(
@@ -88,21 +92,10 @@ proc loadSkips(conn: DbConn, communityId: string): HashSet[string] =
        from session.game_skips
        where community_id = $1::uuid""",
     @[textParam(communityId)]):
-    result.incl(row.getUuid("session_id") & "|" & row.get("round_no") & "-" &
-      row.get("court_no") & "|" & row.getUuid("player_id"))
-
-proc presentPlayers(row: Row, side, sessionId: string,
-                    absent: HashSet[string]): seq[string] =
-  for slot in ["1", "2"]:
-    let playerId = row.get(side & slot)
-    if playerId.len > 0 and (sessionId & "|" & playerId) notin absent:
-      result.add(playerId)
-
-proc withoutSkips(players: seq[string], sessionId, gameKey: string,
-                  skipped: HashSet[string]): seq[string] =
-  for playerId in players:
-    if (sessionId & "|" & gameKey & "|" & playerId) notin skipped:
-      result.add(playerId)
+    result.mgetOrPut(row.getUuid("session_id"),
+      initTable[string, HashSet[string]]()).mgetOrPut(
+        row.get("round_no") & "-" & row.get("court_no"),
+        initHashSet[string]()).incl(row.getUuid("player_id"))
 
 proc tallySide(result: var Table[string, GameTally], side, other: seq[string],
                won: bool) =
@@ -162,15 +155,14 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
     @[textParam(communityId)]):
     let sessionId = row.getUuid("session_id")
     let gameKey = row.get("round_no") & "-" & row.get("court_no")
-    let presentA = presentPlayers(row, "a", sessionId, absent)
-    let presentB = presentPlayers(row, "b", sessionId, absent)
-    if presentA.len == 0 or presentB.len == 0:
+    let split = sides(row.get("a1"), row.get("a2"), row.get("b1"),
+      row.get("b2"), absent.getOrDefault(sessionId),
+      skipped.getOrDefault(sessionId).getOrDefault(gameKey))
+    if not split.counts:
       continue
-    let aSide = withoutSkips(presentA, sessionId, gameKey, skipped)
-    let bSide = withoutSkips(presentB, sessionId, gameKey, skipped)
     let aWon = row.get("winner") == "a"
-    result.tallySide(aSide, bSide, aWon)
-    result.tallySide(bSide, aSide, not aWon)
+    result.tallySide(split.eligibleA, split.eligibleB, aWon)
+    result.tallySide(split.eligibleB, split.eligibleA, not aWon)
 
   # A tournament counts only once it was ingested: `player_state`, which the
   # profile shows, is written by the event, so a running bracket must not award

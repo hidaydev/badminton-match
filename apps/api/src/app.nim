@@ -1,4 +1,4 @@
-import std/[base64, json, options, os, strutils, sysrand, times, uri]
+import std/[base64, json, options, os, sets, strutils, sysrand, times, uri]
 import mummy
 import auth_middleware
 import community_context
@@ -28,6 +28,7 @@ import session/lifecycle as sessionLifecycle
 import session/standings as sessionStandings
 import session/schedule as sessionSchedule
 import session/scoring as sessionScoring
+import session/sides as sessionSides
 import session/swap as sessionSwap
 import tournament/store as tournamentStore
 import ws_ticket as wsTicket
@@ -2254,10 +2255,13 @@ proc gamePayload(entry: Row): JsonNode =
   ## sets, never from comparing totals.
   var sideA = newJArray()
   var sideB = newJArray()
-  for slot in ["side_a1", "side_a2"]:
-    if entry.get(slot).len > 0: sideA.add(%entry.get(slot))
-  for slot in ["side_b1", "side_b2"]:
-    if entry.get(slot).len > 0: sideB.add(%entry.get(slot))
+  let split = sessionSides.sides(entry.get("side_a1"), entry.get("side_a2"),
+    entry.get("side_b1"), entry.get("side_b2"), initHashSet[string](),
+    initHashSet[string]())
+  for playerId in split.presentA:
+    sideA.add(%playerId)
+  for playerId in split.presentB:
+    sideB.add(%playerId)
   let winner = entry.get("winner")
   # A match with no set has no score. Keeping NULL here matters: the legacy
   # adapter treats a non-null 0-0 as a recorded result.

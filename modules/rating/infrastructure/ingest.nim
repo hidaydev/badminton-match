@@ -1,6 +1,7 @@
-import std/[json, options, tables]
+import std/[json, options, sets, tables]
 import db/db
 import session/lifecycle
+import session/sides
 import ../domain/rating
 import ./ledger
 import ./tournament
@@ -10,49 +11,33 @@ type
     events*: int
     deltas*: int
 
-proc absentPlayers(conn: DbConn, communityId, sessionId: string): seq[string] =
+proc absentPlayers(conn: DbConn, communityId, sessionId: string): HashSet[string] =
   for row in conn.query(
     """select player_id from session.participants
        where community_id = $1::uuid and session_id = $2::uuid and is_absent""",
     @[textParam(communityId), textParam(sessionId)]):
-    result.add(row.getUuid("player_id"))
+    result.incl(row.getUuid("player_id"))
 
-proc sidePlayers(row: Row, side: string): seq[string] =
-  for slot in ["1", "2"]:
-    let key = side & slot
-    let value = row.getOpt(key)
-    if value.isSome and value.get.len > 0:
-      result.add(value.get)
-
-proc active(players, absent, skipped: seq[string]): seq[string] =
-  for player in players:
-    if player notin absent and player notin skipped:
-      result.add(player)
-
-proc awardSide(conn: DbConn, communityId: string, side: string, won: bool,
-               row: Row, absent, skipped: seq[string]): int =
-  let activePlayers = active(sidePlayers(row, side), absent, skipped)
-  if activePlayers.len == 0:
+proc award(conn: DbConn, communityId: string, players: seq[string],
+           won: bool): int =
+  if players.len == 0:
     return 0
-  addState(conn, communityId, activePlayers, won)
-  activePlayers.len
+  addState(conn, communityId, players, won)
+  players.len
 
 proc ingestGame(conn: DbConn, communityId: string, row: Row,
-                absent, skipped: seq[string]): int =
-  ## v1's gate: a game needs a real present player on both sides, but a side
-  ## whose players were all substituted still keeps the game alive for the
-  ## other side. Skipped players are present; absent ones are not.
-  let sideA = sidePlayers(row, "side_a")
-  let sideB = sidePlayers(row, "side_b")
-  let presentA = active(sideA, absent, newSeq[string]())
-  let presentB = active(sideB, absent, newSeq[string]())
-  if presentA.len == 0 or presentB.len == 0:
+                absent, skipped: HashSet[string]): int =
+  ## v1's gate, shared with standings and the board: a game needs a real
+  ## present player on both sides, but a side whose players were all
+  ## substituted still keeps the game alive for the other side. Skipped players
+  ## are present; absent ones are not.
+  let split = sides(row.get("side_a1"), row.get("side_a2"),
+    row.get("side_b1"), row.get("side_b2"), absent, skipped)
+  if not split.counts:
     return 0
   let winner = row.get("winner")
-  result += awardSide(conn, communityId, "side_a", winner == "a", row,
-    absent, skipped)
-  result += awardSide(conn, communityId, "side_b", winner == "b", row,
-    absent, skipped)
+  result += award(conn, communityId, split.eligibleA, winner == "a")
+  result += award(conn, communityId, split.eligibleB, winner == "b")
 
 proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
                        params: RatingParams,
@@ -82,14 +67,14 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
   let eventId = event.get.getUuid("id")
   result.events = 1
   let absent = absentPlayers(conn, communityId, sessionId)
-  var skipRows = initTable[string, seq[string]]()
+  var skipRows = initTable[string, HashSet[string]]()
   for entry in conn.query(
     """select round_no, court_no, player_id::text as player_id
        from session.game_skips
        where community_id = $1::uuid and session_id = $2::uuid""",
     @[textParam(communityId), textParam(sessionId)]):
     skipRows.mgetOrPut(entry.get("round_no") & "-" & entry.get("court_no"),
-      @[]).add(entry.getUuid("player_id"))
+      initHashSet[string]()).incl(entry.getUuid("player_id"))
   var entries = 0
   for row in conn.query(
     """select round_no, court_no, winner,
