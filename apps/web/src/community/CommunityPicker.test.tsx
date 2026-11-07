@@ -21,6 +21,7 @@ const beta = membership('c2', 'beta', 'Beta')
 const sessionHandlers = (items: Membership[]) => ({
   'GET /api/auth/me': () => ({ body: sessionUser }),
   'GET /api/communities': () => ({ body: { items } }),
+  'GET /api/directory': () => ({ body: { items: [] } }),
 })
 
 describe('CommunityPicker', () => {
@@ -38,6 +39,20 @@ describe('CommunityPicker', () => {
     expect(
       screen.queryByRole('combobox', { name: t('community.label') }),
     ).not.toBeInTheDocument()
+  })
+
+  it('lists public communities and fills the join slug when one is picked', async () => {
+    mockFetch({
+      ...sessionHandlers([]),
+      'GET /api/directory': () => ({
+        body: { items: [{ slug: 'majadu', name: 'MAJADU' }] },
+      }),
+    })
+
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /MAJADU/ }))
+    expect(screen.getByLabelText(t('join.slug'))).toHaveValue('majadu')
   })
 
   it('lists memberships from the API and restores the stored slug', async () => {

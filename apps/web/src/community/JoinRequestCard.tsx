@@ -7,8 +7,13 @@ import { requestToJoin } from './api'
  * answers the same 202 for every reason, so the form cannot tell the person
  * whether the slug exists — it only confirms the request left.
  */
-export default function JoinRequestCard() {
-  const [slug, setSlug] = useState('')
+export default function JoinRequestCard({
+  slug,
+  onSlugChange,
+}: {
+  slug: string
+  onSlugChange: (value: string) => void
+}) {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,7 +58,7 @@ export default function JoinRequestCard() {
             value={slug}
             disabled={sending}
             onChange={(event) => {
-              setSlug(event.target.value)
+              onSlugChange(event.target.value)
               setSent(false)
             }}
             className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3 text-sm text-fg focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60"

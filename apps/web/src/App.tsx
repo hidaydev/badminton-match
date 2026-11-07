@@ -6,6 +6,7 @@ import { useAuth } from './auth/AuthContext'
 import ClientOutdatedBanner from './components/ClientOutdatedBanner'
 import { LoadingState } from './components/LoadingState'
 import { CommunityProvider } from './community/CommunityProvider'
+import DirectoryList from './community/DirectoryList'
 import JoinRequestCard from './community/JoinRequestCard'
 import { useCommunity } from './community/CommunityContext'
 import { t } from './i18n'
@@ -182,6 +183,7 @@ function CommunityNotFound() {
 function RootRedirect() {
   const { current } = useCommunity()
   const { user } = useAuth()
+  const [joinSlug, setJoinSlug] = useState('')
   if (current !== null) {
     return <Navigate to={`/c/${encodeURIComponent(current.slug)}`} replace />
   }
@@ -202,7 +204,10 @@ function RootRedirect() {
           {t('home.createCommunity')}
         </Link>
       ) : (
-        <JoinRequestCard />
+        <>
+          <DirectoryList onPick={setJoinSlug} />
+          <JoinRequestCard slug={joinSlug} onSlugChange={setJoinSlug} />
+        </>
       )}
     </section>
   )

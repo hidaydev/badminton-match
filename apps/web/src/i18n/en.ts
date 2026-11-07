@@ -72,6 +72,8 @@ export const en = {
   'join.sent': 'Request sent. An admin will see it in the community settings.',
   'join.missing': 'Enter the community slug first.',
   'join.failed': 'The request could not be sent. Try again.',
+  'directory.title': 'Public communities',
+  'directory.hint': 'These communities list themselves publicly. Pick one to fill in its slug below.',
 
   'shared.title': 'Shared session',
   'shared.tabs': 'Session views',

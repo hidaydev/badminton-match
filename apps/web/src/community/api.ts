@@ -89,3 +89,19 @@ export function acceptInvite(token: string): Promise<AcceptedInvite> {
     method: 'POST',
   })
 }
+
+/** One community that opted into the public directory. */
+export type DirectoryEntry = {
+  slug: string
+  name: string
+}
+
+/**
+ * Communities whose directory flag is on. Public: an account without a
+ * membership reads the same list, which is what the join screen needs before it
+ * knows any slug.
+ */
+export async function listDirectory(): Promise<DirectoryEntry[]> {
+  const body = await request<{ items: DirectoryEntry[] }>('/directory')
+  return body.items
+}
