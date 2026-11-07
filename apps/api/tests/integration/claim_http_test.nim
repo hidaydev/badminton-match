@@ -287,6 +287,30 @@ suite "claim HTTP":
     check seen["decidedBy"].getStr() == ""
     check seen["reason"].getStr() == ""
 
+  test "mine returns the player the account owns":
+    let minePlayer = player("Klaim Delapan Punya")
+    let owner = freshMember("claim-delapan")
+    discard call(HttpPost, "/c/claim-club/players/" & minePlayer & "/claims",
+      owner)
+    let (_, listBody) = call(HttpGet,
+      "/c/claim-club/players/" & minePlayer & "/claims", adminCookie)
+    let claimId = parseJson(listBody)["items"][0]["id"].getStr()
+    let (approved, _) = call(HttpPatch,
+      "/c/claim-club/players/" & minePlayer & "/claims/" & claimId, adminCookie,
+      """{"decision":"approve"}""")
+    check approved == 200
+
+    let (status, body) = call(HttpGet, "/c/claim-club/players?mine=1", owner)
+    check status == 200
+    let items = parseJson(body)["items"]
+    check items.len == 1
+    check items[0]["id"].getStr() == minePlayer
+
+    let (emptyStatus, emptyBody) = call(HttpGet, "/c/claim-club/players?mine=1",
+      freshMember("claim-delapan-bebas"))
+    check emptyStatus == 200
+    check parseJson(emptyBody)["items"].len == 0
+
   test "a player response says whether the viewer already owns a player":
     let ownedPlayer = player("Klaim Tujuh Punya")
     let openPlayer = player("Klaim Tujuh Terbuka")

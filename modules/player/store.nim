@@ -41,6 +41,17 @@ proc node*(row: Row): JsonNode =
     "updatedAt": row.get("updated_at"),
   }
 
+proc ownedBy*(db: Db, communityId, userId: string): Option[JsonNode] =
+  ## The player bound to this account, if any. One per account per community,
+  ## so the limit is the rule, not a page size.
+  let row = db.queryOne(
+    "select " & columns &
+      " from player.players where community_id = $1::uuid and user_id = $2::uuid" &
+      " limit 1",
+    @[textParam(communityId), textParam(userId)])
+  if row.isSome:
+    result = some(node(row.get))
+
 proc list*(db: Db, communityId: string, limit: int, cursor = "",
            tier = "", search = ""): seq[JsonNode] =
   ## Keyset pagination on the id keeps the page stable while players are added.

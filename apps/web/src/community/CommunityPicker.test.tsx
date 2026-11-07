@@ -55,6 +55,34 @@ describe('CommunityPicker', () => {
     expect(screen.getByLabelText(t('join.slug'))).toHaveValue('majadu')
   })
 
+  it('shows the my statistics shortcut when the account owns a player', async () => {
+    mockFetch({
+      ...sessionHandlers([acme]),
+      'GET /api/c/acme/players?mine=1': () => ({
+        body: {
+          items: [
+            {
+              id: 'p1',
+              name: 'Ani',
+              gender: 'F',
+              tier: null,
+              userId: 'u1',
+              createdAt: '2026-11-01 10:00:00+07',
+              updatedAt: '2026-11-01 10:00:00+07',
+            },
+          ],
+        },
+      }),
+    })
+
+    render(<App />)
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: new RegExp(t('home.card.myStats')) }),
+    )
+    await waitFor(() => expect(window.location.pathname).toBe('/c/acme/rankings/p1'))
+  })
+
   it('lists memberships from the API and restores the stored slug', async () => {
     window.localStorage.setItem(COMMUNITY_STORAGE_KEY, 'beta')
     mockFetch(sessionHandlers([acme, beta]))

@@ -1320,7 +1320,17 @@ proc tierParam(request: Request): string =
       discard
   ""
 
-proc listPlayersRoute(request: Request, ctx: CommunityContext) =
+proc listPlayersRoute(request: Request, ctx: CommunityContext,
+                      userId: string) =
+  # `mine=1` backs the "my statistics" shortcut: the account asks for the one
+  # player it owns instead of walking the roster and matching ids.
+  if request.queryParams["mine"] == "1":
+    let owned = playerStore.ownedBy(application.db, ctx.communityId, userId)
+    var body = newJArray()
+    if owned.isSome:
+      body.add(owned.get)
+    jsonResponse(request, 200, %*{"items": body}, [("Cache-Control", "no-store")])
+    return
   let items = playerStore.list(application.db, ctx.communityId,
     playerLimit(request), request.queryParams["cursor"], tierParam(request),
     request.queryParams["q"])
@@ -2956,7 +2966,7 @@ proc route(request: Request) =
         respondGate(request, decision)
         return
       if parts.len == 4 and verb == "GET":
-        listPlayersRoute(request, ctx.get)
+        listPlayersRoute(request, ctx.get, user.get.id)
         return
       if parts.len == 4 and verb == "POST":
         createPlayerRoute(request, ctx.get, user.get)

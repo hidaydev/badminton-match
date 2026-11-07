@@ -62,6 +62,18 @@ export function getPlayer(slug: string, id: string): Promise<Player> {
   )
 }
 
+/**
+ * The player this account owns in the community, or null when it has no
+ * approved claim. Served by the list route so the roster and the shortcut read
+ * the same shape.
+ */
+export async function getMyPlayer(slug: string): Promise<Player | null> {
+  const body = await request<{ items: Player[] }>(
+    `/c/${encodeURIComponent(slug)}/players?mine=1`,
+  )
+  return body.items[0] ?? null
+}
+
 export type NewPlayer = {
   name: string
   gender?: 'M' | 'F'

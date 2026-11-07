@@ -776,6 +776,8 @@ export const en = {
   'home.card.tournament.hint': 'Brackets and final standings',
   'home.card.post': 'Instagram Post',
   'home.card.post.hint': 'Create a post',
+  'home.card.myStats': 'My statistics',
+  'home.card.myStats.hint': 'Your ranking and partners as {name}',
   'instagram.uploadPhoto': 'Upload photo',
   'instagram.replacePhoto': 'Replace photo',
   'instagram.download': 'Download image',

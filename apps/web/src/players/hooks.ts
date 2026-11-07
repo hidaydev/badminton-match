@@ -1,9 +1,34 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError } from '../auth/api'
-import { getPlayer, listClaims, listPlayers, PLAYER_PAGE } from './api'
+import { getPlayer, getMyPlayer, listClaims, listPlayers, PLAYER_PAGE } from './api'
 import type { Player, PlayerClaim } from './api'
 
 export type PlayersError = 'notFound' | 'failed'
+
+/**
+ * The player this account owns, for the home shortcut. A failed read hides the
+ * card instead of blocking the page: the shortcut is a convenience.
+ */
+export function useMyPlayer(slug: string | null): Player | null {
+  const [player, setPlayer] = useState<Player | null>(null)
+
+  useEffect(() => {
+    if (slug === null) return
+    let active = true
+    getMyPlayer(slug)
+      .then((row) => {
+        if (active) setPlayer(row)
+      })
+      .catch(() => {
+        if (active) setPlayer(null)
+      })
+    return () => {
+      active = false
+    }
+  }, [slug])
+
+  return player
+}
 
 function settleError(error: unknown): PlayersError {
   return error instanceof ApiError && error.status === 404 ? 'notFound' : 'failed'

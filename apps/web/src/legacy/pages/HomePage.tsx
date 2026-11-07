@@ -5,6 +5,8 @@ import { usePwaInstall } from '../hooks/usePwaInstall'
 import { useLastSession } from '../hooks/useLastSession'
 import { useAdmin } from '../context/AdminContext'
 import { communityHref } from '../../routes.manifest'
+import { useCommunity } from '../../community/CommunityContext'
+import { useMyPlayer } from '../../players/hooks'
 import InstallModal from '../components/InstallModal'
 import Icon, { type IconName } from '../components/Icon'
 import AdminMenuGrid from '../components/admin/AdminMenuGrid'
@@ -37,6 +39,8 @@ export default function HomePage() {
   const { isAdmin } = useAdmin()
   const { isInstallable, isIos, prompt } = usePwaInstall()
   const { lastSession } = useLastSession()
+  const { current } = useCommunity()
+  const myPlayer = useMyPlayer(current?.slug ?? null)
   const [manualInstallOpen, setManualInstallOpen] = useState(false)
   // The install sheet only opens from the "Install App" card. Opening it by
   // itself once a day covered the New Session CTA on the landing screen, so
@@ -136,6 +140,23 @@ export default function HomePage() {
               </div>
             </button>
           ))}
+
+          {myPlayer !== null && (
+            <button
+              onClick={() => navigate(`/rankings/${encodeURIComponent(myPlayer.id)}`)}
+              className="flex items-start gap-3 p-3.5 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.98] transition-all text-left"
+            >
+              <div className="w-8 h-8 rounded-lg bg-elevated border border-border-subtle flex items-center justify-center shrink-0 text-accent">
+                <Icon name="ratings" size={18} />
+              </div>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-sm font-semibold text-fg leading-tight">{t('home.card.myStats')}</span>
+                <span className="text-[11px] text-fg-dim leading-snug">
+                  {t('home.card.myStats.hint', { name: myPlayer.name })}
+                </span>
+              </div>
+            </button>
+          )}
 
           {isInstallable && (
             <button
