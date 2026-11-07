@@ -102,6 +102,15 @@ async function withSnapshotVersionRetry<T>(
 const SESSION_PAGE_SIZE = 100
 
 /**
+ * A session that still needs work. Mirrors `isEditable` in
+ * modules/session/lifecycle.nim: locking approves the session, so every other
+ * status is final and must not be offered as something to continue.
+ */
+export function isDraftSession(session: SessionMeta): boolean {
+  return session.status === 'draft'
+}
+
+/**
  * The list inputs are typed one key at a time. Feeding each keystroke straight
  * into the query key would leave one cache entry per prefix, so changes settle
  * first; the value present on mount is used immediately, so opening the page

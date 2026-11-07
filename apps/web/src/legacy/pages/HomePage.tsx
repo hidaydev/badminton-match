@@ -2,7 +2,7 @@
 import { useNavigate } from '../router'
 import { useState } from 'react'
 import { usePwaInstall } from '../hooks/usePwaInstall'
-import { useLastSession } from '../hooks/useLastSession'
+import { useListSessions, isDraftSession } from '../queries'
 import { useAdmin } from '../context/AdminContext'
 import { communityHref } from '../../routes.manifest'
 import { useCommunity } from '../../community/CommunityContext'
@@ -38,8 +38,12 @@ export default function HomePage() {
   const navigate = useNavigate()
   const { isAdmin } = useAdmin()
   const { isInstallable, isIos, prompt } = usePwaInstall()
-  const { lastSession } = useLastSession()
   const { current } = useCommunity()
+  // The list endpoint returns newest first (session_date desc, updated_at
+  // desc), so the first draft is the one that still needs work. A community
+  // with no draft gets no card: there is nothing left to continue.
+  const { data: sessions } = useListSessions()
+  const draftSession = sessions.find(isDraftSession)
   const myPlayer = useMyPlayer(current?.slug ?? null)
   const [manualInstallOpen, setManualInstallOpen] = useState(false)
   // The install sheet only opens from the "Install App" card. Opening it by
@@ -68,12 +72,12 @@ export default function HomePage() {
         </button>
       )}
 
-      {/* Continue Session Card */}
-      {lastSession && (
+      {/* Continue Session Card — the newest draft that still needs work. */}
+      {draftSession && current && (
         <button
           onClick={() =>
             navigate(
-              communityHref(lastSession.slug, `/s/${encodeURIComponent(lastSession.id)}`),
+              communityHref(current.slug, `/s/${encodeURIComponent(draftSession.id)}`),
             )
           }
           className="w-full flex items-center gap-3.5 p-3.5 sm:p-4 rounded-xl bg-surface border border-border-subtle hover:border-border active:scale-[0.99] transition-all text-left shadow-sm"
@@ -86,15 +90,15 @@ export default function HomePage() {
               {t('home.continueSession')}
             </span>
             <span className="text-sm sm:text-base font-bold text-fg leading-tight truncate">
-              {lastSession.title || 'Untitled Session'}
+              {draftSession.title || 'Untitled Session'}
             </span>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[10px] font-mono text-fg-dim">
-                {lastSession.date.split('-').reverse().join('-')}
+                {draftSession.date.split('-').reverse().join('-')}
               </span>
               <span className="text-[10px] font-mono text-fg-dim">·</span>
               <span className="text-[10px] font-mono text-fg-dim">
-                {lastSession.playerCount}p · {lastSession.totalGames}g
+                {draftSession.playerCount}p · {draftSession.totalGames}g
               </span>
             </div>
           </div>
