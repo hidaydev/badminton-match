@@ -131,7 +131,7 @@ export default function ShareLinkPanel({ sessionId }: { sessionId: string }) {
             role="dialog"
             aria-label={t('session.share')}
             tabIndex={-1}
-            className="fixed inset-x-2 mt-1 z-20 flex flex-col gap-2 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-xl focus:outline-none sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:w-72 max-h-[70vh] overflow-auto"
+            className="fixed inset-x-2 mt-1 z-20 flex flex-col gap-2 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-xl focus:outline-none sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:w-72 max-h-share-panel overflow-auto"
           >
             {isLoading ? (
               <span className="text-xs text-slate-400">{t('common.loading')}</span>

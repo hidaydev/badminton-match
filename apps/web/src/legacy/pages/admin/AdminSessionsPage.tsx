@@ -81,7 +81,7 @@ export default function AdminSessionsPage() {
                       </>
                     )}
                     {!isAdminRole && (s.status ?? 'draft') !== 'draft' ? (
-                      <span className="text-[11px] text-fg-dim max-w-[9rem] text-right">
+                      <span className="text-[11px] text-fg-dim max-w-36 text-right">
                         {t('admin.lockedDeleteAdminOnly')}
                       </span>
                     ) : (
