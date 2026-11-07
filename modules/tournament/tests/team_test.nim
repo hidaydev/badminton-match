@@ -64,6 +64,27 @@ suite "team classes and targets":
     check not classInPartai(-1, tcC)
     check not classInPartai(3, tcC)
 
+  test "the string mapping follows the partai constants":
+    for index in 0 .. 2:
+      let expected = @[$partaiClassA(index), $partaiClassB(index)]
+      check partaiClasses(index) == expected
+    check partaiClasses(0) == @["C+", "C"]
+    check partaiClasses(1) == @["A+", "A"]
+    check partaiClasses(2) == @["B+", "B"]
+    check partaiClasses(-1).len == 0
+    check partaiClasses(3).len == 0
+
+  test "a side is the roster slots whose class plays the partai":
+    let roster = @[("C+", "p1"), ("C", "p2"), ("A+", "p3"), ("A", "p4"),
+      ("B+", "p5"), ("B", "p6")]
+    check sideForPartai(roster, 0) == @["p1", "p2"]
+    check sideForPartai(roster, 1) == @["p3", "p4"]
+    check sideForPartai(roster, 2) == @["p5", "p6"]
+    check sideForPartai(roster, -1).len == 0
+    check sideForPartai(roster, 3).len == 0
+    let empty: seq[(string, string)] = @[]
+    check sideForPartai(empty, 0).len == 0
+
   test "rally target is 30 in the group and 42 in the final":
     check targetScore(tpGroup) == 30
     check targetScore(tpFinal) == 42

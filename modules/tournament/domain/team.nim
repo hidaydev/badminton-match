@@ -129,6 +129,27 @@ proc partaiClassB*(partaiIndex: int): TeamClass =
   ## Lower-class half of a partai pair (C/A/B for 0/1/2).
   PartaiClasses[partaiIndex][1]
 
+proc partaiClasses*(index: int): seq[string] =
+  ## The class names that play partai number `index`, in wire form. An index
+  ## outside the three partai has no classes, so callers see an empty side
+  ## rather than a raise.
+  if index < 0 or index >= PartaiClasses.len:
+    return
+  for cls in PartaiClasses[index]:
+    result.add($cls)
+
+proc sideForPartai*(roster: openArray[(string, string)],
+                    index: int): seq[string] =
+  ## The partai side: the player ids of the roster slots whose class plays
+  ## partai `index`, where each slot is (class, player id). Slots of other
+  ## classes and an out-of-range index contribute nobody.
+  let classes = partaiClasses(index)
+  if classes.len == 0:
+    return
+  for slot in roster:
+    if slot[0] in classes:
+      result.add(slot[1])
+
 proc addIssue(issues: var seq[TeamIssue], kind: TeamIssueKind,
               detail = "") =
   issues.add(TeamIssue(kind: kind, detail: detail))

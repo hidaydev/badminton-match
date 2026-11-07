@@ -8,6 +8,7 @@
 
 import std/[options, strutils, tables]
 import db/db
+import tournament/domain/team
 import ../domain/rating
 import ./ledger
 
@@ -32,11 +33,6 @@ type
     target*: int
     scoreA*, scoreB*: int
     sideA*, sideB*: seq[string]
-
-  TeamPlayer = object
-    ## One team roster slot: the class it plays and who fills it.
-    cls: string
-    playerId: string
 
 proc classicTarget(phase: string): int =
   if phase in ["sf", "3rd", "final"]: 42 else: 30
@@ -87,18 +83,11 @@ proc classicGames(conn: DbConn, communityId, tournamentId: string):
       sideA: pairs.getOrDefault(row.getUuid("pair_a_id")),
       sideB: pairs.getOrDefault(row.getUuid("pair_b_id"))))
 
-proc partaiClasses*(index: int): seq[string] =
-  case index
-  of 0: @["C+", "C"]
-  of 1: @["A+", "A"]
-  of 2: @["B+", "B"]
-  else: @[]
-
 proc teamPlayers(conn: DbConn, communityId: string,
-                 teamIds: seq[string]): Table[string, seq[TeamPlayer]] =
-  ## Every roster of the tournament in one query. A roster slot with no
-  ## registered player contributes nothing; the other side keeps its points
-  ## rather than voiding the partai.
+                 teamIds: seq[string]): Table[string, seq[(string, string)]] =
+  ## Every roster of the tournament in one query, each slot as
+  ## (class, player id). A roster slot with no registered player contributes
+  ## nothing; the other side keeps its points rather than voiding the partai.
   if teamIds.len == 0:
     return
   for row in conn.query(
@@ -109,16 +98,7 @@ proc teamPlayers(conn: DbConn, communityId: string,
        order by team_id, cls""",
     @[textParam(communityId), textParam("{" & teamIds.join(",") & "}")]):
     result.mgetOrPut(row.getUuid("team_id"), @[]).add(
-      TeamPlayer(cls: row.get("cls"), playerId: row.getUuid("player_id")))
-
-proc teamSide(rosters: Table[string, seq[TeamPlayer]], teamId: string,
-              partaiIndex: int): seq[string] =
-  let classes = partaiClasses(partaiIndex)
-  if classes.len == 0:
-    return
-  for entry in rosters.getOrDefault(teamId):
-    if entry.cls in classes:
-      result.add(entry.playerId)
+      (row.get("cls"), row.getUuid("player_id")))
 
 proc teamGames(conn: DbConn, communityId, tournamentId: string):
     seq[TournamentGame] =
@@ -150,14 +130,16 @@ proc teamGames(conn: DbConn, communityId, tournamentId: string):
   for match in matches:
     for partai in partais.getOrDefault(match.get("match_key")):
       let index = partai.getInt("partai_index")
+      let teamA = teams.getOrDefault(match.getUuid("team_a_id"))
+      let teamB = teams.getOrDefault(match.getUuid("team_b_id"))
       result.add(TournamentGame(
         key: match.get("match_key") & ":" & $index,
         phase: match.get("phase"),
         target: teamTarget(match.get("phase")),
         scoreA: partai.getInt("score_a"),
         scoreB: partai.getInt("score_b"),
-        sideA: teamSide(teams, match.getUuid("team_a_id"), index),
-        sideB: teamSide(teams, match.getUuid("team_b_id"), index)))
+        sideA: sideForPartai(teamA, index),
+        sideB: sideForPartai(teamB, index)))
 
 proc gamesFor*(conn: DbConn, communityId, tournamentId,
                format: string): seq[TournamentGame] =

@@ -5,9 +5,9 @@ import platform/config/store
 import rating/domain/rating
 import rating/infrastructure/params
 import rating/read
-import rating/infrastructure/tournament
 import session/lifecycle
 import session/sides
+import tournament/domain/team
 import ../domain/achievement
 
 type
@@ -111,14 +111,6 @@ proc tallySide(result: var Table[string, GameTally], side, other: seq[string],
       entry.opponents.incl(opponent)
     result[playerId] = entry
 
-proc rosterFor(rosters: Table[string, seq[(string, string)]], teamId: string,
-               classes: seq[string]): seq[string] =
-  ## The partai side: only the roster slots whose class plays that partai, the
-  ## same mapping the ledger uses.
-  for entry in rosters.getOrDefault(teamId):
-    if entry[0] in classes:
-      result.add(entry[1])
-
 proc tallyResult(result: var Table[string, GameTally], side: seq[string],
                  won: bool) =
   ## Games and wins only. The global partner/opponent lists are session reads,
@@ -219,11 +211,11 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
          and p.score_a is not null and p.score_b is not null
          and tm.team_a_id is not null and tm.team_b_id is not null""",
     @[textParam(communityId)]):
-    let classes = partaiClasses(row.getInt("partai_index"))
-    if classes.len == 0:
-      continue
-    let sideA = rosterFor(rosters, row.getUuid("team_a"), classes)
-    let sideB = rosterFor(rosters, row.getUuid("team_b"), classes)
+    let index = row.getInt("partai_index")
+    let teamA = rosters.getOrDefault(row.getUuid("team_a"))
+    let teamB = rosters.getOrDefault(row.getUuid("team_b"))
+    let sideA = sideForPartai(teamA, index)
+    let sideB = sideForPartai(teamB, index)
     if sideA.len == 0 or sideB.len == 0:
       continue
     let aWon = row.getInt("score_a") > row.getInt("score_b")
