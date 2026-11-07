@@ -29,6 +29,19 @@ const requests = {
   ],
 }
 
+const pendingClaims = {
+  items: [
+    {
+      claimId: 'cl1',
+      playerId: 'p1',
+      playerName: 'Sari',
+      userId: 'u9',
+      displayName: 'Citra',
+      createdAt: '2026-11-03 08:00:00+07',
+    },
+  ],
+}
+
 function renderAt(path: string) {
   window.history.replaceState({}, '', path)
   return render(<App />)
@@ -48,6 +61,7 @@ function base(extra: Record<string, () => { status?: number; body?: unknown }>) 
     'GET /api/communities': () => ({ body: { items: [admin] } }),
     'GET /api/c/acme/members': () => ({ body: members }),
     'GET /api/c/acme/join-requests': () => ({ body: requests }),
+    'GET /api/c/acme/claims': () => ({ body: { items: [] } }),
     'GET /api/c/acme/config': () => ({ body: { effective } }),
     ...extra,
   })
@@ -295,5 +309,50 @@ describe('community settings', () => {
         t('admin.requests.granted', { name: 'Budi', role: t('role.host') }),
       ),
     ).toBeInTheDocument()
+  })
+
+  it('lists a pending claim and approves it from the queue', async () => {
+    let claimReads = 0
+    const fetchMock = base({
+      'GET /api/c/acme/claims': () => {
+        claimReads += 1
+        return { body: claimReads === 1 ? pendingClaims : { items: [] } }
+      },
+      'PATCH /api/c/acme/players/p1/claims/cl1': () => ({
+        body: { claimId: 'cl1', status: 'approved' },
+      }),
+    })
+
+    renderAt('/c/acme/settings')
+
+    expect(await screen.findByText('Sari')).toBeInTheDocument()
+    expect(
+      screen.getByText(t('admin.claims.claimant', { name: 'Citra' })),
+    ).toBeInTheDocument()
+    expect(screen.getByText('2026-11-03')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: t('admin.claims.approve') }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url) === '/api/c/acme/players/p1/claims/cl1' &&
+          (init as RequestInit | undefined)?.method === 'PATCH',
+      )
+      expect(jsonBody((call as [string, RequestInit])[1])).toEqual({
+        decision: 'approve',
+      })
+    })
+    await waitFor(() => {
+      expect(screen.queryByText('Sari')).not.toBeInTheDocument()
+    })
+  })
+
+  it('says when no claim is waiting', async () => {
+    base({})
+
+    renderAt('/c/acme/settings')
+
+    expect(await screen.findByText(t('admin.claims.empty'))).toBeInTheDocument()
   })
 })

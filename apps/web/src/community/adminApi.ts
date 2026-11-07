@@ -21,6 +21,15 @@ export type Invite = {
   role: CommunityRole
 }
 
+export type PendingClaim = {
+  claimId: string
+  playerId: string
+  playerName: string
+  userId: string
+  displayName: string
+  createdAt: string
+}
+
 export async function listMembers(slug: string): Promise<Member[]> {
   const body = await request<{ items: Member[] }>(
     `/c/${encodeURIComponent(slug)}/members`,
@@ -49,6 +58,15 @@ export function removeMember(slug: string, userId: string): Promise<void> {
 export async function listJoinRequests(slug: string): Promise<JoinRequest[]> {
   const body = await request<{ items: JoinRequest[] }>(
     `/c/${encodeURIComponent(slug)}/join-requests`,
+  )
+  return body.items
+}
+
+export async function listPendingClaims(
+  slug: string,
+): Promise<PendingClaim[]> {
+  const body = await request<{ items: PendingClaim[] }>(
+    `/c/${encodeURIComponent(slug)}/claims`,
   )
   return body.items
 }

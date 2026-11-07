@@ -339,3 +339,57 @@ suite "claim HTTP":
       "/c/claim-club/players/" & openPlayer, freshMember("claim-tujuh-bebas"))
     check freeStatus == 200
     check not parseJson(freeBody)["viewerOwnsPlayer"].getBool()
+
+  test "the admin queue lists pending claims oldest first with the claimant":
+    # Earlier tests leave a pending claim behind; the queue spans the community,
+    # so start from an empty ledger to assert on its exact contents.
+    discard database.execUpdate(
+      "delete from player.claims where community_id = $1::uuid",
+      @[textParam(communityId)])
+    let olderPlayer = player("Klaim Antrean Lama")
+    let newerPlayer = player("Klaim Antrean Baru")
+    let boundPlayer = player("Klaim Antrean Disetujui")
+    let olderClaimant = freshMember("claim-antrean-lama")
+    let newerClaimant = freshMember("claim-antrean-baru")
+    let boundClaimant = freshMember("claim-antrean-disetujui")
+    let (olderSubmitted, _) = call(HttpPost,
+      "/c/claim-club/players/" & olderPlayer & "/claims", olderClaimant)
+    check olderSubmitted == 201
+    let (newerSubmitted, _) = call(HttpPost,
+      "/c/claim-club/players/" & newerPlayer & "/claims", newerClaimant)
+    check newerSubmitted == 201
+    let (boundSubmitted, _) = call(HttpPost,
+      "/c/claim-club/players/" & boundPlayer & "/claims", boundClaimant)
+    check boundSubmitted == 201
+
+    # The claim row is the ordering key; distinct timestamps keep it stable.
+    discard database.execUpdate(
+      """update player.claims set created_at = now() - interval '2 hours'
+         where community_id = $1::uuid and player_id = $2::uuid""",
+      @[textParam(communityId), textParam(olderPlayer)])
+    discard database.execUpdate(
+      """update player.claims set created_at = now() - interval '1 hour'
+         where community_id = $1::uuid and player_id = $2::uuid""",
+      @[textParam(communityId), textParam(newerPlayer)])
+
+    let boundClaim = database.queryOne(
+      """select id from player.claims
+         where community_id = $1::uuid and player_id = $2::uuid""",
+      @[textParam(communityId), textParam(boundPlayer)]).get.get("id")
+    let (bound, _) = call(HttpPatch, "/c/claim-club/players/" & boundPlayer &
+      "/claims/" & boundClaim, adminCookie, """{"decision":"approve"}""")
+    check bound == 200
+
+    let (status, body) = call(HttpGet, "/c/claim-club/claims", adminCookie)
+    check status == 200
+    let items = parseJson(body)["items"]
+    check items.len == 2
+    check items[0]["playerId"].getStr() == olderPlayer
+    check items[0]["playerName"].getStr() == "Klaim Antrean Lama"
+    check items[0]["displayName"].getStr() == "claim-antrean-lama"
+    check items[0]["createdAt"].getStr().len > 0
+    check items[1]["playerId"].getStr() == newerPlayer
+    check items[1]["displayName"].getStr() == "claim-antrean-baru"
+
+    let (byMember, _) = call(HttpGet, "/c/claim-club/claims", memberCookie)
+    check byMember == 403

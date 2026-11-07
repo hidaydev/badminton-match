@@ -1214,6 +1214,14 @@ proc decideJoinRequest(request: Request, ctx: CommunityContext, user: AuthUser,
     ctx.communityId, user, "join_request", requestId, %*{"role": role})
   jsonResponse(request, 200, %*{"status": if approve: "approved" else: "rejected"})
 
+proc listPendingClaims(request: Request, ctx: CommunityContext) =
+  var items = newJArray()
+  for entry in playerClaim.listPending(application.db, ctx.communityId):
+    items.add(%*{"claimId": entry.claimId, "playerId": entry.playerId,
+      "playerName": entry.playerName, "userId": entry.userId,
+      "displayName": entry.displayName, "createdAt": entry.createdAt})
+  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+
 proc listMembers(request: Request, ctx: CommunityContext) =
   var items = newJArray()
   for member in membershipStore.list(application.db, ctx.communityId):
@@ -3159,9 +3167,9 @@ proc route(request: Request) =
       requestJoin(request, parts[2])
       return
     # /c/{slug}/members[/{userId}], /c/{slug}/join-requests[/{id}],
-    # /c/{slug}/invites, /c/{slug}/config
+    # /c/{slug}/claims, /c/{slug}/invites, /c/{slug}/config
     if parts.len >= 4 and parts[1] == "c" and
-       parts[3] in ["members", "join-requests", "invites", "config"]:
+       parts[3] in ["members", "join-requests", "claims", "invites", "config"]:
       if parts[3] == "members" and parts.len == 4 and verb == "GET":
         let user = requireUser(request)
         if user.isNone: return
@@ -3198,6 +3206,9 @@ proc route(request: Request) =
         return
       if parts[3] == "join-requests" and parts.len == 5 and verb == "PATCH":
         decideJoinRequest(request, ctx, user, parts[4])
+        return
+      if parts[3] == "claims" and parts.len == 4 and verb == "GET":
+        listPendingClaims(request, ctx)
         return
       if parts[3] == "invites" and parts.len == 4 and verb == "POST":
         createInvite(request, ctx, user)

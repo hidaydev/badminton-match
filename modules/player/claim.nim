@@ -21,6 +21,14 @@ type
     reason*: string
     createdAt*: string
 
+  PendingClaim* = object
+    claimId*: string
+    playerId*: string
+    playerName*: string
+    userId*: string
+    displayName*: string
+    createdAt*: string
+
 proc ownsPlayer*(db: Db, communityId, userId: string): bool =
   ## One player per account per community (D11), so an owner cannot collect more.
   let owned = db.queryOne(
@@ -61,6 +69,24 @@ proc list*(db: Db, communityId, playerId: string): seq[Claim] =
     result.add(Claim(id: row.get("id"), userId: row.get("user_id"),
       status: row.get("status"), decidedBy: row.get("decided_by"),
       decidedAt: row.get("decided_at"), reason: row.get("reason"),
+      createdAt: row.get("created_at")))
+
+proc listPending*(db: Db, communityId: string): seq[PendingClaim] =
+  ## A pending claim is only visible on its player's page; this queue is the
+  ## one place an admin can discover it without knowing the player already.
+  for row in db.query(
+    """select cl.id, cl.player_id, p.canonical_name, cl.user_id, u.display_name,
+              cl.created_at::text as created_at
+       from player.claims cl
+       join player.players p
+         on p.community_id = cl.community_id and p.id = cl.player_id
+       join platform.user u on u.id = cl.user_id
+       where cl.community_id = $1::uuid and cl.status = 'pending'
+       order by cl.created_at asc""",
+    @[textParam(communityId)]):
+    result.add(PendingClaim(claimId: row.get("id"),
+      playerId: row.get("player_id"), playerName: row.get("canonical_name"),
+      userId: row.get("user_id"), displayName: row.get("display_name"),
       createdAt: row.get("created_at")))
 
 proc decide*(db: Db, communityId, playerId, claimId, adminId: string,

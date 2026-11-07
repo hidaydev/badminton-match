@@ -11,10 +11,12 @@ import {
   decideJoinRequest,
   listJoinRequests,
   listMembers,
+  listPendingClaims,
   removeMember,
   setMemberRole,
 } from '../community/adminApi'
-import type { Invite, JoinRequest, Member } from '../community/adminApi'
+import type { Invite, JoinRequest, Member, PendingClaim } from '../community/adminApi'
+import { decideClaim } from '../players/api'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatDay } from '../utils/day'
@@ -24,6 +26,7 @@ type Data = {
   slug: string
   members: Member[]
   requests: JoinRequest[]
+  claims: PendingClaim[]
 }
 
 function describe(error: unknown): string {
@@ -57,11 +60,11 @@ export default function SettingsPage() {
   useEffect(() => {
     if (slug === '') return
     let active = true
-    Promise.all([listMembers(slug), listJoinRequests(slug)])
-      .then(([members, requests]) => {
+    Promise.all([listMembers(slug), listJoinRequests(slug), listPendingClaims(slug)])
+      .then(([members, requests, claims]) => {
         if (!active) return
         setFailure(null)
-        setData({ slug, members, requests })
+        setData({ slug, members, requests, claims })
       })
       .catch((problem: unknown) => {
         if (active) setFailure({ key: slug, message: describe(problem) })
@@ -93,6 +96,7 @@ export default function SettingsPage() {
   const current = data !== null && data.slug === slug ? data : null
   const error = failure !== null && failure.key === slug ? failure.message : null
   const loading = slug !== '' && current === null && error === null
+  const canEdit = membership?.role === 'admin'
 
   return (
     <section className="mx-auto max-w-3xl p-4">
@@ -120,10 +124,17 @@ export default function SettingsPage() {
             busy={busy}
             onRun={run}
           />
+          {canEdit && (
+            <PendingClaims
+              slug={slug}
+              claims={current.claims}
+              onReload={reload}
+            />
+          )}
           <CommunitySettings
             key={slug}
             slug={slug}
-            canEdit={membership?.role === 'admin'}
+            canEdit={canEdit}
           />
         </>
       )}
@@ -649,6 +660,94 @@ function JoinRequests({
             name: granted.name,
             role: t(ROLE_LABEL[granted.role]),
           })}
+        </p>
+      )}
+    </section>
+  )
+}
+
+/**
+ * A pending claim is invisible until someone opens that player's page, so the
+ * queue is the only way an admin discovers that an account is waiting. A
+ * decision refreshes the page load, which leaves the other sections as they
+ * were, because the rows are swapped only once the new read lands.
+ */
+function PendingClaims({
+  slug,
+  claims,
+  onReload,
+}: {
+  slug: string
+  claims: PendingClaim[]
+  onReload: () => void
+}) {
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [failure, setFailure] = useState<string | null>(null)
+
+  const decide = async (claim: PendingClaim, decision: 'approve' | 'reject') => {
+    setPendingId(claim.claimId)
+    setFailure(null)
+    try {
+      await decideClaim(slug, claim.playerId, claim.claimId, { decision })
+      onReload()
+    } catch (problem) {
+      setFailure(describeSave(problem))
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-semibold text-fg">{t('admin.claims')}</h2>
+      <p className="mt-1 text-xs text-fg-dim">{t('admin.claims.hint')}</p>
+      {claims.length === 0 ? (
+        <p className="mt-2 text-sm text-fg-dim">{t('admin.claims.empty')}</p>
+      ) : (
+        <ul className="mt-2 space-y-2">
+          {claims.map((claim) => (
+            <li
+              key={claim.claimId}
+              className="rounded-xl border border-border-subtle bg-surface p-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm text-fg">
+                    {claim.playerName}
+                  </span>
+                  <span className="block text-xs text-fg-dim">
+                    {t('admin.claims.claimant', { name: claim.displayName })}
+                  </span>
+                  <span className="font-mono text-[10px] text-fg-dim">
+                    {formatDay(claim.createdAt)}
+                  </span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pendingId !== null}
+                    onClick={() => void decide(claim, 'approve')}
+                    className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                  >
+                    {t('admin.claims.approve')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pendingId !== null}
+                    onClick={() => void decide(claim, 'reject')}
+                    className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+                  >
+                    {t('admin.claims.reject')}
+                  </button>
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {failure !== null && (
+        <p role="alert" aria-live="polite" className="mt-2 text-sm text-error">
+          {failure}
         </p>
       )}
     </section>
