@@ -79,3 +79,84 @@ suite "archcheck rules":
     let found = violationsFor("modules/session/x.nim", source)
     check found.len == 1
     check found[0].contains("community_id")
+
+  test "the delivery layer is scanned for community scope":
+    let found = violationsFor("apps/api/src/app.nim",
+      "let q = \"select id from session.sessions where id = $1\"\n")
+    check found.len == 1
+    check found[0].contains("app.nim:1")
+    check found[0].contains("community_id")
+
+  test "a verb that is not the first word still marks SQL":
+    # The old rule only read literals that began with the verb, so a leading
+    # comment or a fragment hid the statement from the scan.
+    let comment = violationsFor("apps/api/src/app.nim",
+      "let q = \"-- one row\\nupdate session.games set status = $2 where id = $1\"\n")
+    check comment.len == 1
+    check comment[0].contains("community_id")
+    let fragment = violationsFor("apps/api/src/app.nim",
+      "let q = \" or exists (select 1 from player.aliases a)\"\n")
+    check fragment.len == 1
+    check fragment[0].contains("community_id")
+
+  test "a statement built as base & fragment is judged as one statement":
+    let source = "let base = \"select id from session.sessions\"\n" &
+      "let q = base & \" where id = $1\"\n"
+    let found = violationsFor("apps/api/src/app.nim", source)
+    check found.len == 1
+    check found[0].contains("community_id")
+
+  test "a SET fragment split from its where clause stays unscoped":
+    let source = "let q = \"update session.games set status = $2\" &\n" &
+      "  \" where id = $1\"\n"
+    let found = violationsFor("modules/session/x.nim", source)
+    check found.len == 1
+    check found[0].contains("community_id")
+
+  test "community_id in an unrelated subquery does not scope the table":
+    let source = "let q = \"select id from session.sessions s where s.id = $1\" &\n" &
+      "  \" and exists (select 1 from community.membership m\" &\n" &
+      "  \" where m.community_id = $2)\"\n"
+    let found = violationsFor("apps/api/src/app.nim", source)
+    check found.len == 1
+    check found[0].contains("community_id")
+
+  test "an uncorrelated subquery must scope itself":
+    let source = "let q = \"select id from session.sessions s\" &\n" &
+      "  \" where s.community_id = $1 and exists\" &\n" &
+      "  \" (select 1 from player.aliases a where a.alias_key = $2)\"\n"
+    let found = violationsFor("modules/player/store.nim", source)
+    check found.len == 1
+    check found[0].contains("community_id")
+
+  test "a correlated subquery inherits the outer scope":
+    let source = "let q = \"select p.id from session.participants p\" &\n" &
+      "  \" where p.community_id = $1 and not exists\" &\n" &
+      "  \" (select 1 from session.participants t\" &\n" &
+      "  \" where t.session_id = p.session_id)\"\n"
+    check violationsFor("modules/player/merge.nim", source).len == 0
+
+  test "a join predicate scopes the delivery layer":
+    let source = "let q = \"select p.id from player.players p\" &\n" &
+      "  \" join session.participants s\" &\n" &
+      "  \" on s.community_id = p.community_id\"\n"
+    check violationsFor("apps/api/src/app.nim", source).len == 0
+
+  test "an insert is scoped by its column list":
+    check violationsFor("apps/api/src/app.nim",
+      "let q = \"insert into player.players (community_id, canonical_name)\" &\n" &
+      "  \" values ($1, $2)\"\n").len == 0
+
+  test "the community allowlist exempts one routine":
+    let source = "proc handler(q: string) =\n" &
+      "  let sql = \"select id from session.sessions where id = $1\"\n"
+    check violationsFor("apps/api/src/app.nim", source).len == 1
+    check violationsFor("apps/api/src/app.nim", source,
+      ["apps/api/src/app.nim:handler"]).len == 0
+    check violationsFor("apps/api/src/app.nim", source,
+      ["apps/api/src/app.nim:other"]).len == 1
+
+  test "one allowlist entry exempts the whole tools tree":
+    let source = "let q = \"select id from session.sessions where id = $1\"\n"
+    check violationsFor("tools/import/main.nim", source).len == 1
+    check violationsFor("tools/import/main.nim", source, ["tools/"]).len == 0

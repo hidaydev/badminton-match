@@ -4,6 +4,9 @@ import scan_constants
 
 const roots = ["apps", "modules", "shared", "tools"]
 const allowlistPath = "tools/archcheck/allowlist_constants.txt"
+# Statements that touch a domain table without a community predicate and are
+# platform-level by design; each entry carries its reason.
+const communityAllowlistPath = "tools/archcheck/allowlist_community.txt"
 
 proc at(base, relative: string): string =
   ## `./task check` may be run from any directory; REPO_ROOT names the tree.
@@ -39,6 +42,10 @@ proc main() =
     if fileExists(at(base, allowlistPath)):
       loadAllowlist(readFile(at(base, allowlistPath)))
     else: @[]
+  let communityAllowed =
+    if fileExists(at(base, communityAllowlistPath)):
+      loadAllowlist(readFile(at(base, communityAllowlistPath)))
+    else: @[]
   for root in roots:
     let directory = at(base, root)
     if not dirExists(directory):
@@ -51,7 +58,7 @@ proc main() =
         continue
       scanned.inc
       let source = readFile(absolute)
-      violations.add(violationsFor(path, source))
+      violations.add(violationsFor(path, source, communityAllowed))
       if not path.contains("/tests/") and not path.endsWith("_gen.nim"):
         violations.add(constantViolations(path, source, values, allowed))
   for violation in violations:
