@@ -40,6 +40,12 @@ export default function LoginPage() {
         >
           {t('login.privacy')}
         </Link>
+        <Link
+          to="/terms"
+          className="inline-flex min-h-11 items-center rounded-xl text-xs text-fg-dim hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {t('login.terms')}
+        </Link>
       </section>
     </main>
   )
