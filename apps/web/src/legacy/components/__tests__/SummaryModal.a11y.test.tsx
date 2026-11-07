@@ -68,4 +68,45 @@ describe('SummaryModal a11y wiring', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('shows the points, not the set count, in a single-set format', () => {
+    renderModal({
+      playedGames: ['0-0'],
+      gameScores: { '0-0': { a: 24, b: 30, sets: [{ a: 24, b: 30 }] } },
+      scoring: {
+        preset: 'legacy_v1',
+        label: 'v1 scoring',
+        gamesToWin: 1,
+        pointsToWin: 30,
+        winBy: 1,
+        maxPoints: 99,
+        deuceAt: null,
+        changeEndsAt: 15,
+      },
+    })
+
+    expect(screen.getByRole('button', { name: /Score:.*24–30/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Score:.*0–1/ })).toBeNull()
+  })
+
+  it('shows the set count in a best-of-three format', () => {
+    renderModal({
+      playedGames: ['0-0'],
+      gameScores: {
+        '0-0': { a: 51, b: 40, sets: [{ a: 30, b: 28 }, { a: 21, b: 12 }] },
+      },
+      scoring: {
+        preset: 'classic21',
+        label: 'Classic BO3 21',
+        gamesToWin: 2,
+        pointsToWin: 21,
+        winBy: 2,
+        maxPoints: 30,
+        deuceAt: 20,
+        changeEndsAt: 11,
+      },
+    })
+
+    expect(screen.getByRole('button', { name: /Score:.*2–0/ })).toBeInTheDocument()
+  })
 })

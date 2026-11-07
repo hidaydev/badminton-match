@@ -145,7 +145,12 @@ export default function ScheduleGrid({
                 const isOpen = expandedScore === key
                 const draft = draftScores[key] ?? draftFromScore(savedScore, scoring)
                 const savedSets = savedScore?.sets
-                const won = savedScore && savedSets && scoring ? setsWon(savedSets) : null
+                // Sets only decide the headline in a multi-set format. A
+                // single-set session (legacy or first-to-30) must show the
+                // points, or every game reads 1-0 / 0-1.
+                const multiSet = !!scoring &&
+                  (scoring.gamesToWin > 1 || (savedSets?.length ?? 0) > 1)
+                const won = savedScore && savedSets && multiSet ? setsWon(savedSets) : null
                 const headline = savedScore
                   ? (won ? `${won.a}–${won.b}` : `${savedScore.a}–${savedScore.b}`)
                   : ''
