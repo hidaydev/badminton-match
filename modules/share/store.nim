@@ -17,9 +17,26 @@ type
     sessionDate*: string
     status*: string
 
+## One definition of "live": a link resolves, is re-displayable, and is watched
+## only while this holds. The partial unique index in `0001_core.sql` is looser,
+## it only excludes revoked rows, so an expired row must still be revoked to
+## free the index.
+const liveLinkSql = "revoked_at is null and (expires_at is null or expires_at > now())"
+
 proc aadFor(communityId, linkId: string): string =
   ## Binds a ciphertext to the exact row and community it was minted for.
   communityId & "|" & linkId
+
+proc revokeLiveConn(conn: DbConn, communityId, sessionId: string): seq[string] =
+  ## Revokes the session's unrevoked rows and returns their ids. Expired rows are
+  ## revoked too, so the partial unique index never holds a dead row.
+  for row in conn.query(
+    """update session.links set revoked_at = now()
+       where community_id = $1::uuid and session_id = $2::uuid
+         and revoked_at is null
+       returning id""",
+    @[textParam(communityId), textParam(sessionId)]):
+    result.add(row.get("id"))
 
 proc issue*(db: Db, keyring: Keyring, communityId, sessionId,
             createdBy: string, ttlDays: int): string =
@@ -30,11 +47,7 @@ proc issue*(db: Db, keyring: Keyring, communityId, sessionId,
   let code = newShareCode()
   let (keyId, encrypted) = encryptWith(keyring, code, aadFor(communityId, linkId))
   db.tx(proc(conn: DbConn) =
-    discard conn.execUpdate(
-      """update session.links set revoked_at = now()
-         where community_id = $2::uuid and session_id = $1::uuid
-           and revoked_at is null""",
-      @[textParam(sessionId), textParam(communityId)])
+    discard revokeLiveConn(conn, communityId, sessionId)
     discard conn.execUpdate(
       """insert into session.links
            (id, community_id, session_id, code_hash, code_enc, key_id, created_by,
@@ -54,8 +67,7 @@ proc currentCode*(db: Db, keyring: Keyring, communityId,
     """select id, key_id, encode(code_enc,'hex') as code_enc
        from session.links
        where community_id = $1::uuid and session_id = $2::uuid
-         and revoked_at is null
-         and (expires_at is null or expires_at > now())""",
+         and """ & liveLinkSql,
     @[textParam(communityId), textParam(sessionId)])
   if row.isNone:
     return none(string)
@@ -95,8 +107,7 @@ proc looksLikeUuid(value: string): bool =
 proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
   var row = db.queryOne(
     shareLookupColumns & shareLookupFrom &
-    """l.code_hash = decode($1,'hex') and l.revoked_at is null
-         and (l.expires_at is null or l.expires_at > now())""",
+    """l.code_hash = decode($1,'hex') and """ & liveLinkSql,
     @[textParam(sha256Hex(code))])
   if row.isNone and looksLikeUuid(code):
     # A link minted before the code era was `/s/{sessionId}`. While that session
@@ -104,8 +115,7 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
     # chat keep working instead of turning into a 404.
     row = db.queryOne(
       shareLookupColumns & shareLookupFrom &
-      """l.session_id = $1::uuid and l.revoked_at is null
-         and (l.expires_at is null or l.expires_at > now())""",
+      """l.session_id = $1::uuid and """ & liveLinkSql,
       @[textParam(code)])
   if row.isNone:
     return none(ShareLookup)
@@ -131,25 +141,21 @@ proc resolve*(db: Db, keyring: Keyring, code: string): Option[ShareLookup] =
 
 proc liveLinks*(db: Db, communityId, sessionId: string): seq[string] =
   ## Ids of the links a delete is about to take with it, so their watchers can be
-  ## closed without revoking anything first.
+  ## closed without revoking anything first. Expired rows are not live, so they
+  ## are not listed: `resolve` would refuse them anyway.
   for row in db.query(
     """select id from session.links
        where community_id = $1::uuid and session_id = $2::uuid
-         and revoked_at is null""",
+         and """ & liveLinkSql,
     @[textParam(communityId), textParam(sessionId)]):
     result.add(row.get("id"))
 
 proc revokeLive*(db: Db, communityId, sessionId: string): seq[string] =
-  ## Revokes every live link for the session and returns their ids so the
+  ## Revokes every unrevoked link for the session and returns their ids so the
   ## caller can drop the watchers and their tickets. An empty result means
   ## there was nothing to revoke.
-  for row in db.query(
-    """update session.links set revoked_at = now()
-       where community_id = $1::uuid and session_id = $2::uuid
-         and revoked_at is null
-       returning id""",
-    @[textParam(communityId), textParam(sessionId)]):
-    result.add(row.get("id"))
+  result = db.txRet(proc(conn: DbConn): seq[string] =
+    revokeLiveConn(conn, communityId, sessionId))
 
 proc rotateKeys*(db: Db, keyring: Keyring, fromKeyId, toKeyId: string): int =
   ## Rotating the *key*: every live link still sealed with `fromKeyId` is

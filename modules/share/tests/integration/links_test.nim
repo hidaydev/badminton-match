@@ -118,6 +118,17 @@ suite "share links":
     # A session in another community is never listed.
     check liveLinks(db, otherCommunityId, sessionId).len == 0
 
+  test "an expired link is dead before anyone revokes it":
+    let code = issue(db, keyring, communityId, sessionId, userId, 30)
+    discard db.execUpdate(
+      """update session.links set expires_at = now() - interval '1 day'
+         where community_id = $1::uuid and session_id = $2::uuid""",
+      @[textParam(communityId), textParam(sessionId)])
+    # `revoked_at` is still null, so only the expiry makes these answers differ.
+    check resolve(db, keyring, code).isNone
+    check resolve(db, keyring, sessionId).isNone
+    check liveLinks(db, communityId, sessionId).len == 0
+
   test "100000 generated codes are distinct":
     var seen = initHashSet[string]()
     for _ in 0 ..< 100_000:
