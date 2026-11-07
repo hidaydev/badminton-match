@@ -49,38 +49,67 @@ proc stripStrings(lines: seq[string]): seq[string] =
         index.inc
     result.add(rendered)
 
+proc literalEnd(source: string, start: int): int =
+  ## Index just past the literal that opens at `start`, which is a double quote.
+  if start + 2 < source.len and source[start + 1] == '"' and
+     source[start + 2] == '"':
+    var index = start + 3
+    while index + 2 < source.len:
+      if source[index] == '"' and source[index + 1] == '"' and
+         source[index + 2] == '"':
+        return index + 3
+      inc index
+    return source.len
+  var index = start + 1
+  while index < source.len and source[index] != '"':
+    if source[index] == '\\' and index + 1 < source.len:
+      inc index
+    inc index
+  if index < source.len:
+    inc index
+  index
+
+proc literalBody(source: string, start, finish: int): string =
+  let triple = start + 2 < finish and source[start + 1] == '"' and
+               source[start + 2] == '"'
+  let first = start + (if triple: 3 else: 1)
+  let last = finish - (if triple: 3 else: 1)
+  if last <= first: "" else: source[first ..< last]
+
+proc joinsWithConstant(gap: string): bool =
+  ## `" & someConst & "` is a single string expression: the constant is part of
+  ## the same value. Only that exact shape folds, so two unrelated statements
+  ## can never merge into one another.
+  let text = gap.strip()
+  if text.len < 3 or text[0] != '&' or text[^1] != '&':
+    return false
+  let name = text[1 ..< text.len - 1].strip()
+  if name.len == 0 or name[0] notin {'A'..'Z', 'a'..'z', '_'}:
+    return false
+  for ch in name:
+    if ch notin {'A'..'Z', 'a'..'z', '0'..'9', '_', '.'}:
+      return false
+  true
+
 proc stringLiterals*(source: string): seq[string] =
-  ## Contents of every "..." and """...""" literal, concatenated per literal.
-  var current = ""
-  var collected = false
+  ## Contents of every "..." and """...""" literal. Literals joined by
+  ## `" & someConst & "` are one string, so they are merged: a SQL statement
+  ## whose SET clause comes from a shared constant must be judged as that
+  ## statement, not as a fragment that appears to lack its community scope.
   var index = 0
+  var previousEnd = -1
   while index < source.len:
-    if index + 2 < source.len and source[index] == '"' and
-       source[index + 1] == '"' and source[index + 2] == '"':
-      index += 3
-      while index < source.len:
-        if index + 2 < source.len and source[index] == '"' and
-           source[index + 1] == '"' and source[index + 2] == '"':
-          index += 3
-          break
-        current.add(source[index])
-        index.inc
-      result.add(current)
-      current = ""
-      collected = false
-    elif source[index] == '"':
-      index.inc
-      current = ""
-      while index < source.len and source[index] != '"':
-        if source[index] == '\\' and index + 1 < source.len:
-          index.inc
-        current.add(source[index])
-        index.inc
-      index.inc
-      result.add(current)
-      current = ""
+    if source[index] != '"':
+      inc index
+      continue
+    let finish = literalEnd(source, index)
+    let body = literalBody(source, index, finish)
+    if previousEnd >= 0 and joinsWithConstant(source[previousEnd ..< index]):
+      result[^1].add(body)
     else:
-      index.inc
+      result.add(body)
+    previousEnd = finish
+    index = finish
 
 proc normalize(path: string): string =
   path.replace('\\', '/')

@@ -54,3 +54,15 @@ suite "archcheck rules":
   test "SQL with community_id passes":
     check violationsFor("modules/session/x.nim",
       "let q = \"select id from session.sessions where community_id = $1\"\n").len == 0
+
+  test "a statement split around a shared constant keeps its scope":
+    let source = "const cols* = \"score_a = null, score_b = null\"\n" &
+      "let q = \"update session.games set status = $3, \" & cols & \" where community_id = $1\"\n"
+    check violationsFor("modules/session/x.nim", source).len == 0
+
+  test "two separate statements do not merge into one scope":
+    let source = "let bad = \"select id from session.sessions where id = $1\"\n" &
+      "let ok = \"select id from session.sessions where community_id = $1\"\n"
+    let found = violationsFor("modules/session/x.nim", source)
+    check found.len == 1
+    check found[0].contains("community_id")
