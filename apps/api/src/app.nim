@@ -700,8 +700,63 @@ proc normalizeClockTime(value: string): Option[string] =
       discard
   none(string)
 
-proc idempotentWrite(request: Request, userId, communityId, key: string,
-                     body: string, resource = ""): Option[JsonNode]
+proc idempotencyKey(communityId, key, resource: string): string =
+  ## The key is scoped to the resource the write touches. Without the resource,
+  ## the same key and body sent to two different sessions or tournaments
+  ## replayed the first response and left the second unchanged.
+  scopedKey(communityId & (if resource.len > 0: "/" & resource else: ""), key)
+
+type
+  WriteKey = object
+    ## One write's claim on `platform.idempotency_keys`. Claim, release, and
+    ## complete read the same four fields, so they cannot disagree about which
+    ## row they own; a hand-typed scope per branch used to let them.
+    userId: string
+    communityId: string
+    key: string
+    resource: string
+
+proc storageKey(w: WriteKey): string =
+  ## The single place that turns a claim into the row's key.
+  idempotencyKey(w.communityId, w.key, w.resource)
+
+proc release(w: WriteKey) =
+  ## A failed attempt must not own the key: the retry with a corrected body
+  ## would otherwise answer 409 for the rest of the TTL.
+  if w.key.len == 0:
+    return
+  discard application.db.execUpdate(
+    """delete from platform.idempotency_keys
+       where user_id = $1::uuid and key = $2""",
+    @[textParam(w.userId), textParam(storageKey(w))])
+
+proc complete(w: WriteKey, status: int, body: JsonNode) =
+  ## Stores the response under the row the claim took, so a replay returns it.
+  if w.key.len == 0:
+    return
+  complete(application.db, w.userId, storageKey(w), status, body)
+
+proc claimWrite(request: Request, ctx: CommunityContext, user: AuthUser,
+                resource = ""): Option[WriteKey] =
+  ## None means the answer was already sent: a replay of the same body gets the
+  ## stored response, and the same key with a different body gets a 409. Some
+  ## means the caller owns the key and must do the work.
+  let w = WriteKey(userId: user.id, communityId: ctx.communityId,
+    key: request.headers["Idempotency-Key"], resource: resource)
+  if w.key.len == 0:
+    return some(w)
+  let entry = claim(application.db, w.userId, storageKey(w),
+    bodyHash(request.body))
+  case entry.status
+  of idempotencyNew:
+    some(w)
+  of idempotencyReplay:
+    jsonResponse(request, entry.statusCode, entry.response)
+    none(WriteKey)
+  of idempotencyConflict:
+    problem(request, 409, "IDEMPOTENCY_CONFLICT",
+      "this key was used with a different body")
+    none(WriteKey)
 
 proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   var body: JsonNode
@@ -759,10 +814,10 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
     return
   # Claim the key only once the body is known to be valid: a 400 must not leave
   # the key owned, or every retry would answer 409 for the rest of the day.
-  let key = request.headers["Idempotency-Key"]
-  if idempotentWrite(request, user.id, ctx.communityId, key,
-      request.body).isSome:
+  let claimed = claimWrite(request, ctx, user)
+  if claimed.isNone:
     return
+  let w = claimed.get
   let row = application.db.queryOne(
     """insert into session.sessions
        (community_id, title, session_date, start_time, slot_minutes, status,
@@ -776,11 +831,7 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   if row.isNone:
     # Nothing was written, so release the key instead of leaving it owned until
     # the TTL turns every retry into a 409.
-    if key.len > 0:
-      discard application.db.execUpdate(
-        """delete from platform.idempotency_keys
-           where user_id = $1::uuid and key = $2""",
-        @[textParam(user.id), textParam(scopedKey(ctx.communityId, key))])
+    w.release()
     problem(request, 400, "INVALID_SESSION", "cannot create session")
     return
   let created = %*{
@@ -791,9 +842,7 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   }
   # Complete before the audit: a failure while recording the event must not
   # leave a claimed key whose response was never stored.
-  if key.len > 0:
-    complete(application.db, user.id, scopedKey(ctx.communityId, key), 201,
-      created)
+  w.complete(201, created)
   audit("session.create", ctx, user, "session", row.get.get("id"),
     %*{"title": row.get.get("title"), "date": row.get.get("session_date"),
         "status": row.get.get("status")})
@@ -962,57 +1011,19 @@ proc ifNoneMatchHits(request: Request, etag: string): bool =
       return true
   false
 
-proc idempotencyKey(communityId, key, resource: string): string =
-  ## The key is scoped to the resource the write touches. Without the resource,
-  ## the same key and body sent to two different sessions or tournaments
-  ## replayed the first response and left the second unchanged.
-  scopedKey(communityId & (if resource.len > 0: "/" & resource else: ""), key)
-
-proc releaseIdempotencyKey(userId, communityId, key, resource: string) =
-  ## A failed attempt must not own the key: the retry with a corrected body
-  ## would otherwise answer 409 for the rest of the TTL.
-  if key.len == 0:
-    return
-  discard application.db.execUpdate(
-    """delete from platform.idempotency_keys
-       where user_id = $1::uuid and key = $2""",
-    @[textParam(userId),
-      textParam(idempotencyKey(communityId, key, resource))])
-
-proc idempotentWrite(request: Request, userId, communityId, key: string,
-                     body: string, resource = ""): Option[JsonNode] =
-  ## Returns the stored response for a replay, a 409 body for a conflict, and
-  ## none when the caller must do the work.
-  if key.len == 0:
-    return none(JsonNode)
-  let scoped = idempotencyKey(communityId, key, resource)
-  let entry = claim(application.db, userId, scoped, bodyHash(body))
-  case entry.status
-  of idempotencyNew:
-    none(JsonNode)
-  of idempotencyReplay:
-    jsonResponse(request, entry.statusCode, entry.response)
-    some(entry.response)
-  of idempotencyConflict:
-    let body = %*{"status": 409, "code": "IDEMPOTENCY_CONFLICT",
-                  "detail": "this key was used with a different body"}
-    problem(request, 409, "IDEMPOTENCY_CONFLICT", "this key was used with a different body")
-    some(body)
-
 proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
   let version = requireIfMatch(request)
   if version.isNone: return
-  let key = request.headers["Idempotency-Key"]
-  let resource = "session/" & sessionId
-  if idempotentWrite(request, user.id, ctx.communityId, key, request.body,
-      resource).isSome:
+  let claimed = claimWrite(request, ctx, user, "session/" & sessionId)
+  if claimed.isNone:
     return
+  let w = claimed.get
   var patchBody: SessionPatch
   try:
     patchBody = sessionWrite.parsePatch(bodyJson(request))
   except ValueError as error:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     logWarn("session patch rejected",
       [("error", error.msg), ("path", request.path)])
     problem(request, 400, "INVALID_PATCH", error.msg)
@@ -1020,13 +1031,13 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
   # The patch used to hand raw strings to `::date` / `::time`: a bad day became
   # a 500 and a loose "9:00" was normalised where create rejects it.
   if patchBody.date.isSome and not validSessionDate(patchBody.date.get):
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 400, "INVALID_PATCH", "date must be a real YYYY-MM-DD day")
     return
   if patchBody.startTime.isSome:
     let clock = normalizeClockTime(patchBody.startTime.get)
     if clock.isNone:
-      releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+      w.release()
       problem(request, 400, "INVALID_PATCH",
         "startTime must be HH:MM or HH:MM:SS")
       return
@@ -1036,7 +1047,7 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
     # chosen even though an old session keeps its own snapshot.
     let chosen = findPreset(patchBody.scoringPreset.get)
     if chosen.isNone:
-      releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+      w.release()
       problem(request, 400, "INVALID_PRESET", "unknown scoring preset")
       return
     patchBody.scoringRules = some($sessionScoring.rulesJson(chosen.get))
@@ -1046,23 +1057,21 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
   of wsOk:
     audit("session.patch", ctx, user, "session", sessionId,
       result.record)
-    if key.len > 0:
-      complete(application.db, user.id,
-        idempotencyKey(ctx.communityId, key, resource), 200, result.record)
+    w.complete(200, result.record)
     application.hub.sessionChanged(sessionId, result.record["version"].getInt())
     jsonResponse(request, 200, result.record,
       [("ETag", "\"" & $result.record["version"].getInt() & "\"")])
   of wsStale:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 412, "STALE_VERSION", "session changed since If-Match")
   of wsNotFound:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 404, "NOT_FOUND", "session not found")
   of wsInvalid:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 400, "INVALID_PATCH", "cannot apply patch")
   of wsPresetLocked:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 409, "PRESET_LOCKED",
       "clear the recorded sets before changing the format")
 
@@ -1072,14 +1081,13 @@ proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
   ## `session.changed` broadcast every other schedule write sends.
   let version = requireIfMatch(request)
   if version.isNone: return
-  let key = request.headers["Idempotency-Key"]
-  let resource = "session/" & sessionId & "/swap"
-  if idempotentWrite(request, user.id, ctx.communityId, key,
-      request.body, resource).isSome:
+  let claimed = claimWrite(request, ctx, user, "session/" & sessionId & "/swap")
+  if claimed.isNone:
     return
+  let w = claimed.get
   var body: JsonNode
   if not jsonBody(request, body):
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     return
   let result = sessionSwap.swapMembers(application.db, ctx.communityId,
     sessionId, version.get, sessionSwap.parseSwap(body))
@@ -1088,24 +1096,22 @@ proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
     let record = %*{"version": result.version, "status": result.sessionStatus}
     audit("session.swap", ctx, user, "session", sessionId,
       record)
-    if key.len > 0:
-      complete(application.db, user.id,
-        idempotencyKey(ctx.communityId, key, resource), 200, record)
+    w.complete(200, record)
     application.hub.sessionChanged(sessionId, result.version)
     jsonResponse(request, 200, record,
       [("ETag", "\"" & $result.version & "\"")])
   of sessionSwap.swInvalid:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 400, "INVALID_SWAP", result.detail)
   of sessionSwap.swStale:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 412, "STALE_VERSION", "session changed since If-Match")
   of sessionSwap.swNotFound:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     let detail = if result.detail.len > 0: result.detail else: "session not found"
     problem(request, 404, "NOT_FOUND", detail)
   of sessionSwap.swLocked:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 403, "FORBIDDEN", "session is locked")
 
 proc ratingParamsFor(ctx: CommunityContext): ratingDomain.RatingParams =
@@ -2758,30 +2764,28 @@ proc listTournamentsRoute(request: Request, ctx: CommunityContext) =
 
 proc createTournamentRoute(request: Request, ctx: CommunityContext,
                            user: AuthUser) =
-  let key = request.headers["Idempotency-Key"]
-  if idempotentWrite(request, user.id, ctx.communityId, key,
-      request.body).isSome:
+  let claimed = claimWrite(request, ctx, user)
+  if claimed.isNone:
     return
+  let w = claimed.get
   var body: JsonNode
   if not jsonBody(request, body):
     return
   let (status, snapshot) = tournamentStore.create(application.db,
     ctx.communityId, user.id, body)
   if status == tournamentStore.svInvalid:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, "")
+    w.release()
     invalidBodyResponse(request, "INVALID_TOURNAMENT",
       "tournament body is invalid", snapshot)
     return
   if status != tournamentStore.svOk:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, "")
+    w.release()
     saveFailure(request, status)
     return
   let id = snapshot["id"].getStr()
   let record = %*{"id": id, "version": snapshot["version"]}
   audit("tournament.create", ctx, user, "tournament", id, record)
-  if key.len > 0:
-    complete(application.db, user.id, scopedKey(ctx.communityId, key), 201,
-      snapshot)
+  w.complete(201, snapshot)
   sendSnapshot(request, 201, snapshot,
     [("Location", "/c/" & ctx.slug & "/tournaments/" & id)])
 
@@ -2797,11 +2801,10 @@ proc putTournamentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   let version = requireIfMatch(request)
   if version.isNone:
     return
-  let key = request.headers["Idempotency-Key"]
-  let resource = "tournament/" & id
-  if idempotentWrite(request, user.id, ctx.communityId, key,
-      request.body, resource).isSome:
+  let claimed = claimWrite(request, ctx, user, "tournament/" & id)
+  if claimed.isNone:
     return
+  let w = claimed.get
   var body: JsonNode
   if not jsonBody(request, body):
     return
@@ -2811,16 +2814,14 @@ proc putTournamentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   of tournamentStore.svOk:
     let record = %*{"id": id, "version": snapshot["version"]}
     audit("tournament.update", ctx, user, "tournament", id, record)
-    if key.len > 0:
-      complete(application.db, user.id,
-        idempotencyKey(ctx.communityId, key, resource), 200, snapshot)
+    w.complete(200, snapshot)
     sendSnapshot(request, 200, snapshot)
   of tournamentStore.svInvalid:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     invalidBodyResponse(request, "INVALID_TOURNAMENT",
       "tournament body is invalid", snapshot)
   else:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     saveFailure(request, status)
 
 proc ingestTournamentRating(request: Request, ctx: CommunityContext,
@@ -2894,11 +2895,11 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
   let version = requireIfMatch(request)
   if version.isNone:
     return
-  let key = request.headers["Idempotency-Key"]
-  let resource = "tournament/" & id & "/match/" & matchId
-  if idempotentWrite(request, user.id, ctx.communityId, key,
-      request.body, resource).isSome:
+  let claimed = claimWrite(request, ctx, user,
+    "tournament/" & id & "/match/" & matchId)
+  if claimed.isNone:
     return
+  let w = claimed.get
   var body: JsonNode
   if not jsonBody(request, body):
     return
@@ -2910,22 +2911,20 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
       "version": snapshot["version"]}
     audit("tournament.match.patch", ctx, user, "tournament", id,
       record)
-    if key.len > 0:
-      complete(application.db, user.id,
-        idempotencyKey(ctx.communityId, key, resource), 200, snapshot)
+    w.complete(200, snapshot)
     sendSnapshot(request, 200, snapshot)
   of tournamentStore.ptInvalid:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     invalidBodyResponse(request, "INVALID_TOURNAMENT",
       "tournament match body is invalid", snapshot)
   of tournamentStore.ptNotFound:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 404, "NOT_FOUND", "tournament or match not found")
   of tournamentStore.ptStale:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 412, "STALE_VERSION", "tournament changed since If-Match")
   of tournamentStore.ptLocked:
-    releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
+    w.release()
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
 
 proc outdatedClient(request: Request): bool =
