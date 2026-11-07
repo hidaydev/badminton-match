@@ -1,6 +1,7 @@
 import std/[json, options, strutils]
 import db/db
 import ./scoring
+import ./lifecycle
 import skips
 
 type
@@ -110,7 +111,7 @@ proc gate(conn: DbConn, communityId, sessionId: string,
     return ssNotFound
   if parseInt(row.get.get("version")) != expectedVersion:
     return ssStale
-  if row.get.get("status") != "draft":
+  if not isEditable(row.get.get("status")):
     return ssLocked
   ssOk
 

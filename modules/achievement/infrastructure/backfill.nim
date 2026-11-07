@@ -6,6 +6,7 @@ import rating/domain/rating
 import rating/infrastructure/params
 import rating/read
 import rating/infrastructure/tournament
+import session/lifecycle
 import ../domain/achievement
 
 type
@@ -39,8 +40,6 @@ type
     best: int
     endedOn: string
 
-const playedSessions = "('locked', 'published', 'completed', 'archived')"
-
 ## A rank-streak run counts a date where the player sat at this rank or better,
 ## and a run shorter than the first rung of the v1 ladder earns nothing.
 const streakRankThreshold = 3
@@ -57,7 +56,7 @@ proc loadAttendance(conn: DbConn, communityId: string): Table[string, Attendance
          on s.community_id = p.community_id and s.id = p.session_id
        where p.community_id = $1::uuid
          and s.community_id = $1::uuid
-         and s.status in """ & playedSessions & """
+         and s.status in """ & approvedStatuses & """
        order by p.player_id, s.session_date, s.id""",
     @[textParam(communityId)]):
     let playerId = row.get("player_id")
@@ -159,7 +158,7 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
        where r.community_id = $1::uuid and r.status = 'played'
          and r.winner <> ''
          and s.approved_at is not null
-         and s.status in """ & playedSessions,
+         and s.status in """ & approvedStatuses,
     @[textParam(communityId)]):
     let sessionId = row.get("session_id")
     let gameKey = row.get("round_no") & "-" & row.get("court_no")

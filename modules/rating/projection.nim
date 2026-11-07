@@ -19,6 +19,7 @@ import std/[algorithm, json, math, options, strutils, tables]
 import db/db
 import ./domain/rating
 import ./infrastructure/tournament
+import session/lifecycle
 import session/scoring as sessionScoring
 
 type
@@ -199,6 +200,7 @@ proc sessionEntries(db: Db, communityId, asOf: string,
          and e.local_date >= $2::date - ($3::int * 7)
          and e.local_date <= $2::date
          and s.approved_at is not null
+         and s.status in """ & approvedStatuses & """
          and r.status = 'played' and r.winner <> ''
        order by e.local_date, r.round_no, r.court_no""",
     @[textParam(communityId), textParam(asOf),

@@ -1,5 +1,6 @@
 import std/[json, options, strutils, tables]
 import db/db
+import session/lifecycle
 import ../domain/rating
 import ./ledger
 import ./tournament
@@ -8,9 +9,6 @@ type
   IngestResult* = object
     events*: int
     deltas*: int
-
-const
-  approvedStatuses = "('locked', 'published', 'completed', 'archived')"
 
 proc absentPlayers(conn: DbConn, communityId, sessionId: string): seq[string] =
   for row in conn.query(
@@ -71,12 +69,13 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
        where community_id = $1::uuid and id = $2::uuid
        for update""",
     @[textParam(communityId), textParam(sessionId)])
-  if session.isNone or session.get["approved_at"].isNone:
+  if session.isNone:
     return
-  if session.get.get("status") notin ["locked", "published", "completed", "archived"]:
+  let current = session.get
+  if not isRated(current["approved_at"], current.get("status")):
     return
   let event = insertEvent(conn, communityId, "session", sessionId,
-    session.get.get("session_date"), preserved)
+    current.get("session_date"), preserved)
   if event.isNone:
     return
   let eventId = event.get.get("id")

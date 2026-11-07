@@ -1,5 +1,6 @@
 import std/[algorithm, json, options, strutils, tables]
 import db/db
+import session/lifecycle
 import tournament/domain/team
 import ./domain/rating
 import ./projection
@@ -201,7 +202,7 @@ const playedGameFilter =
 
 const approvedSessionFilter =
   """s.approved_at is not null
-     and s.status in ('locked', 'published', 'completed', 'archived')"""
+     and s.status in """ & approvedStatuses
 
 const careerListCap = 3
   ## The career page shows a short top list, so each social tally stops at the

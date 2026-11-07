@@ -1,5 +1,6 @@
 import std/[json, options, strutils, unicode]
 import db/db
+import ./lifecycle
 
 type
   WriteStatus* = enum
@@ -103,12 +104,12 @@ proc dateChangeBlocked(db: Db, communityId, sessionId: string,
   if date.isNone:
     return false
   let row = db.queryOne(
-    """select approved_at is not null as rated,
+    """select approved_at::text as approved_at, status,
               session_date::text as session_date
        from session.sessions
        where community_id = $1::uuid and id = $2::uuid""",
     @[textParam(communityId), textParam(sessionId)])
-  row.isSome and row.get.get("rated") == "t" and
+  row.isSome and isRated(row.get["approved_at"], row.get.get("status")) and
     row.get.get("session_date") != date.get
 
 proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
@@ -130,7 +131,7 @@ proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
       @[textParam(communityId), textParam(sessionId)])
     if current.isNone:
       return WriteResult(status: wsNotFound)
-    if current.get.get("status") != "draft" or
+    if not isEditable(current.get.get("status")) or
        current.get.get("has_sets") == "t":
       return WriteResult(status: wsPresetLocked)
     if patch.scoringRules.isNone:
@@ -205,7 +206,7 @@ proc removeConn*(conn: DbConn, communityId, sessionId: string,
     @[textParam(communityId), textParam(sessionId)])
   if row.isNone:
     return dsNotFound
-  if row.get.get("status") != "draft" and not allowLocked:
+  if not isEditable(row.get.get("status")) and not allowLocked:
     return dsNotDraft
   let params = @[textParam(communityId), textParam(sessionId)]
   for statement in [

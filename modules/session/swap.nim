@@ -1,6 +1,7 @@
 import std/[json, options, strutils]
 import db/db
 import ./scoring
+import ./lifecycle
 import skips
 
 type
@@ -202,7 +203,7 @@ proc sessionGuard(conn: DbConn, communityId, sessionId: string,
   let status = row.get.get("status")
   # store/swap.go:101-103 rejects anything but a draft, because a swap reshapes
   # a schedule that has not been approved yet.
-  if status != "draft":
+  if not isEditable(status):
     return SwapOutcome(status: swLocked)
   let current = parseInt(row.get.get("version"))
   if current != expectedVersion:
