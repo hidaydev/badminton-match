@@ -9,7 +9,7 @@
 ## can express should still write its own statement next to the case that needs
 ## it, because a fixture that hides its SQL hides its assumptions.
 
-import std/options
+import std/[options, strutils]
 import db/db
 import sha256
 
@@ -106,9 +106,13 @@ proc purgeCommunity*(db: Db, slug: string) =
   ## made suites depend on the order they ran in.
   ##
   ## The scope is the slug, never the table: each delete names the one community
-  ## id, so a shared database loses nothing outside it. Community-scoped tables
-  ## go first because several of them reference `platform.community` with
-  ## `on delete restrict`; the cascade only has to tidy the rest.
+  ## id, so a shared database loses nothing outside it.
+  ##
+  ## PostgreSQL `DELETE` has no `CASCADE`, and the catalog's order is not the
+  ## schema's dependency order (players come before the tournament rows that
+  ## restrict them), so a blocked table is retried in a later pass. A pass that
+  ## makes no progress is a real cycle or a table outside the `community_id`
+  ## set; it raises with the names instead of leaving rows behind silently.
   db.tx(proc(conn: DbConn) =
     let community = conn.queryOne(
       "select id from platform.community where slug = $1",
@@ -116,6 +120,7 @@ proc purgeCommunity*(db: Db, slug: string) =
     if community.isNone:
       return
     let communityId = community.get.getUuid("id")
+    var pending: seq[string] = @[]
     for row in conn.query(
       """select c.table_schema || '.' || c.table_name as relation
          from information_schema.columns c
@@ -125,11 +130,32 @@ proc purgeCommunity*(db: Db, slug: string) =
            and t.table_type = 'BASE TABLE'
            and c.table_schema not in ('pg_catalog', 'information_schema')
          order by 1"""):
-      discard conn.execUpdate(
-        "delete from " & row.get("relation") & " where community_id = $1::uuid",
-        @[textParam(communityId)])
-    # `cascade` covers a table that references this community without its own
-    # `community_id` column; the statement is still scoped to the one id.
+      pending.add(row.get("relation"))
+    while pending.len > 0:
+      var blocked: seq[string] = @[]
+      for relation in pending:
+        discard conn.execUpdate("savepoint purge_community_row")
+        try:
+          discard conn.execUpdate(
+            "delete from " & relation & " where community_id = $1::uuid",
+            @[textParam(communityId)])
+          discard conn.execUpdate("release savepoint purge_community_row")
+        except DbError as error:
+          discard conn.execUpdate("rollback to savepoint purge_community_row")
+          discard conn.execUpdate("release savepoint purge_community_row")
+          # 23001 is `ON DELETE RESTRICT`, 23503 `NO ACTION`; either one
+          # means a child table still holds rows and this pass waits.
+          if error.sqlState notin ["23001", "23503"]:
+            raise
+          blocked.add(relation)
+      if blocked.len == pending.len:
+        raise newException(DbError,
+          "purgeCommunity is blocked by a restoring foreign key on: " &
+          blocked.join(", "))
+      pending = blocked
+    # Every table with a `community_id` is empty for this id now. A table
+    # without that column but with a foreign key here would fail this statement
+    # and name itself in the error, instead of a cascade hiding it.
     discard conn.execUpdate(
-      "delete from platform.community where id = $1::uuid cascade",
+      "delete from platform.community where id = $1::uuid",
       @[textParam(communityId)]))
