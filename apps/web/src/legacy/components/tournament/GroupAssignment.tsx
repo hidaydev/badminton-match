@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { GroupId, TournamentPair } from '../../utils/tournament'
+import { hit44 } from '../hitTarget'
 
 const GROUP_IDS: GroupId[] = ['A', 'B', 'C', 'D']
 
@@ -99,7 +100,7 @@ export default function GroupAssignment({
                       <button
                         onClick={() => onRemovePairFromGroup(pairId)}
                         aria-label={`Remove ${getPairName(pairId)}`}
-                        className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-md text-fg-dim hover:text-fg hover:bg-surface active:bg-border transition-colors shrink-0 ml-1 text-base leading-none"
+                        className={`w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-md text-fg-dim hover:text-fg hover:bg-surface active:bg-border transition-colors shrink-0 ml-1 text-base leading-none ${hit44}`}
                       >
                         ×
                       </button>

@@ -256,7 +256,7 @@ export default function SharedSessionPage() {
                 aria-controls={panelId}
                 tabIndex={tab === 'games' ? 0 : -1}
                 onClick={() => setTab('games')}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${tab === 'games' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${tab === 'games' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 {t('session.games')}
               </button>
@@ -267,7 +267,7 @@ export default function SharedSessionPage() {
                 aria-controls={panelId}
                 tabIndex={tab === 'standings' ? 0 : -1}
                 onClick={() => setTab('standings')}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${tab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`inline-flex min-h-11 items-center text-xs font-semibold px-4 rounded-lg transition-colors ${tab === 'standings' ? 'bg-indigo-900/60 border border-indigo-700 text-indigo-300' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 {t('session.standings')}
               </button>

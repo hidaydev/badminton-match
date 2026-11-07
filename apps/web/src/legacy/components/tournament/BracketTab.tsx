@@ -6,6 +6,7 @@ import { canvasToBlob, shareOrDownload } from '../../utils/share'
 import { loadOverlayImages } from '../../utils/overlays'
 import { useImageUploadMap } from '../../hooks/useImageUploadMap'
 import Icon from '../Icon'
+import { hit44 } from '../hitTarget'
 import ScoreModal from './ScoreModal'
 
 interface BracketTabProps {
@@ -53,7 +54,7 @@ function MatchCard({
             <button
               aria-label={`Upload photo for ${getPairName(match.pairAId)} vs ${getPairName(match.pairBId)}`}
               onClick={onUploadPhoto}
-              className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
+              className={`w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 ${hit44}`}
             >
               <Icon name="camera" size={13} stroke="white" strokeWidth={2.2} />
             </button>
@@ -252,7 +253,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                   <button
                     aria-label={`Photo mode for ${round.title}`}
                     onClick={() => setPostModeRounds(prev => ({ ...prev, [round.id]: !prev[round.id] }))}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${postModeRounds[round.id] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${hit44} ${postModeRounds[round.id] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}
                   >
                     <Icon name="camera" size={15} stroke={postModeRounds[round.id] ? 'black' : 'white'} strokeWidth={2.2} />
                   </button>
@@ -260,7 +261,7 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                     <button
                       aria-label={round.ariaLabel}
                       onClick={() => handleDownloadRound(round.matchIds, round.downloadTitle)}
-                      className="w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80"
+                      className={`w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80 ${hit44}`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -365,14 +366,14 @@ export default function BracketTab({ pairs, matches, canEdit, onSetMatchScore, o
                 <div className="mt-2 flex items-center justify-center gap-1.5">
                   <button
                     onClick={() => openPodiumUpload(pos)}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${podiumPhotos[pos] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${hit44} ${podiumPhotos[pos] ? 'bg-accent text-slate-950 active:bg-accent/80' : 'bg-black/50 active:bg-black/70'}`}
                   >
                     <Icon name="camera" size={15} stroke={podiumPhotos[pos] ? 'black' : 'white'} strokeWidth={2.2} />
                   </button>
                   {podiumPhotos[pos] && (
                     <button
                       onClick={() => handleDownloadPosition(pos, positionLabel, name)}
-                      className="w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80"
+                      className={`w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80 ${hit44}`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>

@@ -17,7 +17,7 @@ export function ScoreboardControls({
   onReset,
   onSwap,
   onToggleFullscreen,
-  buttonClassName = 'px-3 h-9 flex items-center',
+  buttonClassName = 'px-3 h-11 flex items-center',
 }: ScoreboardControlsProps) {
   const cls = `${buttonClassName} ${baseBtnClass}`
 

@@ -4,6 +4,7 @@ import { GROUP_COURTS } from '../../config/tournament'
 import type { GroupId, TournamentMatch, TournamentPair } from '../../utils/tournament'
 import { useImageUploadMap } from '../../hooks/useImageUploadMap'
 import Icon from '../Icon'
+import { hit44 } from '../hitTarget'
 import ScoreModal from './ScoreModal'
 import { drawMatchPost, drawGroupSummary } from '../../utils/canvasPost'
 import { canvasToBlob, shareOrDownload } from '../../utils/share'
@@ -103,7 +104,7 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
                 <button
                   aria-label={`Photo mode for group ${g}`}
                   onClick={() => setPostModeGroups(prev => ({ ...prev, [g]: !prev[g] }))}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${hit44} ${
                     postModeGroups[g] ? 'bg-accent active:bg-accent/80' : 'bg-black/50 active:bg-black/70'
                   }`}
                 >
@@ -138,7 +139,7 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
                       <button
                         aria-label={`Upload photo for match ${getPairName(m.pairAId)} vs ${getPairName(m.pairBId)}`}
                         onClick={() => openMatchUpload(m.id)}
-                        className="w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70"
+                        className={`w-7 h-7 rounded-full bg-black/50 flex items-center justify-center active:bg-black/70 ${hit44}`}
                       >
                         <Icon name="camera" size={13} stroke="white" strokeWidth={2.2} />
                       </button>
@@ -160,7 +161,7 @@ export default function GroupMatches({ pairs, groups, matches, canEdit, onSetMat
                 <button
                   aria-label={`Download posts for Group ${g}`}
                   onClick={() => handleDownloadGroup(g, groupMatches, groups[g], matches)}
-                  className="w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80"
+                  className={`w-8 h-8 rounded-full bg-accent flex items-center justify-center active:bg-accent/80 ${hit44}`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>

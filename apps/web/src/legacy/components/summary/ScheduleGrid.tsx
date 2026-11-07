@@ -252,16 +252,18 @@ export default function ScheduleGrid({
                         : 'hover:bg-slate-800/40'
                       } ${isDimmed ? 'opacity-25' : ''} ${glowClass}`}
                     >
-                      {/* Played toggle — real button, 24px target, keyboard operable */}
+                      {/* Played toggle — 44px hit area around a 24px visual box */}
                       <button
                         type="button"
                         onClick={() => { if (!locked && !saving && mode === 'idle') onTogglePlayedGame?.(key) }}
                         disabled={locked || saving || mode !== 'idle' || !onTogglePlayedGame}
                         aria-pressed={done}
                         aria-label={`Played: ${teamANames} vs ${teamBNames}`}
-                        className={`w-6 h-6 shrink-0 rounded border flex items-center justify-center transition-colors disabled:cursor-not-allowed ${locked || mode !== 'idle' ? 'opacity-25' : saving ? 'opacity-50' : 'cursor-pointer'} ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}
+                        className={`w-11 h-11 -my-2 shrink-0 flex items-center justify-center rounded transition-colors disabled:cursor-not-allowed ${locked || mode !== 'idle' ? 'opacity-25' : saving ? 'opacity-50' : 'cursor-pointer'}`}
                       >
-                        {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                        <span className={`w-6 h-6 rounded border flex items-center justify-center ${done ? 'bg-emerald-600 border-emerald-500' : 'border-slate-600 bg-slate-800'}`}>
+                          {done && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+                        </span>
                       </button>
                       {/* Teams — 4-column precision grid: Court label (compact fixed), Team A, vs (centered lurus), Team B */}
                       <div

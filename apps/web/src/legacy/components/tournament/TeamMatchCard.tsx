@@ -1,6 +1,7 @@
 // apps/web/src/components/tournament/TeamMatchCard.tsx
 import { teamMatchOutcome, teamTarget, PARTAI_CLASSES, teamName, DEFAULT_TEAM_COURTS, type TeamMatch, type TeamInfo } from '../../utils/teamTournament'
 import Icon from '../Icon'
+import { hit44 } from '../hitTarget'
 import { t } from '../../../i18n'
 
 interface PostProps {
@@ -75,7 +76,7 @@ export default function TeamMatchCard({
           {postProps && (
             <button
               onClick={postProps.onTogglePostMode}
-              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${hit44} ${
                 postProps.isPostMode ? 'bg-accent' : 'bg-elevated border border-border-subtle text-fg-dim hover:text-fg'
               }`}
               aria-label={t('tournament.postMode')}
@@ -124,7 +125,7 @@ export default function TeamMatchCard({
                 <div className="relative shrink-0">
                   <button
                     onClick={() => postProps.onUploadPartai(pi)}
-                    className="w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center active:bg-border text-fg-dim hover:text-fg transition-colors"
+                    className={`w-8 h-8 rounded-full bg-elevated border border-border-subtle flex items-center justify-center active:bg-border text-fg-dim hover:text-fg transition-colors ${hit44}`}
                     aria-label={`Upload photo for ${clsA}${clsB}`}
                   >
                     <Icon name="camera" size={13} strokeWidth={2.2} />
