@@ -19,6 +19,7 @@ import logger
 # registry is never incremented and no route renders it.
 import metrics
 import ratelimit
+import route_access
 import security_headers
 import server
 import db/db
@@ -415,14 +416,6 @@ proc actorOf(user: AuthUser): Actor =
   Actor(userId: user.id, isPlatformOwner: user.isOwner,
     sessionToken: user.token)
 
-proc readAccess(): Access =
-  ## Any membership role can read; the community context already proved
-  ## membership, and roles decide writes only.
-  Access(isSession: true)
-
-proc writeAccess(): Access =
-  Access(isSession: true, roles: @[rHost, rAdmin])
-
 proc decide(user: AuthUser, slug: string,
             access: Access): (Gate, Option[CommunityContext]) =
   ## Membership is resolved before the gate so a foreign slug is a 404, not a
@@ -638,11 +631,6 @@ proc scoped(request: Request, slug: string,
     respondGate(request, decision)
     return none((AuthUser, CommunityContext))
   some((user.get, ctx.get))
-
-proc adminGate(request: Request,
-               slug: string): Option[(AuthUser, CommunityContext)] =
-  ## Admin-only community management.
-  scoped(request, slug, Access(isSession: true, roles: @[rAdmin]))
 
 proc createCommunity(request: Request, snapshot: Snapshot) =
   let user = ownerOnly(request)
@@ -3044,6 +3032,9 @@ proc route(request: Request) =
     let path = request.path
     let parts = path.split('/')
     let verb = request.httpMethod
+    # The one access table: the test in modules/account compares this with
+    # testdata/authz/matrix.yaml, so a class cannot change here alone.
+    let access = operationAccess(verb, path)
     let snapshot = configSnapshot()
     # One id per request: every audit row written while serving it and the
     # access-log line share it, so a 500 can be paired with the write before it.
@@ -3118,13 +3109,6 @@ proc route(request: Request) =
       return
     # /c/{slug}/players[/{id}]
     if parts.len >= 4 and parts[1] == "c" and parts[3] == "players":
-      # matrix.yaml: reads and the nested claim routes are member, deleting a
-      # player is admin, every other write is host/admin.
-      let access =
-        if parts.len >= 6: readAccess()
-        elif verb == "GET": readAccess()
-        elif verb == "DELETE": Access(isSession: true, roles: @[rAdmin])
-        else: writeAccess()
       let authorized = scoped(request, parts[2], access)
       if authorized.isNone: return
       let (user, ctx) = authorized.get
@@ -3150,9 +3134,7 @@ proc route(request: Request) =
         playerStats(request, ctx, parts[4], snapshot)
         return
       if parts.len == 6 and parts[5] == "merge" and verb == "POST":
-        let admin = adminGate(request, parts[2])
-        if admin.isNone: return
-        mergePlayerRoute(request, admin.get[1], admin.get[0], parts[4])
+        mergePlayerRoute(request, ctx, user, parts[4])
         return
       if parts.len == 6 and parts[5] == "claims":
         if verb == "GET":
@@ -3162,9 +3144,7 @@ proc route(request: Request) =
           submitClaim(request, ctx, user, parts[4])
           return
       if parts.len == 7 and parts[5] == "claims" and verb == "PATCH":
-        let admin = adminGate(request, parts[2])
-        if admin.isNone: return
-        decideClaim(request, admin.get[1], admin.get[0], parts[4], parts[6])
+        decideClaim(request, ctx, user, parts[4], parts[6])
         return
       if parts.len == 6 and parts[5] == "claim" and verb == "DELETE":
         releaseOwnClaim(request, ctx, user, parts[4])
@@ -3177,11 +3157,6 @@ proc route(request: Request) =
         return
     # /c/{slug}/sessions[/{id}[/share]]
     if parts.len >= 4 and parts[1] == "c" and parts[3] == "sessions":
-      let access =
-        if parts.len == 6 and parts[5] in ["ws-ticket", "standings"]: readAccess()
-        elif parts.len >= 6: writeAccess()
-        elif verb == "GET": readAccess()
-        else: writeAccess()
       let authorized = scoped(request, parts[2], access)
       if authorized.isNone: return
       let (user, ctx) = authorized.get
@@ -3224,12 +3199,10 @@ proc route(request: Request) =
         return
       if parts.len == 6 and parts[5] == "rating":
         if verb in ["POST", "DELETE"]:
-          let admin = adminGate(request, parts[2])
-          if admin.isNone: return
           if verb == "POST":
-            ingestSessionRating(request, admin.get[1], admin.get[0], parts[4])
+            ingestSessionRating(request, ctx, user, parts[4])
           else:
-            clearSessionRating(request, admin.get[1], admin.get[0], parts[4])
+            clearSessionRating(request, ctx, user, parts[4])
           return
       if parts.len == 6 and parts[5] == "schedule" and verb == "PUT":
         putScheduleRoute(request, ctx, parts[4])
@@ -3257,8 +3230,6 @@ proc route(request: Request) =
         return
     # /c/{slug}/tournaments[/{id}[/matches/{matchId}]]
     if parts.len >= 4 and parts[1] == "c" and parts[3] == "tournaments":
-      # matrix.yaml: reads are member, every write is host/admin.
-      let access = if verb == "GET": readAccess() else: writeAccess()
       let authorized = scoped(request, parts[2], access)
       if authorized.isNone: return
       let (user, ctx) = authorized.get
@@ -3281,18 +3252,15 @@ proc route(request: Request) =
         patchTournamentMatchRoute(request, ctx, user, parts[4], parts[6])
         return
       if parts.len == 6 and parts[5] == "rating" and verb in ["POST", "DELETE"]:
-        # matrix.yaml: both rating operations are admin-only.
-        let admin = adminGate(request, parts[2])
-        if admin.isNone: return
         if verb == "POST":
-          ingestTournamentRating(request, admin.get[1], admin.get[0], parts[4])
+          ingestTournamentRating(request, ctx, user, parts[4])
         else:
-          clearTournamentRating(request, admin.get[1], admin.get[0], parts[4])
+          clearTournamentRating(request, ctx, user, parts[4])
         return
     # /c/{slug}/ratings/rebuild and /c/{slug}/rating-sources[/{id}]
     if parts.len >= 4 and parts[1] == "c" and
        parts[3] in ["ratings", "rating-sources"]:
-      let admin = adminGate(request, parts[2])
+      let admin = scoped(request, parts[2], access)
       if admin.isNone: return
       if parts[3] == "ratings" and parts.len == 5 and parts[4] == "rebuild" and
          verb == "POST":
@@ -3321,22 +3289,17 @@ proc route(request: Request) =
     # /c/{slug}/claims, /c/{slug}/invites, /c/{slug}/config
     if parts.len >= 4 and parts[1] == "c" and
        parts[3] in ["members", "join-requests", "claims", "invites", "config"]:
+      # The member list and the effective config are member reads (export
+      # sizes, page limits); every other operation in this family is admin.
+      let authorized = scoped(request, parts[2], access)
+      if authorized.isNone: return
+      let (user, ctx) = authorized.get
       if parts[3] == "members" and parts.len == 4 and verb == "GET":
-        let authorized = scoped(request, parts[2], readAccess())
-        if authorized.isNone: return
-        listMembers(request, authorized.get[1])
+        listMembers(request, ctx)
         return
-      # The effective config is what a member's screen reads (export sizes,
-      # page limits). Community settings are readable by members too, so this
-      # cannot be admin-only without breaking every page a host opens.
       if parts[3] == "config" and parts.len == 4 and verb == "GET":
-        let authorized = scoped(request, parts[2], readAccess())
-        if authorized.isNone: return
-        communityConfig(request, authorized.get[1], snapshot)
+        communityConfig(request, ctx, snapshot)
         return
-      let admin = adminGate(request, parts[2])
-      if admin.isNone: return
-      let (user, ctx) = admin.get
       if parts[3] == "members" and parts.len == 5:
         if verb == "PATCH": patchMemberRole(request, ctx, user, parts[4])
         elif verb == "DELETE": removeMember(request, ctx, user, parts[4])
@@ -3357,12 +3320,12 @@ proc route(request: Request) =
     # /c/{slug}/settings
     if parts.len == 4 and parts[1] == "c" and parts[3] == "settings":
       if verb == "GET":
-        let authorized = scoped(request, parts[2], readAccess())
+        let authorized = scoped(request, parts[2], access)
         if authorized.isNone: return
         getCommunitySettings(request, authorized.get[1], snapshot)
       elif verb == "PATCH":
         # Settings are admin-only: a host raises scores, not the ceiling.
-        let admin = adminGate(request, parts[2])
+        let admin = scoped(request, parts[2], access)
         if admin.isNone: return
         patchCommunitySettings(request, admin.get[1], admin.get[0], snapshot)
       else:
@@ -3370,7 +3333,7 @@ proc route(request: Request) =
       return
     # /c/{slug}/rankings[/{playerId}]
     if parts.len in [4, 5] and parts[1] == "c" and parts[3] == "rankings":
-      let authorized = scoped(request, parts[2], readAccess())
+      let authorized = scoped(request, parts[2], access)
       if authorized.isNone: return
       let ctx = authorized.get[1]
       if parts.len == 4:

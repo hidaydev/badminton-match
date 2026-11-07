@@ -1,5 +1,6 @@
-import std/[json, options, sets, unittest]
+import std/[json, options, sets, strutils, unittest]
 import api/src/routes_gen
+import api/src/route_access
 import ../domain/roles
 
 const matrixPath = "testdata/authz/matrix.yaml"
@@ -12,6 +13,24 @@ proc loadMatrix(): JsonNode =
 
 proc principal(session = true, role = none(Role), owner = false): Principal =
   Principal(hasSession: session, role: role, isPlatformOwner: owner)
+
+const pathParams = ["slug", "id", "gameKey", "playerId", "claimId", "matchId",
+                    "userId", "code", "token"]
+
+proc concrete(path: string): string =
+  ## One fixed value per parameter: the classifier reads the shape of the path,
+  ## never the value, so any concrete segment answers the same question.
+  result = path
+  for name in pathParams:
+    result = result.replace("{" & name & "}", "x")
+
+proc impostors(operations: JsonNode): seq[string] =
+  ## Every operation whose dispatched class disagrees with its matrix row.
+  for route in routes:
+    let dispatched = operationAccess(route.httpMethod, concrete(route.path))
+    let declared = parseAccess(operations[route.operationId])
+    if dispatched.describe() != declared.describe():
+      result.add(route.operationId)
 
 suite "authorization matrix":
   test "every contract operation has a row":
@@ -92,7 +111,7 @@ suite "authorization matrix":
 
   test "player administration is admin-only, not host":
     # Hosts run the session; deleting a player, merging two or deciding a claim
-    # rewrites history, and the handlers use the admin gate for exactly that.
+    # rewrites history, and the dispatch gates those for admin for exactly that.
     let operations = loadMatrix()
     for operationId in ["deletePlayer", "postPlayerMerge", "patchPlayerClaim",
                         "listRatingSources"]:
@@ -100,3 +119,32 @@ suite "authorization matrix":
       check access.can(principal(role = some(rAdmin)))
       check not access.can(principal(role = some(rHost)))
       check not access.can(principal(role = some(rMember)))
+
+  test "the dispatch grants each operation the class the matrix declares":
+    # The matrix is the specification; route() gates through operationAccess,
+    # so this compares the code with the document instead of the document with
+    # itself. `listJoinRequests` is the one row the matrix gets wrong: it says
+    # `session`, while docs/handbook/features-and-routes.md and the handler both
+    # say admin, because members must not see who asked to join. Fix that row
+    # rather than loosening the gate, and this list becomes empty.
+    check impostors(loadMatrix()) == @["listJoinRequests"]
+
+  test "the dispatch guard fails when one operation changes class":
+    # Proof by changing the matrix in memory, never the file: one read turned
+    # into a write and one write turned into a read must both be reported.
+    var flipped = loadMatrix()
+    flipped["getSessionGame"] =
+      %*{"auth": "session", "roles": ["host", "admin"]}
+    flipped["createSession"] = %*{"auth": "session"}
+    let found = impostors(flipped)
+    check "getSessionGame" in found
+    check "createSession" in found
+    check found.len == impostors(loadMatrix()).len + 2
+
+  test "a member reads a game and only a host scores it":
+    let read = operationAccess("GET", "/c/x/sessions/s/games/g")
+    check read.can(principal(role = some(rMember)))
+    check read.can(principal(role = some(rHost)))
+    let write = operationAccess("PATCH", "/c/x/sessions/s/games/g")
+    check not write.can(principal(role = some(rMember)))
+    check write.can(principal(role = some(rHost)))
