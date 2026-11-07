@@ -1,21 +1,26 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+/**
+ * The shipped V2 button, derived from the call sites rather than from the
+ * design doc: every button is `min-h-11 rounded-xl`, the primary one is the only
+ * one that is `font-semibold`, and none of them use flex centring.
+ */
 type Variant = 'primary' | 'secondary' | 'danger'
 type Size = 'md' | 'sm'
 
 const BASE =
-  'inline-flex items-center justify-center rounded-xl font-semibold focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50'
+  'min-h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50'
 
 const VARIANT = {
-  primary: 'bg-accent text-ground',
+  primary: 'bg-accent font-semibold text-ground',
   secondary: 'border border-border text-fg hover:bg-elevated',
   danger: 'border border-border text-error hover:bg-elevated',
 } satisfies Record<Variant, string>
 
 const SIZE = {
-  md: 'min-h-11 px-4 text-sm',
-  sm: 'min-h-11 px-3 text-xs',
+  md: 'px-4 text-sm',
+  sm: 'px-3 text-xs',
 } satisfies Record<Size, string>
 
 function join(...parts: (string | undefined)[]): string {
