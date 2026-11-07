@@ -123,11 +123,9 @@ suite "authorization matrix":
   test "the dispatch grants each operation the class the matrix declares":
     # The matrix is the specification; route() gates through operationAccess,
     # so this compares the code with the document instead of the document with
-    # itself. `listJoinRequests` is the one row the matrix gets wrong: it says
-    # `session`, while docs/handbook/features-and-routes.md and the handler both
-    # say admin, because members must not see who asked to join. Fix that row
-    # rather than loosening the gate, and this list becomes empty.
-    check impostors(loadMatrix()) == @["listJoinRequests"]
+    # itself. No operation may disagree: a row that says `session` where the
+    # handler needs admin is a member route that answers 403, not a doc typo.
+    check impostors(loadMatrix()).len == 0
 
   test "the dispatch guard fails when one operation changes class":
     # Proof by changing the matrix in memory, never the file: one read turned

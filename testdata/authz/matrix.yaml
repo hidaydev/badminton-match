@@ -167,7 +167,10 @@
       "auth": "session"
     },
     "listJoinRequests": {
-      "auth": "session"
+      "auth": "session",
+      "roles": [
+        "admin"
+      ]
     },
     "listMembers": {
       "auth": "session"
