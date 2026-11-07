@@ -25,11 +25,15 @@ const
   ## Evidence is allow-listed field by field. Anything else is dropped rather
   ## than logged: audit rows must never carry a share code, an email or an IP.
   ## Lowercase on purpose: matching is case-insensitive, and the stored JSON
-  ## keeps the caller's key so the evidence stays readable.
+  ## keeps the caller's key so the evidence stays readable. `reason` is here so
+  ## a rejection or an anonymisation leaves a sentence instead of an empty row;
+  ## the Google `sub` is deliberately absent, because it is a stable external
+  ## identifier and the audit table outlives the account. Correlation is
+  ## `request_id` plus `reason`.
   evidenceAllowlist = [
     "slug", "name", "title", "date", "status", "role", "version",
     "sessionid", "playerid", "claimid", "matchid", "tournamentid",
-    "fromrole", "torole", "count", "rating",
+    "fromrole", "torole", "count", "rating", "reason",
   ]
 
   forbiddenKeys = ["code", "email", "ip", "token", "cookie", "ticket",
@@ -46,6 +50,16 @@ proc configKeyLike(key: string): bool =
       return false
   true
 
+proc evidenceKeyKept(key: string): bool =
+  ## Shared by the sanitiser and the drop report so both agree on what survives.
+  let lowered = key.toLowerAscii()
+  if lowered notin evidenceAllowlist and not configKeyLike(lowered):
+    return false
+  for part in forbiddenKeys:
+    if lowered.contains(part):
+      return false
+  true
+
 proc sanitizeEvidence*(node: JsonNode): JsonNode =
   ## Keeps allow-listed keys with scalar values. Nested objects and arrays are
   ## dropped because they can smuggle unlisted data into the row.
@@ -53,20 +67,24 @@ proc sanitizeEvidence*(node: JsonNode): JsonNode =
     return newJObject()
   result = newJObject()
   for key, value in node:
-    let lowered = key.toLowerAscii()
-    if lowered notin evidenceAllowlist and not configKeyLike(lowered):
-      continue
-    var forbidden = false
-    for part in forbiddenKeys:
-      if lowered.contains(part):
-        forbidden = true
-    if forbidden:
+    if not evidenceKeyKept(key):
       continue
     case value.kind
     of JString, JInt, JFloat, JBool, JNull:
       result[key] = value
     else:
       discard
+
+proc droppedEvidenceKeys*(node: JsonNode): seq[string] =
+  ## The keys `sanitizeEvidence` removes, so the adapter can say which evidence
+  ## never reached the row. Only the key name is reported: the value may be the
+  ## secret the allowlist exists to keep out.
+  if node.kind != JObject:
+    return @[]
+  for key, value in node:
+    if not evidenceKeyKept(key) or
+        value.kind notin {JString, JInt, JFloat, JBool, JNull}:
+      result.add(key)
 
 proc forbid*(key: string): bool =
   ## True when a field name can never be persisted as audit evidence.

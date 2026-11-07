@@ -52,13 +52,13 @@ suite "metrics listener":
     delEnv("MAJADU_METRICS_PORT")
 
   test "counts the route template, never the raw path":
-    recordResponse("GET", "/c/acme/clubs", 200)
+    discard recordResponse("GET", "/c/acme/clubs", 200)
     check metricsText().contains(
       """route="/c/{slug}/clubs",status="200"} 1""")
 
   test "unmatched paths share one bucket so a scanner cannot mint series":
-    recordResponse("GET", "/nope/one", 404)
-    recordResponse("GET", "/nope/two", 404)
+    discard recordResponse("GET", "/nope/one", 404)
+    discard recordResponse("GET", "/nope/two", 404)
     let text = metricsText()
     check text.contains("""method="GET",route="unmatched",status="404"}""")
     check not text.contains("/nope/one")

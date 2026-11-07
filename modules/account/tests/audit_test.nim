@@ -29,6 +29,22 @@ suite "audit evidence":
     check forbid("ticket")
     check not forbid("slug")
 
+  test "reason is evidence so a rejection keeps its sentence":
+    let evidence = sanitizeEvidence(%*{"reason": "nonce mismatch"})
+    check evidence["reason"].getStr() == "nonce mismatch"
+
+  test "the Google subject is not evidence":
+    check droppedEvidenceKeys(%*{"sub": "1234"}) == @["sub"]
+
+  test "reports the dropped keys, never their values":
+    let dropped = droppedEvidenceKeys(%*{
+      "email": "a@b.c", "slug": "x", "name": {"nested": "value"},
+    })
+    check dropped.len == 2
+    check "email" in dropped
+    check "name" in dropped
+    check "slug" notin dropped
+
   test "event without evidence serialises empty objects":
     let event = auditEvent("community.create", "c1", actorId = "u1",
       actorRole = "admin", targetKind = "community", targetId = "c1")

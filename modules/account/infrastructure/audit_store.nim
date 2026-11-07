@@ -1,5 +1,6 @@
 import std/json
 import db/db
+import logger
 import ../domain/audit
 
 const recordAuditSql = """insert into account.audit
@@ -8,7 +9,17 @@ const recordAuditSql = """insert into account.audit
      values ($1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8, $9,
              $10::jsonb, $11::jsonb)"""
 
+proc warnDroppedEvidence(event: AuditEvent) =
+  ## A key outside the allowlist never reaches the row. Saying so is the
+  ## difference between "the evidence is empty" and "the caller asked for a
+  ## field that the allowlist refuses"; the value itself is never logged.
+  for source in [event.before, event.after]:
+    for key in droppedEvidenceKeys(source):
+      logWarn("audit evidence dropped",
+        [("action", event.action), ("key", key)])
+
 proc auditParams(event: AuditEvent): seq[DbParam] =
+  warnDroppedEvidence(event)
   @[
     textOrNull(event.actorId),
     textParam(if event.actorRole.len == 0: "member" else: event.actorRole),

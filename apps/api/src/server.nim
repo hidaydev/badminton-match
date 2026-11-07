@@ -2,6 +2,7 @@ import std/[locks, os, strutils]
 import mummy
 import logger
 import metrics
+import uuidv7
 
 type
   ServerConfig* = object
@@ -65,7 +66,25 @@ var
 
 initLock(registryLock)
 
-proc recordResponse*(verb, path: string, status: int, label = "") =
+# The audit id of the request being served on this thread. `route()` starts one
+# per request, every audit wrapper reads it, and the access log prints it, so a
+# 500 can be paired with the rows of the write that preceded it. Each connection
+# is served on a single worker thread, so a threadvar cannot leak between
+# requests.
+var activeRequestId {.threadvar.}: string
+
+proc beginRequest*() =
+  ## Starts one id for the request this thread is about to serve. A nested call
+  ## would break the correlation, so only the request chain calls it.
+  activeRequestId = uuidv7()
+
+proc currentRequestId*(): string =
+  ## The id of the request being served, empty outside one. `recordAudit` turns
+  ## an empty value into the historical `-`, so a CLI caller still writes a row.
+  activeRequestId
+
+proc recordResponse*(verb, path: string, status: int, label = "",
+                     requestId = ""): string =
   ## One counter and one access-log line per answer. The label is the route
   ## template, never the raw path, so a share code, slug or id cannot become a
   ## series. Unmatched paths share one bucket: a scanner would otherwise mint a
@@ -73,6 +92,8 @@ proc recordResponse*(verb, path: string, status: int, label = "") =
   ##
   ## The request chain already computed the template, so it passes it in; a
   ## direct caller without a request leaves it empty and it is derived here.
+  ## The rendered line is returned so a test can prove it carries the same id
+  ## as the audit rows written while serving that request.
   let routeLabel =
     if status == 404: "unmatched"
     elif label.len > 0: label
@@ -80,8 +101,10 @@ proc recordResponse*(verb, path: string, status: int, label = "") =
   withLock registryLock:
     registry.inc("http_requests_total",
       [("method", verb), ("route", routeLabel), ("status", $status)])
-  logInfo("request",
-    [("method", verb), ("route", routeLabel), ("status", $status)])
+  result = renderLog("info", "request",
+    [("method", verb), ("route", routeLabel), ("status", $status),
+     ("request_id", requestId)])
+  stdout.writeLine result
 
 proc metricsText*(): string {.gcsafe.} =
   ## Prometheus text exposition for the internal listener. The registry holds a

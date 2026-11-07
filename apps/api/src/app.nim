@@ -21,7 +21,6 @@ import security_headers
 import server
 import db/db
 import sha256
-import uuidv7
 import share/crypto
 import share/store as shareStore
 import session/write as sessionWrite
@@ -123,7 +122,8 @@ proc evidenceEvent(action: string, communityId: string, user: AuthUser,
     actorRole = (if user.isOwner: "platform_owner"
                  elif role.len > 0: role
                  else: "admin"),
-    targetKind = targetKind, targetId = targetId, requestId = uuidv7()).withEvidence(
+    targetKind = targetKind, targetId = targetId,
+    requestId = currentRequestId()).withEvidence(
       newJObject(), after)
 
 proc auditConn(conn: DbConn, action: string, communityId: string, user: AuthUser,
@@ -163,7 +163,7 @@ proc authAudit(action: string, user: AuthUser, outcome = arAllow,
     actorId = user.id,
     actorRole = (if user.isOwner: "platform_owner" else: "member"),
     outcome = outcome, targetKind = "user", targetId = user.id,
-    reason = reason, requestId = uuidv7()))
+    reason = reason, requestId = currentRequestId()))
 
 proc authRejected(action, reason: string, userId = "") =
   ## A rejected attempt before any session exists: who is unknown unless the
@@ -171,7 +171,7 @@ proc authRejected(action, reason: string, userId = "") =
   recordAudit(application.db, auditEvent(action, communityId = "",
     actorId = userId, actorRole = "anonymous", outcome = arDeny,
     targetKind = (if userId.len > 0: "user" else: ""), targetId = userId,
-    reason = reason, requestId = uuidv7()))
+    reason = reason, requestId = currentRequestId()))
 
 proc send(request: Request, status: int,
           headers: openArray[(string, string)], body: string) =
@@ -184,7 +184,8 @@ proc send(request: Request, status: int,
   for pair in securityHeaders(application.cookieSecure):
     merged.add(pair)
   request.respond(status, merged, body)
-  recordResponse(request.httpMethod, request.path, status, currentRouteLabel)
+  discard recordResponse(request.httpMethod, request.path, status,
+    currentRouteLabel, currentRequestId())
 
 proc send(request: Request, status: int) =
   send(request, status, newSeq[(string, string)](), "")
@@ -1219,7 +1220,7 @@ proc patchCommunitySettings(request: Request, ctx: CommunityContext,
     problem(request, 400, "INVALID_BODY", "settings patch must be JSON")
     return
   let result = applyPatch(application.db, snapshot, ctx.communityId,
-    user.id, body, uuidv7(), $ctx.role)
+    user.id, body, currentRequestId(), $ctx.role)
   case result.outcome
   of soOk:
     jsonResponse(request, 200,
@@ -3049,6 +3050,9 @@ proc route(request: Request) =
     let parts = path.split('/')
     let verb = request.httpMethod
     let snapshot = configSnapshot()
+    # One id per request: every audit row written while serving it and the
+    # access-log line share it, so a 500 can be paired with the write before it.
+    beginRequest()
     # One template per request: the quota bucket and the counter label both use
     # it, so the same path cannot be labelled two ways.
     currentRouteLabel = templateRoute(path)
