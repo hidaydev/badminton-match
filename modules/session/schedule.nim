@@ -249,8 +249,7 @@ proc setAbsent*(db: Db, communityId, sessionId: string, expectedVersion: int,
   outcome
 
 proc sessionRules*(db: Db, communityId, sessionId: string): Option[ScoringRules] =
-  ## The frozen rules of one session. Used by the score route to build a precise
-  ## message before the write; `setSets` reads them again inside the transaction.
+  ## The frozen rules of one session, for readers that only need the format.
   let row = db.queryOne(
     """select scoring_rules from session.sessions
        where community_id = $1::uuid and id = $2::uuid""",
@@ -260,22 +259,24 @@ proc sessionRules*(db: Db, communityId, sessionId: string): Option[ScoringRules]
   some(parseSnapshotNode(parseJson(row.get.get("scoring_rules"))))
 
 proc setSets*(db: Db, communityId, sessionId, gameKey: string,
-              expectedVersion: int, sets: seq[SetScore]): ScheduleStatus =
+              expectedVersion: int, sets: seq[SetScore],
+              flat = false): tuple[status: ScheduleStatus, verdict: SetVerdict] =
   ## Replaces the whole set list of one match. The status follows the format:
   ## `played` once one side reaches `gamesToWin`, `scheduled` while partial.
-  ## An empty list clears the score.
+  ## An empty list clears the score. `flat` marks the one-set body, which a
+  ## best-of-N format refuses.
+  ##
+  ## The verdict travels with the status: the caller maps it to a message once
+  ## instead of validating the list a second time.
   let key = parseGameKey(gameKey)
   if key.isNone:
-    return ssInvalid
+    return (status: ssInvalid, verdict: SetVerdict())
   var outcome = ssOk
+  var verdict: SetVerdict
   db.tx(proc(conn: DbConn) =
-    if not gameExists(conn, communityId, sessionId, key.get):
-      outcome = ssNotFound
-      return
-    let allowed = gate(conn, communityId, sessionId, expectedVersion)
-    if allowed != ssOk:
-      outcome = allowed
-      return
+    # The rules come first, then the list is judged, then existence and the
+    # version gate: an invalid score is a 400 even when the If-Match is stale,
+    # which is the order the route used when it validated on its own.
     let rulesRow = conn.queryOne(
       """select scoring_rules from session.sessions
          where community_id = $1::uuid and id = $2::uuid""",
@@ -284,11 +285,22 @@ proc setSets*(db: Db, communityId, sessionId, gameKey: string,
       outcome = ssNotFound
       return
     let rules = parseSnapshotNode(parseJson(rulesRow.get.get("scoring_rules")))
-    let verdict = validateSets(rules, sets)
+    if flat and not flatScoreAllowed(rules):
+      verdict = SetVerdict(error: seSetsRequired)
+      outcome = ssInvalid
+      return
+    verdict = validateSets(rules, sets)
     if verdict.error != seOk:
       outcome =
         if verdict.error in {seTooManySets, seSetAfterEnd}: ssInvalidSequence
         else: ssInvalid
+      return
+    if not gameExists(conn, communityId, sessionId, key.get):
+      outcome = ssNotFound
+      return
+    let allowed = gate(conn, communityId, sessionId, expectedVersion)
+    if allowed != ssOk:
+      outcome = allowed
       return
     if not bump(conn, communityId, sessionId, expectedVersion):
       outcome = ssStale
@@ -317,15 +329,19 @@ proc setSets*(db: Db, communityId, sessionId, gameKey: string,
            and round_no = $4 and court_no = $5""",
       @[textParam(communityId), textParam(sessionId), textParam(status),
         intParam(key.get[0].int64), intParam(key.get[1].int64)]))
-  outcome
+  (status: outcome, verdict: verdict)
 
 proc setScore*(db: Db, communityId, sessionId, gameKey: string,
                expectedVersion, scoreA, scoreB: int): ScheduleStatus =
-  ## The flat body stays for single-set sessions; it is one set.
-  if scoreA < 0 or scoreA > 99 or scoreB < 0 or scoreB > 99 or scoreA == scoreB:
+  ## The flat body stays for single-set sessions; it is one set. The range and
+  ## tie come from `validSet`, the same rule `setSets` applies.
+  let rules = sessionRules(db, communityId, sessionId)
+  if rules.isNone:
+    return ssNotFound
+  if validSet(rules.get, SetScore(a: scoreA, b: scoreB)) != seOk:
     return ssInvalid
   setSets(db, communityId, sessionId, gameKey, expectedVersion,
-    @[SetScore(a: scoreA, b: scoreB)])
+    @[SetScore(a: scoreA, b: scoreB)], flat = true).status
 
 proc setPlayed*(db: Db, communityId, sessionId, gameKey: string,
                 expectedVersion: int, played: bool): ScheduleStatus =

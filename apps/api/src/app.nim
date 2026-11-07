@@ -2108,20 +2108,38 @@ proc setAbsentRoute(request: Request, ctx: CommunityContext, sessionId: string) 
     sessionSchedule.setAbsent(application.db, ctx.communityId, sessionId,
       version.get, playerIds))
 
-proc setErrorDetail(verdict: sessionScoring.SetVerdict): string =
+proc setVerdictProblem(request: Request, verdict: sessionScoring.SetVerdict) =
+  ## The one table from a verdict to its HTTP code and message. `setSets` already
+  ## validated the list inside its transaction and handed the verdict back, so
+  ## the route never runs the rules a second time.
   let prefix =
     if verdict.setIndex > 0: "set " & $verdict.setIndex & ": " else: ""
   case verdict.error
-  of sessionScoring.seOk: ""
-  of sessionScoring.seTie: prefix & "scores cannot be equal"
-  of sessionScoring.seRange: prefix & "scores must be between 0 and 99"
+  of sessionScoring.seOk:
+    discard
+  of sessionScoring.seTie:
+    problem(request, 400, "INVALID_SCORE", prefix & "scores cannot be equal")
+  of sessionScoring.seRange:
+    problem(request, 400, "INVALID_SCORE",
+      prefix & "scores must be between 0 and 99")
   of sessionScoring.seTooFewPoints:
-    prefix & "the winner must reach the format's points"
-  of sessionScoring.seAboveCap: prefix & "the score is above the format's cap"
-  of sessionScoring.seWinBy: prefix & "the winning margin is too small"
-  of sessionScoring.seTooManySets: "too many sets for this format"
-  of sessionScoring.seSetAfterEnd: prefix & "the match is already won"
-  of sessionScoring.seNotContiguous: prefix & "sets must be listed in order"
+    problem(request, 400, "INVALID_SCORE",
+      prefix & "the winner must reach the format's points")
+  of sessionScoring.seAboveCap:
+    problem(request, 400, "INVALID_SCORE",
+      prefix & "the score is above the format's cap")
+  of sessionScoring.seWinBy:
+    problem(request, 400, "INVALID_SCORE",
+      prefix & "the winning margin is too small")
+  of sessionScoring.seTooManySets:
+    problem(request, 400, "INVALID_SET_SEQUENCE",
+      "too many sets for this format")
+  of sessionScoring.seSetAfterEnd:
+    problem(request, 400, "INVALID_SET_SEQUENCE",
+      prefix & "the match is already won")
+  of sessionScoring.seSetsRequired:
+    problem(request, 400, "SETS_REQUIRED",
+      "this format needs set scores, not a single score")
 
 proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
                        gameKey: string) =
@@ -2160,28 +2178,12 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
     sets = @[sessionScoring.SetScore(a: body["scoreA"].getInt(),
                                      b: body["scoreB"].getInt())]
 
-  let rules = sessionSchedule.sessionRules(application.db, ctx.communityId,
-    sessionId)
-  if rules.isNone:
-    problem(request, 404, "NOT_FOUND", "session not found")
+  let outcome = sessionSchedule.setSets(application.db, ctx.communityId,
+    sessionId, gameKey, version.get, sets, flat = not hasSets)
+  if outcome.verdict.error != sessionScoring.seOk:
+    setVerdictProblem(request, outcome.verdict)
     return
-  if not hasSets and rules.get.gamesToWin > 1:
-    problem(request, 400, "SETS_REQUIRED",
-      "this format needs set scores, not a single score")
-    return
-  let verdict = sessionScoring.validateSets(rules.get, sets)
-  if verdict.error != sessionScoring.seOk:
-    let code =
-      if verdict.error in {sessionScoring.seTooManySets,
-                           sessionScoring.seSetAfterEnd}:
-        "INVALID_SET_SEQUENCE"
-      else:
-        "INVALID_SCORE"
-    problem(request, 400, code, setErrorDetail(verdict))
-    return
-  scheduleDone(request, ctx, sessionId,
-    sessionSchedule.setSets(application.db, ctx.communityId, sessionId,
-      gameKey, version.get, sets))
+  scheduleDone(request, ctx, sessionId, outcome.status)
 
 proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
                    gameKey: string) =

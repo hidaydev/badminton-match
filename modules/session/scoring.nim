@@ -41,7 +41,7 @@ type
     seWinBy = "win_by"
     seTooManySets = "too_many_sets"
     seSetAfterEnd = "set_after_end"
-    seNotContiguous = "not_contiguous"
+    seSetsRequired = "sets_required"
 
   SetVerdict* = object
     ## `setIndex` is 1-based; zero means the complaint is about the list.
@@ -188,6 +188,11 @@ proc rulesJson*(rules: ScoringRules): JsonNode =
     if rules.deuceAt.isSome: %rules.deuceAt.get else: newJNull()
   result["changeEndsAt"] =
     if rules.changeEndsAt.isSome: %rules.changeEndsAt.get else: newJNull()
+
+proc flatScoreAllowed*(rules: ScoringRules): bool =
+  ## A bare `scoreA`/`scoreB` body is a single set, so it only fits a
+  ## single-set format; a best-of-N session must send the `sets` list.
+  rules.gamesToWin == 1
 
 proc validSet*(rules: ScoringRules, s: SetScore): SetError =
   ## One completed set. The cap is checked before `winBy`: 30-29 in a 21-point

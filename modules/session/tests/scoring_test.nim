@@ -77,6 +77,10 @@ suite "set list":
     check validateSets(majadu, @[set(30, 28), set(30, 28)]).error ==
       seTooManySets
 
+  test "a flat score only fits a single-set format":
+    check flatScoreAllowed(majadu)
+    check not flatScoreAllowed(classic)
+
   test "invalid set names its position":
     let verdict = validateSets(classic, @[set(21, 19), set(21, 20)])
     check verdict.error == seWinBy
