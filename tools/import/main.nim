@@ -15,6 +15,7 @@
 ## while half of it stayed behind would be worse than no report.
 
 import std/[json, options, os, sequtils, strutils, tables]
+import cli
 import db/db
 import uuidv7
 import platform/config/registry
@@ -23,6 +24,8 @@ import achievement/infrastructure/backfill as achievementBackfill
 import rating/infrastructure/ingest as ratingIngest
 import rating/infrastructure/params
 import rating/infrastructure/tournament as ratingTournament
+
+const program = "import"
 
 type
   Dsn* = object
@@ -35,51 +38,39 @@ type
     collapsed*: int
     skipped*: int
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "import: " & message
-  quit(2)
-
 proc parseArgs(): tuple[command: string, dsn: Dsn, slug, name, timezone: string,
                         dryRun: bool] =
   result.command = "etl"
   if paramCount() >= 1:
     result.command = paramStr(1)
     if result.command notin ["etl", "verify"]:
-      fail "unknown command " & result.command & " (etl|verify)"
+      usageFail(program, "unknown command " & result.command & " (etl|verify)")
   result.dsn.source = getEnv("MAJADU_ETL_SOURCE_DSN")
   result.dsn.target = getEnv("MAJADU_PG_DSN")
   result.slug = getEnv("MAJADU_IMPORT_SLUG")
   result.name = getEnv("MAJADU_IMPORT_NAME")
   result.timezone = getEnv("MAJADU_IMPORT_TIMEZONE")
-  var index = 2
-  while index <= paramCount():
-    let flag = paramStr(index)
-    let hasValue = index + 1 <= paramCount()
+  for (flag, value) in flags(program, 2, ["--source", "--target", "--slug",
+      "--name", "--timezone"]):
     case flag
     of "--source":
-      if not hasValue: fail "--source needs a value"
-      inc index; result.dsn.source = paramStr(index)
+      result.dsn.source = value
     of "--target":
-      if not hasValue: fail "--target needs a value"
-      inc index; result.dsn.target = paramStr(index)
+      result.dsn.target = value
     of "--slug":
-      if not hasValue: fail "--slug needs a value"
-      inc index; result.slug = paramStr(index)
+      result.slug = value
     of "--name":
-      if not hasValue: fail "--name needs a value"
-      inc index; result.name = paramStr(index)
+      result.name = value
     of "--timezone":
-      if not hasValue: fail "--timezone needs a value"
-      inc index; result.timezone = paramStr(index)
+      result.timezone = value
     of "--dry-run":
       result.dryRun = true
     else:
-      fail "unknown argument " & flag
-    inc index
+      usageFail(program, "unknown argument " & flag)
   if result.dsn.source.len == 0:
-    fail "MAJADU_ETL_SOURCE_DSN or --source is required"
+    usageFail(program, "MAJADU_ETL_SOURCE_DSN or --source is required")
   if result.dsn.target.len == 0:
-    fail "MAJADU_PG_DSN or --target is required"
+    usageFail(program, "MAJADU_PG_DSN or --target is required")
 
 proc configString(db: Db, key: string): Option[string] =
   let row = db.queryOne(
@@ -102,21 +93,22 @@ proc resolveCommunity(db: Db, slug, name, timezone: string,
   if id.len > 0:
     let found = db.queryOne("select id from platform.community where id = $1::uuid",
       @[textParam(id)])
-    if found.isNone: fail "MAJADU_IMPORT_COMMUNITY_ID names no community"
+    if found.isNone:
+      fail(program, "MAJADU_IMPORT_COMMUNITY_ID names no community")
     return found.get.get("id")
   if slug.len == 0:
-    fail "--slug is required (or MAJADU_IMPORT_SLUG)"
+    usageFail(program, "--slug is required (or MAJADU_IMPORT_SLUG)")
   let existing = db.queryOne(
     "select id from platform.community where slug = $1", @[textParam(slug)])
   if existing.isSome:
     return existing.get.get("id")
   if name.len == 0:
-    fail "--name is required when the community does not exist yet"
+    usageFail(program, "--name is required when the community does not exist yet")
   var zone = timezone
   if zone.len == 0:
     let configured = configString(db, $keyCommunityDefaultTimezone)
     if configured.isNone:
-      fail "no --timezone and community.default_timezone is not configured"
+      fail(program, "no --timezone and community.default_timezone is not configured")
     zone = configured.get
   if dryRun:
     return "00000000-0000-0000-0000-000000000000"
@@ -229,7 +221,8 @@ proc timezoneOf*(db: Db, communityId: string): string =
   let row = db.queryOne(
     "select timezone from platform.community where id = $1::uuid",
     @[textParam(communityId)])
-  if row.isNone: fail "community " & communityId & " does not exist"
+  if row.isNone:
+    fail(program, "community " & communityId & " does not exist")
   row.get.get("timezone")
 
 proc calendarDate*(db: Db, instant, timezone: string): string =
@@ -1260,8 +1253,8 @@ proc importEtl*(source, target: Db, slug, name, timezone: string,
                                      participants, games: Result] =
   if not dryRun and getEnv("MAJADU_IMPORT_ALLOW_POST_CUTOVER") != "1" and
       cutoverCompleted(target):
-    fail "the cutover has completed; a run would overwrite v2 rows with v1 " &
-      "values. Set MAJADU_IMPORT_ALLOW_POST_CUTOVER=1 if that is intended."
+    fail(program, "the cutover has completed; a run would overwrite v2 rows with " &
+      "v1 values. Set MAJADU_IMPORT_ALLOW_POST_CUTOVER=1 if that is intended.")
   let communityId = resolveCommunity(target, slug, name, timezone, dryRun)
   let players = importPlayers(source, target, communityId, dryRun)
   let aliases = importAliases(source, target, communityId, dryRun)
@@ -1689,11 +1682,11 @@ proc verifyEtl(source, target: Db, slugArg: string) =
   if resolved.len == 0:
     let slug = if slugArg.len > 0: slugArg else: getEnv("MAJADU_IMPORT_SLUG")
     if slug.len == 0:
-      fail "verify needs MAJADU_IMPORT_SLUG or MAJADU_IMPORT_COMMUNITY_ID"
+      usageFail(program, "verify needs MAJADU_IMPORT_SLUG or MAJADU_IMPORT_COMMUNITY_ID")
     let row = target.queryOne(
       "select id::text as id from platform.community where slug = $1",
       @[textParam(slug)])
-    if row.isNone: fail "community " & slug & " does not exist"
+    if row.isNone: fail(program, "community " & slug & " does not exist")
     resolved = row.get.get("id")
 
   var problems = verifyPlayers(source, target, resolved)
@@ -1727,7 +1720,7 @@ proc main() =
   of "verify":
     verifyEtl(source, target, args.slug)
   else:
-    fail "unknown command " & args.command
+    usageFail(program, "unknown command " & args.command)
 
 when isMainModule:
   main()

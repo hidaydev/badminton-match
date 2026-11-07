@@ -1,8 +1,11 @@
 import std/[json, options, os]
+import cli
 import db/db
 import account/infrastructure/lifecycle_store
 
-const usage = """Usage: accountlifecycle anonymize --sub <google-sub> --actor <actor-sub>
+const
+  program = "accountlifecycle"
+  usage = """Usage: accountlifecycle anonymize --sub <google-sub> --actor <actor-sub>
                               [--reason <text>]
 
 Closes the account's claims, unlinks its players, drops its sessions and rewrites
@@ -10,15 +13,11 @@ the identity so the subject can never sign in again. Rating rows stay.
 
 Requires MAJADU_PG_DSN."""
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "accountlifecycle: " & message
-  quit(2)
-
 proc userIdOf(db: Db, sub: string): string =
   let row = db.queryOne(
     "select id from platform.user where google_sub = $1", @[textParam(sub)])
   if row.isNone:
-    fail "no user with sub " & sub
+    fail(program, "no user with sub " & sub)
   row.get.get("id")
 
 proc main() =
@@ -28,28 +27,23 @@ proc main() =
   var sub = ""
   var actorSub = ""
   var reason = "account_anonymized"
-  var index = 2
-  while index <= paramCount():
-    case paramStr(index)
+  for (flag, value) in flags(program, 2, ["--sub", "--actor", "--reason"]):
+    case flag
     of "--sub":
-      index.inc; sub = paramStr(index)
+      sub = value
     of "--actor":
-      index.inc; actorSub = paramStr(index)
+      actorSub = value
     of "--reason":
-      index.inc; reason = paramStr(index)
+      reason = value
     else:
-      fail "unknown argument: " & paramStr(index)
-    index.inc
+      usageFail(program, "unknown argument: " & flag)
   if sub.len == 0 or actorSub.len == 0:
-    fail "anonymize needs --sub and --actor"
-  let dsn = getEnv("MAJADU_PG_DSN")
-  if dsn.len == 0:
-    fail "MAJADU_PG_DSN is required"
-  let db = openDb(dsn, 1)
+    usageFail(program, "anonymize needs --sub and --actor")
+  let db = openDb(dsnOrFail(program), 1)
   defer: db.close()
   let outcome = anonymize(db, userIdOf(db, sub), userIdOf(db, actorSub), reason)
   if outcome != lrOk:
-    fail $outcome
+    fail(program, $outcome)
   echo $(%*{"anonymized": sub})
 
 when isMainModule:

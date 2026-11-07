@@ -1,8 +1,10 @@
 import std/[algorithm, options, os, strutils]
+import cli
 import db/db
 import sha256
 
 const
+  program = "dbtools"
   ledgerSchema* = """
 set client_min_messages to warning;
 create schema if not exists dbtools;
@@ -24,18 +26,9 @@ type
     path: string
     checksum: string
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "dbtools: " & message
-  quit(1)
-
-proc dsn(): string =
-  result = getEnv("MAJADU_PG_DSN")
-  if result.len == 0:
-    fail "MAJADU_PG_DSN is required"
-
 proc sqlFiles(dir: string): seq[string] =
   if not dirExists(dir):
-    fail "directory not found: " & dir
+    fail(program, "directory not found: " & dir)
   for kind, path in walkDir(dir):
     if kind == pcFile and path.endsWith(".sql"):
       result.add(path)
@@ -62,7 +55,7 @@ proc applied(conn: DbConn): seq[(string, string)] =
 proc migrate*(db: Db, dir: string) =
   let migrations = loadMigrations(dir)
   if migrations.len == 0:
-    fail "no .sql files in " & dir
+    fail(program, "no .sql files in " & dir)
 
   db.tx(proc(conn: DbConn) =
     # One transaction and one advisory lock: two deploys cannot interleave.
@@ -79,7 +72,8 @@ proc migrate*(db: Db, dir: string) =
           existing = sum
       if existing.len > 0:
         if existing != migration.checksum:
-          fail "checksum drift: " & migration.version & " was applied with a different body"
+          fail(program, "checksum drift: " & migration.version &
+            " was applied with a different body")
         continue
       conn.execScript(readFile(migration.path))
       discard conn.execUpdate(
@@ -116,13 +110,14 @@ proc verify*(db: Db, dir: string) =
   if problems.len > 0:
     for problem in problems:
       stderr.writeLine "dbtools: " & problem
-    fail $problems.len & " problem(s); database is not at the committed schema"
+    fail(program, $problems.len &
+      " problem(s); database is not at the committed schema")
   echo "dbtools: verified " & $migrations.len & " file(s)"
 
 proc seed*(db: Db, dir: string) =
   let files = sqlFiles(dir)
   if files.len == 0:
-    fail "no .sql files in " & dir
+    fail(program, "no .sql files in " & dir)
   db.tx(proc(conn: DbConn) =
     discard conn.query("select pg_advisory_xact_lock(hashtext('majadu-dbtools'))")
     ensureLedger(conn)
@@ -163,20 +158,16 @@ proc main() =
     quit(2)
   let command = paramStr(1)
   var dir = ""
-  var i = 2
-  while i <= paramCount():
-    case paramStr(i)
+  for (flag, value) in flags(program, 2, ["--dir"]):
+    case flag
     of "--dir":
-      i.inc
-      if i > paramCount(): fail "--dir needs a path"
-      dir = paramStr(i)
+      dir = value
     else:
-      fail "unknown argument: " & paramStr(i)
-    i.inc
+      usageFail(program, "unknown argument: " & flag)
   if dir.len == 0:
     dir = if command == "seed": "db/seeds" else: "db/migrations"
 
-  let database = openDb(dsn(), 1)
+  let database = openDb(dsnOrFail(program), 1)
   try:
     case command
     of "migrate": migrate(database, dir)

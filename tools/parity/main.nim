@@ -1,4 +1,5 @@
 import std/[algorithm, httpclient, json, os, strutils, tables]
+import cli
 import normalizer
 import state as parityState
 import db/db
@@ -6,6 +7,7 @@ import hex
 import share/crypto
 
 const
+  program = "parity"
   defaultDir = "testdata/parity/v1"
   defaultBase = "http://127.0.0.1:8091"
 
@@ -17,10 +19,6 @@ const
   fixtureAdmin = "20000000-0000-4000-8000-000000000002"
   fixtureShareCode = "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "parity: " & message
-  quit(1)
-
 type
   Options = object
     command, base, dir, name, verb, path, body, bodyFile, route, spec, routes,
@@ -31,7 +29,7 @@ type
 proc parseHeader(value: string): (string, string) =
   let colon = value.find(':')
   if colon <= 0:
-    fail "invalid header (expected \"Name: value\"): " & value
+    usageFail(program, "invalid header (expected \"Name: value\"): " & value)
   (value[0 ..< colon].strip(), value[colon + 1 .. ^1].strip())
 
 proc parseArgs(): Options =
@@ -39,56 +37,57 @@ proc parseArgs(): Options =
   result.dir = defaultDir
   result.base = defaultBase
   if paramCount() < 1:
-    fail "usage: parity record|lint|replay|reset|state-* [options]"
+    usageFail(program, "usage: parity record|lint|replay|reset|state-* [options]")
   result.command = paramStr(1)
-  var index = 2
-  while index <= paramCount():
-    case paramStr(index)
+  for (flag, value) in flags(program, 2, ["--base", "--dir", "--name",
+      "--method", "--path", "--body", "--body-file", "--route", "--spec",
+      "--routes", "--dsn", "--header"]):
+    case flag
     of "--base":
-      index.inc; result.base = paramStr(index)
+      result.base = value
     of "--dir":
-      index.inc; result.dir = paramStr(index)
+      result.dir = value
     of "--name":
-      index.inc; result.name = paramStr(index)
+      result.name = value
     of "--method":
-      index.inc; result.verb = paramStr(index)
+      result.verb = value
     of "--path":
-      index.inc; result.path = paramStr(index)
+      result.path = value
     of "--body":
-      index.inc; result.body = paramStr(index)
+      result.body = value
     of "--body-file":
-      index.inc; result.bodyFile = paramStr(index)
+      result.bodyFile = value
     of "--route":
-      index.inc; result.route = paramStr(index)
+      result.route = value
     of "--spec":
-      index.inc; result.spec = paramStr(index)
+      result.spec = value
     of "--routes":
-      index.inc; result.routes = paramStr(index)
+      result.routes = value
     of "--dsn":
-      index.inc; result.dsn = paramStr(index)
+      result.dsn = value
     of "--header":
-      index.inc; result.headers.add(parseHeader(paramStr(index)))
+      result.headers.add(parseHeader(value))
     else:
-      if paramStr(index).startsWith("--"):
-        fail "unknown argument: " & paramStr(index)
-      result.names.add(paramStr(index))
-    index.inc
+      if flag.startsWith("--"):
+        usageFail(program, "unknown argument: " & flag)
+      result.names.add(flag)
 
 proc openParityDb(options: Options): Db =
-  let dsn = if options.dsn.len > 0: options.dsn else: getEnv("MAJADU_PG_DSN")
-  if dsn.len == 0:
-    fail "MAJADU_PG_DSN or --dsn is required for this command"
+  let dsn =
+    if options.dsn.len > 0: options.dsn
+    else: dsnOrFail(program,
+      detail = "MAJADU_PG_DSN or --dsn is required for this command")
   try:
     result = openDb(dsn, 1)
   except DbError as error:
-    fail "cannot connect: " & error.msg
+    fail(program, "cannot connect: " & error.msg)
 
 proc casePath(dir, name: string): string = dir / (name & ".json")
 
 proc requestBody(options: Options): string =
   if options.bodyFile.len > 0:
     if not fileExists(options.bodyFile):
-      fail "body file not found: " & options.bodyFile
+      fail(program, "body file not found: " & options.bodyFile)
     result = readFile(options.bodyFile)
   else:
     result = options.body
@@ -114,7 +113,7 @@ proc send(base, verbText, path, body: string,
   of "DELETE": verb = HttpDelete
   of "HEAD": verb = HttpHead
   of "OPTIONS": verb = HttpOptions
-  else: fail "unsupported method: " & verbText
+  else: fail(program, "unsupported method: " & verbText)
   let response = client.request(base & path, httpMethod = verb, body = body)
   (response.code.int, response.body)
 
@@ -139,9 +138,9 @@ proc copyExtras(document, existing: JsonNode) =
 
 proc recordOne(options: Options) =
   if options.name.len == 0:
-    fail "--name is required for record"
+    usageFail(program, "--name is required for record")
   if options.path.len == 0:
-    fail "--path is required for record"
+    usageFail(program, "--path is required for record")
   let verb = if options.verb.len > 0: options.verb.toUpperAscii() else: "GET"
   let body = requestBody(options)
   let (status, responseBody) = send(options.base, verb, options.path, body,
@@ -159,7 +158,7 @@ proc recordOne(options: Options) =
     # Keep the route template of an existing case when it is not repeated.
     route = existing["route"].getStr()
   if options.spec.len > 0 and route.len == 0:
-    fail "route is required in the spec: " & options.name
+    fail(program, "route is required in the spec: " & options.name)
 
   var document = newJObject()
   document["route"] = %route
@@ -200,7 +199,7 @@ proc specBody(field, specDir: string): (string, string) =
 
 proc recordSpec(options: Options) =
   if not fileExists(options.spec):
-    fail "spec file not found: " & options.spec
+    fail(program, "spec file not found: " & options.spec)
   let specDir = options.spec.parentDir
   var count = 0
   for line in readFile(options.spec).splitLines():
@@ -209,7 +208,7 @@ proc recordSpec(options: Options) =
       continue
     let fields = line.split('\t')
     if fields.len != 6:
-      fail "invalid spec line (expected 6 tab-separated fields): " & line
+      fail(program, "invalid spec line (expected 6 tab-separated fields): " & line)
     var single = options
     single.spec = ""
     single.name = fields[0].strip()
@@ -287,7 +286,7 @@ proc replayOne(options: Options, name: string): bool =
 
 proc listCases(dir: string): seq[string] =
   if not dirExists(dir):
-    fail "cases directory not found: " & dir
+    fail(program, "cases directory not found: " & dir)
   for kind, path in walkDir(dir):
     if kind == pcFile and path.endsWith(".json") and
        path.extractFilename != "state.json":
@@ -295,7 +294,7 @@ proc listCases(dir: string): seq[string] =
 
 proc namesFromSpec(spec: string): seq[string] =
   if not fileExists(spec):
-    fail "spec file not found: " & spec
+    fail(program, "spec file not found: " & spec)
   for line in readFile(spec).splitLines():
     let trimmed = line.strip()
     if trimmed.len == 0 or trimmed.startsWith("#"):
@@ -313,7 +312,7 @@ proc replay(options: Options) =
     names = listCases(options.dir)
     names.sort()
   if names.len == 0:
-    fail "no cases to replay in " & options.dir
+    fail(program, "no cases to replay in " & options.dir)
   var failures = 0
   for name in names:
     if not replayOne(options, name):
@@ -478,7 +477,7 @@ proc lintCase(name: string, document: JsonNode,
 proc lint(options: Options) =
   let names = listCases(options.dir)
   if names.len == 0:
-    fail "no cases in " & options.dir
+    fail(program, "no cases in " & options.dir)
   var problems: seq[string] = @[]
   var rejected = 0
   var routesOfCases: seq[string] = @[]
@@ -540,7 +539,7 @@ proc lint(options: Options) =
 proc resetFixture(options: Options) =
   let fixture = options.dir / "fixture.sql"
   if not fileExists(fixture):
-    fail "fixture not found: " & fixture
+    fail(program, "fixture not found: " & fixture)
   let database = openParityDb(options)
   defer: database.close()
   database.tx(proc(conn: DbConn) =
@@ -607,7 +606,7 @@ proc main() =
   of "state-snapshot": stateSnapshot(options)
   of "state-check": stateCheck(options)
   of "state-selftest": stateSelftest(options)
-  else: fail "unknown command: " & options.command
+  else: usageFail(program, "unknown command: " & options.command)
 
 when isMainModule:
   main()

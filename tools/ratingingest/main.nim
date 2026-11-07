@@ -1,4 +1,5 @@
 import std/[json, options, os]
+import cli
 import db/db
 import platform/config/store
 import rating/domain/rating
@@ -8,17 +9,15 @@ import rating/infrastructure/params
 import rating/read
 import session/lifecycle
 
-const usage = """Usage: ratingingest <tick|session <id> --community <slug>|rebuild --community <slug>>
+const
+  program = "ratingingest"
+  usage = """Usage: ratingingest <tick|session <id> --community <slug>|rebuild --community <slug>>
 
   tick                          ingest every new approved session, then award badges
   session <id> --community <s>  ingest one session
   rebuild --community <slug>    wipe and replay that community's rating
 
 Requires MAJADU_PG_DSN. Every mode is idempotent, so running twice is safe."""
-
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "ratingingest: " & message
-  quit(2)
 
 proc communitySettings(db: Db, communityId: string): JsonNode =
   let row = db.queryOne(
@@ -30,7 +29,7 @@ proc communityIdOf(db: Db, slug: string): string =
   let row = db.queryOne(
     "select id from platform.community where slug = $1", @[textParam(slug)])
   if row.isNone:
-    fail "no community with slug " & slug
+    fail(program, "no community with slug " & slug)
   row.get.get("id")
 
 proc planFor(db: Db, snapshot: Snapshot, communityId: string): RatingParams =
@@ -58,28 +57,23 @@ proc main() =
   if paramCount() < 1:
     echo usage
     quit(2)
-  let dsn = getEnv("MAJADU_PG_DSN")
-  if dsn.len == 0:
-    fail "MAJADU_PG_DSN is required"
-  let db = openDb(dsn, 1)
+  let db = openDb(dsnOrFail(program), 1)
   defer: db.close()
   let snapshot = loadSnapshot(db)
   let command = paramStr(1)
   var slug = ""
   var sessionId = ""
-  var index = 2
-  while index <= paramCount():
-    case paramStr(index)
+  for (flag, value) in flags(program, 2, ["--community", "--session"]):
+    case flag
     of "--community":
-      index.inc; slug = paramStr(index)
+      slug = value
     of "--session":
-      index.inc; sessionId = paramStr(index)
+      sessionId = value
     else:
       if command == "session" and sessionId.len == 0:
-        sessionId = paramStr(index)
+        sessionId = flag
       else:
-        fail "unknown argument: " & paramStr(index)
-    index.inc
+        usageFail(program, "unknown argument: " & flag)
 
   var communities = 0
   var events = 0
@@ -99,7 +93,7 @@ proc main() =
       inc communities
   of "session":
     if slug.len == 0 or sessionId.len == 0:
-      fail "session needs an id and --community <slug>"
+      usageFail(program, "session needs an id and --community <slug>")
     let communityId = communityIdOf(db, slug)
     let params = planFor(db, snapshot, communityId)
     let result = ingestSession(db, communityId, sessionId, params)
@@ -110,7 +104,7 @@ proc main() =
     communities = 1
   of "rebuild":
     if slug.len == 0:
-      fail "rebuild needs --community <slug>"
+      usageFail(program, "rebuild needs --community <slug>")
     let communityId = communityIdOf(db, slug)
     let params = planFor(db, snapshot, communityId)
     let result = rebuild(db, communityId, params)

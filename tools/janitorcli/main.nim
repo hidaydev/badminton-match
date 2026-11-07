@@ -1,14 +1,13 @@
-import std/[json, os]
+import std/json
+import cli
 import db/db
 import platform/config/store
 import platform/janitor
 
+const program = "janitor"
+
 proc main() =
-  let dsn = getEnv("MAJADU_PG_DSN")
-  if dsn.len == 0:
-    stderr.writeLine("janitor: MAJADU_PG_DSN is required")
-    quit(2)
-  let db = openDb(dsn, 1)
+  let db = openDb(dsnOrFail(program), 1)
   defer: db.close()
   let days = loadSnapshot(db).intValue(%*{}, keyJanitorRetentionDays)
   var rows = newJArray()

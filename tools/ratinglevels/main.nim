@@ -1,7 +1,10 @@
 import std/[json, options, os, strutils]
+import cli
 import db/db
 
-const usage = """Usage: ratinglevels <list|set|clear> [options]
+const
+  program = "ratinglevels"
+  usage = """Usage: ratinglevels <list|set|clear> [options]
 
   list [--community <slug>]
       Print kind, champion_points, enabled and round_ratios per row.
@@ -18,34 +21,31 @@ Requires MAJADU_PG_DSN."""
 
 const kinds = ["session", "tournament_classic", "tournament_team"]
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "ratinglevels: " & message
-  quit(2)
-
 proc communityIdOf(db: Db, slug: string): string =
   let row = db.queryOne(
     "select id from platform.community where slug = $1", @[textParam(slug)])
   if row.isNone:
-    fail "no community with slug " & slug
+    fail(program, "no community with slug " & slug)
   row.get.get("id")
 
 proc requireKind(kind: string) =
   if kind notin kinds:
-    fail "unknown kind: " & kind & " (session, tournament_classic, tournament_team)"
+    fail(program, "unknown kind: " & kind &
+      " (session, tournament_classic, tournament_team)")
 
 proc validateRatios(raw: string): JsonNode =
   try:
     result = parseJson(raw)
   except ValueError as error:
-    fail "ratios must be valid JSON: " & error.msg
+    fail(program, "ratios must be valid JSON: " & error.msg)
   if result.kind != JObject:
-    fail "ratios must be a JSON object"
+    fail(program, "ratios must be a JSON object")
   for key, value in result:
     if value.kind notin {JInt, JFloat}:
-      fail "ratio " & key & " must be a number"
+      fail(program, "ratio " & key & " must be a number")
     let ratio = if value.kind == JInt: value.getInt().float else: value.getFloat()
     if ratio < 0.0 or ratio > 1.0:
-      fail "ratio " & key & " must be within [0,1]"
+      fail(program, "ratio " & key & " must be within [0,1]")
 
 proc existingRow(db: Db, communityId, kind: string): Option[JsonNode] =
   let row = db.queryOne(
@@ -62,33 +62,28 @@ proc main() =
   var slug, kind, championRaw, ratios = ""
   var enabled = true
   var dryRun = false
-  var index = 2
-  while index <= paramCount():
-    case paramStr(index)
+  for (flag, value) in flags(program, 2,
+      ["--community", "--kind", "--champion", "--enabled", "--ratios"]):
+    case flag
     of "--community":
-      index.inc; slug = paramStr(index)
+      slug = value
     of "--kind":
-      index.inc; kind = paramStr(index)
+      kind = value
     of "--champion":
-      index.inc; championRaw = paramStr(index)
+      championRaw = value
     of "--enabled":
-      index.inc
-      case paramStr(index)
+      case value
       of "true": enabled = true
       of "false": enabled = false
-      else: fail "--enabled must be true or false"
+      else: fail(program, "--enabled must be true or false")
     of "--ratios":
-      index.inc; ratios = paramStr(index)
+      ratios = value
     of "--dry-run":
       dryRun = true
     else:
-      fail "unknown argument: " & paramStr(index)
-    index.inc
+      usageFail(program, "unknown argument: " & flag)
 
-  let dsn = getEnv("MAJADU_PG_DSN")
-  if dsn.len == 0:
-    fail "MAJADU_PG_DSN is required"
-  let db = openDb(dsn, 1)
+  let db = openDb(dsnOrFail(program), 1)
   defer: db.close()
 
   case command
@@ -112,15 +107,15 @@ proc main() =
     echo $(%*{"items": items})
   of "set":
     if slug.len == 0 or kind.len == 0 or championRaw.len == 0:
-      fail "set needs --community, --kind and --champion"
+      usageFail(program, "set needs --community, --kind and --champion")
     requireKind(kind)
     var champion = 0.0
     try:
       champion = parseFloat(championRaw)
     except ValueError:
-      fail "champion must be a number"
+      fail(program, "champion must be a number")
     if champion <= 0:
-      fail "champion must be greater than zero"
+      fail(program, "champion must be greater than zero")
     if ratios.len > 0:
       discard validateRatios(ratios)
     let communityId = communityIdOf(db, slug)
@@ -158,7 +153,7 @@ proc main() =
       "roundRatios": plannedRatios})
   of "clear":
     if slug.len == 0 or kind.len == 0:
-      fail "clear needs --community and --kind"
+      usageFail(program, "clear needs --community and --kind")
     requireKind(kind)
     let communityId = communityIdOf(db, slug)
     if dryRun:
@@ -175,7 +170,7 @@ proc main() =
     )
     echo $(%*{"community": slug, "kind": kind, "deleted": deleted})
   else:
-    fail "unknown command: " & command
+    usageFail(program, "unknown command: " & command)
 
 when isMainModule:
   main()

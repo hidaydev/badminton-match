@@ -1,19 +1,18 @@
 import std/[json, options, os, strutils, tables]
+import cli
 import db/db
 import platform/config/store
 import rating/infrastructure/params
 import rating/read
 
-const usage = """Usage: ranksnapshot [--as-of YYYY-MM-DD]
+const
+  program = "ranksnapshot"
+  usage = """Usage: ranksnapshot [--as-of YYYY-MM-DD]
 
 Writes one rating.snapshots row per player on today's board, for every
 community. Re-running on the same day overwrites instead of duplicating.
 
 Requires MAJADU_PG_DSN; the community timezone decides what "today" is."""
-
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "ranksnapshot: " & message
-  quit(2)
 
 proc communitySettings(db: Db, communityId: string): JsonNode =
   let row = db.queryOne(
@@ -34,10 +33,7 @@ proc main() =
   elif paramCount() > 0:
     echo usage
     quit(2)
-  let dsn = getEnv("MAJADU_PG_DSN")
-  if dsn.len == 0:
-    fail "MAJADU_PG_DSN is required"
-  let db = openDb(dsn, 1)
+  let db = openDb(dsnOrFail(program), 1)
   defer: db.close()
 
   let snapshot = loadSnapshot(db)

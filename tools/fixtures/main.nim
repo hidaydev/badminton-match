@@ -5,8 +5,10 @@
 ## every timestamp is derived from a fixed epoch instead of the wall clock.
 ## Nothing here is production data; names are invented and scores are random.
 import std/[os, strutils, times]
+import cli
 
 const
+  program = "fixtures"
   usage = """Usage: majadu-fixtures [options]
 
 Generate a deterministic v1 dataset (schema `bm`) as one SQL file.
@@ -99,38 +101,26 @@ type
     hasScore: bool
     members: seq[int]
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "fixtures: " & message
-  quit(2)
-
 proc parseArgs(): Options =
   result.seed = uint64(defaultSeed)
   result.outPath = defaultDir
-  var index = 1
-  while index <= paramCount():
-    case paramStr(index)
+  for (flag, value) in flags(program, 1, ["--seed", "--out"]):
+    case flag
     of "--seed":
-      index.inc
-      if index > paramCount():
-        fail "--seed needs a number"
       try:
-        let value = parseBiggestInt(paramStr(index))
-        if value < 0:
-          fail "--seed must not be negative"
-        result.seed = uint64(value)
+        let seed = parseBiggestInt(value)
+        if seed < 0:
+          fail(program, "--seed must not be negative")
+        result.seed = uint64(seed)
       except ValueError:
-        fail "--seed is not a number: " & paramStr(index)
+        fail(program, "--seed is not a number: " & value)
     of "--out":
-      index.inc
-      if index > paramCount():
-        fail "--out needs a path"
-      result.outPath = paramStr(index)
+      result.outPath = value
     of "-h", "--help":
       echo usage
       quit(0)
     else:
-      fail "unknown argument: " & paramStr(index)
-    index.inc
+      usageFail(program, "unknown argument: " & flag)
 
 proc outputFile(path: string): string =
   if splitFile(path).ext.toLowerAscii() == ".sql":

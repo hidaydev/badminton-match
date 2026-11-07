@@ -1,10 +1,9 @@
 import std/[json, os]
+import cli
 import db/db
 import platform/audit_retention
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine("audit-retention: " & message)
-  quit(2)
+const program = "audit-retention"
 
 proc dsnArg(): string =
   ## The owner DSN is a separate variable on purpose: pointing this tool at the
@@ -14,13 +13,13 @@ proc dsnArg(): string =
   if result.len == 0 and paramCount() >= 2 and paramStr(1) == "--dsn":
     result = paramStr(2)
   if result.len == 0:
-    fail("MAJADU_AUDIT_DSN is required (owner role, not bm2_app)")
+    fail(program, "MAJADU_AUDIT_DSN is required (owner role, not bm2_app)")
 
 proc main() =
   let db = openDb(dsnArg(), 1)
   defer: db.close()
   if not auditCanBeDeleted(db):
-    fail("current role cannot delete account.audit; run as bm2_owner")
+    fail(program, "current role cannot delete account.audit; run as bm2_owner")
   let days = auditRetentionDays(db)
   let deleted = purgeAudit(db, days)
   echo $(%*{"deleted": deleted, "retentionDays": days})

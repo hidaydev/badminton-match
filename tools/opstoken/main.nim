@@ -1,10 +1,13 @@
 import std/[json, options, os, strutils]
+import cli
 import db/db
 import account/domain/audit
 import account/infrastructure/audit_store
 import account/infrastructure/ops_token
 
-const usage = """Usage: opstoken <create|list|revoke> [options]
+const
+  program = "opstoken"
+  usage = """Usage: opstoken <create|list|revoke> [options]
 
   create --name <label> [--sub <google-sub>] [--days N]
       Print a new bearer token once. --sub records the acting owner and an
@@ -15,10 +18,6 @@ const usage = """Usage: opstoken <create|list|revoke> [options]
 
 Requires MAJADU_PG_DSN."""
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "opstoken: " & message
-  quit(2)
-
 proc main() =
   if paramCount() < 1:
     echo usage
@@ -28,40 +27,38 @@ proc main() =
   var sub = ""
   var tokenId = ""
   var days = 30
-  var index = 2
-  while index <= paramCount():
-    case paramStr(index)
+  for (flag, value) in flags(program, 2, ["--name", "--sub", "--days", "--id"]):
+    case flag
     of "--name":
-      index.inc; name = paramStr(index)
+      name = value
     of "--sub":
-      index.inc; sub = paramStr(index)
+      sub = value
     of "--days":
-      index.inc; days = parseInt(paramStr(index))
+      try:
+        days = parseInt(value)
+      except ValueError:
+        fail(program, "--days is not a number: " & value)
     of "--id":
-      index.inc; tokenId = paramStr(index)
+      tokenId = value
     else:
-      fail "unknown argument: " & paramStr(index)
-    index.inc
+      usageFail(program, "unknown argument: " & flag)
 
-  let dsn = getEnv("MAJADU_PG_DSN")
-  if dsn.len == 0:
-    fail "MAJADU_PG_DSN is required"
-  let db = openDb(dsn, 1)
+  let db = openDb(dsnOrFail(program), 1)
   defer: db.close()
 
   case command
   of "create":
     if name.len == 0:
-      fail "create needs --name"
+      usageFail(program, "create needs --name")
     var actorId = ""
     if sub.len > 0:
       let row = db.queryOne(
         "select id, is_platform_owner from platform.user where google_sub = $1",
         @[textParam(sub)])
       if row.isNone:
-        fail "no user with sub " & sub
+        fail(program, "no user with sub " & sub)
       if row.get.get("is_platform_owner") != "t":
-        fail "only a platform owner may issue ops tokens"
+        fail(program, "only a platform owner may issue ops tokens")
       actorId = row.get.get("id")
     let token = ops_token.issue(db, name, actorId, days)
     if actorId.len > 0:
@@ -79,13 +76,13 @@ proc main() =
     echo $(%*{"items": items})
   of "revoke":
     if tokenId.len == 0:
-      fail "revoke needs --id"
+      usageFail(program, "revoke needs --id")
     if ops_token.revokeToken(db, tokenId):
       echo $(%*{"revoked": tokenId})
     else:
-      fail "token not found or already revoked"
+      fail(program, "token not found or already revoked")
   else:
-    fail "unknown command: " & command
+    usageFail(program, "unknown command: " & command)
 
 when isMainModule:
   main()

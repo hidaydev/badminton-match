@@ -1,32 +1,31 @@
 import std/[algorithm, json, os, tables]
+import cli
 import emit_nim
 import emit_ts
 import fingerprint
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "contract-gen: " & message
-  quit(1)
+const program = "contract-gen"
 
 proc load(path: string): string =
   if not fileExists(path):
-    fail "missing " & path
+    fail(program, "missing " & path)
   readFile(path)
 
 proc parse(path, source: string): JsonNode =
   try:
     parseJson(source)
   except JsonParsingError as error:
-    fail path & ": " & error.msg
+    fail(program, path & ": " & error.msg)
 
 proc mergeDocs(core, community: JsonNode): JsonNode =
   var paths = newJObject()
   var names: seq[string] = @[]
   for doc in [core, community]:
     if not doc.hasKey("paths"):
-      fail "document has no paths"
+      fail(program, "document has no paths")
     for path in doc["paths"].keys:
       if path in names:
-        fail "duplicate path across specs: " & path
+        fail(program, "duplicate path across specs: " & path)
       names.add(path)
   names.sort()
   for path in names:
@@ -70,7 +69,7 @@ proc main() =
       echo "Usage: contract-gen [--check]"
       quit(0)
     else:
-      fail "unknown argument: " & argument
+      usageFail(program, "unknown argument: " & argument)
 
   let coreSource = load(corePath)
   let communitySource = load(communityPath)
@@ -80,12 +79,12 @@ proc main() =
   operations.add(collectOperations(community, communityPath))
   sortOperations(operations)
   if operations.len != 75:
-    fail "expected 75 operations, found " & $operations.len
+    fail(program, "expected 75 operations, found " & $operations.len)
 
   var seen = initTable[string, bool]()
   for operation in operations:
     if seen.hasKeyOrPut(operation.operationId, true):
-      fail "duplicate operationId: " & operation.operationId
+      fail(program, "duplicate operationId: " & operation.operationId)
 
   let mergedSource = renderJson(mergeDocs(core, community))
   let nimSource = renderNim(operations)
@@ -98,7 +97,7 @@ proc main() =
     coreSource, communitySource, mergedSource, nimSource, tsSource),
     check) and ok
   if not ok:
-    fail "generated files differ; run ./task contract-gen"
+    fail(program, "generated files differ; run ./task contract-gen")
   if check:
     echo "contract-gen: ok (" & $operations.len & " operations)"
   else:

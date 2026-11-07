@@ -2,7 +2,9 @@ import std/[strutils]
 
 const
   domainTables = ["session.", "player.", "rating.", "tournament.", "community."]
-  envAllowlist = ["shared/platform-lib/clock.nim"]
+  # `cli.nim` is the process edge for every tool: `dsnOrFail` reads the DSN that
+  # used to be read in sixteen `main.nim` files.
+  envAllowlist = ["shared/platform-lib/clock.nim", "shared/platform-lib/cli.nim"]
 
 proc envAllowed(file: string): bool =
   ## Environment reads belong to the process edge (apps/, tools/) and to

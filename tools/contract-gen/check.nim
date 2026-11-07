@@ -4,23 +4,22 @@
 
 import std/[json, os, strutils, tables]
 
+import cli
 import emit_nim
 import fingerprint
 
-proc failNow(message: string) {.noreturn.} =
-  stderr.writeLine "contract-check: " & message
-  quit(1)
+const program = "contract-check"
 
 proc readSource(path: string): string =
   if not fileExists(path):
-    failNow "missing " & path
+    fail(program, "missing " & path)
   readFile(path)
 
 proc parseSource(path, source: string): JsonNode =
   try:
     parseJson(source)
   except JsonParsingError as error:
-    failNow path & ": " & error.msg
+    fail(program, path & ": " & error.msg)
 
 proc operationCount(core, community: JsonNode): int =
   var operations = collectOperations(core, corePath)
@@ -42,10 +41,10 @@ proc main() =
       echo "Verifies " & fingerprintPath & " against the specs and generated files."
       quit(0)
     else:
-      failNow "unknown argument: " & argument
+      usageFail(program, "unknown argument: " & argument)
 
   if not fileExists(fingerprintPath):
-    failNow "missing " & fingerprintPath & "; run ./task contract-gen"
+    fail(program, "missing " & fingerprintPath & "; run ./task contract-gen")
 
   let recordedSource = readSource(fingerprintPath)
   let coreSource = readSource(corePath)

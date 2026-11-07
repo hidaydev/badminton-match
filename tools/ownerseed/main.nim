@@ -1,4 +1,5 @@
-import std/[json, options, os, strutils]
+import std/[json, options, strutils]
+import cli
 import db/db
 import sha256
 import account/domain/audit
@@ -8,7 +9,9 @@ import community/infrastructure/community_store
 import platform/config/registry
 import platform/config/store
 
-const usage = """Usage: ownerseed --sub <google-sub> [options]
+const
+  program = "ownerseed"
+  usage = """Usage: ownerseed --sub <google-sub> [options]
 
   --sub <value>            Google subject of the first platform owner (required)
   --email <address>        Email of that account; stored hashed, never plaintext
@@ -21,10 +24,6 @@ const usage = """Usage: ownerseed --sub <google-sub> [options]
 Requires MAJADU_PG_DSN. Run against an empty instance; a second, different
 owner is refused. The owner gets no membership automatically (O-31)."""
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "ownerseed: " & message
-  quit(2)
-
 type
   Options = object
     sub, email, displayName, communitySlug, communityName, adminEmail: string
@@ -33,31 +32,30 @@ type
 proc parseArgs(): Options =
   result.communitySlug = "default"
   result.communityName = "Default"
-  var index = 1
-  while index <= paramCount():
-    case paramStr(index)
+  for (flag, value) in flags(program, 1, ["--sub", "--email", "--display-name",
+      "--community-slug", "--community-name", "--admin-email"]):
+    case flag
     of "--sub":
-      index.inc; result.sub = paramStr(index)
+      result.sub = value
     of "--email":
-      index.inc; result.email = paramStr(index)
+      result.email = value
     of "--display-name":
-      index.inc; result.displayName = paramStr(index)
+      result.displayName = value
     of "--community-slug":
-      index.inc; result.communitySlug = paramStr(index)
+      result.communitySlug = value
     of "--community-name":
-      index.inc; result.communityName = paramStr(index)
+      result.communityName = value
     of "--admin-email":
-      index.inc; result.adminEmail = paramStr(index)
+      result.adminEmail = value
     of "--dry-run":
       result.dryRun = true
     of "-h", "--help":
       echo usage
       quit(0)
     else:
-      fail "unknown argument: " & paramStr(index)
-    index.inc
+      usageFail(program, "unknown argument: " & flag)
   if result.sub.strip().len == 0:
-    fail "--sub is required"
+    usageFail(program, "--sub is required")
   if result.adminEmail.len == 0:
     result.adminEmail = result.email
 
@@ -76,15 +74,15 @@ proc ensureOwner(db: Db, options: Options, created: var bool): string =
   let (ownerId, ownerSub) = existingOwner(db)
   if ownerId.len > 0:
     if ownerSub != options.sub:
-      fail "this instance already has a platform owner (" & ownerSub & ")"
+      fail(program, "this instance already has a platform owner (" & ownerSub & ")")
     return ownerId
   if options.email.len == 0:
-    fail "--email is required when creating the owner"
+    usageFail(program, "--email is required when creating the owner")
   let taken = db.queryOne(
     "select google_sub from platform.user where email_hash = $1",
     @[textParam(sha256Hex(options.email.strip().toLowerAscii()))])
   if taken.isSome:
-    fail "email already belongs to " & taken.get.get("google_sub")
+    fail(program, "email already belongs to " & taken.get.get("google_sub"))
   let display =
     if options.displayName.len > 0: options.displayName
     else: options.email.split('@')[0]
@@ -106,19 +104,16 @@ proc ensureDefaultCommunity(db: Db, options: Options): string =
   let check = checkCreate(options.communitySlug, options.communityName,
     options.adminEmail, timezone, none(string))
   if check.problems.len > 0:
-    fail "default community is invalid: " & $check.problems[0]
+    fail(program, "default community is invalid: " & $check.problems[0])
   let created = communityStore.create(db, check.slug, options.communityName.strip(),
     options.adminEmail, check.timezone, "")
   if created.status != csOk:
-    fail "cannot create the default community"
+    fail(program, "cannot create the default community")
   created.communityId
 
 proc main() =
   let options = parseArgs()
-  let dsn = getEnv("MAJADU_PG_DSN")
-  if dsn.len == 0:
-    fail "MAJADU_PG_DSN is required"
-  let db = openDb(dsn, 1)
+  let db = openDb(dsnOrFail(program), 1)
   defer: db.close()
 
   let (existingId, _) = existingOwner(db)

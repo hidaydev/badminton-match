@@ -3,10 +3,13 @@
 ## writes VERSION and prepends the section. It never creates tags, commits or
 ## pushes; it prints those commands for the operator.
 import std/[os, strutils, times]
+import cli
 import clock
 import versioning, changelog, repo
 
-const usage = """Usage: majadu-release [--repo DIR] [--dry-run|--apply] [--date YYYY-MM-DD]
+const
+  program = "release"
+  usage = """Usage: majadu-release [--repo DIR] [--dry-run|--apply] [--date YYYY-MM-DD]
 
   --dry-run   compute and print only (default)
   --apply     write VERSION, prepend CHANGELOG.md and write the tag notes
@@ -25,20 +28,12 @@ type Options = object
   date: string
   baseline: bool
 
-proc fail(message: string) {.noreturn.} =
-  stderr.writeLine "release: " & message
-  quit(2)
-
 proc parseArgs(): Options =
   result = Options(repo: getCurrentDir(), apply: false)
-  var index = 1
-  while index <= paramCount():
-    case paramStr(index)
+  for (flag, value) in flags(program, 1, ["--repo", "--date"]):
+    case flag
     of "--repo":
-      index.inc
-      if index > paramCount():
-        fail "--repo needs a directory"
-      result.repo = paramStr(index)
+      result.repo = value
     of "--apply":
       result.apply = true
     of "--dry-run":
@@ -46,26 +41,22 @@ proc parseArgs(): Options =
     of "--baseline":
       result.baseline = true
     of "--date":
-      index.inc
-      if index > paramCount():
-        fail "--date needs a value"
-      result.date = paramStr(index)
+      result.date = value
     of "-h", "--help":
       echo usage
       quit(0)
     else:
-      fail "unknown argument: " & paramStr(index)
-    index.inc
+      usageFail(program, "unknown argument: " & flag)
   if result.date.len == 0:
     result.date = utcNow().format("yyyy-MM-dd")
 
 proc readVersion(path: string): Version =
   if not fileExists(path):
-    fail "missing " & path
+    fail(program, "missing " & path)
   try:
     parseVersion(readFile(path))
   except ValueError as error:
-    fail path & ": " & error.msg
+    fail(program, path & ": " & error.msg)
 
 proc baselineLabel(tag: string): string =
   if tag.len == 0:
@@ -130,21 +121,21 @@ proc main() =
   let current = readVersion(options.repo / "VERSION")
   let tag = lastTag(options.repo)
   if tag.len > 0 and tag != "v" & $current:
-    fail "last tag " & tag & " does not match VERSION " & $current &
-      "; bump VERSION with the release that created the tag"
+    fail(program, "last tag " & tag & " does not match VERSION " & $current &
+      "; bump VERSION with the release that created the tag")
   if tag.len == 0 and not options.baseline:
-    fail "no baseline tag: create v" & $current &
+    fail(program, "no baseline tag: create v" & $current &
       " first (git tag -s v" & $current & "), or pass --baseline to cut " &
-      $current & " as the first release"
+      $current & " as the first release")
   if isDirty(options.repo):
-    fail "working tree is dirty; commit or stash before preparing a release"
+    fail(program, "working tree is dirty; commit or stash before preparing a release")
   var commits: seq[Commit] = @[]
   var bump = bNone
   if not (tag.len == 0 and options.baseline):
     commits = logCommits(options.repo, tag)
     bump = decideBump(commits)
     if bump == bNone:
-      fail "no commit since " & tag & " is feat, fix, perf or breaking"
+      fail(program, "no commit since " & tag & " is feat, fix, perf or breaking")
   let next = if bump == bNone: current else: bumped(current, bump)
   let section = renderSection($next, options.date, commits)
   let notesPath = ".cache/release/v" & $next & ".md"
