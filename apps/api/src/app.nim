@@ -24,6 +24,7 @@ import uuidv7
 import share/crypto
 import share/store as shareStore
 import session/write as sessionWrite
+import session/lifecycle as sessionLifecycle
 import session/standings as sessionStandings
 import session/schedule as sessionSchedule
 import session/scoring as sessionScoring
@@ -184,6 +185,18 @@ proc problem(request: Request, status: int, code, detail: string) =
   sendProblem(request, status, "application/problem+json",
     platformErrors.newProblem(status, code, platformErrors.i18nKeyFor(code),
       detail))
+
+proc invalidBodyResponse(request: Request, code, detail: string,
+                         snapshot: JsonNode) =
+  ## A rejected tournament body keeps the field-level `issues` the wizard
+  ## renders, but it is still a 4xx and must carry the one error envelope:
+  ## status, code and i18nKey. The issues are added to the envelope, not sent
+  ## as the whole body, so a client never has to read two shapes.
+  var body = parseJson(platformErrors.newProblem(400, code,
+    platformErrors.i18nKeyFor(code), detail).toJson)
+  if snapshot.hasKey("issues"):
+    body["issues"] = snapshot["issues"]
+  send(request, 400, @[("Content-Type", "application/problem+json")], $body)
 
 proc methodNotAllowed(request: Request) =
   ## A known path with an unsupported verb answers 405, so a caller can tell a
@@ -1707,10 +1720,13 @@ proc sessionVersionNow(communityId, sessionId: string): int =
   if row.isSome: parseInt(row.get.get("version")) else: 0
 
 proc sessionApproved(communityId, sessionId: string): bool =
+  ## The same two-column test the rating ledger uses: an approval stamp with a
+  ## status outside the approved set would otherwise let a draft be rated.
   let row = application.db.queryOne(
     """select 1 as ok from session.sessions
        where community_id = $1::uuid and id = $2::uuid
-         and approved_at is not null""",
+         and approved_at is not null
+         and status in """ & sessionLifecycle.approvedStatuses,
     @[textParam(communityId), textParam(sessionId)])
   row.isSome
 
@@ -2680,7 +2696,8 @@ proc createTournamentRoute(request: Request, ctx: CommunityContext,
     ctx.communityId, user.id, body)
   if status == tournamentStore.svInvalid:
     releaseIdempotencyKey(user.id, ctx.communityId, key, "")
-    jsonResponse(request, 400, snapshot)
+    invalidBodyResponse(request, "INVALID_TOURNAMENT",
+      "tournament body is invalid", snapshot)
     return
   if status != tournamentStore.svOk:
     releaseIdempotencyKey(user.id, ctx.communityId, key, "")
@@ -2727,7 +2744,8 @@ proc putTournamentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
     sendSnapshot(request, 200, snapshot)
   of tournamentStore.svInvalid:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
-    jsonResponse(request, 400, snapshot)
+    invalidBodyResponse(request, "INVALID_TOURNAMENT",
+      "tournament body is invalid", snapshot)
   else:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
     saveFailure(request, status)
@@ -2825,7 +2843,8 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
     sendSnapshot(request, 200, snapshot)
   of tournamentStore.ptInvalid:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
-    jsonResponse(request, 400, snapshot)
+    invalidBodyResponse(request, "INVALID_TOURNAMENT",
+      "tournament match body is invalid", snapshot)
   of tournamentStore.ptNotFound:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
     problem(request, 404, "NOT_FOUND", "tournament or match not found")
