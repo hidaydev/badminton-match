@@ -4,7 +4,7 @@
 # rewritten once (T-108) and this hook keeps it that way.
 set -eu
 
-if paths=$(git ls-tree -r --name-only HEAD | grep -E '^docs/(audits|plan/reviews)/'); then
+if paths=$(git ls-tree -r --name-only HEAD | grep -E '^docs/(audits?|plan/reviews)/'); then
   echo "pre-push: these paths belong in .local/, not the public repository:" >&2
   printf '%s\n' "$paths" | head -10 >&2
   echo "pre-push: move them to .local/audits or .local/plan-reviews and commit the removal." >&2

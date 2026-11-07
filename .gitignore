@@ -41,11 +41,6 @@ TASK_LIST.md
 DESIGN_BACKLOG.md
 TOURNAMENT_BACKLOG.md
 
-dump/
-# Only the v1 root helper directory is local; ops/scripts and apps/web/scripts
-# are part of the repo.
-/scripts/
-
 .commandcode
 
 # Local audit & action plan — concurrency/score/absent (2026-08-22)
@@ -65,6 +60,9 @@ MONOREPO_PLAN.md
 dump/
 # Working directory lokal: dump skema, fixtures, catatan sensitif (repo publik)
 .local/
+
+# Internal audit notes stay out of the public repository (see .githooks/pre-push)
+docs/audit/
 
 # Local quality remediation plan (working doc)
 QUALITY_REMEDIATION_PLAN.md
@@ -94,3 +92,6 @@ nimble.paths
 nimbledeps
 .vercel
 .env*
+# Templates are meant to be tracked; only real env files are local.
+!.env.example
+!.env.*.example
