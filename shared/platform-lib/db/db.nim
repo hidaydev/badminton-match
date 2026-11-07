@@ -43,6 +43,10 @@ proc timestampParam*(value: string): DbParam =
   ## RFC 3339 UTC; PostgreSQL parses the text representation.
   DbParam(kind: dpTimestamp, timestampValue: value)
 
+proc textOrNull*(value: string): DbParam =
+  ## An empty string is "no value": the column keeps NULL instead of `''`.
+  if value.len == 0: nullParam() else: textParam(value)
+
 proc asText*(param: DbParam): string =
   case param.kind
   of dpNull: ""

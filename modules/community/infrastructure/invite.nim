@@ -2,7 +2,8 @@ import std/options
 import db/db
 import sha256
 import ../../account/domain/roles
-import ./tokens
+import token
+import ./membership_sql
 
 type
   AcceptOutcome* = enum
@@ -23,7 +24,7 @@ proc create*(db: Db, communityId, emailHash, role, createdBy: string,
   ## Returns the opaque token exactly once. The invite is bound to the address,
   ## so a forwarded token is worthless without the matching account.
   discard parseRole(role)
-  let token = newToken()
+  let token = newOpaqueToken()
   discard db.execUpdate(
     """insert into community.invite
          (community_id, token_hash, email_hash, role, created_by, expires_at)
@@ -75,16 +76,10 @@ proc acceptPendingForEmail*(db: Db, userId, emailHash: string):
            and (expires_at is null or expires_at > now())
          returning community_id, role""",
       @[textParam(emailHash)]):
-      let granted = conn.queryOne(
-        """insert into community.membership (community_id, user_id, role)
-           values ($1::uuid, $2::uuid, $3)
-           on conflict (community_id, user_id) do nothing
-           returning role""",
-        @[textParam(row.getUuid("community_id")), textParam(userId),
-          textParam(row.get("role"))])
-      if granted.isSome:
+      if addMemberConn(conn, row.getUuid("community_id"), userId,
+          row.get("role")):
         joined.add((communityId: row.getUuid("community_id"),
-          role: granted.get.get("role"))))
+          role: row.get("role"))))
   joined
 
 proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
@@ -100,9 +95,7 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
     # Login claims every unused invite for the address, so the recipient who
     # follows the link afterwards finds their own invitation already redeemed.
     # Same address, same outcome: report the membership it granted.
-    let held = db.queryOne(
-      """select role from community.membership
-         where community_id = $1::uuid and user_id = $2::uuid""",
+    let held = db.queryOne(memberRoleSql,
       @[textParam(found.communityId), textParam(userId)])
     if held.isSome:
       return AcceptResult(outcome: aoOk, communityId: found.communityId,
@@ -140,9 +133,7 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
         @[textParam(communityId), textParam(userId), textParam(role)])
       # The audit and the response must name the role the member ended up with,
       # not the one the invite asked for (a second invite may be a no-op).
-      let held = conn.queryOne(
-        """select role from community.membership
-           where community_id = $1::uuid and user_id = $2::uuid""",
+      let held = conn.queryOne(memberRoleSql,
         @[textParam(communityId), textParam(userId)])
       if held.isSome:
         role = held.get.get("role"))

@@ -1,6 +1,7 @@
-import std/[options, strutils, sysrand]
+import std/options
 import db/db
 import sha256
+import token
 
 type
   Token* = object
@@ -10,25 +11,18 @@ type
     expiresAt*: string
     revokedAt*: string
 
-proc newToken(): string =
-  var bytes = newSeq[byte](32)
-  if not urandom(bytes):
-    raise newException(IOError, "no entropy available")
-  for byte in bytes:
-    result.add(toHex(byte, 2).toLowerAscii())
-
 proc issue*(db: Db, name, createdBy: string, ttlDays: int): string =
   ## Returns the plaintext exactly once; the row keeps only the hash.
-  let token = newToken()
+  let token = newOpaqueToken()
   discard db.execUpdate(
     """insert into platform.ops_token
          (name, token_hash, created_by, expires_at)
-       values ($1, decode($2,'hex'), nullif($3, '')::uuid,
+       values ($1, decode($2,'hex'), $3::uuid,
                case when $4 > 0 then now() + make_interval(days => $4) else null end)""",
     @[
       textParam(name),
       textParam(sha256Hex(token)),
-      textParam(createdBy),
+      textOrNull(createdBy),
       intParam(ttlDays.int64),
     ])
   token

@@ -1,6 +1,7 @@
 import std/options
 import db/db
 import ../../account/domain/roles
+import ./membership_sql
 
 type
   JoinRequest* = object
@@ -55,10 +56,6 @@ proc decide*(db: Db, communityId, requestId, actorId: string,
     if row.isSome:
       decided = true
       if approve:
-        discard conn.execUpdate(
-          """insert into community.membership (community_id, user_id, role)
-             values ($1::uuid, $2::uuid, $3)
-             on conflict (community_id, user_id) do nothing""",
-          @[textParam(communityId), textParam(row.get.get("user_id")),
-            textParam(role)]))
+        discard addMemberConn(conn, communityId,
+          row.get.get("user_id"), role))
   decided

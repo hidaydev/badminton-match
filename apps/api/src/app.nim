@@ -7,6 +7,7 @@ import community/infrastructure/community_store
 import community/infrastructure/invite as inviteStore
 import community/infrastructure/join_request as joinRequestStore
 import community/infrastructure/membership as membershipStore
+import community/infrastructure/membership_sql as membershipSql
 import config as edgeConfig
 import config_routes
 import errors as platformErrors
@@ -1359,9 +1360,7 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
     return
   # Read before the write: this is the role the change replaces.
-  let previous = application.db.queryOne(
-    """select role from community.membership
-       where community_id = $1::uuid and user_id = $2::uuid""",
+  let previous = application.db.queryOne(membershipSql.memberRoleSql,
     @[textParam(ctx.communityId), textParam(targetId)])
   case membershipStore.setRoleChecked(application.db, ctx.communityId,
       targetId, role)

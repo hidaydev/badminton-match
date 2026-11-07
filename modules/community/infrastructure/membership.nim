@@ -1,6 +1,7 @@
 import std/[options, strutils]
 import db/db
 import ../../account/domain/roles
+import ./membership_sql
 
 type
   Member* = object
@@ -32,11 +33,8 @@ proc setRole*(db: Db, communityId, userId, role: string): bool =
 
 proc add*(db: Db, communityId, userId, role: string): bool =
   discard parseRole(role)
-  db.execUpdate(
-    """insert into community.membership (community_id, user_id, role)
-       values ($1::uuid, $2::uuid, $3)
-       on conflict (community_id, user_id) do nothing""",
-    @[textParam(communityId), textParam(userId), textParam(role)]) > 0
+  db.read(proc(conn: DbConn): bool =
+    addMemberConn(conn, communityId, userId, role))
 
 proc remove*(db: Db, communityId, userId: string): bool =
   db.execUpdate(
@@ -72,9 +70,7 @@ proc setRoleChecked*(db: Db, communityId, userId, role: string): MemberWrite =
   var outcome = mwNotFound
   db.tx(proc(conn: DbConn) =
     lockCommunity(conn, communityId)
-    let row = conn.queryOne(
-      """select role from community.membership
-         where community_id = $1::uuid and user_id = $2::uuid""",
+    let row = conn.queryOne(memberRoleSql,
       @[textParam(communityId), textParam(userId)])
     if row.isNone:
       outcome = mwNotFound
@@ -96,9 +92,7 @@ proc removeChecked*(db: Db, communityId, userId: string): MemberWrite =
   var outcome = mwNotFound
   db.tx(proc(conn: DbConn) =
     lockCommunity(conn, communityId)
-    let row = conn.queryOne(
-      """select role from community.membership
-         where community_id = $1::uuid and user_id = $2::uuid""",
+    let row = conn.queryOne(memberRoleSql,
       @[textParam(communityId), textParam(userId)])
     if row.isNone:
       outcome = mwNotFound

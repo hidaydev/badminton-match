@@ -2,7 +2,7 @@ import std/[json, options, strutils]
 import db/db
 import sha256
 import ../domain/community
-import ./tokens
+import token
 
 type
   CreateStatus* = enum
@@ -37,9 +37,9 @@ proc create*(db: Db, slug, name, adminEmail, timezone, actorId: string): CreateR
            values ($1::uuid, decode($2,'hex'), $3, 'admin', $4::uuid)""",
         @[
           textParam(communityId),
-          textParam(sha256Hex(newToken())),
+          textParam(sha256Hex(newOpaqueToken())),
           textParam(sha256Hex(adminEmail.strip().toLowerAscii())),
-          (if actorId.len == 0: nullParam() else: textParam(actorId)),
+          textOrNull(actorId),
         ]))
   if taken:
     CreateResult(status: csSlugTaken)

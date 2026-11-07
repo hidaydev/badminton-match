@@ -1,6 +1,7 @@
-import std/[options, strutils, sysrand]
+import std/options
 import db/db
 import sha256
+import token
 
 type
   SessionUser* = object
@@ -15,17 +16,10 @@ type
     lastSeenAt*: string
     current*: bool
 
-proc randomToken*(): string =
-  var bytes: array[32, byte]
-  if not urandom(bytes):
-    raise newException(IOError, "cannot read random bytes")
-  for value in bytes:
-    result.add(toHex(value, 2).toLowerAscii())
-
 proc createSession*(db: Db, userId: string, absoluteDays: int): string =
   ## Returns the raw cookie value. Only its SHA-256 is stored, so a database
   ## dump cannot be replayed as a session.
-  result = randomToken()
+  result = newOpaqueToken()
   discard db.execUpdate(
     """insert into account.sessions
          (user_id, token_hash, absolute_expires_at)

@@ -2,9 +2,6 @@ import std/json
 import db/db
 import ../domain/audit
 
-proc optionalParam(value: string): DbParam =
-  if value.len == 0: nullParam() else: textParam(value)
-
 const recordAuditSql = """insert into account.audit
        (actor_id, actor_role, community_id, action, target_kind, target_id,
         result, reason, request_id, before, after)
@@ -13,14 +10,14 @@ const recordAuditSql = """insert into account.audit
 
 proc auditParams(event: AuditEvent): seq[DbParam] =
   @[
-    optionalParam(event.actorId),
+    textOrNull(event.actorId),
     textParam(if event.actorRole.len == 0: "member" else: event.actorRole),
-    optionalParam(event.communityId),
+    textOrNull(event.communityId),
     textParam(event.action),
     textParam(event.targetKind),
     textParam(event.targetId),
     textParam($event.result),
-    optionalParam(event.reason),
+    textOrNull(event.reason),
     textParam(if event.requestId.len == 0: "-" else: event.requestId),
     textParam($sanitizeEvidence(event.before)),
     textParam($sanitizeEvidence(event.after)),
