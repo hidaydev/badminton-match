@@ -131,10 +131,16 @@ dimigrasi rilis baru. Aturannya di §6.
 Deploy menjalankan migrasi otomatis, jadi setiap rilis wajib memenuhi:
 
 - **Hanya menambah** dalam satu rilis: tabel baru, kolom nullable atau
-  `NOT NULL DEFAULT`, index `CONCURRENTLY` di luar transaksi bila besar. Jangan
-  `rename`, `drop`, atau mengubah tipe kolom yang masih ditulis `:prev`.
-- **Penghapusan menyusul satu rilis.** Hapus kolom/tabel lama setelah rilis yang
-  berhenti memakainya sudah menjadi `:prev`, bukan di rilis yang sama.
+  `NOT NULL DEFAULT`, index baru. Jangan `rename`, `drop`, atau mengubah tipe
+  kolom yang masih ditulis `:prev`.
+- **Index `CONCURRENTLY` dikerjakan manual, di luar migrasi.** `dbtools migrate`
+  menjalankan tiap berkas di dalam satu transaksi, dan PostgreSQL menolak
+  `create index concurrently` di sana. Bangun index itu sebagai langkah operator
+  sebelum deploy; migrasinya lalu hanya berisi `create index if not exists` yang
+  menjadi no-op.
+- **Berkas ber-header `-- contract` ditolak secara default.** Penghapusan baru
+  boleh jalan lewat `dbtools migrate --allow-contract`, satu rilis setelah deploy
+  yang berhenti memakai bentuk lama sudah menjadi `:prev`.
 - **Seed idempoten** (`insert … on conflict do nothing`). `dbtools seed` tidak
   dipanggil deploy; seed baru hanya masuk lewat `cutover.sh` atau operator.
 - **`/readyz` bukan pengganti `verify`.** Readiness hanya memeriksa keberadaan

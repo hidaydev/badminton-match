@@ -24,7 +24,7 @@ explicit `--nimcache` does not add a suffix.
 | Target | Purpose | Needs database |
 |---|---|---|
 | `check` | `nim check`, unit tests, archcheck when present | no |
-| `build` | release build into `.cache/$WORKTREE/bin/` | no |
+| `build` | release build of `majadu-api` into `.cache/$WORKTREE/bin/`; `tools/*` and `dbtools` are not built here — compile them by hand with the same flags | no |
 | `test` | unit + integration tests | integration only |
 | `verify <module>` | build and test one module | when it has integration tests |
 | `contract-gen` | regenerate routes, client and fingerprint | no |
@@ -49,6 +49,15 @@ explicit `--nimcache` does not add a suffix.
   on failure. Use `fail "message"` for errors.
 - Tests live next to their module. Files under `tests/integration/` only run when
   `INTEGRATION=1` (set by `test`, not by `check`).
+- `test` and `ci` refuse to start unless `MAJADU_PG_DSN` is set and its database
+  name contains `test`; `ALLOW_SHARED_DB=1` is the deliberate opt-out. The
+  suites mutate rows they do not fully own, so pointing them at `bm2_dev` is how
+  unrelated failures are manufactured.
+- The integration fixture layer purges a community through
+  `purgeCommunity(db, slug)`, which deletes from every base table carrying a
+  `community_id` and then the community row. It needs a role with DELETE on the
+  append-only tables (`account.audit`, `player.merge_log`, `import.row_map`) —
+  the owner/postgres role, not `bm2_app`.
 - `.cache/` and `nimcache/` are ignored by Git.
 
 ## Timing on the development machine (2026-11-03)
