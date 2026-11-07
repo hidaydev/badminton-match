@@ -6,6 +6,29 @@ import ../../src/config_routes
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
+proc readWithLoweredPlatform(db: Db, communityId: string, key: ConfigKey,
+                             lowered: int): tuple[read, screen: int] =
+  ## Lowers the platform value, reads the community override back, and restores
+  ## the platform value even when the read raises: the row belongs to the shared
+  ## suite database, not to this test.
+  let stored = db.queryOne(
+    "select value::text as value from platform.config where key = $1",
+    @[textParam($key)])
+  if stored.isNone:
+    raise newException(ValueError, "missing platform value for " & $key)
+  try:
+    discard db.execUpdate(
+      "update platform.config set value = $1 where key = $2",
+      @[textParam($lowered), textParam($key)])
+    let snapshot = loadSnapshot(db)
+    let settings = currentSettings(db, communityId)
+    result.read = snapshot.intValue(settings, key)
+    result.screen = effectiveConfig(snapshot, settings)[$key]["value"].getInt()
+  finally:
+    discard db.execUpdate(
+      "update platform.config set value = $1 where key = $2",
+      @[textParam(stored.get.get("value")), textParam($key)])
+
 suite "community config overrides":
   var db: Db
   var snapshot: Snapshot
@@ -95,3 +118,20 @@ suite "community config overrides":
     # Platform keys are not part of the community view: every member reads this.
     check not effective.hasKey("rank.board_limit")
     check not effective.hasKey("security.allowed_origins")
+
+  test "a stored override reads as the platform value once the platform value drops":
+    # The DoD for X-4. The write path accepted 20 while the platform value was
+    # 30; the operator then lowers the platform value to 10. The stored row is
+    # legal history, so the read clamps instead of raising, and the settings
+    # screen shows the same number the server uses.
+    discard applyPatch(db, snapshot, communityId, userId,
+      %*{"rating.score_target": 20})
+    let (read, screen) = readWithLoweredPlatform(db, communityId,
+      keyRatingScoreTarget, 10)
+    check read == 10
+    check screen == 10
+    # The clamp is a read, not a migration: the row still holds what was
+    # written, so raising the platform value again restores the override.
+    check currentSettings(db, communityId)["rating.score_target"].getInt() == 20
+    check loadSnapshot(db).intValue(currentSettings(db, communityId),
+      keyRatingScoreTarget) == 20

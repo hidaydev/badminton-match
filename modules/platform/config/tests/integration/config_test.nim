@@ -158,10 +158,30 @@ suite "platform config":
       "Asia/Jayapura"
     bumpTimezone(db, "Asia/Jakarta")
 
-  test "L2 override wins and cannot exceed the L1 ceiling":
+  test "L2 override below the L1 value wins":
     let snapshot = loadSnapshot(db)
     let settings = %*{"api.page_size_default": 25}
     check snapshot.intValue(settings, keyApiPageSizeDefault) == 25
-    let tooBig = %*{"api.page_size_default": 5000}
+
+  test "an override above the L1 value reads as the L1 value":
+    # An override the write path accepted stays readable after an operator
+    # lowers the platform value: the read clamps, and only the write path
+    # reports the rejection. Raising here would turn that stored row into an
+    # error for every member.
+    let snapshot = loadSnapshot(db)
+    check snapshot.intValue(%*{"api.page_size_default": 250},
+      keyApiPageSizeDefault) == 100
+
+  test "the registry bound is still a hard validity check":
+    # The registry bound is validity, not the ceiling: a stored value outside
+    # the frozen bounds still refuses the read.
+    let snapshot = loadSnapshot(db)
     expect ConfigError:
-      discard snapshot.intValue(tooBig, keyApiPageSizeDefault)
+      discard snapshot.intValue(%*{"api.page_size_default": 5000},
+        keyApiPageSizeDefault)
+
+  test "a decimal override is clamped the same way":
+    let snapshot = loadSnapshot(db)
+    check snapshot.decimalValue(%*{}, keyRatingSessionBase) == 250.0
+    check snapshot.decimalValue(%*{"rating.session_base": 251.0},
+      keyRatingSessionBase) == 250.0

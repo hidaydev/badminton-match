@@ -18,25 +18,13 @@ type
     key*: string
     detail*: string
 
-proc knownKey(name: string): Option[ConfigKey] =
-  for entry in allKeys:
-    if $entry.key == name:
-      return some(entry.key)
-  none(ConfigKey)
-
-proc specOf(key: ConfigKey): KeySpec =
-  for entry in allKeys:
-    if entry.key == key:
-      return entry
-  raise newException(ValueError, "key is not registered")
-
 proc validate(snapshot: Snapshot, key: ConfigKey, value: JsonNode): SettingsResult =
   ## Community overrides may only narrow a platform value: the L1 value is the
   ## ceiling and a type mismatch is rejected before anything is written. Only
   ## registry keys scoped to the community reach this point: a platform key is
   ## read from the platform snapshot by every consumer, so storing a per-community
   ## copy would report a value nothing uses.
-  let spec = specOf(key)
+  let spec = specFor(key)
   if spec.scope != csCommunity:
     return SettingsResult(outcome: soPlatformScope, key: $key,
       detail: "key is managed at the platform level")
@@ -75,7 +63,7 @@ proc checkPatch*(snapshot: Snapshot, patch: JsonNode): SettingsResult =
   if patch.kind != JObject:
     return SettingsResult(outcome: soInvalidType, detail: "patch must be an object")
   for name, value in patch:
-    let key = knownKey(name)
+    let key = keyByName(name)
     if key.isNone:
       return SettingsResult(outcome: soUnknownKey, key: name,
         detail: "unknown configuration key")
@@ -136,9 +124,20 @@ proc visibleSettings*(settings: JsonNode): JsonNode =
   if settings.kind != JObject:
     return
   for name, value in settings:
-    let key = knownKey(name)
-    if key.isSome and specOf(key.get).scope == csCommunity:
+    let key = keyByName(name)
+    if key.isSome and specFor(key.get).scope == csCommunity:
       result[name] = value
+
+proc effectiveValue(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): JsonNode =
+  ## The stored override through the same accessor the server reads it with, so
+  ## the settings screen cannot show a number the server does not use. A clamped
+  ## integer therefore reads here exactly as it reads in a handler.
+  case specFor(key).kind
+  of ctInt: %snapshot.intValue(settings, key)
+  of ctDecimal: %snapshot.decimalValue(settings, key)
+  of ctBool: %snapshot.boolValue(settings, key)
+  of ctString: %snapshot.stringValue(settings, key)
+  of ctJson: snapshot.jsonValue(settings, key)
 
 proc effectiveConfig*(snapshot: Snapshot, settings: JsonNode): JsonNode =
   ## The community-scoped keys with the value that will actually be used.
@@ -150,12 +149,8 @@ proc effectiveConfig*(snapshot: Snapshot, settings: JsonNode): JsonNode =
       continue
     var entryNode =
       if settings.kind == JObject and settings.hasKey($entry.key):
-        let value =
-          if entry.kind == ctBool:
-            %snapshot.boolValue(settings, entry.key)
-          else:
-            settings[$entry.key]
-        %*{"value": value, "source": "community"}
+        %*{"value": effectiveValue(snapshot, settings, entry.key),
+           "source": "community"}
       else:
         %*{"value": snapshot.jsonValue(%*{}, entry.key),
            "source": "platform"}

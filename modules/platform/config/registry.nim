@@ -1,3 +1,5 @@
+import std/options
+
 type
   ConfigType* = enum
     ctInt = "int"
@@ -112,6 +114,15 @@ proc specFor*(key: ConfigKey): KeySpec =
     if candidate.key == key:
       return candidate
   raise newException(ValueError, "key is not in the registry: " & $key)
+
+proc keyByName*(name: string): Option[ConfigKey] =
+  ## The registry entry for a key as it is spelled on the wire and in the
+  ## database. Callers that read a key string must not keep their own copy of
+  ## the enum: a key added here is then visible to them without an edit.
+  for candidate in allKeys:
+    if $candidate.key == name:
+      return some(candidate.key)
+  none(ConfigKey)
 
 proc isRequired*(): bool =
   ## Every registry key is required in L1. A missing key stops the process.

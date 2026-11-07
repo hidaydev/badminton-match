@@ -144,21 +144,26 @@ proc communityValue*(settings: JsonNode, key: ConfigKey): Option[JsonNode] =
   some(settings[$key])
 
 proc intValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): int =
-  ## L2 -> L1 -> error. Community values are validated against the L1 ceiling.
-  let override = communityValue(settings, key)
-  if override.isSome:
-    let spec = specFor(key)
-    validateValue(spec, override.get)
-    if spec.hasBounds and override.get.getInt().float > spec.maxValue:
-      raise newException(ConfigError, $key & " exceeds the platform ceiling")
-    return override.get.getInt()
-  lookup(snapshot, key).getInt()
-
-proc decimalValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): float =
+  ## L2 -> L1. The registry bounds stay a hard validity check, so a stored value
+  ## outside them still refuses the load. The platform value is the ceiling: an
+  ## override above it is clamped instead of rejected, because the row was legal
+  ## when it was written and an operator lowering the platform value later must
+  ## not turn it into an error for every member.
   let override = communityValue(settings, key)
   if override.isSome:
     validateValue(specFor(key), override.get)
-    return override.get.getFloat()
+    return min(lookup(snapshot, key).getInt(), override.get.getInt())
+  lookup(snapshot, key).getInt()
+
+proc decimalValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): float =
+  ## Same order and same ceiling as `intValue`. `system.min` is not defined for
+  ## floats, so the comparison is written out.
+  let override = communityValue(settings, key)
+  if override.isSome:
+    validateValue(specFor(key), override.get)
+    let platform = lookup(snapshot, key).getFloat()
+    let wanted = override.get.getFloat()
+    return if wanted < platform: wanted else: platform
   lookup(snapshot, key).getFloat()
 
 proc stringValue*(snapshot: Snapshot, settings: JsonNode, key: ConfigKey): string =
