@@ -10,6 +10,7 @@ import { toPlayerId, toTimeString } from '../types'
 import type { GameKey, Gender, Player, SessionScoring, SetScore, Tier } from '../types'
 import type { CloudSnapshot, PlayerSummary, PlayerStats, SessionMeta } from './types'
 import type { AnyTournamentSnapshot } from '../utils/teamTournament'
+import { isPlaceholderName } from '../utils/placeholders'
 import { parseRetryAfter, ApiError, shouldRetry } from './retry'
 import { isClientOutdated, reportClientOutdated, reportSessionExpired } from '../../api/errors'
 
@@ -476,11 +477,20 @@ export async function getSession(
 /**
  * The wizard keeps its own short player ids; v2 schedules store community
  * player UUIDs. Resolve every name once and return local -> server id.
+ *
+ * A placeholder slot ("TBD", "free 1", ...) is not a person: it maps to an
+ * empty id, which the caller drops from the side. A side left with nobody is
+ * stored as a null player and the game drops out of standings and rating; a
+ * side that keeps a real name stays visible so the host can fill the gap.
  */
 async function resolveSnapshotPlayers(players: Player[]): Promise<Map<string, string>> {
   const ids = new Map<string, string>()
   for (const player of players) {
     if (ids.has(player.id)) continue
+    if (isPlaceholderName(player.name)) {
+      ids.set(player.id, '')
+      continue
+    }
     try {
       ids.set(player.id, await resolvePlayerId(player.name))
     } catch (error) {
@@ -531,6 +541,9 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
   if (current === null) throw new ApiError('session not found', 'NOT_FOUND', 404)
   const playerIds = await resolveSnapshotPlayers(data.players)
   const serverId = (localId: string): string => playerIds.get(localId) ?? localId
+  // Placeholders resolve to '' and must not travel as a uuid.
+  const side = (ids: Array<string | number>): string[] =>
+    ids.map(String).filter(Boolean).map(serverId).filter((id) => id !== '')
 
   let version = data.version ?? current.version
   const patchRecord = await request<{ version?: number }>(
@@ -550,8 +563,8 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
   const schedule = data.schedule.map((slot) => ({
     round: slot.slot,
     court: slot.court,
-    sideA: [slot.teamA[0], slot.teamA[1]].map(String).filter(Boolean).map(serverId),
-    sideB: [slot.teamB[0], slot.teamB[1]].map(String).filter(Boolean).map(serverId),
+    sideA: side([slot.teamA[0], slot.teamA[1]]),
+    sideB: side([slot.teamB[0], slot.teamB[1]]),
   }))
 
   const scheduled = await request<{ version?: number }>(
@@ -605,7 +618,7 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
     const record = await request<{ version?: number }>(
       'PATCH',
       communityPath(`/sessions/${enc(id)}/absent`),
-      { playerIds: data.absentPlayers.map(serverId) },
+      { playerIds: data.absentPlayers.map(serverId).filter((id) => id !== '') },
       undefined,
       ifMatch(version),
     )
