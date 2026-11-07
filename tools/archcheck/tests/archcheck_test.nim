@@ -164,7 +164,7 @@ suite "archcheck rules":
     check violationsFor("modules/session/write.nim", scoped).len == 0
     let unscoped = "var sql = \"select id from session.sessions\"\n" &
       "sql.add(\" and title = $2\")\n"
-    check violationsFor("modules/session/write.nim", unscoped).len == 1
+    check violationsFor("modules/session/write.nim", unscoped).len >= 1
 
   test "a chain that starts at an identifier is not also judged as a fragment":
     let source = "const tail = \" and exists (select 1 from player.aliases a\" &\n" &
@@ -177,6 +177,37 @@ suite "archcheck rules":
       "  \" where community_id = $1) select tp.id from m\" &\n" &
       "  \" join tournament.team_players tp on tp.community_id = m.community_id\"\n"
     check violationsFor("modules/rating/read.nim", source).len == 0
+
+  test "a builder whose base alone is unscoped is still reported":
+    # The fragment is in another branch (or another proc with the same name);
+    # an append may not be the only predicate the base relies on.
+    let branched = "proc a() =\n" &
+      "  var sql = \"select id from session.sessions\"\n" &
+      "proc b() =\n" &
+      "  var sql = \"select id from player.players\"\n" &
+      "  sql.add(\" where community_id = $1\")\n"
+    check violationsFor("modules/session/write.nim", branched).len >= 1
+    let conditional = "proc a(flag: bool) =\n" &
+      "  var sql = \"select id from session.sessions\"\n" &
+      "  if flag:\n" &
+      "    sql.add(\" where community_id = $1\")\n"
+    check violationsFor("modules/session/write.nim", conditional).len == 1
+
+  test "a set operator other than union also splits the statement":
+    let source = "let q = \"select id from session.sessions where community_id = $1\" &\n" &
+      "  \" except select id from player.players\"\n"
+    check violationsFor("modules/rating/read.nim", source).len == 1
+
+  test "a cte over a non-domain table does not lend a scope it never proved":
+    let source = "let q = \"with m as (select community_id from import.row_map)\" &\n" &
+      "  \" select s.id from session.sessions s\" &\n" &
+      "  \" join m on s.community_id = m.community_id\"\n"
+    check violationsFor("apps/api/src/app.nim", source).len == 1
+
+  test "a scoped lookup subquery binds community_id":
+    let source = "let q = \"select id from session.sessions\" &\n" &
+      "  \" where community_id = (select id from platform.community where slug = $1)\"\n"
+    check violationsFor("modules/session/write.nim", source).len == 0
 
   test "an insert is scoped by its column list":
     check violationsFor("apps/api/src/app.nim",

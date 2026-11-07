@@ -218,6 +218,10 @@ proc sqlStatements*(source: string): seq[SqlStatement] =
           added = true
       inc index
     if added:
+      # The base is judged on its own as well: a fragment appended in another
+      # branch must not be the only thing that scopes an unscoped base.
+      accumulated.add(SqlStatement(text: resolveExpression(tokens, position,
+        bindings, @[]), offset: tokens[position].pos))
       accumulated.add(SqlStatement(text: text, offset: tokens[position].pos))
       consumed.add(position)
   for index in 0 ..< tokens.len:
@@ -340,6 +344,20 @@ type
     parent: int
     outerAliases: seq[string]
 
+proc inlineOperand(current: string): bool =
+  ## `x = (select ...)` and `x in (select ...)` are predicates: the body is
+  ## part of the clause, so a community lookup inside one is a scope. An
+  ## `exists (...)` subquery is a different question and is judged on its own.
+  let text = current.strip()
+  if text.len == 0:
+    return false
+  if text[^1] == '=':
+    return true
+  var index = text.len
+  while index > 0 and text[index - 1] in {'a'..'z', '0'..'9', '_', '.'}:
+    dec index
+  text[index .. ^1] == "in"
+
 proc sqlLevels(sql: string): seq[SqlLevel] =
   ## The statement split into query levels. A parenthesised `select`/`with` is
   ## its own level, so a `community_id` in an unrelated subquery cannot scope
@@ -357,10 +375,14 @@ proc sqlLevels(sql: string): seq[SqlLevel] =
     if c == '(':
       let word = wordAt(sql, index + 1)
       if word == "select" or word == "with":
-        stack.add((current, currentLevel, true))
-        levels.add(SqlLevel(text: "", parent: currentLevel))
-        currentLevel = levels.len - 1
-        current = ""
+        if inlineOperand(current):
+          stack.add((current, currentLevel, false))
+          current = "("
+        else:
+          stack.add((current, currentLevel, true))
+          levels.add(SqlLevel(text: "", parent: currentLevel))
+          currentLevel = levels.len - 1
+          current = ""
       else:
         stack.add((current, currentLevel, false))
         current = "("
@@ -395,14 +417,33 @@ proc sqlLevels(sql: string): seq[SqlLevel] =
 
 proc segmentText(text: string, start: int,
                  enders: openArray[string]): string =
-  ## The clause that opens at `start`, up to the next clause keyword. A scope
-  ## predicate is one that lives in that clause.
-  var finish = text.len
-  for ender in enders:
-    for position in verbPositions(text, ender):
-      if position > start and position < finish:
-        finish = position
-  text[start ..< finish]
+  ## The clause that opens at `start`, up to the next clause keyword *at the
+  ## same paren depth*. A `select` inside `community_id = (select ... $1)` is
+  ## part of the predicate, not the end of the clause.
+  var depth = 0
+  var index = start
+  while index < text.len:
+    let c = text[index]
+    if c == '(':
+      inc depth
+    elif c == ')':
+      if depth == 0:
+        break
+      dec depth
+    elif depth == 0:
+      var ends = false
+      for ender in enders:
+        if index + ender.len <= text.len and
+           text[index ..< index + ender.len] == ender and
+           (index == 0 or text[index - 1] notin {'a'..'z', '0'..'9', '_', '.'}) and
+           (index + ender.len >= text.len or
+            text[index + ender.len] notin {'a'..'z', '0'..'9', '_'}):
+          ends = true
+          break
+      if ends:
+        break
+    inc index
+  text[start ..< index]
 
 proc parameterOperand(text: string, start: int): bool =
   ## True when the operand at `start` is a parameter, a parameter list, or
@@ -469,11 +510,48 @@ proc squash(text: string): string =
         pending = false
       result.add(c)
 
-proc equalityScoped(level: string): bool =
-  ## `X.community_id = Y.community_id` scopes the level when one side is a
-  ## source that is not a domain table. A CTE has already been narrowed by its
-  ## own predicate, and this join only keeps the rows that belong to it. Two
-  ## domain tables agreeing with each other say nothing about the caller.
+proc cteBodies(text: string): seq[(string, string)] =
+  ## `name as (` introduces a CTE, paired with its body. A join may only
+  ## inherit scope from a CTE that is itself scoped; carrying a community_id
+  ## column does not make an arbitrary table a community-keyed source.
+  var index = 0
+  while index < text.len:
+    if text[index] in {'a'..'z', '0'..'9', '_'} and
+       (index == 0 or text[index - 1] notin {'a'..'z', '0'..'9', '_', '.'}):
+      var finish = index
+      while finish < text.len and text[finish] in {'a'..'z', '0'..'9', '_'}:
+        inc finish
+      let word = text[index ..< finish]
+      var cursor = finish
+      while cursor < text.len and text[cursor] in {' ', '\t', '\n', '\r'}:
+        inc cursor
+      if cursor + 2 <= text.len and text[cursor ..< cursor + 2] == "as":
+        var after = cursor + 2
+        while after < text.len and text[after] in {' ', '\t', '\n', '\r'}:
+          inc after
+        if after < text.len and text[after] == '(':
+          var depth = 0
+          var close = -1
+          var scan = after
+          while scan < text.len:
+            if text[scan] == '(':
+              inc depth
+            elif text[scan] == ')':
+              dec depth
+              if depth == 0:
+                close = scan
+                break
+            inc scan
+          if close > after:
+            result.add((word, text[after + 1 ..< close]))
+      index = finish
+      continue
+    inc index
+
+proc equalityScoped(level: string, safeCtes: seq[string]): bool =
+  ## `X.community_id = Y.community_id` scopes the level when one side is a CTE
+  ## that is itself scoped, declared in this statement. Two domain tables
+  ## agreeing with each other say nothing about the caller.
   var safe: seq[string] = @[]
   var domain: seq[string] = @[]
   for (qualifier, table) in sourcesIn(level):
@@ -484,7 +562,7 @@ proc equalityScoped(level: string): bool =
         break
     if isDomain:
       domain.add(qualifier)
-    else:
+    elif table in safeCtes:
       safe.add(qualifier)
   if safe.len == 0 or domain.len == 0:
     return false
@@ -495,11 +573,11 @@ proc equalityScoped(level: string): bool =
          (right & ".community_id = " & left & ".community_id") in text:
         return true
 
-proc levelScoped(level: string): bool =
+proc levelScoped(level: string, safeCtes: seq[string]): bool =
   ## A level is scoped when a `where`, `join ... on` or `having` clause binds
   ## community_id, or - for an insert, which has no where clause - the column
   ## list names it.
-  if equalityScoped(level):
+  if equalityScoped(level, safeCtes):
     return true
   for keyword in ["where", "on", "having"]:
     for position in verbPositions(level, keyword):
@@ -510,8 +588,9 @@ proc levelScoped(level: string): bool =
       return true
 
 proc unionBranches(text: string): seq[string] =
-  ## UNION operands are separate queries: a scoped branch must not answer for
-  ## an unscoped one.
+  ## Set operands are separate queries: a scoped branch must not answer for an
+  ## unscoped one.
+  const separators = ["union", "intersect", "except"]
   var start = 0
   var depth = 0
   var index = 0
@@ -521,13 +600,21 @@ proc unionBranches(text: string): seq[string] =
       inc depth
     elif c == ')':
       dec depth
-    elif depth == 0 and text[index ..< min(text.len, index + 5)] == "union" and
-         (index == 0 or text[index - 1] notin {'a'..'z', '0'..'9', '_', '.'}) and
-         (index + 5 >= text.len or text[index + 5] notin {'a'..'z', '0'..'9', '_'}):
-      result.add(text[start ..< index])
-      start = index + 5
-      index = start
-      continue
+    elif depth == 0:
+      var split = 0
+      for separator in separators:
+        if index + separator.len <= text.len and
+           text[index ..< index + separator.len] == separator and
+           (index == 0 or text[index - 1] notin {'a'..'z', '0'..'9', '_', '.'}) and
+           (index + separator.len >= text.len or
+            text[index + separator.len] notin {'a'..'z', '0'..'9', '_'}):
+          split = separator.len
+          break
+      if split > 0:
+        result.add(text[start ..< index])
+        start = index + split
+        index = start
+        continue
     inc index
   result.add(text[start .. ^1])
 
@@ -546,9 +633,18 @@ proc unscopedTable*(statement: string): string =
       break
   if not namesTable:
     return ""
+  var safeCtes: seq[string] = @[]
+  let bodies = cteBodies(text)
+  var progressed = true
+  while progressed:
+    progressed = false
+    for (name, body) in bodies:
+      if name notin safeCtes and levelScoped(body, safeCtes):
+        safeCtes.add(name)
+        progressed = true
   for level in sqlLevels(text):
     for branch in unionBranches(level.text):
-      if levelScoped(branch):
+      if levelScoped(branch, safeCtes):
         continue
       # A subquery that names an alias of the enclosing query is correlated, so
       # it can only see the rows the enclosing level already scoped.
