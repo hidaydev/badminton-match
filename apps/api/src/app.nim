@@ -278,16 +278,20 @@ proc cookieValue(request: Request, name: string): string =
   ""
 
 proc configSnapshot(): Snapshot =
+  ## Every call probes `platform.config_version` before it can reuse the cache,
+  ## so `route` takes one snapshot per request and hands it to the handler. This
+  ## stays for helpers that read a single key and are called outside that chain.
   application.config.snapshot(application.db)
 
-proc scoringPresets(): seq[sessionScoring.ScoringRules] =
+proc scoringPresets(snapshot: Snapshot): seq[sessionScoring.ScoringRules] =
   ## The platform list. It is reference data for the wizard, not a community
   ## setting, so every community sees the same formats.
   sessionScoring.parsePresets(
-    configSnapshot().jsonValue(%*{}, keySessionScoringPresets))
+    snapshot.jsonValue(%*{}, keySessionScoringPresets))
 
-proc findPreset(id: string): Option[sessionScoring.ScoringRules] =
-  for preset in scoringPresets():
+proc findPreset(snapshot: Snapshot,
+                id: string): Option[sessionScoring.ScoringRules] =
+  for preset in scoringPresets(snapshot):
     if preset.id == id:
       return some(preset)
   none(sessionScoring.ScoringRules)
@@ -436,7 +440,7 @@ proc authorizeUrl(config: OidcConfig, state, nonce, challenge: string): string =
     "&code_challenge=" & encodeUrl(challenge) &
     "&code_challenge_method=S256"
 
-proc startAuth(request: Request) =
+proc startAuth(request: Request, snapshot: Snapshot) =
   var body: JsonNode
   if not jsonBody(request, body):
     return
@@ -447,7 +451,7 @@ proc startAuth(request: Request) =
   let verifier = randomHex(32)
   let challenge = b64url(sha256Raw(verifier))
   let (keyId, encrypted) = encryptWith(application.keyring, verifier, state)
-  let ttl = configSnapshot().intValue(%*{}, keyAuthFlowTtlMinutes)
+  let ttl = snapshot.intValue(%*{}, keyAuthFlowTtlMinutes)
   discard application.db.execUpdate(
     """insert into auth.oauth_flows
        (state_hash, nonce_hash, code_verifier_enc, return_to, expires_at)
@@ -636,7 +640,7 @@ proc adminGate(request: Request,
   ## Admin-only community management.
   scoped(request, slug, Access(isSession: true, roles: @[rAdmin]))
 
-proc createCommunity(request: Request) =
+proc createCommunity(request: Request, snapshot: Snapshot) =
   let user = ownerOnly(request)
   if user.isNone:
     return
@@ -649,7 +653,7 @@ proc createCommunity(request: Request) =
   let rawTimezone = optStr(body, "timezone")
   let timezone = if rawTimezone.len > 0: some(rawTimezone) else: none(string)
   let check = communityDomain.checkCreate(slug, name, adminEmail,
-    configSnapshot().stringValue(%*{}, keyCommunityDefaultTimezone), timezone)
+    snapshot.stringValue(%*{}, keyCommunityDefaultTimezone), timezone)
   if check.problems.len > 0:
     problem(request, 400, "INVALID_COMMUNITY", $check.problems[0])
     return
@@ -774,7 +778,8 @@ proc claimWrite(request: Request, ctx: CommunityContext, user: AuthUser,
       "this key was used with a different body")
     none(WriteKey)
 
-proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
+proc createSession(request: Request, ctx: CommunityContext, user: AuthUser,
+                   snapshot: Snapshot) =
   var body: JsonNode
   if not jsonBody(request, body):
     return
@@ -782,7 +787,7 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   var date = ""
   var startTime = "00:00"
   var presetId = ""
-  var slot = configSnapshot().intValue(%*{}, keySessionSlotMinutesDefault)
+  var slot = snapshot.intValue(%*{}, keySessionSlotMinutesDefault)
   try:
     # `getStr`/`getInt` answer their default on a kind mismatch, so each field
     # is type-checked before it is read: a numeric title must not become "".
@@ -821,10 +826,10 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
     problem(request, 400, "INVALID_BODY", error.msg)
     return
   if presetId.len == 0:
-    presetId = configSnapshot().stringValue(
+    presetId = snapshot.stringValue(
       currentSettings(application.db, ctx.communityId),
       keySessionDefaultScoringPreset)
-  let chosen = findPreset(presetId)
+  let chosen = findPreset(snapshot, presetId)
   if chosen.isNone:
     problem(request, 400, "INVALID_PRESET", "unknown scoring preset")
     return
@@ -864,12 +869,12 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
         "status": row.get.get("status")})
   jsonResponse(request, 201, created)
 
-proc pageParams(request: Request): tuple[limit, offset: int] =
+proc pageParams(request: Request, snapshot: Snapshot): tuple[limit, offset: int] =
   ## One clamp for every list route: a value outside the range is pulled to the
   ## nearest bound instead of silently falling back, so the page a caller asks
   ## for is the page it gets.
-  let fallback = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
-  let pageSizeMax = configSnapshot().intValue(%*{}, keyApiPageSizeMax)
+  let fallback = snapshot.intValue(%*{}, keyApiPageSizeDefault)
+  let pageSizeMax = snapshot.intValue(%*{}, keyApiPageSizeMax)
   var requested = fallback
   let limitParam = request.queryParams["limit"]
   if limitParam.len > 0:
@@ -878,7 +883,7 @@ proc pageParams(request: Request): tuple[limit, offset: int] =
     except ValueError:
       requested = fallback
   result.limit = max(1, min(requested, pageSizeMax))
-  let offsetMax = configSnapshot().intValue(%*{}, keyApiPageOffsetMax)
+  let offsetMax = snapshot.intValue(%*{}, keyApiPageOffsetMax)
   let offsetParam = request.queryParams["offset"]
   if offsetParam.len > 0:
     try:
@@ -886,11 +891,12 @@ proc pageParams(request: Request): tuple[limit, offset: int] =
     except ValueError:
       result.offset = 0
 
-proc listSessions(request: Request, ctx: CommunityContext) =
+proc listSessions(request: Request, ctx: CommunityContext,
+                  snapshot: Snapshot) =
   ## One page, never a silently truncated history: the caller pages with
   ## `offset` and filters on the server, so a search is not limited to the
   ## newest page.
-  let (limit, offset) = pageParams(request)
+  let (limit, offset) = pageParams(request, snapshot)
   var date = request.queryParams["date"]
   if date.len > 0 and not validSessionDate(date):
     date = ""
@@ -931,7 +937,7 @@ proc listSessions(request: Request, ctx: CommunityContext) =
     "nextCursor": nextCursor})
 
 proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
-                 sessionId: string) =
+                 sessionId: string, snapshot: Snapshot) =
   let session = application.db.queryOne(
     "select id from session.sessions where id = $1 and community_id = $2",
     @[textParam(sessionId), textParam(ctx.communityId)])
@@ -947,7 +953,7 @@ proc createShare(request: Request, ctx: CommunityContext, user: AuthUser,
     @[textParam(ctx.communityId), textParam(sessionId)])
   let code = shareStore.issue(application.db, application.keyring,
     ctx.communityId, sessionId, user.id,
-    configSnapshot().intValue(%*{}, keyShareLinkTtlDays))
+    snapshot.intValue(%*{}, keyShareLinkTtlDays))
   if previous.isSome:
     application.hub.revokeShare(previous.get.get("id"))
   audit("share.issue", ctx, user, "session", sessionId,
@@ -967,7 +973,7 @@ proc deleteShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
   send(request, 204)
 
 proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
-                        sessionId: string) =
+                        sessionId: string, snapshot: Snapshot) =
   ## Read access is enough: any member may watch. The ticket is bound to the
   ## session row, so a foreign-community id is a 404 before anything is issued.
   let session = application.db.queryOne(
@@ -976,18 +982,18 @@ proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
   if session.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
-  let ttl = configSnapshot().intValue(%*{}, keyWsTicketTtlSeconds)
+  let ttl = snapshot.intValue(%*{}, keyWsTicketTtlSeconds)
   let ticket = wsTicket.issueSession(application.db, user.id, sessionId, ttl)
   jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl})
 
-proc issueShareTicket(request: Request, code: string) =
+proc issueShareTicket(request: Request, code: string, snapshot: Snapshot) =
   ## Anonymous path: the share limiter has already run in `route`, before this
   ## insert. Only a `share` channel ticket is ever minted here.
   let found = shareStore.resolve(application.db, application.keyring, code)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
-  let ttl = configSnapshot().intValue(%*{}, keyWsTicketTtlSeconds)
+  let ttl = snapshot.intValue(%*{}, keyWsTicketTtlSeconds)
   let ticket = wsTicket.issueShare(application.db, found.get.linkId, ttl)
   jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl},
     [("X-Robots-Tag", "noindex")])
@@ -1028,7 +1034,7 @@ proc ifNoneMatchHits(request: Request, etag: string): bool =
   false
 
 proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
-                  sessionId: string) =
+                  sessionId: string, snapshot: Snapshot) =
   let version = requireIfMatch(request)
   if version.isNone: return
   let claimed = claimWrite(request, ctx, user, "session/" & sessionId)
@@ -1061,7 +1067,7 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
   if patchBody.scoringPreset.isSome:
     # The id is resolved against the current list; a removed preset cannot be
     # chosen even though an old session keeps its own snapshot.
-    let chosen = findPreset(patchBody.scoringPreset.get)
+    let chosen = findPreset(snapshot, patchBody.scoringPreset.get)
     if chosen.isNone:
       w.release()
       problem(request, 400, "INVALID_PRESET", "unknown scoring preset")
@@ -1196,23 +1202,23 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
   if result.status == wsOk:
     application.hub.sessionChanged(sessionId, result.record["version"].getInt())
 
-proc getCommunitySettings(request: Request, ctx: CommunityContext) =
+proc getCommunitySettings(request: Request, ctx: CommunityContext,
+                          snapshot: Snapshot) =
   let settings = currentSettings(application.db, ctx.communityId)
-  let snapshot = configSnapshot()
   jsonResponse(request, 200, %*{
     "values": visibleSettings(settings),
     "effective": effectiveConfig(snapshot, settings),
   })
 
 proc patchCommunitySettings(request: Request, ctx: CommunityContext,
-                            user: AuthUser) =
+                            user: AuthUser, snapshot: Snapshot) =
   var body: JsonNode
   try:
     body = bodyJson(request)
   except ValueError:
     problem(request, 400, "INVALID_BODY", "settings patch must be JSON")
     return
-  let result = applyPatch(application.db, configSnapshot(), ctx.communityId,
+  let result = applyPatch(application.db, snapshot, ctx.communityId,
     user.id, body, uuidv7(), $ctx.role)
   case result.outcome
   of soOk:
@@ -1228,18 +1234,18 @@ proc patchCommunitySettings(request: Request, ctx: CommunityContext,
   of soInvalidType:
     problem(request, 400, "INVALID_CONFIG_VALUE", result.detail & ": " & result.key)
 
-proc directory(request: Request) =
+proc directory(request: Request, snapshot: Snapshot) =
   ## Public listing. Outsiders only see communities that opted in; a member also
   ## sees their own. Entries carry the slug and the name, nothing else.
   let user = currentUser(request)
-  let snapshot = configSnapshot()
   let items = communityStore.directory(application.db,
     (if user.isSome: some(user.get.id) else: none(string)),
     snapshot.boolValue(%*{}, keyCommunityDirectoryEnabled),
     $keyCommunityDirectoryEnabled)
   jsonResponse(request, 200, %*{"items": items})
 
-proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser) =
+proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser,
+                  snapshot: Snapshot) =
   var body: JsonNode
   if not jsonBody(request, body):
     return
@@ -1254,7 +1260,7 @@ proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser) =
   except ValueError:
     problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
     return
-  let ttl = configSnapshot().intValue(
+  let ttl = snapshot.intValue(
     currentSettings(application.db, ctx.communityId), keyCommunityInviteTtlDays)
   let token = inviteStore.create(application.db, ctx.communityId,
     sha256Hex(email.strip().toLowerAscii()), parsed, user.id, ttl)
@@ -1284,14 +1290,13 @@ proc acceptInvite(request: Request, token: string) =
     problem(request, 403, "INVITE_EMAIL_MISMATCH",
       "invitation belongs to another address")
 
-proc requestJoin(request: Request, slug: string) =
+proc requestJoin(request: Request, slug: string, snapshot: Snapshot) =
   ## Anti-enumeration: an unknown slug, a community that is not accepting and an
   ## already-pending request all return the same 202 body.
   let user = currentUser(request)
   if user.isSome:
     # Per account per window: a repeated submission is a script, not a person,
     # and the anonymous path never reaches the store anyway.
-    let snapshot = configSnapshot()
     if quota(request, snapshot, "join", requestIdentity(request),
         snapshot.intValue(%*{}, keySecurityJoinRequestRate)):
       return
@@ -1304,7 +1309,7 @@ proc requestJoin(request: Request, slug: string) =
          where c.slug = $1""",
       @[textParam(slug),
         textParam($keyCommunityJoinRequestsEnabled),
-        boolParam(configSnapshot().boolValue(%*{}, keyCommunityJoinRequestsEnabled))])
+        boolParam(snapshot.boolValue(%*{}, keyCommunityJoinRequestsEnabled))])
     else:
       none(Row)
   if row.isSome and row.get.get("enabled") == "t" and user.isSome:
@@ -1411,21 +1416,22 @@ proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
   audit("community.member.remove", ctx, user, "user", targetId)
   send(request, 204)
 
-proc scoringPresetsJson(): JsonNode =
+proc scoringPresetsJson(snapshot: Snapshot): JsonNode =
   ## Read-only reference data for the wizard. `mode` is internal, so it is not
   ## part of the public shape.
   result = newJArray()
-  for preset in scoringPresets():
+  for preset in scoringPresets(snapshot):
     var item = sessionScoring.rulesJson(preset)
     item.delete("mode")
     result.add(item)
 
-proc communityConfig(request: Request, ctx: CommunityContext) =
+proc communityConfig(request: Request, ctx: CommunityContext,
+                     snapshot: Snapshot) =
   ## Effective registry values for this community, with the source of each one.
   jsonResponse(request, 200,
-    %*{"effective": effectiveConfig(configSnapshot(),
+    %*{"effective": effectiveConfig(snapshot,
         currentSettings(application.db, ctx.communityId)),
-       "scoringPresets": scoringPresetsJson()})
+       "scoringPresets": scoringPresetsJson(snapshot)})
 
 proc tierParam(request: Request): string =
   ## `+` means space in a form-encoded query, so a hand-written `?tier=C+`
@@ -1443,7 +1449,7 @@ proc tierParam(request: Request): string =
   ""
 
 proc listPlayersRoute(request: Request, ctx: CommunityContext,
-                      userId: string) =
+                      userId: string, snapshot: Snapshot) =
   # `mine=1` backs the "my statistics" shortcut: the account asks for the one
   # player it owns instead of walking the roster and matching ids.
   if request.queryParams["mine"] == "1":
@@ -1454,8 +1460,8 @@ proc listPlayersRoute(request: Request, ctx: CommunityContext,
     jsonResponse(request, 200, %*{"items": body})
     return
   let items = playerStore.list(application.db, ctx.communityId,
-    pageParams(request).limit, request.queryParams["cursor"], tierParam(request),
-    request.queryParams["q"])
+    pageParams(request, snapshot).limit, request.queryParams["cursor"],
+    tierParam(request), request.queryParams["q"])
   var body = newJArray()
   for item in items:
     body.add(item)
@@ -2546,11 +2552,10 @@ proc minSessionsParam(request: Request, fallback: int): int =
     max(fallback, 0)
 
 proc communityBoard(request: Request, communityId, timezone: string,
-                    playerIds: seq[string] = @[]) =
+                    snapshot: Snapshot, playerIds: seq[string] = @[]) =
   ## The member page reads the whole community board; a share link passes the
   ## session's participants so the public copy is one session, not the ladder.
   let settings = currentSettings(application.db, communityId)
-  let snapshot = configSnapshot()
   let params = ratingParams.loadRatingParams(snapshot, settings)
   let limit = snapshot.intValue(settings, keyRankBoardLimit)
   let minSessions = minSessionsParam(request,
@@ -2568,16 +2573,16 @@ proc communityBoard(request: Request, communityId, timezone: string,
     "minSessions": minSessions})
 
 proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
-                   playerIds: seq[string] = @[]) =
+                   snapshot: Snapshot, playerIds: seq[string] = @[]) =
   let settings = currentSettings(application.db, communityId)
-  let params = ratingParams.loadRatingParams(configSnapshot(), settings)
-  let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
+  let params = ratingParams.loadRatingParams(snapshot, settings)
+  let limit = snapshot.intValue(settings, keyRankBoardLimit)
   let latest = ratingRead.latestEventDate(application.db, communityId)
   let asOf = if latest.len > 0: latest else: communityToday(timezone)
   # `min_sessions` means the same filter as on the board: a player below it is
   # not on the ranking either, instead of the detail route ignoring it.
   let minSessions = minSessionsParam(request,
-    configSnapshot().intValue(settings, keyRankMinSessions))
+    snapshot.intValue(settings, keyRankMinSessions))
   let query = ratingRead.BoardQuery(communityId: communityId,
     asOf: asOf, params: params, limit: limit, tier: "",
     minSessions: minSessions, playerIds: playerIds)
@@ -2612,14 +2617,15 @@ proc playerAchievements(request: Request, ctx: CommunityContext,
     body.add(item)
   jsonResponse(request, 200, %*{"items": body})
 
-proc boardPoints(communityId, timezone, playerId: string): int =
+proc boardPoints(communityId, timezone, playerId: string,
+                 snapshot: Snapshot): int =
   ## The one points number the API exposes: the player's row on today's board,
   ## resolved the same way the leaderboard resolves it. A player with no entry
   ## in the window has no row, so the page shows zero instead of a career total
   ## no board ever displayed.
   let settings = currentSettings(application.db, communityId)
-  let params = ratingParams.loadRatingParams(configSnapshot(), settings)
-  let limit = configSnapshot().intValue(settings, keyRankBoardLimit)
+  let params = ratingParams.loadRatingParams(snapshot, settings)
+  let limit = snapshot.intValue(settings, keyRankBoardLimit)
   let latest = ratingRead.latestEventDate(application.db, communityId)
   let asOf = if latest.len > 0: latest else: communityToday(timezone)
   let row = ratingRead.boardEntry(application.db, ratingRead.BoardQuery(
@@ -2627,13 +2633,14 @@ proc boardPoints(communityId, timezone, playerId: string): int =
     tier: ""), playerId)
   if row.isSome: row.get.points else: 0
 
-proc playerStats(request: Request, ctx: CommunityContext, playerId: string) =
+proc playerStats(request: Request, ctx: CommunityContext, playerId: string,
+                 snapshot: Snapshot) =
   let found = ratingRead.stats(application.db, ctx.communityId, playerId)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
   var body = found.get
-  body["points"] = %boardPoints(ctx.communityId, ctx.timezone, playerId)
+  body["points"] = %boardPoints(ctx.communityId, ctx.timezone, playerId, snapshot)
   jsonResponse(request, 200, body)
 
 proc sessionPlayerIds(communityId, sessionId: string): seq[string] =
@@ -2645,7 +2652,8 @@ proc sessionPlayerIds(communityId, sessionId: string): seq[string] =
     @[textParam(communityId), textParam(sessionId)]):
     result.add(row.get("player_id"))
 
-proc getSharedRanking(request: Request, code, playerId: string) =
+proc getSharedRanking(request: Request, code, playerId: string,
+                      snapshot: Snapshot) =
   ## The share code names one session, so the public detail is that player's row
   ## on the shared board. Anyone who did not play in the session is a 404, even
   ## if they sit high on the community ladder.
@@ -2658,14 +2666,14 @@ proc getSharedRanking(request: Request, code, playerId: string) =
     problem(request, 404, "NOT_FOUND", "player is not on the board")
     return
   rankingPlayer(request, found.get.communityId, found.get.timezone, playerId,
-    playerIds)
+    snapshot, playerIds)
 
-proc getSharedRankings(request: Request, code: string) =
+proc getSharedRankings(request: Request, code: string, snapshot: Snapshot) =
   let found = shareStore.resolve(application.db, application.keyring, code)
   if found.isNone:
     problem(request, 404, "NOT_FOUND", "link not found")
     return
-  communityBoard(request, found.get.communityId, found.get.timezone,
+  communityBoard(request, found.get.communityId, found.get.timezone, snapshot,
     sessionPlayerIds(found.get.communityId, found.get.sessionId))
 
 proc upgradeSocket(request: Request, snapshot: Snapshot, kind, channelId,
@@ -2775,8 +2783,9 @@ proc saveFailure(request: Request, status: tournamentStore.SaveStatus) =
   of tournamentStore.svLocked:
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
 
-proc listTournamentsRoute(request: Request, ctx: CommunityContext) =
-  let (limit, offset) = pageParams(request)
+proc listTournamentsRoute(request: Request, ctx: CommunityContext,
+                          snapshot: Snapshot) =
+  let (limit, offset) = pageParams(request, snapshot)
   var items = newJArray()
   for item in tournamentStore.list(application.db, ctx.communityId,
       request.queryParams.getOrDefault("format", ""), limit, offset):
@@ -3076,7 +3085,8 @@ proc route(request: Request) =
       return
     case path
     of "/auth/start":
-      if verb == "POST": startAuth(request) else: problem(request, 405, "METHOD", "")
+      if verb == "POST": startAuth(request, snapshot)
+      else: problem(request, 405, "METHOD", "")
       return
     of "/auth/callback":
       if verb == "GET": finishAuth(request) else: problem(request, 405, "METHOD", "")
@@ -3093,12 +3103,12 @@ proc route(request: Request) =
       else: problem(request, 405, "METHOD", "")
       return
     of "/communities":
-      if verb == "POST": createCommunity(request)
+      if verb == "POST": createCommunity(request, snapshot)
       elif verb == "GET": listCommunities(request)
       else: problem(request, 405, "METHOD", "")
       return
     of "/directory":
-      if verb == "GET": directory(request)
+      if verb == "GET": directory(request, snapshot)
       else: problem(request, 405, "METHOD", "")
       return
     else: discard
@@ -3120,7 +3130,7 @@ proc route(request: Request) =
       if authorized.isNone: return
       let (user, ctx) = authorized.get
       if parts.len == 4 and verb == "GET":
-        listPlayersRoute(request, ctx, user.id)
+        listPlayersRoute(request, ctx, user.id, snapshot)
         return
       if parts.len == 4 and verb == "POST":
         createPlayerRoute(request, ctx, user)
@@ -3138,7 +3148,7 @@ proc route(request: Request) =
         playerAchievements(request, ctx, parts[4])
         return
       if parts.len == 6 and parts[5] == "stats" and verb == "GET":
-        playerStats(request, ctx, parts[4])
+        playerStats(request, ctx, parts[4], snapshot)
         return
       if parts.len == 6 and parts[5] == "merge" and verb == "POST":
         let admin = adminGate(request, parts[2])
@@ -3177,13 +3187,13 @@ proc route(request: Request) =
       if authorized.isNone: return
       let (user, ctx) = authorized.get
       if parts.len == 4 and verb == "GET":
-        listSessions(request, ctx)
+        listSessions(request, ctx, snapshot)
         return
       if parts.len == 4 and verb == "POST":
-        createSession(request, ctx, user)
+        createSession(request, ctx, user, snapshot)
         return
       if parts.len == 5 and verb == "PATCH":
-        patchSession(request, ctx, user, parts[4])
+        patchSession(request, ctx, user, parts[4], snapshot)
         return
       if parts.len == 6 and parts[5] in ["lock", "unlock"] and verb == "POST":
         setSessionLock(request, ctx, user, parts[4], parts[5] == "lock")
@@ -3199,7 +3209,7 @@ proc route(request: Request) =
         return
       if parts.len == 6 and parts[5] == "share":
         if verb == "POST":
-          createShare(request, ctx, user, parts[4])
+          createShare(request, ctx, user, parts[4], snapshot)
           return
         if verb == "GET":
           getShareLink(request, ctx, user, parts[4])
@@ -3211,7 +3221,7 @@ proc route(request: Request) =
         swapSession(request, ctx, user, parts[4])
         return
       if parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
-        issueSessionTicket(request, ctx, user, parts[4])
+        issueSessionTicket(request, ctx, user, parts[4], snapshot)
         return
       if parts.len == 6 and parts[5] == "rating":
         if verb in ["POST", "DELETE"]:
@@ -3254,7 +3264,7 @@ proc route(request: Request) =
       if authorized.isNone: return
       let (user, ctx) = authorized.get
       if parts.len == 4 and verb == "GET":
-        listTournamentsRoute(request, ctx)
+        listTournamentsRoute(request, ctx, snapshot)
         return
       if parts.len == 4 and verb == "POST":
         createTournamentRoute(request, ctx, user)
@@ -3306,7 +3316,7 @@ proc route(request: Request) =
     # Anonymous join request: always the same 202, whatever the reason.
     if parts.len == 4 and parts[1] == "c" and parts[3] == "join-requests" and
        verb == "POST":
-      requestJoin(request, parts[2])
+      requestJoin(request, parts[2], snapshot)
       return
     # /c/{slug}/members[/{userId}], /c/{slug}/join-requests[/{id}],
     # /c/{slug}/claims, /c/{slug}/invites, /c/{slug}/config
@@ -3323,7 +3333,7 @@ proc route(request: Request) =
       if parts[3] == "config" and parts.len == 4 and verb == "GET":
         let authorized = scoped(request, parts[2], readAccess())
         if authorized.isNone: return
-        communityConfig(request, authorized.get[1])
+        communityConfig(request, authorized.get[1], snapshot)
         return
       let admin = adminGate(request, parts[2])
       if admin.isNone: return
@@ -3343,19 +3353,19 @@ proc route(request: Request) =
         listPendingClaims(request, ctx)
         return
       if parts[3] == "invites" and parts.len == 4 and verb == "POST":
-        createInvite(request, ctx, user)
+        createInvite(request, ctx, user, snapshot)
         return
     # /c/{slug}/settings
     if parts.len == 4 and parts[1] == "c" and parts[3] == "settings":
       if verb == "GET":
         let authorized = scoped(request, parts[2], readAccess())
         if authorized.isNone: return
-        getCommunitySettings(request, authorized.get[1])
+        getCommunitySettings(request, authorized.get[1], snapshot)
       elif verb == "PATCH":
         # Settings are admin-only: a host raises scores, not the ceiling.
         let admin = adminGate(request, parts[2])
         if admin.isNone: return
-        patchCommunitySettings(request, admin.get[1], admin.get[0])
+        patchCommunitySettings(request, admin.get[1], admin.get[0], snapshot)
       else:
         problem(request, 405, "METHOD", "")
       return
@@ -3365,10 +3375,10 @@ proc route(request: Request) =
       if authorized.isNone: return
       let ctx = authorized.get[1]
       if parts.len == 4:
-        communityBoard(request, ctx.communityId, ctx.timezone)
+        communityBoard(request, ctx.communityId, ctx.timezone, snapshot)
       else:
         rankingPlayer(request, ctx.communityId, ctx.timezone,
-          parts[4])
+          parts[4], snapshot)
       return
     # /s/{code} and /s/{code}/rankings
     if parts.len >= 3 and parts[1] == "s":
@@ -3377,13 +3387,13 @@ proc route(request: Request) =
         getShared(request, code)
         return
       if parts.len == 4 and parts[3] == "rankings":
-        getSharedRankings(request, code)
+        getSharedRankings(request, code, snapshot)
         return
       if parts.len == 5 and parts[3] == "rankings":
-        getSharedRanking(request, code, parts[4])
+        getSharedRanking(request, code, parts[4], snapshot)
         return
       if parts.len == 4 and parts[3] == "ws-ticket" and verb == "POST":
-        issueShareTicket(request, code)
+        issueShareTicket(request, code, snapshot)
         return
     routeNotFound(request)
   except DbError as error:
