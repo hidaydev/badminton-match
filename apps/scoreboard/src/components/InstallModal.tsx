@@ -32,9 +32,9 @@ export default function InstallModal({ isIos, onInstall, onClose }: InstallModal
 
         {/* App identity */}
         <div className="flex flex-col items-center gap-2 px-6 pt-4 pb-5">
-          <img src="/logo-192.png" alt="Majadu Score" className="w-16 h-16 rounded-lg object-contain" />
+          <img src="/logo-192.png" alt="MAJADU Score" className="w-16 h-16 rounded-lg object-contain" />
           <div className="text-center">
-            <p className="text-white font-bold text-lg leading-tight">Install Majadu Score</p>
+            <p className="text-white font-bold text-lg leading-tight">Install MAJADU Score</p>
             <p className="text-slate-400 text-sm mt-0.5">
               {isIos ? 'Add to your home screen in a few steps' : 'Get quick access right from your home screen'}
             </p>

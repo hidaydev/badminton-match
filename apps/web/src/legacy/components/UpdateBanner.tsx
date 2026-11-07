@@ -34,7 +34,7 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
           </div>
           <div className="text-center">
             <p className="text-white font-bold text-lg leading-tight">Update Available</p>
-            <p className="text-slate-400 text-sm mt-0.5">A new version of Majadu is ready</p>
+            <p className="text-slate-400 text-sm mt-0.5">A new version of MAJADU is ready</p>
           </div>
         </div>
 

@@ -2,7 +2,7 @@
 // placeholders are filled from the optional vars argument.
 
 export const en = {
-  'app.name': 'Majadu',
+  'app.name': 'MAJADU',
   'app.loading': 'Loading…',
   'app.outdated': 'This page is running an older version and can no longer talk to the server.',
   'app.outdated.action': 'Reload',
@@ -30,9 +30,9 @@ export const en = {
   'nav.signedInAs': 'Signed in as {name}',
 
   'login.title': 'Sign in',
-  'login.brand': 'Majadu Badminton Club',
+  'login.brand': 'MAJADU Badminton Club',
   'login.description':
-    'Majadu keeps a badminton club in one place: sessions and courts, game scores, a rolling ranking, and the tournaments the group plays. Sign in to open your club and record the next session.',
+    'MAJADU keeps a badminton club in one place: sessions and courts, game scores, a rolling ranking, and the tournaments the group plays. Sign in to open your club and record the next session.',
   'login.action': 'Continue with Google',
   'login.pending': 'Redirecting…',
   'login.error': 'Sign in could not be started. Try again.',
@@ -804,10 +804,10 @@ export const en = {
   'privacy.title': 'Privacy Policy',
   'privacy.updated': 'Last updated: 7 November 2026',
   'privacy.intro':
-    'Majadu records community badminton: who played, with whom, the scores, and the resulting ratings. This page describes what the application actually stores, where it is stored, and what happens when an account is closed. There are no ads, no cross-site tracking, and no selling of data.',
+    'MAJADU records community badminton: who played, with whom, the scores, and the resulting ratings. This page describes what the application actually stores, where it is stored, and what happens when an account is closed. There are no ads, no cross-site tracking, and no selling of data.',
   'privacy.data.heading': 'Data we collect',
   'privacy.data.account':
-    'Account. Signing in with Google gives Majadu your Google subject identifier (sub), your email address, and your display name. Majadu stores the sub, your display name, and a SHA-256 hash of your email address. The raw email is not stored, including on invitations. There is no password.',
+    'Account. Signing in with Google gives MAJADU your Google subject identifier (sub), your email address, and your display name. MAJADU stores the sub, your display name, and a SHA-256 hash of your email address. The raw email is not stored, including on invitations. There is no password.',
   'privacy.data.community':
     'Community. Community name, slug, and timezone; your membership and role (admin, host, or member); invitations, which are bound to an email hash and carry a status and expiry; and join requests.',
   'privacy.data.sessions':
@@ -820,7 +820,7 @@ export const en = {
     'Technical logs. The server writes one line per request: time, request id, method, route template, status, duration, and response size. Request bodies, query strings, and authorization headers are not included. Client IP addresses are used in memory to rate-limit requests and are not written to the database.',
   'privacy.why.heading': 'Why we collect it',
   'privacy.why.body':
-    'To run the service you asked for: signing you in, keeping your community membership and roles, recording sessions and results, and computing ratings and standings. Google sign-in is how Majadu checks who may access administrative data; players may appear in community records without having an account. We do not build advertising profiles, track you across other sites, or sell data.',
+    'To run the service you asked for: signing you in, keeping your community membership and roles, recording sessions and results, and computing ratings and standings. Google sign-in is how MAJADU checks who may access administrative data; players may appear in community records without having an account. We do not build advertising profiles, track you across other sites, or sell data.',
   'privacy.where.heading': 'Where it is stored',
   'privacy.where.database':
     'The database is PostgreSQL on a VPS that we operate ourselves, not a third-party database service. Only the API can reach it.',
@@ -864,27 +864,27 @@ export const en = {
   'privacy.changes.heading': 'Changes to this page',
   'privacy.changes.body':
     'If what the application stores or how long it keeps it changes, this page and the date above are updated in the same change.',
-  'privacy.back': 'Back to Majadu',
+  'privacy.back': 'Back to MAJADU',
   'terms.title': 'Terms of Service',
   'terms.updated': 'Last updated: 7 November 2026',
   'terms.intro':
-    'Majadu is a small badminton club tool, not a company. These terms say what the service does, what it expects from you, and what it does not promise. By signing in or using the app, you agree to them. If you do not agree, please do not use the app.',
-  'terms.back': 'Back to Majadu',
+    'MAJADU is a small badminton club tool, not a company. These terms say what the service does, what it expects from you, and what it does not promise. By signing in or using the app, you agree to them. If you do not agree, please do not use the app.',
+  'terms.back': 'Back to MAJADU',
   'terms.service.heading': 'What this service is',
   'terms.service.body1':
-    'Majadu records recreational badminton: sessions and courts, game scores, a rolling rank points table, tournaments, and the communities that play in them. You can also share a read-only view of a session with a link.',
+    'MAJADU records recreational badminton: sessions and courts, game scores, a rolling rank points table, tournaments, and the communities that play in them. You can also share a read-only view of a session with a link.',
   'terms.service.body2':
     'It is free to use and is run personally by a single operator, not by a company. There is no paid tier and no advertising. Anything this page says about duties and limits reflects that: one person keeps the service running in their own time.',
   'terms.account.heading': 'Your account',
   'terms.account.body1':
-    'You sign in with your Google account. There is no separate Majadu password, and the app keeps only a session cookie in your browser; no token is exposed to page scripts.',
+    'You sign in with your Google account. There is no separate MAJADU password, and the app keeps only a session cookie in your browser; no token is exposed to page scripts.',
   'terms.account.body2':
     'Use one account per person. Do not share a sign-in, and do not create accounts on behalf of other people. You are responsible for keeping access to your Google account safe: anyone who can sign in as you can act with your permissions inside the app.',
   'terms.account.age':
     'You must be at least 13 years old, and old enough under the rules that apply where you live to hold a Google account on your own.',
   'terms.use.heading': 'Acceptable use',
   'terms.use.intro':
-    'Use Majadu to record and follow badminton in communities you belong to. Do not:',
+    'Use MAJADU to record and follow badminton in communities you belong to. Do not:',
   'terms.use.share':
     'leak, reuse, or keep relying on a share link after the community revokes it, or forward a link to people who should not see that session;',
   'terms.use.others':
@@ -911,7 +911,7 @@ export const en = {
   'terms.ratings.body1':
     'Rank points, tiers, and standings are calculated automatically from match results using fixed formulas and the parameters configured for this installation. They are not official ratings and are not audited by anyone.',
   'terms.ratings.body2':
-    'When a result is corrected, deleted, or re-entered, ratings are recalculated. They can go up or down, including for players who did not play in the corrected game. Scores entered by admins and hosts are their responsibility, and no accuracy is guaranteed. Do not use Majadu ratings or scores for betting, gambling, or any competition with money on it.',
+    'When a result is corrected, deleted, or re-entered, ratings are recalculated. They can go up or down, including for players who did not play in the corrected game. Scores entered by admins and hosts are their responsibility, and no accuracy is guaranteed. Do not use MAJADU ratings or scores for betting, gambling, or any competition with money on it.',
   'terms.availability.heading': 'Availability',
   'terms.availability.body1':
     'The service runs on a best-effort basis. It can be changed, paused, or shut down at any time without notice. There is no service level agreement, no uptime commitment, and no support guarantee.',
@@ -919,12 +919,12 @@ export const en = {
     'Outages, failed deployments, bugs, and data loss are possible. Whether backups exist depends on how the installation is operated, and nothing here promises that lost data can be recovered. Keep your own record of anything you cannot afford to lose.',
   'terms.termination.heading': 'Termination',
   'terms.termination.body1':
-    'You can stop using Majadu at any time. To close your account, write to the contact address below. Closure is carried out by the operator; as implemented today it anonymises your sign-in identity, releases your player claims, and removes your community memberships, while match history and ratings stay with the communities because other players\u2019 records depend on them.',
+    'You can stop using MAJADU at any time. To close your account, write to the contact address below. Closure is carried out by the operator; as implemented today it anonymises your sign-in identity, releases your player claims, and removes your community memberships, while match history and ratings stay with the communities because other players\u2019 records depend on them.',
   'terms.termination.body2':
     'The operator may suspend or block an account that abuses the service or breaks these terms. If a community is removed, its data may be removed with it.',
   'terms.liability.heading': 'Liability and governing law',
   'terms.liability.body1':
-    'Majadu is provided as is, without warranties of any kind, express or implied, including fitness for a particular purpose and accuracy of results. To the extent the law allows, the operator is not liable for indirect or consequential loss, lost data, missed sessions, or decisions made from ratings, standings, or tournament draws.',
+    'MAJADU is provided as is, without warranties of any kind, express or implied, including fitness for a particular purpose and accuracy of results. To the extent the law allows, the operator is not liable for indirect or consequential loss, lost data, missed sessions, or decisions made from ratings, standings, or tournament draws.',
   'terms.liability.body2':
     'Nothing here excludes liability that cannot be excluded under applicable law. These terms are governed by Indonesian law. If a disagreement cannot be settled directly, it belongs to the Indonesian courts that have jurisdiction.',
   'terms.changes.heading': 'Changes and contact',

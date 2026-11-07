@@ -67,8 +67,8 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'Majadu App',
-        short_name: 'Majadu',
+        name: 'MAJADU App',
+        short_name: 'MAJADU',
         description: 'Badminton scheduler & tournament manager',
         // Same ground as `--color-ground` in index.css and the `<meta
         // name="theme-color">` in index.html: installers and the browser chrome

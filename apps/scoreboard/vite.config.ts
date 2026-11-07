@@ -15,9 +15,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
       },
       manifest: {
-        name: 'Majadu Score',
+        name: 'MAJADU Score',
         short_name: 'Score',
-        description: 'Badminton scoreboard by Majadu',
+        description: 'Badminton scoreboard by MAJADU',
         theme_color: '#020617',
         background_color: '#020617',
         display: 'standalone',

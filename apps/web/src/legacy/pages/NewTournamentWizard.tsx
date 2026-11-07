@@ -131,7 +131,7 @@ function TeamWizard() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Majadu Team Cup"
+              placeholder="e.g. MAJADU Team Cup"
               className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm text-fg placeholder:text-fg-dim focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           </label>

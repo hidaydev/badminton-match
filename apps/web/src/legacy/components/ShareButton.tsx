@@ -170,7 +170,7 @@ export default function ShareButton() {
   async function handleNativeShare() {
     if (!shareUrl) return
     try {
-      await navigator.share({ title: session.title || 'Majadu session', url: shareUrl })
+      await navigator.share({ title: session.title || 'MAJADU session', url: shareUrl })
     } catch {
       // Dismissing the sheet is not an error.
     }
