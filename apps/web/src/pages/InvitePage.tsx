@@ -4,6 +4,7 @@ import { ApiError } from '../auth/api'
 import type { CommunityRole } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
 import { acceptInvite } from '../community/api'
+import { Card } from '../components/Card'
 import { ErrorText } from '../components/ErrorText'
 import { LoadingState } from '../components/LoadingState'
 import { t } from '../i18n'
@@ -80,7 +81,7 @@ export default function InvitePage() {
   if (user === null) {
     return (
       <main className="min-h-screen bg-ground text-fg flex items-center justify-center p-4">
-        <section className="w-full max-w-sm rounded-2xl bg-surface border border-border-subtle p-6">
+        <Card className="w-full max-w-sm p-6">
           <h1 className="text-xl font-bold text-fg">{t('invite.title')}</h1>
           <p className="mt-2 text-sm text-fg-dim">{t('invite.signedOutHint')}</p>
           <button
@@ -91,14 +92,14 @@ export default function InvitePage() {
           >
             {loggingIn ? t('login.pending') : t('invite.signIn')}
           </button>
-        </section>
+        </Card>
       </main>
     )
   }
 
   return (
     <main className="min-h-screen bg-ground text-fg flex items-center justify-center p-4">
-      <section className="w-full max-w-sm rounded-2xl bg-surface border border-border-subtle p-6">
+      <Card className="w-full max-w-sm p-6">
         <h1 className="text-xl font-bold text-fg">{t('invite.title')}</h1>
         <p className="mt-2 text-sm text-fg-dim">{t('invite.signedInHint')}</p>
         <p className="mt-2 text-xs text-fg-dim">
@@ -131,7 +132,7 @@ export default function InvitePage() {
         {error !== null && (
           <ErrorText className="mt-3">{t(error)}</ErrorText>
         )}
-      </section>
+      </Card>
     </main>
   )
 }

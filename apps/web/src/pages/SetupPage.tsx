@@ -7,6 +7,7 @@ import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
+import { PageHeader } from '../components/PageHeader'
 import { createCommunity } from '../community/ownerApi'
 import type { CreatedCommunity } from '../community/ownerApi'
 
@@ -80,8 +81,7 @@ export default function SetupPage() {
         </div>
       </header>
       <section className="mx-auto max-w-3xl p-4">
-      <h1 className="text-xl font-bold text-fg sm:text-2xl">{t('setup.title')}</h1>
-      <p className="mt-1 text-sm text-fg-dim">{t('setup.subtitle')}</p>
+      <PageHeader title={t('setup.title')} subtitle={t('setup.subtitle')} />
 
       <h2 className="mt-6 text-sm font-semibold text-fg">{t('setup.mine')}</h2>
       {memberships.length === 0 ? (

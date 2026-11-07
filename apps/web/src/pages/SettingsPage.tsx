@@ -23,6 +23,7 @@ import { formatDay } from '../utils/day'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
+import { PageHeader } from '../components/PageHeader'
 
 type Data = {
   slug: string
@@ -102,8 +103,7 @@ export default function SettingsPage() {
 
   return (
     <section className="mx-auto max-w-3xl p-4">
-      <h1 className="text-xl font-bold text-fg sm:text-2xl">{t('admin.title')}</h1>
-      <p className="mt-1 text-sm text-fg-dim">{membership?.name ?? slug}</p>
+      <PageHeader title={t('admin.title')} subtitle={membership?.name ?? slug} />
 
       {loading && <LoadingState label={t('app.loading')} rows={1} />}
       {error !== null && (

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { t } from '../i18n'
+import { Card } from '../components/Card'
 import { Field, Input } from '../components/Field'
 import { requestToJoin } from './api'
 
@@ -38,7 +39,7 @@ export default function JoinRequestCard({
   }
 
   return (
-    <section className="mt-6 rounded-2xl border border-border-subtle bg-surface p-4">
+    <Card className="mt-6 p-4">
       <h2 className="text-sm font-semibold text-fg">{t('join.title')}</h2>
       <p className="mt-1 text-xs text-fg-dim">{t('join.hint')}</p>
       <form
@@ -75,6 +76,6 @@ export default function JoinRequestCard({
       <p role="status" aria-live="polite" className="mt-2 text-xs text-fg-dim">
         {error ?? (sent ? t('join.sent') : '')}
       </p>
-    </section>
+    </Card>
   )
 }

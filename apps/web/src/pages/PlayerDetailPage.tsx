@@ -20,6 +20,7 @@ import { formatDay } from '../utils/day'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
+import { PageHeader } from '../components/PageHeader'
 
 type Run = (action: () => Promise<unknown>) => Promise<void>
 
@@ -123,12 +124,16 @@ export default function PlayerDetailPage() {
       {player !== null && (
         <>
           <header className="mt-2">
-            <h1 className="text-xl font-bold text-fg sm:text-2xl">{player.name}</h1>
-            <p className="mt-1 text-sm text-fg-dim">
-              {player.tier ?? t('players.tier.none')} ·{' '}
-              {t(player.gender === 'F' ? 'player.gender.female' : 'player.gender.male')} ·{' '}
-              {player.userId === null ? t('players.unclaimed') : t('players.claimed')}
-            </p>
+            <PageHeader
+              title={player.name}
+              subtitle={
+                <>
+                  {player.tier ?? t('players.tier.none')} ·{' '}
+                  {t(player.gender === 'F' ? 'player.gender.female' : 'player.gender.male')} ·{' '}
+                  {player.userId === null ? t('players.unclaimed') : t('players.claimed')}
+                </>
+              }
+            />
             {player.aliases !== undefined && player.aliases.length > 0 && (
               <p className="mt-1 text-xs text-fg-dim">
                 {t('playerAdmin.aliases')}: {player.aliases.join(', ')}

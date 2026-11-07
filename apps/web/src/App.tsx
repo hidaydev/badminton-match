@@ -5,6 +5,7 @@ import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
 import ClientOutdatedBanner from './components/ClientOutdatedBanner'
 import { LoadingState } from './components/LoadingState'
+import { PageHeader } from './components/PageHeader'
 import { CommunityProvider } from './community/CommunityProvider'
 import DirectoryList from './community/DirectoryList'
 import JoinRequestCard from './community/JoinRequestCard'
@@ -169,7 +170,7 @@ function LegacySessionRedirect() {
 function CommunityNotFound() {
   return (
     <section className="mx-auto max-w-2xl p-4">
-      <h1 className="text-xl font-bold text-fg sm:text-2xl">{t('community.error.notFound')}</h1>
+      <PageHeader title={t('community.error.notFound')} />
       <Link
         to="/"
         className="mt-4 inline-flex min-h-11 items-center rounded-xl text-sm text-accent hover:underline focus-visible:ring-2 focus-visible:ring-accent"

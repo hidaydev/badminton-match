@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { t } from '../i18n'
+import { Card } from '../components/Card'
 import { listDirectory } from './api'
 import type { DirectoryEntry } from './api'
 
@@ -29,7 +30,7 @@ export default function DirectoryList({ onPick }: { onPick: (slug: string) => vo
   if (items.length === 0) return null
 
   return (
-    <section className="mt-6 rounded-2xl border border-border-subtle bg-surface p-4">
+    <Card className="mt-6 p-4">
       <h2 className="text-sm font-semibold text-fg">{t('directory.title')}</h2>
       <p className="mt-1 text-xs text-fg-dim">{t('directory.hint')}</p>
       <ul className="mt-3 flex flex-col gap-2">
@@ -46,6 +47,6 @@ export default function DirectoryList({ onPick }: { onPick: (slug: string) => vo
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   )
 }

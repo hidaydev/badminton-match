@@ -9,6 +9,7 @@ import { describePlayerError, parseAliases } from '../players/text'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
+import { PageHeader } from '../components/PageHeader'
 
 /** A search fires after this pause, so typing a name is one request. */
 const SEARCH_DEBOUNCE_MS = 300
@@ -81,8 +82,7 @@ export default function PlayersPage() {
 
   return (
     <section className="mx-auto max-w-3xl p-4">
-      <h1 className="text-xl font-bold text-fg sm:text-2xl">{t('players.title')}</h1>
-      <p className="mt-1 text-sm text-fg-dim">{t('players.subtitle')}</p>
+      <PageHeader title={t('players.title')} subtitle={t('players.subtitle')} />
 
       <form
         className="mt-4 flex items-end gap-2"
