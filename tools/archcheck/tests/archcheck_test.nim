@@ -32,6 +32,19 @@ suite "archcheck rules":
     check found.len == 1
     check found[0].contains("clock.utcNow")
 
+  test "epochTime() is rejected outside the clock":
+    let found = violationsFor("modules/session/x.nim", "let t = epochTime()\n")
+    check found.len == 1
+    check found[0].contains("clock.utcNow")
+
+  test "the clock module may read the system clock":
+    check violationsFor("shared/platform-lib/clock.nim",
+      "let a = now()\nlet b = epochTime()\n").len == 0
+
+  test "a module test may read the wall clock":
+    check violationsFor("modules/session/tests/x_test.nim",
+      "let t = epochTime()\n").len == 0
+
   test "environment access is rejected in modules":
     let found = violationsFor("modules/session/x.nim", "let v = getEnv(\"X\")\n")
     check found.len == 1

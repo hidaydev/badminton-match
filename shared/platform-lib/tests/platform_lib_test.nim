@@ -1,4 +1,4 @@
-import std/[json, options, os, times, unittest]
+import std/[json, options, os, strutils, times, unittest]
 import ../clock
 import ../context
 import ../errors
@@ -32,6 +32,13 @@ suite "uuidv7":
 
   test "orders by timestamp":
     check uuidv7(1_700_000_000_000) < uuidv7(1_700_000_001_000)
+
+  test "reads the pinned clock":
+    ## MAJADU_NOW pins the timestamp prefix too, so replay ids sort against the
+    ## pinned instant instead of the wall clock.
+    putEnv("MAJADU_NOW", "2026-11-03T12:00:00Z")
+    check uuidv7().startsWith("01a1a147-ce00")
+    delEnv("MAJADU_NOW")
 
 suite "redaction":
   test "share code path":

@@ -148,6 +148,11 @@ proc violationsFor*(path, source: string): seq[string] =
        file != "shared/platform-lib/clock.nim" and
        not file.contains("/tests/") and not trimmed.contains("default now()"):
       result.add(file & ":" & $(index + 1) & ": use clock.utcNow(), not now()")
+    if trimmed.contains("epochTime(") and
+       file != "shared/platform-lib/clock.nim" and
+       not file.contains("/tests/"):
+      result.add(file & ":" & $(index + 1) &
+        ": use clock.utcNow(), not epochTime()")
     if trimmed.contains("getEnv(") and not envAllowed(file) and
        not file.contains("/tests/"):
       result.add(file & ":" & $(index + 1) &

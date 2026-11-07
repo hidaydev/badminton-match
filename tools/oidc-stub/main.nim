@@ -1,4 +1,5 @@
 import std/[atomics, base64, json, os, osproc, strutils, times, uri]
+import clock
 import mummy
 
 const
@@ -40,7 +41,7 @@ proc sign(input: string): string =
     removeDir(dir)
 
 proc issueToken(issuer, audience, subject, email, nonce: string): string =
-  let now = epochTime().int64
+  let now = utcNow().toTime.toUnix
   let header = %*{"alg": "RS256", "kid": kid, "typ": "JWT"}
   let payload = %*{
     "iss": issuer,

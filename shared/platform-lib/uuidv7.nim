@@ -1,4 +1,5 @@
-import std/[strutils, sysrand, times]
+import std/[strutils, sysrand]
+import clock
 
 proc uuidv7Bytes*(unixMs: int64): array[16, byte] =
   var randomBytes: array[16, byte]
@@ -26,4 +27,6 @@ proc uuidv7*(unixMs: int64): string =
   formatUuid(uuidv7Bytes(unixMs))
 
 proc uuidv7*(): string =
-  uuidv7(int64(epochTime() * 1000.0))
+  ## The timestamp comes from the clock the rest of the application reads, so a
+  ## replay pinned by MAJADU_NOW yields ids ordered against the pinned time.
+  uuidv7(utcNowMillis())

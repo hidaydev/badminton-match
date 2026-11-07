@@ -1,6 +1,7 @@
 import std/[base64, json, options, os, sets, strutils, sysrand, times, uri]
 import mummy
 import auth_middleware
+import clock
 import community_context
 import community/domain/community as communityDomain
 import community/infrastructure/community_store
@@ -358,7 +359,8 @@ proc quota(request: Request, snapshot: Snapshot, scope, key: string,
   ## `key` is what is counted inside it, so the route budget, a share link and an
   ## invite request share the window and the body instead of each keeping their
   ## own copy. `true` means the 429 was already sent.
-  let budget = application.limiter.hit(scope & "|" & key, limit, epochTime())
+  let budget = application.limiter.hit(scope & "|" & key, limit,
+    utcNow().toTime.toUnixFloat)
   if budget.allowed:
     return false
   rateLimited(request, budget)
@@ -513,7 +515,7 @@ proc finishAuth(request: Request) =
   try:
     claims = verifyIdToken(idToken, jwks(application.oidc),
       application.oidc.issuer, application.oidc.clientId, "",
-      epochTime().int64)
+      utcNow().toTime.toUnix)
   except CatchableError as error:
     authRejected("auth.login.rejected", "invalid id token")
     logError("id token rejected",

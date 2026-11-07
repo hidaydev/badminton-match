@@ -18,3 +18,9 @@ proc utcNow*(): DateTime =
     forced.get
   else:
     now().utc
+
+proc utcNowMillis*(): int64 =
+  ## Milliseconds since the epoch from the same clock, so a pinned MAJADU_NOW
+  ## also orders uuidv7 ids against the pinned instant.
+  let moment = utcNow()
+  moment.toTime.toUnix * 1000 + int64(moment.nanosecond div 1_000_000)

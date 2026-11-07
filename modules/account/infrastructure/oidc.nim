@@ -1,6 +1,7 @@
 when defined(ssl):
   import std/httpclient
 import std/[json, locks, os, strutils, times, uri]
+import clock
 import http_min
 import jwt_rs256
 
@@ -90,10 +91,10 @@ proc jwks*(config: OidcConfig): seq[Jwk] =
     cacheReady = true
   acquire(cache.lock)
   try:
-    if cache.keys.len == 0 or epochTime() - cache.fetchedAt > 3600:
+    if cache.keys.len == 0 or utcNow().toTime.toUnixFloat - cache.fetchedAt > 3600:
       let document = parseJson(fetchRaw(config.jwksUrl, "GET", ""))
       cache.keys = parseJwks(document)
-      cache.fetchedAt = epochTime()
+      cache.fetchedAt = utcNow().toTime.toUnixFloat
     result = cache.keys
   finally:
     release(cache.lock)
