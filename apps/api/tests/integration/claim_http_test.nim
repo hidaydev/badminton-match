@@ -286,3 +286,32 @@ suite "claim HTTP":
     check seen["userId"].getStr() == ""
     check seen["decidedBy"].getStr() == ""
     check seen["reason"].getStr() == ""
+
+  test "a player response says whether the viewer already owns a player":
+    let ownedPlayer = player("Klaim Tujuh Punya")
+    let openPlayer = player("Klaim Tujuh Terbuka")
+    let owner = freshMember("claim-tujuh")
+    discard call(HttpPost, "/c/claim-club/players/" & ownedPlayer & "/claims",
+      owner)
+    let (_, listBody) = call(HttpGet,
+      "/c/claim-club/players/" & ownedPlayer & "/claims", adminCookie)
+    let claimId = parseJson(listBody)["items"][0]["id"].getStr()
+    let (approved, _) = call(HttpPatch,
+      "/c/claim-club/players/" & ownedPlayer & "/claims/" & claimId, adminCookie,
+      """{"decision":"approve"}""")
+    check approved == 200
+
+    # The owner sees the flag on a different, still unclaimed player: the claim
+    # button there would be refused, so the page must not offer it.
+    let (ownedStatus, ownedBody) = call(HttpGet,
+      "/c/claim-club/players/" & openPlayer, owner)
+    check ownedStatus == 200
+    check parseJson(ownedBody)["viewerOwnsPlayer"].kind == JBool
+    check parseJson(ownedBody)["viewerOwnsPlayer"].getBool()
+    check parseJson(ownedBody)["userId"].kind == JNull
+
+    # A member who owns nothing keeps the action.
+    let (freeStatus, freeBody) = call(HttpGet,
+      "/c/claim-club/players/" & openPlayer, freshMember("claim-tujuh-bebas"))
+    check freeStatus == 200
+    check not parseJson(freeBody)["viewerOwnsPlayer"].getBool()

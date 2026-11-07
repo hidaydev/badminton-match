@@ -164,4 +164,53 @@ describe('players', () => {
       expect(jsonBody((call as [string, RequestInit])[1])).toEqual({ decision: 'approve' })
     })
   })
+
+  it('hides the claim action when the viewer already owns a player', async () => {
+    mockFetch({
+      'GET /api/auth/me': () => ({ body: sessionUser }),
+      'GET /api/communities': () => ({ body: { items: [membership('member')] } }),
+      'GET /api/c/acme/players/p1': () => ({
+        body: { ...ani, viewerOwnsPlayer: true },
+      }),
+      'GET /api/c/acme/players/p1/claims': () => ({ body: { items: [] } }),
+    })
+
+    renderAt('/c/acme/players/p1')
+
+    expect(await screen.findByRole('heading', { name: 'Ani' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('playerAdmin.claim') })).toBeNull()
+  })
+
+  it('offers the claim action to a viewer who owns no player', async () => {
+    mockFetch({
+      'GET /api/auth/me': () => ({ body: sessionUser }),
+      'GET /api/communities': () => ({ body: { items: [membership('member')] } }),
+      'GET /api/c/acme/players/p1': () => ({
+        body: { ...ani, viewerOwnsPlayer: false },
+      }),
+      'GET /api/c/acme/players/p1/claims': () => ({ body: { items: [] } }),
+    })
+
+    renderAt('/c/acme/players/p1')
+
+    expect(
+      await screen.findByRole('button', { name: t('playerAdmin.claim') }),
+    ).toBeInTheDocument()
+  })
+
+  it('hides the claim action on a player that already has an owner', async () => {
+    mockFetch({
+      'GET /api/auth/me': () => ({ body: sessionUser }),
+      'GET /api/communities': () => ({ body: { items: [membership('member')] } }),
+      'GET /api/c/acme/players/p1': () => ({
+        body: { ...ani, userId: 'u9', viewerOwnsPlayer: false },
+      }),
+      'GET /api/c/acme/players/p1/claims': () => ({ body: { items: [] } }),
+    })
+
+    renderAt('/c/acme/players/p1')
+
+    expect(await screen.findByRole('heading', { name: 'Ani' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t('playerAdmin.claim') })).toBeNull()
+  })
 })

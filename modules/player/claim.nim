@@ -21,6 +21,14 @@ type
     reason*: string
     createdAt*: string
 
+proc ownsPlayer*(db: Db, communityId, userId: string): bool =
+  ## One player per account per community (D11), so an owner cannot collect more.
+  let owned = db.queryOne(
+    """select 1 as found from player.players
+       where community_id = $1::uuid and user_id = $2::uuid limit 1""",
+    @[textParam(communityId), textParam(userId)])
+  owned.isSome
+
 proc submit*(db: Db, communityId, playerId, userId: string): ClaimError =
   ## A claim never binds on its own: this only creates a pending row. The
   ## partial unique index makes a second pending claim a no-op.
@@ -32,12 +40,7 @@ proc submit*(db: Db, communityId, playerId, userId: string): ClaimError =
     return cePlayerNotFound
   if not player.get["user_id"].isNone:
     return ceAlreadyClaimed
-  # One player per account per community (D11), so an owner cannot collect more.
-  let owned = db.queryOne(
-    """select 1 as found from player.players
-       where community_id = $1::uuid and user_id = $2::uuid limit 1""",
-    @[textParam(communityId), textParam(userId)])
-  if owned.isSome:
+  if ownsPlayer(db, communityId, userId):
     return ceClaimantOwnsPlayer
   let inserted = db.execUpdate(
     """insert into player.claims (community_id, player_id, user_id)

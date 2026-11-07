@@ -10,6 +10,8 @@ export type Player = {
   createdAt: string
   updatedAt: string
   aliases?: string[]
+  /** Set per player; true when the viewer already owns a player here. */
+  viewerOwnsPlayer?: boolean
 }
 
 export type ClaimStatus = 'pending' | 'approved' | 'rejected' | 'released'

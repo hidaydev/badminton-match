@@ -152,7 +152,9 @@ export default function PlayerDetailPage() {
           )}
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {player.userId === null && mine === undefined && (
+            {player.userId === null &&
+              mine === undefined &&
+              player.viewerOwnsPlayer !== true && (
               <button
                 type="button"
                 disabled={busy}

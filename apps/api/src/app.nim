@@ -1385,15 +1385,19 @@ proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) 
     jsonResponse(request, 201, withAliases(result.player,
       playerStore.aliases(application.db, ctx.communityId, playerId)))
 
-proc getPlayerRoute(request: Request, ctx: CommunityContext, playerId: string) =
+proc getPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
+                    playerId: string) =
   let player = playerStore.get(application.db, ctx.communityId, playerId)
   if player.isNone:
     problem(request, 404, "NOT_FOUND", "player not found")
     return
-  jsonResponse(request, 200,
-    withAliases(player.get,
-      playerStore.aliases(application.db, ctx.communityId, playerId)),
-    [("Cache-Control", "no-store")])
+  var body = withAliases(player.get,
+    playerStore.aliases(application.db, ctx.communityId, playerId))
+  # The claim action is refused server-side when the viewer already owns a
+  # player here, so the page needs to know before offering the button.
+  body["viewerOwnsPlayer"] =
+    %playerClaim.ownsPlayer(application.db, ctx.communityId, user.id)
+  jsonResponse(request, 200, body, [("Cache-Control", "no-store")])
 
 proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                       playerId: string) =
@@ -2958,7 +2962,7 @@ proc route(request: Request) =
         createPlayerRoute(request, ctx.get, user.get)
         return
       if parts.len == 5 and verb == "GET":
-        getPlayerRoute(request, ctx.get, parts[4])
+        getPlayerRoute(request, ctx.get, user.get, parts[4])
         return
       if parts.len == 5 and verb == "PATCH":
         patchPlayerRoute(request, ctx.get, user.get, parts[4])
