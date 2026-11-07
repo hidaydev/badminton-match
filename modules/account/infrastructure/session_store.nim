@@ -53,10 +53,10 @@ proc resolve*(db: Db, token: string, idleDays: int): Option[SessionUser] =
     return none(SessionUser)
   let value = row.get
   some(SessionUser(
-    userId: value.get("id"),
+    userId: value.getUuid("id"),
     displayName: value.get("display_name"),
     emailHash: value.get("email_hash"),
-    isPlatformOwner: value.get("is_platform_owner") == "t",
+    isPlatformOwner: value.getBool("is_platform_owner"),
   ))
 
 proc revoke*(db: Db, token: string) =
@@ -71,7 +71,7 @@ proc revoke*(db: Db, token: string) =
     return
   discard db.execUpdate(
     "delete from platform.ws_ticket where user_id = $1::uuid",
-    @[textParam(row.get.get("user_id"))])
+    @[textParam(row.get.getUuid("user_id"))])
 
 proc revokeOthers*(db: Db, userId, keepToken: string) =
   discard db.execUpdate(
@@ -93,8 +93,8 @@ proc listSessions*(db: Db, userId, currentToken: string): seq[SessionRow] =
        order by last_seen_at desc""",
     @[textParam(userId), textParam(sha256Hex(currentToken))]):
     result.add(SessionRow(
-      id: row.get("id"),
+      id: row.getUuid("id"),
       createdAt: row.get("created_at"),
       lastSeenAt: row.get("last_seen_at"),
-      current: row.get("is_current") == "t",
+      current: row.getBool("is_current"),
     ))

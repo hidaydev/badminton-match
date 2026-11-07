@@ -1,4 +1,4 @@
-import std/[json, options, strutils, tables]
+import std/[json, options, tables]
 import db/db
 import session/lifecycle
 import ../domain/rating
@@ -15,13 +15,14 @@ proc absentPlayers(conn: DbConn, communityId, sessionId: string): seq[string] =
     """select player_id from session.participants
        where community_id = $1::uuid and session_id = $2::uuid and is_absent""",
     @[textParam(communityId), textParam(sessionId)]):
-    result.add(row.get("player_id"))
+    result.add(row.getUuid("player_id"))
 
 proc sidePlayers(row: Row, side: string): seq[string] =
   for slot in ["1", "2"]:
     let key = side & slot
-    if row[key].isSome and row.get(key).len > 0:
-      result.add(row.get(key))
+    let value = row.getOpt(key)
+    if value.isSome and value.get.len > 0:
+      result.add(value.get)
 
 proc active(players, absent, skipped: seq[string]): seq[string] =
   for player in players:
@@ -72,13 +73,13 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
   if session.isNone:
     return
   let current = session.get
-  if not isRated(current["approved_at"], current.get("status")):
+  if not isRated(current.getOpt("approved_at"), current.get("status")):
     return
   let event = insertEvent(conn, communityId, "session", sessionId,
     current.get("session_date"), preserved)
   if event.isNone:
     return
-  let eventId = event.get.get("id")
+  let eventId = event.get.getUuid("id")
   result.events = 1
   let absent = absentPlayers(conn, communityId, sessionId)
   var skipRows = initTable[string, seq[string]]()
@@ -88,7 +89,7 @@ proc ingestSessionConn(conn: DbConn, communityId, sessionId: string,
        where community_id = $1::uuid and session_id = $2::uuid""",
     @[textParam(communityId), textParam(sessionId)]):
     skipRows.mgetOrPut(entry.get("round_no") & "-" & entry.get("court_no"),
-      @[]).add(entry.get("player_id"))
+      @[]).add(entry.getUuid("player_id"))
   var entries = 0
   for row in conn.query(
     """select round_no, court_no, winner,
@@ -144,9 +145,9 @@ proc eventSource(db: Db, communityId, eventId: string): Option[string] =
     """select source_id::text as source_id from rating.events
        where community_id = $1::uuid and id = $2::uuid""",
     @[textParam(communityId), textParam(eventId)])
-  if row.isNone or row.get["source_id"].isNone:
+  if row.isNone or row.get.getOpt("source_id").isNone:
     return none(string)
-  some(row.get.get("source_id"))
+  some(row.get.getUuid("source_id"))
 
 proc eventFinalized*(db: Db, communityId, eventId: string): bool =
   ## The delete route names an event, but the sign-off belongs to its source.
@@ -198,8 +199,8 @@ proc setFinalized*(db: Db, communityId, sourceId: string,
     return none(JsonNode)
   let value = row.get
   some(%*{"sourceId": value.get("source_id"), "kind": value.get("kind"),
-    "finalized": value.get("finalized") == "t",
-    "finalizedAt": if value["finalized_at"].isSome:
+    "finalized": value.getBool("finalized"),
+    "finalizedAt": if value.getOpt("finalized_at").isSome:
       %value.get("finalized_at") else: newJNull()})
 
 proc dropSourceConn*(conn: DbConn, communityId, sourceId: string): int =
@@ -226,11 +227,11 @@ proc revertSourceConn*(conn: DbConn, communityId, sourceId: string): int =
     @[textParam(communityId), textParam(sourceId)])
   if event.isNone:
     return 0
-  result = parseInt(event.get.get("point_entries"))
+  result = event.get.getInt("point_entries")
   discard conn.execUpdate(
     """delete from rating.events
        where community_id = $1::uuid and id = $2::uuid""",
-    @[textParam(communityId), textParam(event.get.get("id"))])
+    @[textParam(communityId), textParam(event.get.getUuid("id"))])
 
 proc revertSource*(db: Db, communityId, sourceId: string): int =
   var removed = 0
@@ -253,7 +254,7 @@ proc rebuildConn*(conn: DbConn, communityId: string,
        from rating.events
        where community_id = $1::uuid and source_id is not null""",
     @[textParam(communityId)]):
-    preserved[row.get("event_type") & ":" & row.get("source_id")] = row.get("id")
+    preserved[row.get("event_type") & ":" & row.getUuid("source_id")] = row.getUuid("id")
   discard conn.execUpdate(
     """delete from rating.events where community_id = $1::uuid""",
     @[textParam(communityId)])
@@ -267,7 +268,7 @@ proc rebuildConn*(conn: DbConn, communityId: string,
          and status in """ & approvedStatuses & """
        order by approved_at, id""",
     @[textParam(communityId)]):
-    ids.add(row.get("id"))
+    ids.add(row.getUuid("id"))
   for sessionId in ids:
     let part = ingestSessionConn(conn, communityId, sessionId, params,
       preserved)
@@ -295,7 +296,7 @@ proc removeEventConn*(conn: DbConn, communityId, eventId: string): int =
     @[textParam(communityId), textParam(eventId)])
   if event.isNone:
     return 0
-  result = parseInt(event.get.get("point_entries"))
+  result = event.get.getInt("point_entries")
   discard conn.execUpdate(
     """delete from rating.events
        where community_id = $1::uuid and id = $2::uuid""",

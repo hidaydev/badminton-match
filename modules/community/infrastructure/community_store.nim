@@ -28,7 +28,7 @@ proc create*(db: Db, slug, name, adminEmail, timezone, actorId: string): CreateR
     if row.isNone:
       taken = true
     else:
-      communityId = row.get.get("id")
+      communityId = row.get.getUuid("id")
       # The first-admin invitation is bound to the address, not to a bearer
       # token: the account becomes admin the first time that email logs in.
       discard conn.execUpdate(
@@ -62,7 +62,7 @@ proc directory*(db: Db, userId: Option[string], platformDefault: bool,
          on m.community_id = c.id and m.user_id = $3::uuid
        order by c.slug""",
     @[textParam(key), boolParam(platformDefault), memberParam]):
-    let enabled = row.get("enabled") == "t"
-    let member = row.get("member") == "t"
+    let enabled = row.getBool("enabled")
+    let member = row.getBool("member")
     if directoryVisible(enabled, member):
       result.add(directoryEntry(row.get("slug"), row.get("name")))

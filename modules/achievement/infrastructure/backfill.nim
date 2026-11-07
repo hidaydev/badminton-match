@@ -59,9 +59,9 @@ proc loadAttendance(conn: DbConn, communityId: string): Table[string, Attendance
          and s.status in """ & approvedStatuses & """
        order by p.player_id, s.session_date, s.id""",
     @[textParam(communityId)]):
-    let playerId = row.get("player_id")
+    let playerId = row.getUuid("player_id")
     var tally = result.mgetOrPut(playerId, Attendance())
-    if row.get("is_absent") == "t":
+    if row.getBool("is_absent"):
       tally.run = 0
     else:
       inc tally.sessions
@@ -77,7 +77,7 @@ proc loadAbsent(conn: DbConn, communityId: string): HashSet[string] =
        from session.participants p
        where p.community_id = $1::uuid and p.is_absent""",
     @[textParam(communityId)]):
-    result.incl(row.get("session_id") & "|" & row.get("player_id"))
+    result.incl(row.getUuid("session_id") & "|" & row.getUuid("player_id"))
 
 proc loadSkips(conn: DbConn, communityId: string): HashSet[string] =
   ## A skipped player was at the session but sat this game out, so the game is
@@ -88,8 +88,8 @@ proc loadSkips(conn: DbConn, communityId: string): HashSet[string] =
        from session.game_skips
        where community_id = $1::uuid""",
     @[textParam(communityId)]):
-    result.incl(row.get("session_id") & "|" & row.get("round_no") & "-" &
-      row.get("court_no") & "|" & row.get("player_id"))
+    result.incl(row.getUuid("session_id") & "|" & row.get("round_no") & "-" &
+      row.get("court_no") & "|" & row.getUuid("player_id"))
 
 proc presentPlayers(row: Row, side, sessionId: string,
                     absent: HashSet[string]): seq[string] =
@@ -160,7 +160,7 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
          and s.approved_at is not null
          and s.status in """ & approvedStatuses,
     @[textParam(communityId)]):
-    let sessionId = row.get("session_id")
+    let sessionId = row.getUuid("session_id")
     let gameKey = row.get("round_no") & "-" & row.get("court_no")
     let presentA = presentPlayers(row, "a", sessionId, absent)
     let presentB = presentPlayers(row, "b", sessionId, absent)
@@ -202,7 +202,7 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
         sideB.add(row.get(key))
     if sideA.len == 0 or sideB.len == 0:
       continue
-    let aWon = parseInt(row.get("score_a")) > parseInt(row.get("score_b"))
+    let aWon = row.getInt("score_a") > row.getInt("score_b")
     result.tallyResult(sideA, aWon)
     result.tallyResult(sideB, not aWon)
   var rosters = initTable[string, seq[(string, string)]]()
@@ -211,8 +211,8 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
        from tournament.team_players
        where community_id = $1::uuid and player_id is not null""",
     @[textParam(communityId)]):
-    rosters.mgetOrPut(row.get("team_id"), @[]).add(
-      (row.get("cls"), row.get("player_id")))
+    rosters.mgetOrPut(row.getUuid("team_id"), @[]).add(
+      (row.get("cls"), row.getUuid("player_id")))
   for row in conn.query(
     """select tm.team_a_id::text as team_a, tm.team_b_id::text as team_b,
               p.partai_index as partai_index,
@@ -227,14 +227,14 @@ proc loadGames(conn: DbConn, communityId: string): Table[string, GameTally] =
          and p.score_a is not null and p.score_b is not null
          and tm.team_a_id is not null and tm.team_b_id is not null""",
     @[textParam(communityId)]):
-    let classes = partaiClasses(parseInt(row.get("partai_index")))
+    let classes = partaiClasses(row.getInt("partai_index"))
     if classes.len == 0:
       continue
-    let sideA = rosterFor(rosters, row.get("team_a"), classes)
-    let sideB = rosterFor(rosters, row.get("team_b"), classes)
+    let sideA = rosterFor(rosters, row.getUuid("team_a"), classes)
+    let sideB = rosterFor(rosters, row.getUuid("team_b"), classes)
     if sideA.len == 0 or sideB.len == 0:
       continue
-    let aWon = parseInt(row.get("score_a")) > parseInt(row.get("score_b"))
+    let aWon = row.getInt("score_a") > row.getInt("score_b")
     result.tallyResult(sideA, aWon)
     result.tallyResult(sideB, not aWon)
 
@@ -261,14 +261,14 @@ proc loadTournaments(conn: DbConn, communityId: string): Table[string, int] =
        where entry.player_id is not null
        group by entry.player_id""",
     @[textParam(communityId)]):
-    result[row.get("player_id")] = parseInt(row.get("played"))
+    result[row.getUuid("player_id")] = row.getInt("played")
 
 proc loadTiers(conn: DbConn, communityId: string): Table[string, int] =
   for row in conn.query(
     """select id, coalesce(tier, '') as tier from player.players
        where community_id = $1::uuid""",
     @[textParam(communityId)]):
-    result[row.get("id")] = tierLevel(row.get("tier"))
+    result[row.getUuid("id")] = tierLevel(row.get("tier"))
 
 proc loadRanks(db: Db, communityId, asOf: string,
                params: RatingParams): Table[string, int] =
@@ -307,7 +307,7 @@ proc loadRankStreaks(conn: DbConn,
            select local_date from rating.events where community_id = $1::uuid)""",
     @[textParam(communityId)]):
     placed.mgetOrPut(row.get("day"), initTable[string, int]())[
-      row.get("player_id")] = parseInt(row.get("rank"))
+      row.getUuid("player_id")] = row.getInt("rank")
   var run = initTable[string, int]()
   for day in dates:
     let today = placed.getOrDefault(day)
@@ -381,7 +381,7 @@ proc loadEarned(conn: DbConn, communityId: string,
          and (achievement_key in (""" & quotedKeys(keys) & """)
               or left(achievement_key, 12) = 'rank_streak:')""",
     @[textParam(communityId)]):
-    result.mgetOrPut(row.get("player_id"), @[]).add(row.get("key"))
+    result.mgetOrPut(row.getUuid("player_id"), @[]).add(row.get("key"))
 
 proc loadImported(conn: DbConn, communityId: string): HashSet[string] =
   ## Rows a v1 import wrote, keyed by player and badge. They are history, not a
@@ -393,7 +393,7 @@ proc loadImported(conn: DbConn, communityId: string): HashSet[string] =
        from achievement.earned
        where community_id = $1::uuid and meta->>'source' = 'v1'""",
     @[textParam(communityId)]):
-    result.incl(row.get("player_id") & "|" & row.get("key"))
+    result.incl(row.getUuid("player_id") & "|" & row.get("key"))
 
 proc revokeAwards(conn: DbConn, communityId: string,
                   earned, qualified: Table[string, seq[string]],
@@ -528,7 +528,7 @@ proc listForPlayer*(db: Db, communityId, playerId: string): seq[JsonNode] =
   for row in db.query(
     """select key, threshold from achievement.definitions order by key"""):
     ladders.mgetOrPut(keyMetric(row.get("key")), @[]).add(
-      parseInt(row.get("threshold")))
+      row.getInt("threshold"))
   for row in db.query(
     """select e.achievement_key as key, d.category as category,
               d.threshold as threshold, e.earned_at::text as earned_at,
@@ -541,12 +541,12 @@ proc listForPlayer*(db: Db, communityId, playerId: string): seq[JsonNode] =
     let key = row.get("key")
     let metric = keyMetric(key)
     let category =
-      if row["category"].isSome: row.get("category")
+      if row.getOpt("category").isSome: row.get("category")
       elif metric == "tournament": "tournament"
       elif metric == "rank_streak": "rank"
       else: metric
     let threshold =
-      if row["threshold"].isSome: parseInt(row.get("threshold"))
+      if row.getOpt("threshold").isSome: row.getInt("threshold")
       else: suffixThreshold(key)
     let ladder =
       if metric == "tier": @[threshold]
@@ -555,7 +555,7 @@ proc listForPlayer*(db: Db, communityId, playerId: string): seq[JsonNode] =
     let target = nextTarget(metric, threshold, ladder)
     let nextNode = if target.isSome: %target.get else: newJNull()
     var meta =
-      if row["meta"].isSome and row.get("meta").len > 0:
+      if row.getOpt("meta").isSome and row.get("meta").len > 0:
         parseJson(row.get("meta"))
       else:
         newJObject()

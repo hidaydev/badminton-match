@@ -1,4 +1,4 @@
-import std/[options, os, unittest]
+import std/[options, os, strutils, times, unittest]
 import ../../db/db
 
 proc dsn(): string =
@@ -83,3 +83,28 @@ suite "database layer":
     check caught
     check db.queryOne(
       "select id from t004_probe where id = $1", @[intParam(4)]).isNone
+
+  test "a NULL column reads as none":
+    let row = Row(names: @["note"], values: @[none(string)])
+    check row.getOpt("note").isNone
+
+  test "a boolean reads from the text format":
+    let row = Row(names: @["enabled", "disabled"],
+      values: @[some("t"), some("f")])
+    check row.getBool("enabled")
+    check not row.getBool("disabled")
+
+  test "a malformed uuid names the column":
+    let row = Row(names: @["player_id"], values: @[some("0190")])
+    var message = ""
+    try:
+      discard row.getUuid("player_id")
+    except ValueError as error:
+      message = error.msg
+    check message.contains("player_id")
+
+  test "a timestamptz reads as a value":
+    let row = Row(names: @["earned_at"],
+      values: @[some("2026-11-07 12:00:00.5+07")])
+    check row.getTimestamp("earned_at") ==
+      parse("2026-11-07T05:00:00Z", "yyyy-MM-dd'T'HH:mm:ss'Z'", utc())

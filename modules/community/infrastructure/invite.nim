@@ -50,12 +50,12 @@ proc lookup*(db: Db, token: string): AcceptResult =
     @[textParam(sha256Hex(token))])
   if row.isNone:
     return AcceptResult(outcome: aoNotFound)
-  let detail = AcceptResult(communityId: row.get.get("community_id"),
+  let detail = AcceptResult(communityId: row.get.getUuid("community_id"),
     role: row.get.get("role"), emailHash: row.get.get("email_hash"))
-  if row.get.get("accepted") == "t":
+  if row.get.getBool("accepted"):
     return AcceptResult(outcome: aoUsed, communityId: detail.communityId,
       role: detail.role, emailHash: detail.emailHash)
-  if row.get.get("expired") == "t":
+  if row.get.getBool("expired"):
     return AcceptResult(outcome: aoExpired, communityId: detail.communityId,
       role: detail.role, emailHash: detail.emailHash)
   detail
@@ -80,10 +80,10 @@ proc acceptPendingForEmail*(db: Db, userId, emailHash: string):
            values ($1::uuid, $2::uuid, $3)
            on conflict (community_id, user_id) do nothing
            returning role""",
-        @[textParam(row.get("community_id")), textParam(userId),
+        @[textParam(row.getUuid("community_id")), textParam(userId),
           textParam(row.get("role"))])
       if granted.isSome:
-        joined.add((communityId: row.get("community_id"),
+        joined.add((communityId: row.getUuid("community_id"),
           role: granted.get.get("role"))))
   joined
 
@@ -123,7 +123,7 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
          returning community_id, role""",
       @[textParam(sha256Hex(token)), textParam(emailHash)])
     if row.isSome:
-      communityId = row.get.get("community_id")
+      communityId = row.get.getUuid("community_id")
       role = row.get.get("role")
       # An invite may promote an existing member (the screen offers host and
       # admin), but never demote one: the update only fires when the invited

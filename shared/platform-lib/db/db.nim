@@ -1,9 +1,9 @@
-import std/[locks, options, strutils]
+import std/[locks, options, strutils, times]
 import db_connector/postgres
 
 type
   DbParamKind* = enum
-    dpNull, dpText, dpInt, dpBool, dpUuid, dpTimestamp
+    dpNull, dpText, dpInt, dpBool, dpTimestamp
 
   DbParam* = object
     case kind*: DbParamKind
@@ -11,7 +11,6 @@ type
     of dpText: text*: string
     of dpInt: intValue*: int64
     of dpBool: boolValue*: bool
-    of dpUuid: uuidValue*: string
     of dpTimestamp: timestampValue*: string
 
   Row* = object
@@ -40,7 +39,6 @@ proc nullParam*(): DbParam = DbParam(kind: dpNull)
 proc textParam*(value: string): DbParam = DbParam(kind: dpText, text: value)
 proc intParam*(value: int64): DbParam = DbParam(kind: dpInt, intValue: value)
 proc boolParam*(value: bool): DbParam = DbParam(kind: dpBool, boolValue: value)
-proc uuidParam*(value: string): DbParam = DbParam(kind: dpUuid, uuidValue: value)
 proc timestampParam*(value: string): DbParam =
   ## RFC 3339 UTC; PostgreSQL parses the text representation.
   DbParam(kind: dpTimestamp, timestampValue: value)
@@ -51,7 +49,6 @@ proc asText*(param: DbParam): string =
   of dpText: param.text
   of dpInt: $param.intValue
   of dpBool: (if param.boolValue: "true" else: "false")
-  of dpUuid: param.uuidValue
   of dpTimestamp: param.timestampValue
 
 proc errorField(res: PPGresult, code: cint): string =
@@ -173,11 +170,98 @@ proc get*(row: Row, name: string): string =
     raise newException(ValueError, "column is NULL: " & name)
   value.get
 
+proc getOpt*(row: Row, name: string): Option[string] =
+  ## The NULL-safe read: a column the schema allows to be NULL becomes `none`
+  ## here instead of raising at the call site.
+  row[name]
+
 proc has*(row: Row, name: string): bool =
   for column in row.names:
     if column == name:
       return true
   false
+
+proc getInt*(row: Row, name: string): int =
+  ## PostgreSQL sends every type in its text format, so the conversion carries
+  ## the column name: a parse failure points at the column, not the statement.
+  let value = row.get(name)
+  try:
+    parseInt(value)
+  except ValueError:
+    raise newException(ValueError,
+      "column is not an integer: " & name & " = " & value)
+
+proc getInt64*(row: Row, name: string): int64 = system.int64(row.getInt(name))
+
+proc getBool*(row: Row, name: string): bool =
+  ## PostgreSQL renders a boolean as `t`/`f` in the text result format.
+  case row.get(name)
+  of "t": true
+  of "f": false
+  else:
+    raise newException(ValueError,
+      "column is not a boolean: " & name & " = " & row.get(name))
+
+proc isHexDigit(ch: char): bool =
+  ch in {'0'..'9', 'a'..'f', 'A'..'F'}
+
+proc getUuid*(row: Row, name: string): string =
+  ## A uuid column always comes back as its canonical 8-4-4-4-12 text, so a
+  ## value that does not match means the query or the schema is wrong.
+  const groups = [8, 4, 4, 4, 12]
+  result = row.get(name)
+  var offset = 0
+  var valid = result.len == 36
+  if valid:
+    for groupIndex, width in groups:
+      for index in 0 ..< width:
+        if not isHexDigit(result[offset + index]):
+          valid = false
+      offset += width
+      if groupIndex < groups.high:
+        if result[offset] != '-':
+          valid = false
+        inc offset
+  if not valid:
+    raise newException(ValueError,
+      "column is not a uuid: " & name & " = " & result)
+
+proc parseTimestamp(value: string): DateTime =
+  ## PostgreSQL renders a timestamptz in the ISO DateStyle as
+  ## `yyyy-MM-dd HH:mm:ss[.f]±HH[:MM]`. Nim's parser needs the offset colon and
+  ## exactly six fraction digits, so both are normalized first.
+  var separator = -1
+  for index in countdown(value.len - 1, 0):
+    if index > 10 and value[index] in {'+', '-'}:
+      separator = index
+      break
+  if separator < 0:
+    raise newException(TimeParseError, "timestamp has no offset: " & value)
+  var head = value[0 ..< separator]
+  var zone = value[separator .. ^1]
+  if zone.len == 3:
+    zone.add(":00")
+  let dot = head.find('.')
+  if dot < 0:
+    return parse(head & zone, "yyyy-MM-dd HH:mm:sszzz", utc())
+  var fraction = head[dot + 1 .. ^1]
+  if fraction.len > 6:
+    fraction.setLen(6)
+  while fraction.len < 6:
+    fraction.add('0')
+  head.setLen(dot)
+  head.add('.')
+  head.add(fraction)
+  parse(head & zone, "yyyy-MM-dd HH:mm:ss'.'ffffffzzz", utc())
+
+proc getTimestamp*(row: Row, name: string): DateTime =
+  ## A `timestamptz` reaches Nim as a value, not as the server's text.
+  let value = row.get(name)
+  try:
+    parseTimestamp(value)
+  except TimeParseError:
+    raise newException(ValueError,
+      "column is not a timestamp: " & name & " = " & value)
 
 proc openDb*(dsn: string, poolSize: int): Db =
   if poolSize < 1:

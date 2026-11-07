@@ -112,7 +112,7 @@ proc loadTiers(db: Db, communityId: string): Table[string, string] =
     """select id::text as id, coalesce(tier, '') as tier
        from player.players where community_id = $1::uuid""",
     @[textParam(communityId)]):
-    result[row.get("id")] = row.get("tier")
+    result[row.getUuid("id")] = row.get("tier")
 
 proc populationStrength(tiers: Table[string, string],
                         params: RatingParams): float =
@@ -148,7 +148,7 @@ proc loadLevels(db: Db, communityId: string): Table[string, Level] =
     result[row.get("kind")] = Level(
       champion: parseFloat(row.get("champion")),
       ratios: if raw.len == 0: newJObject() else: parseJson(raw),
-      enabled: row.get("enabled") == "t")
+      enabled: row.getBool("enabled"))
 
 proc addGame(acc: var Table[string, Acc], playerId, sourceId, date, kind: string,
              points: float) =
@@ -173,16 +173,16 @@ proc sessionEntries(db: Db, communityId, asOf: string,
        from session.participants
        where community_id = $1::uuid and is_absent""",
     @[textParam(communityId)]):
-    absentBySession[row.get("session_id") & keySeparator &
-      row.get("player_id")] = true
+    absentBySession[row.getUuid("session_id") & keySeparator &
+      row.getUuid("player_id")] = true
   var skips = initTable[string, bool]()
   for row in db.query(
     """select session_id::text as session_id, round_no, court_no,
               player_id::text as player_id
        from session.game_skips where community_id = $1::uuid""",
     @[textParam(communityId)]):
-    skips[row.get("session_id") & keySeparator & row.get("round_no") & "-" &
-      row.get("court_no") & keySeparator & row.get("player_id")] = true
+    skips[row.getUuid("session_id") & keySeparator & row.get("round_no") & "-" &
+      row.get("court_no") & keySeparator & row.getUuid("player_id")] = true
   for row in db.query(
     """select e.source_id::text as source_id, e.local_date::text as local_date,
               r.round_no, r.court_no, r.points_a, r.points_b, r.sets_played,
@@ -206,13 +206,13 @@ proc sessionEntries(db: Db, communityId, asOf: string,
     @[textParam(communityId), textParam(asOf),
       intParam(params.windowWeeks.int64),
       intParam(params.scoreTarget.int64)]):
-    let sourceId = row.get("source_id")
+    let sourceId = row.getUuid("source_id")
     let date = row.get("local_date")
     let gameKey = row.get("round_no") & "-" & row.get("court_no")
-    let pointsA = parseInt(row.get("points_a"))
-    let pointsB = parseInt(row.get("points_b"))
-    let setsPlayed = parseInt(row.get("sets_played"))
-    let target = parseInt(row.get("target"))
+    let pointsA = row.getInt("points_a")
+    let pointsB = row.getInt("points_b")
+    let setsPlayed = row.getInt("sets_played")
+    let target = row.getInt("target")
     var sideA: seq[string] = @[]
     var sideB: seq[string] = @[]
     for slot in ["a1", "a2"]:
@@ -269,7 +269,7 @@ proc tournamentEntries(db: Db, communityId, asOf: string,
        order by e.local_date, e.source_id""",
     @[textParam(communityId), textParam(asOf),
       intParam(params.windowWeeks.int64)]):
-    let sourceId = header.get("id")
+    let sourceId = header.getUuid("id")
     let date = header.get("local_date")
     let format = header.get("format")
     let kind = "tournament_" & format

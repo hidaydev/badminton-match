@@ -210,13 +210,13 @@ proc loadClassic(db: Db, communityId, id: string, header: Row): JsonNode =
       """select id::text as id, display_name from tournament.pairs
          where community_id = $1::uuid and tournament_id = $2::uuid
          order by display_name, id""", tournament):
-    pairs.add(%*{"id": row.get("id"), "name": row.get("display_name")})
+    pairs.add(%*{"id": row.getUuid("id"), "name": row.get("display_name")})
   var groups = %*{"A": [], "B": [], "C": [], "D": []}
   for row in db.query(
       """select group_id, pair_id::text as pair_id from tournament.groups
          where community_id = $1::uuid and tournament_id = $2::uuid
          order by group_id, position""", tournament):
-    groups[row.get("group_id")].add(%row.get("pair_id"))
+    groups[row.get("group_id")].add(%row.getUuid("pair_id"))
   var matches = newJArray()
   for row in db.query(
       """select coalesce(match_key, id::text) as id, phase, group_id,
@@ -228,13 +228,13 @@ proc loadClassic(db: Db, communityId, id: string, header: Row): JsonNode =
     matches.add(%*{
       "id": row.get("id"),
       "phase": row.get("phase"),
-      "groupId": if row["group_id"].isNone: newJNull() else: %row.get("group_id"),
-      "pairAId": if row["pair_a_id"].isNone: newJNull() else: %row.get("pair_a_id"),
-      "pairBId": if row["pair_b_id"].isNone: newJNull() else: %row.get("pair_b_id"),
-      "scoreA": if row["score_a"].isNone: newJNull() else: %parseInt(row.get("score_a")),
-      "scoreB": if row["score_b"].isNone: newJNull() else: %parseInt(row.get("score_b")),
+      "groupId": if row.getOpt("group_id").isNone: newJNull() else: %row.get("group_id"),
+      "pairAId": if row.getOpt("pair_a_id").isNone: newJNull() else: %row.getUuid("pair_a_id"),
+      "pairBId": if row.getOpt("pair_b_id").isNone: newJNull() else: %row.getUuid("pair_b_id"),
+      "scoreA": if row.getOpt("score_a").isNone: newJNull() else: %row.getInt("score_a"),
+      "scoreB": if row.getOpt("score_b").isNone: newJNull() else: %row.getInt("score_b"),
     })
-  %*{"version": parseInt(header.get("version")), "format": "classic",
+  %*{"version": header.getInt("version"), "format": "classic",
      "name": header.get("name"), "date": header.get("date"),
      "pairs": pairs, "groups": groups, "matches": matches}
 
@@ -251,9 +251,9 @@ proc loadTeam(db: Db, communityId, id: string, header: Row): JsonNode =
            where community_id = $1::uuid and team_id = $2::uuid
            order by case cls when 'A+' then 0 when 'A' then 1 when 'B+' then 2
                              when 'B' then 3 when 'C+' then 4 else 5 end""",
-        @[textParam(communityId), textParam(row.get("id"))]):
+        @[textParam(communityId), textParam(row.getUuid("id"))]):
       players.add(%*{"name": member.get("player_name"), "cls": member.get("cls")})
-    teams.add(%*{"id": row.get("id"), "name": row.get("team_name"),
+    teams.add(%*{"id": row.getUuid("id"), "name": row.get("team_name"),
       "players": players})
   var matches = newJArray()
   for row in db.query(
@@ -270,18 +270,18 @@ proc loadTeam(db: Db, communityId, id: string, header: Row): JsonNode =
         """select partai_index, score_a, score_b from tournament.team_partai
            where community_id = $1::uuid and team_match_id = $2::uuid
            order by partai_index""",
-        @[textParam(communityId), textParam(row.get("row_id"))]):
-      let index = parseInt(game.get("partai_index"))
+        @[textParam(communityId), textParam(row.getUuid("row_id"))]):
+      let index = game.getInt("partai_index")
       if index in 0 .. 2:
         partai.elems[index] = %*{
-          "scoreA": if game["score_a"].isNone: newJNull() else: %parseInt(game.get("score_a")),
-          "scoreB": if game["score_b"].isNone: newJNull() else: %parseInt(game.get("score_b"))}
+          "scoreA": if game.getOpt("score_a").isNone: newJNull() else: %game.getInt("score_a"),
+          "scoreB": if game.getOpt("score_b").isNone: newJNull() else: %game.getInt("score_b")}
     matches.add(%*{
       "id": row.get("id"), "phase": row.get("phase"),
-      "teamA": if row["team_a_id"].isNone: "" else: row.get("team_a_id"),
-      "teamB": if row["team_b_id"].isNone: "" else: row.get("team_b_id"),
+      "teamA": if row.getOpt("team_a_id").isNone: "" else: row.getUuid("team_a_id"),
+      "teamB": if row.getOpt("team_b_id").isNone: "" else: row.getUuid("team_b_id"),
       "partai": partai, "courts": parseJson(row.get("courts"))})
-  %*{"version": parseInt(header.get("version")), "format": "team",
+  %*{"version": header.getInt("version"), "format": "team",
      "name": header.get("name"), "date": header.get("date"),
      "teams": teams, "matches": matches}
 
@@ -310,9 +310,9 @@ proc list*(db: Db, communityId, format: string, limit, offset: int): seq[JsonNod
   params.add(intParam(max(1, min(limit, 100)).int64))
   params.add(intParam(max(0, offset).int64))
   for row in db.query(sql, params):
-    result.add(%*{"id": row.get("id"), "name": row.get("name"),
+    result.add(%*{"id": row.getUuid("id"), "name": row.get("name"),
       "date": row.get("date"), "format": row.get("format"),
-      "status": row.get("status"), "version": parseInt(row.get("version"))})
+      "status": row.get("status"), "version": row.getInt("version")})
 
 # ── child writes ───────────────────────────────────────────────────────────
 
@@ -323,14 +323,14 @@ proc playerId(conn: DbConn, communityId, name: string): string =
   let params = @[textParam(communityId), textParam(name)]
   let found = conn.queryOne(lookup, params)
   if found.isSome:
-    return found.get.get("id")
+    return found.get.getUuid("id")
   let inserted = conn.queryOne(
     """insert into player.players (community_id, canonical_name)
        values ($1::uuid, $2) on conflict (community_id, canonical_key) do nothing
        returning id""", params)
   if inserted.isSome:
-    return inserted.get.get("id")
-  conn.queryOne(lookup, params).get.get("id")
+    return inserted.get.getUuid("id")
+  conn.queryOne(lookup, params).get.getUuid("id")
 
 proc pickId(candidate: string, owned: Table[string, bool]): string =
   if candidate.len > 0 and owned.hasKey(candidate): candidate else: uuidv7()
@@ -444,7 +444,7 @@ proc ownedIds(conn: DbConn, table, communityId, tournamentId: string): Table[str
       "select id::text as id from " & table &
       " where community_id = $1::uuid and tournament_id = $2::uuid",
       @[textParam(communityId), textParam(tournamentId)]):
-    result[row.get("id")] = true
+    result[row.getUuid("id")] = true
 
 proc ownedFor(conn: DbConn, communityId, tournamentId: string): Owned =
   Owned(pairs: ownedIds(conn, "tournament.pairs", communityId, tournamentId),
@@ -526,9 +526,9 @@ proc lockHeader(conn: DbConn, communityId, id, name, date: string,
     @[textParam(communityId), textParam(id)])
   if header.isNone:
     return svNotFound
-  if header.get.get("finalized") == "t":
+  if header.get.getBool("finalized"):
     return svLocked
-  if parseInt(header.get.get("version")) != expectedVersion:
+  if header.get.getInt("version") != expectedVersion:
     return svStale
   discard conn.execUpdate(
     """update tournament.tournaments
@@ -632,8 +632,8 @@ proc patchClassic(conn: DbConn, communityId, tournamentId, matchId: string,
          where community_id = $1::uuid and tournament_id = $2::uuid
            and coalesce(match_key, id::text) = $3""",
       @[textParam(communityId), textParam(tournamentId), textParam(matchId)])
-    if sides.isNone or sides.get["pair_a_id"].isNone or
-        sides.get["pair_b_id"].isNone:
+    if sides.isNone or sides.get.getOpt("pair_a_id").isNone or
+        sides.get.getOpt("pair_b_id").isNone:
       raise newException(ValueError, "a result needs both sides to be decided")
   conn.execUpdate(
     """update tournament.matches
@@ -657,7 +657,7 @@ proc patchTeam(conn: DbConn, communityId, tournamentId, matchId: string,
     @[textParam(communityId), textParam(tournamentId), textParam(matchId)])
   if exists.isNone:
     return false
-  let matchRow = exists.get.get("id")
+  let matchRow = exists.get.getUuid("id")
   # Parse and validate everything first. Writing partai one by one meant a bad
   # third entry left the first two committed and the ETag untouched, so another
   # writer could not even see the change.
@@ -714,10 +714,10 @@ proc patchMatch*(db: Db, communityId, id, matchId: string, body: JsonNode,
     if header.isNone:
       status = ptNotFound
       return
-    if header.get.get("finalized") == "t":
+    if header.get.getBool("finalized"):
       status = ptLocked
       return
-    if parseInt(header.get.get("version")) != expectedVersion:
+    if header.get.getInt("version") != expectedVersion:
       status = ptStale
       return
     var applied = false

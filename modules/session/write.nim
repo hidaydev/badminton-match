@@ -1,4 +1,4 @@
-import std/[json, options, strutils, unicode]
+import std/[json, options, unicode]
 import db/db
 import ./lifecycle
 
@@ -73,14 +73,14 @@ proc parsePatch*(body: JsonNode): SessionPatch =
 
 proc sessionNode(row: Row): JsonNode =
   %*{
-    "id": row.get("id"),
+    "id": row.getUuid("id"),
     "title": row.get("title"),
     "date": row.get("session_date"),
     "startTime": row.get("start_time"),
-    "slotMinutes": parseInt(row.get("slot_minutes")),
+    "slotMinutes": row.getInt("slot_minutes"),
     "status": row.get("status"),
-    "version": parseInt(row.get("version")),
-    "approvedAt": if row["approved_at"].isNone: newJNull() else: %row.get("approved_at"),
+    "version": row.getInt("version"),
+    "approvedAt": if row.getOpt("approved_at").isNone: newJNull() else: %row.get("approved_at"),
   }
 
 proc classify(db: Db, communityId, sessionId: string): WriteStatus =
@@ -109,7 +109,7 @@ proc dateChangeBlocked(db: Db, communityId, sessionId: string,
        from session.sessions
        where community_id = $1::uuid and id = $2::uuid""",
     @[textParam(communityId), textParam(sessionId)])
-  row.isSome and isRated(row.get["approved_at"], row.get.get("status")) and
+  row.isSome and isRated(row.get.getOpt("approved_at"), row.get.get("status")) and
     row.get.get("session_date") != date.get
 
 proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
@@ -132,7 +132,7 @@ proc patch*(db: Db, communityId, sessionId: string, expectedVersion: int,
     if current.isNone:
       return WriteResult(status: wsNotFound)
     if not isEditable(current.get.get("status")) or
-       current.get.get("has_sets") == "t":
+       current.get.getBool("has_sets"):
       return WriteResult(status: wsPresetLocked)
     if patch.scoringRules.isNone:
       return WriteResult(status: wsInvalid)

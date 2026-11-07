@@ -57,7 +57,7 @@ proc pairPlayers(conn: DbConn, communityId: string,
        from tournament.pairs
        where community_id = $1::uuid and id = any($2::uuid[])""",
     @[textParam(communityId), textParam("{" & pairIds.join(",") & "}")]):
-    result[row.get("id")] = @[row.get("a"), row.get("b")]
+    result[row.getUuid("id")] = @[row.get("a"), row.get("b")]
 
 proc classicGames(conn: DbConn, communityId, tournamentId: string):
     seq[TournamentGame] =
@@ -82,10 +82,10 @@ proc classicGames(conn: DbConn, communityId, tournamentId: string):
       key: row.get("match_key"),
       phase: row.get("phase"),
       target: classicTarget(row.get("phase")),
-      scoreA: parseInt(row.get("score_a")),
-      scoreB: parseInt(row.get("score_b")),
-      sideA: pairs.getOrDefault(row.get("pair_a_id")),
-      sideB: pairs.getOrDefault(row.get("pair_b_id"))))
+      scoreA: row.getInt("score_a"),
+      scoreB: row.getInt("score_b"),
+      sideA: pairs.getOrDefault(row.getUuid("pair_a_id")),
+      sideB: pairs.getOrDefault(row.getUuid("pair_b_id"))))
 
 proc partaiClasses*(index: int): seq[string] =
   case index
@@ -108,8 +108,8 @@ proc teamPlayers(conn: DbConn, communityId: string,
          and player_id is not null
        order by team_id, cls""",
     @[textParam(communityId), textParam("{" & teamIds.join(",") & "}")]):
-    result.mgetOrPut(row.get("team_id"), @[]).add(
-      TeamPlayer(cls: row.get("cls"), playerId: row.get("player_id")))
+    result.mgetOrPut(row.getUuid("team_id"), @[]).add(
+      TeamPlayer(cls: row.get("cls"), playerId: row.getUuid("player_id")))
 
 proc teamSide(rosters: Table[string, seq[TeamPlayer]], teamId: string,
               partaiIndex: int): seq[string] =
@@ -149,15 +149,15 @@ proc teamGames(conn: DbConn, communityId, tournamentId: string):
     partais.mgetOrPut(partai.get("match_key"), @[]).add(partai)
   for match in matches:
     for partai in partais.getOrDefault(match.get("match_key")):
-      let index = parseInt(partai.get("partai_index"))
+      let index = partai.getInt("partai_index")
       result.add(TournamentGame(
         key: match.get("match_key") & ":" & $index,
         phase: match.get("phase"),
         target: teamTarget(match.get("phase")),
-        scoreA: parseInt(partai.get("score_a")),
-        scoreB: parseInt(partai.get("score_b")),
-        sideA: teamSide(teams, match.get("team_a_id"), index),
-        sideB: teamSide(teams, match.get("team_b_id"), index)))
+        scoreA: partai.getInt("score_a"),
+        scoreB: partai.getInt("score_b"),
+        sideA: teamSide(teams, match.getUuid("team_a_id"), index),
+        sideB: teamSide(teams, match.getUuid("team_b_id"), index)))
 
 proc gamesFor*(conn: DbConn, communityId, tournamentId,
                format: string): seq[TournamentGame] =
@@ -269,7 +269,7 @@ proc ingestFinalTournamentsConn*(conn: DbConn, communityId: string,
        where t.community_id = $1::uuid and s.finalized
        order by t.event_date, t.id""",
     @[textParam(communityId)]):
-    let part = ingestTournamentConn(conn, communityId, row.get("id"), params,
+    let part = ingestTournamentConn(conn, communityId, row.getUuid("id"), params,
       preserved)
     result.events += part.events
     result.deltas += part.deltas

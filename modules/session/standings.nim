@@ -5,7 +5,7 @@
 ## players drops the whole game. The order is the v1 one — wins, then point
 ## difference, then points for, then the player name so ties are stable.
 
-import std/[algorithm, json, options, strutils, tables]
+import std/[algorithm, json, options, tables]
 import db/db
 
 type
@@ -20,8 +20,9 @@ type
 proc sidePlayers(row: Row, side: string): seq[string] =
   for slot in ["1", "2"]:
     let key = side & slot
-    if row[key].isSome and row.get(key).len > 0:
-      result.add(row.get(key))
+    let value = row.getOpt(key)
+    if value.isSome and value.get.len > 0:
+      result.add(value.get)
 
 proc without(players, skipped: seq[string]): seq[string] =
   for player in players:
@@ -53,9 +54,9 @@ proc compute*(db: Db, communityId, sessionId: string): Option[JsonNode] =
        where p.community_id = $1::uuid and p.session_id = $2::uuid
        order by pl.canonical_name""",
     @[textParam(communityId), textParam(sessionId)]):
-    if row.get("is_absent") == "t":
+    if row.getBool("is_absent"):
       continue
-    let playerId = row.get("player_id")
+    let playerId = row.getUuid("player_id")
     rows[playerId] = Tally(playerId: playerId, name: row.get("name"))
     order.add(playerId)
 
@@ -66,7 +67,7 @@ proc compute*(db: Db, communityId, sessionId: string): Option[JsonNode] =
        where community_id = $1::uuid and session_id = $2::uuid""",
     @[textParam(communityId), textParam(sessionId)]):
     let key = row.get("round_no") & "-" & row.get("court_no")
-    skips.mgetOrPut(key, @[]).add(row.get("player_id"))
+    skips.mgetOrPut(key, @[]).add(row.getUuid("player_id"))
 
   for game in db.query(
     """select round_no, court_no, winner, points_a, points_b,
@@ -93,8 +94,8 @@ proc compute*(db: Db, communityId, sessionId: string): Option[JsonNode] =
     if activeA.len == 0 and activeB.len == 0:
       continue
     let aWon = game.get("winner") == "a"
-    let pointsA = parseInt(game.get("points_a"))
-    let pointsB = parseInt(game.get("points_b"))
+    let pointsA = game.getInt("points_a")
+    let pointsB = game.getInt("points_b")
     for playerId in activeA:
       if not rows.hasKey(playerId):
         continue

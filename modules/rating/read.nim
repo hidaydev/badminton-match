@@ -69,7 +69,7 @@ proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
          and (cardinality($3::uuid[]) = 0 or p.id = any($3::uuid[]))""",
     @[textParam(query.communityId), textParam(query.tier),
       textParam(uuidArray(query.playerIds))]):
-    let playerId = row.get("player_id")
+    let playerId = row.getUuid("player_id")
     if not projections.hasKey(playerId):
       continue
     let projected = projections[playerId]
@@ -85,9 +85,9 @@ proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
       name: row.get("canonical_name"),
       tier: row.get("tier"),
       points: projected.points,
-      games: parseInt(row.get("games_played")),
-      wins: parseInt(row.get("wins")),
-      losses: parseInt(row.get("losses")),
+      games: row.getInt("games_played"),
+      wins: row.getInt("wins"),
+      losses: row.getInt("losses"),
       countedEntries: projected.counted,
       entriesAvailable: projected.available,
       thinEvidence: projected.thinEvidence,
@@ -124,7 +124,7 @@ proc boardRows(db: Db, query: BoardQuery): seq[BoardRow] =
        join last on s.taken_on = last.taken_on
        where s.community_id = $1::uuid""",
     @[textParam(query.communityId), textParam(query.asOf)]):
-    previous[row.get("player_id")] = parseInt(row.get("prev_rank"))
+    previous[row.getUuid("player_id")] = row.getInt("prev_rank")
   for row in result.mitems:
     if previous.hasKey(row.playerId):
       let before = previous[row.playerId]
@@ -143,7 +143,7 @@ proc latestEventDate*(db: Db, communityId: string): string =
        where community_id = $1::uuid
        having max(local_date) is not null""",
     @[textParam(communityId)])
-  if row.isSome and row.get["day"].isSome: row.get.get("day") else: ""
+  if row.isSome: row.get.getOpt("day").get("") else: ""
 
 proc board*(db: Db, query: BoardQuery): seq[BoardRow] =
   boardRows(db, query)
@@ -193,8 +193,8 @@ proc snapshotRows*(db: Db, communityId, asOf: string): seq[BoardRow] =
        where s.community_id = $1::uuid and s.taken_on = $2::date
        order by s.rating desc, p.canonical_name asc""",
     @[textParam(communityId), textParam(asOf)]):
-    result.add(BoardRow(playerId: row.get("player_id"), name: row.get("canonical_name"),
-      tier: row.get("tier"), points: parseInt(row.get("points"))))
+    result.add(BoardRow(playerId: row.getUuid("player_id"), name: row.get("canonical_name"),
+      tier: row.get("tier"), points: row.getInt("points")))
 
 const playedGameFilter =
   """g.status = 'played' and g.winner <> ''"""
@@ -274,8 +274,8 @@ proc playerHistory(db: Db, communityId, playerId: string,
         if row.get("b1_name").len > 0: teammates.add(%row.get("b1_name"))
       for name in [row.get("a1_name"), row.get("a2_name")]:
         if name.len > 0: opponents.add(%name)
-    let pointsA = parseInt(row.get("points_a"))
-    let pointsB = parseInt(row.get("points_b"))
+    let pointsA = row.getInt("points_a")
+    let pointsB = row.getInt("points_b")
     let won = if onA: row.get("winner") == "a" else: row.get("winner") == "b"
     result.add(%*{
       "date": row.get("session_date"),
@@ -304,10 +304,10 @@ proc playerSessions(db: Db, communityId, playerId: string,
        limit $3""",
     @[textParam(communityId), textParam(playerId), intParam(limit.int64)]):
     result.add(%*{
-      "id": row.get("id"),
+      "id": row.getUuid("id"),
       "date": row.get("session_date"),
       "title": row.get("title"),
-      "absent": row.get("is_absent") == "t",
+      "absent": row.getBool("is_absent"),
     })
 
 proc playerSocial(db: Db, communityId, playerId: string,
@@ -393,9 +393,9 @@ proc playerSocial(db: Db, communityId, playerId: string,
   for row in db.query(sql, @[textParam(communityId), textParam(playerId)]):
     result.add(%*{
       "name": row.get("name"),
-      "count": parseInt(row.get("count")),
-      "wins": parseInt(row.get("wins")),
-      "losses": parseInt(row.get("losses")),
+      "count": row.getInt("count"),
+      "wins": row.getInt("wins"),
+      "losses": row.getInt("losses"),
     })
 
 type
@@ -508,8 +508,8 @@ proc tournamentPartners(db: Db, communityId, playerId: string,
        group by p.canonical_name"""
   var tallies = initTable[string, CareerTally]()
   for row in db.query(sql, @[textParam(communityId), textParam(playerId)]):
-    tallies[row.get("name")] = (count: parseInt(row.get("count")),
-      wins: parseInt(row.get("wins")))
+    tallies[row.get("name")] = (count: row.getInt("count"),
+      wins: row.getInt("wins"))
   var members: seq[TeamMembership] = @[]
   var seenTeams = initTable[string, bool]()
   for row in db.query(
@@ -523,7 +523,7 @@ proc tournamentPartners(db: Db, communityId, playerId: string,
     let partaiIndex = partaiIndexOf(cls.get)
     if partaiIndex < 0:
       continue
-    let teamId = row.get("team_id")
+    let teamId = row.getUuid("team_id")
     if seenTeams.hasKey(teamId):
       continue
     seenTeams[teamId] = true
@@ -554,16 +554,16 @@ proc tournamentPartners(db: Db, communityId, playerId: string,
              and (tm.team_a_id = $2::uuid or tm.team_b_id = $2::uuid)
              and part.score_a is not null and part.score_b is not null""",
         @[textParam(communityId), textParam(teamId)]):
-        let teamA = row.get("team_a_id")
-        let teamB = row.get("team_b_id")
+        let teamA = row.getUuid("team_a_id")
+        let teamB = row.getUuid("team_b_id")
         for side in [teamA, teamB]:
           if not rosterIds.hasKey(side):
             rosterIds[side] = true
             rosterOrder.add(side)
         fixtures.add(TeamFixture(teamA: teamA, teamB: teamB,
-          partaiIndex: parseInt(row.get("partai_index")),
-          scoreA: parseInt(row.get("score_a")),
-          scoreB: parseInt(row.get("score_b"))))
+          partaiIndex: row.getInt("partai_index"),
+          scoreA: row.getInt("score_a"),
+          scoreB: row.getInt("score_b")))
     var rosters = initTable[string, seq[TeamRosterEntry]]()
     for row in db.query(
       """select tp.team_id::text as team_id, tp.cls, p.canonical_name
@@ -576,7 +576,7 @@ proc tournamentPartners(db: Db, communityId, playerId: string,
       let cls = parseTeamClass(row.get("cls"))
       if cls.isNone:
         continue
-      rosters.mgetOrPut(row.get("team_id"), newSeq[TeamRosterEntry]()).add(
+      rosters.mgetOrPut(row.getUuid("team_id"), newSeq[TeamRosterEntry]()).add(
         TeamRosterEntry(cls: cls.get, name: row.get("canonical_name")))
     for member in members:
       let pair = PartaiClasses[member.partaiIndex]
@@ -654,9 +654,9 @@ proc tournamentStats(db: Db, communityId, playerId: string): JsonNode =
               count(*) filter (where won)::int as wins
        from classic group by tournament_id""",
     @[textParam(communityId), textParam(playerId)]):
-    let id = row.get("tournament_id")
-    games[id] = parseInt(row.get("games"))
-    wins[id] = parseInt(row.get("wins"))
+    let id = row.getUuid("tournament_id")
+    games[id] = row.getInt("games")
+    wins[id] = row.getInt("wins")
   for row in db.query(
     """with team_matches as (
          select distinct tm.id, tm.community_id, tm.tournament_id,
@@ -693,9 +693,9 @@ proc tournamentStats(db: Db, communityId, playerId: string): JsonNode =
        where a_wins + b_wins > 0
        group by tournament_id""",
     @[textParam(communityId), textParam(playerId)]):
-    let id = row.get("tournament_id")
-    games[id] = games.getOrDefault(id) + parseInt(row.get("games"))
-    wins[id] = wins.getOrDefault(id) + parseInt(row.get("wins"))
+    let id = row.getUuid("tournament_id")
+    games[id] = games.getOrDefault(id) + row.getInt("games")
+    wins[id] = wins.getOrDefault(id) + row.getInt("wins")
   var items = newJArray()
   var totalGames = 0
   var totalWins = 0
@@ -711,7 +711,7 @@ proc tournamentStats(db: Db, communityId, playerId: string): JsonNode =
          where community_id = $1::uuid and id = any($2::uuid[])
          order by event_date desc, name asc""",
       @[textParam(communityId), textParam(uuidArray(ids))]):
-      let id = row.get("id")
+      let id = row.getUuid("id")
       let count = games.getOrDefault(id)
       let won = wins.getOrDefault(id)
       items.add(%*{
@@ -750,13 +750,13 @@ proc stats*(db: Db, communityId, playerId: string): Option[JsonNode] =
   if row.isNone:
     return none(JsonNode)
   some(%*{
-    "playerId": row.get.get("id"),
+    "playerId": row.get.getUuid("id"),
     "name": row.get.get("canonical_name"),
-    "tier": if row.get["tier"].isNone: newJNull() else: %row.get.get("tier"),
+    "tier": if row.get.getOpt("tier").isNone: newJNull() else: %row.get.get("tier"),
     "gender": row.get.get("gender"),
-    "games": parseInt(row.get.get("games_played")),
-    "wins": parseInt(row.get.get("wins")),
-    "losses": parseInt(row.get.get("losses")),
+    "games": row.get.getInt("games_played"),
+    "wins": row.get.getInt("wins"),
+    "losses": row.get.getInt("losses"),
     "history": playerHistory(db, communityId, playerId),
     "sessions": playerSessions(db, communityId, playerId),
     "topPartners": playerSocial(db, communityId, playerId, false),
