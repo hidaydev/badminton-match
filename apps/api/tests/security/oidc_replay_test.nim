@@ -6,7 +6,7 @@ import ../../src/app
 import account/infrastructure/oidc
 import platform/config/store
 import share/crypto
-import helpers
+import ../http_support
 
 const
   baseUrl = "http://127.0.0.1:18103"

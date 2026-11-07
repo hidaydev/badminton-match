@@ -1,7 +1,7 @@
 import std/[httpclient, json, strutils, unittest]
 import db/db
 import mummy
-import helpers
+import ../http_support
 
 const
   baseUrl = "http://127.0.0.1:18105"

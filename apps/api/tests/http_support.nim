@@ -1,12 +1,19 @@
-import std/[httpclient, json, options, os, strutils, unittest, uri]
+import std/[httpclient, json, net, options, os, strutils, unittest, uri]
 import mummy
 import db/db
 import sha256
-import ../../src/app
+import ../src/app
+import ../src/live
 import account/infrastructure/oidc
 import account/infrastructure/session_store
 import platform/config/store
 import share/crypto
+
+# Callers write `Port(18094)` in their const block and pass `HttpGet`/`HttpPost`
+# to `call`, so both symbols travel with the harness instead of every suite
+# importing the client itself.
+export net.Port
+export httpclient
 
 const
   allowedOrigin* = "http://127.0.0.1:5173"
@@ -105,9 +112,14 @@ proc expectProblem*(response: HttpResult, status: int, code = "") =
   if code.len > 0:
     check body["code"].getStr() == code
 
-proc startServer*(app: App, port: Port, baseUrl: string) =
+proc startServer*(app: App, port: Port, baseUrl: string,
+                  websocket = false) =
+  ## `websocket` keeps the live-channel suite on the same harness: it needs the
+  ## WebSocket handler registered next to the HTTP one.
   install(app)
-  let server = newServer(handler(), workerThreads = 4)
+  let server =
+    if websocket: newServer(handler(), websocketHandler(), workerThreads = 4)
+    else: newServer(handler(), workerThreads = 4)
   var thread: Thread[ServeArgs]
   createThread(thread, serveThread, ServeArgs(server: server, port: port))
   var up = false
@@ -121,7 +133,7 @@ proc startServer*(app: App, port: Port, baseUrl: string) =
     except CatchableError:
       discard
     sleep(50)
-  doAssert up, "api did not start on " & baseUrl
+  doAssert up, "api did not start on port " & $uint16(port) & " (" & baseUrl & ")"
 
 proc newTestApp*(db: Db): App =
   newApp(db, OidcConfig(), loadKeyring(keysJson, "1"), newConfigCache(db))

@@ -4,7 +4,7 @@ import mummy
 import community/infrastructure/community_store
 import share/crypto
 import share/store as shareStore
-import helpers
+import ../http_support
 
 const
   baseUrl = "http://127.0.0.1:18101"

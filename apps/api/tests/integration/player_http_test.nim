@@ -1,52 +1,20 @@
-import std/[httpclient, json, options, os, strutils, unittest]
-import mummy
+import std/[json, options, strutils, unittest]
 import db/db
 import sha256
-import ../../src/app
-import account/infrastructure/oidc
-import account/infrastructure/session_store
 import community/infrastructure/community_store
-import platform/config/store
-import share/crypto
+import ../http_support
 
 const
   baseUrl = "http://127.0.0.1:18095"
   port = Port(18095)
-  keysJson = """{"1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}"""
   adminEmail = "player-admin@example.com"
   hostEmail = "player-host@example.com"
   memberEmail = "player-member@example.com"
-
-type
-  ServeArgs = object
-    server: Server
-    port: Port
-
-proc serveThread(args: ServeArgs) {.thread.} =
-  try:
-    args.server.serve(args.port, "127.0.0.1")
-  except MummyError:
-    discard
 
 var
   database: Db
   communityId, otherId: string
   adminCookie, hostCookie, memberCookie: string
-
-proc dsn(): string = getEnv("MAJADU_PG_DSN")
-
-proc call(verb: HttpMethod, path, cookie = "", body = ""): (int, string) =
-  let client = newHttpClient(timeout = 5000)
-  defer: client.close()
-  var headers = newHttpHeaders()
-  headers["Origin"] = "http://127.0.0.1:5173"
-  if cookie.len > 0:
-    headers["Cookie"] = "majadu_session=" & cookie
-  if body.len > 0:
-    headers["Content-Type"] = "application/json"
-  let response = client.request(baseUrl & path, httpMethod = verb,
-    headers = headers, body = body)
-  (response.code.int, response.body)
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
@@ -83,172 +51,164 @@ proc bootstrap() =
   let adminId = member("player-admin", adminEmail, "admin")
   let hostId = member("player-host", hostEmail, "host")
   let memberId = member("player-member", memberEmail, "member")
-  adminCookie = createSession(database, adminId, 30)
-  hostCookie = createSession(database, hostId, 30)
-  memberCookie = createSession(database, memberId, 30)
+  adminCookie = cookieFor(database, adminId)
+  hostCookie = cookieFor(database, hostId)
+  memberCookie = cookieFor(database, memberId)
 
-  install(newApp(database, OidcConfig(), loadKeyring(keysJson, "1"),
-    newConfigCache(database)))
-  let server = newServer(handler(), workerThreads = 4)
-  var thread: Thread[ServeArgs]
-  createThread(thread, serveThread, ServeArgs(server: server, port: port))
-  var up = false
-  for _ in 0 ..< 200:
-    try:
-      let client = newHttpClient(timeout = 1000)
-      defer: client.close()
-      if client.get(baseUrl & "/healthz").code.int == 200:
-        up = true
-        break
-    except CatchableError:
-      discard
-    sleep(50)
-  doAssert up, "api did not start on port 18095"
+  startServer(newTestApp(database), port, baseUrl)
 
 bootstrap()
 
 suite "player HTTP":
   test "members read, hosts write and only admins delete":
-    let (cannotCreate, _) = call(HttpPost, "/c/player-club/players", memberCookie,
+    let cannotCreate = call(baseUrl, HttpPost, "/c/player-club/players", memberCookie,
       """{"name":"Ani","gender":"F"}""")
-    check cannotCreate == 403
-    let (created, body) = call(HttpPost, "/c/player-club/players", hostCookie,
+    expectProblem(cannotCreate, 403)
+    let created = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"  Ani   Lestari ","gender":"F","tier":"B+"}""")
-    check created == 201
+    let body = created.body
+    expectStatus(created, 201)
     let player = parseJson(body)
     check player["name"].getStr() == "Ani Lestari"
     check player["tier"].getStr() == "B+"
     let playerId = player["id"].getStr()
-    let (listed, listBody) = call(HttpGet, "/c/player-club/players", memberCookie)
-    check listed == 200
+    let listed = call(baseUrl, HttpGet, "/c/player-club/players", memberCookie)
+    let listBody = listed.body
+    expectStatus(listed, 200)
     check parseJson(listBody)["items"].len == 1
-    let (cannotDelete, _) = call(HttpDelete, "/c/player-club/players/" & playerId,
+    let cannotDelete = call(baseUrl, HttpDelete, "/c/player-club/players/" & playerId,
       hostCookie)
-    check cannotDelete == 403
-    let (deleted, _) = call(HttpDelete, "/c/player-club/players/" & playerId,
+    expectProblem(cannotDelete, 403)
+    let deleted = call(baseUrl, HttpDelete, "/c/player-club/players/" & playerId,
       adminCookie)
-    check deleted == 204
-    let (gone, _) = call(HttpGet, "/c/player-club/players/" & playerId, adminCookie)
-    check gone == 404
+    expectStatus(deleted, 204)
+    let gone = call(baseUrl, HttpGet, "/c/player-club/players/" & playerId, adminCookie)
+    expectProblem(gone, 404)
 
   test "a duplicate name is a conflict, not a second row":
-    let (first, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+    let first = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Budi","gender":"M"}""")
-    check first == 201
-    let (duplicate, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+    expectStatus(first, 201)
+    let duplicate = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"budi","gender":"M"}""")
-    check duplicate == 409
+    expectProblem(duplicate, 409)
 
   test "an invalid tier or gender is rejected":
-    let (badTier, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+    let badTier = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Cakra","tier":"Z"}""")
-    check badTier == 400
-    let (badGender, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+    expectProblem(badTier, 400)
+    let badGender = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Cakra","gender":"X"}""")
-    check badGender == 400
-    let (noName, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+    expectProblem(badGender, 400)
+    let noName = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"   "}""")
-    check noName == 400
+    expectProblem(noName, 400)
 
   test "tier is sticky unless the patch sets or clears it":
-    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
-      """{"name":"Dewi","gender":"F","tier":"A"}""")
+    let body = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Dewi","gender":"F","tier":"A"}""").body
     let playerId = parseJson(body)["id"].getStr()
-    let (renamed, renamedBody) = call(HttpPatch,
+    let renamed = call(baseUrl, HttpPatch,
       "/c/player-club/players/" & playerId, hostCookie, """{"name":"Dewi S"}""")
-    check renamed == 200
+    let renamedBody = renamed.body
+    expectStatus(renamed, 200)
     check parseJson(renamedBody)["tier"].getStr() == "A"
-    let (cleared, clearedBody) = call(HttpPatch,
+    let cleared = call(baseUrl, HttpPatch,
       "/c/player-club/players/" & playerId, hostCookie, """{"tier":null}""")
-    check cleared == 200
+    let clearedBody = cleared.body
+    expectStatus(cleared, 200)
     check parseJson(clearedBody)["tier"].kind == JNull
 
   test "another community cannot see or mutate the player":
-    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
-      """{"name":"Eka","gender":"F"}""")
+    let body = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Eka","gender":"F"}""").body
     let playerId = parseJson(body)["id"].getStr()
-    let (get, _) = call(HttpGet, "/c/player-other/players/" & playerId, adminCookie)
-    check get == 404
-    let (patch, _) = call(HttpPatch, "/c/player-other/players/" & playerId,
+    let get = call(baseUrl, HttpGet, "/c/player-other/players/" & playerId, adminCookie)
+    expectProblem(get, 404)
+    let patch = call(baseUrl, HttpPatch, "/c/player-other/players/" & playerId,
       adminCookie, """{"name":"Stolen"}""")
-    check patch == 404
-    let (delete, _) = call(HttpDelete, "/c/player-other/players/" & playerId,
+    expectProblem(patch, 404)
+    let delete = call(baseUrl, HttpDelete, "/c/player-other/players/" & playerId,
       adminCookie)
-    check delete == 404
+    expectProblem(delete, 404)
 
   test "a patch rejects a name that is not a string, blank or too long":
-    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
-      """{"name":"Farah","gender":"F"}""")
+    let body = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Farah","gender":"F"}""").body
     let playerId = parseJson(body)["id"].getStr()
     for bad in ["""{"name":123}""", """{"name":"   "}""",
                 """{"name":""" & "y".repeat(81) & """}"""]:
-      let (status, _) = call(HttpPatch,
+      let status = call(baseUrl, HttpPatch,
         "/c/player-club/players/" & playerId, hostCookie, bad)
-      check status == 400
-    let (read, after) = call(HttpGet, "/c/player-club/players/" & playerId,
+      expectProblem(status, 400)
+    let read = call(baseUrl, HttpGet, "/c/player-club/players/" & playerId,
       memberCookie)
-    check read == 200
+    let after = read.body
+    expectStatus(read, 200)
     check parseJson(after)["name"].getStr() == "Farah"
 
   test "achievements and claims answer 404 for a player of another community":
     let unknown = "11111111-1111-1111-1111-111111111111"
     for suffix in ["/achievements", "/claims"]:
-      let (status, _) = call(HttpGet,
+      let status = call(baseUrl, HttpGet,
         "/c/player-club/players/" & unknown & suffix, memberCookie)
-      check status == 404
+      expectProblem(status, 404)
 
   test "aliases are stored, replaced and returned":
-    let (created, body) = call(HttpPost, "/c/player-club/players", hostCookie,
+    let created = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Fajar","gender":"M","aliases":["  Fajar  A ","Fajar"]}""")
-    check created == 201
+    let body = created.body
+    expectStatus(created, 201)
     let player = parseJson(body)
     check player["aliases"].len == 2
     let playerId = player["id"].getStr()
-    let (_, gotBody) = call(HttpGet, "/c/player-club/players/" & playerId, memberCookie)
+    let gotBody = call(baseUrl, HttpGet, "/c/player-club/players/" & playerId, memberCookie).body
     check parseJson(gotBody)["aliases"][0].getStr() == "Fajar"
-    let (patched, patchedBody) = call(HttpPatch,
+    let patched = call(baseUrl, HttpPatch,
       "/c/player-club/players/" & playerId, hostCookie,
       """{"aliases":["Fajar","F A"]}""")
-    check patched == 200
+    let patchedBody = patched.body
+    expectStatus(patched, 200)
     check parseJson(patchedBody)["aliases"].len == 2
-    let (emptied, emptiedBody) = call(HttpPatch,
+    let emptied = call(baseUrl, HttpPatch,
       "/c/player-club/players/" & playerId, hostCookie, """{"aliases":[]}""")
-    check emptied == 200
+    let emptiedBody = emptied.body
+    expectStatus(emptied, 200)
     check parseJson(emptiedBody)["aliases"].len == 0
 
   test "an alias cannot point at two players":
-    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
-      """{"name":"Gita","gender":"F","aliases":["Gita G"]}""")
+    let body = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Gita","gender":"F","aliases":["Gita G"]}""").body
     let playerId = parseJson(body)["id"].getStr()
-    let (taken, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+    let taken = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Gita Two","gender":"F","aliases":["gita g"]}""")
-    check taken == 409
-    let (_, indraBody) = call(HttpPost, "/c/player-club/players", hostCookie,
-      """{"name":"Indra","gender":"M","aliases":["Indra I"]}""")
+    expectProblem(taken, 409)
+    let indraBody = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Indra","gender":"M","aliases":["Indra I"]}""").body
     check parseJson(indraBody)["aliases"][0].getStr() == "Indra I"
-    let (renameTaken, _) = call(HttpPatch, "/c/player-club/players/" & playerId,
+    let renameTaken = call(baseUrl, HttpPatch, "/c/player-club/players/" & playerId,
       hostCookie, """{"aliases":["Indra I"]}""")
-    check renameTaken == 409
-    let (_, afterBody) = call(HttpGet, "/c/player-club/players/" & playerId, memberCookie)
+    expectProblem(renameTaken, 409)
+    let afterBody = call(baseUrl, HttpGet, "/c/player-club/players/" & playerId, memberCookie).body
     check parseJson(afterBody)["aliases"][0].getStr() == "Gita G"
 
   test "a blank or repeated alias is rejected":
-    let (blank, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+    let blank = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Hana","aliases":["   "]}""")
-    check blank == 400
-    let (repeated, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+    expectProblem(blank, 400)
+    let repeated = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Hana Two","aliases":["Hana","hana"]}""")
-    check repeated == 400
-    let (wrongType, _) = call(HttpPost, "/c/player-club/players", hostCookie,
+    expectProblem(repeated, 400)
+    let wrongType = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Hana Three","aliases":"hana"}""")
-    check wrongType == 400
+    expectProblem(wrongType, 400)
 
   test "an admin merges a duplicate into the target and moves its rows":
-    let (_, targetBody) = call(HttpPost, "/c/player-club/players", hostCookie,
-      """{"name":"Iwan","gender":"M","aliases":["Iwan S"]}""")
+    let targetBody = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Iwan","gender":"M","aliases":["Iwan S"]}""").body
     let targetId = parseJson(targetBody)["id"].getStr()
-    let (_, sourceBody) = call(HttpPost, "/c/player-club/players", hostCookie,
-      """{"name":"Iwan Setiawan","gender":"M","aliases":["Iwan Set","Iwan S2"]}""")
+    let sourceBody = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Iwan Setiawan","gender":"M","aliases":["Iwan Set","Iwan S2"]}""").body
     let sourceId = parseJson(sourceBody)["id"].getStr()
     discard database.execUpdate(
       """insert into rating.player_state
@@ -256,24 +216,25 @@ suite "player HTTP":
          values ($1::uuid, $2::uuid, 2, 1, 1)""",
       @[textParam(communityId), textParam(sourceId)])
 
-    let (byHost, _) = call(HttpPost, "/c/player-club/players/" & targetId & "/merge",
+    let byHost = call(baseUrl, HttpPost, "/c/player-club/players/" & targetId & "/merge",
       hostCookie, """{"sourcePlayerId":"""" & sourceId & """"}""")
-    check byHost == 403
-    let (byAdmin, merged) = call(HttpPost,
+    expectProblem(byHost, 403)
+    let byAdmin = call(baseUrl, HttpPost,
       "/c/player-club/players/" & targetId & "/merge", adminCookie,
       """{"sourcePlayerId":"""" & sourceId & """"}""")
-    check byAdmin == 200
+    let merged = byAdmin.body
+    expectStatus(byAdmin, 200)
     let result = parseJson(merged)
     check result["targetPlayerId"].getStr() == targetId
     check result["sourcePlayerId"].getStr() == sourceId
     check result["aliasesMoved"].getInt() == 2
     check result["ratingStateMoved"].getInt() == 1
 
-    let (_, gotBody) = call(HttpGet, "/c/player-club/players/" & targetId, memberCookie)
+    let gotBody = call(baseUrl, HttpGet, "/c/player-club/players/" & targetId, memberCookie).body
     let aliases = parseJson(gotBody)["aliases"]
     check aliases.len == 3
-    let (gone, _) = call(HttpGet, "/c/player-club/players/" & sourceId, memberCookie)
-    check gone == 404
+    let gone = call(baseUrl, HttpGet, "/c/player-club/players/" & sourceId, memberCookie)
+    expectProblem(gone, 404)
     let logged = database.queryOne(
       """select source_id, target_id, rows_moved from player.merge_log
          where community_id = $1::uuid order by created_at desc limit 1""",
@@ -289,43 +250,45 @@ suite "player HTTP":
     check audited.get.get("n") == "1"
 
   test "merging the same player or an unknown player fails":
-    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
-      """{"name":"Joko","gender":"M"}""")
+    let body = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Joko","gender":"M"}""").body
     let playerId = parseJson(body)["id"].getStr()
-    let (same, _) = call(HttpPost, "/c/player-club/players/" & playerId & "/merge",
+    let same = call(baseUrl, HttpPost, "/c/player-club/players/" & playerId & "/merge",
       adminCookie, """{"sourcePlayerId":"""" & playerId & """"}""")
-    check same == 400
-    let (unknown, _) = call(HttpPost, "/c/player-club/players/" & playerId & "/merge",
+    expectProblem(same, 400)
+    let unknown = call(baseUrl, HttpPost, "/c/player-club/players/" & playerId & "/merge",
       adminCookie, """{"sourcePlayerId":"00000000-0000-0000-0000-000000000000"}""")
-    check unknown == 404
-    let (noBody, _) = call(HttpPost, "/c/player-club/players/" & playerId & "/merge",
+    expectProblem(unknown, 404)
+    let noBody = call(baseUrl, HttpPost, "/c/player-club/players/" & playerId & "/merge",
       adminCookie, """{}""")
-    check noBody == 400
+    expectProblem(noBody, 400)
 
   test "members read a player's achievement shelf":
-    let (_, body) = call(HttpPost, "/c/player-club/players", hostCookie,
-      """{"name":"Kiki","gender":"F"}""")
+    let body = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
+      """{"name":"Kiki","gender":"F"}""").body
     let playerId = parseJson(body)["id"].getStr()
-    let (status, shelf) = call(HttpGet,
+    let status = call(baseUrl, HttpGet,
       "/c/player-club/players/" & playerId & "/achievements", memberCookie)
-    check status == 200
+    let shelf = status.body
+    expectStatus(status, 200)
     check parseJson(shelf)["items"].kind == JArray
-    let (missing, _) = call(HttpGet,
+    let missing = call(baseUrl, HttpGet,
       "/c/player-other/players/" & playerId & "/achievements", adminCookie)
-    check missing == 404
+    expectProblem(missing, 404)
 
   test "a plus in the player tier filter survives form decoding":
-    discard call(HttpPost, "/c/player-club/players", hostCookie,
+    discard call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Citra","gender":"F","tier":"B+"}""")
-    discard call(HttpPost, "/c/player-club/players", hostCookie,
+    discard call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Dodi","gender":"M","tier":"B"}""")
-    let (status, body) = call(HttpGet, "/c/player-club/players?tier=B+",
+    let status = call(baseUrl, HttpGet, "/c/player-club/players?tier=B+",
       memberCookie)
-    check status == 200
+    let body = status.body
+    expectStatus(status, 200)
     let items = parseJson(body)["items"]
     check items.len == 1
     check items[0]["name"].getStr() == "Citra"
     # An unknown tier is ignored, not an empty page.
-    let (_, unfiltered) = call(HttpGet, "/c/player-club/players?tier=Z",
-      memberCookie)
+    let unfiltered = call(baseUrl, HttpGet, "/c/player-club/players?tier=Z",
+      memberCookie).body
     check parseJson(unfiltered)["items"].len >= 2

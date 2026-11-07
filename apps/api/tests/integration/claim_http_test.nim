@@ -1,50 +1,17 @@
-import std/[httpclient, json, options, os, strutils, unittest]
-import mummy
+import std/[json, options, strutils, unittest]
 import db/db
-import sha256
-import ../../src/app
-import account/infrastructure/oidc
-import account/infrastructure/session_store
 import community/infrastructure/community_store
-import platform/config/store
-import share/crypto
+import ../http_support
 
 const
   baseUrl = "http://127.0.0.1:18096"
   port = Port(18096)
-  keysJson = """{"1":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}"""
-
-type
-  ServeArgs = object
-    server: Server
-    port: Port
-
-proc serveThread(args: ServeArgs) {.thread.} =
-  try:
-    args.server.serve(args.port, "127.0.0.1")
-  except MummyError:
-    discard
 
 var
   database: Db
   communityId: string
   adminCookie, admin2Cookie, memberCookie, otherCookie: string
   adminId: string
-
-proc dsn(): string = getEnv("MAJADU_PG_DSN")
-
-proc call(verb: HttpMethod, path, cookie = "", body = ""): (int, string) =
-  let client = newHttpClient(timeout = 5000)
-  defer: client.close()
-  var headers = newHttpHeaders()
-  headers["Origin"] = "http://127.0.0.1:5173"
-  if cookie.len > 0:
-    headers["Cookie"] = "majadu_session=" & cookie
-  if body.len > 0:
-    headers["Content-Type"] = "application/json"
-  let response = client.request(baseUrl & path, httpMethod = verb,
-    headers = headers, body = body)
-  (response.code.int, response.body)
 
 proc freshMember(sub: string): string =
   let id = database.queryOne(
@@ -57,13 +24,13 @@ proc freshMember(sub: string): string =
        values ($1::uuid, $2::uuid, 'member')
        on conflict (community_id, user_id) do nothing""",
     @[textParam(communityId), textParam(id)])
-  createSession(database, id, 30)
+  cookieFor(database, id)
 
 proc player(name: string): string =
-  let (status, body) = call(HttpPost, "/c/claim-club/players", adminCookie,
+  let response = call(baseUrl, HttpPost, "/c/claim-club/players", adminCookie,
     "{\"name\":\"" & name & "\"}")
-  doAssert status == 201, body
-  parseJson(body)["id"].getStr()
+  doAssert response.status == 201, response.body
+  parseJson(response.body)["id"].getStr()
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
@@ -96,161 +63,150 @@ proc bootstrap() =
   let admin2Id = member("claim-admin2", "admin")
   let memberId = member("claim-member", "member")
   let otherId = member("claim-other", "member")
-  adminCookie = createSession(database, adminId, 30)
-  admin2Cookie = createSession(database, admin2Id, 30)
-  memberCookie = createSession(database, memberId, 30)
-  otherCookie = createSession(database, otherId, 30)
+  adminCookie = cookieFor(database, adminId)
+  admin2Cookie = cookieFor(database, admin2Id)
+  memberCookie = cookieFor(database, memberId)
+  otherCookie = cookieFor(database, otherId)
 
-  install(newApp(database, OidcConfig(), loadKeyring(keysJson, "1"),
-    newConfigCache(database)))
-  let server = newServer(handler(), workerThreads = 4)
-  var thread: Thread[ServeArgs]
-  createThread(thread, serveThread, ServeArgs(server: server, port: port))
-  var up = false
-  for _ in 0 ..< 200:
-    try:
-      let client = newHttpClient(timeout = 1000)
-      defer: client.close()
-      if client.get(baseUrl & "/healthz").code.int == 200:
-        up = true
-        break
-    except CatchableError:
-      discard
-    sleep(50)
-  doAssert up, "api did not start on port 18096"
+  startServer(newTestApp(database), port, baseUrl)
 
 bootstrap()
 
 suite "claim HTTP":
   test "a claim is pending, single while pending, and decided by an admin":
     let playerId = player("Klaim Satu")
-    let (submitted, _) = call(HttpPost,
+    let submitted = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & playerId & "/claims", memberCookie)
-    check submitted == 201
-    let (duplicate, _) = call(HttpPost,
+    expectStatus(submitted, 201)
+    let duplicate = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & playerId & "/claims", otherCookie)
-    check duplicate == 409
-    let (list, listBody) = call(HttpGet,
+    expectProblem(duplicate, 409)
+    let list = call(baseUrl, HttpGet,
       "/c/claim-club/players/" & playerId & "/claims", adminCookie)
-    check list == 200
+    let listBody = list.body
+    expectStatus(list, 200)
     let claimId = parseJson(listBody)["items"][0]["id"].getStr()
-    let (byMember, _) = call(HttpPatch,
+    let byMember = call(baseUrl, HttpPatch,
       "/c/claim-club/players/" & playerId & "/claims/" & claimId, memberCookie,
       """{"decision":"approve"}""")
-    check byMember == 403
-    let (approved, _) = call(HttpPatch,
+    expectProblem(byMember, 403)
+    let approved = call(baseUrl, HttpPatch,
       "/c/claim-club/players/" & playerId & "/claims/" & claimId, adminCookie,
       """{"decision":"approve"}""")
-    check approved == 200
-    let (bound, boundBody) = call(HttpGet,
+    expectStatus(approved, 200)
+    let bound = call(baseUrl, HttpGet,
       "/c/claim-club/players/" & playerId, adminCookie)
-    check bound == 200
+    let boundBody = bound.body
+    expectStatus(bound, 200)
     check parseJson(boundBody)["userId"].kind == JString
 
   test "an admin cannot decide a claim they filed":
     let playerId = player("Klaim Dua")
-    let (submitted, _) = call(HttpPost,
+    let submitted = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & playerId & "/claims", admin2Cookie)
-    check submitted == 201
-    let (_, listBody) = call(HttpGet,
-      "/c/claim-club/players/" & playerId & "/claims", adminCookie)
+    expectStatus(submitted, 201)
+    let listBody = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & playerId & "/claims", adminCookie).body
     let claimId = parseJson(listBody)["items"][0]["id"].getStr()
-    let (selfDecision, _) = call(HttpPatch,
+    let selfDecision = call(baseUrl, HttpPatch,
       "/c/claim-club/players/" & playerId & "/claims/" & claimId, admin2Cookie,
       """{"decision":"approve"}""")
-    check selfDecision == 403
+    expectProblem(selfDecision, 403)
 
   test "only one pending claim exists per player":
     let playerId = player("Klaim Tiga")
     let first = freshMember("claim-tiga-a")
     let second = freshMember("claim-tiga-b")
-    let (accepted, _) = call(HttpPost,
+    let accepted = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & playerId & "/claims", first)
-    check accepted == 201
-    let (queuedBehind, _) = call(HttpPost,
+    expectStatus(accepted, 201)
+    let queuedBehind = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & playerId & "/claims", second)
-    check queuedBehind == 409
-    let (_, listBody) = call(HttpGet,
-      "/c/claim-club/players/" & playerId & "/claims", adminCookie)
+    expectProblem(queuedBehind, 409)
+    let listBody = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & playerId & "/claims", adminCookie).body
     let items = parseJson(listBody)["items"]
     check items.len == 1
     let claimId = items[0]["id"].getStr()
-    discard call(HttpPatch, "/c/claim-club/players/" & playerId & "/claims/" &
+    discard call(baseUrl, HttpPatch, "/c/claim-club/players/" & playerId & "/claims/" &
       claimId, adminCookie, """{"decision":"approve"}""")
     # Once claimed, nobody else can even file.
-    let (afterApproval, _) = call(HttpPost,
+    let afterApproval = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & playerId & "/claims", second)
-    check afterApproval == 409
+    expectProblem(afterApproval, 409)
 
   test "the owner can release and another account can claim again":
     let playerId = player("Klaim Empat")
     let owner = freshMember("claim-empat")
-    discard call(HttpPost, "/c/claim-club/players/" & playerId & "/claims", owner)
-    let (_, listBody) = call(HttpGet,
-      "/c/claim-club/players/" & playerId & "/claims", adminCookie)
+    discard call(baseUrl, HttpPost, "/c/claim-club/players/" & playerId & "/claims", owner)
+    let listBody = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & playerId & "/claims", adminCookie).body
     let claimId = parseJson(listBody)["items"][0]["id"].getStr()
-    discard call(HttpPatch, "/c/claim-club/players/" & playerId & "/claims/" &
+    discard call(baseUrl, HttpPatch, "/c/claim-club/players/" & playerId & "/claims/" &
       claimId, adminCookie, """{"decision":"approve"}""")
-    let (released, releasedBody) = call(HttpDelete,
+    let released = call(baseUrl, HttpDelete,
       "/c/claim-club/players/" & playerId & "/claim", owner)
-    check released == 200
+    let releasedBody = released.body
+    expectStatus(released, 200)
     check parseJson(releasedBody)["status"].getStr() == "released"
-    let (unbound, unbindBody) = call(HttpGet,
+    let unbound = call(baseUrl, HttpGet,
       "/c/claim-club/players/" & playerId, adminCookie)
+    let unbindBody = unbound.body
     check unbindBody.contains("\"userId\":null")
-    let (again, _) = call(HttpPost,
+    let again = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & playerId & "/claims",
       freshMember("claim-empat-again"))
-    check again == 201
+    expectStatus(again, 201)
 
   test "an admin release needs a reason and reports a stale claim as 409":
     let playerId = player("Klaim Lima")
-    discard call(HttpPost, "/c/claim-club/players/" & playerId & "/claims",
+    discard call(baseUrl, HttpPost, "/c/claim-club/players/" & playerId & "/claims",
       freshMember("claim-lima"))
-    let (_, listBody) = call(HttpGet,
-      "/c/claim-club/players/" & playerId & "/claims", adminCookie)
+    let listBody = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & playerId & "/claims", adminCookie).body
     let claimId = parseJson(listBody)["items"][0]["id"].getStr()
-    discard call(HttpPatch, "/c/claim-club/players/" & playerId & "/claims/" &
+    discard call(baseUrl, HttpPatch, "/c/claim-club/players/" & playerId & "/claims/" &
       claimId, adminCookie, """{"decision":"approve"}""")
-    let (noReason, _) = call(HttpPatch, "/c/claim-club/players/" & playerId &
+    let noReason = call(baseUrl, HttpPatch, "/c/claim-club/players/" & playerId &
       "/claims/" & claimId, adminCookie, """{"action":"release"}""")
-    check noReason == 400
-    let (released, _) = call(HttpPatch, "/c/claim-club/players/" & playerId &
+    expectProblem(noReason, 400)
+    let released = call(baseUrl, HttpPatch, "/c/claim-club/players/" & playerId &
       "/claims/" & claimId, adminCookie,
       """{"action":"release","reason":"account transfer"}""")
-    check released == 200
-    let (twice, _) = call(HttpPatch, "/c/claim-club/players/" & playerId &
+    expectStatus(released, 200)
+    let twice = call(baseUrl, HttpPatch, "/c/claim-club/players/" & playerId &
       "/claims/" & claimId, adminCookie,
       """{"action":"release","reason":"again"}""")
-    check twice == 409
+    expectProblem(twice, 409)
 
   test "a second approval for the same member closes instead of dangling":
     let claimant = freshMember("claim-two-players")
     let firstPlayer = player("Klaim Empat A")
     let secondPlayer = player("Klaim Empat B")
-    discard call(HttpPost, "/c/claim-club/players/" & firstPlayer & "/claims",
+    discard call(baseUrl, HttpPost, "/c/claim-club/players/" & firstPlayer & "/claims",
       claimant)
-    discard call(HttpPost, "/c/claim-club/players/" & secondPlayer & "/claims",
+    discard call(baseUrl, HttpPost, "/c/claim-club/players/" & secondPlayer & "/claims",
       claimant)
-    let (_, firstList) = call(HttpGet,
-      "/c/claim-club/players/" & firstPlayer & "/claims", adminCookie)
+    let firstList = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & firstPlayer & "/claims", adminCookie).body
     let firstClaim = parseJson(firstList)["items"][0]["id"].getStr()
-    let (firstApproved, _) = call(HttpPatch,
+    let firstApproved = call(baseUrl, HttpPatch,
       "/c/claim-club/players/" & firstPlayer & "/claims/" & firstClaim,
       adminCookie, """{"decision":"approve"}""")
-    check firstApproved == 200
+    expectStatus(firstApproved, 200)
 
-    let (_, secondList) = call(HttpGet,
-      "/c/claim-club/players/" & secondPlayer & "/claims", adminCookie)
+    let secondList = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & secondPlayer & "/claims", adminCookie).body
     let secondClaim = parseJson(secondList)["items"][0]["id"].getStr()
-    let (refused, refusedBody) = call(HttpPatch,
+    let refused = call(baseUrl, HttpPatch,
       "/c/claim-club/players/" & secondPlayer & "/claims/" & secondClaim,
       adminCookie, """{"decision":"approve"}""")
-    check refused == 409
+    let refusedBody = refused.body
+    expectProblem(refused, 409)
     check parseJson(refusedBody)["code"].getStr() == "CLAIMANT_OWNS_PLAYER"
     # The refused claim is closed, so it cannot stay pending forever.
-    let (_, afterList) = call(HttpGet,
-      "/c/claim-club/players/" & secondPlayer & "/claims", adminCookie)
+    let afterList = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & secondPlayer & "/claims", adminCookie).body
     check parseJson(afterList)["items"][0]["status"].getStr() == "rejected"
     check parseJson(afterList)["items"][0]["reason"].getStr() == "already_claimed"
 
@@ -258,28 +214,29 @@ suite "claim HTTP":
     let playerId = player("Klaim Enam")
     let applicant = freshMember("claim-enam-a")
     let bystander = freshMember("claim-enam-b")
-    discard call(HttpPost, "/c/claim-club/players/" & playerId & "/claims",
+    discard call(baseUrl, HttpPost, "/c/claim-club/players/" & playerId & "/claims",
       applicant)
-    let (_, adminList) = call(HttpGet,
-      "/c/claim-club/players/" & playerId & "/claims", adminCookie)
+    let adminList = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & playerId & "/claims", adminCookie).body
     let claimId = parseJson(adminList)["items"][0]["id"].getStr()
-    let (approved, _) = call(HttpPatch, "/c/claim-club/players/" & playerId &
+    let approved = call(baseUrl, HttpPatch, "/c/claim-club/players/" & playerId &
       "/claims/" & claimId, adminCookie,
       """{"decision":"approve","reason":"verified at the club"}""")
-    check approved == 200
+    expectStatus(approved, 200)
 
     # The filing member still recognises their own decision and reason.
-    let (_, ownBody) = call(HttpGet,
-      "/c/claim-club/players/" & playerId & "/claims", applicant)
+    let ownBody = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & playerId & "/claims", applicant).body
     let own = parseJson(ownBody)["items"][0]
     check own["userId"].getStr().len > 0
     check own["decidedBy"].getStr().len > 0
     check own["reason"].getStr() == "verified at the club"
 
     # Anyone else sees that the player is claimed, not who claimed it.
-    let (otherStatus, otherBody) = call(HttpGet,
+    let otherStatus = call(baseUrl, HttpGet,
       "/c/claim-club/players/" & playerId & "/claims", bystander)
-    check otherStatus == 200
+    let otherBody = otherStatus.body
+    expectStatus(otherStatus, 200)
     let seen = parseJson(otherBody)["items"][0]
     check seen["id"].getStr() == claimId
     check seen["status"].getStr() == "approved"
@@ -290,54 +247,58 @@ suite "claim HTTP":
   test "mine returns the player the account owns":
     let minePlayer = player("Klaim Delapan Punya")
     let owner = freshMember("claim-delapan")
-    discard call(HttpPost, "/c/claim-club/players/" & minePlayer & "/claims",
+    discard call(baseUrl, HttpPost, "/c/claim-club/players/" & minePlayer & "/claims",
       owner)
-    let (_, listBody) = call(HttpGet,
-      "/c/claim-club/players/" & minePlayer & "/claims", adminCookie)
+    let listBody = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & minePlayer & "/claims", adminCookie).body
     let claimId = parseJson(listBody)["items"][0]["id"].getStr()
-    let (approved, _) = call(HttpPatch,
+    let approved = call(baseUrl, HttpPatch,
       "/c/claim-club/players/" & minePlayer & "/claims/" & claimId, adminCookie,
       """{"decision":"approve"}""")
-    check approved == 200
+    expectStatus(approved, 200)
 
-    let (status, body) = call(HttpGet, "/c/claim-club/players?mine=1", owner)
-    check status == 200
+    let status = call(baseUrl, HttpGet, "/c/claim-club/players?mine=1", owner)
+    let body = status.body
+    expectStatus(status, 200)
     let items = parseJson(body)["items"]
     check items.len == 1
     check items[0]["id"].getStr() == minePlayer
 
-    let (emptyStatus, emptyBody) = call(HttpGet, "/c/claim-club/players?mine=1",
+    let emptyStatus = call(baseUrl, HttpGet, "/c/claim-club/players?mine=1",
       freshMember("claim-delapan-bebas"))
-    check emptyStatus == 200
+    let emptyBody = emptyStatus.body
+    expectStatus(emptyStatus, 200)
     check parseJson(emptyBody)["items"].len == 0
 
   test "a player response says whether the viewer already owns a player":
     let ownedPlayer = player("Klaim Tujuh Punya")
     let openPlayer = player("Klaim Tujuh Terbuka")
     let owner = freshMember("claim-tujuh")
-    discard call(HttpPost, "/c/claim-club/players/" & ownedPlayer & "/claims",
+    discard call(baseUrl, HttpPost, "/c/claim-club/players/" & ownedPlayer & "/claims",
       owner)
-    let (_, listBody) = call(HttpGet,
-      "/c/claim-club/players/" & ownedPlayer & "/claims", adminCookie)
+    let listBody = call(baseUrl, HttpGet,
+      "/c/claim-club/players/" & ownedPlayer & "/claims", adminCookie).body
     let claimId = parseJson(listBody)["items"][0]["id"].getStr()
-    let (approved, _) = call(HttpPatch,
+    let approved = call(baseUrl, HttpPatch,
       "/c/claim-club/players/" & ownedPlayer & "/claims/" & claimId, adminCookie,
       """{"decision":"approve"}""")
-    check approved == 200
+    expectStatus(approved, 200)
 
     # The owner sees the flag on a different, still unclaimed player: the claim
     # button there would be refused, so the page must not offer it.
-    let (ownedStatus, ownedBody) = call(HttpGet,
+    let ownedStatus = call(baseUrl, HttpGet,
       "/c/claim-club/players/" & openPlayer, owner)
-    check ownedStatus == 200
+    let ownedBody = ownedStatus.body
+    expectStatus(ownedStatus, 200)
     check parseJson(ownedBody)["viewerOwnsPlayer"].kind == JBool
     check parseJson(ownedBody)["viewerOwnsPlayer"].getBool()
     check parseJson(ownedBody)["userId"].kind == JNull
 
     # A member who owns nothing keeps the action.
-    let (freeStatus, freeBody) = call(HttpGet,
+    let freeStatus = call(baseUrl, HttpGet,
       "/c/claim-club/players/" & openPlayer, freshMember("claim-tujuh-bebas"))
-    check freeStatus == 200
+    let freeBody = freeStatus.body
+    expectStatus(freeStatus, 200)
     check not parseJson(freeBody)["viewerOwnsPlayer"].getBool()
 
   test "the admin queue lists pending claims oldest first with the claimant":
@@ -352,15 +313,15 @@ suite "claim HTTP":
     let olderClaimant = freshMember("claim-antrean-lama")
     let newerClaimant = freshMember("claim-antrean-baru")
     let boundClaimant = freshMember("claim-antrean-disetujui")
-    let (olderSubmitted, _) = call(HttpPost,
+    let olderSubmitted = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & olderPlayer & "/claims", olderClaimant)
-    check olderSubmitted == 201
-    let (newerSubmitted, _) = call(HttpPost,
+    expectStatus(olderSubmitted, 201)
+    let newerSubmitted = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & newerPlayer & "/claims", newerClaimant)
-    check newerSubmitted == 201
-    let (boundSubmitted, _) = call(HttpPost,
+    expectStatus(newerSubmitted, 201)
+    let boundSubmitted = call(baseUrl, HttpPost,
       "/c/claim-club/players/" & boundPlayer & "/claims", boundClaimant)
-    check boundSubmitted == 201
+    expectStatus(boundSubmitted, 201)
 
     # The claim row is the ordering key; distinct timestamps keep it stable.
     discard database.execUpdate(
@@ -376,12 +337,13 @@ suite "claim HTTP":
       """select id from player.claims
          where community_id = $1::uuid and player_id = $2::uuid""",
       @[textParam(communityId), textParam(boundPlayer)]).get.get("id")
-    let (bound, _) = call(HttpPatch, "/c/claim-club/players/" & boundPlayer &
+    let bound = call(baseUrl, HttpPatch, "/c/claim-club/players/" & boundPlayer &
       "/claims/" & boundClaim, adminCookie, """{"decision":"approve"}""")
-    check bound == 200
+    expectStatus(bound, 200)
 
-    let (status, body) = call(HttpGet, "/c/claim-club/claims", adminCookie)
-    check status == 200
+    let status = call(baseUrl, HttpGet, "/c/claim-club/claims", adminCookie)
+    let body = status.body
+    expectStatus(status, 200)
     let items = parseJson(body)["items"]
     check items.len == 2
     check items[0]["playerId"].getStr() == olderPlayer
@@ -391,5 +353,5 @@ suite "claim HTTP":
     check items[1]["playerId"].getStr() == newerPlayer
     check items[1]["displayName"].getStr() == "claim-antrean-baru"
 
-    let (byMember, _) = call(HttpGet, "/c/claim-club/claims", memberCookie)
-    check byMember == 403
+    let byMember = call(baseUrl, HttpGet, "/c/claim-club/claims", memberCookie)
+    expectProblem(byMember, 403)
