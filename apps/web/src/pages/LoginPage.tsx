@@ -41,46 +41,62 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-ground text-fg">
-      <div className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center px-5 py-12">
+    <main className="min-h-dvh bg-ground text-fg md:grid md:grid-cols-2">
+      {/* Brand side: the club's own lockup at a size where its wordmark still
+          reads, with the one sentence that says what the club uses this for. */}
+      <aside className="hidden border-r border-border-subtle bg-surface p-10 md:flex md:flex-col md:justify-between lg:p-14">
         <img
           src="/majadu-logo.png"
-          alt=""
-          width={94}
-          height={132}
-          className="mx-auto h-[132px] w-auto"
+          alt={t('login.brand')}
+          width={77}
+          height={108}
+          className="h-28 w-auto"
+        />
+        <div className="max-w-sm">
+          <span aria-hidden="true" className="block h-px w-12 bg-accent" />
+          <p className="mt-5 text-sm leading-relaxed text-fg-dim">
+            {t('login.description')}
+          </p>
+        </div>
+      </aside>
+
+      <section className="flex min-h-dvh flex-col px-6 py-8 sm:px-10 md:min-h-0 md:justify-center md:px-14">
+        <img
+          src="/majadu-logo.png"
+          alt={t('login.brand')}
+          width={64}
+          height={90}
+          className="h-20 w-auto md:hidden"
         />
 
-        <h1 className="mt-7 text-center text-2xl font-semibold tracking-tight text-fg">
-          {t('login.title')}
-        </h1>
-        <p className="mt-3 text-center text-sm leading-relaxed text-fg-dim">
-          {t('login.description')}
-        </p>
-
-        <button
-          type="button"
-          onClick={() => void onLogin()}
-          disabled={loggingIn}
-          className="mt-8 flex w-full min-h-12 items-center justify-center gap-3 rounded-xl bg-accent px-4 py-3 font-semibold text-ground hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ground disabled:opacity-40"
-        >
-          <GoogleMark />
-          {loggingIn ? t('login.pending') : t('login.action')}
-        </button>
-
-        {failed && (
-          <p role="alert" aria-live="polite" className="mt-4 text-center text-sm text-error">
-            {t('login.error')}
+        <div className="mt-8 w-full max-w-sm md:mt-0">
+          <h1 className="text-3xl font-semibold tracking-tight text-fg">
+            {t('login.title')}
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-fg-dim md:hidden">
+            {t('login.description')}
           </p>
-        )}
 
-        <p className="mt-4 text-center text-xs leading-relaxed text-fg-dim">
-          {t('login.account')}
-        </p>
+          <button
+            type="button"
+            onClick={() => void onLogin()}
+            disabled={loggingIn}
+            className="mt-8 flex w-full min-h-12 items-center justify-center gap-3 rounded-xl bg-accent px-4 py-3 font-semibold text-ground hover:opacity-90 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ground disabled:opacity-40"
+          >
+            <GoogleMark />
+            {loggingIn ? t('login.pending') : t('login.action')}
+          </button>
+
+          {failed && (
+            <p role="alert" aria-live="polite" className="mt-4 text-sm text-error">
+              {t('login.error')}
+            </p>
+          )}
+        </div>
 
         <footer
           aria-label={t('login.legalNav')}
-          className="mt-10 flex items-center justify-center gap-2 text-xs text-fg-dim"
+          className="mt-auto flex items-center gap-2 pt-10 text-xs text-fg-dim md:mt-16 md:pt-0"
         >
           <Link
             to="/privacy"
@@ -96,7 +112,7 @@ export default function LoginPage() {
             {t('login.terms')}
           </Link>
         </footer>
-      </div>
+      </section>
     </main>
   )
 }

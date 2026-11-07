@@ -29,14 +29,13 @@ export const en = {
   'sessions.open': 'Active sessions',
   'nav.signedInAs': 'Signed in as {name}',
 
-  'login.title': 'Sign in to Majadu',
+  'login.title': 'Sign in',
+  'login.brand': 'Majadu Badminton Club',
   'login.description':
-    'Majadu keeps a badminton club in one place: sessions and courts, game scores, a rolling ranking, tournaments, and the people who play. Sign in to see your club and record the next session.',
+    'Majadu keeps a badminton club in one place: sessions and courts, game scores, a rolling ranking, and the tournaments the group plays. Sign in to open your club and record the next session.',
   'login.action': 'Continue with Google',
   'login.pending': 'Redirecting…',
   'login.error': 'Sign in could not be started. Try again.',
-  'login.account':
-    'Signing in shares your Google account id, your display name, and your email address. Majadu stores the id and name, and only a hash of the email, never the address itself. There is no password to remember.',
   'login.legalNav': 'Legal',
   'login.privacy': 'Privacy Policy',
   'login.terms': 'Terms of Service',
