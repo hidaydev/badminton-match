@@ -1,5 +1,5 @@
 ## Integration test for tournament/store: both formats write, read back,
-## replace, patch one match and delete. Skips without MAJADU_PG_DSN.
+## replace, patch one match and delete. Needs MAJADU_PG_DSN.
 
 import std/[json, options, os, strutils, unittest]
 import db/db
@@ -111,8 +111,7 @@ proc count(database: Db, table: string): int =
     @[textParam(slug)]).get.get("n"))
 
 if getEnv("MAJADU_PG_DSN").len == 0:
-  echo "tournament store test skipped: MAJADU_PG_DSN is not set"
-  quit(QuitSuccess)
+  raise newException(ValueError, "MAJADU_PG_DSN is required")
 
 let database = openDb(getEnv("MAJADU_PG_DSN"), 2)
 cleanup(database)

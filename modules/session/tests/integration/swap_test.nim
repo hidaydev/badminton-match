@@ -1,13 +1,12 @@
 import std/[json, options, os, strutils, unittest]
 import db/db
-import ../schedule
-import ../swap
+import ../../schedule
+import ../../swap
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
 if dsn().len == 0:
-  echo "session swap suite: skipped (MAJADU_PG_DSN is not set)"
-  quit(0)
+  raise newException(ValueError, "MAJADU_PG_DSN is required")
 
 const slug = "swap-club"
 

@@ -11,8 +11,15 @@ esac
 
 [ -d "$tests_dir" ] || fail "no tests directory for module: $module"
 
-if [ -d "$tests_dir/integration" ] && [ -z "${MAJADU_PG_DSN:-}" ]; then
-  fail "MAJADU_PG_DSN is required for integration tests in $module"
+# A suite that cannot run must never report success, so refuse to start at all
+# unless the database the suites need is actually available.
+if [ -z "${MAJADU_PG_DSN:-}" ]; then
+  if [ "${INTEGRATION:-0}" = "1" ]; then
+    fail "INTEGRATION=1 needs MAJADU_PG_DSN to run the $module suites"
+  fi
+  if [ -d "$tests_dir/integration" ]; then
+    fail "MAJADU_PG_DSN is required for integration tests in $module"
+  fi
 fi
 
 for file in $(find "$tests_dir" -name '*_test.nim' -type f | sort); do

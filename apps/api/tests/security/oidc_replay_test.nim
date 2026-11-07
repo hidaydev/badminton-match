@@ -122,9 +122,7 @@ proc insertFlow(state, nonce, returnTo: string, expired = false) =
       textParam(bytesHex(encrypted)), textParam(returnTo),
       intParam(minutes.int64)])
 
-if not hasDatabase():
-  echo "security suite: skipped (MAJADU_PG_DSN is not set)"
-  quit(0)
+requireDatabase()
 
 bootstrap()
 

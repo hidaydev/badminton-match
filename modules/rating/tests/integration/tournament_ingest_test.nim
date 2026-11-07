@@ -8,8 +8,7 @@ const slug = "touring-club"
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
 
 if dsn().len == 0:
-  echo "tournament ingest suite: skipped (MAJADU_PG_DSN is not set)"
-  quit(0)
+  raise newException(ValueError, "MAJADU_PG_DSN is required")
 
 var
   database: Db

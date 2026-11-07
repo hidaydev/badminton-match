@@ -32,6 +32,20 @@ proc dsn*(): string = getEnv("MAJADU_PG_DSN")
 
 proc hasDatabase*(): bool = dsn().len > 0
 
+proc requireDatabase*() =
+  ## A suite that cannot run must never look like a suite that passed. In
+  ## integration mode a missing DSN is an error; otherwise the suite says one
+  ## line on stderr and exits 0, so `./task check` still works without a
+  ## database without implying it ran one.
+  if hasDatabase():
+    return
+  if getEnv("INTEGRATION") == "1":
+    raise newException(ValueError,
+      "MAJADU_PG_DSN is required when INTEGRATION=1")
+  stderr.writeLine(
+    "not run: MAJADU_PG_DSN is not set (set INTEGRATION=1 to require it)")
+  quit 0
+
 proc call*(baseUrl: string, verb: HttpMethod, path: string, cookie = "",
            body = "", origin = allowedOrigin, ifMatch = "",
            extra: openArray[(string, string)] = [],

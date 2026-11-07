@@ -35,9 +35,7 @@ proc startFlow(returnTo: string): (int, string) =
     state = queryParam(response.json["authorizeUrl"].getStr(), "state")
   (response.status, state)
 
-if not hasDatabase():
-  echo "security suite: skipped (MAJADU_PG_DSN is not set)"
-  quit(0)
+requireDatabase()
 
 bootstrap()
 

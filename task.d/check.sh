@@ -14,4 +14,6 @@ if [ -f "$REPO_ROOT/tools/archcheck/main.nim" ]; then
   nim_run_check "$REPO_ROOT/tools/archcheck/main.nim"
 fi
 
-printf 'check: ok\n'
+# `check` compiles everything but intentionally runs no database suite, so say
+# so instead of letting `ok` imply those suites were executed.
+printf 'check: ok (unit suites only; database suites need ./task test)\n'

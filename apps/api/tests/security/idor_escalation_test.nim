@@ -64,9 +64,7 @@ proc bootstrap() =
 
   startServer(newTestApp(database), port, baseUrl)
 
-if not hasDatabase():
-  echo "security suite: skipped (MAJADU_PG_DSN is not set)"
-  quit(0)
+requireDatabase()
 
 bootstrap()
 
