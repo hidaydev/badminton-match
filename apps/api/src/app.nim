@@ -72,6 +72,7 @@ type
     emailHash*: string
     displayName*: string
     isOwner*: bool
+    token*: string
 
 var application: App
 
@@ -144,25 +145,44 @@ proc authRejected(action, reason: string, userId = "") =
 proc send(request: Request, status: int,
           headers: openArray[(string, string)], body: string) =
   ## Single response path: every response carries the security headers, so a new
-  ## route cannot silently ship without CSP or nosniff.
+  ## route cannot silently ship without CSP or nosniff. An empty body is never
+  ## cacheable, so `no-store` is added here instead of at each call site.
   var merged = @headers
+  if status == 204:
+    merged.add(("Cache-Control", "no-store"))
   for pair in securityHeaders(application.cookieSecure):
     merged.add(pair)
   request.respond(status, merged, body)
   recordResponse(request.httpMethod, request.path, status)
 
+proc send(request: Request, status: int) =
+  send(request, status, newSeq[(string, string)](), "")
+
 proc send(request: Request, status: int, body: string) =
   send(request, status, @[("Content-Type", "application/json")], body)
 
 proc jsonResponse(request: Request, status: int, body: JsonNode,
-                  extra: openArray[(string, string)] = []) =
+                  extra: openArray[(string, string)] = [],
+                  cacheable = false) =
+  ## A JSON body belongs to a session or a community, so `no-store` is the
+  ## default; a caller that really wants a shared cache opts in.
   var headers = @[("Content-Type", "application/json")]
+  if not cacheable:
+    headers.add(("Cache-Control", "no-store"))
   for pair in extra:
     headers.add(pair)
   send(request, status, headers, $body)
 
 proc problem(request: Request, status: int, code, detail: string) =
   send(request, status, $ %*{"status": status, "code": code, "detail": detail})
+
+proc methodNotAllowed(request: Request) =
+  ## A known path with an unsupported verb answers 405, so a caller can tell a
+  ## typo apart from the 404 that hides a community it may not see.
+  problem(request, 405, "METHOD", "")
+
+proc routeNotFound(request: Request) =
+  problem(request, 404, "NOT_FOUND", "route not found")
 
 proc cookieValue(request: Request, name: string): string =
   let header = request.headers["Cookie"]
@@ -207,6 +227,24 @@ proc bodyJson(request: Request): JsonNode =
     raise newException(ValueError, "body must be a JSON object")
   parsed
 
+proc jsonBody(request: Request, body: var JsonNode): bool =
+  ## `false` means the 400 was already sent, so every handler branches the same
+  ## way instead of repeating the try/except.
+  try:
+    body = bodyJson(request)
+    true
+  except ValueError:
+    problem(request, 400, "INVALID_BODY", "body must be JSON")
+    false
+
+proc optStr(body: JsonNode, key: string, fallback = ""): string =
+  ## `getStr` answers "" on a kind mismatch, which silently drops a numeric
+  ## value; a non-string is treated as absent instead.
+  if body.kind == JObject and body.hasKey(key) and body[key].kind == JString:
+    body[key].getStr()
+  else:
+    fallback
+
 proc requestIdentity(request: Request): string =
   ## Production sits behind a CDN edge, so the TCP-derived address is the same
   ## for everyone and a per-address quota would be a platform-wide quota. A
@@ -218,11 +256,10 @@ proc requestIdentity(request: Request): string =
   else: clientIp(request, trustedProxies())
 
 proc rateLimited(request: Request, decision: Decision) =
-  send(request, 429,
-    @[("Content-Type", "application/json"), ("Cache-Control", "no-store"),
-      ("Retry-After", $decision.retryAfter)],
-    $ %*{"status": 429, "code": "RATE_LIMITED",
-         "retryAfter": decision.retryAfter})
+  jsonResponse(request, 429,
+    %*{"status": 429, "code": "RATE_LIMITED",
+       "retryAfter": decision.retryAfter},
+    [("Retry-After", $decision.retryAfter)])
 
 proc sessionCookie(token: string): string =
   let days = configSnapshot().intValue(%*{}, keySessionAbsoluteDays)
@@ -260,6 +297,7 @@ proc currentUser(request: Request): Option[AuthUser] =
     emailHash: user.get.emailHash,
     displayName: user.get.displayName,
     isOwner: user.get.isPlatformOwner,
+    token: token,
   ))
 
 proc requireUser(request: Request): Option[AuthUser] =
@@ -267,8 +305,9 @@ proc requireUser(request: Request): Option[AuthUser] =
   if result.isNone:
     problem(request, 401, "UNAUTHENTICATED", "login required")
 
-proc actorOf(user: AuthUser, token: string): Actor =
-  Actor(userId: user.id, isPlatformOwner: user.isOwner, sessionToken: token)
+proc actorOf(user: AuthUser): Actor =
+  Actor(userId: user.id, isPlatformOwner: user.isOwner,
+    sessionToken: user.token)
 
 proc readAccess(): Access =
   ## Any membership role can read; the community context already proved
@@ -278,12 +317,12 @@ proc readAccess(): Access =
 proc writeAccess(): Access =
   Access(isSession: true, roles: @[rHost, rAdmin])
 
-proc decide(user: AuthUser, token, slug: string,
+proc decide(user: AuthUser, slug: string,
             access: Access): (Gate, Option[CommunityContext]) =
   ## Membership is resolved before the gate so a foreign slug is a 404, not a
   ## 403 that confirms the community exists.
   let ctx = loadCommunity(application.db, user.id, slug)
-  (gate(access, some(actorOf(user, token)), ctx), ctx)
+  (gate(access, some(actorOf(user)), ctx), ctx)
 
 proc respondGate(request: Request, decision: Gate) =
   problem(request, statusFor(decision), codeFor(decision), codeFor(decision))
@@ -301,13 +340,9 @@ proc authorizeUrl(config: OidcConfig, state, nonce, challenge: string): string =
 
 proc startAuth(request: Request) =
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
-  let returnTo =
-    if body.hasKey("returnTo"): body["returnTo"].getStr() else: "/"
+  let returnTo = optStr(body, "returnTo", "/")
   let safeReturn = safeReturnPath(returnTo)
   let state = randomHex(32)
   let nonce = randomHex(32)
@@ -435,20 +470,19 @@ proc finishAuth(request: Request) =
 proc listAuthSessions(request: Request) =
   let user = requireUser(request)
   if user.isNone: return
-  let token = cookieValue(request, "majadu_session")
   var items = newJArray()
-  for row in listSessions(application.db, user.get.id, token):
+  for row in listSessions(application.db, user.get.id, user.get.token):
     items.add(%*{"id": row.id, "createdAt": row.createdAt,
       "lastSeenAt": row.lastSeenAt, "current": row.current})
-  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": items})
 
 proc revokeOtherSessions(request: Request) =
   let user = requireUser(request)
   if user.isNone: return
-  revokeOthers(application.db, user.get.id, cookieValue(request, "majadu_session"))
+  revokeOthers(application.db, user.get.id, user.get.token)
   application.hub.revokePrincipal(user.get.id)
   authAudit("auth.sessions.revoke_others", user.get)
-  send(request, 204, @[("Cache-Control", "no-store")], "")
+  send(request, 204)
 
 proc me(request: Request) =
   let user = requireUser(request)
@@ -458,7 +492,7 @@ proc me(request: Request) =
     "id": user.get.id,
     "displayName": user.get.displayName,
     "platformOwner": user.get.isOwner,
-  }, [("Cache-Control", "no-store")])
+  })
 
 proc logout(request: Request) =
   let token = cookieValue(request, "majadu_session")
@@ -481,41 +515,37 @@ proc ownerOnly(request: Request): Option[AuthUser] =
     problem(request, 403, "FORBIDDEN", "platform owner only")
     return none(AuthUser)
 
-proc adminGate(request: Request,
-               slug: string): Option[(AuthUser, CommunityContext)] =
-  ## Admin-only community management. A foreign slug stays a 404, so the role
-  ## check never confirms that a community exists.
+proc scoped(request: Request, slug: string,
+            access: Access): Option[(AuthUser, CommunityContext)] =
+  ## The shared preamble of every `/c/{slug}/...` prefix: resolve the caller,
+  ## load the membership and answer the gate. A foreign slug stays a 404, so
+  ## the role check never confirms that a community exists.
   let user = requireUser(request)
   if user.isNone:
     return none((AuthUser, CommunityContext))
-  let (decision, ctx) = decide(user.get, cookieValue(request, "majadu_session"),
-    slug, Access(isSession: true, roles: @[rAdmin]))
+  let (decision, ctx) = decide(user.get, slug, access)
   if decision != gAllowed:
     respondGate(request, decision)
     return none((AuthUser, CommunityContext))
   some((user.get, ctx.get))
+
+proc adminGate(request: Request,
+               slug: string): Option[(AuthUser, CommunityContext)] =
+  ## Admin-only community management.
+  scoped(request, slug, Access(isSession: true, roles: @[rAdmin]))
 
 proc createCommunity(request: Request) =
   let user = ownerOnly(request)
   if user.isNone:
     return
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
-  let slug = if body.hasKey("slug") and body["slug"].kind == JString:
-    body["slug"].getStr() else: ""
-  let name = if body.hasKey("name") and body["name"].kind == JString:
-    body["name"].getStr() else: ""
-  let adminEmail = if body.hasKey("adminEmail") and body["adminEmail"].kind == JString:
-    body["adminEmail"].getStr() else: ""
-  let timezone =
-    if body.hasKey("timezone") and body["timezone"].kind == JString:
-      some(body["timezone"].getStr())
-    else:
-      none(string)
+  let slug = optStr(body, "slug")
+  let name = optStr(body, "name")
+  let adminEmail = optStr(body, "adminEmail")
+  let rawTimezone = optStr(body, "timezone")
+  let timezone = if rawTimezone.len > 0: some(rawTimezone) else: none(string)
   let check = communityDomain.checkCreate(slug, name, adminEmail,
     configSnapshot().stringValue(%*{}, keyCommunityDefaultTimezone), timezone)
   if check.problems.len > 0:
@@ -589,10 +619,7 @@ proc idempotentWrite(request: Request, userId, communityId, key: string,
 
 proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
   var title = ""
   var date = ""
@@ -684,27 +711,32 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
         "status": row.get.get("status")})
   jsonResponse(request, 201, created)
 
+proc pageParams(request: Request): tuple[limit, offset: int] =
+  ## One clamp for every list route: a value outside the range is pulled to the
+  ## nearest bound instead of silently falling back, so the page a caller asks
+  ## for is the page it gets.
+  let fallback = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
+  let pageSizeMax = configSnapshot().intValue(%*{}, keyApiPageSizeMax)
+  var requested = fallback
+  let limitParam = request.queryParams["limit"]
+  if limitParam.len > 0:
+    try:
+      requested = parseInt(limitParam)
+    except ValueError:
+      requested = fallback
+  result.limit = max(1, min(requested, pageSizeMax))
+  let offsetParam = request.queryParams["offset"]
+  if offsetParam.len > 0:
+    try:
+      result.offset = max(0, parseInt(offsetParam))
+    except ValueError:
+      result.offset = 0
+
 proc listSessions(request: Request, ctx: CommunityContext) =
   ## One page, never a silently truncated history: the caller pages with
   ## `offset` and filters on the server, so a search is not limited to the
   ## newest page.
-  let configured = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
-  var limit = configured
-  let rawLimit = request.queryParams["limit"]
-  if rawLimit.len > 0:
-    try:
-      limit = parseInt(rawLimit)
-    except ValueError:
-      limit = configured
-  let pageSizeMax = configSnapshot().intValue(%*{}, keyApiPageSizeMax)
-  limit = max(1, min(limit, pageSizeMax))
-  var offset = 0
-  let rawOffset = request.queryParams["offset"]
-  if rawOffset.len > 0:
-    try:
-      offset = max(0, parseInt(rawOffset))
-    except ValueError:
-      offset = 0
+  let (limit, offset) = pageParams(request)
   var date = request.queryParams["date"]
   if date.len > 0 and not validSessionDate(date):
     date = ""
@@ -778,7 +810,7 @@ proc deleteShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
     application.hub.revokeShare(linkId)
   audit("share.revoke", ctx, user, "session", sessionId,
     %*{"sessionId": sessionId})
-  send(request, 204, @[("Cache-Control", "no-store")], "")
+  send(request, 204)
 
 proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
                         sessionId: string) =
@@ -792,8 +824,7 @@ proc issueSessionTicket(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   let ttl = configSnapshot().intValue(%*{}, keyWsTicketTtlSeconds)
   let ticket = wsTicket.issueSession(application.db, user.id, sessionId, ttl)
-  jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl},
-    [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl})
 
 proc issueShareTicket(request: Request, code: string) =
   ## Anonymous path: the share limiter has already run in `route`, before this
@@ -805,15 +836,15 @@ proc issueShareTicket(request: Request, code: string) =
   let ttl = configSnapshot().intValue(%*{}, keyWsTicketTtlSeconds)
   let ticket = wsTicket.issueShare(application.db, found.get.linkId, ttl)
   jsonResponse(request, 200, %*{"ticket": ticket, "expiresIn": ttl},
-    [("Cache-Control", "no-store"), ("X-Robots-Tag", "noindex")])
+    [("X-Robots-Tag", "noindex")])
 
 proc ifMatch(request: Request): Option[int] =
   ## OCC precondition. Missing is 428, not 400: the client must opt in.
-  let raw = request.headers["If-Match"].strip(chars = {'"', ' ', 'W', '/'})
-  if raw.len == 0:
+  let text = request.headers["If-Match"].strip(chars = {'"', ' ', 'W', '/'})
+  if text.len == 0:
     return none(int)
   try:
-    some(parseInt(raw))
+    some(parseInt(text))
   except ValueError:
     none(int)
 
@@ -929,8 +960,7 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
         idempotencyKey(ctx.communityId, key, resource), 200, result.record)
     application.hub.sessionChanged(sessionId, result.record["version"].getInt())
     jsonResponse(request, 200, result.record,
-      [("ETag", "\"" & $result.record["version"].getInt() & "\""),
-       ("Cache-Control", "no-store")])
+      [("ETag", "\"" & $result.record["version"].getInt() & "\"")])
   of wsStale:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
     problem(request, 412, "STALE_VERSION", "session changed since If-Match")
@@ -957,11 +987,8 @@ proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
       request.body, resource).isSome:
     return
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
+  if not jsonBody(request, body):
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
     return
   let result = sessionSwap.swapMembers(application.db, ctx.communityId,
     sessionId, version.get, sessionSwap.parseSwap(body))
@@ -975,8 +1002,7 @@ proc swapSession(request: Request, ctx: CommunityContext, user: AuthUser,
         idempotencyKey(ctx.communityId, key, resource), 200, record)
     application.hub.sessionChanged(sessionId, result.version)
     jsonResponse(request, 200, record,
-      [("ETag", "\"" & $result.version & "\""),
-       ("Cache-Control", "no-store")])
+      [("ETag", "\"" & $result.version & "\"")])
   of sessionSwap.swInvalid:
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
     problem(request, 400, "INVALID_SWAP", result.detail)
@@ -1034,8 +1060,7 @@ proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
     audit(if locked: "session.lock" else: "session.unlock", ctx, user,
       "session", sessionId, result.record)
     jsonResponse(request, 200, result.record,
-      [("ETag", "\"" & $result.record["version"].getInt() & "\""),
-       ("Cache-Control", "no-store")])
+      [("ETag", "\"" & $result.record["version"].getInt() & "\"")])
   of wsStale:
     problem(request, 412, "STALE_VERSION", "session changed since If-Match")
   of wsNotFound:
@@ -1053,7 +1078,7 @@ proc getCommunitySettings(request: Request, ctx: CommunityContext) =
   jsonResponse(request, 200, %*{
     "values": visibleSettings(settings),
     "effective": effectiveConfig(snapshot, settings),
-  }, [("Cache-Control", "no-store")])
+  })
 
 proc patchCommunitySettings(request: Request, ctx: CommunityContext,
                             user: AuthUser) =
@@ -1069,8 +1094,7 @@ proc patchCommunitySettings(request: Request, ctx: CommunityContext,
   of soOk:
     jsonResponse(request, 200,
       %*{"values": visibleSettings(currentSettings(application.db,
-        ctx.communityId))},
-      [("Cache-Control", "no-store")])
+        ctx.communityId))})
   of soUnknownKey:
     problem(request, 400, "UNKNOWN_CONFIG_KEY", result.detail & ": " & result.key)
   of soPlatformScope:
@@ -1089,22 +1113,17 @@ proc directory(request: Request) =
     (if user.isSome: some(user.get.id) else: none(string)),
     snapshot.boolValue(%*{}, keyCommunityDirectoryEnabled),
     $keyCommunityDirectoryEnabled)
-  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": items})
 
 proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser) =
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
-  let email = if body.hasKey("email") and body["email"].kind == JString:
-    body["email"].getStr() else: ""
+  let email = optStr(body, "email")
   if not communityDomain.validEmail(email):
     problem(request, 400, "INVALID_EMAIL", "a valid email is required")
     return
-  let role = if body.hasKey("role") and body["role"].kind == JString:
-    body["role"].getStr() else: "member"
+  let role = optStr(body, "role", "member")
   var parsed: Role
   try:
     parsed = parseRole(role)
@@ -1117,8 +1136,7 @@ proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser) =
     sha256Hex(email.strip().toLowerAscii()), $parsed, user.id, ttl)
   audit("community.invite", ctx, user, "community", ctx.communityId,
     %*{"role": $parsed})
-  jsonResponse(request, 201, %*{"token": token, "expiresInDays": ttl, "role": $parsed},
-    [("Cache-Control", "no-store")])
+  jsonResponse(request, 201, %*{"token": token, "expiresInDays": ttl, "role": $parsed})
 
 proc acceptInvite(request: Request, token: string) =
   let user = requireUser(request)
@@ -1145,7 +1163,6 @@ proc acceptInvite(request: Request, token: string) =
 proc requestJoin(request: Request, slug: string) =
   ## Anti-enumeration: an unknown slug, a community that is not accepting and an
   ## already-pending request all return the same 202 body.
-  const accepted = """{"status":"accepted"}"""
   let user = currentUser(request)
   if user.isSome:
     # Per account per window: a repeated submission is a script, not a person,
@@ -1175,31 +1192,25 @@ proc requestJoin(request: Request, slug: string) =
       # community context the requester does not have yet.
       audit("community.join.requested", row.get.get("id"), requester,
         "user", requester.id, %*{"status": "pending"}, role = "member")
-  send(request, 202, @[("Content-Type", "application/json"),
-    ("Cache-Control", "no-store")], accepted)
+  jsonResponse(request, 202, %*{"status": "accepted"})
 
 proc listJoinRequests(request: Request, ctx: CommunityContext) =
   var items = newJArray()
   for entry in joinRequestStore.listPending(application.db, ctx.communityId):
     items.add(%*{"id": entry.id, "userId": entry.userId,
       "displayName": entry.displayName, "createdAt": entry.createdAt})
-  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": items})
 
 proc decideJoinRequest(request: Request, ctx: CommunityContext, user: AuthUser,
                        requestId: string) =
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
-  let decision = if body.hasKey("decision") and body["decision"].kind == JString:
-    body["decision"].getStr() else: ""
+  let decision = optStr(body, "decision")
   if decision notin ["approve", "reject"]:
     problem(request, 400, "INVALID_DECISION", "decision must be approve or reject")
     return
-  let role = if body.hasKey("role") and body["role"].kind == JString:
-    body["role"].getStr() else: "member"
+  let role = optStr(body, "role", "member")
   try:
     discard parseRole(role)
   except ValueError:
@@ -1220,25 +1231,21 @@ proc listPendingClaims(request: Request, ctx: CommunityContext) =
     items.add(%*{"claimId": entry.claimId, "playerId": entry.playerId,
       "playerName": entry.playerName, "userId": entry.userId,
       "displayName": entry.displayName, "createdAt": entry.createdAt})
-  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": items})
 
 proc listMembers(request: Request, ctx: CommunityContext) =
   var items = newJArray()
   for member in membershipStore.list(application.db, ctx.communityId):
     items.add(%*{"userId": member.userId, "displayName": member.displayName,
       "role": member.role, "joinedAt": member.joinedAt})
-  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": items})
 
 proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
                      targetId: string) =
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
-  let role = if body.hasKey("role") and body["role"].kind == JString:
-    body["role"].getStr() else: ""
+  let role = optStr(body, "role")
   try:
     discard parseRole(role)
   except ValueError:
@@ -1280,7 +1287,7 @@ proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
   # A removed member loses the sockets and tickets of that principal.
   application.hub.revokePrincipal(targetId)
   audit("community.member.remove", ctx, user, "user", targetId)
-  send(request, 204, @[("Cache-Control", "no-store")], "")
+  send(request, 204)
 
 proc scoringPresetsJson(): JsonNode =
   ## Read-only reference data for the wizard. `mode` is internal, so it is not
@@ -1296,22 +1303,7 @@ proc communityConfig(request: Request, ctx: CommunityContext) =
   jsonResponse(request, 200,
     %*{"effective": effectiveConfig(configSnapshot(),
         currentSettings(application.db, ctx.communityId)),
-       "scoringPresets": scoringPresetsJson()},
-    [("Cache-Control", "no-store")])
-
-proc playerLimit(request: Request): int =
-  let fallback = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
-  let pageSizeMax = configSnapshot().intValue(%*{}, keyApiPageSizeMax)
-  let raw = request.queryParams["limit"]
-  if raw.len == 0:
-    return fallback
-  try:
-    let value = parseInt(raw)
-    if value < 1 or value > pageSizeMax:
-      return fallback
-    value
-  except ValueError:
-    fallback
+       "scoringPresets": scoringPresetsJson()})
 
 proc tierParam(request: Request): string =
   ## `+` means space in a form-encoded query, so a hand-written `?tier=C+`
@@ -1337,15 +1329,15 @@ proc listPlayersRoute(request: Request, ctx: CommunityContext,
     var body = newJArray()
     if owned.isSome:
       body.add(owned.get)
-    jsonResponse(request, 200, %*{"items": body}, [("Cache-Control", "no-store")])
+    jsonResponse(request, 200, %*{"items": body})
     return
   let items = playerStore.list(application.db, ctx.communityId,
-    playerLimit(request), request.queryParams["cursor"], tierParam(request),
+    pageParams(request).limit, request.queryParams["cursor"], tierParam(request),
     request.queryParams["q"])
   var body = newJArray()
   for item in items:
     body.add(item)
-  jsonResponse(request, 200, %*{"items": body}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": body})
 
 proc withAliases(player: JsonNode, aliases: seq[string]): JsonNode =
   result = player
@@ -1356,17 +1348,11 @@ proc withAliases(player: JsonNode, aliases: seq[string]): JsonNode =
 
 proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) =
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
-  let name = if body.hasKey("name") and body["name"].kind == JString:
-    body["name"].getStr() else: ""
-  let gender = if body.hasKey("gender") and body["gender"].kind == JString:
-    body["gender"].getStr() else: "M"
-  let tier = if body.hasKey("tier") and body["tier"].kind == JString:
-    body["tier"].getStr() else: ""
+  let name = optStr(body, "name")
+  let gender = optStr(body, "gender", "M")
+  let tier = optStr(body, "tier")
   let problems = playerDomain.checkCreate(name, gender, tier)
   if problems.len > 0:
     problem(request, 400, "INVALID_PLAYER", $problems[0])
@@ -1415,7 +1401,7 @@ proc getPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   # player here, so the page needs to know before offering the button.
   body["viewerOwnsPlayer"] =
     %playerClaim.ownsPlayer(application.db, ctx.communityId, user.id)
-  jsonResponse(request, 200, body, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, body)
 
 proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                       playerId: string) =
@@ -1449,10 +1435,7 @@ proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
 proc mergePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
                         targetId: string) =
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
   if not body.hasKey("sourcePlayerId") or body["sourcePlayerId"].kind != JString:
     problem(request, 400, "INVALID_BODY", "sourcePlayerId is required")
@@ -1506,7 +1489,7 @@ proc deletePlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 404, "NOT_FOUND", "player not found")
     return
   audit("player.delete", ctx, user, "player", playerId)
-  send(request, 204, @[("Cache-Control", "no-store")], "")
+  send(request, 204)
 
 proc claimProblem(request: Request, error: playerClaim.ClaimError) =
   case error
@@ -1549,7 +1532,7 @@ proc listClaimsRoute(request: Request, ctx: CommunityContext, user: AuthUser,
       "reason": (if reveal: claim.reason else: ""),
       "createdAt": claim.createdAt,
     })
-  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": items})
 
 proc submitClaim(request: Request, ctx: CommunityContext, user: AuthUser,
                  playerId: string) =
@@ -1563,15 +1546,10 @@ proc submitClaim(request: Request, ctx: CommunityContext, user: AuthUser,
 proc decideClaim(request: Request, ctx: CommunityContext, user: AuthUser,
                  playerId, claimId: string) =
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
-  let action = if body.hasKey("action") and body["action"].kind == JString:
-    body["action"].getStr() else: ""
-  let reason = if body.hasKey("reason") and body["reason"].kind == JString:
-    body["reason"].getStr() else: ""
+  let action = optStr(body, "action")
+  let reason = optStr(body, "reason")
 
   if action == "release":
     if reason.strip().len == 0:
@@ -1592,8 +1570,7 @@ proc decideClaim(request: Request, ctx: CommunityContext, user: AuthUser,
     jsonResponse(request, 200, %*{"claimId": claimId, "status": "released"})
     return
 
-  let decision = if body.hasKey("decision") and body["decision"].kind == JString:
-    body["decision"].getStr() else: ""
+  let decision = optStr(body, "decision")
   if decision notin ["approve", "reject"]:
     problem(request, 400, "INVALID_DECISION", "decision must be approve or reject")
     return
@@ -1642,8 +1619,7 @@ proc opsPing(request: Request) =
   if name.isNone:
     problem(request, 401, "UNAUTHENTICATED", "ops token required")
     return
-  jsonResponse(request, 200, %*{"ok": true, "token": name.get},
-    [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"ok": true, "token": name.get})
 
 const
   ## The per-code ceiling is the per-viewer one times this factor: everyone
@@ -1699,7 +1675,7 @@ proc readyz(request: Request) =
     send(request, 200, """{"status":"ok"}""")
   else:
     jsonResponse(request, 503, %*{"status": 503, "code": "NOT_READY",
-      "detail": detail}, [("Cache-Control", "no-store")])
+      "detail": detail})
 
 proc sessionVersionNow(communityId, sessionId: string): int =
   let row = application.db.queryOne(
@@ -1733,7 +1709,7 @@ proc ingestSessionRating(request: Request, ctx: CommunityContext,
   audit("rating.session.ingest", ctx, user, "session", sessionId,
     %*{"events": result.events, "deltas": result.deltas})
   jsonResponse(request, 200, %*{"events": result.events,
-    "deltas": result.deltas}, [("Cache-Control", "no-store")])
+    "deltas": result.deltas})
 
 proc clearSessionRating(request: Request, ctx: CommunityContext,
                         user: AuthUser, sessionId: string) =
@@ -1759,8 +1735,7 @@ proc clearSessionRating(request: Request, ctx: CommunityContext,
   audit("rating.session.revert", ctx, user, "session", sessionId,
     %*{"removedDeltas": removed})
   jsonResponse(request, 200, %*{"removedDeltas": removed,
-    "events": rebuilt.events, "deltas": rebuilt.deltas},
-    [("Cache-Control", "no-store")])
+    "events": rebuilt.events, "deltas": rebuilt.deltas})
 
 proc rebuildRatings(request: Request, ctx: CommunityContext,
                     user: AuthUser) =
@@ -1770,7 +1745,7 @@ proc rebuildRatings(request: Request, ctx: CommunityContext,
   audit("rating.rebuild", ctx, user, "community", ctx.communityId,
     %*{"events": result.events, "deltas": result.deltas})
   jsonResponse(request, 200, %*{"events": result.events,
-    "deltas": result.deltas}, [("Cache-Control", "no-store")])
+    "deltas": result.deltas})
 
 proc listRatingSources(request: Request, ctx: CommunityContext) =
   var items = newJArray()
@@ -1814,7 +1789,7 @@ proc listRatingSources(request: Request, ctx: CommunityContext) =
       "finalized": row.get("finalized") == "t",
       "finalizedAt": if row["finalized_at"].isSome:
         %row.get("finalized_at") else: newJNull()})
-  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": items})
 
 proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
                         eventId: string) =
@@ -1846,8 +1821,7 @@ proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
   audit("rating.source.delete", ctx, user, "rating_event", eventId,
     %*{"removedDeltas": removed})
   jsonResponse(request, 200, %*{"removedDeltas": removed,
-    "events": rebuilt.events, "deltas": rebuilt.deltas},
-    [("Cache-Control", "no-store")])
+    "events": rebuilt.events, "deltas": rebuilt.deltas})
 
 proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
                    sessionId: string) =
@@ -1893,15 +1867,12 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
     application.hub.revokeShare(linkId)
   audit("session.delete", ctx, user, "session", sessionId,
     %*{"removedDeltas": removed})
-  send(request, 204, @[("Cache-Control", "no-store")], "")
+  send(request, 204)
 
 proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
                        eventId: string) =
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
   if body.kind != JObject or not body.hasKey("finalized") or
      body["finalized"].kind != JBool:
@@ -1953,7 +1924,7 @@ proc patchRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
       reconcileAchievements(ctx, params)
   audit("rating.source.finalize", ctx, user, "rating_event",
     eventId, %*{"finalized": finalized})
-  jsonResponse(request, 200, updated.get, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, updated.get)
 
 proc scheduleProblem(request: Request, status: sessionSchedule.ScheduleStatus) =
   case status
@@ -1986,7 +1957,7 @@ proc scheduleDone(request: Request, ctx: CommunityContext, sessionId: string,
   let version = sessionVersionNow(ctx.communityId, sessionId)
   application.hub.sessionChanged(sessionId, version)
   jsonResponse(request, 200, %*{"version": version},
-    [("ETag", "\"" & $version & "\""), ("Cache-Control", "no-store")])
+    [("ETag", "\"" & $version & "\"")])
 
 proc putScheduleRoute(request: Request, ctx: CommunityContext, sessionId: string) =
   let version = requireIfMatch(request)
@@ -2034,10 +2005,7 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
   let version = requireIfMatch(request)
   if version.isNone: return
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
   if body.kind != JObject:
     problem(request, 400, "INVALID_BODY", "body must be an object")
@@ -2095,10 +2063,7 @@ proc skipGameRoute(request: Request, ctx: CommunityContext, sessionId,
   let version = requireIfMatch(request)
   if version.isNone: return
   var body: JsonNode
-  try:
-    body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
   if body.kind == JObject and body.hasKey("playerIds"):
     if body["playerIds"].kind != JArray:
@@ -2127,7 +2092,7 @@ proc getSessionStandingsRoute(request: Request, ctx: CommunityContext,
   if board.isNone:
     problem(request, 404, "NOT_FOUND", "session not found")
     return
-  jsonResponse(request, 200, board.get, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, board.get)
 
 proc scoringJson(rules: sessionScoring.ScoringRules): JsonNode =
   ## The public view of a session's frozen format. `mode` and the internal
@@ -2257,8 +2222,7 @@ proc getSessionDetail(request: Request, ctx: CommunityContext,
     "participants": participants,
     "games": games,
     "skippedPlayers": skipped},
-    [("ETag", etag),
-     ("Cache-Control", "no-store")])
+    [("ETag", etag)])
 
 proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
                   gameKey: string) =
@@ -2284,7 +2248,7 @@ proc getGameRoute(request: Request, ctx: CommunityContext, sessionId,
   var payload = gamePayload(row.get)
   payload["sets"] = gameSets(application.db, ctx.communityId, sessionId,
     key.get[0], key.get[1])
-  jsonResponse(request, 200, payload, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, payload)
 
 proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
                   sessionId: string) =
@@ -2296,8 +2260,7 @@ proc getShareLink(request: Request, ctx: CommunityContext, user: AuthUser,
     return
   audit("share.redisplay", ctx, user, "session", sessionId,
     %*{"sessionId": sessionId})
-  jsonResponse(request, 200, %*{"code": code.get, "sessionId": sessionId},
-    [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"code": code.get, "sessionId": sessionId})
 
 proc publicStandings(board: Option[JsonNode]): JsonNode =
   ## The public screen and the member page read the same board, so the share
@@ -2382,7 +2345,7 @@ proc getShared(request: Request, code: string) =
     problem(request, 404, "NOT_FOUND", "link not found")
     return
   jsonResponse(request, 200, shared.get,
-    [("Cache-Control", "no-store"), ("X-Robots-Tag", "noindex")])
+    [("X-Robots-Tag", "noindex")])
 
 proc communityToday(timezone: string): string =
   ## The board window is a calendar question, so "today" is the community's day,
@@ -2458,7 +2421,7 @@ proc communityBoard(request: Request, communityId, timezone: string,
   jsonResponse(request, 200, %*{"items": boardItems(rows),
     "asOf": asOf,
     "windowWeeks": params.windowWeeks, "bestN": params.bestN,
-    "minSessions": minSessions}, [("Cache-Control", "no-store")])
+    "minSessions": minSessions})
 
 proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
                    playerIds: seq[string] = @[]) =
@@ -2491,7 +2454,7 @@ proc rankingPlayer(request: Request, communityId, timezone, playerId: string,
   item["bestN"] = %params.bestN
   item["minSessions"] = %minSessions
   item["thinEvidenceN"] = %params.thinEvidenceN
-  jsonResponse(request, 200, item, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, item)
 
 proc playerAchievements(request: Request, ctx: CommunityContext,
                         playerId: string) =
@@ -2503,7 +2466,7 @@ proc playerAchievements(request: Request, ctx: CommunityContext,
   var body = newJArray()
   for item in items:
     body.add(item)
-  jsonResponse(request, 200, %*{"items": body}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": body})
 
 proc boardPoints(communityId, timezone, playerId: string): int =
   ## The one points number the API exposes: the player's row on today's board,
@@ -2527,7 +2490,7 @@ proc playerStats(request: Request, ctx: CommunityContext, playerId: string) =
     return
   var body = found.get
   body["points"] = %boardPoints(ctx.communityId, ctx.timezone, playerId)
-  jsonResponse(request, 200, body, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, body)
 
 proc sessionPlayerIds(communityId, sessionId: string): seq[string] =
   ## The players who took part in one session. A share code opens that session,
@@ -2631,13 +2594,23 @@ proc handleWebSocket(request: Request, snapshot: Snapshot, parts: seq[string]) =
       return
     upgradeSocket(request, snapshot, wsTicket.kindShare, found.get.linkId, address)
     return
-  problem(request, 404, "NOT_FOUND", "route not found")
+  routeNotFound(request)
 
 proc sendSnapshot(request: Request, status: int, snapshot: JsonNode,
                   extra: openArray[(string, string)] = []) =
-  var headers = @[("Cache-Control", "no-store")]
-  if snapshot.hasKey("version"):
-    headers.add(("ETag", "\"" & $snapshot["version"].getInt() & "\""))
+  let etag =
+    if snapshot.hasKey("version"):
+      "\"" & $snapshot["version"].getInt() & "\""
+    else:
+      ""
+  # The same conditional read the session detail already offers, so a poll that
+  # holds the current version costs a 304 instead of the whole bracket.
+  if status == 200 and etag.len > 0 and ifNoneMatchHits(request, etag):
+    send(request, 304, @[("ETag", etag), ("Cache-Control", "no-store")], "")
+    return
+  var headers: seq[(string, string)] = @[]
+  if etag.len > 0:
+    headers.add(("ETag", etag))
   for pair in extra:
     headers.add(pair)
   jsonResponse(request, status, snapshot, headers)
@@ -2656,17 +2629,12 @@ proc saveFailure(request: Request, status: tournamentStore.SaveStatus) =
     problem(request, 403, "FORBIDDEN", "rating source is finalized")
 
 proc listTournamentsRoute(request: Request, ctx: CommunityContext) =
-  let limit = configSnapshot().intValue(%*{}, keyApiPageSizeDefault)
-  var offset = 0
-  let rawOffset = request.queryParams.getOrDefault("offset", "")
-  if rawOffset.len > 0:
-    try: offset = parseInt(rawOffset)
-    except ValueError: offset = 0
+  let (limit, offset) = pageParams(request)
   var items = newJArray()
   for item in tournamentStore.list(application.db, ctx.communityId,
       request.queryParams.getOrDefault("format", ""), limit, offset):
     items.add(item)
-  jsonResponse(request, 200, %*{"items": items}, [("Cache-Control", "no-store")])
+  jsonResponse(request, 200, %*{"items": items})
 
 proc createTournamentRoute(request: Request, ctx: CommunityContext,
                            user: AuthUser) =
@@ -2675,9 +2643,7 @@ proc createTournamentRoute(request: Request, ctx: CommunityContext,
       request.body).isSome:
     return
   var body: JsonNode
-  try: body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
   let (status, snapshot) = tournamentStore.create(application.db,
     ctx.communityId, user.id, body)
@@ -2716,9 +2682,7 @@ proc putTournamentRoute(request: Request, ctx: CommunityContext, user: AuthUser,
       request.body, resource).isSome:
     return
   var body: JsonNode
-  try: body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
   let (status, snapshot) = tournamentStore.replace(application.db,
     ctx.communityId, id, user.id, body, version.get)
@@ -2750,7 +2714,7 @@ proc ingestTournamentRating(request: Request, ctx: CommunityContext,
     audit("rating.tournament.ingest", ctx, user, "tournament", id,
       %*{"events": result.events, "deltas": result.deltas})
     jsonResponse(request, 200, %*{"events": result.events,
-      "deltas": result.deltas}, [("Cache-Control", "no-store")])
+      "deltas": result.deltas})
   of ratingTournament.tisNotFinal:
     problem(request, 400, "INVALID_STATE",
       "tournament must be finalized before rating")
@@ -2778,7 +2742,7 @@ proc clearTournamentRating(request: Request, ctx: CommunityContext,
   reconcileAchievements(ctx, params)
   audit("rating.tournament.revert", ctx, user, "tournament", id,
     %*{"removedDeltas": removed})
-  send(request, 204, @[("Cache-Control", "no-store")], "")
+  send(request, 204)
 
 proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
                            user: AuthUser, id: string) =
@@ -2801,7 +2765,7 @@ proc deleteTournamentRoute(request: Request, ctx: CommunityContext,
   discard ratingIngest.dropSource(application.db, ctx.communityId, id)
   audit("tournament.delete", ctx, user, "tournament", id,
     %*{"id": id, "removedDeltas": removed})
-  send(request, 204, @[("Cache-Control", "no-store")], "")
+  send(request, 204)
 
 proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
                                user: AuthUser, id, matchId: string) =
@@ -2814,9 +2778,7 @@ proc patchTournamentMatchRoute(request: Request, ctx: CommunityContext,
       request.body, resource).isSome:
     return
   var body: JsonNode
-  try: body = bodyJson(request)
-  except ValueError:
-    problem(request, 400, "INVALID_BODY", "body must be JSON")
+  if not jsonBody(request, body):
     return
   let (status, snapshot) = tournamentStore.patchMatch(application.db,
     ctx.communityId, id, matchId, body, version.get)
@@ -2866,6 +2828,7 @@ proc outdatedClient(request: Request): bool =
 proc route(request: Request) =
   try:
     let path = request.path
+    let parts = path.split('/')
     let verb = request.httpMethod
     let snapshot = configSnapshot()
     if request.body.len > 0 and bodyTooLarge(request, snapshot):
@@ -2885,7 +2848,6 @@ proc route(request: Request) =
     # budget of the group that holds the link, and per code at a looser ceiling
     # so a pool of addresses still cannot replay a scraped code without bound.
     if path.startsWith("/s/"):
-      let parts = path.split('/')
       if parts.len >= 3:
         let codeKey = sha256Hex(parts[2])[0 .. 15]
         let limit = snapshot.intValue(%*{}, keySecurityShareScrapeLimit)
@@ -2905,12 +2867,11 @@ proc route(request: Request) =
       if path == "/ops/ping" and request.httpMethod == "GET":
         opsPing(request)
       else:
-        problem(request, 404, "NOT_FOUND", "route not found")
+        routeNotFound(request)
       return
     if path == "/version":
       if verb == "GET":
-        jsonResponse(request, 200, %*{"version": appVersion, "commit": appCommit},
-          [("Cache-Control", "no-store")])
+        jsonResponse(request, 200, %*{"version": appVersion, "commit": appCommit})
       else:
         problem(request, 405, "METHOD", "")
       return
@@ -2918,10 +2879,8 @@ proc route(request: Request) =
       readyz(request)
       return
     if outdatedClient(request):
-      jsonResponse(request, 410, %*{
-        "status": 410, "code": "CLIENT_OUTDATED",
-        "detail": "this client speaks an older contract; reload the page",
-      }, [("Cache-Control", "no-store")])
+      jsonResponse(request, 410, %*{"status": 410, "code": "CLIENT_OUTDATED",
+        "detail": "this client speaks an older contract; reload the page"})
       return
     case path
     of "/auth/start":
@@ -2952,47 +2911,42 @@ proc route(request: Request) =
       return
     else: discard
 
-    let parts = path.split('/')
     # /ws/c/{slug}/sessions/{id} and /ws/share/{code}
     if parts.len >= 3 and parts[1] == "ws":
       handleWebSocket(request, snapshot, parts)
       return
     # /c/{slug}/players[/{id}]
     if parts.len >= 4 and parts[1] == "c" and parts[3] == "players":
-      let user = currentUser(request)
-      if user.isNone:
-        problem(request, 401, "UNAUTHENTICATED", "login required")
-        return
+      # matrix.yaml: reads and the nested claim routes are member, deleting a
+      # player is admin, every other write is host/admin.
       let access =
         if parts.len >= 6: readAccess()
         elif verb == "GET": readAccess()
         elif verb == "DELETE": Access(isSession: true, roles: @[rAdmin])
         else: writeAccess()
-      let (decision, ctx) = decide(user.get,
-        cookieValue(request, "majadu_session"), parts[2], access)
-      if decision != gAllowed:
-        respondGate(request, decision)
-        return
+      let authorized = scoped(request, parts[2], access)
+      if authorized.isNone: return
+      let (user, ctx) = authorized.get
       if parts.len == 4 and verb == "GET":
-        listPlayersRoute(request, ctx.get, user.get.id)
+        listPlayersRoute(request, ctx, user.id)
         return
       if parts.len == 4 and verb == "POST":
-        createPlayerRoute(request, ctx.get, user.get)
+        createPlayerRoute(request, ctx, user)
         return
       if parts.len == 5 and verb == "GET":
-        getPlayerRoute(request, ctx.get, user.get, parts[4])
+        getPlayerRoute(request, ctx, user, parts[4])
         return
       if parts.len == 5 and verb == "PATCH":
-        patchPlayerRoute(request, ctx.get, user.get, parts[4])
+        patchPlayerRoute(request, ctx, user, parts[4])
         return
       if parts.len == 5 and verb == "DELETE":
-        deletePlayerRoute(request, ctx.get, user.get, parts[4])
+        deletePlayerRoute(request, ctx, user, parts[4])
         return
       if parts.len == 6 and parts[5] == "achievements" and verb == "GET":
-        playerAchievements(request, ctx.get, parts[4])
+        playerAchievements(request, ctx, parts[4])
         return
       if parts.len == 6 and parts[5] == "stats" and verb == "GET":
-        playerStats(request, ctx.get, parts[4])
+        playerStats(request, ctx, parts[4])
         return
       if parts.len == 6 and parts[5] == "merge" and verb == "POST":
         let admin = adminGate(request, parts[2])
@@ -3001,10 +2955,10 @@ proc route(request: Request) =
         return
       if parts.len == 6 and parts[5] == "claims":
         if verb == "GET":
-          listClaimsRoute(request, ctx.get, user.get, parts[4])
+          listClaimsRoute(request, ctx, user, parts[4])
           return
         if verb == "POST":
-          submitClaim(request, ctx.get, user.get, parts[4])
+          submitClaim(request, ctx, user, parts[4])
           return
       if parts.len == 7 and parts[5] == "claims" and verb == "PATCH":
         let admin = adminGate(request, parts[2])
@@ -3012,61 +2966,60 @@ proc route(request: Request) =
         decideClaim(request, admin.get[1], admin.get[0], parts[4], parts[6])
         return
       if parts.len == 6 and parts[5] == "claim" and verb == "DELETE":
-        releaseOwnClaim(request, ctx.get, user.get, parts[4])
+        releaseOwnClaim(request, ctx, user, parts[4])
+        return
+      if parts.len in [4, 5] or
+         (parts.len == 6 and parts[5] in ["achievements", "stats", "merge",
+                                         "claims", "claim"]) or
+         (parts.len == 7 and parts[5] == "claims"):
+        methodNotAllowed(request)
         return
     # /c/{slug}/sessions[/{id}[/share]]
     if parts.len >= 4 and parts[1] == "c" and parts[3] == "sessions":
-      let slug = parts[2]
-      let user = currentUser(request)
-      if user.isNone:
-        problem(request, 401, "UNAUTHENTICATED", "login required")
-        return
-      let token = cookieValue(request, "majadu_session")
       let access =
         if parts.len == 6 and parts[5] in ["ws-ticket", "standings"]: readAccess()
         elif parts.len >= 6: writeAccess()
         elif verb == "GET": readAccess()
         else: writeAccess()
-      let (decision, ctx) = decide(user.get, token, slug, access)
-      if decision != gAllowed:
-        respondGate(request, decision)
-        return
+      let authorized = scoped(request, parts[2], access)
+      if authorized.isNone: return
+      let (user, ctx) = authorized.get
       if parts.len == 4 and verb == "GET":
-        listSessions(request, ctx.get)
+        listSessions(request, ctx)
         return
       if parts.len == 4 and verb == "POST":
-        createSession(request, ctx.get, user.get)
+        createSession(request, ctx, user)
         return
       if parts.len == 5 and verb == "PATCH":
-        patchSession(request, ctx.get, user.get, parts[4])
+        patchSession(request, ctx, user, parts[4])
         return
       if parts.len == 6 and parts[5] in ["lock", "unlock"] and verb == "POST":
-        setSessionLock(request, ctx.get, user.get, parts[4], parts[5] == "lock")
+        setSessionLock(request, ctx, user, parts[4], parts[5] == "lock")
         return
       if parts.len == 5 and verb == "DELETE":
-        deleteSession(request, ctx.get, user.get, parts[4])
+        deleteSession(request, ctx, user, parts[4])
         return
       if parts.len == 6 and parts[5] == "standings" and verb == "GET":
-        getSessionStandingsRoute(request, ctx.get, parts[4])
+        getSessionStandingsRoute(request, ctx, parts[4])
         return
       if parts.len == 5 and verb == "GET":
-        getSessionDetail(request, ctx.get, parts[4])
+        getSessionDetail(request, ctx, parts[4])
         return
       if parts.len == 6 and parts[5] == "share":
         if verb == "POST":
-          createShare(request, ctx.get, user.get, parts[4])
+          createShare(request, ctx, user, parts[4])
           return
         if verb == "GET":
-          getShareLink(request, ctx.get, user.get, parts[4])
+          getShareLink(request, ctx, user, parts[4])
           return
         if verb == "DELETE":
-          deleteShareLink(request, ctx.get, user.get, parts[4])
+          deleteShareLink(request, ctx, user, parts[4])
           return
       if parts.len == 6 and parts[5] == "swap" and verb == "POST":
-        swapSession(request, ctx.get, user.get, parts[4])
+        swapSession(request, ctx, user, parts[4])
         return
       if parts.len == 6 and parts[5] == "ws-ticket" and verb == "POST":
-        issueSessionTicket(request, ctx.get, user.get, parts[4])
+        issueSessionTicket(request, ctx, user, parts[4])
         return
       if parts.len == 6 and parts[5] == "rating":
         if verb in ["POST", "DELETE"]:
@@ -3078,52 +3031,53 @@ proc route(request: Request) =
             clearSessionRating(request, admin.get[1], admin.get[0], parts[4])
           return
       if parts.len == 6 and parts[5] == "schedule" and verb == "PUT":
-        putScheduleRoute(request, ctx.get, parts[4])
+        putScheduleRoute(request, ctx, parts[4])
         return
       if parts.len == 6 and parts[5] == "absent" and verb == "PATCH":
-        setAbsentRoute(request, ctx.get, parts[4])
+        setAbsentRoute(request, ctx, parts[4])
         return
       if parts.len == 7 and parts[5] == "games":
         if verb == "GET":
-          getGameRoute(request, ctx.get, parts[4], parts[6])
+          getGameRoute(request, ctx, parts[4], parts[6])
           return
         if verb == "PATCH":
-          setGameScoreRoute(request, ctx.get, parts[4], parts[6])
+          setGameScoreRoute(request, ctx, parts[4], parts[6])
           return
       if parts.len == 8 and parts[5] == "games" and parts[7] == "skip" and
          verb == "PATCH":
-        skipGameRoute(request, ctx.get, parts[4], parts[6])
+        skipGameRoute(request, ctx, parts[4], parts[6])
+        return
+      if parts.len in [4, 5] or
+         (parts.len == 6 and parts[5] in
+           ["lock", "unlock", "standings", "share", "swap", "ws-ticket",
+            "rating", "schedule", "absent"]) or
+         (parts.len in [7, 8] and parts[5] == "games"):
+        methodNotAllowed(request)
         return
     # /c/{slug}/tournaments[/{id}[/matches/{matchId}]]
     if parts.len >= 4 and parts[1] == "c" and parts[3] == "tournaments":
-      let user = currentUser(request)
-      if user.isNone:
-        problem(request, 401, "UNAUTHENTICATED", "login required")
-        return
       # matrix.yaml: reads are member, every write is host/admin.
       let access = if verb == "GET": readAccess() else: writeAccess()
-      let (decision, ctx) = decide(user.get,
-        cookieValue(request, "majadu_session"), parts[2], access)
-      if decision != gAllowed:
-        respondGate(request, decision)
-        return
+      let authorized = scoped(request, parts[2], access)
+      if authorized.isNone: return
+      let (user, ctx) = authorized.get
       if parts.len == 4 and verb == "GET":
-        listTournamentsRoute(request, ctx.get)
+        listTournamentsRoute(request, ctx)
         return
       if parts.len == 4 and verb == "POST":
-        createTournamentRoute(request, ctx.get, user.get)
+        createTournamentRoute(request, ctx, user)
         return
       if parts.len == 5 and verb == "GET":
-        getTournamentRoute(request, ctx.get, parts[4])
+        getTournamentRoute(request, ctx, parts[4])
         return
       if parts.len == 5 and verb == "PUT":
-        putTournamentRoute(request, ctx.get, user.get, parts[4])
+        putTournamentRoute(request, ctx, user, parts[4])
         return
       if parts.len == 5 and verb == "DELETE":
-        deleteTournamentRoute(request, ctx.get, user.get, parts[4])
+        deleteTournamentRoute(request, ctx, user, parts[4])
         return
       if parts.len == 7 and parts[5] == "matches" and verb == "PATCH":
-        patchTournamentMatchRoute(request, ctx.get, user.get, parts[4], parts[6])
+        patchTournamentMatchRoute(request, ctx, user, parts[4], parts[6])
         return
       if parts.len == 6 and parts[5] == "rating" and verb in ["POST", "DELETE"]:
         # matrix.yaml: both rating operations are admin-only.
@@ -3134,8 +3088,6 @@ proc route(request: Request) =
         else:
           clearTournamentRating(request, admin.get[1], admin.get[0], parts[4])
         return
-      problem(request, 404, "NOT_FOUND", "route not found")
-      return
     # /c/{slug}/ratings/rebuild and /c/{slug}/rating-sources[/{id}]
     if parts.len >= 4 and parts[1] == "c" and
        parts[3] in ["ratings", "rating-sources"]:
@@ -3154,8 +3106,6 @@ proc route(request: Request) =
       if parts[3] == "rating-sources" and parts.len == 5 and verb == "DELETE":
         removeRatingSource(request, admin.get[1], admin.get[0], parts[4])
         return
-      problem(request, 404, "NOT_FOUND", "route not found")
-      return
     # /invites/{token}/accept
     if parts.len == 4 and parts[1] == "invites" and parts[3] == "accept":
       if verb == "POST": acceptInvite(request, parts[2])
@@ -3171,27 +3121,17 @@ proc route(request: Request) =
     if parts.len >= 4 and parts[1] == "c" and
        parts[3] in ["members", "join-requests", "claims", "invites", "config"]:
       if parts[3] == "members" and parts.len == 4 and verb == "GET":
-        let user = requireUser(request)
-        if user.isNone: return
-        let (decision, ctx) = decide(user.get,
-          cookieValue(request, "majadu_session"), parts[2], readAccess())
-        if decision != gAllowed:
-          respondGate(request, decision)
-          return
-        listMembers(request, ctx.get)
+        let authorized = scoped(request, parts[2], readAccess())
+        if authorized.isNone: return
+        listMembers(request, authorized.get[1])
         return
       # The effective config is what a member's screen reads (export sizes,
       # page limits). Community settings are readable by members too, so this
       # cannot be admin-only without breaking every page a host opens.
       if parts[3] == "config" and parts.len == 4 and verb == "GET":
-        let user = requireUser(request)
-        if user.isNone: return
-        let (decision, ctx) = decide(user.get,
-          cookieValue(request, "majadu_session"), parts[2], readAccess())
-        if decision != gAllowed:
-          respondGate(request, decision)
-          return
-        communityConfig(request, ctx.get)
+        let authorized = scoped(request, parts[2], readAccess())
+        if authorized.isNone: return
+        communityConfig(request, authorized.get[1])
         return
       let admin = adminGate(request, parts[2])
       if admin.isNone: return
@@ -3213,21 +3153,12 @@ proc route(request: Request) =
       if parts[3] == "invites" and parts.len == 4 and verb == "POST":
         createInvite(request, ctx, user)
         return
-      problem(request, 404, "NOT_FOUND", "route not found")
-      return
     # /c/{slug}/settings
     if parts.len == 4 and parts[1] == "c" and parts[3] == "settings":
       if verb == "GET":
-        let user = currentUser(request)
-        if user.isNone:
-          problem(request, 401, "UNAUTHENTICATED", "login required")
-          return
-        let (decision, ctx) = decide(user.get,
-          cookieValue(request, "majadu_session"), parts[2], readAccess())
-        if decision != gAllowed:
-          respondGate(request, decision)
-          return
-        getCommunitySettings(request, ctx.get)
+        let authorized = scoped(request, parts[2], readAccess())
+        if authorized.isNone: return
+        getCommunitySettings(request, authorized.get[1])
       elif verb == "PATCH":
         # Settings are admin-only: a host raises scores, not the ceiling.
         let admin = adminGate(request, parts[2])
@@ -3238,19 +3169,13 @@ proc route(request: Request) =
       return
     # /c/{slug}/rankings[/{playerId}]
     if parts.len in [4, 5] and parts[1] == "c" and parts[3] == "rankings":
-      let user = currentUser(request)
-      if user.isNone:
-        problem(request, 401, "UNAUTHENTICATED", "login required")
-        return
-      let (decision, ctx) = decide(user.get,
-        cookieValue(request, "majadu_session"), parts[2], readAccess())
-      if decision != gAllowed:
-        respondGate(request, decision)
-        return
+      let authorized = scoped(request, parts[2], readAccess())
+      if authorized.isNone: return
+      let ctx = authorized.get[1]
       if parts.len == 4:
-        communityBoard(request, ctx.get.communityId, ctx.get.timezone)
+        communityBoard(request, ctx.communityId, ctx.timezone)
       else:
-        rankingPlayer(request, ctx.get.communityId, ctx.get.timezone,
+        rankingPlayer(request, ctx.communityId, ctx.timezone,
           parts[4])
       return
     # /s/{code} and /s/{code}/rankings
@@ -3268,7 +3193,7 @@ proc route(request: Request) =
       if parts.len == 4 and parts[3] == "ws-ticket" and verb == "POST":
         issueShareTicket(request, code)
         return
-    problem(request, 404, "NOT_FOUND", "route not found")
+    routeNotFound(request)
   except DbError as error:
     if error.sqlState in ["23001", "23503"]:
       # PostgreSQL reports ON DELETE RESTRICT as 23001, not 23503: the player
