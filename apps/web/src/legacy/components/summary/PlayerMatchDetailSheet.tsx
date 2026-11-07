@@ -1,11 +1,10 @@
+import { Overlay } from '../../../components/Overlay'
 import AnnotatedPlayerName from '../AnnotatedPlayerName'
 import type { Player, ScheduleSlot, GameScore, PlayerId, SetScore } from '../../types'
 import { toPlayerId, toGameKey } from '../../types'
 import type { PlayerStanding } from '../../utils/standings'
 import { setsWon, describeSets } from '../../utils/scoring'
 import { ordinal } from '../../utils/ordinal'
-import { t } from '../../../i18n'
-import { useEscapeKey } from '../../hooks/useEscapeKey'
 
 interface GameRow {
   slot: number
@@ -101,102 +100,80 @@ export default function PlayerMatchDetailSheet({
   skippedPlayers,
   onClose,
 }: PlayerMatchDetailSheetProps) {
-  // Hooks run before the early return; `enabled` carries the guard instead.
-  useEscapeKey(onClose, player !== null)
-
   if (!player) return null
 
   const games = buildGameRows(player.player.id, schedule, gameScores, players, voidPlayerIds, skippedPlayers)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="player-match-sheet-title"
-        className="bg-slate-900 rounded-t-2xl w-full max-w-lg overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
-        style={{ maxHeight: '80dvh' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 id="player-match-sheet-title" className="text-lg font-semibold text-slate-100"><AnnotatedPlayerName name={player.player.name} /></h2>
-            <p className="text-sm text-slate-400">#{rank} {ordinal(rank)}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-200 transition-colors"
-            aria-label={t('common.close')}
-          >
-            ✕
-          </button>
+    <Overlay
+      onClose={onClose}
+      title={<AnnotatedPlayerName name={player.player.name} />}
+      description={`#${rank} ${ordinal(rank)}`}
+    >
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-slate-800 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-slate-100">{player.wins}</div>
+          <div className="text-xs text-slate-400">Won</div>
         </div>
-
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-slate-800 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-slate-100">{player.wins}</div>
-            <div className="text-xs text-slate-400">Won</div>
-          </div>
-          <div className="bg-slate-800 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-slate-100">{player.losses}</div>
-            <div className="text-xs text-slate-400">Lost</div>
-          </div>
-          <div className="bg-slate-800 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-slate-100">{player.wins + player.losses}</div>
-            <div className="text-xs text-slate-400">Played</div>
-          </div>
+        <div className="bg-slate-800 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-slate-100">{player.losses}</div>
+          <div className="text-xs text-slate-400">Lost</div>
         </div>
+        <div className="bg-slate-800 rounded-lg p-3 text-center">
+          <div className="text-2xl font-bold text-slate-100">{player.wins + player.losses}</div>
+          <div className="text-xs text-slate-400">Played</div>
+        </div>
+      </div>
 
-        <h3 className="text-sm font-medium text-slate-300 mb-2">Match History</h3>
-        {games.length === 0 ? (
-          <p className="text-sm text-slate-400">No games played yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {games.map((game, i) => (
-              <div key={i} className="bg-slate-800 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-slate-400">
-                    Game {game.slot + 1} • Court {game.court + 1}
+      <h3 className="text-sm font-medium text-slate-300 mb-2">Match History</h3>
+      {games.length === 0 ? (
+        <p className="text-sm text-slate-400">No games played yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {games.map((game, i) => (
+            <div key={i} className="bg-slate-800 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-slate-400">
+                  Game {game.slot + 1} • Court {game.court + 1}
+                </span>
+                {game.won !== null && (
+                  <span className={`text-xs font-medium ${game.won ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {game.won ? 'Won' : 'Lost'}
                   </span>
-                  {game.won !== null && (
-                    <span className={`text-xs font-medium ${game.won ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {game.won ? 'Won' : 'Lost'}
-                    </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-sm text-slate-200 truncate min-w-0">
+                  {game.partner?.name ? <AnnotatedPlayerName name={game.partner.name} /> : '?'}
+                </span>
+                <span className="text-xs text-slate-400">vs</span>
+                <span className="text-sm text-slate-200 truncate min-w-0 flex items-center gap-1">
+                  {game.opponents[0]?.name ? <AnnotatedPlayerName name={game.opponents[0].name} /> : '?'}
+                  &
+                  {game.opponents[1]?.name ? <AnnotatedPlayerName name={game.opponents[1].name} /> : '?'}
+                </span>
+              </div>
+              {game.sets && game.sets.length > 0 ? (
+                <div className="mt-1">
+                  <div className="text-sm text-slate-300">
+                    {(() => {
+                      const count = setsWon(game.sets)
+                      return `${game.onTeamA ? count.a : count.b} - ${game.onTeamA ? count.b : count.a}`
+                    })()}
+                  </div>
+                  {game.sets.length > 1 && (
+                    <div className="text-[11px] text-slate-400">{describeSets(game.sets)}</div>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span className="text-sm text-slate-200 truncate min-w-0">
-                    {game.partner?.name ? <AnnotatedPlayerName name={game.partner.name} /> : '?'}
-                  </span>
-                  <span className="text-xs text-slate-400">vs</span>
-                  <span className="text-sm text-slate-200 truncate min-w-0 flex items-center gap-1">
-                    {game.opponents[0]?.name ? <AnnotatedPlayerName name={game.opponents[0].name} /> : '?'}
-                    &
-                    {game.opponents[1]?.name ? <AnnotatedPlayerName name={game.opponents[1].name} /> : '?'}
-                  </span>
+              ) : game.scoreFor !== null ? (
+                <div className="text-sm text-slate-300 mt-1">
+                  {game.scoreFor} - {game.scoreAgainst}
                 </div>
-                {game.sets && game.sets.length > 0 ? (
-                  <div className="mt-1">
-                    <div className="text-sm text-slate-300">
-                      {(() => {
-                        const count = setsWon(game.sets)
-                        return `${game.onTeamA ? count.a : count.b} - ${game.onTeamA ? count.b : count.a}`
-                      })()}
-                    </div>
-                    {game.sets.length > 1 && (
-                      <div className="text-[11px] text-slate-400">{describeSets(game.sets)}</div>
-                    )}
-                  </div>
-                ) : game.scoreFor !== null ? (
-                  <div className="text-sm text-slate-300 mt-1">
-                    {game.scoreFor} - {game.scoreAgainst}
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </Overlay>
   )
 }

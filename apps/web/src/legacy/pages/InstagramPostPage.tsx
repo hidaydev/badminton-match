@@ -11,8 +11,7 @@ import { loadImage, drawStandingsCanvas, type OverlayImages } from '../utils/can
 import { drawPostCanvas } from '../utils/canvas-templates'
 import { loadOverlayImages } from '../utils/overlays'
 import { todayWIB } from '../utils/time'
-import { useEscapeKey } from '../hooks/useEscapeKey'
-import { useFocusTrap } from '../hooks/useFocusTrap'
+import { Overlay } from '../../components/Overlay'
 import { t } from '../../i18n'
 
 const TEMPLATE = instagramTemplates[ACTIVE_TEMPLATE - 1]
@@ -223,17 +222,6 @@ export default function InstagramPostPage() {
     setPendingStandingMode(null)
     setIsGenerating(false)
   }, [])
-
-  // The sheet is a modal dialog: focus moves into it, Tab stays inside, and
-  // focus goes back to the download button when it closes.
-  const sheetRef = useRef<HTMLDivElement>(null)
-  useEscapeKey(closeSheet, showDownloadSheet)
-  useFocusTrap(sheetRef, showDownloadSheet)
-  // Switching screens unmounts the focused button; keep focus in the dialog so
-  // Tab cannot escape to the page behind it.
-  useEffect(() => {
-    if (showDownloadSheet) sheetRef.current?.focus()
-  }, [sheetScreen, showDownloadSheet])
 
   const handleDownloadStanding = useCallback(async (sessionMeta: SessionMeta) => {
     if (!pendingStandingMode) return
@@ -491,144 +479,131 @@ export default function InstagramPostPage() {
 
       {/* Download format bottom sheet */}
       {showDownloadSheet && (
-        <div
-          className="fixed inset-0 z-50 flex items-end"
-          onClick={closeSheet}
+        <Overlay
+          onClose={closeSheet}
+          title={sheetScreen === 'formats' ? t('instagram.sheet.downloadAs') : t('instagram.sheet.pickSession')}
+          labelledBy="instagram-sheet-title"
         >
-          <div className="absolute inset-0 bg-black/60" />
-          <div
-            ref={sheetRef}
-            tabIndex={-1}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="instagram-sheet-title"
-            className="relative w-full bg-slate-900 rounded-t-3xl px-5 pt-5 pb-10"
-            style={{ boxShadow: '0 -8px 40px rgba(0,0,0,0.6)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="w-10 h-1 bg-slate-700 rounded-full mx-auto mb-6" />
-
-            {sheetScreen === 'formats' && (
-              <>
-                <h2 id="instagram-sheet-title" className="text-xs font-sans text-slate-400 tracking-widest uppercase mb-4">{t('instagram.sheet.downloadAs')}</h2>
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Photo Post */}
-                  <button
-                    onClick={handleDownloadPost}
-                    className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700"
-                  >
-                    <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600" />
-                    <div className="text-center">
-                      <p className="text-sm font-bold text-white">Post</p>
-                      <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
-                    </div>
-                  </button>
-
-                  {/* Photo Story */}
-                  <button
-                    onClick={handleDownloadStory}
-                    className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3"
-                  >
-                    <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
-                      <div className="w-7 h-7 rounded bg-yellow-500/40" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-bold text-black">Story</p>
-                      <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
-                    </div>
-                  </button>
-
-                  {/* Standing Post */}
-                  <button
-                    onClick={() => { setPendingStandingMode('post'); setSheetScreen('session-picker') }}
-                    className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700"
-                  >
-                    <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-bold text-white">Leaderboard Post</p>
-                      <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
-                    </div>
-                  </button>
-
-                  {/* Standing Story */}
-                  <button
-                    onClick={() => { setPendingStandingMode('story'); setSheetScreen('session-picker') }}
-                    className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3"
-                  >
-                    <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-bold text-black">Leaderboard Story</p>
-                      <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
-                    </div>
-                  </button>
-                </div>
-              </>
-            )}
-
-            {sheetScreen === 'session-picker' && (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <button
-                    onClick={() => { setSheetScreen('formats'); setIsGenerating(false) }}
-                    aria-label={t('instagram.back')}
-                    className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 text-sm active:bg-slate-700"
-                  >
-                    ←
-                  </button>
-                  <h2 id="instagram-sheet-title" className="text-xs font-sans text-slate-400 tracking-widest uppercase">{t('instagram.sheet.pickSession')}</h2>
-                </div>
-
-                <div className="mb-3">
-                  <input
-                    type="text"
-                    value={sessionQuery}
-                    onChange={(e) => setSessionQuery(e.target.value)}
-                    placeholder="Search session by title…"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:border-yellow-400"
-                  />
-                </div>
-
-                {isGenerating && (
-                  <div className="flex items-center justify-center py-8 gap-3">
-                    <div className="w-5 h-5 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
-                    <span className="text-sm text-slate-400">Generating…</span>
+          {sheetScreen === 'formats' && (
+            <>
+              <h2 id="instagram-sheet-title" className="text-xs font-sans text-slate-400 tracking-widest uppercase mb-4 pt-4">{t('instagram.sheet.downloadAs')}</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Photo Post */}
+                <button
+                  onClick={handleDownloadPost}
+                  className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700"
+                >
+                  <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600" />
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-white">Post</p>
+                    <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
                   </div>
-                )}
+                </button>
 
-                {!isGenerating && (
-                  <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
-                    {!sessionQuery.trim() && (
-                      <p className="text-sm text-slate-400 text-center py-4">Search session by title to select</p>
-                    )}
-                    {sessionQuery.trim() && !sessions && (
-                      <p className="text-sm text-slate-400 text-center py-4">Loading sessions…</p>
-                    )}
-                    {sessionQuery.trim() && sessions?.length === 0 && (
-                      <p className="text-sm text-slate-400 text-center py-4">No sessions found</p>
-                    )}
-                    {sessionQuery.trim() && sessions?.map(s => (
-                      <button
-                        key={s.id}
-                        onClick={() => handleDownloadStanding(s)}
-                        className="flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-800 active:bg-slate-700 border border-slate-700 text-left"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-white truncate">{s.title}</p>
-                          <p className="text-[11px] text-slate-400">{s.date} · {s.playerCount} players</p>
-                        </div>
-                        <span className="text-slate-400 text-xs">→</span>
-                      </button>
-                    ))}
+                {/* Photo Story */}
+                <button
+                  onClick={handleDownloadStory}
+                  className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3"
+                >
+                  <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded bg-yellow-500/40" />
                   </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-black">Story</p>
+                    <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
+                  </div>
+                </button>
+
+                {/* Standing Post */}
+                <button
+                  onClick={() => { setPendingStandingMode('post'); setSheetScreen('session-picker') }}
+                  className="bg-slate-800 active:bg-slate-700 rounded-lg p-4 flex flex-col items-center gap-3 border border-slate-700"
+                >
+                  <div className="w-12 h-15 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-white">Leaderboard Post</p>
+                    <p className="text-[11px] text-slate-400">{POST_WIDTH} × {POST_HEIGHT}</p>
+                  </div>
+                </button>
+
+                {/* Standing Story */}
+                <button
+                  onClick={() => { setPendingStandingMode('story'); setSheetScreen('session-picker') }}
+                  className="bg-yellow-400 active:bg-yellow-300 rounded-lg p-4 flex flex-col items-center gap-3"
+                >
+                  <div className="w-12 h-15 rounded-lg bg-yellow-300 border border-yellow-500 flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 6H3v2a3 3 0 0 0 4 2.8M17 6h4v2a3 3 0 0 1-4 2.8"/></svg>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-black">Leaderboard Story</p>
+                    <p className="text-[11px] text-yellow-800">{STORY_WIDTH} × {STORY_HEIGHT}</p>
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
+
+          {sheetScreen === 'session-picker' && (
+            <>
+              <div className="flex items-center gap-3 mb-4 pt-4">
+                <button
+                  onClick={() => { setSheetScreen('formats'); setIsGenerating(false) }}
+                  aria-label={t('instagram.back')}
+                  className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 text-sm active:bg-slate-700"
+                >
+                  ←
+                </button>
+                <h2 id="instagram-sheet-title" className="text-xs font-sans text-slate-400 tracking-widest uppercase">{t('instagram.sheet.pickSession')}</h2>
+              </div>
+
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={sessionQuery}
+                  onChange={(e) => setSessionQuery(e.target.value)}
+                  placeholder="Search session by title…"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:border-yellow-400"
+                />
+              </div>
+
+              {isGenerating && (
+                <div className="flex items-center justify-center py-8 gap-3">
+                  <div className="w-5 h-5 rounded-full border-2 border-yellow-400 border-t-transparent animate-spin" />
+                  <span className="text-sm text-slate-400">Generating…</span>
+                </div>
+              )}
+
+              {!isGenerating && (
+                <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
+                  {!sessionQuery.trim() && (
+                    <p className="text-sm text-slate-400 text-center py-4">Search session by title to select</p>
+                  )}
+                  {sessionQuery.trim() && !sessions && (
+                    <p className="text-sm text-slate-400 text-center py-4">Loading sessions…</p>
+                  )}
+                  {sessionQuery.trim() && sessions?.length === 0 && (
+                    <p className="text-sm text-slate-400 text-center py-4">No sessions found</p>
+                  )}
+                  {sessionQuery.trim() && sessions?.map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => handleDownloadStanding(s)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-800 active:bg-slate-700 border border-slate-700 text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{s.title}</p>
+                        <p className="text-[11px] text-slate-400">{s.date} · {s.playerCount} players</p>
+                      </div>
+                      <span className="text-slate-400 text-xs">→</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </Overlay>
       )}
     </div>
   )
