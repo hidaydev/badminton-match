@@ -1,5 +1,5 @@
+import { useId } from 'react'
 import { useEscapeKey } from '../hooks/useEscapeKey'
-import { t } from '../../i18n'
 
 interface UpdateBannerProps {
   onReload(): void
@@ -8,14 +8,16 @@ interface UpdateBannerProps {
 
 export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps) {
   useEscapeKey(onDismiss)
+  const headingId = useId()
 
   return (
     // Non-blocking: a bottom sheet without a full-screen scrim, so the live
-    // score stays readable until the user acts on it.
+    // score stays readable until the user acts on it. Nothing is trapped and
+    // the page stays usable behind it, so it is a status message, not a dialog.
     <div
       className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none"
-      role="dialog"
-      aria-label={t('app.updateAvailable')}
+      role="status"
+      aria-labelledby={headingId}
     >
       <div
         className="relative w-full max-w-lg mx-3 mb-3 pointer-events-auto bg-slate-900 rounded-3xl border border-border flex flex-col overflow-hidden
@@ -33,7 +35,7 @@ export default function UpdateBanner({ onReload, onDismiss }: UpdateBannerProps)
             🚀
           </div>
           <div className="text-center">
-            <p className="text-white font-bold text-lg leading-tight">Update Available</p>
+            <p id={headingId} className="text-white font-bold text-lg leading-tight">Update Available</p>
             <p className="text-slate-400 text-sm mt-0.5">A new version of MAJADU is ready</p>
           </div>
         </div>

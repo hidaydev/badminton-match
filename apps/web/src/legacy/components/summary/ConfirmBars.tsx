@@ -1,6 +1,7 @@
 import type { Player, ScheduleSlot } from '../../types'
 import type { SwapTarget, TeamSwapTarget } from '../../utils/swap'
 import type { SlotSwapTarget } from '../../utils/slotSwap'
+import { useEscapeKey } from '../../hooks/useEscapeKey'
 import { t } from '../../../i18n'
 
 type BarColor = 'indigo' | 'red' | 'orange' | 'violet' | 'sky' | 'amber'
@@ -36,6 +37,8 @@ function ConfirmActionBar({
   children?: React.ReactNode
 }) {
   const c = COLOR_MAP[color]
+  // Escape cancels, the same way the ✕ button does.
+  useEscapeKey(onCancel)
   return (
     <div className={`fixed bottom-0 left-0 right-0 z-50 bg-ground border-t ${c.border} px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]`}>
       <div className="max-w-xl mx-auto">
@@ -43,7 +46,10 @@ function ConfirmActionBar({
           {children}
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-slate-200 truncate">{description}</div>
+              {/* Live region: `role="status"` carries an implicit polite
+                  `aria-live`, so the confirmation is announced when the bar
+                  mounts or its pending selection changes. */}
+              <div role="status" className="text-xs font-semibold text-slate-200 truncate">{description}</div>
               {warning && <p className="text-[10px] text-red-400 mt-0.5">⚠ {warning}</p>}
               {extraWarning && <p className="text-[10px] text-amber-400 mt-0.5">⚠ {extraWarning}</p>}
             </div>
