@@ -27,6 +27,20 @@ proc parseRole*(value: string): Role =
   of "admin": rAdmin
   else: raise newException(ValueError, "unknown role: " & value)
 
+proc rank*(role: Role): int =
+  ## Authorization order, written out per role. It is deliberately not `ord`:
+  ## the declaration order of an enum is not an authorization decision, so a
+  ## later reordering of `Role` cannot silently change who may promote whom.
+  case role
+  of rMember: 1
+  of rHost: 2
+  of rAdmin: 3
+
+proc promotes*(current, wanted: Role): bool =
+  ## True when moving from `current` to `wanted` climbs the ladder. Equal and
+  ## lower roles are no-ops, so an invite never demotes its recipient.
+  rank(wanted) > rank(current)
+
 proc parseAccess*(node: JsonNode): Access =
   if not node.hasKey("auth"):
     raise newException(ValueError, "matrix row needs auth")

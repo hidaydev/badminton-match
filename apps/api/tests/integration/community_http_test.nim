@@ -1,5 +1,6 @@
 import std/[httpclient, json, options, os, sequtils, strutils, unittest]
 import db/db
+import account/domain/roles
 import community/infrastructure/[community_store, membership]
 import tests/fixtures
 import ../http_support
@@ -197,7 +198,7 @@ suite "community HTTP":
   test "config exposes effective values to every member":
     # Every member screen reads this (export sizes, page limits). Making it
     # admin-only left a plain member's community page broken with a 403.
-    discard membership.add(database, clubId, memberId, "member")
+    discard membership.add(database, clubId, memberId, rMember)
     let memberStatus = call(baseUrl, HttpGet, "/c/http-club/config", memberCookie)
     let memberBody = memberStatus.body
     expectStatus(memberStatus, 200)

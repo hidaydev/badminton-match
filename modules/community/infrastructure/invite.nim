@@ -19,11 +19,10 @@ type
     role*: string
     emailHash*: string
 
-proc create*(db: Db, communityId, emailHash, role, createdBy: string,
-             ttlDays: int): string =
+proc create*(db: Db, communityId, emailHash: string, role: Role,
+             createdBy: string, ttlDays: int): string =
   ## Returns the opaque token exactly once. The invite is bound to the address,
   ## so a forwarded token is worthless without the matching account.
-  discard parseRole(role)
   let token = newOpaqueToken()
   discard db.execUpdate(
     """insert into community.invite
@@ -34,7 +33,7 @@ proc create*(db: Db, communityId, emailHash, role, createdBy: string,
       textParam(communityId),
       textParam(sha256Hex(token)),
       textParam(emailHash),
-      textParam(role),
+      textParam($role),
       textParam(createdBy),
       intParam(ttlDays.int64),
     ])
@@ -77,7 +76,7 @@ proc acceptPendingForEmail*(db: Db, userId, emailHash: string):
          returning community_id, role""",
       @[textParam(emailHash)]):
       if addMemberConn(conn, row.getUuid("community_id"), userId,
-          row.get("role")):
+          parseRole(row.get("role"))):
         joined.add((communityId: row.getUuid("community_id"),
           role: row.get("role"))))
   joined
@@ -117,26 +116,20 @@ proc accept*(db: Db, token, userId, emailHash: string): AcceptResult =
       @[textParam(sha256Hex(token)), textParam(emailHash)])
     if row.isSome:
       communityId = row.get.getUuid("community_id")
-      role = row.get.get("role")
       # An invite may promote an existing member (the screen offers host and
-      # admin), but never demote one: the update only fires when the invited
-      # role ranks higher.
-      discard conn.execUpdate(
-        """insert into community.membership (community_id, user_id, role)
-           values ($1::uuid, $2::uuid, $3)
-           on conflict (community_id, user_id) do update
-             set role = excluded.role
-             where case excluded.role
-                     when 'admin' then 3 when 'host' then 2 else 1 end
-                 > case community.membership.role
-                     when 'admin' then 3 when 'host' then 2 else 1 end""",
-        @[textParam(communityId), textParam(userId), textParam(role)])
-      # The audit and the response must name the role the member ended up with,
-      # not the one the invite asked for (a second invite may be a no-op).
+      # admin), but never demote one: the rank comparison happens before the
+      # write, so the plain upsert only ever raises a member's role.
+      let wanted = parseRole(row.get.get("role"))
       let held = conn.queryOne(memberRoleSql,
         @[textParam(communityId), textParam(userId)])
-      if held.isSome:
-        role = held.get.get("role"))
+      if held.isNone or promotes(parseRole(held.get.get("role")), wanted):
+        discard upsertMemberConn(conn, communityId, userId, wanted)
+      # The audit and the response must name the role the member ended up with,
+      # not the one the invite asked for (a second invite may be a no-op).
+      let settled = conn.queryOne(memberRoleSql,
+        @[textParam(communityId), textParam(userId)])
+      if settled.isSome:
+        role = settled.get.get("role"))
 
   if communityId.len > 0:
     AcceptResult(outcome: aoOk, communityId: communityId, role: role)

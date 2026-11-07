@@ -33,11 +33,9 @@ proc listPending*(db: Db, communityId: string): seq[JoinRequest] =
       displayName: row.get("display_name"), createdAt: row.get("created_at")))
 
 proc decide*(db: Db, communityId, requestId, actorId: string,
-             role: string, approve: bool): bool =
+             role: Role, approve: bool): bool =
   ## `WHERE status = 'pending' RETURNING` makes two admins clicking at once
   ## resolve to exactly one decision; the loser sees 404/409, not a second write.
-  if approve:
-    discard parseRole(role)
   var decided = false
   db.tx(proc(conn: DbConn) =
     let row = conn.queryOne(

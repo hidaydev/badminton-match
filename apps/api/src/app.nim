@@ -1243,7 +1243,7 @@ proc createInvite(request: Request, ctx: CommunityContext, user: AuthUser) =
   let ttl = configSnapshot().intValue(
     currentSettings(application.db, ctx.communityId), keyCommunityInviteTtlDays)
   let token = inviteStore.create(application.db, ctx.communityId,
-    sha256Hex(email.strip().toLowerAscii()), $parsed, user.id, ttl)
+    sha256Hex(email.strip().toLowerAscii()), parsed, user.id, ttl)
   audit("community.invite", ctx, user, "community", ctx.communityId,
     %*{"role": $parsed})
   jsonResponse(request, 201, %*{"token": token, "expiresInDays": ttl, "role": $parsed})
@@ -1319,18 +1319,19 @@ proc decideJoinRequest(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 400, "INVALID_DECISION", "decision must be approve or reject")
     return
   let role = optStr(body, "role", "member")
+  var parsed: Role
   try:
-    discard parseRole(role)
+    parsed = parseRole(role)
   except ValueError:
     problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
     return
   let approve = decision == "approve"
   if not joinRequestStore.decide(application.db, ctx.communityId, requestId,
-      user.id, role, approve):
+      user.id, parsed, approve):
     problem(request, 404, "NOT_FOUND", "pending request not found")
     return
   audit(if approve: "community.join.approved" else: "community.join.rejected",
-    ctx.communityId, user, "join_request", requestId, %*{"role": role})
+    ctx.communityId, user, "join_request", requestId, %*{"role": $parsed})
   jsonResponse(request, 200, %*{"status": if approve: "approved" else: "rejected"})
 
 proc listPendingClaims(request: Request, ctx: CommunityContext) =
@@ -1354,8 +1355,9 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
   if not jsonBody(request, body):
     return
   let role = optStr(body, "role")
+  var parsed: Role
   try:
-    discard parseRole(role)
+    parsed = parseRole(role)
   except ValueError:
     problem(request, 400, "INVALID_ROLE", "role must be member, host or admin")
     return
@@ -1363,7 +1365,7 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
   let previous = application.db.queryOne(membershipSql.memberRoleSql,
     @[textParam(ctx.communityId), textParam(targetId)])
   case membershipStore.setRoleChecked(application.db, ctx.communityId,
-      targetId, role)
+      targetId, parsed)
   of membershipStore.mwLastAdmin:
     problem(request, 409, "LAST_ADMIN", "promote another admin first")
     return
@@ -1376,8 +1378,8 @@ proc patchMemberRole(request: Request, ctx: CommunityContext, user: AuthUser,
   # tell a promotion from a demotion.
   audit("community.member.role", ctx, user, "user", targetId,
     %*{"fromRole": if previous.isSome: previous.get.get("role") else: "",
-       "toRole": role})
-  jsonResponse(request, 200, %*{"userId": targetId, "role": role})
+       "toRole": $parsed})
+  jsonResponse(request, 200, %*{"userId": targetId, "role": $parsed})
 
 proc removeMember(request: Request, ctx: CommunityContext, user: AuthUser,
                   targetId: string) =

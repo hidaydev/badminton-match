@@ -22,17 +22,15 @@ proc list*(db: Db, communityId: string): seq[Member] =
       displayName: row.get("display_name"), role: row.get("role"),
       joinedAt: row.get("created_at")))
 
-proc setRole*(db: Db, communityId, userId, role: string): bool =
+proc setRole*(db: Db, communityId, userId: string, role: Role): bool =
   ## Returns false when the user is not a member, so the route can answer 404
   ## instead of pretending the role changed.
-  discard parseRole(role)
   db.execUpdate(
     """update community.membership set role = $1
        where community_id = $2::uuid and user_id = $3::uuid""",
-    @[textParam(role), textParam(communityId), textParam(userId)]) > 0
+    @[textParam($role), textParam(communityId), textParam(userId)]) > 0
 
-proc add*(db: Db, communityId, userId, role: string): bool =
-  discard parseRole(role)
+proc add*(db: Db, communityId, userId: string, role: Role): bool =
   db.read(proc(conn: DbConn): bool =
     addMemberConn(conn, communityId, userId, role))
 
@@ -63,10 +61,9 @@ proc adminCount(conn: DbConn, communityId: string): int =
     @[textParam(communityId)])
   parseInt(row.get.get("admins"))
 
-proc setRoleChecked*(db: Db, communityId, userId, role: string): MemberWrite =
+proc setRoleChecked*(db: Db, communityId, userId: string, role: Role): MemberWrite =
   ## Demoting the last admin is refused inside the same transaction that does
   ## the update, so two concurrent demotions cannot both see "another admin".
-  discard parseRole(role)
   var outcome = mwNotFound
   db.tx(proc(conn: DbConn) =
     lockCommunity(conn, communityId)
@@ -76,14 +73,14 @@ proc setRoleChecked*(db: Db, communityId, userId, role: string): MemberWrite =
       outcome = mwNotFound
       return
     let current = row.get.get("role")
-    if role != "admin" and current == "admin" and
+    if role != rAdmin and current == "admin" and
        adminCount(conn, communityId) <= 1:
       outcome = mwLastAdmin
       return
     discard conn.execUpdate(
       """update community.membership set role = $1
          where community_id = $2::uuid and user_id = $3::uuid""",
-      @[textParam(role), textParam(communityId), textParam(userId)])
+      @[textParam($role), textParam(communityId), textParam(userId)])
     outcome = mwOk)
   outcome
 
