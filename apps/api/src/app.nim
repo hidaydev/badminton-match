@@ -208,6 +208,22 @@ proc problem(request: Request, status: int, code, detail: string) =
     platformErrors.newProblem(status, code, platformErrors.i18nKeyFor(code),
       detail))
 
+proc redactIssues(issues: JsonNode): JsonNode =
+  ## The wizard renders each `detail` verbatim and the domain echoes the
+  ## submitted values there, so every message goes through the same redactor as
+  ## the envelope's own detail.
+  result = newJArray()
+  for issue in issues:
+    if issue.kind != JObject:
+      result.add(issue)
+      continue
+    var copy = newJObject()
+    for key, value in issue:
+      copy[key] = value
+    if copy.hasKey("detail") and copy["detail"].kind == JString:
+      copy["detail"] = %redact(copy["detail"].getStr())
+    result.add(copy)
+
 proc invalidBodyResponse(request: Request, code, detail: string,
                          snapshot: JsonNode) =
   ## A rejected tournament body keeps the field-level `issues` the wizard
@@ -217,7 +233,7 @@ proc invalidBodyResponse(request: Request, code, detail: string,
   var body = parseJson(platformErrors.newProblem(400, code,
     platformErrors.i18nKeyFor(code), detail).toJson)
   if snapshot.hasKey("issues"):
-    body["issues"] = snapshot["issues"]
+    body["issues"] = redactIssues(snapshot["issues"])
   send(request, 400, @[("Content-Type", "application/problem+json")], $body)
 
 proc methodNotAllowed(request: Request) =
@@ -709,7 +725,7 @@ proc createSession(request: Request, ctx: CommunityContext, user: AuthUser) =
   except ValueError as error:
     logWarn("session title rejected",
       [("error", error.msg), ("path", request.path)])
-    problem(request, 400, "INVALID_BODY", "title is invalid")
+    problem(request, 400, "INVALID_BODY", error.msg)
     return
   if presetId.len == 0:
     presetId = configSnapshot().stringValue(
@@ -977,7 +993,7 @@ proc patchSession(request: Request, ctx: CommunityContext, user: AuthUser,
     releaseIdempotencyKey(user.id, ctx.communityId, key, resource)
     logWarn("session patch rejected",
       [("error", error.msg), ("path", request.path)])
-    problem(request, 400, "INVALID_PATCH", "patch is invalid")
+    problem(request, 400, "INVALID_PATCH", error.msg)
     return
   # The patch used to hand raw strings to `::date` / `::time`: a bad day became
   # a 500 and a loose "9:00" was normalised where create rejects it.
@@ -1082,6 +1098,17 @@ proc reconcileAchievements(ctx: CommunityContext,
   ## CLI tick reads it.
   discard achievementBackfill.backfill(application.db, ctx.communityId,
     ratingRead.latestEventDate(application.db, ctx.communityId), params)
+
+proc reconcileCommittedAchievements(ctx: CommunityContext,
+                                    params: ratingDomain.RatingParams) =
+  ## For paths whose rating write already committed: the badge shelf is derived
+  ## state, so a failure here must be logged instead of turning work that
+  ## landed into an error response.
+  try:
+    reconcileAchievements(ctx, params)
+  except CatchableError as error:
+    logError("achievement reconcile failed",
+      [("error", error.msg), ("community", ctx.communityId)])
 
 proc setSessionLock(request: Request, ctx: CommunityContext, user: AuthUser,
                     sessionId: string, locked: bool) =
@@ -1417,7 +1444,7 @@ proc createPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser) 
     except ValueError as error:
       logWarn("player aliases rejected",
         [("error", error.msg), ("path", request.path)])
-      problem(request, 400, "INVALID_PLAYER", "aliases are invalid")
+      problem(request, 400, "INVALID_PLAYER", error.msg)
       return
     if not playerDomain.aliasesValid(aliases):
       problem(request, 400, "INVALID_ALIAS", "aliases must be distinct non-empty names")
@@ -1466,7 +1493,7 @@ proc patchPlayerRoute(request: Request, ctx: CommunityContext, user: AuthUser,
   except ValueError as error:
     logWarn("player patch rejected",
       [("error", error.msg), ("path", request.path)])
-    problem(request, 400, "INVALID_PLAYER", "patch is invalid")
+    problem(request, 400, "INVALID_PLAYER", error.msg)
     return
   var aliases: seq[string] = @[]
   if patch.aliases.isSome:
@@ -1731,8 +1758,7 @@ proc readyz(request: Request) =
   if detail.len == 0:
     send(request, 200, """{"status":"ok"}""")
   else:
-    jsonResponse(request, 503, %*{"status": 503, "code": "NOT_READY",
-      "detail": detail})
+    problem(request, 503, "NOT_READY", detail)
 
 proc sessionVersionNow(communityId, sessionId: string): int =
   let row = application.db.queryOne(
@@ -1885,7 +1911,7 @@ proc removeRatingSource(request: Request, ctx: CommunityContext, user: AuthUser,
     rebuilt = ratingIngest.rebuildConn(conn, ctx.communityId, params)
     auditConn(conn, "rating.source.delete", ctx, user, "rating_event", eventId,
       %*{"removedDeltas": removed}))
-  reconcileAchievements(ctx, params)
+  reconcileCommittedAchievements(ctx, params)
   jsonResponse(request, 200, %*{"removedDeltas": removed,
     "events": rebuilt.events, "deltas": rebuilt.deltas})
 
@@ -1929,7 +1955,7 @@ proc deleteSession(request: Request, ctx: CommunityContext, user: AuthUser,
     problem(request, 403, "FORBIDDEN", "only an admin can delete this session")
     return
   of sessionWrite.dsDeleted:
-    reconcileAchievements(ctx, params)
+    reconcileCommittedAchievements(ctx, params)
   for linkId in links:
     application.hub.revokeShare(linkId)
   send(request, 204)
@@ -2033,7 +2059,7 @@ proc putScheduleRoute(request: Request, ctx: CommunityContext, sessionId: string
   except ValueError as error:
     logWarn("schedule rejected",
       [("error", error.msg), ("path", request.path)])
-    problem(request, 400, "INVALID_SCHEDULE", "schedule is invalid")
+    problem(request, 400, "INVALID_SCHEDULE", error.msg)
     return
   scheduleDone(request, ctx, sessionId,
     sessionSchedule.putSchedule(application.db, ctx.communityId, sessionId,
@@ -2048,7 +2074,7 @@ proc setAbsentRoute(request: Request, ctx: CommunityContext, sessionId: string) 
   except ValueError as error:
     logWarn("absent list rejected",
       [("error", error.msg), ("path", request.path)])
-    problem(request, 400, "INVALID_SCHEDULE", "absent player list is invalid")
+    problem(request, 400, "INVALID_SCHEDULE", error.msg)
     return
   scheduleDone(request, ctx, sessionId,
     sessionSchedule.setAbsent(application.db, ctx.communityId, sessionId,
@@ -2095,7 +2121,7 @@ proc setGameScoreRoute(request: Request, ctx: CommunityContext, sessionId,
     except ValueError as error:
       logWarn("score rejected",
         [("error", error.msg), ("path", request.path)])
-      problem(request, 400, "INVALID_SCORE", "score is invalid")
+      problem(request, 400, "INVALID_SCORE", error.msg)
       return
   else:
     if not body.hasKey("scoreA") or not body.hasKey("scoreB") or
@@ -2956,8 +2982,8 @@ proc route(request: Request) =
       readyz(request)
       return
     if outdatedClient(request):
-      jsonResponse(request, 410, %*{"status": 410, "code": "CLIENT_OUTDATED",
-        "detail": "this client speaks an older contract; reload the page"})
+      problem(request, 410, "CLIENT_OUTDATED",
+        "this client speaks an older contract; reload the page")
       return
     case path
     of "/auth/start":

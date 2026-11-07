@@ -1,4 +1,4 @@
-import std/[algorithm, httpclient, json, os, strutils]
+import std/[algorithm, httpclient, json, os, strutils, tables]
 import normalizer
 import state as parityState
 import db/db
@@ -351,6 +351,55 @@ proc operationsFromSource(path: string): seq[string] =
       continue
     result.add(line[start ..< stop])
 
+proc operationPathsFromSource(path: string): Table[string, string] =
+  ## operationId -> path template, so a case's request path can be checked
+  ## against the route it claims to exercise.
+  if not fileExists(path):
+    return
+  const opMarker = "operationId: \""
+  const pathMarker = "path: \""
+  var operation = ""
+  for line in readFile(path).splitLines():
+    if line.contains(opMarker):
+      let start = line.find(opMarker) + opMarker.len
+      let stop = line.find('"', start)
+      if stop > start:
+        operation = line[start ..< stop]
+    elif operation.len > 0 and line.contains(pathMarker):
+      let start = line.find(pathMarker) + pathMarker.len
+      let stop = line.find('"', start)
+      if stop > start:
+        result[operation] = line[start ..< stop]
+        operation = ""
+
+proc pathMatches(expectedPath, actual: string): bool =
+  ## Static segments must match literally; a `{...}` segment matches any
+  ## non-empty one.
+  let expected = expectedPath.strip(chars = {'/'}).split('/')
+  let got = actual.strip(chars = {'/'}).split('/')
+  if expected.len != got.len:
+    return false
+  for index in 0 ..< expected.len:
+    let segment = expected[index]
+    if segment.len >= 2 and segment[0] == '{' and segment[^1] == '}':
+      if got[index].len == 0:
+        return false
+      continue
+    if segment != got[index]:
+      return false
+  true
+
+proc routePathTemplate(route: string): string =
+  ## The v1 corpus stores `METHOD /path` as the route; the v2 corpus stores an
+  ## operation id, whose template comes from `routes_gen.nim`.
+  let space = route.find(' ')
+  if space > 0:
+    for verbName in ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD",
+                     "OPTIONS"]:
+      if route[0 ..< space].toUpperAscii() == verbName:
+        return route[space + 1 .. ^1].strip()
+  ""
+
 proc isNonEmptyBody(node: JsonNode): bool =
   case node.kind
   of JNull: false
@@ -367,7 +416,8 @@ proc lintErrorEnvelope(name: string, status: int, body: JsonNode,
   ## before dispatch and adds `retryAfter`.
   if status < 400 or body.kind != JObject or body.len == 0:
     return
-  if body.hasKey("retryAfter"):
+  if body.hasKey("code") and body["code"].kind == JString and
+     body["code"].getStr() == "RATE_LIMITED":
     return
   if not body.hasKey("code") or body["code"].kind != JString:
     problems.add(name & ": 4xx body has no string code")
@@ -432,6 +482,7 @@ proc lint(options: Options) =
   var problems: seq[string] = @[]
   var rejected = 0
   var routesOfCases: seq[string] = @[]
+  let templates = operationPathsFromSource(options.routes)
   for name in names:
     let target = casePath(options.dir, name)
     var document: JsonNode
@@ -443,6 +494,15 @@ proc lint(options: Options) =
     let route = lintCase(name, document, problems, rejected)
     if route.len > 0:
       routesOfCases.add(route)
+      if document.hasKey("request") and
+         document["request"].kind == JObject and
+         document["request"].hasKey("path"):
+        let expectedPath =
+          if templates.hasKey(route): templates[route]
+          else: routePathTemplate(route)
+        if expectedPath.len > 0 and
+           not pathMatches(expectedPath, document["request"]["path"].getStr()):
+          problems.add(name & ": request.path does not match " & expectedPath)
 
   let rejectedPct = rejected.float / names.len.float * 100.0
   if rejectedPct < 40.0:

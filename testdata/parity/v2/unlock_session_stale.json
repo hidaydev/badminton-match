@@ -2,7 +2,7 @@
   "route": "unlockSession",
   "request": {
     "method": "POST",
-    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000001",
+    "path": "/c/parity/sessions/40000000-0000-4000-8000-000000000001/unlock",
     "headers": {
       "Cookie": "majadu_session=parity-admin-token",
       "Origin": "http://127.0.0.1:5173",
@@ -10,13 +10,13 @@
     }
   },
   "expect": {
-    "status": 405,
+    "status": 412,
     "body": {
-      "code": "METHOD",
-      "detail": "",
-      "i18nKey": "error.method",
-      "status": 405,
-      "title": "METHOD",
+      "code": "STALE_VERSION",
+      "detail": "session changed since If-Match",
+      "i18nKey": "error.staleVersion",
+      "status": 412,
+      "title": "STALE_VERSION",
       "type": "about:blank"
     }
   }

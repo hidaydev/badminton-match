@@ -242,8 +242,9 @@ proc read*[T](db: Db, body: proc(conn: DbConn): T): T =
 
 proc txRet*[T](db: Db, body: proc(conn: DbConn): T): T =
   ## Runs `body` in one transaction and returns its value. A normal return
-  ## commits, an exception rolls back. Reach for this only when the body's
-  ## value is the answer; otherwise `tx` says the boundary is all that matters.
+  ## commits, any exception (a `Defect` included) rolls back. Reach for this
+  ## only when the body's value is the answer; otherwise `tx` says the boundary
+  ## is all that matters.
   withConn(db, proc(conn: DbConn): T =
     let beginRes = pqexec(conn.conn, "BEGIN")
     try:
@@ -251,6 +252,7 @@ proc txRet*[T](db: Db, body: proc(conn: DbConn): T): T =
         raiseResultError(beginRes)
     finally:
       pqclear(beginRes)
+    var committed = false
     try:
       result = body(conn)
       let commitRes = pqexec(conn.conn, "COMMIT")
@@ -259,11 +261,14 @@ proc txRet*[T](db: Db, body: proc(conn: DbConn): T): T =
           raiseResultError(commitRes)
       finally:
         pqclear(commitRes)
-    except CatchableError:
-      let rollbackRes = pqexec(conn.conn, "ROLLBACK")
-      if rollbackRes != nil:
-        pqclear(rollbackRes)
-      raise
+      committed = true
+    finally:
+      # Every exit path, `Defect` included, must release the transaction before
+      # `withConn` hands the connection back to the pool.
+      if not committed:
+        let rollbackRes = pqexec(conn.conn, "ROLLBACK")
+        if rollbackRes != nil:
+          pqclear(rollbackRes)
   )
 
 proc tx*(db: Db, body: proc(conn: DbConn)) =

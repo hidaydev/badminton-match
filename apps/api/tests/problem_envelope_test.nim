@@ -33,11 +33,32 @@ suite "problem envelope":
       checkpoint(code)
       check i18nKeyFor(code) != unknownI18nKey
 
-  test "no exception text becomes a detail":
-    for line in readFile(source).splitLines():
-      if line.contains("problem(") and line.contains("error.msg"):
-        checkpoint(line)
-        check false
+  test "codes passed through a variable reach the table":
+    # `respondGate` forwards `codeFor(decision)` and the set-score path forwards
+    # a `code` chosen in a branch; neither is a literal the scanner can see.
+    # The pre-envelope 410/503 paths are literals again, but they are listed
+    # here too so a future refactor cannot make them escape the table.
+    for code in ["UNAUTHENTICATED", "FORBIDDEN", "NOT_FOUND",
+                 "INVALID_SCORE", "INVALID_SET_SEQUENCE",
+                 "CLIENT_OUTDATED", "NOT_READY"]:
+      checkpoint(code)
+      check i18nKeyFor(code) != unknownI18nKey
+
+  test "validation detail keeps the parser's own message":
+    # These parsers raise hand-written validation text, not provider text, and
+    # the legacy UI renders `detail` verbatim.
+    let text = readFile(source)
+    check text.contains(
+      "problem(request, 400, \"INVALID_BODY\", error.msg)")
+    check text.contains(
+      "problem(request, 400, \"INVALID_PATCH\", error.msg)")
+
+  test "provider text stays out of the envelope":
+    let text = readFile(source)
+    check text.contains(
+      "problem(request, 400, \"TOKEN_EXCHANGE_FAILED\", \"token exchange failed\")")
+    check text.contains(
+      "problem(request, 401, \"INVALID_ID_TOKEN\", \"id token is invalid\")")
 
   test "the builder is the shared one":
     let text = readFile(source)

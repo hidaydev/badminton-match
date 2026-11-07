@@ -60,6 +60,24 @@ proc call(verb: HttpMethod, path, cookie = "", body = "",
     headers = headers, body = body)
   (response.code.int, response.body)
 
+proc callWithType(verb: HttpMethod, path, cookie, body: string):
+    (int, string, string) =
+  ## The envelope is a wire contract, so one test reads the real header rather
+  ## than trusting the body alone.
+  let client = newHttpClient(timeout = 5000)
+  defer: client.close()
+  var headers = newHttpHeaders()
+  headers["Origin"] = "http://127.0.0.1:5173"
+  headers["Cookie"] = "majadu_session=" & cookie
+  headers["Content-Type"] = "application/json"
+  let response = client.request(baseUrl & path, httpMethod = verb,
+    headers = headers, body = body)
+  var contentType = ""
+  for key, value in response.headers.pairs:
+    if key.toLowerAscii() == "content-type":
+      contentType = value
+  (response.code.int, contentType, response.body)
+
 proc bootstrap() =
   database = openDb(dsn(), 1)
   # A test may leave a signed-off source behind, and the rating tables hold the
@@ -136,6 +154,18 @@ proc bootstrap() =
 bootstrap()
 
 suite "session schedule HTTP":
+  test "a real 400 carries the problem envelope":
+    let (status, contentType, body) = callWithType(HttpPost,
+      "/c/sched-club/sessions", hostCookie,
+      """{"title":"","date":"2026-11-04"}""")
+    check status == 400
+    check contentType.startsWith("application/problem+json")
+    let parsed = parseJson(body)
+    check parsed["status"].getInt() == status
+    check parsed["code"].getStr() == "INVALID_BODY"
+    check parsed["i18nKey"].getStr().startsWith("error.")
+    check parsed["detail"].getStr() == "title must not be blank"
+
   test "a host writes a schedule and reads the game back":
     let (created, body) = call(HttpPost, "/c/sched-club/sessions", hostCookie,
       """{"title":"Wednesday","date":"2026-11-04"}""")

@@ -6,6 +6,7 @@ import rating/infrastructure/ingest
 import achievement/infrastructure/backfill
 import rating/infrastructure/params
 import rating/read
+import session/lifecycle
 
 const usage = """Usage: ratingingest <tick|session <id> --community <slug>|rebuild --community <slug>>
 
@@ -45,7 +46,7 @@ proc pendingSessions*(db: Db, communityId: string): seq[string] =
     """select s.id
        from session.sessions s
        where s.community_id = $1::uuid and s.approved_at is not null
-         and s.status in ('locked', 'published', 'completed', 'archived')
+         and s.status in """ & approvedStatuses & """
          and not exists (
            select 1 from rating.events e
            where e.community_id = s.community_id

@@ -80,8 +80,8 @@ accept_invite_unknown	acceptInvite	POST	/invites/nope/accept	Cookie: majadu_sess
 delete_session_unknown	deleteSession	DELETE	/c/parity/sessions/40000000-0000-4000-8000-0000000000ff	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
 patch_session_no_if_match	patchSession	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"title":"No precondition"}
 patch_session_stale	patchSession	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "99"	{"title":"Stale"}
-lock_session_no_if_match	lockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000002	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
-unlock_session_stale	unlockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "99"	-
+lock_session_no_if_match	lockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000002/lock	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	-
+unlock_session_stale	unlockSession	POST	/c/parity/sessions/40000000-0000-4000-8000-000000000001/unlock	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173; If-Match: "99"	-
 put_schedule_no_if_match	putSessionSchedule	PUT	/c/parity/sessions/40000000-0000-4000-8000-000000000002/schedule	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"games":[]}
 absent_no_if_match	patchSessionAbsent	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000002/absent	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"playerIds":[]}
 game_score_no_if_match	patchSessionGame	PATCH	/c/parity/sessions/40000000-0000-4000-8000-000000000001/games/0-1	Cookie: majadu_session=parity-admin-token; Origin: http://127.0.0.1:5173	{"scoreA":21,"scoreB":19}
