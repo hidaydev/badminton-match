@@ -6,10 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter badminton-pair-tmp dev",
     "build:web": "pnpm --filter badminton-pair-tmp build",
-    "check:web": "pnpm --filter badminton-pair-tmp check",
-    "dev:api": "./task dev",
-    "build:api": "./task build",
-    "check:api": "./task check"
+    "check:web": "pnpm --filter badminton-pair-tmp check"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
