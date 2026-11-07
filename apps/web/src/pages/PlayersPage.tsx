@@ -6,6 +6,7 @@ import { TIERS } from '../players/api'
 import { createPlayer } from '../players/api'
 import { usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
+import { Button } from '../components/Button'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -100,12 +101,9 @@ export default function PlayersPage() {
             placeholder={t('players.search.placeholder')}
           />
         </Field>
-        <button
-          type="submit"
-          className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
-        >
+        <Button type="submit" variant="secondary">
           {t('players.search.action')}
-        </button>
+        </Button>
       </form>
 
       {loading && <LoadingState label={t('app.loading')} rows={1} />}
@@ -123,16 +121,16 @@ export default function PlayersPage() {
             </p>
           )}
           {query !== '' ? (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              className="mt-3"
               onClick={() => {
                 setDraft('')
                 setSearchParams({}, { replace: true })
               }}
-              className="mt-3 min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
             >
               {t('players.empty.clear')}
-            </button>
+            </Button>
           ) : (
             canManage && (
               <a
@@ -174,14 +172,14 @@ export default function PlayersPage() {
       )}
 
       {hasMore && (
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          className="mt-3"
           disabled={loadingMore}
           onClick={loadMore}
-          className="mt-3 min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
         >
           {loadingMore ? t('players.loadingMore') : t('players.loadMore')}
-        </button>
+        </Button>
       )}
 
       {canManage && (
@@ -236,13 +234,13 @@ export default function PlayersPage() {
           <p id="players-aliases-hint" className="mt-2 text-xs text-fg-dim">
             {t('players.add.aliasesHint')}
           </p>
-          <button
+          <Button
             type="submit"
+            className="mt-3"
             disabled={busy || name.trim() === ''}
-            className="mt-3 min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
           >
             {t('players.add.submit')}
-          </button>
+          </Button>
         </form>
       )}
     </section>

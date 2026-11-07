@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { t } from '../i18n'
+import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { Field, Input } from '../components/Field'
 import { requestToJoin } from './api'
@@ -65,13 +66,9 @@ export default function JoinRequestCard({
             className="disabled:opacity-60"
           />
         </Field>
-        <button
-          type="submit"
-          disabled={sending}
-          className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-        >
+        <Button type="submit" disabled={sending}>
           {sending ? t('join.sending') : t('join.submit')}
-        </button>
+        </Button>
       </form>
       <p role="status" aria-live="polite" className="mt-2 text-xs text-fg-dim">
         {error ?? (sent ? t('join.sent') : '')}

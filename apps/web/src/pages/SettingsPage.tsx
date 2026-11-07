@@ -20,6 +20,7 @@ import { decideClaim } from '../players/api'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
 import { formatDay } from '../utils/day'
+import { Button } from '../components/Button'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -350,13 +351,12 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
         })}
         {canEdit && (
           <div className="flex flex-wrap items-center gap-3">
-            <button
+            <Button
               type="submit"
               disabled={busy}
-              className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
             >
               {t('community.settings.save')}
-            </button>
+            </Button>
             <span role="status" aria-live="polite" className="text-xs text-fg-dim">
               {message ?? ''}
             </span>
@@ -441,14 +441,14 @@ function MemberRow({
             </select>
           </label>
           {!confirming && (
-            <button
-              type="button"
+            <Button
+              variant="danger"
+              size="sm"
               disabled={busy}
               onClick={() => setConfirming(true)}
-              className="min-h-11 rounded-xl border border-border px-3 text-xs text-error hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
             >
               {t('admin.members.remove')}
-            </button>
+            </Button>
           )}
         </span>
       </div>
@@ -458,21 +458,21 @@ function MemberRow({
           aria-label={t('admin.members.removeConfirm', { name: member.displayName })}
           className="mt-2 flex flex-wrap gap-2"
         >
-          <button
-            type="button"
+          <Button
+            variant="danger"
+            size="sm"
             disabled={busy}
             onClick={() => void onRun(() => removeMember(slug, member.userId))}
-            className="min-h-11 rounded-xl border border-border px-3 text-xs text-error hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
           >
             {t('admin.members.removeConfirmAction')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setConfirming(false)}
-            className="min-h-11 rounded-xl border border-border px-3 text-xs text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
           >
             {t('admin.cancel')}
-          </button>
+          </Button>
         </div>
       )}
     </li>
@@ -530,13 +530,12 @@ function Invites({
             ))}
           </select>
         </label>
-        <button
+        <Button
           type="submit"
           disabled={busy || email.trim() === ''}
-          className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
         >
           {t('admin.invites.create')}
-        </button>
+        </Button>
       </form>
       {invite !== null && (
         <p className="mt-2 rounded-xl border border-border-subtle bg-surface p-3 text-sm text-fg">
@@ -627,22 +626,19 @@ function JoinRequests({
                     ))}
                   </select>
                 </label>
-                <button
-                  type="button"
+                <Button
                   disabled={busy}
                   onClick={() => void approve(request)}
-                  className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                 >
                   {t('admin.requests.approve')}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="secondary"
                   disabled={busy}
                   onClick={() => void reject(request)}
-                  className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                 >
                   {t('admin.requests.reject')}
-                </button>
+                </Button>
               </div>
             </li>
           ))}
@@ -717,22 +713,19 @@ function PendingClaims({
                   </span>
                 </span>
                 <span className="flex items-center gap-2">
-                  <button
-                    type="button"
+                  <Button
                     disabled={pendingId !== null}
                     onClick={() => void decide(claim, 'approve')}
-                    className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                   >
                     {t('admin.claims.approve')}
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
+                    variant="secondary"
                     disabled={pendingId !== null}
                     onClick={() => void decide(claim, 'reject')}
-                    className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
                   >
                     {t('admin.claims.reject')}
-                  </button>
+                  </Button>
                 </span>
               </div>
             </li>

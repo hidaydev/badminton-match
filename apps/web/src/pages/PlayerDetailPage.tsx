@@ -17,6 +17,7 @@ import type { PlayerClaim } from '../players/api'
 import { usePlayerDetail, usePlayers } from '../players/hooks'
 import { describePlayerError, parseAliases } from '../players/text'
 import { formatDay } from '../utils/day'
+import { Button } from '../components/Button'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input, Select } from '../components/Field'
 import { LoadingState } from '../components/LoadingState'
@@ -156,27 +157,24 @@ export default function PlayerDetailPage() {
             {player.userId === null &&
               mine === undefined &&
               player.viewerOwnsPlayer !== true && (
-              <button
-                type="button"
+              <Button
                 disabled={busy}
                 onClick={() => void run(() => claimPlayer(slug, player.id))}
-                className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
               >
                 {t('playerAdmin.claim')}
-              </button>
+              </Button>
             )}
             {mine?.status === 'pending' && (
               <p className="text-sm text-fg-dim">{t('playerAdmin.claim.pending')}</p>
             )}
             {linkedToMe && (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
                 disabled={busy}
                 onClick={() => void run(() => releaseOwnClaim(slug, player.id))}
-                className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
               >
                 {t('playerAdmin.release')}
-              </button>
+              </Button>
             )}
           </div>
 
@@ -290,8 +288,8 @@ function EditPlayer({ slug, player, busy, onRun }: EditProps) {
           />
         </Field>
       </div>
-      <button
-        type="button"
+      <Button
+        className="mt-3"
         disabled={busy || name.trim() === ''}
         onClick={() =>
           void onRun(() =>
@@ -304,10 +302,9 @@ function EditPlayer({ slug, player, busy, onRun }: EditProps) {
             }),
           )
         }
-        className="mt-3 min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
       >
         {t('playerAdmin.save')}
-      </button>
+      </Button>
     </details>
   )
 }
@@ -337,26 +334,23 @@ function ClaimRow({ slug, playerId, claim, claimant, admin, own, busy, onRun }: 
 
       {admin && !own && claim.status === 'pending' && (
         <div className="mt-2 flex flex-wrap gap-2">
-          <button
-            type="button"
+          <Button
             disabled={busy}
             onClick={() =>
               void onRun(() => decideClaim(slug, playerId, claim.id, { decision: 'approve' }))
             }
-            className="min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
           >
             {t('playerAdmin.decide.approve')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
             disabled={busy}
             onClick={() =>
               void onRun(() => decideClaim(slug, playerId, claim.id, { decision: 'reject' }))
             }
-            className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
           >
             {t('playerAdmin.decide.reject')}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -365,8 +359,8 @@ function ClaimRow({ slug, playerId, claim, claimant, admin, own, busy, onRun }: 
           <Field label={t('playerAdmin.decide.reason')} className="min-w-0 flex-1">
             <Input value={reason} onChange={(event) => setReason(event.target.value)} />
           </Field>
-          <button
-            type="button"
+          <Button
+            variant="danger"
             disabled={busy || reason.trim() === ''}
             onClick={() =>
               void onRun(() =>
@@ -376,10 +370,9 @@ function ClaimRow({ slug, playerId, claim, claimant, admin, own, busy, onRun }: 
                 }),
               )
             }
-            className="min-h-11 rounded-xl border border-border px-4 text-sm text-error hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
           >
             {t('playerAdmin.decide.release')}
-          </button>
+          </Button>
         </div>
       )}
     </li>
@@ -429,8 +422,8 @@ function MergePanel({
             ))}
           </Select>
         </Field>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           disabled={busy || source === ''}
           onClick={() => {
             const sourceName = others.find((candidate) => candidate.id === source)?.name ?? source
@@ -439,20 +432,19 @@ function MergePanel({
             )
             if (confirmed) void onRun(() => mergePlayers(slug, playerId, source))
           }}
-          className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
         >
           {t('playerAdmin.merge.submit')}
-        </button>
+        </Button>
       </div>
       {hasMore && (
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          className="mt-2"
           disabled={loadingMore}
           onClick={onLoadMore}
-          className="mt-2 min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
         >
           {loadingMore ? t('players.loadingMore') : t('players.loadMore')}
-        </button>
+        </Button>
       )}
     </details>
   )
@@ -473,14 +465,14 @@ function DeletePanel({
 
   if (!armed) {
     return (
-      <button
-        type="button"
+      <Button
+        variant="danger"
+        className="mt-6"
         disabled={busy}
         onClick={() => setArmed(true)}
-        className="mt-6 min-h-11 rounded-xl border border-border px-4 text-sm text-error hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
       >
         {t('playerAdmin.delete')}
-      </button>
+      </Button>
     )
   }
 
@@ -495,8 +487,8 @@ function DeletePanel({
         <ErrorText className="mt-2">{error}</ErrorText>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
+        <Button
+          variant="danger"
           disabled={busy}
           onClick={() => {
             setError(null)
@@ -505,17 +497,15 @@ function DeletePanel({
               .then(() => navigate(`/c/${encodeURIComponent(slug)}/players`))
               .catch((problem: unknown) => setError(describePlayerError(problem)))
           }}
-          className="min-h-11 rounded-xl border border-border px-4 text-sm text-error hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
         >
           {t('playerAdmin.delete.confirmAction')}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="secondary"
           onClick={() => setArmed(false)}
-          className="min-h-11 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent"
         >
           {t('playerAdmin.delete.cancel')}
-        </button>
+        </Button>
       </div>
     </div>
   )

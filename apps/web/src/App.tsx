@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/AuthContext'
+import { Button } from './components/Button'
 import ClientOutdatedBanner from './components/ClientOutdatedBanner'
 import { LoadingState } from './components/LoadingState'
 import { PageHeader } from './components/PageHeader'
@@ -206,14 +207,14 @@ function AccountRow() {
       <p className="min-w-0 truncate text-sm text-fg-dim">
         {t('nav.signedInAs', { name: user?.displayName ?? '' })}
       </p>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        className="shrink-0"
         onClick={() => void signOut()}
         disabled={signingOut}
-        className="min-h-11 shrink-0 rounded-xl border border-border px-4 text-sm text-fg hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
       >
         {t('nav.logout')}
-      </button>
+      </Button>
     </div>
   )
 }

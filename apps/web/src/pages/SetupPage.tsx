@@ -5,6 +5,7 @@ import type { CommunityRole } from '../auth/api'
 import { useAuth } from '../auth/AuthContext'
 import { t } from '../i18n'
 import type { MessageKey } from '../i18n/en'
+import { Button } from '../components/Button'
 import { ErrorText } from '../components/ErrorText'
 import { Field, Input } from '../components/Field'
 import { PageHeader } from '../components/PageHeader'
@@ -156,13 +157,13 @@ export default function SetupPage() {
             </Field>
           </div>
           <p className="mt-2 text-xs text-fg-dim">{t('setup.adminEmail.hint')}</p>
-          <button
+          <Button
             type="submit"
+            className="mt-3"
             disabled={busy || slug.trim() === '' || name.trim() === '' || adminEmail.trim() === ''}
-            className="mt-3 min-h-11 rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
           >
             {t('setup.submit')}
-          </button>
+          </Button>
         </form>
       )}
     </section>
