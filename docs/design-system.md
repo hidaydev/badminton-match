@@ -10,8 +10,9 @@
 | Monospace | IBM Plex Mono | 400, 500 | `font-mono` | Labels, metadata, timestamps |
 | Decorative | Road Rage + Edosz | — | — | Instagram canvas date overlay only |
 
-IBM Plex Sans/Mono dimuat via Google Fonts (`display=swap`); Road Rage & Edosz
-self-hosted lewat `@font-face` di `apps/web/index.html`. Body uses `var(--font-sans)`.
+IBM Plex Sans/Mono dan Road Rage & Edosz semuanya self-hosted lewat `@font-face`
+di `apps/web/index.html` (`display=swap`, berkas di `apps/web/public/fonts/` dan
+`apps/web/public/`). Body uses `var(--font-sans)`.
 Road Rage diterapkan dengan skew −9° agar posturnya menyerupai Granesta v1.
 Keduanya berkas pihak ketiga — lihat `THIRD-PARTY-NOTICES.md`.
 

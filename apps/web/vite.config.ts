@@ -51,30 +51,11 @@ export default defineConfig({
         // The API shares this origin under /api: a navigation there (the OIDC
         // callback) must reach the server, never the cached app shell.
         navigateFallbackDenylist: [/^\/api\//],
-        globPatterns: ['**/*.{js,css,html,ico,svg,webmanifest}', 'logo-*.png'],
+        globPatterns: ['**/*.{js,css,html,ico,svg,webmanifest}', 'logo-*.png', 'fonts/*.woff2'],
         // The manifest body is injected by vite-plugin-pwa itself; ignoring it
         // here keeps one precache entry instead of two.
         globIgnores: ['team-winner.png', 'anniv-*.png', 'manifest.webmanifest'],
         runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-          {
-            // The CSS above only names the faces; the woff2 files come from
-            // gstatic, and without this rule an offline start falls back to the
-            // system font (FE-30).
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'gstatic-fonts-cache',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
           {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
             handler: 'StaleWhileRevalidate',

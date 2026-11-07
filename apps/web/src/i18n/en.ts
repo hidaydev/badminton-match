@@ -825,7 +825,7 @@ export const en = {
   'privacy.cookies.offline':
     'The installed app caches the application shell, images, and fonts so it can open offline. It does not cache API responses.',
   'privacy.cookies.thirdParty':
-    'The application sets no advertising or third-party tracking cookies, and no session token is kept in JavaScript. The page loads IBM Plex fonts from Google Fonts, which means your browser makes a request to Google.',
+    'The application sets no advertising or third-party tracking cookies, and no session token is kept in JavaScript. The typefaces and every other asset are served from this site, so the page makes no third-party font request.',
   'privacy.share.heading': 'Public share links',
   'privacy.share.body':
     'A host or admin can create a /s/<code> link for a session. Anyone who has that link can read the session without signing in: the community name, session title and date, player names, pairings, scores, and standings. Treat the link as public to anyone you send it to. The code is stored hashed and encrypted at rest, the link expires after 30 days by default, and the people who manage the session can revoke it at any time; a revoked link stops working immediately. Older links may carry session data inside the URL fragment; those cannot be revoked from the server, so share them with the same care.',

@@ -1,7 +1,7 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
 # Format: docs/plan/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
-tree b4964e0de52af61ca8880944fee4b55782028f403b298cd26c149d44e4e8a675
+tree 49e8cf814641080a70e8233d4b71207bd50db5fbc99a52ae02fcde0677296cec
 
 # Nim toolchain
 nim 2.4.0 toolchain:nim -
@@ -33,4 +33,7 @@ webkit 2370 playwright-browser:webkit -
 
 # Locally served fonts (sha256 of the file bytes)
 edosz - repo:apps/web/public/edosz.ttf bc67cf1c852c6d4ffbb7bc8fb4cd702d293ee49bda3de12c94e3635d80a4d55b
+ibm-plex-mono-latin-400 - repo:apps/web/public/fonts/ibm-plex-mono-latin-400.woff2 c36f509c0a8f9f85f29cb44bc8701d8a9e0b14c499e77a884f789ead7093a7ac
+ibm-plex-mono-latin-500 - repo:apps/web/public/fonts/ibm-plex-mono-latin-500.woff2 a76f53ca6612e7b3828eec2311098675b7f9849ae4169a8bcef6302aec02a6c0
+ibm-plex-sans-latin-var - repo:apps/web/public/fonts/ibm-plex-sans-latin-var.woff2 056e4e2459f57a0033c8c9c844ff19d6e42ac8602027803d4345823bcc939818
 road-rage - repo:apps/web/public/road-rage.ttf 7bd3beb9130ce3a0ffc7585eac37fa82e7f6892802c4dbb33f07b09c24f14b55

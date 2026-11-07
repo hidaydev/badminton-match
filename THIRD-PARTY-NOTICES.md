@@ -5,9 +5,9 @@ Each one stays under its own terms, and this repository grants no rights to it.
 
 ## Fonts
 
-Both files are self-hosted from `apps/web/public/` and are used only to draw the
-date overlay on exported social images. They are loaded by the `@font-face`
-rules in `apps/web/index.html`.
+All fonts are self-hosted from `apps/web/public/` and are loaded by the
+`@font-face` rules in `apps/web/index.html`. Road Rage and Edo SZ are used only
+to draw the date overlay on exported social images.
 
 ### Road Rage — `apps/web/public/road-rage.ttf`
 
@@ -28,10 +28,15 @@ use. It is not open source.
 
 ### IBM Plex Sans / IBM Plex Mono
 
-Copyright IBM Corp. Licensed under the SIL Open Font License 1.1.
+Copyright © 2017 IBM Corp. with Reserved Font Name "Plex". Licensed under the SIL
+Open Font License, Version 1.1; the full license text is shipped next to the
+files as `apps/web/public/fonts/OFL.txt`.
 
-These are not redistributed in this repository. They are loaded at runtime from
-Google Fonts by the `link` tags in `apps/web/index.html`.
+These files are the latin subsets Google Fonts serves for the weights the UI
+uses: `fonts/ibm-plex-sans-latin-var.woff2` (variable, weight 400–700),
+`fonts/ibm-plex-mono-latin-400.woff2`, and
+`fonts/ibm-plex-mono-latin-500.woff2`. The page makes no request to a
+third-party font host, and the repository does not modify the font files.
 
 ## Adding an entry
 
