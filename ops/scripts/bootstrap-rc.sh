@@ -244,7 +244,6 @@ else
   log "MAJADU_OWNER_SUB is not set; run ownerseed before testing admin screens"
 fi
 
-date -u '+%Y-%m-%dT%H:%M:%SZ' >"$STATE_DIR/seeded"
 log "dropping staging database $STAGING_DB"
 psql_super -c "drop database if exists $STAGING_DB with (force)"
 

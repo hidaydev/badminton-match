@@ -184,16 +184,16 @@ run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
 SCHEMA=$(basename "$(ls "$MONO_DIR"/db/migrations/*.sql | tail -1)" .sql)
 log "schema verified at $SCHEMA"
 
-# Seeds are recorded by checksum and overwrite platform defaults, so they run
-# once. bootstrap-rc.sh writes the marker after the first seed.
+# Seeds are skipped when their checksum is unchanged and re-applied when the
+# file changes; every statement is `on conflict do nothing`, so operator edits
+# survive and new rows land. Running this on every deploy is what keeps a new
+# registry key from turning into a container that cannot boot: the registry is
+# required at read time, and a missing key is a ConfigError, not a default.
 STEP="seed"
-if [ ! -f "$STATE_DIR/seeded" ]; then
-  run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
-    seed --dir /app/db/seeds >>"$LOG" 2>&1 ||
-    fail "dbtools seed failed"
-  date -u '+%Y-%m-%dT%H:%M:%SZ' >"$STATE_DIR/seeded"
-  log "seeded the platform defaults"
-fi
+run_tool /usr/local/bin/dbtools "$OWNER_DSN" \
+  seed --dir /app/db/seeds >>"$LOG" 2>&1 ||
+  fail "dbtools seed failed; the release was left alone"
+log "applied the seed files"
 
 # ---------------------------------------------------------------------------
 # Unit comes from the repository, not from whatever was left on the VPS.
