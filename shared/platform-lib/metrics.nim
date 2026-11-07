@@ -25,6 +25,8 @@ proc templateRoute*(path: string): string =
     var value = part
     if i >= 2 and parts[i - 1] == "s":
       value = "{code}"
+    elif i >= 3 and parts[i - 2] == "ws" and parts[i - 1] == "share":
+      value = "{code}"
     elif i == 2 and parts[i - 1] == "c":
       value = "{slug}"
     elif isIdSegment(part):

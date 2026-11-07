@@ -15,6 +15,8 @@ insert into platform.config (key, value_type, value, min_value, max_value, scope
    'Default page size for granular endpoints'),
   ('api.page_size_max', 'int', '500', 1, 10000, 'platform',
    'Largest accepted page size'),
+  ('api.page_offset_max', 'int', '1000000', 1, 1000000, 'platform',
+   'Largest accepted offset; keeps a nonsense value out of OFFSET'),
   ('rank.board_limit', 'int', '200', 1, 10000, 'platform',
    'Rows returned by the public ranking board'),
   ('rank.min_sessions', 'int', '0', 0, 100, 'platform',

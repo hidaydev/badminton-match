@@ -3,6 +3,9 @@ import clock
 
 let
   reCodePath = re"""/s/[A-Za-z0-9_-]+"""
+  # The share code also travels as a WebSocket path segment; it is the same
+  # capability as the /s/ link, so it must not reach the log either.
+  reSharePath = re"""/ws/share/[A-Za-z0-9_-]+"""
   # Anchored at a query separator so a parameter whose name merely ends in
   # "code" (zipcode, encode) keeps its value.
   reQuerySecret = re"""(?i)(?<![A-Za-z0-9_])((?:code|token|key|ticket)=)[^&\s"]+"""
@@ -18,6 +21,7 @@ proc redact*(text: string): string =
   ## strings, ws tickets, auth/cookie header values, emails and IP addresses.
   result = text
   result = result.replace(reCodePath, "/s/{code}")
+  result = result.replace(reSharePath, "/ws/share/{code}")
   result = result.replacef(reQuerySecret, "$1REDACTED")
   result = result.replacef(reSecretHeader, "$1$2REDACTED")
   result = result.replace(reEmail, "{email}")

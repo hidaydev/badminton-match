@@ -17,10 +17,17 @@
 -- `revoke update, delete` right after creation, as player.merge_log
 -- (0001_core.sql:210-211) and account.audit (0004_platform.sql:137-138) do.
 
-alter default privileges in schema platform, session, player, community, rating,
-  achievement, import
+alter default privileges in schema platform, session, player, tournament, auth,
+  account, community, rating, achievement, import
   grant select, insert, update, delete on tables to bm2_app;
 
-alter default privileges in schema platform, session, player, community, rating,
-  achievement, import
+alter default privileges in schema platform, session, player, tournament, auth,
+  account, community, rating, achievement, import
   grant usage, select on sequences to bm2_app;
+
+-- 0015 grants bm2_etl alongside bm2_app on import.row_map, because the ETL
+-- process reads and writes that schema too. Default privileges are per grantee,
+-- so the import schemas need the same pair or a new import table is invisible
+-- to the loader.
+alter default privileges in schema import
+  grant select, insert, update on tables to bm2_etl;

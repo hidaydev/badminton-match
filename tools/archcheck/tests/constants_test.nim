@@ -145,3 +145,32 @@ suite "config bounds":
       kept)
     check found.len == 1
     check found[0].contains("session.slot_minutes_default has no row in")
+
+  test "a seed row the registry does not declare is a violation":
+    var extra = seedRows(boundsSeed)
+    extra.add(SeedRow(key: "rating.unknown", kind: "int", value: 7,
+      hasValue: true))
+    let found = boundViolations(registrySpecs(boundsKeys & boundsRegistry),
+      extra)
+    check found.len == 1
+    check found[0].contains("rating.unknown is not declared in")
+
+  test "a half-null bound pair is a violation":
+    var adjusted: seq[SeedRow] = @[]
+    for row in seedRows(boundsSeed):
+      if row.key == "rank.board_limit":
+        adjusted.add(SeedRow(key: row.key, kind: row.kind, value: row.value,
+          hasValue: row.hasValue, partialBounds: true))
+      else:
+        adjusted.add(row)
+    let found = boundViolations(registrySpecs(boundsKeys & boundsRegistry),
+      adjusted)
+    check found.len == 1
+    check found[0].contains("only one of min_value/max_value")
+
+suite "seed values":
+  test "values come from the tuple parser, not the line scanner":
+    let squashed = """('a.big', 'int', '120', null, null, 'platform', 'x'),
+      ('a.small', 'int', '130', null, null, 'platform', 'y')"""
+    let values = seededValues(squashed)
+    check values.len == 2

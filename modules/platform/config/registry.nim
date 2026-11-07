@@ -18,6 +18,7 @@ type
     keyCommunityJoinRequestsEnabled = "community.join_requests_enabled"
     keyApiPageSizeDefault = "api.page_size_default"
     keyApiPageSizeMax = "api.page_size_max"
+    keyApiPageOffsetMax = "api.page_offset_max"
     keyRankBoardLimit = "rank.board_limit"
     keyRankMinSessions = "rank.min_sessions"
     keyRatingSessionBase = "rating.session_base"
@@ -69,6 +70,7 @@ const allKeys* = [
   spec(keyCommunityJoinRequestsEnabled, ctBool, scope = csCommunity),
   spec(keyApiPageSizeDefault, ctInt, 1, 1000, true),
   spec(keyApiPageSizeMax, ctInt, 1, 10_000, true),
+  spec(keyApiPageOffsetMax, ctInt, 1, 1_000_000, true),
   spec(keyRankBoardLimit, ctInt, 1, 10_000, true),
   spec(keyRankMinSessions, ctInt, 0, 100, true),
   spec(keyRatingSessionBase, ctDecimal, 0, 100_000, true),

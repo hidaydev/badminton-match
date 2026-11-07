@@ -278,6 +278,25 @@ suite "tournament HTTP":
     check deleted.status == 204
     check call(HttpGet, path, adminCookie).status == 404
 
+  test "the list honours ?limit and clamps a nonsense offset":
+    let body = $classicJson(classicSnapshot())
+    let first = call(HttpPost, "/c/" & slug & "/tournaments", adminCookie, body)
+    check first.status == 201
+    let second = call(HttpPost, "/c/" & slug & "/tournaments", adminCookie, body)
+    check second.status == 201
+    let limited = call(HttpGet, "/c/" & slug & "/tournaments?limit=1",
+      memberCookie)
+    check limited.status == 200
+    check parseJson(limited.body)["items"].len == 1
+    let skewed = call(HttpGet,
+      "/c/" & slug & "/tournaments?offset=999999999", memberCookie)
+    check skewed.status == 200
+    check parseJson(skewed.body)["items"].len == 0
+    check call(HttpDelete, "/c/" & slug & "/tournaments/" &
+      parseJson(first.body)["id"].getStr(), adminCookie).status == 204
+    check call(HttpDelete, "/c/" & slug & "/tournaments/" &
+      parseJson(second.body)["id"].getStr(), adminCookie).status == 204
+
   test "a draw with duplicate pair names is rejected":
     let snapshot = classicSnapshot()
     var data = snapshot

@@ -261,6 +261,16 @@ suite "community HTTP":
     let (anonymous, _) = call(HttpGet, "/c/http-club/config")
     check anonymous == 401
 
+  test "a wrong verb on a known shape answers 405, not 404":
+    # 404 is reserved for a community the caller cannot see; a client that used
+    # the wrong verb must be told the route exists.
+    let (sessions, _) = call(HttpPut, "/c/http-club/sessions", adminCookie)
+    check sessions == 405
+    let (players, _) = call(HttpPatch, "/c/http-club/players", adminCookie)
+    check players == 405
+    let (bogus, _) = call(HttpGet, "/c/http-club/sessions/1/bogus", adminCookie)
+    check bogus == 404
+
   test "an admin narrows a community setting, nobody widens it":
     let (asMember, _) = call(HttpPatch, "/c/http-club/settings", memberCookie,
       """{"community.invite_ttl_days": 3}""")

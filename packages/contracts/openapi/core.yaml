@@ -219,6 +219,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -245,7 +248,7 @@
             "name": "offset",
             "in": "query",
             "required": false,
-            "description": "Rows to skip, clamped to at least 0. A value that is not an integer falls back to 0.",
+            "description": "Rows to skip, clamped to at least 0 and at most api.page_offset_max (seeded 1000000). A value that is not an integer falls back to 0.",
             "schema": {
               "type": "integer"
             }
@@ -293,6 +296,9 @@
           },
           "413": {
             "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -344,6 +350,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -407,6 +416,9 @@
           "428": {
             "description": "precondition required"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -461,6 +473,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -503,6 +518,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -560,6 +578,9 @@
           "428": {
             "description": "precondition required"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -614,6 +635,9 @@
           },
           "428": {
             "description": "precondition required"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -670,6 +694,9 @@
           "428": {
             "description": "precondition required"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -725,6 +752,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -786,6 +816,9 @@
           },
           "428": {
             "description": "precondition required"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -863,6 +896,9 @@
           "428": {
             "description": "precondition required"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -936,6 +972,9 @@
           "428": {
             "description": "precondition required"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1001,6 +1040,9 @@
           "428": {
             "description": "precondition required"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1057,6 +1099,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1101,6 +1146,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1141,6 +1189,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -1291,6 +1342,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1366,6 +1420,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1377,6 +1434,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size, clamped to api.page_size_max (1..10000, seeded 500). A value that is not an integer falls back to api.page_size_default.",
+            "schema": {
+              "type": "integer"
             }
           }
         ]
@@ -1407,6 +1473,9 @@
           },
           "413": {
             "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -1452,6 +1521,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -1499,6 +1571,9 @@
           },
           "413": {
             "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -1554,6 +1629,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1597,6 +1675,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1639,6 +1720,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -1688,6 +1772,9 @@
           },
           "413": {
             "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -1745,6 +1832,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1785,6 +1875,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -1834,6 +1927,9 @@
           },
           "413": {
             "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
@@ -1902,6 +1998,9 @@
           "404": {
             "description": "not found"
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -1956,6 +2055,24 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Page size, clamped to api.page_size_max (1..10000, seeded 500). A value that is not an integer falls back to api.page_size_default.",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Rows to skip, clamped to at least 0 and at most api.page_offset_max (seeded 1000000). A value that is not an integer falls back to 0.",
+            "schema": {
+              "type": "integer"
             }
           }
         ]
@@ -2437,6 +2554,9 @@
           "413": {
             "description": "BODY_TOO_LARGE: returned only when security.max_body_bytes is configured below the HTTP server's 1 MiB cap. At the default cap the server drops the connection before the handler reads the body, so this status is never sent."
           },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
+          },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."
           }
@@ -2493,6 +2613,9 @@
           },
           "404": {
             "description": "not found"
+          },
+          "405": {
+            "description": "METHOD: the path exists but this verb is not supported"
           },
           "429": {
             "description": "RATE_LIMITED: the caller's one-minute budget for this route is spent before dispatch, so every route can answer this. Retry-After is the number of seconds to wait; the body carries status, code and retryAfter."

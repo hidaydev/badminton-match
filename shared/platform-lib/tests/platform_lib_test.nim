@@ -40,6 +40,10 @@ suite "redaction":
   test "ws ticket query":
     check redact("?ticket=secret") == "?ticket=REDACTED"
 
+  test "ws share path segment":
+    check redact("/ws/share/abc123") == "/ws/share/{code}"
+    check redact("/ws/share/abc123?x=1") == "/ws/share/{code}?x=1"
+
   test "auth and cookie headers":
     check redact("Authorization: Bearer xyz") == "Authorization: REDACTED"
     check redact("Cookie: sid=abc") == "Cookie: REDACTED"
@@ -86,6 +90,7 @@ suite "metrics":
     check templateRoute("/s/abc123/rankings") == "/s/{code}/rankings"
     check templateRoute("/c/my-club/rankings") == "/c/{slug}/rankings"
     check templateRoute("/c/my-club/sessions/42") == "/c/{slug}/sessions/{id}"
+    check templateRoute("/ws/share/abc123") == "/ws/share/{code}"
 
   test "rejects raw route labels":
     var metrics: Metrics

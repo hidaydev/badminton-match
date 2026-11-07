@@ -30,10 +30,14 @@ type
 
   SeedRow* = object
     ## One row of the config seed. `hasBounds` is false when the row stores
-    ## `null` in `min_value`/`max_value`.
+    ## `null` in `min_value`/`max_value`; `partialBounds` marks a row where only
+    ## one of the two is null, which is drift no comparison can express.
     key*: string
     kind*: string
+    value*: int
+    hasValue*: bool
     hasBounds*: bool
+    partialBounds*: bool
     minValue*: float
     maxValue*: float
 
@@ -68,29 +72,6 @@ proc stripCommentsAndStrings(line: string): string =
     if c == '#':
       break
     result.add(c)
-
-proc seededValues*(seedSql: string, minimum = minBusinessValue): seq[SeededValue] =
-  ## Reads `('key', 'int'|'decimal', 'value', ...)` rows out of the config seed.
-  var seen: seq[int] = @[]
-  for raw in seedSql.splitLines():
-    let line = raw.strip()
-    if not line.startsWith("('"):
-      continue
-    let parts = line.split("'")
-    if parts.len < 6:
-      continue
-    let kind = parts[3]
-    if kind != "int" and kind != "decimal":
-      continue
-    var value: int
-    try:
-      value = parseInt(parts[5].split('.')[0])
-    except ValueError:
-      continue
-    if value < minimum or isProtocolNumber(value) or value in seen:
-      continue
-    seen.add(value)
-    result.add(SeededValue(key: parts[1], value: value))
 
 proc numeric(text: string, value: var float): bool =
   ## `10_000` is a Nim literal; bounds are compared as numbers, not text.
@@ -134,6 +115,15 @@ proc seedRows*(seedSql: string): seq[SeedRow] =
       break
     var row = SeedRow(key: seedSql[keyStart ..< keyEnd],
       kind: seedSql[kindStart + 1 ..< kindEnd])
+    var cleaned = ""
+    for c in seedSql[valueStart + 1 ..< valueEnd]:
+      if c != '_':
+        cleaned.add(c)
+    try:
+      row.value = parseInt(cleaned.split('.')[0])
+      row.hasValue = true
+    except ValueError:
+      row.hasValue = false
     var bounds: seq[float] = @[]
     var nullBounds = false
     for item in seedSql[valueEnd + 1 ..< boundsEnd].split(','):
@@ -151,8 +141,25 @@ proc seedRows*(seedSql: string): seq[SeedRow] =
       row.hasBounds = true
       row.minValue = bounds[0]
       row.maxValue = bounds[1]
+    row.partialBounds = nullBounds and bounds.len > 0
     result.add(row)
     index = boundsEnd
+
+proc seededValues*(seedSql: string, minimum = minBusinessValue): seq[SeededValue] =
+  ## Reads `('key', 'int'|'decimal', 'value', ...)` rows out of the config seed.
+  ## It runs on `seedRows`, so a reformat that puts several tuples on one line
+  ## cannot hide a value from the duplication scan.
+  var seen: seq[int] = @[]
+  for row in seedRows(seedSql):
+    if row.kind != "int" and row.kind != "decimal":
+      continue
+    if not row.hasValue:
+      continue
+    let value = row.value
+    if value < minimum or isProtocolNumber(value) or value in seen:
+      continue
+    seen.add(value)
+    result.add(SeededValue(key: row.key, value: value))
 
 proc configKind(enumName: string): string =
   case enumName
@@ -263,6 +270,10 @@ proc boundViolations*(specs: seq[RegistrySpec],
     if not found:
       result.add(registryPath & ": " & spec.key & " has no row in " & seedPath)
       continue
+    if row.partialBounds:
+      result.add(seedPath & ": " & spec.key &
+        " stores only one of min_value/max_value")
+      continue
     if spec.hasBounds and not row.hasBounds:
       result.add(registryPath & ": " & spec.key & " declares min " &
         renderBound(spec.minValue) & " max " & renderBound(spec.maxValue) &
@@ -280,6 +291,17 @@ proc boundViolations*(specs: seq[RegistrySpec],
         result.add(registryPath & ": " & spec.key & " max " &
           renderBound(spec.maxValue) & " does not match " & seedPath & " (" &
           renderBound(row.maxValue) & ")")
+  # A seed row nobody declared is dead weight at best and a typo at worst; the
+  # app reads the registry, so the row would never take effect.
+  for row in rows:
+    var known = false
+    for spec in specs:
+      if spec.key == row.key:
+        known = true
+        break
+    if not known:
+      result.add(seedPath & ": " & row.key & " is not declared in " &
+        registryPath)
 
 proc numberKey(path: string, value: int): string =
   path.replace('\\', '/') & ":" & $value

@@ -725,10 +725,11 @@ proc pageParams(request: Request): tuple[limit, offset: int] =
     except ValueError:
       requested = fallback
   result.limit = max(1, min(requested, pageSizeMax))
+  let offsetMax = configSnapshot().intValue(%*{}, keyApiPageOffsetMax)
   let offsetParam = request.queryParams["offset"]
   if offsetParam.len > 0:
     try:
-      result.offset = max(0, parseInt(offsetParam))
+      result.offset = max(0, min(parseInt(offsetParam), offsetMax))
     except ValueError:
       result.offset = 0
 
@@ -2604,8 +2605,11 @@ proc sendSnapshot(request: Request, status: int, snapshot: JsonNode,
     else:
       ""
   # The same conditional read the session detail already offers, so a poll that
-  # holds the current version costs a 304 instead of the whole bracket.
-  if status == 200 and etag.len > 0 and ifNoneMatchHits(request, etag):
+  # holds the current version costs a 304 instead of the whole bracket. Only a
+  # GET may answer 304: a write that carries If-None-Match has already
+  # committed and must return its body.
+  if request.httpMethod == "GET" and status == 200 and etag.len > 0 and
+      ifNoneMatchHits(request, etag):
     send(request, 304, @[("ETag", etag), ("Cache-Control", "no-store")], "")
     return
   var headers: seq[(string, string)] = @[]

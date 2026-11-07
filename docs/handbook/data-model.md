@@ -165,7 +165,7 @@ ditulis, jadi zona yang tidak dikenal ditolak sebagai `400`, bukan disimpan.
 | Kelompok | Key (default seed) |
 |---|---|
 | Komunitas | `community.join_requests_enabled` (`false`), `community.invite_ttl_days` (`7`), `community.directory_enabled` (`false`), `community.default_timezone` (`Asia/Jakarta`) |
-| Halaman | `api.page_size_default` (`100`), `api.page_size_max` (`500`), `rank.board_limit` (`200`) |
+| Halaman | `api.page_size_default` (`100`), `api.page_size_max` (`500`), `api.page_offset_max` (`1000000`), `rank.board_limit` (`200`) |
 | Poin | `rating.session_base` (`250`), `rating.score_target` (`30`, fallback untuk sesi tanpa snapshot format), `rating.opponent_clamp` (`[0.5,1.5]`), `rating.window_weeks` (`12`), `rating.best_n` (`10`), `rating.thin_evidence_n` (`3`), `rating.tier_bands` (8 band kelas D 1000–1199 … A+ 2100–terbuka) |
 | Turnamen | konstanta domain `PairCount = 16` (bukan config; 16 pair adalah aturan format) |
 | Keamanan | `security.allowed_origins`, `security.rate_limit_per_minute` (`300`), `security.max_body_bytes` (`1048576`), `security.max_json_depth` (`16`), `security.join_request_rate` (`5`), `security.share_scrape_limit` (`120`) |
