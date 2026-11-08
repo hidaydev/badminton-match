@@ -45,7 +45,7 @@ jobs:
       - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
         with:
           nim-version: ${{ env.NIM_VERSION }}
-      - uses: actions/cache@55cc8345863c7cc4c66c329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nimble
           key: nimble-${{ runner.os }}-${{ hashFiles('deps.lock') }}
