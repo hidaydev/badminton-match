@@ -630,14 +630,13 @@ export async function publishSession(id: string, data: CloudSnapshot): Promise<C
   }
 
   if (data.absentPlayers !== undefined) {
-    const record = await request<{ version?: number }>(
+    await request<{ version?: number }>(
       'PATCH',
       communityPath(`/sessions/${enc(id)}/absent`),
       { playerIds: data.absentPlayers.map(serverId).filter((id) => id !== '') },
       undefined,
       ifMatch(version),
     )
-    version = record.version ?? version
   }
 
   // `session.locked` in the v1 store means "setup finished", not "server

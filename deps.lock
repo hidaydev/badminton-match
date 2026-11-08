@@ -1,5 +1,5 @@
 # deps.lock — pinned toolchain, Nim packages, and gate tools.
-# Format: docs/plan/deps-format.md. Verify with ./task deps-check.
+# Format: docs/handbook/deps-format.md. Verify with ./task deps-check.
 # tree = sha256 over the sorted entry lines below (comments excluded).
 tree 49e8cf814641080a70e8233d4b71207bd50db5fbc99a52ae02fcde0677296cec
 
