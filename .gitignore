@@ -7,6 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies and build output
 node_modules
 dist
 dist-ssr
@@ -28,33 +29,35 @@ dist-ssr
 supabase/.temp
 
 .opencode
+.commandcode
 
 # VPS setup kit (jangan di-commit — berisi kredensial & konfigurasi lokal)
 vps-setup/
 
-CLEANCODE_BACKLOG.md
-BUG_AUDIT_BACKLOG.md
-ACTIVE_BACKLOG.md
-DATA_MODEL_V2_TASKS.md
-HANDOFF.md
-TASK_LIST.md
-DESIGN_BACKLOG.md
-TOURNAMENT_BACKLOG.md
-
-.commandcode
-
-# Local audit & action plan — concurrency/score/absent (2026-08-22)
-AUDIT_2026-08-22_CONCURRENCY.md
-TASK_PLAN_CONCURRENCY.md
-AUDIT_CONCURRENCY_*.md
-AUDIT_FULLSTACK_*.md
-TASK_PLAN_*.md
-AUDIT_REACTIVITY_OPTIMIZATION.md
-AUDIT_FULLSTACK_9_9.md
-AUDIT_FULLSTACK_9_9_ROUND2.md
-MONOREPO_GITHUB_SETUP.md
-MONOREPO_PLAN.md
-
+# Local working documents at the repo root: audits, task plans, hand-offs and
+# research notes that are not part of the published repository. Root-anchored
+# so a file with the same name under docs/ is still tracked.
+/CLEANCODE_BACKLOG.md
+/BUG_AUDIT_BACKLOG.md
+/ACTIVE_BACKLOG.md
+/DATA_MODEL_V2_TASKS.md
+/HANDOFF.md
+/TASK_LIST.md
+/DESIGN_BACKLOG.md
+/TOURNAMENT_BACKLOG.md
+/AUDIT_2026-08-22_CONCURRENCY.md
+/TASK_PLAN_CONCURRENCY.md
+/TASK_PLAN_*.md
+/AUDIT_CONCURRENCY_*.md
+/AUDIT_FULLSTACK_*.md
+/AUDIT_REACTIVITY_OPTIMIZATION.md
+/AUDIT_FULLSTACK_9_9.md
+/AUDIT_FULLSTACK_9_9_ROUND2.md
+/MONOREPO_GITHUB_SETUP.md
+/MONOREPO_PLAN.md
+/QUALITY_REMEDIATION_PLAN.md
+/BWF_World_Ranking_Mechanism_Research.md
+/RANKING_POIN_BWF_RANCANGAN.md
 
 # Local DB dumps (jangan di-commit)
 dump/
@@ -63,15 +66,6 @@ dump/
 
 # Internal audit notes stay out of the public repository (see .githooks/pre-push)
 docs/audit/
-
-# Local quality remediation plan (working doc)
-QUALITY_REMEDIATION_PLAN.md
-
-# Local ranking research (working doc)
-BWF_World_Ranking_Mechanism_Research.md
-
-# Rancangan sistem poin ranking (working doc)
-RANKING_POIN_BWF_RANCANGAN.md
 
 # Playwright artefacts and e2e state (T-072)
 e2e/.state.json
