@@ -67,6 +67,9 @@ dump/
 # Internal audit notes stay out of the public repository (see .githooks/pre-push)
 docs/audit/
 
+# Working notes for the task in flight: kept on disk, never published.
+docs/tasks/
+
 # Playwright artefacts and e2e state (T-072)
 e2e/.state.json
 test-results/
