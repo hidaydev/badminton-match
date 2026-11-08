@@ -30,8 +30,17 @@ explicit `--nimcache` does not add a suffix.
 | `contract-gen` | regenerate routes, client and fingerprint | no |
 | `contract-check` | fail when specs and generated files drift | no |
 | `ci` | check + build + test + contract check | same as `test` |
+| `coverage` | line coverage per module, ratcheted against `coverage-baseline.json`; `--update` rewrites the baseline | no |
+| `deps-check` | compare the installed toolchain and Nim packages with `deps.lock` | no |
+| `deps-install` | install the Nim packages pinned in `deps.lock` into `~/.nimble` | no |
 | `bootstrap` | migrate, seed L1 config, create the first owner and a default community | yes |
+| `dev-db` | create the roles, databases and dev schema through `ops/dev/pg-up.sh` | no |
+| `dev` | OIDC stub plus the API in watch mode against `bm2_dev`; the web runs under `pnpm dev` | yes |
 | `dev-v1` | rebuild `bm_v1_dev` from the captured v1 schema and seed | yes |
+| `hooks` | set `core.hooksPath=.githooks` so the pre-push guard runs | no |
+| `e2e` | Playwright against a disposable database and the OIDC stub; `--update-snapshots` rewrites the visual baseline | yes |
+| `rehearsal` | `check` reads the committed timings, `run` needs the VPS | `run` only |
+| `mock-api` | build the mock API binary the web tests use | no |
 | `parity` | v1 golden HTTP corpus (`verify`) and the v2 per-operation corpus (`v2 verify`) | for `replay`/`v2` |
 | `account` | anonymise an account: close claims, unlink players, drop sessions | yes |
 | `ingest` | ingest approved sessions into rating events (tick, session, rebuild) | yes |
@@ -45,6 +54,7 @@ explicit `--nimcache` does not add a suffix.
 
 ## Rules
 
+- `lib.sh` is the shared library, not a target; every script sources it.
 - Every script starts with `set -eu` (inherited from `lib.sh`) and exits non-zero
   on failure. Use `fail "message"` for errors.
 - Tests live next to their module. Files under `tests/integration/` only run when

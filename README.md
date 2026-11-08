@@ -2,7 +2,7 @@
 
 # 🏸 Majadu
 
-**Run a badminton club from one screen — sessions, scores, tournaments, and rank points.**
+**Run a badminton club from one screen: sessions, scores, tournaments, and rank points.**
 
 [![CI](https://github.com/hidaydev/badminton-match/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hidaydev/badminton-match/actions/workflows/ci.yml)
 [![Coverage gate](https://github.com/hidaydev/badminton-match/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/hidaydev/badminton-match/actions/workflows/coverage.yml)
@@ -19,6 +19,13 @@ Majadu is a mobile-first multi-community app for recreational badminton: plan a
 session, play it, score it, and let the ranking take care of itself. It runs as a
 React PWA in front of a Nim API and one PostgreSQL database, with the HTTP
 contract generated from OpenAPI.
+
+| | |
+|---|---|
+| **Contract** | 75 operations, generated into Nim routes and the TypeScript client |
+| **Schema** | 33 migrations, every table keyed by `community_id` |
+| **Domain** | 9 modules: account, community, player, session, tournament, rating, achievement, share, platform |
+| **Gates** | 659 assertions in 102 suites, 143 parity cases, 66 browser checks |
 
 ---
 
@@ -49,22 +56,23 @@ registry in the database.
 ```text
 majadu/
 ├── apps/
-│   ├── web/                 React 19 · Vite 8 · Tailwind 4 — the product
+│   ├── web/                 React 19 · Vite 8 · Tailwind 4: the product
 │   ├── scoreboard/          Standalone courtside scoring PWA
-│   └── api/                 Nim 2.4 · mummy — REST + WebSocket
+│   └── api/                 Nim 2.4 · mummy: REST + WebSocket
 ├── modules/                 Domain: account, community, player, session,
 │                            tournament, rating, achievement, share, platform
 ├── shared/platform-lib/     db binder, clock, logger, metrics, uuidv7, sha256
 ├── packages/
 │   ├── contracts/openapi/   core.yaml + community.yaml → api.yaml + client
 │   └── web-client/          Generated TypeScript client
-├── db/                      migrations (0001–0032), seeds, platform config
+├── db/                      migrations (0001-0033), seeds, platform config
 ├── ops/                     Quadlet, Caddy, deploy/cutover/backup/restore/smoke
 ├── tools/                   dbtools, contract-gen, archcheck, ETL, parity,
 │                            fixtures, mock-api, rehearsal
 ├── e2e/                     Playwright: a11y, visual, compatibility
 ├── testdata/                authz matrix, parity corpora (v1 frozen, v2 live)
-├── task                     Single command runner — `./task help`
+├── docs/                    handbook, ops runbooks, decisions, design system
+├── task                     Single command runner (`./task help`)
 └── package.json             pnpm workspace root
 ```
 
@@ -95,13 +103,17 @@ The frontend calls `/api`; Vite proxies and strips it in dev, and `vercel.json`
 rewrites it in production, so the session cookie stays first-party. Set
 `VITE_API_BASE` only to bypass both.
 
+---
+
+## ✅ Gates
+
 | Command | What it checks |
 |---|---|
-| `./task check` | `nim check`, archcheck, unit tests — no database |
+| `./task check` | `nim check`, archcheck, unit tests, no database |
 | `./task test` | unit + integration (needs `MAJADU_PG_DSN`) |
 | `./task ci` | check + build + test + contract fingerprint |
 | `./task coverage` | line coverage per module, ratcheted against `coverage-baseline.json` |
-| `./task parity verify` | frozen v1 corpus (71 cases, 48 routes) and v2 corpus |
+| `./task parity v2 verify` | 143 recorded v2 cases; `parity verify` replays the frozen v1 corpus |
 | `./task e2e` | Playwright on iPhone 17 (WebKit) and POCO F5 (Chromium) |
 | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 
@@ -113,8 +125,8 @@ is capped at 15 minutes and caches its toolchain.
 
 ## 🚢 Deployment
 
-- **Web** — Vercel, built from `apps/web` on every push to `main`.
-- **API** — rootless Podman on a VPS, started by a Quadlet unit and fronted by
+- **Web**: Vercel, built from `apps/web` on every push to `main`.
+- **API**: rootless Podman on a VPS, started by a Quadlet unit and fronted by
   Caddy under `api.qouver.com/majadu/*`.
 
 The release workflow builds the image once and records its digest in the GitHub
@@ -127,12 +139,19 @@ The cutover from v1 (`bm`) to v2 (`bm2`) is manual, one-way, and scripted in
 `ops/scripts/cutover.sh` with a runbook in [`docs/ops/cutover.md`](docs/ops/cutover.md).
 Rollback is the `:v1-final` image, not source code.
 
+A separate release candidate runs on the same host: branch
+`release/2.0.0-rc.1`, its own Podman service, database and Vercel project.
+`ops/scripts/deploy-vps-rc.sh` deploys it on every push to that branch. See
+[`docs/ops/rc.md`](docs/ops/rc.md).
+
 ---
 
 ## 📌 Status
 
-The v2 rewrite is complete: 75 contract operations, 32 migrations, backend and
-frontend features wired end to end. The v1 Go tree is gone.
+The v2 rewrite is complete: 75 contract operations, 33 migrations, backend and
+frontend features wired end to end. The v1 Go tree is gone. The release
+candidate `2.0.0-rc.1` is deployed and verified; production still runs v1 until
+the cutover.
 
 Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):
 
@@ -144,6 +163,8 @@ Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):
 
 ## 📚 Documentation
 
+Start at [`docs/README.md`](docs/README.md). The short version:
+
 | Guide | For |
 |---|---|
 | [`docs/handbook/current-status.md`](docs/handbook/current-status.md) | What exists today: stack, contract, gates, infrastructure |
@@ -151,7 +172,9 @@ Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):
 | [`docs/handbook/data-model.md`](docs/handbook/data-model.md) | Schemas, tables, tenancy, config registry |
 | [`docs/handbook/features-and-routes.md`](docs/handbook/features-and-routes.md) | Web routes and the 75 API operations |
 | [`docs/ops/operations.md`](docs/ops/operations.md) | Access holders, incident format, routine checks |
+| [`docs/ops/release.md`](docs/ops/release.md) | Release order, exit criteria, expand/contract, rollback |
 | [`docs/ops/cutover.md`](docs/ops/cutover.md) | Cutover, rehearsal, rollback, consequences |
+| [`docs/decisions.md`](docs/decisions.md) | Architecture decision record |
 | [`docs/privacy.md`](docs/privacy.md) | What is stored, for how long, what anonymisation keeps |
 | [`docs/design-system.md`](docs/design-system.md) | Tokens, typography, theme rules |
 | [`apps/api/README.md`](apps/api/README.md) · [`apps/web/README.md`](apps/web/README.md) | Per-app layout and environment |
@@ -162,4 +185,4 @@ Known gaps, tracked in [`docs/handbook/roadmap.md`](docs/handbook/roadmap.md):
 
 Code and original artwork in `apps/web/public` are [MIT licensed](LICENSE);
 [NOTICE](NOTICE) states the split. Decorative fonts are third-party files under
-their own terms — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+their own terms; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

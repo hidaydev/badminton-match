@@ -1,6 +1,7 @@
 # Parity corpus — v2 (Nim)
 
-One case per contract operation in `apps/api/src/routes_gen.nim` (74), recorded
+One or more cases per contract operation in `apps/api/src/routes_gen.nim` (75
+operations, 143 cases), recorded
 against the real Nim server, plus a fixture-state fingerprint. Together they are
 the executable form of the frozen contract: a response that changes shape,
 status or the rows it leaves behind makes `./task parity v2 verify` fail.
@@ -30,7 +31,7 @@ status or the rows it leaves behind makes `./task parity v2 verify` fail.
 
 ```
 ./task parity v2 verify   # end to end on a disposable database (see below)
-./task parity v2 lint     # manifest + 73/73 operations + 4xx ratio + invariants
+./task parity v2 lint     # manifest + 75/75 operations + 4xx ratio + invariants
 ./task parity v2 reset    # rebuild fixture.sql only
 ./task parity v2 record   # reset, capture cases.tsv, snapshot state, manifest
 ./task parity v2 replay   # replay cases.tsv in order against a running server

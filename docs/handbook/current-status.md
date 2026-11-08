@@ -1,9 +1,9 @@
 # Current Status
 
-Terakhir diperbarui: **2026-11-08**. Dokumen ini menjawab "apa yang benar-benar
-ada di repo hari ini", bukan "apa yang direncanakan".
+Last updated: **2026-11-08**. This document answers "what actually exists in the repo
+today", not "what is planned".
 
-Pintu masuk berikutnya: [`architecture.md`](architecture.md),
+Next entry points: [`architecture.md`](architecture.md),
 [`data-model.md`](data-model.md), [`features-and-routes.md`](features-and-routes.md),
 [`roadmap.md`](roadmap.md).
 
@@ -11,176 +11,176 @@ Pintu masuk berikutnya: [`architecture.md`](architecture.md),
 
 ```text
 apps/web   React 19.2 · Vite 8 · TypeScript 6 · Tailwind 4 · React Router 7
-   │        browser → same-origin /api (Vite proxy di dev, vercel.json di prod)
+   │        browser → same-origin /api (Vite proxy in dev, vercel.json in prod)
 apps/api   Nim 2.4.0 · mummy (HTTP + WebSocket) · db connector
    │
-Postgres 18.6 · skema per domain (platform, community, player, session,
+Postgres 18.6 · schema per domain (platform, community, player, session,
               tournament, rating, achievement, auth, account)
 ```
 
-- **Backend = Nim** di `apps/api/src/`; `apps/api/Dockerfile` membangun
+- **Backend = Nim** in `apps/api/src/`; `apps/api/Dockerfile` builds
   `apps/api/src/main.nim` (multi-stage Nim 2.4.0 → Debian bookworm-slim, uid 10001,
   port 8080).
-- **Kode Go v1 sudah dihapus** (T-082). Rollback memakai image
-  `localhost/majadu-api:v1-final`, bukan source; kontrak v1 yang dibekukan ada di
+- **The Go v1 code is removed** (T-082). Rollback uses the image
+  `localhost/majadu-api:v1-final`, not source; the frozen v1 contract is in
   `testdata/parity/v1/`.
-- **Scoreboard** (`apps/scoreboard`) adalah PWA terpisah untuk mencatat skor di
-  lapangan; tidak berbagi kode dengan `apps/web` selain aturan validasi skor.
+- **Scoreboard** (`apps/scoreboard`) is a separate PWA for recording scores on
+  court; it shares no code with `apps/web` other than the score validation rules.
 
-## 2. Kontrak & database
+## 2. Contract & database
 
-- **75 operasi** di kontrak: `packages/contracts/openapi/CONTRACT.sha256`
-  (`operations 75`), hasil generate di `apps/api/src/routes_gen.nim`.
-  Sumber tangan: `core.yaml` + `community.yaml`; hasil generate: `api.yaml`,
+- **75 operations** in the contract: `packages/contracts/openapi/CONTRACT.sha256`
+  (`operations 75`), generated output in `apps/api/src/routes_gen.nim`.
+  Hand-written sources: `core.yaml` + `community.yaml`; generated output: `api.yaml`,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
-- Setiap operasi punya handler (gagal kompilasi bila tidak) dan baris otorisasi di
-  `testdata/authz/matrix.yaml`; `./task contract-check` menjaga fingerprint.
-- **33 migrasi** di `db/migrations/` (`0001`–`0033`, terakhir
-  `0033_share_legacy_id.sql`); seed: `db/seeds/platform_config.sql`,
+- Every operation has a handler (compilation fails otherwise) and an authorization row in
+  `testdata/authz/matrix.yaml`; `./task contract-check` guards the fingerprint.
+- **33 migrations** in `db/migrations/` (`0001`–`0033`, the last one
+  `0033_share_legacy_id.sql`); seeds: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
-- **34 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
-  override per komunitas di `community.settings` hanya boleh mempersempit platform.
-- **Format skor per sesi** (ADR-012 di [`../decisions.md`](../decisions.md)): satu
-  slot jadwal adalah satu match berisi 1..N set. `0029_scoring_presets.sql`
-  menambah `session.game_sets` (satu baris per set), view `session.game_results`,
-  serta snapshot `scoring_preset` + `scoring_rules` di `session.sessions`; daftar
-  preset ada di config `session.scoring_presets` (MAJADU 30, Classic BO3 21, New
-  BWF BO3 15) dan default komunitas di `session.default_scoring_preset`. Sesi v1
-  mendapat snapshot `legacy_v1` bertarget 30; kolom `score_a`/`score_b` lama
-  dipertahankan sebagai sumber backfill dan jalur rollback. `0030_scoring_grants.sql`
-  memberi role aplikasi akses ke tabel dan view baru.
-- Nama database: produksi `bm2` (arsip v1 `bm` read-only), lokal `bm2_dev`,
-  `bm2_ops`, `bm2_e2e`, `bm2_parity_v2`; cutover memakai `bm_staging`.
+- **34 config keys** in `modules/platform/config/registry.nim`, initial values in the seed;
+  per-community overrides in `community.settings` may only narrow the platform.
+- **Per-session scoring format** (ADR-012 in [`../decisions.md`](../decisions.md)): one
+  schedule slot is one match containing 1..N sets. `0029_scoring_presets.sql`
+  adds `session.game_sets` (one row per set), the `session.game_results` view,
+  and the `scoring_preset` + `scoring_rules` snapshots on `session.sessions`; the
+  preset list is in the `session.scoring_presets` config (MAJADU 30, Classic BO3 21, New
+  BWF BO3 15) and the community default in `session.default_scoring_preset`. v1 sessions
+  get a `legacy_v1` snapshot targeting 30; the old `score_a`/`score_b` columns
+  are kept as the backfill source and the rollback path. `0030_scoring_grants.sql`
+  gives the application role access to the new tables and view.
+- Database names: production `bm2` (v1 archive `bm` read-only), local `bm2_dev`,
+  `bm2_ops`, `bm2_e2e`, `bm2_parity_v2`; cutover uses `bm_staging`.
 
 ## 3. Frontend
 
-Frontend v1 dipulihkan penuh di `apps/web/src/legacy/` (tree pra-rewrite) di atas
-API v2. Semua rute lama tetap ada, kini ber-prefix `/c/:slug`. Lapisan data lama
-(`legacy/queries/endpoints.ts`) menjadi adapter: `CloudSnapshot` dirakit dari
-`GET /sessions/{id}`, tulis granular memakai endpoint v2, dan path admin lama
-diterjemahkan di `legacy/queries/admin.ts`.
+The v1 frontend is fully restored in `apps/web/src/legacy/` (the pre-rewrite tree) on top of
+the v2 API. All legacy routes still exist, now prefixed with `/c/:slug`. The old data layer
+(`legacy/queries/endpoints.ts`) becomes an adapter: `CloudSnapshot` is assembled from
+`GET /sessions/{id}`, granular writes use v2 endpoints, and old admin paths
+are translated in `legacy/queries/admin.ts`.
 
-- Login OIDC + shell komunitas (`/`, `/c/:slug`), pemilih komunitas, i18n.
-- **Sesi**: daftar berhalaman (filter dan `load more` dari server), live session
-  (`/c/:slug/s/:id`), scoreboard, wizard 4 langkah + generator 5 fase, aksi
-  "Finish session" di ringkasan (lock → ingest rating, buka lagi → revert),
-  share code v2 (`/s/:code` untuk publik, tab Games/Standings seperti layar sesi
-  di aplikasi, memperbarui tiap 10 detik).
-- **Pemain**: roster v2 (klaim, merge, alias, edit, tier, hapus) di
-  `/c/:slug/players`; halaman admin pemain lama sudah dipensiunkan dan
-  `/admin/players` dialihkan ke roster.
-- **Peringkat**: papan + filter tier, detail pemain + badge + riwayat match.
-- **Turnamen**: daftar, editor classic dan team, klasemen/bracket, admin rating.
-- **Post**: editor Instagram Post (post dan story) dari sesi atau turnamen.
-- **Settings komunitas**: anggota, peran, undangan, join request, override config.
-  Undangan punya halamannya sendiri, `/invites/:token` (di luar shell komunitas);
-  login juga langsung meng-claim undangan yang tertuju ke alamat itu, dan
-  menerima ulang token yang sama oleh pemiliknya mengembalikan membership yang
-  sudah diberikan.
-- **Owner**: `/owner/communities` untuk membuat komunitas dan melihat yang diikuti.
+- OIDC login + community shell (`/`, `/c/:slug`), community picker, i18n.
+- **Sessions**: paginated list (filter and `load more` from the server), live session
+  (`/c/:slug/s/:id`), scoreboard, 4-step wizard + 5-phase generator, a
+  "Finish session" action in the summary (lock → ingest rating, reopen → revert),
+  v2 share code (`/s/:code` for the public, Games/Standings tabs like the session screen
+  in the app, refreshing every 10 seconds).
+- **Players**: v2 roster (claims, merge, alias, edit, tier, delete) at
+  `/c/:slug/players`; the old player admin page is retired and
+  `/admin/players` redirects to the roster.
+- **Rankings**: board + tier filter, player detail + badges + match history.
+- **Tournaments**: list, classic and team editors, standings/bracket, admin rating.
+- **Post**: Instagram Post editor (post and story) from a session or tournament.
+- **Community settings**: members, roles, invites, join requests, config overrides.
+  Invites have their own page, `/invites/:token` (outside the community shell);
+  login also directly claims an invite addressed to that email, and
+  re-accepting the same token by its owner returns the membership that was
+  already granted.
+- **Owner**: `/owner/communities` to create communities and see the ones followed.
 
-State klien memakai Zustand (wizard) dan TanStack Query (data server). Service
-worker/PWA dipulihkan lewat `vite-plugin-pwa` (install/update banner lama hidup
-lagi). Kode v2-only yang tidak ada di v1 (Settings, roster/klaim pemain, owner
-communities) tetap dipakai; halaman v2 yang tidak pernah dipasang di router
-(home, sessions, rankings, tournaments, export) sudah dihapus.
+Client state uses Zustand (wizard) and TanStack Query (server data). The service
+worker/PWA is restored via `vite-plugin-pwa` (the old install/update banner is alive
+again). v2-only code that has no v1 counterpart (Settings, player roster/claims, owner
+communities) is still used; v2 pages that were never mounted in the router
+(home, sessions, rankings, tournaments, export) were removed.
 
 ## 4. Realtime
 
-- WebSocket, bukan SSE. Tiket sekali pakai lewat `POST …/ws-ticket`, lalu upgrade
-  ke `/ws/c/{slug}/sessions/{id}` atau `/ws/share/{code}`.
-- Frame `session.changed` hanya membawa `seq`; klien harus membaca ulang state.
-- Hub fan-out in-memory per proses → **API harus satu instance**. `platform.outbox`
-  sudah ada dan dibersihkan janitor, tetapi belum ada produsen event. Ini batasan
-  yang disengaja: satu container per VPS, jadi fan-out antar-instance belum
-  dibutuhkan. Menjalankan dua replika tanpa produsen outbox akan membuat sebagian
-  penonton tidak menerima `session.changed`.
-- **Klien web memakai WebSocket**: `useSessionRealtime` meminta tiket sekali pakai,
-  membuka `/ws/c/{slug}/sessions/{id}`, dan meng-invalidate `['session', id]` setiap
-  `session.changed`; frame `full`/`revoked` menghentikan reconnect. Selama socket
-  belum tersambung (atau setelah putus) halaman tetap polling 5 detik, jadi
-  realtime adalah percepatan, bukan syarat. Di dev, Vite mem-proxy `/ws`; di
-  produksi socket memakai origin API (`VITE_WS_BASE`), karena rewrite Vercel tidak
-  membawa upgrade.
+- WebSocket, not SSE. Single-use tickets via `POST …/ws-ticket`, then upgrade
+  to `/ws/c/{slug}/sessions/{id}` or `/ws/share/{code}`.
+- The `session.changed` frame only carries `seq`; clients must re-read state.
+- In-memory per-process fan-out hub → **the API must be a single instance**. `platform.outbox`
+  already exists and is cleaned by the janitor, but there is no event producer yet. This is a
+  deliberate constraint: one container per VPS, so cross-instance fan-out is not yet
+  needed. Running two replicas without an outbox producer would leave some
+  viewers without `session.changed`.
+- **The web client uses WebSocket**: `useSessionRealtime` requests a single-use ticket,
+  opens `/ws/c/{slug}/sessions/{id}`, and invalidates `['session', id]` on every
+  `session.changed`; the `full`/`revoked` frames stop reconnection. While the socket
+  is not connected (or after a drop) the page keeps polling every 5 seconds, so
+  realtime is an accelerator, not a requirement. In dev, Vite proxies `/ws`; in
+  production the socket uses the API origin (`VITE_WS_BASE`), because the Vercel rewrite does not
+  carry the upgrade.
 
-## 5. Gate
+## 5. Gates
 
-| Suite | Perintah | Catatan |
+| Suite | Command | Note |
 |---|---|---|
-| `nim check`, archcheck, unit | `./task check` | tanpa database |
-| Unit + integration | `./task test` | butuh `MAJADU_PG_DSN`; 659 assertion di 102 suite (2026-11-08) |
-| Satu modul | `./task verify <modul\|api>` | integration bila DB ada |
-| Kontrak | `./task contract-check` | fingerprint + hasil generate |
-| Parity | `./task parity verify` / `./task parity v2 verify` | v1 beku 71 kasus/48 rute; v2 143 kasus |
-| Ladder turnamen | `./task levels` | baca/tulis `rating.levels`; tanpa baris = rumus per-game |
-| Coverage | `./task coverage` | per modul, ratchet terhadap `coverage-baseline.json` (39,14% total, integration; gcov dibaca per binary, toleransi 0,1 pp untuk derau gcov, ~7 menit) |
-| Keamanan | bagian dari `./task test` | IDOR, eskalasi, CSRF, replay OIDC, rate limit, klaim |
+| `nim check`, archcheck, unit | `./task check` | no database |
+| Unit + integration | `./task test` | needs `MAJADU_PG_DSN`; 659 assertions in 102 suites (2026-11-08) |
+| One module | `./task verify <module\|api>` | integration when the DB is present |
+| Contract | `./task contract-check` | fingerprint + generated output |
+| Parity | `./task parity verify` / `./task parity v2 verify` | frozen v1 71 cases/48 routes; v2 143 cases |
+| Tournament ladder | `./task levels` | read/write `rating.levels`; no row = per-game formula |
+| Coverage | `./task coverage` | per module, ratchet against `coverage-baseline.json` (39.14% total, integration; gcov read per binary, 0.1 pp tolerance for gcov noise, ~7 minutes) |
+| Security | part of `./task test` | IDOR, escalation, CSRF, OIDC replay, rate limit, claims |
 | Web | `pnpm check:web` | TypeScript, ESLint, Tailwind guard, Vitest |
 | E2E | `./task e2e` | Playwright: a11y, visual, compatibility |
 
-E2E berjalan di dua perangkat: **iPhone 17** (WebKit, 402×874, DPR 3) dan
+E2E runs on two devices: **iPhone 17** (WebKit, 402×874, DPR 3) and
 **POCO F5** (Chromium, 393×873, DPR 2.75), `maxDiffPixels: 0`.
 
 ## 6. CI
 
-- `.github/workflows/ci.yml` — 7 job: `api-check`, `api-test` (Postgres 18.6),
-  `contract`, `web`, `e2e`, `image`, lalu `gate`.
-- `.github/workflows/coverage.yml` — instrumented build + ratchet, workflow
-  terpisah supaya cache tidak bercampur dengan gate cepat.
-- `.github/workflows/nightly.yml` — `./task ci` penuh dengan database service.
-- `.github/workflows/release.yml` — dipicu tag `v*`, membangun image sekali dan
-  menulis digest ke GitHub Release.
-- Semua job `timeout-minutes: 15`, memakai cache, dan tidak menginterpolasi
-  konteks GitHub langsung ke shell.
+- `.github/workflows/ci.yml`: 7 jobs: `api-check`, `api-test` (Postgres 18.6),
+  `contract`, `web`, `e2e`, `image`, then `gate`.
+- `.github/workflows/coverage.yml`: instrumented build + ratchet, a separate
+  workflow so the cache does not mix with the fast gate.
+- `.github/workflows/nightly.yml`: full `./task ci` with a database service.
+- `.github/workflows/release.yml`: triggered by a `v*` tag, builds the image once and
+  writes the digest to the GitHub Release.
+- All jobs use `timeout-minutes: 15`, use caching, and do not interpolate
+  GitHub context directly into the shell.
 
-## 7. Infrastruktur
+## 7. Infrastructure
 
-- **Deploy** (`ops/scripts/deploy-vps.sh`): hanya `refs/heads/main`; `flock`;
-  `git fetch` + `reset --hard`; pull image **by digest**; **`dbtools migrate` +
-  `dbtools verify` dari digest itu sebelum rotasi tag** (gagal = rilis batal,
-  `:local`/`:prev` tak tersentuh; revisi skema dicatat di `last-release.json`);
-  rotasi `:local` → `:prev`; restart unit; gate `/readyz`; rollback ke `:prev`
-  bila gagal. Skema tidak ikut di-rollback, jadi migrasi wajib expand/contract.
-  **Cutover gate:** selama env produksi masih menunjuk `bm`, script berhenti
-  sebelum pull/restart.
-- **RC** (`ops/scripts/deploy-vps-rc.sh`): branch `release/2.0.0-rc.1`, service
-  Podman dan database terpisah dari produksi; semua detail di
+- **Deploy** (`ops/scripts/deploy-vps.sh`): only `refs/heads/main`; `flock`;
+  `git fetch` + `reset --hard`; pull the image **by digest**; **`dbtools migrate` +
+  `dbtools verify` from that digest before rotating tags** (failure = release cancelled,
+  `:local`/`:prev` untouched; the schema revision is recorded in `last-release.json`);
+  rotate `:local` → `:prev`; restart the unit; `/readyz` gate; roll back to `:prev`
+  on failure. The schema is not rolled back, so migrations must be expand/contract.
+  **Cutover gate:** while the production env still points at `bm`, the script stops
+  before pull/restart.
+- **RC** (`ops/scripts/deploy-vps-rc.sh`): branch `release/2.0.0-rc.1`, Podman service
+  and database separate from production; all details are in
   [`../ops/rc.md`](../ops/rc.md).
-- **Cutover** (`ops/scripts/cutover.sh`): 14 langkah bernama dengan penanda resume
-  (`--from`), `:v1-final` ditag sebelum v1 dihentikan, maintenance Caddy, dump →
-  `bm_staging`, peran + migrasi + seed + owner, ETL + verify, `cutover_state`,
-  tukar env, tukar snippet Caddy, `/readyz`, smoke. Rollback: `rollback.sh`.
+- **Cutover** (`ops/scripts/cutover.sh`): 14 named steps with a resume marker
+  (`--from`), `:v1-final` tagged before v1 is stopped, Caddy maintenance, dump →
+  `bm_staging`, roles + migrations + seed + owner, ETL + verify, `cutover_state`,
+  swap env, swap the Caddy snippet, `/readyz`, smoke. Rollback: `rollback.sh`.
 - **Unit**: `ops/systemd/majadu-api.container` (rootless, `Pull=never`,
   `MemoryMax=512M`, `StartLimit*`, `OnFailure=majadu-alert@%n.service`,
   `NoNewPrivileges`, `DropCapability=ALL`) + `majadu-alert@.service`.
-- **Snapshot harian**: `majadu-snapshot.service` + `.timer` menjalankan
-  `ranksnapshot` dari image yang sama (`podman run --rm --pull=never`), supaya
-  panah pergerakan punya snapshot baru tiap hari. Diaktifkan setelah cutover.
-- **Caddy**: `api.qouver.com` adalah satu site dengan banyak `handle`; snippet
-  majadu adalah **handler block** yang diimpor di dalam site itu, prefix `/majadu`
-  dipertahankan. Langkah sekali-jalan ada di `ops/caddy/Caddyfile.api.qouver.com`.
-- **Backup/restore/smoke**: `ops/scripts/{backup,restore,smoke}.sh`; dump diverifikasi
-  dengan `pg_restore --list` sebelum dipindah, file mode 600.
-- **Rehearsal**: `tools/rehearsal/` + `./task rehearsal check`; `timings.json` masih
-  `not_run` karena butuh Podman + jendela maintenance di VPS.
-- **Artefak** yang belum terbukti di VPS: `caddy validate` pada Caddyfile produksi,
-  parsing Quadlet, `podman pull` digest, dan rollback ber-stopwatch. Lihat
-  [`../ops/cutover.md`](../ops/cutover.md) §"belum terbukti".
+- **Daily snapshot**: `majadu-snapshot.service` + `.timer` run
+  `ranksnapshot` from the same image (`podman run --rm --pull=never`), so the
+  movement arrow has a fresh snapshot every day. Enabled after cutover.
+- **Caddy**: `api.qouver.com` is one site with many `handle` blocks; the
+  majadu snippet is a **handler block** imported inside that site, the `/majadu` prefix
+  is kept. The one-time steps are in `ops/caddy/Caddyfile.api.qouver.com`.
+- **Backup/restore/smoke**: `ops/scripts/{backup,restore,smoke}.sh`; the dump is verified
+  with `pg_restore --list` before it is moved, file mode 600.
+- **Rehearsal**: `tools/rehearsal/` + `./task rehearsal check`; `timings.json` is still
+  `not_run` because it needs Podman + a maintenance window on the VPS.
+- **Artifacts** not yet proven on the VPS: `caddy validate` on the production Caddyfile,
+  Quadlet parsing, digest `podman pull`, and stopwatch rollback. See
+  [`../ops/cutover.md`](../ops/cutover.md) §"What is not yet proven until the D-3 rehearsal".
 
-## 8. Sisa pekerjaan
+## 8. Remaining work
 
-Backlog rewrite sudah selesai; yang tersisa ada di [`roadmap.md`](roadmap.md). Ringkasnya:
+The rewrite backlog is done; what remains is in [`roadmap.md`](roadmap.md). In short:
 
-- **Operasional, menunggu VPS/waktu:** rehearsal T-063 (dan karenanya bukti
-  T-060/061/065), soak T-074, penghapusan `:v1-final` setelah 30 hari (T-082),
-  force-push T-108 yang ditunda atas keputusan pemilik.
-- **Celah di luar rencana:** produsen `platform.outbox` (realtime masih
-  per-proses). Coverage sudah diukur ulang dengan harness yang benar (gcov
-  dibaca setelah setiap binary; sebelumnya `.gcda` basi membuat modul yang
-  teruji dilaporkan 0%), jadi baseline 39,14% adalah angka pertama yang bisa
-  dipercaya — bukan penurunan. Modul terendah: `apps/api` 15,47% dan `tools`
-  21,02%.
-- **Selisih data yang diketahui (diterima):** Salma, Youri, Zaid, dan Firda
-  berbeda dari `bm.rank_snapshots` v1 karena ledger v1 untuk sesi 2026-10-31
-  di-ingest sebelum sesi itu diedit. Keputusan pemilik: v2 mengikuti data
-  terkini, bukan ledger v1 yang basi; 100 dari 104 pemain tetap persis sama.
+- **Operations, waiting on the VPS/time:** T-063 rehearsal (and therefore the
+  T-060/061/065 evidence), T-074 soak, removal of `:v1-final` after 30 days (T-082),
+  T-108 force-push postponed by owner decision.
+- **Gaps outside the plan:** `platform.outbox` producer (realtime is still
+  per-process). Coverage was re-measured with the correct harness (gcov
+  read after each binary; previously a stale `.gcda` made tested modules
+  report 0%), so the 39.14% baseline is the first number that can be
+  trusted, not a regression. Lowest modules: `apps/api` 15.47% and `tools`
+  21.02%.
+- **Known data differences (accepted):** Salma, Youri, Zaid, and Firda
+  differ from the v1 `bm.rank_snapshots` because the v1 ledger for the 2026-10-31 session
+  was ingested before that session was edited. Owner decision: v2 follows current
+  data, not the stale v1 ledger; 100 of 104 players stay exactly the same.

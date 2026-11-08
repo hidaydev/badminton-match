@@ -1,257 +1,258 @@
-# Runbook cutover v1 → v2
+# Runbook: cutover v1 → v2
 
-Dokumen ini adalah prosedur yang dijalankan operator, bukan ringkasan arsitektur.
-Cutover **manual dan satu arah**: tidak ada masa berdampingan, tidak ada cutover
-dari push, dan tidak ada resume otomatis. Satu-satunya jalan kembali adalah
-`rollback.sh`.
+This document is a procedure the operator runs, not an architecture summary.
+Cutover is **manual and one-way**: there is no side-by-side period, no cutover
+from a push, and no automatic resume. The only way back is `rollback.sh`.
 
-Status: urutan di bawah mengikuti script yang ada di repo (`ops/scripts/`), tetapi
-**belum pernah dieksekusi di VPS**. Rehearsal D-3 yang membuktikan langkah
-Quadlet, Caddy, dan `:v1-final`; sampai rehearsal itu selesai, anggap setiap
-langkah di sini belum teruji.
+Status: the sequence below follows the scripts present in the repo
+(`ops/scripts/`), but it has **never been executed on the VPS**. The D-3
+rehearsal is what proves the Quadlet, Caddy, and `:v1-final` steps; until that
+rehearsal is done, treat every step here as untested.
 
-## 0. Prinsip yang tidak boleh dilanggar
+## 0. Principles that must not be violated
 
-- Image v1 ditandai `:v1-final` **sebelum** v1 dimatikan. Kalau pembuatan tag
-  gagal setelah v1 berhenti, tidak ada jalan pulang.
-- v1 di-`disable`, bukan hanya `stop`. Reboot tidak boleh menghidupkannya lagi
-  dan menulis ke `bm`.
-- `bm` hanya dibaca: dump, bukan restore target, tidak ada DDL, tidak ada tulisan
-  setelah cutover.
-- `deploy-vps.sh` tidak pernah menjalankan cutover dan tidak membaca
-  `cutover.step`. Kalau sebuah push terlihat "memperbaiki" cutover, itu bukan
+- The v1 image is tagged `:v1-final` **before** v1 is shut down. If tagging
+  fails after v1 stops, there is no way back.
+- v1 is `disable`d, not just `stop`ped. A reboot must not bring it back up and
+  write to `bm`.
+- `bm` is read-only: dump only, not a restore target, no DDL, no writes after
   cutover.
-- `:v1-final` hanya dipakai `rollback.sh`. Deploy pasca-cutover memakai `:prev`.
+- `deploy-vps.sh` never runs a cutover and never reads `cutover.step`. If a push
+  appears to "fix" the cutover, that is not a cutover.
+- `:v1-final` is used only by `rollback.sh`. Post-cutover deploys use `:prev`.
 
-## 1. Tata letak di VPS
+## 1. Layout on the VPS
 
 ```
 /srv/qouver/apps/majadu/
-├── monorepo/                  # clone repo, sumber unit + db/migrations
+├── monorepo/                  # repo clone, source of the unit + db/migrations
 ├── scripts/                   # deploy-vps.sh, cutover.sh, rollback.sh, smoke.sh,
-│                              # backup.sh, restore.sh (disalin dari repo)
+│                              # backup.sh, restore.sh (copied from the repo)
 ├── env/
-│   ├── majadu-prod.env        # symlink ke .v1 atau .v2 (mode 600)
+│   ├── majadu-prod.env        # symlink to .v1 or .v2 (mode 600)
 │   ├── majadu-prod.env.v1     # MAJADU_PG_DSN → bm
 │   ├── majadu-prod.env.v2     # MAJADU_PG_DSN → bm2, OWNER/ETL/SOURCE DSN
-│   ├── ghcr-token             # mode 600; opsional bila podman sudah login
-│   └── alert.env              # mode 600; opsional, MAJADU_ALERT_WEBHOOK
+│   ├── ghcr-token             # mode 600; optional if podman is already logged in
+│   └── alert.env              # mode 600; optional, MAJADU_ALERT_WEBHOOK
 ├── caddy/
 │   ├── active.caddy           # symlink: site-v1 / site-v2 / site-maintenance
-│   └── site-*.caddy           # disalin cutover.sh dari ops/caddy/
+│   └── site-*.caddy           # copied by cutover.sh from ops/caddy/
 ├── cutover/                   # cutover.step, v1-final.digest, snapshot.*,
 │                              # majadu-api.container.v1, env-target.v1
 ├── deploy/                    # deployed-version, last-release.json
-├── backups/                   # mode 700; dump harian + bm-cutover-*.dump
+├── backups/                   # mode 700; daily dump + bm-cutover-*.dump
 └── logs/                      # deploy.log, cutover.log, caddy-access.log
 ```
 
-`/etc/caddy/Caddyfile` mengimpor `/srv/qouver/apps/majadu/caddy/active.caddy`
-**di dalam** site `api.qouver.com`, menggantikan handler `/majadu/*` yang lama.
-Site itu juga melayani `/hooks`, `/sds`, dan `/skyward`; snippet majadu tidak
-boleh menggantikan seluruh site. Prefix `/majadu` dipertahankan setelah cutover,
-jadi redirect OIDC, `PUBLIC_BASE_URL`, dan web client tidak berubah. Langkah
-sekali-jalan (termasuk `skip_log` untuk `/majadu/s/*` dan `/majadu/ws/*`; preflight
-menolak Caddyfile yang hanya menyebut yang pertama) ada di
+`/etc/caddy/Caddyfile` imports `/srv/qouver/apps/majadu/caddy/active.caddy`
+**inside** the `api.qouver.com` site, replacing the old `/majadu/*` handler. That
+site also serves `/hooks`, `/sds`, and `/skyward`; the majadu snippet must not
+replace the whole site. The `/majadu` prefix is kept after cutover, so the OIDC
+redirect, `PUBLIC_BASE_URL`, and the web client do not change. The one-time steps
+(including `skip_log` for `/majadu/s/*` and `/majadu/ws/*`; preflight rejects a
+Caddyfile that mentions only the first) are in
 `ops/caddy/Caddyfile.api.qouver.com`.
 
-## 2. Checklist D-7
+## 2. D-7 checklist
 
-- [ ] Tag rilis sudah terbit dan GitHub Release memuat digest
+- [ ] The release tag is published and the GitHub Release contains the digest
       `ghcr.io/hidaydev/badminton-match@sha256:…`.
-- [ ] Rehearsal T-063 lulus dan `./task rehearsal check` hijau
-      (`tools/rehearsal/timings.json` ≤ 30 menit, restore ≤ 15 menit, jendela
-      cutover ≤ 10 menit, `--from` terbukti).
-- [ ] `majadu-prod.env.v1` dan `.v2` ada, mode 600, dan `bm2` belum berisi data
-      produksi.
-- [ ] `ghcr-token` (bila dipakai) mode 600 dan bisa `podman pull` digest rilis.
-- [ ] `alert.env` berisi webhook, atau keputusan sadar bahwa alert hanya masuk
-      journal.
-- [ ] Kapasitas disk ≥ 3× ukuran `bm` (dump + `bm2` + WAL).
-- [ ] Rehearsal D-3 di VPS dijadwalkan sebagai **maintenance window yang
-      diumumkan**, bukan downtime mendadak.
-- [ ] Rencana komunikasi: siapa yang diberi tahu saat maintenance mulai dan saat
-      selesai.
+- [ ] Rehearsal T-063 passes and `./task rehearsal check` is green
+      (`tools/rehearsal/timings.json` ≤ 30 minutes, restore ≤ 15 minutes, cutover
+      window ≤ 10 minutes, `--from` proven).
+- [ ] `majadu-prod.env.v1` and `.v2` exist, mode 600, and `bm2` does not contain
+      production data yet.
+- [ ] `ghcr-token` (if used) is mode 600 and can `podman pull` the release digest.
+- [ ] `alert.env` contains a webhook, or there is a deliberate decision that
+      alerts only land in the journal.
+- [ ] Disk capacity ≥ 3× the size of `bm` (dump + `bm2` + WAL).
+- [ ] The D-3 rehearsal on the VPS is scheduled as an **announced maintenance
+      window**, not a sudden downtime.
+- [ ] Communication plan: who is told when maintenance starts and when it ends.
 
-## 3. D-3 — rehearsal di VPS (maintenance window diumumkan)
+## 3. D-3: rehearsal on the VPS (announced maintenance window)
 
-Dijalankan pada VPS sungguhan karena Quadlet dan Caddy tidak ada di mesin dev.
-Harness-nya `tools/rehearsal/`; baca README di sana sebelum menjalankan.
+Run on the real VPS because Quadlet and Caddy are not available on the dev
+machine. The harness is `tools/rehearsal/`; read the README there before
+running it.
 
-1. Umumkan jendela maintenance (mulai + perkiraan selesai).
-2. Pastikan `bm_staging` berisi salinan staging (`backup.sh --tag cutover` lalu
+1. Announce the maintenance window (start + expected finish).
+2. Make sure `bm_staging` contains a staging copy (`backup.sh --tag cutover` then
    `restore.sh --target bm_staging --recreate`).
-3. Siapkan dua env rehearsal (`v1.env`, `v2.env`, mode 600) dari template di
-   `ops/env/`. `bm2_rehearsal` dibuat ulang oleh harness, tidak perlu disiapkan.
-4. `./task rehearsal run --version v<rilis> --dry-run` — periksa sandbox, unit,
-   site Caddy, dan perintah yang akan dijalankan.
-5. `MAJADU_REHEARSAL_CONFIRM=yes ./task rehearsal run --version v<rilis>` —
-   harness menjalankan cutover, rollback, lalu membuktikan
-   `--from restore-staging`, dan menulis `tools/rehearsal/timings.json`.
-6. `./task rehearsal check` harus hijau; commit `timings.json`.
+3. Prepare two rehearsal env files (`v1.env`, `v2.env`, mode 600) from the
+   templates in `ops/env/`. `bm2_rehearsal` is recreated by the harness, so it
+   needs no preparation.
+4. `./task rehearsal run --version v<release> --dry-run`: inspect the sandbox,
+   units, Caddy site, and the commands that will run.
+5. `MAJADU_REHEARSAL_CONFIRM=yes ./task rehearsal run --version v<release>`:
+   the harness runs cutover, rollback, then proves
+   `--from restore-staging`, and writes `tools/rehearsal/timings.json`.
+6. `./task rehearsal check` must be green; commit `timings.json`.
 7. `./task rehearsal clean --drop-databases`.
-8. Umumkan hasil rehearsal (durasi nyata) di channel yang sama.
+8. Announce the rehearsal result (actual duration) in the same channel.
 
-Kalau rehearsal gagal, cutover D-day **ditunda**; tidak ada "coba saja di
-produksi".
+If the rehearsal fails, the D-day cutover is **postponed**; there is no "let's
+just try it on production".
 
 ## 4. D-1
 
-- [ ] Pastikan tidak ada perubahan skema yang belum di-release di `main`.
-- [ ] Pastikan `VERSION` di `main` sama dengan tag rilis yang akan dipakai.
-- [ ] Backfill data v1 yang masih dibutuhkan (skor, sesi draft) **sebelum**
-      dump; setelah v1 dimatikan tidak ada lagi tulisan.
-- [ ] Cek `curl -fsS https://api.qouver.com/healthz` (v1) dan satu share link
-      lama untuk memastikan baseline.
-- [ ] Catat jumlah baris v1 yang akan dibandingkan setelah ETL:
-      pemain, sesi, game, turnamen.
-- [ ] Siapkan sesi SSH kedua untuk memantau `journalctl --user -u majadu-api -f`
-      dan log Caddy.
+- [ ] Make sure there are no unreleased schema changes on `main`.
+- [ ] Make sure `VERSION` on `main` equals the release tag that will be used.
+- [ ] Backfill the v1 data still needed (scores, draft sessions) **before** the
+      dump; once v1 is shut down there are no more writes.
+- [ ] Check `curl -fsS https://api.qouver.com/healthz` (v1) and one old share
+      link to establish the baseline.
+- [ ] Record the v1 row counts that will be compared after ETL:
+      players, sessions, games, tournaments.
+- [ ] Prepare a second SSH session to watch
+      `journalctl --user -u majadu-api -f` and the Caddy log.
 
 ## 5. D-day
 
-Semua perintah dijalankan dari SSH ke VPS sebagai pemilik app, dari
+All commands are run over SSH to the VPS as the app owner, from
 `/srv/qouver/apps/majadu`.
 
-1. **Umumkan maintenance mulai.** Catat jam mulai.
-2. **Jalankan cutover** (satu perintah; script memegang `flock` yang sama dengan
-   deploy sehingga deploy yang datang di tengah menunggu):
+1. **Announce that maintenance starts.** Note the start time.
+2. **Run the cutover** (a single command; the script holds the same `flock` as
+   deploy, so a deploy that arrives mid-way waits):
 
    ```sh
    MAJADU_OWNER_SUB='<google-sub>' MAJADU_OWNER_EMAIL='<email>' \
      sudo -E /srv/qouver/apps/majadu/scripts/cutover.sh --version v2.0.0
    ```
 
-   `--version` harus versi yang rilisnya sudah ada. Script berhenti sendiri bila
-   `cutover_state.completed_at` sudah terisi.
+   `--version` must be a version whose release already exists. The script stops
+   on its own if `cutover_state.completed_at` is already filled.
 
-3. Urutan yang dijalankan script (jangan dikerjakan manual kecuali resume):
+3. The sequence the script runs (do not do it by hand except to resume):
 
-   | Langkah | Yang terjadi | Sinyal |
+   | Step | What happens | Signal |
    |---|---|---|
-   | `preflight` | cek tools, tarik digest rilis, tag `:release`, salin snippet Caddy | log “release vX resolves to” |
-   | `preserve-v1` | tag `:v1-final` dari container v1 yang hidup, verifikasi ID, simpan unit + target env | `v1-final.digest` tertulis |
-   | `maintenance` | Caddy → `site-maintenance.caddy` (`caddy validate` dulu) | situs 503 + `Retry-After` |
-   | `stop-v1` | `systemctl --user stop` + `disable` | unit v1 `inactive (dead)` dan `disabled` |
-   | `snapshot` | `backup.sh --tag cutover`, sha256 dicatat | `backups/bm-cutover-*.dump` |
+   | `preflight` | check tools, pull the release digest, tag `:release`, copy the Caddy snippet | log “release vX resolves to” |
+   | `preserve-v1` | tag `:v1-final` from the live v1 container, verify the ID, save the unit + env target | `v1-final.digest` written |
+   | `maintenance` | Caddy → `site-maintenance.caddy` (`caddy validate` first) | site 503 + `Retry-After` |
+   | `stop-v1` | `systemctl --user stop` + `disable` | v1 unit `inactive (dead)` and `disabled` |
+   | `snapshot` | `backup.sh --tag cutover`, sha256 recorded | `backups/bm-cutover-*.dump` |
    | `restore-staging` | dump → `bm_staging` | `restore: done` |
-   | `prepare-bm2` | roles, migrasi, seed, `ownerseed` | `dbtools: migrated 26 file(s)` |
+   | `prepare-bm2` | roles, migrations, seed, `ownerseed` | `dbtools: migrated 26 file(s)` |
    | `import` | ETL + `verify` | `problems: 0` |
-   | `state` | isi `cutover_state`, tukar env ke `.v2` | `env now points at v2` |
+   | `state` | fill `cutover_state`, switch env to `.v2` | `env now points at v2` |
    | `start` | `:release` → `:local`, enable + start v2 | unit `active (running)` |
-   | `site` | Caddy → `site-v2.caddy` | situs kembali 200 |
-   | `readyz` | poll `/readyz` 90 detik | `{"status":"ok"}` |
-   | `smoke` | 6 cek perilaku | `smoke: all checks passed` |
+   | `site` | Caddy → `site-v2.caddy` | site returns 200 |
+   | `readyz` | poll `/readyz` for 90 seconds | `{"status":"ok"}` |
+   | `smoke` | 6 behaviour checks | `smoke: all checks passed` |
    | `finish` | `completed_at = now()` | `cutover vX complete` |
 
-4. **Verifikasi manual setelah script selesai:**
+4. **Manual verification after the script finishes:**
    - `curl -fsS https://api.qouver.com/readyz` → 200.
-   - `curl -fsS https://api.qouver.com/version` → versi yang baru.
-   - Login Google sebagai `platform_owner`, buka satu sesi, satu papan peringkat.
-   - Satu share link **baru** (`/s/{kode}`) bisa dibuka tanpa login. Tautan v1
-     yang sudah tersebar (`/s/{sessionId}`) tetap resolve selama sesi itu masih
-     punya link hidup: `modules/share/store.nim:102-110` menerima UUID sebagai
-     pengganti kode. Tautan itu ikut mati bila link-nya dicabut; konsekuensi
-     rollback ada di §7.
-   - Aktifkan timer **setelah** `MAJADU_PG_DSN` menunjuk `bm2`, satu per satu:
+   - `curl -fsS https://api.qouver.com/version` → the new version.
+   - Log in with Google as `platform_owner`, open one session, one leaderboard.
+   - One **new** share link (`/s/{code}`) opens without login. v1 links already
+     in circulation (`/s/{sessionId}`) still resolve as long as that session
+     still has a live link: `modules/share/store.nim:102-110` accepts a UUID in
+     place of the code. Such a link dies too once the link is revoked; the
+     rollback consequence is in §7.
+   - Enable the timers **after** `MAJADU_PG_DSN` points at `bm2`, one at a time:
      `systemctl --user enable --now majadu-snapshot.timer majadu-ingest.timer
-     majadu-janitor.timer majadu-readyz.timer majadu-rotate-log.timer`, lalu
-     `systemctl --user list-timers` harus menampilkan keenamnya. Deploy hanya
-     memasang berkas unit, tidak pernah meng-enable timer.
-     `majadu-audit-retention.timer` membaca `MAJADU_AUDIT_DSN` dari env file dan
-     berjalan bulanan; `majadu-ingest.timer` merating sesi yang di-approve tiap
-     30 menit; `majadu-readyz.timer` menembak `/readyz` tiap 5 menit dan
-     `majadu-rotate-log.timer` merotasi log tiap jam. Keduanya hanya bergantung
-     pada host (bukan skema), tetapi `majadu-readyz` sengaja baru diaktifkan di
-     sini: sebelum cutover port 8080 milik v1.
-   - `psql "$OWNER_DSN" -c "select * from platform.cutover_state"` → satu baris,
-     `completed_at` terisi, `rows_imported` cocok dengan hitungan `bm_staging`.
+     majadu-janitor.timer majadu-readyz.timer majadu-rotate-log.timer`, then
+     `systemctl --user list-timers` must show all six. Deploy only
+     installs the unit files, it never enables timers.
+     `majadu-audit-retention.timer` reads `MAJADU_AUDIT_DSN` from the env file and
+     runs monthly; `majadu-ingest.timer` rates approved sessions every
+     30 minutes; `majadu-readyz.timer` hits `/readyz` every 5 minutes and
+     `majadu-rotate-log.timer` rotates logs hourly. Both only depend
+     on the host (not the schema), but `majadu-readyz` is deliberately only enabled
+     here: before cutover port 8080 belongs to v1.
+   - `psql "$OWNER_DSN" -c "select * from platform.cutover_state"` → one row,
+     `completed_at` filled, `rows_imported` matches the `bm_staging` count.
 
-5. **Umumkan selesai.** Catat jam selesai dan durasi aktual.
+5. **Announce completion.** Note the finish time and actual duration.
 
-## 6. Kalau gagal
+## 6. If it fails
 
-Script berhenti dengan exit ≠ 0 dan `cutover.step` menunjuk langkah terakhir.
-Pilih satu, jangan dua-duanya:
+The script stops with exit ≠ 0 and `cutover.step` points at the last step.
+Pick one, not both:
 
-**A. Lanjutkan dari langkah yang gagal** — hanya kalau penyebabnya jelas dan
-sudah diperbaiki (mis. password role salah):
+**A. Continue from the failing step**: only if the cause is clear and already
+fixed (for example a wrong role password):
 
 ```sh
-/srv/qouver/apps/majadu/scripts/cutover.sh --version v2.0.0 --from <langkah>
+/srv/qouver/apps/majadu/scripts/cutover.sh --version v2.0.0 --from <step>
 ```
 
-`--from` tidak memeriksa ulang langkah sebelumnya; operator yang memastikan
-keadaan di disk masih sesuai (mis. `:v1-final` sudah ada dan benar).
+`--from` does not re-check the earlier steps; the operator makes sure the state
+on disk still matches (for example `:v1-final` exists and is correct).
 
-**B. Kembali ke v1:**
+**B. Go back to v1:**
 
 ```sh
 sudo /srv/qouver/apps/majadu/scripts/rollback.sh --abandon-data
 ```
 
-Rollback menghitung dulu berapa baris bm2 yang ditulis setelah `completed_at`
-(sesi, game, pemain, turnamen, event rating) dan **menolak berjalan** bila ada
-tulisan tanpa `--abandon-data`; angka yang akan hilang dicetak di pesan error
-dan di log. Tambahkan `--drop-bm2` bila database bm2 ikut dihapus, bukan
-ditinggal untuk diperiksa.
+Rollback first counts how many bm2 rows were written after `completed_at`
+(sessions, games, players, tournaments, rating events) and **refuses to run** if
+there are writes without `--abandon-data`; the number that will be lost is
+printed in the error message and in the log. Add `--drop-bm2` if the bm2
+database should be dropped as well, rather than left behind for inspection.
 
-Rollback memulihkan `:v1-final`, unit dan env yang disimpan saat `preserve-v1`,
-mengembalikan Caddy ke `site-v1.caddy` (dengan `caddy validate`), `enable` +
-`start` v1, menunggu `/healthz`, mengarsipkan baris `cutover_state` ke
-`cutover/cutover.state.json`, lalu menghapusnya supaya cutover berikutnya tidak
-diblokir.
+Rollback restores `:v1-final`, the unit and env saved during `preserve-v1`,
+points Caddy back to `site-v1.caddy` (with `caddy validate`), `enable` +
+`start`s v1, waits for `/healthz`, archives the `cutover_state` row to
+`cutover/cutover.state.json`, then deletes it so the next cutover is not
+blocked.
 
-Kalau rollback sendiri gagal, jangan mengulang cutover: pulihkan manual dari
-`cutover/majadu-api.container.v1`, `cutover/env-target.v1`, dan tag
-`:v1-final`, lalu buka insiden.
+If the rollback itself fails, do not rerun the cutover: recover by hand from
+`cutover/majadu-api.container.v1`, `cutover/env-target.v1`, and the
+`:v1-final` tag, then open an incident.
 
-## 7. Konsekuensi yang harus diumumkan saat rollback
+## 7. Consequences that must be announced on rollback
 
-- **Semua sesi login v2 tidak berlaku.** Pengguna harus login ulang; cookie v2
-  menunjuk `account.sessions` yang ditinggalkan.
-- **Share link v2 mati.** Kode lama v1 juga tidak dipertahankan saat cutover,
-  jadi tidak ada yang otomatis hidup kembali. Tautan harus diterbitkan ulang
-  setelah v1 hidup.
-- **Bundle FE v2 di cache browser harus di-reload paksa.** `no-store` hanya
-  berlaku untuk dokumen baru; tab lama memakai bundle yang sudah dimuat.
-- **Data `bm2` setelah cutover dibuang** (default: ditinggalkan; `--drop-bm2`
-  menghapus database). Tidak ada migrasi balik ke `bm`.
-- **`cutover_state` dihapus**, sehingga cutover bisa dijalankan lagi; baris
-  lamanya ada di `cutover/cutover.state.json`.
-- **`bm` tidak berubah** selama cutover maupun rollback: ia hanya dibaca.
+- **All v2 login sessions are void.** Users must log in again; v2 cookies point
+  at the abandoned `account.sessions`.
+- **v2 share links are dead.** Old v1 codes were not preserved during cutover
+  either, so nothing comes back automatically. Links must be issued again
+  after v1 is up.
+- **The v2 FE bundle in browser caches must be force-reloaded.** `no-store` only
+  applies to new documents; old tabs keep using the bundle already loaded.
+- **`bm2` data written after cutover is discarded** (default: left behind;
+  `--drop-bm2` drops the database). There is no migration back to `bm`.
+- **`cutover_state` is deleted**, so the cutover can be run again; the old row
+  is in `cutover/cutover.state.json`.
+- **`bm` does not change** during cutover or rollback: it is only read.
 
 ## 8. D+1
 
-- [ ] `/readyz` hijau 24 jam; tidak ada restart tak terduga
+- [ ] `/readyz` green for 24 hours; no unexpected restarts
       (`systemctl --user status majadu-api`).
-- [ ] `cutover_state.rows_imported` masih sama dengan hitungan `bm_staging`
-      (cron pemeriksa atau manual).
-- [ ] Tidak ada `majadu-alert@` di journal.
-- [ ] Backup harian `bm2` berjalan dan bisa dibaca (`pg_restore --list`).
-- [ ] Sesi pertama yang dibuat pengguna nyata tampil di papan peringkat.
-- [ ] `rating.snapshots` bertambah untuk tanggal kemarin
-      (`select max(taken_on) from rating.snapshots`), dan panah di papan
-      memakai snapshot itu.
-- [ ] Catat penyimpangan (angka, UI, login) di catatan insiden bila ada.
+- [ ] `cutover_state.rows_imported` still matches the `bm_staging` count
+      (checker cron or manual).
+- [ ] No `majadu-alert@` in the journal.
+- [ ] The daily `bm2` backup runs and can be read (`pg_restore --list`).
+- [ ] The first session created by a real user shows up on the leaderboard.
+- [ ] `rating.snapshots` gained yesterday's date
+      (`select max(taken_on) from rating.snapshots`), and the arrows on the
+      board use that snapshot.
+- [ ] Record any deviation (numbers, UI, login) in the incident note if there is
+      one.
 
 ## 9. D+30
 
-- [ ] `bm` tetap read-only; role `bm2_*` tidak bisa `CONNECT` ke sana
-      (`ops/db/roles.sql` sudah memastikan lewat asersi).
-- [ ] Dump harian `bm` berhenti; simpan satu dump final di luar rotasi.
-- [ ] `:v1-final` dipertahankan sampai T-082: arsipkan sebagai tarball
-      (`podman save`) **sebelum** tag dihapus, lalu hapus bersama dekomisi Go.
-- [ ] Tinjau apakah `majadu-prod.env.v1` dan `ops/scripts` v1 masih diperlukan;
-      jangan hapus `:v1-final` lebih awal dari 30 hari.
+- [ ] `bm` stays read-only; the `bm2_*` roles cannot `CONNECT` to it
+      (`ops/db/roles.sql` already enforces this with assertions).
+- [ ] The daily `bm` dump stops; keep one final dump outside the rotation.
+- [ ] `:v1-final` is kept until T-082: archive it as a tarball
+      (`podman save`) **before** the tag is removed, then delete it together
+      with the Go decommission.
+- [ ] Review whether `majadu-prod.env.v1` and the v1 `ops/scripts` are still
+      needed; do not delete `:v1-final` earlier than 30 days.
 
-## 10. Yang belum terbukti sampai rehearsal D-3
+## 10. What is not yet proven until the D-3 rehearsal
 
-- `cutover.sh`, `rollback.sh`, dan `deploy-vps.sh` belum pernah dijalankan pada
-  VPS ini.
-- `caddy validate` baru dijalankan pada file yang dibuat di repo, bukan pada
-  Caddy yang hidup.
-- Quadlet (`StartLimit*`, `MemoryMax`, `OnFailure`) belum di-parse systemd
-  sungguhan.
-- Durasi di §5 adalah target, bukan hasil ukur; `timings.json` dari rehearsal
-  yang menggantikannya.
+- `cutover.sh`, `rollback.sh`, and `deploy-vps.sh` have never been run on
+  this VPS.
+- `caddy validate` has only been run on the files created in the repo, not on
+  the live Caddy.
+- Quadlet (`StartLimit*`, `MemoryMax`, `OnFailure`) has not been parsed by a
+  real systemd.
+- The durations in §5 are targets, not measurements; the `timings.json` from
+  the rehearsal replaces them.

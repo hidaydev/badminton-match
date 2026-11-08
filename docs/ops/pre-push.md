@@ -1,49 +1,49 @@
 # Pre-push: keep internal notes out of the public repository
 
-Repository ini publik. Catatan kerja internal (audit dan review rencana) bukan
-dokumentasi produk dan tidak boleh masuk riwayat yang diterbitkan. Direktori
-`docs/audit/`, `docs/audits/`, dan `docs/plan/reviews/` sudah tidak ada di tree;
-penjaganya tetap dipasang untuk catatan yang dibuat lagi nanti.
+This repository is public. Internal working notes (audits and plan reviews) are
+not product documentation and must not enter the published history. The
+directories `docs/audit/`, `docs/audits/`, and `docs/plan/reviews/` are no longer
+in the tree; the guards stay in place for notes created again later.
 
-Dua lapis penjaga:
+Two layers of guards:
 
-| Lapis | Berkas | Cakupan |
+| Layer | File | Coverage |
 | --- | --- | --- |
-| Ignore | `.gitignore` → `docs/audit/` | berlaku di setiap clone dan di CI |
-| Hook | `.githooks/pre-push` | hanya mesin yang sudah menjalankan `./task hooks` |
+| Ignore | `.gitignore` → `docs/audit/` | applies in every clone and in CI |
+| Hook | `.githooks/pre-push` | only machines that have run `./task hooks` |
 
-Hook saja tidak cukup: `core.hooksPath` adalah konfigurasi lokal, jadi clone baru
-tidak memilikinya. Itulah sebabnya `docs/audit/` ada di `.gitignore` yang
-ter-track. Catatan lokal disimpan di `.local/` (gitignored).
+The hook alone is not enough: `core.hooksPath` is local configuration, so a
+fresh clone does not have it. That is why `docs/audit/` is in the tracked
+`.gitignore`. Local notes are stored in `.local/` (gitignored).
 
-## Pasang hook
+## Installing the hook
 
 ```sh
 ./task hooks
 ```
 
-Perintah itu menyetel `core.hooksPath=.githooks` untuk repo ini.
+That command sets `core.hooksPath=.githooks` for this repo.
 
-## Apa yang ditolak
+## What gets rejected
 
-`.githooks/pre-push` menolak push bila `HEAD` memuat berkas di path itu:
+`.githooks/pre-push` rejects a push if `HEAD` contains files under those paths:
 
 ```
 pre-push: these paths belong in .local/, not the public repository:
 docs/audit/...
 ```
 
-Polanya `^docs/(audits?|plan/reviews)/`, jadi `docs/audit/` dan `docs/audits/`
-sama-sama tertangkap.
+The pattern is `^docs/(audits?|plan/reviews)/`, so both `docs/audit/` and
+`docs/audits/` are caught.
 
-Kalau itu terjadi, pindahkan berkasnya ke `.local/` dan commit penghapusannya;
-jangan lewati hook dengan `--no-verify` kecuali benar-benar tahu alasannya.
+If that happens, move the files to `.local/` and commit the removal;
+do not bypass the hook with `--no-verify` unless you really know why.
 
-## Riwayat
+## History
 
-Riwayat yang diterbitkan sudah di-rewrite sekali: kedua direktori dihapus dari
-semua ref dengan `git filter-repo --invert-paths`, sehingga
-`git log --all -- docs/audit docs/audits docs/plan/reviews` kosong. Semua commit
-SHA berubah dan branch lama ikut di-rewrite. Bundle sebelum rewrite tidak lagi
-disimpan di mesin ini; ambil dari salinan yang masih memilikinya bila ada commit
-lama yang perlu diambil kembali.
+The published history has already been rewritten once: both directories were
+removed from all refs with `git filter-repo --invert-paths`, so that
+`git log --all -- docs/audit docs/audits docs/plan/reviews` is empty. All commit
+SHAs changed and old branches were rewritten too. The pre-rewrite bundle is no
+longer kept on this machine; take it from a copy that still has it if an old
+commit needs to be recovered.

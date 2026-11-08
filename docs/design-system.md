@@ -10,16 +10,16 @@
 | Monospace | IBM Plex Mono | 400, 500 | `font-mono` | Labels, metadata, timestamps |
 | Decorative | Road Rage + Edosz | — | — | Instagram canvas date overlay only |
 
-IBM Plex Sans/Mono dan Road Rage & Edosz semuanya self-hosted lewat `@font-face`
-di `apps/web/index.html` (`display=swap`, berkas di `apps/web/public/fonts/` dan
+IBM Plex Sans/Mono and Road Rage & Edosz are all self-hosted through `@font-face`
+in `apps/web/index.html` (`display=swap`, files in `apps/web/public/fonts/` and
 `apps/web/public/`). Body uses `var(--font-sans)`.
-Road Rage diterapkan dengan skew −9° agar posturnya menyerupai Granesta v1.
-Keduanya berkas pihak ketiga — lihat `THIRD-PARTY-NOTICES.md`.
+Road Rage is applied with a −9° skew so that its posture resembles Granesta v1.
+Both are third-party files: see `THIRD-PARTY-NOTICES.md`.
 
 ## Color Tokens (Tailwind v4 `@theme`)
 
 > These are the actual tokens used in components. Defined in the `@theme` block of
-> `apps/web/src/index.css`. Contrast ratios dihitung terhadap `--color-ground`.
+> `apps/web/src/index.css`. Contrast ratios are computed against `--color-ground`.
 
 ### Background
 | Token | Hex | Tailwind class | Usage |
@@ -44,20 +44,20 @@ Keduanya berkas pihak ketiga — lihat `THIRD-PARTY-NOTICES.md`.
 | Token | Hex | Tailwind class | Usage |
 |-------|-----|----------------|-------|
 | `--color-accent` | `#e3b341` | `text-accent` | Brand, CTA, highlights |
-| `--color-accent-alt` | `#e3b341` | `text-accent-alt` | Interactive, links (kini sama dengan `accent`) |
+| `--color-accent-alt` | `#e3b341` | `text-accent-alt` | Interactive, links (now the same as `accent`) |
 
 ### Status
 | Token | Hex | Tailwind class | Usage |
 |-------|-----|----------------|-------|
 | `--color-success` | `#43a57d` | `text-success` | Positive states |
 | `--color-error` | `#d65a5a` | `text-error` | Errors, destructive |
-| `--color-warning` | `#e3b341` | `text-warning` | Warnings (sama dengan `accent`) |
+| `--color-warning` | `#e3b341` | `text-warning` | Warnings (same as `accent`) |
 | `--color-info` | `#5b8fbd` | `text-info` | Informational |
 
 ## Token Usage in Components
 
-Migrasi ke semantic token belum 100%; sebagian komponen masih memakai kelas palet mentah
-(`slate-*`, `indigo-*`). Padanan yang dituju:
+The migration to semantic tokens is not 100% done; some components still use raw
+palette classes (`slate-*`, `indigo-*`). The intended equivalents:
 
 | Pattern | Raw Tailwind | Semantic Token |
 |---------|-------------|----------------|
@@ -129,21 +129,21 @@ className="mt-1 min-h-11 w-full rounded-xl border border-border bg-elevated px-3
 
 ## Overlay (bottom sheet)
 
-Satu primitive, satu varian. `apps/web/src/components/Overlay.tsx` adalah satu-satunya
-shell untuk dialog modal; pemakaian baru mengimpor komponen ini, bukan menyalin
-`fixed inset-0` lagi. Test-nya di `Overlay.test.tsx`.
+One primitive, one variant. `apps/web/src/components/Overlay.tsx` is the only
+shell for modal dialogs; new usages import this component instead of copying
+`fixed inset-0` again. Its test is in `Overlay.test.tsx`.
 
 ### Props
 
-| Prop | Tipe | Default | Keterangan |
+| Prop | Type | Default | Notes |
 |------|------|---------|------------|
-| `onClose` | `() => void` | wajib | Dipanggil oleh Escape, tap scrim, dan tombol ✕ |
-| `title` | `ReactNode` | wajib | Dirender sebagai `<h2 id>`, jadi nama dialog datang dari judul |
-| `description` | `ReactNode` | - | `<p>` di bawah judul |
-| `children` | `ReactNode` | wajib | Isi sheet; satu-satunya area yang scroll |
-| `footer` | `ReactNode` | - | Aksi di bawah, di dalam area aman |
-| `dismissible` | `boolean` | `true` | `false` saat saving: Escape dan scrim diabaikan, ✕ tidak dirender |
-| `labelledBy` | `string` | - | Escape hatch bila heading kustom dirender di dalam `children`; `<h2>` bawaan tidak dirender |
+| `onClose` | `() => void` | required | Called by Escape, scrim tap, and the ✕ button |
+| `title` | `ReactNode` | required | Rendered as `<h2 id>`, so the dialog name comes from the title |
+| `description` | `ReactNode` | - | `<p>` below the title |
+| `children` | `ReactNode` | required | Sheet content; the only area that scrolls |
+| `footer` | `ReactNode` | - | Actions at the bottom, inside the safe area |
+| `dismissible` | `boolean` | `true` | `false` while saving: Escape and scrim are ignored, ✕ is not rendered |
+| `labelledBy` | `string` | - | Escape hatch when a custom heading is rendered inside `children`; the default `<h2>` is not rendered |
 
 ### Class recipe
 
@@ -155,52 +155,53 @@ sheet  : relative flex w-full max-w-lg max-h-dvh flex-col overflow-hidden
 handle : mx-auto mt-3 mb-1 h-1 w-10 shrink-0 rounded-full bg-border
 header : shrink-0 px-5 pt-3 pb-2            (h2 text-base font-bold text-fg)
 body   : min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4
-footer : shrink-0 border-t border-border-subtle px-5 pt-3   (tanpa padding bawah)
+footer : shrink-0 border-t border-border-subtle px-5 pt-3   (no bottom padding)
 close  : absolute right-2 top-2 inline-flex min-h-11 min-w-11 items-center justify-center
          rounded-lg text-fg-dim hover:bg-elevated focus-visible:ring-2 focus-visible:ring-accent
 ```
 
-Root tanpa padding supaya sheet setinggi layar tetap mulai di y=0. `max-h-dvh` +
-`min-h-0` + `flex-1 overflow-y-auto` adalah satu-satunya pola yang membatasi tinggi di HP
-sekaligus menyisakan area scroll. Semua nilai adalah utility stok; satu-satunya arbitrary
-value adalah `pb-[max(0.75rem,env(safe-area-inset-bottom))]` yang diizinkan
-`scripts/check-tailwind-arbitrary.mjs`.
+Root without padding so that a sheet the height of the screen still starts at y=0.
+`max-h-dvh` + `min-h-0` + `flex-1 overflow-y-auto` is the only pattern that caps
+height on phones while still leaving a scroll area. All values are stock
+utilities; the only arbitrary value is
+`pb-[max(0.75rem,env(safe-area-inset-bottom))]`, which
+`scripts/check-tailwind-arbitrary.mjs` allows.
 
-### Satu varian
+### One variant
 
-Tidak ada varian `center` dan tidak ada varian full-screen. Di 402x874 dialog center
-membuat footer masuk ke area home indicator, dan begitu keyboard iOS terbuka tombol
-konfirmasi tertutup tanpa container scroll untuk menyelamatkannya. Full-screen adalah
-halaman, bukan dialog (lihat daftar di bawah).
+There is no `center` variant and no full-screen variant. At 402x874 a centered
+dialog pushes the footer into the home indicator area, and once the iOS keyboard
+opens the confirm button is covered with no scroll container to rescue it.
+Full-screen is a page, not a dialog (see the list below).
 
-### Perilaku
+### Behavior
 
-| Perilaku | Implementasi |
+| Behavior | Implementation |
 |---|---|
-| Focus trap + restore | `useFocusTrap(sheetRef)` dari `legacy/hooks/` |
-| Escape | `useEscapeKey(onClose, dismissible)`; stack global di hook memastikan hanya overlay teratas yang menang, dan `dismissible: false` melepas listener |
-| Tap scrim | `pointerdown` mencatat apakah gestur dimulai di scrim; klik hanya menutup bila mulai dan berakhir di scrim, jadi drag-select dari body tidak menutup sheet |
-| Body scroll lock | Counter modul: overlay pertama menyetel `body` ke `position: fixed`, `top: -scrollY`, `width: 100%`, `overflow: hidden`; overlay terakhir mengembalikan style sebelumnya dan `scrollTo` posisi lama. `overflow: hidden` saja tidak dihormati iOS |
-| Safe area | `pb-[max(0.75rem,env(safe-area-inset-bottom))]` dipasang sekali di sheet, bukan di footer. Footerless sheet (#4, #11, #15) ikut berhenti di atas home indicator; footer tidak boleh mengulang padding itu |
-| Keyboard clamp + lift | `useEffect` membaca `window.visualViewport` (feature-detected) saat resize/scroll: menulis inline `maxHeight = viewport.height - 16` dan `marginBottom = max(0, innerHeight - viewport.height - offsetTop)`, lalu menghapus keduanya saat unmount. Margin mengangkat sheet selebar area yang ditutup keyboard karena layout viewport iOS tidak ikut menyusut; di desktop/Android gap-nya 0 sehingga tidak ada perubahan. Ini aproksimasi layout sampai dicek di perangkat |
-| Semantik | `role="dialog"`, `aria-modal="true"`, `aria-labelledby` dari `<h2 id>` (atau `labelledBy`); ✕ adalah target 44px dengan label dari `common.close` |
-| Non-dismissible | Saat `dismissible` false, ✕ tidak dirender sama sekali, bukan dirender disabled |
+| Focus trap + restore | `useFocusTrap(sheetRef)` from `legacy/hooks/` |
+| Escape | `useEscapeKey(onClose, dismissible)`; the global stack in the hook ensures only the topmost overlay wins, and `dismissible: false` detaches the listener |
+| Tap scrim | `pointerdown` records whether the gesture started on the scrim; a click only closes if it started and ended on the scrim, so a drag-select from the body does not close the sheet |
+| Body scroll lock | Module counter: the first overlay sets `body` to `position: fixed`, `top: -scrollY`, `width: 100%`, `overflow: hidden`; the last overlay restores the previous style and `scrollTo` the old position. `overflow: hidden` alone is not respected by iOS |
+| Safe area | `pb-[max(0.75rem,env(safe-area-inset-bottom))]` is applied once on the sheet, not on the footer. Footerless sheets (#4, #11, #15) also stop above the home indicator; the footer must not repeat that padding |
+| Keyboard clamp + lift | `useEffect` reads `window.visualViewport` (feature-detected) on resize/scroll: it writes inline `maxHeight = viewport.height - 16` and `marginBottom = max(0, innerHeight - viewport.height - offsetTop)`, then removes both on unmount. The margin lifts the sheet by the width of the area the keyboard covers, because the iOS layout viewport does not shrink with it; on desktop/Android the gap is 0 so nothing changes. This is a layout approximation until it is checked on a device |
+| Semantics | `role="dialog"`, `aria-modal="true"`, `aria-labelledby` from `<h2 id>` (or `labelledBy`); ✕ is a 44px target with a label from `common.close` |
+| Non-dismissible | When `dismissible` is false, ✕ is not rendered at all, not rendered disabled |
 
-### Yang tetap di luar primitive
+### What stays outside the primitive
 
-| Permukaan | Alasan |
+| Surface | Reason |
 |---|---|
-| ActionsMenu (#14), menu akun HomeLayout (#16) | `role="menu"`, non-modal, tidak boleh scroll-lock atau trap (Tab keluar menu itu sah), dan harus tetap dekat trigger |
-| ConfirmBars (#13), discard confirm scoreboard (#20) | Bukan dialog: tidak punya siklus buka/tutup, sengaja tidak menutupi layar, dan tingginya dikompensasi konten di belakangnya. Yang perlu ditambah hanya Esc dan `aria-live` |
-| Tooltip `AnnotatedPlayerName` (#17) | Tidak punya dismissal, `pointer-events-none` |
-| Toast `ErrorBanner` (#18) | `role="alert"`, tidak punya lifecycle buka/tutup |
-| Scoreboard surface (#19) | Bukan dialog: permukaan landscape yang dirotasi, tap-zone skor, tanpa judul, tanpa scrim, tanpa scroll lock |
-| SummaryModal mode `standalone` (#10) | Halaman, bukan overlay; hanya jalur non-standalone yang memakai primitive |
+| ActionsMenu (#14), account menu in HomeLayout (#16) | `role="menu"`, non-modal, must not scroll-lock or trap (tabbing out of that menu is legitimate), and must stay close to the trigger |
+| ConfirmBars (#13), discard confirm scoreboard (#20) | Not dialogs: they have no open/close cycle, deliberately do not cover the screen, and their height is compensated by the content behind them. The only thing to add is Esc and `aria-live` |
+| Tooltip `AnnotatedPlayerName` (#17) | Has no dismissal, `pointer-events-none` |
+| Toast `ErrorBanner` (#18) | `role="alert"`, has no open/close lifecycle |
+| Scoreboard surface (#19) | Not a dialog: a rotated landscape surface, score tap zones, no title, no scrim, no scroll lock |
+| SummaryModal mode `standalone` (#10) | A page, not an overlay; only the non-standalone path uses the primitive |
 
-Catatan koreksi: resep audit menaruh padding safe-area di footer. Mockup menunjukkan
-sheet tanpa footer (#4, #11, #15) juga harus berhenti di atas home indicator, jadi
-primitive yang memiliki padding itu sekali di container sheet. Itu sebabnya footer tidak
-lagi memuat `pb-[max(...)]`.
+Correction note: the audit recipe put the safe-area padding on the footer. The
+mockup shows that a sheet without a footer (#4, #11, #15) must also stop above the
+home indicator, so the primitive owns that padding once on the sheet container.
+That is why the footer no longer carries `pb-[max(...)]`.
 
 ## Accessibility (Mobile PWA)
 
@@ -216,7 +217,7 @@ lagi memuat `pb-[max(...)]`.
 
 ## File Locations
 
-Paths relatif terhadap `apps/web/`:
+Paths are relative to `apps/web/`:
 
 | Resource | Path |
 |----------|------|

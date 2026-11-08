@@ -45,8 +45,8 @@ PostgreSQL 18 database. `apps/scoreboard` is a separate courtside PWA.
 
 ## Non-negotiables
 
-- Code, identifiers, comments, commit messages: **English**. Internal docs
-  (handbook, ADR, task notes): Indonesian.
+- Code, identifiers, comments, commit messages, and every document under `docs/`
+  are **English**.
 - Do not commit, push, rewrite history, or deploy without explicit approval.
 - Do not add a dependency without pinning it in `deps.lock` (`./task deps-check`).
 - Do not call `db.query`/`db.queryExec` on the same `Db` inside its own `tx`; use

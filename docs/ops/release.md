@@ -1,117 +1,121 @@
-# Rilis
+# Release
 
-Runbook rilis v2: bagaimana sebuah versi dibuat, apa yang harus benar sebelum
-dinyatakan selesai, dan bagaimana kembali ke rilis sebelumnya saat regresi
-fungsional (bukan saat cutover — untuk itu `docs/ops/cutover.md`).
+The v2 release runbook: how a version is made, what must be right before it is
+declared done, and how to go back to the previous release on a functional
+regression (not during cutover; for that, see `docs/ops/cutover.md`).
 
-Status: alur build dan workflow ada di repo, tetapi **belum pernah dijalankan
-ujung-ke-ujung di VPS**. Bagian yang belum terbukti disebut di §6; jangan
-menganggapnya teruji.
+Status: the build flow and workflow are in the repo, but they have **never been
+run end to end on the VPS**. The parts that are not yet proven are named in §6;
+do not consider them tested.
 
-## 1. Sumber kebenaran
+## 1. Source of truth
 
-| Artefak | Isi | Dipakai oleh |
+| Artifact | Contents | Used by |
 |---|---|---|
-| `VERSION` | versi yang sedang dikembangkan | `deploy-vps.sh` (gerbang deploy), `apps/api/src/app.nim` (`appVersion`) |
-| `CHANGELOG.md` | bagian per versi dari Conventional Commits | rilis GitHub |
-| tag `v<versi>` | SSH-signed, dibuat operator | `.github/workflows/release.yml` |
-| image `ghcr.io/hidaydev/badminton-match:v<versi>` | satu build per tag | `deploy-vps.sh` (pull by digest) |
-| digest `sha256:…` di body GitHub Release | mengikat tag ke image | `deploy-vps.sh`, `cutover.sh` |
+| `VERSION` | the version under development | `deploy-vps.sh` (deploy gate), `apps/api/src/app.nim` (`appVersion`) |
+| `CHANGELOG.md` | per-version sections from Conventional Commits | the GitHub release |
+| tag `v<version>` | SSH-signed, created by the operator | `.github/workflows/release.yml` |
+| image `ghcr.io/hidaydev/badminton-match:v<version>` | one build per tag | `deploy-vps.sh` (pull by digest) |
+| `sha256:…` digest in the GitHub Release body | binds the tag to the image | `deploy-vps.sh`, `cutover.sh` |
 
-`deploy-vps.sh` memutuskan deploy dari `VERSION`, bukan dari tag: commit yang
-menaikkan `VERSION` adalah rilis, commit dokumentasi tidak. Karena itu tag harus
-sudah terbit **dan** image-nya sudah ada sebelum `main` didorong.
+`deploy-vps.sh` decides to deploy from `VERSION`, not from the tag: a commit that
+bumps `VERSION` is a release, a documentation commit is not. That is why the tag
+must already be published **and** its image must already exist before `main` is
+pushed.
 
-## 2. Urutan rilis
+## 2. Release sequence
 
-1. `./task release` — dry run. Cetak bump, bagian changelog, dan perintah
-   berikutnya; tidak menulis atau menandai apa pun.
-2. `./task release --apply` — menulis `VERSION`, `CHANGELOG.md`, dan
-   `.cache/release/v<versi>.md` (bahan tag). Hanya jalan bila working tree bersih
-   dan tag terakhir cocok dengan `VERSION`.
-3. Commit `chore(release): v<versi>`.
-4. `git tag -s -F .cache/release/v<versi>.md v<versi>`.
-5. **Push tag lebih dulu**, lalu `main`:
+1. `./task release`: dry run. It prints the bump, the changelog section, and the
+   following commands; it writes or tags nothing.
+2. `./task release --apply`: writes `VERSION`, `CHANGELOG.md`, and
+   `.cache/release/v<version>.md` (tag message source). It only runs if the
+   working tree is clean and the last tag matches `VERSION`.
+3. Commit `chore(release): v<version>`.
+4. `git tag -s -F .cache/release/v<version>.md v<version>`.
+5. **Push the tag first**, then `main`:
 
    ```sh
-   git push origin refs/tags/v<versi>
+   git push origin refs/tags/v<version>
    git push origin main
    ```
 
-   Tag memicu `release.yml` (verify → image → publish). `main` memicu webhook
-   deploy. Urutan sebaliknya membuat deploy berjalan sebelum image ada; skrip
-   deploy akan gagal di langkah `resolve-digest`, bukan diam-diam memakai image
-   lain.
+   The tag triggers `release.yml` (verify → image → publish). `main` triggers the
+   deploy webhook. The reverse order makes the deploy run before the image
+   exists; the deploy script will fail at the `resolve-digest` step, not silently
+   use another image.
 
-   Catatan: `./task release` mencetak `git push origin main` sebelum perintah
-   push tag. Yang benar adalah urutan di atas; keluaran alat itu belum
-   diperbaiki.
-6. Tunggu `release.yml` hijau dan catat digest dari body GitHub Release.
-   `release.yml` tidak membuat atau memindahkan tag; tag selalu dari operator.
+   Note: `./task release` prints `git push origin main` before the tag push
+   command. The correct order is the one above; that tool's output has not been
+   fixed.
+6. Wait for `release.yml` to go green and record the digest from the GitHub
+   Release body. `release.yml` never creates or moves a tag; the tag always comes
+   from the operator.
 
-## 3. Apa yang dilakukan deploy
+## 3. What the deploy does
 
-Setelah gate cutover (`MAJADU_PG_DSN` menunjuk `bm2`) dan cek versi, urutannya:
+After the cutover gate (`MAJADU_PG_DSN` points at `bm2`) and the version check,
+the sequence is:
 
 1. `git fetch origin main` + `git reset --hard origin/main`.
-2. Resolve digest dari GitHub Release, `podman pull` digest itu.
-3. **`dbtools migrate` + `dbtools verify`** dari image yang baru ditarik, memakai
-   `MAJADU_OWNER_DSN`. Gagal di sini = rilis tidak dipasang, `:local`/`:prev`
-   tidak disentuh, service yang lama tetap jalan.
-4. Rotasi tag: `:local` → `:prev`, image baru → `:local`.
-5. Sinkron unit systemd dan skrip operator dari repo.
-6. Restart unit, tunggu `/readyz` (60 detik). Gagal → `:prev` dijadikan `:local`
-   dan di-restart.
-7. Jalankan `scripts/smoke.sh <health_url> <versi>`, yang mengunci `/version` ke
-   versi yang baru ditarik. Gagal → rilis tidak dicatat, jadi push berikutnya
-   mengulang versi yang sama.
-8. Pastikan container benar-benar memakai image `:local`, lalu tulis
-   `deploy/deployed-version` dan `deploy/last-release.json`
+2. Resolve the digest from the GitHub Release, `podman pull` that digest.
+3. **`dbtools migrate` + `dbtools verify`** from the newly pulled image, using
+   `MAJADU_OWNER_DSN`. A failure here = the release is not installed,
+   `:local`/`:prev` are not touched, the old service keeps running.
+4. Tag rotation: `:local` → `:prev`, the new image → `:local`.
+5. Sync the systemd units and operator scripts from the repo.
+6. Restart the unit, wait for `/readyz` (60 seconds). Failure → `:prev` is made
+   `:local` and restarted.
+7. Run `scripts/smoke.sh <health_url> <version>`, which pins `/version` to the
+   version just pulled. Failure → the release is not recorded, so the next push
+   repeats the same version.
+8. Make sure the container really uses the `:local` image, then write
+   `deploy/deployed-version` and `deploy/last-release.json`
    (`version`, `commit`, `digest`, `schema`, `at`).
 
 ## 4. Exit criteria
 
-Rilis belum selesai sampai keenamnya benar:
+A release is not done until all six are true:
 
-1. **Digest cocok.** `deploy/last-release.json` mencatat digest yang dipakai;
-   nilainya harus sama dengan digest di body GitHub Release, dan
-   `podman inspect --format '{{.Image}}' majadu-api` harus sama dengan
+1. **Digest matches.** `deploy/last-release.json` records the digest used;
+   its value must equal the digest in the GitHub Release body, and
+   `podman inspect --format '{{.Image}}' majadu-api` must equal
    `podman image inspect --format '{{.Id}}' localhost/majadu-api:local`
-   (deploy sudah memeriksa pasangan terakhir ini di langkah `verify-image`).
-2. **Versi cocok.** `curl -fsS http://127.0.0.1:8080/version` melaporkan versi
-   **dan** commit yang dirilis (`-d:appVersion`/`-d:appCommit` dari
-   `apps/api/Dockerfile`, `--build-arg` dari `release.yml`). Deploy sendiri
-   sudah menjalankan `smoke.sh` yang memeriksa versinya; periksa manual hanya
-   bila gate itu dilewati.
-3. **24 jam tanpa restart loop.**
-   `systemctl --user show majadu-api -p NRestarts` tetap 0 dan journal tidak
-   memuat `StartLimit`/`Scheduled restart`.
-4. **Tidak ada 5xx baru.** Counter ada di listener internal loopback
-   (`MAJADU_METRICS_PORT`, tidak dipublikasikan); setelah 24 jam, baca
-   `http_requests_total` dari dalam container dan log akses terstruktur unit
-   (`"msg":"request"`) untuk route/status yang berubah.
-5. **Smoke produksi lulus.**
-   `ops/scripts/smoke.sh http://127.0.0.1:8080 <versi>` — `/version`,
-   `/healthz`, `/readyz`, `/metrics` 404, share code asing 404, `/auth/me` 401.
-   Deploy menjalankannya sendiri setelah `/readyz` hijau (langkah 7 §3); bila
-   gate itu gagal, `deploy/deployed-version` tidak ditulis dan rilis dicoba lagi
-   pada push berikutnya.
-6. **`:v1-final` punya tanggal hapus dan digest yang diarsipkan.** Tag itu tidak
-   pernah dihapus oleh deploy (`podman image prune -f` hanya membuang image tanpa
-   tag); hapus manual setelah tanggal itu, dengan digest tercatat di catatan
-   rilis.
+   (the deploy already checks this last pair in the `verify-image` step).
+2. **Version matches.** `curl -fsS http://127.0.0.1:8080/version` reports the
+   version **and** the commit released (`-d:appVersion`/`-d:appCommit` from
+   `apps/api/Dockerfile`, `--build-arg` from `release.yml`). The deploy itself
+   already runs `smoke.sh`, which checks the version; check by hand only if that
+   gate was skipped.
+3. **24 hours without a restart loop.**
+   `systemctl --user show majadu-api -p NRestarts` stays 0 and the journal does
+   not contain `StartLimit`/`Scheduled restart`.
+4. **No new 5xx.** The counter is on an internal loopback listener
+   (`MAJADU_METRICS_PORT`, not published); after 24 hours, read
+   `http_requests_total` from inside the container and the unit's structured
+   access log (`"msg":"request"`) for routes/statuses that changed.
+5. **Production smoke passes.**
+   `ops/scripts/smoke.sh http://127.0.0.1:8080 <version>`: `/version`,
+   `/healthz`, `/readyz`, `/metrics` 404, a foreign share code 404, `/auth/me` 401.
+   The deploy runs it itself after `/readyz` goes green (step 7 in §3); if that
+   gate fails, `deploy/deployed-version` is not written and the release is retried
+   on the next push.
+6. **`:v1-final` has a deletion date and an archived digest.** That tag is never
+   deleted by the deploy (`podman image prune -f` only drops untagged images);
+   delete it by hand after that date, with the digest recorded in the release
+   notes.
 
-Bila salah satu gagal, pakai §5, bukan menambal di server.
+If any of them fails, use §5, do not patch on the server.
 
-## 5. Rollback karena regresi fungsional (v2 → `:prev`)
+## 5. Rollback on functional regression (v2 → `:prev`)
 
-Ini berbeda dari `ops/scripts/rollback.sh`, yang mengembalikan produksi ke **v1**
-dan menghapus `cutover_state`. Untuk regresi di rilis v2, image yang benar adalah
-`:prev`.
+This differs from `ops/scripts/rollback.sh`, which returns production to **v1**
+and deletes `cutover_state`. For a regression in a v2 release, the right image
+is `:prev`.
 
-- **Otomatis** — dilakukan deploy sendiri bila `/readyz` gagal: `:prev` dijadikan
-  `:local`, service di-restart, log mencatat `rolled back: :prev answers /readyz`.
-- **Manual**, bila regresi baru terlihat setelah gate hijau:
+- **Automatic**: done by the deploy itself if `/readyz` fails: `:prev` is made
+  `:local`, the service is restarted, the log records
+  `rolled back: :prev answers /readyz`.
+- **Manual**, if the regression only shows up after the gate went green:
 
   ```sh
   podman tag localhost/majadu-api:prev localhost/majadu-api:local
@@ -119,45 +123,46 @@ dan menghapus `cutover_state`. Untuk regresi di rilis v2, image yang benar adala
   curl -fsS http://127.0.0.1:8080/version
   ```
 
-  Lalu samakan `deploy/deployed-version` dengan versi yang sekarang menjawab.
-  Tanpa itu, push berikutnya untuk versi yang gagal akan dianggap "sudah live"
-  dan dilewati.
+  Then align `deploy/deployed-version` with the version that now answers.
+  Without that, the next push for the failed version will be considered
+  "already live" and skipped.
 
-Skema tidak ikut di-rollback: `:prev` harus bisa melayani skema yang sudah
-dimigrasi rilis baru. Aturannya di §6.
+The schema is not rolled back: `:prev` must be able to serve the schema already
+migrated by the new release. The rules are in §6.
 
-## 6. Migrasi: aturan expand/contract
+## 6. Migrations: the expand/contract rules
 
-Deploy menjalankan migrasi otomatis, jadi setiap rilis wajib memenuhi:
+The deploy runs migrations automatically, so every release must satisfy:
 
-- **Hanya menambah** dalam satu rilis: tabel baru, kolom nullable atau
-  `NOT NULL DEFAULT`, index baru. Jangan `rename`, `drop`, atau mengubah tipe
-  kolom yang masih ditulis `:prev`.
-- **Index `CONCURRENTLY` dikerjakan manual, di luar migrasi.** `dbtools migrate`
-  menjalankan tiap berkas di dalam satu transaksi, dan PostgreSQL menolak
-  `create index concurrently` di sana. Bangun index itu sebagai langkah operator
-  sebelum deploy; migrasinya lalu hanya berisi `create index if not exists` yang
-  menjadi no-op.
-- **Berkas ber-header `-- contract` ditolak secara default.** Penghapusan baru
-  boleh jalan lewat `dbtools migrate --allow-contract`, satu rilis setelah deploy
-  yang berhenti memakai bentuk lama sudah menjadi `:prev`.
-- **Seed idempoten** (`insert … on conflict do nothing`). `dbtools seed` tidak
-  dipanggil deploy; seed baru hanya masuk lewat `cutover.sh` atau operator.
-- **`/readyz` bukan pengganti `verify`.** Readiness hanya memeriksa keberadaan
-  relasi (`to_regclass`); kolom atau seed yang hilang tetap lolos 200. Yang
-  membuktikan skema adalah `dbtools verify` di langkah deploy.
+- **Add only** within a single release: new tables, nullable or
+  `NOT NULL DEFAULT` columns, new indexes. Do not `rename`, `drop`, or change the
+  type of a column that `:prev` still writes.
+- **`CONCURRENTLY` indexes are done by hand, outside migrations.** `dbtools migrate`
+  runs each file inside a single transaction, and PostgreSQL refuses
+  `create index concurrently` there. Build that index as an operator step
+  before the deploy; the migration then only contains `create index if not exists`,
+  which becomes a no-op.
+- **Files with a `-- contract` header are rejected by default.** A removal may
+  only run through `dbtools migrate --allow-contract`, one release after the
+  deploy that stopped using the old shape has become `:prev`.
+- **Idempotent seeds** (`insert … on conflict do nothing`). The deploy does not
+  call `dbtools seed`; new seeds only arrive through `cutover.sh` or the operator.
+- **`/readyz` is not a substitute for `verify`.** Readiness only checks that
+  relations exist (`to_regclass`); a missing column or seed still passes with 200.
+  What proves the schema is `dbtools verify` in the deploy step.
 
-`deploy/last-release.json` menyimpan `schema` (nama berkas migrasi terakhir), dan
-log deploy mencatat `schema verified at <berkas>`. Saat rollback ke `:prev`,
-baris log menyebut skema itu: `:prev` yang tidak kompatibel akan gagal di
-readiness, bukan diam-diam menulis data salah.
+`deploy/last-release.json` stores `schema` (the name of the last migration file),
+and the deploy log records `schema verified at <file>`. On rollback to `:prev`,
+the log line names that schema: a `:prev` that is incompatible will fail at
+readiness, not silently write wrong data.
 
-## 7. Yang belum terbukti
+## 7. What is not yet proven
 
-- Tidak ada eksekusi nyata di VPS: `podman pull`/`run`, `systemctl --user`,
-  Quadlet, dan Caddy tidak tersedia di mesin dev. Semua di atas dibuktikan hanya
-  dengan `bash -n`, pembacaan kode, dan uji rehearsal T-063 — bukan produksi.
-- `dbtools migrate` di dalam container memakai jaringan `qouver` dan role
-  `bm2_owner`; kombinasi itu belum pernah dijalankan di VPS.
-- Dua antrean rilis serentak belum diuji; `flock` menahan yang kedua sampai 900
-  detik lalu menyerah.
+- There is no real execution on the VPS: `podman pull`/`run`, `systemctl --user`,
+  Quadlet, and Caddy are not available on the dev machine. Everything above is
+  proven only with `bash -n`, code reading, and the T-063 rehearsal test, not
+  production.
+- `dbtools migrate` inside the container uses the `qouver` network and the
+  `bm2_owner` role; that combination has never been run on the VPS.
+- Two concurrent release queues have not been tested; `flock` holds the second
+  for up to 900 seconds and then gives up.

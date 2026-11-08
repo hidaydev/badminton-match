@@ -1,313 +1,311 @@
 # Architecture Decision Records
 
-Keputusan arsitektur dan produk dicatat di sini supaya temuan yang sama tidak
-diangkat ulang tiap audit. Dua jenis entri:
+Architecture and product decisions are recorded here so the same findings are not
+raised again in every audit. Two kinds of entry:
 
-- **Diterapkan** — keputusan yang diambil dan sudah ada commit-nya (bentuk
-  perbaikan, bukan sekadar "ini bukan bug").
-- **Ditunda** — temuan yang sah tetapi sengaja tidak dikerjakan sekarang.
+- **Applied**: decisions that were taken and already have a commit (the shape of
+  the fix, not merely "this is not a bug").
+- **Deferred**: findings that are valid but deliberately not worked on now.
 
-Setiap entri menyebut alasan dan apa yang akan membuka kembali keputusan itu.
+Each entry states the reason and what would reopen that decision.
 
-Format: `## ADR-<nomor> · <judul>` — Tanggal, Status, Keputusan, Alasan,
-Pembuka ulang.
-
----
-
-## ADR-001 · Medali `rank_streak` mulai direkam v2, bukan direplay
-
-**Tanggal:** 2026-11-05
-**Temuan audit:** BE-10
-**Status:** Diterapkan
-
-**Keputusan:** v2 mulai menulis `rank_streak:<run>` dari riwayat peringkat yang
-direkam sejak migration `0025`, tanpa mereplay masa lalu. Pemilik memilih
-"sumber data ke depan", bukan rekonstruksi papan per tanggal sesi.
-
-**Bentuk:** `rating.snapshots` mendapat kolom `rank` (nullable — baris lama
-tidak punya peringkat, dan mengarang satu berarti mengklaim posisi yang tidak
-pernah ditampilkan). `./task ranksnapshot` menulis kolom itu bersama poin.
-`backfill` berjalan atas tanggal event komunitas; setiap tanggal tanpa baris
-snapshot memutus run (peringkat tak terekam bukan bukti tetap di atas), dan run
-terpanjang dengan peringkat ≤ 3 menjadi satu baris `rank_streak:<n>`.
-
-**Alasan:** run hanya bisa diukur dari peringkat yang benar-benar dicatat;
-merekonstruksi papan "as-of" tiap tanggal sesi berarti satu pass atas seluruh
-riwayat dan tetap menebak window yang berlaku saat itu.
-
-**Nilai yang sudah ada dipertahankan:** baris `rank_streak:*` hasil impor v1
-memuat run yang diukur papan v1 dan tidak bisa dihitung ulang oleh v2. Karena
-itu penulis mengambil nilai maksimum antara run baru dan baris yang sudah ada,
-sehingga tidak ada medali yang turun dan tiap pemain tetap punya satu baris.
-`tournament:<uuid>` tetap tidak disentuh rekonsiliasi (ADR-002).
-
-**Pembuka ulang:** `ranksnapshot` berjalan sebagai timer produksi minimal 12
-minggu, lalu run bisa dianggap lengkap dan aturan maksimum bisa diganti
-rekonsiliasi penuh.
+Format: `## ADR-<number> · <title>`, with Date, Status, Decision, Reason,
+Reopener.
 
 ---
 
-## ADR-002 · Rekonsiliasi medali mencabut, bukan menyimpan riwayat
+## ADR-001 · `rank_streak` medals start being recorded in v2, not replayed
 
-**Tanggal:** 2026-11-05
-**Temuan audit:** BE-31
-**Status:** Diterapkan (`4024969`)
+**Date:** 2026-11-05
+**Audit finding:** BE-10
+**Status:** Applied
 
-**Keputusan:** saat rating di-revert atau dibangun ulang, medali katalog yang
-tidak lagi memenuhi ambang **dihapus**; medali yang kembali memenuhi ambang
-dicatat dengan `earned_at` baru.
+**Decision:** v2 starts writing `rank_streak:<run>` from the ranking history
+recorded since migration `0025`, without replaying the past. The owner chose
+"data source going forward", not reconstructing the board for each session date.
 
-**Alasan:** medali adalah proyeksi dari data pertandingan, bukan catatan
-independen. Kalau sesi yang menjadi dasarnya dicabut, mempertahankan medalinya
-akan membuat papan penghargaan berbohong. Tanggal baru untuk medali yang diraih
-ulang jujur: ia memang diraih lagi. Baris di luar katalog (`tournament:<uuid>`
-impor dan `rank_streak`) tidak disentuh karena v2 tidak bisa menghitungnya
-(ADR-001).
+**Shape:** `rating.snapshots` gets a `rank` column (nullable: old rows have no
+ranking, and inventing one would claim a position that was never displayed).
+`./task ranksnapshot` writes that column together with the points. `backfill`
+runs over community event dates; every date without a snapshot row breaks the
+run (an unrecorded ranking is not proof of staying on top), and the longest run
+with rank ≤ 3 becomes a single `rank_streak:<n>` row.
 
-**Pembuka ulang:** ada kebutuhan menampilkan riwayat "pernah diraih" — saat itu
-perlu tabel riwayat terpisah, bukan tabel `earned`.
+**Reason:** a run can only be measured from rankings that were actually recorded;
+reconstructing an "as-of" board for every session date means one pass over the
+entire history and still guessing the window that applied at the time.
 
----
+**Existing values are preserved:** `rank_streak:*` rows from the v1 import carry
+runs measured by the v1 board and cannot be recomputed by v2. So the writer takes
+the maximum between the new run and the existing row, so that no medal goes down
+and each player still has exactly one row. `tournament:<uuid>` is still untouched
+by reconciliation (ADR-002).
 
-## ADR-003 · `rating.levels` adalah data operator, bukan config
-
-**Tanggal:** 2026-11-05
-**Temuan audit:** BE-32
-**Status:** Diterapkan (`4c10e85`)
-
-**Keputusan:** tangga poin turnamen (`champion_points`, `round_ratios`) diisi
-operator lewat `./task levels`; komunitas tanpa baris memakai rumus per-game.
-
-**Alasan:** angka tangga adalah keputusan bisnis per komunitas, bukan konstanta
-aplikasi. Menyemainya otomatis berarti mengarang angka. Bentuknya tabel (bukan
-key registry) karena isinya JSON bertingkat dan berbeda per jenis turnamen.
-Rumus per-game tetap ada supaya komunitas baru langsung punya poin tanpa
-menunggu operator.
-
-**Pembuka ulang:** tangga ingin diatur dari UI admin, bukan CLI — saat itu perlu
-rute + perubahan kontrak.
+**Reopener:** `ranksnapshot` runs as a production timer for at least 12 weeks,
+after which the run can be considered complete and the maximum rule can be
+replaced by full reconciliation.
 
 ---
 
-## ADR-004 · Satu angka poin yang diekspos; ledger tetap internal
+## ADR-002 · Medal reconciliation revokes instead of storing history
 
-**Tanggal:** 2026-11-06
-**Temuan audit:** BEP-10
-**Status:** Diterapkan (tahap 1 + tahap 2)
+**Date:** 2026-11-05
+**Audit finding:** BE-31
+**Status:** Applied (`4024969`)
 
-**Keputusan:** API hanya mengekspos **satu** angka poin: baris papan
-(proyeksi tier). `GET .../players/{id}/stats` tidak lagi membaca
-`rating.player_state.rating`; `points` diisi dari `boardEntry` yang sama dengan
-papan, dan pemain tanpa entri di window mendapat 0. Saat itu `rating.deltas` /
-`player_state.rating` dibiarkan sebagai ledger internal untuk bobot lawan di
-ingest, dan tidak pernah menjadi angka yang dilihat pengguna (tahap 2 kemudian
-menghapusnya — lihat di bawah).
+**Decision:** when a rating is reverted or rebuilt, catalog medals that no longer
+meet the threshold are **deleted**; medals that meet the threshold again are
+recorded with a new `earned_at`.
 
-**Alasan:** dua angka untuk pemain yang sama adalah cacat yang terlihat (beda
-median 756 poin di data dev; 31% pemain bergeser >10 peringkat). Tapi
-menyeragamkan *rumus* berarti menghitung ulang seluruh delta/state semua
-komunitas dan membatalkan pembandingan impor v1 — risiko tinggi tanpa manfaat
-yang terlihat. Menutup jalur eksposurnya menghilangkan inkonsistensi tanpa
-menyentuh satu angka tersimpan.
+**Reason:** medals are a projection of match data, not an independent record. If
+the session they are based on is revoked, keeping the medal would make the awards
+board lie. A new date for a medal that is earned again is honest: it really was
+earned again. Rows outside the catalog (`tournament:<uuid>` import and
+`rank_streak`) are untouched because v2 cannot compute them (ADR-001).
 
-**Tahap 2 (diterapkan):** `rating.deltas` dihapus dan `player_state.rating`
-dibuang oleh migrasi `0026_drop_rating_ledger.sql`. Sebelum drop, migrasi
-mem-backfill `rating.events.point_entries` dari jumlah baris delta tiap event —
-satu-satunya hal yang masih dipakai (layar sumber rating, laporan revert/rebuild,
-`deltas` di respons API). Ingest, turnamen, dan import kini hanya menulis counter
-lewat `addState`; merge tidak lagi memindahkan baris delta; readiness tidak
-memeriksa tabel yang sudah tidak ada. Angka yang terlihat tidak berubah: papan
-tetap proyeksi, dan `deltasMoved` tetap dilaporkan 0.
-
-**Alasan:** setelah tahap 1, satu-satunya pembaca `player_state.rating` adalah
-ingest sendiri (bobot lawan), dan itu pun sudah dihitung ulang per rebuild.
-Menyimpan nilai yang hanya dipakai penulisnya sendiri memaksa rebuild mereplay
-event dalam urutan approval demi mereproduksi angka yang tidak dibaca — biaya
-dan sumber selisih tanpa manfaat.
-
-**Pembuka ulang:** muncul kebutuhan yang memang membutuhkan akumulasi rating
-mentah per game (mis. seeding turnamen), sehingga ledger perlu dihidupkan lagi
-sebagai tabel baru dengan pembaca yang jelas.
+**Reopener:** there is a need to show a "previously earned" history; at that point
+a separate history table is needed, not the `earned` table.
 
 ---
 
-## ADR-005 · Empty state + alur join request
+## ADR-003 · `rating.levels` is operator data, not config
 
-**Tanggal:** 2026-11-05
-**Temuan audit:** UX-10
-**Status:** Diterapkan (`d95247a`)
+**Date:** 2026-11-05
+**Audit finding:** BE-32
+**Status:** Applied (`4c10e85`)
 
-**Keputusan:** akun tanpa komunitas mendapat satu aksi yang benar-benar
-tersedia: pemilik platform diarahkan membuat komunitas, akun lain mengirim
-permintaan bergabung (`POST /c/{slug}/join-requests`, selalu 202).
+**Decision:** the tournament points ladder (`champion_points`, `round_ratios`) is
+filled by the operator through `./task levels`; a community without a row uses
+the per-game formula.
 
-**Alasan:** petunjuk lama menyuruh "create a community" kepada akun yang tidak
-punya hak itu. Balasan 202 yang seragam adalah perlindungan anti-enumerasi,
-jadi layar hanya boleh menyatakan "terkirim", bukan "komunitas ditemukan".
+**Reason:** ladder numbers are a business decision per community, not an
+application constant. Seeding them automatically would mean inventing numbers.
+The shape is a table (not a key registry) because its content is nested JSON and
+differs per tournament type. The per-game formula stays so that a new community
+has points immediately without waiting for an operator.
 
-**Pembuka ulang:** ada alur undangan berbasis tautan yang perlu ditampilkan di
-layar yang sama.
-
----
-
-## ADR-006 · Satu kamus i18n, satu locale
-
-**Tanggal:** 2026-11-05
-**Temuan audit:** UX-14
-**Status:** Diterapkan (`e5421fc`)
-
-**Keputusan:** `apps/web/src/i18n/en.ts` adalah satu-satunya kamus. Kamus kedua
-(`src/legacy/i18n`) dihapus; pemanggil template memakai `t(key, vars)`.
-`<html lang="en" dir="ltr">` statis.
-
-**Alasan:** dua kamus berarti dua tempat untuk setiap penambahan teks dan satu
-temuan audit yang berulang. Hanya bahasa Inggris yang aktif, jadi menerjemahkan
-tanggal ke locale peramban akan membuat UI Inggris berisi tanggal berbahasa
-lain; `formatLongDate` memusatkan keputusan itu di satu fungsi.
-
-**Pembuka ulang:** bahasa kedua benar-benar dikerjakan — saat itu `en.ts`
-menjadi `en.ts` + `id.ts` dan `t()` memilih kamus.
+**Reopener:** the ladder should be managed from the admin UI rather than the CLI;
+at that point routes + contract changes are needed.
 
 ---
 
-## ADR-007 · Metrik hidup di listener internal, bukan di port publik
+## ADR-004 · One exposed point number; the ledger stays internal
 
-**Tanggal:** 2026-11-05
-**Temuan audit:** OPS-09
-**Status:** Diterapkan
+**Date:** 2026-11-06
+**Audit finding:** BEP-10
+**Status:** Applied (stage 1 + stage 2)
 
-**Keputusan:** `/metrics` tetap tidak ada di port publik (`smoke.sh` menjaga
-404). Registry counter permintaan di-increment di jalur respons tunggal dan
-dirender oleh listener kedua yang hanya mengikat `127.0.0.1`, diaktifkan lewat
-`MAJADU_METRICS_PORT` (kosong/0 = mati). Setiap respons juga menulis satu baris
-log akses terstruktur (`method`, `route` template, `status`) lewat logger yang
-sudah meredaksi nilai sensitif.
+**Decision:** the API exposes only **one** point number: the board row (tier
+projection). `GET .../players/{id}/stats` no longer reads
+`rating.player_state.rating`; `points` is filled from the same `boardEntry` as the
+board, and a player without an entry in the window gets 0. At that point
+`rating.deltas` / `player_state.rating` were left as an internal ledger for
+opponent weighting in ingest, and never became a number seen by users (stage 2
+then removed them, see below).
 
-**Alasan:** counter yang tidak pernah di-increment/di-render bukan
-observability. Listener loopback tidak menambah permukaan publik, dan label
-memakai template route supaya kode share, slug, dan id tidak menjadi series;
-path yang tak cocok digabung ke satu bucket agar pemindai tidak menumbuhkan
-registry tanpa batas.
+**Reason:** two numbers for the same player are a visible defect (median
+difference 756 points in dev data; 31% of players shift >10 ranks). But
+standardising the *formula* would mean recomputing every delta/state for all
+communities and invalidating the comparison against the v1 import: high risk with
+no visible benefit. Closing the exposure path removes the inconsistency without
+touching a single stored number.
 
-**Bukti di VPS** (image tidak memuat `curl`):
+**Stage 2 (applied):** `rating.deltas` is dropped and `player_state.rating` is
+discarded by migration `0026_drop_rating_ledger.sql`. Before the drop, the
+migration backfills `rating.events.point_entries` from the number of delta rows
+per event: the only thing still used (rating source screen, revert/rebuild
+report, `deltas` in the API response). Ingest, tournaments, and import now only
+write the counter through `addState`; merge no longer moves delta rows; readiness
+no longer checks tables that no longer exist. The visible number does not change:
+the board is still a projection, and `deltasMoved` is still reported as 0.
+
+**Reason:** after stage 1, the only reader of `player_state.rating` was ingest
+itself (opponent weighting), and even that was already recomputed on every
+rebuild. Storing a value that is only used by its own writer forces a rebuild to
+replay events in approval order in order to reproduce a number that is not read:
+cost and a source of drift with no benefit.
+
+**Reopener:** a need appears that genuinely requires raw rating accumulation per
+game (e.g. tournament seeding), so the ledger has to be revived as a new table
+with clear readers.
+
+---
+
+## ADR-005 · Empty state + join request flow
+
+**Date:** 2026-11-05
+**Audit finding:** UX-10
+**Status:** Applied (`d95247a`)
+
+**Decision:** an account without a community gets one action that is actually
+available: platform owners are directed to create a community, other accounts
+send a join request (`POST /c/{slug}/join-requests`, always 202).
+
+**Reason:** the old hint told accounts that did not have that right to "create a
+community". A uniform 202 response is anti-enumeration protection, so the screen
+may only state "sent", not "community found".
+
+**Reopener:** there is a link-based invitation flow that needs to be shown on the
+same screen.
+
+---
+
+## ADR-006 · One i18n dictionary, one locale
+
+**Date:** 2026-11-05
+**Audit finding:** UX-14
+**Status:** Applied (`e5421fc`)
+
+**Decision:** `apps/web/src/i18n/en.ts` is the only dictionary. The second
+dictionary (`src/legacy/i18n`) is removed; template callers use `t(key, vars)`.
+`<html lang="en" dir="ltr">` is static.
+
+**Reason:** two dictionaries mean two places for every addition of text and one
+recurring audit finding. Only English is active, so translating dates to the
+browser locale would make the English UI contain dates in another language;
+`formatLongDate` centralises that decision in one function.
+
+**Reopener:** a second language is actually worked on; at that point `en.ts`
+becomes `en.ts` + `id.ts` and `t()` selects a dictionary.
+
+---
+
+## ADR-007 · Metrics live in an internal listener, not on the public port
+
+**Date:** 2026-11-05
+**Audit finding:** OPS-09
+**Status:** Applied
+
+**Decision:** `/metrics` still does not exist on the public port (`smoke.sh`
+keeps it at 404). The request counter registry is incremented on the single
+response path and rendered by a second listener that binds only `127.0.0.1`,
+enabled through `MAJADU_METRICS_PORT` (empty/0 = off). Every response also writes
+one structured access log line (`method`, route template, `status`) through the
+logger that already redacts sensitive values.
+
+**Reason:** counters that are never incremented/rendered are not observability. A
+loopback listener does not add public surface, and labels use route templates so
+that share codes, slugs, and ids do not become series; unmatched paths are merged
+into one bucket so that a scanner cannot grow the registry without bound.
+
+**Evidence on the VPS** (the image does not contain `curl`):
 
 ```bash
 podman exec majadu-api bash -c \
   'exec 3<>/dev/tcp/127.0.0.1/9090; printf "GET /metrics HTTP/1.0\r\n\r\n" >&3; cat <&3'
 ```
 
-**Pembuka ulang:** ada collector di VPS; saat itu cukup menambah publikasi port
-atau scrape config, bukan mengubah kode.
+**Reopener:** a collector exists on the VPS; at that point it is enough to add
+port publishing or scrape config, not to change code.
 
 ---
 
-## ADR-008 · Proyeksi papan membaca tanpa transaksi
+## ADR-008 · Board projection reads without a transaction
 
-**Tanggal:** 2026-11-05
-**Temuan audit:** BEP-03
-**Status:** Diterapkan
+**Date:** 2026-11-05
+**Audit finding:** BEP-03
+**Status:** Applied
 
-**Keputusan:** `projection.project` tidak lagi dibungkus `db.tx`. Setiap
-pernyataan memakai `db.query`/`db.read`, yang meminjam satu koneksi lalu
-mengembalikannya, dan agregasi berjalan setelah tidak ada koneksi yang dipegang.
-Pool tetap menyisakan dua koneksi per proses (`apps/api/src/main.nim`) untuk
-panggilan `Db` bersarang.
+**Decision:** `projection.project` is no longer wrapped in `db.tx`. Every
+statement uses `db.query`/`db.read`, which borrows one connection and then returns
+it, and aggregation runs after no connection is held. The pool still leaves two
+connections per process (`apps/api/src/main.nim`) for nested `Db` calls.
 
-**Alasan:** dengan pool seukuran jumlah worker, satu papan yang menahan koneksi
-selama seluruh agregasi mengurangi kapasitas untuk semua request lain. READ
-COMMITTED memberi tiap pernyataan snapshot-nya sendiri, jadi transaksi luar tidak
-menambah konsistensi yang berarti untuk laporan titik-waktu ini.
+**Reason:** with a pool sized to the number of workers, one board that holds a
+connection for the whole aggregation reduces capacity for every other request.
+READ COMMITTED gives each statement its own snapshot, so an outer transaction does
+not add meaningful consistency for this point-in-time report.
 
-**Pembuka ulang:** papan butuh snapshot yang benar-benar seragam antar
-pernyataan (mis. pagar terhadap rebuild bersamaan); saat itu pakai transaksi
-`repeatable read` yang eksplisit, bukan `db.tx` biasa.
-
----
-
-## ADR-009 · `breakdown` di setiap baris papan bukan regresi v2
-
-**Tanggal:** 2026-11-05
-**Temuan audit:** BEP-07
-**Status:** Dicabut
-
-**Keputusan:** tidak ada perubahan payload. Temuan ditutup, bukan dikerjakan.
-
-**Alasan:** v1 juga mengirim `breakdown` di setiap baris (`RankPointRow` di
-`.local/old-src/apps/web/src/queries/endpoints.ts`, endpoint hanya menerima
-`limit` dan `min_sessions`). Jadi v2 tidak menambah apa pun yang tidak sudah
-ada; ini optimasi payload yang belum ada yang meminta, bukan cacat parity.
-Klaim "regresi" di audit tidak terbukti.
+**Reopener:** the board needs a truly uniform snapshot across statements (e.g. a
+guard against a concurrent rebuild); at that point use an explicit
+`repeatable read` transaction, not plain `db.tx`.
 
 ---
 
-## ADR-010 · Dua pemilik state tetap ada; kebocoran yang nyata ditutup
+## ADR-009 · `breakdown` on every board row is not a v2 regression
 
-**Tanggal:** 2026-11-05
-**Temuan audit:** FE-13
-**Status:** Diterapkan (lingkup kebocoran, bukan penyatuan)
+**Date:** 2026-11-05
+**Audit finding:** BEP-07
+**Status:** Revoked
 
-**Keputusan:** Zustand tetap memegang draft generator dan query cache tetap
-memegang snapshot server. Yang diperbaiki adalah dua jalur yang membuat
-kepemilikan ganda itu merusak data:
+**Decision:** no payload change. The finding is closed, not worked on.
 
-1. Tautan share tidak lagi menulis ke draft. Snapshot hasil decode adalah
-   pemilik tunggal layar penonton; semua handler berhenti sebelum menyentuh
-   store, dan modal ringkasan menerima `readOnly`.
-2. Versi dasar draft ikut disimpan (`cloudVersion`). Sebelumnya versi hanya ada
-   di query cache; setelah reload cache kosong, publish berikutnya memakai versi
-   server terbaru dan menimpa skor yang diubah host lain. Sekarang `If-Match`
-   memakai versi draft, dan publish yang bentrok tetap gagal sampai pengguna
-   memuat ulang.
-
-**Alasan:** menyatukan seluruh wizard ke query cache adalah refactor routing dan
-puluhan komponen dengan risiko regresi besar, sementara kerusakan yang
-dilaporkan berasal dari dua jalur sempit di atas dan bisa ditutup tanpa
-menyentuh alur generate.
-
-**Pembuka ulang:** draft offline dan snapshot server perlu digabung untuk fitur
-baru (mis. edit offline), atau muncul lagi jalur yang butuh satu sumber
-kebenaran.
+**Reason:** v1 also sent `breakdown` on every row (`RankPointRow` in
+`.local/old-src/apps/web/src/queries/endpoints.ts`, the endpoint only accepted
+`limit` and `min_sessions`). So v2 adds nothing that did not already exist; this
+is a payload optimisation that nobody has asked for, not a parity defect. The
+"regression" claim in the audit is unproven.
 
 ---
 
-## ADR-011 · Beranda tetap seperti sekarang
+## ADR-010 · Two state owners stay; the real leaks are closed
 
-**Tanggal:** 2026-11-05
-**Temuan audit:** UX-03
-**Status:** Dicabut
+**Date:** 2026-11-05
+**Audit finding:** FE-13
+**Status:** Applied (leak scope, not unification)
 
-**Keputusan:** beranda tidak diubah. Pemilik menolak proposal sesi hari ini +
-peringkat/medali saya.
+**Decision:** Zustand still holds the generator draft and the query cache still
+holds the server snapshot. What was fixed are the two paths that made that dual
+ownership corrupt data:
 
-**Alasan:** "peringkat saya" dan "medali saya" membutuhkan tautan akun → pemain
-yang tidak wajib diisi, jadi bentuk beranda akan berbeda antar akun tanpa aturan
-produk yang disetujui. Pintasan dan sesi terakhir sudah menjawab kebutuhan
-utama; menambah blok personal tanpa keputusan produk hanya memindahkan
-kompleksitas ke UI.
+1. Share links no longer write to the draft. The decoded result snapshot is the
+   single owner of the spectator screen; all handlers stop before touching the
+   store, and the summary modal receives `readOnly`.
+2. The draft's base version is stored too (`cloudVersion`). Previously the version
+   existed only in the query cache; after a reload the cache was empty, and the
+   next publish used the latest server version and overwrote scores changed by
+   another host. Now `If-Match` uses the draft version, and a conflicting publish
+   still fails until the user reloads.
 
-**Pembuka ulang:** pemilik memutuskan aturan untuk akun tanpa klaim (mis.
-meminta klaim dulu atau memilih pemain default).
+**Reason:** unifying the whole wizard into the query cache is a routing refactor
+and dozens of components with a large regression risk, while the reported damage
+came from the two narrow paths above and could be closed without touching the
+generate flow.
+
+**Reopener:** an offline draft and a server snapshot need to be merged for a new
+feature (e.g. offline editing), or a path that needs a single source of truth
+appears again.
+
 ---
 
-## ADR-012 · Format skor per sesi (preset + snapshot)
+## ADR-011 · Home page stays as it is now
 
-**Tanggal:** 2026-11-06
-**Status:** Diterima
+**Date:** 2026-11-05
+**Audit finding:** UX-03
+**Status:** Revoked
 
-**Keputusan:** satu slot jadwal adalah satu match yang terdiri dari 1..N set
-(MAJADU 30, Classic BO3 21, New BWF BO3 15). Setiap sesi menyimpan snapshot
-`scoring_preset` + `scoring_rules`; daftar preset adalah config platform
-(`session.scoring_presets`) dan default komunitas adalah
-`session.default_scoring_preset`. Hasil match disimpan di `session.game_sets`
-dan dibaca lewat view `session.game_results`.
+**Decision:** the home page is unchanged. The owner rejected the proposal for
+today's sessions + my rank/medals.
 
-Sesi lama (v1) mendapat snapshot `legacy_v1` dengan target 30, karena sesi itu
-memang dimainkan sampai 30. Rating lama yang memakai `rating.score_target = 21`
-adalah bug; karena poin diproyeksikan saat dibaca, koreksinya retroaktif tanpa
-migrasi data.
+**Reason:** "my rank" and "my medals" require an account → player link that is not
+mandatory, so the shape of the home page would differ between accounts without an
+agreed product rule. Shortcuts and last sessions already answer the main need;
+adding a personal block without a product decision only moves complexity into the
+UI.
 
-Poin per match tetap 250 sebelum multiplier. Yang berubah hanya pembagian
-antara pemenang dan pecundang untuk match BO3, karena margin dinormalisasi per
+**Reopener:** the owner decides the rule for accounts without a claim (e.g.
+asking for a claim first, or choosing a default player).
+---
+
+## ADR-012 · Score format per session (preset + snapshot)
+
+**Date:** 2026-11-06
+**Status:** Accepted
+
+**Decision:** one schedule slot is one match consisting of 1..N sets (MAJADU 30,
+Classic BO3 21, New BWF BO3 15). Each session stores a snapshot of
+`scoring_preset` + `scoring_rules`; the preset list is platform config
+(`session.scoring_presets`) and the community default is
+`session.default_scoring_preset`. Match results are stored in `session.game_sets`
+and read through the `session.game_results` view.
+
+Old sessions (v1) get a `legacy_v1` snapshot with target 30, because those
+sessions really were played to 30. The old rating that used
+`rating.score_target = 21` was a bug; because points are projected at read time,
+the correction is retroactive without a data migration.
+
+Points per match stay 250 before the multiplier. What changes is only the split
+between winner and loser for BO3 matches, because the margin is normalised per
 set:
 
 ```
@@ -315,19 +313,19 @@ r = Σ(a−b) / (pointsToWin × setsPlayed)
 value = gameValue(base, r × pointsToWin, pointsToWin)
 ```
 
-**Alasan:** format harus bisa dipilih tanpa mengubah aplikasi; menyimpan
-snapshot mencegah edit config di masa depan menulis ulang hasil historis; dan
-satu baris `game_sets` per set membuat pemenang dihitung dari set, bukan dari
-total poin (total poin bisa menyesatkan di BO3). `rating.score_target` tetap ada
-hanya sebagai fallback untuk baris tanpa snapshot dan dihapus setelah dua
-rilis; kolom `session.games.score_a/score_b` juga dipertahankan sampai rollback
-tidak lagi dibutuhkan.
+**Reason:** the format must be selectable without changing the application;
+storing a snapshot prevents future config edits from rewriting historical results;
+and one `game_sets` row per set makes the winner computed from sets, not from
+total points (total points can be misleading in BO3). `rating.score_target` stays
+only as a fallback for rows without a snapshot and is removed after two releases;
+the `session.games.score_a/score_b` columns are also kept until rollback is no
+longer needed.
 
-**Konsekuensi:** papan bisa bergerak sekali saat deploy (target 21 → 30);
-snapshot harian lama tidak ditulis ulang, jadi `prevRank`/`rankDelta` boleh
-menunjukkan pergerakan sekali. `./task ranksnapshot` dijalankan setelah deploy
-agar snapshot hari itu memakai angka baru.
+**Consequences:** the board can move once at deploy (target 21 → 30); old daily
+snapshots are not rewritten, so `prevRank`/`rankDelta` may show a one-time
+movement. `./task ranksnapshot` is run after deploy so that the snapshot for that
+day uses the new numbers.
 
-**Pembuka ulang:** turnamen masuk lingkup format per sesi, atau muncul format
-yang butuh aturan di luar `gamesToWin/pointsToWin/winBy/deuceAt/maxPoints`
-(mis. side-out scoring).
+**Reopener:** tournaments come into scope for per-session formats, or a format
+appears that needs rules outside
+`gamesToWin/pointsToWin/winBy/deuceAt/maxPoints` (e.g. side-out scoring).

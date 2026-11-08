@@ -1,100 +1,100 @@
-# Operasi
+# Operations
 
-Dokumen ini menjawab dua hal yang tidak boleh dicari saat insiden sedang terjadi:
-siapa yang memegang akses, dan format catatan insidennya. Prosedur cutover punya
-dokumen sendiri (`docs/ops/cutover.md`), begitu juga rilis
-(`docs/ops/release.md`) dan login Google (`docs/ops/google-oauth.md`).
+This document answers two things that must not need looking up while an incident
+is in progress: who holds access, and the format of the incident note. The
+cutover procedure has its own document (`docs/ops/cutover.md`), as do releases
+(`docs/ops/release.md`) and Google login (`docs/ops/google-oauth.md`).
 
-## 1. Pemegang akses
+## 1. Access holders
 
-Instans ini dikelola satu orang (solo developer). Tabel ini adalah daftar
-lengkap pemegang akses; menambah baris berarti menambah permukaan serangan.
+This instance is run by one person (solo developer). This table is the complete
+list of access holders; adding a row means adding attack surface.
 
-| Aset | Dipakai untuk | Pemegang | Pengamanan |
+| Asset | Used for | Holder | Protection |
 |---|---|---|---|
-| Akun Google `platform_owner` | Login ke aplikasi sebagai pemilik platform | Pemilik repo | MFA wajib, perangkat terpisah dari akun sosial |
-| GitHub `hidaydev` | Repo, Actions, secret CI, advisory keamanan | Pemilik repo | MFA wajib (passkey/TOTP), tanpa login via password saja |
-| VPS Qouver (`qouver.com`) | SSH ke host, `systemctl --user`, Podman rootless, `/srv/qouver/apps/majadu` | Pemilik repo | Kunci SSH saja, password login dimatikan, MFA di panel penyedia |
-| GHCR (`ghcr.io`) | Registry image rilis | Pemilik repo | Token akses terbatas `read:packages`, disimpan di secret CI |
-| Database `bm2` | Data produksi | Proses API (`bm2_app`), ETL (`bm2_etl`), pemilik skema (`bm2_owner`) | Password hanya di `/srv/qouver/apps/majadu/env/`, direktori mode `700` |
+| Google account `platform_owner` | Logging in to the app as the platform owner | Repo owner | MFA required, device separate from the social account |
+| GitHub `hidaydev` | Repo, Actions, CI secrets, security advisories | Repo owner | MFA required (passkey/TOTP), no password-only login |
+| VPS Qouver (`qouver.com`) | SSH to the host, `systemctl --user`, rootless Podman, `/srv/qouver/apps/majadu` | Repo owner | SSH keys only, password login disabled, MFA on the provider panel |
+| GHCR (`ghcr.io`) | Release image registry | Repo owner | Scoped access token `read:packages`, stored in a CI secret |
+| Database `bm2` | Production data | API process (`bm2_app`), ETL (`bm2_etl`), schema owner (`bm2_owner`) | Password only in `/srv/qouver/apps/majadu/env/`, directory mode `700` |
 
-Aturan yang mengikat daftar ini:
+Rules that bind this list:
 
-- MFA wajib pada Google, GitHub, dan panel VPS. Tanpa MFA, satu password bocor
-  berarti seluruh daftar di atas ikut bocor.
-- Kredensial tidak pernah masuk repositori. Repo hanya memuat contoh:
+- MFA is required on Google, GitHub, and the VPS panel. Without MFA, one leaked
+  password means the whole list above leaks with it.
+- Credentials never enter the repository. The repo only contains an example:
   `ops/env/prod.env.example`.
-- Akun yang tidak lagi dipakai dicabut di ketiga tempat: GitHub, panel VPS, dan
-  `platform_owner` (lewat `./task opstoken`/CLI, bukan SQL manual).
-- Peran database dipisah: aplikasi tidak punya hak menghapus `account.audit`,
-  dan hanya `bm2_owner` yang menjalankan pembersih audit.
+- Accounts no longer in use are revoked in all three places: GitHub, the VPS
+  panel, and `platform_owner` (through `./task opstoken`/the CLI, not manual SQL).
+- Database roles are separated: the app has no right to delete `account.audit`,
+  and only `bm2_owner` runs the audit cleaner.
 
-## 2. Insiden
+## 2. Incidents
 
-Satu insiden, satu catatan, lima bidang. Tidak ada format lain; laporan panjang
-tanpa lima bidang ini tidak bisa ditindaklanjuti.
+One incident, one note, five fields. There is no other format; a long report
+without these five fields cannot be acted on.
 
 ```markdown
-### Insiden YYYY-MM-DD — <judul singkat>
+### Incident YYYY-MM-DD: <short title>
 
-- **Deteksi**: bagaimana ketahuan (alert, laporan, temuan sendiri), jam, dan
-  sinyal pertama yang muncul.
-- **Dampak**: data atau fungsi apa yang terpengaruh, siapa yang terkena, berapa
-  lama. Kalau belum diketahui, tulis "belum diketahui" dan perbarui.
-- **Tindakan**: yang benar-benar dilakukan, berurutan, termasuk yang gagal.
-- **Pencegahan**: perubahan yang mencegah pengulangan (kode, konfigurasi,
-  proses), dengan tautan commit/PR.
-- **Pemilik**: satu nama yang bertanggung jawab menutup tindak lanjut.
+- **Detection**: how it was noticed (alert, report, self-found), the time, and
+  the first signal that appeared.
+- **Impact**: which data or function is affected, who is hit, for how long. If
+  it is not known yet, write "unknown" and update it.
+- **Actions**: what was actually done, in order, including what failed.
+- **Prevention**: the change that prevents a repeat (code, configuration,
+  process), with a commit/PR link.
+- **Owner**: one name responsible for closing the follow-up.
 ```
 
-Aturan pengisian:
+Filling rules:
 
-- **Dampak** menyebut data spesifik, bukan "sistem". Contoh yang benar:
-  "riwayat skor 12 sesi komunitas X terbaca oleh tautan yang dicabut", bukan
-  "kebocoran data".
-- **Tindakan** mencatat waktu, bukan narasi. Kalau rollback dipakai, sebut
-  image yang dipulihkan.
-- **Pencegahan** wajib punya artefak: commit, perubahan konfigurasi, atau tes
-  baru. "Akan lebih hati-hati" bukan pencegahan.
-- Catatan disimpan di `.local/incidents/` (tidak masuk repo publik) dan
-  diringkas di changelog rilis bila menyentuh pengguna.
+- **Impact** names specific data, not "the system". A correct example:
+  "the score history of 12 sessions in community X was readable through a revoked
+  link", not "data leak".
+- **Actions** records times, not narrative. If a rollback was used, name the
+  image restored.
+- **Prevention** must have an artifact: a commit, a configuration change, or a
+  new test. "I will be more careful" is not prevention.
+- Notes are stored in `.local/incidents/` (not in the public repo) and
+  summarized in the release changelog if they touch users.
 
-## 3. Pemeriksaan rutin
+## 3. Routine checks
 
-| Kapan | Apa | Perintah |
+| When | What | Command |
 |---|---|---|
-| Setiap deploy | Kesehatan proses; migrasi dijalankan `deploy-vps.sh` sebelum restart | `curl -fsS http://127.0.0.1:8080/readyz` |
-| Tiap 5 menit | `/readyz` dijaga `majadu-readyz.timer`; kegagalan memicu `majadu-alert@` | `systemctl --user list-timers majadu-readyz.timer` |
-| Tiap jam | Log dirotasi `majadu-rotate-log.timer` (rename + hapus >14 hari) | `ls -l /srv/qouver/apps/majadu/logs` |
-| Harian | Log deploy membesar tanpa rotasi | `ls -l /srv/qouver/apps/majadu/logs` |
-| Bulanan | Migrasi dan seed masih cocok dengan skema | `./task ci` di mesin dev dengan `MAJADU_PG_DSN` |
-| Tahunan | Daftar akses di atas masih akurat | tinjau manual, cabut yang tidak dipakai |
+| Every deploy | Process health; `deploy-vps.sh` runs migrations before the restart | `curl -fsS http://127.0.0.1:8080/readyz` |
+| Every 5 minutes | `/readyz` is watched by `majadu-readyz.timer`; a failure triggers `majadu-alert@` | `systemctl --user list-timers majadu-readyz.timer` |
+| Every hour | Logs are rotated by `majadu-rotate-log.timer` (rename + delete >14 days) | `ls -l /srv/qouver/apps/majadu/logs` |
+| Daily | The deploy log grows without rotation | `ls -l /srv/qouver/apps/majadu/logs` |
+| Monthly | Migrations and seeds still match the schema | `./task ci` on a dev machine with `MAJADU_PG_DSN` |
+| Yearly | The access list above is still accurate | review by hand, revoke what is unused |
 
-`deploy-vps.sh` menjalankan `dbtools migrate` lalu `dbtools verify` dari image
-yang baru ditarik, memakai `MAJADU_OWNER_DSN`, sebelum unit di-restart.
-Kegagalan di situ membatalkan deploy dan membiarkan rilis lama jalan; `:local`
-dan `:prev` tidak disentuh.
+`deploy-vps.sh` runs `dbtools migrate` then `dbtools verify` from the newly
+pulled image, using `MAJADU_OWNER_DSN`, before the unit is restarted. A failure
+there aborts the deploy and leaves the old release running; `:local` and `:prev`
+are not touched.
 
-`/readyz` sendiri hanya membalas `503` bila database tidak terjangkau, relasi
-wajib belum ada (`to_regclass`), atau snapshot di `platform.cutover_state` tidak
-cocok dengan `CUTOVER_SNAPSHOT_SHA256`. Kolom atau seed yang belum masuk tidak
-terdeteksi di situ — yang membuktikan skema adalah `dbtools verify` di langkah
-deploy. `503` berarti "jangan kirim trafik", bukan "coba lagi".
+`/readyz` itself only answers `503` if the database is unreachable, a required
+relation is missing (`to_regclass`), or the snapshot in `platform.cutover_state`
+does not match `CUTOVER_SNAPSHOT_SHA256`. Columns or seeds that are not in place
+yet are not detected there; what proves the schema is `dbtools verify` in the
+deploy step. `503` means "do not send traffic", not "try again".
 
-## 4. Yang belum ada
+## 4. What is still missing
 
-Jujur soal lubang lebih berguna daripada runbook yang mengandaikan alat yang
-tidak ada:
+Being honest about gaps is more useful than a runbook that assumes tools that do
+not exist:
 
-- `ops/scripts/{cutover,rollback,backup,restore,smoke}.sh` sudah ada di repo,
-  tetapi belum pernah dijalankan di VPS sungguhan. Rehearsal D-3 (T-063) yang
-  membuktikannya; sebelum itu jangan menganggap jalur rollback teruji.
-- Alert otomatis ada di level unit: `OnFailure=majadu-alert@%n.service` pada
-  setiap unit, dan `deploy-vps.sh`, `cutover.sh`, serta `rollback.sh` memanggil
-  template yang sama saat gagal. Tanpa `/srv/qouver/apps/majadu/env/alert.env`
-  (mode 600) pesannya hanya masuk journal, tidak dikirim ke luar mesin.
-  Retensi journal dan pengiriman journal ke luar host belum dikonfigurasi; itu
-  langkah VPS, bukan berkas di repo ini.
-- `readyz` dulu hanya probe; sekarang `majadu-readyz.timer` menembaknya tiap 5
-  menit dan kegagalan menjadi alert. Metrik internal (T-062) tetap belum
-  diekspos — `/ops/ping` hanya membuktikan token CLI hidup.
+- `ops/scripts/{cutover,rollback,backup,restore,smoke}.sh` exist in the repo,
+  but have never been run on a real VPS. The D-3 rehearsal (T-063) is what
+  proves them; before that, do not consider the rollback path tested.
+- Automatic alerts exist at the unit level: `OnFailure=majadu-alert@%n.service`
+  on every unit, and `deploy-vps.sh`, `cutover.sh`, and `rollback.sh` call the
+  same template on failure. Without `/srv/qouver/apps/majadu/env/alert.env`
+  (mode 600) the message only goes to the journal, it is not sent off the
+  machine. Journal retention and shipping the journal off-host are not
+  configured; those are VPS steps, not files in this repo.
+- `readyz` used to be just a probe; now `majadu-readyz.timer` hits it every 5
+  minutes and a failure becomes an alert. Internal metrics (T-062) are still not
+  exposed; `/ops/ping` only proves the CLI token is alive.

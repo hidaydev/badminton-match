@@ -1,186 +1,186 @@
-# Scoring Presets (format skor per sesi)
+# Scoring Presets (per-session score format)
 
-Status: **implemented**. Migrasi `0029`/`0030` sudah berjalan; dokumen ini
-menjelaskan aturan dan angkanya, bukan rencana.
-Tanggal: 2026-11-06
-Lingkup: format skor per sesi (single game / best-of-3) di Majadu v2.
-Di luar lingkup: turnamen dan preset custom oleh admin.
+Status: **implemented**. Migrations `0029`/`0030` have run; this document
+explains the rules and the numbers, not a plan.
+Date: 2026-11-06
+Scope: per-session score format (single game / best-of-3) in Majadu v2.
+Out of scope: tournaments and custom presets by admins.
 
 ---
 
-## Daftar isi
+## Table of contents
 
-1. Ringkasan
-2. Glosarium — "rating" itu apa dan dipakai di mana
-3. Arsitektur skor hari ini (fakta + nomor baris)
-4. Keputusan yang sudah dikunci
-5. Konfigurasi
-6. Model data
-7. Engine aturan skor (modul murni)
-8. Alur tulis & alur baca
-9. API & kontrak
-10. Dampak ke perhitungan poin (rating)
-11. Simulasi angka
+1. Summary
+2. Glossary: what "rating" is and where it is used
+3. Today's scoring architecture (facts + line numbers)
+4. Decisions already locked
+5. Configuration
+6. Data model
+7. Scoring rules engine (pure module)
+8. Write path & read path
+9. API & contract
+10. Impact on point calculation (rating)
+11. Number simulations
 12. Standings
 13. Achievement, share, export
-14. UI: wizard, editor set, tampilan ringkas
-15. Fase pengerjaan & kriteria terima
-16. Rencana pengujian
-17. Risiko, rollback, dan hal yang ditunda
-18. Daftar berkas yang disentuh
-19. Pertanyaan terbuka
+14. UI: wizard, set editor, compact display
+15. Work phases & acceptance criteria
+16. Test plan
+17. Risks, rollback, and deferred items
+18. List of files touched
+19. Open questions
 
 ---
 
-## 1. Ringkasan
+## 1. Summary
 
-Tiga preset di gambar bukan sekadar "main sampai berapa poin". Ketiganya adalah
-**format match**:
+The three presets in the image are not just "play up to some number of points". All
+three are **match formats**:
 
-| Preset | Match | Set untuk menang | Poin | Deuce | Cap | Ganti sisi |
+| Preset | Match | Sets to win | Points | Deuce | Cap | Change ends |
 |---|---|---|---|---|---|---|
-| MAJADU 30 | 1 set | 1 | 30 | tidak ada | 30 | 15 |
+| MAJADU 30 | 1 set | 1 | 30 | none | 30 | 15 |
 | Classic BO3 21 | best of 3 | 2 | 21 | 20–20 | 30 | 11 |
 | New BWF BO3 15 | best of 3 | 2 | 15 | 14–14 | 21 | 8 |
 
-Model sekarang menyimpan **satu pasang skor per slot** (`session.games.score_a/score_b`).
-Itu tidak bisa menampung BO3: skor set kedua dan ketiga tidak punya tempat, dan
-`gamesToWin` hanya akan jadi label.
+The current model stores **one score pair per slot** (`session.games.score_a/score_b`).
+That cannot hold BO3: the second and third set scores have nowhere to go, and
+`gamesToWin` would only become a label.
 
-Karena itu perubahan intinya:
+So the core change is:
 
-> satu slot (round, court) = satu match; satu match berisi 1..3 set;
-> set disimpan di tabel baru `session.game_sets`; semua pembaca memakai view
-> `session.game_results` yang mengekspos pemenang, set, dan total poin.
+> one slot (round, court) = one match; one match contains 1..3 sets;
+> sets are stored in the new table `session.game_sets`; all readers use the view
+> `session.game_results`, which exposes the winner, the sets, and total points.
 
-Preset disimpan sebagai config (`session.scoring_presets`) dan di-*snapshot* ke
-tiap sesi. Mengubah config preset di masa depan tidak pernah menulis ulang
-sejarah; satu-satunya perubahan retroaktif adalah perbaikan target 21 → 30 di
-rilis ini.
+Presets are stored as config (`session.scoring_presets`) and *snapshotted* into
+each session. Changing the preset config in the future never rewrites
+history; the only retroactive change is the 21 → 30 target fix in this
+release.
 
-Sesi lama tetap terbaca sebagai satu set, tetapi poinnya dihitung ulang dengan
-target 30 (format yang memang dimainkan), sehingga papan bergerak sekali saat
-rilis. Untuk BO3, margin dinormalisasi per set supaya satu match BO3 tidak
-otomatis bernilai tiga kali satu game.
+Old sessions still read as one set, but their points are recomputed with
+target 30 (the format that was actually played), so the board moves once at
+release. For BO3, the margin is normalized per set so that one BO3 match is not
+automatically worth three times one game.
 
-Estimasi: P0 1–2 hari, P1 1 hari, P2 1–2 hari, P3 ½ hari. Total 4–6 hari kerja
-efektif, tanpa menghitung review desain.
+Estimate: P0 1–2 days, P1 1 day, P2 1–2 days, P3 ½ day. Total 4–6 effective
+working days, not counting design review.
 
 ---
 
-## 2. Glosarium — "rating" itu apa dan dipakai di mana
+## 2. Glossary: what "rating" is and where it is used
 
-Pertanyaan ini perlu dijawab dulu karena istilahnya memang membingungkan.
+This question needs an answer first because the term really is confusing.
 
-**Tidak ada dua sistem.** Yang dipakai hanya satu: **rank point**. Di kode,
-"rating" adalah nama modul dan tabel, bukan angka ELO terpisah.
+**There are not two systems.** Only one is used: **rank point**. In the code,
+"rating" is the name of a module and of tables, not a separate ELO number.
 
-Fakta yang bisa dicek:
+Facts that can be checked:
 
-- `rating.player_state` menyimpan **counter**: `games_played`, `wins`, `losses`
-  (`modules/rating/infrastructure/ledger.nim:48-60`). Kolom `rating` sudah
-  dihapus di migrasi `0026_drop_rating_ledger.sql`.
-- Poin papan **tidak disimpan**; dihitung ulang setiap kali dibaca dari
-  `session.games` dan `tournament.matches` (`modules/rating/projection.nim`).
-- Satu-satunya angka poin yang tersimpan adalah snapshot harian
-  `rating.snapshots.rating` (`db/migrations/0002_rating.sql:56-64`), dipakai
-  untuk `prevRank`/`rankDelta` dan badge `rank_streak`.
-- "Tier" (D, C, B, ...) bukan turunan poin. Ia disimpan di `player.players.tier`
-  dan dipakai sebagai kekuatan lawan (`tierStrength`, `opponentMultiplier`).
+- `rating.player_state` stores **counters**: `games_played`, `wins`, `losses`
+  (`modules/rating/infrastructure/ledger.nim:48-60`). The `rating` column was
+  dropped in migration `0026_drop_rating_ledger.sql`.
+- Board points **are not stored**; they are recomputed every time they are read from
+  `session.games` and `tournament.matches` (`modules/rating/projection.nim`).
+- The only stored point number is the daily snapshot
+  `rating.snapshots.rating` (`db/migrations/0002_rating.sql:56-64`), used
+  for `prevRank`/`rankDelta` and the `rank_streak` badge.
+- "Tier" (D, C, B, ...) is not derived from points. It is stored in `player.players.tier`
+  and used as opponent strength (`tierStrength`, `opponentMultiplier`).
 
-Jadi jawaban singkatnya:
+So the short answer is:
 
-> rating = rank point. `rating.*` hanya nama modul. Poin dihitung saat dibaca,
-> snapshot harian menyimpan hasilnya untuk melihat pergerakan peringkat.
+> rating = rank point. `rating.*` is only a module name. Points are computed when read,
+> the daily snapshot stores the result so rank movement can be seen.
 
-Di mana angkanya muncul ke pengguna:
+Where the numbers appear to users:
 
-| Layar | Sumber |
+| Screen | Source |
 |---|---|
-| Papan peringkat | `read.boardRows` → `projection.project` |
-| Profil pemain (breakdown) | proyeksi yang sama |
+| Leaderboard | `read.boardRows` → `projection.project` |
+| Player profile (breakdown) | the same projection |
 | `prevRank` / `rankDelta` | `rating.snapshots` |
-| Badge `rank:*`, `rank_streak:*` | `rating.snapshots` + `player_state` |
-| Jumlah game/menang/kalah di profil | `rating.player_state` |
+| `rank:*`, `rank_streak:*` badges | `rating.snapshots` + `player_state` |
+| Game/win/loss counts on the profile | `rating.player_state` |
 
-Konsekuensi untuk fitur ini: **satu-satunya tempat format match menyentuh poin
-adalah rumus `gameValue`** di proyeksi. Tidak ada delta tersimpan yang perlu
-dimigrasi.
+Consequence for this feature: **the only place the match format touches points
+is the `gameValue` formula** in the projection. There are no stored deltas that need
+migrating.
 
 ---
 
-## 3. Arsitektur skor hari ini
+## 3. Today's scoring architecture
 
-Fakta yang relevan (semua sudah diverifikasi di kode):
+Relevant facts (all already verified in the code):
 
-- **Satu slot = satu game.** `session.games` punya `round_no`, `court_no`,
+- **One slot = one game.** `session.games` has `round_no`, `court_no`,
   `score_a`, `score_b`, `status` (`db/migrations/0001_core.sql:95-116`).
-  Unique `(session_id, round_no, court_no)`; skor 0..99; `games_not_tied`
-  menolak seri saat `status='played'`.
-- **Tulis skor hanya di draft.** `gate()` menolak semua tulis kalau status bukan
-  `draft` (`modules/session/schedule.nim:97-111`). Tulis memakai `If-Match`
-  (versi sesi), lalu `bump()` menaikkan versi.
-- **`setScore`** hanya menerima 0..99 dan menolak seri
+  Unique `(session_id, round_no, court_no)`; score 0..99; `games_not_tied`
+  rejects a tie when `status='played'`.
+- **Scores are written only in draft.** `gate()` rejects every write when the status is not
+  `draft` (`modules/session/schedule.nim:97-111`). Writes use `If-Match`
+  (session version), then `bump()` increments the version.
+- **`setScore`** only accepts 0..99 and rejects ties
   (`modules/session/schedule.nim:249-283`).
-- **`setPlayed`** boleh menandai game played **tanpa skor** dan menghapus skor
-  yang ada (`schedule.nim:284-317`). Artinya `status='played'` bukan bukti
-  match selesai.
-- **Pembaca skor** saat ini:
-  - `modules/session/standings.nim` — standings per sesi.
-  - `modules/rating/projection.nim:186-246` — poin papan.
-  - `modules/rating/infrastructure/ingest.nim:96-110` — counter game/menang.
-  - `modules/rating/read.nim:208-260` — riwayat & lawan/partner tersering.
-  - `modules/achievement/infrastructure/backfill.nim:143-176` — badge volume.
-  - `apps/api/src/app.nim` — detail sesi (`~2035`), game (`~2085`),
+- **`setPlayed`** may mark a game played **without a score** and delete an existing
+  score (`schedule.nim:284-317`). That means `status='played'` is not proof that a
+  match is finished.
+- **Score readers** today:
+  - `modules/session/standings.nim`: standings per session.
+  - `modules/rating/projection.nim:186-246`: board points.
+  - `modules/rating/infrastructure/ingest.nim:96-110`: game/win counters.
+  - `modules/rating/read.nim:208-260`: history & most frequent opponents/partners.
+  - `modules/achievement/infrastructure/backfill.nim:143-176`: volume badges.
+  - `apps/api/src/app.nim`: session detail (`~2035`), game (`~2085`),
      share (`~2150`).
-- **Rating memakai target 21 untuk semua sesi** (`rating.score_target`), padahal
-  sesi dimainkan sampai 30. Margin 30–29 sudah dianggap penuh, dan 30–5
-  tersaturasi. Ini bug yang diperbaiki fitur ini, dan karena poin dihitung saat
-  dibaca, perbaikannya berlaku retroaktif.
+- **Rating uses target 21 for all sessions** (`rating.score_target`), even though
+  sessions are played to 30. A 30–29 margin is already treated as full, and 30–5
+  is saturated. This is the bug this feature fixes, and because points are computed when
+  read, the fix applies retroactively.
 
-Konsekuensi: setiap pembaca di atas harus pindah ke satu sumber baru. Kalau
-tidak, BO3 akan terbaca sebagai "total poin" dan pemenang bisa salah.
+Consequence: every reader above must move to one new source. If it
+does not, BO3 will be read as "total points" and the winner could be wrong.
 
 ---
 
-## 4. Keputusan yang sudah dikunci
+## 4. Decisions already locked
 
-| # | Keputusan | Alasan |
+| # | Decision | Reason |
 |---|---|---|
-| 1 | Normalisasi rating BO3 = rata-rata margin per set | Format-neutral; satu set identik dengan rumus lama |
-| 2 | Satu match BO3 = **1 game** untuk standings & achievement | "Game" berarti match yang dimainkan, bukan set |
-| 3 | Preset boleh diganti selama belum ada set | Setelah ada set, harus dikosongkan dulu |
-| 4 | Hanya tiga preset resmi | Preset keempat = perubahan config, bukan rilis |
-| 5 | Turnamen di luar lingkup | Format turnamen punya aturan poin sendiri |
-| 6 | Detail per set ditampilkan | Skor 2–1 tanpa rincian set tidak bisa diverifikasi |
-| 7 | Set parsial boleh disimpan, tidak dihitung | Operator sering mengisi jeda antar set |
-| 8 | Sesi lama juga dinilai dengan target 30 | Formatnya memang MAJADU 30; target 21 adalah bug |
+| 1 | BO3 rating normalization = average margin per set | Format-neutral; a single set is identical to the old formula |
+| 2 | One BO3 match = **1 game** for standings & achievement | "Game" means a match played, not a set |
+| 3 | The preset may be changed as long as no sets exist | Once a set exists, it must be cleared first |
+| 4 | Only three official presets | A fourth preset = a config change, not a release |
+| 5 | Tournaments are out of scope | Tournament formats have their own point rules |
+| 6 | Per-set details are displayed | A 2–1 score without set details cannot be verified |
+| 7 | Partial sets may be saved, not counted | Operators often fill in between sets |
+| 8 | Old sessions are also rated with target 30 | Their format really is MAJADU 30; target 21 was a bug |
 
-Catatan untuk #3: karena semua tulis skor hanya boleh di `draft`, aturan
-"belum ada set" cukup menjadi guard tambahan di `PATCH /sessions/{id}`.
-Mengosongkan set (body `{"sets": []}`) membuka kembali pilihan preset.
+Note on #3: because all score writes are only allowed in `draft`, the
+"no sets yet" rule is enough as an extra guard in `PATCH /sessions/{id}`.
+Clearing the sets (body `{"sets": []}`) reopens the preset choice.
 
-Catatan untuk #8: keputusan ini **retroaktif**. Poin sesi lama dihitung ulang
-dengan target 30 saat papan dibaca, karena poin memang tidak disimpan. Total
-poin satu match tetap 250 (sebelum multiplier); yang berubah adalah pembagian
-antara pemenang dan lawan. Konsekuensi dan angkanya ada di §10–11.
+Note on #8: this decision is **retroactive**. Points of old sessions are recomputed
+with target 30 when the board is read, because points really are not stored. The total
+points of one match remain 250 (before the multiplier); what changes is the split
+between winner and opponent. The consequences and the numbers are in §10–11.
 
 ---
 
-## 5. Konfigurasi
+## 5. Configuration
 
-### 5.1 Key baru
+### 5.1 New keys
 
-| Key | Tipe | Scope | Default | Batas | Fungsi |
+| Key | Type | Scope | Default | Bound | Purpose |
 |---|---|---|---|---|---|
-| `session.scoring_presets` | json | platform | 3 preset resmi | array 1..20 | Definisi format yang boleh dipilih |
-| `session.default_scoring_preset` | string | **community** | `majadu30` | harus id yang ada | Pilihan awal di wizard |
+| `session.scoring_presets` | json | platform | 3 official presets | array 1..20 | Definition of the formats that may be selected |
+| `session.default_scoring_preset` | string | **community** | `majadu30` | must be an existing id | Initial choice in the wizard |
 
-Keduanya masuk `modules/platform/config/registry.nim`, `db/seeds/platform_config.sql`,
-dan migrasi. `session.default_scoring_preset` sengaja community-scoped supaya
-satu komunitas bisa default ke BWF tanpa mengubah default platform.
+Both go into `modules/platform/config/registry.nim`, `db/seeds/platform_config.sql`,
+and the migration. `session.default_scoring_preset` is deliberately community-scoped so
+one community can default to BWF without changing the platform default.
 
-### 5.2 Bentuk JSON
+### 5.2 JSON shape
 
 ```json
 [
@@ -217,58 +217,58 @@ satu komunitas bisa default ke BWF tanpa mengubah default platform.
 ]
 ```
 
-Field:
+Fields:
 
-- `id` — `[a-z0-9_]{2,32}`, unik, bukan `legacy_v1` (reserved).
-- `label` — teks yang ditampilkan di wizard; tidak diterjemahkan (nama format).
-- `gamesToWin` — set yang harus dimenangkan (1 = single match).
-- `pointsToWin` — poin untuk menang set tanpa deuce.
-- `winBy` — selisih minimum; untuk MAJADU 30 nilainya 1 (tanpa deuce).
-- `deuceAt` — skor lawan saat aturan `winBy` mulai berlaku; `null` = tidak ada
-  deuce.
-- `maxPoints` — cap. Saat cap tercapai, selisih 1 sudah cukup.
-- `changeEndsAt` — hanya petunjuk UI ("ganti sisi di 11"), tidak memengaruhi
-  data atau validasi.
+- `id`: `[a-z0-9_]{2,32}`, unique, not `legacy_v1` (reserved).
+- `label`: text displayed in the wizard; not translated (format name).
+- `gamesToWin`: sets that must be won (1 = single match).
+- `pointsToWin`: points to win a set without deuce.
+- `winBy`: minimum difference; for MAJADU 30 the value is 1 (no deuce).
+- `deuceAt`: the opponent's score at which the `winBy` rule starts to apply; `null` = there is
+  no deuce.
+- `maxPoints`: cap. Once the cap is reached, a difference of 1 is enough.
+- `changeEndsAt`: a UI hint only ("change ends at 11"), it does not affect
+  data or validation.
 
-`ratingTarget` sudah tidak ada: `pointsToWin` **adalah** target penilaian.
-`mode` juga tidak ditulis di config; preset dari config selalu `"preset"`, dan
-hanya snapshot `legacy_v1` yang memakai `"legacy"`.
+`ratingTarget` no longer exists: `pointsToWin` **is** the rating target.
+`mode` is not written in the config either; presets from config are always `"preset"`, and
+only the `legacy_v1` snapshot uses `"legacy"`.
 
-### 5.3 Validasi saat load
+### 5.3 Validation at load
 
-`loadSnapshot` sudah menolak start kalau ada key hilang/tipe salah. Tambahkan
-validasi untuk key JSON ini (fungsi `parsePresets` di `modules/session/scoring.nim`,
-dipanggil dari `modules/platform/config/store.nim`):
+`loadSnapshot` already refuses to start if a key is missing or has the wrong type. Add
+validation for these JSON keys (function `parsePresets` in `modules/session/scoring.nim`,
+called from `modules/platform/config/store.nim`):
 
-| Aturan | Pesan |
+| Rule | Message |
 |---|---|
-| array, panjang 1..20 | `session.scoring_presets must be a non-empty array (max 20)` |
-| `id` cocok regex, unik, bukan `legacy_v1` | `duplicate preset id: x` |
+| array, length 1..20 | `session.scoring_presets must be a non-empty array (max 20)` |
+| `id` matches the regex, unique, not `legacy_v1` | `duplicate preset id: x` |
 | `gamesToWin` 1..5 | `preset x: gamesToWin must be 1..5` |
 | `pointsToWin` 1..99 | `preset x: pointsToWin must be 1..99` |
 | `winBy` 1..10 | `preset x: winBy must be 1..10` |
 | `maxPoints` ≥ `pointsToWin`, ≤ 99 | `preset x: maxPoints must be at least pointsToWin` |
-| `deuceAt` null atau `pointsToWin-1 .. maxPoints-1` | `preset x: deuceAt is out of range` |
-| `changeEndsAt` null atau 1..`pointsToWin-1` | `preset x: changeEndsAt is out of range` |
-| `default_scoring_preset` ada di array | `default preset not found: x` |
+| `deuceAt` null or `pointsToWin-1 .. maxPoints-1` | `preset x: deuceAt is out of range` |
+| `changeEndsAt` null or 1..`pointsToWin-1` | `preset x: changeEndsAt is out of range` |
+| `default_scoring_preset` exists in the array | `default preset not found: x` |
 
-Semua gagal **saat start**, bukan saat request. Ini konsisten dengan filosofi
-config repo: tidak ada default tersembunyi di kode.
+All fail **at start**, not at request time. This is consistent with the repo's
+config philosophy: no hidden defaults in code.
 
-Validasi override komunitas dilakukan di route settings saat menulis:
-`session.default_scoring_preset` harus id yang ada di preset platform saat itu.
-Kalau tidak → `400 INVALID_CONFIG`. Tidak ada fallback diam-diam saat
-`createSession`: id yang sudah tidak ada di config → `400 INVALID_PRESET`.
-Ini mencegah sesi lahir dengan format yang tidak bisa dijelaskan ke pengguna.
+Community override validation happens in the settings route at write time:
+`session.default_scoring_preset` must be an id that exists in the platform presets at that moment.
+Otherwise → `400 INVALID_CONFIG`. There is no silent fallback in
+`createSession`: an id that no longer exists in the config → `400 INVALID_PRESET`.
+This prevents a session from being born with a format that cannot be explained to users.
 
-### 5.4 Snapshot per sesi
+### 5.4 Snapshot per session
 
-`session.sessions` menyimpan dua kolom:
+`session.sessions` stores two columns:
 
-- `scoring_preset text` — id.
-- `scoring_rules jsonb` — salinan penuh aturan.
+- `scoring_preset text`: id.
+- `scoring_rules jsonb`: full copy of the rules.
 
-Contoh snapshot untuk sesi baru:
+Snapshot example for a new session:
 
 ```json
 {
@@ -284,7 +284,7 @@ Contoh snapshot untuk sesi baru:
 }
 ```
 
-Snapshot untuk sesi lama (dibuat oleh migrasi):
+Snapshot for an old session (created by the migration):
 
 ```json
 {
@@ -300,35 +300,35 @@ Snapshot untuk sesi lama (dibuat oleh migrasi):
 }
 ```
 
-`mode: "legacy"` adalah satu-satunya cabang khusus: validasi set hanya
-"0..99 dan tidak seri", persis perilaku v1. Tanpa flag ini, membuka kembali
-sesi lama untuk memperbaiki skor 21–19 akan ditolak oleh aturan 30 poin.
+`mode: "legacy"` is the only special branch: set validation is only
+"0..99 and not tied", exactly the v1 behaviour. Without this flag, reopening an old
+session to fix a 21–19 score would be rejected by the 30-point rule.
 
-**Sesi lama = sesi MAJADU 30, jadi dinilai dengan target 30.** Sebelumnya
-penilaian memakai `rating.score_target = 21`; itu bug, dan karena poin tidak
-disimpan, perbaikan ini otomatis berlaku retroaktif saat papan dibaca. Tidak
-ada migrasi poin; yang perlu disadari hanya pergerakan papan (§10–11).
+**An old session = a MAJADU 30 session, so it is rated with target 30.** Previously
+rating used `rating.score_target = 21`; that was a bug, and because points are not
+stored, this fix automatically applies retroactively when the board is read. There is no
+point migration; what needs to be understood is only the board movement (§10–11).
 
-`legacy_v1` **tidak pernah** ada di `session.scoring_presets`, sehingga tidak
-bisa dipilih di wizard dan tidak bisa dipakai `PATCH`.
+`legacy_v1` is **never** present in `session.scoring_presets`, so it
+cannot be selected in the wizard and cannot be used by `PATCH`.
 
-### 5.5 Kenapa snapshot, bukan referensi
+### 5.5 Why a snapshot, not a reference
 
-Kalau sesi hanya menyimpan id, lalu operator mengubah `pointsToWin` atau
-menghapus preset, sesi lama berubah arti (skor yang dulu sah jadi tidak sah,
-poin berubah). Snapshot membuat aturan menjadi bagian dari data hasil, sama
-seperti `rating.events.local_date` menyimpan tanggal saat hasil dikunci.
+If a session stored only the id, and an operator then changed `pointsToWin` or
+deleted the preset, old sessions would change meaning (scores that used to be valid become
+invalid, points change). A snapshot makes the rules part of the result data, the same
+way `rating.events.local_date` stores the date when the result was locked.
 
-Efek sampingnya: mengganti config preset hanya memengaruhi sesi **baru**.
-Itu disengaja dan perlu disebut di handbook.
+Side effect: changing the preset config only affects **new** sessions.
+That is intentional and needs to be mentioned in the handbook.
 
-### 5.6 Cara klien membaca daftar preset
+### 5.6 How the client reads the preset list
 
-`session.scoring_presets` adalah key **platform**, sehingga tidak muncul di
-`effective` (yang hanya berisi key community-scoped). Wizard butuh daftarnya
-sebelum sesi dibuat.
+`session.scoring_presets` is a **platform** key, so it does not appear in
+`effective` (which only contains community-scoped keys). The wizard needs the list
+before a session is created.
 
-Solusi: `GET /c/{slug}/config` menambahkan field referensi **read-only**:
+Solution: `GET /c/{slug}/config` adds a **read-only** reference field:
 
 ```json
 {
@@ -340,26 +340,26 @@ Solusi: `GET /c/{slug}/config` menambahkan field referensi **read-only**:
 }
 ```
 
-- Bukan setting; tidak bisa ditulis lewat `PATCH /c/{slug}/settings`.
-- Isinya sama untuk semua komunitas; default per komunitas tetap diambil dari
+- Not a setting; it cannot be written through `PATCH /c/{slug}/settings`.
+- Its content is the same for all communities; the per-community default is still taken from
   `effective["session.default_scoring_preset"]`.
-- Kalau nanti preset boleh berbeda per komunitas, field ini yang berubah tanpa
-  mengubah bentuk `effective`.
+- If presets later become allowed to differ per community, this field is what changes without
+  changing the shape of `effective`.
 
-Di klien, `community/api.ts` (`fetchCommunityConfig`) dan
-`community/useCommunityConfig.ts` diperluas supaya mengembalikan
-`{ effective, scoringPresets }`; wizard dan `SettingsPage` memakai hook yang
-sama. Ini menghindari endpoint baru dan memastikan kedua layar melihat daftar
-yang identik.
+On the client, `community/api.ts` (`fetchCommunityConfig`) and
+`community/useCommunityConfig.ts` are extended to return
+`{ effective, scoringPresets }`; the wizard and `SettingsPage` use the
+same hook. This avoids a new endpoint and ensures both screens see an identical
+list.
 
-Konsekuensi parity: satu case config berubah (field baru). Tidak ada operasi
-baru; tetap 75 operasi.
+Parity consequence: one config case changes (new field). There is no new
+operation; still 75 operations.
 
 ---
 
-## 6. Model data
+## 6. Data model
 
-### 6.1 Migrasi `0029_scoring_presets.sql`
+### 6.1 Migration `0029_scoring_presets.sql`
 
 ```sql
 -- 0029: one slot is one match, and a match is a list of sets.
@@ -415,7 +415,7 @@ from session.games
 where score_a is not null and score_b is not null;
 ```
 
-Konfigurasi ikut migrasi yang sama (pola `0028_config_cleanup.sql`):
+The configuration is part of the same migration (the `0028_config_cleanup.sql` pattern):
 
 ```sql
 insert into platform.config
@@ -443,26 +443,26 @@ update platform.config
 update platform.config_version set version = version + 1;
 ```
 
-Seed (`db/seeds/platform_config.sql`) memakai nilai yang sama dengan
-`on conflict do nothing`, sehingga DB baru dan DB lama berakhir identik.
-`rating.score_target` di seed juga menjadi 30.
+The seed (`db/seeds/platform_config.sql`) uses the same values with
+`on conflict do nothing`, so a new DB and an old DB end up identical.
+`rating.score_target` in the seed also becomes 30.
 
-Catatan:
+Notes:
 
-- `games_identity_unique` diperlukan PostgreSQL untuk FK komposit; isinya
-  redundan dengan `games_round_court_unique` tetapi kolomnya harus persis sama
-  dengan yang direferensikan.
-- `session_id` sudah uuid global, jadi `community_id` di FK adalah lapisan
-  pertahanan tambahan, bukan kebutuhan teknis.
-- Backfill hanya mengambil baris yang punya **kedua** skor. Game `played`
-  tanpa skor (hasil `setPlayed`) tetap tidak punya set, persis seperti hari ini
-  ia tidak dihitung.
-- Backfill tidak menyentuh `status`; game yang dulu `scheduled` tapi punya skor
-  (tidak mungkin lewat API) tetap ikut, dan pembaca tetap memfilter status.
+- `games_identity_unique` is required by PostgreSQL for the composite FK; its content is
+  redundant with `games_round_court_unique` but the columns must be exactly the same
+  as the ones referenced.
+- `session_id` is already a global uuid, so `community_id` in the FK is an extra
+  defence layer, not a technical requirement.
+- The backfill only takes rows that have **both** scores. A `played` game
+  without a score (the result of `setPlayed`) still has no sets, exactly as today
+  it is not counted.
+- The backfill does not touch `status`; a game that was `scheduled` but has a score
+  (not possible through the API) is still included, and readers still filter by status.
 
 ### 6.2 View `session.game_results`
 
-Satu sumber untuk semua pembaca:
+One source for all readers:
 
 ```sql
 create view session.game_results as
@@ -507,80 +507,80 @@ left join lateral (
 ) t on true;
 ```
 
-Arti kolom:
+Column meanings:
 
-- `sets_a`/`sets_b` — jumlah set yang dimenangkan, bukan poin.
-- `points_a`/`points_b` — total poin semua set; inilah yang dipakai standings
-  sebagai `pointsFor`/`pointsAgainst`.
-- `winner` — `'a'`/`'b'` hanya kalau match sudah mencapai `gamesToWin`; string
-  kosong untuk match parsial atau game tanpa set.
-- `points_to_win` — target penilaian yang dibekukan untuk sesi itu.
+- `sets_a`/`sets_b`: number of sets won, not points.
+- `points_a`/`points_b`: total points of all sets; this is what standings use
+  as `pointsFor`/`pointsAgainst`.
+- `winner`: `'a'`/`'b'` only if the match has reached `gamesToWin`; an empty string
+  for a partial match or a game without sets.
+- `points_to_win`: the rating target frozen for that session.
 
-Invariant yang harus dijaga engine: `winner <> ''` menyiratkan
-`sets_played >= games_to_win` dan `sets_a = games_to_win` atau
+Invariant the engine must keep: `winner <> ''` implies
+`sets_played >= games_to_win` and `sets_a = games_to_win` or
 `sets_b = games_to_win`.
 
-Catatan performa: lateral aggregate memakai index unik
-`(session_id, round_no, court_no, set_no)`, dan semua pembaca memfilter
-`community_id` + `session_id` (atau window tanggal lewat `rating.events`)
-sebelum join. Untuk ukuran komunitas sekarang (40 sesi, ~150 pemain) biayanya
-tidak terasa; kalau nanti perlu, view bisa dijadikan materialized view tanpa
-mengubah pembaca.
+Performance note: the lateral aggregate uses the unique index
+`(session_id, round_no, court_no, set_no)`, and all readers filter
+`community_id` + `session_id` (or a date window via `rating.events`)
+before the join. For the current community size (40 sessions, ~150 players) the cost is
+not noticeable; if it becomes necessary later, the view can be turned into a materialized view without
+changing readers.
 
-### 6.3 Kolom lama
+### 6.3 Old columns
 
 `session.games.score_a/score_b`:
 
-- **tidak ditulis lagi** setelah P0 (termasuk `setScore`, `setPlayed`, `swap`);
-- tetap ada sebagai sumber backfill dan jalur rollback;
-- dibaca hanya oleh migrasi, bukan runtime.
+- **no longer written** after P0 (including `setScore`, `setPlayed`, `swap`);
+- still exist as the backfill source and the rollback path;
+- read only by the migration, not at runtime.
 
-`games_not_tied` tetap ada dan aman: kolomnya `null` untuk semua baris baru,
-dan constraint hanya berlaku saat keduanya terisi.
+`games_not_tied` stays and is safe: the columns are `null` for all new rows,
+and the constraint only applies when both are filled.
 
-Drop direncanakan di migrasi lanjutan (P4, setelah satu rilis):
+The drop is planned in a follow-up migration (P4, after one release):
 `alter table session.games drop constraint games_not_tied, drop column score_a, drop column score_b;`
-Tidak dilakukan di 0029 supaya rollback masih mungkin sebelum ada sesi BO3.
+It is not done in 0029 so that rollback is still possible before any BO3 session exists.
 
-### 6.4 Penulis lama yang harus ikut berubah
+### 6.4 Old writers that must change too
 
-Satu-satunya tempat lain yang menulis skor langsung ke `session.games` adalah
-importer v1 (`tools/import/main.nim:486-502`). Setelah P0, importer harus:
+The only other place that writes scores directly to `session.games` is the
+v1 importer (`tools/import/main.nim:486-502`). After P0, the importer must:
 
-1. tetap menulis sesi tanpa `scoring_preset`/`scoring_rules` (default migrasi =
-   `legacy_v1`, `pointsToWin` 30 — format yang memang dimainkan v1);
-2. menulis satu baris `game_sets (set_no = 1)` setiap kali `score_a/score_b`
-   terisi, di transaksi yang sama dengan upsert game.
+1. keep writing the session without `scoring_preset`/`scoring_rules` (the migration default =
+   `legacy_v1`, `pointsToWin` 30, the format v1 actually played);
+2. write one `game_sets (set_no = 1)` row every time `score_a/score_b`
+   is filled, in the same transaction as the game upsert.
 
-Kalau langkah 2 terlewat, sesi hasil impor tidak terlihat oleh view: standings
-dan rating akan kehilangan data tanpa error. Tambahkan test impor yang
-menghitung `game_sets` = jumlah game berskor.
+If step 2 is missed, the imported session is invisible to the view: standings
+and rating would lose data without an error. Add an import test that
+counts `game_sets` = number of scored games.
 
-### 6.5 Kenapa bukan `game_sets` menempel ke `session.games.id`
+### 6.5 Why `game_sets` does not hang off `session.games.id`
 
-Bisa, dan lebih sederhana. Tapi semua route dan modul sudah mengidentifikasi
-game dengan `(round_no, court_no)` (game key), dan `putSchedule` melakukan
-upsert berdasarkan pasangan itu. Memakai id akan memaksa setiap tulis skor
-membaca id dulu dan menambah satu query. Kunci alami yang sudah dipakai
-konsisten lebih murah, dengan FK komposit sebagai pengaman.
+It could, and it would be simpler. But every route and module already identifies
+a game by `(round_no, court_no)` (the game key), and `putSchedule` performs an
+upsert based on that pair. Using the id would force every score write to
+read the id first and add one query. The natural key that is already used
+consistently is cheaper, with the composite FK as a safety net.
 
-### 6.6 Batasan ukuran
+### 6.6 Size limits
 
-- `maxPoints ≤ 99` karena `game_sets_score_range` dan `session.games.score_range`
-  memakai 0..99. Total satu match maksimum 3 × 99 = 297, tetapi cap realistis
-  saat ini 30 → maksimum 90.
-- `set_no ≤ 9` memberi ruang untuk format panjang tanpa migrasi baru.
-- Tidak ada batas jumlah pemain baru.
+- `maxPoints ≤ 99` because `game_sets_score_range` and `session.games.score_range`
+  use 0..99. The maximum total for one match is 3 × 99 = 297, but the realistic cap
+  today is 30 → maximum 90.
+- `set_no ≤ 9` leaves room for long formats without a new migration.
+- No new limit on the number of players.
 
 ---
 
-## 7. Engine aturan skor (modul murni)
+## 7. Scoring rules engine (pure module)
 
-Berkas baru: `modules/session/scoring.nim`. Tanpa DB, tanpa config loader,
-supaya bisa diuji langsung dan dipakai ulang oleh route, rating, dan (secara
-konsep) validasi klien.
+New file: `modules/session/scoring.nim`. No DB, no config loader,
+so it can be tested directly and reused by routes, rating, and (conceptually)
+client validation.
 
-### 7.1 Tipe
+### 7.1 Types
 
 ```nim
 import std/[json, options]
@@ -624,7 +624,7 @@ type
     setIndex*: int      # 1-based; 0 when the error is about the list
 ```
 
-### 7.2 Validasi satu set
+### 7.2 Validating a single set
 
 ```nim
 proc validSet*(rules: ScoringRules, s: SetScore): SetError =
@@ -651,34 +651,34 @@ proc validSet*(rules: ScoringRules, s: SetScore): SetError =
   if high - low < need: seWinBy else: seOk
 ```
 
-Tabel kebenaran (dipakai sebagai test):
+Truth table (used as a test):
 
-| Preset | Skor | Hasil | Alasan |
+| Preset | Score | Result | Reason |
 |---|---|---|---|
-| majadu30 | 30–29 | sah | cap 30 |
-| majadu30 | 29–28 | ditolak | belum 30 |
-| majadu30 | 30–0 | sah | cap |
-| classic21 | 21–19 | sah | 21 poin, selisih 2 |
-| classic21 | 21–20 | ditolak | deuce 20–20 butuh 2 |
-| classic21 | 22–20 | sah | deuce terpenuhi |
-| classic21 | 30–29 | sah | cap |
-| classic21 | 31–29 | ditolak | di atas cap |
-| classic21 | 29–28 | ditolak | deuce, selisih 1 |
-| classic21 | 20–18 | ditolak | belum 21 |
-| bwf15 | 15–13 | sah | 15 poin |
-| bwf15 | 15–14 | ditolak | deuce 14–14 butuh 2 |
-| bwf15 | 16–14 | sah | deuce terpenuhi |
-| bwf15 | 21–20 | sah | cap 21 |
-| bwf15 | 20–19 | ditolak | deuce, selisih 1 |
-| legacy_v1 | 21–19 | sah | mode legacy |
-| legacy_v1 | 30–5 | sah | mode legacy |
-| semua | 15–15 | ditolak | seri |
+| majadu30 | 30–29 | valid | cap 30 |
+| majadu30 | 29–28 | rejected | not yet 30 |
+| majadu30 | 30–0 | valid | cap |
+| classic21 | 21–19 | valid | 21 points, difference 2 |
+| classic21 | 21–20 | rejected | deuce 20–20 needs 2 |
+| classic21 | 22–20 | valid | deuce satisfied |
+| classic21 | 30–29 | valid | cap |
+| classic21 | 31–29 | rejected | above cap |
+| classic21 | 29–28 | rejected | deuce, difference 1 |
+| classic21 | 20–18 | rejected | not yet 21 |
+| bwf15 | 15–13 | valid | 15 points |
+| bwf15 | 15–14 | rejected | deuce 14–14 needs 2 |
+| bwf15 | 16–14 | valid | deuce satisfied |
+| bwf15 | 21–20 | valid | cap 21 |
+| bwf15 | 20–19 | rejected | deuce, difference 1 |
+| legacy_v1 | 21–19 | valid | legacy mode |
+| legacy_v1 | 30–5 | valid | legacy mode |
+| all | 15–15 | rejected | tie |
 
-Perhatikan urutan aturan: cap diperiksa **sebelum** `winBy`. Tanpa urutan itu,
-30–29 di classic21 akan ditolak karena deuce, padahal cap justru mengakhiri
-deuce.
+Note the rule order: the cap is checked **before** `winBy`. Without that order,
+30–29 in classic21 would be rejected because of deuce, even though the cap is exactly
+what ends the deuce.
 
-### 7.3 Validasi daftar set
+### 7.3 Validating the set list
 
 ```nim
 proc validateSets*(rules: ScoringRules, sets: openArray[SetScore]): SetVerdict =
@@ -695,11 +695,11 @@ proc validateSets*(rules: ScoringRules, sets: openArray[SetScore]): SetVerdict =
   SetVerdict(error: seOk)
 ```
 
-`seNotContiguous` tidak pernah dipakai: body selalu mengirim daftar penuh, jadi
-tidak ada input yang dapat menghasilkannya. Anggota enum itu sudah dihapus
-supaya tidak ada cabang mati yang dipetakan ke kode respons.
+`seNotContiguous` is never used: the body always sends the full list, so
+no input can produce it. That enum member has been removed so that there is no
+dead branch mapped to a response code.
 
-### 7.4 Turunan
+### 7.4 Derivations
 
 ```nim
 proc setsWon*(rules: ScoringRules, sets: openArray[SetScore]): (int, int)
@@ -710,7 +710,7 @@ proc points*(sets: openArray[SetScore]): (int, int)
 
 `matchComplete` = `setsWon[0] >= gamesToWin or setsWon[1] >= gamesToWin`.
 
-### 7.5 Margin untuk rating
+### 7.5 Margin for rating
 
 ```nim
 proc ratingMargin*(rules: ScoringRules, sets: openArray[SetScore]): float =
@@ -732,12 +732,12 @@ proc ratingMargin*(rules: ScoringRules, sets: openArray[SetScore]): float =
   total.float / (rules.pointsToWin.float * sets.len.float)
 ```
 
-Tidak ada field target terpisah: `pointsToWin` dari snapshot adalah target
-penilaian. Sesi lama memakai 30 karena memang MAJADU 30; sesi baru memakai
-target presetnya. `rating.score_target` hanya tersisa sebagai fallback untuk
-baris tanpa snapshot (lihat §10.5).
+There is no separate target field: `pointsToWin` from the snapshot is the rating
+target. Old sessions use 30 because they really are MAJADU 30; new sessions use
+their preset target. `rating.score_target` only remains as a fallback for
+rows without a snapshot (see §10.5).
 
-### 7.6 Serialisasi
+### 7.6 Serialization
 
 ```nim
 proc parseRules*(node: JsonNode): ScoringRules
@@ -745,67 +745,67 @@ proc rulesJson*(rules: ScoringRules): JsonNode
 proc parsePresets*(node: JsonNode): seq[ScoringRules]
 ```
 
-`parseRules` dipakai untuk config dan untuk membaca snapshot dari DB. Bentuk
-keduanya identik; tidak ada default yang hanya berlaku di satu jalur.
+`parseRules` is used for config and for reading the snapshot from the DB. Both
+shapes are identical; there is no default that applies on only one path.
 
-### 7.7 Salinan di klien
+### 7.7 Client-side copy
 
-`apps/web/src/legacy/utils/scoreValidation.ts` sekarang hanya mengecek seri dan
-0..99. Ganti dengan fungsi yang menerima `scoring` dari respons sesi dan
-mengimplementasikan aturan yang sama. Ini **pratinjau**, bukan otoritas:
-server tetap memvalidasi ulang dan mengembalikan kode error.
+`apps/web/src/legacy/utils/scoreValidation.ts` currently only checks ties and
+0..99. Replace it with a function that takes `scoring` from the session response and
+implements the same rules. This is a **preview**, not the authority:
+the server still revalidates and returns error codes.
 
-Alasan menyalin, bukan memanggil server per set: operator mengetik tiga set
-berurutan; round-trip per set membuat input terasa rusak saat jaringan lambat.
-Test klien harus memakai tabel kebenaran yang sama dengan engine Nim (lihat
-§16) supaya dua implementasi tidak menyimpang.
+The reason for copying instead of calling the server per set: an operator types three sets
+in a row; a round-trip per set makes input feel broken on a slow network.
+Client tests must use the same truth table as the Nim engine (see
+§16) so the two implementations do not drift.
 
 ---
 
-## 8. Alur tulis & alur baca
+## 8. Write path & read path
 
-### 8.1 Membuat sesi
+### 8.1 Creating a session
 
-`POST /c/{slug}/sessions` menerima field opsional `scoringPreset`.
+`POST /c/{slug}/sessions` accepts the optional `scoringPreset` field.
 
-Urutan di `createSession` (`apps/api/src/app.nim:~575`):
+Order in `createSession` (`apps/api/src/app.nim:~575`):
 
-1. Baca `scoringPreset`; kalau bukan string → `400 INVALID_BODY`.
-2. Ambil snapshot config + settings komunitas (`currentSettings`).
-3. Tentukan id: field → atau `stringValue(settings, keySessionDefaultScoringPreset)`.
-4. Cari preset di `session.scoring_presets`; tidak ada → `400 INVALID_PRESET`.
-   `legacy_v1` juga ditolak di sini.
-5. Susun `scoring_rules` dari preset (tanpa field target terpisah).
-6. Insert sesi dengan kedua kolom.
+1. Read `scoringPreset`; if it is not a string → `400 INVALID_BODY`.
+2. Fetch the config snapshot + community settings (`currentSettings`).
+3. Determine the id: the field → or `stringValue(settings, keySessionDefaultScoringPreset)`.
+4. Look up the preset in `session.scoring_presets`; not found → `400 INVALID_PRESET`.
+   `legacy_v1` is also rejected here.
+5. Build `scoring_rules` from the preset (no separate target field).
+6. Insert the session with both columns.
 
-Sesi lama tidak pernah melewati jalur ini; kolomnya sudah terisi default migrasi.
+Old sessions never go through this path; their columns are already filled with the migration default.
 
-### 8.2 Mengubah preset
+### 8.2 Changing the preset
 
-`PATCH /c/{slug}/sessions/{id}` menerima `scoringPreset`.
+`PATCH /c/{slug}/sessions/{id}` accepts `scoringPreset`.
 
-Guard (di `modules/session/write.nim`):
+Guard (in `modules/session/write.nim`):
 
 ```
 if patch.scoringPreset.isSome:
-  session harus status 'draft'           -> 409 LOCKED
-  tidak boleh ada baris session.game_sets -> 409 PRESET_LOCKED
-  id harus ada di config saat ini         -> 400 INVALID_PRESET
-  snapshot diganti penuh (bukan merge)
+  the session must have status 'draft'    -> 409 LOCKED
+  there must be no session.game_sets row  -> 409 PRESET_LOCKED
+  the id must exist in the current config -> 400 INVALID_PRESET
+  the snapshot is replaced in full (not merged)
 ```
 
-Snapshot diganti, bukan ditambal, supaya aturan sesi selalu konsisten dengan
-preset yang dipilih.
+The snapshot is replaced, not patched, so the session rules are always consistent with
+the selected preset.
 
-"Belum ada set" berarti operator harus mengosongkan set dulu:
-`PATCH .../games/{key}` dengan `{"sets": []}` menghapus semua set dan
-mengembalikan status game ke `scheduled`. Tidak ada endpoint baru.
+"No sets yet" means the operator must clear the sets first:
+`PATCH .../games/{key}` with `{"sets": []}` deletes all sets and
+returns the game status to `scheduled`. There is no new endpoint.
 
-### 8.3 Menulis skor
+### 8.3 Writing scores
 
-`PATCH /c/{slug}/sessions/{id}/games/{gameKey}` (tetap, dengan `If-Match`):
+`PATCH /c/{slug}/sessions/{id}/games/{gameKey}` (unchanged, with `If-Match`):
 
-Body baru:
+New body:
 
 ```json
 {
@@ -817,98 +817,98 @@ Body baru:
 }
 ```
 
-Body lama tetap diterima:
+The old body is still accepted:
 
 ```json
 {"scoreA": 30, "scoreB": 28}
 ```
 
-Aturan kompatibilitas:
+Compatibility rules:
 
-| Preset sesi | Body `scoreA/scoreB` | Body `sets` |
+| Session preset | `scoreA/scoreB` body | `sets` body |
 |---|---|---|
-| `gamesToWin = 1` (termasuk legacy) | diterima → satu set | diterima, maksimal 1 set |
-| `gamesToWin > 1` | `400 SETS_REQUIRED` | diterima |
+| `gamesToWin = 1` (including legacy) | accepted → one set | accepted, at most 1 set |
+| `gamesToWin > 1` | `400 SETS_REQUIRED` | accepted |
 
-`scoreA/scoreB` untuk sesi multi-set tidak "ditebak" jadi set pertama. Menebak
-akan membuat match 1–0 yang tidak pernah dimainkan.
+`scoreA/scoreB` for a multi-set session is not "guessed" into the first set. Guessing
+would create a 1–0 match that was never played.
 
-Alur tulis (`setSets` di `schedule.nim`, pengganti `setScore`):
+Write path (`setSets` in `schedule.nim`, replacing `setScore`):
 
 ```
 1. parseGameKey
-2. gate(): draft + versi cocok                -> 404/409
-3. baca scoring_rules sesi
-4. validSet untuk tiap set                    -> 400 INVALID_SCORE (index)
-5. validateSets (jumlah, urutan, setelah end) -> 400 INVALID_SET_SEQUENCE
-6. bump() versi sesi
+2. gate(): draft + version matches                -> 404/409
+3. read the session scoring_rules
+4. validSet for each set                           -> 400 INVALID_SCORE (index)
+5. validateSets (count, order, after end)          -> 400 INVALID_SET_SEQUENCE
+6. bump() the session version
 7. delete from session.game_sets where ...
-8. insert semua set
+8. insert all sets
 9. update session.games set status = 'played' | 'scheduled'
-   - played bila matchComplete
-   - scheduled bila parsial atau kosong
+   - played when matchComplete
+   - scheduled when partial or empty
 10. commit
 ```
 
-Catatan status: kalau match sebelumnya ditandai `played` tanpa set, lalu diisi
-satu set parsial, status kembali ke `scheduled` sampai match benar-benar
-selesai. `played` berarti "terjadi dan lengkap" untuk keperluan hitung; penanda
-"terjadi tanpa skor" hanya berlaku selama belum ada set.
+Status note: if a match was previously marked `played` without sets, then a partial set
+is filled in, the status goes back to `scheduled` until the match is really
+finished. `played` means "happened and complete" for counting purposes; the
+"happened without a score" marker only applies while no sets exist yet.
 
-Semua langkah 6–9 dalam satu transaksi, jadi tidak ada keadaan "set tersimpan
-tapi status salah" kalau proses mati di tengah.
+All of steps 6–9 are in one transaction, so there is no "sets saved
+but status wrong" state if the process dies halfway.
 
-Set kosong (`{"sets": []}`) berarti hapus skor: set dihapus, status `scheduled`.
-Ini juga cara membatalkan match yang salah input.
+An empty set list (`{"sets": []}`) means delete the score: the sets are deleted, status `scheduled`.
+This is also how to cancel a match that was entered incorrectly.
 
-Status game **tidak** ditambah `in_progress`. Tiga nilai lama
-(`scheduled`/`played`/`cancelled`) cukup; progres dibaca dari panjang `sets`.
-Menambah nilai status akan memaksa perubahan constraint, kontrak, dan semua
-konsumen yang membandingkan string.
+The game status is **not** given an `in_progress` value. The three old values
+(`scheduled`/`played`/`cancelled`) are enough; progress is read from the length of `sets`.
+Adding a status value would force changes to the constraint, the contract, and every
+consumer that compares strings.
 
 ### 8.4 `setPlayed`
 
-Perilaku lama: `{"played": true}` menandai game terjadi tanpa skor;
-`{"played": false}` mengembalikan ke `scheduled` dan menghapus skor.
+Old behaviour: `{"played": true}` marks the game as happened without a score;
+`{"played": false}` returns it to `scheduled` and deletes the score.
 
-Perilaku baru:
+New behaviour:
 
-| Body | Ada set? | Efek |
+| Body | Sets present? | Effect |
 |---|---|---|
-| `{"played": true}` | tidak | status `played`, tanpa set (sama seperti v1) |
-| `{"played": true}` | ya | `409 MATCH_HAS_SETS` — minta clear dulu |
-| `{"played": false}` | tidak | status `scheduled` |
-| `{"played": false}` | ya | set dihapus, status `scheduled` |
+| `{"played": true}` | no | status `played`, no sets (same as v1) |
+| `{"played": true}` | yes | `409 MATCH_HAS_SETS`: ask to clear first |
+| `{"played": false}` | no | status `scheduled` |
+| `{"played": false}` | yes | sets deleted, status `scheduled` |
 
-Alasan `true` + set ditolak: menandai "played" pada match berset akan menghapus
-set yang sudah diisi, dan itu tidak boleh terjadi karena klik yang tidak
-sengaja. Tujuan "played tanpa skor" hanya masuk akal sebelum ada set.
+Why `true` + sets is rejected: marking a match that has sets as "played" would delete
+the sets already filled in, and that must not happen from an accidental click. The
+purpose of "played without a score" only makes sense before any sets exist.
 
 ### 8.5 Swap
 
-`modules/session/swap.nim` memindahkan isi satu game ke game lain (termasuk
-pemain dan skor) selama sesi draft. Dengan set:
+`modules/session/swap.nim` moves the content of one game to another game (including
+players and scores) while the session is a draft. With sets:
 
-- `readContent` ikut membaca `game_sets` untuk (round, court);
-- `writeContent` memindahkan set ke target;
-- `score_a/score_b` tetap disalin apa adanya (untuk sesi legacy yang masih
-  menyimpannya), meskipun baris baru selalu `null`.
+- `readContent` also reads `game_sets` for (round, court);
+- `writeContent` moves the sets to the target;
+- `score_a/score_b` is still copied as-is (for legacy sessions that still
+  store it), even though new rows are always `null`.
 
-Urutan di dalam transaksi: baca kedua sisi → hapus set di kedua slot → tulis
-set ke target. Unique `(session_id, round_no, court_no, set_no)` aman karena
-penghapusan terjadi sebelum insert.
+Order inside the transaction: read both sides → delete the sets in both slots → write
+the sets to the target. The unique `(session_id, round_no, court_no, set_no)` is safe because
+the deletion happens before the insert.
 
-Test wajib: swap game BO3 2–1 ke slot kosong mempertahankan tiga set dan
-pemenang; swap balik mengembalikan keadaan semula.
+Required test: swapping a 2–1 BO3 game into an empty slot keeps the three sets and
+the winner; swapping back restores the original state.
 
-### 8.6 Hapus sesi
+### 8.6 Deleting a session
 
-`session.game_sets` memakai `on delete cascade` ke `session.games`, dan
-`session.games` cascade ke `session.sessions`. `delete` di `write.nim` sudah
-menghapus `session.games`; set ikut tanpa perubahan kode. Test yang ada harus
-tetap lulus.
+`session.game_sets` uses `on delete cascade` to `session.games`, and
+`session.games` cascades to `session.sessions`. `delete` in `write.nim` already
+deletes `session.games`; the sets follow with no code change. The existing tests must
+still pass.
 
-### 8.7 Membaca sesi
+### 8.7 Reading a session
 
 `GET /c/{slug}/sessions/{id}`:
 
@@ -949,26 +949,26 @@ tetap lulus.
 }
 ```
 
-Aturan payload:
+Payload rules:
 
-- `scoreA/scoreB` = total poin semua set (bukan set yang dimenangkan). Nama
-  dipertahankan supaya konsumen lama tidak pecah; arti barunya didokumentasikan.
-- `setsWonA/setsWonB` = jumlah set.
-- `winner` = `"A"`, `"B"`, atau `null`. Untuk match parsial `null`.
-- `sets` selalu ada (array kosong untuk game tanpa skor).
-- `scoring` hanya di detail dan share, **tidak** di respons create/patch/lock,
-  supaya diff parity lebih kecil dan klien memang selalu membaca detail setelah
-  navigasi.
+- `scoreA/scoreB` = total points of all sets (not sets won). The names
+  are kept so old consumers do not break; the new meaning is documented.
+- `setsWonA/setsWonB` = number of sets.
+- `winner` = `"A"`, `"B"`, or `null`. For a partial match, `null`.
+- `sets` is always present (an empty array for a game without a score).
+- `scoring` is only in detail and share, **not** in the create/patch/lock responses,
+  so the parity diff is smaller and clients really do always read the detail after
+  navigation.
 
-`GET /c/{slug}/sessions/{id}/games/{gameKey}` mengembalikan bentuk game yang
-sama (tanpa `scoring`), untuk konsumen yang membaca satu game.
+`GET /c/{slug}/sessions/{id}/games/{gameKey}` returns the same game shape
+(without `scoring`), for consumers that read a single game.
 
-`GET /s/{code}` memakai bentuk game yang sama + `scoring` di level atas.
+`GET /s/{code}` uses the same game shape + `scoring` at the top level.
 
-### 8.8 Membaca standings
+### 8.8 Reading standings
 
-`sessionStandings.compute` tetap mengembalikan bentuk yang sama
-(`items[].wins/losses/pointsFor/pointsAgainst/diff`). Yang berubah hanya query:
+`sessionStandings.compute` still returns the same shape
+(`items[].wins/losses/pointsFor/pointsAgainst/diff`). Only the query changes:
 
 ```sql
 select round_no, court_no, winner, points_a, points_b, status
@@ -977,247 +977,247 @@ where community_id = $1 and session_id = $2
   and status = 'played' and winner <> ''
 ```
 
-Perhitungan:
+Calculation:
 
-- sisi A menang bila `winner = 'a'`;
-- `pointsFor` = `points_a` atau `points_b` sesuai sisi;
-- satu match menambah **satu** menang/kalah.
+- side A wins when `winner = 'a'`;
+- `pointsFor` = `points_a` or `points_b` depending on the side;
+- one match adds **one** win/loss.
 
-Tidak perlu mengubah sorting atau bentuk JSON.
+There is no need to change sorting or the JSON shape.
 
 ---
 
-## 9. API & kontrak
+## 9. API & contract
 
-### 9.1 Ringkasan perubahan
+### 9.1 Summary of changes
 
-| Operasi | Perubahan | Kode error baru |
+| Operation | Change | New error codes |
 |---|---|---|
-| `POST /c/{slug}/sessions` | field `scoringPreset` opsional | `400 INVALID_PRESET` |
-| `PATCH /c/{slug}/sessions/{id}` | field `scoringPreset` opsional, guard set | `409 PRESET_LOCKED`, `400 INVALID_PRESET` |
-| `PATCH .../games/{gameKey}` | body `sets[]`; `scoreA/scoreB` hanya single-set | `400 SETS_REQUIRED`, `400 INVALID_SET_SEQUENCE`, `409 MATCH_HAS_SETS` |
-| `GET .../sessions/{id}` | `scoring`, `sets`, `setsWonA/B`, `winner` | — |
-| `GET .../sessions/{id}/games/{gameKey}` | bentuk game baru | — |
-| `GET /s/{code}` | `scoring` + bentuk game baru | — |
-| `GET .../standings` | tidak berubah | — |
-| `GET /c/{slug}/config` | field read-only `scoringPresets` | — |
-| `PATCH /c/{slug}/settings` | validasi `session.default_scoring_preset` | `400 INVALID_CONFIG` |
+| `POST /c/{slug}/sessions` | optional `scoringPreset` field | `400 INVALID_PRESET` |
+| `PATCH /c/{slug}/sessions/{id}` | optional `scoringPreset` field, set guard | `409 PRESET_LOCKED`, `400 INVALID_PRESET` |
+| `PATCH .../games/{gameKey}` | `sets[]` body; `scoreA/scoreB` only for single-set | `400 SETS_REQUIRED`, `400 INVALID_SET_SEQUENCE`, `409 MATCH_HAS_SETS` |
+| `GET .../sessions/{id}` | `scoring`, `sets`, `setsWonA/B`, `winner` | none |
+| `GET .../sessions/{id}/games/{gameKey}` | new game shape | none |
+| `GET /s/{code}` | `scoring` + new game shape | none |
+| `GET .../standings` | unchanged | none |
+| `GET /c/{slug}/config` | read-only `scoringPresets` field | none |
+| `PATCH /c/{slug}/settings` | validation of `session.default_scoring_preset` | `400 INVALID_CONFIG` |
 
-`400 INVALID_SCORE` yang lama tetap dipakai; pesannya menyebut nomor set
+The old `400 INVALID_SCORE` is still used; its message names the set number
 (`set 2: win by 2`).
 
-### 9.2 Kontrak OpenAPI
+### 9.2 OpenAPI contract
 
-`packages/contracts/openapi/core.yaml` dan `community.yaml` tidak
-mendefinisikan schema body. Jadi:
+`packages/contracts/openapi/core.yaml` and `community.yaml` do not
+define body schemas. So:
 
-- tidak ada perubahan `operationId`, path, atau jumlah operasi (tetap 75);
-- perubahan hanya di deskripsi request/response;
-- `packages/web-client/src/api.ts` dan `apps/api/src/routes_gen.nim` **tidak
-  berubah**, dibuktikan oleh fingerprint `CONTRACT.sha256`.
+- there is no change to `operationId`, paths, or the number of operations (still 75);
+- changes are only in the request/response descriptions;
+- `packages/web-client/src/api.ts` and `apps/api/src/routes_gen.nim` **do not
+  change**, proven by the `CONTRACT.sha256` fingerprint.
 
-Yang didokumentasikan:
+What is documented:
 
-1. `createSession` — field `scoringPreset`, default dari
-   `session.default_scoring_preset`, daftar id dari `session.scoring_presets`.
-2. `patchSession` — field sama + syarat "no sets recorded yet".
-3. `patchGame` — dua bentuk body, kode error, dan arti `scoreA/scoreB` sebagai
-   total poin.
-4. `getSession` / `getGame` / `getShared` — field baru.
-5. Semua tetap menyebut `429`, `413`, `If-Match`, `ETag` seperti sekarang.
-6. `getCommunityConfig` — field `scoringPresets`; `patchSettings` — validasi id
-   default preset.
+1. `createSession`: the `scoringPreset` field, default from
+   `session.default_scoring_preset`, id list from `session.scoring_presets`.
+2. `patchSession`: the same field + the "no sets recorded yet" condition.
+3. `patchGame`: the two body shapes, the error codes, and the meaning of `scoreA/scoreB` as
+   total points.
+4. `getSession` / `getGame` / `getShared`: new fields.
+5. All of them still mention `429`, `413`, `If-Match`, `ETag` as they do now.
+6. `getCommunityConfig`: the `scoringPresets` field; `patchSettings`: validation of the
+   default preset id.
 
-Regenerasi: `./task contract-gen && ./task contract-check`.
+Regeneration: `./task contract-gen && ./task contract-check`.
 
 ### 9.3 Parity
 
-Korpus `testdata/parity/v2` berisi 34 case terkait sesi. Yang berubah body-nya:
+The `testdata/parity/v2` corpus contains 34 session-related cases. Those whose bodies change:
 
-- `get_session*`, `get_shared*`, `get_game*` (field baru);
-- `create_session`, `patch_session*`, `lock_session*` **tidak** berubah karena
-  `scoring` tidak ditambahkan ke respons tulis.
+- `get_session*`, `get_shared*`, `get_game*` (new fields);
+- `create_session`, `patch_session*`, `lock_session*` **do not** change because
+  `scoring` is not added to the write responses.
 
-Rencana: re-record case detail/share/game setelah P0, dan re-record case
-rating/papan karena target berubah 21 → 30 (§11.A). Case `v1` golden corpus
-tetap harus lulus; yang berubah hanya korpus v2 milik repo ini. Rekam dengan
-perintah yang ada di `task.d/parity*.sh`; jangan menyunting JSON dengan tangan.
+Plan: re-record the detail/share/game cases after P0, and re-record the
+rating/board cases because the target changes 21 → 30 (§11.A). The `v1` golden corpus
+cases must still pass; only this repo's v2 corpus changes. Record with the
+commands in `task.d/parity*.sh`; do not edit the JSON by hand.
 
 ---
 
-## 10. Dampak ke perhitungan poin (rating)
+## 10. Impact on point calculation (rating)
 
-### 10.1 Rumus yang berlaku
+### 10.1 The formula in effect
 
-Satu match menyumbang satu nilai:
+One match contributes one value:
 
 ```
-r    = Σ(a_s − b_s) / (pointsToWin × setsPlayed)       # rata-rata margin per set
-v    = sessionBase × (0.5 + 0.5 × clamp(r, −1, 1))
-poin = v × opponentMultiplier
+r      = Σ(a_s − b_s) / (pointsToWin × setsPlayed)     # average margin per set
+v      = sessionBase × (0.5 + 0.5 × clamp(r, −1, 1))
+points = v × opponentMultiplier
 ```
 
-Lalu entry satu sesi = jumlah semua nilai match, dan papan mengambil
-`best_n` entry dalam `window_weeks`.
+Then one session entry = the sum of all match values, and the board takes the
+`best_n` entries within `window_weeks`.
 
-Yang **tidak** berubah:
+What does **not** change:
 
 - `sessionBase` (250), `opponent_clamp` (0.5..1.5), `window_weeks` (12),
   `best_n` (10), `thin_evidence_n` (3), `tier_bands`.
-- `opponentMultiplier` dihitung per match dari tier lawan, bukan per set.
-- Jumlah entry: satu sesi tetap satu entry, berapa pun jumlah set atau match.
-- `player_state`: satu match menambah satu `games_played` dan satu win/loss.
+- `opponentMultiplier` is computed per match from the opponent tier, not per set.
+- Number of entries: one session is still one entry, however many sets or matches it has.
+- `player_state`: one match adds one `games_played` and one win/loss.
 
-### 10.2 Sifat penting: antisimetri
+### 10.2 Key property: antisymmetry
 
-`v(+r) + v(−r) = sessionBase` selama tidak kena clamp. Artinya poin yang
-diberikan ke pemenang dan lawannya selalu berjumlah 250 (sebelum multiplier).
-Ini sudah benar hari ini dan tetap benar setelah perubahan.
+`v(+r) + v(−r) = sessionBase` as long as the clamp is not hit. That means the points
+given to the winner and to the opponent always add up to 250 (before the multiplier).
+This is already correct today and stays correct after the change.
 
-Yang berubah adalah **sebarannya**:
+What changes is the **distribution**:
 
-- Sebelumnya target 21 pada game 30 poin membuat margin 25 (30–5) kena clamp →
-  pemenang 250, lawan 0.
-- Sekarang target 30 membuat margin 25 menjadi `r = 0.833` → 229.17 dan 20.83.
+- Previously, target 21 on a 30-point game made a margin of 25 (30–5) hit the clamp →
+  winner 250, opponent 0.
+- Now target 30 makes a margin of 25 become `r = 0.833` → 229.17 and 20.83.
 
-Jadi blowout berhenti memberi hadiah penuh. Karena poin dihitung ulang saat
-dibaca, perbaikan ini berlaku untuk sesi lama juga.
+So a blowout no longer gives the full reward. Because points are recomputed when
+read, this fix applies to old sessions as well.
 
-### 10.3 Satu skala, tiga format
+### 10.3 One scale, three formats
 
-| Data | Target | Contoh 30–28 | Contoh 30–5 |
+| Data | Target | Example 30–28 | Example 30–5 |
 |---|---|---|---|
-| Sesi lama (MAJADU 30) | 30 | 133.33 | 229.17 |
-| Sesi baru MAJADU 30 | 30 | 133.33 | 229.17 |
-| Sesi baru Classic 21 | 21 | — (skor 21) | — |
-| Sesi baru BWF 15 | 15 | — (skor 15) | — |
+| Old sessions (MAJADU 30) | 30 | 133.33 | 229.17 |
+| New MAJADU 30 sessions | 30 | 133.33 | 229.17 |
+| New Classic 21 sessions | 21 | n/a (score 21) | n/a |
+| New BWF 15 sessions | 15 | n/a (score 15) | n/a |
 
-Konsekuensi yang harus disadari:
+Consequences that must be understood:
 
-- **Papan lama bergerak.** Pemain yang poinnya banyak datang dari blowout
-  kehilangan sebagian; pemain yang kalah tipis mendapat lebih banyak.
-- Total poin satu match tetap 250, jadi total komunitas tidak membengkak atau
-  menyusut; hanya distribusinya yang berubah.
-- Snapshot harian (`rating.snapshots`) yang tersimpan masih berisi angka lama.
-  `prevRank`/`rankDelta` bisa menunjukkan pergerakan sekali saat rilis. Badge
-  `rank_streak` yang sudah ada **tidak** dihitung ulang (lihat §17).
-- Tidak ada migrasi poin: `rating.events` tidak menyimpan poin, jadi cukup
-  deploy dan papan langsung memakai target baru.
+- **The old board moves.** Players whose points came largely from blowouts
+  lose some; players who lost narrowly gain more.
+- The total points of one match remain 250, so the community total does not inflate or
+  shrink; only its distribution changes.
+- Stored daily snapshots (`rating.snapshots`) still contain the old numbers.
+  `prevRank`/`rankDelta` may show movement once at release. Existing `rank_streak`
+  badges are **not** recomputed (see §17).
+- There is no point migration: `rating.events` does not store points, so it is enough to
+  deploy and the board immediately uses the new target.
 
-### 10.4 Kenapa rata-rata per set, bukan total
+### 10.4 Why the average per set, not the total
 
-Kalau memakai total poin mentah:
+With the raw point total:
 
-- BO3 otomatis bernilai sampai 3× satu game (42–63 poin vs 30);
-- pemenang 2–0 selalu mengalahkan pemenang 2–1 hanya karena main lebih sedikit
-  set;
-- cap dan deuce tidak punya arti di poin.
+- BO3 is automatically worth up to 3× one game (42–63 points vs 30);
+- a 2–0 winner always beats a 2–1 winner only because they played fewer
+  sets;
+- cap and deuce have no meaning in points.
 
-Dengan rata-rata per set:
+With the average per set:
 
-- pemenang 2–0 dan 2–1 dengan dominasi sama bernilai sama;
-- menarik match ke tiga set tidak menambah poin;
-- kemenangan deuce panjang (30–29, 30–29) justru bernilai lebih kecil daripada
-  kemenangan normal (21–15, 21–15), karena rasionya mengukur dominasi, bukan
-  ketahanan. Ini perilaku yang sudah ada di v1 untuk game tunggal.
+- 2–0 and 2–1 winners with the same dominance are worth the same;
+- dragging a match to three sets does not add points;
+- a long deuce win (30–29, 30–29) is actually worth less than a
+  normal win (21–15, 21–15), because the ratio measures dominance, not
+  endurance. This is behaviour that already exists in v1 for a single game.
 
-### 10.5 Efek ke pembaca poin
+### 10.5 Effect on point readers
 
-| Pembaca | Perubahan |
+| Reader | Change |
 |---|---|
-| `projection.sessionEntries` | JOIN ke `session.game_results`; `target = points_to_win` per baris; `margin = ratingMargin × target` |
-| `read.boardRows` | tidak berubah (memakai proyeksi) |
-| `read.playerHistory` | pakai `points_a/points_b` dan tambahkan `sets` |
-| `read` lawan/partner tersering | pakai view, hitung per match |
-| `ingest` | menang/kalah dari `winner`; tidak menghitung poin |
+| `projection.sessionEntries` | JOIN to `session.game_results`; `target = points_to_win` per row; `margin = ratingMargin × target` |
+| `read.boardRows` | unchanged (uses the projection) |
+| `read.playerHistory` | use `points_a/points_b` and add `sets` |
+| `read` most frequent opponents/partners | use the view, count per match |
+| `ingest` | win/loss from `winner`; does not count points |
 | `achievement` | `games`/`wins` per match |
-| `snapshots` | tidak berubah; `rating` = poin papan hari itu |
+| `snapshots` | unchanged; `rating` = the board points of that day |
 
-Implementasi proyeksi tidak perlu membaca `game_sets` satu per satu: view sudah
-memberi `points_a`, `points_b`, dan `sets_played`, dan `Σ(a−b) = points_a −
-points_b`. Jadi cukup:
+The projection implementation does not need to read `game_sets` one by one: the view already
+gives `points_a`, `points_b`, and `sets_played`, and `Σ(a−b) = points_a −
+points_b`. So this is enough:
 
 ```
 r = (points_a - points_b) / (points_to_win * max(sets_played, 1))
 value = gameValue(base, r * points_to_win, points_to_win)
 ```
 
-`ratingMargin` di engine tetap dipakai untuk unit test dan pratinjau UI, dengan
-hasil yang sama.
+`ratingMargin` in the engine is still used for unit tests and the UI preview, with
+the same result.
 
-`rating.score_target` tetap ada di registry sebagai **fallback** kalau sebuah
-baris tidak punya `scoring_rules` (tidak mungkin setelah migrasi, tetapi
-menghindari `null` yang membuat satu sesi hilang dari papan). Query memakai:
+`rating.score_target` stays in the registry as a **fallback** if a
+row has no `scoring_rules` (not possible after the migration, but
+it avoids a `null` that would drop a session from the board). The query uses:
 
 ```sql
 coalesce((s.scoring_rules->>'pointsToWin')::int, $4::int) as target
 ```
 
-dengan `$4 = rating.score_target` (migrasi menaikkannya ke 30). Setelah dua
-rilis key ini bisa dihapus; tidak ada lagi sesi yang dinilai dengan 21 kecuali
-preset Classic 21.
-Override komunitas pada `rating.score_target` tidak lagi memengaruhi sesi —
-nilainya hanya dipakai kalau snapshot benar-benar tidak ada.
+with `$4 = rating.score_target` (the migration raises it to 30). After two
+releases this key can be removed; no session is rated with 21 anymore except
+the Classic 21 preset.
+A community override on `rating.score_target` no longer affects sessions:
+its value is only used if the snapshot is genuinely missing.
 
-### 10.6 Turnamen tidak terpengaruh
+### 10.6 Tournaments are not affected
 
-`tournamentEntries` sudah memakai target per fase (`classicTarget`,
-`teamTarget` di `modules/rating/infrastructure/tournament.nim`). Tidak ada
-perubahan di sana. Turnamen tetap di luar lingkup fitur.
+`tournamentEntries` already uses a per-phase target (`classicTarget`,
+`teamTarget` in `modules/rating/infrastructure/tournament.nim`). There is no
+change there. Tournaments remain out of scope for the feature.
 
 ---
 
-## 11. Simulasi angka
+## 11. Number simulations
 
-Semua contoh memakai `sessionBase = 250`, `opponentMultiplier = 1.0` kecuali
-disebut lain. Pembulatan ke integer hanya terjadi saat total entry dilaporkan.
+All examples use `sessionBase = 250`, `opponentMultiplier = 1.0` unless
+stated otherwise. Rounding to an integer only happens when the entry total is reported.
 
-### 11.A Sesi lama: sebelum vs sesudah
+### 11.A Old sessions: before vs after
 
-Sesi lama (snapshot `legacy_v1`), tiga game. Sebelumnya dinilai dengan target 21;
-sekarang target 30:
+An old session (`legacy_v1` snapshot), three games. Previously rated with target 21;
+now target 30:
 
-| Game | Skor | r (21) | Nilai (21) | r (30) | Nilai (30) |
+| Game | Score | r (21) | Value (21) | r (30) | Value (30) |
 |---|---|---|---|---|---|
 | 1 | 30–28 | 0.095238 | 136.90 | 0.066667 | 133.33 |
 | 2 | 30–25 | 0.238095 | 154.76 | 0.166667 | 145.83 |
 | 3 | 28–30 | −0.095238 | 113.10 | −0.066667 | 116.67 |
 | **Total** | | | **404.76** | | **395.83** |
 
-Perubahan: −8,93 poin (−2,2%) untuk pemain ini. Lawan-lawannya mendapat
-kenaikan yang sama besar, karena setiap match tetap berjumlah 250.
+Change: −8.93 points (−2.2%) for this player. Their opponents gain
+the same amount, because every match still adds up to 250.
 
-Contoh per match:
+Per-match example:
 
-- 30–28: pemenang 136.90 → 133.33 (−3.57), lawan 113.10 → 116.67 (+3.57);
-- 30–5: pemenang 250.00 → 229.17 (−20.83), lawan 0.00 → 20.83 (+20.83).
+- 30–28: winner 136.90 → 133.33 (−3.57), opponent 113.10 → 116.67 (+3.57);
+- 30–5: winner 250.00 → 229.17 (−20.83), opponent 0.00 → 20.83 (+20.83).
 
-Jadi papan bergerak dari pemain yang menang besar ke pemain yang kalah tipis.
-Tidak ada migrasi data; perubahan terjadi saat papan dibaca.
+So the board moves from players who win big to players who lose narrowly.
+There is no data migration; the change happens when the board is read.
 
-### 11.B Sesi baru MAJADU 30
+### 11.B New MAJADU 30 sessions
 
-Sesi baru memakai snapshot `majadu30` dengan `pointsToWin = 30`, jadi angkanya
-sama persis dengan kolom "30" di §11.A. Tidak ada era kedua: sesi lama dan baru
-untuk format yang sama kini dinilai dengan skala yang sama.
+New sessions use the `majadu30` snapshot with `pointsToWin = 30`, so the numbers
+are exactly the same as the "30" column in §11.A. There is no second era: old and new
+sessions for the same format are now rated on the same scale.
 
 ### 11.C Blowout
 
-| Skor | Sebelum (target 21) | Sesudah (target 30) |
+| Score | Before (target 21) | After (target 30) |
 |---|---|---|
-| 30–5 (pemenang) | 250.00 (clamp) | 229.17 |
-| 5–30 (lawan) | 0.00 (clamp) | 20.83 |
-| Jumlah | 250.00 | 250.00 |
+| 30–5 (winner) | 250.00 (clamp) | 229.17 |
+| 5–30 (opponent) | 0.00 (clamp) | 20.83 |
+| Sum | 250.00 | 250.00 |
 
-Hadiah untuk menang besar turun 20,83 poin, dan lawan tidak lagi mendapat nol.
-Pemain yang seluruh sesinya blowout kehilangan sekitar 8% poin; lawannya
-mendapat kenaikan setara. Ini berlaku untuk sesi lama maupun baru.
+The reward for winning big drops by 20.83 points, and the opponent no longer gets zero.
+A player whose sessions are all blowouts loses about 8% of their points; their opponents
+gain an equivalent amount. This applies to old and new sessions.
 
-### 11.D Normalisasi BO3
+### 11.D BO3 normalization
 
 Classic BO3 21:
 
-| Set | Σ margin | S | r | Nilai |
+| Sets | Σ margin | S | r | Value |
 |---|---|---|---|---|
 | 21–19, 21–19 | 4 | 2 | 0.095238 | 136.90 |
 | 21–19, 19–21, 21–19 | 2 | 3 | 0.031746 | 128.97 |
@@ -1229,122 +1229,122 @@ Classic BO3 21:
 
 BWF 15:
 
-| Set | Σ margin | S | r | Nilai |
+| Sets | Σ margin | S | r | Value |
 |---|---|---|---|---|
 | 15–13, 15–13 | 4 | 2 | 0.133333 | 141.67 |
 | 15–10, 15–10 | 10 | 2 | 0.333333 | 166.67 |
 | 21–19, 21–19 (cap) | 4 | 2 | 0.133333 | 141.67 |
 | 15–0, 15–0 | 30 | 2 | 1.000000 | 250.00 |
 
-Dua hal yang perlu disadari:
+Two things to be aware of:
 
-1. **Menang 2–0 tidak dua kali menang 1–0.** 21–18, 21–18 (142.86) sama dengan
-   satu set 21–18 (r = 3/21 = 0.142857). Itu memang tujuannya: format tidak
-   memberi bonus hanya karena ada set kedua.
-2. **Menang deuce panjang bernilai lebih kecil.** 30–29, 30–29 (130.95) di bawah
-   21–19, 21–19 (136.90), karena rasionya mengukur dominasi. Ini konsisten
-   dengan rumus v1 dan perlu dikomunikasikan kalau ada yang bertanya.
+1. **Winning 2–0 is not twice winning 1–0.** 21–18, 21–18 (142.86) equals
+   a single set of 21–18 (r = 3/21 = 0.142857). That really is the point: the format
+   gives no bonus just because there is a second set.
+2. **A long deuce win is worth less.** 30–29, 30–29 (130.95) is below
+   21–19, 21–19 (136.90), because the ratio measures dominance. This is consistent
+   with the v1 formula and needs to be communicated if anyone asks.
 
-### 11.E Perbandingan antar-preset pada dominasi setara
+### 11.E Comparison between presets at equivalent dominance
 
-| Preset | Skor | r | Nilai |
+| Preset | Score | r | Value |
 |---|---|---|---|
-| MAJADU 30 | 30–21 (margin 9 = 30% target) | 0.30 | 162.50 |
-| Classic 21 | 21–15, 21–15 (margin 6 = 28,6%) | 0.285714 | 160.71 |
-| BWF 15 | 15–11, 15–11 (margin 4 = 26,7%) | 0.266667 | 158.33 |
+| MAJADU 30 | 30–21 (margin 9 = 30% of target) | 0.30 | 162.50 |
+| Classic 21 | 21–15, 21–15 (margin 6 = 28.6%) | 0.285714 | 160.71 |
+| BWF 15 | 15–11, 15–11 (margin 4 = 26.7%) | 0.266667 | 158.33 |
 
-Selisih antar-preset di bawah 5 poin untuk dominasi yang sebanding. Ini bukti
-bahwa normalisasi bekerja: pilihan format tidak menjadi cara curang menaikkan
-poin.
+The difference between presets is under 5 points for comparable dominance. This is evidence
+that normalization works: choosing a format does not become a cheat to raise
+points.
 
-### 11.F Simulasi satu sesi penuh
+### 11.F Simulation of one full session
 
-Sesi `classic21`, 4 pemain, 3 match, satu lapangan:
+Session `classic21`, 4 players, 3 matches, one court:
 
-| Match | Sisi | Skor set | Set | Poin |
+| Match | Sides | Set score | Sets | Points |
 |---|---|---|---|---|
 | 1 | A+B vs C+D | 21–18, 21–19 | 2–0 | 42–37 |
 | 2 | A+C vs B+D | 19–21, 21–18, 21–19 | 2–1 | 61–58 |
 | 3 | A+D vs B+C | 21–15, 21–17 | 2–0 | 42–32 |
 
-Nilai match:
+Match values:
 
-| Match | Σ margin | S | r | Menang | Kalah |
+| Match | Σ margin | S | r | Win | Loss |
 |---|---|---|---|---|---|
 | 1 | 5 | 2 | 0.119048 | 139.88 | 110.12 |
 | 2 | 3 | 3 | 0.047619 | 130.95 | 119.05 |
 | 3 | 10 | 2 | 0.238095 | 154.76 | 95.24 |
 
-Entry sesi per pemain (satu entry, dijumlahkan):
+Session entry per player (one entry, summed):
 
-| Pemain | Match | Nilai | Total entry |
+| Player | Match | Value | Entry total |
 |---|---|---|---|
 | A | M1 W, M2 W, M3 W | 139.88 + 130.95 + 154.76 | **425.59 → 426** |
 | B | M1 W, M2 L, M3 L | 139.88 + 119.05 + 95.24 | **354.17 → 354** |
 | C | M1 L, M2 W, M3 L | 110.12 + 130.95 + 95.24 | **336.31 → 336** |
 | D | M1 L, M2 L, M3 W | 110.12 + 119.05 + 154.76 | **383.93 → 384** |
 
-Standings sesi yang sama (satu match = satu menang/kalah):
+Standings for the same session (one match = one win/loss):
 
-| Peringkat | Pemain | W–L | PF | PA | Diff |
+| Rank | Player | W–L | PF | PA | Diff |
 |---|---|---|---|---|---|
 | 1 | A | 3–0 | 145 | 127 | +18 |
 | 2 | D | 1–2 | 137 | 135 | +2 |
 | 3 | B | 1–2 | 132 | 140 | −8 |
 | 4 | C | 1–2 | 130 | 142 | −12 |
 
-Perhatikan D di atas B dan C meski sama-sama 1–2: tie-break diff. Ini tetap
-konsisten dengan aturan lama.
+Note that D is above B and C even though all are 1–2: diff tie-break. This stays
+consistent with the old rules.
 
-### 11.G Set parsial tidak dihitung
+### 11.G Partial sets are not counted
 
-Kalau match 2 baru diisi dua set (19–21, 21–18), maka:
+If match 2 has only two sets filled in (19–21, 21–18), then:
 
 - `winner = ''`, `sets_played = 2`;
-- match 2 tidak masuk standings dan tidak masuk rating;
-- entry A sementara = 139.88 + 154.76 = 294.64 (dua match), lalu menjadi 425.59
-  setelah set ketiga diisi.
+- match 2 is not counted in standings and not counted in rating;
+- A's temporary entry = 139.88 + 154.76 = 294.64 (two matches), then becomes 425.59
+  after the third set is filled in.
 
-Tidak ada "poin sementara" yang perlu di-rollback. Setelah match selesai,
-`ingest`/proyeksi berikutnya memakai angka final.
+There are no "temporary points" that need to be rolled back. Once the match is finished,
+the next `ingest`/projection uses the final numbers.
 
-### 11.H Multiplier lawan
+### 11.H Opponent multiplier
 
-Kalau rata-rata kekuatan tier lawan 1,2× populasi:
+If the average opponent tier strength is 1.2× the population:
 
-- match 1 untuk A/B: 139.88 × 1.2 = 167.86;
-- match 1 untuk C/D: 110.12 × 1.2 = 132.14.
+- match 1 for A/B: 139.88 × 1.2 = 167.86;
+- match 1 for C/D: 110.12 × 1.2 = 132.14.
 
-Jumlah tetap 300 (250 × 1.2). Perubahan format tidak menyentuh multiplier.
+The sum is still 300 (250 × 1.2). The format change does not touch the multiplier.
 
-### 11.I best-N dan window
+### 11.I best-N and window
 
-Pemain dengan 12 sesi dalam 12 minggu: tetap dihitung 10 entry terbaik. Sesi
-BO3 tetap **satu** entry meskipun berisi tiga match. Jadi berpindah format
-tidak menambah atau mengurangi jumlah entry yang bersaing di papan; hanya nilai
-per entry yang berubah.
+A player with 12 sessions in 12 weeks: the best 10 entries are still counted. A
+BO3 session is still **one** entry even though it contains three matches. So switching
+format does not increase or decrease the number of entries competing on the board; only the value
+per entry changes.
 
 ### 11.J Achievement
 
-| Metrik | Perubahan |
+| Metric | Change |
 |---|---|
-| `games:*` | satu match BO3 = 1 game (bukan 3) |
-| `wins:*` | satu match BO3 = 1 win |
-| `sessions:*` | tidak berubah |
-| `rank:*`, `rank_streak:*` | tidak berubah (snapshot) |
-| `partners/opponents` | dihitung per match, bukan per set |
+| `games:*` | one BO3 match = 1 game (not 3) |
+| `wins:*` | one BO3 match = 1 win |
+| `sessions:*` | unchanged |
+| `rank:*`, `rank_streak:*` | unchanged (snapshot) |
+| `partners/opponents` | counted per match, not per set |
 
-Contoh: pemain dengan 12 match Classic 21 mendapat badge `games:10` pada match
-ke-10, sama seperti 12 match MAJADU 30.
+Example: a player with 12 Classic 21 matches gets the `games:10` badge at match
+10, the same as with 12 MAJADU 30 matches.
 
 ---
 
 ## 12. Standings
 
-### 12.1 Perubahan minimal
+### 12.1 Minimal change
 
-`modules/session/standings.nim` hanya mengganti query game dan sumber
-menang/kalah:
+`modules/session/standings.nim` only replaces the game query and the source of
+wins/losses:
 
 ```nim
 for game in db.query("""
@@ -1357,46 +1357,46 @@ for game in db.query("""
   let aWon = game.get("winner") == "a"
 ```
 
-Aturan absen dan skip tetap:
+Absence and skip rules stay:
 
-- sisi yang semua pemainnya absen → match dibuang;
-- pemain yang di-skip tidak dihitung, sisi lain tetap dapat hasil;
-- kalau kedua sisi kosong setelah skip → match dibuang.
+- a side whose players are all absent → the match is dropped;
+- a skipped player is not counted, the other side still gets the result;
+- if both sides are empty after the skips → the match is dropped.
 
-Yang berubah hanya satu baris: `scoreA > scoreB` menjadi `winner = 'a'`, dan
-`pointsFor/Against` memakai total poin match.
+Only one line changes: `scoreA > scoreB` becomes `winner = 'a'`, and
+`pointsFor/Against` use the match point total.
 
 ### 12.2 Tie-break
 
-Tetap: wins → diff → pointsFor → nama. Tidak ada perubahan.
+Unchanged: wins → diff → pointsFor → name. No change.
 
-Catatan: `diff` dalam satu sesi BO3 memakai total poin 3 set (mis. +18), jadi
-angkanya lebih besar daripada sesi single game. Itu tidak masalah karena
-standings selalu per sesi, tidak pernah menggabungkan dua format.
+Note: `diff` within one BO3 session uses the total points of 3 sets (for example +18), so
+the number is larger than in a single game session. That is not a problem because
+standings are always per session and never combine two formats.
 
-Kalau suatu saat ada "standings musiman" lintas sesi, ia harus memakai poin
-rating, bukan `pointsFor` mentah. Itu sudah menjadi arah desain sekarang.
+If cross-session "season standings" ever exist, they must use rating
+points, not raw `pointsFor`. That is already the design direction now.
 
-### 12.3 Tampilan
+### 12.3 Display
 
-`GET .../standings` **tidak berubah bentuk** — parity aman. Detail set tidak
-dimasukkan ke standings karena satu baris standings adalah satu pemain, bukan
-satu match. Detail set ada di `games` pada detail sesi/share.
+`GET .../standings` **does not change shape**, so parity is safe. Set details are not
+put into standings because a standings row is one player, not
+one match. Set details live in `games` in the session detail/share.
 
-Di UI, tab Standings tetap seperti sekarang. Yang ditambah hanya kolom kecil
-"set" di kartu match (bukan di tabel standings), mis. `2–1` dengan rincian di
-bawahnya.
+In the UI, the Standings tab stays as it is now. The only addition is a small "set" column
+in the match card (not in the standings table), for example `2–1` with the details
+below it.
 
-### 12.4 Absen & skip pada match BO3
+### 12.4 Absence & skip in a BO3 match
 
-Contoh: A+B vs C+D, skor 2–1, tetapi B tercatat skip di match itu.
+Example: A+B vs C+D, score 2–1, but B is recorded as skipped in that match.
 
-- A tetap mendapat win dan total poin sisi A;
-- B tidak mendapat apa pun;
-- C dan D mendapat loss dan total poin sisi B.
+- A still gets the win and side A's total points;
+- B gets nothing;
+- C and D get the loss and side B's total points.
 
-Ini sama dengan perilaku satu game sekarang. Tidak ada aturan baru per set,
-karena skip selalu berlaku untuk seluruh match.
+This is the same as the current single-game behaviour. There is no new per-set rule,
+because a skip always applies to the whole match.
 
 ---
 
@@ -1404,22 +1404,22 @@ karena skip selalu berlaku untuk seluruh match.
 
 ### 13.1 Achievement
 
-`modules/achievement/infrastructure/backfill.nim` mengganti query game menjadi
-view dan memakai `winner`:
+`modules/achievement/infrastructure/backfill.nim` replaces the game query with the
+view and uses `winner`:
 
 ```nim
 let aWon = row.get("winner") == "a"
 ```
 
-Tidak ada perubahan pada katalog badge atau threshold. Yang perlu diuji:
+There is no change to the badge catalogue or thresholds. What needs to be tested:
 
-- 10 match BO3 → `games:10`, bukan `games:25`;
-- menang 2–0 dan 2–1 sama-sama satu win;
-- rebuild setelah mengubah set menghitung ulang dengan benar.
+- 10 BO3 matches → `games:10`, not `games:25`;
+- winning 2–0 and 2–1 are both one win;
+- a rebuild after changing sets recounts correctly.
 
 ### 13.2 Share (`GET /s/{code}`)
 
-Tambahan:
+Addition:
 
 ```json
 {
@@ -1452,35 +1452,35 @@ Tambahan:
 }
 ```
 
-`standings` tetap dari server (`sessionStandings.compute`), jadi halaman publik
-dan halaman member tidak bisa berbeda.
+`standings` still come from the server (`sessionStandings.compute`), so the public page
+and the member page cannot differ.
 
-### 13.3 Export Instagram
+### 13.3 Instagram export
 
-`InstagramPostPage` memakai `computeStandings` di klien dari `CloudSnapshot`.
-Setelah perubahan:
+`InstagramPostPage` uses `computeStandings` on the client from `CloudSnapshot`.
+After the change:
 
-- `computeStandings` menerima `setsWonA/setsWonB` (atau `winner`) dan total
-  poin; kalau field baru tidak ada (data lama di cache), fallback ke
+- `computeStandings` takes `setsWonA/setsWonB` (or `winner`) and the total
+  points; if the new fields are missing (old data in the cache), fall back to
   `scoreA/scoreB`;
-- `canvasPost.ts` yang menentukan pemenang dari perbandingan skor
-  (`row.scoreA > row.scoreB`) harus memakai `winner`/`setsWon`, kalau tidak
-  kartu hasil bisa menandai pemenang yang salah pada match 2–1;
-- tabel top-10 tidak berubah;
-- kartu hasil menampilkan `2–1` besar dan `21–18, 19–21, 21–17` kecil;
-- untuk `gamesToWin = 1`, tampilan tetap `30–28` supaya tidak ada noise.
+- `canvasPost.ts`, which determines the winner from comparing scores
+  (`row.scoreA > row.scoreB`), must use `winner`/`setsWon`, otherwise the
+  result card could mark the wrong winner in a 2–1 match;
+- the top-10 table does not change;
+- the result card shows `2–1` large and `21–18, 19–21, 21–17` small;
+- for `gamesToWin = 1`, the display stays `30–28` so there is no noise.
 
-Batas canvas 1080×1350 sudah cukup: satu baris rincian set memakai font 11–12
-px dan maksimal ~90 karakter. Kalau lebih panjang (mis. 30–29, 29–30, 30–29),
-tetap muat; tidak perlu mengubah ukuran canvas.
+The 1080×1350 canvas limit is enough: one set-detail line uses an 11–12
+px font and at most ~90 characters. If it is longer (for example 30–29, 29–30, 30–29),
+it still fits; there is no need to change the canvas size.
 
-`PREVIEW`/story memakai `STORY_WIDTH/STORY_HEIGHT` dari
-`legacy/config/canvas.ts` (sudah disatukan di `d16a3ad`), tidak ada angka baru.
+`PREVIEW`/story uses `STORY_WIDTH/STORY_HEIGHT` from
+`legacy/config/canvas.ts` (already consolidated in `d16a3ad`); there are no new numbers.
 
 ### 13.4 Scoreboard
 
-`ScoreboardPage` membaca sesi yang sama. Kalau ia menampilkan skor, pakai
-`setsWonA/setsWonB` + `sets`; tidak ada endpoint baru.
+`ScoreboardPage` reads the same session. If it displays the score, use
+`setsWonA/setsWonB` + `sets`; there is no new endpoint.
 
 ---
 
@@ -1488,55 +1488,55 @@ tetap muat; tidak perlu mengubah ukuran canvas.
 
 ### 14.1 Wizard (`apps/web/src/legacy/pages/SetupPage.tsx`)
 
-Kartu baru "Format skor" di langkah 1, di atas Courts:
+A new "Score format" card in step 1, above Courts:
 
 ```
-Format skor
-( ) MAJADU 30        Single game · 30 poin · tanpa deuce
-(•) Classic BO3 21   Best of 3 · 21 poin · deuce 20–20 · cap 30
-( ) New BWF BO3 15   Best of 3 · 15 poin · deuce 14–14 · cap 21
+Score format
+( ) MAJADU 30        Single game · 30 points · no deuce
+(•) Classic BO3 21   Best of 3 · 21 points · deuce 20–20 · cap 30
+( ) New BWF BO3 15   Best of 3 · 15 points · deuce 14–14 · cap 21
 ```
 
-Perilaku:
+Behaviour:
 
-- Default = `session.default_scoring_preset` dari `effective` config yang sudah
-  dibaca halaman (community scope); daftar opsi dari field `scoringPresets`
-  pada respons config yang sama.
-- Pilihan disimpan di state wizard dan dikirim sebagai `scoringPreset` saat
+- Default = `session.default_scoring_preset` from the `effective` config already
+  read by the page (community scope); the option list comes from the `scoringPresets` field
+  on the same config response.
+- The choice is kept in wizard state and sent as `scoringPreset` on
   create.
-- Ringkasan aturan berupa satu baris teks, bukan tabel; operator tidak perlu
-  membaca matriks.
-- Tidak menambah langkah. Wizard tetap 4 langkah.
-- Kalau config preset berubah saat wizard terbuka, id yang dipilih bisa hilang;
-  create akan menjawab `400 INVALID_PRESET` dan UI menampilkan pesan "format
-  tidak tersedia lagi, pilih ulang" serta memuat ulang daftar.
-- Aksesibilitas: `fieldset`/`legend`, radio asli (bukan div), label terhubung,
-  target sentuh ≥ 44 px, fokus terlihat.
+- The rule summary is one line of text, not a table; operators do not need to
+  read a matrix.
+- No extra step. The wizard stays at 4 steps.
+- If the preset config changes while the wizard is open, the selected id can disappear;
+  create will answer `400 INVALID_PRESET` and the UI shows the message "format
+  is no longer available, choose again" and reloads the list.
+- Accessibility: `fieldset`/`legend`, real radios (not divs), connected labels,
+  touch targets ≥ 44 px, visible focus.
 
-### 14.2 Editor skor (`ScheduleGrid` + `useScoreDraft`)
+### 14.2 Score editor (`ScheduleGrid` + `useScoreDraft`)
 
-State berubah dari `{a: string, b: string}` menjadi:
+The state changes from `{a: string, b: string}` to:
 
 ```ts
 type SetDraft = { a: string; b: string }
 type MatchDraft = { sets: SetDraft[] }
 ```
 
-Alur:
+Flow:
 
-1. Klik `+ score` → panel terbuka dengan satu baris per set.
-2. Baris set bertambah otomatis saat set sebelumnya sah dan match belum selesai.
-3. Set yang menentukan pemenang menutup input berikutnya.
-4. Tombol simpan mengirim **seluruh** daftar set (bukan satu set).
-5. Set kosong di tengah ditolak dengan pesan "set 2 is empty" (tidak dikirim
-   sebagai 0–0).
-6. `Clear` mengirim `{"sets": []}`.
+1. Click `+ score` → the panel opens with one row per set.
+2. A set row is added automatically when the previous set is valid and the match is not finished.
+3. The set that decides the winner closes the next input.
+4. The save button sends the **whole** set list (not one set).
+5. An empty set in the middle is rejected with the message "set 2 is empty" (it is not sent
+   as 0–0).
+6. `Clear` sends `{"sets": []}`.
 
-Validasi klien memakai `scoring` dari sesi; server tetap otoritatif.
+Client validation uses `scoring` from the session; the server remains authoritative.
 
-Pesan error server dipetakan:
+Server error messages are mapped:
 
-| Kode | Pesan UI |
+| Code | UI message |
 |---|---|
 | `INVALID_SCORE` | "Set 2: win by 2 at 20–20" |
 | `INVALID_SET_SEQUENCE` | "No more sets: the match is already won" |
@@ -1544,32 +1544,32 @@ Pesan error server dipetakan:
 | `MATCH_HAS_SETS` | "Clear the sets before marking the match played" |
 | `PRESET_LOCKED` | "Preset is locked once a set is recorded" |
 
-### 14.3 Tampilan ringkas
+### 14.3 Compact display
 
 `SlotGameCard` / `ScheduleGrid`:
 
-- match selesai: `2–1` besar, `21–18 · 19–21 · 21–17` kecil;
-- match parsial: `1–1` dengan `in progress` (bukan warna saja);
-- single game: tetap `30–28`;
-- jangan menampilkan total poin sebagai angka utama — total poin bisa
-  menyesatkan (kalah total poin tapi menang match).
+- finished match: `2–1` large, `21–18 · 19–21 · 21–17` small;
+- partial match: `1–1` with `in progress` (not colour alone);
+- single game: still `30–28`;
+- do not show total points as the main number, total points can
+  mislead (lost on total points but won the match).
 
-`PlayerMatchDetailSheet` menambahkan baris rincian set di bawah skor match.
+`PlayerMatchDetailSheet` adds a set-detail line below the match score.
 
-### 14.4 Settings komunitas (`apps/web/src/pages/SettingsPage.tsx`)
+### 14.4 Community settings (`apps/web/src/pages/SettingsPage.tsx`)
 
-`FIELDS` sekarang hanya mendukung `text`/`number`. Tambahkan `select`:
+`FIELDS` currently only supports `text`/`number`. Add `select`:
 
 ```ts
 { key: 'session.default_scoring_preset', label: 'community.setting.scoringPreset',
   kind: 'select', optionsFrom: 'scoringPresets' }
 ```
 
-Opsi diambil dari `scoringPresets` pada respons
-`GET /c/{slug}/config` (bukan dari `effective`), label dari `label` preset.
-Simpan memakai `updateCommunityConfig` yang sudah ada; server memvalidasi id.
+Options come from `scoringPresets` on the `GET /c/{slug}/config` response
+(not from `effective`), labels from the preset `label`.
+Saving uses the existing `updateCommunityConfig`; the server validates the id.
 
-Tambahkan string i18n di `apps/web/src/i18n/en.ts`:
+Add i18n strings in `apps/web/src/i18n/en.ts`:
 
 ```
 'community.setting.scoringPreset'
@@ -1583,247 +1583,247 @@ Tambahkan string i18n di `apps/web/src/i18n/en.ts`:
 
 ### 14.5 Copywriting
 
-- "Format skor" bukan "Scoring preset" di UI.
-- Ringkasan memakai istilah pemain: "Best of 3", "deuce 20–20", "cap 30".
-- Hindari "game" untuk set; di UI, "game" = match yang dimainkan.
-- Tidak ada istilah teknis seperti `ratingTarget` di layar.
+- "Score format", not "Scoring preset", in the UI.
+- The summary uses players' terms: "Best of 3", "deuce 20–20", "cap 30".
+- Avoid "game" for a set; in the UI, "game" = a match played.
+- No technical terms such as `ratingTarget` on screen.
 
 ### 14.6 Loading & error state
 
-- Wizard: daftar preset berasal dari config yang sudah dimuat halaman; tidak ada
-  spinner tambahan.
-- Editor: tombol simpan disabled selama request; error tampil di panel, tidak
-  menutup panel.
-- Share: kalau `scoring` tidak ada (cache lama), tampilkan skor saja tanpa
-  rincian set — jangan menebak format.
+- Wizard: the preset list comes from the config already loaded by the page; there is no
+  extra spinner.
+- Editor: the save button is disabled during the request; errors appear in the panel and do not
+  close the panel.
+- Share: if `scoring` is missing (old cache), show the score only without
+  set details; do not guess the format.
 
 ---
 
-## 15. Fase pengerjaan & kriteria terima
+## 15. Work phases & acceptance criteria
 
-### P0 — Config, skema, engine, pembaca (1–2 hari)
+### P0: config, schema, engine, readers (1–2 days)
 
-Isi:
+Contents:
 
-1. Registry + seed + migrasi `0029_scoring_presets.sql`.
-2. `modules/session/scoring.nim` + unit test tabel kebenaran.
-3. Backfill set dari skor lama.
+1. Registry + seed + migration `0029_scoring_presets.sql`.
+2. `modules/session/scoring.nim` + unit tests for the truth table.
+3. Backfill sets from the old scores.
 4. View `session.game_results`.
-5. Pindahkan **semua** pembaca ke view: standings, projection, ingest, read,
+5. Move **all** readers to the view: standings, projection, ingest, read,
    achievement.
-6. Detail sesi/share mengembalikan `sets`, `setsWonA/B`, `winner`, `scoring`.
-7. `POST /sessions` menerima `scoringPreset` dan menyimpan snapshot
-   (`legacy_v1` untuk data lama, preset untuk sesi baru).
-8. `PATCH` skor masih menerima `scoreA/scoreB` (single-set) supaya UI lama
-   tetap jalan; di baliknya `setScore` menulis satu baris `game_sets`
-   (bukan `score_a/score_b`), sehingga view sudah menjadi satu-satunya
-   sumber kebenaran sejak P0.
-9. `GET /c/{slug}/config` mengembalikan `scoringPresets` read-only.
-10. Importer v1 ikut menulis `game_sets` untuk skor lama (§6.4).
+6. Session/share detail returns `sets`, `setsWonA/B`, `winner`, `scoring`.
+7. `POST /sessions` accepts `scoringPreset` and stores the snapshot
+   (`legacy_v1` for old data, the preset for new sessions).
+8. `PATCH` score still accepts `scoreA/scoreB` (single-set) so the old UI
+   keeps working; underneath, `setScore` writes one `game_sets` row
+   (not `score_a/score_b`), so the view is already the only
+   source of truth from P0 on.
+9. `GET /c/{slug}/config` returns the read-only `scoringPresets`.
+10. The v1 importer also writes `game_sets` for old scores (§6.4).
 
-Kriteria terima:
+Acceptance criteria:
 
-- `./task check`, `./task verify session|rating|achievement|api` lulus.
-- `./task parity v1 verify` tidak berubah.
-- Perubahan papan sesuai §11.A: angka lama dihitung ulang dengan target 30;
-  total per match tetap 250, tidak ada poin yang hilang.
-- Snapshot harian lama tidak ditulis ulang; `prevRank`/`rankDelta` boleh
-  menunjukkan pergerakan sekali saat deploy (didokumentasikan di §17).
-- Setelah deploy, jalankan `./task ranksnapshot` agar baris snapshot hari itu
-  memakai angka baru (upsert per tanggal, jadi aman diulang).
-- Parity case detail/share/game di-rekam ulang; diff hanya field baru.
-- Case config di-rekam ulang karena `scoringPresets`; tidak ada operasi baru.
+- `./task check`, `./task verify session|rating|achievement|api` pass.
+- `./task parity v1 verify` does not change.
+- The board change follows §11.A: old numbers are recomputed with target 30;
+  the total per match stays 250, no points are lost.
+- Old daily snapshots are not rewritten; `prevRank`/`rankDelta` may
+  show movement once at deploy (documented in §17).
+- After deploy, run `./task ranksnapshot` so that day's snapshot row
+  uses the new numbers (upsert per date, so it is safe to repeat).
+- Parity detail/share/game cases are re-recorded; the diff is only the new fields.
+- The config case is re-recorded because of `scoringPresets`; there are no new operations.
 
-Catatan: P0 sengaja belum menerima `sets` dari klien. Kalau ada bug di view,
-UI lama masih bisa menulis skor tunggal dan tidak ada data baru yang rusak.
+Note: P0 deliberately does not yet accept `sets` from the client. If there is a bug in the view,
+the old UI can still write a single score and no new data is corrupted.
 
-### P1 — Jalur tulis multi-set (1 hari)
+### P1: multi-set write path (1 day)
 
-Isi:
+Contents:
 
-1. `setSets` menggantikan `setScore` (nama lama dipertahankan sebagai wrapper).
-2. Body `sets[]`, validasi engine, `SETS_REQUIRED`, `INVALID_SET_SEQUENCE`.
-3. `{"sets": []}` untuk menghapus.
+1. `setSets` replaces `setScore` (the old name is kept as a wrapper).
+2. `sets[]` body, engine validation, `SETS_REQUIRED`, `INVALID_SET_SEQUENCE`.
+3. `{"sets": []}` to delete.
 4. `setPlayed` + `MATCH_HAS_SETS`.
-5. `PATCH /sessions/{id}` menerima `scoringPreset` + guard `PRESET_LOCKED`.
-6. Swap memindahkan set.
-7. Kontrak diperbarui + regen.
+5. `PATCH /sessions/{id}` accepts `scoringPreset` + the `PRESET_LOCKED` guard.
+6. Swap moves sets.
+7. Contract updated + regen.
 
-Kriteria terima:
+Acceptance criteria:
 
-- Integration test: tulis 2 set parsial → tidak dihitung; set ketiga →
-  `played`, standings/rating berubah.
-- Preset tidak bisa diganti setelah ada set; setelah clear bisa.
-- Swap BO3 mempertahankan set.
-- Tidak ada jalur yang masih menulis `session.games.score_a/score_b`.
+- Integration test: write 2 partial sets → not counted; the third set →
+  `played`, standings/rating change.
+- The preset cannot be changed once a set exists; after clearing it can.
+- Swapping a BO3 keeps the sets.
+- No path still writes `session.games.score_a/score_b`.
 
-### P2 — UI (1–2 hari)
+### P2: UI (1–2 days)
 
-Isi:
+Contents:
 
-1. Kartu format di wizard.
-2. Editor set + validasi klien.
-3. Tampilan ringkas + detail pemain.
+1. Format card in the wizard.
+2. Set editor + client validation.
+3. Compact display + player detail.
 4. Share page + export.
 5. i18n.
 
-Kriteria terima:
+Acceptance criteria:
 
-- E2E: buat sesi Classic 21, isi tiga match, cek standings dan share.
-- Sesi MAJADU 30 tidak berubah tampilannya (regression visual).
-- Keyboard-only bisa mengisi semua set; error terbaca screen reader.
-- Tidak ada layout shift di kartu 1080×1350.
+- E2E: create a Classic 21 session, fill three matches, check standings and share.
+- MAJADU 30 sessions do not change appearance (visual regression).
+- Keyboard-only can fill all sets; errors are read by the screen reader.
+- No layout shift in the 1080×1350 card.
 
-### P3 — Default komunitas + dokumentasi (½ hari)
+### P3: community default + documentation (½ day)
 
-Isi:
+Contents:
 
-1. `select` di Settings.
-2. Validasi route config.
-3. Handbook: data model, config, alur skor.
-4. `docs/decisions.md` entri ADR.
+1. `select` in Settings.
+2. Config route validation.
+3. Handbook: data model, config, score flow.
+4. `docs/decisions.md` ADR entry.
 
-Kriteria terima:
+Acceptance criteria:
 
-- Ganti default komunitas → wizard membuka dengan pilihan itu.
-- Override ke id yang tidak ada → `400 INVALID_CONFIG`.
-- Dokumentasi menjelaskan perubahan retroaktif ke target 30 dan alasan
-  snapshot per sesi.
+- Change the community default → the wizard opens with that choice.
+- Override to a non-existent id → `400 INVALID_CONFIG`.
+- The documentation explains the retroactive change to target 30 and the reason for
+  per-session snapshots.
 
-### P4 — Bersih-bersih (rilis berikutnya, bukan sekarang)
+### P4: cleanup (next release, not now)
 
 1. Drop `session.games.score_a/score_b` + `games_not_tied`.
-2. Hapus `rating.score_target` setelah fallback tidak diperlukan.
-3. Hapus wrapper `setScore` kalau tidak ada pemanggil.
+2. Remove `rating.score_target` once the fallback is no longer needed.
+3. Remove the `setScore` wrapper if there are no callers.
 
-Jangan dilakukan bersamaan dengan P0–P2: rollback butuh kolom lama.
+Do not do this together with P0–P2: rollback needs the old columns.
 
-### 15.1 Status implementasi (6 Nov 2026)
+### 15.1 Implementation status (6 Nov 2026)
 
-Sudah dikerjakan di working tree, belum di-commit:
+Already done in the working tree, not yet committed:
 
-- P0: registry + seed + migrasi `0029`, engine `modules/session/scoring.nim`
-  (+ unit test), backfill set, view `session.game_results`, semua pembaca
-  dipindah ke view, detail/game/share mengembalikan `sets`/`setsWonA/B`/
-  `winner`/`scoring`, `POST /sessions` menerima `scoringPreset`, config
-  mengembalikan `scoringPresets`, importer menulis `game_sets`.
-- P1: `setSets`, body `sets[]`, `SETS_REQUIRED`, `INVALID_SET_SEQUENCE`,
-  `MATCH_HAS_SETS`, `PRESET_LOCKED`, swap memindahkan set, `setPlayed`/`skip`
-  membersihkan set, tidak ada lagi penulis `score_a/score_b` selain null.
-- P2: kartu format di setup, editor set dengan validasi klien, tampilan ringkas
-  `2–1` + rincian set, detail pemain, halaman share publik, standings memakai
-  set. Export Instagram ikut memakai pemenang per set.
-- P3 (sisi server + Settings): validasi default preset di config route, pilihan
-  default di `SettingsPage`.
+- P0: registry + seed + migration `0029`, engine `modules/session/scoring.nim`
+  (+ unit tests), set backfill, view `session.game_results`, all readers
+  moved to the view, detail/game/share return `sets`/`setsWonA/B`/
+  `winner`/`scoring`, `POST /sessions` accepts `scoringPreset`, config
+  returns `scoringPresets`, the importer writes `game_sets`.
+- P1: `setSets`, `sets[]` body, `SETS_REQUIRED`, `INVALID_SET_SEQUENCE`,
+  `MATCH_HAS_SETS`, `PRESET_LOCKED`, swap moves sets, `setPlayed`/`skip`
+  clear the sets, no writer of `score_a/score_b` remains other than null.
+- P2: format card in setup, set editor with client validation, compact `2–1`
+  display + set details, player detail, public share page, standings using
+  sets. Instagram export also uses the per-set winner.
+- P3 (server side + Settings): default preset validation in the config route, the
+  default choice in `SettingsPage`.
 
-Diverifikasi: `./task check`, `./task verify session`, `./task verify rating`,
+Verified: `./task check`, `./task verify session`, `./task verify rating`,
 `./task verify achievement`, `./task verify api`, `./task parity v2 verify`,
-`pnpm check:types`, `pnpm test` (103 tes). Belum bisa dijalankan di lingkungan
-ini: bukti deploy VPS/Podman, baseline visual Linux, dan E2E browser penuh
-(dev server dijalankan pemilik). `pnpm check:tailwind` gagal karena dua kelas
-arbitrer lama di `ShareLinkPanel.tsx`/`AdminSessionsPage.tsx`, bukan dari
-perubahan ini.
+`pnpm check:types`, `pnpm test` (103 tests). Could not be run in this
+environment: VPS/Podman deploy evidence, the Linux visual baseline, and the full browser
+E2E (the dev server is run by the owner). `pnpm check:tailwind` fails because of two old
+arbitrary classes in `ShareLinkPanel.tsx`/`AdminSessionsPage.tsx`, not from
+this change.
 
 ---
 
-## 16. Rencana pengujian
+## 16. Test plan
 
-### 16.1 Unit — `modules/session/tests/scoring_test.nim`
+### 16.1 Unit: `modules/session/tests/scoring_test.nim`
 
-- Tabel kebenaran §7.2 untuk ketiga preset + legacy.
-- `validateSets`: 0 set, 1 set, 2 set, 3 set, 4 set pada BO3.
-- Set setelah match selesai → `seSetAfterEnd`.
-- `setsWon`, `matchComplete`, `winnerSide` untuk 2–0, 2–1, 1–2, 1–1.
-- `ratingMargin`: single set = margin/target; BO3 = rata-rata; legacy memakai
+- Truth table §7.2 for the three presets + legacy.
+- `validateSets`: 0 sets, 1 set, 2 sets, 3 sets, 4 sets on BO3.
+- A set after the match is finished → `seSetAfterEnd`.
+- `setsWon`, `matchComplete`, `winnerSide` for 2–0, 2–1, 1–2, 1–1.
+- `ratingMargin`: single set = margin/target; BO3 = average; legacy uses
   target 30.
-- `parsePresets`: id duplikat, `maxPoints` ≤ `pointsToWin`, `deuceAt` di luar
-  rentang, `legacy_v1` ditolak.
-- `parseSnapshotNode`: `pointsToWin` wajib ada dan > 0.
-- Config: `rating.score_target` terbaca 30, `session.default_scoring_preset`
-  menunjuk preset yang ada.
+- `parsePresets`: duplicate ids, `maxPoints` ≤ `pointsToWin`, `deuceAt` out of
+  range, `legacy_v1` rejected.
+- `parseSnapshotNode`: `pointsToWin` is required and > 0.
+- Config: `rating.score_target` reads 30, `session.default_scoring_preset`
+  points to an existing preset.
 
-### 16.2 Integration — sesi
+### 16.2 Integration: sessions
 
-- `sets` parsial disimpan, status `scheduled`.
-- Set ketiga menyelesaikan match → `played`.
-- Set keempat setelah 2–1 ditolak.
-- `scoreA/scoreB` pada sesi BO3 → `SETS_REQUIRED`.
-- `scoreA/scoreB` pada sesi MAJADU 30 → satu set, perilaku lama.
-- Dua penulis bersamaan → yang kedua `409` stale.
-- Setelah lock → semua tulis `409` locked.
-- `{"sets": []}` menghapus set dan membuka preset.
-- `{"played": true}` pada match berset → `MATCH_HAS_SETS`.
-- Swap memindahkan set; hapus sesi menghapus set.
+- Partial `sets` are saved, status `scheduled`.
+- The third set finishes the match → `played`.
+- A fourth set after 2–1 is rejected.
+- `scoreA/scoreB` on a BO3 session → `SETS_REQUIRED`.
+- `scoreA/scoreB` on a MAJADU 30 session → one set, old behaviour.
+- Two concurrent writers → the second gets `409` stale.
+- After lock → all writes `409` locked.
+- `{"sets": []}` deletes the sets and reopens the preset.
+- `{"played": true}` on a match with sets → `MATCH_HAS_SETS`.
+- Swap moves sets; deleting a session deletes the sets.
 
-### 16.3 Integration — rating & achievement
+### 16.3 Integration: rating & achievement
 
-- Sesi lama: entry memakai target 30 (golden number §11.A), bukan 21.
-- Sesi MAJADU 30 baru: 30–28 → 133.33 sebelum multiplier.
-- Sesi Classic 21: 21–19, 21–19 → 136.90.
-- Match parsial tidak menambah entry.
-- Satu match BO3 menambah 1 game/1 win di `player_state`.
-- `games:10` tercapai pada match ke-10, bukan set ke-10.
-- Rebuild idempoten.
-- Importer v1: jumlah `game_sets` = jumlah game berskor; sesi hasil impor
-  memakai `legacy_v1` dan dinilai dengan target 30.
+- Old session: the entry uses target 30 (golden number §11.A), not 21.
+- New MAJADU 30 session: 30–28 → 133.33 before the multiplier.
+- Classic 21 session: 21–19, 21–19 → 136.90.
+- A partial match does not add an entry.
+- One BO3 match adds 1 game/1 win in `player_state`.
+- `games:10` is reached at match 10, not set 10.
+- Rebuild is idempotent.
+- v1 importer: the number of `game_sets` = the number of scored games; imported sessions
+  use `legacy_v1` and are rated with target 30.
 
 ### 16.4 Parity
 
-- Rekam ulang case `get_session*`, `get_game*`, `get_shared*`, dan config
+- Re-record the `get_session*`, `get_game*`, `get_shared*` cases and config
   (`scoringPresets`).
-- Pastikan case `create_session`, `patch_session*`, `lock_session*` **tidak**
-  berubah (karena `scoring` tidak ada di respons tulis).
-- Rekam ulang case rating/papan untuk data lama, karena target berubah 21 → 30
-  (bandingkan dengan golden number §11.A).
-- `./task parity v1 verify` tetap lulus.
+- Make sure the `create_session`, `patch_session*`, `lock_session*` cases **do not**
+  change (because `scoring` is not in the write responses).
+- Re-record the rating/board cases for old data, because the target changes 21 → 30
+  (compare with the golden numbers in §11.A).
+- `./task parity v1 verify` still passes.
 
 ### 16.5 E2E
 
-- Wizard: pilih Classic 21 → sesi dibuat dengan format itu.
-- Isi 3 set, lihat `2–1` dan rincian.
-- Tab Standings: pemenang sesuai set, bukan total poin.
-- Share page: format + rincian set tampil.
-- Export: kartu Instagram memuat rincian set dan tidak overflow.
-- MAJADU 30: alur lama tetap satu input.
+- Wizard: choose Classic 21 → the session is created with that format.
+- Fill 3 sets, see `2–1` and the details.
+- Standings tab: the winner follows the sets, not the total points.
+- Share page: format + set details appear.
+- Export: the Instagram card contains the set details and does not overflow.
+- MAJADU 30: the old flow stays a single input.
 
 ### 16.6 Manual checklist
 
-- [ ] Sesi lama bisa dibuka, di-unlock, skor lama tampil.
-- [ ] Mengubah preset sesi kosong berhasil.
-- [ ] Mengubah preset sesi berset ditolak dengan pesan jelas.
-- [ ] Clear set lalu ganti preset berhasil.
-- [ ] Share link sesi BO3 dibuka di jendela privat.
-- [ ] Keyboard-only mengisi 3 set.
-- [ ] Layar 360 px: tidak ada input yang terpotong.
+- [ ] An old session can be opened, unlocked, old scores shown.
+- [ ] Changing the preset of an empty session succeeds.
+- [ ] Changing the preset of a session with sets is rejected with a clear message.
+- [ ] Clear the sets, then change the preset, succeeds.
+- [ ] A BO3 session share link opens in a private window.
+- [ ] Keyboard-only fills 3 sets.
+- [ ] 360 px screen: no input is cut off.
 
 ---
 
-## 17. Risiko, rollback, dan hal yang ditunda
+## 17. Risks, rollback, and deferred items
 
-### 17.1 Risiko
+### 17.1 Risks
 
-| Risiko | Dampak | Mitigasi |
+| Risk | Impact | Mitigation |
 |---|---|---|
-| Ada pembaca yang terlewat dan masih membaca `score_a` | BO3 tidak terhitung / menang salah | Daftar pembaca di §3 + grep `score_a` di semua modul; test integration per pembaca |
-| Parity berubah tanpa sengaja | Regresi diam-diam | P0 memisahkan field baru dari angka lama; papan diuji dengan golden number §11.A |
-| Papan bergerak saat rilis | Pertanyaan "kok poinku turun" | Dokumentasi §10–11 + pengumuman sebelum deploy; total per match tidak berubah |
-| Snapshot lama vs papan baru | `prevRank`/`rankDelta` bergerak sekali; `rank_streak` tidak sinkron | Biarkan snapshot historis; catat di rilis. Rebuild snapshot = tool terpisah (§19) |
-| Config salah membuat proses gagal start | API mati | Validasi saat load, seed + migrasi diuji di DB kosong dan DB lama |
-| Swap kehilangan set | Data hilang | Test swap BO3; transaksi tunggal |
-| Regenerate jadwal menimpa pemain sementara set tetap ada | Set menempel ke pemain baru | `putSchedule` tidak menyentuh set (sama seperti skor lama); UI memperingatkan bila match berset; test integration memastikan set tidak hilang diam-diam |
-| UI mengizinkan set keempat | Error server berulang | Validasi klien + tombol tambah set nonaktif |
-| Preset dihapus saat ada sesi draft | Create/patch gagal | Pesan `INVALID_PRESET` yang menyuruh pilih ulang; snapshot sesi lama aman |
-| `changeEndsAt` disalahartikan sebagai aturan | Operator bingung | Label "petunjuk ganti sisi", tidak memblokir input |
+| A reader is missed and still reads `score_a` | BO3 not counted / wrong winner | Reader list in §3 + grep `score_a` in all modules; integration test per reader |
+| Parity changes unintentionally | Silent regression | P0 separates new fields from old numbers; the board is tested with the golden numbers in §11.A |
+| The board moves at release | Questions like "why did my points drop" | Documentation §10–11 + announcement before deploy; the total per match does not change |
+| Old snapshots vs new board | `prevRank`/`rankDelta` move once; `rank_streak` out of sync | Leave historical snapshots; note it in the release. Snapshot rebuild = a separate tool (§19) |
+| A bad config makes the process fail to start | API down | Validation at load, seed + migration tested on an empty DB and an old DB |
+| Swap loses sets | Data loss | BO3 swap test; single transaction |
+| Regenerating the schedule overwrites players while the sets remain | Sets attached to new players | `putSchedule` does not touch sets (same as old scores); the UI warns when a match has sets; an integration test ensures sets are not lost silently |
+| The UI allows a fourth set | Repeated server errors | Client validation + the add-set button disabled |
+| A preset is deleted while draft sessions exist | Create/patch fails | An `INVALID_PRESET` message telling the user to choose again; old session snapshots are safe |
+| `changeEndsAt` is mistaken for a rule | Operator confusion | Label "change-ends hint", it does not block input |
 
 ### 17.2 Rollback
 
-- **Sebelum ada sesi BO3**: revert kode + biarkan migrasi 0029 (aditif). UI lama
-  menulis `score_a/score_b` seperti biasa; view dan `game_sets` tidak dipakai.
-  Data sesi lama tetap utuh.
-- **Setelah ada sesi BO3**: rollback kode akan menghilangkan skor BO3 (hanya ada
-  di `game_sets`). Jangan rollback; lakukan forward-fix. Ini sama dengan
-  kebijakan migrasi destruktif lain di repo.
-- Down SQL 0029 (hanya untuk environment tanpa data BO3):
+- **Before any BO3 session**: revert the code + leave migration 0029 (additive). The old UI
+  writes `score_a/score_b` as usual; the view and `game_sets` are unused.
+  Old session data stays intact.
+- **After a BO3 session exists**: rolling back the code would lose the BO3 scores (they exist only
+  in `game_sets`). Do not roll back; do a forward-fix. This is the same as the
+  policy for other destructive migrations in the repo.
+- Down SQL 0029 (only for environments without BO3 data):
 
 ```sql
 drop view session.game_results;
@@ -1834,104 +1834,104 @@ alter table session.sessions
   drop column scoring_preset;
 ```
 
-### 17.3 Ditunda
+### 17.3 Deferred
 
-- Turnamen (format, poin, bracket).
-- Preset custom lewat UI admin.
-- Tampilan set di halaman ranking komunitas.
-- Statistik per set (mis. "set paling ketat").
-- Format selain best-of-3 (mis. best-of-5) — engine sudah mendukung
-  `gamesToWin` 1..5, UI belum.
-- Penghapusan `rating.score_target` dan kolom skor lama (P4).
+- Tournaments (format, points, bracket).
+- Custom presets through the admin UI.
+- Set display on the community ranking page.
+- Per-set statistics (for example "tightest set").
+- Formats other than best-of-3 (for example best-of-5): the engine already supports
+  `gamesToWin` 1..5, the UI does not.
+- Removal of `rating.score_target` and the old score columns (P4).
 
 ---
 
-## 18. Daftar berkas yang disentuh
+## 18. List of files touched
 
 ### Backend
 
-| Berkas | Perubahan |
+| File | Change |
 |---|---|
-| `modules/platform/config/registry.nim` | 2 key baru + validasi |
-| `db/seeds/platform_config.sql` | 2 baris seed |
-| `db/migrations/0029_scoring_presets.sql` | skema + backfill + view |
-| `modules/session/scoring.nim` | **baru** — engine murni |
-| `modules/session/tests/scoring_test.nim` | **baru** |
-| `modules/session/schedule.nim` | `setSets`, `setPlayed`, guard |
-| `modules/session/write.nim` | `scoringPreset` di patch + node |
+| `modules/platform/config/registry.nim` | 2 new keys + validation |
+| `db/seeds/platform_config.sql` | 2 seed rows |
+| `db/migrations/0029_scoring_presets.sql` | schema + backfill + view |
+| `modules/session/scoring.nim` | **new**: pure engine |
+| `modules/session/tests/scoring_test.nim` | **new** |
+| `modules/session/schedule.nim` | `setSets`, `setPlayed`, guards |
+| `modules/session/write.nim` | `scoringPreset` in patch + node |
 | `modules/session/standings.nim` | view |
-| `modules/session/swap.nim` | pindahkan set |
-| `modules/session/tests/integration/*` | test baru |
+| `modules/session/swap.nim` | move sets |
+| `modules/session/tests/integration/*` | new tests |
 | `modules/rating/projection.nim` | view + `points_to_win` |
 | `modules/rating/infrastructure/ingest.nim` | view |
-| `modules/rating/read.nim` | riwayat & lawan/partner |
+| `modules/rating/read.nim` | history & opponents/partners |
 | `modules/achievement/infrastructure/backfill.nim` | view |
-| `apps/api/src/app.nim` | create, patch, skor, detail, share |
-| `apps/api/src/config_routes.nim` | validasi default preset + `scoringPresets` |
-| `tools/import/main.nim` | tulis `game_sets` saat impor skor |
-| `packages/contracts/openapi/core.yaml` | deskripsi sesi/game/share |
-| `packages/contracts/openapi/community.yaml` | deskripsi config + settings |
-| `packages/contracts/openapi/api.yaml` | hasil regen |
-| `packages/contracts/openapi/CONTRACT.sha256` | hasil regen |
+| `apps/api/src/app.nim` | create, patch, score, detail, share |
+| `apps/api/src/config_routes.nim` | default preset validation + `scoringPresets` |
+| `tools/import/main.nim` | write `game_sets` when importing scores |
+| `packages/contracts/openapi/core.yaml` | session/game/share descriptions |
+| `packages/contracts/openapi/community.yaml` | config + settings descriptions |
+| `packages/contracts/openapi/api.yaml` | regen output |
+| `packages/contracts/openapi/CONTRACT.sha256` | regen output |
 
 ### Frontend
 
-| Berkas | Perubahan |
+| File | Change |
 |---|---|
-| `apps/web/src/legacy/pages/SetupPage.tsx` | kartu format |
-| `apps/web/src/legacy/components/summary/useScoreDraft.ts` | draft per set |
-| `apps/web/src/legacy/components/summary/ScheduleGrid.tsx` | panel set |
-| `apps/web/src/legacy/components/summary/SlotGameCard.tsx` | tampilan ringkas |
-| `apps/web/src/legacy/components/summary/PlayerMatchDetailSheet.tsx` | rincian set |
-| `apps/web/src/legacy/store/scheduleSlice.ts` | aksi skor |
-| `apps/web/src/legacy/utils/scoreValidation.ts` | aturan preset |
-| `apps/web/src/legacy/utils/sessionSnapshot.ts` | update optimistis |
+| `apps/web/src/legacy/pages/SetupPage.tsx` | format card |
+| `apps/web/src/legacy/components/summary/useScoreDraft.ts` | per-set draft |
+| `apps/web/src/legacy/components/summary/ScheduleGrid.tsx` | set panel |
+| `apps/web/src/legacy/components/summary/SlotGameCard.tsx` | compact display |
+| `apps/web/src/legacy/components/summary/PlayerMatchDetailSheet.tsx` | set details |
+| `apps/web/src/legacy/store/scheduleSlice.ts` | score actions |
+| `apps/web/src/legacy/utils/scoreValidation.ts` | preset rules |
+| `apps/web/src/legacy/utils/sessionSnapshot.ts` | optimistic update |
 | `apps/web/src/legacy/utils/standings.ts` | set-aware |
-| `apps/web/src/legacy/queries/sessions.ts` | tipe & payload |
-| `apps/web/src/legacy/queries/endpoints.ts` | body `sets` |
-| `apps/web/src/legacy/pages/InstagramPostPage.tsx` | rincian set |
-| `apps/web/src/legacy/utils/canvasPost.ts` | pemenang dari `winner`, bukan skor |
-| `apps/web/src/legacy/components/SummaryModal.tsx` | teruskan data set |
-| `apps/web/src/community/api.ts` | kirim `scoringPresets` |
-| `apps/web/src/community/useCommunityConfig.ts` | ekspos daftar preset |
-| `apps/web/src/pages/SettingsPage.tsx` | select default |
-| `apps/web/src/i18n/en.ts` | string baru |
+| `apps/web/src/legacy/queries/sessions.ts` | types & payload |
+| `apps/web/src/legacy/queries/endpoints.ts` | `sets` body |
+| `apps/web/src/legacy/pages/InstagramPostPage.tsx` | set details |
+| `apps/web/src/legacy/utils/canvasPost.ts` | winner from `winner`, not the score |
+| `apps/web/src/legacy/components/SummaryModal.tsx` | pass the set data through |
+| `apps/web/src/community/api.ts` | send `scoringPresets` |
+| `apps/web/src/community/useCommunityConfig.ts` | expose the preset list |
+| `apps/web/src/pages/SettingsPage.tsx` | default select |
+| `apps/web/src/i18n/en.ts` | new strings |
 
-### Dokumentasi
+### Documentation
 
-| Berkas | Perubahan |
+| File | Change |
 |---|---|
-| `docs/handbook/data-model.md` | tabel baru, view, config |
-| `docs/handbook/current-status.md` | jumlah migrasi/key |
-| `docs/decisions.md` | ADR format skor |
-| `docs/handbook/scoring-presets.md` | dokumen ini |
+| `docs/handbook/data-model.md` | new table, view, config |
+| `docs/handbook/current-status.md` | migration/key counts |
+| `docs/decisions.md` | scoring format ADR |
+| `docs/handbook/scoring-presets.md` | this document |
 
 ---
 
-## 19. Pertanyaan terbuka
+## 19. Open questions
 
-Tidak ada yang menghalangi P0. Yang masih terbuka dan bisa dijawab nanti:
+Nothing is blocking P0. What is still open and can be answered later:
 
-1. **Snapshot historis.** Papan dihitung ulang dengan target 30, tetapi
-   `rating.snapshots` lama tetap berisi angka 21. Usul: biarkan (badge
-   `rank_streak` tidak berubah, `prevRank` hanya bergerak sekali). Kalau pemilik
-   ingin riwayat snapshot ikut dihitung ulang, itu tool terpisah yang memutar
-   ulang tanggal — belum termasuk.
-2. **Label format di daftar sesi.** Menampilkan chip "BO3 21" di
-   `SessionListPage` akan mengubah respons `GET /sessions` (parity). Ditunda
-   sampai ada kebutuhan nyata.
-3. **Preset keempat.** Menambah format = mengubah `session.scoring_presets`
-   saja, tanpa rilis. UI otomatis menampilkannya karena membaca config.
-4. **Turnamen.** Kalau nanti ikut, ia butuh pemetaan `phase → rules` sendiri,
-   bukan memakai preset sesi.
-5. **Statistik per set.** Belum ada kebutuhan; bisa diturunkan dari view tanpa
-   migrasi baru kalau diminta.
+1. **Historical snapshots.** The board is recomputed with target 30, but the old
+   `rating.snapshots` still contain the numbers from 21. Proposal: leave them (the
+   `rank_streak` badge does not change, `prevRank` only moves once). If the owner
+   wants snapshot history recomputed too, that is a separate tool that replays
+   the dates; not included yet.
+2. **Format label in the session list.** Showing a "BO3 21" chip in
+   `SessionListPage` would change the `GET /sessions` response (parity). Deferred
+   until there is a real need.
+3. **A fourth preset.** Adding a format = changing `session.scoring_presets`
+   only, with no release. The UI shows it automatically because it reads the config.
+4. **Tournaments.** If they join later, they need their own `phase → rules` mapping,
+   not session presets.
+5. **Per-set statistics.** No need yet; they can be derived from the view without
+   a new migration if requested.
 
 ---
 
-## Lampiran A — Contoh snapshot lengkap
+## Appendix A: full snapshot example
 
-Sesi baru MAJADU 30:
+New MAJADU 30 session:
 
 ```json
 {
@@ -1950,7 +1950,7 @@ Sesi baru MAJADU 30:
 }
 ```
 
-Sesi baru Classic 21:
+New Classic 21 session:
 
 ```json
 {
@@ -1969,9 +1969,9 @@ Sesi baru Classic 21:
 }
 ```
 
-## Lampiran B — Contoh query pembaca setelah migrasi
+## Appendix B: example reader queries after the migration
 
-Papan (proyeksi sesi):
+Board (session projection):
 
 ```sql
 select e.source_id::text as source_id, e.local_date::text as local_date,
@@ -2008,16 +2008,16 @@ where r.community_id = $1::uuid
   and s.status in ('locked', 'published', 'completed', 'archived');
 ```
 
-## Lampiran C — Ringkasan angka kunci
+## Appendix C: key numbers summary
 
-| Item | Sebelum | Sesudah |
+| Item | Before | After |
 |---|---|---|
-| Target rating sesi | 21 (semua) | `pointsToWin` snapshot: 30/21/15 |
-| Poin 30–28 | 136.90 | 133.33 |
-| Poin 30–5 | 250.00 | 229.17 |
-| Match BO3 21–19, 21–19 | tidak ada | 136.90 |
-| Match BO3 21–19, 19–21, 21–19 | tidak ada | 128.97 |
-| Game count per match BO3 | tidak ada | 1 |
-| Entry papan per sesi | 1 | 1 |
+| Session rating target | 21 (all) | `pointsToWin` snapshot: 30/21/15 |
+| Points 30–28 | 136.90 | 133.33 |
+| Points 30–5 | 250.00 | 229.17 |
+| BO3 match 21–19, 21–19 | none | 136.90 |
+| BO3 match 21–19, 19–21, 21–19 | none | 128.97 |
+| Game count per BO3 match | none | 1 |
+| Board entries per session | 1 | 1 |
 | best-N | 10 | 10 |
-| Standings shape | sama | sama |
+| Standings shape | same | same |

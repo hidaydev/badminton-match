@@ -59,9 +59,9 @@ vps-setup/
 /BWF_World_Ranking_Mechanism_Research.md
 /RANKING_POIN_BWF_RANCANGAN.md
 
-# Local DB dumps (jangan di-commit)
+# Local database dumps, never committed
 dump/
-# Working directory lokal: dump skema, fixtures, catatan sensitif (repo publik)
+# Local working directory: schema dumps, fixtures, sensitive notes (public repo)
 .local/
 
 # Internal audit notes stay out of the public repository (see .githooks/pre-push)

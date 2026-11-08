@@ -1,95 +1,98 @@
 # Google OAuth (OIDC)
 
-Halaman ini menjawab satu hal yang tidak boleh dicari saat login rusak: client
-Google mana yang dipakai, URL balik apa yang terdaftar, di mana secret-nya, dan
-apa yang harus dikerjakan saat rotasi atau pencabutan.
+This page answers the one thing that must not need looking up when login is
+broken: which Google client is used, what callback URL is registered, where the
+secret is, and what to do on rotation or revocation.
 
-Status: kode login ada (`modules/account/infrastructure/oidc.nim` dan
-`apps/api/src/app.nim` → `/auth/start`, `/auth/callback`), tetapi **belum pernah
-dicoba dengan client Google sungguhan**. Anggap belum teruji sampai ada uji login
-di origin produksi (§6).
+Status: the login code exists (`modules/account/infrastructure/oidc.nim` and
+`apps/api/src/app.nim` → `/auth/start`, `/auth/callback`), but it has **never
+been tried with a real Google client**. Treat it as untested until there is a
+login test on the production origin (§6).
 
-## 1. Yang dibaca proses
+## 1. What the process reads
 
-| Variabel | Wajib | Default | Dipakai untuk |
+| Variable | Required | Default | Used for |
 |---|---|---|---|
-| `OIDC_CLIENT_ID` | ya | — | `client_id` di authorize dan token request |
-| `OIDC_CLIENT_SECRET` | ya untuk client web | — | `client_secret` di token request; client Google tipe *Web application* menolak penukaran tanpa ini |
-| `OIDC_REDIRECT_URI` | ya | — | `redirect_uri` di kedua request; harus sama persis dengan yang terdaftar di Google |
-| `OIDC_AUTHORIZE_URL` | tidak | `https://accounts.google.com/o/oauth2/v2/auth` | halaman consent |
-| `OIDC_TOKEN_URL` | tidak | `https://oauth2.googleapis.com/token` | penukaran `code` → `id_token` |
-| `OIDC_JWKS_URL` | tidak | `https://www.googleapis.com/oauth2/v3/certs` | verifikasi tanda tangan `id_token` (cache 1 jam) |
-| `OIDC_ISSUER` | tidak | `https://accounts.google.com` | cek `iss` |
+| `OIDC_CLIENT_ID` | yes | none | `client_id` in the authorize and token request |
+| `OIDC_CLIENT_SECRET` | yes for a web client | none | `client_secret` in the token request; a Google client of type *Web application* rejects the exchange without it |
+| `OIDC_REDIRECT_URI` | yes | none | `redirect_uri` in both requests; must match exactly what is registered in Google |
+| `OIDC_AUTHORIZE_URL` | no | `https://accounts.google.com/o/oauth2/v2/auth` | consent page |
+| `OIDC_TOKEN_URL` | no | `https://oauth2.googleapis.com/token` | `code` → `id_token` exchange |
+| `OIDC_JWKS_URL` | no | `https://www.googleapis.com/oauth2/v3/certs` | `id_token` signature verification (1 hour cache) |
+| `OIDC_ISSUER` | no | `https://accounts.google.com` | `iss` check |
 
-Proses menolak start bila `OIDC_CLIENT_ID` atau `OIDC_REDIRECT_URI` kosong
-(`oidc.nim:31-32`), jadi salah konfigurasi terlihat sebagai unit gagal start,
-bukan 500 saat login.
+The process refuses to start if `OIDC_CLIENT_ID` or `OIDC_REDIRECT_URI` is empty
+(`oidc.nim:31-32`), so a misconfiguration shows up as a unit that fails to
+start, not as a 500 at login.
 
-Nilai produksi ada di `/srv/qouver/apps/majadu/env/majadu-prod.env` (symlink ke
-`.v1` atau `.v2`, mode 600). Template repo hanya memuat `CHANGE_ME`. TTL flow
-disimpan di registry (`auth.flow_ttl_minutes`, seed default 10, rentang 1–60),
-bukan di env.
+The production values are in `/srv/qouver/apps/majadu/env/majadu-prod.env`
+(symlink to `.v1` or `.v2`, mode 600). The repo template only contains
+`CHANGE_ME`. The flow TTL is stored in the registry (`auth.flow_ttl_minutes`,
+seed default 10, range 1–60), not in env.
 
-Catatan build: jalur https butuh biner dengan `-d:ssl`; tanpa itu penukaran code
-melempar `https OIDC requires a build with -d:ssl` (`oidc.nim:40-51`). Image
-sekarang mengirim flag itu beserta `libssl-dev` di stage build
-(`apps/api/Dockerfile`), dan `./task build` lokal tetap tanpa ssl karena dev
-memakai stub http. Yang **belum terbukti**: penukaran sungguhan dengan Google
-(§6).
+Build note: the https path needs a binary built with `-d:ssl`; without it the
+code exchange throws `https OIDC requires a build with -d:ssl`
+(`oidc.nim:40-51`). The image now passes that flag along with `libssl-dev` in
+the build stage (`apps/api/Dockerfile`), and the local `./task build` still has
+no ssl because dev uses an http stub. What is **not yet proven**: a real
+exchange with Google (§6).
 
-## 2. Redirect URI harus di origin SPA
+## 2. The redirect URI must be on the SPA origin
 
-`OIDC_REDIRECT_URI` yang benar adalah `<origin-spa>/api/auth/callback`, untuk
-produksi:
+The correct `OIDC_REDIRECT_URI` is `<spa-origin>/api/auth/callback`, for
+production:
 
 ```
 https://majadu.vercel.app/api/auth/callback
 ```
 
-Bukan `https://api.qouver.com/auth/callback`. Alasannya berlapis:
+Not `https://api.qouver.com/auth/callback`. The reasons stack up:
 
-1. **Rute.** Caddy hanya meneruskan `/majadu/*`
-   (`ops/caddy/site-v2.caddy`); `https://api.qouver.com/auth/callback` tidak
-   cocok dengan handler mana pun di site `api.qouver.com`.
-2. **Cookie.** Respons `/auth/start` menyetel `majadu_auth_flow` (hash state,
-   `Path=/`, `HttpOnly`, `SameSite=Lax`, cookie sesi tanpa `Max-Age`), dan `/auth/callback`
-   menolaknya bila cookie itu tidak ikut. Cookie tanpa `Domain` hanya dikirim ke
-   host yang menyetelnya. Browser memulai flow dari `<origin>/api/auth/start`,
-   jadi callback **harus** kembali ke origin yang sama; host lain membuat cookie
-   itu tidak pernah terkirim dan setiap login berakhir `400 INVALID_STATE`.
-3. **Sesi first-party.** `vercel.json` menulis ulang `/api/:path*` ke
-   `https://api.qouver.com/majadu/:path*`, sehingga secara HTTP browser tetap
-   mengobrol dengan origin sendiri (ADR-021). Session cookie dan flow cookie
-   jadi first-party; itu yang membuat `SameSite=Lax` cukup.
+1. **Route.** Caddy only forwards `/majadu/*`
+   (`ops/caddy/site-v2.caddy`); `https://api.qouver.com/auth/callback` matches
+   no handler in the `api.qouver.com` site.
+2. **Cookie.** The `/auth/start` response sets `majadu_auth_flow` (state hash,
+   `Path=/`, `HttpOnly`, `SameSite=Lax`, a session cookie with no `Max-Age`), and
+   `/auth/callback` rejects the request if that cookie does not come along.
+   A cookie without `Domain` is only sent to the host that set it. The browser
+   starts the flow from `<origin>/api/auth/start`, so the callback **must**
+   return to the same origin; any other host means that cookie is never sent and
+   every login ends in `400 INVALID_STATE`.
+3. **First-party session.** `vercel.json` rewrites `/api/:path*` to
+   `https://api.qouver.com/majadu/:path*`, so over HTTP the browser still talks
+   to its own origin (ADR-021). Session cookies and the flow cookie stay
+   first-party; that is what makes `SameSite=Lax` sufficient.
 
-Konsekuensinya: mengganti origin web (domain baru, alias staging) berarti
-memperbarui **dua** tempat bersamaan — daftar redirect URI di Google dan
-`OIDC_REDIRECT_URI` di env. Preview deployment Vercel tidak boleh didaftarkan:
-host-nya berubah tiap deploy dan cookie-nya tidak akan cocok.
+The consequence: changing the web origin (new domain, staging alias) means
+updating **two** places at once, the redirect URI list in Google and
+`OIDC_REDIRECT_URI` in env. Vercel preview deployments must not be registered:
+their host changes on every deploy and the cookie will not match.
 
-## 3. Membuat client
+## 3. Creating a client
 
-Di Google Cloud Console, pada project yang dipakai:
+In the Google Cloud Console, in the project in use:
 
-1. **OAuth consent screen**: tipe External, scope `openid`, `email`, `profile`.
-   Tambahkan akun `platform_owner` sebagai test user selama aplikasi belum
-   dipublikasikan.
+1. **OAuth consent screen**: type External, scopes `openid`, `email`, `profile`.
+   Add the `platform_owner` account as a test user while the application is not
+   yet published.
 2. **Credentials → Create credentials → OAuth client ID**.
-3. **Authorized redirect URIs**: persis nilai `OIDC_REDIRECT_URI`
-   (`https://majadu.vercel.app/api/auth/callback`). Tidak perlu Authorized
-   JavaScript origins: flow ini server-side, browser tidak memanggil endpoint
-   Google dengan JavaScript.
-4. Salin client ID **dan client secret** ke env, `chmod 600`, restart unit.
+3. **Authorized redirect URIs**: exactly the `OIDC_REDIRECT_URI` value
+   (`https://majadu.vercel.app/api/auth/callback`). Authorized
+   JavaScript origins are not needed: this flow is server-side, the browser does
+   not call Google endpoints with JavaScript.
+4. Copy the client ID **and client secret** into env, `chmod 600`, restart the
+   unit.
 
-**Client secret wajib untuk client tipe *Web application*.** `loadOidcConfig`
-membaca `OIDC_CLIENT_SECRET` (`oidc.nim:31`), dan `tokenRequestBody`
-menambahkan `client_secret` ke permintaan token selama nilainya tidak kosong
-(`oidc.nim:76-77`). Google menolak penukaran `code` dari client rahasia tanpa
-parameter itu (`invalid_request` / `client_secret is missing`), jadi isi
-secret bersama client ID sebelum login diuji. Kosongkan hanya bila sengaja
-memakai client publik. Uji di origin produksi sebelum menganggap login hidup.
+**The client secret is mandatory for a *Web application* client.** `loadOidcConfig`
+reads `OIDC_CLIENT_SECRET` (`oidc.nim:31`), and `tokenRequestBody`
+adds `client_secret` to the token request as long as its value is not empty
+(`oidc.nim:76-77`). Google rejects the `code` exchange from a confidential client
+without that parameter (`invalid_request` / `client_secret is missing`), so fill
+in the secret together with the client ID before testing login. Leave it empty
+only if you deliberately use a public client. Test on the production origin
+before considering login live.
 
-## 4. Verifikasi setelah konfigurasi
+## 4. Verification after configuration
 
 ```sh
 systemctl --user restart majadu-api
@@ -98,49 +101,50 @@ curl -s -X POST http://127.0.0.1:8080/auth/start \
   -H 'content-type: application/json' -d '{"returnTo":"/"}'
 ```
 
-Lalu di browser, dari origin web: tekan login, selesaikan consent, dan pastikan
-kembali ke halaman awal dengan sesi aktif. Yang perlu terlihat:
+Then in the browser, from the web origin: press login, complete consent, and
+make sure you return to the start page with an active session. What you should
+see:
 
-| Gejala | Arti |
+| Symptom | Meaning |
 |---|---|
-| `400 INVALID_STATE`, "flow not found, expired or already used" | cookie flow tidak ada/asing, flow kedaluwarsa, atau callback diulang |
-| `400 TOKEN_EXCHANGE_FAILED` | `redirect_uri` tidak sama persis dengan yang terdaftar, atau client secret (lihat §3) |
-| `401 INVALID_ID_TOKEN` | `aud`/`iss`/`exp` tidak cocok, atau `-d:ssl` tidak ada di biner |
-| `401 NONCE_MISMATCH` | `nonce` di `id_token` bukan milik flow ini |
-| `403 ACCOUNT_ANONYMIZED` | akun ini sudah dianonimkan; login sengaja ditolak |
-| `500 KEY_ERROR` | `SHARE_CODE_KEYS` tidak memuat key yang dipakai saat flow dimulai (key dirotasi di tengah flow) |
+| `400 INVALID_STATE`, "flow not found, expired or already used" | the flow cookie is missing or foreign, the flow expired, or the callback was repeated |
+| `400 TOKEN_EXCHANGE_FAILED` | `redirect_uri` does not exactly match the registered one, or the client secret (see §3) |
+| `401 INVALID_ID_TOKEN` | `aud`/`iss`/`exp` do not match, or the binary lacks `-d:ssl` |
+| `401 NONCE_MISMATCH` | the `nonce` in `id_token` does not belong to this flow |
+| `403 ACCOUNT_ANONYMIZED` | this account has already been anonymized; login is deliberately refused |
+| `500 KEY_ERROR` | `SHARE_CODE_KEYS` does not contain the key used when the flow started (the key was rotated mid-flow) |
 
-Cek flow yang tersisa (harus kembali ke 0 setelah login):
+Check the leftover flows (must go back to 0 after login):
 
 ```sql
 select count(*), min(expires_at) from auth.oauth_flows;
 ```
 
-Baris kedaluwarsa tidak dibersihkan timer; baris itu hanya gagal cocok saat
-callback dan bisa dihapus manual dengan `delete from auth.oauth_flows where
+Expired rows are not cleaned up by a timer; such a row just fails to match at
+callback and can be deleted by hand with `delete from auth.oauth_flows where
 expires_at < now()`.
 
-## 5. Rotasi dan pencabutan
+## 5. Rotation and revocation
 
-- **Ganti client** (dicurigai bocor, atau pindah project): buat client baru →
-  daftarkan redirect URI yang sama → ganti `OIDC_CLIENT_ID` di env (600) →
-  restart → uji login → baru hapus client lama di console.
-- **Cabut akses seketika**: hapus client di Google Cloud Console. Semua login
-  baru gagal; sesi yang sudah terbit tetap hidup sampai kedaluwarsa. Untuk
-  memutus sesi juga, cabut sesi di database (`auth.sessions`) lewat tool
-  `account`, bukan SQL manual.
-- **Hapus akun Google pengguna** tidak menghapus baris `platform.user` (subjek
-  disimpan sebagai hash). Login berikutnya hanya ditolak setelah akun
-  dianonimkan lewat `tools/accountlifecycle`.
-- Rotasi `SHARE_CODE_KEYS` di tengah flow membuat callback gagal `500
-  KEY_ERROR`; jadwalkan di luar jam login.
+- **Replace the client** (suspected leak, or moving project): create a new client →
+  register the same redirect URI → change `OIDC_CLIENT_ID` in env (600) →
+  restart → test login → only then delete the old client in the console.
+- **Revoke access immediately**: delete the client in the Google Cloud Console.
+  All new logins fail; sessions already issued stay alive until they expire. To
+  cut sessions as well, revoke the sessions in the database (`auth.sessions`)
+  through the `account` tool, not manual SQL.
+- **Deleting a user's Google account** does not delete the `platform.user` row
+  (the subject is stored as a hash). The next login is only refused after the
+  account is anonymized through `tools/accountlifecycle`.
+- Rotating `SHARE_CODE_KEYS` mid-flow makes the callback fail with `500
+  KEY_ERROR`; schedule it outside login hours.
 
-## 6. Yang belum terbukti
+## 6. What is not yet proven
 
-- Belum ada client Google nyata; seluruh tabel gejala di atas berasal dari kode,
-  bukan dari percobaan.
-- Perilaku `Set-Cookie` lewat rewrite Vercel harus diuji di alias staging yang
-  terdaftar sebagai redirect URI, bukan preview acak.
-- `client_secret` dan `-d:ssl` sudah beres: secret dikirim
-  (`oidc.nim:76-77`) dan image dibangun dengan `-d:ssl`
-  (`apps/api/Dockerfile:27`). Yang belum terbukti tinggal dua butir di atas.
+- There is no real Google client yet; the whole symptom table above comes from
+  the code, not from an experiment.
+- The `Set-Cookie` behaviour through the Vercel rewrite must be tested on a
+  staging alias registered as a redirect URI, not a random preview.
+- `client_secret` and `-d:ssl` are done: the secret is sent
+  (`oidc.nim:76-77`) and the image is built with `-d:ssl`
+  (`apps/api/Dockerfile:27`). The only unproven items are the two above.

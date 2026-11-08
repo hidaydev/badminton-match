@@ -1,66 +1,66 @@
 # Roadmap
 
-Status per **2026-11-08**. Riwayat perubahan ada di git history.
+Status as of **2026-11-08**. The change history is in git history.
 
-## ✅ Selesai
+## ✅ Done
 
-- **Backend v2 (Nim 2.4)** — modul `account`, `community`, `player`, `session`,
+- **Backend v2 (Nim 2.4)**: modules `account`, `community`, `player`, `session`,
   `tournament`, `rating`, `achievement`, `share`, `platform`; entrypoint
   `apps/api/src/main.nim`.
-- **Kontrak 75 operasi** — `core.yaml` + `community.yaml` → `api.yaml`,
-  `routes_gen.nim`, klien TS, fingerprint (`packages/contracts/openapi`).
-- **Skema v2** — 33 migrasi (`0001`–`0033`), 34 key config, seed config dan
-  achievement.
-- **Auth & komunitas** — OIDC + cookie sesi, membership `member`/`host`/`admin`,
-  invite, join request, settings, audit append-only, platform owner.
-- **Sesi** — API baca/tulis lengkap (jadwal, skor, skip, absent, swap, lock/unlock,
-  share) dengan `If-Match` + `Idempotency-Key`; klasemen dihitung server; UI host
-  dan halaman share publik sudah ada.
-- **Papan poin** — proyeksi v1 dari game: window 12 minggu, best 10 entri
-  (satu per sesi/turnamen), pengali tier, filter tier, detail pemain +
-  achievement. `min_sessions` menyaring papan dan bukti tipis hanya ditandai.
-- **Pengalaman v1 di atas API v2** — tree legacy dipulihkan di
-  `apps/web/src/legacy/`, akses berbasis role (`member`/`host`/`admin`), skip
-  per pemain per game, dan medali event v1 + rank-streak di rak pemain.
-- **Turnamen** — classic (16 pasangan, 4 grup, 32 match) dan team (6×6, 9 match grup
-  + final, 3 partai), editor FE + ingest rating admin.
-- **Ekspor** — post/story dari sesi atau turnamen, ukuran dari config.
-- **Pemain** — daftar, klaim/lepas klaim, merge, antrean admin.
-- **Realtime** — WebSocket ticket sekali pakai, fan-out in-memory (API).
-- **Gate** — `check`, `test`, `contract-check`, `coverage`, `parity`, `pnpm
-  check:web`, `e2e` (iPhone 17 + POCO F5), CI 7 job + gate.
-- **Ops** — deploy/cutover/rollback/backup/restore/smoke, Quadlet hardened, Caddy
-  handler `/majadu`, alert unit, harness rehearsal.
-- **Snapshot harian** — `ranksnapshot` ikut di image dan dijalankan
-  `majadu-snapshot.timer` (aktif setelah cutover); panah peringkat tidak lagi
-  bergantung pada snapshot manual.
-- **Rilis** — SemVer 2.0.0, CHANGELOG, tag SSH-signed, image sekali di CI, Release
-  ber-digest.
-- **Dekomisi Go v1** — source dihapus; rollback memakai `:v1-final`.
+- **75-operation contract**: `core.yaml` + `community.yaml` → `api.yaml`,
+  `routes_gen.nim`, TS client, fingerprint (`packages/contracts/openapi`).
+- **v2 schema**: 33 migrations (`0001`–`0033`), 34 config keys, config and
+  achievement seeds.
+- **Auth & communities**: OIDC + session cookie, `member`/`host`/`admin` membership,
+  invite, join request, settings, append-only audit, platform owner.
+- **Sessions**: complete read/write API (schedule, scores, skip, absent, swap, lock/unlock,
+  share) with `If-Match` + `Idempotency-Key`; standings computed on the server; host UI
+  and the public share page already exist.
+- **Points board**: v1 projection from games: 12-week window, best 10 entries
+  (one per session/tournament), tier multiplier, tier filter, player detail +
+  achievements. `min_sessions` filters the board and thin evidence is only marked.
+- **v1 experience on top of the v2 API**: the legacy tree restored in
+  `apps/web/src/legacy/`, role-based access (`member`/`host`/`admin`), per-player
+  per-game skip, and v1 event medals + rank-streak on the player shelf.
+- **Tournaments**: classic (16 pairs, 4 groups, 32 matches) and team (6×6, 9 group matches
+  + final, 3 rubbers), FE editor + admin rating ingest.
+- **Export**: post/story from a session or tournament, sizes from config.
+- **Players**: list, claim/release claim, merge, admin queue.
+- **Realtime**: single-use WebSocket ticket, in-memory fan-out (API).
+- **Gates**: `check`, `test`, `contract-check`, `coverage`, `parity`, `pnpm
+  check:web`, `e2e` (iPhone 17 + POCO F5), CI 7 jobs + gate.
+- **Ops**: deploy/cutover/rollback/backup/restore/smoke, hardened Quadlet, Caddy
+  `/majadu` handler, alert unit, rehearsal harness.
+- **Daily snapshot**: `ranksnapshot` ships in the image and is run by
+  `majadu-snapshot.timer` (active after cutover); the rank arrow no longer
+  depends on a manual snapshot.
+- **Release**: SemVer 2.0.0, CHANGELOG, SSH-signed tags, image built once in CI, digest-based
+  Release.
+- **Go v1 decommission**: source removed; rollback uses `:v1-final`.
 
-## ⏳ Berikutnya (di luar 88 task)
+## ⏳ Next (outside the 88 tasks)
 
-| # | Item | Kenapa |
+| # | Item | Why |
 |---|---|---|
-| 1 | **Produsen `platform.outbox`** | Realtime masih in-memory → API wajib satu instance. Untuk satu VPS ini cukup; outbox baru perlu bila replika ditambah. |
-| 2 | **Naikkan coverage** | Ratchet hanya menahan. Setelah atribusi diperbaiki, yang paling rendah: `apps/api` 15,47% (`app.nim` 30k baris nyaris tanpa test), `tools` 21,02% (`import/main.nim` 0%), `modules/player` 42,52%, `modules/rating` 48,27%. `modules/account` 60,81%, `modules/share` 66,88%, `modules/tournament` 57,15%. |
+| 1 | **`platform.outbox` producer** | Realtime is still in-memory → the API must be a single instance. For one VPS this is enough; an outbox only becomes necessary when replicas are added. |
+| 2 | **Raise coverage** | The ratchet only holds the line. After the attribution fix, the lowest are: `apps/api` 15.47% (`app.nim` 30k lines with almost no tests), `tools` 21.02% (`import/main.nim` 0%), `modules/player` 42.52%, `modules/rating` 48.27%. `modules/account` 60.81%, `modules/share` 66.88%, `modules/tournament` 57.15%. |
 
-## 🚧 Operasional yang belum selesai
+## 🚧 Operations still open
 
-- **T-063 rehearsal** — harness + gate siap, `timings.json` masih `not_run`;
-  butuh Podman dan jendela maintenance di VPS.
-- **Bukti VPS** (T-060/061/065) — `caddy validate` produksi, parsing Quadlet,
-  `podman pull` digest, rollback ber-stopwatch.
-- **T-074 soak** — 1 juta request + 50 watcher; ditunda pemilik, belum ada harness.
-- **T-082** — hapus image `:v1-final` setelah 30 hari observasi pasca-cutover.
-- **T-108** — force-push riwayat yang sudah di-rewrite **ditunda** atas keputusan
-  pemilik; hook lokal menolak catatan audit/review internal kembali masuk.
+- **T-063 rehearsal**: harness + gate ready, `timings.json` is still `not_run`;
+  needs Podman and a maintenance window on the VPS.
+- **VPS evidence** (T-060/061/065): production `caddy validate`, Quadlet parsing,
+  digest `podman pull`, stopwatch rollback.
+- **T-074 soak**: 1 million requests + 50 watchers; postponed by the owner, no harness yet.
+- **T-082**: remove the `:v1-final` image after 30 days of post-cutover observation.
+- **T-108**: force-push of the rewritten history is **postponed** by owner decision;
+  a local hook rejects internal audit/review notes coming back in.
 
-## Catatan
+## Notes
 
-- Deploy: push `main` → webhook → `ops/scripts/deploy-vps.sh`. Selama env produksi
-  masih menunjuk `bm`, script berhenti sebelum menyentuh container (cutover gate).
-- Backup/restore/cutover/rollback sudah ada di `ops/scripts/` dan didokumentasikan
-  di [`../ops/cutover.md`](../ops/cutover.md); prosedurnya belum dieksekusi di VPS.
-- Test: `./task check` · `./task test` (dengan `MAJADU_PG_DSN`) · `./task coverage`
+- Deploy: push `main` → webhook → `ops/scripts/deploy-vps.sh`. While the production env
+  still points at `bm`, the script stops before touching the container (cutover gate).
+- Backup/restore/cutover/rollback already exist in `ops/scripts/` and are documented
+  in [`../ops/cutover.md`](../ops/cutover.md); the procedure has not been executed on the VPS.
+- Tests: `./task check` · `./task test` (with `MAJADU_PG_DSN`) · `./task coverage`
   · `./task e2e` · `pnpm check:web`.

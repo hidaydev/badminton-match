@@ -1,27 +1,29 @@
 # Docs
 
-Dokumentasi runtime, operasi, dan proses hari ini. Semua berkas memakai huruf
-kecil dan tanda hubung; `README.md` satu-satunya pengecualian.
+Runtime, operations, and process documentation as it stands today. All files use
+lowercase and hyphens; `README.md` is the only exception.
 
 ## Start Here
 
-- [`handbook/README.md`](handbook/README.md) — index handbook
-- [`handbook/current-status.md`](handbook/current-status.md) — kondisi sekarang, infrastruktur, testing
-- [`handbook/architecture.md`](handbook/architecture.md) — arsitektur FE/BE, WebSocket, PWA
-- [`handbook/data-model.md`](handbook/data-model.md) — skema database v2 (`bm2`) dan bentuk data API
+- [`handbook/README.md`](handbook/README.md): index handbook
+- [`handbook/current-status.md`](handbook/current-status.md): current condition, infrastructure, testing
+- [`handbook/architecture.md`](handbook/architecture.md): FE/BE architecture, WebSocket, PWA
+- [`handbook/data-model.md`](handbook/data-model.md): v2 database schema (`bm2`) and API data shape
 
-## Peta direktori
+## Directory Map
 
-| Folder | Isi |
+| Folder | Contents |
 |---|---|
-| `handbook/` | runtime: produk, arsitektur, skema, rute, status, roadmap, scoring preset, format `deps.lock` |
-| `ops/` | akses dan insiden, rilis, OAuth, cutover, hook pre-push, lingkungan RC |
-| akar `docs/` | [`decisions.md`](decisions.md), [`design-system.md`](design-system.md), [`privacy.md`](privacy.md) |
+| `handbook/` | runtime: product, architecture, schema, routes, status, roadmap, scoring presets, `deps.lock` format |
+| `ops/` | access and incidents, releases, OAuth, cutover, pre-push hook, RC environment |
+| `docs/` root | [`decisions.md`](decisions.md), [`design-system.md`](design-system.md), [`privacy.md`](privacy.md) |
 
-## Konvensi
+## Conventions
 
-- Satu fakta satu tempat: skema di `data-model.md`, status dan angka test di
-  `current-status.md`, prioritas di `roadmap.md`.
-- Dokumen internal boleh bahasa Indonesia; kode dan komentar tetap bahasa Inggris.
-- Dokumen yang mendeskripsikan era lama atau rencana yang sudah selesai tidak
-  disimpan di working tree. Ambil dari riwayat: `git log --all -- docs/`.
+- One fact, one place: schema in `data-model.md`, status and test numbers in
+  `current-status.md`, priorities in `roadmap.md`.
+- Everything published here is written in English, including internal notes. Code,
+  comments, and commit messages follow the same rule.
+- Chat with the owner stays in Indonesian.
+- Documents describing an old era or a plan that is already finished are not
+  kept in the working tree. Get them from history: `git log --all -- docs/`.

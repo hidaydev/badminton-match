@@ -1,146 +1,144 @@
 # Product Overview
 
-## Tujuan
+## Purpose
 
-Majadu adalah aplikasi operasional badminton untuk satu atau banyak komunitas. Fokusnya:
+Majadu is a badminton operations app for one or many communities. Its focus:
 
-- menjalankan sesi main (peserta, jadwal, skor, klasemen),
-- mencatat hasil pertandingan dan turnamen,
-- menghitung papan poin pemain,
-- menyiapkan materi publikasi dari hasil sesi/turnamen.
+- running play sessions (participants, schedule, scores, standings),
+- recording match and tournament results,
+- computing the player points board,
+- preparing publication material from session/tournament results.
 
-Pertanyaan yang dijawab aplikasi:
+Questions the app answers:
 
-- Siapa yang main hari ini dan siapa yang absen?
-- Game apa saja yang dimainkan, di court mana, dan skornya berapa?
-- Siapa yang memimpin klasemen sesi dan papan poin komunitas?
-- Bagaimana hasil grup/bracket turnamen classic atau team?
-- Gambar publikasi apa yang bisa diunduh dari hasil itu?
+- Who plays today and who is absent?
+- Which games are played, on which court, and what are the scores?
+- Who leads the session standings and the community points board?
+- What are the results of classic or team tournament groups/brackets?
+- Which publication images can be downloaded from those results?
 
-## Model komunitas & akses
+## Community model & access
 
-- Satu instance melayani banyak komunitas. Setiap data operasional dimiliki satu
+- One instance serves many communities. Every operational row is owned by one
   `community_id`.
-- Login memakai Google OIDC; tidak ada penulisan anonim. Cookie sesi `HttpOnly`.
-- Role per komunitas: `member` (baca), `host` (tulis sesi/turnamen), `admin` (anggota,
-  settings, rating, klaim). Platform owner hanya untuk manajemen platform.
-- Tautan share `/s/{code}` bersifat baca-saja dan tidak memberi akses tulis.
+- Login uses Google OIDC; there are no anonymous writes. The session cookie is `HttpOnly`.
+- Roles per community: `member` (read), `host` (write sessions/tournaments), `admin` (members,
+  settings, rating, claims). Platform owner is only for platform management.
+- Share links `/s/{code}` are read-only and grant no write access.
 
-## Area produk
+## Product areas
 
-### 1. Sesi
+### 1. Sessions
 
-Data sesi: judul, tanggal, jam mulai, durasi slot, court, peserta, dan game.
+Session data: title, date, start time, slot duration, courts, participants, and games.
 
-- Jadwal disimpan relasional: satu baris `session.games` per `{round}-{court}`, dengan
-  hingga dua pemain per sisi (`session.participants`).
-- Skor satu game diubah lewat `PATCH …/games/{gameKey}`; skip game lewat
-  `…/games/{gameKey}/skip`. Skor harus 0–99 dan tidak boleh seri.
-- Absen ditandai per peserta; pemain absen tidak dihitung di klasemen dan tidak
-  mendapat poin.
-- Lock sesi mencatat siapa/waktu approve; unlock tersedia untuk host/admin.
-- Klasemen sesi dihitung server: menang, selisih poin, poin untuk, lalu nama
+- The schedule is stored relationally: one `session.games` row per `{round}-{court}`, with
+  up to two players per side (`session.participants`).
+- A game's score is changed through `PATCH …/games/{gameKey}`; a game is skipped through
+  `…/games/{gameKey}/skip`. Scores must be 0–99 and must not be a draw.
+- Absence is marked per participant; absent players are not counted in the standings and get
+  no points.
+- Locking a session records who/when approved; unlock is available to host/admin.
+- Session standings are computed on the server: wins, point difference, points for, then name
   (`modules/session/standings.nim`).
 
-**Status UI:** daftar dan detail sesi sudah ada. Host/admin mendapat panel untuk
-lock/unlock, share link, skor, skip, absent, dan swap. Membuat sesi baru dan
-menyusun jadwal lewat wizard 4 langkah (`/c/:slug/session/new` → `/session/players`
-→ `/session/constraints` → `/session/generate`) dengan generator jadwal 5 fase di
+**UI status:** the session list and detail already exist. Host/admin get a panel for
+lock/unlock, share link, scores, skip, absent, and swap. Creating a new session and building
+the schedule goes through a 4-step wizard (`/c/:slug/session/new` → `/session/players`
+→ `/session/constraints` → `/session/generate`) with a 5-phase schedule generator in the
 browser.
 
-### 2. Pemain
+### 2. Players
 
-- Identitas utama `canonical_name`; pencarian/import memakai `alias` yang
-  dinormalisasi dan unik per komunitas.
-- Tier 8 level: `D`, `D+`, `C`, `C+`, `B`, `B+`, `A`, `A+`; boleh kosong.
+- Primary identity is `canonical_name`; search/import uses `alias`, which is normalized and
+  unique per community.
+- 8 tier levels: `D`, `D+`, `C`, `C+`, `B`, `B+`, `A`, `A+`; may be empty.
 - Gender `M`/`F`.
-- Klaim pemain oleh akun: satu klaim `pending` per pemain, satu pemain ber-owner per
-  akun per komunitas; keputusan klaim oleh admin.
-- Merge memindahkan alias, klaim, snapshot rating, achievement, pair (beserta
-  `display_name`-nya), state rating, dan riwayat sesi (peserta, game, skip, pemain
-  tim) ke pemain target, lalu menghapus sumber. Merge ditolak bila pasangan yang
-  menamai kedua pemain sudah dipakai match, atau bila keduanya muncul di game
-  yang sama.
-- Statistik pemain dan badge tersedia lewat API; halaman daftar pemain, klaim, dan
-  antrean keputusan admin sudah dibangun (`apps/web/src/pages/PlayersPage.tsx`).
+- Player claim by account: one `pending` claim per player, one owned player per account per
+  community; claim decisions are made by an admin.
+- Merge moves aliases, claims, rating snapshots, achievements, pairs (together with their
+  `display_name`), rating state, and session history (participants, games, skips, team
+  players) to the target player, then deletes the source. Merge is rejected when the pair that
+  names both players is already used by a match, or when both appear in the same game.
+- Player statistics and badges are available through the API; the player list page, claims, and
+  the admin decision queue are already built (`apps/web/src/pages/PlayersPage.tsx`).
 
-### 3. Papan poin
+### 3. Points board
 
-- Poin dihitung dari game sesi dan match turnamen dalam window bergulir **12 minggu**,
-  mengambil **10 entri terbaik** per pemain (satu entri per sesi/turnamen).
-  `min_sessions` menyaring papan; di bawah `rating.thin_evidence_n` pemain ditandai
-  bukti tipis, bukan disembunyikan.
-- Nilai game = `session_base × (0.5 + 0.5 × clamp(margin/score_target, -1, 1))`.
-- Turnamen dengan ladder aktif (`rating.levels`) memakai
-  `champion_points × round_ratio(placement)`; tanpa ladder, rumus game dipakai.
-- Pengali kekuatan lawan = rasio rata-rata tier lawan terhadap populasi, dijepit
-  `0.5–1.5`.
-- Semua angka berasal dari config komunitas/platform (`rating.*`).
-- Papan komunitas dibatasi `rank.board_limit` (200 baris) dan bisa difilter tier.
-- Tidak ada rating absolut/Glicko dan tidak ada siklus musim.
-- Detail pemain: peringkat, poin, main/menang/kalah, statistik, dan badge.
-- Ingest hasil sesi/turnamen idempoten; sumber punya sign-off, dan revert menolak
-  sumber yang sudah finalized.
+- Points are computed from session games and tournament matches within a rolling **12-week**
+  window, taking the **best 10 entries** per player (one entry per session/tournament).
+  `min_sessions` filters the board; below `rating.thin_evidence_n` a player is marked as thin
+  evidence, not hidden.
+- Game value = `session_base × (0.5 + 0.5 × clamp(margin/score_target, -1, 1))`.
+- Tournaments with an active ladder (`rating.levels`) use
+  `champion_points × round_ratio(placement)`; without a ladder, the game formula is used.
+- Opponent strength multiplier = ratio of the opponent's average tier to the population,
+  clamped to `0.5–1.5`.
+- All numbers come from community/platform config (`rating.*`).
+- The community board is capped by `rank.board_limit` (200 rows) and can be filtered by tier.
+- There is no absolute/Glicko rating and no season cycle.
+- Player detail: rank, points, played/won/lost, statistics, and badges.
+- Session/tournament result ingest is idempotent; a source has sign-off, and revert rejects a
+  source that is already finalized.
 
 ### 4. Achievement
 
-Badge dihitung backend dari riwayat pemain dan katalog di
+Badges are computed by the backend from player history and the catalog in
 `achievement.definitions`:
 
-- kategori: `attendance`, `volume`, `opponent`, `tournament`, `tier`, `rank`, `social`;
-- key menentukan metrik + ambang (mis. `sessions:10`, `games:25`, `rank:3`);
-- badge tampil di `/c/{slug}/rankings/{playerId}`;
-- key yang tidak ada di seed tidak bisa diterima (`achievement.earned` FK ke definisi).
+- categories: `attendance`, `volume`, `opponent`, `tournament`, `tier`, `rank`, `social`;
+- the key determines the metric + threshold (e.g. `sessions:10`, `games:25`, `rank:3`);
+- badges appear at `/c/{slug}/rankings/{playerId}`;
+- a key that is not in the seed cannot be earned (`achievement.earned` FK to the definition).
 
-### 5. Turnamen
+### 5. Tournaments
 
-**Classic:** 16 pasangan → 4 grup (A–D) → round-robin → knockout. Satu turnamen punya
-32 match: 24 grup, 4 QF, 2 SF, 1 perebutan juara 3, 1 final. Draw dibuat di browser dari
-seed, lalu disimpan lewat API.
+**Classic:** 16 pairs → 4 groups (A–D) → round-robin → knockout. One tournament has
+32 matches: 24 group, 4 QF, 2 SF, 1 third-place playoff, 1 final. The draw is made in the
+browser from seeds, then saved through the API.
 
-**Team:** 6 tim × 6 kelas (`A+`…`C`), 9 match grup round-robin + 1 final, 3 partai per
-match. Court per match bisa diedit; klasemen dan juara dihitung dari aturan domain yang
-sama.
+**Team:** 6 teams × 6 classes (`A+`…`C`), 9 round-robin group matches + 1 final, 3 rubbers per
+match. The courts per match can be edited; standings and champion are computed from the same
+domain rules.
 
-Admin bisa finalize source, ingest, revert rating, dan menghapus turnamen.
+An admin can finalize a source, ingest, revert rating, and delete a tournament.
 
-### 6. Ekspor sosial
+### 6. Social export
 
-- Sumber: klasemen sesi, grup/bracket/final classic, atau klasemen/final team.
-- Dua varian: `post` (default 1080×1350) dan `story` (default 1080×1920).
-- Ukuran memakai konstanta di `apps/web/src/legacy/config/canvas.ts`
-  (`POST_WIDTH`/`POST_HEIGHT`, `STORY_WIDTH`/`STORY_HEIGHT`), bukan config.
-- Render di canvas browser; hasil diunduh sebagai gambar.
+- Sources: session standings, classic group/bracket/final, or team standings/final.
+- Two variants: `post` (default 1080×1350) and `story` (default 1080×1920).
+- Sizes use the constants in `apps/web/src/legacy/config/canvas.ts`
+  (`POST_WIDTH`/`POST_HEIGHT`, `STORY_WIDTH`/`STORY_HEIGHT`), not config.
+- Rendered in the browser canvas; the result is downloaded as an image.
 
-### 7. Komunitas & operasi
+### 7. Communities & operations
 
-- Undangan lewat email-hash + token; join request bisa dibuka/ditutup per komunitas.
-  Tautan `/invites/{token}` bisa diterima langsung oleh alamat yang dituju (login
-  juga meng-claim undangan itu), dan penerimaan ulang oleh alamat yang sama
-  idempoten.
-- Settings komunitas adalah override dari registry platform; override hanya boleh
-  mempersempit nilai platform.
-- Audit append-only mencatat aksi privileged (aktor, target, hasil, before/after),
-  dengan allowlist field agar kode share/email/IP tidak masuk bukti.
-- Operasi CLI: `./task bootstrap`, `ingest`, `ranksnapshot`, `janitor`, `opstoken`,
+- Invites go through email-hash + token; join requests can be opened/closed per community.
+  The `/invites/{token}` link can be accepted directly by the address it targets (login also
+  claims that invite), and re-acceptance by the same address is idempotent.
+- Community settings are overrides of the platform registry; an override may only narrow the
+  platform value.
+- Append-only audit records privileged actions (actor, target, result, before/after), with a
+  field allowlist so share codes/emails/IPs do not enter the evidence.
+- CLI operations: `./task bootstrap`, `ingest`, `ranksnapshot`, `janitor`, `opstoken`,
   `audit-retention` (`task`).
 
 ## Realtime
 
-Perubahan sesi disiarkan lewat WebSocket dengan ticket sekali pakai. Frame
-`session.changed` hanya menandai bahwa state berubah (membawa `seq`), bukan mengirim
-delta; klien harus membaca ulang sesi. Tidak ada SSE dan tidak ada replay event.
-Frontend memakai WebSocket di layar sesi dalam aplikasi (`useSessionRealtime`,
-dengan polling 5 detik selama socket belum tersambung); halaman share publik
-`/s/{code}` tidak membuka socket dan memuat ulang tiap 10 detik.
+Session changes are broadcast over WebSocket with a single-use ticket. The `session.changed`
+frame only signals that state changed (it carries `seq`), it does not send a delta; clients
+must re-read the session. There is no SSE and no event replay.
+The frontend uses WebSocket on the in-app session screen (`useSessionRealtime`,
+with 5-second polling while the socket is not yet connected); the public share page
+`/s/{code}` does not open a socket and reloads every 10 seconds.
 
-## Arsitektur ringkas
+## Architecture summary
 
-- **Frontend** — React 19, Vite, Tailwind 4, React Router 7 (`apps/web`).
-- **Backend** — Nim 2.4, Mummy HTTP + WebSocket, `db_connector` (`apps/api/src`).
-- **Database** — PostgreSQL 18, database `bm2`, skema per domain (`db/migrations`).
-- **Kontrak** — OpenAPI tulis tangan + codegen, 75 operasi
+- **Frontend**: React 19, Vite, Tailwind 4, React Router 7 (`apps/web`).
+- **Backend**: Nim 2.4, Mummy HTTP + WebSocket, `db_connector` (`apps/api/src`).
+- **Database**: PostgreSQL 18, database `bm2`, schema per domain (`db/migrations`).
+- **Contract**: hand-written OpenAPI + codegen, 75 operations
   (`packages/contracts/openapi`).
 
-Detail: [`architecture.md`](architecture.md) · [`data-model.md`](data-model.md) ·
+Details: [`architecture.md`](architecture.md) · [`data-model.md`](data-model.md) ·
 [`features-and-routes.md`](features-and-routes.md).

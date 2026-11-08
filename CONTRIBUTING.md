@@ -71,8 +71,8 @@ pnpm check                   # TypeScript, ESLint, Tailwind guard, Vitest
 
 These are enforced rules, not suggestions.
 
-* Identifiers, code comments, log messages, and commit messages are in English.
-  Internal documentation under `docs/` may be in Indonesian.
+* Identifiers, code comments, log messages, commit messages, and everything under
+  `docs/` are in English.
 * Every user-visible string lives in `apps/web/src/i18n/en.ts`. Do not hardcode
   copy in components.
 * Business numbers come from the database, not from code. Values resolve from
