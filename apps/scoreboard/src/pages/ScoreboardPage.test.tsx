@@ -1,0 +1,211 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import ScoreboardPage from './ScoreboardPage'
+
+function renderPage(store: Record<string, string> = {}) {
+  for (const [key, value] of Object.entries(store)) localStorage.setItem(key, value)
+  return render(<ScoreboardPage />)
+}
+
+const halfOf = (name: string) =>
+  screen.getByText(name).closest('[role="button"]') as HTMLElement
+
+afterEach(() => {
+  vi.useRealTimers()
+  localStorage.clear()
+  // `fullscreenElement` and the viewport are defined per test; leaving them set
+  // makes the next render start in fullscreen or in portrait.
+  Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
+  Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true })
+  Object.defineProperty(window, 'innerHeight', { value: 768, configurable: true })
+})
+
+describe('ScoreboardPage', () => {
+  it('adds a point to the half that was tapped and stores it', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(halfOf('Arya'))
+
+    expect(within(halfOf('Arya')).getByText('1')).toBeInTheDocument()
+    expect(within(halfOf('Bowo')).getByText('0')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('1')
+    expect(localStorage.getItem('score-blue')).toBe('0')
+  })
+
+  it('saturates at 99 and never shows 100', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': '99' })
+
+    fireEvent.click(halfOf('Arya'))
+
+    expect(within(halfOf('Arya')).getByText('99')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('99')
+  })
+
+  it('floors the minus control at zero without scoring the half', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease red score' }))
+
+    expect(within(halfOf('Arya')).getByText('0')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('0')
+  })
+
+  it('subtracts one point from a positive score', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': '2' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease red score' }))
+
+    expect(within(halfOf('Arya')).getByText('1')).toBeInTheDocument()
+  })
+
+  it('floors the blue minus control at zero as well', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-blue': '1' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease blue score' }))
+
+    expect(within(halfOf('Bowo')).getByText('0')).toBeInTheDocument()
+    expect(localStorage.getItem('score-blue')).toBe('0')
+  })
+
+  it('resets both sides to zero and writes the zeros', () => {
+    renderPage({
+      'name-red': 'Arya',
+      'name-blue': 'Bowo',
+      'score-red': '7',
+      'score-blue': '3',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset scores' }))
+
+    expect(localStorage.getItem('score-red')).toBe('0')
+    expect(localStorage.getItem('score-blue')).toBe('0')
+    expect(within(halfOf('Arya')).getByText('0')).toBeInTheDocument()
+    expect(within(halfOf('Bowo')).getByText('0')).toBeInTheDocument()
+  })
+
+  it('swaps the two halves and keeps their scores with them', () => {
+    const { container } = renderPage({
+      'name-red': 'Arya',
+      'name-blue': 'Bowo',
+      'score-red': '3',
+      'score-blue': '1',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Swap sides' }))
+
+    const halves = container.querySelectorAll('[role="button"]')
+    expect(halves[0]).toHaveTextContent('Bowo')
+    expect(halves[0]).toHaveTextContent('1')
+    expect(halves[1]).toHaveTextContent('Arya')
+    expect(halves[1]).toHaveTextContent('3')
+  })
+
+  it('restores stored names, ignores the old colour defaults and falls back to the labels', () => {
+    renderPage({ 'name-red': 'Red', 'name-blue': 'Bowo' })
+
+    expect(screen.getByText('RED')).toBeInTheDocument()
+    expect(screen.getByText('Bowo')).toBeInTheDocument()
+  })
+
+  it('renames a side and persists the new name', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(screen.getByText('Arya'))
+    const input = screen.getByLabelText('Red team name')
+    fireEvent.change(input, { target: { value: 'Arya P' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(localStorage.getItem('name-red')).toBe('Arya P')
+    expect(screen.getByText('Arya P')).toBeInTheDocument()
+  })
+
+  it('renames the blue side and persists it on blur', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    fireEvent.click(screen.getByText('Bowo'))
+    const input = screen.getByLabelText('Blue team name')
+    fireEvent.change(input, { target: { value: 'Bowo S' } })
+    fireEvent.blur(input)
+
+    expect(localStorage.getItem('name-blue')).toBe('Bowo S')
+    expect(screen.getByText('Bowo S')).toBeInTheDocument()
+  })
+
+  it('says fullscreen is unavailable instead of failing silently', async () => {
+    Object.defineProperty(document, 'fullscreenEnabled', { value: false, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    // `toggleFullscreen` awaits the attempt, so the error lands one microtask
+    // after the click.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Enter fullscreen' }))
+    })
+
+    expect(screen.getByText('Fullscreen not supported on this browser')).toBeInTheDocument()
+  })
+
+  it('enters fullscreen, locks landscape and follows the fullscreenchange event', async () => {
+    Object.defineProperty(document, 'fullscreenEnabled', { value: true, configurable: true })
+    const requestFullscreen = vi.fn(async () => {})
+    Object.defineProperty(document.documentElement, 'requestFullscreen', {
+      value: requestFullscreen,
+      configurable: true,
+    })
+    Object.defineProperty(screen, 'orientation', {
+      value: { lock: vi.fn(async () => {}) },
+      configurable: true,
+    })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Enter fullscreen' }))
+    })
+    expect(requestFullscreen).toHaveBeenCalledTimes(1)
+
+    Object.defineProperty(document, 'fullscreenElement', {
+      value: document.documentElement,
+      configurable: true,
+    })
+    act(() => {
+      document.dispatchEvent(new Event('fullscreenchange'))
+    })
+
+    expect(screen.getByRole('button', { name: 'Exit fullscreen' })).toBeInTheDocument()
+  })
+
+  it('hides the fullscreen error after four seconds', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(document, 'fullscreenEnabled', { value: false, configurable: true })
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Enter fullscreen' }))
+    })
+    expect(screen.getByText('Fullscreen not supported on this browser')).toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(4000)
+    })
+    expect(screen.queryByText('Fullscreen not supported on this browser')).not.toBeInTheDocument()
+  })
+
+  it('rotates the board when the viewport is taller than it is wide', () => {
+    const { container } = renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+    const board = container.querySelector('main') as HTMLElement
+    expect(board.getAttribute('style')).not.toContain('rotate(90deg)')
+
+    Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true })
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    expect(board.getAttribute('style')).toContain('rotate(90deg)')
+  })
+
+  it('ignores a stored score that is not a number', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': 'abc' })
+
+    expect(within(halfOf('Arya')).getByText('0')).toBeInTheDocument()
+  })
+})

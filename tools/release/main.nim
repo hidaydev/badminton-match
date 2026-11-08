@@ -116,7 +116,11 @@ proc report(options: Options, current, next: Version, tag: string,
   echo "  gh release create v" & $next & " --notes-file " & notesPath &
     " --verify-tag"
 
-proc main() =
+proc main*() =
+  ## Exported for `tests/repo_test.nim` only (D-5): `main` reads the process
+  ## command line, so the CLI cases re-execute the test binary through an
+  ## environment probe and call this entry point with the probe's arguments.
+  ## Shipped behaviour is unchanged; `when isMainModule` still gates the tool.
   let options = parseArgs()
   let current = readVersion(options.repo / "VERSION")
   let tag = lastTag(options.repo)

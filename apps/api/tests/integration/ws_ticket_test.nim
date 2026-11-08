@@ -1,12 +1,19 @@
 import std/[options, os, unittest]
 import db/db
 import sha256
+import token
 import uuidv7
 import tests/fixtures
 import ../../src/live
 import ../../src/ws_ticket
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
+
+proc ascending(first: int): ByteSource =
+  ## A deterministic source so the exact ticket can be asserted.
+  result = proc(count: int): seq[byte] =
+    for index in 0 ..< count:
+      result.add(byte(first + index))
 
 suite "ws tickets":
   var db: Db
@@ -47,6 +54,22 @@ suite "ws tickets":
     check row.get.get("channel_kind") == kindSession
     check row.get.get("channel_id") == sessionId
     check row.get.get("user_id") == userId
+
+  test "issueSession renders the injected bytes exactly":
+    let token = issueSession(db, userId, sessionId, 60, ascending(0))
+    check token ==
+      "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    let row = db.queryOne(
+      """select encode(token_hash,'hex') as token_hash
+         from platform.ws_ticket where token_hash = decode($1,'hex')""",
+      @[textParam(sha256Hex(token))])
+    check row.isSome
+    check row.get.get("token_hash") == sha256Hex(token)
+    check consume(db, token, kindSession, sessionId).isSome
+
+  test "two injected sources produce different session tickets":
+    check issueSession(db, userId, sessionId, 60, ascending(0)) !=
+      issueSession(db, userId, sessionId, 60, ascending(96))
 
   test "consume returns the channel once and a replay is a miss":
     let token = issueSession(db, userId, sessionId, 60)

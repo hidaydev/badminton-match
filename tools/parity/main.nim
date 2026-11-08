@@ -20,11 +20,13 @@ const
   fixtureShareCode = "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
 
 type
-  Options = object
-    command, base, dir, name, verb, path, body, bodyFile, route, spec, routes,
-      dsn: string
-    headers: seq[(string, string)]
-    names: seq[string]
+  Options* = object
+    ## Exported for tools/parity/tests (D-5, TL-09): the record and replay
+    ## cases build one by hand instead of going through the command line.
+    command*, base*, dir*, name*, verb*, path*, body*, bodyFile*, route*,
+      spec*, routes*, dsn*: string
+    headers*: seq[(string, string)]
+    names*: seq[string]
 
 proc parseHeader(value: string): (string, string) =
   let colon = value.find(':')
@@ -92,8 +94,8 @@ proc requestBody(options: Options): string =
   else:
     result = options.body
 
-proc send(base, verbText, path, body: string,
-          headers: seq[(string, string)]): (int, string) =
+proc send*(base, verbText, path, body: string,
+           headers: seq[(string, string)]): (int, string) =
   var client = newHttpClient(timeout = 10000)
   defer: client.close()
   var requestHeaders = newHttpHeaders()
@@ -117,7 +119,7 @@ proc send(base, verbText, path, body: string,
   let response = client.request(base & path, httpMethod = verb, body = body)
   (response.code.int, response.body)
 
-proc responseExpectation(status: int, body: string): JsonNode =
+proc responseExpectation*(status: int, body: string): JsonNode =
   result = newJObject()
   result["status"] = %status
   if body.len == 0:
@@ -136,7 +138,7 @@ proc copyExtras(document, existing: JsonNode) =
     if existing.hasKey(key):
       document[key] = existing[key]
 
-proc recordOne(options: Options) =
+proc recordOne*(options: Options) =
   if options.name.len == 0:
     usageFail(program, "--name is required for record")
   if options.path.len == 0:
@@ -197,7 +199,7 @@ proc specBody(field, specDir: string): (string, string) =
     return ("", specDir / value[1 .. ^1])
   (value, "")
 
-proc recordSpec(options: Options) =
+proc recordSpec*(options: Options) =
   if not fileExists(options.spec):
     fail(program, "spec file not found: " & options.spec)
   let specDir = options.spec.parentDir
@@ -223,7 +225,7 @@ proc recordSpec(options: Options) =
     count.inc
   echo "parity: recorded " & $count & " cases from " & options.spec
 
-proc caseRequest(node: JsonNode):
+proc caseRequest*(node: JsonNode):
     tuple[verb, path, body: string, headers: seq[(string, string)]] =
   if not node.hasKey("request") or node["request"].kind != JObject:
     # T-012 cases stored method/path at the top level.
@@ -247,7 +249,7 @@ proc expectedBody(node: JsonNode): JsonNode =
   if node.hasKey("expect"): node["expect"]["body"]
   else: node["body"]
 
-proc replayOne(options: Options, name: string): bool =
+proc replayOne*(options: Options, name: string): bool =
   let target = casePath(options.dir, name)
   if not fileExists(target):
     stderr.writeLine "parity: case not found: " & target
@@ -301,7 +303,7 @@ proc namesFromSpec(spec: string): seq[string] =
       continue
     result.add(line.split('\t')[0].strip())
 
-proc replay(options: Options) =
+proc replay*(options: Options) =
   var names = options.names
   if options.name.len > 0:
     names.insert(options.name, 0)
@@ -322,7 +324,9 @@ proc replay(options: Options) =
     quit(1)
   echo "parity: " & $names.len & " cases ok"
 
-proc routesFromSource(path: string): seq[string] =
+# The lint and path helpers below are exported for tools/parity/tests (D-5,
+# TL-08): they are pure, and until now only CI's corpus scan reached them.
+proc routesFromSource*(path: string): seq[string] =
   ## The declared routes of the v1 corpus, one "METHOD /path" per line. The Go
   ## server that used to declare them is gone (T-082), so the list is frozen next
   ## to the corpus instead of being parsed out of source that no longer exists.
@@ -334,7 +338,7 @@ proc routesFromSource(path: string): seq[string] =
       continue
     result.add(route)
 
-proc operationsFromSource(path: string): seq[string] =
+proc operationsFromSource*(path: string): seq[string] =
   ## `routes_gen.nim` is keyed by operation id, which is the stable name for a
   ## route whose path is a template.
   if not fileExists(path):
@@ -371,7 +375,7 @@ proc operationPathsFromSource(path: string): Table[string, string] =
         result[operation] = line[start ..< stop]
         operation = ""
 
-proc pathMatches(expectedPath, actual: string): bool =
+proc pathMatches*(expectedPath, actual: string): bool =
   ## Static segments must match literally; a `{...}` segment matches any
   ## non-empty one.
   let expected = expectedPath.strip(chars = {'/'}).split('/')
@@ -388,7 +392,7 @@ proc pathMatches(expectedPath, actual: string): bool =
       return false
   true
 
-proc routePathTemplate(route: string): string =
+proc routePathTemplate*(route: string): string =
   ## The v1 corpus stores `METHOD /path` as the route; the v2 corpus stores an
   ## operation id, whose template comes from `routes_gen.nim`.
   let space = route.find(' ')
@@ -406,8 +410,8 @@ proc isNonEmptyBody(node: JsonNode): bool =
   of JObject, JArray: node.len > 0
   of JBool, JInt, JFloat: true
 
-proc lintErrorEnvelope(name: string, status: int, body: JsonNode,
-                       problems: var seq[string]) =
+proc lintErrorEnvelope*(name: string, status: int, body: JsonNode,
+                        problems: var seq[string]) =
   ## A 4xx recorded from the Nim API must carry the problem+json envelope.
   ## Re-recording the corpus is how an intentional body change lands, so without
   ## this check the corpus would also accept a hand-built error body that skipped
@@ -426,8 +430,8 @@ proc lintErrorEnvelope(name: string, status: int, body: JsonNode,
   elif body["status"].getInt() != status:
     problems.add(name & ": 4xx body status does not match expect.status")
 
-proc lintCase(name: string, document: JsonNode,
-              problems: var seq[string], rejected: var int): string =
+proc lintCase*(name: string, document: JsonNode,
+               problems: var seq[string], rejected: var int): string =
   if not document.hasKey("expect"):
     problems.add(name & ": missing expect")
     return ""
@@ -589,7 +593,9 @@ proc stateSelftest(options: Options) =
     quit(1)
   echo "parity: state selftest ok (mutation changes the hash and is rolled back)"
 
-proc main() =
+proc main*() =
+  ## Exported for tools/parity/tests (D-5, TL-08) so the lint floor can be
+  ## driven as a subprocess over a temporary corpus.
   let options = parseArgs()
   case options.command
   of "record":

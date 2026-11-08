@@ -4,13 +4,15 @@ import { state } from './global-setup'
 import { visualRoutes } from './visual.routes'
 
 /**
- * Pixel baselines are recorded per platform (`snapshotPathTemplate` carries
- * `{platform}`) because text rasterisation differs between macOS and Linux.
- * CI has no Linux baseline yet, so it sets `E2E_VISUAL=0` and keeps every other
- * assertion running; `./task e2e --update-snapshots` records the missing set.
+ * Pixel baselines are recorded per platform, in `__screenshots__/{platform}/`,
+ * because text rasterisation differs between macOS and Linux and production is
+ * Linux. Both sets are committed: the macOS one is what a developer records and
+ * reviews locally, and the Linux one is recorded by the same job that runs the
+ * comparison on the runner (D-8, D-13).
+ *
+ * A platform with no baseline fails here rather than skipping: recording is an
+ * explicit `./task e2e --update-snapshots` whose diff lands in the pull request.
  */
-const visualBaselines = process.env.E2E_VISUAL !== '0'
-test.skip(!visualBaselines, 'pixel baselines are recorded per platform')
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -23,7 +25,12 @@ for (const route of visualRoutes) {
     // recorded on one day is still valid the next.
     await page.clock.setFixedTime(new Date('2026-11-04T12:00:00Z'))
     await page.goto(route.path(state()))
-    await page.waitForLoadState('networkidle')
+    // Readiness is data, not silence: `networkidle` never settles on a screen
+    // that holds a WebSocket open, and a screenshot of a loading skeleton is a
+    // baseline nobody meant to approve.
+    // `visible`: the same words can sit in a hidden <option> of a picker, and
+    // a readiness check that matches one is not waiting for the screen.
+    await page.locator(route.ready(state())).filter({ visible: true }).first().waitFor()
     // Fonts are served from the repo and still have to arrive before the glyphs
     // settle; a screenshot taken during the swap diffs every word on the page.
     await page.addStyleTag({

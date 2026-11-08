@@ -1,6 +1,7 @@
-import std/[options, strutils, sysrand]
+import std/[options, strutils]
 import db/db
 import sha256
+import token as tokenlib
 
 type
   ConsumedTicket* = object
@@ -13,11 +14,11 @@ const
   kindSession* = "session"
   kindShare* = "share"
 
-proc randomTicket*(): string =
-  ## 32 random bytes, hex encoded. Only the hash is stored (D14).
-  var bytes: array[32, byte]
-  if not urandom(bytes):
-    raise newException(IOError, "cannot read random bytes")
+proc randomTicket*(source: tokenlib.ByteSource = nil): string =
+  ## 32 random bytes, hex encoded. Only the hash is stored (D14). `source` is
+  ## the D-5 test seam, so a test can assert the exact ticket it minted.
+  let bytes =
+    if source.isNil: tokenlib.randomBytes(32) else: source(32)
   for value in bytes:
     result.add(toHex(value, 2).toLowerAscii)
 
@@ -32,10 +33,11 @@ proc store(db: Db, token, kind, channelId: string, userId: Option[string],
       (if userId.isSome: textParam(userId.get) else: nullParam()),
       intParam(ttlSeconds.int64)])
 
-proc issueSession*(db: Db, userId, sessionId: string, ttlSeconds: int): string =
+proc issueSession*(db: Db, userId, sessionId: string, ttlSeconds: int,
+                   source: tokenlib.ByteSource = nil): string =
   ## Session tickets always carry a principal; `ws_ticket_share_anonymous`
   ## rejects a NULL user_id on a session channel.
-  result = randomTicket()
+  result = randomTicket(source)
   store(db, result, kindSession, sessionId, some(userId), ttlSeconds)
 
 proc issueShare*(db: Db, linkId: string, ttlSeconds: int): string =

@@ -71,9 +71,13 @@ docs/audit/
 docs/tasks/
 
 # Playwright artefacts and e2e state (T-072)
-e2e/.state.json
+e2e/.state/
 test-results/
 playwright-report/
+
+# Frontend coverage output (v8 reports written by `vitest run --coverage`)
+apps/web/coverage/
+apps/scoreboard/coverage/
 
 # Nim build artefacts (T-018)
 .cache/

@@ -136,6 +136,35 @@ describe('players', () => {
     })
   })
 
+  it('keeps the roster form closed until its summary or the empty state opens it', async () => {
+    mockFetch({
+      'GET /api/auth/me': () => ({ body: sessionUser }),
+      'GET /api/communities': () => ({ body: { items: [membership('host')] } }),
+      'GET /api/c/acme/players?limit=50': () => ({ body: { items: [] } }),
+    })
+
+    renderAt('/c/acme/players')
+
+    const name = await screen.findByLabelText(t('players.add.name'))
+    const panel = name.closest('details')
+    if (!(panel instanceof HTMLDetailsElement)) {
+      throw new Error('the roster form is not a disclosure element')
+    }
+    expect(panel.open).toBe(false)
+
+    const summary = screen.getByText(t('players.add'), { selector: 'summary' })
+    fireEvent.click(summary)
+    expect(panel.open).toBe(true)
+    fireEvent.click(summary)
+    expect(panel.open).toBe(false)
+
+    // The empty state offers the same panel, so its link has to open it; an
+    // anchor alone would scroll to a closed box and look broken.
+    await screen.findByText(t('players.empty'))
+    fireEvent.click(screen.getByRole('link', { name: t('players.add') }))
+    expect(panel.open).toBe(true)
+  })
+
   it('an admin decides a pending claim', async () => {
     const fetchMock = mockFetch({
       'GET /api/auth/me': () => ({ body: sessionUser }),

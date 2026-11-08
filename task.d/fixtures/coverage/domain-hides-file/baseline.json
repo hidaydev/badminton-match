@@ -1,0 +1,12 @@
+{
+  "measured": "2026-11-08",
+  "floor": 50.00,
+  "total": {"lines": 200, "covered": 100},
+  "domains": {
+    "modules/gamma": {"lines": 200, "covered": 100}
+  },
+  "files": {
+    "modules/gamma/domain/a.nim": {"lines": 100, "covered": 50},
+    "modules/gamma/domain/b.nim": {"lines": 100, "covered": 50}
+  }
+}

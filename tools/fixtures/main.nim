@@ -101,7 +101,10 @@ type
     hasScore: bool
     members: seq[int]
 
-proc parseArgs(): Options =
+# Exported for tools/fixtures/tests (D-5, TL-01). The generator is a program, so
+# these are the seams that let the suite compare the output without writing a
+# committed fixture and without a second `nim c` for every case.
+proc parseArgs*(): Options =
   result.seed = uint64(defaultSeed)
   result.outPath = defaultDir
   for (flag, value) in flags(program, 1, ["--seed", "--out"]):
@@ -122,7 +125,7 @@ proc parseArgs(): Options =
     else:
       usageFail(program, "unknown argument: " & flag)
 
-proc outputFile(path: string): string =
+proc outputFile*(path: string): string =
   if splitFile(path).ext.toLowerAscii() == ".sql":
     path
   else:
@@ -141,7 +144,7 @@ proc next(rng: var Rng): uint64 =
 proc below(rng: var Rng, bound: int): int =
   int(rng.next() mod uint64(bound))
 
-proc uuidFor(seed: uint64; namespace, index: int): string =
+proc uuidFor*(seed: uint64; namespace, index: int): string =
   ## Keyed UUIDv4-shaped identifier: same inputs, same text, always.
   var rng = Rng(state: seed xor (uint64(namespace) * 0x9E3779B97F4A7C15'u64) xor
     (uint64(index) * 0xD6E8FEB86659FD93'u64))
@@ -210,7 +213,7 @@ proc scorePair(rng: var Rng): (int, int) =
 
 # --- generation --------------------------------------------------------------
 
-proc buildSql(seed: uint64): string =
+proc buildSql*(seed: uint64): string =
   var rng = Rng(state: seed xor 0x5DEECE66D'u64)
   var sql: seq[string]
 

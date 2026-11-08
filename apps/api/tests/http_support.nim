@@ -25,7 +25,7 @@ const
 #   18090 ws_ticket   18091 community   18092 player    18093 claim
 #   18094 session     18095 ops_token   18096 rankings  18097 readyz
 #   18098 idor        18099 csrf        18100 oidc      18101 ratelimit
-#   18102 tournament
+#   18102 tournament  18103 read_smoke  18108 be08_concurrency
 proc testPort*(base: int): Port =
   doAssert base >= firstTestPort, "test ports start at 18090"
   Port(base)
@@ -51,18 +51,14 @@ proc dsn*(): string = getEnv("MAJADU_PG_DSN")
 proc hasDatabase*(): bool = dsn().len > 0
 
 proc requireDatabase*() =
-  ## A suite that cannot run must never look like a suite that passed. In
-  ## integration mode a missing DSN is an error; otherwise the suite says one
-  ## line on stderr and exits 0, so `./task check` still works without a
-  ## database without implying it ran one.
+  ## A suite that cannot run must never look like a suite that passed. Since D-6
+  ## `./task check` requires a database, so a missing DSN is always an error with
+  ## the command that fixes it, never a silent exit 0.
   if hasDatabase():
     return
-  if getEnv("INTEGRATION") == "1":
-    raise newException(ValueError,
-      "MAJADU_PG_DSN is required when INTEGRATION=1")
-  stderr.writeLine(
-    "not run: MAJADU_PG_DSN is not set (set INTEGRATION=1 to require it)")
-  quit 0
+  raise newException(ValueError,
+    "MAJADU_PG_DSN is not set: run ./task dev-db and export " &
+    "MAJADU_PG_DSN=postgresql://$USER@127.0.0.1:5432/bm2_test")
 
 proc call*(baseUrl: string, verb: HttpMethod, path: string, cookie = "",
            body = "", origin = allowedOrigin, ifMatch = "",

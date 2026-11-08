@@ -27,9 +27,6 @@ proc player(name: string): string =
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
-  purgeCommunity(database, "claim-club")
-  discard database.execUpdate(
-    "delete from platform.user where google_sub like 'claim-%'")
   let ownerId = newUser(database, "claim-owner", "claim-owner-hash", "Owner",
     owner = true)
   communityId = community_store.create(database, "claim-club", "Claim Club",
@@ -91,6 +88,13 @@ suite "claim HTTP":
       "/c/claim-club/players/" & playerId & "/claims/" & claimId, admin2Cookie,
       """{"decision":"approve"}""")
     expectProblem(selfDecision, 403)
+    # A refusal before the write leaves the row pending and undecided.
+    let stored = database.queryOne(
+      """select status, decided_by from player.claims
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(communityId), textParam(claimId)]).get
+    check stored.get("status") == "pending"
+    check stored.getOpt("decided_by").isNone
 
   test "only one pending claim exists per player":
     let playerId = player("Klaim Tiga")

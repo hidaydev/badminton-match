@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { request } from 'playwright/test'
 import {
@@ -18,10 +18,30 @@ import type { E2eState } from './visual.routes'
  * the address the API was booted with, so the first login is the platform owner.
  */
 const here = __dirname
-export const statePath = join(here, '.state.json')
+
+/**
+ * The fixture handoff is per run: `.state/run-<id>.json`, plus a `current`
+ * marker naming the newest one. Two runs on one machine must not read each
+ * other's community ids, and the workers are separate processes from the one
+ * that ran the setup, so the name travels in the marker instead of a variable.
+ * `E2E_RUN_ID` names the run explicitly when a caller wants that.
+ */
+const stateDir = join(here, '.state')
+
+function runId(): string {
+  const named = process.env.E2E_RUN_ID
+  if (named) return named
+  const marker = join(stateDir, 'current')
+  if (existsSync(marker)) return readFileSync(marker, 'utf8').trim()
+  return `unsaved-${process.pid}`
+}
+
+export function statePath(): string {
+  return join(stateDir, `run-${runId()}.json`)
+}
 
 export function state(): E2eState {
-  return JSON.parse(readFileSync(statePath, 'utf8')) as E2eState
+  return JSON.parse(readFileSync(statePath(), 'utf8')) as E2eState
 }
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:5173'
@@ -156,21 +176,34 @@ export default async function globalSetup() {
 
     // Writable sessions live beside the pinned one: the write specs change
     // them, and two projects run in parallel, so each project gets its own.
-    const writableByProject: Record<string, string> = {}
-    for (const project of projects) {
-      const writable = await api.post('/api/c/e2e-writes/sessions', {
-        // Named per project so the sessions list reads as a fixture, not as a
-        // duplicate someone forgot to delete.
-        data: { title: `E2E Writable ${project.name}`, date: '2026-11-05', startTime: '19:00' },
+    //
+    // There are two families, because `fullyParallel` runs one spec file's
+    // tests beside another file's: `E2E Writable` belongs to the single-writer
+    // spec and `E2E OCC` to the two-writer one, so neither can bump the other's
+    // version mid-test. Both are named per project so the sessions list reads as
+    // a fixture, not as duplicates someone forgot to delete.
+    async function writableSessionFor(prefix: string, date: string,
+        project: (typeof projects)[number]): Promise<string> {
+      const created = await api.post('/api/c/e2e-writes/sessions', {
+        data: { title: `${prefix} ${project.name}`, date, startTime: '19:00' },
       })
-      if (writable.status() !== 201) {
-        throw new Error(`writable session: ${writable.status()} ${await writable.text()}`)
+      if (created.status() !== 201) {
+        throw new Error(`${prefix} session: ${created.status()} ${await created.text()}`)
       }
-      const id = ((await writable.json()) as { id: string }).id
+      const id = ((await created.json()) as { id: string }).id
       await putGames(api, 'e2e-writes', id, [
         { round: 0, court: 0, sideA: [writePlayerIds[0], writePlayerIds[1]], sideB: [writePlayerIds[2], writePlayerIds[3]] },
       ], 1)
-      writableByProject[project.name] = id
+      return id
+    }
+
+    const writableByProject: Record<string, string> = {}
+    const occByProject: Record<string, string> = {}
+    for (const project of projects) {
+      writableByProject[project.name] = await writableSessionFor(
+        'E2E Writable', '2026-11-05', project)
+      occByProject[project.name] = await writableSessionFor(
+        'E2E OCC', '2026-11-06', project)
     }
 
     // The draw uses the same round robin and bracket slots the app does (and
@@ -211,17 +244,23 @@ export default async function globalSetup() {
     }
     const tournamentId = ((await tournament.json()) as { id: string }).id
 
-    mkdirSync(here, { recursive: true })
+    mkdirSync(stateDir, { recursive: true })
+    writeFileSync(join(stateDir, 'current'), `${process.env.E2E_RUN_ID ?? process.pid}\n`)
     writeFileSync(
-      statePath,
+      statePath(),
       JSON.stringify(
         {
           communitySlug: 'e2e-club',
+          communityName: 'E2E Club',
           tournamentId,
+          tournamentName: 'E2E Classic',
           sessionId,
+          sessionTitle: 'E2E Wednesday',
           playerId: playerIds[0],
+          playerName: 'Ani',
           shareCode,
           writableByProject,
+          occByProject,
           writableCommunitySlug: 'e2e-writes',
         },
         null,

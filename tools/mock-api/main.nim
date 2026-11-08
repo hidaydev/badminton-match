@@ -2,7 +2,10 @@ import std/[os, strutils]
 import mummy
 import api/src/routes_gen
 
-proc matches(routePath, actual: string): bool =
+proc matches*(routePath, actual: string): bool =
+  ## Exported for `tests/mockapi_test.nim` only (D-5): the matcher is the one
+  ## piece of logic the mock owns, and a change to the `{param}` or literal rule
+  ## silently changes which requests the mock answers.
   let expected = routePath.split('/')
   let got = actual.split('/')
   if expected.len != got.len:

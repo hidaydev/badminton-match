@@ -1,4 +1,4 @@
-import std/[base64, json, os, strutils, sysrand]
+import std/[base64, json, os, sysrand]
 import cli
 import db/db
 import share/crypto
@@ -26,7 +26,10 @@ proc generate(keyId: string) =
   echo $(%*{keyId: encode(raw)})
   echo "# add this to SHARE_CODE_KEYS, then set SHARE_CODE_ACTIVE_KEY_ID=" & keyId
 
-proc main() =
+## Exported for `tools/sharekeys/tests/sharekeys_test.nim` (D-5): `main` reads
+## the process command line, so the only way to drive argument handling without
+## a second binary is to re-execute the test binary with a probe variable set.
+proc main*() =
   if paramCount() < 1:
     echo usage
     quit(2)

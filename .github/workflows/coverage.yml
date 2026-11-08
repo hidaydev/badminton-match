@@ -36,7 +36,12 @@ jobs:
           --health-cmd pg_isready --health-interval 5s
           --health-timeout 5s --health-retries 10
     steps:
+      # The diff-coverage gate needs a merge base, so the clone cannot be a
+      # single commit: with `fetch-depth: 1` there is no base to diff against and
+      # the gate would skip instead of judging the changed lines (D-15).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: jiro4989/setup-nim-action@189b145833368cc92f1e7b3e166a25a3e057a693 # v2.3.1
         with:
           nim-version: ${{ env.NIM_VERSION }}
@@ -73,7 +78,31 @@ jobs:
           nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
           .cache/ci/dbtools migrate --dir db/migrations
           .cache/ci/dbtools seed --dir db/seeds
+      # TL-07: the import suite is measured only when it runs, and it skips
+      # itself without both DSNs. The target is a fresh copy of the migrated
+      # database, so the instrumented run never writes into bm2_dev.
+      - name: "Import: provision the v1 source and the v2 target"
+        env:
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          IMPORT_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+        run: |
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE bm2_import_source_test" \
+            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test"
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/schema.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/fixtures/v1-fixtures.sql
+          # A source without the bm schema would import nothing and still read
+          # as clean, so the job fails before the suite can run.
+          loaded=$(psql -d "$IMPORT_SOURCE_DSN" -tAc "select to_regnamespace('bm')")
+          if [ "$loaded" != "bm" ]; then
+            echo "bm2_import_source_test has no bm schema" >&2
+            exit 1
+          fi
       - name: "Coverage: measure against the baseline"
         env:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
+          MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
+          MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
         run: ./task coverage

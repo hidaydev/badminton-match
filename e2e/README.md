@@ -7,8 +7,7 @@ same-origin `/api` path production uses.
 
 ```
 ./task e2e                     # a11y + visual + compatibility
-./task e2e --update-snapshots  # rewrite the visual baseline on purpose
-E2E_VISUAL=0 ./task e2e        # everything except the pixel comparison
+./task e2e --update-snapshots  # rewrite this platform's visual baseline
 ```
 
 The task resets `bm2_e2e`, migrates and seeds it, then starts three servers:
@@ -25,8 +24,12 @@ The task resets `bm2_e2e`, migrates and seeds it, then starts three servers:
   in `visual.routes.ts` plus the spectator share page (`/s/:code`), expecting
   zero violations.
 - **Visual** (`visual.spec.ts`): one full-page screenshot per route with
-  `maxDiffPixels: 0`. Snapshots live in `__screenshots__/` and are part of the
-  review, never regenerated silently.
+  `maxDiffPixels: 0`. Snapshots live in `__screenshots__/{platform}/` and are
+  part of the review, never regenerated silently.
+
+Every spec waits for the screen's own data (`VisualRoute.ready`) instead of
+`networkidle`, which never settles on a screen holding a WebSocket open. No spec
+uses `test.skip`.
 - **Compatibility** (`compat.spec.ts`): a request carrying an older
   `X-API-Version` gets `410 CLIENT_OUTDATED` and the shell shows the reload
   banner.
@@ -55,15 +58,21 @@ slots come from `apps/web/src/legacy/utils/tournament.ts`, the module the
 screens use, so those cannot drift from the rules. The seeded group shuffle
 lives in `e2e/draw.ts`: the wizard's copy lived with the classic tournament
 files the legacy rewrite removed, and the fixture needs a stable seed anyway.
-It writes `e2e/.state.json`, which specs read; the file is ignored by git.
+It writes `e2e/.state/run-<id>.json`, which specs read; the directory is ignored
+by git. The name carries the run (or `E2E_RUN_ID`), so two runs on one machine do
+not read each other's community ids.
 
 ## What CI runs
 
-The snapshots are recorded per platform (`{platform}` in the snapshot path) and
-the checked-in set is Darwin. The GitHub runner has no Linux baseline, so the
-workflow sets `E2E_VISUAL=0`: the a11y, navigation, write and compatibility
-assertions all run, the pixel comparison is skipped. Recording the Linux set is
-a deliberate `--update-snapshots` run on Linux, not something CI should do.
+The snapshots are recorded per platform, in `e2e/__screenshots__/{platform}/`,
+because glyph rasterisation differs between macOS and Linux and production is
+Linux. Both sets are committed.
+
+The checked-in set today is Darwin. The first run of the Linux job finds no
+`e2e/__screenshots__/linux/`, records one with `--update-snapshots`, and uploads
+the PNGs as the `playwright-linux-baseline` artifact; committing them turns the
+comparison on for every later run. The job does not skip a check and no spec
+skips: a platform with a baseline is always compared.
 
 The job provisions PostgreSQL and calls `./task e2e` itself, so the API, the
 OIDC stub and the preview server come from the same script a laptop uses. It is

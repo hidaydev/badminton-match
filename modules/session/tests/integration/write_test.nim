@@ -1,9 +1,37 @@
-import std/[json, options, os, unittest]
+import std/[json, options, os, sequtils, unittest]
 import db/db
+import tests/fixtures
 import ../../write
 import ../../scoring
 
 proc dsn(): string = getEnv("MAJADU_PG_DSN")
+
+type
+  PatchJob = object
+    ## One writer's whole state. The thread owns its own `Db` with a pool of
+    ## one, so the two writers race between two PostgreSQL sessions rather than
+    ## between two connections of the same pool.
+    dsn, communityId, sessionId, title: string
+    expectedVersion: int
+    status: WriteStatus
+
+var
+  patchReady: Channel[bool]
+  patchStart: Channel[bool]
+
+proc patchInThread(job: ptr PatchJob) {.thread.} =
+  ## Announces that the connection is open, then waits for the shared start
+  ## signal. Nothing is retried: the job runs `patch` once and records what it
+  ## returned.
+  {.cast(gcsafe).}:
+    var db = openDb(job.dsn, 1)
+    try:
+      patchReady.send(true)
+      discard patchStart.recv()
+      job.status = patch(db, job.communityId, job.sessionId,
+        job.expectedVersion, SessionPatch(title: some(job.title))).status
+    finally:
+      db.close()
 
 suite "session write":
   var db: Db
@@ -131,6 +159,49 @@ suite "session write":
       SessionPatch(date: some("2026-11-20")))
     check moved.status == wsOk
     check moved.record["date"].getStr() == "2026-11-20"
+
+  test "two writers holding one version land exactly one update":
+    # BE-08. The cases above drive one writer at a time, so a read followed by
+    # an unversioned update would still pass them. Both writers here read
+    # version 1, are released by one barrier, and each runs its own `patch`
+    # once; the winner is whichever PostgreSQL let through first.
+    let raceSlug = "be08-occ-store"
+    purgeCommunity(db, raceSlug)
+    let raceCommunity = newCommunity(db, raceSlug, "BE08 OCC Store")
+    let raceSession = newSession(db, raceCommunity, "Both writers",
+      sessionDate = "2026-11-08")
+    var first = PatchJob(dsn: dsn(), communityId: raceCommunity,
+      sessionId: raceSession, expectedVersion: 1, title: "First writer")
+    var second = PatchJob(dsn: dsn(), communityId: raceCommunity,
+      sessionId: raceSession, expectedVersion: 1, title: "Second writer")
+    open(patchReady)
+    open(patchStart)
+    var firstThread: Thread[ptr PatchJob]
+    var secondThread: Thread[ptr PatchJob]
+    createThread(firstThread, patchInThread, addr first)
+    createThread(secondThread, patchInThread, addr second)
+    # Both connections are open before either write can start.
+    discard patchReady.recv()
+    discard patchReady.recv()
+    patchStart.send(true)
+    patchStart.send(true)
+    joinThread(firstThread)
+    joinThread(secondThread)
+    close(patchReady)
+    close(patchStart)
+
+    let statuses = @[first.status, second.status]
+    check statuses.count(wsOk) == 1
+    check statuses.count(wsStale) == 1
+    let stored = db.queryOne(
+      """select title, version from session.sessions where id = $1::uuid""",
+      @[textParam(raceSession)]).get
+    # Exactly one write landed: the row carries the winner's title at N + 1,
+    # not the loser's and not N + 2.
+    check stored.get("version") == "2"
+    let winner = if first.status == wsOk: first.title else: second.title
+    check stored.get("title") == winner
+    purgeCommunity(db, raceSlug)
 
   test "patch keeps the row identity and child rows":
     let gamesBefore = db.queryOne(

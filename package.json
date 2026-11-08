@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm --filter badminton-pair-tmp dev",
     "build:web": "pnpm --filter badminton-pair-tmp build",
-    "check:web": "pnpm --filter badminton-pair-tmp check"
+    "check:web": "pnpm --filter badminton-pair-tmp check && pnpm --filter majadu-score check"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

@@ -49,9 +49,13 @@ proc serveMetrics(args: MetricsArgs) {.thread.} =
     {.cast(gcsafe).}:
       logError("metrics listener stopped", [("detail", error.msg)])
 
-proc bootHandler(config: ServerConfig, threads: int): RequestHandler =
+proc bootHandler*(config: ServerConfig, threads: int): RequestHandler =
   ## Wires the real application. Every dependency is required here so a
   ## misconfigured process refuses to start instead of serving 500s.
+  ##
+  ## Exported for `apps/api/tests/boot_contract_test.nim` (D-5): `main()` cannot
+  ## be entered from a test without binding a port, and the order of the refusal
+  ## checks is the contract that keeps a misconfigured process off the database.
   let dsn = getEnv("MAJADU_PG_DSN")
   if dsn.len == 0:
     raise newException(ValueError, "MAJADU_PG_DSN is required")

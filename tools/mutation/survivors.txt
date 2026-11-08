@@ -1,0 +1,10 @@
+# Mutants the suites do not kill yet. One entry per line, three fields:
+#
+#   id | owner | reason
+#
+# An entry here is a promise with a name on it, not a pass. The goal of QA-05 is
+# to shrink this file: a survivor means a rule the tests claim to guard is not
+# actually guarded, so either the test or the code has to change.
+#
+# id | owner | reason
+session.sets-won-tie | session | Equivalent mutant: `validSet` returns `seTie` before any caller reaches `setsWon`, so the tied set the mutant would count for B cannot exist. Change it to a killed mutant if a caller ever scores an unvalidated set.

@@ -1,0 +1,2 @@
+# name	route (operationId)	method	path	header(s, ';'-separated)	body ('-' = absent, '@file' = body file)
+healthz_wrong_expectation	getHealthz	GET	/healthz	-	-

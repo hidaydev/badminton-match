@@ -1,0 +1,27 @@
+# Test blocks the honest-test scan (QA-02, R-01 and R-02) lets through, one per
+# line:
+#
+#   path:test name   # why this block cannot fail on the behaviour it names
+#   path             # why this whole file is exempt
+#
+# Every entry is a violation the coverage audit already found and the plan
+# recorded as existing. The scan runs again on every check, so a new test in the
+# same file is still judged on its own, and a new vacuous assertion in another
+# block of the same file still fails.
+
+# The list has no entry for a test block today: the audit's one finding, the
+# literal `check true` in tools/parity/tests/cli_test.nim, was replaced by a real
+# suite (TL-08), so the exemption was removed rather than kept.
+
+# Two entries from the same audit are deliberately absent above:
+#
+#   modules/share/tests/crypto_test.nim asserts only the length of a generated
+#   code. The four R-02 forms this scan implements (`check true`, `check false`
+#   outside an else arm, `x == x`, `len(x) >= 0`) do not include a length-only
+#   assertion, so nothing would match and the line would be dead text that could
+#   later mask a real finding in the same block.
+#
+#   apps/web/src/pages/__tests__/players.test.tsx is TypeScript and is never
+#   scanned. Adding a rule for it is outside QA-02, so it is not listed either.
+#
+# Both stay open findings in section 10 of the plan.

@@ -265,8 +265,10 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
   }
 
   return (
-    <section className="mt-8">
-      <h2 className="text-sm font-semibold text-fg">{t('community.settings')}</h2>
+    <details className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4">
+      <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
+        {t('community.settings')}
+      </summary>
       <p className="mt-1 text-xs text-fg-dim">{t('community.settingsHint')}</p>
       <form
         className="mt-3 space-y-3"
@@ -363,7 +365,7 @@ function CommunitySettings({ slug, canEdit }: { slug: string; canEdit: boolean }
           </div>
         )}
       </form>
-    </section>
+    </details>
   )
 }
 

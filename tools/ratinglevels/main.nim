@@ -28,12 +28,17 @@ proc communityIdOf(db: Db, slug: string): string =
     fail(program, "no community with slug " & slug)
   row.get.get("id")
 
-proc requireKind(kind: string) =
+proc requireKind*(kind: string) =
+  ## Exported for `tests/levels_test.nim` (D-5): the accepted kinds are a
+  ## command-line contract, and the test states it instead of repeating it.
   if kind notin kinds:
     fail(program, "unknown kind: " & kind &
       " (session, tournament_classic, tournament_team)")
 
-proc validateRatios(raw: string): JsonNode =
+proc validateRatios*(raw: string): JsonNode =
+  ## Exported for `tests/levels_test.nim` (D-5): the shape a ladder row accepts
+  ## is a rule of its own, and a refused value ends the process, so a suite can
+  ## only assert the accepted half in-process.
   try:
     result = parseJson(raw)
   except ValueError as error:
@@ -83,6 +88,33 @@ proc main() =
     else:
       usageFail(program, "unknown argument: " & flag)
 
+  # The command's own arguments are checked before the database is opened, so a
+  # bad line is refused even when MAJADU_PG_DSN is missing, and the exit code
+  # describes the line rather than the environment. Exit codes and messages for
+  # a valid line are unchanged.
+  var champion = 0.0
+  case command
+  of "set":
+    if slug.len == 0 or kind.len == 0 or championRaw.len == 0:
+      usageFail(program, "set needs --community, --kind and --champion")
+    requireKind(kind)
+    try:
+      champion = parseFloat(championRaw)
+    except ValueError:
+      fail(program, "champion must be a number")
+    if champion <= 0:
+      fail(program, "champion must be greater than zero")
+    if ratios.len > 0:
+      discard validateRatios(ratios)
+  of "clear":
+    if slug.len == 0 or kind.len == 0:
+      usageFail(program, "clear needs --community and --kind")
+    requireKind(kind)
+  of "list":
+    discard
+  else:
+    usageFail(program, "unknown command: " & command)
+
   let db = openDb(dsnOrFail(program), 1)
   defer: db.close()
 
@@ -106,18 +138,6 @@ proc main() =
         "roundRatios": parseJson(row.get("round_ratios"))})
     echo $(%*{"items": items})
   of "set":
-    if slug.len == 0 or kind.len == 0 or championRaw.len == 0:
-      usageFail(program, "set needs --community, --kind and --champion")
-    requireKind(kind)
-    var champion = 0.0
-    try:
-      champion = parseFloat(championRaw)
-    except ValueError:
-      fail(program, "champion must be a number")
-    if champion <= 0:
-      fail(program, "champion must be greater than zero")
-    if ratios.len > 0:
-      discard validateRatios(ratios)
     let communityId = communityIdOf(db, slug)
     let before = existingRow(db, communityId, kind)
     let plannedRatios =
@@ -152,9 +172,6 @@ proc main() =
       "championPoints": champion, "enabled": enabled,
       "roundRatios": plannedRatios})
   of "clear":
-    if slug.len == 0 or kind.len == 0:
-      usageFail(program, "clear needs --community and --kind")
-    requireKind(kind)
     let communityId = communityIdOf(db, slug)
     if dryRun:
       let before = existingRow(db, communityId, kind)
@@ -170,7 +187,9 @@ proc main() =
     )
     echo $(%*{"community": slug, "kind": kind, "deleted": deleted})
   else:
-    usageFail(program, "unknown command: " & command)
+    # The command was accepted above, so this branch is unreachable; the case
+    # keeps an else because a string case must be exhaustive.
+    discard
 
 when isMainModule:
   main()

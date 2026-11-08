@@ -1,0 +1,26 @@
+{
+  "note": "Coverage exclusion manifest (R-12). Every entry names a literal path or a table, a reason, an owner and the date it was reviewed. Paths are never patterns. `absent` records behaviour no test can cover because the producer does not exist; QA-08 added the outbox entry.",
+  "paths": [
+    {
+      "path": "apps/api/src/routes_gen.nim",
+      "reason": "generated from the contract; contract-check proves the generator is deterministic",
+      "owner": "backend",
+      "date": "2026-11-08"
+    },
+    {
+      "path": "apps/web/src/i18n/en.ts",
+      "reason": "D-3 data dictionary; counted strings inflate the denominator the moment the module is imported",
+      "owner": "frontend",
+      "date": "2026-11-08"
+    }
+  ],
+  "absent": [
+    {
+      "subject": "platform.outbox producer",
+      "reason": "no producer exists: rows are inserted only by tests and fixtures, so realtime fan-out has no production line to cover",
+      "owner": "backend",
+      "item": "QA-08",
+      "date": "2026-11-08"
+    }
+  ]
+}

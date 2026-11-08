@@ -1,5 +1,11 @@
-import std/[strutils, unittest]
+import std/[json, strutils, tables, unittest]
+import mummy
+import platform/config/store
 import ../src/security_headers
+
+proc snapshotWithLimit(limit: int): Snapshot =
+  result = Snapshot(version: 1, values: initTable[string, JsonNode]())
+  result.values[$keySecurityMaxBodyBytes] = %limit
 
 suite "security headers":
   test "HSTS is only sent for secure deployments":
@@ -29,3 +35,18 @@ suite "security headers":
     check not jsonTooDeep(r"""{"a":"\"[[["}""", 1)
     # An unclosed quote swallows the rest: the body fails parsing anyway.
     check not jsonTooDeep("""{"a":"[[[[}""", 1)
+
+  test "an empty body is never too large":
+    var request = RequestObj(body: "")
+    check not bodyTooLarge(request.addr, snapshotWithLimit(16))
+
+  test "a body is too large only above the configured limit":
+    var request = RequestObj(body: repeat('x', 16))
+    check not bodyTooLarge(request.addr, snapshotWithLimit(16))
+    request = RequestObj(body: repeat('x', 17))
+    check bodyTooLarge(request.addr, snapshotWithLimit(16))
+
+  test "the limit is read from the snapshot, not from a constant":
+    var request = RequestObj(body: repeat('x', 17))
+    check not bodyTooLarge(request.addr, snapshotWithLimit(32))
+    check bodyTooLarge(request.addr, snapshotWithLimit(0))

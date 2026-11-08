@@ -33,7 +33,9 @@ proc recordedOperations(recorded: string): string =
       return line["operations ".len .. ^1].strip()
   ""
 
-proc main() =
+# Exported for tools/contract-gen/tests (D-5, TL-03): the suite runs this body
+# in a temporary tree, which is the only way to reach the drift branches.
+proc main*() =
   for argument in commandLineParams():
     case argument
     of "--help":

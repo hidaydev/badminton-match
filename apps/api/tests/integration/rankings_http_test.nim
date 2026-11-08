@@ -20,13 +20,15 @@ var
   communityId, sessionId: string
   memberCookie: string
   players: seq[string]
+  # BE-05's rating-sources read gets a community of its own, so the two rows it
+  # asserts are the fixture it seeded rather than the board fixture above.
+  be05CommunityId, be05SessionId, be05TournamentId: string
+  be05Cookie: string
+  be05Players: seq[string]
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
   keyring = loadKeyring(keysJson, "1")
-  purgeCommunity(database, "rank-club")
-  discard database.execUpdate(
-    "delete from platform.user where google_sub like 'rank-%'")
   let ownerId = newUser(database, "rank-owner", "rank-owner@example.com",
     "Owner", owner = true)
   communityId = community_store.create(database, "rank-club", "Rank Club",
@@ -114,6 +116,34 @@ proc bootstrap() =
            (community_id, player_id, achievement_key, earned_at)
          values ($1::uuid, $2::uuid, $3, now())""",
       @[textParam(communityId), textParam(players[0]), textParam(key)])
+  let be05AdminId = newUser(database, "be05-ratings-admin",
+    "be05-ratings-admin@example.com", "BE05 Admin")
+  be05CommunityId = newCommunity(database, "be05-ratings", "BE05 Ratings")
+  newMember(database, be05CommunityId, be05AdminId, "admin")
+  for name in ["Nia", "Oki", "Putri", "Rudi"]:
+    be05Players.add(newPlayer(database, be05CommunityId, name))
+  be05SessionId = newSession(database, be05CommunityId, "Ingested night",
+    status = "locked", approved = true)
+  for player in be05Players:
+    newParticipant(database, be05CommunityId, be05SessionId, player)
+  newGame(database, be05CommunityId, be05SessionId, 1, 1, [be05Players[0]],
+    [be05Players[1]], status = "played", scoreA = 21, scoreB = 15)
+  discard database.execUpdate(
+    """insert into session.game_sets
+         (community_id, session_id, round_no, court_no, set_no, score_a, score_b)
+       values ($1::uuid, $2::uuid, 1, 1, 1, 21, 15)""",
+    @[textParam(be05CommunityId), textParam(be05SessionId)])
+  let be05Ingest = ingestSession(database, be05CommunityId, be05SessionId,
+    loadRatingParams(loadSnapshot(database), newJObject()))
+  doAssert be05Ingest.deltas == 2, "the be05 singles game records two deltas"
+  # A tournament that was never ingested has no rating event, so only the
+  # second query in listRatingSources can put it on the screen.
+  be05TournamentId = database.queryOne(
+    """insert into tournament.tournaments
+         (community_id, name, status, format, event_date)
+       values ($1::uuid, 'BE05 Cup', 'completed', 'classic', current_date)
+       returning id""", @[textParam(be05CommunityId)]).get.get("id")
+  be05Cookie = cookieFor(database, be05AdminId)
   startServer(newTestApp(database), port, baseUrl)
 
 bootstrap()
@@ -533,3 +563,49 @@ suite "rankings HTTP":
     let memberDetailBody = memberDetail.body
     expectStatus(memberDetail, 200)
     check parseJson(memberDetailBody)["playerId"].getStr() == players[0]
+
+  test "rating sources list an ingested session and a never-ingested tournament":
+    let today = database.queryOne(
+      "select current_date::text as day").get.get("day")
+    let status = call(baseUrl, HttpGet, "/c/be05-ratings/rating-sources",
+      be05Cookie)
+    let body = status.body
+    expectStatus(status, 200)
+    let items = parseJson(body)["items"]
+    # Exactly the two this community owns: the rank-club event must not leak.
+    check items.len == 2
+    var sessionRow, tournamentRow: JsonNode
+    for item in items:
+      if item["sourceId"].getStr() == be05SessionId:
+        sessionRow = item
+      elif item["sourceId"].getStr() == be05TournamentId:
+        tournamentRow = item
+    check sessionRow.kind == JObject
+    check tournamentRow.kind == JObject
+    check sessionRow["type"].getStr() == "session"
+    check sessionRow["date"].getStr() == today
+    check sessionRow["deltas"].getInt() == 2
+    check not sessionRow["finalized"].getBool()
+    check sessionRow["finalizedAt"].kind == JNull
+    check tournamentRow["type"].getStr() == "tournament"
+    check tournamentRow["date"].getStr() == today
+    # No event row stands behind this one, so its count comes from the second
+    # query and stays zero until the bracket is ingested.
+    check tournamentRow["deltas"].getInt() == 0
+    check not tournamentRow["finalized"].getBool()
+    # Signing the session off is what the `finalized` join reports back.
+    let signOff = call(baseUrl, HttpPatch,
+      "/c/be05-ratings/rating-sources/" & sessionRow["id"].getStr(), be05Cookie,
+      """{"finalized":true}""")
+    expectStatus(signOff, 200)
+    let rereadStatus = call(baseUrl, HttpGet,
+      "/c/be05-ratings/rating-sources", be05Cookie)
+    let rereadBody = rereadStatus.body
+    expectStatus(rereadStatus, 200)
+    var signedOff: JsonNode
+    for item in parseJson(rereadBody)["items"]:
+      if item["sourceId"].getStr() == be05SessionId:
+        signedOff = item
+    check signedOff["finalized"].getBool()
+    check signedOff["finalizedAt"].kind == JString
+    check signedOff["deltas"].getInt() == 2

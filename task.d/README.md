@@ -23,9 +23,9 @@ explicit `--nimcache` does not add a suffix.
 
 | Target | Purpose | Needs database |
 |---|---|---|
-| `check` | `nim check`, unit tests, archcheck when present | no |
+| `check` | `nim check`, unit tests, archcheck, the flaky register and the TypeScript coverage gate | yes (D-6) |
 | `build` | release build of `majadu-api` into `.cache/$WORKTREE/bin/`; `tools/*` and `dbtools` are not built here — compile them by hand with the same flags | no |
-| `test` | unit + integration tests | integration only |
+| `test` | unit + integration tests; every suite runs on its own freshly copied database | integration only |
 | `verify <module>` | build and test one module | when it has integration tests |
 | `contract-gen` | regenerate routes, client and fingerprint | no |
 | `contract-check` | fail when specs and generated files drift | no |
@@ -60,9 +60,16 @@ explicit `--nimcache` does not add a suffix.
 - Tests live next to their module. Files under `tests/integration/` only run when
   `INTEGRATION=1` (set by `test`, not by `check`).
 - `test` and `ci` refuse to start unless `MAJADU_PG_DSN` is set and its database
-  name contains `test`; `ALLOW_SHARED_DB=1` is the deliberate opt-out. The
-  suites mutate rows they do not fully own, so pointing them at `bm2_dev` is how
-  unrelated failures are manufactured.
+  name contains `test`; `ALLOW_SHARED_DB=1` is the deliberate opt-out and also
+  turns isolation off. The suites mutate rows they do not fully own, so pointing
+  them at `bm2_dev` is how unrelated failures are manufactured.
+- `test` gives every file a database of its own, copied from a database that
+  `bm2_template` plus `db/migrations` and `db/seeds` built once for the run
+  (`ops/dev/worker.sh` reaches the same helpers by hand). The database
+  `MAJADU_PG_DSN` names is never written, which is why a suite no longer has to
+  clean up after itself and why the run order cannot change a result.
+  `WORKERS=N` builds N of those databases, so two shard jobs share nothing;
+  `ISOLATION=0` restores the old shared-database behaviour.
 - The integration fixture layer purges a community through
   `purgeCommunity(db, slug)`, which deletes from every base table carrying a
   `community_id` and then the community row. It needs a role with DELETE on the

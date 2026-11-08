@@ -16,6 +16,10 @@ var
   communityId: string
   hostCookie, adminCookie, memberCookie: string
   players: seq[string]
+  # BE-05's share re-display read gets a community and a session of its own, so
+  # the schedule cases above cannot change what the code it shows is.
+  be05CommunityId, be05SessionId, be05EmptySessionId: string
+  be05HostCookie, be05MemberCookie: string
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
@@ -41,6 +45,20 @@ proc bootstrap() =
     member("sched-member", memberEmail, "member"))
   for name in ["Ani", "Budi", "Cakra", "Dewi", "Eka", "Fajar", "Gita", "Hadi"]:
     players.add(newPlayer(database, communityId, name))
+
+  purgeCommunity(database, "be05-share")
+  cleanupUsers(database, "be05-share-%")
+  be05CommunityId = newCommunity(database, "be05-share", "BE05 Share")
+  let be05HostId = newUser(database, "be05-share-host",
+    "be05-share-host@example.com", "BE05 Host")
+  let be05MemberId = newUser(database, "be05-share-member",
+    "be05-share-member@example.com", "BE05 Member")
+  newMember(database, be05CommunityId, be05HostId, "host")
+  newMember(database, be05CommunityId, be05MemberId, "member")
+  be05SessionId = newSession(database, be05CommunityId, "BE05 shared")
+  be05EmptySessionId = newSession(database, be05CommunityId, "BE05 unshared")
+  be05HostCookie = cookieFor(database, be05HostId)
+  be05MemberCookie = cookieFor(database, be05MemberId)
 
   startServer(newTestApp(database), port, baseUrl)
 
@@ -865,3 +883,41 @@ suite "session schedule HTTP":
     expectStatus(health, 200)
     let version = call(baseUrl, HttpGet, "/version", extra = [("X-API-Version", "1")])
     expectStatus(version, 200)
+
+  test "the share read re-displays the live code and 404s when there is none":
+    let path = "/c/be05-share/sessions/" & be05SessionId & "/share"
+    let noneYet = call(baseUrl, HttpGet, path, be05HostCookie)
+    expectProblem(noneYet, 404, "NOT_FOUND")
+    let issued = call(baseUrl, HttpPost, path, be05HostCookie)
+    let issuedBody = issued.body
+    expectStatus(issued, 201)
+    let code = parseJson(issuedBody)["code"].getStr()
+    let shown = call(baseUrl, HttpGet, path, be05HostCookie)
+    let shownBody = shown.body
+    expectStatus(shown, 200)
+    let payload = parseJson(shownBody)
+    # The same code the issue answered with, and the row it belongs to.
+    check payload["code"].getStr() == code
+    check payload["sessionId"].getStr() == be05SessionId
+    # Re-display is a host/admin read; a plain member is refused.
+    let asMember = call(baseUrl, HttpGet, path, be05MemberCookie)
+    expectProblem(asMember, 403)
+    let anonymous = call(baseUrl, HttpGet, path)
+    expectProblem(anonymous, 401)
+    # A session that never had a link has nothing to show.
+    let unshared = call(baseUrl, HttpGet,
+      "/c/be05-share/sessions/" & be05EmptySessionId & "/share", be05HostCookie)
+    expectProblem(unshared, 404, "NOT_FOUND")
+    # Every re-display is audited, so the code cannot leave unnoticed.
+    let redisplayAudits = database.queryOne(
+      """select count(*) as n from account.audit
+         where action = 'share.redisplay' and community_id = $1::uuid
+           and target_id = $2""",
+      @[textParam(be05CommunityId), textParam(be05SessionId)]).get.getInt("n")
+    check redisplayAudits == 1
+    let revoked = call(baseUrl, HttpDelete, path, be05HostCookie)
+    expectStatus(revoked, 204)
+    let gone = call(baseUrl, HttpGet, path, be05HostCookie)
+    expectProblem(gone, 404, "NOT_FOUND")
+    purgeCommunity(database, "be05-share")
+    cleanupUsers(database, "be05-share-%")

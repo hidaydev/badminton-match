@@ -1,0 +1,12 @@
+{
+  "measured": "2026-11-08",
+  "floor": 80.00,
+  "total": {"lines": 200, "covered": 160},
+  "domains": {
+    "modules/alpha": {"lines": 200, "covered": 160}
+  },
+  "files": {
+    "modules/alpha/domain/alpha.nim": {"lines": 100, "covered": 80},
+    "modules/alpha/domain/beta.nim": {"lines": 100, "covered": 80}
+  }
+}

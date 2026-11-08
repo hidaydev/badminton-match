@@ -43,13 +43,16 @@ proc main() =
     else:
       usageFail(program, "unknown argument: " & flag)
 
+  # The command line is checked before the database is opened, so a missing
+  # flag is reported as a usage failure instead of "MAJADU_PG_DSN is required".
+  if command == "create" and name.len == 0:
+    usageFail(program, "create needs --name")
+
   let db = openDb(dsnOrFail(program), 1)
   defer: db.close()
 
   case command
   of "create":
-    if name.len == 0:
-      usageFail(program, "create needs --name")
     var actorId = ""
     if sub.len > 0:
       let row = db.queryOne(

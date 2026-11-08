@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useCommunity } from '../community/CommunityContext'
 import { t } from '../i18n'
@@ -27,6 +27,11 @@ export default function PlayersPage() {
   const query = searchParams.get('q') ?? ''
   const [draft, setDraft] = useState(query)
   const [draftOf, setDraftOf] = useState(query)
+
+  // The empty state offers "Add player" and points at this panel. A `details`
+  // element is not opened by an anchor, so the link opens it itself; the panel
+  // stays uncontrolled so the summary keeps toggling with no state to sync.
+  const addPanel = useRef<HTMLDetailsElement>(null)
 
   // The URL is the source of truth: when it changes from the outside (back
   // button, a Find press), the box follows. Adjusting state during render is
@@ -135,6 +140,9 @@ export default function PlayersPage() {
             canManage && (
               <a
                 href="#players-add"
+                onClick={() => {
+                  if (addPanel.current !== null) addPanel.current.open = true
+                }}
                 className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-accent px-4 text-sm font-semibold text-ground focus-visible:ring-2 focus-visible:ring-accent"
               >
                 {t('players.add')}
@@ -183,65 +191,71 @@ export default function PlayersPage() {
       )}
 
       {canManage && (
-        <form
+        <details
+          ref={addPanel}
           id="players-add"
-          className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void add()
-          }}
+          className="mt-8 scroll-mt-20 rounded-2xl border border-border-subtle bg-surface p-4"
         >
-          <h2 className="text-sm font-semibold text-fg">{t('players.add')}</h2>
-          {formError !== null && (
-            <ErrorText className="mt-2">{formError}</ErrorText>
-          )}
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Field label={t('players.add.name')}>
-              <Input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
-                maxLength={80}
-              />
-            </Field>
-            <Field label={t('players.add.gender')}>
-              <Select
-                value={gender}
-                onChange={(event) => setGender(event.target.value === 'F' ? 'F' : 'M')}
-              >
-                <option value="M">{t('player.gender.male')}</option>
-                <option value="F">{t('player.gender.female')}</option>
-              </Select>
-            </Field>
-            <Field label={t('players.add.tier')}>
-              <Select value={tier} onChange={(event) => setTier(event.target.value)}>
-                <option value="">{t('players.tier.none')}</option>
-                {TIERS.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label={t('players.add.aliases')}>
-              <Input
-                value={aliases}
-                onChange={(event) => setAliases(event.target.value)}
-                aria-describedby="players-aliases-hint"
-              />
-            </Field>
-          </div>
-          <p id="players-aliases-hint" className="mt-2 text-xs text-fg-dim">
-            {t('players.add.aliasesHint')}
-          </p>
-          <Button
-            type="submit"
-            className="mt-3"
-            disabled={busy || name.trim() === ''}
+          <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
+            {t('players.add')}
+          </summary>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void add()
+            }}
           >
-            {t('players.add.submit')}
-          </Button>
-        </form>
+            {formError !== null && (
+              <ErrorText className="mt-2">{formError}</ErrorText>
+            )}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field label={t('players.add.name')}>
+                <Input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                  maxLength={80}
+                />
+              </Field>
+              <Field label={t('players.add.gender')}>
+                <Select
+                  value={gender}
+                  onChange={(event) => setGender(event.target.value === 'F' ? 'F' : 'M')}
+                >
+                  <option value="M">{t('player.gender.male')}</option>
+                  <option value="F">{t('player.gender.female')}</option>
+                </Select>
+              </Field>
+              <Field label={t('players.add.tier')}>
+                <Select value={tier} onChange={(event) => setTier(event.target.value)}>
+                  <option value="">{t('players.tier.none')}</option>
+                  {TIERS.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('players.add.aliases')}>
+                <Input
+                  value={aliases}
+                  onChange={(event) => setAliases(event.target.value)}
+                  aria-describedby="players-aliases-hint"
+                />
+              </Field>
+            </div>
+            <p id="players-aliases-hint" className="mt-2 text-xs text-fg-dim">
+              {t('players.add.aliasesHint')}
+            </p>
+            <Button
+              type="submit"
+              className="mt-3"
+              disabled={busy || name.trim() === ''}
+            >
+              {t('players.add.submit')}
+            </Button>
+          </form>
+        </details>
       )}
     </section>
   )

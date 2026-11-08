@@ -1,5 +1,6 @@
-import std/[json, strutils]
+import std/[json, strutils, times]
 import db/db
+import clock
 import config/registry
 import config/store
 
@@ -19,13 +20,16 @@ const purgeTargets = [
 ]
 
 proc purge*(db: Db, retentionDays: int): seq[PurgeOutcome] =
-  ## Deletes rows older than the configured window. The cutoff is computed by
-  ## the database so every table uses the same clock.
+  ## Deletes rows older than the configured window. The cutoff comes from the
+  ## application clock, so a test that pins `MAJADU_NOW` controls the window and
+  ## does not have to write `now() - interval` into its fixtures.
+  let cut = utcNow() - initDuration(days = retentionDays)
+  let cutText = cut.format("yyyy-MM-dd'T'HH:mm:ss'Z'")
   for (table, predicate) in purgeTargets:
     let deleted = db.execUpdate(
-      "delete from " & table & " where " & predicate.replace("cut",
-        "(now() - make_interval(days => $1))"),
-      @[intParam(retentionDays.int64)])
+      "delete from " & table & " where " &
+        predicate.replace("cut", "$1::timestamptz"),
+      @[textParam(cutText)])
     result.add(PurgeOutcome(table: table, deleted: deleted))
 
 proc purgeWithConfig*(db: Db, snapshot: Snapshot): seq[PurgeOutcome] =

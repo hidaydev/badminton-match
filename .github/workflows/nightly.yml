@@ -57,7 +57,58 @@ jobs:
           nim c --hints:off -d:release -o:.cache/ci/dbtools tools/dbtools/main.nim
           .cache/ci/dbtools migrate --dir db/migrations
           .cache/ci/dbtools seed --dir db/seeds
+      # TL-07: `./task ci` runs the import suite, which skips itself without
+      # both DSNs. The source is the captured v1 schema plus the fixture, and
+      # the target is a fresh copy of the migrated database, not bm2_dev.
+      - name: "Import: provision the v1 source and the v2 target"
+        env:
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          IMPORT_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
+        run: |
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE bm2_import_source_test" \
+            -c "CREATE DATABASE bm2_import_target_test OWNER bm2_owner TEMPLATE bm2_test"
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/schema.sql
+          psql -v ON_ERROR_STOP=1 -q -d "$IMPORT_SOURCE_DSN" \
+            -f ops/dev/v1/fixtures/v1-fixtures.sql
+          # A source without the bm schema would import nothing and still read
+          # as clean, so the job fails before the suite can run.
+          loaded=$(psql -d "$IMPORT_SOURCE_DSN" -tAc "select to_regnamespace('bm')")
+          if [ "$loaded" != "bm" ]; then
+            echo "bm2_import_source_test has no bm schema" >&2
+            exit 1
+          fi
       - name: "Nightly: full"
         env:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
+          MAJADU_IMPORT_TEST_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_target_test
+          MAJADU_IMPORT_TEST_SOURCE_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_import_source_test
         run: ./task ci
+      # QA-05: line coverage cannot prove an assertion would fail. Mutation
+      # testing is slow enough that it belongs in the nightly run, and a
+      # survivor that is not allowlisted fails the job.
+      - name: "Mutation: every mutant is killed or allowlisted"
+        run: ./task mutation
+      # QA-12: the v2 corpus is recorded by the code under test, so it is a
+      # change detector, not an oracle. The canary proves replay rejects a body
+      # that is deliberately wrong; if the comparator ever stops comparing, the
+      # canary stops being rejected and the step fails.
+      - name: "Parity: the canary must be rejected"
+        env:
+          PARITY_V2_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_parity_canary_test
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: |
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE bm2_parity_canary_test OWNER bm2_owner"
+          ./task parity v2 canary
+      # The full corpus replay on its own disposable database. This is the run
+      # that would surface drift after a change; the PR job only lints.
+      - name: "Parity: v2 verify"
+        env:
+          PARITY_V2_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_parity_verify_test
+          MAJADU_PG_ADMIN_DSN: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: |
+          psql "$MAJADU_PG_ADMIN_DSN" -v ON_ERROR_STOP=1 \
+            -c "CREATE DATABASE bm2_parity_verify_test OWNER bm2_owner"
+          ./task parity v2 verify

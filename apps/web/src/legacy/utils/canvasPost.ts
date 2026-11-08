@@ -6,7 +6,7 @@ import { ordinal } from './ordinal'
 import { HEADER_H, LOGO_H, POST_WIDTH, POST_HEIGHT, CANVAS_COLORS as C } from '../config/canvas'
 
 /** Truncate text to fit within maxWidth, appending '…' if truncated. */
-function truncateToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+export function truncateToWidth(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
   let truncated = text
   while (ctx.measureText(truncated + '…').width > maxWidth && truncated.length > 1) truncated = truncated.slice(0, -1)
   if (truncated !== text) truncated += '…'

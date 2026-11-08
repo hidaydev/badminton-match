@@ -42,17 +42,21 @@ type
     points*: int
     thinEvidence*: bool
 
-  Level = object
-    champion: float
-    ratios: JsonNode
-    enabled: bool
+  Level* = object
+    ## Exported with its fields for `projection_rules_test` (D-5): a tournament
+    ## level carries the champion points and the per-placement ratios.
+    champion*: float
+    ratios*: JsonNode
+    enabled*: bool
 
-  Place = object
+  Place* = object
     ## How far a player got in one tournament. The placement key is derived
-    ## from these three facts, never stored per game.
-    bestRank: int
-    anyWin: bool
-    finalOutcome: string
+    ## from these three facts, never stored per game. Exported with its fields
+    ## for `projection_rules_test` (D-5), which is the only direct caller of the
+    ## rules below.
+    bestRank*: int
+    anyWin*: bool
+    finalOutcome*: string
 
   Acc = object
     date: string
@@ -64,8 +68,9 @@ type
 
 const keySeparator = "\x00"
 
-proc defaultRatio(key: string): float =
-  ## v1's §4.4 fallback for a ratio the ladder row does not carry.
+proc defaultRatio*(key: string): float =
+  ## v1's §4.4 fallback for a ratio the ladder row does not carry. Exported for
+  ## `projection_rules_test` (D-5) so the fallback table has a direct case.
   case key
   of "final": 1.0
   of "runner_up": 0.85
@@ -75,14 +80,18 @@ proc defaultRatio(key: string): float =
   of "participant": 0.2
   else: 0.0
 
-proc ratioOf(level: Level, key: string): float =
+proc ratioOf*(level: Level, key: string): float =
+  ## The ladder row first, `defaultRatio` otherwise. Exported for
+  ## `projection_rules_test` (D-5); the level is not loaded here.
   if level.ratios.kind == JObject and level.ratios.hasKey(key):
     return level.ratios[key].getFloat()
   defaultRatio(key)
 
-proc phaseRank(phase: string): int =
+proc phaseRank*(phase: string): int =
   ## Farther in the bracket ranks higher; the third-place match is a semifinal
-  ## loser's game, so it counts as a semifinal.
+  ## loser's game, so it counts as a semifinal. Exported for
+  ## `projection_rules_test` (D-5): the ordering is a v1 rule, not an artifact
+  ## of the batch query.
   case phase
   of "final": 4
   of "sf", "3rd": 3
@@ -90,10 +99,10 @@ proc phaseRank(phase: string): int =
   of "group": 1
   else: 0
 
-proc resultKey(place: Place): string =
+proc resultKey*(place: Place): string =
   ## v1's rule: a champion is `final`, a finalist who won earlier is
   ## `runner_up`, no win at all is `participant`, anything else is the phase
-  ## the player reached.
+  ## the player reached. Exported for `projection_rules_test` (D-5).
   if not place.anyWin:
     return "participant"
   if place.bestRank >= 4:
@@ -104,7 +113,9 @@ proc resultKey(place: Place): string =
   of 1: "group"
   else: "participant"
 
-proc splitKey(key: string): (string, string) =
+proc splitKey*(key: string): (string, string) =
+  ## Splits the accumulator key back into owner and source. Exported for
+  ## `projection_rules_test` (D-5) so the separator round-trip has a case.
   let index = key.find(keySeparator)
   if index < 0: (key, "") else: (key[0 ..< index], key[index + 1 .. ^1])
 

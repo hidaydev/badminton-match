@@ -29,3 +29,6 @@ modules/rating/read.nim:50
 
 # Session title cap; a UI-width choice, not a business number.
 modules/session/write.nim:120
+
+# Poll interval while waiting for a mutated suite; milliseconds, not a limit.
+tools/mutation/main.nim:50

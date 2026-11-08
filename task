@@ -34,6 +34,8 @@ Targets:
   mock-api     serve the contract as a mock API
   r0-demo      boot the walking skeleton against the local database
   coverage     run coverage gates
+  mutation     run the mutation manifest (tools/mutation)
+  sharekeys    generate or rotate session share-link keys
   rehearsal    cutover rehearsal on a VPS (run | check | clean)
   e2e          browser a11y, visual and compatibility regression (Playwright)
   release      prepare a release (dry-run by default)

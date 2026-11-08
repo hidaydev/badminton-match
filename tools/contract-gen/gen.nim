@@ -17,7 +17,9 @@ proc parse(path, source: string): JsonNode =
   except JsonParsingError as error:
     fail(program, path & ": " & error.msg)
 
-proc mergeDocs(core, community: JsonNode): JsonNode =
+# Exported for tools/contract-gen/tests (D-5, TL-02): the merge refusal and the
+# write-or-check contract are the two branches the CI self-check never reaches.
+proc mergeDocs*(core, community: JsonNode): JsonNode =
   var paths = newJObject()
   var names: seq[string] = @[]
   for doc in [core, community]:
@@ -47,7 +49,7 @@ proc mergeDocs(core, community: JsonNode): JsonNode =
 proc renderJson(node: JsonNode): string =
   pretty(node, indent = 2) & "\n"
 
-proc writeOrCheck(path, content: string, check: bool): bool =
+proc writeOrCheck*(path, content: string, check: bool): bool =
   if check:
     if not fileExists(path):
       stderr.writeLine "contract-gen: missing generated file " & path

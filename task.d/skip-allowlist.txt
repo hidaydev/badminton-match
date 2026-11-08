@@ -1,0 +1,6 @@
+# Suites that may exit 77 (skipped) and why. One entry per line:
+#   <path relative to repo root>	<owner>	<expires YYYY-MM-DD>
+# The runner prints `N skipped` and fails on an undocumented or expired entry.
+# A skipped suite never counts as passed; this file only keeps the skip visible.
+tools/import/tests/import_test.nim	qa	2026-12-31
+tools/ratingingest/tests/tick_test.nim	qa	2026-12-31

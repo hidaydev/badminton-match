@@ -41,6 +41,7 @@ v2:
   record                 reset, replay-free capture of cases.tsv, state snapshot
   replay                 replay cases.tsv in order against PARITY_V2_BASE
   lint                   manifest + one case per contract operation + invariants
+  canary                 boot the API and prove replay rejects a wrong body
   state                  compare state.json and run the mutation self-test
   verify                 everything above end to end on a disposable database
 
@@ -230,6 +231,46 @@ v2_verify() {
   printf 'parity: v2 ok\n'
 }
 
+# QA-12: the corpus is a change detector; the canary tests the detector. One
+# case carries a body that is deliberately wrong, so replay MUST reject it. The
+# expectation is inverted here, which is what makes the command meaningful: if
+# the comparator stopped comparing bodies, replay would accept the case and the
+# canary would fail.
+v2_canary() {
+  require_cmd psql
+  require_cmd createdb
+  require_cmd curl
+  dsn=$(v2_dsn)
+  base=${PARITY_V2_BASE:-$V2_BASE_DEFAULT}
+  canary_dir="$REPO_ROOT/testdata/parity/canary"
+  [ -d "$canary_dir" ] || fail "missing canary corpus: $canary_dir"
+  v2_guard_dsn "$dsn"
+  v2_prepare_db "$dsn"
+  v2_boot_api "$dsn" "$base"
+  trap v2_cleanup EXIT INT TERM
+  _binary=$(parity_bin)
+  _status=0
+  "$_binary" replay --dir "$canary_dir" --base "$base" \
+    --spec "$canary_dir/cases.tsv" >"${TMPDIR:-/tmp}/parity-canary.log" 2>&1 ||
+    _status=$?
+  v2_cleanup
+  trap - EXIT INT TERM
+  if [ "$_status" -eq 0 ]; then
+    printf 'parity: canary NOT rejected: the comparator accepted a wrong body\n' >&2
+    printf 'parity: the corpus in testdata/parity/v2 cannot be trusted\n' >&2
+    exit 1
+  fi
+  printf 'parity: canary rejected as expected (%s)\n' \
+    "$(tail -1 "${TMPDIR:-/tmp}/parity-canary.log" 2>/dev/null || true)"
+}
+
+case_totals() {
+  v1_cases=$(grep -vc '^#' "$V1_SPEC" 2>/dev/null || printf '0')
+  v2_cases=$(find "$V2_DIR" -maxdepth 1 -name '*.json' -type f | wc -l | tr -d ' ')
+  printf 'parity: corpora: v1 %s cases (frozen oracle), v2 %s cases (regression pin)\n' \
+    "$v1_cases" "$v2_cases"
+}
+
 v2_main() {
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   action=$1
@@ -259,7 +300,11 @@ v2_main() {
       v2_state "$dsn"
       ;;
     verify)
+      case_totals
       v2_verify
+      ;;
+    canary)
+      v2_canary
       ;;
     -h|--help|help)
       usage

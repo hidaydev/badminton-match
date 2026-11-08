@@ -1,4 +1,4 @@
-import std/[options, os, strutils, unittest]
+import std/[json, options, os, osproc, strtabs, strutils, unittest]
 import db/db
 import ../main
 
@@ -12,8 +12,41 @@ let sourceDsn = getEnv("MAJADU_IMPORT_TEST_SOURCE_DSN")
 let targetDsn = getEnv("MAJADU_IMPORT_TEST_DSN")
 
 if sourceDsn.len == 0 or targetDsn.len == 0:
-  echo "import suite: skipped (MAJADU_IMPORT_TEST_SOURCE_DSN / MAJADU_IMPORT_TEST_DSN not set)"
-  quit(0)
+  echo "SKIP import suite: MAJADU_IMPORT_TEST_SOURCE_DSN / MAJADU_IMPORT_TEST_DSN not set"
+  quit(77)
+
+const verifyProbe = "IMPORT_TEST_VERIFY"
+
+proc probeEnv(communityId: string): StringTableRef =
+  result = newStringTable(modeCaseSensitive)
+  for (key, item) in envPairs():
+    result[key] = item
+  result[verifyProbe] = communityId
+
+proc selfVerify(communityId: string): tuple[output: string, exitCode: int] =
+  ## `verifyEtl` exits 1 on a mismatch, so each report runs in a child process
+  ## that is this same binary: the exit status is the assertion, and a failure
+  ## does not end the suite.
+  var binary = getAppFilename()
+  if not binary.isAbsolute:
+    binary = getCurrentDir() / binary
+  execCmdEx(quoteShell(binary), env = probeEnv(communityId))
+
+proc reportOf(output: string): JsonNode =
+  ## The report is the one JSON line `verifyEtl` echoes; problems go to stderr.
+  for line in output.splitLines():
+    if line.strip.startsWith("{"):
+      result = parseJson(line.strip)
+
+when isMainModule:
+  # The probe branch runs before bootstrap, so a probe run never removes rows.
+  let probed = getEnv(verifyProbe)
+  if probed.len > 0:
+    let childSource = openDb(sourceDsn, 1)
+    let childTarget = openDb(targetDsn, 1)
+    putEnv("MAJADU_IMPORT_COMMUNITY_ID", probed)
+    verifyEtl(childSource, childTarget, "")
+    quit(0)
 
 var source: Db
 var target: Db
@@ -57,6 +90,14 @@ proc bootstrap() =
         "delete from import.row_map where community_id = $1::uuid",
         "delete from platform.community where id = $1::uuid"]:
       discard target.execUpdate(statement, @[textParam(id)])
+  # The empty-community case below makes this one; it owns none of the rows
+  # above, so it goes on its own.
+  let empty = target.queryOne(
+    "select id::text as id from platform.community where slug = 'import-empty-test'")
+  if empty.isSome:
+    discard target.execUpdate(
+      "delete from platform.community where id = $1::uuid",
+      @[textParam(empty.get.get("id"))])
 
 bootstrap()
 
@@ -369,3 +410,34 @@ suite "v1 import":
     for problem in problems:
       checkpoint problem
     check problems.len == 0
+
+  test "verify reports no problem across the eight checked domains":
+    let community = target.queryOne(
+      "select id::text as id from platform.community where slug = 'import-test'"
+      ).get.get("id")
+    let run = selfVerify(community)
+    for line in run.output.splitLines():
+      checkpoint line
+    check run.exitCode == 0
+    let report = reportOf(run.output)
+    check report["communityId"].getStr == community
+    check report["problems"].getInt == 0
+    # A report that silently checked fewer domains would read the same as a
+    # clean one, so the list is part of the contract.
+    check report["checkedDomains"].getElems().len == 8
+
+  test "verify refuses an empty community instead of reporting it clean":
+    # An import that read nothing leaves all eight domains empty. Reporting
+    # zero problems there would hide the missing import, so verify names the
+    # missing players and exits 1.
+    let empty = target.queryOne(
+      """insert into platform.community (slug, name, timezone)
+         values ('import-empty-test', 'Import Empty', 'Asia/Jakarta')
+         returning id::text as id""").get.get("id")
+    let run = selfVerify(empty)
+    discard target.execUpdate(
+      "delete from platform.community where id = $1::uuid", @[textParam(empty)])
+    for line in run.output.splitLines():
+      checkpoint line
+    check run.exitCode == 1
+    check run.output.contains("no player has been imported into this community")

@@ -15,10 +15,9 @@ test('the account menu opens, navigates and closes', async ({ page }) => {
   await menu.click()
   await expect(navigation).toBeVisible()
   await expect(menu).toHaveAttribute('aria-expanded', 'true')
-  // Same per-platform rule as `visual.spec.ts`; CI runs the navigation itself.
-  if (process.env.E2E_VISUAL !== '0') {
-    await expect(page).toHaveScreenshot('nav-open.png')
-  }
+  // Same per-platform rule as `visual.spec.ts`: the baseline lives under
+  // `__screenshots__/{platform}/` and every run compares it.
+  await expect(page).toHaveScreenshot('nav-open.png')
 
   await navigation.getByRole('menuitem', { name: t('nav.settings') }).click()
   await expect(page).toHaveURL(new RegExp(`/c/${state().communitySlug}/settings$`))

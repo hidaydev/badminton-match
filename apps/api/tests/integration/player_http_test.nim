@@ -72,10 +72,20 @@ suite "player HTTP":
   test "a duplicate name is a conflict, not a second row":
     let first = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"Budi","gender":"M"}""")
+    let firstBody = first.body
     expectStatus(first, 201)
+    let firstId = parseJson(firstBody)["id"].getStr()
     let duplicate = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
       """{"name":"budi","gender":"M"}""")
     expectProblem(duplicate, 409)
+    # The 409 must be a refusal, not a second row: one 'budi' remains and it is
+    # the row the first request created.
+    let rows = database.query(
+      """select id from player.players
+         where community_id = $1::uuid and canonical_key = 'budi'""",
+      @[textParam(communityId)])
+    check rows.len == 1
+    check rows[0].get("id") == firstId
 
   test "an invalid tier or gender is rejected":
     let badTier = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
@@ -112,9 +122,21 @@ suite "player HTTP":
     let patch = call(baseUrl, HttpPatch, "/c/player-other/players/" & playerId,
       adminCookie, """{"name":"Stolen"}""")
     expectProblem(patch, 404)
+    # The refused patch must not have reached the row: reading through the
+    # owning community still shows the original name.
+    let stored = database.queryOne(
+      """select canonical_name from player.players
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(communityId), textParam(playerId)]).get
+    check stored.get("canonical_name") == "Eka"
     let delete = call(baseUrl, HttpDelete, "/c/player-other/players/" & playerId,
       adminCookie)
     expectProblem(delete, 404)
+    # The refused delete left the row in place.
+    check database.queryOne(
+      """select count(*)::int as n from player.players
+         where community_id = $1::uuid and id = $2::uuid""",
+      @[textParam(communityId), textParam(playerId)]).get.get("n") == "1"
 
   test "a patch rejects a name that is not a string, blank or too long":
     let body = call(baseUrl, HttpPost, "/c/player-club/players", hostCookie,
@@ -276,3 +298,21 @@ suite "player HTTP":
     let unfiltered = call(baseUrl, HttpGet, "/c/player-club/players?tier=Z",
       memberCookie).body
     check parseJson(unfiltered)["items"].len >= 2
+
+  test "a limit above the page cap returns the cap, not the request":
+    # `pageParams` pulls the request down to `api.page_size_max` (500). Enough
+    # rows make the cap observable without 500 HTTP writes.
+    discard database.execUpdate(
+      """insert into player.players (community_id, canonical_name, gender)
+         select $1::uuid, 'Bulk Player ' || i, 'M'
+         from generate_series(1, 520) as i""",
+      @[textParam(communityId)])
+    let status = call(baseUrl, HttpGet, "/c/player-club/players?limit=1000",
+      memberCookie)
+    let body = status.body
+    expectStatus(status, 200)
+    check parseJson(body)["items"].len == 500
+    discard database.execUpdate(
+      """delete from player.players
+         where community_id = $1::uuid and canonical_name like 'Bulk Player %'""",
+      @[textParam(communityId)])

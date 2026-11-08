@@ -98,6 +98,22 @@ describe('community settings', () => {
     })
   })
 
+  it('opens the effective settings only when its summary is used', async () => {
+    base({})
+
+    renderAt('/c/acme/settings')
+
+    const timezone = await screen.findByLabelText(t('community.setting.timezone'))
+    const panel = timezone.closest('details')
+    if (!(panel instanceof HTMLDetailsElement)) {
+      throw new Error('the settings block is not a disclosure element')
+    }
+    expect(panel.open).toBe(false)
+
+    fireEvent.click(screen.getByText(t('community.settings'), { selector: 'summary' }))
+    expect(panel.open).toBe(true)
+  })
+
   it('narrows an invite lifetime and sends only the changed key', async () => {
     let configReads = 0
     const fetchMock = base({

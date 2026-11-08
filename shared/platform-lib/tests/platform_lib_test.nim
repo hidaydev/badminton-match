@@ -5,7 +5,9 @@ import ../errors
 import ../logger
 import ../metrics
 import ../sha256
+import ../token
 import ../uuidv7
+import clock_fixture
 
 suite "sha256":
   test "matches the standard vector":
@@ -14,15 +16,37 @@ suite "sha256":
 
 suite "clock":
   test "MAJADU_NOW forces the clock":
-    putEnv("MAJADU_NOW", "2026-11-03T12:00:00Z")
-    check utcNow() == parse("2026-11-03T12:00:00Z", "yyyy-MM-dd'T'HH:mm:ss'Z'", utc())
-    delEnv("MAJADU_NOW")
+    withPinnedClock("2026-11-03T12:00:00Z"):
+      check utcNow() ==
+        parse("2026-11-03T12:00:00Z", "yyyy-MM-dd'T'HH:mm:ss'Z'", utc())
 
   test "invalid MAJADU_NOW refuses to start":
-    putEnv("MAJADU_NOW", "2026-11-03 12:00:00")
-    expect ValueError:
-      discard utcNow()
+    withPinnedClock("2026-11-03 12:00:00"):
+      expect ValueError:
+        discard utcNow()
+
+  test "withPinnedClock restores the previous value after a raised assertion":
+    putEnv("MAJADU_NOW", "2026-01-01T00:00:00Z")
+    var raised = false
+    try:
+      withPinnedClock("2026-11-03T12:00:00Z"):
+        doAssert utcNow().monthday == 2, "the pinned day is the third"
+    except AssertionDefect:
+      raised = true
+    check raised
+    check getEnv("MAJADU_NOW") == "2026-01-01T00:00:00Z"
     delEnv("MAJADU_NOW")
+
+  test "withPinnedClock removes a value the process did not have":
+    delEnv("MAJADU_NOW")
+    var raised = false
+    try:
+      withPinnedClock("2026-11-03T12:00:00Z"):
+        doAssert false, "the restore must run anyway"
+    except AssertionDefect:
+      raised = true
+    check raised
+    check not existsEnv("MAJADU_NOW")
 
 suite "uuidv7":
   test "sets the version and variant bits":
@@ -36,9 +60,25 @@ suite "uuidv7":
   test "reads the pinned clock":
     ## MAJADU_NOW pins the timestamp prefix too, so replay ids sort against the
     ## pinned instant instead of the wall clock.
-    putEnv("MAJADU_NOW", "2026-11-03T12:00:00Z")
-    check uuidv7().startsWith("01a1a147-ce00")
-    delEnv("MAJADU_NOW")
+    withPinnedClock("2026-11-03T12:00:00Z"):
+      check uuidv7().startsWith("01a1a147-ce00")
+
+suite "token":
+  proc ascending(first: int): ByteSource =
+    ## A deterministic source so the exact hex can be asserted.
+    result = proc(count: int): seq[byte] =
+      for index in 0 ..< count:
+        result.add(byte(first + index))
+
+  test "newOpaqueToken renders the injected bytes exactly":
+    check newOpaqueToken(ascending(0)) ==
+      "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+
+  test "two injected sources produce different tokens":
+    check newOpaqueToken(ascending(0)) != newOpaqueToken(ascending(128))
+
+  test "the default source still yields 32 random bytes":
+    check newOpaqueToken().len == 64
 
 suite "redaction":
   test "share code path":

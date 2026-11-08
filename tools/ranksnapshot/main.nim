@@ -21,6 +21,17 @@ proc communitySettings(db: Db, communityId: string): JsonNode =
        where community_id = $1::uuid""", @[textParam(communityId)])
   if row.isSome: parseJson(row.get.get("values")) else: newJObject()
 
+proc snapshotDay*(db: Db, asOf, communityId, timezone: string): string =
+  ## Which calendar day the snapshot is written for: the operator's `--as-of`
+  ## first, else the last rated event, else the community's own today. Extracted
+  ## from `main` for `tests/snapshot_test.nim` (D-5): the choice is the whole
+  ## behaviour of the tool, and `main` cannot be pointed at one community
+  ## without writing a snapshot for the others.
+  let latest = latestEventDate(db, communityId)
+  if asOf.len > 0: asOf
+  elif latest.len > 0: latest
+  else: communityToday(db, timezone)
+
 proc main() =
   var asOf = ""
   if paramCount() == 2 and paramStr(1) == "--as-of":
@@ -38,11 +49,7 @@ proc main() =
     let communityId = row.get("id")
     let settings = communitySettings(db, communityId)
     let params = loadRatingParams(snapshot, settings)
-    let latest = latestEventDate(db, communityId)
-    let day =
-      if asOf.len > 0: asOf
-      elif latest.len > 0: latest
-      else: communityToday(db, row.get("timezone"))
+    let day = snapshotDay(db, asOf, communityId, row.get("timezone"))
     let rows = board(db, BoardQuery(communityId: communityId, asOf: day,
       params: params, limit: limit, tier: ""))
     discard writeSnapshot(db, communityId, day, rows)

@@ -48,4 +48,23 @@ describe('community setup', () => {
       adminEmail: 'admin@example.com',
     })
   })
+
+  it('keeps the create form closed until its summary is used', async () => {
+    mockFetch({
+      'GET /api/auth/me': () => ({ body: owner }),
+      'GET /api/communities': () => ({ body: { items: [admin] } }),
+    })
+
+    renderAt('/owner/communities')
+
+    const slug = await screen.findByLabelText(t('setup.slug'))
+    const panel = slug.closest('details')
+    if (!(panel instanceof HTMLDetailsElement)) {
+      throw new Error('the create form is not a disclosure element')
+    }
+    expect(panel.open).toBe(false)
+
+    fireEvent.click(screen.getByText(t('setup.create'), { selector: 'summary' }))
+    expect(panel.open).toBe(true)
+  })
 })

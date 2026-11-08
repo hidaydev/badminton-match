@@ -1,0 +1,435 @@
+# TL-20: the deploy and rollback guards (`deploy-vps.sh`, `deploy-vps-rc.sh`,
+# `cutover.sh`, `rollback.sh`, `bootstrap-rc.sh`).
+#
+# Every case points `MAJADU_APP_DIR`/`MAJADU_RC_APP_DIR` at a temp directory and
+# answers the process edges with fakes on the fixture PATH (`podman`, `psql`,
+# `curl`, `flock`, `git`). No case reaches `/srv`, a database or a host.
+#
+# The guards are all reached before the first real side effect, so each case
+# stops inside the guard it names instead of deploys.
+
+import std/[os, strutils, unittest]
+import ../harness
+
+const okFake = """#!/bin/sh
+exit 0
+"""
+
+const podmanFake = """#!/bin/sh
+if [ -n "${FAKE_PODMAN_LOG:-}" ]; then
+  printf '%s\n' "$*" >>"$FAKE_PODMAN_LOG"
+fi
+case "$*" in
+  "image exists "*) exit "${FAKE_PODMAN_IMAGE_EXISTS:-0}" ;;
+  *"datname = 'bm2'"*) printf '%s\n' "${FAKE_BM2_EXISTS:-}" ; exit 0 ;;
+  *"datname = 'bm2_rc'"*) printf '1\n' ; exit 0 ;;
+esac
+exit 0
+"""
+
+const psqlFake = """#!/bin/sh
+if [ -n "${FAKE_PSQL_LOG:-}" ]; then
+  printf '%s\n' "$*" >>"$FAKE_PSQL_LOG"
+fi
+case "$*" in
+  *"platform.cutover_state c"*) printf '%s\n' "${FAKE_ABANDONED:-}" ; exit 0 ;;
+esac
+exit 0
+"""
+
+const gitFake = """#!/bin/sh
+case "$*" in
+  *"rev-parse HEAD"*) printf 'abc1234\n' ;;
+esac
+exit 0
+"""
+
+proc touch(path: string, body = "") =
+  createDir(path.parentDir)
+  writeFile(path, body)
+
+proc appDir(fixture: Fixture, dir: string = ""): seq[(string, string)] =
+  @[("MAJADU_APP_DIR", if dir.len > 0: dir else: fixture.root)]
+
+proc privateFile(path, body: string) =
+  touch(path, body)
+  setFilePermissions(path, {fpUserRead, fpUserWrite})
+
+proc simFakes(fixture: Fixture) =
+  ## The process edges a simulated deploy needs: no lock contention, a green
+  ## health endpoint, a podman that answers `image exists` and a psql that logs.
+  fixture.installFake("flock", okFake)
+  fixture.installFake("curl", okFake)
+  fixture.installFake("podman", podmanFake)
+  fixture.installFake("psql", psqlFake)
+
+suite "deploy-vps.sh":
+  test "an empty ref is ignored before git or podman":
+    let fixture = newFixture("deploy-empty-ref")
+    defer: removeDir(fixture.root)
+    let podmanLog = fixture.root / "podman.log"
+    simFakes(fixture)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", ""], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_PODMAN_LOG", podmanLog),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "deploy ignored: ref '<empty>' is not refs/heads/main")
+    check not result.stdout.contains("deploy trigger")
+    check not fileExists(podmanLog)
+
+  test "a release-branch ref is ignored before git or podman":
+    let fixture = newFixture("deploy-other-ref")
+    defer: removeDir(fixture.root)
+    let podmanLog = fixture.root / "podman.log"
+    simFakes(fixture)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["badminton-match", "refs/heads/release/9.9.9"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_PODMAN_LOG", podmanLog),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "deploy ignored: ref 'refs/heads/release/9.9.9' is not refs/heads/main")
+    check not result.stdout.contains("deploy trigger")
+    check not fileExists(podmanLog)
+
+  test "a foreign repository is ignored on the main ref":
+    let fixture = newFixture("deploy-foreign-repo")
+    defer: removeDir(fixture.root)
+    let podmanLog = fixture.root / "podman.log"
+    simFakes(fixture)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps.sh"),
+      @["someone/fork", "refs/heads/main"], appDir(fixture) & @[
+        ("MAJADU_SKIP_GIT_SYNC", "1"),
+        ("FAKE_PODMAN_LOG", podmanLog),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "deploy ignored: repository 'someone/fork' is not badminton-match")
+    check not result.stdout.contains("deploy trigger")
+    check not fileExists(podmanLog)
+
+suite "deploy-vps-rc.sh":
+  test "a ref other than the RC branch is ignored":
+    let fixture = newFixture("rc-other-ref")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/main"],
+      appDir(fixture, rcDir) & @[("MAJADU_RC_APP_DIR", rcDir)])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "deploy ignored: ref 'refs/heads/main' is not refs/heads/release/2.0.0-rc.1")
+    check not result.stdout.contains("deploy trigger")
+
+  test "the RC ref reaches the deploy trigger":
+    let fixture = newFixture("rc-accepted-ref")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    createDir(rcDir / "repo")
+    simFakes(fixture)
+    let result = fixture.runShell(fixture.installOpsScript("deploy-vps-rc.sh"),
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"],
+      @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_APP_DIR", rcDir),
+        ("MAJADU_RC_SKIP_GIT_SYNC", "1")])
+    check result.stdout.contains(
+      "deploy trigger for badminton-match refs/heads/release/2.0.0-rc.1")
+    check not result.stdout.contains("deploy ignored")
+    # Past the guard, the checkout has no git metadata and the trap stops the
+    # run: the guard is what the case is about, not the deploy that follows.
+    check result.exitCode != 0
+
+  test "MAJADU_RC_BRANCH moves the accepted ref":
+    let fixture = newFixture("rc-branch-override")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    createDir(rcDir / "repo")
+    simFakes(fixture)
+    let script = fixture.installOpsScript("deploy-vps-rc.sh")
+    let env = @[("MAJADU_RC_APP_DIR", rcDir), ("MAJADU_APP_DIR", rcDir),
+      ("MAJADU_RC_SKIP_GIT_SYNC", "1"), ("MAJADU_RC_BRANCH", "release/3.0.0")]
+    let accepted = fixture.runShell(script,
+      @["badminton-match", "refs/heads/release/3.0.0"], env)
+    check accepted.stdout.contains(
+      "deploy trigger for badminton-match refs/heads/release/3.0.0")
+    check not accepted.stdout.contains("deploy ignored")
+    let oldRef = fixture.runShell(script,
+      @["badminton-match", "refs/heads/release/2.0.0-rc.1"], env)
+    check oldRef.exitCode == 0
+    check oldRef.stdout.contains(
+      "deploy ignored: ref 'refs/heads/release/2.0.0-rc.1' is not refs/heads/release/3.0.0")
+
+suite "cutover.sh":
+  test "--from an unknown step exits 2 and names it":
+    let fixture = newFixture("cutover-step")
+    defer: removeDir(fixture.root)
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--version", "2.0.0", "--from", "nosuchstep"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("cutover: unknown step 'nosuchstep'")
+
+  test "an unknown argument exits 2":
+    let fixture = newFixture("cutover-arg")
+    defer: removeDir(fixture.root)
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--wat"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("cutover: unknown argument --wat")
+
+  test "--help exits 0 with the usage block":
+    let fixture = newFixture("cutover-help")
+    defer: removeDir(fixture.root)
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--help"], appDir(fixture))
+    check result.exitCode == 0
+    check result.stdout.contains("One manual cutover from the v1 database")
+
+  test "a missing required tool exits 2":
+    let fixture = newFixture("cutover-tool")
+    defer: removeDir(fixture.root)
+    for tool in ["pg_dump", "pg_restore", "curl", "flock"]:
+      fixture.installFake(tool, okFake)
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--version", "2.0.0"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("cutover: caddy is required")
+
+  test "a missing post-cutover env file exits 2":
+    let fixture = newFixture("cutover-env-missing")
+    defer: removeDir(fixture.root)
+    for tool in ["pg_dump", "pg_restore", "curl", "flock", "caddy"]:
+      fixture.installFake(tool, okFake)
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--version", "2.0.0"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains(
+      fixture.root / "env" / "majadu-prod.env.v2" &
+      " is missing (the post-cutover env)")
+
+  test "an empty ETL DSN in the v2 env exits 2":
+    let fixture = newFixture("cutover-etl-dsn")
+    defer: removeDir(fixture.root)
+    for tool in ["pg_dump", "pg_restore", "curl", "flock", "caddy"]:
+      fixture.installFake(tool, okFake)
+    let envFile = fixture.root / "env" / "majadu-prod.env.v2"
+    privateFile(envFile,
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n" &
+      "MAJADU_ETL_SOURCE_DSN=postgres://bm2_owner@127.0.0.1:5432/bm_staging\n")
+    let result = fixture.runShell(fixture.installOpsScript("cutover.sh"),
+      @["--version", "2.0.0"], appDir(fixture))
+    check result.exitCode == 2
+    check result.stderr.contains("cutover: ETL_DSN is not set in " & envFile)
+
+suite "rollback.sh":
+  test "an unknown argument exits 1 without paging":
+    let fixture = newFixture("rollback-arg")
+    defer: removeDir(fixture.root)
+    let systemctlLog = fixture.root / "systemctl.log"
+    fixture.installFake("systemctl",
+      "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " & systemctlLog & "\n")
+    let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
+      @["--bogus"], appDir(fixture))
+    check result.exitCode == 1
+    check result.stdout.contains("ERROR: unknown argument: --bogus")
+    check not fileExists(systemctlLog)
+
+  test "podman missing exits 1":
+    let fixture = newFixture("rollback-podman-missing")
+    defer: removeDir(fixture.root)
+    # A private PATH: the three utilities the log line needs, and nothing that
+    # could resolve `podman` on any host.
+    let onlyDir = fixture.root / "no-podman-bin"
+    createDir(onlyDir)
+    writeExecutable(onlyDir / "date", "#!/bin/sh\nprintf '2026-01-01 00:00:00'")
+    writeExecutable(onlyDir / "tee", "#!/bin/sh\nexec /bin/cat")
+    writeExecutable(onlyDir / "mkdir", "#!/bin/sh\nexit 0")
+    let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
+      @[], appDir(fixture) & @[("PATH", onlyDir)])
+    check result.exitCode == 1
+    check result.stdout.contains("ERROR: podman is required")
+
+  test "a missing :v1-final exits 1":
+    let fixture = newFixture("rollback-no-image")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
+      @[], appDir(fixture) & @[("FAKE_PODMAN_IMAGE_EXISTS", "1")])
+    check result.exitCode == 1
+    check result.stdout.contains(
+      "ERROR: :v1-final is gone; v2 cannot be rolled back safely")
+
+  test "the abandoned-row guard is skipped without an owner DSN":
+    let fixture = newFixture("rollback-no-owner")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    createDir(fixture.root / "caddy")
+    let psqlLog = fixture.root / "psql.log"
+    let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
+      @[], appDir(fixture) & @[
+        ("MAJADU_CADDY_VALIDATE", "true"),
+        ("MAJADU_CADDY_RELOAD", "true"),
+        ("FAKE_PSQL_LOG", psqlLog),
+        ("FAKE_ABANDONED", "3"),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains("rollback complete")
+    check not fileExists(psqlLog)
+
+  test "a positive abandoned count is refused without --abandon-data":
+    let fixture = newFixture("rollback-abandoned")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    createDir(fixture.root / "caddy")
+    privateFile(fixture.root / "env" / "majadu-prod.env.v2",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
+      @[], appDir(fixture) & @[
+        ("MAJADU_CADDY_VALIDATE", "true"),
+        ("MAJADU_CADDY_RELOAD", "true"),
+        ("FAKE_ABANDONED", "3"),
+      ])
+    check result.exitCode == 1
+    check result.stdout.contains(
+      "ERROR: 3 row(s) were written to v2 since the cutover; rollback discards them. " &
+      "Re-run with --abandon-data to confirm that loss.")
+
+  test "--abandon-data accepts the same count":
+    let fixture = newFixture("rollback-abandoned-ok")
+    defer: removeDir(fixture.root)
+    simFakes(fixture)
+    createDir(fixture.root / "caddy")
+    privateFile(fixture.root / "env" / "majadu-prod.env.v2",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2\n")
+    let result = fixture.runShell(fixture.installOpsScript("rollback.sh"),
+      @["--abandon-data"], appDir(fixture) & @[
+        ("MAJADU_CADDY_VALIDATE", "true"),
+        ("MAJADU_CADDY_RELOAD", "true"),
+        ("FAKE_ABANDONED", "3"),
+      ])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "WARNING: abandoning 3 row(s) written since the cutover")
+    check result.stdout.contains("rollback complete")
+
+suite "bootstrap-rc.sh":
+  test "a missing env file is refused":
+    let fixture = newFixture("bootstrap-no-env")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    let result = fixture.runShell(fixture.installOpsScript("bootstrap-rc.sh"),
+      @[], @[("MAJADU_RC_APP_DIR", rcDir)])
+    check result.exitCode == 1
+    check result.stderr.contains(rcDir / "env" / "majadu-rc.env" &
+      " is missing; copy ops/env/rc.env.example and fill it in")
+
+  test "an env file that is not private is refused":
+    let fixture = newFixture("bootstrap-mode")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    let envFile = rcDir / "env" / "majadu-rc.env"
+    touch(envFile, "MAJADU_OWNER_DSN=x\n")
+    setFilePermissions(envFile, {fpUserRead, fpUserWrite, fpGroupRead,
+      fpOthersRead})
+    let result = fixture.runShell(fixture.installOpsScript("bootstrap-rc.sh"),
+      @[], @[("MAJADU_RC_APP_DIR", rcDir)])
+    check result.exitCode == 1
+    check result.stderr.contains(
+      envFile & " must be mode 600 (found 644)")
+
+  test "an env file without either DSN is refused":
+    let fixture = newFixture("bootstrap-dsn")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    let envFile = rcDir / "env" / "majadu-rc.env"
+    privateFile(envFile,
+      "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/bm2_rc\n")
+    let script = fixture.installOpsScript("bootstrap-rc.sh")
+    let noOwner = fixture.runShell(script, @[],
+      @[("MAJADU_RC_APP_DIR", rcDir)])
+    check noOwner.exitCode == 1
+    check noOwner.stderr.contains("MAJADU_OWNER_DSN is missing from " & envFile)
+    privateFile(envFile,
+      "MAJADU_OWNER_DSN=postgres://bm2_owner@127.0.0.1:5432/bm2_rc\n")
+    let noApp = fixture.runShell(script, @[],
+      @[("MAJADU_RC_APP_DIR", rcDir)])
+    check noApp.exitCode == 1
+    check noApp.stderr.contains("MAJADU_PG_DSN is missing from " & envFile)
+
+  test "a live database name is refused":
+    let fixture = newFixture("bootstrap-live-db")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    let envFile = rcDir / "env" / "majadu-rc.env"
+    let script = fixture.installOpsScript("bootstrap-rc.sh")
+    # A bogus `.git` keeps a run that slips past the allowlist inside the
+    # fixture instead of cloning the repository.
+    createDir(rcDir / "repo" / ".git")
+    for name in ["bm", "bm2", "majadu", "postgres"]:
+      privateFile(envFile,
+        "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/" & name & "\n" &
+        "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/" & name & "\n")
+      let result = fixture.runShell(script, @[],
+        @[("MAJADU_RC_APP_DIR", rcDir)])
+      check result.exitCode == 1
+      check result.stderr.contains("refusing to bootstrap over '" & name &
+        "'; use a dedicated RC database")
+
+  test "an existing bm2 database stops the run before the checkout":
+    let fixture = newFixture("bootstrap-bm2-exists")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    privateFile(rcDir / "env" / "majadu-rc.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/bm2_rc\n" &
+      "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/bm2_rc\n")
+    let podmanLog = fixture.root / "podman.log"
+    fixture.installFake("podman", podmanFake)
+    let result = fixture.runShell(fixture.installOpsScript("bootstrap-rc.sh"),
+      @[], @[("MAJADU_RC_APP_DIR", rcDir), ("FAKE_BM2_EXISTS", "1"),
+        ("FAKE_PODMAN_LOG", podmanLog)])
+    check result.exitCode == 1
+    check result.stderr.contains(
+      "database bm2 exists; this script would reset the production role passwords. " &
+      "Dismantle the RC or give it dedicated roles first.")
+    check not fileExists(rcDir / "repo" / "VERSION")
+
+  test "a verified RC database exits 0 with the pass --force message":
+    let fixture = newFixture("bootstrap-verified")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    privateFile(rcDir / "env" / "majadu-rc.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/bm2_rc\n" &
+      "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/bm2_rc\n")
+    touch(rcDir / "repo" / "VERSION", "2.0.0\n")
+    let podmanLog = fixture.root / "podman.log"
+    fixture.installFake("podman", podmanFake)
+    fixture.installFake("git", gitFake)
+    let result = fixture.runShell(fixture.installOpsScript("bootstrap-rc.sh"),
+      @[], @[("MAJADU_RC_APP_DIR", rcDir), ("FAKE_PODMAN_LOG", podmanLog)])
+    check result.exitCode == 0
+    check result.stdout.contains(
+      "bm2_rc already carries the RC schema; pass --force to drop and rebuild it")
+    check not readFile(podmanLog).contains("drop database")
+
+  test "--force drops the verified RC database":
+    let fixture = newFixture("bootstrap-force")
+    defer: removeDir(fixture.root)
+    let rcDir = fixture.root / "rc"
+    privateFile(rcDir / "env" / "majadu-rc.env",
+      "MAJADU_OWNER_DSN=postgres://bm2_owner:secret@127.0.0.1:5432/bm2_rc\n" &
+      "MAJADU_PG_DSN=postgres://bm2_app:secret@127.0.0.1:5432/bm2_rc\n")
+    touch(rcDir / "repo" / "VERSION", "2.0.0\n")
+    let podmanLog = fixture.root / "podman.log"
+    fixture.installFake("podman", podmanFake)
+    fixture.installFake("git", gitFake)
+    let result = fixture.runShell(fixture.installOpsScript("bootstrap-rc.sh"),
+      @["--force"], @[("MAJADU_RC_APP_DIR", rcDir),
+        ("FAKE_PODMAN_LOG", podmanLog)])
+    # Nothing in the fixture knows a source database, so the run stops before
+    # the copy; the case is about the drop that --force performs after verify.
+    check result.exitCode != 0
+    check result.stdout.contains("dropping bm2_rc")
+    check readFile(podmanLog).contains(
+      "drop database if exists bm2_rc with (force)")

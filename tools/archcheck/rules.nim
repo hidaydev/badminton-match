@@ -6,18 +6,31 @@ const
   # used to be read in sixteen `main.nim` files.
   envAllowlist = ["shared/platform-lib/clock.nim", "shared/platform-lib/cli.nim"]
 
+proc scanFloorViolation*(scanned, minimum: int): string =
+  ## A walker that visits nothing compares nothing and still prints `ok`. The
+  ## caller turns a non-empty result into a failure so a partial checkout or a
+  ## broken walker cannot pass as a clean tree.
+  if scanned >= minimum:
+    return ""
+  "scanned only " & $scanned & " file(s), below the " & $minimum &
+    " file floor: partial checkout or broken walker"
+
 proc envAllowed(file: string): bool =
   ## Environment reads belong to the process edge (apps/, tools/) and to
   ## infrastructure adapters that build their configuration from it.
   file.startsWith("apps/") or file.startsWith("tools/") or
     file in envAllowlist or file.contains("/infrastructure/")
 
-proc stripStrings(lines: seq[string]): seq[string] =
+proc scanStrings(lines: seq[string]): tuple[code: seq[string],
+    interior: seq[bool]] =
   ## Removes string literal contents (both "..." and triple-quoted blocks) so SQL
-  ## `now()` and `?` are not mistaken for Nim code.
+  ## `now()` and `?` are not mistaken for Nim code. `interior[index]` is true
+  ## when the line begins inside a triple-quoted literal, which is the only way
+  ## to tell a fixture block from code that happens to sit at the same indent.
   var triple = false
   var quoted = false
   for line in lines:
+    result.interior.add triple
     var rendered = ""
     var index = 0
     while index < line.len:
@@ -47,7 +60,10 @@ proc stripStrings(lines: seq[string]): seq[string] =
       else:
         rendered.add(c)
         index.inc
-    result.add(rendered)
+    result.code.add(rendered)
+
+proc stripStrings(lines: seq[string]): seq[string] =
+  scanStrings(lines).code
 
 proc literalEnd(source: string, start: int): int =
   ## Index just past the literal that opens at `start`, which is a double quote.
@@ -730,17 +746,20 @@ proc violationsFor*(path, source: string,
         result.add(file & ":" & $lineNumber &
           ": domain must not import the database layer")
   let codeLines = stripStrings(source.splitLines())
+  # The clock module itself and test support files may read the wall clock. A
+  # `_test.nim` is judged like product code (QA-07): pinning the clock through
+  # `MAJADU_NOW` is the only way a test may choose an instant, so a stray
+  # `epochTime()` in a suite is a defect rather than a fixture.
+  let clockExempt = file == "shared/platform-lib/clock.nim" or
+    (file.contains("/tests/") and not file.endsWith("_test.nim"))
   for index in 0 ..< codeLines.len:
     let trimmed = codeLines[index].strip()
     if trimmed.startsWith("#"):
       continue
     if (trimmed.contains("now()") or trimmed.contains("times.now(")) and
-       file != "shared/platform-lib/clock.nim" and
-       not file.contains("/tests/") and not trimmed.contains("default now()"):
+       not clockExempt and not trimmed.contains("default now()"):
       result.add(file & ":" & $(index + 1) & ": use clock.utcNow(), not now()")
-    if trimmed.contains("epochTime(") and
-       file != "shared/platform-lib/clock.nim" and
-       not file.contains("/tests/"):
+    if trimmed.contains("epochTime(") and not clockExempt:
       result.add(file & ":" & $(index + 1) &
         ": use clock.utcNow(), not epochTime()")
     if trimmed.contains("getEnv(") and not envAllowed(file) and
@@ -771,3 +790,367 @@ proc violationsFor*(path, source: string,
       if routine.len > 0:
         message.add(" (proc " & routine & ")")
       result.add(message)
+
+# QA-02: a test that cannot fail is worse than no test, because the suite
+# reports success. R-01 judges the test block itself; a `check` that only runs
+# inside a nested proc the block calls counts as an assertion the block itself
+# never made. R-02 judges the assertions that are present.
+
+const
+  identifierChars = {'A'..'Z', 'a'..'z', '0'..'9', '_'}
+  # The statements a test uses to fail. `fail(` is matched as text because
+  # unittest's `fail` is a template without parentheses in every call site.
+  assertionWords = ["check", "expect", "doAssert", "require"]
+  # A nested routine is not the test block's own assertion. Its body is skipped
+  # rather than its one-line declaration, so `proc helper()` does not hide the
+  # `check` calls that follow it.
+  routineWords = ["proc ", "func ", "template ", "iterator ", "method ",
+    "converter ", "macro ", "proc("]
+
+type
+  TestBlock = object
+    name: string
+    line: int
+    indent: int
+    first: int
+    last: int
+    inline: string
+    found: bool
+
+proc lineIndent(line: string): int =
+  while result < line.len and line[result] == ' ':
+    inc result
+
+proc isBlankOrComment(line: string): bool =
+  let trimmed = line.strip()
+  trimmed.len == 0 or trimmed.startsWith("#")
+
+proc codeOf(line: string): string =
+  ## A line with string contents and a trailing comment removed. The caller
+  ## passes lines already stripped as one block, so a triple-quoted string that
+  ## spans several lines does not leak its text into the scan.
+  line.split('#')[0]
+
+proc blockHeader(line: string): TestBlock =
+  ## Reads `test "name": body` and `test "name":` (body on the next lines).
+  ## `test(...)` calls and names built from concatenation are not recognised:
+  ## the unittest template's block form is what the rule can judge.
+  let trimmed = line.strip()
+  if not trimmed.startsWith("test "):
+    return
+  var index = "test ".len
+  if index >= trimmed.len or trimmed[index] != '"':
+    return
+  let open = index
+  inc index
+  while index < trimmed.len:
+    if trimmed[index] == '\\':
+      index += 2
+      continue
+    if trimmed[index] == '"':
+      break
+    inc index
+  if index >= trimmed.len:
+    return
+  let close = index
+  var after = close + 1
+  while after < trimmed.len and trimmed[after] in {' ', '\t'}:
+    inc after
+  if after >= trimmed.len or trimmed[after] != ':':
+    return
+  result.found = true
+  result.name = trimmed[open + 1 ..< close]
+  result.inline = trimmed[after + 1 .. ^1].strip()
+
+proc testBlocks(lines: seq[string], interior: seq[bool]): seq[TestBlock] =
+  ## One entry per `test "..."` block. A block ends at the first code line that
+  ## is not indented further than the `test` line, so a sibling test or the next
+  ## suite statement closes it.
+  ##
+  ## `interior` is `scanStrings(...).interior`: a line that begins inside a
+  ## triple-quoted literal cannot close the block, however it is indented. A
+  ## JSON fixture written flush left used to end its own test before the `check`
+  ## calls below it, and the rule then reported a test with assertions as empty.
+  var index = 0
+  while index < lines.len:
+    var entry = blockHeader(lines[index])
+    if not entry.found:
+      inc index
+      continue
+    entry.line = index + 1
+    entry.indent = lineIndent(lines[index])
+    entry.first = index + 1
+    if entry.inline.len > 0:
+      entry.last = index + 1
+    else:
+      var stop = index + 1
+      while stop < lines.len:
+        if interior[stop] or isBlankOrComment(lines[stop]):
+          inc stop
+          continue
+        if lineIndent(lines[stop]) <= entry.indent:
+          break
+        inc stop
+      entry.last = stop
+    result.add(entry)
+    index = if entry.last > index + 1: entry.last else: index + 1
+
+proc hasWord(line, word: string): bool =
+  ## Whole-word occurrence, so `checkpoint` is not a `check` and `required` is
+  ## not a `require`.
+  var index = 0
+  while true:
+    let found = line.find(word, index)
+    if found < 0:
+      return false
+    let before = if found == 0: ' ' else: line[found - 1]
+    let after = if found + word.len >= line.len: ' ' else: line[found + word.len]
+    if before notin identifierChars and after notin identifierChars:
+      return true
+    index = found + 1
+
+proc hasAssertion(code: string): bool =
+  for word in assertionWords:
+    if hasWord(code, word):
+      return true
+  "fail(" in code
+
+proc startsRoutine(line: string): bool =
+  let trimmed = line.strip()
+  for word in routineWords:
+    if trimmed.startsWith(word):
+      return true
+
+proc routineHeader(line: string): tuple[name, keyword: string, found: bool] =
+  ## The name of a routine declared on this line. `proc`, `func` and the macro
+  ## family are the ones a test can call to assert on its behalf.
+  let trimmed = line.strip()
+  for keyword in ["proc", "func", "template", "iterator", "method", "macro",
+                  "converter"]:
+    if not trimmed.startsWith(keyword):
+      continue
+    if trimmed.len == keyword.len or
+       trimmed[keyword.len] notin {' ', '('}:
+      continue
+    var index = keyword.len
+    while index < trimmed.len and trimmed[index] == ' ':
+      inc index
+    let start = index
+    while index < trimmed.len and (trimmed[index] in identifierChars or
+                                   trimmed[index] == '*'):
+      inc index
+    if index == start:
+      return
+    result.found = true
+    result.keyword = keyword
+    result.name = trimmed[start ..< index].replace("*", "")
+    return
+
+proc assertingRoutines*(source: string): seq[string] =
+  ## Module-level routines that can fail: a test that calls one has made an
+  ## assertion even though the `check` sits in the helper. Only top-level
+  ## routines are collected, so a proc defined inside a test block stays
+  ## invisible and its `check` does not count for that block.
+  let lines = source.splitLines()
+  let code = stripStrings(lines)
+  var index = 0
+  while index < lines.len:
+    if lineIndent(lines[index]) != 0:
+      inc index
+      continue
+    let header = routineHeader(lines[index])
+    if not header.found:
+      inc index
+      continue
+    var stop = index + 1
+    while stop < lines.len:
+      if isBlankOrComment(lines[stop]):
+        inc stop
+        continue
+      if lineIndent(lines[stop]) <= 0:
+        break
+      inc stop
+    for position in index ..< stop:
+      let text = codeOf(code[position])
+      # A macro or template that raises a compile-time error is an assertion:
+      # the test cannot pass when the shape it checks is wrong.
+      let compileTime = header.keyword in ["template", "macro"] and
+        "error(" in text
+      if compileTime or hasAssertion(text):
+        result.add(header.name)
+        break
+    index = stop
+
+proc callsRoutine(code: string, names: openArray[string]): bool =
+  for name in names:
+    var index = 0
+    while true:
+      let found = code.find(name & "(", index)
+      if found < 0:
+        break
+      let before = if found == 0: ' ' else: code[found - 1]
+      if before notin identifierChars:
+        return true
+      index = found + 1
+
+proc checkExpressions(code: string): seq[string] =
+  ## The expression after every `check` word, up to `;` or the end of the line.
+  var index = 0
+  while index < code.len:
+    let found = code.find("check", index)
+    if found < 0:
+      break
+    let before = if found == 0: ' ' else: code[found - 1]
+    let after = if found + "check".len >= code.len: ' '
+                else: code[found + "check".len]
+    if before in identifierChars or after in identifierChars:
+      index = found + "check".len
+      continue
+    var start = found + "check".len
+    while start < code.len and code[start] in {' ', '\t'}:
+      inc start
+    var stop = code.find(';', start)
+    if stop < 0:
+      stop = code.len
+    var expression = code[start ..< stop].strip()
+    if expression.startsWith("(") and expression.endsWith(")"):
+      expression = expression[1 ..< expression.len - 1].strip()
+    result.add(expression)
+    index = stop + 1
+
+proc sameIdentifier(expression: string): bool =
+  ## `x == x` cannot fail. Both sides must be the same identifier, dots
+  ## included, so a repeated field read is caught as well.
+  let equals = expression.find("==")
+  if equals < 0 or (equals + 2 < expression.len and expression[equals + 2] == '='):
+    return false
+  let left = expression[0 ..< equals].strip()
+  let right = expression[equals + 2 .. ^1].strip()
+  if left.len == 0 or left != right:
+    return false
+  # `1 == 1` is a constant comparison, not a value read twice; only a name can
+  # be mistaken for an assertion about the code.
+  var named = false
+  for c in left:
+    if c in {'A'..'Z', 'a'..'z', '_'}:
+      named = true
+    elif c notin identifierChars and c != '.':
+      return false
+  named
+
+proc alwaysTrueLength(expression: string): bool =
+  ## `len(x) >= 0` holds for every string, sequence and map.
+  let start = expression.find("len(")
+  if start < 0:
+    return false
+  var depth = 0
+  var index = start + "len(".len - 1
+  while index < expression.len:
+    if expression[index] == '(':
+      inc depth
+    elif expression[index] == ')':
+      dec depth
+      if depth == 0:
+        break
+    inc index
+  if index >= expression.len:
+    return false
+  var rest = expression[index + 1 .. ^1].strip()
+  rest = rest.replace(" ", "").replace("\t", "")
+  rest == ">=0"
+
+proc inElseArm(body: seq[(int, string)], position: int): bool =
+  ## `check false` is a deliberate unreachable marker inside an `else` arm and a
+  ## vacuous assertion everywhere else. The arm is read from the nearest less
+  ## indented line above, which is the branch header that owns this line.
+  let text = body[position][1]
+  let code = codeOf(text)
+  let checkAt = code.find("check")
+  if checkAt > 0 and code[0 ..< checkAt].strip().startsWith("else"):
+    return true
+  let own = lineIndent(text)
+  var index = position - 1
+  while index >= 0:
+    let candidate = body[index][1]
+    if isBlankOrComment(candidate):
+      dec index
+      continue
+    if lineIndent(candidate) < own:
+      return candidate.strip().startsWith("else")
+    dec index
+  false
+
+proc honestAllowed(file, name: string, allowed: openArray[string]): bool =
+  ## `path:test name` exempts one block, `path` a whole file. A new test in an
+  ## allowlisted file is still judged; a line number would move with every edit.
+  for entry in allowed:
+    if entry.len == 0:
+      continue
+    if entry == file or entry == file & ":" & name:
+      return true
+
+proc honestTestViolations*(path, source: string,
+                           allowed: openArray[string] = [],
+                           asserting: openArray[string] = []): seq[string] =
+  ## R-01 and R-02 from the test quality plan, section 10. Only `*_test.nim`
+  ## files are passed here; the caller decides the scope. `asserting` is
+  ## `assertingRoutines` over the tree, so a test that delegates its assertion
+  ## to a shared helper is not reported as empty.
+  let file = normalize(path)
+  let raw = source.splitLines()
+  # One strip over the whole file keeps a triple-quoted string that spans lines
+  # from reading as code further down.
+  let scanned = scanStrings(raw)
+  let code = scanned.code
+  for entry in testBlocks(raw, scanned.interior):
+    if honestAllowed(file, entry.name, allowed):
+      continue
+    var body: seq[(int, string)] = @[]
+    var bodyCode: seq[string] = @[]
+    if entry.inline.len > 0:
+      body.add((entry.line, entry.inline))
+      bodyCode.add(codeOf(code[entry.line - 1]))
+    else:
+      for index in entry.first ..< entry.last:
+        # The code view, not the raw line: a line inside a fixture string is
+        # blank here, which is what keeps it out of the indent and routine
+        # checks below.
+        body.add((index + 1, code[index]))
+        bodyCode.add(codeOf(code[index]))
+    var asserts = false
+    var routineIndent = -1
+    for position in 0 ..< body.len:
+      let text = body[position][1]
+      if isBlankOrComment(text):
+        continue
+      let indent = lineIndent(text)
+      if routineIndent >= 0:
+        if indent > routineIndent:
+          continue
+        routineIndent = -1
+      if startsRoutine(text):
+        routineIndent = indent
+        continue
+      if hasAssertion(bodyCode[position]) or
+         callsRoutine(bodyCode[position], asserting):
+        asserts = true
+    if not asserts:
+      result.add(file & ":" & $entry.line & ": test \"" & entry.name &
+        "\" has no assertion that can fail (R-01)")
+    for position in 0 ..< body.len:
+      let text = body[position][1]
+      if isBlankOrComment(text):
+        continue
+      for expression in checkExpressions(bodyCode[position]):
+        let line = body[position][0]
+        if expression == "true":
+          result.add(file & ":" & $line & ": `check true` cannot fail (R-02)")
+        elif expression == "false" and not inElseArm(body, position):
+          result.add(file & ":" & $line &
+            ": `check false` outside an else arm cannot pass (R-02)")
+        elif sameIdentifier(expression):
+          result.add(file & ":" & $line & ": `" & expression &
+            "` compares an identifier with itself (R-02)")
+        elif alwaysTrueLength(expression):
+          result.add(file & ":" & $line & ": `" & expression &
+            "` is true for every value (R-02)")

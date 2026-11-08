@@ -31,7 +31,12 @@ if [ -z "${MAJADU_PG_DSN:-}" ]; then
   fi
 fi
 
+# QA-06: one fresh database per file, the same isolation `./task test` uses.
+if [ -n "${MAJADU_PG_DSN:-}" ]; then
+  isolation_begin verify
+fi
 for file in $(find "$tests_dir" -name '*_test.nim' -type f | sort); do
+  isolation_apply "${file#"$REPO_ROOT"/}"
   nim_run "$file"
 done
 

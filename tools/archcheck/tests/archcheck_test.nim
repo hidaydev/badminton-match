@@ -41,9 +41,21 @@ suite "archcheck rules":
     check violationsFor("shared/platform-lib/clock.nim",
       "let a = now()\nlet b = epochTime()\n").len == 0
 
-  test "a module test may read the wall clock":
-    check violationsFor("modules/session/tests/x_test.nim",
+  test "a test support file may read the wall clock":
+    check violationsFor("modules/session/tests/x_support.nim",
       "let t = epochTime()\n").len == 0
+
+  test "a _test.nim may not read the wall clock directly":
+    let found = violationsFor("modules/session/tests/x_test.nim",
+      "let t = epochTime()\n")
+    check found.len == 1
+    check found[0].contains("clock.utcNow")
+
+  test "a _test.nim may not call now() either":
+    let found = violationsFor("apps/api/tests/integration/x_test.nim",
+      "let t = now()\n")
+    check found.len == 1
+    check found[0].contains("clock.utcNow")
 
   test "environment access is rejected in modules":
     let found = violationsFor("modules/session/x.nim", "let v = getEnv(\"X\")\n")
@@ -227,3 +239,99 @@ suite "archcheck rules":
     let source = "let q = \"select id from session.sessions where id = $1\"\n"
     check violationsFor("tools/import/main.nim", source).len == 1
     check violationsFor("tools/import/main.nim", source, ["tools/"]).len == 0
+
+  test "a scan below the file floor is a violation":
+    check scanFloorViolation(0, 50).contains("partial checkout")
+    check scanFloorViolation(49, 50).contains("below the 50 file floor")
+    check scanFloorViolation(50, 50).len == 0
+    check scanFloorViolation(177, 50).len == 0
+
+suite "honest test rules":
+  test "a block with a check is not reported":
+    let source = "  test \"x\":\n    check 1 == 1\n"
+    check honestTestViolations("modules/session/tests/x_test.nim", source).len == 0
+
+  test "a block without an assertion is reported":
+    let source = "  test \"does nothing\":\n    let a = 1\n    discard a\n"
+    let found = honestTestViolations("modules/session/tests/x_test.nim", source)
+    check found.len == 1
+    check found[0].contains("R-01")
+    check found[0].contains("does nothing")
+
+  test "a flush-left fixture inside the block does not hide the checks after it":
+    ## The JSON body of a triple-quoted fixture can start at column zero. That
+    ## line is not code, so it must not close the test before its assertions:
+    ## the report used to name a test full of checks as empty.
+    let source = "  test \"x\":\n" &
+      "    let body = \"\"\"\n" &
+      "{\n" &
+      "  \"status\": 1\n" &
+      "}\n" &
+      "\"\"\"\n" &
+      "    check body.len > 0\n"
+    let found = honestTestViolations("modules/session/tests/x_test.nim", source)
+    check found.len == 0
+
+  test "a check inside a nested proc does not count":
+    let source = "  test \"x\":\n" &
+      "    proc helper() =\n" &
+      "      check 1 == 1\n" &
+      "    helper()\n"
+    let found = honestTestViolations("modules/session/tests/x_test.nim", source)
+    check found.len == 1
+    check found[0].contains("R-01")
+
+  test "a call to an asserting helper counts as the block's assertion":
+    let helper = "proc expectProblem*(status: int) =\n  check status == 404\n"
+    check assertingRoutines(helper) == @["expectProblem"]
+    let source = "  test \"x\":\n    expectProblem(404)\n"
+    check honestTestViolations("modules/session/tests/x_test.nim", source,
+      [], ["expectProblem"]).len == 0
+
+  test "check true is always reported":
+    let inline = honestTestViolations("modules/session/tests/x_test.nim",
+      "  test \"x\": check true\n")
+    check inline.len == 1
+    check inline[0].contains("R-02")
+    let nested = honestTestViolations("modules/session/tests/x_test.nim",
+      "  test \"x\":\n    check true\n")
+    check nested.len == 1
+    check nested[0].contains("`check true`")
+
+  test "check false is allowed only inside an else arm":
+    let source = "  test \"x\":\n" &
+      "    if true:\n" &
+      "      check false\n" &
+      "    else:\n" &
+      "      check false\n"
+    let found = honestTestViolations("modules/session/tests/x_test.nim", source)
+    check found.len == 1
+    check found[0].contains("x_test.nim:3")
+
+  test "an identifier compared with itself is vacuous":
+    let source = "  test \"x\":\n" &
+      "    let a = 1\n" &
+      "    check a == a\n" &
+      "    check len(\"a\") >= 0\n"
+    let found = honestTestViolations("modules/session/tests/x_test.nim", source)
+    check found.len == 2
+    check found[0].contains("compares an identifier with itself")
+    check found[1].contains("true for every value")
+
+  test "a meaningful comparison is not flagged":
+    let source = "  test \"x\":\n" &
+      "    let a = 1\n" &
+      "    let b = 2\n" &
+      "    check a == b\n" &
+      "    check a.len >= 1\n"
+    check honestTestViolations("modules/session/tests/x_test.nim", source).len == 0
+
+  test "the allowlist exempts one block and not the next":
+    let source = "  test \"allowed\":\n    check true\n" &
+      "  test \"new\":\n    check true\n"
+    let found = honestTestViolations("modules/session/tests/x_test.nim", source,
+      ["modules/session/tests/x_test.nim:allowed"])
+    check found.len == 1
+    check found[0].contains("x_test.nim:4")
+    check honestTestViolations("modules/session/tests/x_test.nim", source,
+      ["modules/session/tests/x_test.nim"]).len == 0

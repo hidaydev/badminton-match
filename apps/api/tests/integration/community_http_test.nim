@@ -18,6 +18,10 @@ var
   ownerId, adminId, memberId: string
   ownerCookie, adminCookie, memberCookie: string
   clubId, closedId: string
+  # The reads BE-05 owns get their own communities, users and sessions so the
+  # cases above can mutate the http-club fixture without changing the answer.
+  be05ClubId, be05OtherId: string
+  be05AdminCookie, be05MemberCookie, be05SoloCookie: string
 
 proc bootstrap() =
   database = openDb(dsn(), 1)
@@ -36,6 +40,24 @@ proc bootstrap() =
   ownerCookie = cookieFor(database, ownerId)
   adminCookie = cookieFor(database, adminId)
   memberCookie = cookieFor(database, memberId)
+
+  for slug in ["be05-club", "be05-other"]:
+    purgeCommunity(database, slug)
+  cleanupUsers(database, "be05-%")
+  let be05AdminId = newUser(database, "be05-admin",
+    "be05-admin@example.com", "BE05 Admin")
+  let be05MemberId = newUser(database, "be05-member",
+    "be05-member@example.com", "BE05 Member")
+  let be05SoloId = newUser(database, "be05-solo", "be05-solo@example.com",
+    "BE05 Solo")
+  be05ClubId = newCommunity(database, "be05-club", "BE05 Club")
+  be05OtherId = newCommunity(database, "be05-other", "BE05 Other")
+  newMember(database, be05ClubId, be05AdminId, "admin")
+  newMember(database, be05ClubId, be05MemberId, "member")
+  newMember(database, be05OtherId, be05AdminId, "admin")
+  be05AdminCookie = cookieFor(database, be05AdminId)
+  be05MemberCookie = cookieFor(database, be05MemberId)
+  be05SoloCookie = cookieFor(database, be05SoloId)
 
   startServer(newTestApp(database), port, baseUrl)
 
@@ -256,3 +278,92 @@ suite "community HTTP":
     discard database.execUpdate(
       "delete from community.settings where community_id = $1::uuid",
       @[textParam(clubId)])
+
+  test "the settings read carries only community keys with a source":
+    # An old row may hold a platform key written before the scope was enforced:
+    # every member can read this route, so it must not resurface here.
+    discard database.execUpdate(
+      """insert into community.settings (community_id, values, updated_at)
+         values ($1::uuid, $2::jsonb, now())
+         on conflict (community_id) do update
+           set values = excluded.values""",
+      @[textParam(be05ClubId), textParam("""{"community.invite_ttl_days": 3,
+        "community.directory_enabled": true,
+        "session.absolute_days": 30}""")])
+    let memberStatus = call(baseUrl, HttpGet, "/c/be05-club/settings",
+      be05MemberCookie)
+    let memberBody = memberStatus.body
+    expectStatus(memberStatus, 200)
+    let member = parseJson(memberBody)
+    let values = member["values"]
+    check values.len == 2
+    check values["community.invite_ttl_days"].getInt() == 3
+    check values["community.directory_enabled"].getBool()
+    check not values.hasKey("session.absolute_days")
+    let effective = member["effective"]
+    check effective["community.invite_ttl_days"]["value"].getInt() == 3
+    check effective["community.invite_ttl_days"]["source"].getStr() == "community"
+    # Only a boolean carries the widening flag, and only the opt-in ones may
+    # leave the platform default alone.
+    check not effective["community.invite_ttl_days"].hasKey("widenable")
+    check effective["community.directory_enabled"]["value"].getBool()
+    check effective["community.directory_enabled"]["source"].getStr() == "community"
+    check effective["community.directory_enabled"]["widenable"].getBool()
+    check effective["community.join_requests_enabled"]["widenable"].getBool()
+    # A key with no stored override reports where its value really came from.
+    check effective["rating.score_target"]["source"].getStr() == "platform"
+    check not effective.hasKey("security.allowed_origins")
+    check not effective.hasKey("api.page_size_default")
+    let adminStatus = call(baseUrl, HttpGet, "/c/be05-club/settings",
+      be05AdminCookie)
+    let adminBody = adminStatus.body
+    expectStatus(adminStatus, 200)
+    let admin = parseJson(adminBody)
+    check admin["values"]["community.invite_ttl_days"].getInt() == 3
+    check admin["effective"]["community.directory_enabled"]["source"].getStr() ==
+      "community"
+    let anonymous = call(baseUrl, HttpGet, "/c/be05-club/settings")
+    expectProblem(anonymous, 401)
+    # A member of another community is answered as if this one did not exist.
+    let foreign = call(baseUrl, HttpGet, "/c/be05-other/settings",
+      be05MemberCookie)
+    expectProblem(foreign, 404)
+    discard database.execUpdate(
+      "delete from community.settings where community_id = $1::uuid",
+      @[textParam(be05ClubId)])
+
+  test "the community list is the caller's own memberships":
+    let status = call(baseUrl, HttpGet, "/communities", be05MemberCookie)
+    let body = status.body
+    expectStatus(status, 200)
+    let items = parseJson(body)["items"]
+    check items.len == 1
+    check items[0]["id"].getStr() == be05ClubId
+    check items[0]["slug"].getStr() == "be05-club"
+    check items[0]["name"].getStr() == "BE05 Club"
+    check items[0]["role"].getStr() == "member"
+    # The admin belongs to both, so the list is the caller's rows, not the
+    # community table.
+    let adminStatus = call(baseUrl, HttpGet, "/communities", be05AdminCookie)
+    let adminBody = adminStatus.body
+    expectStatus(adminStatus, 200)
+    let adminItems = parseJson(adminBody)["items"]
+    check adminItems.len == 2
+    var slugs: seq[string] = @[]
+    for item in adminItems:
+      check item["role"].getStr() == "admin"
+      slugs.add(item["slug"].getStr())
+    check "be05-club" in slugs
+    check "be05-other" in slugs
+    # A member of A is never told that B exists.
+    check "be05-other" notin body
+    # No membership is an empty list, not an error.
+    let soloStatus = call(baseUrl, HttpGet, "/communities", be05SoloCookie)
+    let soloBody = soloStatus.body
+    expectStatus(soloStatus, 200)
+    check parseJson(soloBody)["items"].len == 0
+    let anonymous = call(baseUrl, HttpGet, "/communities")
+    expectProblem(anonymous, 401)
+    for slug in ["be05-club", "be05-other"]:
+      purgeCommunity(database, slug)
+    cleanupUsers(database, "be05-%")

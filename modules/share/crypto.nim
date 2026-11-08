@@ -1,5 +1,6 @@
 import std/[base64, json, strutils, sysrand]
 import nimcrypto
+import token as tokenlib
 
 type
   ShareKeyError* = object of CatchableError
@@ -88,9 +89,10 @@ proc decryptWith*(keyring: Keyring, keyId: string, blob: seq[byte],
                   aad: string): string =
   decrypt(blob, aad, keyring.keyFor(keyId))
 
-proc newShareCode*(): string =
-  ## 128-bit code rendered as lowercase hex.
-  var bytes = randomBytes(16)
+proc newShareCode*(source: tokenlib.ByteSource = nil): string =
+  ## 128-bit code rendered as lowercase hex. `source` is the D-5 test seam;
+  ## production reads the operating system through `randomBytes`.
+  let bytes = if source.isNil: randomBytes(16) else: source(16)
   result = newStringOfCap(32)
   for byteValue in bytes:
     result.add(toHex(byteValue, 2).toLowerAscii)

@@ -11,8 +11,12 @@ import ../main
 let dsn = getEnv("MAJADU_PG_DSN")
 
 if dsn.len == 0:
-  echo "ratingingest suite: skipped (MAJADU_PG_DSN not set)"
-  quit(0)
+  echo "SKIP ratingingest suite: MAJADU_PG_DSN not set"
+  quit(77)
+
+const epoch = "2026-11-01"
+  ## Every date below is absolute: the fixture never asks the database or the
+  ## wall clock for "now", so the walk is the same on every run.
 
 var
   database: Db
@@ -62,7 +66,7 @@ communityId = database.queryOne(
 
 # A tick must replay in approval order, not in session-date order: the oldest
 # session was approved last, so it is the one the ledger has not seen at all.
-let late = seedSession("2026-11-01", "2026-11-02 20:00:00+07")
+let late = seedSession(epoch, "2026-11-02 20:00:00+07")
 let early = seedSession("2026-11-05", "2026-11-01 20:00:00+07")
 let seen = seedSession("2026-11-03", "2026-11-03 20:00:00+07")
 seedEvent(seen, "2026-11-03")
@@ -84,6 +88,16 @@ suite "ratingingest tick":
 
   test "the walk is in approval order, not session-date order":
     check pendingSessions(database, communityId) == @[early, late]
+
+  test "the ledger holds exactly the one event the fixture created":
+    let events = database.query(
+      """select source_id::text as source_id, local_date::text as local_date
+         from rating.events where community_id = $1::uuid
+         order by local_date, source_id""",
+      @[textParam(communityId)])
+    check events.len == 1
+    check events[0].get("source_id") == seen
+    check events[0].get("local_date") == "2026-11-03"
 
   test "a seen session leaves the walk when it is ingested":
     seedEvent(early, "2026-11-05")

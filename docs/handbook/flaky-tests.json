@@ -1,0 +1,4 @@
+{
+  "note": "Quarantine register (QA-13). Each entry needs test, owner, firstSeen, expires and issue; ./task check fails when one is missing, when expires is in the past, or when expires is before firstSeen. A quarantined test is still run: the register records the cost, it does not skip work. Dates are YYYY-MM-DD in UTC.",
+  "entries": []
+}

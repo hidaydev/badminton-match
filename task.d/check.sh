@@ -1,5 +1,5 @@
 #!/bin/sh
-# Fast gate: no database, no release build.
+# Fast gate: no release build. Requires a database (D-6).
 . "$(dirname "$0")/lib.sh"
 
 # `--no-run` compiles the unit suites without executing them. `ci` passes it
@@ -16,11 +16,29 @@ esac
 
 require_cmd nim
 
+# D-6: `check` runs the database-backed suites, so the database contract is the
+# same as `test` when suites actually run. Without a DSN the five security
+# suites would silently not run. `--no-run` only compiles them.
+if [ "$run_suites" = "1" ]; then
+  require_test_dsn
+fi
+
 nim_check "$(api_entrypoint)"
 
+# QA-06: the database-backed suites get a fresh database per file here too, or
+# a suite that no longer resets its rows fails on whatever the last run left.
+if [ "$run_suites" = "1" ]; then
+  isolation_begin check
+  timing_begin check
+fi
 for file in $(list_test_files); do
   if [ "$run_suites" = "1" ]; then
-    nim_run_check "$file" >/dev/null
+    isolation_apply "${file#"$REPO_ROOT"/}"
+    _start=$(now_ms)
+    _code=0
+    nim_run_check "$file" >/dev/null || _code=$?
+    timing_add "${file#"$REPO_ROOT"/}" "$(( $(now_ms) - _start ))" "$_code"
+    [ "$_code" -eq 0 ] || exit "$_code"
   else
     nim_compile_check "$file" >/dev/null
   fi
@@ -30,10 +48,31 @@ if [ -f "$REPO_ROOT/tools/archcheck/main.nim" ]; then
   nim_run_check "$REPO_ROOT/tools/archcheck/main.nim"
 fi
 
-# `check` intentionally runs no database suite, so say whether the unit suites
-# ran instead of letting `ok` imply more than that happened.
+# QA-10: the same 12 minute warning `test` and `coverage` print, so the job that
+# runs this gate says when it is getting close to the 15 minute contract.
 if [ "$run_suites" = "1" ]; then
-  printf 'check: ok (unit suites only; database suites need ./task test)\n'
+  timing_summary check
+fi
+
+# QA-13: a quarantine without an owner or an expiry is a retry count in
+# disguise, so the register is validated on every check.
+sh "$REPO_ROOT/task.d/flakeregister.sh"
+
+# QA-11: the TypeScript coverage threshold is part of this gate, not only of CI.
+# `--no-run` is the compile-only mode `ci` uses before `test`, and the TypeScript
+# half is a test run, so it stays out of that pass.
+if [ "$run_suites" = "1" ]; then
+  sh "$REPO_ROOT/task.d/typescript.sh"
+fi
+
+if [ "$run_suites" = "1" ]; then
+  check_skips
+fi
+
+# `check` runs unit and database-backed suites, not the integration set. Say
+# which ones ran instead of letting `ok` imply more than that happened.
+if [ "$run_suites" = "1" ]; then
+  printf 'check: ok (unit and database-backed suites; ./task test adds the integration set)\n'
 else
   printf 'check: ok (unit suites compiled, not run; ./task test runs them)\n'
 fi

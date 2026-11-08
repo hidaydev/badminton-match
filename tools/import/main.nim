@@ -211,10 +211,13 @@ proc importAliases(source, target: Db, communityId: string,
   )
   stats
 
-proc v2Source(v1Source: string): string =
+proc v2Source*(v1Source: string): string =
   ## v2 knows three origins: a hand-made session, the generator, and a snapshot
   ## that arrived from elsewhere. v1 split the last one into `compat_publish`
   ## and `legacy_snapshot`; both describe imported data.
+  ##
+  ## Exported for tools/import/tests (D-5, TL-06): the v1 origins are fixed
+  ## strings, so the mapping has a direct case.
   if v1Source == "manual": "manual" else: "legacy_snapshot"
 
 proc timezoneOf*(db: Db, communityId: string): string =
@@ -545,7 +548,10 @@ proc importGames(source, target: Db, communityId: string,
   )
   stats
 
-const classicRounds = {"group": 0, "qf": 1, "sf": 2, "3rd": 3, "final": 4}.toTable
+## Exported for tools/import/tests (D-5, TL-06): the bracket depth is a v1
+## rule, not an artifact of the import loop.
+const classicRounds* = {"group": 0, "qf": 1, "sf": 2, "3rd": 3,
+                        "final": 4}.toTable
 
 proc tournamentStatus(source: Db, oldId, format: string): string =
   ## v1 had no status column: a tournament was whatever its matches said. A
@@ -865,9 +871,12 @@ proc communitySettings(db: Db, communityId: string): JsonNode =
        where community_id = $1::uuid""", @[textParam(communityId)])
   if row.isSome: parseJson(row.get.get("values")) else: newJObject()
 
-proc sourceToken(v1SourceId: string): (string, string) =
+proc sourceToken*(v1SourceId: string): (string, string) =
   ## v1 wrote the source id as the share code and the kind in a separate column;
   ## some dumps carry a `session:` prefix. Both forms name the same row.
+  ##
+  ## Exported for tools/import/tests (D-5, TL-06): the prefixes are literals
+  ## that a dump can carry, and stripping the wrong one names another row.
   for prefix in ["session:", "tournament_classic:", "tournament_team:"]:
     if v1SourceId.startsWith(prefix):
       return (v1SourceId[prefix.len .. ^1], prefix[0 ..< prefix.len - 1])
@@ -1676,7 +1685,13 @@ proc verifyTournaments*(source, target: Db, communityId: string): seq[string] =
   if checked == 0 and result.len == 0:
     result.add "no tournament row has been imported into this community"
 
-proc verifyEtl(source, target: Db, slugArg: string) =
+proc verifyEtl*(source, target: Db, slugArg: string) =
+  ## Compares every imported domain and prints one JSON report; a mismatch is
+  ## written to stderr and exits 1, because a partial import must fail the run
+  ## that produced it.
+  ##
+  ## Exported for tools/import/tests (D-5, TL-06): the suite runs the report in
+  ## a child process, so the exit status is the assertion.
   let communityId = getEnv("MAJADU_IMPORT_COMMUNITY_ID")
   var resolved = communityId
   if resolved.len == 0:

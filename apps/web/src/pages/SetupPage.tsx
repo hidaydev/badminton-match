@@ -106,65 +106,68 @@ export default function SetupPage() {
       )}
 
       {user?.platformOwner === true && (
-        <form
-          className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void submit()
-          }}
-        >
-          <h2 className="text-sm font-semibold text-fg">{t('setup.create')}</h2>
-          {error !== null && (
-            <ErrorText className="mt-2">{error}</ErrorText>
-          )}
-          {created !== null && (
-            <p role="status" className="mt-2 text-sm text-fg">
-              {t('setup.created', { name: created.name })}
-              <span className="mt-1 block text-xs text-fg-dim">{t('setup.created.hint')}</span>
-            </p>
-          )}
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Field label={t('setup.slug')}>
-              <Input
-                required
-                value={slug}
-                onChange={(event) => setSlug(event.target.value)}
-                pattern="[a-z0-9-]{2,40}"
-                placeholder={t('setup.slug.placeholder')}
-              />
-            </Field>
-            <Field label={t('setup.name')}>
-              <Input
-                required
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </Field>
-            <Field label={t('setup.adminEmail')}>
-              <Input
-                required
-                type="email"
-                value={adminEmail}
-                onChange={(event) => setAdminEmail(event.target.value)}
-              />
-            </Field>
-            <Field label={t('setup.timezone')}>
-              <Input
-                value={timezone}
-                onChange={(event) => setTimezone(event.target.value)}
-                placeholder={t('setup.timezone.placeholder')}
-              />
-            </Field>
-          </div>
-          <p className="mt-2 text-xs text-fg-dim">{t('setup.adminEmail.hint')}</p>
-          <Button
-            type="submit"
-            className="mt-3"
-            disabled={busy || slug.trim() === '' || name.trim() === '' || adminEmail.trim() === ''}
+        <details className="mt-8 rounded-2xl border border-border-subtle bg-surface p-4">
+          <summary className="min-h-11 cursor-pointer text-sm font-semibold text-fg">
+            {t('setup.create')}
+          </summary>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submit()
+            }}
           >
-            {t('setup.submit')}
-          </Button>
-        </form>
+            {error !== null && (
+              <ErrorText className="mt-2">{error}</ErrorText>
+            )}
+            {created !== null && (
+              <p role="status" className="mt-2 text-sm text-fg">
+                {t('setup.created', { name: created.name })}
+                <span className="mt-1 block text-xs text-fg-dim">{t('setup.created.hint')}</span>
+              </p>
+            )}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Field label={t('setup.slug')}>
+                <Input
+                  required
+                  value={slug}
+                  onChange={(event) => setSlug(event.target.value)}
+                  pattern="[a-z0-9-]{2,40}"
+                  placeholder={t('setup.slug.placeholder')}
+                />
+              </Field>
+              <Field label={t('setup.name')}>
+                <Input
+                  required
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </Field>
+              <Field label={t('setup.adminEmail')}>
+                <Input
+                  required
+                  type="email"
+                  value={adminEmail}
+                  onChange={(event) => setAdminEmail(event.target.value)}
+                />
+              </Field>
+              <Field label={t('setup.timezone')}>
+                <Input
+                  value={timezone}
+                  onChange={(event) => setTimezone(event.target.value)}
+                  placeholder={t('setup.timezone.placeholder')}
+                />
+              </Field>
+            </div>
+            <p className="mt-2 text-xs text-fg-dim">{t('setup.adminEmail.hint')}</p>
+            <Button
+              type="submit"
+              className="mt-3"
+              disabled={busy || slug.trim() === '' || name.trim() === '' || adminEmail.trim() === ''}
+            >
+              {t('setup.submit')}
+            </Button>
+          </form>
+        </details>
       )}
     </section>
     </>
