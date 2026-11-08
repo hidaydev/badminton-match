@@ -38,7 +38,7 @@ untuk data server serta Zustand untuk draft wizard.
 | `apps/web/src/` | shell React, halaman, klien API per fitur |
 | `packages/contracts/openapi/` | dua spec sumber + dokumen gabungan + fingerprint |
 | `packages/web-client/src/api.ts` | klien TypeScript hasil generate |
-| `db/migrations/`, `db/seeds/` | skema (`0001`–`0032`) dan seed konfigurasi |
+| `db/migrations/`, `db/seeds/` | skema (`0001`–`0033`) dan seed konfigurasi |
 | `tools/` | dbtools, contract-gen, parity, CLI ops, OIDC stub |
 | `e2e/` | suite Playwright (a11y, visual, kompatibilitas) |
 | `task`, `task.d/` | satu-satunya command runner (`./task <target>`) |

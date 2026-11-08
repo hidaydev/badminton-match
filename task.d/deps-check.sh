@@ -1,6 +1,6 @@
 #!/bin/sh
 # Verify installed toolchain and dependencies against deps.lock.
-# Format and update procedure: docs/plan/deps-format.md
+# Format and update procedure: docs/handbook/deps-format.md
 . "$(dirname "$0")/lib.sh"
 
 LOCK="$REPO_ROOT/deps.lock"
@@ -239,7 +239,7 @@ else
   fi
 
   if [ "$errors" -ne 0 ]; then
-    printf 'deps-check: %d problem(s); update deps.lock (docs/plan/deps-format.md)\n' "$errors" >&2
+    printf 'deps-check: %d problem(s); update deps.lock (docs/handbook/deps-format.md)\n' "$errors" >&2
     exit 1
   fi
   printf 'deps-check: ok\n'

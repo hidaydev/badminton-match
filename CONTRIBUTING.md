@@ -104,7 +104,7 @@ merged.
 
 ## Where to start
 
-* `docs/plan/TECH-SPEC.md` — architecture, data model, security, and build rules.
+* `docs/handbook/architecture.md` — request pipeline, modules, realtime, layers.
 * `docs/handbook/README.md` — product overview, architecture, and feature map.
 * `docs/design-system.md` — UI tokens and typography.
 

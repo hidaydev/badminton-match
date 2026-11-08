@@ -4,7 +4,8 @@ Instance RC adalah salinan produksi yang berdiri sendiri: service Podman
 terpisah, database terpisah, dan FE di akun Vercel pemilik. Produksi tidak
 disentuh sampai cutover.
 
-Rencana lengkap dan alasan desainnya ada di `docs/plan/rc-environment.md`.
+Rencana lengkap dan alasan desainnya ada di
+[`rc-environment.md`](rc-environment.md).
 
 ## 1. Yang ada di server
 

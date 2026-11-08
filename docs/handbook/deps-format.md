@@ -1,7 +1,7 @@
 # `deps.lock` format
 
-Status: implementasi T-002. Rujukan: `TECH-SPEC.md` §2, `BACKLOG.md` T-002,
-`reviews/final-r0.md` butir 11.
+Status: implemented. Rujukan: `deps.lock`, `./task deps-check`, dan
+`./task deps-install`.
 
 `deps.lock` adalah satu-satunya sumber kebenaran versi toolchain, paket Nim, dan
 alat gate non-Nim. Tidak ada `nimble.lock`: dependensi dipasang manual, lalu
@@ -98,7 +98,7 @@ bolong tidak boleh disalin diam-diam.
   deps-check: tree hash differs
     lock:     045c62f915c5e6563a1ecedff545cb50a3999adebcb37a4f6feaa6c3ac334261
     computed: 4ed30fdd0e3f4f2df3ac5e18c1c38bae5b1641b479b94a848707143d7d9716a1
-  deps-check: 2 problem(s); update deps.lock (docs/plan/deps-format.md)
+  deps-check: 2 problem(s); update deps.lock (docs/handbook/deps-format.md)
   ```
 
 - Entri `absent` yang kemudian terpasang, atau versi alat yang naik (Nim,

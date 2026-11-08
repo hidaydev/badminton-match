@@ -4,9 +4,9 @@ Dokumen ini adalah sumber kebenaran untuk **database v2** (`bm2`) dan bentuk dat
 dipakai API. Semua isi di bawah berasal dari file migrasi di repo — tidak ada klaim dari
 dump VPS atau skema v1.
 
-- Migrasi: `db/migrations/0001_core.sql` … `0032_default_grants.sql` (32 file;
-  `0032` adalah yang terakhir dan menambah default privileges untuk role
-  aplikasi; `0030` memberi grant pada `session.game_sets` dan view
+- Migrasi: `db/migrations/0001_core.sql` … `0033_share_legacy_id.sql` (33 file;
+  `0033` menambah `session.links.legacy_id_ok`, `0032` menambah default privileges
+  untuk role aplikasi, dan `0030` memberi grant pada `session.game_sets` serta view
   `session.game_results`).
 - Seed: `db/seeds/platform_config.sql`, `db/seeds/achievement_definitions.sql`.
 - Ledger: `tools/dbtools/main.nim:6-16` membuat `dbtools.schema_migrations` dan
@@ -55,7 +55,7 @@ v2. Nama-nama itu hanya ada di [`../backend/`](../backend/README.md) (arsip migr
 | Tabel | Kolom/constraint penting | Migrasi |
 |---|---|---|
 | `session.sessions` | `community_id`, `title`, `session_date`, `start_time`, `slot_minutes > 0`, `status` ∈ `draft/locked/published/completed/archived`, `source` ∈ `manual/generator/legacy_snapshot`, `version > 0`, `approved_at`, `approved_by`; `scoring_preset` dan `scoring_rules` JSONB (snapshot format per sesi) | `0001:32-52`, `0006`, `0029` |
-| `session.links` | `id` diisi aplikasi, `code_hash` unik, `code_enc`, `key_id`, `created_by`, `revoked_at`, `expires_at`; index parsial menjamin satu link hidup per sesi | `0001:54-75` |
+| `session.links` | `id` diisi aplikasi, `code_hash` unik, `code_enc`, `key_id`, `created_by`, `revoked_at`, `expires_at`, `legacy_id_ok`; index parsial menjamin satu link hidup per sesi | `0001:54-75`, `0033` |
 | `session.courts` | `court_index >= 0`, unik `(session_id, court_index)`, `start_time < end_time` | `0001:77-93` |
 | `session.games` | Unik `(session_id, round_no, court_no)` dan `games_identity_unique` (0029) pada `(community_id, session_id, round_no, court_no)`; status `scheduled/played/cancelled`; `version` dinaikkan trigger `session.bump_version()`; `side_a1/a2/b1/b2` (0010) dengan FK komposit ke `session.participants`; CHECK `games_distinct_sides` (0014); `score_a`/`score_b` lama hanya jalur backfill dan rollback, tidak lagi ditulis aplikasi | `0001:95-134`, `0010:32-61`, `0014`, `0029` |
 | `session.participants` | Unik `(session_id, player_id)`; `is_absent`; FK player `on delete restrict` | `0010:7-27` |
@@ -216,7 +216,7 @@ Jangan membawa nama dari dokumen v1 ke sini:
 
 | v1 | v2 |
 |---|---|
-| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0032` |
+| schema `bm`, migrasi `000001`–`000023` | database `bm2`, migrasi `0001`–`0033` |
 | `scheduled_games`, `scheduled_game_players` | `session.games` + `session.participants` |
 | `rating_events`, `rating_deltas`, `rating_players` | `rating.events`, `rating.player_state` (ledger delta tidak punya padanan) |
 | `player_achievements` | `achievement.earned` + `achievement.definitions` |

@@ -1,7 +1,7 @@
 # apps/api — Majadu API (Nim)
 
 Backend Majadu versi v2. Menggantikan server Go v1; keputusan dan konsekuensinya
-di `docs/plan/ADR-011.md`. Kontrak HTTP-nya
+di `docs/decisions.md`. Kontrak HTTP-nya
 [`packages/contracts/openapi/`](../../packages/contracts/openapi/README.md),
 bukan dokumen terpisah di folder ini.
 
@@ -83,7 +83,7 @@ gagal bila ada yang hilang.
 ./task parity verify    # korpus v1 beku (71 kasus, 48 rute)
 ```
 
-Migrasi: 32 berkas (`db/migrations/0001`–`0032`). Config bisnis: 34 key di
+Migrasi: 33 berkas (`db/migrations/0001`–`0033`). Config bisnis: 34 key di
 `modules/platform/config/registry.nim`.
 
 ## v1 sudah dihapus

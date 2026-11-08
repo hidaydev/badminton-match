@@ -1,8 +1,7 @@
 # Current Status
 
-Terakhir diperbarui: **2026-11-06**. Dokumen ini menjawab "apa yang benar-benar
-ada di repo hari ini", bukan "apa yang direncanakan". Rencana beku ada di
-[`../plan/`](../plan/README.md).
+Terakhir diperbarui: **2026-11-08**. Dokumen ini menjawab "apa yang benar-benar
+ada di repo hari ini", bukan "apa yang direncanakan".
 
 Pintu masuk berikutnya: [`architecture.md`](architecture.md),
 [`data-model.md`](data-model.md), [`features-and-routes.md`](features-and-routes.md),
@@ -36,12 +35,12 @@ Postgres 18.6 · skema per domain (platform, community, player, session,
   `routes_gen.nim`, `packages/web-client/src/api.ts`.
 - Setiap operasi punya handler (gagal kompilasi bila tidak) dan baris otorisasi di
   `testdata/authz/matrix.yaml`; `./task contract-check` menjaga fingerprint.
-- **32 migrasi** di `db/migrations/` (`0001`–`0032`, terakhir
-  `0032_default_grants.sql`); seed: `db/seeds/platform_config.sql`,
+- **33 migrasi** di `db/migrations/` (`0001`–`0033`, terakhir
+  `0033_share_legacy_id.sql`); seed: `db/seeds/platform_config.sql`,
   `db/seeds/achievement_definitions.sql`.
 - **34 key config** di `modules/platform/config/registry.nim`, nilai awal di seed;
   override per komunitas di `community.settings` hanya boleh mempersempit platform.
-- **Format skor per sesi** (ADR-012 di [`../DECISIONS.md`](../DECISIONS.md)): satu
+- **Format skor per sesi** (ADR-012 di [`../decisions.md`](../decisions.md)): satu
   slot jadwal adalah satu match berisi 1..N set. `0029_scoring_presets.sql`
   menambah `session.game_sets` (satu baris per set), view `session.game_results`,
   serta snapshot `scoring_preset` + `scoring_rules` di `session.sessions`; daftar
@@ -109,7 +108,7 @@ communities) tetap dipakai; halaman v2 yang tidak pernah dipasang di router
 | Suite | Perintah | Catatan |
 |---|---|---|
 | `nim check`, archcheck, unit | `./task check` | tanpa database |
-| Unit + integration | `./task test` | butuh `MAJADU_PG_DSN` |
+| Unit + integration | `./task test` | butuh `MAJADU_PG_DSN`; 659 assertion di 102 suite (2026-11-08) |
 | Satu modul | `./task verify <modul\|api>` | integration bila DB ada |
 | Kontrak | `./task contract-check` | fingerprint + hasil generate |
 | Parity | `./task parity verify` / `./task parity v2 verify` | v1 beku 71 kasus/48 rute; v2 143 kasus |
@@ -144,6 +143,9 @@ E2E berjalan di dua perangkat: **iPhone 17** (WebKit, 402×874, DPR 3) dan
   bila gagal. Skema tidak ikut di-rollback, jadi migrasi wajib expand/contract.
   **Cutover gate:** selama env produksi masih menunjuk `bm`, script berhenti
   sebelum pull/restart.
+- **RC** (`ops/scripts/deploy-vps-rc.sh`): branch `release/2.0.0-rc.1`, service
+  Podman dan database terpisah dari produksi; semua detail di
+  [`../ops/rc.md`](../ops/rc.md).
 - **Cutover** (`ops/scripts/cutover.sh`): 14 langkah bernama dengan penanda resume
   (`--from`), `:v1-final` ditag sebelum v1 dihentikan, maintenance Caddy, dump →
   `bm_staging`, peran + migrasi + seed + owner, ETL + verify, `cutover_state`,
@@ -167,7 +169,7 @@ E2E berjalan di dua perangkat: **iPhone 17** (WebKit, 402×874, DPR 3) dan
 
 ## 8. Sisa pekerjaan
 
-Rencana 88 task: lihat [`roadmap.md`](roadmap.md). Ringkasnya:
+Backlog rewrite sudah selesai; yang tersisa ada di [`roadmap.md`](roadmap.md). Ringkasnya:
 
 - **Operasional, menunggu VPS/waktu:** rehearsal T-063 (dan karenanya bukti
   T-060/061/065), soak T-074, penghapusan `:v1-final` setelah 30 hari (T-082),

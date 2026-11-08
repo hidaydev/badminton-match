@@ -1,6 +1,7 @@
-# Scoring Presets — Rencana Teknis
+# Scoring Presets (format skor per sesi)
 
-Status: **planning only**. Dokumen ini tidak mengubah kode, migrasi, atau kontrak.
+Status: **implemented**. Migrasi `0029`/`0030` sudah berjalan; dokumen ini
+menjelaskan aturan dan angkanya, bukan rencana.
 Tanggal: 2026-11-06
 Lingkup: format skor per sesi (single game / best-of-3) di Majadu v2.
 Di luar lingkup: turnamen dan preset custom oleh admin.
@@ -1680,7 +1681,7 @@ Isi:
 1. `select` di Settings.
 2. Validasi route config.
 3. Handbook: data model, config, alur skor.
-4. `docs/DECISIONS.md` entri ADR.
+4. `docs/decisions.md` entri ADR.
 
 Kriteria terima:
 
@@ -1902,8 +1903,8 @@ alter table session.sessions
 |---|---|
 | `docs/handbook/data-model.md` | tabel baru, view, config |
 | `docs/handbook/current-status.md` | jumlah migrasi/key |
-| `docs/DECISIONS.md` | ADR format skor |
-| `docs/plan/scoring-presets.md` | dokumen ini |
+| `docs/decisions.md` | ADR format skor |
+| `docs/handbook/scoring-presets.md` | dokumen ini |
 
 ---
 

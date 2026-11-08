@@ -1,10 +1,9 @@
-# Pre-push: keep internal review notes out of the public repository
+# Pre-push: keep internal notes out of the public repository
 
 Repository ini publik. Catatan kerja internal (audit dan review rencana) bukan
-dokumentasi produk dan tidak boleh masuk riwayat yang diterbitkan:
-
-- `docs/audit/` — audit bertanggal
-- `docs/plan/reviews/` — review rencana (sudah tidak dipakai lagi)
+dokumentasi produk dan tidak boleh masuk riwayat yang diterbitkan. Direktori
+`docs/audit/`, `docs/audits/`, dan `docs/plan/reviews/` sudah tidak ada di tree;
+penjaganya tetap dipasang untuk catatan yang dibuat lagi nanti.
 
 Dua lapis penjaga:
 
@@ -14,9 +13,8 @@ Dua lapis penjaga:
 | Hook | `.githooks/pre-push` | hanya mesin yang sudah menjalankan `./task hooks` |
 
 Hook saja tidak cukup: `core.hooksPath` adalah konfigurasi lokal, jadi clone baru
-tidak memilikinya. Itulah sebabnya `docs/audit/` sekarang ada di `.gitignore`
-yang ter-track. Salinan lokal catatan itu ada di `.local/audits/` dan
-`.local/plan-reviews/`.
+tidak memilikinya. Itulah sebabnya `docs/audit/` ada di `.gitignore` yang
+ter-track. Catatan lokal disimpan di `.local/` (gitignored).
 
 ## Pasang hook
 
@@ -39,21 +37,13 @@ Polanya `^docs/(audits?|plan/reviews)/`, jadi `docs/audit/` dan `docs/audits/`
 sama-sama tertangkap.
 
 Kalau itu terjadi, pindahkan berkasnya ke `.local/` dan commit penghapusannya;
-jangan melewati hook dengan `--no-verify` kecuali benar-benar tahu alasannya.
+jangan lewati hook dengan `--no-verify` kecuali benar-benar tahu alasannya.
 
 ## Riwayat
 
 Riwayat yang diterbitkan sudah di-rewrite sekali: kedua direktori dihapus dari
 semua ref dengan `git filter-repo --invert-paths`, sehingga
-`git log --all -- docs/audit docs/audits docs/plan/reviews` kosong. Konsekuensinya:
-
-- Semua commit SHA berubah; branch lama juga di-rewrite.
-- `origin` dilepas oleh `git filter-repo` lalu dipasang kembali.
-- Bundle sebelum rewrite ada di `.local/backups/` bila ada commit lama yang
-  perlu diambil kembali.
-
-## Kenapa bukan dihapus saja
-
-Catatan audit dan review tetap berguna saat mengerjakan ulang bagian yang pernah
-dikritik; yang tidak boleh adalah mempublikasikannya. `.local/` menyimpan
-salinannya, `.gitignore` dan hook menjaga agar tidak kembali masuk.
+`git log --all -- docs/audit docs/audits docs/plan/reviews` kosong. Semua commit
+SHA berubah dan branch lama ikut di-rewrite. Bundle sebelum rewrite tidak lagi
+disimpan di mesin ini; ambil dari salinan yang masih memilikinya bila ada commit
+lama yang perlu diambil kembali.

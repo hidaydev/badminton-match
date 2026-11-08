@@ -1,7 +1,6 @@
 # Roadmap
 
-Status per **2026-11-06**. Riwayat perubahan ada di git history; rencana beku ada
-di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
+Status per **2026-11-08**. Riwayat perubahan ada di git history.
 
 ## ✅ Selesai
 
@@ -10,7 +9,7 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
   `apps/api/src/main.nim`.
 - **Kontrak 75 operasi** — `core.yaml` + `community.yaml` → `api.yaml`,
   `routes_gen.nim`, klien TS, fingerprint (`packages/contracts/openapi`).
-- **Skema v2** — 32 migrasi (`0001`–`0032`), 34 key config, seed config dan
+- **Skema v2** — 33 migrasi (`0001`–`0033`), 34 key config, seed config dan
   achievement.
 - **Auth & komunitas** — OIDC + cookie sesi, membership `member`/`host`/`admin`,
   invite, join request, settings, audit append-only, platform owner.
@@ -55,7 +54,7 @@ di [`../plan/`](../plan/README.md) dan tidak diubah handbook ini.
 - **T-074 soak** — 1 juta request + 50 watcher; ditunda pemilik, belum ada harness.
 - **T-082** — hapus image `:v1-final` setelah 30 hari observasi pasca-cutover.
 - **T-108** — force-push riwayat yang sudah di-rewrite **ditunda** atas keputusan
-  pemilik; hook lokal sudah menolak `docs/audit` dan `docs/plan/reviews` kembali.
+  pemilik; hook lokal menolak catatan audit/review internal kembali masuk.
 
 ## Catatan
 
