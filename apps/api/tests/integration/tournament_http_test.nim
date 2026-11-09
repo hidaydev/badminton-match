@@ -300,6 +300,24 @@ suite "tournament HTTP":
     check parseJson(missing.body)["code"].getStr() == "NOT_FOUND"
     expectStatus(call(baseUrl, HttpDelete, path, adminCookie), 204)
 
+  test "two patches of one match cannot both win":
+    # DB-25: the match has no version of its own, but the tournament does, and
+    # the version gate is what tells the second writer its snapshot is gone.
+    let created = call(baseUrl, HttpPost, "/c/" & slug & "/tournaments",
+      adminCookie, $classicJson(classicSnapshot()))
+    expectStatus(created, 201)
+    let snapshot = parseJson(created.body)
+    let id = snapshot["id"].getStr()
+    let version = $snapshot["version"].getInt()
+    let matchId = snapshot["matches"][0]["id"].getStr()
+    let matchPath = "/c/" & slug & "/tournaments/" & id & "/matches/" & matchId
+    expectStatus(call(baseUrl, HttpPatch, matchPath, adminCookie,
+      """{"scoreA":21,"scoreB":15}""", ifMatch = "\"" & version & "\""), 200)
+    expectProblem(call(baseUrl, HttpPatch, matchPath, adminCookie,
+      """{"scoreA":15,"scoreB":21}""", ifMatch = "\"" & version & "\""), 412)
+    expectStatus(call(baseUrl, HttpDelete, "/c/" & slug & "/tournaments/" & id,
+      adminCookie), 204)
+
   test "re-signing off a tournament replays the edited bracket":
     let body = $classicJson(classicSnapshot())
     let created = call(baseUrl, HttpPost, "/c/" & slug & "/tournaments", adminCookie, body)
