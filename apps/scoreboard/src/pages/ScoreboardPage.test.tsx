@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import ScoreboardPage from './ScoreboardPage'
 import { resetStorageStatus } from '../utils/storage'
 
@@ -157,6 +158,30 @@ describe('ScoreboardPage', () => {
     const minus = screen.getByRole('button', { name: 'Decrease red score' })
     fireEvent.keyDown(minus, { key: ' ' })
     fireEvent.keyDown(minus, { key: 'Enter' })
+
+    expect(within(halfOf('Arya')).getByText('2')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('2')
+  })
+
+  it('keeps the space in the team name and leaves the score at zero', () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-blue': '5' })
+
+    fireEvent.click(screen.getByText('Arya'))
+    const input = screen.getByLabelText('Red team name')
+    fireEvent.change(input, { target: { value: 'Red Team' } })
+
+    expect(input).toHaveValue('Red Team')
+    expect(screen.getByText('0')).toBeInTheDocument()
+    expect(localStorage.getItem('score-red')).toBe('0')
+  })
+
+  it('decreases the score by exactly one when Space activates the minus button', async () => {
+    const user = userEvent.setup()
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo', 'score-red': '3' })
+
+    const minus = screen.getByRole('button', { name: 'Decrease red score' })
+    minus.focus()
+    await user.keyboard(' ')
 
     expect(within(halfOf('Arya')).getByText('2')).toBeInTheDocument()
     expect(localStorage.getItem('score-red')).toBe('2')
