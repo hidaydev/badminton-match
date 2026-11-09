@@ -23,7 +23,7 @@ suite "security: rate limit":
     var blocked: HttpResult
     var allowed = 0
     for _ in 0 ..< 400:
-      let response = call(baseUrl, HttpGet, "/healthz")
+      let response = call(baseUrl, HttpGet, "/version")
       if response.status == 200:
         inc allowed
       else:
@@ -37,9 +37,9 @@ suite "security: rate limit":
     check parseInt(blocked.header("Retry-After")) >= 1
 
     # A different route keeps its own bucket.
-    expectStatus(call(baseUrl, HttpGet, "/readyz"), 200)
+    expectStatus(call(baseUrl, HttpGet, "/ops/ping"), 401)
     # A different client address keeps its own bucket on the same route.
-    expectStatus(call(baseUrl, HttpGet, "/healthz",
+    expectStatus(call(baseUrl, HttpGet, "/version",
       extra = [("X-Client-IP", "203.0.113.9")]), 200)
 
   test "random unknown session cookies stay in the address bucket":
@@ -49,7 +49,7 @@ suite "security: rate limit":
     var blocked: HttpResult
     var allowed = 0
     for index in 0 ..< 400:
-      let response = call(baseUrl, HttpGet, "/healthz",
+      let response = call(baseUrl, HttpGet, "/version",
         cookie = "forged-" & $index,
         extra = [("X-Client-IP", "198.51.100.23")])
       if response.status == 200:
@@ -114,7 +114,7 @@ suite "security: rate limit":
     var last = before
     var requests = 0
     for index in 0 ..< 2000:
-      discard call(baseUrl, HttpGet, "/healthz",
+      discard call(baseUrl, HttpGet, "/version",
         cookie = "forged-lookup-" & $index,
         extra = [("X-Client-IP", address)])
       inc requests
@@ -149,7 +149,7 @@ suite "security: rate limit":
     for index in 0 ..< 400:
       let address =
         if index mod 2 == 0: "192.0.2.10" else: "192.0.2.11"
-      let response = call(baseUrl, HttpGet, "/healthz", cookie = cookie,
+      let response = call(baseUrl, HttpGet, "/version", cookie = cookie,
         extra = [("X-Client-IP", address)])
       if response.status == 200:
         inc allowed

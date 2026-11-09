@@ -3290,15 +3290,24 @@ proc route(request: Request) =
     # read, so even a 500 from the config snapshot carries this request's label
     # instead of the previous one's.
     currentRouteLabel = quotaRoute(path)
+    # One id per request: every audit row written while serving it and the
+    # access-log line share it, so a 500 can be paired with the write before it.
+    beginRequest()
+    # The probes answer before any database or config read and outside the
+    # quota. A liveness check that needs a database is a database probe, and a
+    # burst must never answer 429 to the probe that decides a deploy is healthy.
+    if path == "/healthz":
+      send(request, 200, """{"status":"ok"}""")
+      return
+    if path == "/readyz":
+      readyz(request)
+      return
     let parts = path.split('/')
     let verb = request.httpMethod
     # The one access table: the test in modules/account compares this with
     # testdata/authz/matrix.yaml, so a class cannot change here alone.
     let access = operationAccess(verb, path)
     let snapshot = configSnapshot()
-    # One id per request: every audit row written while serving it and the
-    # access-log line share it, so a 500 can be paired with the write before it.
-    beginRequest()
     # One label per request: the quota bucket and the counter label both use
     # the matched contract shape, never the raw path. An unmatched request gets
     # one shared label, so invented URLs cannot mint pinned buckets.
@@ -3323,9 +3332,6 @@ proc route(request: Request) =
       return
     if rejectShareScrape(request, snapshot, identity):
       return
-    if path == "/healthz":
-      send(request, 200, """{"status":"ok"}""")
-      return
     if path.startsWith("/ops/"):
       if path == "/ops/ping" and request.httpMethod == "GET":
         opsPing(request)
@@ -3337,9 +3343,6 @@ proc route(request: Request) =
         jsonResponse(request, 200, %*{"version": appVersion, "commit": appCommit})
       else:
         problem(request, 405, "METHOD", "")
-      return
-    if path == "/readyz":
-      readyz(request)
       return
     if outdatedClient(request):
       problem(request, 410, "CLIENT_OUTDATED",
