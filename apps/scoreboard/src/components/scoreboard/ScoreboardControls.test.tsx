@@ -6,6 +6,7 @@ function renderControls(overrides: Partial<Parameters<typeof ScoreboardControls>
   const handlers = {
     onReset: vi.fn(),
     onSwap: vi.fn(),
+    onExport: vi.fn(),
     onToggleFullscreen: vi.fn(),
     ...overrides,
   }
@@ -20,15 +21,17 @@ function renderControls(overrides: Partial<Parameters<typeof ScoreboardControls>
 }
 
 describe('ScoreboardControls', () => {
-  it('exposes three labelled controls and calls each handler', () => {
+  it('exposes four labelled controls and calls each handler', () => {
     const handlers = renderControls()
 
     fireEvent.click(screen.getByRole('button', { name: 'Reset scores' }))
     fireEvent.click(screen.getByRole('button', { name: 'Swap sides' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Export match' }))
     fireEvent.click(screen.getByRole('button', { name: 'Enter fullscreen' }))
 
     expect(handlers.onReset).toHaveBeenCalledTimes(1)
     expect(handlers.onSwap).toHaveBeenCalledTimes(1)
+    expect(handlers.onExport).toHaveBeenCalledTimes(1)
     expect(handlers.onToggleFullscreen).toHaveBeenCalledTimes(1)
   })
 

@@ -23,6 +23,8 @@ afterEach(() => {
   vi.useRealTimers()
   localStorage.clear()
   Reflect.deleteProperty(navigator, 'storage')
+  Reflect.deleteProperty(navigator, 'clipboard')
+  Reflect.deleteProperty(navigator, 'share')
   // `fullscreenElement` and the viewport are defined per test; leaving them set
   // makes the next render start in fullscreen or in portrait.
   Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true })
@@ -382,5 +384,40 @@ describe('ScoreboardPage', () => {
 
     render(<ScoreboardPage />)
     expect(within(halfOf('RED')).getByText('1')).toBeInTheDocument()
+  })
+
+  it('exports the four stored keys as JSON so the match can leave the device', async () => {
+    const writeText = vi.fn(async (_text: string) => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    renderPage({
+      'name-red': 'Arya',
+      'name-blue': 'Bowo',
+      'score-red': '4',
+      'score-blue': '2',
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export match' }))
+    })
+
+    expect(writeText).toHaveBeenCalledTimes(1)
+    const exported = JSON.parse(writeText.mock.calls[0][0] as string)
+    expect(exported).toEqual({
+      'score-red': localStorage.getItem('score-red'),
+      'score-blue': localStorage.getItem('score-blue'),
+      'name-red': localStorage.getItem('name-red'),
+      'name-blue': localStorage.getItem('name-blue'),
+    })
+    expect(screen.getByText('Match copied to clipboard')).toBeInTheDocument()
+  })
+
+  it('says so when the match cannot be exported', async () => {
+    renderPage({ 'name-red': 'Arya', 'name-blue': 'Bowo' })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export match' }))
+    })
+
+    expect(screen.getByText('Could not export the match')).toBeInTheDocument()
   })
 })

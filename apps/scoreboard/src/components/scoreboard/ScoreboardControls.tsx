@@ -2,6 +2,7 @@ export interface ScoreboardControlsProps {
   isFullscreen: boolean
   onReset: () => void
   onSwap: () => void
+  onExport: () => void
   onToggleFullscreen: () => void
   /** Tailwind classes for button sizing. Defaults to overlay-style h-9 layout. */
   buttonClassName?: string
@@ -14,6 +15,7 @@ export function ScoreboardControls({
   isFullscreen,
   onReset,
   onSwap,
+  onExport,
   onToggleFullscreen,
   buttonClassName = 'px-3 h-9 flex items-center',
 }: ScoreboardControlsProps) {
@@ -36,6 +38,14 @@ export function ScoreboardControls({
         aria-label="Swap sides"
       >
         ⇄
+      </button>
+      <button
+        onClick={onExport}
+        className={cls}
+        style={baseBtnStyle}
+        aria-label="Export match"
+      >
+        ⤓
       </button>
       <button
         onClick={onToggleFullscreen}
