@@ -52,6 +52,11 @@ done
 
 require_test_dsn
 
+# QA-11: one JUnit row per suite, so a red run can be downloaded instead of
+# re-run. The report is written even when the first failure stops the loop.
+junit_begin
+trap 'junit_finish' EXIT
+
 isolation=${ISOLATION:-}
 if [ -z "$isolation" ]; then
   # The shared-database escape hatch is a promise that the caller vouches for
@@ -144,6 +149,7 @@ cleanup_databases() {
 }
 
 finish() {
+  junit_finish
   [ "$finished" = "0" ] || return 0
   finished=1
   if [ "$isolation" = "1" ]; then
@@ -225,6 +231,7 @@ for file in $files; do
   _skips_before=$SKIP_COUNT
   run_status=0
   nim_run "$file" || run_status=$?
+  junit_record "$rel" "$run_status"
   if [ "$timing" = "1" ]; then
     timing_add "$rel" "$(( $(now_ms) - _start ))" "$run_status"
   fi

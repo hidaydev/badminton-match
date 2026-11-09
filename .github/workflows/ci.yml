@@ -99,6 +99,19 @@ jobs:
         env:
           MAJADU_PG_DSN: postgresql://postgres:postgres@127.0.0.1:5432/bm2_test
         run: ./task check
+      # QA-11: a red check leaves the per-suite JUnit report, the failure list
+      # and the timing table on the runner; this makes them downloadable.
+      - name: "API: upload failure reports"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: api-check-results
+          path: |
+            .cache/*/failures.tsv
+            .cache/*/junit/junit.xml
+            .cache/*/timing/*.tsv
+          include-hidden-files: true
+          if-no-files-found: warn
 
   api-test:
     name: "API: integration (shard ${{ matrix.shard }}/2)"
@@ -200,6 +213,19 @@ jobs:
             echo "== $f"
             sort -t"$(printf '\t')" -k2,2nr "$f" | head -10
           done
+      # QA-11: JUnit, the machine-readable failure list and the timing table
+      # from this shard, uploaded only when the shard fails.
+      - name: "API: upload failure reports"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: api-test-results-${{ matrix.shard }}
+          path: |
+            .cache/*/failures.tsv
+            .cache/*/junit/junit.xml
+            .cache/*/timing/*.tsv
+          include-hidden-files: true
+          if-no-files-found: warn
 
   contract:
     name: "Contract: generated files"
@@ -397,6 +423,16 @@ jobs:
           name: playwright-linux-baseline
           path: e2e/__screenshots__/linux/
           if-no-files-found: error
+      # QA-11: traces, failure screenshots, videos, the JSON report and the
+      # HTML report all live under the config directory, which the runner would
+      # otherwise delete with the job.
+      - name: "E2E: upload failure artifacts"
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-failure-artifacts
+          path: apps/web/test-results/
+          if-no-files-found: warn
 
   image:
     name: "Image: build"
