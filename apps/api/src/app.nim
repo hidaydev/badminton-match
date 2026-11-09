@@ -1155,9 +1155,20 @@ proc issueShareTicket(request: Request, code: string, snapshot: Snapshot) =
 
 proc ifMatch(request: Request): Option[int] =
   ## OCC precondition. Missing is 428, not 400: the client must opt in.
-  let text = request.headers["If-Match"].strip(chars = {'"', ' ', 'W', '/'})
+  ## Only a strong validator is accepted. `W/"7"` says the entity may not be
+  ## byte-identical, so honouring it would let a downgraded validator overwrite
+  ## a concurrent edit the precondition exists to reject. `*` names no version,
+  ## so it is refused like any other value this API cannot compare (400 via
+  ## `requireIfMatch`), rather than treated as "any".
+  var text = request.headers["If-Match"].strip()
   if text.len == 0:
     return none(int)
+  if text.len >= 2 and text[0 .. 1].toLowerAscii() == "w/":
+    return none(int)
+  if text[0] == '"':
+    if text.len < 2 or text[^1] != '"':
+      return none(int)
+    text = text[1 .. ^2]
   try:
     some(parseInt(text))
   except ValueError:

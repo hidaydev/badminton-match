@@ -697,6 +697,27 @@ suite "session schedule HTTP":
     let missing = call(baseUrl, HttpPatch, path, hostCookie, """{"title":"Nope"}""")
     expectProblem(missing, 428)
 
+  test "a weak validator is refused and changes nothing":
+    # BE-21: `W/"1"` used to parse as version 1 because the old reader stripped
+    # the prefix. A weak validator may not be byte-identical, so honouring it
+    # defeats the check that protects a concurrent edit.
+    let created = call(baseUrl, HttpPost, "/c/sched-club/sessions", hostCookie,
+      """{"title":"WeakEtag","date":"2026-11-24"}""").body
+    let sessionId = parseJson(created)["id"].getStr()
+    let path = "/c/sched-club/sessions/" & sessionId
+    let weak = call(baseUrl, HttpPatch, path, hostCookie,
+      """{"title":"Overwritten"}""", ifMatch = "W/\"1\"")
+    expectProblem(weak, 400)
+    check parseJson(weak.body)["code"].getStr() == "INVALID_PRECONDITION"
+    let unchanged = parseJson(call(baseUrl, HttpGet, path, hostCookie).body)
+    check unchanged["title"].getStr() == "WeakEtag"
+    # `*` names no version, so it is refused rather than treated as "any".
+    let star = call(baseUrl, HttpPatch, path, hostCookie,
+      """{"title":"Overwritten"}""", ifMatch = "*")
+    expectProblem(star, 400)
+    check parseJson(call(baseUrl, HttpGet, path, hostCookie).body)["title"].getStr() ==
+      "WeakEtag"
+
   test "a player outside the session cannot be marked absent":
     let created = call(baseUrl, HttpPost, "/c/sched-club/sessions", hostCookie,
       """{"title":"Absent night","date":"2026-11-24"}""").body
