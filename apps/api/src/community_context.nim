@@ -1,6 +1,7 @@
-import std/[options]
+import std/[json, options]
 import db/db
 import account/domain/roles
+import community/infrastructure/community_store
 
 type
   CommunityContext* = object
@@ -11,6 +12,9 @@ type
     name*: string
     role*: Role
     timezone*: string
+    ## The community's overrides, read once while the context is built, so every
+    ## helper in one request sees the same values and pays no second query.
+    settings*: JsonNode
 
 proc loadCommunity*(db: Db, userId, slug: string): Option[CommunityContext] =
   ## Unknown slug and foreign membership are indistinguishable on purpose: both
@@ -25,10 +29,12 @@ proc loadCommunity*(db: Db, userId, slug: string): Option[CommunityContext] =
   if row.isNone:
     return none(CommunityContext)
   let value = row.get
+  let communityId = value.get("id")
   some(CommunityContext(
-    communityId: value.get("id"),
+    communityId: communityId,
     slug: value.get("slug"),
     name: value.get("name"),
     timezone: value.get("timezone"),
     role: parseRole(value.get("role")),
+    settings: currentSettings(db, communityId),
   ))

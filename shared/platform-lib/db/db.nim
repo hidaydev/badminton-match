@@ -1,4 +1,4 @@
-import std/[locks, options, strutils, times]
+import std/[locks, options, strutils, tables, times]
 when defined(posix):
   import std/posix
 import std/atomics
@@ -114,6 +114,15 @@ var
   # cannot tell a board-wide read from a one-row read (both are one statement),
   # so the suites that prove a detail route stays narrow count rows instead.
   rowsAll: Atomic[int]
+  # Opt-in statement log. A suite turns it on, sends one request and counts the
+  # statements by text, which is how a request-cost contract (one config version
+  # probe, one settings read) is proven. Every other process leaves it off, so
+  # the cost is one atomic load per statement.
+  recordingStatements: Atomic[bool]
+  statementLog = initTable[string, int]()
+  statementLogLock: Lock
+
+initLock(statementLogLock)
 
 proc resultToRows(res: PPGresult): seq[Row] =
   let columns = pqnfields(res)
@@ -139,10 +148,39 @@ type BoundParams = object
   ## pointers during PQexecParams, so these strings must outlive the call.
   backing: seq[string]
 
-proc countStatement() =
+proc countStatement(sql: string) =
   discard statementsAll.fetchAdd(1)
   if countingStatements:
     inc transactionStatements
+  if recordingStatements.load(moRelaxed):
+    acquire(statementLogLock)
+    try:
+      let key = sql.strip()
+      statementLog[key] = statementLog.getOrDefault(key) + 1
+    finally:
+      release(statementLogLock)
+
+proc recordStatements*(on: bool) =
+  ## Test hook: clears the log and starts or stops recording. A suite turns it
+  ## on around one request, so the count it asserts is that request's rather
+  ## than the process's.
+  acquire(statementLogLock)
+  try:
+    statementLog.clear()
+  finally:
+    release(statementLogLock)
+  recordingStatements.store(on, moRelaxed)
+
+proc statementsMatching*(needle: string): int =
+  ## Recorded statements whose text contains `needle`, since the last
+  ## `recordStatements(true)`. Zero in a process that never enabled the log.
+  acquire(statementLogLock)
+  try:
+    for sql, count in statementLog.pairs:
+      if needle in sql:
+        result += count
+  finally:
+    release(statementLogLock)
 
 proc statementsIssued*(): int =
   ## Statements executed since the process started, over every thread. A suite
@@ -181,7 +219,7 @@ proc freeValues(bound: BoundParams) =
 proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
   ## The SQL string is passed verbatim with $1..$n placeholders, so a jsonb `?`
   ## operator is never rewritten or rejected.
-  countStatement()
+  countStatement(sql)
   let bound = bindValues(params)
   try:
     let res = pqexecParams(
@@ -198,7 +236,7 @@ proc executeRows(conn: PPGconn, sql: string, params: seq[DbParam]): seq[Row] =
     freeValues(bound)
 
 proc executeCommand(conn: PPGconn, sql: string, params: seq[DbParam]): int =
-  countStatement()
+  countStatement(sql)
   let bound = bindValues(params)
   try:
     let res = pqexecParams(
@@ -230,7 +268,7 @@ proc execUpdate*(conn: DbConn, sql: string, params: seq[DbParam] = @[]): int =
 proc execScript*(conn: DbConn, sql: string) =
   ## Runs a multi-statement SQL file. Used by dbtools migrations and seeds;
   ## regular application queries must use `query`/`execUpdate`.
-  countStatement()
+  countStatement(sql)
   let res = pqexec(conn.conn, sql.cstring)
   if res == nil:
     raise newException(DbError, $pqerrorMessage(conn.conn))

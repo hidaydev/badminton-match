@@ -46,6 +46,23 @@ proc create*(db: Db, slug, name, adminEmail, timezone, actorId: string): CreateR
   else:
     CreateResult(status: csOk, communityId: communityId)
 
+const selectSettingsSql* = """select values::text as values from community.settings
+       where community_id = $1::uuid"""
+
+proc settingsFrom*(row: Option[Row]): JsonNode =
+  ## One row per community, so an absent row is an empty override set rather
+  ## than an error: the platform value is the default.
+  if row.isNone:
+    newJObject()
+  else:
+    parseJson(row.get.get("values"))
+
+proc currentSettings*(db: Db, communityId: string): JsonNode =
+  ## The community's overrides. A request reads them once (through
+  ## `CommunityContext.settings`) so two helpers in one handler cannot disagree
+  ## or cost two round trips.
+  settingsFrom(db.queryOne(selectSettingsSql, @[textParam(communityId)]))
+
 proc directory*(db: Db, userId: Option[string], platformDefault: bool,
                 key: string): JsonNode =
   ## Lists the communities this caller may see: opted-in ones plus their own.

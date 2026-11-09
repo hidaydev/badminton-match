@@ -1,6 +1,7 @@
 import std/[json, options]
 import db/db
 import community_time
+import community/infrastructure/community_store
 import account/domain/audit
 import account/infrastructure/audit_store
 import platform/config/store
@@ -73,17 +74,10 @@ proc checkPatch*(snapshot: Snapshot, patch: JsonNode): SettingsResult =
       return verdict
   SettingsResult(outcome: soOk)
 
-const selectSettingsSql = """select values::text as values from community.settings
-       where community_id = $1::uuid"""
+const selectSettingsSql = community_store.selectSettingsSql
 
 proc settingsFrom(row: Option[Row]): JsonNode =
-  if row.isNone:
-    newJObject()
-  else:
-    parseJson(row.get.get("values"))
-
-proc currentSettings*(db: Db, communityId: string): JsonNode =
-  settingsFrom(db.queryOne(selectSettingsSql, @[textParam(communityId)]))
+  community_store.settingsFrom(row)
 
 proc applyPatch*(db: Db, snapshot: Snapshot, communityId, actorId: string,
                  patch: JsonNode, requestId = "-",
