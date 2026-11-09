@@ -138,6 +138,11 @@ proc migrate*(db: Db, dir: string, allowContract = false) =
     fail(program, refusal)
 
   db.tx(proc(conn: DbConn) =
+    # A blocked ALTER TABLE queues behind any transaction holding a
+    # conflicting lock, and every later query queues behind it. The bounds turn
+    # that into a failed deploy instead of a hung service.
+    discard conn.execUpdate("set local lock_timeout = '5s'")
+    discard conn.execUpdate("set local statement_timeout = '60s'")
     # One transaction and one advisory lock: two deploys cannot interleave.
     discard conn.query("select pg_advisory_xact_lock(hashtext('majadu-dbtools'))")
     ensureLedger(conn)
